@@ -126,11 +126,9 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 
 	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	assert.Equal(t, types.RoleUser, messages[0].Role())
-	assert.Equal(t, "/compact", messages[0].Content())
-	assert.Equal(t, types.RoleAssistant, messages[1].Role())
-	assert.Equal(t, result.Summary, messages[1].Content())
+	require.Len(t, messages, 1)
+	assert.Equal(t, types.RoleSystem, messages[0].Role())
+	assert.Equal(t, result.Summary, messages[0].Content())
 
 	updatedSession, err := chatRepo.GetSession(t.Context(), session.ID())
 	require.NoError(t, err)
@@ -160,9 +158,84 @@ func TestChatService_CompactSessionHistory_EmptyHistory(t *testing.T) {
 
 	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	assert.Equal(t, types.RoleSystem, messages[0].Role())
+	assert.Equal(t, result.Summary, messages[0].Content())
+}
+
+func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil).(*chatServiceImpl)
+
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("replace"),
+		domain.WithPendingQuestionAgent("sql_agent"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	base := time.Now().Add(-5 * time.Minute)
+	userOne := types.UserMessage(
+		"first",
+		types.WithSessionID(session.ID()),
+		types.WithCreatedAt(base),
+	)
+	assistantOne := types.AssistantMessage(
+		"first response",
+		types.WithSessionID(session.ID()),
+		types.WithCreatedAt(base.Add(time.Second)),
+	)
+	userTwo := types.UserMessage(
+		"second",
+		types.WithSessionID(session.ID()),
+		types.WithCreatedAt(base.Add(2*time.Second)),
+	)
+	assistantTwo := types.AssistantMessage(
+		"second response",
+		types.WithSessionID(session.ID()),
+		types.WithCreatedAt(base.Add(3*time.Second)),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), userOne))
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), assistantOne))
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), userTwo))
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), assistantTwo))
+
+	replaceFromID := userTwo.ID()
+	updated, err := svc.maybeReplaceHistoryFromMessage(t.Context(), session, &replaceFromID)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Nil(t, updated.PendingQuestionAgent())
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
 	require.Len(t, messages, 2)
-	assert.Equal(t, "/compact", messages[0].Content())
-	assert.Equal(t, result.Summary, messages[1].Content())
+	assert.Equal(t, userOne.ID(), messages[0].ID())
+	assert.Equal(t, assistantOne.ID(), messages[1].ID())
+}
+
+func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil).(*chatServiceImpl)
+
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("replace"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	assistant := types.AssistantMessage("answer", types.WithSessionID(session.ID()))
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), assistant))
+
+	replaceFromID := assistant.ID()
+	_, err := svc.maybeReplaceHistoryFromMessage(t.Context(), session, &replaceFromID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "replaceFromMessageId must point to a user message")
 }
 
 type captureTitleContextService struct {

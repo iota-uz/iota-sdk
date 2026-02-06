@@ -47,6 +47,9 @@ type SendMessageRequest struct {
 	Content     string
 	Attachments []domain.Attachment
 	DebugMode   bool
+	// ReplaceFromMessageID truncates session history from this user message onward
+	// before sending the new content (used by edit/regenerate flows).
+	ReplaceFromMessageID *uuid.UUID
 }
 
 // SendMessageResponse contains the result of sending a message

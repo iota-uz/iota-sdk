@@ -46,6 +46,7 @@ export interface UserTurn {
  */
 export interface AssistantTurn {
   id: string
+  role?: MessageRole
   content: string
   explanation?: string
   citations: Citation[]
@@ -277,6 +278,7 @@ export interface DebugTrace {
 
 export interface SendMessageOptions {
   debugMode?: boolean
+  replaceFromMessageID?: string
 }
 
 // ============================================================================

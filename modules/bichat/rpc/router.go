@@ -92,6 +92,7 @@ type UserTurn struct {
 
 type AssistantTurn struct {
 	ID          string       `json:"id"`
+	Role        string       `json:"role,omitempty"`
 	Content     string       `json:"content"`
 	Explanation string       `json:"explanation,omitempty"`
 	Citations   []Citation   `json:"citations"`
@@ -700,12 +701,36 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 			}
 			turns = append(turns, t)
 			current = &turns[len(turns)-1]
+		case types.RoleSystem:
+			t := ConversationTurn{
+				ID:        m.ID().String(),
+				SessionID: m.SessionID().String(),
+				UserTurn: UserTurn{
+					ID:          m.ID().String(),
+					Content:     "",
+					Attachments: []Attachment{},
+					CreatedAt:   m.CreatedAt().Format(time.RFC3339),
+				},
+				AssistantTurn: &AssistantTurn{
+					ID:          m.ID().String(),
+					Role:        string(types.RoleSystem),
+					Content:     m.Content(),
+					Citations:   mapCitations(m.Citations()),
+					ToolCalls:   mapToolCalls(m.ToolCalls()),
+					Artifacts:   []any{},
+					CodeOutputs: mapCodeOutputs(m.CodeOutputs()),
+					CreatedAt:   m.CreatedAt().Format(time.RFC3339),
+				},
+				CreatedAt: m.CreatedAt().Format(time.RFC3339),
+			}
+			turns = append(turns, t)
 		case types.RoleAssistant:
 			if current == nil || current.AssistantTurn != nil {
 				continue
 			}
 			current.AssistantTurn = &AssistantTurn{
 				ID:          m.ID().String(),
+				Role:        string(types.RoleAssistant),
 				Content:     m.Content(),
 				Citations:   mapCitations(m.Citations()),
 				ToolCalls:   mapToolCalls(m.ToolCalls()),

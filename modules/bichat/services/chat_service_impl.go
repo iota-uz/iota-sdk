@@ -234,13 +234,8 @@ func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID u
 		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
 	}
 
-	userMsg := types.UserMessage("/compact", types.WithSessionID(sessionID))
-	if err := s.chatRepo.SaveMessage(ctx, userMsg); err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
-	}
-
-	assistantMsg := types.AssistantMessage(summary, types.WithSessionID(sessionID))
-	if err := s.chatRepo.SaveMessage(ctx, assistantMsg); err != nil {
+	systemMsg := types.SystemMessage(summary, types.WithSessionID(sessionID))
+	if err := s.chatRepo.SaveMessage(ctx, systemMsg); err != nil {
 		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
 	}
 
@@ -263,6 +258,10 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 
 	// Get session
 	session, err := s.chatRepo.GetSession(ctx, req.SessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	session, err = s.maybeReplaceHistoryFromMessage(ctx, session, req.ReplaceFromMessageID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -383,6 +382,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 	// Get session
 	session, err := s.chatRepo.GetSession(ctx, req.SessionID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	session, err = s.maybeReplaceHistoryFromMessage(ctx, session, req.ReplaceFromMessageID)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -573,6 +576,41 @@ func recordToolEvent(toolCalls map[string]types.ToolCall, toolOrder *[]string, t
 	}
 
 	toolCalls[key] = call
+}
+
+func (s *chatServiceImpl) maybeReplaceHistoryFromMessage(
+	ctx context.Context,
+	session domain.Session,
+	replaceFromMessageID *uuid.UUID,
+) (domain.Session, error) {
+	const op serrors.Op = "chatServiceImpl.maybeReplaceHistoryFromMessage"
+
+	if replaceFromMessageID == nil {
+		return session, nil
+	}
+
+	msg, err := s.chatRepo.GetMessage(ctx, *replaceFromMessageID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	if msg.SessionID() != session.ID() {
+		return nil, serrors.E(op, serrors.KindValidation, "replaceFromMessageId does not belong to session")
+	}
+	if msg.Role() != types.RoleUser {
+		return nil, serrors.E(op, serrors.KindValidation, "replaceFromMessageId must point to a user message")
+	}
+
+	if _, err := s.chatRepo.TruncateMessagesFrom(ctx, session.ID(), msg.CreatedAt()); err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	updated := session.UpdatePendingQuestionAgent(nil).UpdateUpdatedAt(time.Now())
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	return updated, nil
 }
 
 func orderedToolCalls(toolCalls map[string]types.ToolCall, toolOrder []string) []types.ToolCall {

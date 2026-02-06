@@ -227,6 +227,13 @@ export function AssistantMessage({
   const [isCopied, setIsCopied] = useState(false)
   const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const classes = mergeClassNames(defaultClassNames, classNameOverrides)
+  const isSystemMessage = turn.role === 'system'
+  const avatarClassName = isSystemMessage
+    ? 'flex-shrink-0 w-8 h-8 rounded-full bg-gray-500 dark:bg-gray-600 flex items-center justify-center text-white font-medium text-xs'
+    : classes.avatar
+  const bubbleClassName = isSystemMessage
+    ? 'bg-gray-50 dark:bg-gray-900/40 border border-gray-300 dark:border-gray-700 rounded-2xl px-4 py-3'
+    : classes.bubble
 
   useEffect(() => {
     return () => {
@@ -291,7 +298,7 @@ export function AssistantMessage({
   const timestamp = formatDistanceToNow(new Date(turn.createdAt), { addSuffix: true })
 
   // Slot props
-  const avatarSlotProps: AssistantMessageAvatarSlotProps = { text: 'AI' }
+  const avatarSlotProps: AssistantMessageAvatarSlotProps = { text: isSystemMessage ? 'SYS' : 'AI' }
   const contentSlotProps: AssistantMessageContentSlotProps = {
     content: turn.content,
     citations: turn.citations,
@@ -311,10 +318,10 @@ export function AssistantMessage({
   }
   const actionsSlotProps: AssistantMessageActionsSlotProps = {
     onCopy: handleCopyClick,
-    onRegenerate: onRegenerate && turnId ? handleRegenerateClick : undefined,
+    onRegenerate: onRegenerate && turnId && !isSystemMessage ? handleRegenerateClick : undefined,
     timestamp,
     canCopy: hasContent,
-    canRegenerate: !!onRegenerate && !!turnId,
+    canRegenerate: !!onRegenerate && !!turnId && !isSystemMessage,
   }
   const explanationSlotProps: AssistantMessageExplanationSlotProps = {
     explanation: turn.explanation || '',
@@ -337,8 +344,8 @@ export function AssistantMessage({
     <div className={classes.root}>
       {/* Avatar */}
       {!hideAvatar && (
-        <div className={classes.avatar}>
-          {renderSlot(slots?.avatar, avatarSlotProps, 'AI')}
+        <div className={avatarClassName}>
+          {renderSlot(slots?.avatar, avatarSlotProps, isSystemMessage ? 'SYS' : 'AI')}
         </div>
       )}
 
@@ -376,7 +383,7 @@ export function AssistantMessage({
 
         {/* Message bubble */}
         {hasContent && (
-          <div className={classes.bubble}>
+          <div className={bubbleClassName}>
             {renderSlot(
               slots?.content,
               contentSlotProps,
@@ -538,7 +545,7 @@ export function AssistantMessage({
                   </span>
                 )}
 
-                {onRegenerate && turnId && (
+                {onRegenerate && turnId && !isSystemMessage && (
                   <button
                     onClick={handleRegenerateClick}
                     className={`cursor-pointer ${classes.actionButton}`}

@@ -7,19 +7,21 @@
  */
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from 'react'
-import type {
-  ChatDataSource,
-  Session,
-  ConversationTurn,
-  PendingQuestion,
-  QuestionAnswers,
-  Attachment,
-  ImageAttachment,
-  QueuedMessage,
-  CodeOutput,
-  ChatSessionContextValue,
-  DebugTrace,
-  ToolCall,
+import {
+  MessageRole,
+  type ChatDataSource,
+  type Session,
+  type ConversationTurn,
+  type PendingQuestion,
+  type QuestionAnswers,
+  type Attachment,
+  type ImageAttachment,
+  type QueuedMessage,
+  type CodeOutput,
+  type ChatSessionContextValue,
+  type DebugTrace,
+  type ToolCall,
+  type SendMessageOptions,
 } from '../types'
 import { RateLimiter } from '../utils/RateLimiter'
 import { hasPermission } from './IotaContext'
@@ -65,6 +67,30 @@ function createPendingTurn(
       createdAt: now,
     },
     // No assistantTurn yet - it will be added when streaming completes
+    createdAt: now,
+  }
+}
+
+function createCompactedSystemTurn(sessionId: string, summary: string): ConversationTurn {
+  const now = new Date().toISOString()
+  return {
+    id: generateTempId('turn'),
+    sessionId,
+    userTurn: {
+      id: generateTempId('user'),
+      content: '',
+      attachments: [],
+      createdAt: now,
+    },
+    assistantTurn: {
+      id: generateTempId('assistant'),
+      role: MessageRole.System,
+      content: summary,
+      citations: [],
+      artifacts: [],
+      codeOutputs: [],
+      createdAt: now,
+    },
     createdAt: now,
   }
 }
@@ -427,7 +453,9 @@ export function ChatSessionProvider({
 
         try {
           const result = await dataSource.compactSessionHistory(currentSessionId)
-          setCompactionSummary(result.summary || '')
+          const summary = result.summary || ''
+          setTurns([createCompactedSystemTurn(currentSessionId, summary)])
+          setCompactionSummary(null)
 
           const state = await dataSource.fetchSession(currentSessionId)
           if (state) {
@@ -459,7 +487,11 @@ export function ChatSessionProvider({
   )
 
   const sendMessageDirect = useCallback(
-    async (content: string, attachments: Attachment[] = []): Promise<void> => {
+    async (
+      content: string,
+      attachments: Attachment[] = [],
+      options?: SendMessageOptions
+    ): Promise<void> => {
       if (!content.trim() || loading) return
 
       const trimmedContent = content.trim()
@@ -498,7 +530,17 @@ export function ChatSessionProvider({
 
       // Add optimistic turn (user message only, no assistant response yet)
       const tempTurn = createPendingTurn(currentSessionId || 'new', content, attachments)
-      setTurns((prev) => [...prev, tempTurn])
+      const replaceFromMessageID = options?.replaceFromMessageID
+      setTurns((prev) => {
+        if (!replaceFromMessageID) {
+          return [...prev, tempTurn]
+        }
+        const replaceIndex = prev.findIndex((turn) => turn.userTurn.id === replaceFromMessageID)
+        if (replaceIndex === -1) {
+          return [...prev, tempTurn]
+        }
+        return [...prev.slice(0, replaceIndex), tempTurn]
+      })
 
       try {
         // Create session if needed
@@ -530,7 +572,10 @@ export function ChatSessionProvider({
           content,
           attachments,
           abortControllerRef.current?.signal,
-          { debugMode }
+          {
+            debugMode,
+            replaceFromMessageID,
+          }
         )) {
           // Check if cancelled
           if (abortControllerRef.current?.signal.aborted) {
@@ -659,18 +704,16 @@ export function ChatSessionProvider({
       const turn = turns.find((t) => t.id === turnId)
       if (!turn) return
 
-      setLoading(true)
       setError(null)
 
       try {
-        // Resend the user message from this turn
-        await sendMessageDirect(turn.userTurn.content, turn.userTurn.attachments)
+        await sendMessageDirect(turn.userTurn.content, turn.userTurn.attachments, {
+          replaceFromMessageID: turn.userTurn.id,
+        })
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to regenerate response'
         setError(errorMessage)
         console.error('Regenerate error:', err)
-      } finally {
-        setLoading(false)
       }
     },
     [turns, currentSessionId, sendMessageDirect]
@@ -684,21 +727,25 @@ export function ChatSessionProvider({
         return
       }
 
-      setLoading(true)
+      const turn = turns.find((t) => t.id === turnId)
+      if (!turn) {
+        setError('Failed to edit message')
+        return
+      }
+
       setError(null)
 
       try {
-        // For edit, we resend with the edited content
-        await sendMessageDirect(newContent, [])
+        await sendMessageDirect(newContent, turn.userTurn.attachments, {
+          replaceFromMessageID: turn.userTurn.id,
+        })
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to edit message'
         setError(errorMessage)
         console.error('Edit error:', err)
-      } finally {
-        setLoading(false)
       }
     },
-    [currentSessionId, sendMessageDirect]
+    [currentSessionId, turns, sendMessageDirect]
   )
 
   const handleSubmitQuestionAnswers = useCallback(

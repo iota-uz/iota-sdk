@@ -35,6 +35,7 @@ export interface Artifact {
 
 export interface AssistantTurn {
   id: string
+  role?: string
   content: string
   explanation?: string
   citations: Citation[]
@@ -184,4 +185,3 @@ export interface UserTurn {
   attachments: Attachment[]
   createdAt: string
 }
-

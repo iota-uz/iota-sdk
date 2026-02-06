@@ -39,7 +39,6 @@ export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs
     isStreaming,
     loading,
     isCompacting,
-    compactionSummary,
     currentSessionId,
     fetching,
   } = useChat()
@@ -120,16 +119,6 @@ export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs
               subtitle={t('slash.compactingSubtitle')}
             />
           )}
-          {!isCompacting && compactionSummary && (
-            <div className="rounded-2xl border border-primary-200 dark:border-primary-800 bg-primary-50/70 dark:bg-primary-900/20 p-4">
-              <p className="text-xs uppercase tracking-wide text-primary-700 dark:text-primary-300 mb-1">
-                {t('slash.compactedSummaryLabel')}
-              </p>
-              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                {compactionSummary}
-              </p>
-            </div>
-          )}
           {/* Loading skeleton when no turns yet */}
           {fetching && turns.length === 0 && (
             <div className="space-y-6" aria-hidden="true">
@@ -201,7 +190,11 @@ export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs
           <div ref={messagesEndRef} />
         </div>
       </div>
-      <ScrollToBottomButton show={showScrollButton} onClick={() => scrollToBottom('smooth')} />
+      <ScrollToBottomButton
+        show={showScrollButton}
+        onClick={() => scrollToBottom('smooth')}
+        label={isStreaming && showScrollButton ? 'New messages' : undefined}
+      />
     </div>
   )
 }

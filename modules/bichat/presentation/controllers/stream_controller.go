@@ -107,6 +107,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		Content     string              `json:"content"`
 		Attachments []domain.Attachment `json:"attachments"`
 		DebugMode   bool                `json:"debugMode"`
+		ReplaceFrom *uuid.UUID          `json:"replaceFromMessageId,omitempty"`
 	}
 
 	var req streamRequest
@@ -157,6 +158,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		Content:     req.Content,
 		Attachments: req.Attachments,
 		DebugMode:   req.DebugMode,
+		ReplaceFromMessageID: req.ReplaceFrom,
 	}, func(chunk bichatservices.StreamChunk) {
 		// Handle context cancellation
 		select {

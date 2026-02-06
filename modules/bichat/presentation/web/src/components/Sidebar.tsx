@@ -1,12 +1,18 @@
 /**
  * Sidebar Component
  * Left sidebar with session list (desktop-only, no mobile features)
+ *
+ * Collapse UX matches the SDK sidebar pattern:
+ * - Click empty space to toggle
+ * - Cursor hints (e-resize / w-resize)
+ * - localStorage persistence
+ * - Keyboard shortcuts: Cmd+B toggle, Cmd+K focus search
  */
 
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus } from '@phosphor-icons/react'
+import { Plus, CaretLineLeft, CaretLineRight } from '@phosphor-icons/react'
 import { SearchInput, EmptyState } from '@iota-uz/sdk/bichat'
 import { createAppletRPCClient } from '@iota-uz/sdk'
 import TabBar from './TabBar'
@@ -16,6 +22,42 @@ import { groupSessionsByDate } from '../utils/sessionGrouping'
 import type { ChatSession } from '../utils/sessionGrouping'
 import { useIotaContext } from '../contexts/IotaContext'
 import { toRPCErrorDisplay, type RPCErrorDisplay } from '../utils/rpcErrors'
+
+const STORAGE_KEY = 'bichat-sidebar-collapsed'
+
+function useSidebarCollapse() {
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const isCollapsedRef = useRef(isCollapsed)
+  useEffect(() => {
+    isCollapsedRef.current = isCollapsed
+  }, [isCollapsed])
+
+  const toggle = useCallback(() => {
+    setIsCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(STORAGE_KEY, String(next))
+      } catch { /* noop */ }
+      return next
+    })
+  }, [])
+
+  const expand = useCallback(() => {
+    setIsCollapsed(false)
+    try {
+      localStorage.setItem(STORAGE_KEY, 'false')
+    } catch { /* noop */ }
+  }, [])
+
+  return { isCollapsed, isCollapsedRef, toggle, expand }
+}
 
 // Note: RegenerateSessionTitle will be implemented later if needed
 // For now, users can manually rename sessions
@@ -39,6 +81,8 @@ function useSessionSearch(sessions: ChatSession[], query: string): ChatSession[]
 export default function Sidebar({ onNewChat, creating }: SidebarProps) {
   const location = useLocation()
   const { config } = useIotaContext()
+  const { isCollapsed, isCollapsedRef, toggle, expand } = useSidebarCollapse()
+  const searchContainerRef = useRef<HTMLDivElement>(null)
 
   // Permission checks (placeholder - TODO: integrate with IotaContext when available)
   const canReadAllChats = false // For now, disable "All Chats" tab
@@ -179,164 +223,274 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
     }
   }
 
-  // Regenerate title functionality removed for now
-  // Users can manually rename sessions via the rename option
+  // Click-on-empty-space to toggle (same pattern as SDK sidebar)
+  const handleSidebarClick = useCallback(
+    (e: React.MouseEvent<HTMLElement>) => {
+      const interactive = 'a, button, input, summary, [role="button"]'
+      if ((e.target as HTMLElement).closest(interactive)) return
+      toggle()
+    },
+    [toggle]
+  )
+
+  // Focus the search input (expanding sidebar first if needed)
+  const focusSearch = useCallback(() => {
+    if (isCollapsedRef.current) {
+      expand()
+      // Wait for expanded content to become interactive (opacity transition)
+      setTimeout(() => {
+        searchContainerRef.current?.querySelector('input')?.focus()
+      }, 250)
+    } else {
+      searchContainerRef.current?.querySelector('input')?.focus()
+    }
+  }, [expand, isCollapsedRef])
+
+  // Keyboard shortcuts: Cmd+B (toggle), Cmd+K (focus search)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept when inside editable fields (except for our shortcuts)
+      const isMod = e.metaKey || e.ctrlKey
+
+      if (isMod && e.key === 'b') {
+        e.preventDefault()
+        toggle()
+      }
+
+      if (isMod && e.key === 'k') {
+        e.preventDefault()
+        focusSearch()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [toggle, focusSearch])
 
   return (
     <aside
-      className="w-64 h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800/80"
+      onClick={handleSidebarClick}
+      className={`relative h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800/80 transition-[width] duration-300 ease-in-out ${
+        isCollapsed
+          ? 'w-16 cursor-e-resize'
+          : 'w-64 cursor-w-resize'
+      }`}
+      style={{ willChange: 'width' }}
       role="navigation"
       aria-label="Chat sessions"
     >
-      {/* TabBar - Only visible if user has ReadAll permission */}
-      <TabBar activeTab={activeTab} onTabChange={setActiveTab} showAllChats={canReadAllChats} />
+      {/* Collapsed overlay — absolutely positioned, fades in after width shrinks */}
+      <div
+        className={`absolute inset-x-0 top-0 bottom-0 z-10 flex flex-col items-center pt-3 gap-3 transition-opacity ${
+          isCollapsed
+            ? 'opacity-100 duration-150 delay-100'
+            : 'opacity-0 pointer-events-none duration-100'
+        }`}
+      >
+        <motion.button
+          onClick={(e) => {
+            e.stopPropagation()
+            onNewChat()
+          }}
+          disabled={creating || fetching || accessDenied}
+          className="w-10 h-10 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary-400/50"
+          title="New chat"
+          aria-label="Create new chat"
+          whileTap={{ scale: 0.95 }}
+        >
+          {creating ? (
+            <div className="w-4 h-4 border-2 border-white/50 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Plus size={18} weight="bold" />
+          )}
+        </motion.button>
+      </div>
 
-      {/* My Chats View */}
-      {activeTab === 'my-chats' && (
-        <>
-          {/* New Chat Button */}
-          <div className="px-4 pt-3 pb-2">
-            <motion.button
-              onClick={onNewChat}
-              disabled={creating || fetching || accessDenied}
-              className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-              title={accessDenied ? 'Missing permission for BiChat' : 'New chat'}
-              aria-label="Create new chat"
-              whileHover={{ y: -1 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              {creating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/50 border-t-transparent rounded-full animate-spin" />
-                  <span>Creating...</span>
-                </>
+      {/* Expanded content — fades out before width shrinks, prevents text compression */}
+      <div
+        className={`flex flex-col flex-1 min-h-0 w-64 shrink-0 transition-opacity ${
+          isCollapsed
+            ? 'opacity-0 pointer-events-none duration-100'
+            : 'opacity-100 duration-150 delay-[200ms]'
+        }`}
+      >
+        {/* TabBar - Only visible if user has ReadAll permission */}
+        <TabBar activeTab={activeTab} onTabChange={setActiveTab} showAllChats={canReadAllChats} />
+
+        {/* My Chats View */}
+        {activeTab === 'my-chats' && (
+          <>
+            {/* New Chat Button */}
+            <div className="px-4 pt-3 pb-2">
+              <motion.button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNewChat()
+                }}
+                disabled={creating || fetching || accessDenied}
+                className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+                title={accessDenied ? 'Missing permission for BiChat' : 'New chat'}
+                aria-label="Create new chat"
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {creating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/50 border-t-transparent rounded-full animate-spin" />
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={16} weight="bold" />
+                    <span>New Chat</span>
+                  </>
+                )}
+              </motion.button>
+            </div>
+
+            {/* Search Input */}
+            <div ref={searchContainerRef} className="px-4 pb-2 cursor-pointer">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search chats..."
+              />
+            </div>
+
+            {/* Chat History */}
+            <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-4" aria-label="Chat history">
+              {fetching && sessions.length === 0 ? (
+                <SessionSkeleton count={5} />
               ) : (
                 <>
-                  <Plus size={16} weight="bold" />
-                  <span>New Chat</span>
+                  <SessionList
+                    groups={sessionGroups}
+                    pinnedSessions={pinnedSessions}
+                    activeSessionId={activeSessionId}
+                    onDelete={handleDeleteSession}
+                    onTogglePin={handleTogglePin}
+                    onRename={handleRenameSession}
+                  />
+
+                  {/* Empty State - refined */}
+                  {filteredSessions.length === 0 && !fetching && !loadError && (
+                    <EmptyState
+                      title={searchQuery ? `No results for "${searchQuery}"` : 'No chats yet'}
+                      description={
+                        searchQuery
+                          ? undefined
+                          : 'Start a conversation to begin'
+                      }
+                      action={
+                        searchQuery ? (
+                          <button
+                            onClick={() => setSearchQuery('')}
+                            className="mt-2 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
+                          >
+                            Clear search
+                          </button>
+                        ) : undefined
+                      }
+                    />
+                  )}
                 </>
               )}
-            </motion.button>
-          </div>
 
-          {/* Search Input */}
-          <div className="px-4 pb-2 cursor-pointer">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search chats..."
+              {loadError && (
+                <div
+                  className={
+                    loadError.isPermissionDenied
+                      ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
+                      : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
+                  }
+                >
+                  <p
+                    className={
+                      loadError.isPermissionDenied
+                        ? 'text-xs text-amber-700 dark:text-amber-300 font-medium'
+                        : 'text-xs text-red-600 dark:text-red-400 font-medium'
+                    }
+                  >
+                    {loadError.title}
+                  </p>
+                  <p
+                    className={
+                      loadError.isPermissionDenied
+                        ? 'mt-1 text-xs text-amber-600 dark:text-amber-400'
+                        : 'mt-1 text-xs text-red-500 dark:text-red-300'
+                    }
+                  >
+                    {loadError.description}
+                  </p>
+                </div>
+              )}
+
+              {actionError && !loadError && (
+                <div
+                  className={
+                    actionError.isPermissionDenied
+                      ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
+                      : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
+                  }
+                >
+                  <p
+                    className={
+                      actionError.isPermissionDenied
+                        ? 'text-xs text-amber-700 dark:text-amber-300 font-medium'
+                        : 'text-xs text-red-600 dark:text-red-400 font-medium'
+                    }
+                  >
+                    {actionError.title}
+                  </p>
+                  <p
+                    className={
+                      actionError.isPermissionDenied
+                        ? 'mt-1 text-xs text-amber-600 dark:text-amber-400'
+                        : 'mt-1 text-xs text-red-500 dark:text-red-300'
+                    }
+                  >
+                    {actionError.description}
+                  </p>
+                </div>
+              )}
+            </nav>
+          </>
+        )}
+
+        {/* All Chats View - Placeholder */}
+        {activeTab === 'all-chats' && (
+          <div className="flex-1 flex items-center justify-center p-4">
+            <EmptyState
+              title="All Chats"
+              description="This feature is not yet implemented"
             />
           </div>
+        )}
+      </div>
 
-          {/* Chat History */}
-          <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-4" aria-label="Chat history">
-            {fetching && sessions.length === 0 ? (
-              <SessionSkeleton count={5} />
-            ) : (
-              <>
-                <SessionList
-                  groups={sessionGroups}
-                  pinnedSessions={pinnedSessions}
-                  activeSessionId={activeSessionId}
-                  onDelete={handleDeleteSession}
-                  onTogglePin={handleTogglePin}
-                  onRename={handleRenameSession}
-                />
-
-                {/* Empty State - refined */}
-                {filteredSessions.length === 0 && !fetching && !loadError && (
-                  <EmptyState
-                    title={searchQuery ? `No results for "${searchQuery}"` : 'No chats yet'}
-                    description={
-                      searchQuery
-                        ? undefined
-                        : 'Start a conversation to begin'
-                    }
-                    action={
-                      searchQuery ? (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className="mt-2 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
-                        >
-                          Clear search
-                        </button>
-                      ) : undefined
-                    }
-                  />
-                )}
-              </>
-            )}
-
-            {loadError && (
-              <div
-                className={
-                  loadError.isPermissionDenied
-                    ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
-                    : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
-                }
-              >
-                <p
-                  className={
-                    loadError.isPermissionDenied
-                      ? 'text-xs text-amber-700 dark:text-amber-300 font-medium'
-                      : 'text-xs text-red-600 dark:text-red-400 font-medium'
-                  }
-                >
-                  {loadError.title}
-                </p>
-                <p
-                  className={
-                    loadError.isPermissionDenied
-                      ? 'mt-1 text-xs text-amber-600 dark:text-amber-400'
-                      : 'mt-1 text-xs text-red-500 dark:text-red-300'
-                  }
-                >
-                  {loadError.description}
-                </p>
-              </div>
-            )}
-
-            {actionError && !loadError && (
-              <div
-                className={
-                  actionError.isPermissionDenied
-                    ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
-                    : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
-                }
-              >
-                <p
-                  className={
-                    actionError.isPermissionDenied
-                      ? 'text-xs text-amber-700 dark:text-amber-300 font-medium'
-                      : 'text-xs text-red-600 dark:text-red-400 font-medium'
-                  }
-                >
-                  {actionError.title}
-                </p>
-                <p
-                  className={
-                    actionError.isPermissionDenied
-                      ? 'mt-1 text-xs text-amber-600 dark:text-amber-400'
-                      : 'mt-1 text-xs text-red-500 dark:text-red-300'
-                  }
-                >
-                  {actionError.description}
-                </p>
-              </div>
-            )}
-          </nav>
-        </>
-      )}
-
-      {/* All Chats View - Placeholder */}
-      {activeTab === 'all-chats' && (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <EmptyState
-            title="All Chats"
-            description="This feature is not yet implemented"
-          />
-        </div>
-      )}
+      {/* Footer toggle — matches SDK sidebar mt-auto footer pattern */}
+      <div className={`mt-auto border-t border-gray-100 dark:border-gray-800/80 transition-all duration-300 ${isCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3'}`}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            toggle()
+          }}
+          className={`flex items-center gap-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
+            isCollapsed ? 'w-10 h-10 justify-center' : 'w-full px-3 py-2'
+          }`}
+          title={isCollapsed ? 'Expand sidebar (⌘B)' : 'Collapse sidebar (⌘B)'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isCollapsed ? (
+            <CaretLineRight size={16} />
+          ) : (
+            <>
+              <CaretLineLeft size={16} />
+              <span className="text-xs font-medium">Collapse</span>
+            </>
+          )}
+        </button>
+      </div>
     </aside>
   )
 }

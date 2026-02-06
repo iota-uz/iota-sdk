@@ -287,3 +287,53 @@ func TestStreamController_DebugMode_AllowedWithExportPermission(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 }
+
+func TestStreamController_ReplaceFromMessageID_ForwardedToService(t *testing.T) {
+	t.Parallel()
+
+	sessionID := uuid.New()
+	replaceFromID := uuid.New()
+	body := `{"sessionId":"` + sessionID.String() + `","content":"updated prompt","replaceFromMessageId":"` + replaceFromID.String() + `"}`
+
+	u := user.New(
+		"Test",
+		"User",
+		internet.MustParseEmail("test@example.com"),
+		user.UILanguageEN,
+		user.WithID(1),
+	)
+
+	var capturedReq services.SendMessageRequest
+	svc := stubChatService{
+		getSession: func(ctx context.Context, id uuid.UUID) (domain.Session, error) {
+			return domain.NewSession(
+				domain.WithID(id),
+				domain.WithUserID(1),
+				domain.WithTitle("x"),
+			), nil
+		},
+		sendMessageStream: func(ctx context.Context, req services.SendMessageRequest, onChunk func(services.StreamChunk)) error {
+			capturedReq = req
+			onChunk(services.StreamChunk{Type: services.ChunkTypeDone})
+			return nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewBufferString(body))
+	req = req.WithContext(composables.WithUser(req.Context(), u))
+
+	w := flusherRecorder{ResponseRecorder: httptest.NewRecorder()}
+
+	c := NewStreamController(nil, svc)
+	c.StreamMessage(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+	if capturedReq.ReplaceFromMessageID == nil {
+		t.Fatalf("expected replaceFromMessageId to be forwarded")
+	}
+	if *capturedReq.ReplaceFromMessageID != replaceFromID {
+		t.Fatalf("expected replaceFromMessageId %s, got %s", replaceFromID, *capturedReq.ReplaceFromMessageID)
+	}
+}

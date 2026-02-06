@@ -1,5 +1,7 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+import typography from '@tailwindcss/typography'
+
+export default {
   darkMode: 'class',
   content: [
     // UI sources
@@ -23,12 +25,16 @@ module.exports = {
           800: 'oklch(var(--primary-800))',
           900: 'oklch(var(--primary-900))',
         },
+        brand: {
+          500: 'oklch(var(--primary-500) / <alpha-value>)',
+          600: 'oklch(var(--primary-600) / <alpha-value>)',
+          700: 'oklch(var(--primary-700) / <alpha-value>)',
+        },
       },
       fontFamily: {
         sans: ['Gilroy', 'system-ui', '-apple-system', 'sans-serif'],
       },
     },
   },
-  plugins: [require('@tailwindcss/typography')],
+  plugins: [typography],
 }
-

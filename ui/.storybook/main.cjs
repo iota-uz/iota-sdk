@@ -1,12 +1,7 @@
-import { StorybookConfig } from '@storybook/react-vite'
-import { mergeConfig } from 'vite'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+const path = require('node:path')
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-const config: StorybookConfig = {
+/** @type { import('@storybook/react-vite').StorybookConfig } */
+const config = {
   stories: ['../src/**/*.stories.@(ts|tsx)'],
   addons: [
     '@storybook/addon-essentials',
@@ -22,7 +17,8 @@ const config: StorybookConfig = {
       to: '/assets',
     },
   ],
-  viteFinal: async (viteConfig) => {
+  async viteFinal(viteConfig) {
+    const { mergeConfig } = await import('vite')
     return mergeConfig(viteConfig, {
       resolve: {
         alias: {
@@ -35,4 +31,4 @@ const config: StorybookConfig = {
   },
 }
 
-export default config
+module.exports = config

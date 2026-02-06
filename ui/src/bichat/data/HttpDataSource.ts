@@ -143,6 +143,7 @@ export class HttpDataSource implements ChatDataSource {
       sessionId,
       content,
       debugMode: options?.debugMode ?? false,
+      replaceFromMessageId: options?.replaceFromMessageID,
       attachments: attachments.map(a => ({
         id: a.id,
         filename: a.filename,
