@@ -71,7 +71,7 @@ function MarkdownRenderer({
 
       if (isInline) {
         return (
-          <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-red-600 dark:text-red-400 rounded text-sm font-mono">
+          <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded text-sm font-mono">
             {value}
           </code>
         )

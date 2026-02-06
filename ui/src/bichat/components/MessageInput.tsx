@@ -43,7 +43,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     {
       message,
       loading,
-      fetching = false,
       disabled = false,
       commandError = null,
       debugMode = false,
@@ -64,7 +63,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const [isDragging, setIsDragging] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isFocused, setIsFocused] = useState(false)
-    const [commandListOpen, setCommandListOpen] = useState(false)
+    const [commandListDismissed, setCommandListDismissed] = useState(false)
     const [activeCommandIndex, setActiveCommandIndex] = useState(0)
     const [isComposing, setIsComposing] = useState(false)
 
@@ -75,6 +74,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const fileInputRef = useRef<HTMLInputElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const formRef = useRef<HTMLFormElement>(null)
+    const commandItemRefs = useRef<Array<HTMLLIElement | null>>([])
+    const isSlashMode = message.trimStart().startsWith('/')
+    const commandQuery = message.trimStart().slice(1).split(/\s+/)[0]?.toLowerCase() || ''
 
     const slashCommands = useMemo(
       () => [
@@ -84,6 +86,14 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       ],
       [t]
     )
+    const filteredCommands = useMemo(
+      () =>
+        slashCommands.filter((cmd) =>
+          cmd.name.slice(1).startsWith(commandQuery)
+        ),
+      [commandQuery, slashCommands]
+    )
+    const isCommandListVisible = isSlashMode && !commandListDismissed && !loading && !disabled
 
     useImperativeHandle(ref, () => ({
       focus: () => textareaRef.current?.focus(),
@@ -110,35 +120,48 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     }, [error])
 
     useEffect(() => {
-      if (isFocused && message.trimStart().startsWith('/')) {
-        setCommandListOpen(true)
-      } else {
-        setCommandListOpen(false)
+      if (isSlashMode) {
+        setCommandListDismissed(false)
       }
-    }, [isFocused, message])
+    }, [isSlashMode, message])
 
     useEffect(() => {
-      if (!commandListOpen) return
+      if (!isCommandListVisible) return
 
       const handleOutsideClick = (event: MouseEvent) => {
         if (!containerRef.current) return
         if (event.target instanceof Node && !containerRef.current.contains(event.target)) {
-          setCommandListOpen(false)
+          setCommandListDismissed(true)
         }
       }
 
       document.addEventListener('mousedown', handleOutsideClick)
       return () => document.removeEventListener('mousedown', handleOutsideClick)
-    }, [commandListOpen])
-
-    const commandQuery = message.trimStart().slice(1).split(/\s+/)[0]?.toLowerCase() || ''
-    const filteredCommands = slashCommands.filter((cmd) =>
-      cmd.name.slice(1).startsWith(commandQuery)
-    )
+    }, [isCommandListVisible])
 
     useEffect(() => {
       setActiveCommandIndex(0)
-    }, [commandQuery, filteredCommands.length])
+    }, [commandQuery])
+
+    useEffect(() => {
+      if (filteredCommands.length === 0) {
+        setActiveCommandIndex(0)
+        return
+      }
+
+      setActiveCommandIndex((prev) => {
+        if (prev < 0) return 0
+        if (prev >= filteredCommands.length) return filteredCommands.length - 1
+        return prev
+      })
+    }, [filteredCommands.length])
+
+    useEffect(() => {
+      if (!isCommandListVisible || filteredCommands.length === 0) return
+      commandItemRefs.current[activeCommandIndex]?.scrollIntoView({
+        block: 'nearest',
+      })
+    }, [activeCommandIndex, filteredCommands.length, isCommandListVisible])
 
     const handleFileSelect = async (files: FileList | null) => {
       if (!files || files.length === 0) return
@@ -201,7 +224,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
     const submitCommandSelection = (command: string) => {
       onMessageChange(command)
-      setCommandListOpen(false)
+      setCommandListDismissed(true)
+      setActiveCommandIndex(0)
       requestAnimationFrame(() => {
         formRef.current?.requestSubmit()
       })
@@ -212,10 +236,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         return
       }
 
-      const isSlashMode = message.trimStart().startsWith('/')
-
-      if (isSlashMode && commandListOpen) {
-        if (e.key === 'ArrowDown') {
+      if (isCommandListVisible) {
+        if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
           e.preventDefault()
           if (filteredCommands.length > 0) {
             setActiveCommandIndex((prev) => (prev + 1) % filteredCommands.length)
@@ -223,7 +245,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           return
         }
 
-        if (e.key === 'ArrowUp') {
+        if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
           e.preventDefault()
           if (filteredCommands.length > 0) {
             setActiveCommandIndex((prev) =>
@@ -235,7 +257,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
         if (e.key === 'Escape') {
           e.preventDefault()
-          setCommandListOpen(false)
+          setCommandListDismissed(true)
           return
         }
 
@@ -259,7 +281,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
       if (e.key === 'Escape') {
         if (isSlashMode) {
-          setCommandListOpen(false)
+          setCommandListDismissed(true)
         } else {
           onMessageChange('')
           setAttachments([])
@@ -283,7 +305,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         return
       }
 
-      setCommandListOpen(false)
+      setCommandListDismissed(true)
       onSubmit(e, attachments)
       setAttachments([])
       setError(null)
@@ -367,7 +389,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             <div
               className={`flex items-center gap-2 rounded-2xl p-2.5 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
                 isFocused
-                  ? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-500/15 dark:ring-primary-500/20'
+                  ? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-500/25 dark:ring-primary-500/30'
                   : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
               }`}
             >
@@ -407,12 +429,15 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                   onCompositionStart={() => setIsComposing(true)}
                   onCompositionEnd={() => setIsComposing(false)}
                   onFocus={() => setIsFocused(true)}
-                  onBlur={() => {
+                  onBlur={(e) => {
                     setIsFocused(false)
-                    setCommandListOpen(false)
+                    if (!containerRef.current) return
+                    if (!e.relatedTarget || !containerRef.current.contains(e.relatedTarget)) {
+                      setCommandListDismissed(true)
+                    }
                   }}
                   placeholder={placeholder}
-                  className="resize-none bg-transparent border-none outline-none px-1 py-2 w-full text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-[15px] leading-relaxed"
+                  className="resize-none bg-transparent border-none outline-none px-1 py-2 w-full text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm leading-relaxed"
                   style={{ maxHeight: `${MAX_HEIGHT}px` }}
                   rows={1}
                   disabled={loading || disabled}
@@ -435,56 +460,57 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               </button>
             </div>
 
-            {commandListOpen && message.trimStart().startsWith('/') && (
-              <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] z-20 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
+            {isCommandListVisible && (
+              <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] z-20 overflow-hidden rounded-2xl border border-gray-200/90 bg-white/95 shadow-xl backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/95">
+                <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                  <span>{t('slash.commandsList')}</span>
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Enter</span>
+                </div>
                 {filteredCommands.length > 0 ? (
-                  <ul role="listbox" aria-label={t('slash.commandsList')} className="max-h-52 overflow-y-auto py-1">
+                  <ul role="listbox" aria-label={t('slash.commandsList')} className="max-h-52 overflow-y-auto p-1.5">
                     {filteredCommands.map((command, index) => (
                       <li
                         key={command.name}
                         role="option"
                         aria-selected={index === activeCommandIndex}
+                        ref={(node) => {
+                          commandItemRefs.current[index] = node
+                        }}
+                        onMouseEnter={() => setActiveCommandIndex(index)}
                         onMouseDown={(e) => {
                           e.preventDefault()
                           submitCommandSelection(command.name)
                         }}
-                        className={`px-3 py-2 cursor-pointer transition-colors ${
+                        className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-colors ${
                           index === activeCommandIndex
-                            ? 'bg-primary-50 dark:bg-primary-900/30'
-                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                            ? 'border-primary-200 bg-primary-50/90 dark:border-primary-500/40 dark:bg-primary-500/15'
+                            : 'border-transparent hover:border-gray-200 hover:bg-gray-50 dark:hover:border-gray-700 dark:hover:bg-gray-800/70'
                         }`}
                       >
-                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                           {command.name}
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                           {command.description}
                         </div>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">
                     {t('slash.noMatches')}
                   </div>
                 )}
+                <div className="flex items-center gap-1.5 border-t border-gray-100 px-3 py-2 text-[11px] text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">↑↓</span>
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Tab</span>
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Enter</span>
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Esc</span>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Loading indicator */}
-          {(loading || fetching) && (
-            <div className="mt-3 flex items-center justify-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-pulse" />
-                <div className="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }} />
-                <div className="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }} />
-              </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                {loading ? t('input.aiThinking') : t('input.processing')}
-              </span>
-            </div>
-          )}
         </form>
       </div>
     )

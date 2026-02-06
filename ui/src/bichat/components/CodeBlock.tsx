@@ -118,7 +118,7 @@ function CodeBlock({
   // Inline code styling
   if (inline) {
     return (
-      <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-red-600 dark:text-red-400 rounded text-sm font-mono">
+      <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded text-sm font-mono">
         {value}
       </code>
     )
@@ -137,7 +137,7 @@ function CodeBlock({
   return (
     <div className="relative group my-4 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-700">
       {/* Language label and copy button */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-200 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700">
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700">
         <span className="text-xs text-gray-600 dark:text-gray-400 font-medium uppercase">
           {normalizedLanguage}
         </span>

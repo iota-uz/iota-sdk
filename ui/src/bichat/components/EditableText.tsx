@@ -144,7 +144,7 @@ const EditableText = forwardRef<EditableTextRef, EditableTextProps>(
             onBlur={handleBlur}
             maxLength={maxLength}
             placeholder={placeholder}
-            className={`flex-1 px-2 py-1 ${sizeClass} bg-white dark:bg-gray-700 border border-primary-500 dark:border-primary-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:focus:ring-primary-600/30 text-gray-900 dark:text-white ${inputClassName}`}
+            className={`flex-1 px-2 py-1 ${sizeClass} bg-white dark:bg-gray-700 border border-primary-500 dark:border-primary-600 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 dark:focus-visible:ring-primary-600/30 text-gray-900 dark:text-white ${inputClassName}`}
             aria-label="Edit text. Press Enter to save, Escape to cancel"
           />
         </div>

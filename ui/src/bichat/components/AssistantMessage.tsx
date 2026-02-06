@@ -3,8 +3,8 @@
  * Styled component with slot-based customization for assistant messages
  */
 
-import { useState, useCallback, lazy, Suspense, type ReactNode } from 'react'
-import { Copy, ArrowsClockwise } from '@phosphor-icons/react'
+import { useState, useCallback, lazy, Suspense, useRef, useEffect, type ReactNode } from 'react'
+import { Check, Copy, ArrowsClockwise } from '@phosphor-icons/react'
 import { formatDistanceToNow } from 'date-fns'
 import CodeOutputsPanel from './CodeOutputsPanel'
 import StreamingCursor from './StreamingCursor'
@@ -12,7 +12,7 @@ import { ChartCard } from './ChartCard'
 import { SourcesPanel } from './SourcesPanel'
 import { DownloadCard } from './DownloadCard'
 import { InlineQuestionForm } from './InlineQuestionForm'
-import type { AssistantTurn, Citation, ChartData, Artifact, CodeOutput, PendingQuestion } from '../types'
+import type { AssistantTurn, Citation, ChartData, Artifact, CodeOutput, PendingQuestion, TokenUsage } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 
 const MarkdownRenderer = lazy(() =>
@@ -156,7 +156,11 @@ export interface AssistantMessageProps {
   hideActions?: boolean
   /** Hide timestamp */
   hideTimestamp?: boolean
+  /** Show debug panel */
+  showDebug?: boolean
 }
+
+const COPY_FEEDBACK_MS = 2000
 
 /* -------------------------------------------------------------------------------------------------
  * Default Styles
@@ -173,7 +177,7 @@ const defaultClassNames: Required<AssistantMessageClassNames> = {
   sources: '',
   explanation: 'mt-4 border-t border-gray-100 dark:border-gray-700 pt-4',
   actions: 'flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150',
-  actionButton: 'p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50',
+  actionButton: 'cursor-pointer p-2 text-gray-500 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50',
   timestamp: 'text-xs text-gray-400 dark:text-gray-500 mr-1',
 }
 
@@ -216,16 +220,39 @@ export function AssistantMessage({
   hideAvatar = false,
   hideActions = false,
   hideTimestamp = false,
+  showDebug = false,
 }: AssistantMessageProps) {
   const { t } = useTranslation()
   const [explanationExpanded, setExplanationExpanded] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
+  const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const classes = mergeClassNames(defaultClassNames, classNameOverrides)
+
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimeoutRef.current) {
+        clearTimeout(copyFeedbackTimeoutRef.current)
+        copyFeedbackTimeoutRef.current = null
+      }
+    }
+  }, [])
+
+  const hasMeaningfulUsage = (usage?: TokenUsage): boolean => {
+    if (!usage) return false
+    return (
+      usage.promptTokens > 0 ||
+      usage.completionTokens > 0 ||
+      usage.totalTokens > 0 ||
+      (usage.cachedTokens ?? 0) > 0 ||
+      (usage.cost ?? 0) > 0
+    )
+  }
 
   const hasContent = turn.content?.trim().length > 0
   const hasExplanation = !!turn.explanation?.trim()
   const hasDebugTrace = !!turn.debug && (
     !!turn.debug.generationMs ||
-    !!turn.debug.usage ||
+    hasMeaningfulUsage(turn.debug.usage) ||
     turn.debug.tools.length > 0
   )
   const hasPendingQuestion =
@@ -234,14 +261,24 @@ export function AssistantMessage({
     pendingQuestion.turnId === turnId
 
   const handleCopyClick = useCallback(async () => {
-    if (onCopy) {
-      await onCopy(turn.content)
-    } else {
-      try {
+    try {
+      if (onCopy) {
+        await onCopy(turn.content)
+      } else {
         await navigator.clipboard.writeText(turn.content)
-      } catch (err) {
-        console.error('Failed to copy:', err)
       }
+
+      setIsCopied(true)
+      if (copyFeedbackTimeoutRef.current) {
+        clearTimeout(copyFeedbackTimeoutRef.current)
+      }
+      copyFeedbackTimeoutRef.current = setTimeout(() => {
+        setIsCopied(false)
+        copyFeedbackTimeoutRef.current = null
+      }, COPY_FEEDBACK_MS)
+    } catch (err) {
+      setIsCopied(false)
+      console.error('Failed to copy:', err)
     }
   }, [onCopy, turn.content])
 
@@ -414,23 +451,23 @@ export function AssistantMessage({
               </div>
             )}
 
-            {hasDebugTrace && turn.debug && (
+            {showDebug && (
               <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
                 <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
                   {t('slash.debugPanelTitle')}
                 </p>
                 <div className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-                  {turn.debug.generationMs !== undefined && (
+                  {hasDebugTrace && turn.debug && turn.debug.generationMs !== undefined && (
                     <p>
                       {t('slash.debugGeneration')}: <span className="font-mono">{turn.debug.generationMs}ms</span>
                     </p>
                   )}
-                  {turn.debug.usage && (
+                  {hasDebugTrace && turn.debug && hasMeaningfulUsage(turn.debug.usage) && turn.debug.usage && (
                     <p>
                       {t('slash.debugUsage')}: <span className="font-mono">{turn.debug.usage.promptTokens}/{turn.debug.usage.completionTokens}/{turn.debug.usage.totalTokens}</span>
                     </p>
                   )}
-                  {turn.debug.tools.length > 0 && (
+                  {hasDebugTrace && turn.debug && turn.debug.tools.length > 0 && (
                     <div className="space-y-1">
                       <p>{t('slash.debugTools')}</p>
                       {turn.debug.tools.map((tool, idx) => (
@@ -462,6 +499,11 @@ export function AssistantMessage({
                       ))}
                     </div>
                   )}
+                  {!hasDebugTrace && (
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                      {t('slash.debugUnavailable')}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -475,7 +517,7 @@ export function AssistantMessage({
 
         {/* Actions */}
         {hasContent && !hideActions && (
-          <div className={classes.actions}>
+          <div className={`${classes.actions} ${isCopied ? 'opacity-100' : ''}`}>
             {renderSlot(
               slots?.actions,
               actionsSlotProps,
@@ -484,17 +526,22 @@ export function AssistantMessage({
 
                 <button
                   onClick={handleCopyClick}
-                  className={classes.actionButton}
+                  className={`cursor-pointer ${classes.actionButton} ${isCopied ? 'text-green-600 dark:text-green-400' : ''}`}
                   aria-label="Copy message"
-                  title="Copy"
+                  title={isCopied ? t('message.copied') : t('message.copy')}
                 >
-                  <Copy size={14} weight="regular" />
+                  {isCopied ? <Check size={14} weight="bold" /> : <Copy size={14} weight="regular" />}
                 </button>
+                {isCopied && (
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                    {t('message.copied')}
+                  </span>
+                )}
 
                 {onRegenerate && turnId && (
                   <button
                     onClick={handleRegenerateClick}
-                    className={classes.actionButton}
+                    className={`cursor-pointer ${classes.actionButton}`}
                     aria-label="Regenerate response"
                     title="Regenerate"
                   >

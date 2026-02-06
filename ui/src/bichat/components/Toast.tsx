@@ -20,23 +20,23 @@ export interface ToastProps {
 
 const typeConfig = {
   success: {
-    bgColor: 'bg-green-500',
-    darkBgColor: 'dark:bg-green-600',
+    bgColor: 'bg-green-600',
+    darkBgColor: 'dark:bg-green-700',
     icon: <CheckCircle size={20} className="w-5 h-5 flex-shrink-0" weight="fill" />,
   },
   error: {
-    bgColor: 'bg-red-500',
-    darkBgColor: 'dark:bg-red-600',
+    bgColor: 'bg-red-600',
+    darkBgColor: 'dark:bg-red-700',
     icon: <XCircle size={20} className="w-5 h-5 flex-shrink-0" weight="fill" />,
   },
   info: {
-    bgColor: 'bg-blue-500',
-    darkBgColor: 'dark:bg-blue-600',
+    bgColor: 'bg-blue-600',
+    darkBgColor: 'dark:bg-blue-700',
     icon: <Info size={20} className="w-5 h-5 flex-shrink-0" weight="fill" />,
   },
   warning: {
-    bgColor: 'bg-yellow-500',
-    darkBgColor: 'dark:bg-yellow-600',
+    bgColor: 'bg-amber-600',
+    darkBgColor: 'dark:bg-amber-700',
     icon: <Warning size={20} className="w-5 h-5 flex-shrink-0" weight="fill" />,
   },
 }

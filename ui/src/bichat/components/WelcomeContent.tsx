@@ -108,9 +108,9 @@ function WelcomeContent({
               key={index}
               onClick={() => handlePromptClick(prompt.text)}
               disabled={disabled}
-              className="group flex flex-col items-start text-left p-5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="cursor-pointer group flex flex-col items-start text-left p-5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
               variants={itemVariants}
-              whileHover={disabled ? {} : { y: -2, scale: 1.01 }}
+              whileHover={disabled ? {} : { y: -2 }}
               whileTap={disabled ? {} : { scale: 0.98 }}
             >
               {/* Icon */}
@@ -118,7 +118,7 @@ function WelcomeContent({
                 <prompt.icon
                   size={18}
                   weight="regular"
-                  className="text-gray-600 dark:text-gray-300 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-200"
+                  className="cursor-pointer text-gray-600 dark:text-gray-300 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-200"
                 />
               </div>
 

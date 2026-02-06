@@ -109,7 +109,7 @@ function SearchInput({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
-        className={`w-full ${sizes.container} bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:focus:ring-primary-500/20 focus:border-primary-400 dark:focus:border-primary-600 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+        className={`w-full ${sizes.container} bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:border-primary-400 dark:focus-visible:border-primary-600 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
         aria-label={ariaLabel}
       />
 
@@ -118,7 +118,7 @@ function SearchInput({
         <button
           type="button"
           onClick={handleClear}
-          className={`absolute inset-y-0 right-2 flex items-center ${sizes.clearBtn} rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300`}
+          className={`cursor-pointer absolute inset-y-0 right-2 flex items-center ${sizes.clearBtn} rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300`}
           aria-label="Clear search"
           title="Clear search"
         >
