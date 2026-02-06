@@ -112,21 +112,13 @@ const preview: Preview = {
       seedGlobals()
       applyThemeMode((ctx.globals.theme as ThemeMode) || 'light')
 
-      const disableIotaProvider = !!(ctx.parameters as any)?.bichat?.disableIotaProvider
-
       return (
         <ThemeProvider theme={ctx.globals.theme as ThemeMode}>
-          {disableIotaProvider ? (
+          <IotaContextProvider>
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
               <Story />
             </div>
-          ) : (
-            <IotaContextProvider>
-              <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-                <Story />
-              </div>
-            </IotaContextProvider>
-          )}
+          </IotaContextProvider>
         </ThemeProvider>
       )
     },
