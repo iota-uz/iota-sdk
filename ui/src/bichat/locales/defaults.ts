@@ -24,6 +24,33 @@ export const defaultTranslations: Translations = {
   'chat.pinned': 'Pinned',
   'chat.goBack': 'Go back',
 
+  // Artifacts panel
+  'artifacts.title': 'Artifacts',
+  'artifacts.loading': 'Loading artifacts...',
+  'artifacts.empty': 'No artifacts yet',
+  'artifacts.back': 'Back',
+  'artifacts.refresh': 'Refresh',
+  'artifacts.loadMore': 'Load more',
+  'artifacts.loadingMore': 'Loading more...',
+  'artifacts.toggleShow': 'Show artifacts',
+  'artifacts.toggleHide': 'Hide artifacts',
+  'artifacts.failedToLoad': 'Failed to load artifacts',
+  'artifacts.unsupported': 'Artifacts panel is not available for this data source.',
+  'artifacts.download': 'Download',
+  'artifacts.downloadUnavailable': 'Download URL is not available for this artifact.',
+  'artifacts.imageUnavailable': 'Image URL is not available for this artifact.',
+  'artifacts.chartUnavailable': 'Chart metadata is not in a renderable format.',
+  'artifacts.metadata': 'Metadata',
+  'artifacts.typeLabel': 'Type',
+  'artifacts.mimeTypeLabel': 'MIME type',
+  'artifacts.sizeLabel': 'Size',
+  'artifacts.createdLabel': 'Created',
+  'artifacts.emptySubtitle': 'Artifacts will appear here as you chat',
+  'artifacts.groupCharts': 'Charts',
+  'artifacts.groupCodeOutputs': 'Code Outputs',
+  'artifacts.groupExports': 'Exports',
+  'artifacts.groupOther': 'Other',
+
   // Message input
   'input.placeholder': 'Type a message...',
   'input.attachFiles': 'Attach files',
@@ -111,8 +138,10 @@ export const defaultTranslations: Translations = {
 
   // Charts
   'chart.download': 'Download chart',
+  'chart.downloadPNG': 'Download PNG',
+  'chart.exporting': 'Exporting...',
   'chart.fullscreen': 'View fullscreen',
-  'chart.noData': 'No data available',
+  'chart.noData': 'No data available for chart visualization.',
 
   // Example prompt categories
   'category.analysis': 'Data Analysis',

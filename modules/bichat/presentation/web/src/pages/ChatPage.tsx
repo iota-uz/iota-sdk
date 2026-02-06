@@ -21,5 +21,13 @@ export default function ChatPage() {
     )
   }
 
-  return <ChatSession dataSource={dataSource} sessionId={id} />
+  return (
+    <ChatSession
+      dataSource={dataSource}
+      sessionId={id}
+      showArtifactsPanel
+      artifactsPanelDefaultExpanded={false}
+      artifactsPanelStorageKey="bichat.web.artifacts-panel.expanded"
+    />
+  )
 }

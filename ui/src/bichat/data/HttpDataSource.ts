@@ -11,6 +11,8 @@ import type {
   Session,
   SessionListResult,
   ConversationTurn,
+  Artifact as DownloadArtifact,
+  SessionArtifact,
   PendingQuestion,
   Attachment,
   StreamChunk,
@@ -37,6 +39,193 @@ interface Result<T> {
   success: boolean
   data?: T
   error?: string
+}
+
+interface RPCArtifact {
+  id: string
+  sessionId: string
+  messageId?: string
+  type: string
+  name: string
+  description?: string
+  mimeType?: string
+  url?: string
+  sizeBytes: number
+  metadata?: Record<string, unknown>
+  createdAt: string
+}
+
+function toSessionArtifact(artifact: RPCArtifact): SessionArtifact {
+  return {
+    id: artifact.id,
+    sessionId: artifact.sessionId,
+    messageId: artifact.messageId,
+    type: artifact.type,
+    name: artifact.name,
+    description: artifact.description,
+    mimeType: artifact.mimeType,
+    url: artifact.url,
+    sizeBytes: artifact.sizeBytes,
+    metadata: artifact.metadata,
+    createdAt: artifact.createdAt,
+  }
+}
+
+function formatSizeReadable(bytes: number): string | undefined {
+  if (!Number.isFinite(bytes) || bytes <= 0) return undefined
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let idx = 0
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024
+    idx++
+  }
+  const precision = idx === 0 ? 0 : value >= 10 ? 1 : 2
+  return `${value.toFixed(precision)} ${units[idx]}`
+}
+
+function parseRowCount(metadata?: Record<string, unknown>): number | undefined {
+  if (!metadata) return undefined
+  const raw = metadata.row_count ?? metadata.rowCount
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw
+  }
+  if (typeof raw === 'string') {
+    const parsed = Number.parseInt(raw, 10)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+  return undefined
+}
+
+function inferDownloadType(artifact: SessionArtifact): DownloadArtifact['type'] | null {
+  const mime = artifact.mimeType?.toLowerCase() || ''
+  const name = artifact.name?.toLowerCase() || ''
+  const cleanURL = artifact.url?.split('?')[0].toLowerCase() || ''
+
+  const isPDF = mime.includes('pdf') || name.endsWith('.pdf') || cleanURL.endsWith('.pdf')
+  if (isPDF) return 'pdf'
+
+  const isExcel =
+    mime.includes('spreadsheet') ||
+    mime.includes('excel') ||
+    name.endsWith('.xlsx') ||
+    name.endsWith('.xls') ||
+    cleanURL.endsWith('.xlsx') ||
+    cleanURL.endsWith('.xls')
+  if (isExcel) return 'excel'
+
+  return null
+}
+
+function extractFilename(artifact: SessionArtifact): string {
+  const name = artifact.name?.trim()
+  if (name) return name
+
+  const urlPath = artifact.url?.split('?')[0] || ''
+  const fromURL = urlPath.split('/').filter(Boolean).pop()
+  if (fromURL) return fromURL
+
+  return 'download'
+}
+
+function toDownloadArtifact(artifact: SessionArtifact): DownloadArtifact | null {
+  if (!artifact.url) return null
+  const type = inferDownloadType(artifact)
+  if (!type) return null
+
+  return {
+    type,
+    filename: extractFilename(artifact),
+    url: artifact.url,
+    sizeReadable: formatSizeReadable(artifact.sizeBytes),
+    rowCount: parseRowCount(artifact.metadata),
+    description: artifact.description,
+  }
+}
+
+function toMillis(value: string): number {
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
+function attachArtifactsToTurns(
+  turns: ConversationTurn[],
+  artifacts: SessionArtifact[]
+): ConversationTurn[] {
+  if (artifacts.length === 0) return turns
+
+  const downloadArtifacts = artifacts
+    .map((raw) => ({ raw, mapped: toDownloadArtifact(raw) }))
+    .filter((entry): entry is { raw: SessionArtifact; mapped: DownloadArtifact } => entry.mapped !== null)
+    .sort((a, b) => toMillis(a.raw.createdAt) - toMillis(b.raw.createdAt))
+
+  if (downloadArtifacts.length === 0) return turns
+
+  const nextTurns = turns.map((turn) => {
+    if (!turn.assistantTurn) {
+      return turn
+    }
+    return {
+      ...turn,
+      assistantTurn: {
+        ...turn.assistantTurn,
+        artifacts: [...(turn.assistantTurn.artifacts || [])],
+      },
+    }
+  })
+
+  const assistantPositions: Array<{ index: number; createdAtMs: number }> = []
+  const turnIndexByMessageID = new Map<string, number>()
+
+  nextTurns.forEach((turn, index) => {
+    turnIndexByMessageID.set(turn.userTurn.id, index)
+
+    const assistantTurn = turn.assistantTurn
+    if (!assistantTurn) return
+    turnIndexByMessageID.set(assistantTurn.id, index)
+    assistantPositions.push({
+      index,
+      createdAtMs: toMillis(assistantTurn.createdAt || turn.createdAt),
+    })
+  })
+
+  if (assistantPositions.length === 0) return turns
+
+  const findFallbackAssistantIndex = (artifactCreatedAt: string): number => {
+    const artifactMs = toMillis(artifactCreatedAt)
+    if (!Number.isFinite(artifactMs)) {
+      return assistantPositions[assistantPositions.length - 1].index
+    }
+    for (const pos of assistantPositions) {
+      if (Number.isFinite(pos.createdAtMs) && pos.createdAtMs >= artifactMs) {
+        return pos.index
+      }
+    }
+    return assistantPositions[assistantPositions.length - 1].index
+  }
+
+  for (const entry of downloadArtifacts) {
+    const messageID = entry.raw.messageId
+    const targetIndex =
+      (messageID ? turnIndexByMessageID.get(messageID) : undefined) ??
+      findFallbackAssistantIndex(entry.raw.createdAt)
+
+    const assistantTurn = nextTurns[targetIndex]?.assistantTurn
+    if (!assistantTurn) continue
+
+    const exists = assistantTurn.artifacts.some(
+      (existing) =>
+        existing.url === entry.mapped.url && existing.filename === entry.mapped.filename
+    )
+    if (!exists) {
+      assistantTurn.artifacts.push(entry.mapped)
+    }
+  }
+
+  return nextTurns
 }
 
 export class HttpDataSource implements ChatDataSource {
@@ -105,15 +294,51 @@ export class HttpDataSource implements ChatDataSource {
    */
   async fetchSession(id: string): Promise<SessionState | null> {
     try {
-      const data = await this.callRPC('bichat.session.get', { id })
+      const [data, artifactsData] = await Promise.all([
+        this.callRPC('bichat.session.get', { id }),
+        this.fetchSessionArtifacts(id, { limit: 200, offset: 0 }).catch((err) => {
+          console.warn('Failed to fetch session artifacts:', err)
+          return { artifacts: [] as SessionArtifact[], hasMore: false, nextOffset: 0 }
+        }),
+      ])
+
       return {
         session: data.session,
-        turns: data.turns as ConversationTurn[],
+        turns: attachArtifactsToTurns(data.turns as ConversationTurn[], artifactsData.artifacts || []),
         pendingQuestion: (data.pendingQuestion as PendingQuestion | null) ?? null,
       }
     } catch (err) {
       console.error('Failed to fetch session:', err)
       return null
+    }
+  }
+
+  async fetchSessionArtifacts(
+    sessionId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<{ artifacts: SessionArtifact[]; hasMore?: boolean; nextOffset?: number }> {
+    const limit = options?.limit ?? 50
+    const offset = options?.offset ?? 0
+    const data = await this.callRPC('bichat.session.artifacts', {
+      sessionId,
+      limit,
+      offset,
+    })
+
+    const artifacts = (data.artifacts || []).map((artifact) => toSessionArtifact(artifact))
+    const hasMore =
+      typeof data.hasMore === 'boolean'
+        ? data.hasMore
+        : artifacts.length >= limit
+    const nextOffset =
+      typeof data.nextOffset === 'number'
+        ? data.nextOffset
+        : offset + artifacts.length
+
+    return {
+      artifacts,
+      hasMore,
+      nextOffset,
     }
   }
 
@@ -394,6 +619,10 @@ type BiChatRPC = AppletRPCSchema & {
   'bichat.session.get': {
     params: { id: string }
     result: { session: Session; turns: ConversationTurn[]; pendingQuestion: PendingQuestion | null }
+  }
+  'bichat.session.artifacts': {
+    params: { sessionId: string; limit: number; offset: number }
+    result: { artifacts: RPCArtifact[]; hasMore?: boolean; nextOffset?: number }
   }
   'bichat.session.updateTitle': {
     params: { id: string; title: string }

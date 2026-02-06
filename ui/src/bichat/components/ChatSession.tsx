@@ -12,7 +12,8 @@
  * - actionsSlot: Custom action buttons in the header
  */
 
-import { ReactNode } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
+import { Sidebar } from '@phosphor-icons/react'
 import { ChatSessionProvider, useChat } from '../context/ChatContext'
 import { ChatDataSource, ConversationTurn } from '../types'
 import { ChatHeader } from './ChatHeader'
@@ -20,6 +21,7 @@ import { MessageList } from './MessageList'
 import { MessageInput } from './MessageInput'
 import WelcomeContent from './WelcomeContent'
 import { useTranslation } from '../hooks/useTranslation'
+import { SessionArtifactsPanel } from './SessionArtifactsPanel'
 
 interface ChatSessionProps {
   dataSource: ChatDataSource
@@ -42,9 +44,16 @@ interface ChatSessionProps {
   onBack?: () => void
   /** Custom verbs for the typing indicator (e.g. ['Thinking', 'Analyzing', ...]) */
   thinkingVerbs?: string[]
+  /** Enables the built-in right-side artifacts panel for persisted session artifacts */
+  showArtifactsPanel?: boolean
+  /** Initial expanded state for artifacts panel when no persisted preference exists */
+  artifactsPanelDefaultExpanded?: boolean
+  /** localStorage key for artifacts panel expanded/collapsed state */
+  artifactsPanelStorageKey?: string
 }
 
 function ChatSessionCore({
+  dataSource,
   isReadOnly,
   renderUserTurn,
   renderAssistantTurn,
@@ -55,7 +64,10 @@ function ChatSessionCore({
   actionsSlot,
   onBack,
   thinkingVerbs,
-}: Omit<ChatSessionProps, 'dataSource' | 'sessionId'>) {
+  showArtifactsPanel = false,
+  artifactsPanelDefaultExpanded = false,
+  artifactsPanelStorageKey = 'bichat.artifacts-panel.expanded',
+}: Omit<ChatSessionProps, 'sessionId'>) {
   const { t } = useTranslation()
   const {
     session,
@@ -71,11 +83,33 @@ function ChatSessionCore({
     messageQueue,
     handleUnqueue,
     debugMode,
+    currentSessionId,
+    isStreaming,
   } = useChat()
+
+  const [artifactsPanelExpanded, setArtifactsPanelExpanded] = useState(
+    artifactsPanelDefaultExpanded
+  )
+
+  useEffect(() => {
+    if (!showArtifactsPanel) {
+      return
+    }
+
+    let nextValue = artifactsPanelDefaultExpanded
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem(artifactsPanelStorageKey)
+      if (stored !== null) {
+        nextValue = stored === 'true'
+      }
+    }
+
+    setArtifactsPanelExpanded(nextValue)
+  }, [artifactsPanelDefaultExpanded, artifactsPanelStorageKey, showArtifactsPanel])
 
   if (fetching) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <div className="text-gray-500 dark:text-gray-400">{t('input.processing')}</div>
       </div>
     )
@@ -83,34 +117,116 @@ function ChatSessionCore({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-red-500 dark:text-red-400">{t('error.generic')}: {error}</div>
+      <div className="flex h-full items-center justify-center">
+        <div className="text-red-500 dark:text-red-400">
+          {t('error.generic')}: {error}
+        </div>
       </div>
     )
   }
 
   // Show welcome screen for new sessions with no turns
   const showWelcome = !session && turns.length === 0
+  const activeSessionId =
+    session?.id ||
+    (currentSessionId && currentSessionId !== 'new'
+      ? currentSessionId
+      : undefined)
+
+  const supportsArtifactsPanel = typeof dataSource.fetchSessionArtifacts === 'function'
+  const showArtifactsControls = Boolean(showArtifactsPanel && supportsArtifactsPanel && activeSessionId)
+  const shouldRenderArtifactsPanel = Boolean(
+    showArtifactsControls && artifactsPanelExpanded && !showWelcome && activeSessionId
+  )
 
   const handlePromptSelect = (prompt: string) => {
     setMessage(prompt)
   }
 
+  const handleToggleArtifactsPanel = () => {
+    const nextValue = !artifactsPanelExpanded
+    setArtifactsPanelExpanded(nextValue)
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(artifactsPanelStorageKey, nextValue ? 'true' : 'false')
+    }
+  }
+
+  const headerActions = showArtifactsControls ? (
+    <>
+      <button
+        type="button"
+        onClick={handleToggleArtifactsPanel}
+        className={[
+          'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50',
+          artifactsPanelExpanded
+            ? 'bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950/30 dark:text-primary-300 dark:hover:bg-primary-900/40'
+            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200',
+        ].join(' ')}
+        aria-label={artifactsPanelExpanded ? t('artifacts.toggleHide') : t('artifacts.toggleShow')}
+        title={artifactsPanelExpanded ? t('artifacts.toggleHide') : t('artifacts.toggleShow')}
+      >
+        <Sidebar className="h-4 w-4" weight={artifactsPanelExpanded ? 'duotone' : 'regular'} />
+        {t('artifacts.title')}
+      </button>
+      {actionsSlot}
+    </>
+  ) : (
+    actionsSlot
+  )
+
   return (
     <main
-      className={`flex-1 flex flex-col overflow-hidden min-h-0 bg-gray-50 dark:bg-gray-900 ${className}`}
+      className={`flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-gray-900 ${className}`}
     >
-      {/* Header slot or default header */}
       {headerSlot || (
-        <ChatHeader session={session} onBack={onBack} logoSlot={logoSlot} actionsSlot={actionsSlot} />
+        <ChatHeader
+          session={session}
+          onBack={onBack}
+          logoSlot={logoSlot}
+          actionsSlot={headerActions}
+        />
       )}
 
-      {/* Welcome: single centered unit (content + input + disclaimer) */}
-      {showWelcome ? (
-        <div className="flex-1 overflow-auto flex flex-col">
-          <div className="flex-1 flex items-center justify-center px-4 py-8">
-            <div className="w-full max-w-5xl">
-              {welcomeSlot || <WelcomeContent onPromptSelect={handlePromptSelect} disabled={loading} />}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col">
+          {showWelcome ? (
+            <div className="flex flex-1 flex-col overflow-auto">
+              <div className="flex flex-1 items-center justify-center px-4 py-8">
+                <div className="w-full max-w-5xl">
+                  {welcomeSlot || (
+                    <WelcomeContent onPromptSelect={handlePromptSelect} disabled={loading} />
+                  )}
+                  {!isReadOnly && (
+                    <MessageInput
+                      message={message}
+                      loading={loading}
+                      fetching={fetching}
+                      commandError={inputError}
+                      onClearCommandError={() => setInputError(null)}
+                      debugMode={debugMode}
+                      onMessageChange={setMessage}
+                      onSubmit={handleSubmit}
+                      messageQueue={messageQueue}
+                      onUnqueue={handleUnqueue}
+                      containerClassName="pt-6 px-6"
+                      formClassName="mx-auto"
+                    />
+                  )}
+                  <p className="mt-4 pb-1 text-center text-xs text-gray-500 dark:text-gray-400">
+                    {t('welcome.disclaimer')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <MessageList
+                renderUserTurn={renderUserTurn}
+                renderAssistantTurn={renderAssistantTurn}
+                thinkingVerbs={thinkingVerbs}
+              />
               {!isReadOnly && (
                 <MessageInput
                   message={message}
@@ -123,39 +239,38 @@ function ChatSessionCore({
                   onSubmit={handleSubmit}
                   messageQueue={messageQueue}
                   onUnqueue={handleUnqueue}
-                  containerClassName="pt-6 px-6"
-                  formClassName="mx-auto"
                 />
               )}
-              <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400 pb-1">
-                {t('welcome.disclaimer')}
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          <MessageList
-            renderUserTurn={renderUserTurn}
-            renderAssistantTurn={renderAssistantTurn}
-            thinkingVerbs={thinkingVerbs}
-          />
-          {!isReadOnly && (
-            <MessageInput
-              message={message}
-              loading={loading}
-              fetching={fetching}
-              commandError={inputError}
-              onClearCommandError={() => setInputError(null)}
-              debugMode={debugMode}
-              onMessageChange={setMessage}
-              onSubmit={handleSubmit}
-              messageQueue={messageQueue}
-              onUnqueue={handleUnqueue}
-            />
+            </>
           )}
-        </>
-      )}
+        </div>
+
+        {shouldRenderArtifactsPanel && activeSessionId && (
+          <>
+            <SessionArtifactsPanel
+              dataSource={dataSource}
+              sessionId={activeSessionId}
+              isStreaming={isStreaming}
+              className="hidden lg:flex lg:min-h-0"
+            />
+
+            <div className="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true">
+              <button
+                type="button"
+                className="flex-1 bg-black/40"
+                onClick={handleToggleArtifactsPanel}
+                aria-label={t('common.close')}
+              />
+              <SessionArtifactsPanel
+                dataSource={dataSource}
+                sessionId={activeSessionId}
+                isStreaming={isStreaming}
+                className="flex h-full w-full max-w-sm min-h-0"
+              />
+            </div>
+          </>
+        )}
+      </div>
     </main>
   )
 }
@@ -165,7 +280,7 @@ export function ChatSession(props: ChatSessionProps) {
 
   return (
     <ChatSessionProvider dataSource={dataSource} sessionId={sessionId}>
-      <ChatSessionCore {...coreProps} />
+      <ChatSessionCore dataSource={dataSource} {...coreProps} />
     </ChatSessionProvider>
   )
 }

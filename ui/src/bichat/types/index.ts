@@ -199,6 +199,20 @@ export interface Artifact {
   description?: string
 }
 
+export interface SessionArtifact {
+  id: string
+  sessionId: string
+  messageId?: string
+  type: string
+  name: string
+  description?: string
+  mimeType?: string
+  url?: string
+  sizeBytes: number
+  metadata?: Record<string, unknown>
+  createdAt: string
+}
+
 // ============================================================================
 // HITL (Human-in-the-Loop) Question Types
 // ============================================================================
@@ -311,6 +325,10 @@ export interface ChatDataSource {
     turns: ConversationTurn[]
     pendingQuestion?: PendingQuestion | null
   } | null>
+  fetchSessionArtifacts?(
+    sessionId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<{ artifacts: SessionArtifact[]; hasMore?: boolean; nextOffset?: number }>
   sendMessage(
     sessionId: string,
     content: string,

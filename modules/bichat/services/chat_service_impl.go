@@ -275,6 +275,8 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 		return nil, serrors.E(op, err)
 	}
 
+	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
+
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
 	for i, att := range req.Attachments {
@@ -288,7 +290,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	}
 
 	// Process message with agent
-	gen, err := s.agentService.ProcessMessage(ctx, req.SessionID, req.Content, domainAttachments)
+	gen, err := s.agentService.ProcessMessage(processCtx, req.SessionID, req.Content, domainAttachments)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -301,7 +303,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	var interrupt *bichatservices.Interrupt
 
 	for {
-		event, err := gen.Next(ctx)
+		event, err := gen.Next(processCtx)
 		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
@@ -399,6 +401,8 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		return serrors.E(op, err)
 	}
 
+	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
+
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
 	for i, att := range req.Attachments {
@@ -412,7 +416,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	}
 
 	// Process message with agent
-	gen, err := s.agentService.ProcessMessage(ctx, req.SessionID, req.Content, domainAttachments)
+	gen, err := s.agentService.ProcessMessage(processCtx, req.SessionID, req.Content, domainAttachments)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -425,7 +429,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	toolOrder := make([]string, 0)
 
 	for {
-		event, err := gen.Next(ctx)
+		event, err := gen.Next(processCtx)
 		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}

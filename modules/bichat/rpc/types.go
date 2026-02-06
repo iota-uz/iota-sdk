@@ -170,7 +170,9 @@ type SessionArtifactsParams struct {
 }
 
 type SessionArtifactsResult struct {
-	Artifacts []Artifact `json:"artifacts"`
+	Artifacts  []Artifact `json:"artifacts"`
+	HasMore    bool       `json:"hasMore"`
+	NextOffset int        `json:"nextOffset"`
 }
 
 type QuestionSubmitParams struct {

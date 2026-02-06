@@ -11,6 +11,9 @@ import './styles.css'
 // =============================================================================
 
 export { ChatSession } from './components/ChatSession'
+export { SessionArtifactsPanel } from './components/SessionArtifactsPanel'
+export { SessionArtifactList } from './components/SessionArtifactList'
+export { SessionArtifactPreview } from './components/SessionArtifactPreview'
 export { ChatHeader } from './components/ChatHeader'
 export { MessageList } from './components/MessageList'
 export { TurnBubble, type TurnBubbleProps, type TurnBubbleClassNames } from './components/TurnBubble'
@@ -242,6 +245,7 @@ export type {
   ChartData,
   ChartSeries,
   Artifact,
+  SessionArtifact,
   // HITL question types
   PendingQuestion,
   Question,

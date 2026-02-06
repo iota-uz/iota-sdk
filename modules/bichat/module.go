@@ -8,6 +8,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/handlers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
@@ -57,6 +59,7 @@ type Module struct {
 	config                 *ModuleConfig
 	observabilityProviders []observability.Provider
 	eventBridge            *observability.EventBridge
+	artifactUnsubscribe    func()
 }
 
 func (m *Module) Register(app application.Application) error {
@@ -93,6 +96,15 @@ func (m *Module) Register(app application.Application) error {
 		attachmentService := m.config.AttachmentService()
 		artifactService := m.config.ArtifactService()
 		app.RegisterServices(chatService, agentService, attachmentService, artifactService)
+
+		if m.artifactUnsubscribe == nil && m.config.EventBus != nil && m.config.ChatRepo != nil {
+			artifactHandler := handlers.NewArtifactHandler(m.config.ChatRepo)
+			m.artifactUnsubscribe = m.config.EventBus.Subscribe(
+				artifactHandler,
+				string(hooks.EventToolComplete),
+			)
+		}
+
 		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Icon, BiChatLink.Name, BiChatLink.Href))
 
 		// Create and register controllers.
@@ -131,6 +143,11 @@ func (m *Module) Name() string {
 //	module := bichat.NewModuleWithConfig(cfg)
 //	defer module.Shutdown(context.Background())
 func (m *Module) Shutdown(ctx context.Context) error {
+	if m.artifactUnsubscribe != nil {
+		m.artifactUnsubscribe()
+		m.artifactUnsubscribe = nil
+	}
+
 	if m.eventBridge == nil {
 		return nil // No observability configured
 	}

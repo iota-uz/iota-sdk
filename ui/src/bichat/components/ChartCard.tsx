@@ -9,65 +9,51 @@
 import { useState, useId } from 'react'
 import ReactApexChart from 'react-apexcharts'
 import ApexCharts, { ApexOptions } from 'apexcharts'
-import { Download } from '@phosphor-icons/react'
+import { DownloadSimple } from '@phosphor-icons/react'
 import type { ChartData } from '../types'
+import { useTranslation } from '../hooks/useTranslation'
 
 interface ChartCardProps {
   chartData: ChartData
 }
 
 // Default color palette if none provided
-const DEFAULT_COLORS = ['#008FFB', '#00E396', '#FEB019', '#FF4560', '#775DD0']
+const DEFAULT_COLORS = ['#6366f1', '#06b6d4', '#f59e0b', '#ef4444', '#8b5cf6']
 
 /**
  * ChartCard renders a single chart visualization with optional PNG export.
- *
- * Chart types:
- * - line: Line chart with multiple series
- * - bar: Bar chart with multiple series
- * - area: Area chart with multiple series (filled)
- * - pie: Pie chart (single series)
- * - donut: Donut chart (single series)
- *
- * @param chartData - Chart specification from backend API
  */
 export function ChartCard({ chartData }: ChartCardProps) {
-  // Generate unique chart ID using React's useId hook
+  const { t } = useTranslation()
   const chartId = useId().replace(/:/g, '_')
   const [isExporting, setIsExporting] = useState(false)
 
   const { chartType, title, series, labels, colors, height = 350 } = chartData
 
-  // Validate chart data to prevent ApexCharts crash
-  // Series must exist, have at least one series, and that series must have data
   const hasValidData =
     series && series.length > 0 && series.some((s) => s.data && s.data.length > 0)
 
   if (!hasValidData) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-[var(--bichat-border)] p-4 my-2 shadow-sm w-full max-w-full">
-        <p className="text-gray-500 dark:text-gray-400 text-sm">
+      <div className="rounded-xl border border-gray-200/80 bg-white p-4 shadow-sm dark:border-gray-700/60 dark:bg-gray-800">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           {title && <span className="font-medium">{title}: </span>}
-          No data available for chart visualization.
+          {t('chart.noData')}
         </p>
       </div>
     )
   }
 
-  // Map series to ApexCharts format
-  // Pie/donut charts expect flat array of values, other charts expect array of series objects
   const apexSeries =
     chartType === 'pie' || chartType === 'donut'
-      ? series[0]?.data ?? [] // Pie/donut use flat array
+      ? series[0]?.data ?? []
       : series.map((s) => ({ name: s.name, data: s.data }))
 
-  // Build xaxis config for non-pie charts
   const xaxisConfig =
     chartType !== 'pie' && chartType !== 'donut'
       ? { categories: (labels ?? []).filter((l): l is string => l !== null) }
       : {}
 
-  // Build labels config for pie/donut charts
   const labelsConfig =
     chartType === 'pie' || chartType === 'donut'
       ? (labels ?? []).filter((l): l is string => l !== null)
@@ -79,6 +65,7 @@ export function ChartCard({ chartData }: ChartCardProps) {
       type: chartType as 'line' | 'bar' | 'area' | 'pie' | 'donut',
       toolbar: { show: false },
       animations: { enabled: false },
+      fontFamily: 'inherit',
     },
     title: {
       text: title,
@@ -95,17 +82,16 @@ export function ChartCard({ chartData }: ChartCardProps) {
       width: chartType === 'line' || chartType === 'area' ? 2 : 0,
     },
     fill: { opacity: chartType === 'area' ? 0.4 : 1 },
+    grid: {
+      borderColor: 'rgba(148, 163, 184, 0.15)',
+      strokeDashArray: 3,
+    },
   }
 
-  /**
-   * Export chart as PNG image
-   * Uses ApexCharts.getChartByID to access chart instance and dataURI method
-   */
   const handleExportPNG = async () => {
     setIsExporting(true)
 
     try {
-      // Access ApexCharts instance via chart ID
       const chart = ApexCharts.getChartByID(chartId)
       if (!chart) {
         console.error('Chart instance not available')
@@ -114,13 +100,11 @@ export function ChartCard({ chartData }: ChartCardProps) {
       }
       const result = await chart.dataURI({ scale: 2 })
 
-      // dataURI returns { imgURI } when successful
       if (!('imgURI' in result)) {
         console.error('Unexpected dataURI result format')
         return
       }
 
-      // Create download link and trigger download
       const link = document.createElement('a')
       link.href = result.imgURI
       link.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_chart.png`
@@ -132,33 +116,31 @@ export function ChartCard({ chartData }: ChartCardProps) {
     }
   }
 
-  // Fixed width to fit within max-w-2xl container (672px - 32px padding)
-  const chartWidth = 600
-
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-[var(--bichat-border)] p-4 my-2 shadow-sm w-full max-w-[632px] min-w-0 overflow-hidden">
+    <div className="group/chart rounded-xl border border-gray-200/80 bg-white p-4 shadow-sm transition-shadow duration-200 hover:shadow dark:border-gray-700/60 dark:bg-gray-800">
       <div className="w-full min-w-0">
         <ReactApexChart
           options={options}
           series={apexSeries}
           type={chartType}
-          width={chartWidth}
+          width="100%"
           height={height}
         />
       </div>
-      <div className="flex justify-end mt-2">
+      <div className="flex justify-end pt-2">
         <button
+          type="button"
           onClick={handleExportPNG}
           disabled={isExporting}
-          className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 flex items-center gap-1 transition-colors"
-          title="Download chart as PNG"
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-400 opacity-0 transition-all duration-150 hover:bg-gray-100 hover:text-gray-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 group-hover/chart:opacity-100 disabled:opacity-50 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          title={t('chart.download')}
         >
           {isExporting ? (
-            <span>Exporting...</span>
+            <span className="text-gray-500 dark:text-gray-400">{t('chart.exporting')}</span>
           ) : (
             <>
-              <Download className="w-4 h-4" />
-              Download PNG
+              <DownloadSimple className="h-3.5 w-3.5" weight="bold" />
+              <span>{t('chart.downloadPNG')}</span>
             </>
           )}
         </button>

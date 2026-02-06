@@ -248,16 +248,35 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				return SessionArtifactsResult{}, serrors.E(op, err)
 			}
 
-			opts := domain.ListOptions{Limit: p.Limit, Offset: p.Offset}
+			requestedLimit := p.Limit
+			if requestedLimit <= 0 {
+				requestedLimit = 50
+			}
+			offset := p.Offset
+			if offset < 0 {
+				offset = 0
+			}
+
+			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: offset}
 			list, err := artifactSvc.GetSessionArtifacts(ctx, sessionID, opts)
 			if err != nil {
 				return SessionArtifactsResult{}, serrors.E(op, err)
 			}
+
+			hasMore := len(list) > requestedLimit
+			if hasMore {
+				list = list[:requestedLimit]
+			}
+
 			out := make([]Artifact, 0, len(list))
 			for _, a := range list {
 				out = append(out, toArtifactDTO(a))
 			}
-			return SessionArtifactsResult{Artifacts: out}, nil
+			return SessionArtifactsResult{
+				Artifacts:  out,
+				HasMore:    hasMore,
+				NextOffset: offset + len(out),
+			}, nil
 		},
 	})
 
