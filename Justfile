@@ -366,28 +366,9 @@ tunnel:
 clean: css-clean
 
 [group("dev")]
-[doc("Dev commands (watch|bichat|applet <name>)")]
-dev cmd="help" name="":
-  case "{{cmd}}" in \
-    watch) just _dev-watch ;; \
-    bichat) just _dev-applet "bichat" ;; \
-    applet) just _dev-applet "{{name}}" ;; \
-    *) \
-      echo "Usage: just dev [watch|bichat|applet <name>]" ; \
-      exit 2 ;; \
-  esac
-
-[group("dev")]
-_dev-watch:
-  echo "Starting development watch mode (templ + tailwind)..."
-  trap 'kill %1 %2 2>/dev/null || true; exit' INT TERM
-  templ generate --watch &
-  pnpm exec tailwindcss --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --watch &
-  wait
-
-[group("dev")]
-_dev-applet name:
-  ./scripts/applet/dev.sh {{name}}
+[doc("Start dev (just dev = watch, just dev bichat = with applet)")]
+dev name="":
+  go run cmd/dev/main.go {{name}}
 
 [group("dev")]
 [doc("Applet commands (rpc-gen)")]

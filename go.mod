@@ -34,7 +34,7 @@ require (
 	github.com/iota-uz/click v1.0.4
 	github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049
 	github.com/iota-uz/go-i18n/v2 v2.6.1
-	github.com/iota-uz/icons v0.0.2
+	github.com/iota-uz/icons v0.0.3
 	github.com/iota-uz/octo v1.2.2-0.20251217065529-a4c263bfd38b
 	github.com/iota-uz/payme v1.4.1
 	github.com/iota-uz/psql-parser v0.0.0-20250308150107-d4e0b094f3a6

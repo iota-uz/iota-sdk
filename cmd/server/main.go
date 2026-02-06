@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	langfusego "github.com/henomis/langfuse-go"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -21,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	langfuseprovider "github.com/iota-uz/iota-sdk/pkg/bichat/observability/langfuse"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -106,6 +108,38 @@ func main() {
 			if err != nil {
 				logger.Warnf("Failed to create BiChat agent: %v", err)
 			} else {
+				// Build config options
+				configOpts := []bichat.ConfigOption{
+					bichat.WithAttachmentStorage(
+						conf.UploadsPath+"/bichat",
+						conf.Origin+"/"+conf.UploadsPath+"/bichat",
+					),
+				}
+
+				// Set up LangFuse observability if credentials are available
+				if lfPublicKey := os.Getenv("LANGFUSE_PUBLIC_KEY"); lfPublicKey != "" {
+					// Bridge LANGFUSE_BASE_URL → LANGFUSE_HOST for the langfuse-go SDK
+					if baseURL := os.Getenv("LANGFUSE_BASE_URL"); baseURL != "" && os.Getenv("LANGFUSE_HOST") == "" {
+						os.Setenv("LANGFUSE_HOST", baseURL)
+					}
+
+					lfClient := langfusego.New(context.Background())
+					lfProvider, lfErr := langfuseprovider.NewLangfuseProvider(lfClient, langfuseprovider.Config{
+						Enabled:     true,
+						PublicKey:   lfPublicKey,
+						SecretKey:   os.Getenv("LANGFUSE_SECRET_KEY"),
+						Host:        os.Getenv("LANGFUSE_BASE_URL"),
+						Environment: "development",
+						SampleRate:  1.0,
+					})
+					if lfErr != nil {
+						logger.Warnf("Failed to create LangFuse provider: %v", lfErr)
+					} else {
+						configOpts = append(configOpts, bichat.WithObservability(lfProvider))
+						logger.Info("LangFuse observability enabled")
+					}
+				}
+
 				// Create BiChat config with wrapper functions for tenant/user ID
 				cfg := bichat.NewModuleConfig(
 					func(ctx context.Context) uuid.UUID {
@@ -126,10 +160,7 @@ func main() {
 					model,
 					bichat.DefaultContextPolicy(),
 					parentAgent,
-					bichat.WithAttachmentStorage(
-						conf.UploadsPath+"/bichat",
-						conf.Origin+"/"+conf.UploadsPath+"/bichat",
-					),
+					configOpts...,
 				)
 
 				// Register BiChat module with config

@@ -41,3 +41,6 @@ ui/.storybook/preview.generated.css
 e2e/playwright-report/
 e2e/test-results/
 server
+
+# Playwright CLI snapshots/artifacts
+.playwright-cli/

@@ -1,6 +1,6 @@
 {
   "name": "@iota-uz/sdk",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "IOTA SDK UI utilities, Tailwind configuration, and React components for building IOTA SDK applets.",
   "license": "MIT",
   "private": false,
@@ -44,6 +44,7 @@
     "build": "pnpm run build:js && pnpm run build:tailwind && pnpm run build:assets",
     "prepare": "pnpm run build",
     "build:js": "tsup",
+    "build:js:dev": "tsup --config tsup.dev.config.ts",
     "build:tailwind": "node ./scripts/build-tailwind-files.mjs",
     "build:assets": "node ./scripts/build-assets.mjs",
     "storybook:css": "pnpm exec tailwindcss --input ui/.storybook/preview.css --output ui/.storybook/preview.generated.css",
@@ -57,6 +58,7 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
+    "@headlessui/react": "^2.0.0",
     "@phosphor-icons/react": "^2.1.0",
     "apexcharts": "^3.45.0",
     "date-fns": "^3.0.0",
