@@ -3,6 +3,7 @@ package llmproviders
 import (
 	"context"
 	"os"
+	"strings"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -36,9 +37,10 @@ func WithLogger(logger logging.Logger) OpenAIModelOption {
 
 // toolCallAccumEntry accumulates streaming function call data.
 type toolCallAccumEntry struct {
-	id   string
-	name string
-	args string
+	id     string // item ID (used as map key)
+	callID string // function call ID (used in API)
+	name   string
+	args   string
 }
 
 // NewOpenAIModel creates a new OpenAI model from environment variables.
@@ -133,22 +135,26 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 
 			case "response.output_item.done":
 				if event.Item.Type == "function_call" {
-					callID := event.Item.CallID
-					if _, ok := toolCallAccum[callID]; !ok {
-						toolCallAccum[callID] = &toolCallAccumEntry{
-							id:   callID,
-							name: event.Item.Name,
-							args: event.Item.Arguments,
-						}
-						toolCallOrder = append(toolCallOrder, callID)
-					} else {
-						a := toolCallAccum[callID]
+					// Use event.ItemID (consistent with delta events) not event.Item.CallID
+					itemID := event.ItemID
+					if a, ok := toolCallAccum[itemID]; ok {
+						// Populate callID from the completed item
+						a.callID = event.Item.CallID
 						if a.name == "" {
 							a.name = event.Item.Name
 						}
 						if a.args == "" {
 							a.args = event.Item.Arguments
 						}
+					} else {
+						// Entry not created by delta events; create from done event
+						toolCallAccum[itemID] = &toolCallAccumEntry{
+							id:     itemID,
+							callID: event.Item.CallID,
+							name:   event.Item.Name,
+							args:   event.Item.Arguments,
+						}
+						toolCallOrder = append(toolCallOrder, itemID)
 					}
 				}
 
@@ -343,6 +349,7 @@ func (m *OpenAIModel) buildResponseParams(req agents.Request, config agents.Gene
 // buildInputItems converts types.Message slice to Responses API input items.
 func (m *OpenAIModel) buildInputItems(messages []types.Message) responses.ResponseInputParam {
 	items := make(responses.ResponseInputParam, 0, len(messages))
+	skippedToolCallIDs := make(map[string]struct{})
 
 	for _, msg := range messages {
 		switch msg.Role() {
@@ -388,17 +395,37 @@ func (m *OpenAIModel) buildInputItems(messages []types.Message) responses.Respon
 			}
 			// Emit each tool call as a separate function_call input item
 			for _, tc := range msg.ToolCalls() {
+				callID := strings.TrimSpace(tc.ID)
+				callName := strings.TrimSpace(tc.Name)
+				if callID == "" || callName == "" {
+					m.logger.Warn(context.Background(), "skipping tool call with empty name or ID in buildInputItems", map[string]any{
+						"call_id": tc.ID,
+						"name":    tc.Name,
+					})
+					if callID != "" {
+						skippedToolCallIDs[callID] = struct{}{}
+					}
+					continue
+				}
+
 				items = append(items, responses.ResponseInputItemParamOfFunctionCall(
 					tc.Arguments,
-					tc.ID,
-					tc.Name,
+					callID,
+					callName,
 				))
 			}
 
 		case types.RoleTool:
 			if msg.ToolCallID() != nil {
+				callID := strings.TrimSpace(*msg.ToolCallID())
+				if callID == "" {
+					continue
+				}
+				if _, skipped := skippedToolCallIDs[callID]; skipped {
+					continue
+				}
 				items = append(items, responses.ResponseInputItemParamOfFunctionCallOutput(
-					*msg.ToolCallID(),
+					callID,
 					msg.Content(),
 				))
 			}
@@ -515,10 +542,15 @@ func (m *OpenAIModel) buildToolCallsFromAccum(accum map[string]*toolCallAccumEnt
 		return nil
 	}
 	calls := make([]types.ToolCall, 0, len(accum))
-	for _, callID := range order {
-		if a, ok := accum[callID]; ok {
+	for _, key := range order {
+		if a, ok := accum[key]; ok {
+			// Prefer callID (from output_item.done) over itemID
+			id := a.callID
+			if id == "" {
+				id = a.id
+			}
 			calls = append(calls, types.ToolCall{
-				ID:        a.id,
+				ID:        id,
 				Name:      a.name,
 				Arguments: a.args,
 			})
