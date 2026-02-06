@@ -28,7 +28,8 @@ type flusherRecorder struct {
 func (f flusherRecorder) Flush() {}
 
 type stubChatService struct {
-	getSession func(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
+	getSession        func(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
+	sendMessageStream func(ctx context.Context, req services.SendMessageRequest, onChunk func(services.StreamChunk)) error
 }
 
 func (s stubChatService) CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error) {
@@ -61,10 +62,19 @@ func (s stubChatService) UnpinSession(ctx context.Context, sessionID uuid.UUID) 
 func (s stubChatService) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
 	return errors.New("not implemented")
 }
+func (s stubChatService) ClearSessionHistory(ctx context.Context, sessionID uuid.UUID) (services.ClearSessionHistoryResponse, error) {
+	return services.ClearSessionHistoryResponse{}, errors.New("not implemented")
+}
+func (s stubChatService) CompactSessionHistory(ctx context.Context, sessionID uuid.UUID) (services.CompactSessionHistoryResponse, error) {
+	return services.CompactSessionHistoryResponse{}, errors.New("not implemented")
+}
 func (s stubChatService) SendMessage(ctx context.Context, req services.SendMessageRequest) (*services.SendMessageResponse, error) {
 	return nil, errors.New("not implemented")
 }
 func (s stubChatService) SendMessageStream(ctx context.Context, req services.SendMessageRequest, onChunk func(services.StreamChunk)) error {
+	if s.sendMessageStream != nil {
+		return s.sendMessageStream(ctx, req, onChunk)
+	}
 	return errors.New("not implemented")
 }
 func (s stubChatService) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
@@ -207,5 +217,73 @@ func TestChatController_OwnershipVsReadAllPermission(t *testing.T) {
 	c.GetSession(w2, req2)
 	if w2.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, w2.Code)
+	}
+}
+
+func TestStreamController_DebugMode_ForbiddenWithoutExportPermission(t *testing.T) {
+	t.Parallel()
+
+	sessionID := uuid.New()
+	body := `{"sessionId":"` + sessionID.String() + `","content":"hello","debugMode":true}`
+
+	u := user.New(
+		"Test",
+		"User",
+		internet.MustParseEmail("test@example.com"),
+		user.UILanguageEN,
+		user.WithID(1),
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewBufferString(body))
+	req = req.WithContext(composables.WithUser(req.Context(), u))
+
+	w := flusherRecorder{ResponseRecorder: httptest.NewRecorder()}
+
+	c := NewStreamController(nil, stubChatService{})
+	c.StreamMessage(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+}
+
+func TestStreamController_DebugMode_AllowedWithExportPermission(t *testing.T) {
+	t.Parallel()
+
+	sessionID := uuid.New()
+	body := `{"sessionId":"` + sessionID.String() + `","content":"hello","debugMode":true}`
+
+	u := user.New(
+		"Test",
+		"User",
+		internet.MustParseEmail("test@example.com"),
+		user.UILanguageEN,
+		user.WithID(1),
+	).AddPermission(bichatperm.BiChatExport)
+
+	svc := stubChatService{
+		getSession: func(ctx context.Context, id uuid.UUID) (domain.Session, error) {
+			return domain.NewSession(
+				domain.WithID(id),
+				domain.WithUserID(1),
+				domain.WithTitle("x"),
+			), nil
+		},
+		sendMessageStream: func(ctx context.Context, req services.SendMessageRequest, onChunk func(services.StreamChunk)) error {
+			onChunk(services.StreamChunk{Type: services.ChunkTypeDone})
+			return nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewBufferString(body))
+	req = req.WithContext(composables.WithUser(req.Context(), u))
+
+	w := flusherRecorder{ResponseRecorder: httptest.NewRecorder()}
+
+	c := NewStreamController(nil, svc)
+	c.StreamMessage(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 }

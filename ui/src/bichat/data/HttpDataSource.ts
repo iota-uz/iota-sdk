@@ -9,11 +9,13 @@ import { createAppletRPCClient, type AppletRPCSchema } from '../../applet-host'
 import type {
   ChatDataSource,
   Session,
+  SessionListResult,
   ConversationTurn,
   PendingQuestion,
   Attachment,
   StreamChunk,
   QuestionAnswers,
+  SendMessageOptions,
 } from '../types'
 
 export interface HttpDataSourceConfig {
@@ -122,7 +124,8 @@ export class HttpDataSource implements ChatDataSource {
     sessionId: string,
     content: string,
     attachments: Attachment[] = [],
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: SendMessageOptions
   ): AsyncGenerator<StreamChunk> {
     // Create new abort controller for this stream
     this.abortController = new AbortController()
@@ -139,6 +142,7 @@ export class HttpDataSource implements ChatDataSource {
     const payload = {
       sessionId,
       content,
+      debugMode: options?.debugMode ?? false,
       attachments: attachments.map(a => ({
         id: a.id,
         filename: a.filename,
@@ -191,11 +195,18 @@ export class HttpDataSource implements ChatDataSource {
               const data = line.slice(6)
 
               try {
-                const chunk = JSON.parse(data) as StreamChunk
-                yield chunk
+                const parsed = JSON.parse(data) as StreamChunk & { chunk?: string }
+                const inferredType =
+                  parsed.type || (parsed.content || parsed.chunk ? 'content' : 'error')
+                const normalized: StreamChunk = {
+                  ...parsed,
+                  type: inferredType,
+                  content: parsed.content ?? parsed.chunk,
+                }
+                yield normalized
 
                 // Stop if done or error
-                if (chunk.type === 'done' || chunk.type === 'error') {
+                if (normalized.type === 'done' || normalized.type === 'error') {
                   return
                 }
               } catch (parseErr) {
@@ -247,6 +258,29 @@ export class HttpDataSource implements ChatDataSource {
   }
 
   /**
+   * Clear session history in-place.
+   */
+  async clearSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    deletedMessages: number
+    deletedArtifacts: number
+  }> {
+    return this.callRPC('bichat.session.clear', { id: sessionId })
+  }
+
+  /**
+   * Compact session history into summarized turn.
+   */
+  async compactSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    summary: string
+    deletedMessages: number
+    deletedArtifacts: number
+  }> {
+    return this.callRPC('bichat.session.compact', { id: sessionId })
+  }
+
+  /**
    * Submit answers to a pending question
    */
   async submitQuestionAnswers(
@@ -277,6 +311,39 @@ export class HttpDataSource implements ChatDataSource {
       window.location.href = `/chat/${sessionId}`
     }
   }
+
+  // Session management stubs — override in subclass or use a custom ChatDataSource
+  async listSessions(): Promise<SessionListResult> {
+    return { sessions: [], total: 0, hasMore: false }
+  }
+  async archiveSession(sessionId: string): Promise<Session> {
+    void sessionId
+    throw new Error('archiveSession not implemented in HttpDataSource')
+  }
+  async unarchiveSession(sessionId: string): Promise<Session> {
+    void sessionId
+    throw new Error('unarchiveSession not implemented in HttpDataSource')
+  }
+  async pinSession(sessionId: string): Promise<Session> {
+    void sessionId
+    throw new Error('pinSession not implemented in HttpDataSource')
+  }
+  async unpinSession(sessionId: string): Promise<Session> {
+    void sessionId
+    throw new Error('unpinSession not implemented in HttpDataSource')
+  }
+  async deleteSession(sessionId: string): Promise<void> {
+    void sessionId
+    throw new Error('deleteSession not implemented in HttpDataSource')
+  }
+  async renameSession(sessionId: string, _title: string): Promise<Session> {
+    void sessionId
+    throw new Error('renameSession not implemented in HttpDataSource')
+  }
+  async regenerateSessionTitle(sessionId: string): Promise<Session> {
+    void sessionId
+    throw new Error('regenerateSessionTitle not implemented in HttpDataSource')
+  }
 }
 
 /**
@@ -288,6 +355,14 @@ export function createHttpDataSource(config: HttpDataSourceConfig): ChatDataSour
 
 type BiChatRPC = AppletRPCSchema & {
   'bichat.session.create': { params: { title: string }; result: { session: Session } }
+  'bichat.session.clear': {
+    params: { id: string }
+    result: { success: boolean; deletedMessages: number; deletedArtifacts: number }
+  }
+  'bichat.session.compact': {
+    params: { id: string }
+    result: { success: boolean; summary: string; deletedMessages: number; deletedArtifacts: number }
+  }
   'bichat.session.get': {
     params: { id: string }
     result: { session: Session; turns: ConversationTurn[]; pendingQuestion: PendingQuestion | null }

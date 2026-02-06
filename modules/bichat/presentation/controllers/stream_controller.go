@@ -10,9 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
+	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/httpdto"
@@ -23,14 +24,14 @@ import (
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
 type StreamController struct {
 	app         application.Application
-	chatService services.ChatService
+	chatService bichatservices.ChatService
 	opts        ControllerOptions
 }
 
 // NewStreamController creates a new stream controller.
 func NewStreamController(
 	app application.Application,
-	chatService services.ChatService,
+	chatService bichatservices.ChatService,
 	opts ...ControllerOption,
 ) *StreamController {
 	return &StreamController{
@@ -105,12 +106,20 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		SessionID   uuid.UUID           `json:"sessionId"`
 		Content     string              `json:"content"`
 		Attachments []domain.Attachment `json:"attachments"`
+		DebugMode   bool                `json:"debugMode"`
 	}
 
 	var req streamRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
+	}
+
+	if req.DebugMode {
+		if err := composables.CanUser(r.Context(), bichatperm.BiChatExport); err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
 	}
 
 	// 5. Validate session access
@@ -137,12 +146,18 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
 	// 7. Stream chunks
-	err = c.chatService.SendMessageStream(r.Context(), services.SendMessageRequest{
+	ctx := r.Context()
+	if req.DebugMode {
+		ctx = bichatservices.WithDebugMode(ctx, true)
+	}
+
+	err = c.chatService.SendMessageStream(ctx, bichatservices.SendMessageRequest{
 		SessionID:   req.SessionID,
 		UserID:      int64(user.ID()),
 		Content:     req.Content,
 		Attachments: req.Attachments,
-	}, func(chunk services.StreamChunk) {
+		DebugMode:   req.DebugMode,
+	}, func(chunk bichatservices.StreamChunk) {
 		// Handle context cancellation
 		select {
 		case <-r.Context().Done():
@@ -151,15 +166,29 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		}
 
 		payload := httpdto.StreamChunkPayload{
-			Type:      string(chunk.Type),
-			Content:   chunk.Content,
-			Citation:  chunk.Citation,
-			Usage:     chunk.Usage,
-			Timestamp: chunk.Timestamp.UnixMilli(),
+			Type:         string(chunk.Type),
+			Content:      chunk.Content,
+			Citation:     chunk.Citation,
+			Usage:        chunk.Usage,
+			GenerationMs: chunk.GenerationMs,
+			Timestamp:    chunk.Timestamp.UnixMilli(),
+		}
+		if chunk.Tool != nil {
+			toolPayload := &httpdto.ToolEventPayload{
+				CallID:     chunk.Tool.CallID,
+				Name:       chunk.Tool.Name,
+				Arguments:  chunk.Tool.Arguments,
+				Result:     chunk.Tool.Result,
+				DurationMs: chunk.Tool.DurationMs,
+			}
+			if chunk.Tool.Error != nil {
+				toolPayload.Error = chunk.Tool.Error.Error()
+			}
+			payload.Tool = toolPayload
 		}
 		if chunk.Error != nil {
 			// Avoid leaking internal errors to the client.
-			if chunk.Type == services.ChunkTypeError {
+			if chunk.Type == bichatservices.ChunkTypeError {
 				payload.Error = "An error occurred while processing your request"
 			} else {
 				payload.Error = chunk.Error.Error()

@@ -11,6 +11,8 @@ import { useChat } from '../context/ChatContext'
 import { ConversationTurn } from '../types'
 import { TurnBubble } from './TurnBubble'
 import ScrollToBottomButton from './ScrollToBottomButton'
+import CompactionDoodle from './CompactionDoodle'
+import { useTranslation } from '../hooks/useTranslation'
 
 interface MessageListProps {
   /** Custom render function for user turns */
@@ -20,7 +22,8 @@ interface MessageListProps {
 }
 
 export function MessageList({ renderUserTurn, renderAssistantTurn }: MessageListProps) {
-  const { turns, streamingContent, isStreaming } = useChat()
+  const { t } = useTranslation()
+  const { turns, streamingContent, isStreaming, isCompacting, compactionSummary } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -53,6 +56,22 @@ export function MessageList({ renderUserTurn, renderAssistantTurn }: MessageList
     <div className="relative flex-1 min-h-0">
       <div ref={containerRef} className="h-full overflow-y-auto px-4 py-6">
         <div className="max-w-4xl mx-auto space-y-6">
+          {isCompacting && (
+            <CompactionDoodle
+              title={t('slash.compactingTitle')}
+              subtitle={t('slash.compactingSubtitle')}
+            />
+          )}
+          {!isCompacting && compactionSummary && (
+            <div className="rounded-2xl border border-primary-200 dark:border-primary-800 bg-primary-50/70 dark:bg-primary-900/20 p-4">
+              <p className="text-xs uppercase tracking-wide text-primary-700 dark:text-primary-300 mb-1">
+                {t('slash.compactedSummaryLabel')}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                {compactionSummary}
+              </p>
+            </div>
+          )}
           {turns.map((turn) => (
             <TurnBubble
               key={turn.id}

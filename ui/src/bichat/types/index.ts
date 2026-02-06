@@ -52,6 +52,7 @@ export interface AssistantTurn {
   chartData?: ChartData
   artifacts: Artifact[]
   codeOutputs: CodeOutput[]
+  debug?: DebugTrace
   createdAt: string
 }
 
@@ -237,17 +238,67 @@ export interface QuestionAnswers {
 }
 
 export interface StreamChunk {
-  type: 'chunk' | 'error' | 'done' | 'user_message'
+  type: 'chunk' | 'content' | 'tool_start' | 'tool_end' | 'usage' | 'done' | 'error' | 'user_message'
   content?: string
   error?: string
   sessionId?: string
+  usage?: TokenUsage
+  tool?: StreamToolPayload
+  generationMs?: number
+  timestamp?: number
+}
+
+export interface TokenUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  cachedTokens?: number
+  cost?: number
+}
+
+export interface StreamToolPayload {
+  callId?: string
+  name: string
+  arguments?: string
+  result?: string
+  error?: string
+  durationMs?: number
+}
+
+export interface DebugTrace {
+  generationMs?: number
+  usage?: TokenUsage
+  tools: StreamToolPayload[]
+}
+
+export interface SendMessageOptions {
+  debugMode?: boolean
 }
 
 // ============================================================================
 // Data Source Interface
 // ============================================================================
 
+export interface SessionListResult {
+  sessions: Session[]
+  total: number
+  hasMore: boolean
+}
+
+export interface SessionUser {
+  id: string
+  firstName: string
+  lastName: string
+  initials: string
+}
+
+export interface SessionGroup {
+  name: string
+  sessions: Session[]
+}
+
 export interface ChatDataSource {
+  // Core operations
   createSession(): Promise<Session>
   fetchSession(id: string): Promise<{
     session: Session
@@ -258,8 +309,20 @@ export interface ChatDataSource {
     sessionId: string,
     content: string,
     attachments?: Attachment[],
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: SendMessageOptions
   ): AsyncGenerator<StreamChunk>
+  clearSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    deletedMessages: number
+    deletedArtifacts: number
+  }>
+  compactSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    summary: string
+    deletedMessages: number
+    deletedArtifacts: number
+  }>
   submitQuestionAnswers(
     sessionId: string,
     questionId: string,
@@ -267,6 +330,33 @@ export interface ChatDataSource {
   ): Promise<{ success: boolean; error?: string }>
   cancelPendingQuestion(questionId: string): Promise<{ success: boolean; error?: string }>
   navigateToSession?(sessionId: string): void
+
+  // Session management
+  listSessions(options?: {
+    limit?: number
+    offset?: number
+    includeArchived?: boolean
+  }): Promise<SessionListResult>
+  archiveSession(sessionId: string): Promise<Session>
+  unarchiveSession(sessionId: string): Promise<Session>
+  pinSession(sessionId: string): Promise<Session>
+  unpinSession(sessionId: string): Promise<Session>
+  deleteSession(sessionId: string): Promise<void>
+  renameSession(sessionId: string, title: string): Promise<Session>
+  regenerateSessionTitle(sessionId: string): Promise<Session>
+
+  // Organization-wide features (optional)
+  listUsers?(): Promise<SessionUser[]>
+  listAllSessions?(options?: {
+    limit?: number
+    offset?: number
+    includeArchived?: boolean
+    userId?: string | null
+  }): Promise<{
+    sessions: Array<Session & { owner: SessionUser }>
+    total: number
+    hasMore: boolean
+  }>
 }
 
 // ============================================================================
@@ -279,6 +369,7 @@ export interface ChatSessionContextValue {
   turns: ConversationTurn[]
   loading: boolean
   error: string | null
+  inputError: string | null
   currentSessionId?: string
   pendingQuestion: PendingQuestion | null
   session: Session | null
@@ -287,10 +378,14 @@ export interface ChatSessionContextValue {
   isStreaming: boolean
   messageQueue: QueuedMessage[]
   codeOutputs: CodeOutput[]
+  debugMode: boolean
+  isCompacting: boolean
+  compactionSummary: string | null
 
   // Setters
   setMessage: (message: string) => void
   setError: (error: string | null) => void
+  setInputError: (error: string | null) => void
   setCodeOutputs: (outputs: CodeOutput[]) => void
 
   // Handlers

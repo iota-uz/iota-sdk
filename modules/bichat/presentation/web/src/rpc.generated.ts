@@ -3,6 +3,8 @@
 export type BichatRPC = {
   "bichat.ping": { params: PingParams; result: PingResult }
   "bichat.session.artifacts": { params: SessionArtifactsParams; result: SessionArtifactsResult }
+  "bichat.session.clear": { params: SessionIDParams; result: SessionClearResult }
+  "bichat.session.compact": { params: SessionIDParams; result: SessionCompactResult }
   "bichat.session.create": { params: SessionCreateParams; result: SessionCreateResult }
   "bichat.session.delete": { params: SessionIDParams; result: OkResult }
   "bichat.session.get": { params: SessionGetParams; result: SessionGetResult }
@@ -99,6 +101,19 @@ export interface SessionArtifactsParams {
 
 export interface SessionArtifactsResult {
   artifacts: Artifact[]
+}
+
+export interface SessionClearResult {
+  success: boolean
+  deletedMessages: number
+  deletedArtifacts: number
+}
+
+export interface SessionCompactResult {
+  success: boolean
+  summary: string
+  deletedMessages: number
+  deletedArtifacts: number
 }
 
 export interface SessionCreateParams {

@@ -13,6 +13,7 @@ import { SourcesPanel } from './SourcesPanel'
 import { DownloadCard } from './DownloadCard'
 import { InlineQuestionForm } from './InlineQuestionForm'
 import type { AssistantTurn, Citation, ChartData, Artifact, CodeOutput, PendingQuestion } from '../types'
+import { useTranslation } from '../hooks/useTranslation'
 
 const MarkdownRenderer = lazy(() =>
   import('./MarkdownRenderer').then((module) => ({ default: module.MarkdownRenderer }))
@@ -216,11 +217,17 @@ export function AssistantMessage({
   hideActions = false,
   hideTimestamp = false,
 }: AssistantMessageProps) {
+  const { t } = useTranslation()
   const [explanationExpanded, setExplanationExpanded] = useState(false)
   const classes = mergeClassNames(defaultClassNames, classNameOverrides)
 
   const hasContent = turn.content?.trim().length > 0
   const hasExplanation = !!turn.explanation?.trim()
+  const hasDebugTrace = !!turn.debug && (
+    !!turn.debug.generationMs ||
+    !!turn.debug.usage ||
+    turn.debug.tools.length > 0
+  )
   const hasPendingQuestion =
     !!pendingQuestion &&
     pendingQuestion.status === 'PENDING' &&
@@ -404,6 +411,58 @@ export function AssistantMessage({
                     )}
                   </>
                 )}
+              </div>
+            )}
+
+            {hasDebugTrace && turn.debug && (
+              <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+                <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                  {t('slash.debugPanelTitle')}
+                </p>
+                <div className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                  {turn.debug.generationMs !== undefined && (
+                    <p>
+                      {t('slash.debugGeneration')}: <span className="font-mono">{turn.debug.generationMs}ms</span>
+                    </p>
+                  )}
+                  {turn.debug.usage && (
+                    <p>
+                      {t('slash.debugUsage')}: <span className="font-mono">{turn.debug.usage.promptTokens}/{turn.debug.usage.completionTokens}/{turn.debug.usage.totalTokens}</span>
+                    </p>
+                  )}
+                  {turn.debug.tools.length > 0 && (
+                    <div className="space-y-1">
+                      <p>{t('slash.debugTools')}</p>
+                      {turn.debug.tools.map((tool, idx) => (
+                        <div key={`${tool.callId || tool.name}-${idx}`} className="rounded-md bg-gray-50 dark:bg-gray-900/40 p-2 border border-gray-200 dark:border-gray-700">
+                          <p className="font-mono text-[11px] text-gray-700 dark:text-gray-200">
+                            {tool.name} {tool.callId ? `(${tool.callId})` : ''}
+                          </p>
+                          {tool.durationMs !== undefined && (
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                              {tool.durationMs}ms
+                            </p>
+                          )}
+                          {tool.arguments && (
+                            <pre className="mt-1 whitespace-pre-wrap break-all text-[11px] text-gray-600 dark:text-gray-300">
+                              {tool.arguments.slice(0, 500)}
+                            </pre>
+                          )}
+                          {tool.result && (
+                            <pre className="mt-1 whitespace-pre-wrap break-all text-[11px] text-gray-600 dark:text-gray-300">
+                              {tool.result.slice(0, 500)}
+                            </pre>
+                          )}
+                          {tool.error && (
+                            <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">
+                              {tool.error}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -59,12 +59,15 @@ function ChatSessionCore({
     turns,
     fetching,
     error,
+    inputError,
     message,
     setMessage,
+    setInputError,
     loading,
     handleSubmit,
     messageQueue,
     handleUnqueue,
+    debugMode,
   } = useChat()
 
   if (fetching) {
@@ -117,6 +120,9 @@ function ChatSessionCore({
           message={message}
           loading={loading}
           fetching={fetching}
+          commandError={inputError}
+          onClearCommandError={() => setInputError(null)}
+          debugMode={debugMode}
           onMessageChange={setMessage}
           onSubmit={handleSubmit}
           messageQueue={messageQueue}

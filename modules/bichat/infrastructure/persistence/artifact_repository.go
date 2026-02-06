@@ -38,6 +38,10 @@ const (
 		DELETE FROM bichat.artifacts
 		WHERE tenant_id = $1 AND id = $2
 	`
+	deleteSessionArtifactsQuery = `
+		DELETE FROM bichat.artifacts
+		WHERE tenant_id = $1 AND session_id = $2
+	`
 	updateArtifactQuery = `
 		UPDATE bichat.artifacts
 		SET name = $1, description = $2
@@ -252,6 +256,28 @@ func (r *PostgresChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUI
 	}
 
 	return nil
+}
+
+// DeleteSessionArtifacts removes all artifacts in a session and returns the number deleted.
+func (r *PostgresChatRepository) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
+	const op serrors.Op = "PostgresChatRepository.DeleteSessionArtifacts"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	result, err := tx.Exec(ctx, deleteSessionArtifactsQuery, tenantID, sessionID)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	return result.RowsAffected(), nil
 }
 
 // UpdateArtifact updates an artifact's name and description.

@@ -117,6 +117,19 @@ type SessionIDParams struct {
 	ID string `json:"id"`
 }
 
+type SessionClearResult struct {
+	Success          bool  `json:"success"`
+	DeletedMessages  int64 `json:"deletedMessages"`
+	DeletedArtifacts int64 `json:"deletedArtifacts"`
+}
+
+type SessionCompactResult struct {
+	Success          bool   `json:"success"`
+	Summary          string `json:"summary"`
+	DeletedMessages  int64  `json:"deletedMessages"`
+	DeletedArtifacts int64  `json:"deletedArtifacts"`
+}
+
 type SessionUpdateTitleParams struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
@@ -281,6 +294,85 @@ func Router() *applet.TypedRPCRouter {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
+		},
+	})
+
+	applet.AddProcedure(r, "bichat.session.clear", applet.Procedure[SessionIDParams, SessionClearResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p SessionIDParams) (SessionClearResult, error) {
+			const op serrors.Op = "bichat.rpc.session.clear"
+
+			chatSvc, err := resolveChatService(ctx)
+			if err != nil {
+				return SessionClearResult{}, serrors.E(op, err)
+			}
+			sessionID, err := parseUUID(p.ID)
+			if err != nil {
+				return SessionClearResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			user, err := composables.UseUser(ctx)
+			if err != nil {
+				return SessionClearResult{}, serrors.E(op, serrors.PermissionDenied, err)
+			}
+
+			session, err := chatSvc.GetSession(ctx, sessionID)
+			if err != nil {
+				return SessionClearResult{}, serrors.E(op, err)
+			}
+			if session.UserID() != int64(user.ID()) {
+				return SessionClearResult{}, serrors.E(op, serrors.PermissionDenied, errors.New("access denied"))
+			}
+
+			result, err := chatSvc.ClearSessionHistory(ctx, sessionID)
+			if err != nil {
+				return SessionClearResult{}, serrors.E(op, err)
+			}
+
+			return SessionClearResult{
+				Success:          result.Success,
+				DeletedMessages:  result.DeletedMessages,
+				DeletedArtifacts: result.DeletedArtifacts,
+			}, nil
+		},
+	})
+
+	applet.AddProcedure(r, "bichat.session.compact", applet.Procedure[SessionIDParams, SessionCompactResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p SessionIDParams) (SessionCompactResult, error) {
+			const op serrors.Op = "bichat.rpc.session.compact"
+
+			chatSvc, err := resolveChatService(ctx)
+			if err != nil {
+				return SessionCompactResult{}, serrors.E(op, err)
+			}
+			sessionID, err := parseUUID(p.ID)
+			if err != nil {
+				return SessionCompactResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			user, err := composables.UseUser(ctx)
+			if err != nil {
+				return SessionCompactResult{}, serrors.E(op, serrors.PermissionDenied, err)
+			}
+
+			session, err := chatSvc.GetSession(ctx, sessionID)
+			if err != nil {
+				return SessionCompactResult{}, serrors.E(op, err)
+			}
+			if session.UserID() != int64(user.ID()) {
+				return SessionCompactResult{}, serrors.E(op, serrors.PermissionDenied, errors.New("access denied"))
+			}
+
+			result, err := chatSvc.CompactSessionHistory(ctx, sessionID)
+			if err != nil {
+				return SessionCompactResult{}, serrors.E(op, err)
+			}
+
+			return SessionCompactResult{
+				Success:          result.Success,
+				Summary:          result.Summary,
+				DeletedMessages:  result.DeletedMessages,
+				DeletedArtifacts: result.DeletedArtifacts,
+			}, nil
 		},
 	})
 

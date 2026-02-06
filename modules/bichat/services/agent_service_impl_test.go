@@ -288,6 +288,7 @@ type mockChatRepository struct {
 	sessions    map[uuid.UUID]domain.Session
 	messages    map[uuid.UUID][]types.Message
 	attachments map[uuid.UUID]domain.Attachment
+	artifacts   map[uuid.UUID]domain.Artifact
 }
 
 func newMockChatRepository() *mockChatRepository {
@@ -295,6 +296,7 @@ func newMockChatRepository() *mockChatRepository {
 		sessions:    make(map[uuid.UUID]domain.Session),
 		messages:    make(map[uuid.UUID][]types.Message),
 		attachments: make(map[uuid.UUID]domain.Attachment),
+		artifacts:   make(map[uuid.UUID]domain.Artifact),
 	}
 }
 
@@ -356,7 +358,18 @@ func (m *mockChatRepository) GetSessionMessages(ctx context.Context, sessionID u
 }
 
 func (m *mockChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
-	return 0, nil
+	messages := m.messages[sessionID]
+	filtered := make([]types.Message, 0, len(messages))
+	var deleted int64
+	for _, msg := range messages {
+		if msg.CreatedAt().Before(from) {
+			filtered = append(filtered, msg)
+			continue
+		}
+		deleted++
+	}
+	m.messages[sessionID] = filtered
+	return deleted, nil
 }
 
 func (m *mockChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
@@ -386,18 +399,41 @@ func (m *mockChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID)
 }
 
 func (m *mockChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
+	m.artifacts[artifact.ID()] = artifact
 	return nil
 }
 
 func (m *mockChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
-	return nil, errors.New("artifact not found")
+	artifact, exists := m.artifacts[id]
+	if !exists {
+		return nil, errors.New("artifact not found")
+	}
+	return artifact, nil
 }
 
 func (m *mockChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
-	return nil, nil
+	result := make([]domain.Artifact, 0)
+	for _, artifact := range m.artifacts {
+		if artifact.SessionID() == sessionID {
+			result = append(result, artifact)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockChatRepository) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
+	var deleted int64
+	for id, artifact := range m.artifacts {
+		if artifact.SessionID() == sessionID {
+			delete(m.artifacts, id)
+			deleted++
+		}
+	}
+	return deleted, nil
 }
 
 func (m *mockChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
+	delete(m.artifacts, id)
 	return nil
 }
 
@@ -765,6 +801,7 @@ func TestConvertExecutorEvent_ToolStart(t *testing.T) {
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeToolStart,
 		Tool: &agents.ToolEvent{
+			CallID:    "call_123",
 			Name:      "test_tool",
 			Arguments: `{"param": "value"}`,
 		},
@@ -774,6 +811,7 @@ func TestConvertExecutorEvent_ToolStart(t *testing.T) {
 
 	assert.Equal(t, services.EventTypeToolStart, serviceEvent.Type)
 	require.NotNil(t, serviceEvent.Tool)
+	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
 	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
 	assert.JSONEq(t, `{"param": "value"}`, serviceEvent.Tool.Arguments)
 }
@@ -784,10 +822,12 @@ func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeToolEnd,
 		Tool: &agents.ToolEvent{
-			Name:      "test_tool",
-			Arguments: `{"param": "value"}`,
-			Result:    "tool result",
-			Error:     nil,
+			CallID:     "call_123",
+			Name:       "test_tool",
+			Arguments:  `{"param": "value"}`,
+			Result:     "tool result",
+			Error:      nil,
+			DurationMs: 98,
 		},
 	}
 
@@ -795,8 +835,10 @@ func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
 
 	assert.Equal(t, services.EventTypeToolEnd, serviceEvent.Type)
 	require.NotNil(t, serviceEvent.Tool)
+	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
 	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
 	assert.Equal(t, "tool result", serviceEvent.Tool.Result)
+	assert.Equal(t, int64(98), serviceEvent.Tool.DurationMs)
 	assert.NoError(t, serviceEvent.Tool.Error)
 }
 

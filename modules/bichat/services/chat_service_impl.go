@@ -170,6 +170,92 @@ func (s *chatServiceImpl) DeleteSession(ctx context.Context, sessionID uuid.UUID
 	return nil
 }
 
+// ClearSessionHistory removes all messages/artifacts while preserving session metadata.
+func (s *chatServiceImpl) ClearSessionHistory(ctx context.Context, sessionID uuid.UUID) (bichatservices.ClearSessionHistoryResponse, error) {
+	const op serrors.Op = "chatServiceImpl.ClearSessionHistory"
+
+	session, err := s.chatRepo.GetSession(ctx, sessionID)
+	if err != nil {
+		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	deletedMessages, err := s.chatRepo.TruncateMessagesFrom(ctx, sessionID, time.Unix(0, 0))
+	if err != nil {
+		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	deletedArtifacts, err := s.chatRepo.DeleteSessionArtifacts(ctx, sessionID)
+	if err != nil {
+		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	updated := session.UpdatePendingQuestionAgent(nil).UpdateUpdatedAt(time.Now())
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
+		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	return bichatservices.ClearSessionHistoryResponse{
+		Success:          true,
+		DeletedMessages:  deletedMessages,
+		DeletedArtifacts: deletedArtifacts,
+	}, nil
+}
+
+// CompactSessionHistory replaces full session history with a compacted summary turn.
+func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID uuid.UUID) (bichatservices.CompactSessionHistoryResponse, error) {
+	const op serrors.Op = "chatServiceImpl.CompactSessionHistory"
+
+	session, err := s.chatRepo.GetSession(ctx, sessionID)
+	if err != nil {
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, domain.ListOptions{
+		Limit:  5000,
+		Offset: 0,
+	})
+	if err != nil {
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	summary, err := s.generateCompactionSummary(ctx, messages)
+	if err != nil {
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	deletedMessages, err := s.chatRepo.TruncateMessagesFrom(ctx, sessionID, time.Unix(0, 0))
+	if err != nil {
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	deletedArtifacts, err := s.chatRepo.DeleteSessionArtifacts(ctx, sessionID)
+	if err != nil {
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	userMsg := types.UserMessage("/compact", types.WithSessionID(sessionID))
+	if err := s.chatRepo.SaveMessage(ctx, userMsg); err != nil {
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	assistantMsg := types.AssistantMessage(summary, types.WithSessionID(sessionID))
+	if err := s.chatRepo.SaveMessage(ctx, assistantMsg); err != nil {
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	updated := session.UpdatePendingQuestionAgent(nil).UpdateUpdatedAt(time.Now())
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+	}
+
+	return bichatservices.CompactSessionHistoryResponse{
+		Success:          true,
+		Summary:          summary,
+		DeletedMessages:  deletedMessages,
+		DeletedArtifacts: deletedArtifacts,
+	}, nil
+}
+
 // SendMessage sends a message to a session and processes it with the agent.
 func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.SendMessageRequest) (*bichatservices.SendMessageResponse, error) {
 	const op serrors.Op = "chatServiceImpl.SendMessage"
@@ -285,6 +371,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 // SendMessageStream sends a message and streams the response via callback.
 func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservices.SendMessageRequest, onChunk func(bichatservices.StreamChunk)) error {
 	const op serrors.Op = "chatServiceImpl.SendMessageStream"
+	startedAt := time.Now()
 
 	// Get session
 	session, err := s.chatRepo.GetSession(ctx, req.SessionID)
@@ -342,12 +429,29 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		switch event.Type {
 		case bichatservices.EventTypeContent:
 			assistantContent.WriteString(event.Content)
-			// Stream content chunk
 			onChunk(bichatservices.StreamChunk{
 				Type:      bichatservices.ChunkTypeContent,
 				Content:   event.Content,
 				Timestamp: time.Now(),
 			})
+
+		case bichatservices.EventTypeToolStart:
+			if event.Tool != nil {
+				onChunk(bichatservices.StreamChunk{
+					Type:      bichatservices.ChunkTypeToolStart,
+					Tool:      event.Tool,
+					Timestamp: time.Now(),
+				})
+			}
+
+		case bichatservices.EventTypeToolEnd:
+			if event.Tool != nil {
+				onChunk(bichatservices.StreamChunk{
+					Type:      bichatservices.ChunkTypeToolEnd,
+					Tool:      event.Tool,
+					Timestamp: time.Now(),
+				})
+			}
 
 		case bichatservices.EventTypeInterrupt:
 			interrupted = true
@@ -360,8 +464,16 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				return serrors.E(op, err)
 			}
 
+		case bichatservices.EventTypeUsage:
+			if event.Usage != nil {
+				onChunk(bichatservices.StreamChunk{
+					Type:      bichatservices.ChunkTypeUsage,
+					Usage:     event.Usage,
+					Timestamp: time.Now(),
+				})
+			}
+
 		case bichatservices.EventTypeDone:
-			// Send usage chunk
 			if event.Usage != nil {
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeUsage,
@@ -371,12 +483,17 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			}
 			// Send done chunk
 			onChunk(bichatservices.StreamChunk{
-				Type:      bichatservices.ChunkTypeDone,
+				Type:         bichatservices.ChunkTypeDone,
+				GenerationMs: time.Since(startedAt).Milliseconds(),
+				Timestamp:    time.Now(),
+			})
+		case bichatservices.EventTypeError:
+			onChunk(bichatservices.StreamChunk{
+				Type:      bichatservices.ChunkTypeError,
+				Error:     event.Error,
 				Timestamp: time.Now(),
 			})
-		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage,
-			bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd,
-			bichatservices.EventTypeError:
+		case bichatservices.EventTypeCitation:
 			// no-op in stream handler
 		}
 	}
@@ -545,6 +662,64 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 		return serrors.E(op, err)
 	}
 	return nil
+}
+
+func (s *chatServiceImpl) generateCompactionSummary(ctx context.Context, messages []types.Message) (string, error) {
+	if len(messages) == 0 {
+		return "History compaction complete. No previous messages were available to summarize.", nil
+	}
+
+	var transcript strings.Builder
+	for _, msg := range messages {
+		if msg == nil {
+			continue
+		}
+		switch msg.Role() {
+		case types.RoleUser:
+			transcript.WriteString("User: ")
+		case types.RoleAssistant:
+			transcript.WriteString("Assistant: ")
+		default:
+			continue
+		}
+		transcript.WriteString(strings.TrimSpace(msg.Content()))
+		transcript.WriteString("\n")
+	}
+
+	if transcript.Len() == 0 {
+		return "History compaction complete. No user/assistant turns were available to summarize.", nil
+	}
+
+	prompt := fmt.Sprintf(
+		`Summarize this chat history into a compact state snapshot.
+Return markdown with these sections:
+1. Conversation Summary
+2. Key Facts and Decisions
+3. Open Questions or Follow-ups
+Keep it concise, factual, and preserve important numeric values.
+
+CHAT TRANSCRIPT:
+%s`,
+		transcript.String(),
+	)
+
+	if s.model == nil {
+		return "History compaction complete. A concise summary could not be generated because no model is configured.", nil
+	}
+
+	resp, err := s.model.Generate(ctx, agents.Request{
+		Messages: []types.Message{types.SystemMessage(prompt)},
+	}, agents.WithMaxTokens(700))
+	if err != nil {
+		return "History compaction complete. Summary generation failed, original history was compacted.", nil
+	}
+
+	summary := strings.TrimSpace(resp.Message.Content())
+	if summary == "" {
+		return "History compaction complete. The model returned an empty summary.", nil
+	}
+
+	return summary, nil
 }
 
 // maybeGenerateTitleAsync triggers async title generation if this is the first message in the session.

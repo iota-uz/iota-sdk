@@ -188,3 +188,59 @@ func TestPostgresChatRepository_TenantIsolation_Artifacts(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistence.ErrArtifactNotFound)
 }
+
+func TestPostgresChatRepository_DeleteSessionArtifacts(t *testing.T) {
+	t.Parallel()
+	envA := setupTest(t)
+	envB := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	sessionA := domain.NewSession(
+		domain.WithTenantID(envA.Tenant.ID),
+		domain.WithUserID(int64(envA.User.ID())),
+		domain.WithTitle("Tenant A Session"),
+	)
+	sessionB := domain.NewSession(
+		domain.WithTenantID(envB.Tenant.ID),
+		domain.WithUserID(int64(envB.User.ID())),
+		domain.WithTitle("Tenant B Session"),
+	)
+	require.NoError(t, repo.CreateSession(envA.Ctx, sessionA))
+	require.NoError(t, repo.CreateSession(envB.Ctx, sessionB))
+
+	a1 := domain.NewArtifact(
+		domain.WithArtifactTenantID(envA.Tenant.ID),
+		domain.WithArtifactSessionID(sessionA.ID()),
+		domain.WithArtifactType(domain.ArtifactTypeChart),
+		domain.WithArtifactName("A1"),
+	)
+	a2 := domain.NewArtifact(
+		domain.WithArtifactTenantID(envA.Tenant.ID),
+		domain.WithArtifactSessionID(sessionA.ID()),
+		domain.WithArtifactType(domain.ArtifactTypeExport),
+		domain.WithArtifactName("A2"),
+	)
+	b1 := domain.NewArtifact(
+		domain.WithArtifactTenantID(envB.Tenant.ID),
+		domain.WithArtifactSessionID(sessionB.ID()),
+		domain.WithArtifactType(domain.ArtifactTypeChart),
+		domain.WithArtifactName("B1"),
+	)
+	require.NoError(t, repo.SaveArtifact(envA.Ctx, a1))
+	require.NoError(t, repo.SaveArtifact(envA.Ctx, a2))
+	require.NoError(t, repo.SaveArtifact(envB.Ctx, b1))
+
+	deleted, err := repo.DeleteSessionArtifacts(envA.Ctx, sessionA.ID())
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), deleted)
+
+	artifactsA, err := repo.GetSessionArtifacts(envA.Ctx, sessionA.ID(), domain.ListOptions{Limit: 10})
+	require.NoError(t, err)
+	assert.Empty(t, artifactsA)
+
+	artifactsB, err := repo.GetSessionArtifacts(envB.Ctx, sessionB.ID(), domain.ListOptions{Limit: 10})
+	require.NoError(t, err)
+	assert.Len(t, artifactsB, 1)
+	assert.Equal(t, b1.ID(), artifactsB[0].ID())
+}

@@ -49,10 +49,12 @@ const (
 
 // ToolEvent represents a tool execution event
 type ToolEvent struct {
-	Name      string
-	Arguments string
-	Result    string
-	Error     error
+	CallID     string
+	Name       string
+	Arguments  string
+	Result     string
+	Error      error
+	DurationMs int64
 }
 
 // InterruptEvent represents a HITL interrupt

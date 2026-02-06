@@ -4,7 +4,7 @@
  * Clean, professional design
  */
 
-import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react'
 import { Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react'
 import AttachmentGrid from './AttachmentGrid'
 import { validateImageFile, validateFileCount, convertToBase64, createDataUrl } from '../utils/fileUtils'
@@ -21,7 +21,10 @@ export interface MessageInputProps {
   loading: boolean
   fetching?: boolean
   disabled?: boolean
+  commandError?: string | null
+  debugMode?: boolean
   messageQueue?: QueuedMessage[]
+  onClearCommandError?: () => void
   onMessageChange: (value: string) => void
   onSubmit: (e: React.FormEvent, attachments: ImageAttachment[]) => void
   onUnqueue?: () => { content: string; attachments: ImageAttachment[] } | null
@@ -42,7 +45,10 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       loading,
       fetching = false,
       disabled = false,
+      commandError = null,
+      debugMode = false,
       messageQueue = [],
+      onClearCommandError,
       onMessageChange,
       onSubmit,
       onUnqueue,
@@ -58,6 +64,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const [isDragging, setIsDragging] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isFocused, setIsFocused] = useState(false)
+    const [commandListOpen, setCommandListOpen] = useState(false)
+    const [activeCommandIndex, setActiveCommandIndex] = useState(0)
+    const [isComposing, setIsComposing] = useState(false)
 
     // Use override or translation
     const placeholder = placeholderOverride || t('input.placeholder')
@@ -65,6 +74,16 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    const formRef = useRef<HTMLFormElement>(null)
+
+    const slashCommands = useMemo(
+      () => [
+        { name: '/clear', description: t('slash.clearDescription') },
+        { name: '/debug', description: t('slash.debugDescription') },
+        { name: '/compact', description: t('slash.compactDescription') },
+      ],
+      [t]
+    )
 
     useImperativeHandle(ref, () => ({
       focus: () => textareaRef.current?.focus(),
@@ -89,6 +108,37 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       const timer = setTimeout(() => setError(null), 5000)
       return () => clearTimeout(timer)
     }, [error])
+
+    useEffect(() => {
+      if (isFocused && message.trimStart().startsWith('/')) {
+        setCommandListOpen(true)
+      } else {
+        setCommandListOpen(false)
+      }
+    }, [isFocused, message])
+
+    useEffect(() => {
+      if (!commandListOpen) return
+
+      const handleOutsideClick = (event: MouseEvent) => {
+        if (!containerRef.current) return
+        if (event.target instanceof Node && !containerRef.current.contains(event.target)) {
+          setCommandListOpen(false)
+        }
+      }
+
+      document.addEventListener('mousedown', handleOutsideClick)
+      return () => document.removeEventListener('mousedown', handleOutsideClick)
+    }, [commandListOpen])
+
+    const commandQuery = message.trimStart().slice(1).split(/\s+/)[0]?.toLowerCase() || ''
+    const filteredCommands = slashCommands.filter((cmd) =>
+      cmd.name.slice(1).startsWith(commandQuery)
+    )
+
+    useEffect(() => {
+      setActiveCommandIndex(0)
+    }, [commandQuery, filteredCommands.length])
 
     const handleFileSelect = async (files: FileList | null) => {
       if (!files || files.length === 0) return
@@ -149,7 +199,57 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       await handleFileSelect(e.dataTransfer.files)
     }
 
+    const submitCommandSelection = (command: string) => {
+      onMessageChange(command)
+      setCommandListOpen(false)
+      requestAnimationFrame(() => {
+        formRef.current?.requestSubmit()
+      })
+    }
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (isComposing || e.nativeEvent.isComposing) {
+        return
+      }
+
+      const isSlashMode = message.trimStart().startsWith('/')
+
+      if (isSlashMode && commandListOpen) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          if (filteredCommands.length > 0) {
+            setActiveCommandIndex((prev) => (prev + 1) % filteredCommands.length)
+          }
+          return
+        }
+
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          if (filteredCommands.length > 0) {
+            setActiveCommandIndex((prev) =>
+              prev === 0 ? filteredCommands.length - 1 : prev - 1
+            )
+          }
+          return
+        }
+
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setCommandListOpen(false)
+          return
+        }
+
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault()
+          if (filteredCommands.length > 0) {
+            submitCommandSelection(filteredCommands[activeCommandIndex].name)
+            return
+          }
+          handleFormSubmit(e as unknown as React.FormEvent)
+          return
+        }
+      }
+
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         if (!loading && (message.trim() || attachments.length > 0)) {
@@ -158,9 +258,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       }
 
       if (e.key === 'Escape') {
-        onMessageChange('')
-        setAttachments([])
-        setError(null)
+        if (isSlashMode) {
+          setCommandListOpen(false)
+        } else {
+          onMessageChange('')
+          setAttachments([])
+          setError(null)
+        }
       }
 
       if (e.key === 'ArrowUp' && !message.trim() && onUnqueue) {
@@ -174,16 +278,20 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
     const handleFormSubmit = (e: React.FormEvent) => {
       e.preventDefault()
+      if (isComposing) return
       if (loading || disabled || (!message.trim() && attachments.length === 0)) {
         return
       }
 
+      setCommandListOpen(false)
       onSubmit(e, attachments)
       setAttachments([])
       setError(null)
     }
 
     const canSubmit = !loading && !disabled && (message.trim() || attachments.length > 0)
+    const visibleError = error || commandError
+    const visibleErrorText = visibleError ? t(visibleError) : ''
     const defaultContainerClassName = "shrink-0 p-4 pb-6"
 
     return (
@@ -191,14 +299,17 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         ref={containerRef}
         className={containerClassName ?? defaultContainerClassName}
       >
-        <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto">
+        <form ref={formRef} onSubmit={handleFormSubmit} className="max-w-4xl mx-auto">
           {/* Error display */}
-          {error && (
+          {visibleError && (
             <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400 flex items-center justify-between">
-              <span>{error}</span>
+              <span>{visibleErrorText}</span>
               <button
                 type="button"
-                onClick={() => setError(null)}
+                onClick={() => {
+                  setError(null)
+                  onClearCommandError?.()
+                }}
                 className="ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded transition-colors"
                 aria-label={t('input.dismissError')}
               >
@@ -212,6 +323,14 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             <div className="mb-3 text-xs text-gray-500 dark:text-gray-400">
               <span className="px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded font-medium">
                 {t('input.messagesQueued', { count: messageQueue.length })}
+              </span>
+            </div>
+          )}
+
+          {debugMode && (
+            <div className="mb-3 text-xs">
+              <span className="px-2.5 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded font-medium">
+                {t('slash.debugBadge')}
               </span>
             </div>
           )}
@@ -257,11 +376,11 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading || disabled || attachments.length >= maxFiles}
-                className="flex-shrink-0 self-center p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="cursor-pointer flex-shrink-0 self-center p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label={t('input.attachFiles')}
                 title={t('input.attachImages')}
               >
-                <Paperclip size={18} />
+                <Paperclip size={18} className="cursor-pointer" />
               </button>
 
               {/* Hidden file input */}
@@ -280,10 +399,18 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 <textarea
                   ref={textareaRef}
                   value={message}
-                  onChange={(e) => onMessageChange(e.target.value)}
+                  onChange={(e) => {
+                    onMessageChange(e.target.value)
+                    onClearCommandError?.()
+                  }}
                   onKeyDown={handleKeyDown}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
                   onFocus={() => setIsFocused(true)}
-                  onBlur={() => setIsFocused(false)}
+                  onBlur={() => {
+                    setIsFocused(false)
+                    setCommandListOpen(false)
+                  }}
                   placeholder={placeholder}
                   className="resize-none bg-transparent border-none outline-none px-1 py-2 w-full text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-[15px] leading-relaxed"
                   style={{ maxHeight: `${MAX_HEIGHT}px` }}
@@ -297,7 +424,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="flex-shrink-0 self-center p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
+                className="cursor-pointer flex-shrink-0 self-center p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
                 aria-label={t('input.sendMessage')}
               >
                 {loading ? (
@@ -307,6 +434,42 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 )}
               </button>
             </div>
+
+            {commandListOpen && message.trimStart().startsWith('/') && (
+              <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] z-20 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
+                {filteredCommands.length > 0 ? (
+                  <ul role="listbox" aria-label={t('slash.commandsList')} className="max-h-52 overflow-y-auto py-1">
+                    {filteredCommands.map((command, index) => (
+                      <li
+                        key={command.name}
+                        role="option"
+                        aria-selected={index === activeCommandIndex}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          submitCommandSelection(command.name)
+                        }}
+                        className={`px-3 py-2 cursor-pointer transition-colors ${
+                          index === activeCommandIndex
+                            ? 'bg-primary-50 dark:bg-primary-900/30'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                        }`}
+                      >
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {command.name}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {command.description}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                    {t('slash.noMatches')}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Loading indicator */}

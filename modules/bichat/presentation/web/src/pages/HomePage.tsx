@@ -28,6 +28,9 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
     error,
     message,
     setMessage,
+    inputError,
+    setInputError,
+    debugMode,
     loading,
     handleSubmit,
     sendMessage,
@@ -108,6 +111,9 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
         message={message}
         loading={loading}
         fetching={fetching}
+        commandError={inputError}
+        onClearCommandError={() => setInputError(null)}
+        debugMode={debugMode}
         onMessageChange={setMessage}
         onSubmit={handleSubmit}
         messageQueue={messageQueue}

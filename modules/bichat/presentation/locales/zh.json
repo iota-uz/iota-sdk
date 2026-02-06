@@ -26,6 +26,14 @@
       "Access": "访问BI聊天",
       "ReadAll": "读取所有会话",
       "Export": "导出数据"
+    },
+    "SlashCommands": {
+      "Clear": "清除历史",
+      "Debug": "调试模式",
+      "Compact": "压缩历史",
+      "Compacting": "正在压缩历史",
+      "CompactedSummary": "压缩摘要",
+      "DebugTrace": "调试轨迹"
     }
   }
 }

@@ -46,6 +46,7 @@ type ChatRepository interface {
 	SaveArtifact(ctx context.Context, artifact Artifact) error
 	GetArtifact(ctx context.Context, id uuid.UUID) (Artifact, error)
 	GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts ListOptions) ([]Artifact, error)
+	DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error)
 	DeleteArtifact(ctx context.Context, id uuid.UUID) error
 	UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error
 }

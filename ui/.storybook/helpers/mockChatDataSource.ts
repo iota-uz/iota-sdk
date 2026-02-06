@@ -1,10 +1,12 @@
 import type {
   ChatDataSource,
   Session,
+  SessionListResult,
   ConversationTurn,
   PendingQuestion,
   StreamChunk,
   QuestionAnswers,
+  SendMessageOptions,
 } from '../../src/bichat/types'
 import { makeSession } from './bichatFixtures'
 
@@ -36,7 +38,10 @@ export class MockChatDataSource implements ChatDataSource {
 
   async *sendMessage(
     _sessionId: string,
-    content: string
+    content: string,
+    _attachments = [],
+    _signal?: AbortSignal,
+    _options?: SendMessageOptions
   ): AsyncGenerator<StreamChunk> {
     // 1. Signal user message accepted
     yield { type: 'user_message', sessionId: _sessionId }
@@ -56,6 +61,14 @@ export class MockChatDataSource implements ChatDataSource {
     yield { type: 'done', sessionId: _sessionId }
   }
 
+  async clearSessionHistory(_sessionId: string): Promise<{ success: boolean; deletedMessages: number; deletedArtifacts: number }> {
+    return { success: true, deletedMessages: 0, deletedArtifacts: 0 }
+  }
+
+  async compactSessionHistory(_sessionId: string): Promise<{ success: boolean; summary: string; deletedMessages: number; deletedArtifacts: number }> {
+    return { success: true, summary: 'Compacted summary', deletedMessages: 0, deletedArtifacts: 0 }
+  }
+
   async submitQuestionAnswers(
     _sessionId: string,
     _questionId: string,
@@ -72,5 +85,31 @@ export class MockChatDataSource implements ChatDataSource {
 
   navigateToSession(sessionId: string): void {
     console.log('Mock navigate to session:', sessionId)
+  }
+
+  // Session management stubs
+  async listSessions(): Promise<SessionListResult> {
+    return { sessions: [], total: 0, hasMore: false }
+  }
+  async archiveSession(sessionId: string): Promise<Session> {
+    return this.options.session ?? makeSession({ id: sessionId, status: 'archived' })
+  }
+  async unarchiveSession(sessionId: string): Promise<Session> {
+    return this.options.session ?? makeSession({ id: sessionId, status: 'active' })
+  }
+  async pinSession(sessionId: string): Promise<Session> {
+    return this.options.session ?? makeSession({ id: sessionId, pinned: true })
+  }
+  async unpinSession(sessionId: string): Promise<Session> {
+    return this.options.session ?? makeSession({ id: sessionId, pinned: false })
+  }
+  async deleteSession(_sessionId: string): Promise<void> {
+    console.log('Mock delete session:', _sessionId)
+  }
+  async renameSession(sessionId: string, title: string): Promise<Session> {
+    return this.options.session ?? makeSession({ id: sessionId, title })
+  }
+  async regenerateSessionTitle(sessionId: string): Promise<Session> {
+    return this.options.session ?? makeSession({ id: sessionId, title: 'Regenerated Title' })
   }
 }

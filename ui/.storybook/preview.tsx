@@ -33,8 +33,10 @@ function seedGlobals() {
       translations: {},
     },
     config: {
-      graphQLEndpoint: '/graphql',
       streamEndpoint: '/stream',
+      basePath: '/bi-chat',
+      assetsBasePath: '/bi-chat/assets',
+      rpcUIEndpoint: '/bi-chat/rpc',
     },
     extensions: {
       branding: {
@@ -58,9 +60,12 @@ function seedGlobals() {
     tenant: bichatContext.tenant,
     locale: bichatContext.locale,
     config: {
-      graphQLEndpoint: bichatContext.config.graphQLEndpoint,
+      graphQLEndpoint: '/graphql',
       streamEndpoint: bichatContext.config.streamEndpoint,
       restEndpoint: '/api',
+      basePath: bichatContext.config.basePath,
+      assetsBasePath: bichatContext.config.assetsBasePath,
+      rpcUIEndpoint: bichatContext.config.rpcUIEndpoint,
     },
     route: {
       path: '/storybook',
@@ -129,4 +134,3 @@ const preview: Preview = {
 }
 
 export default preview
-

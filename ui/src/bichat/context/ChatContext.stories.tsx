@@ -58,9 +58,19 @@ export const Stress: Story = {
             createSession: () => new Promise(() => {}),
             fetchSession: () => new Promise(() => {}),
             sendMessage: async function* () {},
+            clearSessionHistory: async () => ({ success: true, deletedMessages: 0, deletedArtifacts: 0 }),
+            compactSessionHistory: async () => ({ success: true, summary: 'Compacted', deletedMessages: 0, deletedArtifacts: 0 }),
             submitQuestionAnswers: async () => ({ success: true }),
             cancelPendingQuestion: async () => ({ success: true }),
             navigateToSession: () => {},
+            listSessions: async () => ({ sessions: [], total: 0, hasMore: false }),
+            archiveSession: async () => ({ id: '', title: '', status: 'archived' as const, pinned: false, createdAt: '', updatedAt: '' }),
+            unarchiveSession: async () => ({ id: '', title: '', status: 'active' as const, pinned: false, createdAt: '', updatedAt: '' }),
+            pinSession: async () => ({ id: '', title: '', status: 'active' as const, pinned: true, createdAt: '', updatedAt: '' }),
+            unpinSession: async () => ({ id: '', title: '', status: 'active' as const, pinned: false, createdAt: '', updatedAt: '' }),
+            deleteSession: async () => {},
+            renameSession: async () => ({ id: '', title: '', status: 'active' as const, pinned: false, createdAt: '', updatedAt: '' }),
+            regenerateSessionTitle: async () => ({ id: '', title: '', status: 'active' as const, pinned: false, createdAt: '', updatedAt: '' }),
           }}
         >
           <Consumer />

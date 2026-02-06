@@ -18,8 +18,10 @@ import type {
   QueuedMessage,
   CodeOutput,
   ChatSessionContextValue,
+  DebugTrace,
 } from '../types'
 import { RateLimiter } from '../utils/RateLimiter'
+import { hasPermission } from './IotaContext'
 
 const ChatSessionContext = createContext<ChatSessionContextValue | null>(null)
 
@@ -66,6 +68,60 @@ function createPendingTurn(
   }
 }
 
+type SlashCommandName = '/clear' | '/debug' | '/compact'
+
+interface ParsedSlashCommand {
+  name: SlashCommandName
+  hasArgs: boolean
+}
+
+function parseSlashCommand(input: string): ParsedSlashCommand | null {
+  const trimmed = input.trim()
+  if (!trimmed.startsWith('/')) return null
+
+  const parts = trimmed.split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return null
+
+  const candidate = parts[0].toLowerCase()
+  if (candidate !== '/clear' && candidate !== '/debug' && candidate !== '/compact') {
+    return null
+  }
+
+  return {
+    name: candidate,
+    hasArgs: parts.length > 1,
+  }
+}
+
+function hasDebugTrace(trace: DebugTrace): boolean {
+  return trace.tools.length > 0 || !!trace.usage || !!trace.generationMs
+}
+
+function attachDebugTraceToLatestTurn(turns: ConversationTurn[], trace: DebugTrace): ConversationTurn[] {
+  if (!hasDebugTrace(trace)) {
+    return turns
+  }
+
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const turn = turns[i]
+    if (!turn.assistantTurn) {
+      continue
+    }
+
+    const next = [...turns]
+    next[i] = {
+      ...turn,
+      assistantTurn: {
+        ...turn.assistantTurn,
+        debug: trace,
+      },
+    }
+    return next
+  }
+
+  return turns
+}
+
 export function ChatSessionProvider({
   dataSource,
   sessionId,
@@ -79,6 +135,7 @@ export function ChatSessionProvider({
   const [turns, setTurns] = useState<ConversationTurn[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [inputError, setInputError] = useState<string | null>(null)
 
   // Session state
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId)
@@ -96,6 +153,9 @@ export function ChatSessionProvider({
   // Queue and code outputs state
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const [codeOutputs, setCodeOutputs] = useState<CodeOutput[]>([])
+  const [debugModeBySession, setDebugModeBySession] = useState<Record<string, boolean>>({})
+  const [isCompacting, setIsCompacting] = useState(false)
+  const [compactionSummary, setCompactionSummary] = useState<string | null>(null)
 
   // Rate limiter (use provided or create default)
   const rateLimiterRef = useRef<RateLimiter>(
@@ -107,6 +167,9 @@ export function ChatSessionProvider({
     setCurrentSessionId(sessionId)
   }, [sessionId])
 
+  const debugSessionKey = currentSessionId || 'new'
+  const debugMode = debugModeBySession[debugSessionKey] ?? false
+
   // Fetch session on mount/sessionId change
   useEffect(() => {
     if (!currentSessionId || currentSessionId === 'new') {
@@ -114,6 +177,7 @@ export function ChatSessionProvider({
       setTurns([])
       setPendingQuestion(null)
       setFetching(false)
+      setInputError(null)
       return
     }
 
@@ -121,6 +185,7 @@ export function ChatSessionProvider({
 
     setFetching(true)
     setError(null)
+    setInputError(null)
 
     dataSource
       .fetchSession(currentSessionId)
@@ -151,9 +216,116 @@ export function ChatSessionProvider({
     await navigator.clipboard.writeText(text)
   }, [])
 
+  const executeSlashCommand = useCallback(
+    async (command: ParsedSlashCommand): Promise<boolean> => {
+      if (command.hasArgs) {
+        setInputError('slash.error.noArguments')
+        return true
+      }
+
+      setError(null)
+      setInputError(null)
+
+      if (command.name === '/debug') {
+        if (!hasPermission('bichat.export')) {
+          setInputError('slash.error.debugUnauthorized')
+          return true
+        }
+
+        setDebugModeBySession((prev) => ({
+          ...prev,
+          [debugSessionKey]: !(prev[debugSessionKey] ?? false),
+        }))
+        setMessage('')
+        return true
+      }
+
+      if (!currentSessionId || currentSessionId === 'new') {
+        setInputError('slash.error.sessionRequired')
+        return true
+      }
+
+      if (command.name === '/clear') {
+        setLoading(true)
+        setStreamingContent('')
+
+        try {
+          await dataSource.clearSessionHistory(currentSessionId)
+          const state = await dataSource.fetchSession(currentSessionId)
+          if (state) {
+            setSession(state.session)
+            setTurns(state.turns)
+            setPendingQuestion(state.pendingQuestion || null)
+          } else {
+            setTurns([])
+          }
+          setCompactionSummary(null)
+          setCodeOutputs([])
+          setMessage('')
+        } catch (err) {
+          setInputError(err instanceof Error ? err.message : 'slash.error.clearFailed')
+        } finally {
+          setLoading(false)
+          setIsStreaming(false)
+        }
+        return true
+      }
+
+      if (command.name === '/compact') {
+        setLoading(true)
+        setIsCompacting(true)
+        setCompactionSummary(null)
+        setStreamingContent('')
+
+        try {
+          const result = await dataSource.compactSessionHistory(currentSessionId)
+          setCompactionSummary(result.summary || '')
+
+          const state = await dataSource.fetchSession(currentSessionId)
+          if (state) {
+            setSession(state.session)
+            setTurns(state.turns)
+            setPendingQuestion(state.pendingQuestion || null)
+          } else {
+            setTurns([])
+          }
+
+          setCodeOutputs([])
+          setMessage('')
+        } catch (err) {
+          setInputError(err instanceof Error ? err.message : 'slash.error.compactFailed')
+        } finally {
+          setIsCompacting(false)
+          setLoading(false)
+          setIsStreaming(false)
+        }
+        return true
+      }
+
+      setInputError('slash.error.unknownCommand')
+      return true
+    },
+    [currentSessionId, dataSource, debugSessionKey]
+  )
+
   const sendMessageDirect = useCallback(
     async (content: string, attachments: Attachment[] = []): Promise<void> => {
       if (!content.trim() || loading) return
+
+      const trimmedContent = content.trim()
+      if (trimmedContent.startsWith('/')) {
+        const maybeCommand = parseSlashCommand(content)
+        if (!maybeCommand) {
+          setInputError('slash.error.unknownCommand')
+          return
+        }
+        if (attachments.length > 0) {
+          setInputError('slash.error.noAttachments')
+          return
+        }
+        await executeSlashCommand(maybeCommand)
+        return
+      }
 
       // Check rate limit
       if (!rateLimiterRef.current.canMakeRequest()) {
@@ -167,7 +339,9 @@ export function ChatSessionProvider({
       setMessage('')
       setLoading(true)
       setError(null)
+      setInputError(null)
       setStreamingContent('')
+      setCompactionSummary(null)
 
       // Create abort controller for this request
       abortControllerRef.current = new AbortController()
@@ -184,8 +358,13 @@ export function ChatSessionProvider({
         if (!activeSessionId || activeSessionId === 'new') {
           const result = await dataSource.createSession()
           if (result) {
-            activeSessionId = result.id
-            setCurrentSessionId(activeSessionId)
+            const createdSessionID = result.id
+            activeSessionId = createdSessionID
+            setCurrentSessionId(createdSessionID)
+            setDebugModeBySession((prev) => {
+              if (!debugMode) return prev
+              return { ...prev, [createdSessionID]: true }
+            })
             shouldNavigateAfter = true
           }
         }
@@ -193,25 +372,43 @@ export function ChatSessionProvider({
         // Stream response
         let accumulatedContent = ''
         let createdSessionId: string | undefined
+        const debugTrace: DebugTrace = { tools: [] }
         setIsStreaming(true)
 
         for await (const chunk of dataSource.sendMessage(
           activeSessionId || 'new',
           content,
           attachments,
-          abortControllerRef.current?.signal
+          abortControllerRef.current?.signal,
+          { debugMode }
         )) {
           // Check if cancelled
           if (abortControllerRef.current?.signal.aborted) {
             break
           }
 
-          if (chunk.type === 'chunk' && chunk.content) {
+          if ((chunk.type === 'chunk' || chunk.type === 'content') && chunk.content) {
             accumulatedContent += chunk.content
             setStreamingContent(accumulatedContent)
+          } else if (chunk.type === 'tool_start' && chunk.tool) {
+            debugTrace.tools.push({ ...chunk.tool })
+          } else if (chunk.type === 'tool_end' && chunk.tool) {
+            const idx = chunk.tool.callId
+              ? debugTrace.tools.findIndex((tool) => tool.callId === chunk.tool?.callId)
+              : -1
+            if (idx >= 0) {
+              debugTrace.tools[idx] = { ...debugTrace.tools[idx], ...chunk.tool }
+            } else {
+              debugTrace.tools.push({ ...chunk.tool })
+            }
+          } else if (chunk.type === 'usage' && chunk.usage) {
+            debugTrace.usage = chunk.usage
           } else if (chunk.type === 'error') {
             throw new Error(chunk.error || 'Stream error')
           } else if (chunk.type === 'done') {
+            if (chunk.generationMs) {
+              debugTrace.generationMs = chunk.generationMs
+            }
             if (chunk.sessionId) {
               createdSessionId = chunk.sessionId
             }
@@ -221,7 +418,7 @@ export function ChatSessionProvider({
               const state = await dataSource.fetchSession(finalSessionId)
               if (state) {
                 setSession(state.session)
-                setTurns(state.turns)
+                setTurns(debugMode ? attachDebugTraceToLatestTurn(state.turns, debugTrace) : state.turns)
                 setPendingQuestion(state.pendingQuestion || null)
               }
             }
@@ -246,8 +443,8 @@ export function ChatSessionProvider({
         // Remove optimistic turn on error
         setTurns((prev) => prev.filter((t) => t.id !== tempTurn.id))
 
-        const errorMessage = err instanceof Error ? err.message : 'Failed to send message'
-        setError(errorMessage)
+        const errorMessage = err instanceof Error ? err.message : 'error.networkError'
+        setInputError(errorMessage)
         console.error('Send message error:', err)
       } finally {
         setLoading(false)
@@ -256,7 +453,7 @@ export function ChatSessionProvider({
         abortControllerRef.current = null
       }
     },
-    [currentSessionId, loading, dataSource]
+    [currentSessionId, loading, dataSource, debugMode, executeSlashCommand]
   )
 
   const cancelStream = useCallback(() => {
@@ -272,6 +469,7 @@ export function ChatSessionProvider({
     (e: React.FormEvent, attachments: ImageAttachment[] = []) => {
       e.preventDefault()
       if (!message.trim() && attachments.length === 0) return
+      setInputError(null)
 
       // Convert ImageAttachment to Attachment for the data source
       const convertedAttachments: Attachment[] = attachments.map(att => ({
@@ -428,6 +626,7 @@ export function ChatSessionProvider({
     turns,
     loading,
     error,
+    inputError,
     currentSessionId,
     pendingQuestion,
     session,
@@ -436,10 +635,14 @@ export function ChatSessionProvider({
     isStreaming,
     messageQueue,
     codeOutputs,
+    debugMode,
+    isCompacting,
+    compactionSummary,
 
     // Setters
     setMessage,
     setError,
+    setInputError,
     setCodeOutputs,
 
     // Handlers

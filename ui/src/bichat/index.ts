@@ -28,6 +28,7 @@ export { WelcomeContent } from './components/WelcomeContent'
 export { CodeOutputsPanel } from './components/CodeOutputsPanel'
 export { StreamingCursor } from './components/StreamingCursor'
 export { ScrollToBottomButton } from './components/ScrollToBottomButton'
+export { CompactionDoodle } from './components/CompactionDoodle'
 export { EmptyState, type EmptyStateProps } from './components/EmptyState'
 export { EditableText, type EditableTextProps, type EditableTextRef } from './components/EditableText'
 export { SearchInput, type SearchInputProps } from './components/SearchInput'
@@ -56,6 +57,33 @@ export { UserAvatar, type UserAvatarProps } from './components/UserAvatar'
 export { PermissionGuard, type PermissionGuardProps } from './components/PermissionGuard'
 export { ErrorBoundary, DefaultErrorContent } from './components/ErrorBoundary'
 export { TypingIndicator, type TypingIndicatorProps, type TypingIndicatorVariant } from './components/TypingIndicator'
+
+// Session management components
+export { default as Sidebar } from './components/Sidebar'
+export { default as SessionItem } from './components/SessionItem'
+export { default as ArchivedChatList } from './components/ArchivedChatList'
+export { default as AllChatsList } from './components/AllChatsList'
+export { TabBar } from './components/TabBar'
+export { UserFilter } from './components/UserFilter'
+export { default as DateGroupHeader } from './components/DateGroupHeader'
+export { default as SessionSkeleton } from './components/SessionSkeleton'
+
+// Generic UI components
+export { default as Alert } from './components/Alert'
+export { default as ArchiveBanner } from './components/ArchiveBanner'
+export { RetryActionArea } from './components/RetryActionArea'
+export { StreamError } from './components/StreamError'
+export { MessageActions } from './components/MessageActions'
+export { default as AttachmentPreview } from './components/AttachmentPreview'
+export { default as AttachmentUpload } from './components/AttachmentUpload'
+export { default as ScreenReaderAnnouncer } from './components/ScreenReaderAnnouncer'
+export { default as SkipLink } from './components/SkipLink'
+export { TouchContextMenu } from './components/TouchContextMenu'
+
+// Question form wizard
+export { default as QuestionForm } from './components/QuestionForm'
+export { default as QuestionStep } from './components/QuestionStep'
+export { default as ConfirmationStep } from './components/ConfirmationStep'
 
 // =============================================================================
 // Layer 3: Composites (Styled with Slots)
@@ -138,6 +166,11 @@ export {
   type UseMarkdownCopyReturn,
 } from './hooks/useMarkdownCopy'
 
+// Session & interaction hooks
+export { useScrollToBottom } from './hooks/useScrollToBottom'
+export { useKeyboardShortcuts, type ShortcutConfig } from './hooks/useKeyboardShortcuts'
+export { useLongPress } from './hooks/useLongPress'
+
 // =============================================================================
 // Animations
 // =============================================================================
@@ -183,6 +216,10 @@ export { HttpDataSource, createHttpDataSource } from './data/HttpDataSource'
 export { RateLimiter } from './utils/RateLimiter'
 export * from './utils/fileUtils'
 export { processCitations, type ProcessedContent } from './utils/citationProcessor'
+export { parseSSEStream, type SSEEvent } from './utils/sseParser'
+export { groupSessionsByDate } from './utils/sessionGrouping'
+export { formatRelativeTime } from './utils/dateFormatting'
+export { isQuestionAnswered, validateAnswers } from './utils/questionFormUtils'
 
 // =============================================================================
 // Types
@@ -211,6 +248,10 @@ export type {
   // Data source interface
   ChatDataSource,
   ChatSessionContextValue,
+  // Session management types
+  SessionListResult,
+  SessionUser,
+  SessionGroup,
   // Turn-based architecture types
   ConversationTurn,
   UserTurn,
