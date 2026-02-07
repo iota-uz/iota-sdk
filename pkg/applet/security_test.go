@@ -99,9 +99,14 @@ func TestValidatePermissions(t *testing.T) {
 			expected: []string{"bichat.access"},
 		},
 		{
-			name:     "invalid format - uppercase rejected",
+			name:     "uppercase permissions normalized",
 			input:    []string{"BICHAT.ACCESS", "bichat.access"},
 			expected: []string{"bichat.access"},
+		},
+		{
+			name:     "mixed case permissions normalized",
+			input:    []string{"BiChat.Access", "Finance.Read"},
+			expected: []string{"bichat.access", "finance.read"},
 		},
 		{
 			name:     "format with no action part currently accepted (NOTE: may be bug)",
