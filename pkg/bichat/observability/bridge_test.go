@@ -70,9 +70,10 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 	requestEvent := events.NewLLMRequestEvent(
 		sessionID, tenantID,
 		"claude-3-5-sonnet-20241022", "anthropic",
-		3,    // messages
-		5,    // tools
-		1000, // estimatedTokens
+		3,                 // messages
+		5,                 // tools
+		1000,              // estimatedTokens
+		"test user input", // userInput
 	)
 	require.NoError(t, bus.Publish(context.Background(), requestEvent))
 
@@ -87,7 +88,8 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 		950, 120, 1070, // tokens
 		1234, // latencyMs
 		"stop",
-		2, // toolCalls
+		2,                    // toolCalls
+		"test response text", // responseText
 	)
 	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 
@@ -131,6 +133,7 @@ func TestEventBridge_MissingRequest(t *testing.T) {
 		1234,
 		"stop",
 		2,
+		"test response text",
 	)
 	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 
@@ -166,6 +169,7 @@ func TestEventBridge_OrphanCleanup(t *testing.T) {
 		timestamp: time.Now().Add(-6 * time.Minute),
 		messages:  3,
 		tools:     5,
+		userInput: "old user input",
 	}
 	bridge.mu.Unlock()
 
@@ -201,6 +205,7 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 				sessionID, tenantID,
 				"claude-3-5-sonnet-20241022", "anthropic",
 				3, 5, 1000,
+				"test user input",
 			)
 			errCh <- bus.Publish(context.Background(), requestEvent)
 		}()
@@ -216,6 +221,7 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 				sessionID, tenantID,
 				"claude-3-5-sonnet-20241022", "anthropic",
 				950, 120, 1070, 1234, "stop", 2,
+				"test response text",
 			)
 			errCh <- bus.Publish(context.Background(), responseEvent)
 		}()
@@ -252,6 +258,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 		sessionID, tenantID,
 		"claude-3-5-sonnet-20241022", "anthropic",
 		3, 5, 1000,
+		"test user input",
 	)
 	require.NoError(t, bus.Publish(context.Background(), requestEvent))
 	time.Sleep(50 * time.Millisecond)
@@ -260,6 +267,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 		sessionID, tenantID,
 		"claude-3-5-sonnet-20241022", "anthropic",
 		950, 120, 1070, 1234, "stop", 2,
+		"test response text",
 	)
 	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 

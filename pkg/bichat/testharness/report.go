@@ -19,6 +19,15 @@ func WriteJSONReport(path string, report RunReport) error {
 func PrintConsoleSummary(w io.Writer, report RunReport) {
 	_, _ = fmt.Fprintf(w, "Tests: %d, Passed: %d, Failed: %d, Errors: %d\n",
 		report.Summary.Total, report.Summary.Passed, report.Summary.Failed, report.Summary.Errored)
+	_, _ = fmt.Fprintf(
+		w,
+		"Metrics: tools=%d, tokens(in/out/total)=%d/%d/%d, cost=%.6f\n",
+		report.Summary.ToolUseEfficiency,
+		report.Summary.InputTokens,
+		report.Summary.OutputTokens,
+		report.Summary.TotalTokens,
+		report.Summary.Cost,
+	)
 
 	if report.CacheKey != "" {
 		suffix := ""

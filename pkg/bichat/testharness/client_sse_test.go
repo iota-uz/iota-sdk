@@ -54,3 +54,33 @@ func TestDecodeSSE_DataOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "AB", b.String())
 }
+
+func TestMapSSEInterrupt(t *testing.T) {
+	t.Parallel()
+
+	interrupt := mapSSEInterrupt(&httpdto.InterruptEventPayload{
+		CheckpointID:       "cp-1",
+		AgentName:          "analytics-agent",
+		ProviderResponseID: "resp-1",
+		Questions: []httpdto.InterruptQuestionPayload{
+			{
+				ID:   "metric",
+				Text: "Which metric?",
+				Type: "single_choice",
+				Options: []httpdto.InterruptQuestionOptionPayload{
+					{ID: "revenue", Label: "Revenue"},
+					{ID: "profit", Label: "Profit"},
+				},
+			},
+		},
+	})
+
+	require.NotNil(t, interrupt)
+	require.Equal(t, "cp-1", interrupt.CheckpointID)
+	require.Equal(t, "analytics-agent", interrupt.AgentName)
+	require.Equal(t, "resp-1", interrupt.ProviderResponseID)
+	require.Len(t, interrupt.Questions, 1)
+	require.Equal(t, "metric", interrupt.Questions[0].ID)
+	require.Len(t, interrupt.Questions[0].Options, 2)
+	require.Equal(t, "revenue", interrupt.Questions[0].Options[0].ID)
+}

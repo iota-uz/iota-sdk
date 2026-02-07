@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useMemo, useRef } from 'react'
 import type { Attachment } from '../types'
+import { convertToBase64, createDataUrl, validateAttachmentFile } from '../utils/fileUtils'
 
 export interface FileValidationError {
   file: File
@@ -15,9 +16,9 @@ export interface FileValidationError {
 export interface UseAttachmentsOptions {
   /** Maximum number of files (default: 10) */
   maxFiles?: number
-  /** Maximum file size in bytes (default: 10MB) */
+  /** Maximum file size in bytes (default: 20MB) */
   maxFileSize?: number
-  /** Allowed MIME types (default: images only) */
+  /** Allowed MIME types (default: attachment allowlist) */
   allowedTypes?: string[]
   /** Custom validation function */
   validate?: (file: File) => string | null
@@ -53,33 +54,14 @@ export interface UseAttachmentsReturn {
 }
 
 const DEFAULT_MAX_FILES = 10
-const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
-const DEFAULT_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const DEFAULT_MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
+const DEFAULT_ALLOWED_TYPES: string[] = []
 
 /**
  * Generate a unique ID for an attachment
  */
 function generateId(): string {
   return `attachment-${Date.now()}-${Math.random().toString(36).substring(7)}`
-}
-
-/**
- * Check if a file is an image
- */
-function isImageFile(file: File): boolean {
-  return file.type.startsWith('image/')
-}
-
-/**
- * Create a data URL preview for an image file
- */
-async function createImagePreview(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(new Error('Failed to read file'))
-    reader.readAsDataURL(file)
-  })
 }
 
 /**
@@ -143,22 +125,33 @@ export function useAttachments(options: UseAttachmentsOptions = {}): UseAttachme
         }
       }
 
-      // Check file size
-      if (file.size > maxFileSize) {
-        const maxSizeMB = (maxFileSize / (1024 * 1024)).toFixed(1)
-        return {
-          file,
-          reason: 'size',
-          message: `File "${file.name}" exceeds ${maxSizeMB}MB limit`,
+      if (allowedTypes.length > 0) {
+        if (!allowedTypes.includes(file.type)) {
+          return {
+            file,
+            reason: 'type',
+            message: `File type "${file.type || 'unknown'}" not allowed`,
+          }
         }
-      }
-
-      // Check file type
-      if (allowedTypes.length > 0 && !allowedTypes.includes(file.type)) {
-        return {
-          file,
-          reason: 'type',
-          message: `File type "${file.type || 'unknown'}" not allowed`,
+        if (file.size > maxFileSize) {
+          const maxSizeMB = (maxFileSize / (1024 * 1024)).toFixed(1)
+          return {
+            file,
+            reason: 'size',
+            message: `File "${file.name}" exceeds ${maxSizeMB}MB limit`,
+          }
+        }
+      } else {
+        try {
+          validateAttachmentFile(file, maxFileSize)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : `File "${file.name}" is not allowed`
+          const reason: FileValidationError['reason'] = message.includes('large') ? 'size' : 'type'
+          return {
+            file,
+            reason,
+            message,
+          }
         }
       }
 
@@ -216,14 +209,14 @@ export function useAttachments(options: UseAttachmentsOptions = {}): UseAttachme
           sizeBytes: file.size,
         }
 
-        // Add preview URL for images
-        if (isImageFile(file)) {
-          try {
-            const preview = await createImagePreview(file)
-            attachment.base64Data = preview
-          } catch {
-            // Continue without preview if it fails
+        try {
+          const base64Data = await convertToBase64(file)
+          attachment.base64Data = base64Data
+          if (file.type.startsWith('image/')) {
+            attachment.preview = createDataUrl(base64Data, file.type)
           }
+        } catch {
+          // Continue without content if conversion fails.
         }
 
         validFiles.push(attachment)

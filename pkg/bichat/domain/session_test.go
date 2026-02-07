@@ -63,6 +63,15 @@ func TestSession_Creation(t *testing.T) {
 		require.NotNil(t, session.PendingQuestionAgent(), "Expected PendingQuestionAgent to be set")
 		assert.Equal(t, agentName, *session.PendingQuestionAgent(), "Agent name mismatch")
 	})
+
+	t.Run("creation with llm previous response id", func(t *testing.T) {
+		session := domain.NewSession(
+			domain.WithLLMPreviousResponseID("resp_prev_1"),
+		)
+
+		require.NotNil(t, session.LLMPreviousResponseID(), "Expected LLMPreviousResponseID to be set")
+		assert.Equal(t, "resp_prev_1", *session.LLMPreviousResponseID(), "LLMPreviousResponseID mismatch")
+	})
 }
 
 func TestSession_Validation(t *testing.T) {
@@ -224,4 +233,18 @@ func TestSession_MultipleOptions(t *testing.T) {
 	require.True(t, session.HasPendingQuestion(), "PendingQuestionAgent not set correctly")
 	assert.Equal(t, agent, *session.PendingQuestionAgent(), "PendingQuestionAgent value mismatch")
 	assert.Equal(t, domain.SessionStatusArchived, session.Status(), "Status not set correctly")
+}
+
+func TestSession_UpdateLLMPreviousResponseID(t *testing.T) {
+	t.Parallel()
+
+	session := domain.NewSession()
+	value := "resp_next_1"
+
+	updated := session.UpdateLLMPreviousResponseID(&value)
+	require.NotNil(t, updated.LLMPreviousResponseID())
+	assert.Equal(t, value, *updated.LLMPreviousResponseID())
+
+	cleared := updated.UpdateLLMPreviousResponseID(nil)
+	assert.Nil(t, cleared.LLMPreviousResponseID())
 }

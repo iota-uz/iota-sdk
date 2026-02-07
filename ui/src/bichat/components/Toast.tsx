@@ -18,25 +18,26 @@ export interface ToastProps {
   dismissLabel?: string
 }
 
+// Bumped to *-700 / dark:*-800 for WCAG AA contrast (4.5:1) with white text at text-sm
 const typeConfig = {
   success: {
-    bgColor: 'bg-green-500',
-    darkBgColor: 'dark:bg-green-600',
+    bgColor: 'bg-green-700',
+    darkBgColor: 'dark:bg-green-800',
     icon: <CheckCircle size={20} className="w-5 h-5 flex-shrink-0" weight="fill" />,
   },
   error: {
-    bgColor: 'bg-red-500',
-    darkBgColor: 'dark:bg-red-600',
+    bgColor: 'bg-red-700',
+    darkBgColor: 'dark:bg-red-800',
     icon: <XCircle size={20} className="w-5 h-5 flex-shrink-0" weight="fill" />,
   },
   info: {
-    bgColor: 'bg-blue-500',
-    darkBgColor: 'dark:bg-blue-600',
+    bgColor: 'bg-blue-700',
+    darkBgColor: 'dark:bg-blue-800',
     icon: <Info size={20} className="w-5 h-5 flex-shrink-0" weight="fill" />,
   },
   warning: {
-    bgColor: 'bg-yellow-500',
-    darkBgColor: 'dark:bg-yellow-600',
+    bgColor: 'bg-amber-700',
+    darkBgColor: 'dark:bg-amber-800',
     icon: <Warning size={20} className="w-5 h-5 flex-shrink-0" weight="fill" />,
   },
 }
@@ -47,7 +48,7 @@ export function Toast({
   message,
   duration = 5000,
   onDismiss,
-  dismissLabel = 'Dismiss',
+  dismissLabel = 'Dismiss notification',
 }: ToastProps) {
   const config = typeConfig[type]
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
@@ -60,8 +61,7 @@ func (t *SchemaListTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *SchemaListTool) Description() string {
-	return "List all available tables and views in the analytics schema. " +
-		"Returns table names with row counts, descriptions, and access status."
+	return "List all available tables and views in the analytics schema with approximate row counts."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -104,28 +104,51 @@ func (t *SchemaListTool) Call(ctx context.Context, input string) (string, error)
 		viewInfos, _ = t.viewAccess.GetAccessibleViews(ctx, viewNames)
 	}
 
-	// Convert to map format for tool output
-	result := make([]map[string]any, len(tables))
+	// Build markdown table
+	var b strings.Builder
+	b.WriteString("## Available Tables\n\n")
+
+	// Header
+	if t.viewAccess != nil {
+		b.WriteString("| # | Table | ~Rows | Access | Description |\n")
+		b.WriteString("| --- | --- | --- | --- | --- |\n")
+	} else {
+		b.WriteString("| # | Table | ~Rows | Description |\n")
+		b.WriteString("| --- | --- | --- | --- |\n")
+	}
+
+	// Rows
 	for i, table := range tables {
-		result[i] = map[string]any{
-			"schema": table.Schema,
-			"name":   table.Name,
-			"type":   "view",
-		}
+		b.WriteString(fmt.Sprintf("| %d | %s | ", i+1, table.Name))
+
+		// Row count
 		if table.RowCount > 0 {
-			result[i]["row_count"] = table.RowCount
-		}
-		if table.Description != "" {
-			result[i]["description"] = table.Description
+			b.WriteString(fmt.Sprintf("~%d | ", table.RowCount))
+		} else {
+			b.WriteString("- | ")
 		}
 
-		// Add access status if permission checking is enabled
-		if t.viewAccess != nil && i < len(viewInfos) {
-			result[i]["access"] = viewInfos[i].Access
+		// Access (if configured)
+		if t.viewAccess != nil {
+			if i < len(viewInfos) {
+				b.WriteString(fmt.Sprintf("%s | ", viewInfos[i].Access))
+			} else {
+				b.WriteString("- | ")
+			}
+		}
+
+		// Description
+		if table.Description != "" {
+			b.WriteString(fmt.Sprintf("%s |\n", table.Description))
+		} else {
+			b.WriteString("- |\n")
 		}
 	}
 
-	return agents.FormatToolOutput(result)
+	// Footer
+	b.WriteString(fmt.Sprintf("\n%d table(s) found.", len(tables)))
+
+	return b.String(), nil
 }
 
 // SchemaDescribeToolOption configures a SchemaDescribeTool.
@@ -168,9 +191,8 @@ func (t *SchemaDescribeTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *SchemaDescribeTool) Description() string {
-	return "Get detailed schema information for a specific table or view. " +
-		"Returns column names, types, constraints, indexes, and sample values. " +
-		"Only accessible views can be described."
+	return "Get detailed column information for a specific table or view. " +
+		"Returns column names, types, nullability, and defaults."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -282,31 +304,61 @@ func (t *SchemaDescribeTool) Call(ctx context.Context, input string) (string, er
 		), serrors.E(op, fmt.Sprintf("table not found: %s", params.TableName))
 	}
 
-	// Convert to map format for tool output
-	columns := make([]map[string]interface{}, len(schema.Columns))
-	for i, col := range schema.Columns {
-		colMap := map[string]interface{}{
-			"column_name": col.Name,
-			"data_type":   col.Type,
-			"is_nullable": col.Nullable,
-		}
-		if col.DefaultValue != nil {
-			colMap["column_default"] = *col.DefaultValue
-		}
+	// Check if any column has a description
+	hasDescription := false
+	for _, col := range schema.Columns {
 		if col.Description != "" {
-			colMap["description"] = col.Description
+			hasDescription = true
+			break
 		}
-		columns[i] = colMap
 	}
 
-	result := map[string]interface{}{
-		"table_name":  schema.Name,
-		"schema":      schema.Schema,
-		"columns":     columns,
-		"indexes":     []map[string]interface{}{},
-		"constraints": []map[string]interface{}{},
-		"samples":     map[string][]interface{}{},
+	// Build markdown table
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("## Table: %s (%s)\n\n", schema.Name, schema.Schema))
+
+	// Header
+	if hasDescription {
+		b.WriteString("| # | Column | Type | Nullable | Default | Description |\n")
+		b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
+	} else {
+		b.WriteString("| # | Column | Type | Nullable | Default |\n")
+		b.WriteString("| --- | --- | --- | --- | --- |\n")
 	}
 
-	return agents.FormatToolOutput(result)
+	// Rows
+	for i, col := range schema.Columns {
+		b.WriteString(fmt.Sprintf("| %d | %s | %s | ", i+1, col.Name, col.Type))
+
+		// Nullable
+		if col.Nullable {
+			b.WriteString("YES | ")
+		} else {
+			b.WriteString("NO | ")
+		}
+
+		// Default
+		if col.DefaultValue != nil {
+			b.WriteString(fmt.Sprintf("%s ", *col.DefaultValue))
+		} else {
+			b.WriteString("- ")
+		}
+
+		// Description (if column exists)
+		if hasDescription {
+			b.WriteString("| ")
+			if col.Description != "" {
+				b.WriteString(col.Description)
+			} else {
+				b.WriteString("-")
+			}
+		}
+
+		b.WriteString("|\n")
+	}
+
+	// Footer
+	b.WriteString(fmt.Sprintf("\n%d column(s)", len(schema.Columns)))
+
+	return b.String(), nil
 }

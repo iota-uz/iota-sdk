@@ -26,6 +26,14 @@
       "Access": "Access BI Chat",
       "ReadAll": "Read All Sessions",
       "Export": "Export Data"
+    },
+    "SlashCommands": {
+      "Clear": "Clear history",
+      "Debug": "Debug mode",
+      "Compact": "Compact history",
+      "Compacting": "Compacting history",
+      "CompactedSummary": "Compacted Summary",
+      "DebugTrace": "Debug Trace"
     }
   }
 }

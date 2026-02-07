@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	stdlibsql "database/sql"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -135,7 +137,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			fmt.Sprintf("failed to parse input: %v", err),
 			HintCheckRequiredFields,
 			HintCheckFieldTypes,
-		), serrors.E(op, err, "failed to parse input")
+		), nil
 	}
 
 	if params.Query == "" {
@@ -143,7 +145,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			ErrCodeInvalidRequest,
 			"query parameter is required",
 			HintCheckRequiredFields,
-		), serrors.E(op, "query parameter is required")
+		), nil
 	}
 
 	// Set defaults
@@ -156,7 +158,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			"limit must be a positive integer",
 			HintCheckFieldTypes,
 			"Use limit between 1 and 1000",
-		), serrors.E(op, "invalid limit")
+		), nil
 	}
 	if params.Limit > maxSQLExecuteLimit {
 		params.Limit = maxSQLExecuteLimit
@@ -172,7 +174,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			HintOnlySelectAllowed,
 			HintNoWriteOperations,
 			HintUseSchemaList,
-		), serrors.E(op, err)
+		), nil
 	}
 
 	// Check view permissions if configured
@@ -213,7 +215,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			"Use parameter binding for SQL injection protection",
 			"Provide params as a JSON array matching $1..$n placeholders",
 			HintCheckSQLSyntax,
-		), serrors.E(op, err)
+		), nil
 	}
 
 	// Explain plan mode
@@ -229,7 +231,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 				HintCheckSQLSyntax,
 				HintVerifyTableNames,
 				HintCheckJoinConditions,
-			), serrors.E(op, err, "explain failed")
+			), nil
 		}
 
 		planLines := extractExplainLines(explainResult, explainMaxLines)
@@ -250,13 +252,8 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 	result, err := t.executor.ExecuteQuery(ctx, executedSQL, params.Params, 30*time.Second)
 	duration := time.Since(start)
 	if err != nil {
-		return formatSQLError(
-			"Query execution failed",
-			err,
-			HintCheckSQLSyntax,
-			HintVerifyTableNames,
-			HintCheckJoinConditions,
-		), serrors.E(op, err, "query execution failed")
+		diagnosis := ClassifySQLError(err)
+		return FormatSQLDiagnosis(diagnosis), nil
 	}
 
 	// Apply truncation semantics on returned data (limit + 1 pattern).
@@ -299,26 +296,171 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 
 // validateReadOnlyQuery ensures the query is a SELECT statement.
 func validateReadOnlyQuery(query string) error {
-	normalized := strings.ToUpper(strings.TrimSpace(query))
+	tokens := tokenizeSQLForValidation(query)
+	if len(tokens) == 0 {
+		return fmt.Errorf("only SELECT queries are allowed")
+	}
 
 	// Must start with SELECT or WITH (for CTEs)
-	if !strings.HasPrefix(normalized, "SELECT") && !strings.HasPrefix(normalized, "WITH") {
+	if tokens[0] != "SELECT" && tokens[0] != "WITH" {
 		return fmt.Errorf("only SELECT queries are allowed")
 	}
 
 	// Blacklist dangerous keywords
-	dangerousKeywords := []string{
-		"INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER",
-		"TRUNCATE", "GRANT", "REVOKE", "EXEC", "EXECUTE",
+	dangerousKeywords := map[string]struct{}{
+		"INSERT":   {},
+		"UPDATE":   {},
+		"DELETE":   {},
+		"DROP":     {},
+		"CREATE":   {},
+		"ALTER":    {},
+		"TRUNCATE": {},
+		"GRANT":    {},
+		"REVOKE":   {},
+		"EXEC":     {},
+		"EXECUTE":  {},
 	}
 
-	for _, keyword := range dangerousKeywords {
-		if strings.Contains(normalized, keyword) {
-			return fmt.Errorf("query contains disallowed keyword: %s", keyword)
+	for _, token := range tokens {
+		if _, blocked := dangerousKeywords[token]; blocked {
+			return fmt.Errorf("query contains disallowed keyword: %s", token)
 		}
 	}
 
 	return nil
+}
+
+func tokenizeSQLForValidation(query string) []string {
+	src := strings.TrimSpace(query)
+	if src == "" {
+		return nil
+	}
+
+	tokens := make([]string, 0, 16)
+	n := len(src)
+	i := 0
+
+	for i < n {
+		ch := src[i]
+
+		// Skip whitespace.
+		if isWhitespace(ch) {
+			i++
+			continue
+		}
+
+		// Skip line comments: -- comment
+		if ch == '-' && i+1 < n && src[i+1] == '-' {
+			i += 2
+			for i < n && src[i] != '\n' {
+				i++
+			}
+			continue
+		}
+
+		// Skip block comments: /* comment */
+		if ch == '/' && i+1 < n && src[i+1] == '*' {
+			i += 2
+			for i+1 < n && !(src[i] == '*' && src[i+1] == '/') {
+				i++
+			}
+			if i+1 < n {
+				i += 2
+			}
+			continue
+		}
+
+		// Skip single-quoted strings, handling escaped quotes ('').
+		if ch == '\'' {
+			i++
+			for i < n {
+				if src[i] == '\'' {
+					if i+1 < n && src[i+1] == '\'' {
+						i += 2
+						continue
+					}
+					i++
+					break
+				}
+				i++
+			}
+			continue
+		}
+
+		// Skip double-quoted identifiers, handling escaped quotes ("").
+		if ch == '"' {
+			i++
+			for i < n {
+				if src[i] == '"' {
+					if i+1 < n && src[i+1] == '"' {
+						i += 2
+						continue
+					}
+					i++
+					break
+				}
+				i++
+			}
+			continue
+		}
+
+		// Skip dollar-quoted literals ($$...$$ or $tag$...$tag$) and placeholders ($1).
+		if ch == '$' {
+			// Placeholder ($1, $2, ...)
+			if i+1 < n && isDigit(src[i+1]) {
+				i += 2
+				for i < n && isDigit(src[i]) {
+					i++
+				}
+				continue
+			}
+
+			// Dollar-quoted string.
+			j := i + 1
+			for j < n && isIdentifierPart(src[j]) {
+				j++
+			}
+			if j < n && src[j] == '$' {
+				tag := src[i : j+1]
+				closeIdx := strings.Index(src[j+1:], tag)
+				if closeIdx >= 0 {
+					i = j + 1 + closeIdx + len(tag)
+					continue
+				}
+			}
+		}
+
+		// Capture identifier-like token.
+		if isIdentifierStart(ch) {
+			start := i
+			i++
+			for i < n && isIdentifierPart(src[i]) {
+				i++
+			}
+			tokens = append(tokens, strings.ToUpper(src[start:i]))
+			continue
+		}
+
+		i++
+	}
+
+	return tokens
+}
+
+func isWhitespace(ch byte) bool {
+	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\f'
+}
+
+func isIdentifierStart(ch byte) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_'
+}
+
+func isIdentifierPart(ch byte) bool {
+	return isIdentifierStart(ch) || isDigit(ch)
+}
+
+func isDigit(ch byte) bool {
+	return ch >= '0' && ch <= '9'
 }
 
 // validateQueryParameters checks for placeholder/parameter mismatches.
@@ -676,7 +818,43 @@ func formatValue(value interface{}) interface{} {
 	case pgx.Rows:
 		// Handle nested rows if any
 		return nil
+	case pgtype.Numeric:
+		return formatNumeric(v)
+	case *pgtype.Numeric:
+		if v == nil {
+			return nil
+		}
+		return formatNumeric(*v)
 	default:
 		return v
 	}
+}
+
+func formatNumeric(v pgtype.Numeric) any {
+	if !v.Valid {
+		return nil
+	}
+
+	raw, err := v.MarshalJSON()
+	if err != nil {
+		return fmt.Sprint(v)
+	}
+
+	if string(raw) == "null" {
+		return nil
+	}
+
+	// Keep exact numeric representation from pgtype JSON encoding.
+	var out any
+	if err := json.Unmarshal(raw, &out); err == nil {
+		switch value := out.(type) {
+		case float64:
+			// Avoid scientific notation and precision-loss side effects for integral numbers.
+			if value == float64(int64(value)) {
+				return strconv.FormatInt(int64(value), 10)
+			}
+		}
+	}
+
+	return strings.Trim(string(raw), "\"")
 }

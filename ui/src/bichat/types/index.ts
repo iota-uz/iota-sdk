@@ -46,12 +46,15 @@ export interface UserTurn {
  */
 export interface AssistantTurn {
   id: string
+  role?: MessageRole
   content: string
   explanation?: string
   citations: Citation[]
+  toolCalls?: ToolCall[]
   chartData?: ChartData
   artifacts: Artifact[]
   codeOutputs: CodeOutput[]
+  debug?: DebugTrace
   createdAt: string
 }
 
@@ -80,6 +83,9 @@ export interface ToolCall {
   id: string
   name: string
   arguments: string
+  result?: string
+  error?: string
+  durationMs?: number
 }
 
 // ============================================================================
@@ -108,20 +114,19 @@ export interface Citation {
 }
 
 export interface Attachment {
-  id: string
+  id?: string
   filename: string
   mimeType: string
   sizeBytes: number
   base64Data?: string
+  url?: string
+  preview?: string
 }
 
 // Image attachment with preview for MessageInput
-export interface ImageAttachment {
-  filename: string
-  mimeType: string
-  sizeBytes: number
+export type ImageAttachment = Attachment & {
   base64Data: string
-  preview: string  // data URL for img src
+  preview: string
 }
 
 // ============================================================================
@@ -149,7 +154,7 @@ export interface CodeOutput {
  */
 export interface QueuedMessage {
   content: string
-  attachments: ImageAttachment[]
+  attachments: Attachment[]
 }
 
 // ============================================================================
@@ -191,6 +196,20 @@ export interface Artifact {
   sizeReadable?: string
   rowCount?: number
   description?: string
+}
+
+export interface SessionArtifact {
+  id: string
+  sessionId: string
+  messageId?: string
+  type: string
+  name: string
+  description?: string
+  mimeType?: string
+  url?: string
+  sizeBytes: number
+  metadata?: Record<string, unknown>
+  createdAt: string
 }
 
 // ============================================================================
@@ -237,73 +256,218 @@ export interface QuestionAnswers {
 }
 
 export interface StreamChunk {
-  type: 'chunk' | 'error' | 'done' | 'user_message'
+  type: 'chunk' | 'content' | 'tool_start' | 'tool_end' | 'usage' | 'done' | 'error' | 'user_message' | 'interrupt'
   content?: string
   error?: string
   sessionId?: string
+  usage?: DebugUsage
+  tool?: StreamToolPayload
+  interrupt?: StreamInterruptPayload
+  generationMs?: number
+  timestamp?: number
+}
+
+export interface StreamInterruptPayload {
+  checkpointId: string
+  agentName?: string
+  questions: StreamInterruptQuestion[]
+}
+
+export interface StreamInterruptQuestion {
+  id: string
+  text: string
+  type: string
+  options: Array<{ id: string; label: string }>
+}
+
+export interface DebugUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  cachedTokens?: number
+  cost?: number
+}
+
+export interface StreamToolPayload {
+  callId?: string
+  name: string
+  arguments?: string
+  result?: string
+  error?: string
+  durationMs?: number
+}
+
+export interface DebugTrace {
+  generationMs?: number
+  usage?: DebugUsage
+  tools: StreamToolPayload[]
+}
+
+export interface DebugLimits {
+  policyMaxTokens: number
+  modelMaxTokens: number
+  effectiveMaxTokens: number
+  completionReserveTokens: number
+}
+
+export interface SessionDebugUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  turnsWithUsage: number
+  latestPromptTokens: number
+  latestCompletionTokens: number
+  latestTotalTokens: number
+}
+
+export interface SendMessageOptions {
+  debugMode?: boolean
+  replaceFromMessageID?: string
 }
 
 // ============================================================================
 // Data Source Interface
 // ============================================================================
 
+export interface SessionListResult {
+  sessions: Session[]
+  total: number
+  hasMore: boolean
+}
+
+export interface SessionUser {
+  id: string
+  firstName: string
+  lastName: string
+  initials: string
+}
+
+export interface SessionGroup {
+  name: string
+  sessions: Session[]
+}
+
 export interface ChatDataSource {
+  // Core operations
   createSession(): Promise<Session>
   fetchSession(id: string): Promise<{
     session: Session
     turns: ConversationTurn[]
     pendingQuestion?: PendingQuestion | null
   } | null>
+  fetchSessionArtifacts?(
+    sessionId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<{ artifacts: SessionArtifact[]; hasMore?: boolean; nextOffset?: number }>
   sendMessage(
     sessionId: string,
     content: string,
     attachments?: Attachment[],
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: SendMessageOptions
   ): AsyncGenerator<StreamChunk>
+  clearSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    deletedMessages: number
+    deletedArtifacts: number
+  }>
+  compactSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    summary: string
+    deletedMessages: number
+    deletedArtifacts: number
+  }>
   submitQuestionAnswers(
     sessionId: string,
     questionId: string,
     answers: QuestionAnswers
   ): Promise<{ success: boolean; error?: string }>
-  cancelPendingQuestion(questionId: string): Promise<{ success: boolean; error?: string }>
+  cancelPendingQuestion(sessionId: string): Promise<{ success: boolean; error?: string }>
   navigateToSession?(sessionId: string): void
+
+  // Session management
+  listSessions(options?: {
+    limit?: number
+    offset?: number
+    includeArchived?: boolean
+  }): Promise<SessionListResult>
+  archiveSession(sessionId: string): Promise<Session>
+  unarchiveSession(sessionId: string): Promise<Session>
+  pinSession(sessionId: string): Promise<Session>
+  unpinSession(sessionId: string): Promise<Session>
+  deleteSession(sessionId: string): Promise<void>
+  renameSession(sessionId: string, title: string): Promise<Session>
+  regenerateSessionTitle(sessionId: string): Promise<Session>
+
+  // Organization-wide features (optional)
+  listUsers?(): Promise<SessionUser[]>
+  listAllSessions?(options?: {
+    limit?: number
+    offset?: number
+    includeArchived?: boolean
+    userId?: string | null
+  }): Promise<{
+    sessions: Array<Session & { owner: SessionUser }>
+    total: number
+    hasMore: boolean
+  }>
 }
 
 // ============================================================================
 // Context Value Types
 // ============================================================================
 
-export interface ChatSessionContextValue {
-  // State
-  message: string
-  turns: ConversationTurn[]
-  loading: boolean
-  error: string | null
-  currentSessionId?: string
-  pendingQuestion: PendingQuestion | null
+// ============================================================================
+// Split Context Value Types
+// ============================================================================
+
+export interface ChatSessionStateValue {
   session: Session | null
+  currentSessionId?: string
   fetching: boolean
+  error: string | null
+  debugMode: boolean
+  sessionDebugUsage: SessionDebugUsage
+  debugLimits: DebugLimits | null
+  setError: (error: string | null) => void
+}
+
+export interface ChatMessagingStateValue {
+  turns: ConversationTurn[]
   streamingContent: string
   isStreaming: boolean
-  messageQueue: QueuedMessage[]
+  loading: boolean
+  pendingQuestion: PendingQuestion | null
   codeOutputs: CodeOutput[]
-
-  // Setters
-  setMessage: (message: string) => void
-  setError: (error: string | null) => void
-  setCodeOutputs: (outputs: CodeOutput[]) => void
-
-  // Handlers
-  handleSubmit: (e: React.FormEvent, attachments?: ImageAttachment[]) => void
+  isCompacting: boolean
+  compactionSummary: string | null
+  sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
   handleRegenerate?: (turnId: string) => Promise<void>
   handleEdit?: (turnId: string, newContent: string) => Promise<void>
   handleCopy: (text: string) => Promise<void>
   handleSubmitQuestionAnswers: (answers: QuestionAnswers) => void
   handleCancelPendingQuestion: () => Promise<void>
-  handleRetry?: () => Promise<void>
-  handleUnqueue: () => { content: string; attachments: ImageAttachment[] } | null
-  sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
   cancel: () => void
+  setCodeOutputs: (outputs: CodeOutput[]) => void
+}
+
+export interface ChatInputStateValue {
+  message: string
+  inputError: string | null
+  messageQueue: QueuedMessage[]
+  setMessage: (message: string) => void
+  setInputError: (error: string | null) => void
+  handleSubmit: (e: React.FormEvent, attachments?: Attachment[]) => void
+  handleUnqueue: () => { content: string; attachments: Attachment[] } | null
+}
+
+// ============================================================================
+// Combined Context Value (backwards compatible)
+// ============================================================================
+
+export interface ChatSessionContextValue
+  extends ChatSessionStateValue, ChatMessagingStateValue, ChatInputStateValue {
+  handleRetry?: () => Promise<void>
 }
 
 // Translations

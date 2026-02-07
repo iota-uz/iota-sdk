@@ -2,9 +2,12 @@ package types
 
 // ToolCall represents a request to execute a tool with specific arguments.
 type ToolCall struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Arguments  string `json:"arguments"`
+	Result     string `json:"result,omitempty"`
+	Error      string `json:"error,omitempty"`
+	DurationMs int64  `json:"durationMs,omitempty"`
 }
 
 // ToolCallResult represents the result of executing a tool call.

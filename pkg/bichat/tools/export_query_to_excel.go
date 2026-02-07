@@ -134,7 +134,7 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 			fmt.Sprintf("failed to parse input: %v", err),
 			HintCheckRequiredFields,
 			HintCheckFieldTypes,
-		), serrors.E(op, err, "failed to parse input")
+		), nil
 	}
 
 	if params.SQL == "" {
@@ -143,7 +143,7 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 			"sql parameter is required",
 			HintCheckRequiredFields,
 			"Provide a SELECT query to execute and export",
-		), serrors.E(op, "sql parameter is required")
+		), nil
 	}
 
 	// Validate query is read-only
@@ -154,7 +154,7 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 			HintOnlySelectAllowed,
 			HintNoWriteOperations,
 			HintUseSchemaList,
-		), serrors.E(op, err)
+		), nil
 	}
 
 	// Set defaults
@@ -215,7 +215,7 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 	fileSizeKB := int64(len(bytes)) / 1024
 
 	// Return download URL
-	url := fmt.Sprintf("%s/%s", t.baseURL, filename)
+	url := buildDownloadURL(ctx, t.baseURL, filename)
 
 	// Build response
 	response := exportQueryOutput{

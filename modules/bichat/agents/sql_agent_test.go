@@ -116,6 +116,13 @@ func TestSQLAgent_ToolRouting(t *testing.T) {
 	executor := &mockSQLExecutor{
 		executeQueryFn: func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 			// Schema tools use pg_catalog/information_schema via adapters.
+			if strings.Contains(sql, "FROM pg_class") || strings.Contains(sql, "pg_namespace") {
+				return &bichatsql.QueryResult{
+					Columns:  []string{"schema", "name", "approximate_row_count"},
+					Rows:     [][]any{{"analytics", "test_table", int64(123)}},
+					RowCount: 1,
+				}, nil
+			}
 			if strings.Contains(sql, "pg_catalog.pg_views") {
 				return &bichatsql.QueryResult{
 					Columns:  []string{"schema", "name", "type"},

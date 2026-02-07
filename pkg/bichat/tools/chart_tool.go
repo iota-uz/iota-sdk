@@ -3,11 +3,11 @@ package tools
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // DrawChartTool creates chart visualizations for data analysis.
@@ -112,8 +112,6 @@ type chartToolInput struct {
 
 // Call executes the chart creation and returns a chart specification.
 func (t *DrawChartTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "DrawChartTool.Call"
-
 	// Parse input
 	params, err := agents.ParseToolInput[chartToolInput](input)
 	if err != nil {
@@ -122,7 +120,7 @@ func (t *DrawChartTool) Call(ctx context.Context, input string) (string, error) 
 			fmt.Sprintf("failed to parse input: %v", err),
 			HintCheckRequiredFields,
 			HintCheckFieldTypes,
-		), serrors.E(op, err, "failed to parse input")
+		), nil
 	}
 
 	// Validate required fields
@@ -132,7 +130,7 @@ func (t *DrawChartTool) Call(ctx context.Context, input string) (string, error) 
 			"chartType parameter is required",
 			HintCheckRequiredFields,
 			"Valid chart types: line, bar, pie, area, donut",
-		), serrors.E(op, "chartType parameter is required")
+		), nil
 	}
 	if params.Title == "" {
 		return FormatToolError(
@@ -140,7 +138,7 @@ func (t *DrawChartTool) Call(ctx context.Context, input string) (string, error) 
 			"title parameter is required",
 			HintCheckRequiredFields,
 			"Provide a descriptive title for the chart",
-		), serrors.E(op, "title parameter is required")
+		), nil
 	}
 	if len(params.Series) == 0 {
 		return FormatToolError(
@@ -148,7 +146,7 @@ func (t *DrawChartTool) Call(ctx context.Context, input string) (string, error) 
 			"series parameter is required and must not be empty",
 			HintCheckRequiredFields,
 			"Provide at least one data series with name and data array",
-		), serrors.E(op, "series parameter is required and must not be empty")
+		), nil
 	}
 
 	// Set defaults
@@ -163,7 +161,7 @@ func (t *DrawChartTool) Call(ctx context.Context, input string) (string, error) 
 			err.Error(),
 			"Valid chart types: line, bar, pie, area, donut",
 			HintCheckFieldFormat,
-		), serrors.E(op, err)
+		), nil
 	}
 
 	// Validate inputs
@@ -173,7 +171,7 @@ func (t *DrawChartTool) Call(ctx context.Context, input string) (string, error) 
 			err.Error(),
 			HintCheckFieldFormat,
 			"Verify data arrays, labels, and color codes",
-		), serrors.E(op, err)
+		), nil
 	}
 
 	// Return chart specification as JSON
@@ -206,20 +204,55 @@ func (t *DrawChartTool) validate(chartType string, series []ChartSeries, labels 
 		}
 	}
 
-	// Validate max data points per series
+	// Validate per-series constraints
 	for i, s := range series {
+		// Fix 3: Reject empty data arrays
+		if len(s.Data) == 0 {
+			return fmt.Errorf("series[%d] has no data points", i)
+		}
+
+		// Validate max data points per series
 		if len(s.Data) > 1000 {
 			return fmt.Errorf("series[%d] exceeds maximum 1000 data points: %d", i, len(s.Data))
 		}
+
+		// Fix 2: Validate data values are numeric
+		for j, v := range s.Data {
+			f, ok := v.(float64)
+			if !ok {
+				return fmt.Errorf("series[%d].data[%d] is not a number", i, j)
+			}
+			if math.IsNaN(f) || math.IsInf(f, 0) {
+				return fmt.Errorf("series[%d].data[%d] is NaN or Infinity", i, j)
+			}
+		}
+
+		// Fix 4: Reject negative values for pie/donut
+		if chartType == "pie" || chartType == "donut" {
+			for j, v := range s.Data {
+				if f, ok := v.(float64); ok && f < 0 {
+					return fmt.Errorf("series[%d].data[%d] is negative (%.2f); pie/donut charts require non-negative values", i, j, f)
+				}
+			}
+		}
 	}
 
-	// Validate labels count matches data points (if provided and not pie/donut)
-	if len(labels) > 0 && chartType != "pie" && chartType != "donut" {
-		if len(series) > 0 {
-			dataPointCount := len(series[0].Data)
-			if len(labels) != dataPointCount {
-				return fmt.Errorf("labels count (%d) does not match data points (%d)", len(labels), dataPointCount)
+	// Fix 6: Validate cross-series data length consistency
+	if chartType != "pie" && chartType != "donut" && len(series) > 1 {
+		expectedLen := len(series[0].Data)
+		for i := 1; i < len(series); i++ {
+			if len(series[i].Data) != expectedLen {
+				return fmt.Errorf("series[%d] has %d data points but series[0] has %d; all series must have equal length",
+					i, len(series[i].Data), expectedLen)
 			}
+		}
+	}
+
+	// Fix 5: Validate labels count for all chart types
+	if len(labels) > 0 && len(series) > 0 {
+		dataPointCount := len(series[0].Data)
+		if len(labels) != dataPointCount {
+			return fmt.Errorf("labels count (%d) does not match data points (%d)", len(labels), dataPointCount)
 		}
 	}
 

@@ -18,6 +18,7 @@ type Message interface {
 	Attachments() []Attachment
 	Citations() []Citation
 	CodeOutputs() []CodeInterpreterOutput
+	DebugTrace() *DebugTrace
 	CreatedAt() time.Time
 
 	HasToolCalls() bool
@@ -37,6 +38,7 @@ type message struct {
 	attachments []Attachment
 	citations   []Citation
 	codeOutputs []CodeInterpreterOutput
+	debugTrace  *DebugTrace
 	createdAt   time.Time
 }
 
@@ -103,6 +105,13 @@ func WithCitations(citations ...Citation) MessageOption {
 func WithCodeOutputs(outputs ...CodeInterpreterOutput) MessageOption {
 	return func(m *message) {
 		m.codeOutputs = outputs
+	}
+}
+
+// WithDebugTrace sets the debug trace payload.
+func WithDebugTrace(trace *DebugTrace) MessageOption {
+	return func(m *message) {
+		m.debugTrace = trace
 	}
 }
 
@@ -218,6 +227,10 @@ func (m *message) Citations() []Citation {
 
 func (m *message) CodeOutputs() []CodeInterpreterOutput {
 	return m.codeOutputs
+}
+
+func (m *message) DebugTrace() *DebugTrace {
+	return m.debugTrace
 }
 
 func (m *message) CreatedAt() time.Time {

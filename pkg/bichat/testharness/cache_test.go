@@ -11,14 +11,14 @@ func TestJudgeCacheKey_Stable(t *testing.T) {
 	t.Parallel()
 
 	cfg := Config{
-		ServerURL:           DefaultServerURL,
-		GraphQLEndpointPath: DefaultGraphQLEndpointPath,
-		StreamEndpointPath:  DefaultStreamEndpointPath,
-		CookieName:          DefaultCookieName,
-		JudgeModel:          DefaultJudgeModel,
-		OpenAIAPIKey:        "k",
-		CacheEnabled:        true,
-		CacheDir:            t.TempDir(),
+		ServerURL:          DefaultServerURL,
+		RPCEndpointPath:    DefaultRPCEndpointPath,
+		StreamEndpointPath: DefaultStreamEndpointPath,
+		CookieName:         DefaultCookieName,
+		JudgeModel:         DefaultJudgeModel,
+		OpenAIAPIKey:       "k",
+		CacheEnabled:       true,
+		CacheDir:           t.TempDir(),
 	}
 	cache := NewCache(cfg)
 
@@ -35,25 +35,27 @@ func TestJudgeCache_SaveLoadVerdict(t *testing.T) {
 	t.Parallel()
 
 	cfg := Config{
-		ServerURL:           DefaultServerURL,
-		GraphQLEndpointPath: DefaultGraphQLEndpointPath,
-		StreamEndpointPath:  DefaultStreamEndpointPath,
-		CookieName:          DefaultCookieName,
-		JudgeModel:          DefaultJudgeModel,
-		OpenAIAPIKey:        "k",
-		CacheEnabled:        true,
-		CacheDir:            t.TempDir(),
+		ServerURL:          DefaultServerURL,
+		RPCEndpointPath:    DefaultRPCEndpointPath,
+		StreamEndpointPath: DefaultStreamEndpointPath,
+		CookieName:         DefaultCookieName,
+		JudgeModel:         DefaultJudgeModel,
+		OpenAIAPIKey:       "k",
+		CacheEnabled:       true,
+		CacheDir:           t.TempDir(),
 	}
 	cache := NewCache(cfg)
 
 	key := cache.JudgeKey("gpt-5-mini", "p")
-	v := JudgeVerdict{Passed: true, Reason: "ok", EfficiencyScore: 5, EfficiencyNotes: "direct"}
+	v := JudgeVerdict{Passed: true, Score: 0.9, Reason: "ok", MissedFacts: []string{}, IncorrectClaims: []string{}}
 	require.NoError(t, cache.SaveJudgeVerdict(key, v))
 
 	loaded, ok, err := cache.LoadJudgeVerdict(key)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, v, *loaded)
+	require.Equal(t, v.Passed, loaded.Passed)
+	require.Equal(t, v.Score, loaded.Score)
+	require.Equal(t, v.Reason, loaded.Reason)
 
 	// sanity path check (judge subdir)
 	p, err := cache.judgeFilePath(key)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestValidateQueryParameters(t *testing.T) {
@@ -169,6 +170,27 @@ func TestValidateReadOnlyQuery(t *testing.T) {
 			wantError: false,
 		},
 		{
+			name:      "SELECT with updated_at column - valid",
+			query:     "SELECT id, updated_at FROM users ORDER BY id",
+			wantError: false,
+		},
+		{
+			name:      "SELECT with update in string literal - valid",
+			query:     "SELECT 'UPDATE' AS word, id FROM users",
+			wantError: false,
+		},
+		{
+			name:      "SELECT with update in quoted identifier - valid",
+			query:     `SELECT "update" FROM users`,
+			wantError: false,
+		},
+		{
+			name:      "WITH containing UPDATE - invalid",
+			query:     "WITH changed AS (UPDATE users SET first_name = 'x' RETURNING id) SELECT * FROM changed",
+			wantError: true,
+			errMsg:    "UPDATE",
+		},
+		{
 			name:      "SQL injection attempt - invalid",
 			query:     "SELECT * FROM users; DROP TABLE users;",
 			wantError: true,
@@ -256,8 +278,9 @@ func TestSQLExecuteToolParameterValidation(t *testing.T) {
 			result, err := tool.Call(context.Background(), tt.input)
 
 			if tt.wantError {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
+				// Validation errors return nil error but formatted error string
+				if err != nil {
+					t.Fatalf("expected validation error to return nil error, got: %v", err)
 				}
 				if !strings.Contains(result, tt.errCode) {
 					t.Errorf("expected error code %s, got: %s", tt.errCode, result)
@@ -383,6 +406,25 @@ func TestSQLExecuteTool_ExplainPlan(t *testing.T) {
 	}
 	if !strings.Contains(outStr, "```sql") || !strings.Contains(outStr, gotSQL) {
 		t.Fatalf("expected executed SQL block, got: %s", outStr)
+	}
+}
+
+func TestFormatValue_PGNumeric(t *testing.T) {
+	t.Parallel()
+
+	var n pgtype.Numeric
+	if err := n.Scan("160000"); err != nil {
+		t.Fatalf("scan numeric: %v", err)
+	}
+
+	got := formatValue(n)
+	if got != "160000" {
+		t.Fatalf("expected 160000, got %#v", got)
+	}
+
+	n.Valid = false
+	if got = formatValue(n); got != nil {
+		t.Fatalf("expected nil for invalid numeric, got %#v", got)
 	}
 }
 

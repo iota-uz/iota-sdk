@@ -8,15 +8,15 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 )
 
-// AttachmentService handles file uploads and validation for vision support.
-// It validates image types, enforces size limits, and saves files to storage.
+// AttachmentService handles file uploads and validation for chat attachments.
+// It validates allowed file types, enforces size/count limits, and saves files to storage.
 type AttachmentService interface {
-	// ValidateAndSave validates an image upload and saves it to storage.
+	// ValidateAndSave validates an attachment upload and saves it to storage.
 	// Returns the saved attachment with storage URL.
 	//
 	// Validation rules:
-	// - MIME type: image/jpeg, image/png, image/gif, image/webp
-	// - Max size: 20MB per image
+	// - MIME type/extension must be in the supported attachment allowlist
+	// - Max size: 20MB per file
 	//
 	// Parameters:
 	// - filename: Original filename

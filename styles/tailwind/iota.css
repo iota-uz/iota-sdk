@@ -249,6 +249,13 @@
     --animation-slide-out-left: slide-out-left 500ms var(--ease-3);
   }
 
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    border-color: oklch(var(--clr-surface-400));
+  }
+
   ::selection {
     background-color: oklch(var(--primary-600));
     color: oklch(var(--white));

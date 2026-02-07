@@ -16,9 +16,15 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ui/*": ["ui/src/*"],
+      "@sb/*": ["ui/.storybook/*"],
+      "@sb-helpers/*": ["ui/.storybook/helpers/*"]
+    }
   },
-  "include": ["ui/src/**/*"],
+  "include": ["ui/src/**/*", "ui/.storybook/**/*"],
   "exclude": ["node_modules", "dist"]
 }
 

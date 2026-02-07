@@ -40,7 +40,7 @@ When an agent needs more information (e.g., "Which warehouse should I check?"), 
 ```mermaid
 graph TB
     subgraph "BiChat Module Architecture"
-        A[React SPA] --> B[GraphQL/SSE Controllers]
+        A[React SPA] --> B[Applet RPC + SSE Controllers]
         B --> C[AgentService]
         
         subgraph "Agent Framework (pkg/bichat)"
@@ -69,21 +69,20 @@ graph TB
 |----------|--------|---------|
 | `/bi-chat` | GET | Serves the React SPA |
 | `/bi-chat/stream` | POST | SSE streaming endpoint for agent responses |
-| `/bi-chat/graphql` | POST | GraphQL API for session management |
+| `/bi-chat/rpc` | POST | Applet RPC API for session management |
 
-### GraphQL Operations
+### RPC Procedures
 
-**Queries:**
-- `sessions`: List user's chat sessions
-- `session(id)`: Get detailed session state
-- `messages(sessionId)`: Get conversation history
+**Session:**
+- `bichat.session.list`: List user's chat sessions
+- `bichat.session.get`: Get session state (session + turns)
+- `bichat.session.create`: Create a new session
+- `bichat.session.updateTitle`: Rename a session
+- `bichat.session.pin` / `bichat.session.unpin`: Toggle pinned
+- `bichat.session.delete`: Delete a session
 
-**Mutations:**
-- `createSession(title)`: Start a new conversation
-- `sendMessage(sessionId, content, attachments)`: Send a message to the agent
-- `resumeWithAnswer(sessionId, checkpointId, answers)`: Resume after an interrupt
-- `archiveSession(id)`: Archive a session
-- `deleteSession(id)`: Permanently remove a session
+**Artifacts:**
+- `bichat.session.artifacts`: List artifacts for a session
 
 ## Permissions
 
@@ -109,15 +108,122 @@ The module is configured via `ModuleConfig` in Go:
 
 ```go
 cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
     chatRepo,
     llmModel,
     bichat.DefaultContextPolicy(),
     parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments"),
     bichat.WithQueryExecutor(executor),
     bichat.WithVision(true),
     bichat.WithMultiAgent(true),
 )
 ```
+
+### StreamController permission overrides
+
+By default, the module registers the SSE streaming endpoint at `/bi-chat/stream` using BiChat’s built-in permissions.
+If your application defines **its own** permission constants (e.g. `AIChat.Access`, `AIChat.ReadAll`), you can override what the StreamController enforces:
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithStreamRequireAccessPermission(apppermissions.AIChatAccess),
+    bichat.WithStreamReadAllPermission(apppermissions.AIChatReadAll),
+)
+```
+
+Alternatively, if you prefer full control, you can **skip the module’s StreamController** and register your own instance via
+`controllers.NewStreamController(..., controllers.WithRequireAccessPermission(...), controllers.WithReadAllPermission(...))`
+in setups where you wire BiChat controllers manually (instead of relying on module registration).
+
+### Serving attachments & artifacts (exports)
+
+`WithAttachmentStorage(baseDir, baseURL)` controls where BiChat stores files (exports, artifacts, and attachments) and what URL is written into artifact records.
+Your application must ensure that `baseURL` is **reachable**.
+
+Two common setups:
+
+- **Reverse proxy / CDN**: point `baseURL` at whatever serves `baseDir` (Nginx, S3, etc.).
+- **Built-in controller**: serve `baseDir` from the app with auth:
+
+```go
+// Store files on disk and expose them under /bi-chat/uploads/<uuid>.<ext>
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/uploads", "/bi-chat/uploads"),
+)
+
+// Register an authenticated file server for the baseDir.
+app.RegisterControllers(
+    controllers.NewUploadsController(
+        app,
+        "/var/lib/bichat/uploads",
+        controllers.WithBasePath("/bi-chat"),
+        controllers.WithRequireAccessPermission(apppermissions.AIChatAccess), // or BiChat.Access
+    ),
+)
+```
+
+### Repository-Scoped Prompt Extensions
+
+BiChat always keeps the SDK vendor system prompt as the base.  
+Downstream repositories can append project/domain guidance without replacing it.
+
+Static extension:
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments"),
+    bichat.WithProjectPromptExtension(`
+You are operating in insurance BI domain.
+Prioritize policy lifecycle, claims fraud signals, reserve adequacy, and underwriting KPIs.
+Use domain terms: policy, endorsement, claim, loss ratio, combined ratio, IBNR.
+`),
+)
+```
+
+Provider extension (resolved once during `BuildServices()`):
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments"),
+    bichat.WithProjectPromptExtensionProvider(
+        prompts.ProjectPromptExtensionProviderFunc(func() (string, error) {
+            return loadProjectPrompt(), nil
+        }),
+    ),
+)
+```
+
+Behavior:
+- Extension scope is project/repository level (not tenant level).
+- Provider output wins when non-empty; otherwise static extension is used.
+- Provider errors fail service startup (`BuildServices()`).
+- Extension is applied in parent flow (`AgentService.ProcessMessage`) before debug augmentation.
 
 ## Environment Variables
 
@@ -126,3 +232,29 @@ cfg := bichat.NewModuleConfig(
 | `OPENAI_API_KEY` | Yes | API key for OpenAI |
 | `OPENAI_MODEL` | No | Default model (defaults to `gpt-4o`) |
 | `BICHAT_CONTEXT_WINDOW` | No | Max tokens for context (default: 200k) |
+| `BICHAT_KNOWLEDGE_DIR` | No | Path to static knowledge root (`tables/`, `queries/`, `business/`) |
+| `BICHAT_KB_INDEX_PATH` | No | Bleve index path for `kb_search` |
+| `BICHAT_SCHEMA_METADATA_DIR` | No | Directory containing table metadata JSON files |
+
+## Knowledge Bootstrap
+
+Use the CLI to load curated BI knowledge into validated query storage and optional KB index:
+
+```bash
+command knowledge load \
+  --tenant-id <tenant-uuid> \
+  --dir /path/to/knowledge
+```
+
+Rebuild mode clears tenant-scoped validated query patterns first and recreates KB index contents:
+
+```bash
+command knowledge rebuild \
+  --tenant-id <tenant-uuid> \
+  --dir /path/to/knowledge
+```
+
+Directory contract (Dash-compatible):
+- `tables/*.json`: table metadata and usage notes
+- `queries/*.sql`: validated query patterns (`<query name>`, `<query description>`, `<query>`)
+- `business/*.json`: business rules and definitions

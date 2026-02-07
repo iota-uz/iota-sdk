@@ -178,6 +178,10 @@ func createTestBundle() *i18n.Bundle {
 		ID:    "farewell",
 		Other: "Goodbye",
 	})
+	_ = bundle.AddMessages(language.English, &i18n.Message{
+		ID:    "Common.Greeting",
+		Other: "Hello (Common)",
+	})
 	_ = bundle.AddMessages(language.Russian, &i18n.Message{
 		ID:    "greeting",
 		Other: "Привет",
@@ -432,6 +436,49 @@ func TestGetAllTranslations_LocaleNotFound(t *testing.T) {
 	assert.Empty(t, translations)
 }
 
+func TestGetAllTranslations_PrefixesMode(t *testing.T) {
+	t.Parallel()
+
+	bundle := createTestBundle()
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+	metrics := &mockMetrics{}
+	sessionConfig := DefaultSessionConfig
+
+	config := Config{
+		I18n: I18nConfig{
+			Mode:     TranslationModePrefixes,
+			Prefixes: []string{"Common."},
+		},
+	}
+	builder := NewContextBuilder(config, bundle, sessionConfig, logger, metrics)
+
+	translations := builder.getAllTranslations(language.English)
+	assert.Equal(t, "Hello (Common)", translations["Common.Greeting"])
+	_, ok := translations["greeting"]
+	assert.False(t, ok)
+}
+
+func TestGetAllTranslations_NoneMode(t *testing.T) {
+	t.Parallel()
+
+	bundle := createTestBundle()
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+	metrics := &mockMetrics{}
+	sessionConfig := DefaultSessionConfig
+
+	config := Config{
+		I18n: I18nConfig{
+			Mode: TranslationModeNone,
+		},
+	}
+	builder := NewContextBuilder(config, bundle, sessionConfig, logger, metrics)
+
+	translations := builder.getAllTranslations(language.English)
+	assert.Empty(t, translations)
+}
+
 func TestGetTenantName_ResolverSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -518,6 +565,25 @@ func TestGetUserPermissions_Success(t *testing.T) {
 	assert.Contains(t, permissions, "bichat.access")
 	assert.Contains(t, permissions, "finance.read")
 	assert.Contains(t, permissions, "core.admin")
+}
+
+func TestGetUserPermissions_IncludesRolePermissions(t *testing.T) {
+	t.Parallel()
+
+	p := permission.New(
+		permission.WithID(uuid.New()),
+		permission.WithName("BiChat.Access"),
+		permission.WithResource("bichat"),
+		permission.WithAction(permission.ActionRead),
+		permission.WithModifier(permission.ModifierAll),
+	)
+	r := role.New("Admin", role.WithPermissions([]permission.Permission{p}))
+	u := user.New("T", "U", internet.MustParseEmail("role@example.com"), user.UILanguageEN, user.WithID(1))
+	u = u.AddRole(r)
+
+	ctx := composables.WithUser(context.Background(), u)
+	permissions := getUserPermissions(ctx)
+	assert.Contains(t, permissions, "bichat.access")
 }
 
 func TestGetUserPermissions_ErrorCase(t *testing.T) {

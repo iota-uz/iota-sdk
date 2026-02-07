@@ -1,0 +1,20 @@
+@config "./tailwind.config.js";
+@import "tailwindcss";
+
+/* Design tokens used by tailwind theme extension (CSS variables). */
+@import "../../styles/tailwind/iota.css";
+
+/* BiChat component tokens + base styles (markdown/prose, animations, etc). */
+@import "../src/bichat/styles.css";
+
+/* Storybook canvas defaults */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--bichat-font-family, system-ui, -apple-system, sans-serif);
+}
+

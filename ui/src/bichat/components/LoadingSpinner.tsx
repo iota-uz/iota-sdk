@@ -37,7 +37,7 @@ function SpinnerLoader({
     <div className="flex flex-col items-center justify-center" role="status" aria-live="polite">
       <CircleNotch
         size={sizeMap[size]}
-        className={`${sizeClasses[size]} animate-spin text-[var(--bichat-primary)]`}
+        className={`${sizeClasses[size]} animate-spin motion-reduce:animate-none text-[var(--bichat-primary)]`}
       />
       {message && <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{message}</p>}
     </div>
@@ -69,7 +69,7 @@ function DotsLoader({
         {[0, 1, 2].map((index) => (
           <div
             key={index}
-            className={`${dotSizeClasses[size]} bg-[var(--bichat-primary)] rounded-full animate-bounce`}
+            className={`${dotSizeClasses[size]} bg-[var(--bichat-primary)] rounded-full animate-bounce motion-reduce:animate-none`}
             style={{ animationDelay: `${index * 0.15}s` }}
           />
         ))}
@@ -94,7 +94,7 @@ function PulseLoader({
 
   return (
     <div className="flex flex-col items-center justify-center" role="status" aria-live="polite">
-      <div className={`${sizeClasses[size]} bg-[var(--bichat-primary)] rounded-full animate-pulse`} />
+      <div className={`${sizeClasses[size]} bg-[var(--bichat-primary)] rounded-full animate-pulse motion-reduce:animate-none`} />
       {message && <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{message}</p>}
     </div>
   )

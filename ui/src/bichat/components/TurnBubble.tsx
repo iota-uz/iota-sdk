@@ -73,22 +73,26 @@ export function TurnBubble({
     userTurn: classNames?.userTurn ?? defaultClassNames.userTurn,
     assistantTurn: classNames?.assistantTurn ?? defaultClassNames.assistantTurn,
   }
+  const isSystemSummaryTurn =
+    turn.userTurn.content.trim() === '' && turn.assistantTurn?.role === 'system'
 
   return (
     <div className={classes.root} data-turn-id={turn.id}>
       {/* User message */}
-      <div className={classes.userTurn}>
-        {renderUserTurn ? (
-          renderUserTurn(turn)
-        ) : (
-          <UserTurnView
-            turn={turn}
-            slots={userMessageSlots}
-            classNames={userMessageClassNames}
-            {...userTurnProps}
-          />
-        )}
-      </div>
+      {!isSystemSummaryTurn && (
+        <div className={classes.userTurn}>
+          {renderUserTurn ? (
+            renderUserTurn(turn)
+          ) : (
+            <UserTurnView
+              turn={turn}
+              slots={userMessageSlots}
+              classNames={userMessageClassNames}
+              {...userTurnProps}
+            />
+          )}
+        </div>
+      )}
 
       {/* Assistant response (if available) */}
       {turn.assistantTurn && (

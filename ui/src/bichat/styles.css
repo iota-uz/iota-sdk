@@ -108,6 +108,9 @@
   --bichat-color-text-muted: var(--bichat-color-gray-500);
   --bichat-color-text-disabled: var(--bichat-color-gray-400);
   --bichat-color-text-inverse: #ffffff;
+  --bichat-color-code-text: var(--bichat-color-gray-800);
+  --bichat-color-code-bg: var(--bichat-color-gray-100);
+  --bichat-color-text-icon: var(--bichat-color-gray-500);
 
   --bichat-color-border: var(--bichat-color-gray-200);
   --bichat-color-border-subtle: var(--bichat-color-gray-100);
@@ -181,7 +184,7 @@
   /* Semantic radius aliases */
   --bichat-radius-bubble: var(--bichat-radius-2xl);
   --bichat-radius-bubble-tail: var(--bichat-radius-sm);
-  --bichat-radius-button: var(--bichat-radius-md);
+  --bichat-radius-button: var(--bichat-radius-lg);
   --bichat-radius-input: var(--bichat-radius-lg);
   --bichat-radius-card: var(--bichat-radius-xl);
   --bichat-radius-modal: var(--bichat-radius-2xl);
@@ -271,6 +274,9 @@
   --bichat-color-text-secondary: var(--bichat-color-gray-300);
   --bichat-color-text-muted: var(--bichat-color-gray-400);
   --bichat-color-text-disabled: var(--bichat-color-gray-500);
+  --bichat-color-code-text: var(--bichat-color-gray-200);
+  --bichat-color-code-bg: var(--bichat-color-gray-800);
+  --bichat-color-text-icon: var(--bichat-color-gray-400);
 
   --bichat-color-border: var(--bichat-color-gray-700);
   --bichat-color-border-subtle: var(--bichat-color-gray-800);
@@ -297,44 +303,6 @@
   --bichat-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
   --bichat-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
   --bichat-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
-}
-
-/* System preference dark mode */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bichat-color-bg: var(--bichat-color-gray-900);
-    --bichat-color-bg-subtle: var(--bichat-color-gray-800);
-    --bichat-color-bg-muted: var(--bichat-color-gray-700);
-
-    --bichat-color-surface: var(--bichat-color-gray-800);
-    --bichat-color-surface-raised: var(--bichat-color-gray-750, #2d3748);
-    --bichat-color-surface-overlay: rgba(31, 41, 55, 0.9);
-
-    --bichat-color-text: var(--bichat-color-gray-100);
-    --bichat-color-text-secondary: var(--bichat-color-gray-300);
-    --bichat-color-text-muted: var(--bichat-color-gray-400);
-    --bichat-color-text-disabled: var(--bichat-color-gray-500);
-
-    --bichat-color-border: var(--bichat-color-gray-700);
-    --bichat-color-border-subtle: var(--bichat-color-gray-800);
-    --bichat-color-border-strong: var(--bichat-color-gray-600);
-
-    --bichat-color-accent-muted: var(--bichat-color-primary-900);
-
-    --bichat-color-user-bubble-bg: var(--bichat-color-primary-700);
-    --bichat-color-assistant-bubble-bg: var(--bichat-color-gray-800);
-    --bichat-color-assistant-bubble-border: var(--bichat-color-gray-700);
-    --bichat-color-system-bubble-bg: var(--bichat-color-gray-800);
-
-    --bichat-color-input-bg: var(--bichat-color-gray-800);
-    --bichat-color-input-border: var(--bichat-color-gray-700);
-
-    /* Legacy compatibility */
-    --bichat-bg: var(--bichat-color-bg);
-    --bichat-text: var(--bichat-color-text);
-    --bichat-border: var(--bichat-color-border);
-    --bichat-bubble-assistant: var(--bichat-color-assistant-bubble-bg);
-  }
 }
 
 /* =============================================================================
@@ -454,6 +422,67 @@
 }
 
 /* =============================================================================
+   Thinking Shimmer Animation
+   ============================================================================= */
+
+.bichat-thinking-shimmer {
+  -webkit-mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 40%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 1) 80%
+  );
+  mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 40%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 1) 80%
+  );
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  animation: bichat-thinking-shimmer 4.5s linear infinite;
+}
+
+.dark .bichat-thinking-shimmer {
+  -webkit-mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 15%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 1) 65%,
+    rgba(0, 0, 0, 1) 85%
+  );
+  mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 15%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 1) 65%,
+    rgba(0, 0, 0, 1) 85%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bichat-thinking-shimmer,
+  .animate-pulse,
+  .animate-bounce,
+  .animate-spin,
+  .animate-fade-in,
+  .animate-slide-up {
+    animation: none;
+  }
+}
+
+@keyframes bichat-thinking-shimmer {
+  0% { -webkit-mask-position: 130% 0; mask-position: 130% 0; }
+  100% { -webkit-mask-position: -30% 0; mask-position: -30% 0; }
+}
+
+/* =============================================================================
    Prose / Markdown Styles
    ============================================================================= */
 
@@ -500,8 +529,8 @@
 }
 
 .prose code {
-  background-color: var(--bichat-color-bg-subtle);
-  color: var(--bichat-color-text);
+  background-color: var(--bichat-color-code-bg);
+  color: var(--bichat-color-code-text);
   padding: 0.125em 0.375em;
   border-radius: var(--bichat-radius-default);
   font-family: var(--bichat-font-family-mono);
@@ -509,7 +538,7 @@
 }
 
 .prose pre {
-  background-color: var(--bichat-color-gray-900);
+  background-color: var(--bichat-color-code-bg);
   color: var(--bichat-color-gray-100);
   padding: var(--bichat-spacing-4);
   border-radius: var(--bichat-radius-lg);

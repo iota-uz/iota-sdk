@@ -1,77 +1,75 @@
 /**
  * Sidebar Component
- * Left sidebar with session list (desktop-only, no mobile features)
+ * Left sidebar with session list.
+ * Used as a desktop sidebar and as a mobile drawer panel (Layout controls the overlay/drawer).
+ *
+ * Collapse UX matches the SDK sidebar pattern:
+ * - Click empty space to toggle
+ * - Cursor hints (e-resize / w-resize)
+ * - localStorage persistence
+ * - Keyboard shortcuts: Cmd+B toggle, Cmd+K focus search
  */
 
-import React, { useState, useMemo, useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useQuery, useMutation } from 'urql'
-import { Plus } from '@phosphor-icons/react'
-import { SearchInput, EmptyState } from '@iota-uz/sdk/bichat'
+import { Plus, CaretLineLeft, CaretLineRight, Archive } from '@phosphor-icons/react'
+import { SearchInput, EmptyState, AllChatsList } from '@iota-uz/sdk/bichat'
+import { createAppletRPCClient } from '@iota-uz/sdk'
+import type { BichatRPC } from '@iota-uz/sdk/bichat'
 import TabBar from './TabBar'
 import SessionList from './SessionList/SessionList'
 import SessionSkeleton from './SessionSkeleton'
 import { groupSessionsByDate } from '../utils/sessionGrouping'
 import type { ChatSession } from '../utils/sessionGrouping'
+import { useIotaContext } from '../contexts/IotaContext'
+import { toRPCErrorDisplay, type RPCErrorDisplay } from '../utils/rpcErrors'
+import { useBiChatDataSource } from '../data/bichatDataSource'
+import { useAppToast } from '../contexts/ToastContext'
+import { useSessionEvents } from '../contexts/SessionEventContext'
 
-// GraphQL queries
-const GET_SESSIONS_QUERY = `
-  query Sessions {
-    sessions {
-      id
-      title
-      pinned
-      createdAt
-      updatedAt
+const STORAGE_KEY = 'bichat-sidebar-collapsed'
+
+function useSidebarCollapse() {
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY) === 'true'
+    } catch {
+      return false
     }
-  }
-`
+  })
 
-const DELETE_SESSION_MUTATION = `
-  mutation DeleteSession($id: UUID!) {
-    deleteSession(id: $id)
-  }
-`
+  const isCollapsedRef = useRef(isCollapsed)
+  useEffect(() => {
+    isCollapsedRef.current = isCollapsed
+  }, [isCollapsed])
 
-const UPDATE_SESSION_TITLE_MUTATION = `
-  mutation UpdateSessionTitle($id: UUID!, $title: String!) {
-    updateSessionTitle(id: $id, title: $title) {
-      id
-      title
-      updatedAt
-    }
-  }
-`
+  const toggle = useCallback(() => {
+    setIsCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(STORAGE_KEY, String(next))
+      } catch { /* noop */ }
+      return next
+    })
+  }, [])
 
-const PIN_SESSION_MUTATION = `
-  mutation PinSession($id: UUID!) {
-    pinSession(id: $id) {
-      id
-      pinned
-      updatedAt
-    }
-  }
-`
+  const expand = useCallback(() => {
+    setIsCollapsed(false)
+    try {
+      localStorage.setItem(STORAGE_KEY, 'false')
+    } catch { /* noop */ }
+  }, [])
 
-const UNPIN_SESSION_MUTATION = `
-  mutation UnpinSession($id: UUID!) {
-    unpinSession(id: $id) {
-      id
-      pinned
-      updatedAt
-    }
-  }
-`
-
-// Note: RegenerateSessionTitle will be implemented later if needed
-// For now, users can manually rename sessions
+  return { isCollapsed, isCollapsedRef, toggle, expand }
+}
 
 type ActiveTab = 'my-chats' | 'all-chats'
 
 interface SidebarProps {
   onNewChat: () => void
   creating?: boolean
+  onClose?: () => void
 }
 
 // Simple search filter (case-insensitive title match)
@@ -83,11 +81,18 @@ function useSessionSearch(sessions: ChatSession[], query: string): ChatSession[]
   }, [sessions, query])
 }
 
-export default function Sidebar({ onNewChat, creating }: SidebarProps) {
+export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { config, user } = useIotaContext()
+  const toast = useAppToast()
+  const sessionEvents = useSessionEvents()
+  const { isCollapsed, isCollapsedRef, toggle, expand } = useSidebarCollapse()
+  const searchContainerRef = useRef<HTMLDivElement>(null)
 
-  // Permission checks (placeholder - TODO: integrate with IotaContext when available)
-  const canReadAllChats = false // For now, disable "All Chats" tab
+  // Permission checks
+  const canReadAllChats =
+    user.permissions.includes('BiChat.ReadAll') || user.permissions.includes('AIChat.ReadAll')
 
   // Tab state
   const [activeTab, setActiveTab] = useState<ActiveTab>('my-chats')
@@ -97,30 +102,74 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
   // Extract session ID from pathname (e.g., /session/123 -> 123)
   const activeSessionId = location.pathname.match(/\/session\/([^/]+)/)?.[1]
+  const isArchivedView = location.pathname === '/archived'
 
-  // GraphQL queries
-  const [result, reexecuteQuery] = useQuery({
-    query: GET_SESSIONS_QUERY,
-  })
+  const dataSource = useBiChatDataSource((sessionId: string) => navigate(`/session/${sessionId}`))
 
-  const [, deleteSession] = useMutation(DELETE_SESSION_MUTATION)
-  const [, updateSessionTitle] = useMutation(UPDATE_SESSION_TITLE_MUTATION)
-  const [, pinSession] = useMutation(PIN_SESSION_MUTATION)
-  const [, unpinSession] = useMutation(UNPIN_SESSION_MUTATION)
+  useEffect(() => {
+    if (!canReadAllChats && activeTab === 'all-chats') {
+      setActiveTab('my-chats')
+    }
+  }, [activeTab, canReadAllChats])
+
+  const rpc = useMemo(
+    () => createAppletRPCClient({ endpoint: config.rpcUIEndpoint }),
+    [config.rpcUIEndpoint]
+  )
+  const callRPC = useCallback(
+    <TMethod extends keyof BichatRPC & string>(
+      method: TMethod,
+      params: BichatRPC[TMethod]['params']
+    ) => rpc.callTyped<BichatRPC, TMethod>(method, params),
+    [rpc]
+  )
+
+  const [fetching, setFetching] = useState(true)
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [loadError, setLoadError] = useState<RPCErrorDisplay | null>(null)
+  const [actionError, setActionError] = useState<RPCErrorDisplay | null>(null)
+  const accessDenied = loadError?.isPermissionDenied === true
+
+  const reloadSessions = useMemo(() => {
+    return async () => {
+      setFetching(true)
+      try {
+        const data = await callRPC(
+          'bichat.session.list',
+          { limit: 200, offset: 0, includeArchived: false }
+        )
+        setSessions(data.sessions || [])
+        setLoadError(null)
+        setActionError(null)
+      } catch (error) {
+        console.error('Failed to load sessions:', error)
+        setSessions([])
+        setLoadError(toRPCErrorDisplay(error, 'Failed to load sessions'))
+      } finally {
+        setFetching(false)
+      }
+    }
+  }, [callRPC])
+
+  useEffect(() => {
+    void reloadSessions()
+  }, [reloadSessions])
+
+  useEffect(() => {
+    return sessionEvents.onSessionCreated(() => {
+      void reloadSessions()
+    })
+  }, [reloadSessions, sessionEvents])
 
   // Poll for title updates on sessions with placeholder titles
-  const currentSessions = useMemo(
-    () => result.data?.sessions || [],
-    [result.data?.sessions]
-  )
   const sessionsKey = useMemo(
-    () => currentSessions.map((s: ChatSession) => `${s.id}:${s.title || ''}`).join(','),
-    [currentSessions]
+    () => sessions.map((s) => `${s.id}:${s.title || ''}`).join(','),
+    [sessions]
   )
 
   useEffect(() => {
     // Check if any session has a placeholder title (null or empty)
-    const sessionsWithPlaceholderTitles = currentSessions.filter(
+    const sessionsWithPlaceholderTitles = sessions.filter(
       (s: ChatSession) => !s.title
     )
 
@@ -135,7 +184,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
     const intervalId = setInterval(() => {
       pollCount++
-      reexecuteQuery({ requestPolicy: 'network-only' })
+      void reloadSessions()
 
       if (pollCount >= maxPolls) {
         clearInterval(intervalId)
@@ -143,10 +192,9 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
     }, pollInterval)
 
     return () => clearInterval(intervalId)
-  }, [sessionsKey, reexecuteQuery, currentSessions])
+  }, [reloadSessions, sessions, sessionsKey])
 
   // Get all sessions and apply search filter
-  const sessions: ChatSession[] = result.data?.sessions || []
   const filteredSessions = useSessionSearch(sessions, searchQuery)
 
   // Separate pinned and unpinned sessions from filtered results
@@ -156,17 +204,22 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
   // Group unpinned sessions by date
   const sessionGroups = groupSessionsByDate(unpinnedSessions)
 
-  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleDeleteSession = async (sessionId: string, e?: React.MouseEvent) => {
+    e?.preventDefault?.()
+    e?.stopPropagation?.()
 
     if (!confirm('Delete this chat session?')) return
 
     try {
-      await deleteSession({ id: sessionId })
-      reexecuteQuery({ requestPolicy: 'network-only' })
+      await callRPC('bichat.session.delete', { id: sessionId })
+      setActionError(null)
+      await reloadSessions()
+      toast.success('Chat deleted')
     } catch (error) {
       console.error('Failed to delete session:', error)
+      const display = toRPCErrorDisplay(error, 'Failed to delete session')
+      setActionError(display)
+      toast.error(display.title)
     }
   }
 
@@ -176,131 +229,360 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
     try {
       if (currentlyPinned) {
-        await unpinSession({ id: sessionId })
+        await callRPC('bichat.session.unpin', { id: sessionId })
       } else {
-        await pinSession({ id: sessionId })
+        await callRPC('bichat.session.pin', { id: sessionId })
       }
-      reexecuteQuery({ requestPolicy: 'network-only' })
+      setActionError(null)
+      await reloadSessions()
+      toast.success(currentlyPinned ? 'Chat unpinned' : 'Chat pinned')
     } catch (error) {
       console.error('Failed to toggle pin:', error)
+      const display = toRPCErrorDisplay(error, 'Failed to update pin state')
+      setActionError(display)
+      toast.error(display.title)
     }
   }
 
   const handleRenameSession = async (sessionId: string, newTitle: string) => {
     try {
-      await updateSessionTitle({ id: sessionId, title: newTitle })
-      reexecuteQuery({ requestPolicy: 'network-only' })
+      await callRPC('bichat.session.updateTitle', {
+        id: sessionId,
+        title: newTitle,
+      })
+      setActionError(null)
+      await reloadSessions()
+      toast.success('Chat renamed')
     } catch (error) {
       console.error('Failed to update session title:', error)
+      const display = toRPCErrorDisplay(error, 'Failed to rename session')
+      setActionError(display)
+      toast.error(display.title)
     }
   }
 
-  // Regenerate title functionality removed for now
-  // Users can manually rename sessions via the rename option
+  // Click-on-empty-space to toggle (same pattern as SDK sidebar)
+  const handleSidebarClick = useCallback(
+    (e: React.MouseEvent<HTMLElement>) => {
+      const interactive = 'a, button, input, summary, [role="button"]'
+      if ((e.target as HTMLElement).closest(interactive)) return
+      toggle()
+    },
+    [toggle]
+  )
+
+  // Focus the search input (expanding sidebar first if needed)
+  const focusSearch = useCallback(() => {
+    if (isCollapsedRef.current) {
+      expand()
+      // Wait for expanded content to become interactive (opacity transition)
+      setTimeout(() => {
+        searchContainerRef.current?.querySelector('input')?.focus()
+      }, 250)
+    } else {
+      searchContainerRef.current?.querySelector('input')?.focus()
+    }
+  }, [expand, isCollapsedRef])
+
+  // Keyboard shortcuts: Cmd+B (toggle), Cmd+K (focus search)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept when inside editable fields (except for our shortcuts)
+      const isMod = e.metaKey || e.ctrlKey
+
+      if (isMod && e.key === 'b') {
+        e.preventDefault()
+        toggle()
+      }
+
+      if (isMod && e.key === 'k') {
+        e.preventDefault()
+        focusSearch()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [toggle, focusSearch])
 
   return (
     <aside
-      className="w-64 h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800/80"
+      onClick={handleSidebarClick}
+      className={`relative h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800/80 transition-[width] duration-300 ease-in-out ${
+        isCollapsed
+          ? 'w-16 cursor-e-resize'
+          : 'w-64 cursor-w-resize'
+      }`}
+      style={{ willChange: 'width' }}
       role="navigation"
       aria-label="Chat sessions"
     >
-      {/* TabBar - Only visible if user has ReadAll permission */}
-      <TabBar activeTab={activeTab} onTabChange={setActiveTab} showAllChats={canReadAllChats} />
+      {/* Collapsed overlay — absolutely positioned, fades in after width shrinks */}
+      <div
+        className={`absolute inset-x-0 top-0 bottom-0 z-10 flex flex-col items-center pt-3 gap-3 transition-opacity ${
+          isCollapsed
+            ? 'opacity-100 duration-150 delay-100'
+            : 'opacity-0 pointer-events-none duration-100'
+        }`}
+      >
+        <motion.button
+          onClick={(e) => {
+            e.stopPropagation()
+            onNewChat()
+            onClose?.()
+          }}
+          disabled={creating || fetching || accessDenied}
+          className="w-10 h-10 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary-400/50"
+          title="New chat"
+          aria-label="Create new chat"
+          whileTap={{ scale: 0.95 }}
+        >
+          {creating ? (
+            <div className="w-4 h-4 border-2 border-white/50 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Plus size={18} weight="bold" />
+          )}
+        </motion.button>
 
-      {/* My Chats View */}
-      {activeTab === 'my-chats' && (
-        <>
-          {/* New Chat Button */}
-          <div className="px-4 pt-3 pb-2">
-            <motion.button
-              onClick={onNewChat}
-              disabled={creating || result.fetching}
-              className="w-full cursor-pointer px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-              title="New chat"
-              aria-label="Create new chat"
-              whileHover={{ y: -1 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              {creating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/50 border-t-transparent rounded-full animate-spin" />
-                  <span>Creating...</span>
-                </>
+        <motion.button
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate('/archived')
+            onClose?.()
+          }}
+          disabled={fetching || accessDenied}
+          className={`w-10 h-10 rounded-lg shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+            isArchivedView
+              ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+              : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+          }`}
+          title="Archived chats"
+          aria-label="View archived chats"
+          whileTap={{ scale: 0.95 }}
+        >
+          <Archive size={18} weight="bold" />
+        </motion.button>
+      </div>
+
+      {/* Expanded content — fades out before width shrinks, prevents text compression */}
+      <div
+        className={`flex flex-col flex-1 min-h-0 w-64 shrink-0 transition-opacity ${
+          isCollapsed
+            ? 'opacity-0 pointer-events-none duration-100'
+            : 'opacity-100 duration-150 delay-[200ms]'
+        }`}
+      >
+        {/* TabBar - Only visible if user has ReadAll permission */}
+        <TabBar activeTab={activeTab} onTabChange={setActiveTab} showAllChats={canReadAllChats} />
+
+        {/* My Chats View */}
+        {activeTab === 'my-chats' && (
+          <>
+            {/* New Chat Button */}
+            <div className="px-4 pt-3 pb-2">
+              <motion.button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNewChat()
+                  onClose?.()
+                }}
+                disabled={creating || fetching || accessDenied}
+                className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+                title={accessDenied ? 'Missing permission for BiChat' : 'New chat'}
+                aria-label="Create new chat"
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {creating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/50 border-t-transparent rounded-full animate-spin" />
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={16} weight="bold" />
+                    <span>New Chat</span>
+                  </>
+                )}
+              </motion.button>
+            </div>
+
+            {/* Search Input */}
+            <div ref={searchContainerRef} className="px-4 pb-2 cursor-pointer">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search chats..."
+              />
+            </div>
+
+            {/* Archived chats */}
+            <div className="px-4 pb-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate('/archived')
+                  onClose?.()
+                }}
+                disabled={fetching || accessDenied}
+                className={`w-full px-3 py-2 rounded-lg text-sm font-medium border transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                  isArchivedView
+                    ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-800'
+                    : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                }`}
+                aria-current={isArchivedView ? 'page' : undefined}
+              >
+                <Archive size={16} weight="bold" />
+                <span>Archived</span>
+              </button>
+            </div>
+
+            {/* Chat History */}
+            <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-4" aria-label="Chat history">
+              {fetching && sessions.length === 0 ? (
+                <SessionSkeleton count={5} />
               ) : (
                 <>
-                  <Plus size={16} weight="bold" />
-                  <span>New Chat</span>
+                  <SessionList
+                    groups={sessionGroups}
+                    pinnedSessions={pinnedSessions}
+                    activeSessionId={activeSessionId}
+                    onDelete={handleDeleteSession}
+                    onTogglePin={handleTogglePin}
+                    onRename={handleRenameSession}
+                    onNavigate={onClose}
+                  />
+
+                  {/* Empty State - refined */}
+                  {filteredSessions.length === 0 && !fetching && !loadError && (
+                    <EmptyState
+                      title={searchQuery ? `No results for "${searchQuery}"` : 'No chats yet'}
+                      description={
+                        searchQuery
+                          ? undefined
+                          : 'Start a conversation to begin'
+                      }
+                      action={
+                        searchQuery ? (
+                          <button
+                            onClick={() => setSearchQuery('')}
+                            className="mt-2 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
+                          >
+                            Clear search
+                          </button>
+                        ) : undefined
+                      }
+                    />
+                  )}
                 </>
               )}
-            </motion.button>
-          </div>
 
-          {/* Search Input */}
-          <div className="px-4 pb-2">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search chats..."
+              {loadError && (
+                <div
+                  className={
+                    loadError.isPermissionDenied
+                      ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
+                      : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
+                  }
+                >
+                  <p
+                    className={
+                      loadError.isPermissionDenied
+                        ? 'text-xs text-amber-700 dark:text-amber-300 font-medium'
+                        : 'text-xs text-red-600 dark:text-red-400 font-medium'
+                    }
+                  >
+                    {loadError.title}
+                  </p>
+                  <p
+                    className={
+                      loadError.isPermissionDenied
+                        ? 'mt-1 text-xs text-amber-600 dark:text-amber-400'
+                        : 'mt-1 text-xs text-red-500 dark:text-red-300'
+                    }
+                  >
+                    {loadError.description}
+                  </p>
+                </div>
+              )}
+
+              {actionError && !loadError && (
+                <div
+                  className={
+                    actionError.isPermissionDenied
+                      ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
+                      : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
+                  }
+                >
+                  <p
+                    className={
+                      actionError.isPermissionDenied
+                        ? 'text-xs text-amber-700 dark:text-amber-300 font-medium'
+                        : 'text-xs text-red-600 dark:text-red-400 font-medium'
+                    }
+                  >
+                    {actionError.title}
+                  </p>
+                  <p
+                    className={
+                      actionError.isPermissionDenied
+                        ? 'mt-1 text-xs text-amber-600 dark:text-amber-400'
+                        : 'mt-1 text-xs text-red-500 dark:text-red-300'
+                    }
+                  >
+                    {actionError.description}
+                  </p>
+                </div>
+              )}
+            </nav>
+          </>
+        )}
+
+        {/* All Chats View - Placeholder */}
+        {activeTab === 'all-chats' && (
+          dataSource.listAllSessions ? (
+            <AllChatsList
+              dataSource={dataSource}
+              onSessionSelect={(sessionId: string) => {
+                navigate(`/session/${sessionId}`)
+                onClose?.()
+              }}
+              activeSessionId={activeSessionId}
             />
-          </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <EmptyState
+                title="All Chats"
+                description="This app does not expose organization-wide chat sessions."
+              />
+            </div>
+          )
+        )}
+      </div>
 
-          {/* Chat History */}
-          <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-4" aria-label="Chat history">
-            {result.fetching && sessions.length === 0 ? (
-              <SessionSkeleton count={5} />
-            ) : (
-              <>
-                <SessionList
-                  groups={sessionGroups}
-                  pinnedSessions={pinnedSessions}
-                  activeSessionId={activeSessionId}
-                  onDelete={handleDeleteSession}
-                  onTogglePin={handleTogglePin}
-                  onRename={handleRenameSession}
-                />
-
-                {/* Empty State - refined */}
-                {filteredSessions.length === 0 && !result.fetching && (
-                  <EmptyState
-                    title={searchQuery ? `No results for "${searchQuery}"` : 'No chats yet'}
-                    description={
-                      searchQuery
-                        ? undefined
-                        : 'Start a conversation to begin'
-                    }
-                    action={
-                      searchQuery ? (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className="mt-2 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
-                        >
-                          Clear search
-                        </button>
-                      ) : undefined
-                    }
-                  />
-                )}
-              </>
-            )}
-
-            {result.error && (
-              <div className="mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                <p className="text-xs text-red-600 dark:text-red-400 font-medium">Failed to load sessions</p>
-              </div>
-            )}
-          </nav>
-        </>
-      )}
-
-      {/* All Chats View - Placeholder */}
-      {activeTab === 'all-chats' && (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <EmptyState
-            title="All Chats"
-            description="This feature is not yet implemented"
-          />
-        </div>
-      )}
+      {/* Footer toggle — matches SDK sidebar mt-auto footer pattern */}
+      <div className={`mt-auto border-t border-gray-100 dark:border-gray-800/80 transition-all duration-300 ${isCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3'}`}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            toggle()
+          }}
+          className={`flex items-center gap-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
+            isCollapsed ? 'w-10 h-10 justify-center' : 'w-full px-3 py-2'
+          }`}
+          title={isCollapsed ? 'Expand sidebar (⌘B)' : 'Collapse sidebar (⌘B)'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isCollapsed ? (
+            <CaretLineRight size={16} />
+          ) : (
+            <>
+              <CaretLineLeft size={16} />
+              <span className="text-xs font-medium">Collapse</span>
+            </>
+          )}
+        </button>
+      </div>
     </aside>
   )
 }

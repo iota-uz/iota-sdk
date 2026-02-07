@@ -28,7 +28,7 @@ export const TableExportButton = memo(function TableExportButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-500 opacity-60 hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
+      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
       aria-label={label}
       title={disabled ? disabledTooltip : label}
     >

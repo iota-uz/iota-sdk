@@ -23,20 +23,20 @@ const (
 	checkpointInsertQuery = `
 		INSERT INTO bichat.checkpoints (
 			id, thread_id, tenant_id, user_id, agent_name, messages, pending_tools,
-			interrupt_type, interrupt_data, session_id, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			interrupt_type, interrupt_data, session_id, previous_response_id, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
 	checkpointSelectQuery = `
 		SELECT id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
-		       interrupt_type, interrupt_data, created_at
+		       interrupt_type, interrupt_data, previous_response_id, created_at
 		FROM bichat.checkpoints
 		WHERE id = $1 AND tenant_id = $2
 	`
 
 	checkpointSelectByThreadQuery = `
 		SELECT id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
-		       interrupt_type, interrupt_data, created_at
+		       interrupt_type, interrupt_data, previous_response_id, created_at
 		FROM bichat.checkpoints
 		WHERE thread_id = $1 AND tenant_id = $2
 		ORDER BY created_at DESC
@@ -88,6 +88,7 @@ func (p *PostgresCheckpointer) Save(ctx context.Context, checkpoint *agents.Chec
 		checkpoint.InterruptType,
 		checkpoint.InterruptData,
 		checkpoint.SessionID,
+		checkpoint.PreviousResponseID,
 		checkpoint.CreatedAt,
 	)
 	if err != nil {
@@ -112,6 +113,7 @@ func (p *PostgresCheckpointer) Load(ctx context.Context, id string) (*agents.Che
 	var checkpoint agents.Checkpoint
 	var messagesJSON, pendingToolsJSON []byte
 	var interruptData *[]byte
+	var previousResponseID *string
 
 	err = tx.QueryRow(ctx, checkpointSelectQuery, id, tenantID).Scan(
 		&checkpoint.ID,
@@ -123,6 +125,7 @@ func (p *PostgresCheckpointer) Load(ctx context.Context, id string) (*agents.Che
 		&pendingToolsJSON,
 		&checkpoint.InterruptType,
 		&interruptData,
+		&previousResponseID,
 		&checkpoint.CreatedAt,
 	)
 	if err != nil {
@@ -144,6 +147,7 @@ func (p *PostgresCheckpointer) Load(ctx context.Context, id string) (*agents.Che
 	if interruptData != nil {
 		checkpoint.InterruptData = *interruptData
 	}
+	checkpoint.PreviousResponseID = previousResponseID
 
 	return &checkpoint, nil
 }
@@ -163,6 +167,7 @@ func (p *PostgresCheckpointer) LoadByThreadID(ctx context.Context, threadID stri
 	var checkpoint agents.Checkpoint
 	var messagesJSON, pendingToolsJSON []byte
 	var interruptData *[]byte
+	var previousResponseID *string
 
 	err = tx.QueryRow(ctx, checkpointSelectByThreadQuery, threadID, tenantID).Scan(
 		&checkpoint.ID,
@@ -174,6 +179,7 @@ func (p *PostgresCheckpointer) LoadByThreadID(ctx context.Context, threadID stri
 		&pendingToolsJSON,
 		&checkpoint.InterruptType,
 		&interruptData,
+		&previousResponseID,
 		&checkpoint.CreatedAt,
 	)
 	if err != nil {
@@ -195,6 +201,7 @@ func (p *PostgresCheckpointer) LoadByThreadID(ctx context.Context, threadID stri
 	if interruptData != nil {
 		checkpoint.InterruptData = *interruptData
 	}
+	checkpoint.PreviousResponseID = previousResponseID
 
 	return &checkpoint, nil
 }
