@@ -4,16 +4,17 @@
  */
 
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
-import { DotsThreeVertical, Check, Bookmark, PencilSimple, Trash } from '@phosphor-icons/react'
+import { DotsThreeVertical, Check, Bookmark, PencilSimple, Trash, Archive } from '@phosphor-icons/react'
 
 interface SessionMenuProps {
   isPinned: boolean
   onPin: (e: React.MouseEvent) => void
   onRename: () => void
+  onArchive: (e: React.MouseEvent) => void
   onDelete: (e?: React.MouseEvent) => void
 }
 
-export default function SessionMenu({ isPinned, onPin, onRename, onDelete }: SessionMenuProps) {
+export default function SessionMenu({ isPinned, onPin, onRename, onArchive, onDelete }: SessionMenuProps) {
   return (
     <Menu>
       <MenuButton
@@ -68,6 +69,24 @@ export default function SessionMenu({ isPinned, onPin, onRename, onDelete }: Ses
             >
               <PencilSimple size={15} className="text-gray-400 dark:text-gray-500" />
               Rename
+            </button>
+          )}
+        </MenuItem>
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onArchive(e)
+              }}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 dark:text-gray-300 transition-colors ${
+                focus ? 'bg-gray-100 dark:bg-gray-800/70' : ''
+              }`}
+              aria-label="Archive chat"
+            >
+              <Archive size={15} className="text-gray-400 dark:text-gray-500" />
+              Archive
             </button>
           )}
         </MenuItem>

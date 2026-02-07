@@ -16,6 +16,7 @@ interface SessionListProps {
   onDelete: (sessionId: string, e?: React.MouseEvent) => void
   onTogglePin: (sessionId: string, isPinned: boolean, e: React.MouseEvent) => void
   onRename: (sessionId: string, newTitle: string) => void
+  onArchive: (sessionId: string, e: React.MouseEvent) => void
   onNavigate?: () => void
 }
 
@@ -26,6 +27,7 @@ export default function SessionList({
   onDelete,
   onTogglePin,
   onRename,
+  onArchive,
   onNavigate,
 }: SessionListProps) {
   return (
@@ -50,6 +52,7 @@ export default function SessionList({
                 onDelete={(e) => onDelete(session.id, e)}
                 onTogglePin={(e) => onTogglePin(session.id, session.pinned || false, e)}
                 onRename={(newTitle) => onRename(session.id, newTitle)}
+                onArchive={(e) => onArchive(session.id, e)}
                 onNavigate={onNavigate}
               />
             ))}
@@ -78,6 +81,7 @@ export default function SessionList({
                 onDelete={(e) => onDelete(session.id, e)}
                 onTogglePin={(e) => onTogglePin(session.id, session.pinned || false, e)}
                 onRename={(newTitle) => onRename(session.id, newTitle)}
+                onArchive={(e) => onArchive(session.id, e)}
                 onNavigate={onNavigate}
               />
             ))}

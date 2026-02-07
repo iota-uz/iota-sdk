@@ -108,10 +108,14 @@ jobs:
         run: just applet rpc-check bichat
 
       - name: Run BiChat smoke evals (OpenAI judge; optional)
-        if: ${{ secrets.OPENAI_API_KEY != '' }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: just eval-judge-openai --min-avg-score 0.7 --min-pass-rate 1.0
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "OPENAI_API_KEY not set, skipping OpenAI judge evals"
+            exit 0
+          fi
+          just eval-judge-openai --min-avg-score 0.7 --min-pass-rate 1.0
 
       - name: Typecheck BiChat applet
         run: pnpm -C modules/bichat/presentation/web exec tsc --noEmit

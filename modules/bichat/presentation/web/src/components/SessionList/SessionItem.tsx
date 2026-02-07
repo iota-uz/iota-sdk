@@ -21,11 +21,12 @@ interface SessionItemProps {
   onDelete: (e?: React.MouseEvent) => void
   onTogglePin: (e: React.MouseEvent) => void
   onRename: (newTitle: string) => void
+  onArchive: (e: React.MouseEvent) => void
   onNavigate?: () => void
 }
 
 const SessionItem = memo<SessionItemProps>(
-  ({ session, isActive, onDelete, onTogglePin, onRename, onNavigate }) => {
+  ({ session, isActive, onDelete, onTogglePin, onRename, onArchive, onNavigate }) => {
     const editableTitleRef = useRef<EditableTextRef>(null)
     const [isDragging, setIsDragging] = useState(false)
     const dragX = useMotionValue(0)
@@ -108,6 +109,7 @@ const SessionItem = memo<SessionItemProps>(
                 isPinned={session.pinned || false}
                 onPin={onTogglePin}
                 onRename={() => editableTitleRef.current?.startEditing()}
+                onArchive={onArchive}
                 onDelete={onDelete}
               />
             </div>

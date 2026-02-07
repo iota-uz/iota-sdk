@@ -17,6 +17,7 @@ export interface AppProps {
 
 export default function App({ basePath, routerMode }: AppProps) {
   const Router = routerMode === 'memory' ? MemoryRouter : BrowserRouter
+  const routerFuture = { v7_startTransition: true }
 
   function GuardedRoutes() {
     useNavigationGuard()
@@ -37,7 +38,7 @@ export default function App({ basePath, routerMode }: AppProps) {
       <TouchProvider>
         <ToastProvider>
           <SessionEventProvider>
-            <Router {...(routerMode === 'url' ? { basename: basePath } : {})}>
+            <Router future={routerFuture} {...(routerMode === 'url' ? { basename: basePath } : {})}>
               <ErrorBoundary
                 fallback={(error, reset) => (
                   <div className="flex h-full min-h-[50vh] items-center justify-center">

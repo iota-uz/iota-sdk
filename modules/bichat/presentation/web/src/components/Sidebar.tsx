@@ -261,6 +261,26 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
     }
   }
 
+  const handleArchiveSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      await callRPC('bichat.session.archive', { id: sessionId })
+      setActionError(null)
+      await reloadSessions()
+      toast.success('Chat archived')
+      const currentPath = location.pathname
+      if (currentPath === `/session/${sessionId}`) {
+        navigate('/')
+      }
+    } catch (error) {
+      console.error('Failed to archive session:', error)
+      const display = toRPCErrorDisplay(error, 'Failed to archive session')
+      setActionError(display)
+      toast.error(display.title)
+    }
+  }
+
   // Click-on-empty-space to toggle (same pattern as SDK sidebar)
   const handleSidebarClick = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
@@ -450,6 +470,7 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
                     onDelete={handleDeleteSession}
                     onTogglePin={handleTogglePin}
                     onRename={handleRenameSession}
+                    onArchive={handleArchiveSession}
                     onNavigate={onClose}
                   />
 
