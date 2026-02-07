@@ -8,10 +8,15 @@ type Error struct {
 	Code   int
 	Err    error
 	Silent bool
+	Usage  bool
 }
 
 func New(code int, err error) *Error {
 	return &Error{Code: code, Err: err}
+}
+
+func InvalidUsage(err error) *Error {
+	return &Error{Code: InvalidUsageCode, Err: err, Usage: true}
 }
 
 func SilentCode(code int) *Error {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -33,11 +34,16 @@ func NewRootCommand() *cobra.Command {
 
 // Execute runs the root command
 func Execute() {
-	if err := NewRootCommand().Execute(); err != nil {
+	executedCmd, err := NewRootCommand().ExecuteC()
+	if err != nil {
 		var ee *exitcode.Error
 		if errors.As(err, &ee) {
 			if !ee.Silent {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				if ee.Usage && executedCmd != nil {
+					fmt.Fprint(os.Stderr, "\n")
+					fmt.Fprint(os.Stderr, executedCmd.UsageString())
+				}
 			}
 			os.Exit(ee.ExitCode())
 		}
@@ -46,6 +52,17 @@ func Execute() {
 		if errors.As(err, &ec) {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(ec.ExitCode())
+		}
+
+		// Heuristic: show usage for CLI misuse even when Cobra is silenced.
+		if strings.HasPrefix(err.Error(), "unknown command ") ||
+			strings.Contains(err.Error(), "requires a subcommand") ||
+			(strings.Contains(err.Error(), "accepts ") && strings.Contains(err.Error(), "arg(s), received ")) {
+			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
+			if executedCmd != nil {
+				fmt.Fprint(os.Stderr, executedCmd.UsageString())
+			}
+			os.Exit(exitcode.InvalidUsageCode)
 		}
 
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

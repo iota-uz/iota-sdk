@@ -88,4 +88,3 @@ func (c *UploadsController) Serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeFile(w, r, fullPath)
 }
-

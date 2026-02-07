@@ -1,19 +1,20 @@
 /**
  * Layout Component
- * Main two-column layout (sidebar + content area)
- * Desktop-only version (no mobile sidebar toggle/overlay)
+ * Main layout (sidebar + content area).
+ * Responsive: desktop sidebar + mobile drawer with focus trap and swipe-to-close.
  */
 
 import { useEffect, useRef } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, type PanInfo } from 'framer-motion'
 import { List } from '@phosphor-icons/react'
-import { useFocusTrap } from '@iota-uz/sdk/bichat'
+import { SkipLink, useFocusTrap, useKeyboardShortcuts } from '@iota-uz/sdk/bichat'
 import Sidebar from './Sidebar'
 import { useSidebarState } from '../hooks/useSidebarState'
 
 export default function Layout() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { isMobile, isMobileOpen, openMobile, closeMobile } = useSidebarState()
   const drawerRef = useRef<HTMLDivElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
@@ -22,6 +23,15 @@ export default function Layout() {
   const handleNewChat = () => {
     navigate('/')
   }
+
+  useKeyboardShortcuts([
+    {
+      key: 'n',
+      ctrl: true,
+      description: 'New chat',
+      callback: () => navigate('/'),
+    },
+  ])
 
   useFocusTrap(drawerRef, isMobile && isMobileOpen, menuButtonRef.current)
 
@@ -47,6 +57,8 @@ export default function Layout() {
 
   return (
     <div className="relative flex flex-1 w-full h-full min-h-0 overflow-hidden">
+      <SkipLink />
+
       {/* Sidebar - desktop */}
       <div className="hidden md:block">
         <Sidebar onNewChat={handleNewChat} creating={false} />
@@ -86,7 +98,7 @@ export default function Layout() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <main className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
+      <main id="main-content" className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Mobile menu button */}
         {isMobile && !isMobileOpen && (
           <button
@@ -99,7 +111,18 @@ export default function Layout() {
             <List size={20} weight="bold" />
           </button>
         )}
-        <Outlet />
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={location.pathname}
+            className="flex flex-1 min-h-0"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   )

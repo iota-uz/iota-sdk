@@ -1,6 +1,7 @@
 /**
  * Sidebar Component
- * Left sidebar with session list (desktop-only, no mobile features)
+ * Left sidebar with session list.
+ * Used as a desktop sidebar and as a mobile drawer panel (Layout controls the overlay/drawer).
  *
  * Collapse UX matches the SDK sidebar pattern:
  * - Click empty space to toggle
@@ -26,6 +27,7 @@ import { toRPCErrorDisplay, type RPCErrorDisplay } from '../utils/rpcErrors'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 import { useAppToast } from '../contexts/ToastContext'
 import { useHapticFeedback } from '../hooks/useHapticFeedback'
+import { useSessionEvents } from '../contexts/SessionEventContext'
 
 const STORAGE_KEY = 'bichat-sidebar-collapsed'
 
@@ -63,9 +65,6 @@ function useSidebarCollapse() {
   return { isCollapsed, isCollapsedRef, toggle, expand }
 }
 
-// Note: RegenerateSessionTitle will be implemented later if needed
-// For now, users can manually rename sessions
-
 type ActiveTab = 'my-chats' | 'all-chats'
 
 interface SidebarProps {
@@ -89,6 +88,7 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
   const { config, user } = useIotaContext()
   const toast = useAppToast()
   const haptic = useHapticFeedback()
+  const sessionEvents = useSessionEvents()
   const { isCollapsed, isCollapsedRef, toggle, expand } = useSidebarCollapse()
   const searchContainerRef = useRef<HTMLDivElement>(null)
 
@@ -156,6 +156,12 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
   useEffect(() => {
     void reloadSessions()
   }, [reloadSessions])
+
+  useEffect(() => {
+    return sessionEvents.onSessionCreated(() => {
+      void reloadSessions()
+    })
+  }, [reloadSessions, sessionEvents])
 
   // Poll for title updates on sessions with placeholder titles
   const sessionsKey = useMemo(

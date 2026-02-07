@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ChatSession } from '@iota-uz/sdk/bichat'
+import { ChatSession, RateLimiter } from '@iota-uz/sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 
 export default function ChatPage() {
@@ -18,6 +18,10 @@ export default function ChatPage() {
     [navigate]
   )
   const dataSource = useBiChatDataSource(onNavigateToSession)
+  const rateLimiter = useMemo(
+    () => new RateLimiter({ maxRequests: 20, windowMs: 60_000 }),
+    []
+  )
 
   if (!id) {
     return (
@@ -32,6 +36,7 @@ export default function ChatPage() {
       dataSource={dataSource}
       sessionId={id}
       readOnly={readOnly}
+      rateLimiter={rateLimiter}
       showArtifactsPanel
       artifactsPanelDefaultExpanded={false}
       artifactsPanelStorageKey="bichat.web.artifacts-panel.expanded"

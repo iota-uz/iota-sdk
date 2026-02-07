@@ -287,4 +287,7 @@ export const defaultTranslations: Translations = {
   'common.cancel': 'Cancel',
   'common.untitled': 'Untitled',
   'common.skipToContent': 'Skip to content',
+
+  // Skip link
+  'skipLink.label': 'Skip to content',
 }

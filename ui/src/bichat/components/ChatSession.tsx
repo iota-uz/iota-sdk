@@ -16,6 +16,7 @@ import { ReactNode, useEffect, useState } from 'react'
 import { Sidebar } from '@phosphor-icons/react'
 import { ChatSessionProvider, useChat } from '../context/ChatContext'
 import { ChatDataSource, ConversationTurn } from '../types'
+import { RateLimiter } from '../utils/RateLimiter'
 import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
 import { MessageInput } from './MessageInput'
@@ -26,6 +27,8 @@ import { SessionArtifactsPanel } from './SessionArtifactsPanel'
 interface ChatSessionProps {
   dataSource: ChatDataSource
   sessionId?: string
+  /** Optional rate limiter to throttle sendMessage */
+  rateLimiter?: RateLimiter
   /** Alias for isReadOnly (preferred) */
   readOnly?: boolean
   isReadOnly?: boolean
@@ -289,10 +292,10 @@ function ChatSessionCore({
 }
 
 export function ChatSession(props: ChatSessionProps) {
-  const { dataSource, sessionId, ...coreProps } = props
+  const { dataSource, sessionId, rateLimiter, ...coreProps } = props
 
   return (
-    <ChatSessionProvider dataSource={dataSource} sessionId={sessionId}>
+    <ChatSessionProvider dataSource={dataSource} sessionId={sessionId} rateLimiter={rateLimiter}>
       <ChatSessionCore dataSource={dataSource} {...coreProps} />
     </ChatSessionProvider>
   )

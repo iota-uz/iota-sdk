@@ -8,6 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/llmproviders"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/eval"
 	evalcli "github.com/iota-uz/iota-sdk/pkg/bichat/eval/cli"
 	"github.com/iota-uz/iota-sdk/pkg/cli/exitcode"
@@ -43,6 +45,7 @@ func newBiChatEvalRunCmd() *cobra.Command {
 		Use:   "run",
 		Short: "Run eval cases and emit a JSON report",
 		Long:  "Runs BiChat eval test cases, writes a JSON report, and exits non-zero on quality regression.",
+		Args:  cobra.NoArgs,
 		Example: `  # Offline smoke evals (fixture runner)
   command bichat eval run --cases ./pkg/bichat/eval/testdata/smoke --runner fixture --judge none --report ./coverage/bichat_eval_report.json
 
@@ -50,28 +53,47 @@ func newBiChatEvalRunCmd() *cobra.Command {
   command bichat eval run --cases ./pkg/bichat/eval/testdata/smoke --runner openai --judge openai --report ./coverage/bichat_eval_report.json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(casesPath) == "" {
-				return exitcode.New(2, fmt.Errorf("--cases is required"))
+				return exitcode.InvalidUsage(fmt.Errorf("--cases is required"))
+			}
+			if minPass < 0 || minPass > 1 {
+				return exitcode.InvalidUsage(fmt.Errorf("--min-pass-rate must be between 0.0 and 1.0"))
+			}
+			if minAvg < 0 || minAvg > 1 {
+				return exitcode.InvalidUsage(fmt.Errorf("--min-avg-score must be between 0.0 and 1.0"))
+			}
+			switch strings.ToLower(strings.TrimSpace(runner)) {
+			case "fixture", "openai":
+				// ok
+			default:
+				return exitcode.InvalidUsage(fmt.Errorf("--runner must be one of: fixture|openai"))
+			}
+			switch strings.ToLower(strings.TrimSpace(judge)) {
+			case "none", "openai":
+				// ok
+			default:
+				return exitcode.InvalidUsage(fmt.Errorf("--judge must be one of: none|openai"))
 			}
 
 			rep, err := evalcli.Run(cmd.Context(), evalcli.RunOptions{
 				CasesPath: casesPath,
 				Tag:       tag,
 				Category:  category,
-				Runner:    runner,
-				Judge:     judge,
+				Runner:    strings.ToLower(strings.TrimSpace(runner)),
+				Judge:     strings.ToLower(strings.TrimSpace(judge)),
 				FailFast:  failFast,
+				NewOpenAIModel: func() (agents.Model, error) { return llmproviders.NewOpenAIModel() },
 			})
 			if err != nil {
-				return exitcode.New(2, err)
+				return exitcode.New(exitcode.InvalidUsageCode, err)
 			}
 
 			if err := evalcli.WriteReport(reportOut, rep); err != nil {
-				return exitcode.New(2, err)
+				return exitcode.New(exitcode.InvalidUsageCode, err)
 			}
 
 			// Exit non-zero on quality regression.
 			if rep.Summary.PassRate < minPass || rep.Summary.AvgScore < minAvg || rep.Summary.Failed > 0 {
-				return exitcode.SilentCode(1)
+				return exitcode.SilentCode(exitcode.QualityRegressionCode)
 			}
 			return nil
 		},
@@ -102,10 +124,11 @@ func newBiChatEvalListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List available eval cases",
 		Long:  "Loads eval test cases from a file/directory and prints a case inventory.",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cases, err := evalcli.LoadCases(casesPath)
 			if err != nil {
-				return exitcode.New(2, err)
+				return exitcode.New(exitcode.InvalidUsageCode, err)
 			}
 			if tag != "" {
 				cases = eval.FilterByTag(cases, tag)
@@ -114,7 +137,7 @@ func newBiChatEvalListCmd() *cobra.Command {
 				cases = eval.FilterByCategory(cases, category)
 			}
 			if len(cases) == 0 {
-				return exitcode.New(2, fmt.Errorf("no test cases to list after filtering"))
+				return exitcode.New(exitcode.InvalidUsageCode, fmt.Errorf("no test cases to list after filtering"))
 			}
 
 			switch strings.ToLower(strings.TrimSpace(format)) {
@@ -140,13 +163,13 @@ func newBiChatEvalListCmd() *cobra.Command {
 
 				data, err := json.MarshalIndent(infos, "", "  ")
 				if err != nil {
-					return exitcode.New(2, err)
+					return exitcode.New(exitcode.InvalidUsageCode, err)
 				}
 				fmt.Fprintln(cmd.OutOrStdout(), string(data))
 				return nil
 
 			default:
-				return exitcode.New(2, fmt.Errorf("unknown --format: %s (expected text|json)", format))
+				return exitcode.InvalidUsage(fmt.Errorf("unknown --format: %s (expected text|json)", format))
 			}
 		},
 	}

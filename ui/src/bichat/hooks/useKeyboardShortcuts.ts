@@ -46,11 +46,15 @@ export function useKeyboardShortcuts(shortcuts: ShortcutConfig[]) {
       // Find matching shortcut
       const matchingShortcut = shortcuts.find((s) => {
         const keyMatches = e.key.toLowerCase() === s.key.toLowerCase()
-        const ctrlMatches = s.ctrl ? (e.ctrlKey || e.metaKey) : !e.ctrlKey && !e.metaKey
+        const modMatches = s.meta
+          ? e.metaKey && !e.ctrlKey
+          : s.ctrl
+            ? e.ctrlKey || e.metaKey
+            : !e.ctrlKey && !e.metaKey
         const shiftMatches = s.shift ? e.shiftKey : !e.shiftKey
         const altMatches = s.alt ? e.altKey : !e.altKey
 
-        return keyMatches && ctrlMatches && shiftMatches && altMatches
+        return keyMatches && modMatches && shiftMatches && altMatches
       })
 
       if (matchingShortcut) {

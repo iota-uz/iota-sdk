@@ -143,6 +143,39 @@ Alternatively, if you prefer full control, you can **skip the module’s StreamC
 `controllers.NewStreamController(..., controllers.WithRequireAccessPermission(...), controllers.WithReadAllPermission(...))`
 in setups where you wire BiChat controllers manually (instead of relying on module registration).
 
+### Serving attachments & artifacts (exports)
+
+`WithAttachmentStorage(baseDir, baseURL)` controls where BiChat stores files (exports, artifacts, and attachments) and what URL is written into artifact records.
+Your application must ensure that `baseURL` is **reachable**.
+
+Two common setups:
+
+- **Reverse proxy / CDN**: point `baseURL` at whatever serves `baseDir` (Nginx, S3, etc.).
+- **Built-in controller**: serve `baseDir` from the app with auth:
+
+```go
+// Store files on disk and expose them under /bi-chat/uploads/<uuid>.<ext>
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/uploads", "/bi-chat/uploads"),
+)
+
+// Register an authenticated file server for the baseDir.
+app.RegisterControllers(
+    controllers.NewUploadsController(
+        app,
+        "/var/lib/bichat/uploads",
+        controllers.WithBasePath("/bi-chat"),
+        controllers.WithRequireAccessPermission(apppermissions.AIChatAccess), // or BiChat.Access
+    ),
+)
+```
+
 ### Repository-Scoped Prompt Extensions
 
 BiChat always keeps the SDK vendor system prompt as the base.  

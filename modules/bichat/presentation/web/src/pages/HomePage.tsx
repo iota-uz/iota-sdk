@@ -13,6 +13,7 @@ import {
   MessageList,
   MessageInput,
   useTranslation,
+  RateLimiter,
 } from '@iota-uz/sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 import { toRPCErrorDisplay } from '../utils/rpcErrors'
@@ -170,9 +171,13 @@ export default function HomePage() {
   }, [initialPrompt, navigate])
 
   const dataSource = useBiChatDataSource((sessionId: string) => navigate(`/session/${sessionId}`))
+  const rateLimiter = useMemo(
+    () => new RateLimiter({ maxRequests: 20, windowMs: 60_000 }),
+    []
+  )
 
   return (
-    <ChatSessionProvider dataSource={dataSource} sessionId="new">
+    <ChatSessionProvider dataSource={dataSource} sessionId="new" rateLimiter={rateLimiter}>
       <LandingChat initialPrompt={initialPrompt} />
     </ChatSessionProvider>
   )

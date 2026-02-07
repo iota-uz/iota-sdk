@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/llmproviders"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/eval"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
@@ -39,6 +38,10 @@ type RunOptions struct {
 	Runner    string
 	Judge     string
 	FailFast  bool
+
+	// NewOpenAIModel is used when runner/judge mode is "openai".
+	// Keeping it injectable avoids pkg->modules dependencies.
+	NewOpenAIModel func() (agents.Model, error)
 }
 
 func LoadCases(path string) ([]eval.TestCase, error) {
@@ -53,6 +56,7 @@ func BuildRunnerAndJudge(
 	runnerMode string,
 	judgeMode string,
 	cases []eval.TestCase,
+	newOpenAIModel func() (agents.Model, error),
 ) (eval.AgentRunner, agents.Model, error) {
 	var judgeModel agents.Model
 
@@ -60,7 +64,10 @@ func BuildRunnerAndJudge(
 	case "none":
 		// no-op
 	case "openai":
-		m, err := llmproviders.NewOpenAIModel()
+		if newOpenAIModel == nil {
+			return nil, nil, fmt.Errorf("openai model factory is required")
+		}
+		m, err := newOpenAIModel()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -93,7 +100,10 @@ func BuildRunnerAndJudge(
 		}, judgeModel, nil
 
 	case "openai":
-		m, err := llmproviders.NewOpenAIModel()
+		if newOpenAIModel == nil {
+			return nil, nil, fmt.Errorf("openai model factory is required")
+		}
+		m, err := newOpenAIModel()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -135,7 +145,7 @@ func Run(ctx context.Context, opts RunOptions) (Report, error) {
 		return Report{}, fmt.Errorf("no test cases to run after filtering")
 	}
 
-	runnerFn, judgeModel, err := BuildRunnerAndJudge(ctx, opts.Runner, opts.Judge, cases)
+	runnerFn, judgeModel, err := BuildRunnerAndJudge(ctx, opts.Runner, opts.Judge, cases, opts.NewOpenAIModel)
 	if err != nil {
 		return Report{}, err
 	}

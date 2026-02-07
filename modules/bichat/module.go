@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/handlers"

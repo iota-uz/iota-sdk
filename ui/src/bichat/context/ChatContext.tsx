@@ -36,6 +36,7 @@ import { RateLimiter } from '../utils/RateLimiter'
 import {
   getSessionDebugUsage,
 } from '../utils/debugTrace'
+import { loadQueue, saveQueue } from '../utils/queueStorage'
 import { hasPermission } from './IotaContext'
 
 // ---------------------------------------------------------------------------
@@ -224,6 +225,23 @@ export function ChatSessionProvider({
   useEffect(() => {
     setCurrentSessionId(sessionId)
   }, [sessionId])
+
+  // ── Restore queued messages per session (sessionStorage) ───────────────
+  useEffect(() => {
+    const sid = currentSessionId
+    if (!sid || sid === 'new') {
+      setMessageQueue([])
+      return
+    }
+    setMessageQueue(loadQueue(sid))
+  }, [currentSessionId])
+
+  // ── Persist queued messages per session (sessionStorage) ───────────────
+  useEffect(() => {
+    const sid = currentSessionId
+    if (!sid || sid === 'new') return
+    saveQueue(sid, messageQueue)
+  }, [currentSessionId, messageQueue])
 
   // ── Fetch session ──────────────────────────────────────────────────────
   useEffect(() => {
