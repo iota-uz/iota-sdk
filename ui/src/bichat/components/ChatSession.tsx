@@ -14,7 +14,7 @@
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { DotsSixVertical, Sidebar } from '@phosphor-icons/react'
+import { Sidebar } from '@phosphor-icons/react'
 import { ChatSessionProvider, useChat } from '../context/ChatContext'
 import { ChatDataSource, ConversationTurn } from '../types'
 import { RateLimiter } from '../utils/RateLimiter'
@@ -342,7 +342,11 @@ function ChatSessionCore({
           animate={{
             width: shouldRenderArtifactsPanel && activeSessionId ? artifactsPanelWidth : 0,
           }}
-          transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+          transition={
+            isResizingArtifactsPanel
+              ? { duration: 0 }
+              : { type: 'spring', stiffness: 320, damping: 32 }
+          }
         >
           {shouldRenderArtifactsPanel && activeSessionId && (
             <motion.div
@@ -356,10 +360,12 @@ function ChatSessionCore({
                 role="separator"
                 aria-label={t('artifacts.resize')}
                 onMouseDown={handleArtifactsResizeStart}
-                className="flex shrink-0 cursor-col-resize touch-none flex-col items-center justify-center border-l border-gray-200 bg-transparent py-4 dark:border-gray-700/80 hover:bg-gray-100/80 dark:hover:bg-gray-800/80 w-3 transition-colors lg:flex"
+                className="flex shrink-0 cursor-col-resize touch-none flex-col items-center justify-center border-l border-gray-200/60 py-4 dark:border-gray-600/60 hover:border-gray-300 dark:hover:border-gray-500 w-2 transition-colors lg:flex group/resize"
               >
-                <div className="cursor-col-resize rounded-md bg-gray-300/80 p-0.5 dark:bg-gray-600/80">
-                  <DotsSixVertical className="h-4 w-4 cursor-col-resize text-gray-500 dark:text-gray-400" weight="bold" />
+                <div className="flex cursor-col-resize flex-col items-center gap-0.5">
+                  <span className="h-0.5 w-1 rounded-full bg-gray-400/70 group-hover/resize:bg-gray-500 dark:bg-gray-500/70 dark:group-hover/resize:bg-gray-400" />
+                  <span className="h-0.5 w-1 rounded-full bg-gray-400/70 group-hover/resize:bg-gray-500 dark:bg-gray-500/70 dark:group-hover/resize:bg-gray-400" />
+                  <span className="h-0.5 w-1 rounded-full bg-gray-400/70 group-hover/resize:bg-gray-500 dark:bg-gray-500/70 dark:group-hover/resize:bg-gray-400" />
                 </div>
               </div>
               <SessionArtifactsPanel
