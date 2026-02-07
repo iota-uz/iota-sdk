@@ -26,7 +26,6 @@ import { useIotaContext } from '../contexts/IotaContext'
 import { toRPCErrorDisplay, type RPCErrorDisplay } from '../utils/rpcErrors'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 import { useAppToast } from '../contexts/ToastContext'
-import { useHapticFeedback } from '../hooks/useHapticFeedback'
 import { useSessionEvents } from '../contexts/SessionEventContext'
 
 const STORAGE_KEY = 'bichat-sidebar-collapsed'
@@ -87,7 +86,6 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
   const navigate = useNavigate()
   const { config, user } = useIotaContext()
   const toast = useAppToast()
-  const haptic = useHapticFeedback()
   const sessionEvents = useSessionEvents()
   const { isCollapsed, isCollapsedRef, toggle, expand } = useSidebarCollapse()
   const searchContainerRef = useRef<HTMLDivElement>(null)
@@ -217,13 +215,11 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
       setActionError(null)
       await reloadSessions()
       toast.success('Chat deleted')
-      haptic.success()
     } catch (error) {
       console.error('Failed to delete session:', error)
       const display = toRPCErrorDisplay(error, 'Failed to delete session')
       setActionError(display)
       toast.error(display.title)
-      haptic.error()
     }
   }
 
@@ -240,13 +236,11 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
       setActionError(null)
       await reloadSessions()
       toast.success(currentlyPinned ? 'Chat unpinned' : 'Chat pinned')
-      haptic.light()
     } catch (error) {
       console.error('Failed to toggle pin:', error)
       const display = toRPCErrorDisplay(error, 'Failed to update pin state')
       setActionError(display)
       toast.error(display.title)
-      haptic.error()
     }
   }
 
@@ -259,13 +253,11 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
       setActionError(null)
       await reloadSessions()
       toast.success('Chat renamed')
-      haptic.light()
     } catch (error) {
       console.error('Failed to update session title:', error)
       const display = toRPCErrorDisplay(error, 'Failed to rename session')
       setActionError(display)
       toast.error(display.title)
-      haptic.error()
     }
   }
 
