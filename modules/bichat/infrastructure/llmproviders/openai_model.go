@@ -2,6 +2,7 @@ package llmproviders
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -404,18 +405,32 @@ func (m *OpenAIModel) buildInputItems(messages []types.Message) responses.Respon
 
 		case types.RoleUser:
 			if len(msg.Attachments()) > 0 {
-				// Build multipart content with text + images
+				// Build multipart content with text + image inputs.
+				// Non-image attachments are represented as text hints so the model uses artifact_reader.
 				parts := make(responses.ResponseInputMessageContentListParam, 0, 1+len(msg.Attachments()))
 				if msg.Content() != "" {
 					parts = append(parts, responses.ResponseInputContentParamOfInputText(msg.Content()))
 				}
+				nonImageNotes := make([]string, 0, len(msg.Attachments()))
 				for _, attachment := range msg.Attachments() {
-					parts = append(parts, responses.ResponseInputContentUnionParam{
-						OfInputImage: &responses.ResponseInputImageParam{
-							ImageURL: openai.String(attachment.FilePath),
-							Detail:   responses.ResponseInputImageDetailLow,
-						},
-					})
+					if strings.HasPrefix(strings.ToLower(strings.TrimSpace(attachment.MimeType)), "image/") && strings.TrimSpace(attachment.FilePath) != "" {
+						parts = append(parts, responses.ResponseInputContentUnionParam{
+							OfInputImage: &responses.ResponseInputImageParam{
+								ImageURL: openai.String(attachment.FilePath),
+								Detail:   responses.ResponseInputImageDetailLow,
+							},
+						})
+						continue
+					}
+					nonImageNotes = append(nonImageNotes, fmt.Sprintf("- %s (%s, %d bytes)", attachment.FileName, attachment.MimeType, attachment.SizeBytes))
+				}
+				if len(nonImageNotes) > 0 {
+					parts = append(parts, responses.ResponseInputContentParamOfInputText(
+						"Attached files are available in this session. Use artifact_reader to inspect them:\n"+strings.Join(nonImageNotes, "\n"),
+					))
+				}
+				if len(parts) == 0 {
+					parts = append(parts, responses.ResponseInputContentParamOfInputText(msg.Content()))
 				}
 				items = append(items, responses.ResponseInputItemParamOfMessage(
 					parts,

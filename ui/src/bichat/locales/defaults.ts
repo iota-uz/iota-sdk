@@ -56,8 +56,9 @@ export const defaultTranslations: Translations = {
   // Message input
   'input.placeholder': 'Type a message...',
   'input.attachFiles': 'Attach files',
-  'input.attachImages': 'Attach images',
-  'input.dropImages': 'Drop images here',
+  'input.attachImages': 'Attach files',
+  'input.dropImages': 'Drop files here',
+  'input.dropFiles': 'Drop files here',
   'input.sendMessage': 'Send message',
   'input.aiThinking': 'AI is thinking...',
   'input.processing': 'Processing...',

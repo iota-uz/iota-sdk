@@ -15,11 +15,13 @@ import type {
   Artifact as DownloadArtifact,
   SessionArtifact,
   PendingQuestion,
+  Question,
   Attachment,
   StreamChunk,
   QuestionAnswers,
   SendMessageOptions,
 } from '../types'
+import type { PendingQuestion as RPCPendingQuestion } from './rpc.generated'
 
 export interface HttpDataSourceConfig {
   baseUrl: string
@@ -76,6 +78,28 @@ function toSessionArtifact(artifact: RPCArtifact): SessionArtifact {
     sizeBytes: artifact.sizeBytes,
     metadata: artifact.metadata,
     createdAt: artifact.createdAt,
+  }
+}
+
+function toPendingQuestion(rpc: RPCPendingQuestion | null | undefined): PendingQuestion | null {
+  if (!rpc) return null
+
+  const questions: Question[] = (rpc.questions || []).map((q) => ({
+    id: q.id,
+    text: q.text,
+    type: q.type as 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE',
+    options: (q.options || []).map((o) => ({
+      id: o.id,
+      label: o.label,
+      value: o.label,
+    })),
+  }))
+
+  return {
+    id: rpc.checkpointId,
+    turnId: '',
+    questions,
+    status: 'PENDING',
   }
 }
 
@@ -313,7 +337,7 @@ export class HttpDataSource implements ChatDataSource {
       return {
         session: toSession(data.session),
         turns: attachArtifactsToTurns(data.turns as ConversationTurn[], artifactsData.artifacts || []),
-        pendingQuestion: (data.pendingQuestion as PendingQuestion | null) ?? null,
+        pendingQuestion: toPendingQuestion(data.pendingQuestion),
       }
     } catch (err) {
       console.error('Failed to fetch session:', err)
@@ -378,11 +402,11 @@ export class HttpDataSource implements ChatDataSource {
       debugMode: options?.debugMode ?? false,
       replaceFromMessageId: options?.replaceFromMessageID,
       attachments: attachments.map(a => ({
-        id: a.id,
         filename: a.filename,
         mimeType: a.mimeType,
         sizeBytes: a.sizeBytes,
         base64Data: a.base64Data,
+        url: a.url,
       })),
     }
 
@@ -546,9 +570,9 @@ export class HttpDataSource implements ChatDataSource {
   /**
    * Cancel a pending question
    */
-  async cancelPendingQuestion(questionId: string): Promise<Result<void>> {
+  async cancelPendingQuestion(sessionId: string): Promise<Result<void>> {
     try {
-      await this.callRPC('bichat.question.cancel', { sessionId: questionId })
+      await this.callRPC('bichat.question.cancel', { sessionId })
       return { success: true }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

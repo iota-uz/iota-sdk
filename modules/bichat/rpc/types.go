@@ -60,6 +60,7 @@ type Attachment struct {
 	MimeType   string `json:"mimeType"`
 	SizeBytes  int64  `json:"sizeBytes"`
 	Base64Data string `json:"base64Data,omitempty"`
+	URL        string `json:"url,omitempty"`
 }
 
 type Citation struct {
@@ -342,6 +343,9 @@ func mapAttachments(in []types.Attachment) []Attachment {
 		}
 		if len(a.Data) > 0 {
 			dto.Base64Data = base64.StdEncoding.EncodeToString(a.Data)
+		}
+		if a.FilePath != "" {
+			dto.URL = a.FilePath
 		}
 		out = append(out, dto)
 	}

@@ -2,7 +2,9 @@ package llmproviders
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -573,6 +575,43 @@ func TestOpenAIModel_BuildInputItems_SkipsInvalidToolCalls(t *testing.T) {
 
 	// assistant message + valid function_call + valid function_call_output
 	assert.Len(t, items, 3)
+}
+
+func TestOpenAIModel_BuildInputItems_OnlyImagesBecomeInputImage(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	messages := []types.Message{
+		types.UserMessage(
+			"Analyze attached files",
+			types.WithAttachments(
+				types.Attachment{
+					FileName: "chart.png",
+					MimeType: "image/png",
+					FilePath: "https://example.com/chart.png",
+				},
+				types.Attachment{
+					FileName: "report.pdf",
+					MimeType: "application/pdf",
+					FilePath: "https://example.com/report.pdf",
+				},
+			),
+		),
+	}
+
+	items := oaiModel.buildInputItems(messages)
+	serialized, err := json.Marshal(items)
+	require.NoError(t, err)
+
+	payload := string(serialized)
+	assert.Equal(t, 1, strings.Count(payload, `"input_image"`))
+	assert.Contains(t, payload, "chart.png")
+	assert.Contains(t, payload, "report.pdf")
+	assert.Contains(t, payload, "artifact_reader")
 }
 
 func TestFunctionCallItemKey(t *testing.T) {

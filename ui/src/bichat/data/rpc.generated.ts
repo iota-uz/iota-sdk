@@ -52,6 +52,7 @@ export interface Attachment {
   mimeType: string
   sizeBytes: number
   base64Data?: string
+  url?: string
 }
 
 export interface Citation {
@@ -106,6 +107,24 @@ export interface DebugUsage {
 
 export interface OkResult {
   ok: boolean
+}
+
+export interface PendingQuestion {
+  checkpointId: string
+  agentName?: string
+  questions: PendingQuestionItem[]
+}
+
+export interface PendingQuestionItem {
+  id: string
+  text: string
+  type: string
+  options: PendingQuestionOption[]
+}
+
+export interface PendingQuestionOption {
+  id: string
+  label: string
 }
 
 export type PingParams = Record<string, never>
@@ -174,7 +193,7 @@ export interface SessionGetParams {
 export interface SessionGetResult {
   session: Session
   turns: ConversationTurn[]
-  pendingQuestion: unknown
+  pendingQuestion?: PendingQuestion | null
 }
 
 export interface SessionIDParams {

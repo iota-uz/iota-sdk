@@ -92,6 +92,7 @@ func (s *agentServiceImpl) ProcessMessage(
 	attachments []domain.Attachment,
 ) (types.Generator[services.Event], error) {
 	const op serrors.Op = "agentServiceImpl.ProcessMessage"
+	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
 	// Get tenant ID for multi-tenant isolation
 	tenantID, err := composables.UseTenantID(ctx)
@@ -256,6 +257,7 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 	answers map[string]types.Answer,
 ) (types.Generator[services.Event], error) {
 	const op serrors.Op = "agentServiceImpl.ResumeWithAnswer"
+	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
 	// Validate inputs
 	if checkpointID == "" {

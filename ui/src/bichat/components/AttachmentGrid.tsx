@@ -1,50 +1,57 @@
 /**
  * AttachmentGrid Component
- * Displays image attachments in a responsive grid
- *
- * Features:
- * - Responsive grid (2 cols mobile, 3 tablet, 4 desktop)
- * - View-only or edit mode (with remove buttons)
- * - Optional maxDisplay limit
- * - Max capacity indicator (10 images)
- * - Memoized items for performance
- * - Readonly mode support
+ * Displays image and non-image attachments in a responsive grid.
  */
 
 import React, { useMemo } from 'react'
-import { X } from '@phosphor-icons/react'
+import { File, X } from '@phosphor-icons/react'
 import { formatFileSize } from '../utils/fileUtils'
-import type { ImageAttachment } from '../types'
+import type { Attachment } from '../types'
 
 interface AttachmentGridProps {
-  /** Array of image attachments to display */
-  attachments: ImageAttachment[]
-  /** Optional callback when remove button is clicked */
+  attachments: Attachment[]
   onRemove?: (index: number) => void
-  /** Optional callback when thumbnail is clicked for preview */
   onView?: (index: number) => void
-  /** Additional CSS class */
   className?: string
-  /** If true, disable all interactions */
   readonly?: boolean
-  /** Maximum number of attachments to display (default: all) */
   maxDisplay?: number
-  /** Maximum total capacity (for warning display, default: 10) */
   maxCapacity?: number
-  /** Empty state message */
   emptyMessage?: string
-  /** Show count label above grid */
   showCount?: boolean
 }
 
-/**
- * Responsive grid component for displaying image attachments
- *
- * Layout:
- * - Mobile: 2 columns (grid-cols-2)
- * - Tablet: 3 columns (sm:grid-cols-3)
- * - Desktop: 4 columns (md:grid-cols-4)
- */
+function isImageAttachment(attachment: Attachment): boolean {
+  return attachment.mimeType.toLowerCase().startsWith('image/')
+}
+
+function resolveImagePreview(attachment: Attachment): string {
+  if (attachment.preview) {
+    return attachment.preview
+  }
+  if (!isImageAttachment(attachment)) {
+    return ''
+  }
+  if (attachment.base64Data) {
+    if (attachment.base64Data.startsWith('data:')) {
+      return attachment.base64Data
+    }
+    return `data:${attachment.mimeType};base64,${attachment.base64Data}`
+  }
+  return attachment.url || ''
+}
+
+function fileTypeLabel(mimeType: string): string {
+  const normalized = mimeType.toLowerCase()
+  if (normalized.startsWith('text/')) return 'TEXT'
+  if (normalized.includes('pdf')) return 'PDF'
+  if (normalized.includes('excel') || normalized.includes('spreadsheet')) return 'XLS'
+  if (normalized.includes('wordprocessingml') || normalized.includes('msword')) return 'DOC'
+  if (normalized.includes('json')) return 'JSON'
+  if (normalized.includes('xml')) return 'XML'
+  if (normalized.includes('yaml')) return 'YAML'
+  return (normalized.split('/')[1] || 'FILE').toUpperCase()
+}
+
 function AttachmentGrid({
   attachments,
   onRemove,
@@ -53,10 +60,9 @@ function AttachmentGrid({
   readonly = false,
   maxDisplay,
   maxCapacity = 10,
-  emptyMessage = 'No images attached',
+  emptyMessage = 'No files attached',
   showCount = false,
 }: AttachmentGridProps) {
-  // Limit attachments to maxDisplay if specified
   const displayedAttachments = useMemo(
     () =>
       maxDisplay && attachments.length > maxDisplay
@@ -65,10 +71,8 @@ function AttachmentGrid({
     [attachments, maxDisplay]
   )
 
-  // Determine if we're at maximum capacity
   const isAtMaxCapacity = attachments.length >= maxCapacity
 
-  // Return null for truly empty state (no empty message needed in most cases)
   if (displayedAttachments.length === 0) {
     if (!showCount) return null
     return (
@@ -77,52 +81,44 @@ function AttachmentGrid({
   }
 
   const isEditable = !readonly && !!onRemove
-  const isViewable = !readonly && !!onView
 
   return (
     <div className={`space-y-2 ${className}`}>
-      {/* Count label */}
       {showCount && (
         <div className="text-sm text-gray-600 dark:text-gray-400">
-          {displayedAttachments.length} image{displayedAttachments.length !== 1 ? 's' : ''} attached
+          {displayedAttachments.length} file{displayedAttachments.length !== 1 ? 's' : ''} attached
         </div>
       )}
 
-      {/* Grid container */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
         {displayedAttachments.map((attachment, index) => (
           <MemoizedAttachmentItem
-            key={`${attachment.filename}-${index}`}
+            key={`${attachment.id || attachment.filename}-${index}`}
             attachment={attachment}
             index={index}
             onRemove={isEditable ? onRemove : undefined}
-            onView={isViewable ? onView : undefined}
+            onView={onView}
           />
         ))}
       </div>
 
-      {/* Overflow indicator when maxDisplay is set */}
       {maxDisplay && attachments.length > maxDisplay && (
         <div className="text-sm text-gray-500 dark:text-gray-400">
           +{attachments.length - maxDisplay} more
         </div>
       )}
 
-      {/* Maximum capacity indicator */}
       {isAtMaxCapacity && isEditable && (
         <div className="text-sm text-amber-600 dark:text-amber-400">
-          Maximum {maxCapacity} images
+          Maximum {maxCapacity} files
         </div>
       )}
     </div>
   )
 }
 
-/**
- * Individual attachment preview item
- */
 interface AttachmentItemProps {
-  attachment: ImageAttachment
+  attachment: Attachment
   index: number
   onRemove?: (index: number) => void
   onView?: (index: number) => void
@@ -130,29 +126,45 @@ interface AttachmentItemProps {
 
 function AttachmentItem({ attachment, index, onRemove, onView }: AttachmentItemProps) {
   const isEditable = !!onRemove
-  const isViewable = !!onView
+  const isImage = isImageAttachment(attachment)
+  const previewSrc = resolveImagePreview(attachment)
+  const isImageViewable = isImage && previewSrc !== '' && !!onView
 
   return (
     <div className="relative group">
-      {isViewable ? (
-        <button
-          type="button"
-          onClick={() => onView?.(index)}
-          className="w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 rounded-lg"
-          aria-label={`View ${attachment.filename}`}
-        >
+      {isImage && previewSrc !== '' ? (
+        isImageViewable ? (
+          <button
+            type="button"
+            onClick={() => onView?.(index)}
+            className="w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 rounded-lg"
+            aria-label={`View ${attachment.filename}`}
+          >
+            <img
+              src={previewSrc}
+              alt={attachment.filename}
+              className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity duration-150"
+            />
+          </button>
+        ) : (
           <img
-            src={attachment.preview}
+            src={previewSrc}
             alt={attachment.filename}
-            className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity duration-150"
+            className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
           />
-        </button>
+        )
       ) : (
-        <img
-          src={attachment.preview}
-          alt={attachment.filename}
-          className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
-        />
+        <div className="w-full h-24 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 flex flex-col justify-between">
+          <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+            <File size={16} />
+            <span className="text-[10px] font-semibold tracking-wide">
+              {fileTypeLabel(attachment.mimeType)}
+            </span>
+          </div>
+          <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate" title={attachment.filename}>
+            {attachment.filename}
+          </div>
+        </div>
       )}
 
       {isEditable && (
@@ -186,18 +198,15 @@ function AttachmentItem({ attachment, index, onRemove, onView }: AttachmentItemP
   )
 }
 
-/**
- * Memoized AttachmentItem to prevent unnecessary re-renders
- * Only re-renders when the attachment or callbacks actually change
- */
 const MemoizedAttachmentItem = React.memo(
   AttachmentItem,
   (prevProps, nextProps) => {
-    // Custom equality check: only re-render if attachment content or callbacks change
     return (
-      prevProps.attachment.base64Data === nextProps.attachment.base64Data &&
+      prevProps.attachment.id === nextProps.attachment.id &&
       prevProps.attachment.filename === nextProps.attachment.filename &&
       prevProps.attachment.preview === nextProps.attachment.preview &&
+      prevProps.attachment.base64Data === nextProps.attachment.base64Data &&
+      prevProps.attachment.url === nextProps.attachment.url &&
       prevProps.index === nextProps.index &&
       prevProps.onRemove === nextProps.onRemove &&
       prevProps.onView === nextProps.onView

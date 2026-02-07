@@ -21,6 +21,7 @@ type DefaultBIAgent struct {
 	learningStore         learning.LearningStore       // Optional learning store for dynamic learnings
 	validatedQueryStore   learning.ValidatedQueryStore // Optional validated query store for query library
 	exportTools           []agents.Tool                // Optional export tools (Excel, PDF)
+	artifactReaderTool    agents.Tool                  // Optional artifact reader tool
 	model                 string                       // Store model separately to apply during initialization
 	enableCodeInterpreter bool
 	agentRegistry         *agents.AgentRegistry         // Optional registry for multi-agent delegation
@@ -84,6 +85,13 @@ func WithAgentRegistry(registry *agents.AgentRegistry) BIAgentOption {
 func WithExportTools(exportTools ...agents.Tool) BIAgentOption {
 	return func(a *DefaultBIAgent) {
 		a.exportTools = append(a.exportTools, exportTools...)
+	}
+}
+
+// WithArtifactReaderTool adds the artifact_reader tool to the agent when configured.
+func WithArtifactReaderTool(tool agents.Tool) BIAgentOption {
+	return func(a *DefaultBIAgent) {
+		a.artifactReaderTool = tool
 	}
 }
 
@@ -177,6 +185,9 @@ func NewDefaultBIAgent(
 	if agent.enableCodeInterpreter {
 		agentTools = append(agentTools, tools.NewCodeInterpreterTool())
 	}
+	if agent.artifactReaderTool != nil {
+		agentTools = append(agentTools, agent.artifactReaderTool)
+	}
 
 	// Add export tools if provided
 	if len(agent.exportTools) > 0 {
@@ -184,7 +195,14 @@ func NewDefaultBIAgent(
 	}
 
 	// Build system prompt with optional registry information, learning store, validated query store, and insight depth
-	systemPrompt := buildBISystemPrompt(agent.enableCodeInterpreter, agent.agentRegistry, agent.learningStore != nil, agent.validatedQueryStore != nil, agent.insightDepth)
+	systemPrompt := buildBISystemPrompt(
+		agent.enableCodeInterpreter,
+		agent.agentRegistry,
+		agent.learningStore != nil,
+		agent.validatedQueryStore != nil,
+		agent.insightDepth,
+		agent.artifactReaderTool != nil,
+	)
 
 	// Create base agent with configured model
 	agent.BaseAgent = agents.NewBaseAgent(
@@ -205,7 +223,7 @@ func NewDefaultBIAgent(
 // If learningEnabled is true, it appends learning system instructions.
 // If validatedQueryEnabled is true, it appends validated query library instructions.
 // If insightDepth is set, it appends insight-focused response instructions.
-func buildBISystemPrompt(codeInterpreter bool, registry *agents.AgentRegistry, learningEnabled bool, validatedQueryEnabled bool, insightDepth string) string {
+func buildBISystemPrompt(codeInterpreter bool, registry *agents.AgentRegistry, learningEnabled bool, validatedQueryEnabled bool, insightDepth string, artifactReaderEnabled bool) string {
 	prompt := `You are a Business Intelligence assistant with access to a SQL database and knowledge base.
 Your mission is to help users analyze data, generate reports, and answer business questions.
 `
@@ -291,6 +309,16 @@ User: "Show me sales trends for last quarter"
 
 Remember: You are here to empower users with data insights, not just execute queries.
 Provide context, explanations, and actionable recommendations based on the data.`
+
+	if artifactReaderEnabled {
+		prompt += `
+
+ATTACHMENT ANALYSIS:
+- When user files are attached, inspect them with artifact_reader before answering.
+- Use artifact_reader action="list" to discover available artifacts in the current session.
+- Use artifact_reader action="read" with artifact_id to inspect file content.
+- For chart artifacts, use mode="spec" to read chart metadata/spec.`
+	}
 
 	// Append available agents for delegation if registry is configured
 	if registry != nil && len(registry.All()) > 0 {

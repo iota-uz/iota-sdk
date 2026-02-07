@@ -1,13 +1,20 @@
 /**
  * AttachmentUpload Component
- * Handles file selection and base64 encoding for image attachments
+ * Handles file selection and base64 encoding for chat attachments
  * Provides loading states, validation, and error handling
  */
 
 import { memo, useRef, useCallback, useState } from 'react'
 import { Paperclip, CircleNotch } from '@phosphor-icons/react'
-import { ImageAttachment } from '../types'
-import { convertToBase64, validateImageFile, formatFileSize, createDataUrl } from '../utils/fileUtils'
+import { Attachment } from '../types'
+import {
+  ATTACHMENT_ACCEPT_ATTRIBUTE,
+  convertToBase64,
+  createDataUrl,
+  formatFileSize,
+  isImageMimeType,
+  validateAttachmentFile,
+} from '../utils/fileUtils'
 import { useToast } from '../hooks/useToast'
 import { useTranslation } from '../hooks/useTranslation'
 
@@ -18,7 +25,7 @@ interface AttachmentError {
 
 interface AttachmentUploadProps {
   /** Callback fired when files are successfully converted and validated */
-  onAttachmentsSelected: (attachments: ImageAttachment[]) => void
+  onAttachmentsSelected: (attachments: Attachment[]) => void
   /** Maximum number of attachments allowed (default: 10) */
   maxAttachments?: number
   /** Maximum file size in bytes (default: 20 MB) */
@@ -61,14 +68,14 @@ const AttachmentUpload = memo<AttachmentUploadProps>(
             return
           }
 
-          const attachments: ImageAttachment[] = []
+          const attachments: Attachment[] = []
           const errors: AttachmentError[] = []
 
           // Process each file
           for (const file of files) {
             // Validate file
             try {
-              validateImageFile(file, maxSizeBytes)
+              validateAttachmentFile(file, maxSizeBytes)
             } catch (validationErr) {
               errors.push({ filename: file.name, error: validationErr instanceof Error ? validationErr.message : String(validationErr) })
               continue
@@ -77,15 +84,18 @@ const AttachmentUpload = memo<AttachmentUploadProps>(
             try {
               // Convert to base64
               const base64Data = await convertToBase64(file)
-              const preview = createDataUrl(base64Data, file.type)
-
-              attachments.push({
+              const attachment: Attachment = {
+                id: '',
                 filename: file.name,
                 mimeType: file.type,
                 sizeBytes: file.size,
                 base64Data,
-                preview,
-              })
+              }
+              if (isImageMimeType(file.type)) {
+                attachment.preview = createDataUrl(base64Data, file.type)
+              }
+
+              attachments.push(attachment)
             } catch (err) {
               errors.push({
                 filename: file.name,
@@ -135,7 +145,7 @@ const AttachmentUpload = memo<AttachmentUploadProps>(
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/png,image/jpeg,image/webp,image/gif"
+          accept={ATTACHMENT_ACCEPT_ATTRIBUTE}
           onChange={handleFileSelect}
           disabled={isDisabled}
           className="sr-only"

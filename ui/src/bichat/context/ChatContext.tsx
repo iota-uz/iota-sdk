@@ -22,7 +22,6 @@ import {
   type PendingQuestion,
   type QuestionAnswers,
   type Attachment,
-  type ImageAttachment,
   type QueuedMessage,
   type CodeOutput,
   type ChatSessionContextValue,
@@ -500,7 +499,7 @@ export function ChatSessionProvider({
             setStreamingContent(accumulatedContent)
           } else if (chunk.type === 'error') {
             throw new Error(chunk.error || 'Stream error')
-          } else if (chunk.type === 'done') {
+          } else if (chunk.type === 'interrupt' || chunk.type === 'done') {
             if (chunk.sessionId) {
               createdSessionId = chunk.sessionId
             }
@@ -553,7 +552,7 @@ export function ChatSessionProvider({
   }, [])
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent, attachments: ImageAttachment[] = []) => {
+    (e: React.FormEvent, attachments: Attachment[] = []) => {
       e.preventDefault()
       if (!message.trim() && attachments.length === 0) return
       setInputError(null)
@@ -563,7 +562,9 @@ export function ChatSessionProvider({
         filename: att.filename,
         mimeType: att.mimeType,
         sizeBytes: att.sizeBytes,
-        base64Data: att.base64Data
+        base64Data: att.base64Data,
+        url: att.url,
+        preview: att.preview,
       }))
 
       sendMessageDirect(message, convertedAttachments)
@@ -700,7 +701,7 @@ export function ChatSessionProvider({
     if (!curSessionId || !curPendingQuestion) return
 
     try {
-      const result = await dataSource.cancelPendingQuestion(curPendingQuestion.id)
+      const result = await dataSource.cancelPendingQuestion(curSessionId)
 
       if (result.success) {
         setPendingQuestion(null)

@@ -1,9 +1,19 @@
-import { AppletRPCException } from '@iota-uz/sdk'
-
 export interface RPCErrorDisplay {
   title: string
   description: string
   isPermissionDenied: boolean
+}
+
+interface RPCErrorLike {
+  code?: unknown
+  details?: unknown
+}
+
+function asRPCErrorLike(error: unknown): RPCErrorLike | null {
+  if (!error || typeof error !== 'object') {
+    return null
+  }
+  return error as RPCErrorLike
 }
 
 function extractHTTPStatus(details: unknown): number | null {
@@ -15,11 +25,12 @@ function extractHTTPStatus(details: unknown): number | null {
 }
 
 export function isPermissionDeniedError(error: unknown): boolean {
-  if (error instanceof AppletRPCException) {
-    if (error.code === 'forbidden') {
+  const rpcError = asRPCErrorLike(error)
+  if (rpcError) {
+    if (rpcError.code === 'forbidden') {
       return true
     }
-    if (error.code === 'http_error' && extractHTTPStatus(error.details) === 403) {
+    if (rpcError.code === 'http_error' && extractHTTPStatus(rpcError.details) === 403) {
       return true
     }
   }
@@ -46,8 +57,9 @@ export function toRPCErrorDisplay(error: unknown, fallbackTitle: string): RPCErr
     }
   }
 
-  if (error instanceof AppletRPCException && error.code === 'http_error') {
-    const status = extractHTTPStatus(error.details)
+  const rpcError = asRPCErrorLike(error)
+  if (rpcError?.code === 'http_error') {
+    const status = extractHTTPStatus(rpcError.details)
     return {
       title: fallbackTitle,
       description: status ? `Request failed with HTTP ${status}.` : 'Request failed.',

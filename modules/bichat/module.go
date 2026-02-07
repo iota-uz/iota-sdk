@@ -125,6 +125,7 @@ func (m *Module) Register(app application.Application) error {
 		streamController := controllers.NewStreamController(
 			app,
 			chatService,
+			attachmentService,
 			streamOpts...,
 		)
 		controllersToRegister = append(controllersToRegister, streamController)

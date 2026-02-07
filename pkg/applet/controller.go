@@ -553,7 +553,7 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 		requireSameOrigin = *rpcCfg.RequireSameOrigin
 	}
 
-	trustForwardedHost := false
+	trustForwardedHost := hasForwardedHeaders(r)
 	if rpcCfg.TrustForwardedHost != nil {
 		trustForwardedHost = *rpcCfg.TrustForwardedHost
 	}
@@ -805,6 +805,10 @@ func enforceSameOrigin(r *http.Request, trustForwardedHost bool) error {
 		return serrors.E(op, serrors.Invalid, "origin mismatch")
 	}
 	return nil
+}
+
+func hasForwardedHeaders(r *http.Request) bool {
+	return r.Header.Get("X-Forwarded-Proto") != "" || r.Header.Get("X-Forwarded-Host") != ""
 }
 
 func requestHost(r *http.Request, trustForwarded bool) string {

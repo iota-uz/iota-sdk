@@ -1475,6 +1475,85 @@ func TestPostgresChatRepository_UpdateSessionTimestamp(t *testing.T) {
 		"updated_at should be updated automatically")
 }
 
+func TestPostgresChatRepository_GetMessage_HydratesAttachments(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle("Hydration Test"),
+	)
+	err := repo.CreateSession(env.Ctx, session)
+	require.NoError(t, err)
+
+	msg := types.UserMessage("Message with attachment", types.WithSessionID(session.ID()))
+	err = repo.SaveMessage(env.Ctx, msg)
+	require.NoError(t, err)
+
+	attachment := domain.NewAttachment(
+		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithFileName("report.txt"),
+		domain.WithMimeType("text/plain"),
+		domain.WithSizeBytes(128),
+		domain.WithFilePath("https://files.local/report.txt"),
+	)
+	err = repo.SaveAttachment(env.Ctx, attachment)
+	require.NoError(t, err)
+
+	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
+	require.NoError(t, err)
+	require.Len(t, retrieved.Attachments(), 1)
+	assert.Equal(t, "report.txt", retrieved.Attachments()[0].FileName)
+	assert.Equal(t, "https://files.local/report.txt", retrieved.Attachments()[0].FilePath)
+}
+
+func TestPostgresChatRepository_GetSessionMessages_HydratesAttachments(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle("Session Message Attachment Hydration"),
+	)
+	err := repo.CreateSession(env.Ctx, session)
+	require.NoError(t, err)
+
+	msgWithAttachment := types.UserMessage("Message A", types.WithSessionID(session.ID()))
+	msgWithoutAttachment := types.UserMessage("Message B", types.WithSessionID(session.ID()))
+	err = repo.SaveMessage(env.Ctx, msgWithAttachment)
+	require.NoError(t, err)
+	err = repo.SaveMessage(env.Ctx, msgWithoutAttachment)
+	require.NoError(t, err)
+
+	attachment := domain.NewAttachment(
+		domain.WithAttachmentMessageID(msgWithAttachment.ID()),
+		domain.WithFileName("table.csv"),
+		domain.WithMimeType("text/csv"),
+		domain.WithSizeBytes(256),
+		domain.WithFilePath("https://files.local/table.csv"),
+	)
+	err = repo.SaveAttachment(env.Ctx, attachment)
+	require.NoError(t, err)
+
+	retrieved, err := repo.GetSessionMessages(env.Ctx, session.ID(), domain.ListOptions{Limit: 10, Offset: 0})
+	require.NoError(t, err)
+	require.Len(t, retrieved, 2)
+
+	attachmentsByMessage := map[uuid.UUID]int{}
+	for _, msg := range retrieved {
+		attachmentsByMessage[msg.ID()] = len(msg.Attachments())
+	}
+
+	assert.Equal(t, 1, attachmentsByMessage[msgWithAttachment.ID()])
+	assert.Equal(t, 0, attachmentsByMessage[msgWithoutAttachment.ID()])
+}
+
 func TestPostgresChatRepository_GetSession_WithSQLNullTypes(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)

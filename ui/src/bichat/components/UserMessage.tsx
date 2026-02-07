@@ -8,7 +8,7 @@ import { Check, Copy, PencilSimple } from '@phosphor-icons/react'
 import { formatDistanceToNow } from 'date-fns'
 import AttachmentGrid from './AttachmentGrid'
 import ImageModal from './ImageModal'
-import type { UserTurn, ImageAttachment } from '../types'
+import type { Attachment, ImageAttachment, UserTurn } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 
 /* -------------------------------------------------------------------------------------------------
@@ -26,8 +26,8 @@ export interface UserMessageContentSlotProps {
 }
 
 export interface UserMessageAttachmentsSlotProps {
-  /** Image attachments */
-  attachments: ImageAttachment[]
+  /** Message attachments */
+  attachments: Attachment[]
   /** Handler to open image viewer */
   onView: (index: number) => void
 }
@@ -173,16 +173,51 @@ export function UserMessage({
     }
   }, [])
 
-  // Convert attachments to ImageAttachment format
-  const imageAttachments: ImageAttachment[] = turn.attachments
-    .filter((a) => a.mimeType.startsWith('image/'))
-    .map((a) => ({
-      filename: a.filename,
-      mimeType: a.mimeType,
-      sizeBytes: a.sizeBytes,
-      base64Data: a.base64Data || '',
-      preview: a.base64Data ? `data:${a.mimeType};base64,${a.base64Data}` : '',
-    }))
+  const normalizedAttachments: Attachment[] = turn.attachments.map((attachment) => {
+    if (!attachment.mimeType.startsWith('image/')) {
+      return attachment
+    }
+
+    if (attachment.preview) {
+      return attachment
+    }
+    if (attachment.base64Data) {
+      if (attachment.base64Data.startsWith('data:')) {
+        return {
+          ...attachment,
+          preview: attachment.base64Data,
+        }
+      }
+      return {
+        ...attachment,
+        preview: `data:${attachment.mimeType};base64,${attachment.base64Data}`,
+      }
+    }
+    if (attachment.url) {
+      return {
+        ...attachment,
+        preview: attachment.url,
+      }
+    }
+    return attachment
+  })
+
+  const imageAttachments: ImageAttachment[] = []
+  const imageIndexByAttachmentIndex = new Map<number, number>()
+  normalizedAttachments.forEach((attachment, index) => {
+    if (!attachment.mimeType.startsWith('image/')) {
+      return
+    }
+    if (!attachment.preview && !attachment.url) {
+      return
+    }
+    imageIndexByAttachmentIndex.set(index, imageAttachments.length)
+    imageAttachments.push({
+      ...attachment,
+      base64Data: attachment.base64Data || '',
+      preview: attachment.preview || attachment.url || '',
+    })
+  })
 
   const handleCopyClick = useCallback(async () => {
     try {
@@ -252,8 +287,14 @@ export function UserMessage({
   const avatarSlotProps: UserMessageAvatarSlotProps = { initials }
   const contentSlotProps: UserMessageContentSlotProps = { content: turn.content }
   const attachmentsSlotProps: UserMessageAttachmentsSlotProps = {
-    attachments: imageAttachments,
-    onView: (index) => setSelectedImageIndex(index),
+    attachments: normalizedAttachments,
+    onView: (index) => {
+      const imageIndex = imageIndexByAttachmentIndex.get(index)
+      if (imageIndex === undefined) {
+        return
+      }
+      setSelectedImageIndex(imageIndex)
+    },
   }
   const actionsSlotProps: UserMessageActionsSlotProps = {
     onCopy: handleCopyClick,
@@ -278,14 +319,14 @@ export function UserMessage({
     <div className={classes.root}>
       <div className={classes.wrapper}>
         {/* Attachments */}
-        {imageAttachments.length > 0 && (
+        {normalizedAttachments.length > 0 && (
           <div className={classes.attachments}>
             {renderSlot(
               slots?.attachments,
               attachmentsSlotProps,
               <AttachmentGrid
-                attachments={imageAttachments}
-                onView={(index) => setSelectedImageIndex(index)}
+                attachments={normalizedAttachments}
+                onView={attachmentsSlotProps.onView}
               />
             )}
           </div>

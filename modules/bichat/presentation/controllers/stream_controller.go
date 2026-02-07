@@ -12,7 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -23,21 +22,24 @@ import (
 
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
 type StreamController struct {
-	app         application.Application
-	chatService bichatservices.ChatService
-	opts        ControllerOptions
+	app               application.Application
+	chatService       bichatservices.ChatService
+	attachmentService bichatservices.AttachmentService
+	opts              ControllerOptions
 }
 
 // NewStreamController creates a new stream controller.
 func NewStreamController(
 	app application.Application,
 	chatService bichatservices.ChatService,
+	attachmentService bichatservices.AttachmentService,
 	opts ...ControllerOption,
 ) *StreamController {
 	return &StreamController{
-		app:         app,
-		chatService: chatService,
-		opts:        applyControllerOptions(opts...),
+		app:               app,
+		chatService:       chatService,
+		attachmentService: attachmentService,
+		opts:              applyControllerOptions(opts...),
 	}
 }
 
@@ -103,11 +105,11 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 
 	// 4. Parse request
 	type streamRequest struct {
-		SessionID   uuid.UUID           `json:"sessionId"`
-		Content     string              `json:"content"`
-		Attachments []domain.Attachment `json:"attachments"`
-		DebugMode   bool                `json:"debugMode"`
-		ReplaceFrom *uuid.UUID          `json:"replaceFromMessageId,omitempty"`
+		SessionID   uuid.UUID             `json:"sessionId"`
+		Content     string                `json:"content"`
+		Attachments []AttachmentUploadDTO `json:"attachments"`
+		DebugMode   bool                  `json:"debugMode"`
+		ReplaceFrom *uuid.UUID            `json:"replaceFromMessageId,omitempty"`
 	}
 
 	var req streamRequest
@@ -121,6 +123,24 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "Access denied", http.StatusForbidden)
 			return
 		}
+	}
+
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		http.Error(w, "Invalid tenant context", http.StatusBadRequest)
+		return
+	}
+
+	domainAttachments, err := convertAttachmentDTOs(
+		r.Context(),
+		c.attachmentService,
+		req.Attachments,
+		tenantID,
+		uuid.Nil,
+	)
+	if err != nil {
+		http.Error(w, "Invalid attachments", http.StatusBadRequest)
+		return
 	}
 
 	// 5. Validate session access
@@ -156,7 +176,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		SessionID:            req.SessionID,
 		UserID:               int64(user.ID()),
 		Content:              req.Content,
-		Attachments:          req.Attachments,
+		Attachments:          domainAttachments,
 		DebugMode:            req.DebugMode,
 		ReplaceFromMessageID: req.ReplaceFrom,
 	}, func(chunk bichatservices.StreamChunk) {

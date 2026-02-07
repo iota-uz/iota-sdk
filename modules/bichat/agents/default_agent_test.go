@@ -207,6 +207,32 @@ func TestDefaultBIAgent_WithExportTools(t *testing.T) {
 	assert.True(t, toolNames["export_to_pdf"], "export_to_pdf tool should be present when configured")
 }
 
+func TestDefaultBIAgent_WithArtifactReaderTool(t *testing.T) {
+	t.Parallel()
+
+	executor := &mockQueryExecutor{}
+	artifactReader := agents.NewTool(
+		"artifact_reader",
+		"Read session artifacts",
+		map[string]any{"type": "object"},
+		func(ctx context.Context, input string) (string, error) { return "ok", nil },
+	)
+
+	agent, err := NewDefaultBIAgent(
+		executor,
+		WithArtifactReaderTool(artifactReader),
+	)
+	require.NoError(t, err)
+
+	toolNames := make(map[string]bool)
+	for _, tool := range agent.Tools() {
+		toolNames[tool.Name()] = true
+	}
+
+	assert.True(t, toolNames["artifact_reader"])
+	assert.Contains(t, agent.SystemPrompt(context.Background()), "ATTACHMENT ANALYSIS:")
+}
+
 func TestDefaultBIAgent_WithoutExportTools(t *testing.T) {
 	t.Parallel()
 

@@ -266,10 +266,28 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Content     string              `json:"content"`
-		Attachments []domain.Attachment `json:"attachments"`
+		Content     string                `json:"content"`
+		Attachments []AttachmentUploadDTO `json:"attachments"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
+		return
+	}
+
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
+		return
+	}
+
+	domainAttachments, err := convertAttachmentDTOs(
+		r.Context(),
+		c.attachmentService,
+		req.Attachments,
+		tenantID,
+		uuid.Nil,
+	)
+	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return
 	}
@@ -278,7 +296,7 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		SessionID:   sessionID,
 		UserID:      int64(user.ID()),
 		Content:     req.Content,
-		Attachments: req.Attachments,
+		Attachments: domainAttachments,
 	})
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)

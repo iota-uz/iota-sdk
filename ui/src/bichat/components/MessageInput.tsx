@@ -7,9 +7,16 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react'
 import { Paperclip, PaperPlaneRight, X, Bug, ArrowUp, ArrowDown, Stack } from '@phosphor-icons/react'
 import AttachmentGrid from './AttachmentGrid'
-import { validateImageFile, validateFileCount, convertToBase64, createDataUrl } from '../utils/fileUtils'
+import {
+  ATTACHMENT_ACCEPT_ATTRIBUTE,
+  convertToBase64,
+  createDataUrl,
+  isImageMimeType,
+  validateAttachmentFile,
+  validateFileCount,
+} from '../utils/fileUtils'
 import { calculateContextUsagePercent } from '../utils/debugMetrics'
-import type { DebugLimits, ImageAttachment, QueuedMessage, SessionDebugUsage } from '../types'
+import type { Attachment, DebugLimits, QueuedMessage, SessionDebugUsage } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 
 export interface MessageInputRef {
@@ -29,8 +36,8 @@ export interface MessageInputProps {
   messageQueue?: QueuedMessage[]
   onClearCommandError?: () => void
   onMessageChange: (value: string) => void
-  onSubmit: (e: React.FormEvent, attachments: ImageAttachment[]) => void
-  onUnqueue?: () => { content: string; attachments: ImageAttachment[] } | null
+  onSubmit: (e: React.FormEvent, attachments: Attachment[]) => void
+  onUnqueue?: () => { content: string; attachments: Attachment[] } | null
   placeholder?: string
   maxFiles?: number
   maxFileSize?: number
@@ -67,7 +74,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     ref
   ) => {
     const { t } = useTranslation()
-    const [attachments, setAttachments] = useState<ImageAttachment[]>([])
+    const [attachments, setAttachments] = useState<Attachment[]>([])
     const [isDragging, setIsDragging] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isFocused, setIsFocused] = useState(false)
@@ -190,28 +197,31 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       try {
         validateFileCount(attachments.length, files.length, maxFiles)
 
-        const newAttachments: ImageAttachment[] = []
+        const newAttachments: Attachment[] = []
 
         for (let i = 0; i < files.length; i++) {
           const file = files[i]
-          validateImageFile(file, maxFileSize)
+          validateAttachmentFile(file, maxFileSize)
           const base64Data = await convertToBase64(file)
-          const preview = createDataUrl(base64Data, file.type)
-
-          newAttachments.push({
+          const attachment: Attachment = {
+            id: '',
             filename: file.name,
             mimeType: file.type,
             sizeBytes: file.size,
             base64Data,
-            preview
-          })
+          }
+          if (isImageMimeType(file.type)) {
+            attachment.preview = createDataUrl(base64Data, file.type)
+          }
+
+          newAttachments.push(attachment)
         }
 
         setAttachments((prev) => [...prev, ...newAttachments])
         setError(null)
         return true
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to process files')
+        setError(err instanceof Error ? err.message : 'Failed to process attachments')
         return false
       }
     }
@@ -533,7 +543,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                     <Paperclip size={20} className="text-primary-600 dark:text-primary-400" />
                   </div>
                   <span className="text-sm text-primary-700 dark:text-primary-300 font-medium">
-                    {t('input.dropImages')}
+                    {t('input.dropFiles')}
                   </span>
                 </div>
               </div>
@@ -563,7 +573,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 disabled={loading || disabled || attachments.length >= maxFiles}
                 className="cursor-pointer flex-shrink-0 self-center p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label={t('input.attachFiles')}
-                title={t('input.attachImages')}
+                title={t('input.attachFiles')}
               >
                 <Paperclip size={18} className="cursor-pointer" />
               </button>
@@ -572,7 +582,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
+                accept={ATTACHMENT_ACCEPT_ATTRIBUTE}
                 multiple
                 onChange={handleFileInputChange}
                 className="hidden"

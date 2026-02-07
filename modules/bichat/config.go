@@ -25,6 +25,7 @@ import (
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
+	bichattools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -635,11 +636,6 @@ func (c *ModuleConfig) resolveProjectPromptExtension() error {
 func (c *ModuleConfig) BuildServices() error {
 	const op serrors.Op = "ModuleConfig.BuildServices"
 
-	// Build default parent agent from config when caller did not provide one.
-	if err := c.BuildParentAgent(); err != nil {
-		return serrors.E(op, err)
-	}
-
 	// Validate configuration first
 	if err := c.Validate(); err != nil {
 		return serrors.E(op, err)
@@ -647,6 +643,28 @@ func (c *ModuleConfig) BuildServices() error {
 
 	if err := c.resolveProjectPromptExtension(); err != nil {
 		return serrors.E(op, err, "failed to resolve project prompt extension")
+	}
+
+	// Create file storage once for attachment/artifact services and artifact_reader tool wiring.
+	var fileStorage storage.FileStorage
+	if c.ParentAgent == nil || c.attachmentService == nil || c.artifactService == nil {
+		if c.DisableAttachmentStorage {
+			fileStorage = storage.NewNoOpFileStorage()
+		} else {
+			fs, err := storage.NewLocalFileStorage(
+				c.AttachmentStorageBasePath,
+				c.AttachmentStorageBaseURL,
+			)
+			if err != nil {
+				return serrors.E(op, err, "failed to create file storage")
+			}
+			fileStorage = fs
+		}
+	}
+
+	// Build default parent agent from config when caller did not provide one.
+	if err := c.buildParentAgent(fileStorage); err != nil {
+		return serrors.E(op, err)
 	}
 
 	// Build AgentService first (ChatService depends on it)
@@ -685,23 +703,6 @@ func (c *ModuleConfig) BuildServices() error {
 		)
 	}
 
-	// Create file storage once for both AttachmentService and ArtifactService
-	var fileStorage storage.FileStorage
-	if c.attachmentService == nil || c.artifactService == nil {
-		if c.DisableAttachmentStorage {
-			fileStorage = storage.NewNoOpFileStorage()
-		} else {
-			fs, err := storage.NewLocalFileStorage(
-				c.AttachmentStorageBasePath,
-				c.AttachmentStorageBaseURL,
-			)
-			if err != nil {
-				return serrors.E(op, err, "failed to create file storage")
-			}
-			fileStorage = fs
-		}
-	}
-
 	// Build AttachmentService
 	if c.attachmentService == nil {
 		c.attachmentService = services.NewAttachmentService(fileStorage)
@@ -718,6 +719,10 @@ func (c *ModuleConfig) BuildServices() error {
 // BuildParentAgent creates the default BI parent agent when ParentAgent is nil.
 // It applies KB, learning, validated query, and code interpreter options from ModuleConfig.
 func (c *ModuleConfig) BuildParentAgent() error {
+	return c.buildParentAgent(nil)
+}
+
+func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
 	const op serrors.Op = "ModuleConfig.BuildParentAgent"
 
 	if c.ParentAgent != nil {
@@ -749,6 +754,11 @@ func (c *ModuleConfig) BuildParentAgent() error {
 		if modelName != "" {
 			opts = append(opts, bichatagents.WithModel(modelName))
 		}
+	}
+	if c.ChatRepo != nil && fileStorage != nil {
+		opts = append(opts, bichatagents.WithArtifactReaderTool(
+			bichattools.NewArtifactReaderTool(c.ChatRepo, fileStorage),
+		))
 	}
 
 	parentAgent, err := bichatagents.NewDefaultBIAgent(c.QueryExecutor, opts...)

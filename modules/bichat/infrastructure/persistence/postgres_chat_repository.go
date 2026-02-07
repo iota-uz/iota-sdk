@@ -518,6 +518,11 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
+	domainAttachments, err := r.GetMessageAttachments(ctx, msgID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	attachments := convertDomainAttachmentsToTypes(domainAttachments)
 
 	// Build message options
 	opts := []types.MessageOption{
@@ -538,6 +543,9 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	}
 	if len(codeOutputs) > 0 {
 		opts = append(opts, types.WithCodeOutputs(codeOutputs...))
+	}
+	if len(attachments) > 0 {
+		opts = append(opts, types.WithAttachments(attachments...))
 	}
 	if debugTrace != nil {
 		opts = append(opts, types.WithDebugTrace(debugTrace))
@@ -654,6 +662,11 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
+		domainAttachments, err := r.GetMessageAttachments(ctx, md.msgID)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+		attachments := convertDomainAttachmentsToTypes(domainAttachments)
 
 		// Build message options
 		msgOpts := []types.MessageOption{
@@ -674,6 +687,9 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 		}
 		if len(codeOutputs) > 0 {
 			msgOpts = append(msgOpts, types.WithCodeOutputs(codeOutputs...))
+		}
+		if len(attachments) > 0 {
+			msgOpts = append(msgOpts, types.WithAttachments(attachments...))
 		}
 		if md.debugTrace != nil {
 			msgOpts = append(msgOpts, types.WithDebugTrace(md.debugTrace))
@@ -917,4 +933,25 @@ func (r *PostgresChatRepository) loadCodeOutputsForMessage(ctx context.Context, 
 	}
 
 	return outputs, nil
+}
+
+func convertDomainAttachmentsToTypes(in []domain.Attachment) []types.Attachment {
+	if len(in) == 0 {
+		return nil
+	}
+
+	out := make([]types.Attachment, 0, len(in))
+	for _, a := range in {
+		out = append(out, types.Attachment{
+			ID:        a.ID(),
+			MessageID: a.MessageID(),
+			FileName:  a.FileName(),
+			MimeType:  a.MimeType(),
+			SizeBytes: a.SizeBytes(),
+			FilePath:  a.FilePath(),
+			CreatedAt: a.CreatedAt(),
+		})
+	}
+
+	return out
 }

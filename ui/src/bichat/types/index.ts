@@ -114,20 +114,19 @@ export interface Citation {
 }
 
 export interface Attachment {
-  id: string
+  id?: string
   filename: string
   mimeType: string
   sizeBytes: number
   base64Data?: string
+  url?: string
+  preview?: string
 }
 
 // Image attachment with preview for MessageInput
-export interface ImageAttachment {
-  filename: string
-  mimeType: string
-  sizeBytes: number
+export type ImageAttachment = Attachment & {
   base64Data: string
-  preview: string  // data URL for img src
+  preview: string
 }
 
 // ============================================================================
@@ -155,7 +154,7 @@ export interface CodeOutput {
  */
 export interface QueuedMessage {
   content: string
-  attachments: ImageAttachment[]
+  attachments: Attachment[]
 }
 
 // ============================================================================
@@ -257,14 +256,28 @@ export interface QuestionAnswers {
 }
 
 export interface StreamChunk {
-  type: 'chunk' | 'content' | 'tool_start' | 'tool_end' | 'usage' | 'done' | 'error' | 'user_message'
+  type: 'chunk' | 'content' | 'tool_start' | 'tool_end' | 'usage' | 'done' | 'error' | 'user_message' | 'interrupt'
   content?: string
   error?: string
   sessionId?: string
   usage?: DebugUsage
   tool?: StreamToolPayload
+  interrupt?: StreamInterruptPayload
   generationMs?: number
   timestamp?: number
+}
+
+export interface StreamInterruptPayload {
+  checkpointId: string
+  agentName?: string
+  questions: StreamInterruptQuestion[]
+}
+
+export interface StreamInterruptQuestion {
+  id: string
+  text: string
+  type: string
+  options: Array<{ id: string; label: string }>
 }
 
 export interface DebugUsage {
@@ -369,7 +382,7 @@ export interface ChatDataSource {
     questionId: string,
     answers: QuestionAnswers
   ): Promise<{ success: boolean; error?: string }>
-  cancelPendingQuestion(questionId: string): Promise<{ success: boolean; error?: string }>
+  cancelPendingQuestion(sessionId: string): Promise<{ success: boolean; error?: string }>
   navigateToSession?(sessionId: string): void
 
   // Session management
@@ -444,8 +457,8 @@ export interface ChatInputStateValue {
   messageQueue: QueuedMessage[]
   setMessage: (message: string) => void
   setInputError: (error: string | null) => void
-  handleSubmit: (e: React.FormEvent, attachments?: ImageAttachment[]) => void
-  handleUnqueue: () => { content: string; attachments: ImageAttachment[] } | null
+  handleSubmit: (e: React.FormEvent, attachments?: Attachment[]) => void
+  handleUnqueue: () => { content: string; attachments: Attachment[] } | null
 }
 
 // ============================================================================

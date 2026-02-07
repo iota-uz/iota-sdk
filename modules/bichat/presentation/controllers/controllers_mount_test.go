@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -19,11 +20,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
 	bichatdomain "github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	pkgservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	bichattypes "github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,9 +90,10 @@ func (m *deterministicModel) HasCapability(capability bichatagents.Capability) b
 func (m *deterministicModel) Pricing() bichatagents.ModelPricing { return bichatagents.ModelPricing{} }
 
 type controllerDeps struct {
-	chatRepo     bichatdomain.ChatRepository
-	agentService pkgservices.AgentService
-	chatService  pkgservices.ChatService
+	chatRepo          bichatdomain.ChatRepository
+	agentService      pkgservices.AgentService
+	chatService       pkgservices.ChatService
+	attachmentService pkgservices.AttachmentService
 }
 
 func newControllerDeps(t *testing.T) controllerDeps {
@@ -114,11 +118,13 @@ func newControllerDeps(t *testing.T) controllerDeps {
 	})
 
 	chatService := modservices.NewChatService(chatRepo, agentService, model, nil)
+	attachmentService := modservices.NewAttachmentService(storage.NewNoOpFileStorage())
 
 	return controllerDeps{
-		chatRepo:     chatRepo,
-		agentService: agentService,
-		chatService:  chatService,
+		chatRepo:          chatRepo,
+		agentService:      agentService,
+		chatService:       chatService,
+		attachmentService: attachmentService,
 	}
 }
 
@@ -196,7 +202,7 @@ func TestStreamController_RequireAccessPermission_Integration(t *testing.T) {
 	deps := newControllerDeps(t)
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.chatService, WithRequireAccessPermission(bichatperm.BiChatAccess)).Register(r)
+	NewStreamController(env.App, deps.chatService, deps.attachmentService, WithRequireAccessPermission(bichatperm.BiChatAccess)).Register(r)
 
 	w := flusherRecorder{ResponseRecorder: httptest.NewRecorder()}
 	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewBufferString(`{}`))
@@ -252,6 +258,7 @@ func TestStreamController_DebugMode_ForbiddenWithoutExportPermission_Integration
 
 	r := newRouterWithContext(t, env, u)
 	NewStreamController(env.App, deps.chatService,
+		deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
@@ -283,6 +290,7 @@ func TestStreamController_DebugMode_AllowedWithExportPermission_Integration(t *t
 
 	r := newRouterWithContext(t, env, u)
 	NewStreamController(env.App, deps.chatService,
+		deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
@@ -315,6 +323,7 @@ func TestStreamController_ReplaceFromMessageID_TruncatesHistory_Integration(t *t
 
 	r := newRouterWithContext(t, env, u)
 	NewStreamController(env.App, deps.chatService,
+		deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
@@ -367,4 +376,59 @@ func TestStreamController_ReplaceFromMessageID_TruncatesHistory_Integration(t *t
 		}
 	}
 	require.Equal(t, "updated prompt", userContent)
+}
+
+func TestStreamController_AttachmentUpload_PersistsOnUserMessage_Integration(t *testing.T) {
+	t.Parallel()
+
+	env := setupControllerTest(t)
+	u := createCoreUser(t, env, "bichat-controllers-attachments@example.com").
+		AddPermission(bichatperm.BiChatAccess)
+
+	deps := newControllerDeps(t)
+	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "attachments")
+
+	r := newRouterWithContext(t, env, u)
+	NewStreamController(env.App, deps.chatService,
+		deps.attachmentService,
+		WithRequireAccessPermission(bichatperm.BiChatAccess),
+	).Register(r)
+
+	attachmentData := []byte("hello,artifact-reader")
+	body := map[string]any{
+		"sessionId": session.ID().String(),
+		"content":   "Analyze this file",
+		"attachments": []map[string]any{
+			{
+				"filename":   "notes.txt",
+				"mimeType":   "text/plain",
+				"sizeBytes":  len(attachmentData),
+				"base64Data": base64.StdEncoding.EncodeToString(attachmentData),
+			},
+		},
+	}
+	data, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	w := flusherRecorder{ResponseRecorder: httptest.NewRecorder()}
+	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewReader(data))
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	msgs, err := deps.chatRepo.GetSessionMessages(env.Ctx, session.ID(), bichatdomain.ListOptions{Limit: 20, Offset: 0})
+	require.NoError(t, err)
+	require.NotEmpty(t, msgs)
+
+	var userMsg bichattypes.Message
+	for _, msg := range msgs {
+		if msg.Role() == bichattypes.RoleUser {
+			userMsg = msg
+			break
+		}
+	}
+	require.NotNil(t, userMsg)
+	require.Len(t, userMsg.Attachments(), 1)
+	assert.Equal(t, "notes.txt", userMsg.Attachments()[0].FileName)
+	assert.Equal(t, "text/plain", userMsg.Attachments()[0].MimeType)
+	assert.NotEmpty(t, userMsg.Attachments()[0].FilePath)
 }
