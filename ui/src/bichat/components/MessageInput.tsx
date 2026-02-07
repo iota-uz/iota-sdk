@@ -8,7 +8,7 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo }
 import { Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react'
 import AttachmentGrid from './AttachmentGrid'
 import { validateImageFile, validateFileCount, convertToBase64, createDataUrl } from '../utils/fileUtils'
-import type { ImageAttachment, QueuedMessage } from '../types'
+import type { ImageAttachment, QueuedMessage, SessionDebugUsage } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 
 export interface MessageInputRef {
@@ -23,6 +23,8 @@ export interface MessageInputProps {
   disabled?: boolean
   commandError?: string | null
   debugMode?: boolean
+  debugSessionUsage?: SessionDebugUsage
+  modelContextWindow?: number | null
   messageQueue?: QueuedMessage[]
   onClearCommandError?: () => void
   onMessageChange: (value: string) => void
@@ -48,6 +50,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       disabled = false,
       commandError = null,
       debugMode = false,
+      debugSessionUsage,
+      modelContextWindow = null,
       messageQueue = [],
       onClearCommandError,
       onMessageChange,
@@ -337,6 +341,16 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const visibleError = error || commandError
     const visibleErrorText = visibleError ? t(visibleError) : ''
     const defaultContainerClassName = "shrink-0 px-4 pt-4 pb-6"
+    const formatTokens = (value: number): string => new Intl.NumberFormat().format(value)
+    const latestPromptTokens = debugSessionUsage?.latestPromptTokens ?? 0
+    const sessionTotalTokens = debugSessionUsage?.totalTokens ?? 0
+    const sessionPromptTokens = debugSessionUsage?.promptTokens ?? 0
+    const sessionCompletionTokens = debugSessionUsage?.completionTokens ?? 0
+    const hasUsage = (debugSessionUsage?.turnsWithUsage ?? 0) > 0
+    const contextPercent =
+      modelContextWindow && latestPromptTokens > 0
+        ? ((latestPromptTokens / modelContextWindow) * 100).toFixed(1)
+        : null
 
     return (
       <div
@@ -372,10 +386,40 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           )}
 
           {debugMode && (
-            <div className="mb-3 text-xs">
-              <span className="px-2.5 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded font-medium">
+            <div className="mb-3 space-y-2 text-xs">
+              <span className="inline-flex px-2.5 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded font-medium">
                 {t('slash.debugBadge')}
               </span>
+              <div className="rounded-lg border border-amber-200/80 dark:border-amber-800/70 bg-amber-50/70 dark:bg-amber-950/20 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-100 space-y-1">
+                {hasUsage ? (
+                  <>
+                    <p>
+                      {t('slash.debugSessionUsage')}:{' '}
+                      <span className="font-mono">
+                        {formatTokens(sessionPromptTokens)}/{formatTokens(sessionCompletionTokens)}/
+                        {formatTokens(sessionTotalTokens)}
+                      </span>
+                    </p>
+                    {modelContextWindow && (
+                      <p>
+                        {t('slash.debugContextUsage')}:{' '}
+                        <span className="font-mono">
+                          {formatTokens(latestPromptTokens)} / {formatTokens(modelContextWindow)}
+                          {contextPercent ? ` (${contextPercent}%)` : ''}
+                        </span>
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p>{t('slash.debugSessionUsageUnavailable')}</p>
+                )}
+                {!hasUsage && modelContextWindow && (
+                  <p>
+                    {t('slash.debugContextWindow')}:{' '}
+                    <span className="font-mono">{formatTokens(modelContextWindow)}</span>
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

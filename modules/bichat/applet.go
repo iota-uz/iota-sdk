@@ -216,6 +216,9 @@ func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
 //	    "webSearch": false,
 //	    "codeInterpreter": true,
 //	    "multiAgent": false
+//	  },
+//	  "debug": {
+//	    "contextWindow": 180000
 //	  }
 //	}
 func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]interface{}, error) {
@@ -228,6 +231,9 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 				"codeInterpreter": false,
 				"multiAgent":      false,
 			},
+			"debug": map[string]int{
+				"contextWindow": 0,
+			},
 		}, nil
 	}
 
@@ -239,7 +245,18 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 		"multiAgent":      a.config.EnableMultiAgent,
 	}
 
+	contextWindow := a.config.ContextPolicy.ContextWindow
+	if a.config.Model != nil {
+		modelWindow := a.config.Model.Info().ContextWindow
+		if modelWindow > 0 {
+			contextWindow = modelWindow
+		}
+	}
+
 	return map[string]interface{}{
 		"features": features,
+		"debug": map[string]int{
+			"contextWindow": contextWindow,
+		},
 	}, nil
 }

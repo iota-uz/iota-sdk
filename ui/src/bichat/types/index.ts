@@ -290,6 +290,16 @@ export interface DebugTrace {
   tools: StreamToolPayload[]
 }
 
+export interface SessionDebugUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  turnsWithUsage: number
+  latestPromptTokens: number
+  latestCompletionTokens: number
+  latestTotalTokens: number
+}
+
 export interface SendMessageOptions {
   debugMode?: boolean
   replaceFromMessageID?: string
@@ -387,42 +397,57 @@ export interface ChatDataSource {
 // Context Value Types
 // ============================================================================
 
-export interface ChatSessionContextValue {
-  // State
-  message: string
-  turns: ConversationTurn[]
-  loading: boolean
-  error: string | null
-  inputError: string | null
-  currentSessionId?: string
-  pendingQuestion: PendingQuestion | null
+// ============================================================================
+// Split Context Value Types
+// ============================================================================
+
+export interface ChatSessionStateValue {
   session: Session | null
+  currentSessionId?: string
   fetching: boolean
+  error: string | null
+  debugMode: boolean
+  sessionDebugUsage: SessionDebugUsage
+  modelContextWindow: number | null
+  setError: (error: string | null) => void
+}
+
+export interface ChatMessagingStateValue {
+  turns: ConversationTurn[]
   streamingContent: string
   isStreaming: boolean
-  messageQueue: QueuedMessage[]
+  loading: boolean
+  pendingQuestion: PendingQuestion | null
   codeOutputs: CodeOutput[]
-  debugMode: boolean
   isCompacting: boolean
   compactionSummary: string | null
-
-  // Setters
-  setMessage: (message: string) => void
-  setError: (error: string | null) => void
-  setInputError: (error: string | null) => void
-  setCodeOutputs: (outputs: CodeOutput[]) => void
-
-  // Handlers
-  handleSubmit: (e: React.FormEvent, attachments?: ImageAttachment[]) => void
+  sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
   handleRegenerate?: (turnId: string) => Promise<void>
   handleEdit?: (turnId: string, newContent: string) => Promise<void>
   handleCopy: (text: string) => Promise<void>
   handleSubmitQuestionAnswers: (answers: QuestionAnswers) => void
   handleCancelPendingQuestion: () => Promise<void>
-  handleRetry?: () => Promise<void>
-  handleUnqueue: () => { content: string; attachments: ImageAttachment[] } | null
-  sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
   cancel: () => void
+  setCodeOutputs: (outputs: CodeOutput[]) => void
+}
+
+export interface ChatInputStateValue {
+  message: string
+  inputError: string | null
+  messageQueue: QueuedMessage[]
+  setMessage: (message: string) => void
+  setInputError: (error: string | null) => void
+  handleSubmit: (e: React.FormEvent, attachments?: ImageAttachment[]) => void
+  handleUnqueue: () => { content: string; attachments: ImageAttachment[] } | null
+}
+
+// ============================================================================
+// Combined Context Value (backwards compatible)
+// ============================================================================
+
+export interface ChatSessionContextValue
+  extends ChatSessionStateValue, ChatMessagingStateValue, ChatInputStateValue {
+  handleRetry?: () => Promise<void>
 }
 
 // Translations

@@ -62,6 +62,9 @@ export interface Extensions {
     codeInterpreter?: boolean
     multiAgent?: boolean
   }
+  debug?: {
+    contextWindow?: number
+  }
 }
 
 export interface IotaContext {

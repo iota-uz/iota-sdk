@@ -179,6 +179,7 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 					Citations:              agentResp.Message.Citations(),
 					CodeInterpreterResults: agentResp.CodeInterpreterResults,
 					FileAnnotations:        agentResp.FileAnnotations,
+					ProviderResponseID:     agentResp.ProviderResponseID,
 				}
 				if !yield(chunk) {
 					return nil
@@ -198,13 +199,29 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 // Info returns model metadata including capabilities.
 func (m *OpenAIModel) Info() agents.ModelInfo {
 	return agents.ModelInfo{
-		Name:     m.modelName,
-		Provider: "openai",
+		Name:          m.modelName,
+		Provider:      "openai",
+		ContextWindow: contextWindowForModel(m.modelName),
 		Capabilities: []agents.Capability{
 			agents.CapabilityStreaming,
 			agents.CapabilityTools,
 			agents.CapabilityJSONMode,
 		},
+	}
+}
+
+func contextWindowForModel(modelName string) int {
+	switch {
+	case strings.HasPrefix(modelName, "gpt-5.2"):
+		return 272000
+	case modelName == "gpt-4o":
+		return 128000
+	case modelName == "gpt-4o-mini":
+		return 128000
+	case modelName == "gpt-4-turbo":
+		return 128000
+	default:
+		return 0
 	}
 }
 
@@ -270,12 +287,19 @@ func (m *OpenAIModel) Pricing() agents.ModelPricing {
 func (m *OpenAIModel) buildResponseParams(req agents.Request, config agents.GenerateConfig) responses.ResponseNewParams {
 	params := responses.ResponseNewParams{
 		Model: shared.ResponsesModel(m.modelName),
+		Store: openai.Bool(true),
 	}
 
 	// Build input items from messages
 	inputItems := m.buildInputItems(req.Messages)
 	params.Input = responses.ResponseNewParamsInputUnion{
 		OfInputItemList: inputItems,
+	}
+	if req.PreviousResponseID != nil {
+		previousResponseID := strings.TrimSpace(*req.PreviousResponseID)
+		if previousResponseID != "" {
+			params.PreviousResponseID = openai.String(previousResponseID)
+		}
 	}
 
 	// Apply max tokens
@@ -533,6 +557,7 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 		FinishReason:           finishReason,
 		CodeInterpreterResults: codeResults,
 		FileAnnotations:        fileAnnotations,
+		ProviderResponseID:     resp.ID,
 	}, nil
 }
 

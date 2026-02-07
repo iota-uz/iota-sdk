@@ -15,6 +15,25 @@ export interface DebugPanelProps {
 export function DebugPanel({ trace }: DebugPanelProps) {
   const { t } = useTranslation()
   const hasData = !!trace && hasDebugTrace(trace)
+  const formatGenerationDuration = (durationMs: number): string => {
+    if (durationMs > 1000) {
+      return `${(durationMs / 1000).toFixed(2)}s`
+    }
+    return `${durationMs}ms`
+  }
+  const getTokensPerSecond = (): number | null => {
+    if (!trace?.generationMs || trace.generationMs <= 0 || !trace.usage) {
+      return null
+    }
+
+    const outputTokens = trace.usage.completionTokens > 0 ? trace.usage.completionTokens : trace.usage.totalTokens
+    if (outputTokens <= 0) {
+      return null
+    }
+
+    return outputTokens / (trace.generationMs / 1000)
+  }
+  const tokensPerSecond = getTokensPerSecond()
 
   return (
     <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
@@ -24,7 +43,14 @@ export function DebugPanel({ trace }: DebugPanelProps) {
       <div className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
         {hasData && trace && trace.generationMs !== undefined && (
           <p>
-            {t('slash.debugGeneration')}: <span className="font-mono">{trace.generationMs}ms</span>
+            {t('slash.debugGeneration')}:{' '}
+            <span className="font-mono">{formatGenerationDuration(trace.generationMs)}</span>
+          </p>
+        )}
+        {hasData && tokensPerSecond !== null && (
+          <p>
+            {t('slash.debugTokensPerSecond')}:{' '}
+            <span className="font-mono">{tokensPerSecond.toFixed(2)}</span>
           </p>
         )}
         {hasData && trace && hasMeaningfulUsage(trace.usage) && trace.usage && (

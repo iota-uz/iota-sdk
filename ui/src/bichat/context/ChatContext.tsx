@@ -4,9 +4,16 @@
  *
  * Uses turn-based architecture where each ConversationTurn groups
  * a user message with its assistant response.
+ *
+ * Split into 3 focused contexts to minimize re-renders:
+ * - ChatSessionContext: session lifecycle (session, fetching, error, debug)
+ * - ChatMessagingContext: turns + streaming + tool interactions
+ * - ChatInputContext: input form state (message, inputError, queue)
+ *
+ * Cross-context reads use refs (no subscription = no re-render).
  */
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef, useMemo } from 'react'
 import {
   MessageRole,
   type ChatDataSource,
@@ -19,19 +26,33 @@ import {
   type QueuedMessage,
   type CodeOutput,
   type ChatSessionContextValue,
+  type ChatSessionStateValue,
+  type ChatMessagingStateValue,
+  type ChatInputStateValue,
   type DebugTrace,
   type SendMessageOptions,
 } from '../types'
 import { RateLimiter } from '../utils/RateLimiter'
 import {
   hasMeaningfulUsage,
+  getSessionDebugUsage,
   hydrateDebugTraceFromToolCalls,
   attachDebugTraceToLatestTurn,
   mergeDebugTraceFromPreviousTurns,
 } from '../utils/debugTrace'
 import { hasPermission } from './IotaContext'
 
-const ChatSessionContext = createContext<ChatSessionContextValue | null>(null)
+// ---------------------------------------------------------------------------
+// Internal contexts
+// ---------------------------------------------------------------------------
+
+const SessionCtx = createContext<ChatSessionStateValue | null>(null)
+const MessagingCtx = createContext<ChatMessagingStateValue | null>(null)
+const InputCtx = createContext<ChatInputStateValue | null>(null)
+
+// ---------------------------------------------------------------------------
+// Helpers (unchanged)
+// ---------------------------------------------------------------------------
 
 interface ChatSessionProviderProps {
   dataSource: ChatDataSource
@@ -40,22 +61,15 @@ interface ChatSessionProviderProps {
   children: ReactNode
 }
 
-// Default rate limiter configuration
 const DEFAULT_RATE_LIMIT_CONFIG = {
   maxRequests: 20,
-  windowMs: 60000, // 1 minute
+  windowMs: 60000,
 }
 
-/**
- * Generate a temporary ID for optimistic updates
- */
 function generateTempId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
-/**
- * Create a new conversation turn with user message (assistant turn pending)
- */
 function createPendingTurn(
   sessionId: string,
   content: string,
@@ -71,7 +85,6 @@ function createPendingTurn(
       attachments,
       createdAt: now,
     },
-    // No assistantTurn yet - it will be added when streaming completes
     createdAt: now,
   }
 }
@@ -125,55 +138,83 @@ function parseSlashCommand(input: string): ParsedSlashCommand | null {
   }
 }
 
+function readModelContextWindowFromGlobalContext(): number | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const raw = window.__BICHAT_CONTEXT__?.extensions?.debug?.contextWindow
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+    return raw
+  }
+  if (typeof raw === 'string') {
+    const parsed = Number.parseInt(raw, 10)
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Composed Provider
+// ---------------------------------------------------------------------------
+
 export function ChatSessionProvider({
   dataSource,
   sessionId,
   rateLimiter: externalRateLimiter,
   children
 }: ChatSessionProviderProps) {
-  // Form state
-  const [message, setMessage] = useState('')
-
-  // Turn-based state (replaces messages)
-  const [turns, setTurns] = useState<ConversationTurn[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [inputError, setInputError] = useState<string | null>(null)
-
-  // Session state
+  // ── Session state ──────────────────────────────────────────────────────
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId)
   const [session, setSession] = useState<Session | null>(null)
   const [fetching, setFetching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [debugModeBySession, setDebugModeBySession] = useState<Record<string, boolean>>({})
 
-  // Question state
-  const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null)
+  const debugSessionKey = currentSessionId || 'new'
+  const debugMode = debugModeBySession[debugSessionKey] ?? false
+  const modelContextWindow = useMemo(() => readModelContextWindowFromGlobalContext(), [])
 
-  // Streaming state
+  // ── Messaging state ────────────────────────────────────────────────────
+  const [turns, setTurns] = useState<ConversationTurn[]>([])
+  const [loading, setLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const abortControllerRef = useRef<AbortController | null>(null)
-
-  // Queue and code outputs state
-  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
+  const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null)
   const [codeOutputs, setCodeOutputs] = useState<CodeOutput[]>([])
-  const [debugModeBySession, setDebugModeBySession] = useState<Record<string, boolean>>({})
   const [isCompacting, setIsCompacting] = useState(false)
   const [compactionSummary, setCompactionSummary] = useState<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Rate limiter (use provided or create default)
+  // ── Input state ────────────────────────────────────────────────────────
+  const [message, setMessage] = useState('')
+  const [inputError, setInputError] = useState<string | null>(null)
+  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
+
+  // ── Rate limiter ───────────────────────────────────────────────────────
   const rateLimiterRef = useRef<RateLimiter>(
     externalRateLimiter || new RateLimiter(DEFAULT_RATE_LIMIT_CONFIG)
   )
 
-  // Update sessionId when prop changes
+  // ── Refs for cross-context reads (no re-render subscription) ───────────
+  const sessionRef = useRef({ currentSessionId, debugMode, debugSessionKey })
+  sessionRef.current = { currentSessionId, debugMode, debugSessionKey }
+
+  const messagingRef = useRef({ turns, pendingQuestion, loading })
+  messagingRef.current = { turns, pendingQuestion, loading }
+
+  // ── Derived ────────────────────────────────────────────────────────────
+  const sessionDebugUsage = useMemo(() => getSessionDebugUsage(turns), [turns])
+
+  // ── Sync sessionId prop ────────────────────────────────────────────────
   useEffect(() => {
     setCurrentSessionId(sessionId)
   }, [sessionId])
 
-  const debugSessionKey = currentSessionId || 'new'
-  const debugMode = debugModeBySession[debugSessionKey] ?? false
-
-  // Fetch session on mount/sessionId change
+  // ── Fetch session ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentSessionId || currentSessionId === 'new') {
       setSession(null)
@@ -217,6 +258,8 @@ export function ChatSessionProvider({
     }
   }, [dataSource, currentSessionId])
 
+  // ── Handlers ───────────────────────────────────────────────────────────
+
   const handleCopy = useCallback(async (text: string) => {
     await navigator.clipboard.writeText(text)
   }, [])
@@ -237,15 +280,18 @@ export function ChatSessionProvider({
           return true
         }
 
-        const nextDebugMode = !debugMode
+        const curDebugMode = sessionRef.current.debugMode
+        const curDebugSessionKey = sessionRef.current.debugSessionKey
+        const curSessionId = sessionRef.current.currentSessionId
+        const nextDebugMode = !curDebugMode
         setDebugModeBySession((prev) => ({
           ...prev,
-          [debugSessionKey]: nextDebugMode,
+          [curDebugSessionKey]: nextDebugMode,
         }))
 
-        if (nextDebugMode && currentSessionId && currentSessionId !== 'new') {
+        if (nextDebugMode && curSessionId && curSessionId !== 'new') {
           try {
-            const state = await dataSource.fetchSession(currentSessionId)
+            const state = await dataSource.fetchSession(curSessionId)
             if (state) {
               setSession(state.session)
               setTurns((prevTurns) =>
@@ -264,7 +310,8 @@ export function ChatSessionProvider({
         return true
       }
 
-      if (!currentSessionId || currentSessionId === 'new') {
+      const curSessionId = sessionRef.current.currentSessionId
+      if (!curSessionId || curSessionId === 'new') {
         setInputError('slash.error.sessionRequired')
         return true
       }
@@ -274,8 +321,8 @@ export function ChatSessionProvider({
         setStreamingContent('')
 
         try {
-          await dataSource.clearSessionHistory(currentSessionId)
-          const state = await dataSource.fetchSession(currentSessionId)
+          await dataSource.clearSessionHistory(curSessionId)
+          const state = await dataSource.fetchSession(curSessionId)
           if (state) {
             setSession(state.session)
             setTurns((prevTurns) =>
@@ -304,12 +351,12 @@ export function ChatSessionProvider({
         setStreamingContent('')
 
         try {
-          const result = await dataSource.compactSessionHistory(currentSessionId)
+          const result = await dataSource.compactSessionHistory(curSessionId)
           const summary = result.summary || ''
-          setTurns([createCompactedSystemTurn(currentSessionId, summary)])
+          setTurns([createCompactedSystemTurn(curSessionId, summary)])
           setCompactionSummary(null)
 
-          const state = await dataSource.fetchSession(currentSessionId)
+          const state = await dataSource.fetchSession(curSessionId)
           if (state) {
             setSession(state.session)
             setTurns((prevTurns) =>
@@ -335,7 +382,7 @@ export function ChatSessionProvider({
       setInputError('slash.error.unknownCommand')
       return true
     },
-    [currentSessionId, dataSource, debugMode, debugSessionKey]
+    [dataSource]
   )
 
   const sendMessageDirect = useCallback(
@@ -344,7 +391,7 @@ export function ChatSessionProvider({
       attachments: Attachment[] = [],
       options?: SendMessageOptions
     ): Promise<void> => {
-      if (!content.trim() || loading) return
+      if (!content.trim() || messagingRef.current.loading) return
 
       const trimmedContent = content.trim()
       if (trimmedContent.startsWith('/')) {
@@ -361,7 +408,6 @@ export function ChatSessionProvider({
         return
       }
 
-      // Check rate limit
       if (!rateLimiterRef.current.canMakeRequest()) {
         const timeUntilNext = rateLimiterRef.current.getTimeUntilNextRequest()
         const seconds = Math.ceil(timeUntilNext / 1000)
@@ -377,11 +423,11 @@ export function ChatSessionProvider({
       setStreamingContent('')
       setCompactionSummary(null)
 
-      // Create abort controller for this request
       abortControllerRef.current = new AbortController()
 
-      // Add optimistic turn (user message only, no assistant response yet)
-      const tempTurn = createPendingTurn(currentSessionId || 'new', content, attachments)
+      const curSessionId = sessionRef.current.currentSessionId
+      const curDebugMode = sessionRef.current.debugMode
+      const tempTurn = createPendingTurn(curSessionId || 'new', content, attachments)
       const replaceFromMessageID = options?.replaceFromMessageID
       setTurns((prev) => {
         if (!replaceFromMessageID) {
@@ -395,8 +441,7 @@ export function ChatSessionProvider({
       })
 
       try {
-        // Create session if needed
-        let activeSessionId = currentSessionId
+        let activeSessionId = curSessionId
         let shouldNavigateAfter = false
 
         if (!activeSessionId || activeSessionId === 'new') {
@@ -406,14 +451,13 @@ export function ChatSessionProvider({
             activeSessionId = createdSessionID
             setCurrentSessionId(createdSessionID)
             setDebugModeBySession((prev) => {
-              if (!debugMode) return prev
+              if (!curDebugMode) return prev
               return { ...prev, [createdSessionID]: true }
             })
             shouldNavigateAfter = true
           }
         }
 
-        // Stream response
         let accumulatedContent = ''
         let createdSessionId: string | undefined
         const debugTrace: DebugTrace = { tools: [] }
@@ -425,11 +469,10 @@ export function ChatSessionProvider({
           attachments,
           abortControllerRef.current?.signal,
           {
-            debugMode,
+            debugMode: curDebugMode,
             replaceFromMessageID,
           }
         )) {
-          // Check if cancelled
           if (abortControllerRef.current?.signal.aborted) {
             break
           }
@@ -459,7 +502,6 @@ export function ChatSessionProvider({
             if (chunk.sessionId) {
               createdSessionId = chunk.sessionId
             }
-            // Refetch session to get final state with proper turns
             const finalSessionId = createdSessionId || activeSessionId
             if (finalSessionId && finalSessionId !== 'new') {
               const state = await dataSource.fetchSession(finalSessionId)
@@ -477,20 +519,16 @@ export function ChatSessionProvider({
           }
         }
 
-        // Navigate to session page if a new session was created
         const targetSessionId = createdSessionId || activeSessionId
         if (shouldNavigateAfter && targetSessionId && targetSessionId !== 'new') {
           dataSource.navigateToSession?.(targetSessionId)
         }
       } catch (err) {
-        // Check if error is due to cancellation
         if (err instanceof Error && err.name === 'AbortError') {
-          // Stream was cancelled - restore input message
           setMessage(content)
           return
         }
 
-        // Remove optimistic turn on error
         setTurns((prev) => prev.filter((t) => t.id !== tempTurn.id))
 
         const errorMessage = err instanceof Error ? err.message : 'error.networkError'
@@ -503,7 +541,7 @@ export function ChatSessionProvider({
         abortControllerRef.current = null
       }
     },
-    [currentSessionId, loading, dataSource, debugMode, executeSlashCommand]
+    [dataSource, executeSlashCommand]
   )
 
   const cancelStream = useCallback(() => {
@@ -521,9 +559,8 @@ export function ChatSessionProvider({
       if (!message.trim() && attachments.length === 0) return
       setInputError(null)
 
-      // Convert ImageAttachment to Attachment for the data source
       const convertedAttachments: Attachment[] = attachments.map(att => ({
-        id: '', // Will be assigned by backend
+        id: '',
         filename: att.filename,
         mimeType: att.mimeType,
         sizeBytes: att.sizeBytes,
@@ -551,9 +588,10 @@ export function ChatSessionProvider({
 
   const handleRegenerate = useCallback(
     async (turnId: string) => {
-      if (!currentSessionId || currentSessionId === 'new') return
+      const curSessionId = sessionRef.current.currentSessionId
+      if (!curSessionId || curSessionId === 'new') return
 
-      const turn = turns.find((t) => t.id === turnId)
+      const turn = messagingRef.current.turns.find((t) => t.id === turnId)
       if (!turn) return
 
       setError(null)
@@ -568,18 +606,19 @@ export function ChatSessionProvider({
         console.error('Regenerate error:', err)
       }
     },
-    [turns, currentSessionId, sendMessageDirect]
+    [sendMessageDirect]
   )
 
   const handleEdit = useCallback(
     async (turnId: string, newContent: string) => {
-      if (!currentSessionId || currentSessionId === 'new') {
+      const curSessionId = sessionRef.current.currentSessionId
+      if (!curSessionId || curSessionId === 'new') {
         setMessage(newContent)
         setTurns((prev) => prev.filter((t) => t.id !== turnId))
         return
       }
 
-      const turn = turns.find((t) => t.id === turnId)
+      const turn = messagingRef.current.turns.find((t) => t.id === turnId)
       if (!turn) {
         setError('Failed to edit message')
         return
@@ -597,30 +636,32 @@ export function ChatSessionProvider({
         console.error('Edit error:', err)
       }
     },
-    [currentSessionId, turns, sendMessageDirect]
+    [sendMessageDirect]
   )
 
   const handleSubmitQuestionAnswers = useCallback(
     (answers: QuestionAnswers) => {
-      if (!currentSessionId || !pendingQuestion) return
+      const curSessionId = sessionRef.current.currentSessionId
+      const curPendingQuestion = messagingRef.current.pendingQuestion
+      if (!curSessionId || !curPendingQuestion) return
 
       setLoading(true)
       setError(null)
-      const previousPendingQuestion = pendingQuestion
+      const previousPendingQuestion = curPendingQuestion
       setPendingQuestion(null)
 
       ;(async () => {
         try {
           const result = await dataSource.submitQuestionAnswers(
-            currentSessionId,
+            curSessionId,
             previousPendingQuestion.id,
             answers
           )
 
           if (result.success) {
-            if (currentSessionId !== 'new') {
+            if (curSessionId !== 'new') {
               try {
-                const state = await dataSource.fetchSession(currentSessionId)
+                const state = await dataSource.fetchSession(curSessionId)
                 if (state) {
                   setTurns((prevTurns) =>
                     hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
@@ -653,14 +694,16 @@ export function ChatSessionProvider({
         }
       })()
     },
-    [currentSessionId, pendingQuestion, dataSource]
+    [dataSource]
   )
 
   const handleCancelPendingQuestion = useCallback(async () => {
-    if (!currentSessionId || !pendingQuestion) return
+    const curSessionId = sessionRef.current.currentSessionId
+    const curPendingQuestion = messagingRef.current.pendingQuestion
+    if (!curSessionId || !curPendingQuestion) return
 
     try {
-      const result = await dataSource.cancelPendingQuestion(pendingQuestion.id)
+      const result = await dataSource.cancelPendingQuestion(curPendingQuestion.id)
 
       if (result.success) {
         setPendingQuestion(null)
@@ -672,56 +715,106 @@ export function ChatSessionProvider({
         err instanceof Error ? err.message : 'Failed to cancel question'
       setError(errorMessage)
     }
-  }, [currentSessionId, pendingQuestion, dataSource])
+  }, [dataSource])
 
-  const value: ChatSessionContextValue = {
-    // State
-    message,
-    turns,
-    loading,
-    error,
-    inputError,
-    currentSessionId,
-    pendingQuestion,
+  // ── Context values (memoized per-context) ──────────────────────────────
+
+  const sessionValue: ChatSessionStateValue = useMemo(() => ({
     session,
+    currentSessionId,
     fetching,
+    error,
+    debugMode,
+    sessionDebugUsage,
+    modelContextWindow,
+    setError,
+  }), [session, currentSessionId, fetching, error, debugMode, sessionDebugUsage, modelContextWindow])
+
+  const messagingValue: ChatMessagingStateValue = useMemo(() => ({
+    turns,
     streamingContent,
     isStreaming,
-    messageQueue,
+    loading,
+    pendingQuestion,
     codeOutputs,
-    debugMode,
     isCompacting,
     compactionSummary,
-
-    // Setters
-    setMessage,
-    setError,
-    setInputError,
-    setCodeOutputs,
-
-    // Handlers
-    handleCopy,
+    sendMessage: sendMessageDirect,
     handleRegenerate,
     handleEdit,
-    handleSubmit,
+    handleCopy,
     handleSubmitQuestionAnswers,
     handleCancelPendingQuestion,
-    handleUnqueue,
-    sendMessage: sendMessageDirect,
     cancel: cancelStream,
-  }
+    setCodeOutputs,
+  }), [
+    turns, streamingContent, isStreaming, loading, pendingQuestion,
+    codeOutputs, isCompacting, compactionSummary,
+    sendMessageDirect, handleRegenerate, handleEdit, handleCopy,
+    handleSubmitQuestionAnswers, handleCancelPendingQuestion, cancelStream,
+  ])
+
+  const inputValue: ChatInputStateValue = useMemo(() => ({
+    message,
+    inputError,
+    messageQueue,
+    setMessage,
+    setInputError,
+    handleSubmit,
+    handleUnqueue,
+  }), [message, inputError, messageQueue, handleSubmit, handleUnqueue])
 
   return (
-    <ChatSessionContext.Provider value={value}>
-      {children}
-    </ChatSessionContext.Provider>
+    <SessionCtx.Provider value={sessionValue}>
+      <MessagingCtx.Provider value={messagingValue}>
+        <InputCtx.Provider value={inputValue}>
+          {children}
+        </InputCtx.Provider>
+      </MessagingCtx.Provider>
+    </SessionCtx.Provider>
   )
 }
 
-export function useChat(): ChatSessionContextValue {
-  const context = useContext(ChatSessionContext)
+// ---------------------------------------------------------------------------
+// Focused hooks
+// ---------------------------------------------------------------------------
+
+export function useChatSession(): ChatSessionStateValue {
+  const context = useContext(SessionCtx)
   if (!context) {
-    throw new Error('useChat must be used within ChatSessionProvider')
+    throw new Error('useChatSession must be used within ChatSessionProvider')
   }
   return context
+}
+
+export function useChatMessaging(): ChatMessagingStateValue {
+  const context = useContext(MessagingCtx)
+  if (!context) {
+    throw new Error('useChatMessaging must be used within ChatSessionProvider')
+  }
+  return context
+}
+
+export function useChatInput(): ChatInputStateValue {
+  const context = useContext(InputCtx)
+  if (!context) {
+    throw new Error('useChatInput must be used within ChatSessionProvider')
+  }
+  return context
+}
+
+// ---------------------------------------------------------------------------
+// Backwards-compatible merged hook
+// ---------------------------------------------------------------------------
+
+export function useChat(): ChatSessionContextValue {
+  const s = useChatSession()
+  const m = useChatMessaging()
+  const i = useChatInput()
+
+  return useMemo(() => ({
+    ...s,
+    ...m,
+    ...i,
+  }), [s, m, i])
 }

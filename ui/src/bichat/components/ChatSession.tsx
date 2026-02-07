@@ -83,6 +83,8 @@ function ChatSessionCore({
     messageQueue,
     handleUnqueue,
     debugMode,
+    sessionDebugUsage,
+    modelContextWindow,
     currentSessionId,
     isStreaming,
   } = useChat()
@@ -158,7 +160,7 @@ function ChatSessionCore({
         type="button"
         onClick={handleToggleArtifactsPanel}
         className={[
-          'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150',
+          'inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50',
           artifactsPanelExpanded
             ? 'bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950/30 dark:text-primary-300 dark:hover:bg-primary-900/40'
@@ -206,6 +208,8 @@ function ChatSessionCore({
                       commandError={inputError}
                       onClearCommandError={() => setInputError(null)}
                       debugMode={debugMode}
+                      debugSessionUsage={sessionDebugUsage}
+                      modelContextWindow={modelContextWindow}
                       onMessageChange={setMessage}
                       onSubmit={handleSubmit}
                       messageQueue={messageQueue}
@@ -235,6 +239,8 @@ function ChatSessionCore({
                   commandError={inputError}
                   onClearCommandError={() => setInputError(null)}
                   debugMode={debugMode}
+                  debugSessionUsage={sessionDebugUsage}
+                  modelContextWindow={modelContextWindow}
                   onMessageChange={setMessage}
                   onSubmit={handleSubmit}
                   messageQueue={messageQueue}

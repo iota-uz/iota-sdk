@@ -23,6 +23,11 @@ export function injectMockContext(): void {
         rpcUIEndpoint: '/bi-chat/rpc',
         shellMode: 'standalone',
       },
+      extensions: {
+        debug: {
+          contextWindow: 272000,
+        },
+      },
     }
   }
 }

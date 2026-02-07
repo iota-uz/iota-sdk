@@ -64,9 +64,23 @@ func TestOpenAIModel_Info(t *testing.T) {
 	info := model.Info()
 	assert.Equal(t, "gpt-4o", info.Name)
 	assert.Equal(t, "openai", info.Provider)
+	assert.Equal(t, 128000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
+}
+
+func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	require.NoError(t, os.Unsetenv("OPENAI_MODEL"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+
+	info := model.Info()
+	assert.Equal(t, "gpt-5.2-2025-12-11", info.Name)
+	assert.Equal(t, 272000, info.ContextWindow)
 }
 
 func TestOpenAIModel_HasCapability(t *testing.T) {
@@ -95,6 +109,10 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 			types.SystemMessage("You are a helpful assistant"),
 			types.UserMessage("Hello"),
 		},
+		PreviousResponseID: func() *string {
+			id := "resp_prev_123"
+			return &id
+		}(),
 		Tools: []agents.Tool{
 			agents.NewTool(
 				"test_tool",
@@ -141,6 +159,12 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 	// Verify temperature
 	assert.True(t, params.Temperature.Valid())
 	assert.InDelta(t, 0.7, params.Temperature.Value, 1e-6)
+
+	// Verify response continuity + server-side state storage
+	assert.True(t, params.Store.Valid())
+	assert.True(t, params.Store.Value)
+	assert.True(t, params.PreviousResponseID.Valid())
+	assert.Equal(t, "resp_prev_123", params.PreviousResponseID.Value)
 
 	// Verify JSON mode
 	assert.NotNil(t, params.Text.Format.OfJSONObject)
@@ -273,6 +297,7 @@ func TestOpenAIModel_MapResponse_TextOnly(t *testing.T) {
 	oaiModel := model.(*OpenAIModel)
 
 	resp := &responses.Response{
+		ID: "resp_abc123",
 		Output: []responses.ResponseOutputItemUnion{
 			{
 				Type: "message",
@@ -301,6 +326,7 @@ func TestOpenAIModel_MapResponse_TextOnly(t *testing.T) {
 	assert.Equal(t, 10, agentResp.Usage.PromptTokens)
 	assert.Equal(t, 5, agentResp.Usage.CompletionTokens)
 	assert.Equal(t, 15, agentResp.Usage.TotalTokens)
+	assert.Equal(t, "resp_abc123", agentResp.ProviderResponseID)
 }
 
 func TestOpenAIModel_MapResponse_FunctionCalls(t *testing.T) {
@@ -488,6 +514,43 @@ func TestOpenAIModel_BuildInputItems_AssistantWithContentAndToolCalls(t *testing
 
 	// Should emit BOTH an assistant message AND a function_call item
 	assert.Len(t, items, 2, "should emit both assistant message and function_call")
+}
+
+func TestOpenAIModel_BuildInputItems_SkipsInvalidToolCalls(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	messages := []types.Message{
+		types.AssistantMessage("Running checks...", types.WithToolCalls(
+			types.ToolCall{
+				ID:        "call_valid",
+				Name:      "sql_execute",
+				Arguments: `{"query":"SELECT 1"}`,
+			},
+			types.ToolCall{
+				ID:        "call_invalid_name",
+				Name:      "",
+				Arguments: `{"query":"SELECT 2"}`,
+			},
+			types.ToolCall{
+				ID:        "",
+				Name:      "schema_list",
+				Arguments: `{}`,
+			},
+		)),
+		types.ToolResponse("call_invalid_name", `{"rows":[]}`),
+		types.ToolResponse("call_valid", `{"rows":[[1]]}`),
+		types.ToolResponse("   ", `{"rows":[[2]]}`),
+	}
+
+	items := oaiModel.buildInputItems(messages)
+
+	// assistant message + valid function_call + valid function_call_output
+	assert.Len(t, items, 3)
 }
 
 func TestOpenAIModel_Pricing(t *testing.T) {
