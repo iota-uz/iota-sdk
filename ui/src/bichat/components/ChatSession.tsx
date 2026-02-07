@@ -13,6 +13,7 @@
  */
 
 import { ReactNode, useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Sidebar } from '@phosphor-icons/react'
 import { ChatSessionProvider, useChat } from '../context/ChatContext'
 import { ChatDataSource, ConversationTurn } from '../types'
@@ -200,7 +201,7 @@ function ChatSessionCore({
         />
       )}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 flex-1 flex-col">
           {showWelcome ? (
             <div className="flex flex-1 flex-col overflow-auto">
@@ -261,19 +262,49 @@ function ChatSessionCore({
           )}
         </div>
 
-        {shouldRenderArtifactsPanel && activeSessionId && (
-          <>
-            <SessionArtifactsPanel
-              dataSource={dataSource}
-              sessionId={activeSessionId}
-              isStreaming={isStreaming}
-              className="hidden lg:flex lg:min-h-0"
-            />
+        {/* Desktop: persistent slot with animated width so main content expands in sync */}
+        <motion.div
+          className="hidden lg:flex lg:min-h-0 shrink-0 overflow-hidden"
+          animate={{
+            width: shouldRenderArtifactsPanel && activeSessionId ? '22rem' : 0,
+          }}
+          transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        >
+          {shouldRenderArtifactsPanel && activeSessionId && (
+            <motion.div
+              className="flex min-h-0 w-[22rem]"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            >
+              <SessionArtifactsPanel
+                dataSource={dataSource}
+                sessionId={activeSessionId}
+                isStreaming={isStreaming}
+                className="min-h-0"
+              />
+            </motion.div>
+          )}
+        </motion.div>
 
-            <div className="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true">
-              <button
+        <AnimatePresence>
+          {shouldRenderArtifactsPanel && activeSessionId && (
+            <motion.div
+              key="artifacts-mobile"
+              className="fixed inset-0 z-40 flex lg:hidden"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              role="dialog"
+              aria-modal="true"
+            >
+              <motion.button
                 type="button"
                 className="flex-1 bg-black/40"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 onClick={handleToggleArtifactsPanel}
                 aria-label={t('common.close')}
               />
@@ -283,9 +314,9 @@ function ChatSessionCore({
                 isStreaming={isStreaming}
                 className="flex h-full w-full max-w-sm min-h-0"
               />
-            </div>
-          </>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </main>
   )
