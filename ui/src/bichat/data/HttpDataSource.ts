@@ -5,7 +5,8 @@
  * Uses turn-based architecture - fetches ConversationTurns instead of flat messages.
  */
 
-import { createAppletRPCClient, type AppletRPCSchema } from '../../applet-host'
+import { createAppletRPCClient } from '../../applet-host'
+import type { BichatRPC, Session as RPCSession } from './rpc.generated'
 import type {
   ChatDataSource,
   Session,
@@ -53,6 +54,13 @@ interface RPCArtifact {
   sizeBytes: number
   metadata?: Record<string, unknown>
   createdAt: string
+}
+
+function toSession(session: RPCSession): Session {
+  return {
+    ...session,
+    status: session.status === 'archived' ? 'archived' : 'active',
+  }
 }
 
 function toSessionArtifact(artifact: RPCArtifact): SessionArtifact {
@@ -274,11 +282,11 @@ export class HttpDataSource implements ChatDataSource {
     return headers
   }
 
-  private async callRPC<TMethod extends keyof BiChatRPC & string>(
+  private async callRPC<TMethod extends keyof BichatRPC & string>(
     method: TMethod,
-    params: BiChatRPC[TMethod]['params']
-  ): Promise<BiChatRPC[TMethod]['result']> {
-    return this.rpc.callTyped<BiChatRPC, TMethod>(method, params)
+    params: BichatRPC[TMethod]['params']
+  ): Promise<BichatRPC[TMethod]['result']> {
+    return this.rpc.callTyped<BichatRPC, TMethod>(method, params)
   }
 
   /**
@@ -286,7 +294,7 @@ export class HttpDataSource implements ChatDataSource {
    */
   async createSession(): Promise<Session> {
     const data = await this.callRPC('bichat.session.create', { title: '' })
-    return data.session
+    return toSession(data.session)
   }
 
   /**
@@ -303,7 +311,7 @@ export class HttpDataSource implements ChatDataSource {
       ])
 
       return {
-        session: data.session,
+        session: toSession(data.session),
         turns: attachArtifactsToTurns(data.turns as ConversationTurn[], artifactsData.artifacts || []),
         pendingQuestion: (data.pendingQuestion as PendingQuestion | null) ?? null,
       }
@@ -569,37 +577,37 @@ export class HttpDataSource implements ChatDataSource {
       includeArchived: options?.includeArchived ?? false,
     })
     return {
-      sessions: data.sessions,
+      sessions: data.sessions.map(toSession),
       total: data.sessions.length,
       hasMore: false,
     }
   }
   async archiveSession(sessionId: string): Promise<Session> {
     const data = await this.callRPC('bichat.session.archive', { id: sessionId })
-    return data.session
+    return toSession(data.session)
   }
   async unarchiveSession(sessionId: string): Promise<Session> {
     const data = await this.callRPC('bichat.session.unarchive', { id: sessionId })
-    return data.session
+    return toSession(data.session)
   }
   async pinSession(sessionId: string): Promise<Session> {
     const data = await this.callRPC('bichat.session.pin', { id: sessionId })
-    return data.session
+    return toSession(data.session)
   }
   async unpinSession(sessionId: string): Promise<Session> {
     const data = await this.callRPC('bichat.session.unpin', { id: sessionId })
-    return data.session
+    return toSession(data.session)
   }
   async deleteSession(sessionId: string): Promise<void> {
     await this.callRPC('bichat.session.delete', { id: sessionId })
   }
   async renameSession(sessionId: string, title: string): Promise<Session> {
     const data = await this.callRPC('bichat.session.updateTitle', { id: sessionId, title })
-    return data.session
+    return toSession(data.session)
   }
   async regenerateSessionTitle(sessionId: string): Promise<Session> {
     const data = await this.callRPC('bichat.session.regenerateTitle', { id: sessionId })
-    return data.session
+    return toSession(data.session)
   }
 }
 
@@ -608,46 +616,4 @@ export class HttpDataSource implements ChatDataSource {
  */
 export function createHttpDataSource(config: HttpDataSourceConfig): ChatDataSource {
   return new HttpDataSource(config)
-}
-
-type BiChatRPC = AppletRPCSchema & {
-  'bichat.session.create': { params: { title: string }; result: { session: Session } }
-  'bichat.session.list': {
-    params: { limit: number; offset: number; includeArchived: boolean }
-    result: { sessions: Session[] }
-  }
-  'bichat.session.get': {
-    params: { id: string }
-    result: { session: Session; turns: ConversationTurn[]; pendingQuestion: PendingQuestion | null }
-  }
-  'bichat.session.artifacts': {
-    params: { sessionId: string; limit: number; offset: number }
-    result: { artifacts: RPCArtifact[]; hasMore?: boolean; nextOffset?: number }
-  }
-  'bichat.session.updateTitle': {
-    params: { id: string; title: string }
-    result: { session: Session }
-  }
-  'bichat.session.clear': {
-    params: { id: string }
-    result: { success: boolean; deletedMessages: number; deletedArtifacts: number }
-  }
-  'bichat.session.compact': {
-    params: { id: string }
-    result: { success: boolean; summary: string; deletedMessages: number; deletedArtifacts: number }
-  }
-  'bichat.session.delete': { params: { id: string }; result: { ok: boolean } }
-  'bichat.session.pin': { params: { id: string }; result: { session: Session } }
-  'bichat.session.unpin': { params: { id: string }; result: { session: Session } }
-  'bichat.session.archive': { params: { id: string }; result: { session: Session } }
-  'bichat.session.unarchive': { params: { id: string }; result: { session: Session } }
-  'bichat.session.regenerateTitle': { params: { id: string }; result: { session: Session } }
-  'bichat.question.submit': {
-    params: { sessionId: string; checkpointId: string; answers: Record<string, string> }
-    result: { session: Session; turns: ConversationTurn[]; pendingQuestion: PendingQuestion | null }
-  }
-  'bichat.question.cancel': {
-    params: { sessionId: string }
-    result: { session: Session }
-  }
 }

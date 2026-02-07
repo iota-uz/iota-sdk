@@ -29,9 +29,11 @@ interface MessageListProps {
   renderAssistantTurn?: (turn: ConversationTurn) => ReactNode
   /** Custom verbs for the typing indicator (e.g. ['Thinking', 'Analyzing', ...]) */
   thinkingVerbs?: string[]
+  /** When true, hides edit/regenerate actions */
+  readOnly?: boolean
 }
 
-export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs }: MessageListProps) {
+export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs, readOnly }: MessageListProps) {
   const { t } = useTranslation()
   const {
     turns,
@@ -152,6 +154,8 @@ export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs
               turn={turn}
               renderUserTurn={renderUserTurn}
               renderAssistantTurn={renderAssistantTurn}
+              userTurnProps={readOnly ? { hideActions: true } : undefined}
+              assistantTurnProps={readOnly ? { hideActions: true } : undefined}
             />
           ))}
           {/* Typing Indicator — shown while waiting for first token */}

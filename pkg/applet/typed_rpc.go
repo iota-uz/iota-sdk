@@ -1,8 +1,10 @@
 package applet
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"reflect"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -43,8 +45,14 @@ func AddProcedure[P any, R any](r *TypedRPCRouter, name string, p Procedure[P, R
 		RequirePermissions: p.RequirePermissions,
 		Handler: func(ctx context.Context, params json.RawMessage) (any, error) {
 			var decoded P
-			if len(params) > 0 && string(params) != "null" {
-				if err := json.Unmarshal(params, &decoded); err != nil {
+			trimmed := bytes.TrimSpace(params)
+			if len(trimmed) > 0 && !bytes.Equal(trimmed, []byte("null")) {
+				dec := json.NewDecoder(bytes.NewReader(trimmed))
+				dec.DisallowUnknownFields()
+				if err := dec.Decode(&decoded); err != nil {
+					return nil, serrors.E(op, serrors.Invalid, "invalid params", err)
+				}
+				if err := dec.Decode(&struct{}{}); err != io.EOF {
 					return nil, serrors.E(op, serrors.Invalid, "invalid params", err)
 				}
 			}

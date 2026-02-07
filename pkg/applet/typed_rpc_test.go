@@ -49,6 +49,22 @@ func TestTypedRPCRouter_ConfigAndDecode(t *testing.T) {
 		_, err := m.Handler(context.Background(), json.RawMessage(`{"id":""}`))
 		require.Error(t, err)
 	})
+
+	t.Run("UnknownFieldRejected", func(t *testing.T) {
+		_, err := m.Handler(context.Background(), json.RawMessage(`{"id":"1","extra":true}`))
+		require.Error(t, err)
+	})
+
+	t.Run("TrailingJSONRejected", func(t *testing.T) {
+		_, err := m.Handler(context.Background(), json.RawMessage(`{"id":"1"}{"id":"2"}`))
+		require.Error(t, err)
+	})
+
+	t.Run("NullParamsAllowed", func(t *testing.T) {
+		out, err := m.Handler(context.Background(), json.RawMessage(`null`))
+		require.Error(t, err)
+		assert.Nil(t, out)
+	})
 }
 
 func TestDescribeTypedRPCRouter(t *testing.T) {

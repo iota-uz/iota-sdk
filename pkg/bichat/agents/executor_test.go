@@ -163,6 +163,44 @@ func newMockAgent(name string, tools ...agents.Tool) *mockAgent {
 	}
 }
 
+// funcAgent is a small ExtendedAgent implementation for tests.
+type funcAgent struct {
+	name             string
+	tools            []agents.Tool
+	systemPrompt     string
+	terminationTools []string
+	onToolCall       func(ctx context.Context, toolName, input string) (string, error)
+}
+
+func (a *funcAgent) Name() string { return a.name }
+
+func (a *funcAgent) Description() string { return "Test agent" }
+
+func (a *funcAgent) Metadata() agents.AgentMetadata {
+	term := a.terminationTools
+	if term == nil {
+		term = []string{agents.ToolFinalAnswer}
+	}
+	return agents.AgentMetadata{
+		Name:             a.name,
+		Description:      "Test agent",
+		WhenToUse:        "For testing",
+		Model:            "mock-model",
+		TerminationTools: term,
+	}
+}
+
+func (a *funcAgent) Tools() []agents.Tool { return a.tools }
+
+func (a *funcAgent) SystemPrompt(ctx context.Context) string { return a.systemPrompt }
+
+func (a *funcAgent) OnToolCall(ctx context.Context, toolName, input string) (string, error) {
+	if a.onToolCall == nil {
+		return fmt.Sprintf("Tool %s executed with: %s", toolName, input), nil
+	}
+	return a.onToolCall(ctx, toolName, input)
+}
+
 // Name implements Agent interface.
 func (a *mockAgent) Name() string {
 	return a.name
@@ -1416,5 +1454,146 @@ func TestExecutor_ConcurrentExecution(t *testing.T) {
 	// Verify all executions completed (activeCount should be 0)
 	if activeCount.Load() != 0 {
 		t.Errorf("Expected 0 active executions after completion, got %d", activeCount.Load())
+	}
+}
+
+func TestExecutor_ToolCalls_RunInParallelWithinTurn(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	var active atomic.Int32
+	var maxActive atomic.Int32
+
+	agent := &funcAgent{
+		name:         "parallel-agent",
+		systemPrompt: "You are a helpful assistant.",
+		tools: []agents.Tool{
+			&agents.ToolFunc{ToolName: "tool_a", ToolDescription: "a", ToolParameters: map[string]any{}, Fn: func(ctx context.Context, input string) (string, error) { return "a", nil }},
+			&agents.ToolFunc{ToolName: "tool_b", ToolDescription: "b", ToolParameters: map[string]any{}, Fn: func(ctx context.Context, input string) (string, error) { return "b", nil }},
+		},
+		onToolCall: func(ctx context.Context, toolName, input string) (string, error) {
+			count := active.Add(1)
+			defer active.Add(-1)
+
+			for {
+				prev := maxActive.Load()
+				if count <= prev {
+					break
+				}
+				if maxActive.CompareAndSwap(prev, count) {
+					break
+				}
+			}
+
+			time.Sleep(40 * time.Millisecond)
+			return fmt.Sprintf("ok:%s", toolName), nil
+		},
+	}
+
+	model := newMockModel(
+		mockResponse{
+			content: "run tools",
+			toolCalls: []types.ToolCall{
+				{ID: "call_a", Name: "tool_a", Arguments: "{}"},
+				{ID: "call_b", Name: "tool_b", Arguments: "{}"},
+			},
+			finishReason: "tool_calls",
+		},
+		mockResponse{
+			content:      "done",
+			finishReason: "stop",
+		},
+	)
+
+	executor := agents.NewExecutor(agent, model)
+	input := agents.Input{
+		Messages:  []types.Message{types.UserMessage("test")},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	}
+
+	gen := executor.Execute(ctx, input)
+	defer gen.Close()
+
+	for {
+		_, err := gen.Next(ctx)
+		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
+			t.Fatalf("unexpected generator error: %v", err)
+		}
+	}
+
+	if maxActive.Load() < 2 {
+		t.Fatalf("expected tool calls to overlap (maxActive >= 2), got %d", maxActive.Load())
+	}
+}
+
+func TestExecutor_InterruptTool_IsExclusive(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	var executed atomic.Bool
+
+	agent := &funcAgent{
+		name:         "interrupt-agent",
+		systemPrompt: "You are a helpful assistant.",
+		tools: []agents.Tool{
+			&agents.ToolFunc{ToolName: "other_tool", ToolDescription: "other", ToolParameters: map[string]any{}, Fn: func(ctx context.Context, input string) (string, error) { return "ok", nil }},
+		},
+		onToolCall: func(ctx context.Context, toolName, input string) (string, error) {
+			executed.Store(true)
+			return "should_not_run", nil
+		},
+	}
+
+	model := newMockModel(mockResponse{
+		content: "",
+		toolCalls: []types.ToolCall{
+			{ID: "call_other", Name: "other_tool", Arguments: "{}"},
+			{
+				ID:        "call_interrupt",
+				Name:      agents.ToolAskUserQuestion,
+				Arguments: `{"questions":[{"question":"Choose?","header":"Choose","multiSelect":false,"options":[{"label":"A","description":"Option A"},{"label":"B","description":"Option B"}]}]}`,
+			},
+		},
+		finishReason: "tool_calls",
+	})
+
+	checkpointer := agents.NewInMemoryCheckpointer()
+	executor := agents.NewExecutor(agent, model, agents.WithCheckpointer(checkpointer))
+
+	input := agents.Input{
+		Messages:  []types.Message{types.UserMessage("test")},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	}
+
+	gen := executor.Execute(ctx, input)
+	defer gen.Close()
+
+	gotInterrupt := false
+	for {
+		ev, err := gen.Next(ctx)
+		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
+			t.Fatalf("unexpected generator error: %v", err)
+		}
+		if ev.Type == agents.EventTypeInterrupt {
+			gotInterrupt = true
+			break
+		}
+	}
+
+	if !gotInterrupt {
+		t.Fatalf("expected interrupt event")
+	}
+	if executed.Load() {
+		t.Fatalf("expected other tool not to execute in same batch as interrupt")
 	}
 }

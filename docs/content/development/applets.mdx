@@ -30,20 +30,28 @@ At runtime, IOTA injects `InitialContext` into `window[<WindowGlobal>]`. The fro
 There is currently no scaffold generator. To create an applet:
 
 - Create a module under `modules/<name>/` and register an `applet.Applet`.
-- Add a dev entry to `scripts/applets.json` so `just dev applet <name>` can run embedded HMR.
+- Add a dev entry to `scripts/applets.json` so `just dev <name>` can run embedded HMR.
+
+## SDK dependency policy
+
+Applet web packages must pin `@iota-uz/sdk` to an exact npm version (for example `0.3.0`).
+
+- Do not use local overrides like `file:`, `link:`, or `workspace:` for `@iota-uz/sdk`.
+- Local SDK hot reload is provided by `just dev <name>` via Vite dev aliasing and SDK watch builds.
+- CI enforces this policy with `just check applet-deps`.
 
 ## Embedded HMR (one command)
 
 Run the Go server and Vite dev server (HMR) with same-origin proxying through Go:
 
 ```bash
-just dev applet <name>
+just dev <name>
 ```
 
 Example:
 
 ```bash
-just dev applet bichat
+just dev bichat
 ```
 
 The command:
@@ -68,7 +76,7 @@ Per applet (name uppercased, `-` replaced with `_`):
 - `IOTA_APPLET_ENTRY_<NAME>=/src/main.tsx` overrides Vite entry module
 - `IOTA_APPLET_CLIENT_<NAME>=/@vite/client` overrides Vite client module
 
-The helper `just dev applet <name>` sets these automatically.
+The helper `just dev <name>` sets these automatically.
 
 ### How the dev proxy works (same-origin HMR)
 
@@ -121,7 +129,14 @@ just applet rpc-gen <name>
 
 This writes:
 
-- `modules/<name>/presentation/web/src/rpc.generated.ts`
+- `ui/src/<name>/data/rpc.generated.ts` (canonical SDK contract)
+- For BiChat, `modules/bichat/presentation/web/src/rpc.generated.ts` is a re-export shim to avoid duplicate contracts.
+
+Validate generated contracts are in sync:
+
+```bash
+just applet rpc-check <name>
+```
 
 ### Call from the frontend
 

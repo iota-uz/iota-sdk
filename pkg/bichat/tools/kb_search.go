@@ -56,27 +56,13 @@ func (t *KBSearchTool) Description() string {
 
 // Parameters returns the JSON Schema for tool parameters.
 func (t *KBSearchTool) Parameters() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"query": map[string]any{
-				"type":        "string",
-				"description": "The search query",
-			},
-			"limit": map[string]any{
-				"type":        "integer",
-				"description": "Maximum number of results to return (default: 5, max: 20)",
-				"default":     5,
-			},
-		},
-		"required": []string{"query"},
-	}
+	return agents.ToolSchema[kbSearchInput]()
 }
 
 // kbSearchInput represents the parsed input parameters.
 type kbSearchInput struct {
-	Query string `json:"query"`
-	Limit int    `json:"limit,omitempty"`
+	Query string `json:"query" jsonschema:"description=The search query"`
+	Limit int    `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return (default: 5, max: 20);default=5;minimum=1;maximum=20"`
 }
 
 // kbSearchOutput represents the formatted output.

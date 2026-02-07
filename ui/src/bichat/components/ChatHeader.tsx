@@ -16,13 +16,14 @@ import { useBranding } from '../hooks/useBranding'
 interface ChatHeaderProps {
   session: Session | null
   onBack?: () => void
+  readOnly?: boolean
   /** Custom logo component to display */
   logoSlot?: ReactNode
   /** Custom action buttons */
   actionsSlot?: ReactNode
 }
 
-export function ChatHeader({ session, onBack, logoSlot, actionsSlot }: ChatHeaderProps) {
+export function ChatHeader({ session, onBack, readOnly, logoSlot, actionsSlot }: ChatHeaderProps) {
   const { t } = useTranslation()
   const branding = useBranding()
 
@@ -78,6 +79,11 @@ export function ChatHeader({ session, onBack, logoSlot, actionsSlot }: ChatHeade
           )}
         </div>
         <div className="flex items-center gap-2">
+          {readOnly && (
+            <span className="px-2 py-1 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 rounded">
+              {t('chat.readOnly')}
+            </span>
+          )}
           {session.status === 'archived' && (
             <span className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
               {t('chat.archived')}

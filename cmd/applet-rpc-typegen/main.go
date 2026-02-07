@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,16 +19,18 @@ import (
 
 func main() {
 	var routerPkg string
+	var routerFunc string
 	var outPath string
 	var typeName string
 
 	flag.StringVar(&routerPkg, "router-pkg", "", "Router package import path or module-relative path (e.g. modules/bichat/rpc)")
+	flag.StringVar(&routerFunc, "router-func", "Router", "Router factory function name in router package (e.g. Router)")
 	flag.StringVar(&outPath, "out", "", "Output TypeScript file path")
 	flag.StringVar(&typeName, "type-name", "", "Root TypeScript RPC type name (e.g. BichatRPC)")
 	flag.Parse()
 
-	if strings.TrimSpace(routerPkg) == "" || strings.TrimSpace(outPath) == "" || strings.TrimSpace(typeName) == "" {
-		_, _ = fmt.Fprintln(os.Stderr, "Usage: applet-rpc-typegen --router-pkg <pkg> --out <file> --type-name <TypeName>")
+	if strings.TrimSpace(routerPkg) == "" || strings.TrimSpace(routerFunc) == "" || strings.TrimSpace(outPath) == "" || strings.TrimSpace(typeName) == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "Usage: applet-rpc-typegen --router-pkg <pkg> --router-func <func> --out <file> --type-name <TypeName>")
 		os.Exit(2)
 	}
 
@@ -43,7 +46,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	desc, err := inspectRouter(root, routerImport)
+	desc, err := inspectRouter(root, routerImport, routerFunc)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -96,7 +99,24 @@ func readModulePath(goModPath string) (string, error) {
 	return "", fmt.Errorf("module path not found in go.mod")
 }
 
-func inspectRouter(repoRoot string, routerImport string) (*applet.TypedRouterDescription, error) {
+var goIdentifierRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func validateGoIdentifier(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("router function is empty")
+	}
+	if !goIdentifierRe.MatchString(name) {
+		return fmt.Errorf("invalid router function name %q: must be a valid Go identifier", name)
+	}
+	return nil
+}
+
+func inspectRouter(repoRoot string, routerImport string, routerFunc string) (*applet.TypedRouterDescription, error) {
+	if err := validateGoIdentifier(routerFunc); err != nil {
+		return nil, err
+	}
+
 	tmpBase := filepath.Join(repoRoot, "tmp")
 	if err := os.MkdirAll(tmpBase, 0o755); err != nil {
 		return nil, err
@@ -117,26 +137,7 @@ func inspectRouter(repoRoot string, routerImport string) (*applet.TypedRouterDes
 	if err != nil {
 		return nil, err
 	}
-	code := fmt.Sprintf(`package main
-
-	import (
-	  "encoding/json"
-	  "os"
-
-  "%s/pkg/applet"
-  rpc "%s"
-)
-
-	func main() {
-	  d, err := applet.DescribeTypedRPCRouter(rpc.Router())
-	  if err != nil {
-	    panic(err)
-	  }
-	  enc := json.NewEncoder(os.Stdout)
-	  enc.SetEscapeHTML(false)
-	  _ = enc.Encode(d)
-	}
-	`, mod, routerImport)
+	code := buildRouterInspectorProgram(mod, routerImport, routerFunc)
 
 	if err := os.WriteFile(mainPath, []byte(code), 0o644); err != nil {
 		return nil, err
@@ -163,4 +164,77 @@ func inspectRouter(repoRoot string, routerImport string) (*applet.TypedRouterDes
 		return nil, fmt.Errorf("failed to parse router description: %w", err)
 	}
 	return &desc, nil
+}
+
+func buildRouterInspectorProgram(modulePath string, routerImport string, routerFunc string) string {
+	return fmt.Sprintf(`package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"reflect"
+
+	"%s/pkg/applet"
+	rpc "%s"
+)
+
+const routerFuncName = %q
+
+func fail(format string, args ...any) {
+	_, _ = fmt.Fprintf(os.Stderr, format+"\n", args...)
+	os.Exit(1)
+}
+
+func main() {
+	factory := reflect.ValueOf(rpc.%s)
+	if factory.Kind() != reflect.Func {
+		fail("router symbol %%q is not a function", routerFuncName)
+	}
+
+	args := make([]reflect.Value, factory.Type().NumIn())
+	for i := 0; i < factory.Type().NumIn(); i++ {
+		args[i] = reflect.Zero(factory.Type().In(i))
+	}
+
+	out := factory.Call(args)
+	if len(out) == 0 {
+		fail("router function %%q returned no values", routerFuncName)
+	}
+
+	if len(out) == 2 {
+		errorType := reflect.TypeOf((*error)(nil)).Elem()
+		if out[1].Type() != errorType {
+			fail("router function %%q second return must be error, got %%s", routerFuncName, out[1].Type())
+		}
+		if !out[1].IsNil() {
+			fail("router function %%q returned error: %%v", routerFuncName, out[1].Interface())
+		}
+	} else if len(out) != 1 {
+		fail("router function %%q returned %%d values; expected 1 or 2", routerFuncName, len(out))
+	}
+
+	routerValue := out[0]
+	if !routerValue.IsValid() {
+		fail("router function %%q returned invalid value", routerFuncName)
+	}
+	if routerValue.Kind() == reflect.Pointer && routerValue.IsNil() {
+		fail("router function %%q returned nil *applet.TypedRPCRouter", routerFuncName)
+	}
+
+	router, ok := routerValue.Interface().(*applet.TypedRPCRouter)
+	if !ok {
+		fail("router function %%q returned %%T; expected *applet.TypedRPCRouter", routerFuncName, routerValue.Interface())
+	}
+
+	d, err := applet.DescribeTypedRPCRouter(router)
+	if err != nil {
+		fail("failed to describe typed rpc router: %%v", err)
+	}
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(d)
+}
+`, modulePath, routerImport, routerFunc, routerFunc)
 }

@@ -264,6 +264,12 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		Attributes:       make(map[string]interface{}),
 	}
 
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.Attributes["otel.span_id"] = spanID
+	}
+
 	return h.provider.RecordGeneration(ctx, obs)
 }
 
@@ -286,6 +292,13 @@ func (h *providerHandler) handleToolComplete(ctx context.Context, e *events.Tool
 			"tool_name": e.ToolName,
 			"call_id":   e.CallID,
 		},
+	}
+
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.ParentID = spanID
+		obs.Attributes["otel.span_id"] = spanID
 	}
 
 	return h.provider.RecordSpan(ctx, obs)
@@ -311,6 +324,13 @@ func (h *providerHandler) handleToolError(ctx context.Context, e *events.ToolErr
 			"call_id":   e.CallID,
 			"error":     e.Error,
 		},
+	}
+
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.ParentID = spanID
+		obs.Attributes["otel.span_id"] = spanID
 	}
 
 	return h.provider.RecordSpan(ctx, obs)
@@ -340,6 +360,13 @@ func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.Co
 		},
 	}
 
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.ParentID = spanID
+		obs.Attributes["otel.span_id"] = spanID
+	}
+
 	return h.provider.RecordSpan(ctx, obs)
 }
 
@@ -355,6 +382,12 @@ func (h *providerHandler) handleGenericEvent(ctx context.Context, event hooks.Ev
 		Message:    "",
 		Level:      "info",
 		Attributes: make(map[string]interface{}),
+	}
+
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.Attributes["otel.span_id"] = spanID
 	}
 
 	return h.provider.RecordEvent(ctx, obs)

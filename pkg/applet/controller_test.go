@@ -201,9 +201,34 @@ func TestAppletController_RPC(t *testing.T) {
 			wantRPCError: "forbidden",
 		},
 		{
-			name: "GenericErrorMessageExposed",
+			name: "GenericErrorMessageSanitizedByDefault",
 			rpcCfg: &RPCConfig{
 				Path: "/rpc",
+				Methods: map[string]RPCMethod{
+					"explode": {
+						Handler: func(ctx context.Context, params json.RawMessage) (any, error) {
+							return nil, errors.New("chat service not registered")
+						},
+					},
+				},
+			},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodPost, "/t/rpc", bytes.NewBufferString(`{"id":"1","method":"explode","params":{}}`))
+				r.Host = "example.com"
+				return r
+			},
+			wantHTTP:               http.StatusOK,
+			wantRPCError:           "error",
+			wantRPCMessageContains: "request failed",
+		},
+		{
+			name: "GenericErrorMessageExposedWhenEnabled",
+			rpcCfg: &RPCConfig{
+				Path: "/rpc",
+				ExposeInternalErrors: func() *bool {
+					v := true
+					return &v
+				}(),
 				Methods: map[string]RPCMethod{
 					"explode": {
 						Handler: func(ctx context.Context, params json.RawMessage) (any, error) {

@@ -215,6 +215,7 @@ export { getCSRFToken, addCSRFHeader, createHeadersWithCSRF } from './api/csrf'
 // =============================================================================
 
 export { HttpDataSource, createHttpDataSource } from './data/HttpDataSource'
+export type { BichatRPC } from './data/rpc.generated'
 
 // =============================================================================
 // Utilities

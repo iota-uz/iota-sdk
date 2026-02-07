@@ -10,11 +10,12 @@
  */
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, CaretLineLeft, CaretLineRight } from '@phosphor-icons/react'
-import { SearchInput, EmptyState } from '@iota-uz/sdk/bichat'
+import { Plus, CaretLineLeft, CaretLineRight, Archive } from '@phosphor-icons/react'
+import { SearchInput, EmptyState, AllChatsList } from '@iota-uz/sdk/bichat'
 import { createAppletRPCClient } from '@iota-uz/sdk'
+import type { BichatRPC } from '@iota-uz/sdk/bichat'
 import TabBar from './TabBar'
 import SessionList from './SessionList/SessionList'
 import SessionSkeleton from './SessionSkeleton'
@@ -22,6 +23,9 @@ import { groupSessionsByDate } from '../utils/sessionGrouping'
 import type { ChatSession } from '../utils/sessionGrouping'
 import { useIotaContext } from '../contexts/IotaContext'
 import { toRPCErrorDisplay, type RPCErrorDisplay } from '../utils/rpcErrors'
+import { useBiChatDataSource } from '../data/bichatDataSource'
+import { useAppToast } from '../contexts/ToastContext'
+import { useHapticFeedback } from '../hooks/useHapticFeedback'
 
 const STORAGE_KEY = 'bichat-sidebar-collapsed'
 
@@ -67,6 +71,7 @@ type ActiveTab = 'my-chats' | 'all-chats'
 interface SidebarProps {
   onNewChat: () => void
   creating?: boolean
+  onClose?: () => void
 }
 
 // Simple search filter (case-insensitive title match)
@@ -78,14 +83,18 @@ function useSessionSearch(sessions: ChatSession[], query: string): ChatSession[]
   }, [sessions, query])
 }
 
-export default function Sidebar({ onNewChat, creating }: SidebarProps) {
+export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) {
   const location = useLocation()
-  const { config } = useIotaContext()
+  const navigate = useNavigate()
+  const { config, user } = useIotaContext()
+  const toast = useAppToast()
+  const haptic = useHapticFeedback()
   const { isCollapsed, isCollapsedRef, toggle, expand } = useSidebarCollapse()
   const searchContainerRef = useRef<HTMLDivElement>(null)
 
-  // Permission checks (placeholder - TODO: integrate with IotaContext when available)
-  const canReadAllChats = false // For now, disable "All Chats" tab
+  // Permission checks
+  const canReadAllChats =
+    user.permissions.includes('BiChat.ReadAll') || user.permissions.includes('AIChat.ReadAll')
 
   // Tab state
   const [activeTab, setActiveTab] = useState<ActiveTab>('my-chats')
@@ -95,10 +104,26 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
   // Extract session ID from pathname (e.g., /session/123 -> 123)
   const activeSessionId = location.pathname.match(/\/session\/([^/]+)/)?.[1]
+  const isArchivedView = location.pathname === '/archived'
+
+  const dataSource = useBiChatDataSource((sessionId: string) => navigate(`/session/${sessionId}`))
+
+  useEffect(() => {
+    if (!canReadAllChats && activeTab === 'all-chats') {
+      setActiveTab('my-chats')
+    }
+  }, [activeTab, canReadAllChats])
 
   const rpc = useMemo(
     () => createAppletRPCClient({ endpoint: config.rpcUIEndpoint }),
     [config.rpcUIEndpoint]
+  )
+  const callRPC = useCallback(
+    <TMethod extends keyof BichatRPC & string>(
+      method: TMethod,
+      params: BichatRPC[TMethod]['params']
+    ) => rpc.callTyped<BichatRPC, TMethod>(method, params),
+    [rpc]
   )
 
   const [fetching, setFetching] = useState(true)
@@ -111,9 +136,9 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
     return async () => {
       setFetching(true)
       try {
-        const data = await rpc.call<{ limit: number; offset: number }, { sessions: ChatSession[] }>(
+        const data = await callRPC(
           'bichat.session.list',
-          { limit: 200, offset: 0 }
+          { limit: 200, offset: 0, includeArchived: false }
         )
         setSessions(data.sessions || [])
         setLoadError(null)
@@ -126,7 +151,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
         setFetching(false)
       }
     }
-  }, [rpc])
+  }, [callRPC])
 
   useEffect(() => {
     void reloadSessions()
@@ -182,12 +207,17 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
     if (!confirm('Delete this chat session?')) return
 
     try {
-      await rpc.call<{ id: string }, { ok: boolean }>('bichat.session.delete', { id: sessionId })
+      await callRPC('bichat.session.delete', { id: sessionId })
       setActionError(null)
       await reloadSessions()
+      toast.success('Chat deleted')
+      haptic.success()
     } catch (error) {
       console.error('Failed to delete session:', error)
-      setActionError(toRPCErrorDisplay(error, 'Failed to delete session'))
+      const display = toRPCErrorDisplay(error, 'Failed to delete session')
+      setActionError(display)
+      toast.error(display.title)
+      haptic.error()
     }
   }
 
@@ -197,29 +227,39 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
     try {
       if (currentlyPinned) {
-        await rpc.call<{ id: string }, { session: ChatSession }>('bichat.session.unpin', { id: sessionId })
+        await callRPC('bichat.session.unpin', { id: sessionId })
       } else {
-        await rpc.call<{ id: string }, { session: ChatSession }>('bichat.session.pin', { id: sessionId })
+        await callRPC('bichat.session.pin', { id: sessionId })
       }
       setActionError(null)
       await reloadSessions()
+      toast.success(currentlyPinned ? 'Chat unpinned' : 'Chat pinned')
+      haptic.light()
     } catch (error) {
       console.error('Failed to toggle pin:', error)
-      setActionError(toRPCErrorDisplay(error, 'Failed to update pin state'))
+      const display = toRPCErrorDisplay(error, 'Failed to update pin state')
+      setActionError(display)
+      toast.error(display.title)
+      haptic.error()
     }
   }
 
   const handleRenameSession = async (sessionId: string, newTitle: string) => {
     try {
-      await rpc.call<{ id: string; title: string }, { session: ChatSession }>('bichat.session.updateTitle', {
+      await callRPC('bichat.session.updateTitle', {
         id: sessionId,
         title: newTitle,
       })
       setActionError(null)
       await reloadSessions()
+      toast.success('Chat renamed')
+      haptic.light()
     } catch (error) {
       console.error('Failed to update session title:', error)
-      setActionError(toRPCErrorDisplay(error, 'Failed to rename session'))
+      const display = toRPCErrorDisplay(error, 'Failed to rename session')
+      setActionError(display)
+      toast.error(display.title)
+      haptic.error()
     }
   }
 
@@ -291,6 +331,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
           onClick={(e) => {
             e.stopPropagation()
             onNewChat()
+            onClose?.()
           }}
           disabled={creating || fetching || accessDenied}
           className="w-10 h-10 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary-400/50"
@@ -303,6 +344,25 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
           ) : (
             <Plus size={18} weight="bold" />
           )}
+        </motion.button>
+
+        <motion.button
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate('/archived')
+            onClose?.()
+          }}
+          disabled={fetching || accessDenied}
+          className={`w-10 h-10 rounded-lg shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+            isArchivedView
+              ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+              : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+          }`}
+          title="Archived chats"
+          aria-label="View archived chats"
+          whileTap={{ scale: 0.95 }}
+        >
+          <Archive size={18} weight="bold" />
         </motion.button>
       </div>
 
@@ -326,6 +386,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
                 onClick={(e) => {
                   e.stopPropagation()
                   onNewChat()
+                  onClose?.()
                 }}
                 disabled={creating || fetching || accessDenied}
                 className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
@@ -357,6 +418,27 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
               />
             </div>
 
+            {/* Archived chats */}
+            <div className="px-4 pb-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate('/archived')
+                  onClose?.()
+                }}
+                disabled={fetching || accessDenied}
+                className={`w-full px-3 py-2 rounded-lg text-sm font-medium border transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                  isArchivedView
+                    ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-800'
+                    : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                }`}
+                aria-current={isArchivedView ? 'page' : undefined}
+              >
+                <Archive size={16} weight="bold" />
+                <span>Archived</span>
+              </button>
+            </div>
+
             {/* Chat History */}
             <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-4" aria-label="Chat history">
               {fetching && sessions.length === 0 ? (
@@ -370,6 +452,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
                     onDelete={handleDeleteSession}
                     onTogglePin={handleTogglePin}
                     onRename={handleRenameSession}
+                    onNavigate={onClose}
                   />
 
                   {/* Empty State - refined */}
@@ -459,12 +542,23 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
         {/* All Chats View - Placeholder */}
         {activeTab === 'all-chats' && (
-          <div className="flex-1 flex items-center justify-center p-4">
-            <EmptyState
-              title="All Chats"
-              description="This feature is not yet implemented"
+          dataSource.listAllSessions ? (
+            <AllChatsList
+              dataSource={dataSource}
+              onSessionSelect={(sessionId: string) => {
+                navigate(`/session/${sessionId}`)
+                onClose?.()
+              }}
+              activeSessionId={activeSessionId}
             />
-          </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <EmptyState
+                title="All Chats"
+                description="This app does not expose organization-wide chat sessions."
+              />
+            </div>
+          )
         )}
       </div>
 

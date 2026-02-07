@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
+	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/handlers"
@@ -107,9 +108,24 @@ func (m *Module) Register(app application.Application) error {
 		// Create and register controllers.
 		// Applet request/response APIs should go through applet RPC.
 		// Streaming is exposed via StreamController.
+		streamRequirePermission := bichatperm.BiChatAccess
+		if m.config.StreamRequireAccessPermission != nil {
+			streamRequirePermission = m.config.StreamRequireAccessPermission
+		}
+
+		streamOpts := []controllers.ControllerOption{
+			controllers.WithRequireAccessPermission(streamRequirePermission),
+		}
+		if m.config.StreamReadAllPermission != nil {
+			streamOpts = append(
+				streamOpts,
+				controllers.WithReadAllPermission(m.config.StreamReadAllPermission),
+			)
+		}
 		streamController := controllers.NewStreamController(
 			app,
 			chatService,
+			streamOpts...,
 		)
 		controllersToRegister = append(controllersToRegister, streamController)
 

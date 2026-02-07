@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/analytics"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -110,6 +111,11 @@ type ModuleConfig struct {
 	// Optional: ViewManager manages analytics view definitions and syncs them to DB.
 	// When configured, views are synced on startup and used for permission-based access control.
 	ViewManager *analytics.ViewManager
+
+	// Optional: Permission overrides for StreamController.
+	// When not set, the module uses BiChat defaults.
+	StreamRequireAccessPermission permission.Permission
+	StreamReadAllPermission       permission.Permission
 
 	// Internal: Created services (initialized during BuildServices)
 	chatService       bichatservices.ChatService
@@ -339,6 +345,20 @@ func WithTitleGenerationDisabled() ConfigOption {
 func WithAnalyticsViews(vm *analytics.ViewManager) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.ViewManager = vm
+	}
+}
+
+// WithStreamRequireAccessPermission overrides the permission required to access StreamController.
+func WithStreamRequireAccessPermission(p permission.Permission) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.StreamRequireAccessPermission = p
+	}
+}
+
+// WithStreamReadAllPermission overrides the permission required to read other users' sessions via StreamController.
+func WithStreamReadAllPermission(p permission.Permission) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.StreamReadAllPermission = p
 	}
 }
 

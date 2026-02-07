@@ -1,11 +1,17 @@
-import { useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useCallback, useMemo } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ChatSession } from '@iota-uz/sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  const readOnly = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return params.get('readonly') === 'true'
+  }, [location.search])
 
   const onNavigateToSession = useCallback(
     (sessionId: string) => navigate(`/session/${sessionId}`),
@@ -25,6 +31,7 @@ export default function ChatPage() {
     <ChatSession
       dataSource={dataSource}
       sessionId={id}
+      readOnly={readOnly}
       showArtifactsPanel
       artifactsPanelDefaultExpanded={false}
       artifactsPanelStorageKey="bichat.web.artifacts-panel.expanded"

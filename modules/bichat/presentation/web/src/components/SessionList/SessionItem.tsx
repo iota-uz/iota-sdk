@@ -21,10 +21,11 @@ interface SessionItemProps {
   onDelete: (e: React.MouseEvent) => void
   onTogglePin: (e: React.MouseEvent) => void
   onRename: (newTitle: string) => void
+  onNavigate?: () => void
 }
 
 const SessionItem = memo<SessionItemProps>(
-  ({ session, isActive, onDelete, onTogglePin, onRename }) => {
+  ({ session, isActive, onDelete, onTogglePin, onRename, onNavigate }) => {
     const editableTitleRef = useRef<EditableTextRef>(null)
     const [isDragging, setIsDragging] = useState(false)
     const dragX = useMotionValue(0)
@@ -79,6 +80,7 @@ const SessionItem = memo<SessionItemProps>(
             to={`/session/${session.id}`}
             onClick={(e) => {
               if (isDragging) e.preventDefault()
+              if (!isDragging) onNavigate?.()
             }}
             className={`block px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer bg-white dark:bg-gray-900 ${
               isActive

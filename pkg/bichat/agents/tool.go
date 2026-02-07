@@ -60,6 +60,15 @@ type Tool interface {
 	Call(ctx context.Context, input string) (string, error)
 }
 
+// ToolConcurrency is an optional interface that tools can implement to influence
+// concurrent execution behavior when multiple tool calls are returned in one turn.
+//
+// Tools with the same non-empty ConcurrencyKey will be executed serially
+// (while tools with different keys may execute in parallel).
+type ToolConcurrency interface {
+	ConcurrencyKey() string
+}
+
 // ToolFunc is a convenience type for creating simple tools from functions.
 // It implements the Tool interface using struct fields instead of methods.
 //

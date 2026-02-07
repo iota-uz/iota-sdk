@@ -44,6 +44,11 @@ type appletRegistry struct {
 	Applets []appletConfig `json:"applets"`
 }
 
+type packageDeps struct {
+	Dependencies    map[string]string `json:"dependencies"`
+	DevDependencies map[string]string `json:"devDependencies"`
+}
+
 type processSpec struct {
 	Name     string
 	Command  string
@@ -649,13 +654,18 @@ func refreshAppletDeps(root, viteDir string) error {
 	nodeModules := filepath.Join(viteDir, "node_modules")
 	didInstall := false
 
+	localSDKDependency, err := hasLocalSDKDependency(viteDir)
+	if err != nil {
+		return err
+	}
+
 	if _, err := os.Stat(nodeModules); err != nil {
 		fmt.Println("Installing applet dependencies...")
 		if err := runCommand(root, "pnpm", "-C", viteDir, "install", "--prefer-frozen-lockfile"); err != nil {
 			return err
 		}
 		didInstall = true
-	} else {
+	} else if localSDKDependency {
 		distIndex := filepath.Join(root, "dist/index.mjs")
 		sdkModule := filepath.Join(nodeModules, "@iota-uz/sdk/dist/index.mjs")
 
@@ -680,6 +690,28 @@ func refreshAppletDeps(root, viteDir string) error {
 	}
 
 	return nil
+}
+
+func hasLocalSDKDependency(viteDir string) (bool, error) {
+	packageJSONPath := filepath.Join(viteDir, "package.json")
+	data, err := os.ReadFile(packageJSONPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read applet package.json: %w", err)
+	}
+
+	var deps packageDeps
+	if err := json.Unmarshal(data, &deps); err != nil {
+		return false, fmt.Errorf("failed to parse applet package.json: %w", err)
+	}
+
+	spec := deps.Dependencies["@iota-uz/sdk"]
+	if spec == "" {
+		spec = deps.DevDependencies["@iota-uz/sdk"]
+	}
+
+	return strings.HasPrefix(spec, "file:") ||
+		strings.HasPrefix(spec, "link:") ||
+		strings.HasPrefix(spec, "workspace:"), nil
 }
 
 // --- Utilities ---

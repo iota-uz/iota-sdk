@@ -558,6 +558,11 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 		trustForwardedHost = *rpcCfg.TrustForwardedHost
 	}
 
+	exposeInternalErrors := false
+	if rpcCfg.ExposeInternalErrors != nil {
+		exposeInternalErrors = *rpcCfg.ExposeInternalErrors
+	}
+
 	if requireSameOrigin {
 		if err := enforceSameOrigin(r, trustForwardedHost); err != nil {
 			writeRPC(w, http.StatusForbidden, rpcResponse{
@@ -655,13 +660,19 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 	result, err := rpcMethod.Handler(r.Context(), req.Params)
 	if err != nil {
 		code := mapSErrorCode(err)
-		message := mapRPCErrorMessage(code, err)
+		rpcErr := &rpcError{
+			Code:    code,
+			Message: mapRPCErrorMessage(code, err, exposeInternalErrors),
+		}
+		if exposeInternalErrors && err != nil {
+			msg := strings.TrimSpace(err.Error())
+			if msg != "" {
+				rpcErr.Details = map[string]string{"internal": msg}
+			}
+		}
 		writeRPC(w, http.StatusOK, rpcResponse{
-			ID: req.ID,
-			Error: &rpcError{
-				Code:    code,
-				Message: message,
-			},
+			ID:    req.ID,
+			Error: rpcErr,
 		})
 		return
 	}
@@ -717,17 +728,26 @@ func firstNonOtherKind(err error) serrors.Kind {
 	return serrors.Other
 }
 
-func mapRPCErrorMessage(code string, err error) string {
+func mapRPCErrorMessage(code string, err error, exposeInternalErrors bool) string {
+	if exposeInternalErrors && err != nil {
+		msg := strings.TrimSpace(err.Error())
+		if msg != "" {
+			return msg
+		}
+	}
+
 	switch code {
 	case "forbidden":
 		return "permission denied"
+	case "validation":
+		return "validation failed"
+	case "invalid":
+		return "invalid request"
+	case "not_found":
+		return "resource not found"
+	case "internal":
+		return "internal error"
 	default:
-		if err != nil {
-			msg := strings.TrimSpace(err.Error())
-			if msg != "" {
-				return msg
-			}
-		}
 		return "request failed"
 	}
 }

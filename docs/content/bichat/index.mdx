@@ -121,6 +121,28 @@ cfg := bichat.NewModuleConfig(
 )
 ```
 
+### StreamController permission overrides
+
+By default, the module registers the SSE streaming endpoint at `/bi-chat/stream` using BiChat’s built-in permissions.
+If your application defines **its own** permission constants (e.g. `AIChat.Access`, `AIChat.ReadAll`), you can override what the StreamController enforces:
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithStreamRequireAccessPermission(apppermissions.AIChatAccess),
+    bichat.WithStreamReadAllPermission(apppermissions.AIChatReadAll),
+)
+```
+
+Alternatively, if you prefer full control, you can **skip the module’s StreamController** and register your own instance via
+`controllers.NewStreamController(..., controllers.WithRequireAccessPermission(...), controllers.WithReadAllPermission(...))`
+in setups where you wire BiChat controllers manually (instead of relying on module registration).
+
 ### Repository-Scoped Prompt Extensions
 
 BiChat always keeps the SDK vendor system prompt as the base.  

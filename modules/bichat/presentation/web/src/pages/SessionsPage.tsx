@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createAppletRPCClient } from '@iota-uz/sdk'
+import type { BichatRPC } from '@iota-uz/sdk/bichat'
 import { useIotaContext } from '../contexts/IotaContext'
 import { toRPCErrorDisplay, type RPCErrorDisplay } from '../utils/rpcErrors'
 
@@ -28,9 +29,9 @@ export default function SessionsPage() {
     ;(async () => {
       setFetching(true)
       try {
-        const data = await rpc.call<{ limit: number; offset: number }, { sessions: ChatSession[] }>(
+        const data = await rpc.callTyped<BichatRPC, 'bichat.session.list'>(
           'bichat.session.list',
-          { limit: 200, offset: 0 }
+          { limit: 200, offset: 0, includeArchived: false }
         )
         if (alive) setSessions(data.sessions || [])
         if (alive) setLoadError(null)
@@ -47,7 +48,7 @@ export default function SessionsPage() {
 
   const handleCreateSession = async () => {
     try {
-      const result = await rpc.call<{ title: string }, { session: { id: string } }>('bichat.session.create', {
+      const result = await rpc.callTyped<BichatRPC, 'bichat.session.create'>('bichat.session.create', {
         title: '',
       })
       if (result.session?.id) {

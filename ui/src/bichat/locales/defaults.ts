@@ -21,6 +21,7 @@ export const defaultTranslations: Translations = {
   // Chat header
   'chat.newChat': 'New Chat',
   'chat.archived': 'Archived',
+  'chat.readOnly': 'Read-only',
   'chat.pinned': 'Pinned',
   'chat.goBack': 'Go back',
 

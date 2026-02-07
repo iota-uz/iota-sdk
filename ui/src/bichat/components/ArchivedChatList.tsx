@@ -15,7 +15,7 @@ import ConfirmModal from './ConfirmModal'
 import { EmptyState } from './EmptyState'
 import { ToastContainer } from './ToastContainer'
 import { useTranslation } from '../hooks/useTranslation'
-import { useToast } from '../hooks/useToast'
+import { useToast, type UseToastReturn } from '../hooks/useToast'
 import { groupSessionsByDate } from '../utils/sessionGrouping'
 import { staggerContainerVariants } from '../animations/variants'
 import type { Session, ChatDataSource } from '../types'
@@ -26,6 +26,7 @@ export interface ArchivedChatListProps {
   onSessionSelect: (sessionId: string) => void
   activeSessionId?: string
   className?: string
+  toast?: UseToastReturn
 }
 
 export default function ArchivedChatList({
@@ -34,9 +35,12 @@ export default function ArchivedChatList({
   onSessionSelect,
   activeSessionId,
   className = '',
+  toast: toastFromProps,
 }: ArchivedChatListProps) {
   const { t } = useTranslation()
-  const toast = useToast()
+  const localToast = useToast()
+  const toast = toastFromProps ?? localToast
+  const shouldRenderToastContainer = !toastFromProps
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -246,7 +250,9 @@ export default function ArchivedChatList({
       />
 
       {/* Toast notifications */}
-      <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} />
+      {shouldRenderToastContainer && (
+        <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} />
+      )}
     </div>
   )
 }

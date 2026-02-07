@@ -156,6 +156,14 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 						}
 						toolCallOrder = append(toolCallOrder, itemID)
 					}
+
+					// Emit a non-final chunk with any ready tool calls so executors can start early.
+					readyToolCalls := m.buildReadyToolCallsFromAccum(toolCallAccum, toolCallOrder)
+					if len(readyToolCalls) > 0 {
+						if !yield(agents.Chunk{ToolCalls: readyToolCalls}) {
+							return nil
+						}
+					}
 				}
 
 			case "response.completed":
@@ -585,6 +593,30 @@ func (m *OpenAIModel) buildToolCallsFromAccum(accum map[string]*toolCallAccumEnt
 				Arguments: a.args,
 			})
 		}
+	}
+	return calls
+}
+
+// buildReadyToolCallsFromAccum returns tool calls that are ready to execute during streaming.
+// A tool call is considered ready once we have a stable CallID and Name.
+func (m *OpenAIModel) buildReadyToolCallsFromAccum(accum map[string]*toolCallAccumEntry, order []string) []types.ToolCall {
+	if len(accum) == 0 {
+		return nil
+	}
+	calls := make([]types.ToolCall, 0, len(accum))
+	for _, key := range order {
+		a, ok := accum[key]
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(a.callID) == "" || strings.TrimSpace(a.name) == "" {
+			continue
+		}
+		calls = append(calls, types.ToolCall{
+			ID:        a.callID,
+			Name:      a.name,
+			Arguments: a.args,
+		})
 	}
 	return calls
 }

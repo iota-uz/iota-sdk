@@ -30,21 +30,12 @@ func (t *GetCurrentTimeTool) Description() string {
 
 // Parameters returns the JSON Schema for tool parameters.
 func (t *GetCurrentTimeTool) Parameters() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"timezone": map[string]any{
-				"type":        "string",
-				"description": "Timezone name (e.g., 'Asia/Tashkent', 'UTC'). Default: 'UTC'",
-				"default":     "UTC",
-			},
-		},
-	}
+	return agents.ToolSchema[timeToolInput]()
 }
 
 // timeToolInput represents the parsed input parameters.
 type timeToolInput struct {
-	Timezone string `json:"timezone,omitempty"`
+	Timezone string `json:"timezone,omitempty" jsonschema:"description=Timezone name (e.g., 'Asia/Tashkent', 'UTC'). Default: 'UTC';default=UTC"`
 }
 
 // timeToolOutput represents the formatted output.
@@ -67,6 +58,10 @@ type timeToolOutput struct {
 
 // Call executes the get current time operation.
 func (t *GetCurrentTimeTool) Call(ctx context.Context, input string) (string, error) {
+	return formatCurrentTimeFromRaw(ctx, input)
+}
+
+func formatCurrentTimeFromRaw(ctx context.Context, input string) (string, error) {
 	// Parse input
 	params, err := agents.ParseToolInput[timeToolInput](input)
 	if err != nil {
@@ -74,6 +69,10 @@ func (t *GetCurrentTimeTool) Call(ctx context.Context, input string) (string, er
 		params = timeToolInput{Timezone: "UTC"}
 	}
 
+	return formatCurrentTime(params)
+}
+
+func formatCurrentTime(params timeToolInput) (string, error) {
 	timezone := params.Timezone
 	if timezone == "" {
 		timezone = "UTC"

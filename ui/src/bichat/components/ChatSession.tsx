@@ -26,6 +26,8 @@ import { SessionArtifactsPanel } from './SessionArtifactsPanel'
 interface ChatSessionProps {
   dataSource: ChatDataSource
   sessionId?: string
+  /** Alias for isReadOnly (preferred) */
+  readOnly?: boolean
   isReadOnly?: boolean
   /** Custom render function for user turns */
   renderUserTurn?: (turn: ConversationTurn) => ReactNode
@@ -54,6 +56,7 @@ interface ChatSessionProps {
 
 function ChatSessionCore({
   dataSource,
+  readOnly,
   isReadOnly,
   renderUserTurn,
   renderAssistantTurn,
@@ -88,6 +91,8 @@ function ChatSessionCore({
     currentSessionId,
     isStreaming,
   } = useChat()
+
+  const effectiveReadOnly = Boolean(readOnly ?? isReadOnly)
 
   const [artifactsPanelExpanded, setArtifactsPanelExpanded] = useState(
     artifactsPanelDefaultExpanded
@@ -186,6 +191,7 @@ function ChatSessionCore({
         <ChatHeader
           session={session}
           onBack={onBack}
+          readOnly={effectiveReadOnly}
           logoSlot={logoSlot}
           actionsSlot={headerActions}
         />
@@ -200,7 +206,7 @@ function ChatSessionCore({
                   {welcomeSlot || (
                     <WelcomeContent onPromptSelect={handlePromptSelect} disabled={loading} />
                   )}
-                  {!isReadOnly && (
+                  {!effectiveReadOnly && (
                     <MessageInput
                       message={message}
                       loading={loading}
@@ -230,8 +236,9 @@ function ChatSessionCore({
                 renderUserTurn={renderUserTurn}
                 renderAssistantTurn={renderAssistantTurn}
                 thinkingVerbs={thinkingVerbs}
+                readOnly={effectiveReadOnly}
               />
-              {!isReadOnly && (
+              {!effectiveReadOnly && (
                 <MessageInput
                   message={message}
                   loading={loading}

@@ -38,6 +38,17 @@ function seedGlobals() {
       assetsBasePath: '/bi-chat/assets',
       rpcUIEndpoint: '/bi-chat/rpc',
     },
+    route: {
+      path: '/storybook',
+      params: {},
+      query: {},
+    },
+    session: {
+      expiresAt: Date.now() + 1000 * 60 * 60,
+      refreshURL: '/auth/refresh',
+      csrfToken: 'storybook-csrf-token',
+    },
+    error: null,
     extensions: {
       branding: {
         appName: 'BiChat (Storybook)',

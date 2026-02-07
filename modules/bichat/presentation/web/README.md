@@ -18,6 +18,18 @@ pnpm run build
 pnpm run preview
 ```
 
+For embedded applet HMR through the Go server, run from repo root:
+
+```bash
+just dev bichat
+```
+
+## SDK Dependency Policy
+
+- Pin `@iota-uz/sdk` to an exact npm version in `package.json`.
+- Do not use `file:`, `link:`, or `workspace:` overrides for `@iota-uz/sdk`.
+- Local SDK changes are picked up in dev by `just dev bichat` without changing dependency specs.
+
 ## Architecture
 
 - **Context**: Reads session data from `window.__BICHAT_CONTEXT__` injected by Go backend
