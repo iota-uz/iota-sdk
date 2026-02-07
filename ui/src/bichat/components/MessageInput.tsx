@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react'
-import { Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react'
+import { Paperclip, PaperPlaneRight, X, Bug } from '@phosphor-icons/react'
 import AttachmentGrid from './AttachmentGrid'
 import { validateImageFile, validateFileCount, convertToBase64, createDataUrl } from '../utils/fileUtils'
 import type { ImageAttachment, QueuedMessage, SessionDebugUsage } from '../types'
@@ -387,36 +387,96 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
           {debugMode && (
             <div className="mb-3 space-y-2 text-xs">
-              <span className="inline-flex px-2.5 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded font-medium">
+              {/* Debug Mode Badge */}
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded font-medium">
+                <Bug size={12} />
                 {t('slash.debugBadge')}
               </span>
-              <div className="rounded-lg border border-amber-200/80 dark:border-amber-800/70 bg-amber-50/70 dark:bg-amber-950/20 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-100 space-y-1">
+
+              {/* Stats Container */}
+              <div className="rounded-lg border border-gray-200/80 dark:border-gray-700/60 bg-white dark:bg-gray-800/60 px-3 py-2 space-y-3">
                 {hasUsage ? (
                   <>
-                    <p>
-                      {t('slash.debugSessionUsage')}:{' '}
-                      <span className="font-mono">
-                        {formatTokens(sessionPromptTokens)}/{formatTokens(sessionCompletionTokens)}/
-                        {formatTokens(sessionTotalTokens)}
-                      </span>
-                    </p>
-                    {modelContextWindow && (
-                      <p>
-                        {t('slash.debugContextUsage')}:{' '}
-                        <span className="font-mono">
-                          {formatTokens(latestPromptTokens)} / {formatTokens(modelContextWindow)}
-                          {contextPercent ? ` (${contextPercent}%)` : ''}
+                    {/* Token Columns */}
+                    <div className="flex items-center justify-between text-[11px]">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {t('slash.debugPromptTokens')}
                         </span>
-                      </p>
+                        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">
+                          {formatTokens(sessionPromptTokens)}
+                        </span>
+                      </div>
+                      <span className="w-0.5 h-0.5 rounded-full bg-gray-300 dark:bg-gray-600" aria-hidden="true" />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {t('slash.debugCompletionTokens')}
+                        </span>
+                        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">
+                          {formatTokens(sessionCompletionTokens)}
+                        </span>
+                      </div>
+                      <span className="w-0.5 h-0.5 rounded-full bg-gray-300 dark:bg-gray-600" aria-hidden="true" />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {t('slash.debugTotalTokens')}
+                        </span>
+                        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">
+                          {formatTokens(sessionTotalTokens)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Context Progress Bar */}
+                    {modelContextWindow && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-gray-500 dark:text-gray-400">
+                            {t('slash.debugContextUsage')}
+                          </span>
+                          <span className="font-mono text-gray-600 dark:text-gray-300">
+                            {formatTokens(latestPromptTokens)} / {formatTokens(modelContextWindow)}
+                          </span>
+                          {contextPercent && (
+                            <span className={`font-medium ${
+                              parseFloat(contextPercent) > 75
+                                ? 'text-red-600 dark:text-red-400'
+                                : parseFloat(contextPercent) > 50
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-emerald-600 dark:text-emerald-400'
+                            }`}>
+                              {contextPercent}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="h-1 rounded-full bg-gray-100 dark:bg-gray-700/50 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ease-out ${
+                              parseFloat(contextPercent || '0') > 75
+                                ? 'bg-red-500'
+                                : parseFloat(contextPercent || '0') > 50
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500'
+                            }`}
+                            style={{
+                              width: contextPercent ? `${Math.min(parseFloat(contextPercent), 100)}%` : '0%'
+                            }}
+                          />
+                        </div>
+                      </div>
                     )}
                   </>
                 ) : (
-                  <p>{t('slash.debugSessionUsageUnavailable')}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {t('slash.debugSessionUsageUnavailable')}
+                  </p>
                 )}
+
+                {/* Context Window fallback (when no usage data) */}
                 {!hasUsage && modelContextWindow && (
-                  <p>
+                  <p className="text-[11px] text-gray-600 dark:text-gray-300">
                     {t('slash.debugContextWindow')}:{' '}
-                    <span className="font-mono">{formatTokens(modelContextWindow)}</span>
+                    <span className="font-mono font-medium">{formatTokens(modelContextWindow)}</span>
                   </p>
                 )}
               </div>

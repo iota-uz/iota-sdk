@@ -169,6 +169,27 @@ func TestValidateReadOnlyQuery(t *testing.T) {
 			wantError: false,
 		},
 		{
+			name:      "SELECT with updated_at column - valid",
+			query:     "SELECT id, updated_at FROM users ORDER BY id",
+			wantError: false,
+		},
+		{
+			name:      "SELECT with update in string literal - valid",
+			query:     "SELECT 'UPDATE' AS word, id FROM users",
+			wantError: false,
+		},
+		{
+			name:      "SELECT with update in quoted identifier - valid",
+			query:     `SELECT "update" FROM users`,
+			wantError: false,
+		},
+		{
+			name:      "WITH containing UPDATE - invalid",
+			query:     "WITH changed AS (UPDATE users SET first_name = 'x' RETURNING id) SELECT * FROM changed",
+			wantError: true,
+			errMsg:    "UPDATE",
+		},
+		{
 			name:      "SQL injection attempt - invalid",
 			query:     "SELECT * FROM users; DROP TABLE users;",
 			wantError: true,

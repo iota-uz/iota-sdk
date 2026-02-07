@@ -138,6 +138,10 @@ type Input struct {
 	// ThreadID identifies the conversation thread for checkpointing.
 	// If empty, a new thread ID will be generated.
 	ThreadID string
+
+	// PreviousResponseID is a provider continuity token for multi-turn state.
+	// For OpenAI Responses API this maps to previous_response_id.
+	PreviousResponseID *string
 }
 
 // ExecutorOption configures an Executor.
@@ -243,6 +247,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 		// Use input messages as-is (system prompt already included from context compilation)
 		messages := input.Messages
 
+		// Track provider continuity across iterations in a single execution.
+		previousResponseID := input.PreviousResponseID
+
 		// Start ReAct loop
 		iteration := 0
 		for iteration < e.maxIterations {
@@ -256,8 +263,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 			// Build model request
 			req := Request{
-				Messages: messages,
-				Tools:    tools,
+				Messages:           messages,
+				Tools:              tools,
+				PreviousResponseID: previousResponseID,
 			}
 
 			// Emit LLM request event
@@ -311,6 +319,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			var citations []types.Citation
 			var usage *types.TokenUsage
 			var finishReason string
+			var providerResponseID string
 			startTime := time.Now()
 
 			for {
@@ -345,6 +354,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					usage = chunk.Usage
 					finishReason = chunk.FinishReason
 					citations = chunk.Citations
+					providerResponseID = chunk.ProviderResponseID
 				}
 			}
 
@@ -358,6 +368,10 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			}
 			responseMessage = types.AssistantMessage(joinStrings(chunks), msgOpts...)
 			messages = append(messages, responseMessage)
+			if providerResponseID != "" {
+				id := providerResponseID
+				previousResponseID = &id
+			}
 
 			// Emit LLM response event
 			if e.eventBus != nil {
@@ -410,8 +424,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			if len(toolCalls) == 0 {
 				// No tools, execution complete
 				result := &Response{
-					Message:      responseMessage,
-					FinishReason: finishReason,
+					Message:            responseMessage,
+					FinishReason:       finishReason,
+					ProviderResponseID: providerResponseID,
 				}
 				if usage != nil {
 					result.Usage = *usage
@@ -442,7 +457,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Check for interrupt
 			if interrupt != nil {
 				// Save checkpoint
-				checkpointID, err := e.saveCheckpoint(ctx, threadID, messages, toolCalls, interrupt, input.SessionID, input.TenantID)
+				checkpointID, err := e.saveCheckpoint(ctx, threadID, messages, toolCalls, interrupt, input.SessionID, input.TenantID, previousResponseID)
 				if err != nil {
 					return serrors.E(op, ErrCheckpointSaveFailed, err)
 				}
@@ -451,6 +466,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				interrupt.AgentName = e.agent.Metadata().Name
 				interrupt.SessionID = input.SessionID
 				interrupt.CheckpointID = checkpointID
+				if previousResponseID != nil {
+					interrupt.ProviderResponseID = *previousResponseID
+				}
 
 				// Emit interrupt event to EventBus
 				if e.eventBus != nil {
@@ -505,8 +523,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 						// Termination tool called, return result
 						result := &Response{
-							Message:      types.AssistantMessage(resultContent),
-							FinishReason: "tool_calls",
+							Message:            types.AssistantMessage(resultContent),
+							FinishReason:       "tool_calls",
+							ProviderResponseID: providerResponseID,
 						}
 						if usage != nil {
 							result.Usage = *usage
@@ -612,10 +631,11 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 
 		// Resume execution with restored state
 		input := Input{
-			Messages:  messages,
-			SessionID: checkpoint.SessionID,
-			TenantID:  checkpoint.TenantID,
-			ThreadID:  checkpoint.ThreadID,
+			Messages:           messages,
+			SessionID:          checkpoint.SessionID,
+			TenantID:           checkpoint.TenantID,
+			ThreadID:           checkpoint.ThreadID,
+			PreviousResponseID: checkpoint.PreviousResponseID,
 		}
 
 		// Create a new generator that delegates to Execute
@@ -785,6 +805,7 @@ func (e *Executor) saveCheckpoint(
 	interrupt *InterruptEvent,
 	sessionID uuid.UUID,
 	tenantID uuid.UUID,
+	previousResponseID *string,
 ) (string, error) {
 	const op serrors.Op = "Executor.saveCheckpoint"
 
@@ -801,6 +822,7 @@ func (e *Executor) saveCheckpoint(
 		WithInterruptData(interrupt.Data),
 		WithSessionID(sessionID),
 		WithTenantID(tenantID),
+		WithCheckpointPreviousResponseID(previousResponseID),
 	)
 
 	checkpointID, err := e.checkpointer.Save(ctx, checkpoint)

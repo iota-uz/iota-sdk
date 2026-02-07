@@ -170,6 +170,42 @@ func TestPostgresChatRepository_UpdateSession_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
 }
 
+func TestPostgresChatRepository_SessionLLMPreviousResponseID(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle("Continuity Session"),
+		domain.WithLLMPreviousResponseID("resp_prev_1"),
+	)
+	require.NoError(t, repo.CreateSession(env.Ctx, session))
+
+	retrieved, err := repo.GetSession(env.Ctx, session.ID())
+	require.NoError(t, err)
+	require.NotNil(t, retrieved.LLMPreviousResponseID())
+	assert.Equal(t, "resp_prev_1", *retrieved.LLMPreviousResponseID())
+
+	next := "resp_prev_2"
+	updated := retrieved.UpdateLLMPreviousResponseID(&next)
+	require.NoError(t, repo.UpdateSession(env.Ctx, updated))
+
+	afterUpdate, err := repo.GetSession(env.Ctx, session.ID())
+	require.NoError(t, err)
+	require.NotNil(t, afterUpdate.LLMPreviousResponseID())
+	assert.Equal(t, "resp_prev_2", *afterUpdate.LLMPreviousResponseID())
+
+	cleared := afterUpdate.UpdateLLMPreviousResponseID(nil)
+	require.NoError(t, repo.UpdateSession(env.Ctx, cleared))
+
+	afterClear, err := repo.GetSession(env.Ctx, session.ID())
+	require.NoError(t, err)
+	assert.Nil(t, afterClear.LLMPreviousResponseID())
+}
+
 func TestPostgresChatRepository_ListUserSessions(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)

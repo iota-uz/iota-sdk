@@ -190,7 +190,10 @@ func (s *chatServiceImpl) ClearSessionHistory(ctx context.Context, sessionID uui
 		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
 	}
 
-	updated := session.UpdatePendingQuestionAgent(nil).UpdateUpdatedAt(time.Now())
+	updated := session.
+		UpdatePendingQuestionAgent(nil).
+		UpdateLLMPreviousResponseID(nil).
+		UpdateUpdatedAt(time.Now())
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
 	}
@@ -239,7 +242,10 @@ func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID u
 		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
 	}
 
-	updated := session.UpdatePendingQuestionAgent(nil).UpdateUpdatedAt(time.Now())
+	updated := session.
+		UpdatePendingQuestionAgent(nil).
+		UpdateLLMPreviousResponseID(nil).
+		UpdateUpdatedAt(time.Now())
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
 	}
@@ -301,6 +307,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	toolCalls := make(map[string]types.ToolCall)
 	toolOrder := make([]string, 0)
 	var interrupt *bichatservices.Interrupt
+	var providerResponseID *string
 
 	for {
 		event, err := gen.Next(processCtx)
@@ -329,13 +336,16 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 				if agentName == "" {
 					agentName = "default-agent"
 				}
-				session = session.UpdatePendingQuestionAgent(&agentName)
+				session = session.
+					UpdatePendingQuestionAgent(&agentName).
+					UpdateLLMPreviousResponseID(optionalStringPtr(event.Interrupt.ProviderResponseID))
 				if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 					return nil, serrors.E(op, err)
 				}
 			}
-		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage,
-			bichatservices.EventTypeDone, bichatservices.EventTypeError:
+		case bichatservices.EventTypeDone:
+			providerResponseID = optionalStringPtr(event.ProviderResponseID)
+		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage, bichatservices.EventTypeError:
 			// no-op in this handler
 		}
 	}
@@ -362,7 +372,9 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 		return nil, serrors.E(op, err)
 	}
 
-	session = session.UpdateUpdatedAt(time.Now())
+	session = session.
+		UpdateLLMPreviousResponseID(providerResponseID).
+		UpdateUpdatedAt(time.Now())
 	if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -427,6 +439,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var interrupted bool
 	toolCalls := make(map[string]types.ToolCall)
 	toolOrder := make([]string, 0)
+	var providerResponseID *string
 
 	for {
 		event, err := gen.Next(processCtx)
@@ -478,7 +491,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			if agentName == "" {
 				agentName = "default-agent"
 			}
-			session = session.UpdatePendingQuestionAgent(&agentName)
+			session = session.
+				UpdatePendingQuestionAgent(&agentName).
+				UpdateLLMPreviousResponseID(optionalStringPtr(event.Interrupt.ProviderResponseID))
 			if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 				return serrors.E(op, err)
 			}
@@ -493,6 +508,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			}
 
 		case bichatservices.EventTypeDone:
+			providerResponseID = optionalStringPtr(event.ProviderResponseID)
 			if event.Usage != nil {
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeUsage,
@@ -530,7 +546,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			return serrors.E(op, err)
 		}
 
-		session = session.UpdateUpdatedAt(time.Now())
+		session = session.
+			UpdateLLMPreviousResponseID(providerResponseID).
+			UpdateUpdatedAt(time.Now())
 		if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 			return serrors.E(op, err)
 		}
@@ -609,7 +627,10 @@ func (s *chatServiceImpl) maybeReplaceHistoryFromMessage(
 		return nil, serrors.E(op, err)
 	}
 
-	updated := session.UpdatePendingQuestionAgent(nil).UpdateUpdatedAt(time.Now())
+	updated := session.
+		UpdatePendingQuestionAgent(nil).
+		UpdateLLMPreviousResponseID(nil).
+		UpdateUpdatedAt(time.Now())
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -632,6 +653,14 @@ func orderedToolCalls(toolCalls map[string]types.ToolCall, toolOrder []string) [
 	}
 
 	return result
+}
+
+func optionalStringPtr(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 // GetSessionMessages retrieves all messages for a session.
@@ -673,6 +702,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	var assistantContent strings.Builder
 	toolCalls := make(map[string]types.ToolCall)
 	toolOrder := make([]string, 0)
+	var providerResponseID *string
 
 	for {
 		event, err := gen.Next(ctx)
@@ -688,9 +718,10 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 			assistantContent.WriteString(event.Content)
 		case bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
+		case bichatservices.EventTypeDone:
+			providerResponseID = optionalStringPtr(event.ProviderResponseID)
 		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage,
-			bichatservices.EventTypeInterrupt, bichatservices.EventTypeDone,
-			bichatservices.EventTypeError:
+			bichatservices.EventTypeInterrupt, bichatservices.EventTypeError:
 			// no-op for resume
 		}
 	}
@@ -709,6 +740,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 
 	// Clear pending question agent
 	session = session.UpdatePendingQuestionAgent(nil)
+	session = session.UpdateLLMPreviousResponseID(providerResponseID)
 	session = session.UpdateUpdatedAt(time.Now())
 	err = s.chatRepo.UpdateSession(ctx, session)
 	if err != nil {

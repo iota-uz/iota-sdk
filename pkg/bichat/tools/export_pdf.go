@@ -170,6 +170,7 @@ func (t *ExportToPDFTool) Call(ctx context.Context, input string) (string, error
 		}
 		url = savedURL
 	}
+	url = resolveDownloadURL(ctx, url)
 
 	// Build response
 	response := pdfExportOutput{

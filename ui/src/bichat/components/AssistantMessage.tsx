@@ -353,19 +353,6 @@ export function AssistantMessage({
           </div>
         )}
 
-        {/* Artifacts */}
-        {turn.artifacts && turn.artifacts.length > 0 && (
-          <div className={classes.artifacts}>
-            {renderSlot(
-              slots?.artifacts,
-              artifactsSlotProps,
-              turn.artifacts.map((artifact, index) => (
-                <DownloadCard key={`${artifact.filename}-${index}`} artifact={artifact} />
-              ))
-            )}
-          </div>
-        )}
-
         {/* Message bubble */}
         {hasContent && (
           <div className={bubbleClassName}>
@@ -444,6 +431,19 @@ export function AssistantMessage({
             )}
 
             {showDebug && <DebugPanel trace={turn.debug} />}
+          </div>
+        )}
+
+        {/* Artifacts */}
+        {turn.artifacts && turn.artifacts.length > 0 && (
+          <div className={classes.artifacts}>
+            {renderSlot(
+              slots?.artifacts,
+              artifactsSlotProps,
+              turn.artifacts.map((artifact, index) => (
+                <DownloadCard key={`${artifact.filename}-${index}`} artifact={artifact} />
+              ))
+            )}
           </div>
         )}
 

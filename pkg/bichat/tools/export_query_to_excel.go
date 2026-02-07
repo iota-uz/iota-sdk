@@ -215,7 +215,7 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 	fileSizeKB := int64(len(bytes)) / 1024
 
 	// Return download URL
-	url := fmt.Sprintf("%s/%s", t.baseURL, filename)
+	url := buildDownloadURL(ctx, t.baseURL, filename)
 
 	// Build response
 	response := exportQueryOutput{

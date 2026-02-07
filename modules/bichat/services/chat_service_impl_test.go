@@ -51,6 +51,7 @@ func TestChatService_ClearSessionHistory(t *testing.T) {
 		domain.WithTitle("keep me"),
 		domain.WithPinned(true),
 		domain.WithPendingQuestionAgent("sql_agent"),
+		domain.WithLLMPreviousResponseID("resp_prev_clear"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -81,6 +82,7 @@ func TestChatService_ClearSessionHistory(t *testing.T) {
 	assert.Equal(t, session.Title(), updatedSession.Title())
 	assert.Equal(t, session.Pinned(), updatedSession.Pinned())
 	assert.Nil(t, updatedSession.PendingQuestionAgent())
+	assert.Nil(t, updatedSession.LLMPreviousResponseID())
 
 	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 	require.NoError(t, err)
@@ -104,6 +106,7 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 		domain.WithUserID(1),
 		domain.WithTitle("to compact"),
 		domain.WithPendingQuestionAgent("sql_agent"),
+		domain.WithLLMPreviousResponseID("resp_prev_compact"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -133,6 +136,7 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 	updatedSession, err := chatRepo.GetSession(t.Context(), session.ID())
 	require.NoError(t, err)
 	assert.Nil(t, updatedSession.PendingQuestionAgent())
+	assert.Nil(t, updatedSession.LLMPreviousResponseID())
 }
 
 func TestChatService_CompactSessionHistory_EmptyHistory(t *testing.T) {
@@ -174,6 +178,7 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 		domain.WithUserID(1),
 		domain.WithTitle("replace"),
 		domain.WithPendingQuestionAgent("sql_agent"),
+		domain.WithLLMPreviousResponseID("resp_prev_replace"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -208,6 +213,7 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 	require.NoError(t, err)
 	require.NotNil(t, updated)
 	assert.Nil(t, updated.PendingQuestionAgent())
+	assert.Nil(t, updated.LLMPreviousResponseID())
 
 	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 	require.NoError(t, err)

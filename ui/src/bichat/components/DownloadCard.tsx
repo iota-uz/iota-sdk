@@ -14,19 +14,19 @@ interface DownloadCardProps {
 const typeConfig = {
   excel: {
     Icon: FileXls,
-    accentBg: 'bg-emerald-50 dark:bg-emerald-950/30',
+    accentBg: 'bg-emerald-50 dark:bg-emerald-950/20',
     accentBorder: 'border-emerald-200/60 dark:border-emerald-800/40',
     accentIcon: 'text-emerald-600 dark:text-emerald-400',
     badge: 'XLSX',
-    badgeClass: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300',
+    badgeClass: 'bg-emerald-100/80 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
   },
   pdf: {
     Icon: FilePdf,
-    accentBg: 'bg-rose-50 dark:bg-rose-950/30',
+    accentBg: 'bg-rose-50 dark:bg-rose-950/20',
     accentBorder: 'border-rose-200/60 dark:border-rose-800/40',
     accentIcon: 'text-rose-600 dark:text-rose-400',
     badge: 'PDF',
-    badgeClass: 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300',
+    badgeClass: 'bg-rose-100/80 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300',
   },
 } as const
 
@@ -40,11 +40,11 @@ export function DownloadCard({ artifact }: DownloadCardProps) {
       download={filename}
       className={[
         'group/dl flex items-center gap-3 px-3.5 py-3 rounded-xl',
-        'border transition-all duration-200',
+        'border transition-all duration-150',
         'border-gray-200/80 dark:border-gray-700/60',
         'bg-white dark:bg-gray-800/60',
         'hover:border-gray-300 dark:hover:border-gray-600',
-        'hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-black/20',
+        'hover:shadow-sm dark:hover:shadow-lg dark:hover:shadow-black/20',
         'hover:-translate-y-px active:translate-y-0',
       ].join(' ')}
     >

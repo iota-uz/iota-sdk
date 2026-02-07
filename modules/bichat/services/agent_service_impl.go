@@ -96,6 +96,11 @@ func (s *agentServiceImpl) ProcessMessage(
 		return nil, serrors.E(op, err)
 	}
 
+	session, err := s.chatRepo.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
 	// Load session messages from repository
 	opts := domain.ListOptions{Limit: 100, Offset: 0}
 	sessionMessages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
@@ -216,9 +221,10 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 
 	// Execute agent and get event generator
 	input := agents.Input{
-		Messages:  executorMessages,
-		SessionID: sessionID,
-		TenantID:  tenantID,
+		Messages:           executorMessages,
+		SessionID:          sessionID,
+		TenantID:           tenantID,
+		PreviousResponseID: session.LLMPreviousResponseID(),
 	}
 
 	execGen := executor.Execute(ctx, input)
@@ -359,6 +365,7 @@ func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
 		event.Done = true
 		// Extract usage from result if available
 		if execEvent.Result != nil {
+			event.ProviderResponseID = execEvent.Result.ProviderResponseID
 			usage := execEvent.Result.Usage
 			if usage.PromptTokens > 0 || usage.CompletionTokens > 0 || usage.TotalTokens > 0 || usage.CachedTokens > 0 || usage.CacheReadTokens > 0 || usage.CacheWriteTokens > 0 {
 				cachedTokens := usage.CachedTokens
@@ -426,9 +433,10 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 	agentName := agentInterrupt.AgentName
 
 	return &services.InterruptEvent{
-		CheckpointID: checkpointID,
-		AgentName:    agentName,
-		Questions:    questions,
+		CheckpointID:       checkpointID,
+		AgentName:          agentName,
+		ProviderResponseID: agentInterrupt.ProviderResponseID,
+		Questions:          questions,
 	}
 }
 

@@ -182,7 +182,7 @@ func (t *ExportToExcelTool) Call(ctx context.Context, input string) (string, err
 	}
 
 	// Return download URL
-	url := fmt.Sprintf("%s/%s", t.baseURL, filename)
+	url := buildDownloadURL(ctx, t.baseURL, filename)
 
 	// Build response
 	response := excelExportOutput{

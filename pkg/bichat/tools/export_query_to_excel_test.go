@@ -3,12 +3,15 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -171,6 +174,35 @@ func TestExportQueryToExcelTool_Call_AutoAppendExtension(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "report.xlsx", output.Filename)
+}
+
+func TestExportQueryToExcelTool_Call_BuildsAbsoluteURLFromRequestWhenBaseURLEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	executor := &mockQueryExecutor{
+		result: &bichatsql.QueryResult{
+			Columns:  []string{"col1"},
+			Rows:     [][]any{{"value1"}},
+			RowCount: 1,
+		},
+	}
+
+	tool := NewExportQueryToExcelTool(
+		executor,
+		WithQueryOutputDir(tmpDir),
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "http://internal/stream", nil)
+	req.Header.Set("X-Forwarded-Host", "bi.example.com")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	ctx := composables.WithParams(context.Background(), &composables.Params{Request: req})
+
+	result, err := tool.Call(ctx, `{"sql":"SELECT col1 FROM test","filename":"report.xlsx"}`)
+	require.NoError(t, err)
+
+	var output exportQueryOutput
+	require.NoError(t, json.Unmarshal([]byte(result), &output))
+	assert.Equal(t, "https://bi.example.com/report.xlsx", output.URL)
 }
 
 func TestExportQueryToExcelTool_Call_ValidationErrors(t *testing.T) {

@@ -53,6 +53,9 @@ export function SessionArtifactsPanel({
 
   const canFetchArtifacts = typeof dataSource.fetchSessionArtifacts === 'function'
 
+  const tRef = useRef(t)
+  tRef.current = t
+
   const fetchArtifacts = useCallback(
     async (opts: { reset: boolean; manual: boolean }) => {
       if (!canFetchArtifacts || !dataSource.fetchSessionArtifacts) {
@@ -118,7 +121,7 @@ export function SessionArtifactsPanel({
         if (requestID !== requestSeq.current) {
           return
         }
-        setError(err instanceof Error ? err.message : t('artifacts.failedToLoad'))
+        setError(err instanceof Error ? err.message : tRef.current('artifacts.failedToLoad'))
       } finally {
         if (requestID === requestSeq.current) {
           setFetching(false)
@@ -127,7 +130,7 @@ export function SessionArtifactsPanel({
         }
       }
     },
-    [canFetchArtifacts, dataSource, sessionId, t]
+    [canFetchArtifacts, dataSource, sessionId]
   )
 
   useEffect(() => {
@@ -159,11 +162,10 @@ export function SessionArtifactsPanel({
 
   return (
     <aside
-      className={`w-[22rem] border-l border-gray-200 bg-white dark:border-gray-700/80 dark:bg-gray-900 ${className}`}
+      className={`flex w-[22rem] shrink-0 flex-col border-l border-gray-200 bg-white dark:border-gray-700/80 dark:bg-gray-900 ${className}`}
       aria-label={t('artifacts.title')}
     >
-      <div className="flex h-full min-h-0 flex-col">
-        <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700/80">
+      <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700/80">
           <div className="min-w-0">
             {selectedArtifact ? (
               <button
@@ -246,7 +248,6 @@ export function SessionArtifactsPanel({
             </>
           )}
         </div>
-      </div>
     </aside>
   )
 }

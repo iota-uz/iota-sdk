@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS bichat.sessions (
     pinned boolean NOT NULL DEFAULT FALSE,
     parent_session_id uuid REFERENCES bichat.sessions(id) ON DELETE SET NULL,
     pending_question_agent varchar(100),
+    llm_previous_response_id varchar(255),
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW(),
     CONSTRAINT sessions_status_check CHECK (status IN ('ACTIVE', 'ARCHIVED'))
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS bichat.checkpoints (
     interrupt_type varchar(100) NOT NULL,
     interrupt_data jsonb,
     session_id uuid REFERENCES bichat.sessions(id) ON DELETE SET NULL,
+    previous_response_id varchar(255),
     created_at timestamptz NOT NULL DEFAULT NOW(),
     expires_at timestamptz NOT NULL DEFAULT NOW() + interval '24 hours'
 );

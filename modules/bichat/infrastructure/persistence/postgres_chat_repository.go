@@ -18,30 +18,30 @@ import (
 const (
 	// Session queries
 	insertSessionQuery = `
-		INSERT INTO bichat.sessions (
-			id, tenant_id, user_id, title, status, pinned,
-			parent_session_id, pending_question_agent, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`
+			INSERT INTO bichat.sessions (
+				id, tenant_id, user_id, title, status, pinned,
+				parent_session_id, pending_question_agent, llm_previous_response_id, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		`
 	selectSessionQuery = `
-		SELECT id, tenant_id, user_id, title, status, pinned,
-			   parent_session_id, pending_question_agent, created_at, updated_at
-		FROM bichat.sessions
-		WHERE tenant_id = $1 AND id = $2
-	`
+			SELECT id, tenant_id, user_id, title, status, pinned,
+				   parent_session_id, pending_question_agent, llm_previous_response_id, created_at, updated_at
+			FROM bichat.sessions
+			WHERE tenant_id = $1 AND id = $2
+		`
 	updateSessionQuery = `
-		UPDATE bichat.sessions
-		SET title = $1, status = $2, pinned = $3,
-			parent_session_id = $4, pending_question_agent = $5,
-			updated_at = $6
-		WHERE tenant_id = $7 AND id = $8
-	`
+			UPDATE bichat.sessions
+			SET title = $1, status = $2, pinned = $3,
+				parent_session_id = $4, pending_question_agent = $5,
+				llm_previous_response_id = $6, updated_at = $7
+			WHERE tenant_id = $8 AND id = $9
+		`
 	listUserSessionsQuery = `
-		SELECT id, tenant_id, user_id, title, status, pinned,
-			   parent_session_id, pending_question_agent, created_at, updated_at
-		FROM bichat.sessions
-		WHERE tenant_id = $1 AND user_id = $2 AND ($5::boolean OR status != 'ARCHIVED')
-		ORDER BY pinned DESC, created_at DESC
+			SELECT id, tenant_id, user_id, title, status, pinned,
+				   parent_session_id, pending_question_agent, llm_previous_response_id, created_at, updated_at
+			FROM bichat.sessions
+			WHERE tenant_id = $1 AND user_id = $2 AND ($5::boolean OR status != 'ARCHIVED')
+			ORDER BY pinned DESC, created_at DESC
 		LIMIT $3 OFFSET $4
 	`
 	deleteSessionQuery = `
@@ -172,6 +172,7 @@ func (r *PostgresChatRepository) CreateSession(ctx context.Context, session doma
 		session.Pinned(),
 		session.ParentSessionID(),
 		session.PendingQuestionAgent(),
+		session.LLMPreviousResponseID(),
 		createdAt,
 		updatedAt,
 	)
@@ -197,20 +198,21 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 	}
 
 	var (
-		sid                  uuid.UUID
-		tenantIDRow          uuid.UUID
-		userID               int64
-		title                string
-		status               domain.SessionStatus
-		pinned               bool
-		parentSessionID      *uuid.UUID
-		pendingQuestionAgent *string
-		createdAt            time.Time
-		updatedAt            time.Time
+		sid                   uuid.UUID
+		tenantIDRow           uuid.UUID
+		userID                int64
+		title                 string
+		status                domain.SessionStatus
+		pinned                bool
+		parentSessionID       *uuid.UUID
+		pendingQuestionAgent  *string
+		llmPreviousResponseID *string
+		createdAt             time.Time
+		updatedAt             time.Time
 	)
 	err = tx.QueryRow(ctx, selectSessionQuery, tenantID, id).Scan(
 		&sid, &tenantIDRow, &userID, &title, &status, &pinned,
-		&parentSessionID, &pendingQuestionAgent, &createdAt, &updatedAt,
+		&parentSessionID, &pendingQuestionAgent, &llmPreviousResponseID, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -235,6 +237,9 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 	if pendingQuestionAgent != nil {
 		opts = append(opts, domain.WithPendingQuestionAgent(*pendingQuestionAgent))
 	}
+	if llmPreviousResponseID != nil {
+		opts = append(opts, domain.WithLLMPreviousResponseID(*llmPreviousResponseID))
+	}
 	return domain.NewSession(opts...), nil
 }
 
@@ -258,6 +263,7 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session doma
 		session.Pinned(),
 		session.ParentSessionID(),
 		session.PendingQuestionAgent(),
+		session.LLMPreviousResponseID(),
 		session.UpdatedAt(),
 		tenantID,
 		session.ID(),
@@ -297,20 +303,21 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 	var sessions []domain.Session
 	for rows.Next() {
 		var (
-			sid                  uuid.UUID
-			tenantIDRow          uuid.UUID
-			userIDRow            int64
-			title                string
-			status               domain.SessionStatus
-			pinned               bool
-			parentSessionID      *uuid.UUID
-			pendingQuestionAgent *string
-			createdAt            time.Time
-			updatedAt            time.Time
+			sid                   uuid.UUID
+			tenantIDRow           uuid.UUID
+			userIDRow             int64
+			title                 string
+			status                domain.SessionStatus
+			pinned                bool
+			parentSessionID       *uuid.UUID
+			pendingQuestionAgent  *string
+			llmPreviousResponseID *string
+			createdAt             time.Time
+			updatedAt             time.Time
 		)
 		err := rows.Scan(
 			&sid, &tenantIDRow, &userIDRow, &title, &status, &pinned,
-			&parentSessionID, &pendingQuestionAgent, &createdAt, &updatedAt,
+			&parentSessionID, &pendingQuestionAgent, &llmPreviousResponseID, &createdAt, &updatedAt,
 		)
 		if err != nil {
 			return nil, serrors.E(op, err)
@@ -330,6 +337,9 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 		}
 		if pendingQuestionAgent != nil {
 			opts = append(opts, domain.WithPendingQuestionAgent(*pendingQuestionAgent))
+		}
+		if llmPreviousResponseID != nil {
+			opts = append(opts, domain.WithLLMPreviousResponseID(*llmPreviousResponseID))
 		}
 		sessions = append(sessions, domain.NewSession(opts...))
 	}
