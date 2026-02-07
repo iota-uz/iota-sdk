@@ -321,6 +321,22 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Buttons and button-like elements: pointer cursor; disabled: not-allowed */
+.bichat-session button,
+.bichat-session [role="button"],
+.bichat-session [role="tab"],
+bi-chat-root button,
+bi-chat-root [role="button"],
+bi-chat-root [role="tab"] {
+  cursor: pointer;
+}
+.bichat-session button:disabled,
+.bichat-session [role="button"][aria-disabled="true"],
+bi-chat-root button:disabled,
+bi-chat-root [role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Focus visible: high-contrast focus rings for keyboard navigation (WCAG 2.4.7) */
 .bichat-session button:focus-visible,
 .bichat-session a:focus-visible,
