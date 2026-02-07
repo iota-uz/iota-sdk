@@ -164,13 +164,14 @@ fix cmd="help":
   esac
 
 [group("quality")]
-[doc("Checks (lint|tr)")]
+[doc("Checks (lint|tr|applet-deps)")]
 check cmd="help":
   case "{{cmd}}" in \
     lint) golangci-lint run --build-tags {{GO_TEST_TAG}} ./... ;; \
     tr) go run cmd/command/main.go check_tr_keys ;; \
+    applet-deps) ./scripts/check-applet-sdk-deps.sh ;; \
     *) \
-      echo "Usage: just check [lint|tr]" ; \
+      echo "Usage: just check [lint|tr|applet-deps]" ; \
       exit 2 ;; \
   esac
 
@@ -373,12 +374,13 @@ dev name="":
   go run cmd/dev/main.go {{name}}
 
 [group("dev")]
-[doc("Applet commands (rpc-gen)")]
+[doc("Applet commands (rpc-gen|rpc-check)")]
 applet cmd="help" name="":
   case "{{cmd}}" in \
-    rpc-gen) ./scripts/applet/rpc-gen.sh "{{name}}" ;; \
+    rpc-gen) GOTOOLCHAIN=auto go run ./cmd/applet-rpc-contract gen --name "{{name}}" ;; \
+    rpc-check) GOTOOLCHAIN=auto go run ./cmd/applet-rpc-contract check --name "{{name}}" ;; \
     *) \
-      echo "Usage: just applet [rpc-gen <name>]" ; \
+      echo "Usage: just applet [rpc-gen <name>|rpc-check <name>]" ; \
       exit 2 ;; \
   esac
 
