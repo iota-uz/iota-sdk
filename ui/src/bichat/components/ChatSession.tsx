@@ -360,13 +360,9 @@ function ChatSessionCore({
                 role="separator"
                 aria-label={t('artifacts.resize')}
                 onMouseDown={handleArtifactsResizeStart}
-                className="flex shrink-0 cursor-col-resize touch-none flex-col items-center justify-center border-l border-gray-200/60 py-4 dark:border-gray-600/60 hover:border-gray-300 dark:hover:border-gray-500 w-2 transition-colors lg:flex group/resize"
+                className="relative flex shrink-0 cursor-col-resize touch-none items-center justify-center w-2 transition-colors lg:flex group/resize after:absolute after:inset-y-0 after:left-0 after:w-0.5 after:bg-gray-300 dark:after:bg-gray-600 after:transition-colors group-hover/resize:after:bg-primary-400 dark:group-hover/resize:after:bg-primary-500"
               >
-                <div className="flex cursor-col-resize flex-col items-center gap-0.5">
-                  <span className="h-0.5 w-1 rounded-full bg-gray-400/70 group-hover/resize:bg-gray-500 dark:bg-gray-500/70 dark:group-hover/resize:bg-gray-400" />
-                  <span className="h-0.5 w-1 rounded-full bg-gray-400/70 group-hover/resize:bg-gray-500 dark:bg-gray-500/70 dark:group-hover/resize:bg-gray-400" />
-                  <span className="h-0.5 w-1 rounded-full bg-gray-400/70 group-hover/resize:bg-gray-500 dark:bg-gray-500/70 dark:group-hover/resize:bg-gray-400" />
-                </div>
+                <span className="absolute h-10 w-1.5 cursor-col-resize rounded-full bg-gray-400 transition-colors group-hover/resize:bg-primary-400 dark:bg-gray-500 dark:group-hover/resize:bg-primary-500" />
               </div>
               <SessionArtifactsPanel
                 dataSource={dataSource}
