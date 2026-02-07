@@ -97,7 +97,7 @@ _compose-logs:
   docker compose -f {{DEV_COMPOSE_FILE}} logs -f
 
 [group("db")]
-[doc("Database commands (local|stop|clean|reset|seed|migrate)")]
+[doc("Database commands (local|stop|clean|reset|seed|migrate|status)")]
 db cmd="help" direction="":
   case "{{cmd}}" in \
     local) just _db-local ;; \
@@ -106,8 +106,9 @@ db cmd="help" direction="":
     reset) just _db-reset ;; \
     seed) just _db-seed ;; \
     migrate) just _db-migrate {{direction}} ;; \
+    status) just _db-migrate status ;; \
     *) \
-      echo "Usage: just db [local|stop|clean|reset|seed|migrate] [up|down|redo|collect]" ; \
+      echo "Usage: just db [local|stop|clean|reset|seed|migrate|status] [for migrate: up|down|redo|status]" ; \
       exit 2 ;; \
   esac
 
@@ -210,19 +211,20 @@ css-clean:
   rm -rf {{TAILWIND_OUTPUT}}
 
 [group("e2e")]
-[doc("E2E commands (test|reset|seed|migrate|run|ci|dev|clean)")]
+[doc("E2E commands (test|reset|seed|migrate|status|run|ci|dev|clean)")]
 e2e cmd="help" direction="":
   case "{{cmd}}" in \
     test) just _e2e-test ;; \
     reset) just _e2e-reset ;; \
     seed) just _e2e-seed ;; \
     migrate) just _e2e-migrate {{direction}} ;; \
+    status) just _e2e-migrate status ;; \
     run) just _e2e-run ;; \
     ci) just _e2e-ci ;; \
     dev) just _e2e-dev ;; \
     clean) just _e2e-clean ;; \
     *) \
-      echo "Usage: just e2e [test|reset|seed|migrate|run|ci|dev|clean] [up|down|redo|collect]" ; \
+      echo "Usage: just e2e [test|reset|seed|migrate|status|run|ci|dev|clean] [for migrate: up|down|redo|status]" ; \
       exit 2 ;; \
   esac
 
