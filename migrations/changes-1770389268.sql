@@ -83,6 +83,21 @@ COMMENT ON COLUMN bichat.validated_queries.data_quality_notes IS 'Optional: Know
 COMMENT ON COLUMN bichat.validated_queries.used_count IS 'Track how often this query pattern has been reused';
 COMMENT ON COLUMN bichat.validated_queries.sql_hash IS 'MD5 hash of SQL for deduplication';
 
+-- ========================================
+-- Sessions & Checkpoints (response chain)
+-- ========================================
+ALTER TABLE bichat.sessions
+    ADD COLUMN IF NOT EXISTS llm_previous_response_id varchar(255);
+
+ALTER TABLE bichat.checkpoints
+    ADD COLUMN IF NOT EXISTS previous_response_id varchar(255);
+
 -- +migrate Down
+ALTER TABLE bichat.checkpoints
+    DROP COLUMN IF EXISTS previous_response_id;
+
+ALTER TABLE bichat.sessions
+    DROP COLUMN IF EXISTS llm_previous_response_id;
+
 DROP TABLE IF EXISTS bichat.validated_queries CASCADE;
 DROP TABLE IF EXISTS bichat.learnings CASCADE;
