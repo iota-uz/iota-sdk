@@ -171,7 +171,7 @@ export function SessionArtifactsPanel({
               <button
                 type="button"
                 onClick={() => setSelectedArtifactId(null)}
-                className="inline-flex items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-gray-700 transition-colors hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 dark:text-gray-300 dark:hover:text-gray-100"
+                className="cursor-pointer inline-flex items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-gray-700 transition-colors hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 dark:text-gray-300 dark:hover:text-gray-100"
               >
                 <CaretLeft className="h-4 w-4" weight="bold" />
                 {t('artifacts.back')}
@@ -189,7 +189,7 @@ export function SessionArtifactsPanel({
               void fetchArtifacts({ reset: true, manual: true })
             }}
             disabled={fetching || refreshing || loadingMore || !canFetchArtifacts}
-            className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="cursor-pointer inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
             title={t('artifacts.refresh')}
             aria-label={t('artifacts.refresh')}
           >
@@ -212,7 +212,7 @@ export function SessionArtifactsPanel({
                 onClick={() => {
                   void fetchArtifacts({ reset: true, manual: true })
                 }}
-                className="rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/40"
+                className="cursor-pointer rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/40"
               >
                 {t('alert.retry')}
               </button>
@@ -239,7 +239,7 @@ export function SessionArtifactsPanel({
                       void fetchArtifacts({ reset: false, manual: true })
                     }}
                     disabled={loadingMore || refreshing || fetching}
-                    className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    className="cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                   >
                     {loadingMore ? t('artifacts.loadingMore') : t('artifacts.loadMore')}
                   </button>

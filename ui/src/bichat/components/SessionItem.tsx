@@ -205,7 +205,7 @@ const SessionItem = memo<SessionItemProps>(
                               e.stopPropagation()
                               onPin()
                             }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 transition-smooth ${
+                            className={`cursor-pointer flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 transition-smooth ${
                               focus
                                 ? 'bg-gray-100 dark:bg-gray-800/70 ring-1 ring-gray-200/80 dark:ring-gray-700/80'
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -233,7 +233,7 @@ const SessionItem = memo<SessionItemProps>(
                               editableTitleRef.current?.startEditing()
                               close()
                             }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 transition-smooth ${
+                            className={`cursor-pointer flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 transition-smooth ${
                               focus
                                 ? 'bg-gray-100 dark:bg-gray-800/70 ring-1 ring-gray-200/80 dark:ring-gray-700/80'
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -257,7 +257,7 @@ const SessionItem = memo<SessionItemProps>(
                               onRegenerateTitle()
                               close()
                             }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 transition-smooth ${
+                            className={`cursor-pointer flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 transition-smooth ${
                               focus
                                 ? 'bg-gray-100 dark:bg-gray-800/70 ring-1 ring-gray-200/80 dark:ring-gray-700/80'
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -280,7 +280,7 @@ const SessionItem = memo<SessionItemProps>(
                               e.stopPropagation()
                               onRestore()
                             }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-smooth ${
+                            className={`cursor-pointer flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-smooth ${
                               focus
                                 ? 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 ring-1 ring-green-200/70 dark:ring-green-500/30'
                                 : 'text-green-700 dark:text-green-300 hover:bg-green-50/70 dark:hover:bg-green-900/10'
@@ -303,7 +303,7 @@ const SessionItem = memo<SessionItemProps>(
                               e.stopPropagation()
                               onArchive()
                             }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-smooth ${
+                            className={`cursor-pointer flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-smooth ${
                               focus
                                 ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 ring-1 ring-amber-200/70 dark:ring-amber-500/30'
                                 : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50/70 dark:hover:bg-amber-900/10'
@@ -326,7 +326,7 @@ const SessionItem = memo<SessionItemProps>(
                               e.stopPropagation()
                               onDelete()
                             }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-smooth ${
+                            className={`cursor-pointer flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-smooth ${
                               focus
                                 ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200/70 dark:ring-red-500/30'
                                 : 'text-red-600 dark:text-red-400 hover:bg-red-50/70 dark:hover:bg-red-900/10'

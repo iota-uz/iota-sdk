@@ -186,7 +186,7 @@ export function SessionArtifactList({
                   key={artifact.id}
                   type="button"
                   onClick={() => onSelect(artifact)}
-                  className={`group/item w-full rounded-lg border px-3 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 ${
+                  className={`cursor-pointer group/item w-full rounded-lg border px-3 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 ${
                     isSelected
                       ? 'border-primary-200 bg-primary-50/80 shadow-sm dark:border-primary-800/60 dark:bg-primary-950/40'
                       : 'border-transparent bg-white hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm dark:bg-gray-900 dark:hover:border-gray-700/80 dark:hover:bg-gray-800/60'

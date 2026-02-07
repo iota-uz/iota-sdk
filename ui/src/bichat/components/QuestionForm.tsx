@@ -107,7 +107,7 @@ export default function QuestionForm({
             <button
               onClick={onCancel}
               disabled={isSubmitting}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
+              className="cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
               aria-label={t('common.close')}
             >
               <X className="w-6 h-6" />
@@ -156,7 +156,7 @@ export default function QuestionForm({
             <button
               onClick={handleBack}
               disabled={isSubmitting}
-              className="px-6 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 font-medium transition-colors"
+              className="cursor-pointer px-6 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 font-medium transition-colors"
             >
               {t('questionForm.back')}
             </button>
@@ -170,7 +170,7 @@ export default function QuestionForm({
               <button
                 onClick={onCancel}
                 disabled={isSubmitting}
-                className="px-6 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 font-medium transition-colors"
+                className="cursor-pointer px-6 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 font-medium transition-colors"
               >
                 {t('message.cancel')}
               </button>
@@ -179,7 +179,7 @@ export default function QuestionForm({
               <button
                 onClick={handleSubmitAnswers}
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                className="cursor-pointer px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
               >
                 {isSubmitting && <LoadingSpinner size="sm" />}
                 {isSubmitting ? t('questionForm.submitting') : t('questionForm.confirm')}
@@ -190,7 +190,7 @@ export default function QuestionForm({
             <button
               onClick={handleNext}
               disabled={!currentQuestionAnswered || isSubmitting}
-              className="px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+              className="cursor-pointer px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
               {t('questionForm.next')}
             </button>

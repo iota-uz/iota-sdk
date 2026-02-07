@@ -348,14 +348,14 @@ export function UserMessage({
                     <button
                       type="button"
                       onClick={handleEditCancel}
-                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm font-medium"
+                      className="cursor-pointer px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm font-medium"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handleEditSave}
-                      className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/25 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="cursor-pointer px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/25 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!draftContent.trim() || draftContent === turn.content}
                     >
                       Save

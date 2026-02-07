@@ -321,7 +321,11 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Buttons and button-like elements: pointer cursor; disabled: not-allowed */
+/* Buttons and button-like elements: pointer cursor; disabled: not-allowed
+   :host is required when styles are injected into the applet shadow root (bi-chat-root) */
+:host button,
+:host [role="button"],
+:host [role="tab"],
 .bichat-session button,
 .bichat-session [role="button"],
 .bichat-session [role="tab"],
@@ -330,6 +334,8 @@ bi-chat-root [role="button"],
 bi-chat-root [role="tab"] {
   cursor: pointer;
 }
+:host button:disabled,
+:host [role="button"][aria-disabled="true"],
 .bichat-session button:disabled,
 .bichat-session [role="button"][aria-disabled="true"],
 bi-chat-root button:disabled,

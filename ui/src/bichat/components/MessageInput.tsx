@@ -380,7 +380,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                   setError(null)
                   onClearCommandError?.()
                 }}
-                className="ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded transition-colors"
+                className="cursor-pointer ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded transition-colors"
                 aria-label={t('input.dismissError')}
               >
                 <X size={14} />

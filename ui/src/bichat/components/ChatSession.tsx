@@ -388,7 +388,7 @@ function ChatSessionCore({
             >
               <motion.button
                 type="button"
-                className="flex-1 bg-black/40"
+                className="cursor-pointer flex-1 bg-black/40"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}

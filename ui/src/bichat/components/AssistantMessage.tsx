@@ -400,7 +400,7 @@ export function AssistantMessage({
                     <button
                       type="button"
                       onClick={() => setExplanationExpanded(!explanationExpanded)}
-                      className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded-md p-1 -m-1"
+                      className="cursor-pointer flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded-md p-1 -m-1"
                       aria-expanded={explanationExpanded}
                     >
                       <svg

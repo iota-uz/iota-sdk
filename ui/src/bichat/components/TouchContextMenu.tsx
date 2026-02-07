@@ -153,7 +153,7 @@ export const TouchContextMenu: FC<TouchContextMenuProps> = ({
                     text-left text-sm font-medium transition-colors
                     ${item.disabled
                       ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600'}
+                      : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600'}
                     ${item.variant === 'danger'
                       ? 'text-red-600 dark:text-red-400'
                       : 'text-gray-900 dark:text-gray-100'}
