@@ -95,6 +95,7 @@ type AssistantTurn struct {
 	Explanation string       `json:"explanation,omitempty"`
 	Citations   []Citation   `json:"citations"`
 	ToolCalls   []ToolCall   `json:"toolCalls,omitempty"`
+	Debug       *DebugTrace  `json:"debug,omitempty"`
 	Artifacts   []any        `json:"artifacts"` // kept for UI compatibility; populated via separate RPC call
 	CodeOutputs []CodeOutput `json:"codeOutputs"`
 	CreatedAt   string       `json:"createdAt"`
@@ -107,6 +108,29 @@ type ToolCall struct {
 	Result     string `json:"result,omitempty"`
 	Error      string `json:"error,omitempty"`
 	DurationMs int64  `json:"durationMs,omitempty"`
+}
+
+type DebugUsage struct {
+	PromptTokens     int     `json:"promptTokens"`
+	CompletionTokens int     `json:"completionTokens"`
+	TotalTokens      int     `json:"totalTokens"`
+	CachedTokens     int     `json:"cachedTokens"`
+	Cost             float64 `json:"cost"`
+}
+
+type DebugToolCall struct {
+	CallID     string `json:"callId,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Arguments  string `json:"arguments,omitempty"`
+	Result     string `json:"result,omitempty"`
+	Error      string `json:"error,omitempty"`
+	DurationMs int64  `json:"durationMs,omitempty"`
+}
+
+type DebugTrace struct {
+	Usage        *DebugUsage     `json:"usage,omitempty"`
+	GenerationMs int64           `json:"generationMs,omitempty"`
+	Tools        []DebugToolCall `json:"tools,omitempty"`
 }
 
 type ConversationTurn struct {
@@ -258,6 +282,7 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 					Content:     m.Content(),
 					Citations:   mapCitations(m.Citations()),
 					ToolCalls:   mapToolCalls(m.ToolCalls()),
+					Debug:       mapDebugTrace(m.DebugTrace()),
 					Artifacts:   []any{},
 					CodeOutputs: mapCodeOutputs(m.CodeOutputs()),
 					CreatedAt:   m.CreatedAt().Format(time.RFC3339),
@@ -275,6 +300,7 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 				Content:     m.Content(),
 				Citations:   mapCitations(m.Citations()),
 				ToolCalls:   mapToolCalls(m.ToolCalls()),
+				Debug:       mapDebugTrace(m.DebugTrace()),
 				Artifacts:   []any{},
 				CodeOutputs: mapCodeOutputs(m.CodeOutputs()),
 				CreatedAt:   m.CreatedAt().Format(time.RFC3339),
@@ -339,6 +365,41 @@ func mapToolCalls(in []types.ToolCall) []ToolCall {
 	}
 
 	return out
+}
+
+func mapDebugTrace(trace *types.DebugTrace) *DebugTrace {
+	if trace == nil {
+		return nil
+	}
+
+	var usage *DebugUsage
+	if trace.Usage != nil {
+		usage = &DebugUsage{
+			PromptTokens:     trace.Usage.PromptTokens,
+			CompletionTokens: trace.Usage.CompletionTokens,
+			TotalTokens:      trace.Usage.TotalTokens,
+			CachedTokens:     trace.Usage.CachedTokens,
+			Cost:             trace.Usage.Cost,
+		}
+	}
+
+	tools := make([]DebugToolCall, 0, len(trace.Tools))
+	for _, tool := range trace.Tools {
+		tools = append(tools, DebugToolCall{
+			CallID:     tool.CallID,
+			Name:       tool.Name,
+			Arguments:  tool.Arguments,
+			Result:     tool.Result,
+			Error:      tool.Error,
+			DurationMs: tool.DurationMs,
+		})
+	}
+
+	return &DebugTrace{
+		Usage:        usage,
+		GenerationMs: trace.GenerationMs,
+		Tools:        tools,
+	}
 }
 
 func mapCodeOutputs(in []types.CodeInterpreterOutput) []CodeOutput {

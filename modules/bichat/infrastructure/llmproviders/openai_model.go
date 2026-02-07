@@ -211,18 +211,23 @@ func (m *OpenAIModel) Info() agents.ModelInfo {
 }
 
 func contextWindowForModel(modelName string) int {
-	switch {
-	case strings.HasPrefix(modelName, "gpt-5.2"):
+	normalizedModelName := strings.ToLower(strings.TrimSpace(modelName))
+
+	if strings.HasPrefix(normalizedModelName, "gpt-5.2") {
 		return 272000
-	case modelName == "gpt-4o":
-		return 128000
-	case modelName == "gpt-4o-mini":
-		return 128000
-	case modelName == "gpt-4-turbo":
-		return 128000
-	default:
-		return 0
 	}
+
+	modelContextWindows := map[string]int{
+		"gpt-4o":      128000,
+		"gpt-4o-mini": 128000,
+		"gpt-4-turbo": 128000,
+	}
+
+	if contextWindow, ok := modelContextWindows[normalizedModelName]; ok {
+		return contextWindow
+	}
+
+	return 0
 }
 
 // HasCapability checks if this model supports a specific capability.

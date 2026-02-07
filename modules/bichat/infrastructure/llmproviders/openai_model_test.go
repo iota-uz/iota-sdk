@@ -83,6 +83,28 @@ func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
 	assert.Equal(t, 272000, info.ContextWindow)
 }
 
+func TestContextWindowForModel_GPT52Variants(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		modelName string
+		expected  int
+	}{
+		{name: "canonical", modelName: "gpt-5.2-2025-12-11", expected: 272000},
+		{name: "family alias", modelName: "gpt-5.2", expected: 272000},
+		{name: "uppercase with spaces", modelName: " GPT-5.2-2025-12-11 ", expected: 272000},
+		{name: "gpt4o uppercase", modelName: " GPT-4O ", expected: 128000},
+		{name: "unknown", modelName: "unknown-model", expected: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, contextWindowForModel(tt.modelName))
+		})
+	}
+}
+
 func TestOpenAIModel_HasCapability(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()

@@ -23,9 +23,25 @@ export function injectMockContext(): void {
         rpcUIEndpoint: '/bi-chat/rpc',
         shellMode: 'standalone',
       },
+      route: {
+        path: '/',
+        params: {},
+        query: {},
+      },
+      session: {
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        refreshURL: '/auth/refresh',
+        csrfToken: 'dev-csrf-token',
+      },
+      error: null,
       extensions: {
         debug: {
-          contextWindow: 272000,
+          limits: {
+            policyMaxTokens: 180000,
+            modelMaxTokens: 272000,
+            effectiveMaxTokens: 180000,
+            completionReserveTokens: 8000,
+          },
         },
       },
     }

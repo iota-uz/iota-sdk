@@ -382,7 +382,7 @@ func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
 				if cachedTokens == 0 {
 					cachedTokens = usage.CacheReadTokens
 				}
-				event.Usage = &services.TokenUsage{
+				event.Usage = &types.DebugUsage{
 					PromptTokens:     usage.PromptTokens,
 					CompletionTokens: usage.CompletionTokens,
 					TotalTokens:      usage.TotalTokens,

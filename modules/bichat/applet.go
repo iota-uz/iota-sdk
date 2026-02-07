@@ -221,7 +221,12 @@ func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
 //	    "multiAgent": false
 //	  },
 //	  "debug": {
-//	    "contextWindow": 180000
+//	    "limits": {
+//	      "policyMaxTokens": 180000,
+//	      "modelMaxTokens": 272000,
+//	      "effectiveMaxTokens": 180000,
+//	      "completionReserveTokens": 8000
+//	    }
 //	  }
 //	}
 func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]interface{}, error) {
@@ -234,8 +239,13 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 				"codeInterpreter": false,
 				"multiAgent":      false,
 			},
-			"debug": map[string]int{
-				"contextWindow": 0,
+			"debug": map[string]interface{}{
+				"limits": map[string]int{
+					"policyMaxTokens":         0,
+					"modelMaxTokens":          0,
+					"effectiveMaxTokens":      0,
+					"completionReserveTokens": 0,
+				},
 			},
 		}, nil
 	}
@@ -248,18 +258,37 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 		"multiAgent":      a.config.EnableMultiAgent,
 	}
 
-	contextWindow := a.config.ContextPolicy.ContextWindow
+	policyMax := a.config.ContextPolicy.ContextWindow
+	modelMax := 0
 	if a.config.Model != nil {
-		modelWindow := a.config.Model.Info().ContextWindow
-		if modelWindow > 0 {
-			contextWindow = modelWindow
+		modelMax = a.config.Model.Info().ContextWindow
+	}
+
+	effectiveMax := 0
+	switch {
+	case policyMax > 0 && modelMax > 0:
+		if policyMax < modelMax {
+			effectiveMax = policyMax
+		} else {
+			effectiveMax = modelMax
 		}
+	case policyMax > 0:
+		effectiveMax = policyMax
+	case modelMax > 0:
+		effectiveMax = modelMax
+	}
+
+	limits := map[string]int{
+		"policyMaxTokens":         policyMax,
+		"modelMaxTokens":          modelMax,
+		"effectiveMaxTokens":      effectiveMax,
+		"completionReserveTokens": a.config.ContextPolicy.CompletionReserve,
 	}
 
 	return map[string]interface{}{
 		"features": features,
-		"debug": map[string]int{
-			"contextWindow": contextWindow,
+		"debug": map[string]interface{}{
+			"limits": limits,
 		},
 	}, nil
 }

@@ -507,6 +507,66 @@ func TestPostgresChatRepository_SaveMessage_WithCitations(t *testing.T) {
 	assert.Equal(t, "Documentation", retrieved.Citations()[1].Title)
 }
 
+func TestPostgresChatRepository_SaveMessage_WithDebugTrace(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle("Debug Trace Test"),
+	)
+	err := repo.CreateSession(env.Ctx, session)
+	require.NoError(t, err)
+
+	trace := &types.DebugTrace{
+		Usage: &types.DebugUsage{
+			PromptTokens:     120,
+			CompletionTokens: 45,
+			TotalTokens:      165,
+			CachedTokens:     30,
+			Cost:             0.002,
+		},
+		GenerationMs: 987,
+		Tools: []types.DebugToolCall{
+			{
+				CallID:     "tool_call_1",
+				Name:       "sql_execute",
+				Arguments:  `{"query":"select 1"}`,
+				Result:     `{"rows":[{"value":1}]}`,
+				DurationMs: 120,
+			},
+		},
+	}
+
+	msg := types.AssistantMessage(
+		"done",
+		types.WithSessionID(session.ID()),
+		types.WithDebugTrace(trace),
+	)
+	err = repo.SaveMessage(env.Ctx, msg)
+	require.NoError(t, err)
+
+	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
+	require.NoError(t, err)
+	require.NotNil(t, retrieved.DebugTrace())
+	require.NotNil(t, retrieved.DebugTrace().Usage)
+	assert.Equal(t, 120, retrieved.DebugTrace().Usage.PromptTokens)
+	assert.Equal(t, 45, retrieved.DebugTrace().Usage.CompletionTokens)
+	assert.Equal(t, int64(987), retrieved.DebugTrace().GenerationMs)
+	require.Len(t, retrieved.DebugTrace().Tools, 1)
+	assert.Equal(t, "tool_call_1", retrieved.DebugTrace().Tools[0].CallID)
+	assert.Equal(t, "sql_execute", retrieved.DebugTrace().Tools[0].Name)
+
+	sessionMessages, err := repo.GetSessionMessages(env.Ctx, session.ID(), domain.ListOptions{Limit: 10, Offset: 0})
+	require.NoError(t, err)
+	require.Len(t, sessionMessages, 1)
+	require.NotNil(t, sessionMessages[0].DebugTrace())
+	assert.Equal(t, int64(987), sessionMessages[0].DebugTrace().GenerationMs)
+}
+
 func TestPostgresChatRepository_SaveMessage_EmptyToolCallsAndCitations(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)

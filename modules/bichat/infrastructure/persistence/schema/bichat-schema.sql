@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS bichat.messages (
     tool_calls jsonb,
     tool_call_id varchar(255),
     citations jsonb,
+    debug_trace jsonb,
     created_at timestamptz NOT NULL DEFAULT NOW(),
     CONSTRAINT messages_role_check CHECK (role IN ('user', 'assistant', 'tool', 'system'))
 );

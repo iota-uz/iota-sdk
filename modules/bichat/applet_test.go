@@ -145,9 +145,14 @@ func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {
 	assert.False(t, features["codeInterpreter"])
 	assert.False(t, features["multiAgent"])
 
-	debug, ok := custom["debug"].(map[string]int)
+	debug, ok := custom["debug"].(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, 0, debug["contextWindow"])
+	limits, ok := debug["limits"].(map[string]int)
+	require.True(t, ok)
+	assert.Equal(t, 0, limits["policyMaxTokens"])
+	assert.Equal(t, 0, limits["modelMaxTokens"])
+	assert.Equal(t, 0, limits["effectiveMaxTokens"])
+	assert.Equal(t, 0, limits["completionReserveTokens"])
 }
 
 func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
@@ -160,7 +165,8 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 		EnableCodeInterpreter: true,
 		EnableMultiAgent:      false,
 		ContextPolicy: bichatcontext.ContextPolicy{
-			ContextWindow: 180000,
+			ContextWindow:     180000,
+			CompletionReserve: 8000,
 		},
 	}
 
@@ -181,9 +187,14 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 	assert.True(t, features["codeInterpreter"])
 	assert.False(t, features["multiAgent"])
 
-	debug, ok := custom["debug"].(map[string]int)
+	debug, ok := custom["debug"].(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, 180000, debug["contextWindow"])
+	limits, ok := debug["limits"].(map[string]int)
+	require.True(t, ok)
+	assert.Equal(t, 180000, limits["policyMaxTokens"])
+	assert.Equal(t, 0, limits["modelMaxTokens"])
+	assert.Equal(t, 180000, limits["effectiveMaxTokens"])
+	assert.Equal(t, 8000, limits["completionReserveTokens"])
 }
 
 func TestBiChatApplet_SetConfig(t *testing.T) {
@@ -210,7 +221,7 @@ func TestBiChatApplet_SetConfig(t *testing.T) {
 	assert.True(t, features["vision"])
 }
 
-func TestBiChatApplet_buildCustomContext_UsesModelContextWindowWhenAvailable(t *testing.T) {
+func TestBiChatApplet_buildCustomContext_UsesEffectiveContextWindow(t *testing.T) {
 	t.Parallel()
 
 	config := &ModuleConfig{
@@ -224,9 +235,13 @@ func TestBiChatApplet_buildCustomContext_UsesModelContextWindowWhenAvailable(t *
 	custom, err := bichatApplet.buildCustomContext(context.Background())
 	require.NoError(t, err)
 
-	debug, ok := custom["debug"].(map[string]int)
+	debug, ok := custom["debug"].(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, 272000, debug["contextWindow"])
+	limits, ok := debug["limits"].(map[string]int)
+	require.True(t, ok)
+	assert.Equal(t, 180000, limits["effectiveMaxTokens"])
+	assert.Equal(t, 180000, limits["policyMaxTokens"])
+	assert.Equal(t, 272000, limits["modelMaxTokens"])
 }
 
 func TestModuleConfig_FeatureFlagOptions(t *testing.T) {

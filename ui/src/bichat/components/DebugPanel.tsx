@@ -23,16 +23,16 @@ import {
 } from '@phosphor-icons/react'
 import type { DebugTrace, StreamToolPayload } from '../types'
 import { hasMeaningfulUsage, hasDebugTrace } from '../utils/debugTrace'
+import {
+  calculateCompletionTokensPerSecond,
+  formatDuration,
+  formatGenerationDuration,
+} from '../utils/debugMetrics'
 import { useTranslation } from '../hooks/useTranslation'
 
 export interface DebugPanelProps {
   trace?: DebugTrace
 }
-
-// ─── Helpers ────────────────────────────────────────────────
-
-const formatDuration = (ms: number): string =>
-  ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`
 
 // ─── CopyPill ───────────────────────────────────────────────
 
@@ -268,23 +268,19 @@ export function DebugPanel({ trace }: DebugPanelProps) {
   const { t } = useTranslation()
   const hasData = !!trace && hasDebugTrace(trace)
 
-  const tokensPerSecond = (() => {
-    if (!trace?.generationMs || trace.generationMs <= 0 || !trace.usage) return null
-    const out = trace.usage.completionTokens > 0 ? trace.usage.completionTokens : trace.usage.totalTokens
-    return out > 0 ? out / (trace.generationMs / 1000) : null
-  })()
+  const tokensPerSecond = calculateCompletionTokensPerSecond(trace?.usage, trace?.generationMs)
 
   // Build metric list from available data
   const metrics: MetricCardProps[] = []
 
   if (hasData && trace) {
     if (trace.generationMs !== undefined) {
-      metrics.push({
-        icon: <Timer size={14} weight="duotone" className="text-amber-600 dark:text-amber-400" />,
-        value: formatDuration(trace.generationMs),
-        label: t('slash.debugGeneration'),
-        accentBorder: 'border-l-amber-400 dark:border-l-amber-500',
-        accentBg: 'bg-amber-50 dark:bg-amber-950/30',
+        metrics.push({
+          icon: <Timer size={14} weight="duotone" className="text-amber-600 dark:text-amber-400" />,
+          value: formatGenerationDuration(trace.generationMs),
+          label: t('slash.debugGeneration'),
+          accentBorder: 'border-l-amber-400 dark:border-l-amber-500',
+          accentBg: 'bg-amber-50 dark:bg-amber-950/30',
       })
     }
     if (tokensPerSecond !== null) {

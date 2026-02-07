@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/httpdto"
 )
 
@@ -51,7 +51,7 @@ type StreamSinks struct {
 
 type StreamResult struct {
 	StreamedContent string
-	Usage           *services.TokenUsage
+	Usage           *types.DebugUsage
 	Citations       []domain.Citation
 	ErrorPayload    *httpdto.StreamChunkPayload
 	SawDone         bool

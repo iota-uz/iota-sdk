@@ -261,13 +261,13 @@ export interface StreamChunk {
   content?: string
   error?: string
   sessionId?: string
-  usage?: TokenUsage
+  usage?: DebugUsage
   tool?: StreamToolPayload
   generationMs?: number
   timestamp?: number
 }
 
-export interface TokenUsage {
+export interface DebugUsage {
   promptTokens: number
   completionTokens: number
   totalTokens: number
@@ -286,8 +286,15 @@ export interface StreamToolPayload {
 
 export interface DebugTrace {
   generationMs?: number
-  usage?: TokenUsage
+  usage?: DebugUsage
   tools: StreamToolPayload[]
+}
+
+export interface DebugLimits {
+  policyMaxTokens: number
+  modelMaxTokens: number
+  effectiveMaxTokens: number
+  completionReserveTokens: number
 }
 
 export interface SessionDebugUsage {
@@ -408,7 +415,7 @@ export interface ChatSessionStateValue {
   error: string | null
   debugMode: boolean
   sessionDebugUsage: SessionDebugUsage
-  modelContextWindow: number | null
+  debugLimits: DebugLimits | null
   setError: (error: string | null) => void
 }
 

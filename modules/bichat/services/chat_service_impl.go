@@ -261,6 +261,7 @@ func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID u
 // SendMessage sends a message to a session and processes it with the agent.
 func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.SendMessageRequest) (*bichatservices.SendMessageResponse, error) {
 	const op serrors.Op = "chatServiceImpl.SendMessage"
+	startedAt := time.Now()
 
 	// Get session
 	session, err := s.chatRepo.GetSession(ctx, req.SessionID)
@@ -308,6 +309,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	toolOrder := make([]string, 0)
 	var interrupt *bichatservices.Interrupt
 	var providerResponseID *string
+	var finalUsage *types.DebugUsage
 
 	for {
 		event, err := gen.Next(processCtx)
@@ -345,7 +347,14 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 			}
 		case bichatservices.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
-		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage, bichatservices.EventTypeError:
+			if event.Usage != nil {
+				finalUsage = event.Usage
+			}
+		case bichatservices.EventTypeUsage:
+			if event.Usage != nil {
+				finalUsage = event.Usage
+			}
+		case bichatservices.EventTypeCitation, bichatservices.EventTypeError:
 			// no-op in this handler
 		}
 	}
@@ -362,8 +371,12 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 
 	// Create and save assistant message
 	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
-	if savedToolCalls := orderedToolCalls(toolCalls, toolOrder); len(savedToolCalls) > 0 {
+	savedToolCalls := orderedToolCalls(toolCalls, toolOrder)
+	if len(savedToolCalls) > 0 {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
+	}
+	if debugTrace := buildDebugTrace(savedToolCalls, finalUsage, time.Since(startedAt).Milliseconds()); debugTrace != nil {
+		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 	}
 	assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
 
@@ -440,6 +453,8 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	toolCalls := make(map[string]types.ToolCall)
 	toolOrder := make([]string, 0)
 	var providerResponseID *string
+	var finalUsage *types.DebugUsage
+	var generationMs int64
 
 	for {
 		event, err := gen.Next(processCtx)
@@ -500,6 +515,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		case bichatservices.EventTypeUsage:
 			if event.Usage != nil {
+				finalUsage = event.Usage
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeUsage,
 					Usage:     event.Usage,
@@ -510,16 +526,18 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		case bichatservices.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
 			if event.Usage != nil {
+				finalUsage = event.Usage
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeUsage,
 					Usage:     event.Usage,
 					Timestamp: time.Now(),
 				})
 			}
+			generationMs = time.Since(startedAt).Milliseconds()
 			// Send done chunk
 			onChunk(bichatservices.StreamChunk{
 				Type:         bichatservices.ChunkTypeDone,
-				GenerationMs: time.Since(startedAt).Milliseconds(),
+				GenerationMs: generationMs,
 				Timestamp:    time.Now(),
 			})
 		case bichatservices.EventTypeError:
@@ -536,8 +554,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Save assistant message if not interrupted
 	if !interrupted {
 		assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
-		if savedToolCalls := orderedToolCalls(toolCalls, toolOrder); len(savedToolCalls) > 0 {
+		savedToolCalls := orderedToolCalls(toolCalls, toolOrder)
+		if len(savedToolCalls) > 0 {
 			assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
+		}
+		if debugTrace := buildDebugTrace(savedToolCalls, finalUsage, generationMs); debugTrace != nil {
+			assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 		}
 		assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
 
@@ -655,6 +677,30 @@ func orderedToolCalls(toolCalls map[string]types.ToolCall, toolOrder []string) [
 	return result
 }
 
+func buildDebugTrace(toolCalls []types.ToolCall, usage *types.DebugUsage, generationMs int64) *types.DebugTrace {
+	debugTools := make([]types.DebugToolCall, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		debugTools = append(debugTools, types.DebugToolCall{
+			CallID:     toolCall.ID,
+			Name:       toolCall.Name,
+			Arguments:  toolCall.Arguments,
+			Result:     toolCall.Result,
+			Error:      toolCall.Error,
+			DurationMs: toolCall.DurationMs,
+		})
+	}
+
+	if usage == nil && generationMs <= 0 && len(debugTools) == 0 {
+		return nil
+	}
+
+	return &types.DebugTrace{
+		Usage:        usage,
+		GenerationMs: generationMs,
+		Tools:        debugTools,
+	}
+}
+
 func optionalStringPtr(value string) *string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -678,6 +724,7 @@ func (s *chatServiceImpl) GetSessionMessages(ctx context.Context, sessionID uuid
 // ResumeWithAnswer resumes execution after user answers questions (HITL).
 func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservices.ResumeRequest) (*bichatservices.SendMessageResponse, error) {
 	const op serrors.Op = "chatServiceImpl.ResumeWithAnswer"
+	startedAt := time.Now()
 
 	// Get session
 	session, err := s.chatRepo.GetSession(ctx, req.SessionID)
@@ -703,6 +750,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	toolCalls := make(map[string]types.ToolCall)
 	toolOrder := make([]string, 0)
 	var providerResponseID *string
+	var finalUsage *types.DebugUsage
 
 	for {
 		event, err := gen.Next(ctx)
@@ -720,7 +768,14 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 		case bichatservices.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
-		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage,
+			if event.Usage != nil {
+				finalUsage = event.Usage
+			}
+		case bichatservices.EventTypeUsage:
+			if event.Usage != nil {
+				finalUsage = event.Usage
+			}
+		case bichatservices.EventTypeCitation,
 			bichatservices.EventTypeInterrupt, bichatservices.EventTypeError:
 			// no-op for resume
 		}
@@ -728,8 +783,12 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 
 	// Create and save assistant message
 	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
-	if savedToolCalls := orderedToolCalls(toolCalls, toolOrder); len(savedToolCalls) > 0 {
+	savedToolCalls := orderedToolCalls(toolCalls, toolOrder)
+	if len(savedToolCalls) > 0 {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
+	}
+	if debugTrace := buildDebugTrace(savedToolCalls, finalUsage, time.Since(startedAt).Milliseconds()); debugTrace != nil {
+		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 	}
 	assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
 

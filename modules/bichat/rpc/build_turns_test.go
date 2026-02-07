@@ -77,3 +77,47 @@ func TestBuildTurns_MixedHistoryKeepsSystemTurn(t *testing.T) {
 	assert.Equal(t, "u2", turns[2].UserTurn.Content)
 	assert.Equal(t, "assistant", turns[2].AssistantTurn.Role)
 }
+
+func TestBuildTurns_AssistantDebugTraceMapped(t *testing.T) {
+	t.Parallel()
+
+	sessionID := uuid.New()
+	base := time.Date(2026, 2, 6, 10, 0, 0, 0, time.UTC)
+	msgs := []types.Message{
+		types.UserMessage("question", types.WithSessionID(sessionID), types.WithCreatedAt(base)),
+		types.AssistantMessage(
+			"answer",
+			types.WithSessionID(sessionID),
+			types.WithCreatedAt(base.Add(time.Second)),
+			types.WithDebugTrace(&types.DebugTrace{
+				Usage: &types.DebugUsage{
+					PromptTokens:     100,
+					CompletionTokens: 35,
+					TotalTokens:      135,
+					CachedTokens:     20,
+				},
+				GenerationMs: 1200,
+				Tools: []types.DebugToolCall{
+					{
+						CallID:     "call_1",
+						Name:       "sql_execute",
+						Arguments:  `{"query":"select 1"}`,
+						Result:     `{"rows":[{"value":1}]}`,
+						DurationMs: 80,
+					},
+				},
+			}),
+		),
+	}
+
+	turns := buildTurns(msgs)
+	require.Len(t, turns, 1)
+	require.NotNil(t, turns[0].AssistantTurn)
+	require.NotNil(t, turns[0].AssistantTurn.Debug)
+	require.NotNil(t, turns[0].AssistantTurn.Debug.Usage)
+	assert.Equal(t, 100, turns[0].AssistantTurn.Debug.Usage.PromptTokens)
+	assert.Equal(t, 35, turns[0].AssistantTurn.Debug.Usage.CompletionTokens)
+	assert.Equal(t, int64(1200), turns[0].AssistantTurn.Debug.GenerationMs)
+	require.Len(t, turns[0].AssistantTurn.Debug.Tools, 1)
+	assert.Equal(t, "call_1", turns[0].AssistantTurn.Debug.Tools[0].CallID)
+}

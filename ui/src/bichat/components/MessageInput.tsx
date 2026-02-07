@@ -8,7 +8,8 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo }
 import { Paperclip, PaperPlaneRight, X, Bug, ArrowUp, ArrowDown, Stack } from '@phosphor-icons/react'
 import AttachmentGrid from './AttachmentGrid'
 import { validateImageFile, validateFileCount, convertToBase64, createDataUrl } from '../utils/fileUtils'
-import type { ImageAttachment, QueuedMessage, SessionDebugUsage } from '../types'
+import { calculateContextUsagePercent } from '../utils/debugMetrics'
+import type { DebugLimits, ImageAttachment, QueuedMessage, SessionDebugUsage } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 
 export interface MessageInputRef {
@@ -24,7 +25,7 @@ export interface MessageInputProps {
   commandError?: string | null
   debugMode?: boolean
   debugSessionUsage?: SessionDebugUsage
-  modelContextWindow?: number | null
+  debugLimits?: DebugLimits | null
   messageQueue?: QueuedMessage[]
   onClearCommandError?: () => void
   onMessageChange: (value: string) => void
@@ -51,7 +52,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       commandError = null,
       debugMode = false,
       debugSessionUsage,
-      modelContextWindow = null,
+      debugLimits = null,
       messageQueue = [],
       onClearCommandError,
       onMessageChange,
@@ -347,10 +348,11 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const sessionPromptTokens = debugSessionUsage?.promptTokens ?? 0
     const sessionCompletionTokens = debugSessionUsage?.completionTokens ?? 0
     const hasUsage = (debugSessionUsage?.turnsWithUsage ?? 0) > 0
-    const contextPercent =
-      modelContextWindow && latestPromptTokens > 0
-        ? ((latestPromptTokens / modelContextWindow) * 100).toFixed(1)
-        : null
+    const policyMaxTokens = debugLimits?.policyMaxTokens ?? 0
+    const modelMaxTokens = debugLimits?.modelMaxTokens ?? 0
+    const effectiveMaxTokens = debugLimits?.effectiveMaxTokens ?? 0
+    const contextPercentValue = calculateContextUsagePercent(latestPromptTokens, effectiveMaxTokens)
+    const contextPercent = contextPercentValue !== null ? contextPercentValue.toFixed(1) : null
 
     return (
       <div
@@ -400,93 +402,110 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               {/* Stats container */}
               <div className="rounded-xl border border-gray-200/60 dark:border-gray-700/40 bg-gray-50/50 dark:bg-gray-800/30 p-3 space-y-3">
                 {hasUsage ? (
-                  <>
-                    {/* Token stats — 3-column mini card grid */}
-                    <div className="grid grid-cols-3 gap-1.5">
-                      <div className="flex flex-col items-center gap-1 py-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
-                        <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
-                          <ArrowUp size={10} weight="bold" className="text-blue-500 dark:text-blue-400" />
-                          {t('slash.debugPromptTokens')}
-                        </div>
-                        <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
-                          {formatTokens(sessionPromptTokens)}
-                        </span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div className="flex flex-col items-center gap-1 py-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
+                      <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                        <ArrowUp size={10} weight="bold" className="text-blue-500 dark:text-blue-400" />
+                        {t('slash.debugPromptTokens')}
                       </div>
-                      <div className="flex flex-col items-center gap-1 py-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
-                        <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
-                          <ArrowDown size={10} weight="bold" className="text-indigo-500 dark:text-indigo-400" />
-                          {t('slash.debugCompletionTokens')}
-                        </div>
-                        <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
-                          {formatTokens(sessionCompletionTokens)}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-center gap-1 py-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
-                        <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
-                          <Stack size={10} weight="bold" className="text-violet-500 dark:text-violet-400" />
-                          {t('slash.debugTotalTokens')}
-                        </div>
-                        <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
-                          {formatTokens(sessionTotalTokens)}
-                        </span>
-                      </div>
+                      <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
+                        {formatTokens(sessionPromptTokens)}
+                      </span>
                     </div>
-
-                    {/* Context progress bar */}
-                    {modelContextWindow && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                            {t('slash.debugContextUsage')}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
-                              {formatTokens(latestPromptTokens)} / {formatTokens(modelContextWindow)}
-                            </span>
-                            {contextPercent && (
-                              <span className={[
-                                'px-1.5 py-0.5 rounded-full text-[10px] font-semibold tabular-nums',
-                                parseFloat(contextPercent) > 75
-                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                                  : parseFloat(contextPercent) > 50
-                                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-                                  : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
-                              ].join(' ')}>
-                                {contextPercent}%
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-gray-200/80 dark:bg-gray-700/50 overflow-hidden">
-                          <div
-                            className={[
-                              'h-full rounded-full transition-all duration-700 ease-out',
-                              parseFloat(contextPercent || '0') > 75
-                                ? 'bg-gradient-to-r from-red-400 to-red-500'
-                                : parseFloat(contextPercent || '0') > 50
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500'
-                                : 'bg-gradient-to-r from-emerald-400 to-emerald-500',
-                            ].join(' ')}
-                            style={{
-                              width: contextPercent ? `${Math.min(parseFloat(contextPercent), 100)}%` : '0%',
-                            }}
-                          />
-                        </div>
+                    <div className="flex flex-col items-center gap-1 py-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
+                      <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                        <ArrowDown size={10} weight="bold" className="text-indigo-500 dark:text-indigo-400" />
+                        {t('slash.debugCompletionTokens')}
                       </div>
-                    )}
-                  </>
+                      <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
+                        {formatTokens(sessionCompletionTokens)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1 py-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
+                      <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                        <Stack size={10} weight="bold" className="text-violet-500 dark:text-violet-400" />
+                        {t('slash.debugTotalTokens')}
+                      </div>
+                      <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
+                        {formatTokens(sessionTotalTokens)}
+                      </span>
+                    </div>
+                  </div>
                 ) : (
                   <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center py-1">
                     {t('slash.debugSessionUsageUnavailable')}
                   </p>
                 )}
 
-                {/* Context window fallback (when no usage data yet) */}
-                {!hasUsage && modelContextWindow && (
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                    {t('slash.debugContextWindow')}:{' '}
-                    <span className="font-mono font-medium">{formatTokens(modelContextWindow)}</span>
-                  </p>
+                {debugLimits && (
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div className="flex flex-col gap-1 py-2 px-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                        {t('slash.debugPolicyMaxContextWindow')}
+                      </span>
+                      <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
+                        {formatTokens(policyMaxTokens)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 py-2 px-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                        {t('slash.debugModelMaxContextWindow')}
+                      </span>
+                      <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
+                        {formatTokens(modelMaxTokens)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 py-2 px-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                        {t('slash.debugEffectiveContextWindow')}
+                      </span>
+                      <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
+                        {formatTokens(effectiveMaxTokens)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {effectiveMaxTokens > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                        {t('slash.debugContextUsage')}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+                          {formatTokens(latestPromptTokens)} / {formatTokens(effectiveMaxTokens)}
+                        </span>
+                        {contextPercent && (
+                          <span className={[
+                            'px-1.5 py-0.5 rounded-full text-[10px] font-semibold tabular-nums',
+                            parseFloat(contextPercent) > 75
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                              : parseFloat(contextPercent) > 50
+                              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                              : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+                          ].join(' ')}>
+                            {contextPercent}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-gray-200/80 dark:bg-gray-700/50 overflow-hidden">
+                      <div
+                        className={[
+                          'h-full rounded-full transition-all duration-700 ease-out',
+                          parseFloat(contextPercent || '0') > 75
+                            ? 'bg-gradient-to-r from-red-400 to-red-500'
+                            : parseFloat(contextPercent || '0') > 50
+                            ? 'bg-gradient-to-r from-amber-400 to-amber-500'
+                            : 'bg-gradient-to-r from-emerald-400 to-emerald-500',
+                        ].join(' ')}
+                        style={{
+                          width: contextPercent ? `${Math.min(parseFloat(contextPercent), 100)}%` : '0%',
+                        }}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

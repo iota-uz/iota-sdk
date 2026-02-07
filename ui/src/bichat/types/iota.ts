@@ -1,31 +1,24 @@
 /**
- * Type definitions matching Go structs for server-side context
+ * BiChat context types layered on top of canonical applet-core context contracts.
  */
 
-export interface UserContext {
-  id: number
-  email: string
-  firstName: string
-  lastName: string
-  permissions: string[]
-}
+import type {
+  AppConfig as AppletAppConfig,
+  InitialContext as AppletInitialContext,
+  LocaleContext as AppletLocaleContext,
+  TenantContext as AppletTenantContext,
+  UserContext as AppletUserContext,
+} from '../../applet-core/types'
 
-export interface TenantContext {
-  id: string
-  name: string
-}
+export type UserContext = AppletUserContext
+export type TenantContext = AppletTenantContext
+export type LocaleContext = AppletLocaleContext
 
-export interface LocaleContext {
-  language: string
-  translations: Record<string, string>
-}
-
-export interface AppConfig {
+export type AppConfig = AppletAppConfig & {
   streamEndpoint: string
   basePath: string
   assetsBasePath: string
   rpcUIEndpoint: string
-  shellMode?: string
 }
 
 export interface Extensions {
@@ -63,14 +56,16 @@ export interface Extensions {
     multiAgent?: boolean
   }
   debug?: {
-    contextWindow?: number
+    limits?: {
+      policyMaxTokens: number
+      modelMaxTokens: number
+      effectiveMaxTokens: number
+      completionReserveTokens: number
+    }
   }
 }
 
-export interface IotaContext {
-  user: UserContext
-  tenant: TenantContext
-  locale: LocaleContext
+export type IotaContext = Omit<AppletInitialContext, 'config' | 'extensions'> & {
   config: AppConfig
   extensions?: Extensions
 }

@@ -33,6 +33,8 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
     inputError,
     setInputError,
     debugMode,
+    sessionDebugUsage,
+    debugLimits,
     loading,
     handleSubmit,
     sendMessage,
@@ -113,6 +115,8 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
                 commandError={inputError}
                 onClearCommandError={() => setInputError(null)}
                 debugMode={debugMode}
+                debugSessionUsage={sessionDebugUsage}
+                debugLimits={debugLimits}
                 onMessageChange={setMessage}
                 onSubmit={handleSubmit}
                 messageQueue={messageQueue}
@@ -137,6 +141,8 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
             commandError={inputError}
             onClearCommandError={() => setInputError(null)}
             debugMode={debugMode}
+            debugSessionUsage={sessionDebugUsage}
+            debugLimits={debugLimits}
             onMessageChange={setMessage}
             onSubmit={handleSubmit}
             messageQueue={messageQueue}

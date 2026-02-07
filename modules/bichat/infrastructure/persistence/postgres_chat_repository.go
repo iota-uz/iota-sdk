@@ -52,17 +52,17 @@ const (
 	// Message queries
 	insertMessageQuery = `
 		INSERT INTO bichat.messages (
-			id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			id, session_id, role, content, tool_calls, tool_call_id, citations, debug_trace, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	selectMessageQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.created_at
+		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND m.id = $2
 	`
 	selectSessionMessagesQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.created_at
+		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
@@ -400,6 +400,11 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		return serrors.E(op, err)
 	}
 
+	debugTraceJSON, err := json.Marshal(msg.DebugTrace())
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
 	createdAt := msg.CreatedAt()
 	if createdAt.IsZero() {
 		createdAt = time.Now()
@@ -413,6 +418,7 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		toolCallsJSON,
 		msg.ToolCallID(),
 		citationsJSON,
+		debugTraceJSON,
 		createdAt,
 	)
 	if err != nil {
@@ -458,14 +464,15 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	}
 
 	var (
-		msgID         uuid.UUID
-		sessionID     uuid.UUID
-		role          types.Role
-		content       string
-		toolCallsJSON []byte
-		toolCallID    *string
-		citationsJSON []byte
-		createdAt     time.Time
+		msgID          uuid.UUID
+		sessionID      uuid.UUID
+		role           types.Role
+		content        string
+		toolCallsJSON  []byte
+		toolCallID     *string
+		citationsJSON  []byte
+		debugTraceJSON []byte
+		createdAt      time.Time
 	)
 
 	err = tx.QueryRow(ctx, selectMessageQuery, tenantID, id).Scan(
@@ -476,6 +483,7 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		&toolCallsJSON,
 		&toolCallID,
 		&citationsJSON,
+		&debugTraceJSON,
 		&createdAt,
 	)
 	if err != nil {
@@ -494,6 +502,15 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	var citations []types.Citation
 	if err := json.Unmarshal(citationsJSON, &citations); err != nil {
 		return nil, serrors.E(op, err)
+	}
+
+	var debugTrace *types.DebugTrace
+	if len(debugTraceJSON) > 0 && string(debugTraceJSON) != "null" {
+		var trace types.DebugTrace
+		if err := json.Unmarshal(debugTraceJSON, &trace); err != nil {
+			return nil, serrors.E(op, err)
+		}
+		debugTrace = &trace
 	}
 
 	// Load code interpreter outputs
@@ -522,6 +539,9 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	if len(codeOutputs) > 0 {
 		opts = append(opts, types.WithCodeOutputs(codeOutputs...))
 	}
+	if debugTrace != nil {
+		opts = append(opts, types.WithDebugTrace(debugTrace))
+	}
 
 	return types.NewMessage(opts...), nil
 }
@@ -535,6 +555,7 @@ type messageData struct {
 	toolCalls  []types.ToolCall
 	toolCallID *string
 	citations  []types.Citation
+	debugTrace *types.DebugTrace
 	createdAt  time.Time
 }
 
@@ -563,14 +584,15 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 	var messagesData []messageData
 	for rows.Next() {
 		var (
-			msgID         uuid.UUID
-			sessID        uuid.UUID
-			role          types.Role
-			content       string
-			toolCallsJSON []byte
-			toolCallID    *string
-			citationsJSON []byte
-			createdAt     time.Time
+			msgID          uuid.UUID
+			sessID         uuid.UUID
+			role           types.Role
+			content        string
+			toolCallsJSON  []byte
+			toolCallID     *string
+			citationsJSON  []byte
+			debugTraceJSON []byte
+			createdAt      time.Time
 		)
 
 		err := rows.Scan(
@@ -581,6 +603,7 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			&toolCallsJSON,
 			&toolCallID,
 			&citationsJSON,
+			&debugTraceJSON,
 			&createdAt,
 		)
 		if err != nil {
@@ -598,6 +621,15 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			return nil, serrors.E(op, err)
 		}
 
+		var debugTrace *types.DebugTrace
+		if len(debugTraceJSON) > 0 && string(debugTraceJSON) != "null" {
+			var trace types.DebugTrace
+			if err := json.Unmarshal(debugTraceJSON, &trace); err != nil {
+				return nil, serrors.E(op, err)
+			}
+			debugTrace = &trace
+		}
+
 		messagesData = append(messagesData, messageData{
 			msgID:      msgID,
 			sessID:     sessID,
@@ -606,6 +638,7 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			toolCalls:  toolCalls,
 			toolCallID: toolCallID,
 			citations:  citations,
+			debugTrace: debugTrace,
 			createdAt:  createdAt,
 		})
 	}
@@ -641,6 +674,9 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 		}
 		if len(codeOutputs) > 0 {
 			msgOpts = append(msgOpts, types.WithCodeOutputs(codeOutputs...))
+		}
+		if md.debugTrace != nil {
+			msgOpts = append(msgOpts, types.WithDebugTrace(md.debugTrace))
 		}
 
 		messages = append(messages, types.NewMessage(msgOpts...))

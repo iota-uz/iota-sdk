@@ -24,14 +24,14 @@ type AgentService interface {
 // This aligns with the ExecutorEvent from pkg/bichat/agents.
 type Event struct {
 	Type               EventType
-	Content            string          // For content chunks
-	Citation           *types.Citation // For citation events
-	Usage              *TokenUsage     // For usage events
-	Tool               *ToolEvent      // For tool execution events
-	Interrupt          *InterruptEvent // For HITL interrupts
-	ProviderResponseID string          // Provider continuity token (on done events)
-	Error              error           // For error events
-	Done               bool            // True when execution complete
+	Content            string            // For content chunks
+	Citation           *types.Citation   // For citation events
+	Usage              *types.DebugUsage // For usage events
+	Tool               *ToolEvent        // For tool execution events
+	Interrupt          *InterruptEvent   // For HITL interrupts
+	ProviderResponseID string            // Provider continuity token (on done events)
+	Error              error             // For error events
+	Done               bool              // True when execution complete
 }
 
 // EventType identifies the kind of event

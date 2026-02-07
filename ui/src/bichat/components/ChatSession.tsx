@@ -84,7 +84,7 @@ function ChatSessionCore({
     handleUnqueue,
     debugMode,
     sessionDebugUsage,
-    modelContextWindow,
+    debugLimits,
     currentSessionId,
     isStreaming,
   } = useChat()
@@ -209,7 +209,7 @@ function ChatSessionCore({
                       onClearCommandError={() => setInputError(null)}
                       debugMode={debugMode}
                       debugSessionUsage={sessionDebugUsage}
-                      modelContextWindow={modelContextWindow}
+                      debugLimits={debugLimits}
                       onMessageChange={setMessage}
                       onSubmit={handleSubmit}
                       messageQueue={messageQueue}
@@ -240,7 +240,7 @@ function ChatSessionCore({
                   onClearCommandError={() => setInputError(null)}
                   debugMode={debugMode}
                   debugSessionUsage={sessionDebugUsage}
-                  modelContextWindow={modelContextWindow}
+                  debugLimits={debugLimits}
                   onMessageChange={setMessage}
                   onSubmit={handleSubmit}
                   messageQueue={messageQueue}

@@ -100,7 +100,7 @@ type StreamChunk struct {
 	Type         ChunkType
 	Content      string
 	Citation     *domain.Citation
-	Usage        *TokenUsage
+	Usage        *types.DebugUsage
 	Tool         *ToolEvent
 	GenerationMs int64
 	Error        error
@@ -132,13 +132,4 @@ type CompactSessionHistoryResponse struct {
 	Summary          string
 	DeletedMessages  int64
 	DeletedArtifacts int64
-}
-
-// TokenUsage tracks token consumption and costs
-type TokenUsage struct {
-	PromptTokens     int     `json:"promptTokens"`
-	CompletionTokens int     `json:"completionTokens"`
-	TotalTokens      int     `json:"totalTokens"`
-	CachedTokens     int     `json:"cachedTokens"`
-	Cost             float64 `json:"cost"` // Estimated cost in USD
 }

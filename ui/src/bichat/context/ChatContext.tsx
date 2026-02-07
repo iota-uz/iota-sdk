@@ -29,16 +29,12 @@ import {
   type ChatSessionStateValue,
   type ChatMessagingStateValue,
   type ChatInputStateValue,
-  type DebugTrace,
+  type DebugLimits,
   type SendMessageOptions,
 } from '../types'
 import { RateLimiter } from '../utils/RateLimiter'
 import {
-  hasMeaningfulUsage,
   getSessionDebugUsage,
-  hydrateDebugTraceFromToolCalls,
-  attachDebugTraceToLatestTurn,
-  mergeDebugTraceFromPreviousTurns,
 } from '../utils/debugTrace'
 import { hasPermission } from './IotaContext'
 
@@ -138,23 +134,38 @@ function parseSlashCommand(input: string): ParsedSlashCommand | null {
   }
 }
 
-function readModelContextWindowFromGlobalContext(): number | null {
+function readDebugLimitsFromGlobalContext(): DebugLimits | null {
   if (typeof window === 'undefined') {
     return null
   }
 
-  const raw = window.__BICHAT_CONTEXT__?.extensions?.debug?.contextWindow
-  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
-    return raw
-  }
-  if (typeof raw === 'string') {
-    const parsed = Number.parseInt(raw, 10)
-    if (Number.isFinite(parsed) && parsed > 0) {
-      return parsed
-    }
+  const limits = window.__BICHAT_CONTEXT__?.extensions?.debug?.limits
+  if (!limits) {
+    return null
   }
 
-  return null
+  const {
+    policyMaxTokens,
+    modelMaxTokens,
+    effectiveMaxTokens,
+    completionReserveTokens,
+  } = limits
+
+  if (
+    typeof policyMaxTokens !== 'number' ||
+    typeof modelMaxTokens !== 'number' ||
+    typeof effectiveMaxTokens !== 'number' ||
+    typeof completionReserveTokens !== 'number'
+  ) {
+    return null
+  }
+
+  return {
+    policyMaxTokens,
+    modelMaxTokens,
+    effectiveMaxTokens,
+    completionReserveTokens,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +187,7 @@ export function ChatSessionProvider({
 
   const debugSessionKey = currentSessionId || 'new'
   const debugMode = debugModeBySession[debugSessionKey] ?? false
-  const modelContextWindow = useMemo(() => readModelContextWindowFromGlobalContext(), [])
+  const debugLimits = useMemo(() => readDebugLimitsFromGlobalContext(), [])
 
   // ── Messaging state ────────────────────────────────────────────────────
   const [turns, setTurns] = useState<ConversationTurn[]>([])
@@ -238,9 +249,7 @@ export function ChatSessionProvider({
 
         if (state) {
           setSession(state.session)
-          setTurns((prevTurns) =>
-            hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
-          )
+          setTurns(state.turns)
           setPendingQuestion(state.pendingQuestion || null)
         } else {
           setError('Session not found')
@@ -294,16 +303,12 @@ export function ChatSessionProvider({
             const state = await dataSource.fetchSession(curSessionId)
             if (state) {
               setSession(state.session)
-              setTurns((prevTurns) =>
-                hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
-              )
+              setTurns(state.turns)
               setPendingQuestion(state.pendingQuestion || null)
             }
           } catch (err) {
             console.error('Failed to refresh session for debug mode:', err)
           }
-        } else {
-          setTurns((prevTurns) => hydrateDebugTraceFromToolCalls(prevTurns))
         }
 
         setMessage('')
@@ -325,9 +330,7 @@ export function ChatSessionProvider({
           const state = await dataSource.fetchSession(curSessionId)
           if (state) {
             setSession(state.session)
-            setTurns((prevTurns) =>
-              hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
-            )
+            setTurns(state.turns)
             setPendingQuestion(state.pendingQuestion || null)
           } else {
             setTurns([])
@@ -359,9 +362,7 @@ export function ChatSessionProvider({
           const state = await dataSource.fetchSession(curSessionId)
           if (state) {
             setSession(state.session)
-            setTurns((prevTurns) =>
-              hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
-            )
+            setTurns(state.turns)
             setPendingQuestion(state.pendingQuestion || null)
           } else {
             setTurns([])
@@ -460,7 +461,6 @@ export function ChatSessionProvider({
 
         let accumulatedContent = ''
         let createdSessionId: string | undefined
-        const debugTrace: DebugTrace = { tools: [] }
         setIsStreaming(true)
 
         for await (const chunk of dataSource.sendMessage(
@@ -480,25 +480,9 @@ export function ChatSessionProvider({
           if ((chunk.type === 'chunk' || chunk.type === 'content') && chunk.content) {
             accumulatedContent += chunk.content
             setStreamingContent(accumulatedContent)
-          } else if (chunk.type === 'tool_start' && chunk.tool) {
-            debugTrace.tools.push({ ...chunk.tool })
-          } else if (chunk.type === 'tool_end' && chunk.tool) {
-            const idx = chunk.tool.callId
-              ? debugTrace.tools.findIndex((tool) => tool.callId === chunk.tool?.callId)
-              : -1
-            if (idx >= 0) {
-              debugTrace.tools[idx] = { ...debugTrace.tools[idx], ...chunk.tool }
-            } else {
-              debugTrace.tools.push({ ...chunk.tool })
-            }
-          } else if (chunk.type === 'usage' && chunk.usage && hasMeaningfulUsage(chunk.usage)) {
-            debugTrace.usage = chunk.usage
           } else if (chunk.type === 'error') {
             throw new Error(chunk.error || 'Stream error')
           } else if (chunk.type === 'done') {
-            if (chunk.generationMs) {
-              debugTrace.generationMs = chunk.generationMs
-            }
             if (chunk.sessionId) {
               createdSessionId = chunk.sessionId
             }
@@ -507,10 +491,7 @@ export function ChatSessionProvider({
               const state = await dataSource.fetchSession(finalSessionId)
               if (state) {
                 setSession(state.session)
-                setTurns((prevTurns) => {
-                  const mergedTurns = mergeDebugTraceFromPreviousTurns(prevTurns, state.turns)
-                  return hydrateDebugTraceFromToolCalls(attachDebugTraceToLatestTurn(mergedTurns, debugTrace))
-                })
+                setTurns(state.turns)
                 setPendingQuestion(state.pendingQuestion || null)
               }
             }
@@ -663,9 +644,7 @@ export function ChatSessionProvider({
               try {
                 const state = await dataSource.fetchSession(curSessionId)
                 if (state) {
-                  setTurns((prevTurns) =>
-                    hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
-                  )
+                  setTurns(state.turns)
                   setPendingQuestion(state.pendingQuestion || null)
                 } else {
                   setPendingQuestion(previousPendingQuestion)
@@ -726,9 +705,9 @@ export function ChatSessionProvider({
     error,
     debugMode,
     sessionDebugUsage,
-    modelContextWindow,
+    debugLimits,
     setError,
-  }), [session, currentSessionId, fetching, error, debugMode, sessionDebugUsage, modelContextWindow])
+  }), [session, currentSessionId, fetching, error, debugMode, sessionDebugUsage, debugLimits])
 
   const messagingValue: ChatMessagingStateValue = useMemo(() => ({
     turns,
