@@ -192,7 +192,10 @@ export function SessionArtifactPreview({ artifact }: SessionArtifactPreviewProps
     )
   }
 
-  if (artifact.type === 'code_output' && artifact.mimeType?.startsWith('image/')) {
+  if (
+    (artifact.type === 'code_output' || artifact.type === 'attachment') &&
+    artifact.mimeType?.startsWith('image/')
+  ) {
     if (!artifact.url) {
       return <WarningBox message={t('artifacts.imageUnavailable')} />
     }

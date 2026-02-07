@@ -296,6 +296,26 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 		)
 	}
 
+	for _, att := range domainAttachments {
+		if err := s.chatRepo.SaveAttachment(ctx, att); err != nil {
+			return nil, serrors.E(op, err)
+		}
+		msgID := userMsg.ID()
+		artifact := domain.NewArtifact(
+			domain.WithArtifactTenantID(session.TenantID()),
+			domain.WithArtifactSessionID(session.ID()),
+			domain.WithArtifactMessageID(&msgID),
+			domain.WithArtifactType(domain.ArtifactTypeAttachment),
+			domain.WithArtifactName(att.FileName()),
+			domain.WithArtifactMimeType(att.MimeType()),
+			domain.WithArtifactURL(att.FilePath()),
+			domain.WithArtifactSizeBytes(att.SizeBytes()),
+		)
+		if err := s.chatRepo.SaveArtifact(ctx, artifact); err != nil {
+			return nil, serrors.E(op, err)
+		}
+	}
+
 	// Process message with agent
 	gen, err := s.agentService.ProcessMessage(processCtx, req.SessionID, req.Content, domainAttachments)
 	if err != nil {
@@ -438,6 +458,26 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			domain.WithSizeBytes(att.SizeBytes()),
 			domain.WithFilePath(att.FilePath()),
 		)
+	}
+
+	for _, att := range domainAttachments {
+		if err := s.chatRepo.SaveAttachment(ctx, att); err != nil {
+			return serrors.E(op, err)
+		}
+		msgID := userMsg.ID()
+		artifact := domain.NewArtifact(
+			domain.WithArtifactTenantID(session.TenantID()),
+			domain.WithArtifactSessionID(session.ID()),
+			domain.WithArtifactMessageID(&msgID),
+			domain.WithArtifactType(domain.ArtifactTypeAttachment),
+			domain.WithArtifactName(att.FileName()),
+			domain.WithArtifactMimeType(att.MimeType()),
+			domain.WithArtifactURL(att.FilePath()),
+			domain.WithArtifactSizeBytes(att.SizeBytes()),
+		)
+		if err := s.chatRepo.SaveArtifact(ctx, artifact); err != nil {
+			return serrors.E(op, err)
+		}
 	}
 
 	// Process message with agent

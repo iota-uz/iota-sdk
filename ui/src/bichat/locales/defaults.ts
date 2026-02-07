@@ -50,6 +50,7 @@ export const defaultTranslations: Translations = {
   'artifacts.groupCharts': 'Charts',
   'artifacts.groupCodeOutputs': 'Code Outputs',
   'artifacts.groupExports': 'Exports',
+  'artifacts.groupAttachments': 'Attachments',
   'artifacts.groupOther': 'Other',
 
   // Message input

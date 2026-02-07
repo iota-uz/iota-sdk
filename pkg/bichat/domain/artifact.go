@@ -13,9 +13,10 @@ import (
 type ArtifactType string
 
 const (
-	ArtifactTypeCodeOutput ArtifactType = "code_output"
-	ArtifactTypeChart      ArtifactType = "chart"
-	ArtifactTypeExport     ArtifactType = "export"
+	ArtifactTypeCodeOutput  ArtifactType = "code_output"
+	ArtifactTypeChart       ArtifactType = "chart"
+	ArtifactTypeExport      ArtifactType = "export"
+	ArtifactTypeAttachment  ArtifactType = "attachment"
 )
 
 // Artifact represents any generated output from a chat session.

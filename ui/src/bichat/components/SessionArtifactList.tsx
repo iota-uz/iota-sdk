@@ -38,6 +38,7 @@ const TYPE_LABEL_KEYS: Record<string, string> = {
   chart: 'artifacts.groupCharts',
   code_output: 'artifacts.groupCodeOutputs',
   export: 'artifacts.groupExports',
+  attachment: 'artifacts.groupAttachments',
   other: 'artifacts.groupOther',
 }
 
@@ -50,6 +51,8 @@ function getGroupIcon(type: string): ReactNode {
       return <Code className={cls} weight="bold" />
     case 'export':
       return <FileCsv className={cls} weight="bold" />
+    case 'attachment':
+      return <ImageIcon className={cls} weight="bold" />
     default:
       return <Package className={cls} weight="bold" />
   }
