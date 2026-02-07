@@ -164,14 +164,13 @@ fix cmd="help":
   esac
 
 [group("quality")]
-[doc("Checks (lint|tr|applet-deps)")]
+[doc("Checks (lint|tr)")]
 check cmd="help":
   case "{{cmd}}" in \
     lint) golangci-lint run --build-tags {{GO_TEST_TAG}} ./... ;; \
     tr) go run cmd/command/main.go check_tr_keys ;; \
-    applet-deps) GOTOOLCHAIN=auto go run ./cmd/applet deps check ;; \
     *) \
-      echo "Usage: just check [lint|tr|applet-deps]" ; \
+      echo "Usage: just check [lint|tr]" ; \
       exit 2 ;; \
   esac
 

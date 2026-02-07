@@ -63,7 +63,7 @@ jobs:
         run: just check tr
 
       - name: Enforce applet SDK dependency policy
-        run: just check applet-deps
+        run: just applet deps-check
 
       - name: Check templ files formatting
         run: |

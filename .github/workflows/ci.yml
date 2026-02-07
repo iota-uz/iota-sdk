@@ -68,7 +68,7 @@ jobs:
 
       - name: Enforce applet SDK dependency policy
         run: |
-          just check applet-deps
+          just applet deps-check
 
       - name: Check templ files formatting
         run: |
