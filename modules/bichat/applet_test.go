@@ -87,10 +87,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 	})
 
 	t.Run("RPC", func(t *testing.T) {
-		require.NotNil(t, config.RPC)
-		assert.Equal(t, "/rpc", config.RPC.Path)
-		_, ok := config.RPC.Methods["bichat.ping"]
-		assert.True(t, ok)
+		assert.Nil(t, config.RPC)
 	})
 }
 

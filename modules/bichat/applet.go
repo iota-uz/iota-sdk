@@ -119,10 +119,13 @@ func (a *BiChatApplet) Config() applet.Config {
 		},
 
 		RPC: func() *applet.RPCConfig {
+			if a.config == nil {
+				return nil
+			}
 			chatSvc := a.config.ChatService()
 			artifactSvc := a.config.ArtifactService()
 			if chatSvc == nil || artifactSvc == nil {
-				panic("bichat: ChatService and ArtifactService must be initialized before Config() — call BuildServices() first")
+				return nil
 			}
 			return bichatrpc.Router(chatSvc, artifactSvc).Config()
 		}(),

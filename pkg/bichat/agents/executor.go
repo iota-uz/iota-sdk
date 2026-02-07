@@ -13,6 +13,27 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
+// askUserQuestionArgs matches the ask_user_question tool JSON schema.
+// Note: tool-call arguments do NOT include a "type" field.
+type askUserQuestionArgs struct {
+	Questions []askUserQuestionArgsQuestion `json:"questions"`
+	Metadata  *types.QuestionMetadata       `json:"metadata,omitempty"`
+}
+
+type askUserQuestionArgsQuestion struct {
+	ID          string                      `json:"id,omitempty"`
+	Question    string                      `json:"question"`
+	Header      string                      `json:"header"`
+	MultiSelect bool                        `json:"multiSelect"`
+	Options     []askUserQuestionArgsOption `json:"options"`
+}
+
+type askUserQuestionArgsOption struct {
+	ID          string `json:"id,omitempty"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+}
+
 // ExecutorEventType identifies different types of executor events.
 type ExecutorEventType string
 
@@ -589,21 +610,25 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 		// Restore messages
 		messages := checkpoint.Messages
 
+		// Prefer canonical interrupt payload from checkpoint (source of truth).
+		var interruptPayload types.AskUserQuestionPayload
+		if checkpoint.InterruptType == ToolAskUserQuestion {
+			if len(checkpoint.InterruptData) == 0 {
+				return serrors.E(op, serrors.KindValidation, "missing interrupt payload in checkpoint")
+			}
+			if err := json.Unmarshal(checkpoint.InterruptData, &interruptPayload); err != nil {
+				return serrors.E(op, err, "failed to parse interrupt payload from checkpoint")
+			}
+			if interruptPayload.Type != types.InterruptTypeAskUserQuestion {
+				return serrors.E(op, serrors.KindValidation, "invalid interrupt payload type in checkpoint")
+			}
+		}
+
 		// Add tool results with user's answers
 		for _, tc := range checkpoint.PendingTools {
 			// Check if this is an interrupt tool that needs answers
 			if tc.Name == ToolAskUserQuestion {
-				// Parse canonical payload from tool call arguments
-				var payload types.AskUserQuestionPayload
-				if err := json.Unmarshal([]byte(tc.Arguments), &payload); err != nil {
-					if !yield(ExecutorEvent{
-						Type:  EventTypeError,
-						Error: serrors.E(op, "failed to parse interrupt payload from checkpoint", err),
-					}) {
-						return nil
-					}
-					return serrors.E(op, "failed to parse interrupt payload from checkpoint", err)
-				}
+				payload := interruptPayload
 
 				// Validate answers cover all required question IDs
 				responseData := make(map[string]json.RawMessage)
@@ -699,30 +724,9 @@ func (e *Executor) executeToolCalls(
 
 		// Check for interrupt tools
 		if tc.Name == ToolAskUserQuestion {
-			// Parse tool call arguments into canonical AskUserQuestionPayload
-			var payload types.AskUserQuestionPayload
-			if err := json.Unmarshal([]byte(tc.Arguments), &payload); err != nil {
-				return nil, nil, serrors.E(op, err, "failed to parse ask_user_question payload")
-			}
-
-			// Validate payload
-			if payload.Type != types.InterruptTypeAskUserQuestion {
-				return nil, nil, serrors.E(op, "invalid interrupt type")
-			}
-			if len(payload.Questions) == 0 {
-				return nil, nil, serrors.E(op, "at least one question required")
-			}
-
-			// Validate question IDs are unique
-			questionIDs := make(map[string]bool)
-			for _, q := range payload.Questions {
-				if q.ID == "" {
-					return nil, nil, serrors.E(op, "question ID is required")
-				}
-				if questionIDs[q.ID] {
-					return nil, nil, serrors.E(op, fmt.Sprintf("duplicate question ID: %s", q.ID))
-				}
-				questionIDs[q.ID] = true
+			payload, err := parseAndCanonicalizeAskUserQuestionArgs(tc.Arguments)
+			if err != nil {
+				return nil, nil, serrors.E(op, err)
 			}
 
 			// Store validated payload JSON in interrupt data
@@ -794,6 +798,92 @@ func (e *Executor) executeToolCalls(
 	}
 
 	return results, nil, nil
+}
+
+func parseAndCanonicalizeAskUserQuestionArgs(args string) (types.AskUserQuestionPayload, error) {
+	const op serrors.Op = "Executor.parseAndCanonicalizeAskUserQuestionArgs"
+
+	parsed, err := ParseToolInput[askUserQuestionArgs](args)
+	if err != nil {
+		return types.AskUserQuestionPayload{}, serrors.E(op, err, "failed to parse ask_user_question arguments")
+	}
+
+	if len(parsed.Questions) == 0 {
+		return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, "at least one question required")
+	}
+	if len(parsed.Questions) > 4 {
+		return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, "maximum 4 questions allowed")
+	}
+
+	questionIDs := make(map[string]bool)
+	canonicalQuestions := make([]types.AskUserQuestion, 0, len(parsed.Questions))
+
+	for i, q := range parsed.Questions {
+		if q.Question == "" {
+			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: question text is required", i))
+		}
+		if q.Header == "" {
+			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: header is required", i))
+		}
+		if len(q.Header) > 12 {
+			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: header exceeds 12 characters", i))
+		}
+		if len(q.Options) < 2 {
+			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: at least 2 options required", i))
+		}
+		if len(q.Options) > 4 {
+			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: maximum 4 options allowed", i))
+		}
+
+		qid := q.ID
+		if qid == "" {
+			qid = fmt.Sprintf("q%d", i+1)
+		}
+		if questionIDs[qid] {
+			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("duplicate question ID: %s", qid))
+		}
+		questionIDs[qid] = true
+
+		optionIDs := make(map[string]bool)
+		canonicalOptions := make([]types.QuestionOption, 0, len(q.Options))
+		for j, opt := range q.Options {
+			if opt.Label == "" {
+				return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d].option[%d]: label is required", i, j))
+			}
+			if opt.Description == "" {
+				return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d].option[%d]: description is required", i, j))
+			}
+
+			oid := opt.ID
+			if oid == "" {
+				oid = fmt.Sprintf("%s_opt%d", qid, j+1)
+			}
+			if optionIDs[oid] {
+				return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: duplicate option ID: %s", i, oid))
+			}
+			optionIDs[oid] = true
+
+			canonicalOptions = append(canonicalOptions, types.QuestionOption{
+				ID:          oid,
+				Label:       opt.Label,
+				Description: opt.Description,
+			})
+		}
+
+		canonicalQuestions = append(canonicalQuestions, types.AskUserQuestion{
+			ID:          qid,
+			Question:    q.Question,
+			Header:      q.Header,
+			MultiSelect: q.MultiSelect,
+			Options:     canonicalOptions,
+		})
+	}
+
+	return types.AskUserQuestionPayload{
+		Type:      types.InterruptTypeAskUserQuestion,
+		Questions: canonicalQuestions,
+		Metadata:  parsed.Metadata,
+	}, nil
 }
 
 // saveCheckpoint creates and saves a checkpoint for HITL resumption.

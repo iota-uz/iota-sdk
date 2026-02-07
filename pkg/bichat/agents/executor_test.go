@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/stretchr/testify/require"
 )
 
 // mockModel is a test model that returns predefined responses.
@@ -504,16 +505,14 @@ func TestExecutor_Interrupt(t *testing.T) {
 					ID:   "call_1",
 					Name: agents.ToolAskUserQuestion,
 					Arguments: `{
-						"type": "ask_user_question",
 						"questions": [
 							{
-								"id": "q1",
 								"question": "What is your favorite color?",
 								"header": "Color",
 								"multiSelect": false,
 								"options": [
-									{"id": "opt1", "label": "Red", "description": "Warm and vibrant"},
-									{"id": "opt2", "label": "Blue", "description": "Cool and calming"}
+									{"label": "Red", "description": "Warm and vibrant"},
+									{"label": "Blue", "description": "Cool and calming"}
 								]
 							}
 						]
@@ -568,32 +567,34 @@ func TestExecutor_Interrupt(t *testing.T) {
 		t.Errorf("Expected interrupt type '%s', got '%s'", agents.ToolAskUserQuestion, interruptEvent.Type)
 	}
 
-	// Parse interrupt data
-	var data struct {
-		Questions []struct {
-			Question    string `json:"question"`
-			Header      string `json:"header"`
-			MultiSelect bool   `json:"multiSelect"`
-			Options     []struct {
-				Label       string `json:"label"`
-				Description string `json:"description"`
-			} `json:"options"`
-		} `json:"questions"`
-	}
-	if err := json.Unmarshal(interruptEvent.Data, &data); err != nil {
+	// Parse interrupt data (canonical payload)
+	var payload types.AskUserQuestionPayload
+	if err := json.Unmarshal(interruptEvent.Data, &payload); err != nil {
 		t.Fatalf("Failed to parse interrupt data: %v", err)
 	}
-	if len(data.Questions) != 1 {
-		t.Fatalf("Expected 1 question, got %d", len(data.Questions))
+	if payload.Type != types.InterruptTypeAskUserQuestion {
+		t.Fatalf("Expected payload type '%s', got '%s'", types.InterruptTypeAskUserQuestion, payload.Type)
 	}
-	if data.Questions[0].Question != "What is your favorite color?" {
-		t.Errorf("Expected question 'What is your favorite color?', got '%s'", data.Questions[0].Question)
+	if len(payload.Questions) != 1 {
+		t.Fatalf("Expected 1 question, got %d", len(payload.Questions))
 	}
-	if data.Questions[0].Header != "Color" {
-		t.Errorf("Expected header 'Color', got '%s'", data.Questions[0].Header)
+	q := payload.Questions[0]
+	if q.ID == "" {
+		t.Fatal("Expected generated question ID, got empty")
 	}
-	if len(data.Questions[0].Options) != 2 {
-		t.Errorf("Expected 2 options, got %d", len(data.Questions[0].Options))
+	if q.Question != "What is your favorite color?" {
+		t.Errorf("Expected question 'What is your favorite color?', got '%s'", q.Question)
+	}
+	if q.Header != "Color" {
+		t.Errorf("Expected header 'Color', got '%s'", q.Header)
+	}
+	if len(q.Options) != 2 {
+		t.Errorf("Expected 2 options, got %d", len(q.Options))
+	}
+	for i, opt := range q.Options {
+		if opt.ID == "" {
+			t.Fatalf("Expected generated option ID for option[%d], got empty", i)
+		}
 	}
 }
 
@@ -607,6 +608,23 @@ func TestExecutor_Resume(t *testing.T) {
 	checkpointer := agents.NewInMemoryCheckpointer()
 
 	// Create a checkpoint
+	interruptData, err := json.Marshal(types.AskUserQuestionPayload{
+		Type: types.InterruptTypeAskUserQuestion,
+		Questions: []types.AskUserQuestion{
+			{
+				ID:          "q1",
+				Question:    "What is your favorite color?",
+				Header:      "Color",
+				MultiSelect: false,
+				Options: []types.QuestionOption{
+					{ID: "opt1", Label: "Red", Description: "Warm and vibrant"},
+					{ID: "opt2", Label: "Blue", Description: "Cool and calming"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	checkpoint := agents.NewCheckpoint(
 		"thread-123",
 		"test-agent",
@@ -619,7 +637,6 @@ func TestExecutor_Resume(t *testing.T) {
 				ID:   "call_1",
 				Name: agents.ToolAskUserQuestion,
 				Arguments: `{
-					"type": "ask_user_question",
 					"questions": [
 						{
 							"id": "q1",
@@ -636,6 +653,7 @@ func TestExecutor_Resume(t *testing.T) {
 			},
 		}),
 		agents.WithInterruptType(agents.ToolAskUserQuestion),
+		agents.WithInterruptData(interruptData),
 	)
 
 	checkpointID, err := checkpointer.Save(ctx, checkpoint)
@@ -658,19 +676,8 @@ func TestExecutor_Resume(t *testing.T) {
 	)
 
 	// Resume execution with user's answer
-	// Parse the question ID from checkpoint to provide the correct answer
-	var questionsData struct {
-		Questions []struct {
-			ID   string `json:"id"`
-			Text string `json:"text"`
-		} `json:"questions"`
-	}
-	_ = json.Unmarshal([]byte(checkpoint.PendingTools[0].Arguments), &questionsData)
-
 	answers := map[string]types.Answer{}
-	if len(questionsData.Questions) > 0 {
-		answers[questionsData.Questions[0].ID] = types.NewAnswer("blue")
-	}
+	answers["q1"] = types.NewAnswer("blue")
 
 	gen := executor.Resume(ctx, checkpointID, answers)
 	defer gen.Close()
@@ -716,6 +723,43 @@ func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
 	checkpointer := agents.NewInMemoryCheckpointer()
 
 	// Create a checkpoint with 3 questions
+	interruptData, err := json.Marshal(types.AskUserQuestionPayload{
+		Type: types.InterruptTypeAskUserQuestion,
+		Questions: []types.AskUserQuestion{
+			{
+				ID:          "q1",
+				Question:    "Which time period?",
+				Header:      "Time Period",
+				MultiSelect: false,
+				Options: []types.QuestionOption{
+					{ID: "q1_opt1", Label: "Q1 2024", Description: "First quarter"},
+					{ID: "q1_opt2", Label: "Q2 2024", Description: "Second quarter"},
+				},
+			},
+			{
+				ID:          "q2",
+				Question:    "Which metric?",
+				Header:      "Metric",
+				MultiSelect: false,
+				Options: []types.QuestionOption{
+					{ID: "q2_opt1", Label: "Revenue", Description: "Total revenue"},
+					{ID: "q2_opt2", Label: "Profit", Description: "Net profit"},
+				},
+			},
+			{
+				ID:          "q3",
+				Question:    "Which region?",
+				Header:      "Region",
+				MultiSelect: false,
+				Options: []types.QuestionOption{
+					{ID: "q3_opt1", Label: "North America", Description: "US and Canada"},
+					{ID: "q3_opt2", Label: "Europe", Description: "EU countries"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	checkpoint := agents.NewCheckpoint(
 		"thread-multi",
 		"test-agent",
@@ -731,7 +775,7 @@ func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
 					"questions": [
 						{
 							"id": "q1",
-							"text": "Which time period?",
+							"question": "Which time period?",
 							"header": "Time Period",
 							"multiSelect": false,
 							"options": [
@@ -741,7 +785,7 @@ func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
 						},
 						{
 							"id": "q2",
-							"text": "Which metric?",
+							"question": "Which metric?",
 							"header": "Metric",
 							"multiSelect": false,
 							"options": [
@@ -751,7 +795,7 @@ func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
 						},
 						{
 							"id": "q3",
-							"text": "Which region?",
+							"question": "Which region?",
 							"header": "Region",
 							"multiSelect": false,
 							"options": [
@@ -764,6 +808,7 @@ func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
 			},
 		}),
 		agents.WithInterruptType(agents.ToolAskUserQuestion),
+		agents.WithInterruptData(interruptData),
 	)
 
 	checkpointID, err := checkpointer.Save(ctx, checkpoint)
@@ -836,6 +881,33 @@ func TestExecutor_Resume_MissingAnswer(t *testing.T) {
 	checkpointer := agents.NewInMemoryCheckpointer()
 
 	// Create a checkpoint with 2 questions
+	interruptData, err := json.Marshal(types.AskUserQuestionPayload{
+		Type: types.InterruptTypeAskUserQuestion,
+		Questions: []types.AskUserQuestion{
+			{
+				ID:          "q1",
+				Question:    "Which year?",
+				Header:      "Year",
+				MultiSelect: false,
+				Options: []types.QuestionOption{
+					{ID: "q1_opt1", Label: "2023", Description: "Last year"},
+					{ID: "q1_opt2", Label: "2024", Description: "This year"},
+				},
+			},
+			{
+				ID:          "q2",
+				Question:    "Which quarter?",
+				Header:      "Quarter",
+				MultiSelect: false,
+				Options: []types.QuestionOption{
+					{ID: "q2_opt1", Label: "Q1", Description: "First quarter"},
+					{ID: "q2_opt2", Label: "Q2", Description: "Second quarter"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	checkpoint := agents.NewCheckpoint(
 		"thread-missing",
 		"test-agent",
@@ -851,7 +923,7 @@ func TestExecutor_Resume_MissingAnswer(t *testing.T) {
 					"questions": [
 						{
 							"id": "q1",
-							"text": "Which year?",
+							"question": "Which year?",
 							"header": "Year",
 							"multiSelect": false,
 							"options": [
@@ -861,7 +933,7 @@ func TestExecutor_Resume_MissingAnswer(t *testing.T) {
 						},
 						{
 							"id": "q2",
-							"text": "Which quarter?",
+							"question": "Which quarter?",
 							"header": "Quarter",
 							"multiSelect": false,
 							"options": [
@@ -874,6 +946,7 @@ func TestExecutor_Resume_MissingAnswer(t *testing.T) {
 			},
 		}),
 		agents.WithInterruptType(agents.ToolAskUserQuestion),
+		agents.WithInterruptData(interruptData),
 	)
 
 	checkpointID, err := checkpointer.Save(ctx, checkpoint)
@@ -1202,7 +1275,6 @@ func TestExecutor_NoCheckpointerInterruptFails(t *testing.T) {
 					ID:   "call_1",
 					Name: agents.ToolAskUserQuestion,
 					Arguments: `{
-						"type": "ask_user_question",
 						"questions": [
 							{
 								"id": "q1",
