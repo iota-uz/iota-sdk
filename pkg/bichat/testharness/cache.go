@@ -12,7 +12,7 @@ import (
 )
 
 // Cache is a local-dev cache used only to avoid repeated LLM judge calls.
-// It MUST NOT cache execution (SSE/GraphQL), which should reflect the current server state.
+// It MUST NOT cache execution (SSE/RPC), which should reflect the current server state.
 type Cache struct {
 	enabled bool
 	dir     string

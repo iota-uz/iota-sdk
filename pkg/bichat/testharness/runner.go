@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 type TestStatus string
@@ -35,12 +36,37 @@ const (
 	FailureKindJudgeError                  FailureKind = "JudgeError"
 )
 
+type EvalMetrics struct {
+	// ToolUseEfficiency is the number of tool calls used to produce an answer.
+	ToolUseEfficiency int `json:"tool_use_efficiency"`
+	UniqueToolsUsed   int `json:"unique_tools_used"`
+
+	// InputTokens/OutputTokens are prompt/completion tokens for the eval.
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
+	TotalTokens  int `json:"total_tokens"`
+
+	// Cost is total estimated/actual USD cost for the eval.
+	Cost float64 `json:"cost"`
+
+	AssistantInputTokens  int     `json:"assistant_input_tokens,omitempty"`
+	AssistantOutputTokens int     `json:"assistant_output_tokens,omitempty"`
+	AssistantTotalTokens  int     `json:"assistant_total_tokens,omitempty"`
+	AssistantCost         float64 `json:"assistant_cost,omitempty"`
+
+	JudgeInputTokens  int     `json:"judge_input_tokens,omitempty"`
+	JudgeOutputTokens int     `json:"judge_output_tokens,omitempty"`
+	JudgeTotalTokens  int     `json:"judge_total_tokens,omitempty"`
+	JudgeCost         float64 `json:"judge_cost,omitempty"`
+}
+
 type TurnReport struct {
 	Prompt         string        `json:"prompt"`
 	StreamedAnswer string        `json:"streamed_answer,omitempty"`
 	FinalAnswer    string        `json:"final_answer,omitempty"`
 	SSEErrorJSON   string        `json:"sse_error_json,omitempty"`
 	ToolCalls      []ToolCall    `json:"tool_calls,omitempty"`
+	Metrics        EvalMetrics   `json:"metrics"`
 	Verdict        *JudgeVerdict `json:"verdict,omitempty"`
 	JudgeCached    bool          `json:"judge_cached,omitempty"`
 	Status         TestStatus    `json:"status,omitempty"`
@@ -58,6 +84,7 @@ type TestReport struct {
 	Error        string       `json:"error,omitempty"`
 	ArtifactsDir string       `json:"artifacts_dir,omitempty"`
 	DurationMS   int64        `json:"duration_ms"`
+	Metrics      EvalMetrics  `json:"metrics"`
 	Turns        []TurnReport `json:"turns"`
 }
 
@@ -76,11 +103,17 @@ type Summary struct {
 	Passed  int `json:"passed"`
 	Failed  int `json:"failed"`
 	Errored int `json:"errored"`
+
+	ToolUseEfficiency int     `json:"tool_use_efficiency"`
+	InputTokens       int     `json:"input_tokens"`
+	OutputTokens      int     `json:"output_tokens"`
+	TotalTokens       int     `json:"total_tokens"`
+	Cost              float64 `json:"cost"`
 }
 
 type Runner struct {
 	cfg   Config
-	gql   *GraphQLClient
+	rpc   *RPCClient
 	sse   *SSEClient
 	judge *OpenAIJudge
 	cache *Cache
@@ -96,7 +129,7 @@ func NewRunner(cfg Config) (*Runner, error) {
 
 	r := &Runner{
 		cfg:   cfg,
-		gql:   NewGraphQLClient(cfg),
+		rpc:   NewRPCClient(cfg),
 		sse:   NewSSEClient(cfg),
 		cache: NewCache(cfg),
 	}
@@ -132,6 +165,19 @@ func (r *Runner) Run(ctx context.Context, suite TestSuite) (RunReport, int, erro
 		Tests:        make([]TestReport, len(suite.Tests)),
 		RunID:        r.runID,
 		ArtifactsDir: r.runArtifacts,
+	}
+
+	if r.cfg.FailFast {
+		for i, tc := range suite.Tests {
+			tr := r.runOneTest(ctx, tc)
+			report.Tests[i] = tr
+			if tr.Status != TestStatusPassed {
+				report.Tests = report.Tests[:i+1]
+				break
+			}
+		}
+		report.Summary = summarize(report.Tests)
+		return report, exitCode(report), nil
 	}
 
 	parallelism := r.cfg.EffectiveParallelism()
@@ -205,7 +251,7 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 	ctx, cancel := context.WithTimeout(parent, time.Duration(timeoutSeconds)*time.Second)
 	defer cancel()
 
-	sessionID, err := r.gql.CreateSession(ctx, "")
+	sessionID, err := r.rpc.CreateSession(ctx, "")
 	if err != nil {
 		if tc.Expect.RedirectUnauth && isNotAuthenticatedRedirect(err) {
 			tr.Status = TestStatusPassed
@@ -228,12 +274,8 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 		turnStart := time.Now()
 
 		baselineAssistantCount := 0
-		if msgs, msgErr := r.gql.Messages(ctx, sessionID, 500, 0); msgErr == nil {
-			for i := range msgs {
-				if strings.EqualFold(msgs[i].Role, "assistant") {
-					baselineAssistantCount++
-				}
-			}
+		if session, msgErr := r.rpc.GetSession(ctx, sessionID); msgErr == nil && session != nil {
+			baselineAssistantCount = countAssistantTurns(session.Turns)
 		}
 
 		turnArtifacts := ""
@@ -275,7 +317,7 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 			break
 		}
 
-		finalAnswer, toolCalls, waitErr := r.waitForAssistantMessage(ctx, sessionID, baselineAssistantCount)
+		finalAnswer, toolCalls, rpcUsage, sessionSnapshot, waitErr := r.waitForAssistantMessage(ctx, sessionID, baselineAssistantCount)
 		if waitErr != nil {
 			tr.Status = TestStatusError
 			tr.FailureKind = FailureKindPersistenceMissingAfterDone
@@ -293,6 +335,11 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 		if strings.TrimSpace(finalAnswer) == "" && sseRes != nil {
 			finalAnswer = sseRes.StreamedContent
 		}
+		effectiveStreamRes := withFallbackUsage(sseRes, rpcUsage)
+		streamedAnswer := ""
+		if sseRes != nil {
+			streamedAnswer = sseRes.StreamedContent
+		}
 
 		var sseErrorJSON string
 		if sseRes != nil && sseRes.ErrorPayload != nil {
@@ -303,10 +350,11 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 
 		turnReport := TurnReport{
 			Prompt:         turn.Prompt,
-			StreamedAnswer: sseRes.StreamedContent,
+			StreamedAnswer: streamedAnswer,
 			FinalAnswer:    finalAnswer,
 			SSEErrorJSON:   sseErrorJSON,
 			ToolCalls:      toolCalls,
+			Metrics:        buildEvalMetrics(toolCalls, effectiveStreamRes, nil),
 			Status:         TestStatusPassed,
 			FailureKind:    FailureKindNone,
 			ArtifactsDir:   turnArtifacts,
@@ -324,23 +372,36 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 			break
 		}
 
-		if turnArtifacts != "" {
-			if msgs, err := r.gql.Messages(ctx, sessionID, 500, 0); err == nil {
-				if b, err := json.MarshalIndent(msgs, "", "  "); err == nil {
-					_ = os.WriteFile(filepath.Join(turnArtifacts, "graphql_messages.json"), b, 0o644)
-				}
+		if turnArtifacts != "" && sessionSnapshot != nil {
+			if b, err := json.MarshalIndent(sessionSnapshot, "", "  "); err == nil {
+				_ = os.WriteFile(filepath.Join(turnArtifacts, "rpc_session.json"), b, 0o644)
 			}
 		}
 
 		if r.judge != nil {
+			oracleRefs := append([]string{}, tc.OracleRefs...)
+			oracleRefs = append(oracleRefs, turn.OracleRefs...)
+			oracleFacts, oracleErr := r.resolveOracleFacts(oracleRefs)
+			if oracleErr != nil {
+				tr.Status = TestStatusError
+				tr.FailureKind = FailureKindJudgeError
+				tr.Error = fmt.Sprintf("resolve oracle refs: %v", oracleErr)
+				turnReport.Status = TestStatusError
+				turnReport.FailureKind = FailureKindJudgeError
+				turnReport.Error = oracleErr.Error()
+				tr.Turns = append(tr.Turns, turnReport)
+				break
+			}
+
 			judgeInput := JudgeTurnInput{
 				UserPrompt:        turn.Prompt,
 				FinalAnswer:       finalAnswer,
-				StreamedAnswer:    sseRes.StreamedContent,
+				StreamedAnswer:    streamedAnswer,
 				SSEError:          sseErrorJSON,
 				ExpectedChecklist: turn.ExpectedChecklist,
 				JudgeInstructions: turn.JudgeInstructions,
 				ToolCalls:         toolCalls,
+				OracleFacts:       oracleFacts,
 			}
 
 			judgeUserPrompt := buildJudgeUserPrompt(judgeInput)
@@ -373,6 +434,7 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 			}
 
 			turnReport.Verdict = verdict
+			turnReport.Metrics = buildEvalMetrics(toolCalls, effectiveStreamRes, verdict)
 			if verdict != nil && !verdict.Passed && tr.Status == TestStatusPassed {
 				tr.Status = TestStatusFailed
 			}
@@ -397,6 +459,7 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 	}
 
 	tr.DurationMS = time.Since(start).Milliseconds()
+	tr.Metrics = aggregateEvalMetricsFromTurns(tr.Turns)
 	if tr.Status != TestStatusPassed {
 		tr.FailureKind = firstFailureKind(tr.Turns)
 	}
@@ -408,39 +471,36 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 	return tr
 }
 
-func (r *Runner) waitForAssistantMessage(ctx context.Context, sessionID uuid.UUID, baselineAssistantCount int) (string, []ToolCall, error) {
-	timeout := time.Duration(r.cfg.GraphQLPollTimeoutSeconds) * time.Second
+func (r *Runner) waitForAssistantMessage(ctx context.Context, sessionID uuid.UUID, baselineAssistantCount int) (string, []ToolCall, *types.DebugUsage, *RPCSession, error) {
+	timeout := time.Duration(r.cfg.RPCPollTimeoutSeconds) * time.Second
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
-	interval := time.Duration(r.cfg.GraphQLPollIntervalMillis) * time.Millisecond
+	interval := time.Duration(r.cfg.RPCPollIntervalMillis) * time.Millisecond
 	if interval <= 0 {
 		interval = 250 * time.Millisecond
 	}
 	deadline := time.Now().Add(timeout)
 
 	for {
-		msgs, err := r.gql.Messages(ctx, sessionID, 500, 0)
+		session, err := r.rpc.GetSession(ctx, sessionID)
 		if err != nil {
-			return "", nil, err
+			return "", nil, nil, nil, err
 		}
-		var assistantCount int
-		var lastAssistant *Message
-		for i := range msgs {
-			if strings.EqualFold(msgs[i].Role, "assistant") {
-				assistantCount++
-				lastAssistant = &msgs[i]
-			}
-		}
+		assistantCount, lastAssistant := latestAssistantTurn(session.Turns)
 		if lastAssistant != nil && assistantCount > baselineAssistantCount {
-			return lastAssistant.Content, lastAssistant.ToolCalls, nil
+			var usage *types.DebugUsage
+			if lastAssistant.Debug != nil {
+				usage = lastAssistant.Debug.Usage.ToDebugUsage()
+			}
+			return lastAssistant.Content, lastAssistant.ToolCalls, usage, session, nil
 		}
 		if time.Now().After(deadline) {
-			return "", nil, fmt.Errorf("assistant message not persisted within %s", timeout)
+			return "", nil, nil, session, fmt.Errorf("assistant message not persisted within %s", timeout)
 		}
 		select {
 		case <-ctx.Done():
-			return "", nil, ctx.Err()
+			return "", nil, nil, session, ctx.Err()
 		case <-time.After(interval):
 		}
 	}
@@ -458,6 +518,11 @@ func summarize(tests []TestReport) Summary {
 		case TestStatusError:
 			s.Errored++
 		}
+		s.ToolUseEfficiency += t.Metrics.ToolUseEfficiency
+		s.InputTokens += t.Metrics.InputTokens
+		s.OutputTokens += t.Metrics.OutputTokens
+		s.TotalTokens += t.Metrics.TotalTokens
+		s.Cost += t.Metrics.Cost
 	}
 	return s
 }
@@ -489,6 +554,13 @@ func classifyFailure(err error) FailureKind {
 	if err == nil {
 		return FailureKindNone
 	}
+	var rpcErr *RPCMethodError
+	if errors.As(err, &rpcErr) {
+		if strings.EqualFold(strings.TrimSpace(rpcErr.Code), "forbidden") {
+			return FailureKindForbidden
+		}
+		return FailureKindHTTPError
+	}
 	var redir *NotAuthenticatedRedirectError
 	if errors.As(err, &redir) {
 		return FailureKindNotAuthenticatedRedirect
@@ -512,12 +584,16 @@ func isNotAuthenticatedRedirect(err error) bool {
 }
 
 func isForbidden(err error) bool {
+	var rpcErr *RPCMethodError
+	if errors.As(err, &rpcErr) {
+		return strings.EqualFold(strings.TrimSpace(rpcErr.Code), "forbidden")
+	}
 	var httpStatus *HTTPStatusError
 	if errors.As(err, &httpStatus) {
 		return httpStatus.StatusCode == http.StatusForbidden
 	}
 	msg := strings.ToLower(err.Error())
-	if strings.Contains(msg, "forbidden") || strings.Contains(msg, "access denied") {
+	if strings.Contains(msg, "forbidden") || strings.Contains(msg, "access denied") || strings.Contains(msg, "permission denied") {
 		return true
 	}
 	return false
@@ -530,6 +606,150 @@ func firstFailureKind(turns []TurnReport) FailureKind {
 		}
 	}
 	return FailureKindNone
+}
+
+func withFallbackUsage(sseRes *StreamResult, usage *types.DebugUsage) *StreamResult {
+	if usage == nil {
+		return sseRes
+	}
+	if sseRes == nil {
+		return &StreamResult{Usage: usage}
+	}
+	if sseRes.Usage != nil {
+		return sseRes
+	}
+	copied := *sseRes
+	copied.Usage = usage
+	return &copied
+}
+
+func countAssistantTurns(turns []RPCConversationTurn) int {
+	count := 0
+	for i := range turns {
+		if isAssistantTurn(turns[i].AssistantTurn) {
+			count++
+		}
+	}
+	return count
+}
+
+func latestAssistantTurn(turns []RPCConversationTurn) (int, *RPCAssistantTurn) {
+	count := 0
+	var last *RPCAssistantTurn
+	for i := range turns {
+		assistant := turns[i].AssistantTurn
+		if !isAssistantTurn(assistant) {
+			continue
+		}
+		count++
+		last = assistant
+	}
+	return count, last
+}
+
+func isAssistantTurn(turn *RPCAssistantTurn) bool {
+	if turn == nil {
+		return false
+	}
+	role := strings.ToLower(strings.TrimSpace(turn.Role))
+	return role == "" || role == "assistant"
+}
+
+func (r *Runner) resolveOracleFacts(refs []string) ([]OracleFact, error) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+
+	facts := make([]OracleFact, 0, len(refs))
+	seen := make(map[string]struct{}, len(refs))
+
+	for _, ref := range refs {
+		key := strings.TrimSpace(ref)
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		fact, ok := r.cfg.OracleFacts[key]
+		if !ok {
+			return nil, fmt.Errorf("oracle reference %q not found", key)
+		}
+		facts = append(facts, fact)
+	}
+
+	return facts, nil
+}
+
+func buildEvalMetrics(toolCalls []ToolCall, sseRes *StreamResult, verdict *JudgeVerdict) EvalMetrics {
+	metrics := EvalMetrics{
+		ToolUseEfficiency: len(toolCalls),
+		UniqueToolsUsed:   countUniqueTools(toolCalls),
+	}
+
+	if sseRes != nil && sseRes.Usage != nil {
+		metrics.AssistantInputTokens = sseRes.Usage.PromptTokens
+		metrics.AssistantOutputTokens = sseRes.Usage.CompletionTokens
+		metrics.AssistantTotalTokens = sseRes.Usage.TotalTokens
+		metrics.AssistantCost = sseRes.Usage.Cost
+	}
+
+	if verdict != nil && verdict.Usage != nil {
+		metrics.JudgeInputTokens = verdict.Usage.PromptTokens
+		metrics.JudgeOutputTokens = verdict.Usage.CompletionTokens
+		metrics.JudgeTotalTokens = verdict.Usage.TotalTokens
+		metrics.JudgeCost = verdict.Usage.Cost
+	}
+
+	metrics.InputTokens = metrics.AssistantInputTokens + metrics.JudgeInputTokens
+	metrics.OutputTokens = metrics.AssistantOutputTokens + metrics.JudgeOutputTokens
+	metrics.TotalTokens = metrics.AssistantTotalTokens + metrics.JudgeTotalTokens
+	metrics.Cost = metrics.AssistantCost + metrics.JudgeCost
+
+	return metrics
+}
+
+func aggregateEvalMetricsFromTurns(turns []TurnReport) EvalMetrics {
+	agg := EvalMetrics{}
+	for _, turn := range turns {
+		agg.ToolUseEfficiency += turn.Metrics.ToolUseEfficiency
+		agg.UniqueToolsUsed += turn.Metrics.UniqueToolsUsed
+		agg.InputTokens += turn.Metrics.InputTokens
+		agg.OutputTokens += turn.Metrics.OutputTokens
+		agg.TotalTokens += turn.Metrics.TotalTokens
+		agg.Cost += turn.Metrics.Cost
+
+		agg.AssistantInputTokens += turn.Metrics.AssistantInputTokens
+		agg.AssistantOutputTokens += turn.Metrics.AssistantOutputTokens
+		agg.AssistantTotalTokens += turn.Metrics.AssistantTotalTokens
+		agg.AssistantCost += turn.Metrics.AssistantCost
+
+		agg.JudgeInputTokens += turn.Metrics.JudgeInputTokens
+		agg.JudgeOutputTokens += turn.Metrics.JudgeOutputTokens
+		agg.JudgeTotalTokens += turn.Metrics.JudgeTotalTokens
+		agg.JudgeCost += turn.Metrics.JudgeCost
+	}
+	return agg
+}
+
+func countUniqueTools(toolCalls []ToolCall) int {
+	if len(toolCalls) == 0 {
+		return 0
+	}
+	seen := make(map[string]struct{}, len(toolCalls))
+	for _, tc := range toolCalls {
+		key := strings.TrimSpace(tc.Name)
+		if key == "" {
+			key = strings.TrimSpace(tc.Arguments)
+		}
+		if key == "" {
+			continue
+		}
+		seen[key] = struct{}{}
+	}
+	return len(seen)
 }
 
 // closeTurnFiles closes the SSE artifact files for a turn, ignoring any errors.

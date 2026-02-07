@@ -5,93 +5,140 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
-// LoadTestCases loads test cases from a JSON file.
-// The file should contain an array of TestCase objects.
-func LoadTestCases(path string) ([]TestCase, error) {
+func LoadSuite(path string) (TestSuite, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read test cases file: %w", err)
+		return TestSuite{}, fmt.Errorf("failed to read test suite file: %w", err)
 	}
 
-	var cases []TestCase
-	if err := json.Unmarshal(data, &cases); err != nil {
-		return nil, fmt.Errorf("failed to parse test cases JSON: %w", err)
+	var suite TestSuite
+	if err := json.Unmarshal(data, &suite); err != nil {
+		return TestSuite{}, fmt.Errorf("failed to parse suite JSON: %w", err)
 	}
 
-	return cases, nil
+	if err := ValidateSuite(suite); err != nil {
+		return TestSuite{}, err
+	}
+
+	return suite, nil
 }
 
-// LoadTestCasesFromDir loads all .json files from a directory.
-// Each file should contain an array of TestCase objects.
-// Returns all test cases from all files combined.
-func LoadTestCasesFromDir(dir string) ([]TestCase, error) {
+func LoadSuiteFromDir(dir string) (TestSuite, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read directory: %w", err)
+		return TestSuite{}, fmt.Errorf("failed to read directory: %w", err)
 	}
 
-	var allCases []TestCase
-
+	var all []TestCase
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
-
-		// Only process .json files
 		if !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
 			continue
 		}
 
 		filePath := filepath.Join(dir, entry.Name())
-		cases, err := LoadTestCases(filePath)
+		suite, err := LoadSuite(filePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load %s: %w", filePath, err)
+			return TestSuite{}, fmt.Errorf("failed to load %s: %w", filePath, err)
 		}
-
-		allCases = append(allCases, cases...)
+		all = append(all, suite.Tests...)
 	}
 
-	return allCases, nil
+	suite := TestSuite{Tests: all}
+	if err := ValidateSuite(suite); err != nil {
+		return TestSuite{}, err
+	}
+	return suite, nil
 }
 
-// FilterByTag filters test cases by tag.
-// Returns only test cases that have the specified tag.
+func LoadTestCases(path string) ([]TestCase, error) {
+	suite, err := LoadSuite(path)
+	if err != nil {
+		return nil, err
+	}
+	return suite.Tests, nil
+}
+
+func LoadTestCasesFromDir(dir string) ([]TestCase, error) {
+	suite, err := LoadSuiteFromDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	return suite.Tests, nil
+}
+
 func FilterByTag(cases []TestCase, tag string) []TestCase {
+	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return cases
 	}
 
-	filtered := make([]TestCase, 0)
-
+	filtered := make([]TestCase, 0, len(cases))
 	for _, tc := range cases {
 		for _, t := range tc.Tags {
-			if t == tag {
+			if strings.EqualFold(strings.TrimSpace(t), tag) {
 				filtered = append(filtered, tc)
 				break
 			}
 		}
 	}
-
 	return filtered
 }
 
-// FilterByCategory filters test cases by category.
-// Returns only test cases that match the specified category.
 func FilterByCategory(cases []TestCase, category string) []TestCase {
+	category = strings.TrimSpace(category)
 	if category == "" {
 		return cases
 	}
 
-	filtered := make([]TestCase, 0)
-
+	filtered := make([]TestCase, 0, len(cases))
 	for _, tc := range cases {
-		if tc.Category == category {
+		if strings.EqualFold(strings.TrimSpace(tc.Category), category) {
 			filtered = append(filtered, tc)
 		}
 	}
-
 	return filtered
+}
+
+func ValidateSuite(suite TestSuite) error {
+	if len(suite.Tests) == 0 {
+		return fmt.Errorf("suite has no tests")
+	}
+
+	ids := make(map[string]struct{}, len(suite.Tests))
+	for i := range suite.Tests {
+		tc := suite.Tests[i]
+		if strings.TrimSpace(tc.ID) == "" {
+			return fmt.Errorf("test[%d]: id is required", i)
+		}
+		if _, exists := ids[tc.ID]; exists {
+			return fmt.Errorf("test[%d]: duplicate id %q", i, tc.ID)
+		}
+		ids[tc.ID] = struct{}{}
+		if strings.TrimSpace(tc.DatasetID) == "" {
+			return fmt.Errorf("test[%d]: dataset_id is required", i)
+		}
+		if len(tc.Turns) == 0 {
+			return fmt.Errorf("test[%d]: at least one turn is required", i)
+		}
+		for j := range tc.Turns {
+			if strings.TrimSpace(tc.Turns[j].Prompt) == "" {
+				return fmt.Errorf("test[%d].turns[%d]: prompt is required", i, j)
+			}
+		}
+	}
+
+	return nil
+}
+
+func SortCasesByID(cases []TestCase) {
+	sort.Slice(cases, func(i, j int) bool {
+		return cases[i].ID < cases[j].ID
+	})
 }

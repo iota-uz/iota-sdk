@@ -9,39 +9,62 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/eval"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/eval/dataset"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/testharness"
 )
 
 type Report struct {
-	Timestamp string            `json:"timestamp"`
-	Summary   ReportSummary     `json:"summary"`
-	Results   []eval.EvalResult `json:"results"`
+	Timestamp   string                  `json:"timestamp"`
+	Summary     ReportSummary           `json:"summary"`
+	RunReport   testharness.RunReport   `json:"run_report"`
+	OracleFacts map[string]dataset.Fact `json:"oracle_facts,omitempty"`
+	Seeded      bool                    `json:"seeded"`
+	SeededSets  []string                `json:"seeded_datasets,omitempty"`
 }
 
 type ReportSummary struct {
-	Total     int     `json:"total"`
-	Passed    int     `json:"passed"`
-	Failed    int     `json:"failed"`
-	PassRate  float64 `json:"pass_rate"`
-	AvgScore  float64 `json:"avg_score"`
-	Runner    string  `json:"runner"`
-	Judge     string  `json:"judge"`
-	CasesPath string  `json:"cases_path"`
+	Total              int     `json:"total"`
+	Passed             int     `json:"passed"`
+	Failed             int     `json:"failed"`
+	Errored            int     `json:"errored"`
+	PassRate           float64 `json:"pass_rate"`
+	AvgScore           float64 `json:"avg_score"`
+	ScoredTurns        int     `json:"scored_turns"`
+	CasesPath          string  `json:"cases_path"`
+	ServerURL          string  `json:"server_url"`
+	RPCEndpointPath    string  `json:"rpc_endpoint_path"`
+	StreamEndpointPath string  `json:"stream_endpoint_path"`
+	JudgeModel         string  `json:"judge_model"`
+	ToolUseEfficiency  int     `json:"tool_use_efficiency"`
+	InputTokens        int     `json:"input_tokens"`
+	OutputTokens       int     `json:"output_tokens"`
+	TotalTokens        int     `json:"total_tokens"`
+	Cost               float64 `json:"cost"`
 }
 
 type RunOptions struct {
 	CasesPath string
 	Tag       string
 	Category  string
-	Runner    string
-	Judge     string
 	FailFast  bool
 
-	// NewOpenAIModel is used when runner/judge mode is "openai".
-	// Keeping it injectable avoids pkg->modules dependencies.
-	NewOpenAIModel func() (agents.Model, error)
+	ServerURL    string
+	RPCPath      string
+	StreamPath   string
+	CookieName   string
+	SessionToken string
+
+	JudgeModel   string
+	OpenAIAPIKey string
+
+	Seed         bool
+	SeedDSN      string
+	SeedTenantID string
+
+	ArtifactsDir string
+	Parallel     int
 }
 
 func LoadCases(path string) ([]eval.TestCase, error) {
@@ -51,128 +74,66 @@ func LoadCases(path string) ([]eval.TestCase, error) {
 	return eval.LoadTestCasesFromDir(path)
 }
 
-func BuildRunnerAndJudge(
-	ctx context.Context,
-	runnerMode string,
-	judgeMode string,
-	cases []eval.TestCase,
-	newOpenAIModel func() (agents.Model, error),
-) (eval.AgentRunner, agents.Model, error) {
-	var judgeModel agents.Model
-
-	switch judgeMode {
-	case "none":
-		// no-op
-	case "openai":
-		if newOpenAIModel == nil {
-			return nil, nil, fmt.Errorf("openai model factory is required")
-		}
-		m, err := newOpenAIModel()
-		if err != nil {
-			return nil, nil, err
-		}
-		judgeModel = m
-	default:
-		return nil, nil, fmt.Errorf("unknown judge mode: %s", judgeMode)
-	}
-
-	switch runnerMode {
-	case "fixture":
-		byQuestion := make(map[string]eval.TestCase, len(cases))
-		for _, tc := range cases {
-			byQuestion[tc.Question] = tc
-		}
-		return func(ctx context.Context, question string) (string, error) {
-			tc, ok := byQuestion[question]
-			if !ok {
-				return "I don't know.", nil
-			}
-			if strings.TrimSpace(tc.GoldenAnswer) != "" {
-				return tc.GoldenAnswer, nil
-			}
-			if strings.TrimSpace(tc.ExpectedSQL) != "" {
-				return fmt.Sprintf("```sql\n%s\n```", tc.ExpectedSQL), nil
-			}
-			if len(tc.ExpectedContent) > 0 {
-				return strings.Join(tc.ExpectedContent, " "), nil
-			}
-			return "OK", nil
-		}, judgeModel, nil
-
-	case "openai":
-		if newOpenAIModel == nil {
-			return nil, nil, fmt.Errorf("openai model factory is required")
-		}
-		m, err := newOpenAIModel()
-		if err != nil {
-			return nil, nil, err
-		}
-		return func(ctx context.Context, question string) (string, error) {
-			system := "You are a BI assistant under evaluation. Answer the question directly.\n\n" +
-				"If SQL is required, output a single SQL query in a fenced ```sql code block.\n" +
-				"Avoid explanations unless asked."
-			req := agents.Request{
-				Messages: []types.Message{
-					types.SystemMessage(system),
-					types.UserMessage(question),
-				},
-			}
-			temp := 0.2
-			resp, err := m.Generate(ctx, req, agents.WithTemperature(temp))
-			if err != nil {
-				return "", err
-			}
-			return resp.Message.Content(), nil
-		}, judgeModel, nil
-
-	default:
-		return nil, nil, fmt.Errorf("unknown runner mode: %s", runnerMode)
-	}
-}
-
 func Run(ctx context.Context, opts RunOptions) (Report, error) {
-	cases, err := LoadCases(opts.CasesPath)
+	if strings.TrimSpace(opts.CasesPath) == "" {
+		return Report{}, fmt.Errorf("--cases is required")
+	}
+	if strings.TrimSpace(opts.SessionToken) == "" {
+		return Report{}, fmt.Errorf("--session-token is required")
+	}
+	if strings.TrimSpace(opts.SeedDSN) == "" {
+		return Report{}, fmt.Errorf("--seed-dsn is required")
+	}
+	if strings.TrimSpace(opts.SeedTenantID) == "" {
+		return Report{}, fmt.Errorf("--seed-tenant-id is required")
+	}
+	if strings.TrimSpace(opts.OpenAIAPIKey) == "" {
+		return Report{}, fmt.Errorf("openai api key is required")
+	}
+
+	tenantID, err := uuid.Parse(strings.TrimSpace(opts.SeedTenantID))
+	if err != nil {
+		return Report{}, fmt.Errorf("invalid --seed-tenant-id: %w", err)
+	}
+
+	registry := dataset.DefaultRegistry()
+	seeder, err := dataset.NewSeeder(ctx, opts.SeedDSN, registry)
+	if err != nil {
+		return Report{}, fmt.Errorf("initialize dataset seeder: %w", err)
+	}
+	defer seeder.Close()
+
+	harnessCfg := testharness.Config{
+		ServerURL:          opts.ServerURL,
+		RPCEndpointPath:    opts.RPCPath,
+		StreamEndpointPath: opts.StreamPath,
+		CookieName:         opts.CookieName,
+		SessionToken:       opts.SessionToken,
+		JudgeModel:         opts.JudgeModel,
+		OpenAIAPIKey:       opts.OpenAIAPIKey,
+		DisableJudge:       false,
+		Parallel:           opts.Parallel,
+		FailFast:           opts.FailFast,
+		ArtifactsDir:       opts.ArtifactsDir,
+	}
+
+	pipeline := eval.Pipeline{
+		CaseSource:      eval.PathCaseSource{Path: opts.CasesPath},
+		DatasetPreparer: eval.SeededDatasetPreparer{Seeder: seeder},
+		RunnerFactory:   eval.TestHarnessRunnerFactory{},
+	}
+	execResult, err := pipeline.Execute(ctx, eval.ExecuteRequest{
+		Tag:           opts.Tag,
+		Category:      opts.Category,
+		SeedTenantID:  tenantID,
+		Seed:          opts.Seed,
+		HarnessConfig: harnessCfg,
+	})
 	if err != nil {
 		return Report{}, err
 	}
-	if opts.Tag != "" {
-		cases = eval.FilterByTag(cases, opts.Tag)
-	}
-	if opts.Category != "" {
-		cases = eval.FilterByCategory(cases, opts.Category)
-	}
-	if len(cases) == 0 {
-		return Report{}, fmt.Errorf("no test cases to run after filtering")
-	}
 
-	runnerFn, judgeModel, err := BuildRunnerAndJudge(ctx, opts.Runner, opts.Judge, cases, opts.NewOpenAIModel)
-	if err != nil {
-		return Report{}, err
-	}
-
-	checkers := []eval.Checker{
-		eval.NewStringMatchChecker(),
-		eval.NewSQLResultChecker(),
-	}
-	if opts.Judge != "none" && judgeModel != nil {
-		checkers = append(checkers, eval.NewLLMGradeChecker(judgeModel))
-	}
-
-	evaluator := eval.NewEvaluator(runnerFn, checkers...)
-
-	results := make([]eval.EvalResult, 0, len(cases))
-	for _, tc := range cases {
-		res, runErr := evaluator.RunSingle(ctx, tc)
-		if runErr != nil {
-			return Report{}, runErr
-		}
-		results = append(results, *res)
-		if opts.FailFast && !res.Passed {
-			break
-		}
-	}
-
-	return buildReport(opts.CasesPath, opts.Runner, opts.Judge, results), nil
+	return buildReport(opts, execResult.DatasetIDs, execResult.OracleFacts, execResult.RunReport), nil
 }
 
 func WriteReport(outPath string, rep Report) error {
@@ -192,36 +153,57 @@ func WriteReport(outPath string, rep Report) error {
 	return os.WriteFile(outPath, data, 0o644)
 }
 
-func buildReport(casesPath, runner, judge string, results []eval.EvalResult) Report {
-	passed := 0
-	totalScore := 0.0
-	for _, r := range results {
-		if r.Passed {
-			passed++
-		}
-		totalScore += r.Score
-	}
-	total := len(results)
-	failed := total - passed
+func buildReport(opts RunOptions, datasetIDs []string, oracleFacts map[string]dataset.Fact, runReport testharness.RunReport) Report {
+	total := runReport.Summary.Total
+	passed := runReport.Summary.Passed
+	failed := runReport.Summary.Failed
+	errored := runReport.Summary.Errored
+
 	passRate := 0.0
-	avg := 0.0
 	if total > 0 {
 		passRate = float64(passed) / float64(total)
-		avg = totalScore / float64(total)
+	}
+
+	scoredTurns := 0
+	totalScore := 0.0
+	for _, tr := range runReport.Tests {
+		for _, turn := range tr.Turns {
+			if turn.Verdict == nil {
+				continue
+			}
+			totalScore += turn.Verdict.Score
+			scoredTurns++
+		}
+	}
+	avgScore := 0.0
+	if scoredTurns > 0 {
+		avgScore = totalScore / float64(scoredTurns)
 	}
 
 	return Report{
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		RunReport:   runReport,
+		OracleFacts: oracleFacts,
+		Seeded:      opts.Seed,
+		SeededSets:  datasetIDs,
 		Summary: ReportSummary{
-			Total:     total,
-			Passed:    passed,
-			Failed:    failed,
-			PassRate:  passRate,
-			AvgScore:  avg,
-			Runner:    runner,
-			Judge:     judge,
-			CasesPath: casesPath,
+			Total:              total,
+			Passed:             passed,
+			Failed:             failed,
+			Errored:            errored,
+			PassRate:           passRate,
+			AvgScore:           avgScore,
+			ScoredTurns:        scoredTurns,
+			CasesPath:          opts.CasesPath,
+			ServerURL:          opts.ServerURL,
+			RPCEndpointPath:    opts.RPCPath,
+			StreamEndpointPath: opts.StreamPath,
+			JudgeModel:         opts.JudgeModel,
+			ToolUseEfficiency:  runReport.Summary.ToolUseEfficiency,
+			InputTokens:        runReport.Summary.InputTokens,
+			OutputTokens:       runReport.Summary.OutputTokens,
+			TotalTokens:        runReport.Summary.TotalTokens,
+			Cost:               runReport.Summary.Cost,
 		},
-		Results: results,
 	}
 }
