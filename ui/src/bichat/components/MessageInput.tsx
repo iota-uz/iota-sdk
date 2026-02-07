@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react'
-import { Paperclip, PaperPlaneRight, X, Bug } from '@phosphor-icons/react'
+import { Paperclip, PaperPlaneRight, X, Bug, ArrowUp, ArrowDown, Stack } from '@phosphor-icons/react'
 import AttachmentGrid from './AttachmentGrid'
 import { validateImageFile, validateFileCount, convertToBase64, createDataUrl } from '../utils/fileUtils'
 import type { ImageAttachment, QueuedMessage, SessionDebugUsage } from '../types'
@@ -387,79 +387,88 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
           {debugMode && (
             <div className="mb-3 space-y-2 text-xs">
-              {/* Debug Mode Badge */}
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded font-medium">
+              {/* Debug badge with animated pulse indicator */}
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-full font-medium text-[11px]">
+                <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
+                </span>
                 <Bug size={12} />
                 {t('slash.debugBadge')}
               </span>
 
-              {/* Stats Container */}
-              <div className="rounded-lg border border-gray-200/80 dark:border-gray-700/60 bg-white dark:bg-gray-800/60 px-3 py-2 space-y-3">
+              {/* Stats container */}
+              <div className="rounded-xl border border-gray-200/60 dark:border-gray-700/40 bg-gray-50/50 dark:bg-gray-800/30 p-3 space-y-3">
                 {hasUsage ? (
                   <>
-                    {/* Token Columns */}
-                    <div className="flex items-center justify-between text-[11px]">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-gray-500 dark:text-gray-400">
+                    {/* Token stats — 3-column mini card grid */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div className="flex flex-col items-center gap-1 py-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
+                        <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                          <ArrowUp size={10} weight="bold" className="text-blue-500 dark:text-blue-400" />
                           {t('slash.debugPromptTokens')}
-                        </span>
-                        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">
+                        </div>
+                        <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
                           {formatTokens(sessionPromptTokens)}
                         </span>
                       </div>
-                      <span className="w-0.5 h-0.5 rounded-full bg-gray-300 dark:bg-gray-600" aria-hidden="true" />
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-gray-500 dark:text-gray-400">
+                      <div className="flex flex-col items-center gap-1 py-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
+                        <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                          <ArrowDown size={10} weight="bold" className="text-indigo-500 dark:text-indigo-400" />
                           {t('slash.debugCompletionTokens')}
-                        </span>
-                        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">
+                        </div>
+                        <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
                           {formatTokens(sessionCompletionTokens)}
                         </span>
                       </div>
-                      <span className="w-0.5 h-0.5 rounded-full bg-gray-300 dark:bg-gray-600" aria-hidden="true" />
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-gray-500 dark:text-gray-400">
+                      <div className="flex flex-col items-center gap-1 py-2 rounded-lg bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/30">
+                        <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                          <Stack size={10} weight="bold" className="text-violet-500 dark:text-violet-400" />
                           {t('slash.debugTotalTokens')}
-                        </span>
-                        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">
+                        </div>
+                        <span className="font-mono font-semibold text-xs text-gray-900 dark:text-gray-100 tabular-nums">
                           {formatTokens(sessionTotalTokens)}
                         </span>
                       </div>
                     </div>
 
-                    {/* Context Progress Bar */}
+                    {/* Context progress bar */}
                     {modelContextWindow && (
                       <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-gray-400 dark:text-gray-500">
                             {t('slash.debugContextUsage')}
                           </span>
-                          <span className="font-mono text-gray-600 dark:text-gray-300">
-                            {formatTokens(latestPromptTokens)} / {formatTokens(modelContextWindow)}
-                          </span>
-                          {contextPercent && (
-                            <span className={`font-medium ${
-                              parseFloat(contextPercent) > 75
-                                ? 'text-red-600 dark:text-red-400'
-                                : parseFloat(contextPercent) > 50
-                                ? 'text-amber-600 dark:text-amber-400'
-                                : 'text-emerald-600 dark:text-emerald-400'
-                            }`}>
-                              {contextPercent}%
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+                              {formatTokens(latestPromptTokens)} / {formatTokens(modelContextWindow)}
                             </span>
-                          )}
+                            {contextPercent && (
+                              <span className={[
+                                'px-1.5 py-0.5 rounded-full text-[10px] font-semibold tabular-nums',
+                                parseFloat(contextPercent) > 75
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                                  : parseFloat(contextPercent) > 50
+                                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                                  : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+                              ].join(' ')}>
+                                {contextPercent}%
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="h-1 rounded-full bg-gray-100 dark:bg-gray-700/50 overflow-hidden">
+                        <div className="h-1.5 rounded-full bg-gray-200/80 dark:bg-gray-700/50 overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all duration-500 ease-out ${
+                            className={[
+                              'h-full rounded-full transition-all duration-700 ease-out',
                               parseFloat(contextPercent || '0') > 75
-                                ? 'bg-red-500'
+                                ? 'bg-gradient-to-r from-red-400 to-red-500'
                                 : parseFloat(contextPercent || '0') > 50
-                                ? 'bg-amber-500'
-                                : 'bg-emerald-500'
-                            }`}
+                                ? 'bg-gradient-to-r from-amber-400 to-amber-500'
+                                : 'bg-gradient-to-r from-emerald-400 to-emerald-500',
+                            ].join(' ')}
                             style={{
-                              width: contextPercent ? `${Math.min(parseFloat(contextPercent), 100)}%` : '0%'
+                              width: contextPercent ? `${Math.min(parseFloat(contextPercent), 100)}%` : '0%',
                             }}
                           />
                         </div>
@@ -467,14 +476,14 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                     )}
                   </>
                 ) : (
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center py-1">
                     {t('slash.debugSessionUsageUnavailable')}
                   </p>
                 )}
 
-                {/* Context Window fallback (when no usage data) */}
+                {/* Context window fallback (when no usage data yet) */}
                 {!hasUsage && modelContextWindow && (
-                  <p className="text-[11px] text-gray-600 dark:text-gray-300">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
                     {t('slash.debugContextWindow')}:{' '}
                     <span className="font-mono font-medium">{formatTokens(modelContextWindow)}</span>
                   </p>
