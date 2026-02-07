@@ -114,7 +114,7 @@ const defaultClassNames: Required<UserMessageClassNames> = {
   root: 'flex gap-3 justify-end group',
   wrapper: 'flex-1 flex flex-col items-end max-w-[75%]',
   avatar: 'flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-sm',
-  bubble: 'bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-3',
+  bubble: 'bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-sm',
   content: 'text-sm whitespace-pre-wrap break-words leading-relaxed',
   attachments: 'mb-2 w-full',
   actions: 'flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150',

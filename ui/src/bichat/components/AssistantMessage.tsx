@@ -171,7 +171,7 @@ const defaultClassNames: Required<AssistantMessageClassNames> = {
   root: 'flex gap-3 group',
   wrapper: 'flex-1 flex flex-col gap-3 max-w-[85%]',
   avatar: 'flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-xs',
-  bubble: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-4 py-3',
+  bubble: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 border-l-2 border-l-primary-300 dark:border-l-primary-700 rounded-2xl rounded-bl-sm px-4 py-3',
   codeOutputs: '',
   charts: 'mb-1 w-full',
   artifacts: 'mb-1 flex flex-wrap gap-2',

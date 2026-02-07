@@ -12,9 +12,9 @@
  * - actionsSlot: Custom action buttons in the header
  */
 
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Sidebar } from '@phosphor-icons/react'
+import { DotsSixVertical, Sidebar } from '@phosphor-icons/react'
 import { ChatSessionProvider, useChat } from '../context/ChatContext'
 import { ChatDataSource, ConversationTurn } from '../types'
 import { RateLimiter } from '../utils/RateLimiter'
@@ -57,6 +57,10 @@ interface ChatSessionProps {
   /** localStorage key for artifacts panel expanded/collapsed state */
   artifactsPanelStorageKey?: string
 }
+
+const ARTIFACTS_PANEL_WIDTH_DEFAULT = 352
+const ARTIFACTS_PANEL_WIDTH_MIN = 280
+const ARTIFACTS_PANEL_WIDTH_MAX = 560
 
 function ChatSessionCore({
   dataSource,
@@ -101,6 +105,9 @@ function ChatSessionCore({
   const [artifactsPanelExpanded, setArtifactsPanelExpanded] = useState(
     artifactsPanelDefaultExpanded
   )
+  const [artifactsPanelWidth, setArtifactsPanelWidth] = useState(ARTIFACTS_PANEL_WIDTH_DEFAULT)
+  const [isResizingArtifactsPanel, setIsResizingArtifactsPanel] = useState(false)
+  const layoutContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!showArtifactsPanel) {
@@ -117,6 +124,67 @@ function ChatSessionCore({
 
     setArtifactsPanelExpanded(nextValue)
   }, [artifactsPanelDefaultExpanded, artifactsPanelStorageKey, showArtifactsPanel])
+
+  useEffect(() => {
+    if (!showArtifactsPanel) return
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(`${artifactsPanelStorageKey}.width`)
+      if (raw !== null) {
+        const n = Number.parseInt(raw, 10)
+        if (Number.isFinite(n) && n >= ARTIFACTS_PANEL_WIDTH_MIN && n <= ARTIFACTS_PANEL_WIDTH_MAX) {
+          setArtifactsPanelWidth(n)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [artifactsPanelStorageKey, showArtifactsPanel])
+
+  const handleArtifactsResizeStart = useCallback(() => {
+    setIsResizingArtifactsPanel(true)
+  }, [])
+
+  const lastPanelWidthRef = useRef(artifactsPanelWidth)
+  lastPanelWidthRef.current = artifactsPanelWidth
+
+  useEffect(() => {
+    if (!isResizingArtifactsPanel) return
+
+    const move = (e: MouseEvent) => {
+      const el = layoutContainerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const w = rect.right - e.clientX
+      const clamped = Math.min(ARTIFACTS_PANEL_WIDTH_MAX, Math.max(ARTIFACTS_PANEL_WIDTH_MIN, w))
+      setArtifactsPanelWidth(clamped)
+    }
+
+    const up = () => {
+      setIsResizingArtifactsPanel(false)
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(
+            `${artifactsPanelStorageKey}.width`,
+            String(lastPanelWidthRef.current)
+          )
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    document.addEventListener('mousemove', move, { passive: true })
+    document.addEventListener('mouseup', up)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    return () => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizingArtifactsPanel, artifactsPanelStorageKey])
 
   if (fetching) {
     return (
@@ -160,6 +228,9 @@ function ChatSessionCore({
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(artifactsPanelStorageKey, nextValue ? 'true' : 'false')
+      if (nextValue) {
+        window.dispatchEvent(new CustomEvent('bichat:artifacts-panel-expanded', { detail: { expanded: true } }))
+      }
     }
   }
 
@@ -201,7 +272,10 @@ function ChatSessionCore({
         />
       )}
 
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div
+        ref={layoutContainerRef}
+        className="relative flex min-h-0 flex-1 overflow-hidden"
+      >
         <div className="flex min-h-0 flex-1 flex-col">
           {showWelcome ? (
             <div className="flex flex-1 flex-col overflow-auto">
@@ -266,22 +340,33 @@ function ChatSessionCore({
         <motion.div
           className="hidden lg:flex lg:min-h-0 shrink-0 overflow-hidden"
           animate={{
-            width: shouldRenderArtifactsPanel && activeSessionId ? '22rem' : 0,
+            width: shouldRenderArtifactsPanel && activeSessionId ? artifactsPanelWidth : 0,
           }}
           transition={{ type: 'spring', stiffness: 320, damping: 32 }}
         >
           {shouldRenderArtifactsPanel && activeSessionId && (
             <motion.div
-              className="flex min-h-0 w-[22rem]"
+              className="flex min-h-0"
+              style={{ width: artifactsPanelWidth }}
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             >
+              <div
+                role="separator"
+                aria-label={t('artifacts.resize')}
+                onMouseDown={handleArtifactsResizeStart}
+                className="flex shrink-0 cursor-col-resize touch-none flex-col items-center justify-center border-l border-gray-200 bg-transparent py-4 dark:border-gray-700/80 hover:bg-gray-100/80 dark:hover:bg-gray-800/80 w-3 transition-colors lg:flex"
+              >
+                <div className="cursor-col-resize rounded-md bg-gray-300/80 p-0.5 dark:bg-gray-600/80">
+                  <DotsSixVertical className="h-4 w-4 cursor-col-resize text-gray-500 dark:text-gray-400" weight="bold" />
+                </div>
+              </div>
               <SessionArtifactsPanel
                 dataSource={dataSource}
                 sessionId={activeSessionId}
                 isStreaming={isStreaming}
-                className="min-h-0"
+                className="min-h-0 min-w-0 flex-1"
               />
             </motion.div>
           )}

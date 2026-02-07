@@ -560,10 +560,26 @@ bi-chat-root [tabindex]:not([tabindex="-1"]):focus-visible {
   line-height: var(--bichat-line-height-tight);
 }
 
-.prose h1 { font-size: var(--bichat-font-size-2xl); }
-.prose h2 { font-size: var(--bichat-font-size-xl); }
-.prose h3 { font-size: var(--bichat-font-size-lg); }
+.prose h1 {
+  font-size: 1.625rem;
+  font-weight: var(--bichat-font-weight-bold);
+}
+
+.prose h2 {
+  font-size: 1.375rem;
+  margin-top: 2em;
+}
+
+.prose h3 {
+  font-size: var(--bichat-font-size-lg);
+  font-weight: var(--bichat-font-weight-semibold);
+}
+
 .prose h4 { font-size: var(--bichat-font-size-base); }
+
+.prose > * + h2 {
+  margin-top: 2em;
+}
 
 .prose p {
   margin-top: 0.75em;
@@ -578,8 +594,9 @@ bi-chat-root [tabindex]:not([tabindex="-1"]):focus-visible {
 .prose code {
   background-color: var(--bichat-color-code-bg);
   color: var(--bichat-color-code-text);
-  padding: 0.125em 0.375em;
-  border-radius: var(--bichat-radius-default);
+  padding: 0.2em 0.5em;
+  border-radius: var(--bichat-radius-md);
+  border: 1px solid var(--bichat-color-border-subtle);
   font-family: var(--bichat-font-family-mono);
   font-size: 0.875em;
 }
@@ -603,6 +620,7 @@ bi-chat-root [tabindex]:not([tabindex="-1"]):focus-visible {
   color: inherit;
   font-size: inherit;
   border-radius: 0;
+  border: none;
 }
 
 .prose a {

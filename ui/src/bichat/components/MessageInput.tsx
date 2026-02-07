@@ -560,10 +560,10 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
             {/* Input container - using inline Tailwind classes */}
             <div
-              className={`flex items-center gap-2 rounded-2xl p-1.5 sm:p-2.5 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
+              className={`flex items-center gap-2 rounded-2xl p-2 sm:p-3 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
                 isFocused
-                  ? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-500/25 dark:ring-primary-500/30'
-                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  ? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-500/20 dark:ring-primary-500/25 shadow-[0_0_0_3px_rgba(37,99,235,0.08)]'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
               }`}
             >
               {/* Attach button */}
@@ -571,11 +571,11 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading || disabled || attachments.length >= maxFiles}
-                className="cursor-pointer flex-shrink-0 self-center p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="cursor-pointer flex-shrink-0 self-center p-2 text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label={t('input.attachFiles')}
                 title={t('input.attachFiles')}
               >
-                <Paperclip size={18} className="cursor-pointer" />
+                <Paperclip size={20} className="cursor-pointer" />
               </button>
 
               {/* Hidden file input */}
@@ -623,7 +623,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="cursor-pointer flex-shrink-0 self-center p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
+                className="cursor-pointer flex-shrink-0 self-center p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 active:scale-95 text-white shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
                 aria-label={loading ? t('input.processing') : t('input.sendMessage')}
               >
                 {loading ? (
@@ -633,6 +633,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 )}
               </button>
             </div>
+
+            {/* Keyboard hint */}
+            {isFocused && !message && !loading && (
+              <span className="hidden sm:block absolute -bottom-5 left-14 text-[10px] text-gray-400 dark:text-gray-500 select-none animate-fade-in">
+                Shift + Enter for new line
+              </span>
+            )}
 
             {isCommandListVisible && (
               <div className="absolute left-0 right-0 bottom-full mb-1.5 z-20 overflow-hidden rounded-lg border border-gray-200/70 bg-white/98 shadow-md backdrop-blur-xl dark:border-gray-700/70 dark:bg-gray-900/98 dark:shadow-black/20">

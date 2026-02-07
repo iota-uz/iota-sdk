@@ -35,6 +35,7 @@ export const defaultTranslations: Translations = {
   'artifacts.loadingMore': 'Loading more...',
   'artifacts.toggleShow': 'Show artifacts',
   'artifacts.toggleHide': 'Hide artifacts',
+  'artifacts.resize': 'Resize panel',
   'artifacts.failedToLoad': 'Failed to load artifacts',
   'artifacts.unsupported': 'Artifacts panel is not available for this data source.',
   'artifacts.download': 'Download',

@@ -61,7 +61,14 @@ function useSidebarCollapse() {
     } catch { /* noop */ }
   }, [])
 
-  return { isCollapsed, isCollapsedRef, toggle, expand }
+  const collapse = useCallback(() => {
+    setIsCollapsed(true)
+    try {
+      localStorage.setItem(STORAGE_KEY, 'true')
+    } catch { /* noop */ }
+  }, [])
+
+  return { isCollapsed, isCollapsedRef, toggle, expand, collapse }
 }
 
 type ActiveTab = 'my-chats' | 'all-chats'
@@ -87,8 +94,17 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
   const { config, user } = useIotaContext()
   const toast = useAppToast()
   const sessionEvents = useSessionEvents()
-  const { isCollapsed, isCollapsedRef, toggle, expand } = useSidebarCollapse()
+  const { isCollapsed, isCollapsedRef, toggle, expand, collapse } = useSidebarCollapse()
   const searchContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ expanded: boolean }>).detail
+      if (detail?.expanded) collapse()
+    }
+    window.addEventListener('bichat:artifacts-panel-expanded', handler)
+    return () => window.removeEventListener('bichat:artifacts-panel-expanded', handler)
+  }, [collapse])
 
   // Permission checks
   const canReadAllChats =
@@ -309,10 +325,10 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
   return (
     <aside
       onClick={handleSidebarClick}
-      className={`relative h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800/80 transition-[width] duration-300 ease-in-out ${
+      className={`relative h-full flex flex-col overflow-hidden border-r border-gray-200/60 dark:border-gray-800/60 transition-[width] duration-300 ease-in-out ${
         isCollapsed
-          ? 'w-16 cursor-e-resize'
-          : 'w-64 cursor-w-resize'
+          ? 'w-16 cursor-e-resize bg-gray-50/80 dark:bg-gray-900'
+          : 'w-64 cursor-w-resize bg-white dark:bg-gray-900'
       }`}
       style={{ willChange: 'width' }}
       role="navigation"
@@ -326,43 +342,53 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
             : 'opacity-0 pointer-events-none duration-100'
         }`}
       >
-        <motion.button
-          onClick={(e) => {
-            e.stopPropagation()
-            onNewChat()
-            onClose?.()
-          }}
-          disabled={creating || fetching || accessDenied}
-          className="w-10 h-10 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary-400/50"
-          title="New chat"
-          aria-label="Create new chat"
-          whileTap={{ scale: 0.95 }}
-        >
-          {creating ? (
-            <div className="w-4 h-4 border-2 border-white/50 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Plus size={18} weight="bold" />
-          )}
-        </motion.button>
+        <div className="group/tooltip relative">
+          <motion.button
+            onClick={(e) => {
+              e.stopPropagation()
+              onNewChat()
+              onClose?.()
+            }}
+            disabled={creating || fetching || accessDenied}
+            className="w-10 h-10 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary-400/50"
+            title="New chat"
+            aria-label="Create new chat"
+            whileTap={{ scale: 0.95 }}
+          >
+            {creating ? (
+              <div className="w-4 h-4 border-2 border-white/50 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Plus size={18} weight="bold" />
+            )}
+          </motion.button>
+          <span className="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 rounded-md bg-gray-900 dark:bg-gray-100 px-2 py-1 text-xs font-medium text-white dark:text-gray-900 opacity-0 group-hover/tooltip:opacity-100 transition-opacity whitespace-nowrap shadow-lg">
+            New chat
+          </span>
+        </div>
 
-        <motion.button
-          onClick={(e) => {
-            e.stopPropagation()
-            navigate('/archived')
-            onClose?.()
-          }}
-          disabled={fetching || accessDenied}
-          className={`w-10 h-10 rounded-lg shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
-            isArchivedView
-              ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-              : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-          }`}
-          title="Archived chats"
-          aria-label="View archived chats"
-          whileTap={{ scale: 0.95 }}
-        >
-          <Archive size={18} weight="bold" />
-        </motion.button>
+        <div className="group/tooltip relative">
+          <motion.button
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate('/archived')
+              onClose?.()
+            }}
+            disabled={fetching || accessDenied}
+            className={`w-10 h-10 rounded-lg shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+              isArchivedView
+                ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+            }`}
+            title="Archived chats"
+            aria-label="View archived chats"
+            whileTap={{ scale: 0.95 }}
+          >
+            <Archive size={18} weight="bold" />
+          </motion.button>
+          <span className="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 rounded-md bg-gray-900 dark:bg-gray-100 px-2 py-1 text-xs font-medium text-white dark:text-gray-900 opacity-0 group-hover/tooltip:opacity-100 transition-opacity whitespace-nowrap shadow-lg">
+            Archived
+          </span>
+        </div>
       </div>
 
       {/* Expanded content — fades out before width shrinks, prevents text compression */}
@@ -563,26 +589,33 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
 
       {/* Footer toggle — matches SDK sidebar mt-auto footer pattern */}
       <div className={`mt-auto border-t border-gray-100 dark:border-gray-800/80 transition-all duration-300 ${isCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3'}`}>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            toggle()
-          }}
-          className={`flex items-center gap-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
-            isCollapsed ? 'w-10 h-10 justify-center' : 'w-full px-3 py-2'
-          }`}
-          title={isCollapsed ? 'Expand sidebar (⌘B)' : 'Collapse sidebar (⌘B)'}
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {isCollapsed ? (
-            <CaretLineRight size={16} />
-          ) : (
-            <>
-              <CaretLineLeft size={16} />
-              <span className="text-xs font-medium">Collapse</span>
-            </>
+        <div className="group/tooltip relative">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              toggle()
+            }}
+            className={`flex items-center gap-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
+              isCollapsed ? 'w-10 h-10 justify-center' : 'w-full px-3 py-2'
+            }`}
+            title={isCollapsed ? 'Expand sidebar (⌘B)' : 'Collapse sidebar (⌘B)'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? (
+              <CaretLineRight size={16} />
+            ) : (
+              <>
+                <CaretLineLeft size={16} />
+                <span className="text-xs font-medium">Collapse</span>
+              </>
+            )}
+          </button>
+          {isCollapsed && (
+            <span className="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 rounded-md bg-gray-900 dark:bg-gray-100 px-2 py-1 text-xs font-medium text-white dark:text-gray-900 opacity-0 group-hover/tooltip:opacity-100 transition-opacity whitespace-nowrap shadow-lg">
+              Expand
+            </span>
           )}
-        </button>
+        </div>
       </div>
     </aside>
   )

@@ -162,7 +162,7 @@ export function SessionArtifactsPanel({
 
   return (
     <aside
-      className={`flex w-[22rem] shrink-0 flex-col border-l border-gray-200 bg-white dark:border-gray-700/80 dark:bg-gray-900 ${className}`}
+      className={`flex min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700/80 dark:bg-gray-900 ${className}`}
       aria-label={t('artifacts.title')}
     >
       <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700/80">
