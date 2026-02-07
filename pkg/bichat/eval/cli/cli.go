@@ -57,6 +57,7 @@ type RunOptions struct {
 	SessionToken string
 
 	JudgeModel   string
+	HITLModel    string
 	OpenAIAPIKey string
 
 	Seed         bool
@@ -87,7 +88,11 @@ func Run(ctx context.Context, opts RunOptions) (Report, error) {
 	if strings.TrimSpace(opts.SeedTenantID) == "" {
 		return Report{}, fmt.Errorf("--seed-tenant-id is required")
 	}
-	if strings.TrimSpace(opts.OpenAIAPIKey) == "" {
+	apiKey := strings.TrimSpace(opts.OpenAIAPIKey)
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	}
+	if apiKey == "" {
 		return Report{}, fmt.Errorf("openai api key is required")
 	}
 
@@ -110,8 +115,8 @@ func Run(ctx context.Context, opts RunOptions) (Report, error) {
 		CookieName:         opts.CookieName,
 		SessionToken:       opts.SessionToken,
 		JudgeModel:         opts.JudgeModel,
-		OpenAIAPIKey:       opts.OpenAIAPIKey,
-		DisableJudge:       false,
+		HITLModel:          opts.HITLModel,
+		OpenAIAPIKey:       apiKey,
 		Parallel:           opts.Parallel,
 		FailFast:           opts.FailFast,
 		ArtifactsDir:       opts.ArtifactsDir,

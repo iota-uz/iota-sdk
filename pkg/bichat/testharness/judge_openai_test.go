@@ -24,6 +24,16 @@ func TestParseJudgeVerdict_Strict(t *testing.T) {
 	require.Equal(t, 0.95, v.Score)
 }
 
+func TestParseJudgeVerdict_ExtractsWrappedJSON(t *testing.T) {
+	t.Parallel()
+
+	v, err := parseJudgeVerdict([]byte("```json\n{\"passed\":false,\"score\":0.4,\"reason\":\"missing key fact\",\"missed_facts\":[\"x\"],\"incorrect_claims\":[]}\n```"))
+	require.NoError(t, err)
+	require.False(t, v.Passed)
+	require.Equal(t, 0.4, v.Score)
+	require.Equal(t, "missing key fact", v.Reason)
+}
+
 func TestBuildJudgeUserPrompt_WithOracleFacts(t *testing.T) {
 	t.Parallel()
 

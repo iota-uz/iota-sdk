@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,22 +60,29 @@ type EvalMetrics struct {
 	JudgeOutputTokens int     `json:"judge_output_tokens,omitempty"`
 	JudgeTotalTokens  int     `json:"judge_total_tokens,omitempty"`
 	JudgeCost         float64 `json:"judge_cost,omitempty"`
+
+	HITLInputTokens  int     `json:"hitl_input_tokens,omitempty"`
+	HITLOutputTokens int     `json:"hitl_output_tokens,omitempty"`
+	HITLTotalTokens  int     `json:"hitl_total_tokens,omitempty"`
+	HITLCost         float64 `json:"hitl_cost,omitempty"`
 }
 
 type TurnReport struct {
-	Prompt         string        `json:"prompt"`
-	StreamedAnswer string        `json:"streamed_answer,omitempty"`
-	FinalAnswer    string        `json:"final_answer,omitempty"`
-	SSEErrorJSON   string        `json:"sse_error_json,omitempty"`
-	ToolCalls      []ToolCall    `json:"tool_calls,omitempty"`
-	Metrics        EvalMetrics   `json:"metrics"`
-	Verdict        *JudgeVerdict `json:"verdict,omitempty"`
-	JudgeCached    bool          `json:"judge_cached,omitempty"`
-	Status         TestStatus    `json:"status,omitempty"`
-	FailureKind    FailureKind   `json:"failure_kind,omitempty"`
-	Error          string        `json:"error,omitempty"`
-	ArtifactsDir   string        `json:"artifacts_dir,omitempty"`
-	DurationMS     int64         `json:"duration_ms"`
+	Prompt         string            `json:"prompt"`
+	StreamedAnswer string            `json:"streamed_answer,omitempty"`
+	FinalAnswer    string            `json:"final_answer,omitempty"`
+	SSEErrorJSON   string            `json:"sse_error_json,omitempty"`
+	ToolCalls      []ToolCall        `json:"tool_calls,omitempty"`
+	Metrics        EvalMetrics       `json:"metrics"`
+	Verdict        *JudgeVerdict     `json:"verdict,omitempty"`
+	JudgeCached    bool              `json:"judge_cached,omitempty"`
+	HITLAnswers    map[string]string `json:"hitl_answers,omitempty"`
+	HITLCheckpoint string            `json:"hitl_checkpoint,omitempty"`
+	Status         TestStatus        `json:"status,omitempty"`
+	FailureKind    FailureKind       `json:"failure_kind,omitempty"`
+	Error          string            `json:"error,omitempty"`
+	ArtifactsDir   string            `json:"artifacts_dir,omitempty"`
+	DurationMS     int64             `json:"duration_ms"`
 }
 
 type TestReport struct {
@@ -116,6 +125,7 @@ type Runner struct {
 	rpc   *RPCClient
 	sse   *SSEClient
 	judge *OpenAIJudge
+	hitl  *OpenAIHITLResponder
 	cache *Cache
 
 	runID        string
@@ -133,9 +143,8 @@ func NewRunner(cfg Config) (*Runner, error) {
 		sse:   NewSSEClient(cfg),
 		cache: NewCache(cfg),
 	}
-	if !cfg.DisableJudge {
-		r.judge = NewOpenAIJudge(cfg)
-	}
+	r.judge = NewOpenAIJudge(cfg)
+	r.hitl = NewOpenAIHITLResponder(cfg)
 	return r, nil
 }
 
@@ -251,7 +260,7 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 	ctx, cancel := context.WithTimeout(parent, time.Duration(timeoutSeconds)*time.Second)
 	defer cancel()
 
-	sessionID, err := r.rpc.CreateSession(ctx, "")
+	sessionID, err := r.createSessionWithRetry(ctx)
 	if err != nil {
 		if tc.Expect.RedirectUnauth && isNotAuthenticatedRedirect(err) {
 			tr.Status = TestStatusPassed
@@ -291,54 +300,139 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 			sseJSONFile, _ = os.Create(filepath.Join(turnArtifacts, "sse.jsonl"))
 		}
 
-		sseRes, err := r.sse.StreamMessage(ctx, sessionID, turn.Prompt, StreamSinks{Raw: sseRawFile, JSON: sseJSONFile})
+		sseRes, streamErr := r.streamMessageWithRetry(ctx, sessionID, turn.Prompt, StreamSinks{Raw: sseRawFile, JSON: sseJSONFile})
 		// Close turn files immediately after streaming completes
 		closeTurnFiles(sseRawFile, sseJSONFile)
-		if err != nil {
-			if tc.Expect.RedirectUnauth && isNotAuthenticatedRedirect(err) {
+		if streamErr != nil {
+			if tc.Expect.RedirectUnauth && isNotAuthenticatedRedirect(streamErr) {
 				tr.Status = TestStatusPassed
 				break
 			}
-			if tc.Expect.Forbidden && isForbidden(err) {
+			if tc.Expect.Forbidden && isForbidden(streamErr) {
 				tr.Status = TestStatusPassed
 				break
 			}
-			tr.Status = TestStatusError
-			tr.FailureKind = classifyFailure(err)
-			tr.Error = fmt.Sprintf("sse stream: %v", err)
-			tr.Turns = append(tr.Turns, TurnReport{
-				Prompt:       turn.Prompt,
-				Status:       TestStatusError,
-				FailureKind:  classifyFailure(err),
-				Error:        err.Error(),
-				ArtifactsDir: turnArtifacts,
-				DurationMS:   time.Since(turnStart).Milliseconds(),
-			})
-			break
 		}
 
-		finalAnswer, toolCalls, rpcUsage, sessionSnapshot, waitErr := r.waitForAssistantMessage(ctx, sessionID, baselineAssistantCount)
+		streamedAnswer := ""
+		toolCalls := make([]ToolCall, 0)
+		if sseRes != nil {
+			streamedAnswer = sseRes.StreamedContent
+			toolCalls = append(toolCalls, sseRes.ToolCalls...)
+		}
+
+		finalAnswer := streamedAnswer
+		var rpcUsage *types.DebugUsage
+		var sessionSnapshot *RPCSession
+		var hitlUsage *JudgeUsage
+		hitlAnswers := make(map[string]string)
+		hitlCheckpoint := ""
+
+		if sseRes != nil && sseRes.Interrupt != nil {
+			hitlCheckpoint = strings.TrimSpace(sseRes.Interrupt.CheckpointID)
+			submittedAnswers, usage, resumedSession, resumeErr := r.answerAndResumeInterrupt(ctx, tc, turn, sessionID, sseRes.Interrupt, turnArtifacts)
+			if resumeErr != nil {
+				tr.Status = TestStatusError
+				tr.FailureKind = FailureKindHTTPError
+				tr.Error = fmt.Sprintf("hitl resume failed: %v", resumeErr)
+				tr.Turns = append(tr.Turns, TurnReport{
+					Prompt:         turn.Prompt,
+					StreamedAnswer: streamedAnswer,
+					SSEErrorJSON:   marshalSSEErrorJSON(sseRes),
+					ToolCalls:      toolCalls,
+					HITLCheckpoint: hitlCheckpoint,
+					Status:         TestStatusError,
+					FailureKind:    FailureKindHTTPError,
+					Error:          resumeErr.Error(),
+					Metrics:        buildEvalMetrics(toolCalls, sseRes, nil, usage),
+					ArtifactsDir:   turnArtifacts,
+					DurationMS:     time.Since(turnStart).Milliseconds(),
+				})
+				break
+			}
+			hitlAnswers = submittedAnswers
+			hitlUsage = usage
+			sessionSnapshot = resumedSession
+			if sessionSnapshot != nil {
+				assistantCount, lastAssistant := latestAssistantTurn(sessionSnapshot.Turns)
+				if lastAssistant != nil && assistantCount > baselineAssistantCount {
+					finalAnswer = lastAssistant.Content
+					toolCalls = lastAssistant.ToolCalls
+					if lastAssistant.Debug != nil {
+						rpcUsage = lastAssistant.Debug.Usage.ToDebugUsage()
+					}
+				}
+			}
+		}
+
+		skipPersistenceWait := false
+		if sseRes != nil && sseRes.Interrupt != nil && strings.TrimSpace(finalAnswer) != "" {
+			skipPersistenceWait = true
+		}
+		if !skipPersistenceWait && sseRes == nil && hasInterruptToolCall(toolCalls) {
+			skipPersistenceWait = true
+		}
+
+		var waitErr error
+		if !skipPersistenceWait {
+			var persistedAnswer string
+			var persistedToolCalls []ToolCall
+			persistedAnswer, persistedToolCalls, rpcUsage, sessionSnapshot, waitErr = r.waitForAssistantMessage(ctx, sessionID, baselineAssistantCount)
+			if waitErr == nil {
+				if strings.TrimSpace(persistedAnswer) != "" {
+					finalAnswer = persistedAnswer
+				}
+				if len(persistedToolCalls) > 0 {
+					toolCalls = persistedToolCalls
+				}
+			}
+		}
+
 		if waitErr != nil {
+			// If stream produced enough data (or asked for clarification via interrupt tool),
+			// keep the turn evaluable even when persistence is eventually consistent.
+			recoverable := skipPersistenceWait || (streamErr != nil && sseRes != nil && resultHasSSEPayload(sseRes))
+			if !recoverable {
+				tr.Status = TestStatusError
+				tr.FailureKind = FailureKindPersistenceMissingAfterDone
+				if streamErr != nil {
+					tr.Error = fmt.Sprintf("sse stream: %v (recovery wait failed: %v)", streamErr, waitErr)
+				} else {
+					tr.Error = fmt.Sprintf("fetch final answer: %v", waitErr)
+				}
+				tr.Turns = append(tr.Turns, TurnReport{
+					Prompt:         turn.Prompt,
+					Status:         TestStatusError,
+					FailureKind:    FailureKindPersistenceMissingAfterDone,
+					Error:          waitErr.Error(),
+					HITLAnswers:    hitlAnswers,
+					HITLCheckpoint: hitlCheckpoint,
+					Metrics:        buildEvalMetrics(toolCalls, sseRes, nil, hitlUsage),
+					ToolCalls:      toolCalls,
+					ArtifactsDir:   turnArtifacts,
+					DurationMS:     time.Since(turnStart).Milliseconds(),
+				})
+				break
+			}
+		}
+
+		if streamErr != nil && sseRes == nil && strings.TrimSpace(finalAnswer) == "" && len(toolCalls) == 0 {
 			tr.Status = TestStatusError
-			tr.FailureKind = FailureKindPersistenceMissingAfterDone
-			tr.Error = fmt.Sprintf("fetch final answer: %v", waitErr)
+			tr.FailureKind = classifyFailure(streamErr)
+			tr.Error = fmt.Sprintf("sse stream: %v", streamErr)
 			tr.Turns = append(tr.Turns, TurnReport{
 				Prompt:       turn.Prompt,
 				Status:       TestStatusError,
-				FailureKind:  FailureKindPersistenceMissingAfterDone,
-				Error:        waitErr.Error(),
+				FailureKind:  classifyFailure(streamErr),
+				Error:        streamErr.Error(),
 				ArtifactsDir: turnArtifacts,
 				DurationMS:   time.Since(turnStart).Milliseconds(),
 			})
 			break
 		}
-		if strings.TrimSpace(finalAnswer) == "" && sseRes != nil {
-			finalAnswer = sseRes.StreamedContent
-		}
 		effectiveStreamRes := withFallbackUsage(sseRes, rpcUsage)
-		streamedAnswer := ""
-		if sseRes != nil {
-			streamedAnswer = sseRes.StreamedContent
+		if len(toolCalls) == 0 && sseRes != nil && len(sseRes.ToolCalls) > 0 {
+			toolCalls = append(toolCalls, sseRes.ToolCalls...)
 		}
 
 		var sseErrorJSON string
@@ -354,7 +448,9 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 			FinalAnswer:    finalAnswer,
 			SSEErrorJSON:   sseErrorJSON,
 			ToolCalls:      toolCalls,
-			Metrics:        buildEvalMetrics(toolCalls, effectiveStreamRes, nil),
+			Metrics:        buildEvalMetrics(toolCalls, effectiveStreamRes, nil, hitlUsage),
+			HITLAnswers:    hitlAnswers,
+			HITLCheckpoint: hitlCheckpoint,
 			Status:         TestStatusPassed,
 			FailureKind:    FailureKindNone,
 			ArtifactsDir:   turnArtifacts,
@@ -434,7 +530,7 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 			}
 
 			turnReport.Verdict = verdict
-			turnReport.Metrics = buildEvalMetrics(toolCalls, effectiveStreamRes, verdict)
+			turnReport.Metrics = buildEvalMetrics(toolCalls, effectiveStreamRes, verdict, hitlUsage)
 			if verdict != nil && !verdict.Passed && tr.Status == TestStatusPassed {
 				tr.Status = TestStatusFailed
 			}
@@ -471,6 +567,78 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 	return tr
 }
 
+func (r *Runner) createSessionWithRetry(ctx context.Context) (uuid.UUID, error) {
+	interval := r.transientRetryInterval()
+	var lastErr error
+
+	for {
+		sessionID, err := r.rpc.CreateSession(ctx, "")
+		if err == nil {
+			return sessionID, nil
+		}
+		if !isTransientRPCPollError(err) {
+			return uuid.Nil, err
+		}
+		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return uuid.Nil, fmt.Errorf("create session retries exhausted: %w", lastErr)
+			}
+			return uuid.Nil, ctx.Err()
+		case <-time.After(interval):
+		}
+	}
+}
+
+func (r *Runner) streamMessageWithRetry(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	prompt string,
+	sinks StreamSinks,
+) (*StreamResult, error) {
+	interval := r.transientRetryInterval()
+	const maxAttempts = 3
+
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		res, err := r.sse.StreamMessage(ctx, sessionID, prompt, sinks)
+		if err == nil {
+			return res, nil
+		}
+		if res != nil {
+			return res, err
+		}
+		if !isTransientRPCPollError(err) || attempt == maxAttempts {
+			return nil, err
+		}
+		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return nil, fmt.Errorf("sse retries exhausted: %w", lastErr)
+			}
+			return nil, ctx.Err()
+		case <-time.After(interval):
+		}
+	}
+
+	return nil, lastErr
+}
+
+func (r *Runner) transientRetryInterval() time.Duration {
+	interval := time.Duration(r.cfg.RPCPollIntervalMillis) * time.Millisecond
+	if interval <= 0 {
+		interval = 250 * time.Millisecond
+	}
+	if interval < 100*time.Millisecond {
+		interval = 100 * time.Millisecond
+	}
+	return interval
+}
+
 func (r *Runner) waitForAssistantMessage(ctx context.Context, sessionID uuid.UUID, baselineAssistantCount int) (string, []ToolCall, *types.DebugUsage, *RPCSession, error) {
 	timeout := time.Duration(r.cfg.RPCPollTimeoutSeconds) * time.Second
 	if timeout <= 0 {
@@ -481,12 +649,26 @@ func (r *Runner) waitForAssistantMessage(ctx context.Context, sessionID uuid.UUI
 		interval = 250 * time.Millisecond
 	}
 	deadline := time.Now().Add(timeout)
+	var lastPollErr error
 
 	for {
 		session, err := r.rpc.GetSession(ctx, sessionID)
 		if err != nil {
+			if isTransientRPCPollError(err) {
+				lastPollErr = err
+				if time.Now().After(deadline) {
+					return "", nil, nil, nil, fmt.Errorf("assistant message not persisted within %s (last rpc error: %w)", timeout, err)
+				}
+				select {
+				case <-ctx.Done():
+					return "", nil, nil, nil, ctx.Err()
+				case <-time.After(interval):
+				}
+				continue
+			}
 			return "", nil, nil, nil, err
 		}
+		lastPollErr = nil
 		assistantCount, lastAssistant := latestAssistantTurn(session.Turns)
 		if lastAssistant != nil && assistantCount > baselineAssistantCount {
 			var usage *types.DebugUsage
@@ -496,6 +678,9 @@ func (r *Runner) waitForAssistantMessage(ctx context.Context, sessionID uuid.UUI
 			return lastAssistant.Content, lastAssistant.ToolCalls, usage, session, nil
 		}
 		if time.Now().After(deadline) {
+			if lastPollErr != nil {
+				return "", nil, nil, session, fmt.Errorf("assistant message not persisted within %s (last rpc error: %w)", timeout, lastPollErr)
+			}
 			return "", nil, nil, session, fmt.Errorf("assistant message not persisted within %s", timeout)
 		}
 		select {
@@ -504,6 +689,175 @@ func (r *Runner) waitForAssistantMessage(ctx context.Context, sessionID uuid.UUI
 		case <-time.After(interval):
 		}
 	}
+}
+
+func marshalSSEErrorJSON(sseRes *StreamResult) string {
+	if sseRes == nil || sseRes.ErrorPayload == nil {
+		return ""
+	}
+	b, err := json.Marshal(sseRes.ErrorPayload)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+func (r *Runner) answerAndResumeInterrupt(
+	ctx context.Context,
+	tc TestCase,
+	turn Turn,
+	sessionID uuid.UUID,
+	interrupt *HITLInterrupt,
+	turnArtifacts string,
+) (map[string]string, *JudgeUsage, *RPCSession, error) {
+	if interrupt == nil {
+		return nil, nil, nil, errors.New("interrupt payload is nil")
+	}
+	if r.hitl == nil {
+		return nil, nil, nil, errors.New("hitl responder is not configured")
+	}
+
+	oracleRefs := append([]string{}, tc.OracleRefs...)
+	oracleRefs = append(oracleRefs, turn.OracleRefs...)
+	oracleFacts, err := r.resolveOracleFacts(oracleRefs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("resolve oracle refs for hitl: %w", err)
+	}
+
+	const maxNestedInterrupts = 5
+
+	answersAll := make(map[string]string)
+	var usageTotal *JudgeUsage
+	var resumedSession *RPCSession
+	current := interrupt
+
+	for depth := 0; depth < maxNestedInterrupts; depth++ {
+		if current == nil {
+			break
+		}
+		if strings.TrimSpace(current.CheckpointID) == "" {
+			return answersAll, usageTotal, resumedSession, errors.New("interrupt checkpoint_id is required")
+		}
+		if len(current.Questions) == 0 {
+			return answersAll, usageTotal, resumedSession, errors.New("interrupt contains no questions")
+		}
+
+		answersResult, err := r.hitl.Answer(ctx, HITLAnswerInput{
+			CaseID:          tc.ID,
+			CaseDescription: tc.Description,
+			UserPrompt:      turn.Prompt,
+			Questions:       current.Questions,
+			OracleFacts:     oracleFacts,
+		})
+		if err != nil {
+			return answersAll, usageTotal, resumedSession, err
+		}
+		if answersResult == nil || len(answersResult.Answers) == 0 {
+			return answersAll, usageTotal, resumedSession, errors.New("hitl responder returned no answers")
+		}
+
+		for k, v := range answersResult.Answers {
+			answersAll[k] = v
+		}
+		usageTotal = mergeJudgeUsage(usageTotal, answersResult.Usage)
+
+		if turnArtifacts != "" {
+			if b, marshalErr := json.MarshalIndent(current, "", "  "); marshalErr == nil {
+				_ = os.WriteFile(filepath.Join(turnArtifacts, fmt.Sprintf("hitl_interrupt_%d.json", depth+1)), b, 0o644)
+			}
+			if b, marshalErr := json.MarshalIndent(answersResult, "", "  "); marshalErr == nil {
+				_ = os.WriteFile(filepath.Join(turnArtifacts, fmt.Sprintf("hitl_answers_%d.json", depth+1)), b, 0o644)
+			}
+		}
+
+		resumedSession, err = r.rpc.SubmitQuestionAnswers(ctx, sessionID, current.CheckpointID, answersResult.Answers)
+		if err != nil {
+			return answersAll, usageTotal, nil, err
+		}
+
+		current = rpcPendingQuestionToInterrupt(resumedSession.PendingQuestion)
+	}
+
+	if current != nil {
+		return answersAll, usageTotal, resumedSession, fmt.Errorf("nested HITL interrupts exceeded %d rounds", maxNestedInterrupts)
+	}
+	return answersAll, usageTotal, resumedSession, nil
+}
+
+func rpcPendingQuestionToInterrupt(pq *RPCPendingQuestion) *HITLInterrupt {
+	if pq == nil {
+		return nil
+	}
+	out := &HITLInterrupt{
+		CheckpointID: strings.TrimSpace(pq.CheckpointID),
+		AgentName:    strings.TrimSpace(pq.AgentName),
+		Questions:    make([]HITLQuestion, 0, len(pq.Questions)),
+	}
+	for _, q := range pq.Questions {
+		item := HITLQuestion{
+			ID:      strings.TrimSpace(q.ID),
+			Text:    strings.TrimSpace(q.Text),
+			Type:    strings.TrimSpace(q.Type),
+			Options: make([]HITLQuestionOption, 0, len(q.Options)),
+		}
+		for _, opt := range q.Options {
+			item.Options = append(item.Options, HITLQuestionOption{
+				ID:    strings.TrimSpace(opt.ID),
+				Label: strings.TrimSpace(opt.Label),
+			})
+		}
+		out.Questions = append(out.Questions, item)
+	}
+	return out
+}
+
+func mergeJudgeUsage(base *JudgeUsage, next *JudgeUsage) *JudgeUsage {
+	if base == nil && next == nil {
+		return nil
+	}
+	if base == nil {
+		copied := *next
+		return &copied
+	}
+	if next == nil {
+		return base
+	}
+	base.PromptTokens += next.PromptTokens
+	base.CompletionTokens += next.CompletionTokens
+	base.TotalTokens += next.TotalTokens
+	base.Cost += next.Cost
+	if strings.TrimSpace(base.Currency) == "" {
+		base.Currency = next.Currency
+	}
+	base.EstimatedCost = base.EstimatedCost || next.EstimatedCost
+	return base
+}
+
+func isTransientRPCPollError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return true
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "reset by peer") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "server closed") ||
+		strings.Contains(msg, "eof") {
+		return true
+	}
+
+	return false
 }
 
 func summarize(tests []TestReport) Summary {
@@ -655,6 +1009,15 @@ func isAssistantTurn(turn *RPCAssistantTurn) bool {
 	return role == "" || role == "assistant"
 }
 
+func hasInterruptToolCall(toolCalls []ToolCall) bool {
+	for _, tool := range toolCalls {
+		if strings.EqualFold(strings.TrimSpace(tool.Name), "ask_user_question") {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Runner) resolveOracleFacts(refs []string) ([]OracleFact, error) {
 	if len(refs) == 0 {
 		return nil, nil
@@ -683,7 +1046,7 @@ func (r *Runner) resolveOracleFacts(refs []string) ([]OracleFact, error) {
 	return facts, nil
 }
 
-func buildEvalMetrics(toolCalls []ToolCall, sseRes *StreamResult, verdict *JudgeVerdict) EvalMetrics {
+func buildEvalMetrics(toolCalls []ToolCall, sseRes *StreamResult, verdict *JudgeVerdict, hitlUsage *JudgeUsage) EvalMetrics {
 	metrics := EvalMetrics{
 		ToolUseEfficiency: len(toolCalls),
 		UniqueToolsUsed:   countUniqueTools(toolCalls),
@@ -703,10 +1066,17 @@ func buildEvalMetrics(toolCalls []ToolCall, sseRes *StreamResult, verdict *Judge
 		metrics.JudgeCost = verdict.Usage.Cost
 	}
 
-	metrics.InputTokens = metrics.AssistantInputTokens + metrics.JudgeInputTokens
-	metrics.OutputTokens = metrics.AssistantOutputTokens + metrics.JudgeOutputTokens
-	metrics.TotalTokens = metrics.AssistantTotalTokens + metrics.JudgeTotalTokens
-	metrics.Cost = metrics.AssistantCost + metrics.JudgeCost
+	if hitlUsage != nil {
+		metrics.HITLInputTokens = hitlUsage.PromptTokens
+		metrics.HITLOutputTokens = hitlUsage.CompletionTokens
+		metrics.HITLTotalTokens = hitlUsage.TotalTokens
+		metrics.HITLCost = hitlUsage.Cost
+	}
+
+	metrics.InputTokens = metrics.AssistantInputTokens + metrics.JudgeInputTokens + metrics.HITLInputTokens
+	metrics.OutputTokens = metrics.AssistantOutputTokens + metrics.JudgeOutputTokens + metrics.HITLOutputTokens
+	metrics.TotalTokens = metrics.AssistantTotalTokens + metrics.JudgeTotalTokens + metrics.HITLTotalTokens
+	metrics.Cost = metrics.AssistantCost + metrics.JudgeCost + metrics.HITLCost
 
 	return metrics
 }
@@ -730,6 +1100,11 @@ func aggregateEvalMetricsFromTurns(turns []TurnReport) EvalMetrics {
 		agg.JudgeOutputTokens += turn.Metrics.JudgeOutputTokens
 		agg.JudgeTotalTokens += turn.Metrics.JudgeTotalTokens
 		agg.JudgeCost += turn.Metrics.JudgeCost
+
+		agg.HITLInputTokens += turn.Metrics.HITLInputTokens
+		agg.HITLOutputTokens += turn.Metrics.HITLOutputTokens
+		agg.HITLTotalTokens += turn.Metrics.HITLTotalTokens
+		agg.HITLCost += turn.Metrics.HITLCost
 	}
 	return agg
 }

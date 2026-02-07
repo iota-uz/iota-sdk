@@ -21,6 +21,7 @@ command bichat eval run \
   --rpc-path /bi-chat/rpc \
   --stream-path /bi-chat/stream \
   --session-token '<granite_sid>' \
+  --hitl-model 'gpt-4o-mini' \
   --openai-api-key "$OPENAI_API_KEY" \
   --seed-dsn 'postgres://postgres:postgres@localhost:5432/iota?sslmode=disable' \
   --seed-tenant-id '00000000-0000-0000-0000-000000000001'
@@ -43,7 +44,7 @@ Per eval (test case), the report includes:
 
 - `tool_use_efficiency` (number of tool calls used to produce answers)
 - `cost`
-- `input_tokens` and `output_tokens` (plus totals and assistant/judge breakdown)
+- `input_tokens` and `output_tokens` (plus totals and assistant/judge/HITL breakdown)
 
 ## Composable API
 

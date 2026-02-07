@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	stdlibsql "database/sql"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -816,7 +818,43 @@ func formatValue(value interface{}) interface{} {
 	case pgx.Rows:
 		// Handle nested rows if any
 		return nil
+	case pgtype.Numeric:
+		return formatNumeric(v)
+	case *pgtype.Numeric:
+		if v == nil {
+			return nil
+		}
+		return formatNumeric(*v)
 	default:
 		return v
 	}
+}
+
+func formatNumeric(v pgtype.Numeric) any {
+	if !v.Valid {
+		return nil
+	}
+
+	raw, err := v.MarshalJSON()
+	if err != nil {
+		return fmt.Sprint(v)
+	}
+
+	if string(raw) == "null" {
+		return nil
+	}
+
+	// Keep exact numeric representation from pgtype JSON encoding.
+	var out any
+	if err := json.Unmarshal(raw, &out); err == nil {
+		switch value := out.(type) {
+		case float64:
+			// Avoid scientific notation and precision-loss side effects for integral numbers.
+			if value == float64(int64(value)) {
+				return strconv.FormatInt(int64(value), 10)
+			}
+		}
+	}
+
+	return strings.Trim(string(raw), "\"")
 }

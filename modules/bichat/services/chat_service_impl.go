@@ -542,10 +542,18 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		case bichatservices.EventTypeInterrupt:
 			interrupted = true
+			if event.Interrupt == nil {
+				continue
+			}
 			agentName := event.Interrupt.AgentName
 			if agentName == "" {
 				agentName = "default-agent"
 			}
+			onChunk(bichatservices.StreamChunk{
+				Type:      bichatservices.ChunkTypeInterrupt,
+				Interrupt: event.Interrupt,
+				Timestamp: time.Now(),
+			})
 			session = session.
 				UpdatePendingQuestionAgent(&agentName).
 				UpdateLLMPreviousResponseID(optionalStringPtr(event.Interrupt.ProviderResponseID))
@@ -791,6 +799,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	toolOrder := make([]string, 0)
 	var providerResponseID *string
 	var finalUsage *types.DebugUsage
+	var interrupt *bichatservices.Interrupt
 
 	for {
 		event, err := gen.Next(ctx)
@@ -815,10 +824,38 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 			if event.Usage != nil {
 				finalUsage = event.Usage
 			}
+		case bichatservices.EventTypeInterrupt:
+			if event.Interrupt == nil {
+				continue
+			}
+			interrupt = &bichatservices.Interrupt{
+				CheckpointID: event.Interrupt.CheckpointID,
+				Questions:    event.Interrupt.Questions,
+			}
+			agentName := event.Interrupt.AgentName
+			if agentName == "" {
+				agentName = "default-agent"
+			}
+			session = session.
+				UpdatePendingQuestionAgent(&agentName).
+				UpdateLLMPreviousResponseID(optionalStringPtr(event.Interrupt.ProviderResponseID)).
+				UpdateUpdatedAt(time.Now())
+			if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
+				return nil, serrors.E(op, err)
+			}
 		case bichatservices.EventTypeCitation,
-			bichatservices.EventTypeInterrupt, bichatservices.EventTypeError:
+			bichatservices.EventTypeError:
 			// no-op for resume
 		}
+	}
+
+	if interrupt != nil {
+		return &bichatservices.SendMessageResponse{
+			UserMessage:      nil,
+			AssistantMessage: nil,
+			Session:          session,
+			Interrupt:        interrupt,
+		}, nil
 	}
 
 	// Create and save assistant message

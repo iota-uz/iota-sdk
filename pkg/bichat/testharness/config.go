@@ -13,8 +13,9 @@ const (
 	DefaultStreamEndpointPath = "/bi-chat/stream"
 	DefaultCookieName         = "granite_sid"
 	DefaultJudgeModel         = "gpt-5-mini"
+	DefaultHITLModel          = "gpt-4o-mini"
 	DefaultParallelWorkers    = 8
-	DefaultRPCPollTimeout     = 15
+	DefaultRPCPollTimeout     = 60
 	DefaultRPCPollInterval    = 250
 	DefaultStreamDoneDrainMS  = 3000
 )
@@ -27,8 +28,8 @@ type Config struct {
 	SessionToken       string
 
 	JudgeModel   string
+	HITLModel    string
 	OpenAIAPIKey string
-	DisableJudge bool
 
 	Parallel     int
 	FailFast     bool
@@ -62,6 +63,9 @@ func (c *Config) ApplyDefaults() {
 	if c.JudgeModel == "" {
 		c.JudgeModel = DefaultJudgeModel
 	}
+	if c.HITLModel == "" {
+		c.HITLModel = DefaultHITLModel
+	}
 	if c.RPCPollTimeoutSeconds <= 0 {
 		c.RPCPollTimeoutSeconds = DefaultRPCPollTimeout
 	}
@@ -89,8 +93,11 @@ func (c *Config) Validate() error {
 	if !strings.HasPrefix(c.StreamEndpointPath, "/") {
 		return errors.New("stream_endpoint_path must start with /")
 	}
-	if !c.DisableJudge && c.OpenAIAPIKey == "" {
-		return errors.New("openai_api_key is required when judge is enabled")
+	if strings.TrimSpace(c.OpenAIAPIKey) == "" {
+		return errors.New("openai_api_key is required")
+	}
+	if strings.EqualFold(strings.TrimSpace(c.HITLModel), strings.TrimSpace(c.JudgeModel)) {
+		return errors.New("hitl_model must be different from judge_model")
 	}
 	if c.CacheEnabled {
 		if c.CacheDir == "" {

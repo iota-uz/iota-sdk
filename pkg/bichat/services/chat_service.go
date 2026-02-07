@@ -102,6 +102,7 @@ type StreamChunk struct {
 	Citation     *domain.Citation
 	Usage        *types.DebugUsage
 	Tool         *ToolEvent
+	Interrupt    *InterruptEvent
 	GenerationMs int64
 	Error        error
 	Timestamp    time.Time
@@ -116,6 +117,7 @@ const (
 	ChunkTypeCitation  ChunkType = "citation"
 	ChunkTypeToolStart ChunkType = "tool_start"
 	ChunkTypeToolEnd   ChunkType = "tool_end"
+	ChunkTypeInterrupt ChunkType = "interrupt"
 	ChunkTypeUsage     ChunkType = "usage"
 	ChunkTypeDone      ChunkType = "done"
 	ChunkTypeError     ChunkType = "error"

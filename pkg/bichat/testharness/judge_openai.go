@@ -89,32 +89,9 @@ Return ONLY valid JSON with keys:
 
 func (j *OpenAIJudge) Evaluate(ctx context.Context, in JudgeTurnInput) (*JudgeVerdict, error) {
 	userPrompt := buildJudgeUserPrompt(in)
-
-	maxTokens := int64(1024)
-	resp, err := j.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model: j.model,
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(judgeSystemPrompt),
-			openai.UserMessage(userPrompt),
-		},
-		// GPT-5* models require max_completion_tokens (max_tokens is not supported).
-		MaxCompletionTokens: openai.Int(maxTokens),
-		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
-			OfJSONObject: &openai.ResponseFormatJSONObjectParam{
-				Type: oaiconstant.ValueOf[oaiconstant.JSONObject](),
-			},
-		},
-	})
+	resp, content, err := j.requestVerdict(ctx, userPrompt)
 	if err != nil {
-		return nil, fmt.Errorf("judge request failed: %w", err)
-	}
-	if len(resp.Choices) == 0 {
-		return nil, errors.New("judge returned no choices")
-	}
-
-	content := resp.Choices[0].Message.Content
-	if strings.TrimSpace(content) == "" {
-		return nil, errors.New("judge returned empty content")
+		return nil, err
 	}
 
 	verdict, err := parseJudgeVerdict([]byte(content))
@@ -123,6 +100,47 @@ func (j *OpenAIJudge) Evaluate(ctx context.Context, in JudgeTurnInput) (*JudgeVe
 	}
 	verdict.Usage = buildJudgeUsage(j.model, resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens)
 	return verdict, nil
+}
+
+func (j *OpenAIJudge) requestVerdict(ctx context.Context, userPrompt string) (*openai.ChatCompletion, string, error) {
+	const maxTokens int64 = 1024
+
+	params := openai.ChatCompletionNewParams{
+		Model: j.model,
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(judgeSystemPrompt),
+			openai.UserMessage(userPrompt),
+		},
+		MaxCompletionTokens: openai.Int(maxTokens),
+		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONObject: &openai.ResponseFormatJSONObjectParam{
+				Type: oaiconstant.ValueOf[oaiconstant.JSONObject](),
+			},
+		},
+	}
+
+	lastErr := errors.New("judge returned empty content")
+	for range 2 {
+		resp, err := j.client.Chat.Completions.New(ctx, params)
+		if err != nil {
+			lastErr = fmt.Errorf("judge request failed: %w", err)
+			continue
+		}
+		if len(resp.Choices) == 0 {
+			lastErr = errors.New("judge returned no choices")
+			continue
+		}
+		msg := resp.Choices[0].Message
+		content := extractChatMessageContent(msg)
+		if content != "" {
+			return resp, content, nil
+		}
+		if refusal := extractChatMessageRefusal(msg); refusal != "" {
+			return nil, "", fmt.Errorf("judge model refused: %s", refusal)
+		}
+		lastErr = errors.New("judge returned empty content")
+	}
+	return nil, "", lastErr
 }
 
 func buildJudgeUserPrompt(in JudgeTurnInput) string {
@@ -250,18 +268,29 @@ func estimateJudgeCost(model string, promptTokens, completionTokens int64) (floa
 }
 
 func parseJudgeVerdict(data []byte) (*JudgeVerdict, error) {
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
+	parse := func(payload []byte) (*JudgeVerdict, error) {
+		dec := json.NewDecoder(bytes.NewReader(payload))
+		dec.DisallowUnknownFields()
 
-	var v JudgeVerdict
-	if err := dec.Decode(&v); err != nil {
-		return nil, err
+		var v JudgeVerdict
+		if err := dec.Decode(&v); err != nil {
+			return nil, err
+		}
+		if v.Score < 0 || v.Score > 1 {
+			return nil, errors.New("score must be between 0 and 1")
+		}
+		if strings.TrimSpace(v.Reason) == "" {
+			return nil, errors.New("reason is required")
+		}
+		return &v, nil
 	}
-	if v.Score < 0 || v.Score > 1 {
-		return nil, errors.New("score must be between 0 and 1")
+
+	verdict, err := parse(data)
+	if err == nil {
+		return verdict, nil
 	}
-	if strings.TrimSpace(v.Reason) == "" {
-		return nil, errors.New("reason is required")
+	if extracted, ok := extractJSONObject(data); ok {
+		return parse(extracted)
 	}
-	return &v, nil
+	return nil, err
 }

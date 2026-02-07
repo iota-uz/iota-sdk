@@ -7,6 +7,7 @@ import (
 	"time"
 
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestValidateQueryParameters(t *testing.T) {
@@ -405,6 +406,25 @@ func TestSQLExecuteTool_ExplainPlan(t *testing.T) {
 	}
 	if !strings.Contains(outStr, "```sql") || !strings.Contains(outStr, gotSQL) {
 		t.Fatalf("expected executed SQL block, got: %s", outStr)
+	}
+}
+
+func TestFormatValue_PGNumeric(t *testing.T) {
+	t.Parallel()
+
+	var n pgtype.Numeric
+	if err := n.Scan("160000"); err != nil {
+		t.Fatalf("scan numeric: %v", err)
+	}
+
+	got := formatValue(n)
+	if got != "160000" {
+		t.Fatalf("expected 160000, got %#v", got)
+	}
+
+	n.Valid = false
+	if got = formatValue(n); got != nil {
+		t.Fatalf("expected nil for invalid numeric, got %#v", got)
 	}
 }
 

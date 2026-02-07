@@ -3,7 +3,6 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -42,6 +41,7 @@ func newBiChatEvalRunCmd() *cobra.Command {
 		cookieName   string
 		sessionToken string
 		judgeModel   string
+		hitlModel    string
 		openAIAPIKey string
 		seed         bool
 		seedDSN      string
@@ -103,6 +103,7 @@ func newBiChatEvalRunCmd() *cobra.Command {
 				CookieName:   strings.TrimSpace(cookieName),
 				SessionToken: strings.TrimSpace(sessionToken),
 				JudgeModel:   strings.TrimSpace(judgeModel),
+				HITLModel:    strings.TrimSpace(hitlModel),
 				OpenAIAPIKey: strings.TrimSpace(openAIAPIKey),
 				Seed:         seed,
 				SeedDSN:      strings.TrimSpace(seedDSN),
@@ -134,7 +135,8 @@ func newBiChatEvalRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&cookieName, "cookie-name", "granite_sid", "Session cookie name")
 	cmd.Flags().StringVar(&sessionToken, "session-token", "", "Authenticated session token (cookie value)")
 	cmd.Flags().StringVar(&judgeModel, "judge-model", "gpt-5-mini", "OpenAI judge model")
-	cmd.Flags().StringVar(&openAIAPIKey, "openai-api-key", os.Getenv("OPENAI_API_KEY"), "OpenAI API key (required; falls back to OPENAI_API_KEY)")
+	cmd.Flags().StringVar(&hitlModel, "hitl-model", "gpt-4o-mini", "OpenAI model used to answer HITL clarification questions")
+	cmd.Flags().StringVar(&openAIAPIKey, "openai-api-key", "", "OpenAI API key (required; falls back to OPENAI_API_KEY)")
 	cmd.Flags().BoolVar(&seed, "seed", true, "Seed deterministic analytics data before running evals")
 	cmd.Flags().StringVar(&seedDSN, "seed-dsn", "", "PostgreSQL DSN for seeding and oracle computation")
 	cmd.Flags().StringVar(&seedTenantID, "seed-tenant-id", "", "Tenant UUID for seeded analytics data")

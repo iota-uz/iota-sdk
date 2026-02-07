@@ -229,8 +229,9 @@ type ToolCall struct {
 }
 
 type RPCSession struct {
-	Session RPCSessionInfo        `json:"session"`
-	Turns   []RPCConversationTurn `json:"turns"`
+	Session         RPCSessionInfo        `json:"session"`
+	Turns           []RPCConversationTurn `json:"turns"`
+	PendingQuestion *RPCPendingQuestion   `json:"pendingQuestion,omitempty"`
 }
 
 type RPCSessionInfo struct {
@@ -240,6 +241,24 @@ type RPCSessionInfo struct {
 type RPCConversationTurn struct {
 	ID            string            `json:"id"`
 	AssistantTurn *RPCAssistantTurn `json:"assistantTurn,omitempty"`
+}
+
+type RPCPendingQuestionOption struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+type RPCPendingQuestionItem struct {
+	ID      string                     `json:"id"`
+	Text    string                     `json:"text"`
+	Type    string                     `json:"type"`
+	Options []RPCPendingQuestionOption `json:"options,omitempty"`
+}
+
+type RPCPendingQuestion struct {
+	CheckpointID string                   `json:"checkpointId"`
+	AgentName    string                   `json:"agentName,omitempty"`
+	Questions    []RPCPendingQuestionItem `json:"questions,omitempty"`
 }
 
 type RPCAssistantTurn struct {
@@ -290,6 +309,24 @@ func (c *RPCClient) CreateSession(ctx context.Context, title string) (uuid.UUID,
 func (c *RPCClient) GetSession(ctx context.Context, sessionID uuid.UUID) (*RPCSession, error) {
 	var out RPCSession
 	if err := c.Do(ctx, "bichat.session.get", map[string]any{"id": sessionID.String()}, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *RPCClient) SubmitQuestionAnswers(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	checkpointID string,
+	answers map[string]string,
+) (*RPCSession, error) {
+	var out RPCSession
+	params := map[string]any{
+		"sessionId":    sessionID.String(),
+		"checkpointId": strings.TrimSpace(checkpointID),
+		"answers":      answers,
+	}
+	if err := c.Do(ctx, "bichat.question.submit", params, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

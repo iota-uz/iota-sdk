@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/stretchr/testify/assert"
@@ -244,8 +245,89 @@ func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *tes
 	assert.Contains(t, err.Error(), "replaceFromMessageId must point to a user message")
 }
 
+func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("resume interrupt"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	agentSvc := &stubAgentService{
+		resumeEvents: []bichatservices.Event{
+			{
+				Type: bichatservices.EventTypeInterrupt,
+				Interrupt: &bichatservices.InterruptEvent{
+					CheckpointID:       "cp-next",
+					AgentName:          "bi_agent",
+					ProviderResponseID: "resp-next",
+					Questions: []bichatservices.Question{
+						{
+							ID:   "metric",
+							Text: "Choose metric",
+							Type: bichatservices.QuestionTypeSingleChoice,
+							Options: []bichatservices.QuestionOption{
+								{ID: "rev", Label: "Revenue"},
+								{ID: "exp", Label: "Expense"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil)
+	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-prev",
+		Answers: map[string]string{
+			"metric": "rev",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.Nil(t, resp.AssistantMessage)
+	require.NotNil(t, resp.Interrupt)
+	require.Equal(t, "cp-next", resp.Interrupt.CheckpointID)
+
+	updatedSession, err := chatRepo.GetSession(t.Context(), session.ID())
+	require.NoError(t, err)
+	require.NotNil(t, updatedSession.PendingQuestionAgent())
+	assert.Equal(t, "bi_agent", *updatedSession.PendingQuestionAgent())
+	require.NotNil(t, updatedSession.LLMPreviousResponseID())
+	assert.Equal(t, "resp-next", *updatedSession.LLMPreviousResponseID())
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	assert.Empty(t, messages)
+}
+
 type captureTitleContextService struct {
 	called chan context.Context
+}
+
+type stubAgentService struct {
+	resumeEvents []bichatservices.Event
+}
+
+func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UUID, content string, attachments []domain.Attachment) (types.Generator[bichatservices.Event], error) {
+	return nil, assert.AnError
+}
+
+func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.UUID, checkpointID string, answers map[string]types.Answer) (types.Generator[bichatservices.Event], error) {
+	events := append([]bichatservices.Event{}, s.resumeEvents...)
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(bichatservices.Event) bool) error {
+		for _, ev := range events {
+			if !yield(ev) {
+				return nil
+			}
+		}
+		return nil
+	}), nil
 }
 
 func (s *captureTitleContextService) GenerateSessionTitle(ctx context.Context, _ uuid.UUID) error {

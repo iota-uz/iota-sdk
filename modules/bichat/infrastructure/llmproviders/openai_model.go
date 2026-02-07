@@ -135,8 +135,14 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 
 			case "response.output_item.done":
 				if event.Item.Type == "function_call" {
-					// Use event.ItemID (consistent with delta events) not event.Item.CallID
-					itemID := event.ItemID
+					itemID := functionCallItemKey(event.Item, event.ItemID)
+					if itemID == "" {
+						m.logger.Warn(genCtx, "skipping function_call output_item.done without item id", map[string]any{
+							"call_id": event.Item.CallID,
+							"name":    event.Item.Name,
+						})
+						continue
+					}
 					if a, ok := toolCallAccum[itemID]; ok {
 						// Populate callID from the completed item
 						a.callID = event.Item.CallID
@@ -579,21 +585,37 @@ func (m *OpenAIModel) buildToolCallsFromAccum(accum map[string]*toolCallAccumEnt
 	if len(accum) == 0 {
 		return nil
 	}
-	calls := make([]types.ToolCall, 0, len(accum))
+	merged := make(map[string]types.ToolCall, len(accum))
+	callOrder := make([]string, 0, len(accum))
 	for _, key := range order {
 		if a, ok := accum[key]; ok {
 			// Prefer callID (from output_item.done) over itemID
-			id := a.callID
+			id := strings.TrimSpace(a.callID)
 			if id == "" {
-				id = a.id
+				id = strings.TrimSpace(a.id)
 			}
-			calls = append(calls, types.ToolCall{
+			name := strings.TrimSpace(a.name)
+			if id == "" || name == "" {
+				continue
+			}
+
+			if _, exists := merged[id]; !exists {
+				callOrder = append(callOrder, id)
+			}
+
+			merged[id] = types.ToolCall{
 				ID:        id,
-				Name:      a.name,
+				Name:      name,
 				Arguments: a.args,
-			})
+			}
 		}
 	}
+
+	calls := make([]types.ToolCall, 0, len(callOrder))
+	for _, callID := range callOrder {
+		calls = append(calls, merged[callID])
+	}
+
 	return calls
 }
 
@@ -604,19 +626,39 @@ func (m *OpenAIModel) buildReadyToolCallsFromAccum(accum map[string]*toolCallAcc
 		return nil
 	}
 	calls := make([]types.ToolCall, 0, len(accum))
+	seen := make(map[string]struct{}, len(accum))
 	for _, key := range order {
 		a, ok := accum[key]
 		if !ok {
 			continue
 		}
-		if strings.TrimSpace(a.callID) == "" || strings.TrimSpace(a.name) == "" {
+		callID := strings.TrimSpace(a.callID)
+		name := strings.TrimSpace(a.name)
+		if callID == "" || name == "" {
 			continue
 		}
+		if _, exists := seen[callID]; exists {
+			continue
+		}
+		seen[callID] = struct{}{}
 		calls = append(calls, types.ToolCall{
-			ID:        a.callID,
-			Name:      a.name,
+			ID:        callID,
+			Name:      name,
 			Arguments: a.args,
 		})
 	}
 	return calls
+}
+
+func functionCallItemKey(item responses.ResponseOutputItemUnion, fallback string) string {
+	if id := strings.TrimSpace(item.ID); id != "" {
+		return id
+	}
+	if id := strings.TrimSpace(fallback); id != "" {
+		return id
+	}
+	if callID := strings.TrimSpace(item.CallID); callID != "" {
+		return callID
+	}
+	return ""
 }

@@ -49,10 +49,32 @@ type StreamSinks struct {
 	JSON io.Writer // JSONL of decoded payloads
 }
 
+type HITLQuestionOption struct {
+	ID          string `json:"id,omitempty"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+type HITLQuestion struct {
+	ID      string               `json:"id,omitempty"`
+	Text    string               `json:"text,omitempty"`
+	Type    string               `json:"type,omitempty"`
+	Options []HITLQuestionOption `json:"options,omitempty"`
+}
+
+type HITLInterrupt struct {
+	CheckpointID       string         `json:"checkpoint_id,omitempty"`
+	AgentName          string         `json:"agent_name,omitempty"`
+	ProviderResponseID string         `json:"provider_response_id,omitempty"`
+	Questions          []HITLQuestion `json:"questions,omitempty"`
+}
+
 type StreamResult struct {
 	StreamedContent string
 	Usage           *types.DebugUsage
 	Citations       []domain.Citation
+	ToolCalls       []ToolCall
+	Interrupt       *HITLInterrupt
 	ErrorPayload    *httpdto.StreamChunkPayload
 	SawDone         bool
 }
@@ -121,7 +143,10 @@ func (c *SSEClient) StreamMessage(ctx context.Context, sessionID uuid.UUID, cont
 
 	result := &StreamResult{
 		Citations: make([]domain.Citation, 0),
+		ToolCalls: make([]ToolCall, 0),
 	}
+	toolCalls := make(map[string]ToolCall)
+	toolOrder := make([]string, 0)
 
 	bodyReader := resp.Body
 	if sinks.Raw != nil {
@@ -163,6 +188,9 @@ func (c *SSEClient) StreamMessage(ctx context.Context, sessionID uuid.UUID, cont
 		case err := <-errCh:
 			stopDoneTimer()
 			if err != nil {
+				if resultHasSSEPayload(result) {
+					return result, err
+				}
 				return nil, err
 			}
 			return result, nil
@@ -186,6 +214,13 @@ func (c *SSEClient) StreamMessage(ctx context.Context, sessionID uuid.UUID, cont
 			if payload.Usage != nil {
 				result.Usage = payload.Usage
 			}
+			if payload.Tool != nil {
+				recordSSEToolCall(toolCalls, &toolOrder, payload.Tool)
+				result.ToolCalls = orderedSSEToolCalls(toolCalls, toolOrder)
+			}
+			if payload.Interrupt != nil {
+				result.Interrupt = mapSSEInterrupt(payload.Interrupt)
+			}
 			if payload.Type == "error" || payload.Error != "" {
 				cp := payload
 				result.ErrorPayload = &cp
@@ -203,6 +238,99 @@ func (c *SSEClient) StreamMessage(ctx context.Context, sessionID uuid.UUID, cont
 			return result, nil
 		}
 	}
+}
+
+func resultHasSSEPayload(result *StreamResult) bool {
+	if result == nil {
+		return false
+	}
+	return result.SawDone ||
+		strings.TrimSpace(result.StreamedContent) != "" ||
+		len(result.ToolCalls) > 0 ||
+		result.Interrupt != nil ||
+		result.Usage != nil ||
+		result.ErrorPayload != nil
+}
+
+func mapSSEInterrupt(in *httpdto.InterruptEventPayload) *HITLInterrupt {
+	if in == nil {
+		return nil
+	}
+	out := &HITLInterrupt{
+		CheckpointID:       strings.TrimSpace(in.CheckpointID),
+		AgentName:          strings.TrimSpace(in.AgentName),
+		ProviderResponseID: strings.TrimSpace(in.ProviderResponseID),
+		Questions:          make([]HITLQuestion, 0, len(in.Questions)),
+	}
+	for _, q := range in.Questions {
+		qOut := HITLQuestion{
+			ID:      strings.TrimSpace(q.ID),
+			Text:    strings.TrimSpace(q.Text),
+			Type:    strings.TrimSpace(q.Type),
+			Options: make([]HITLQuestionOption, 0, len(q.Options)),
+		}
+		for _, opt := range q.Options {
+			qOut.Options = append(qOut.Options, HITLQuestionOption{
+				ID:          strings.TrimSpace(opt.ID),
+				Label:       strings.TrimSpace(opt.Label),
+				Description: strings.TrimSpace(opt.Description),
+			})
+		}
+		out.Questions = append(out.Questions, qOut)
+	}
+	return out
+}
+
+func recordSSEToolCall(toolCalls map[string]ToolCall, toolOrder *[]string, tool *httpdto.ToolEventPayload) {
+	if tool == nil {
+		return
+	}
+
+	key := strings.TrimSpace(tool.CallID)
+	if key == "" {
+		key = fmt.Sprintf("__unnamed_tool_%d", len(*toolOrder))
+	}
+
+	call, exists := toolCalls[key]
+	if !exists {
+		call = ToolCall{
+			ID: key,
+		}
+		*toolOrder = append(*toolOrder, key)
+	}
+
+	if name := strings.TrimSpace(tool.Name); name != "" {
+		call.Name = name
+	}
+	if args := strings.TrimSpace(tool.Arguments); args != "" {
+		call.Arguments = args
+	}
+	if result := strings.TrimSpace(tool.Result); result != "" {
+		call.Result = result
+	}
+	if err := strings.TrimSpace(tool.Error); err != "" {
+		call.Error = err
+	}
+	if tool.DurationMs > 0 {
+		call.DurationMS = tool.DurationMs
+	}
+
+	toolCalls[key] = call
+}
+
+func orderedSSEToolCalls(toolCalls map[string]ToolCall, toolOrder []string) []ToolCall {
+	if len(toolOrder) == 0 {
+		return nil
+	}
+	result := make([]ToolCall, 0, len(toolOrder))
+	for _, key := range toolOrder {
+		call, ok := toolCalls[key]
+		if !ok {
+			continue
+		}
+		result = append(result, call)
+	}
+	return result
 }
 
 func decodeSSE(r io.Reader, onPayload func(httpdto.StreamChunkPayload) error) error {

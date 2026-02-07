@@ -575,6 +575,82 @@ func TestOpenAIModel_BuildInputItems_SkipsInvalidToolCalls(t *testing.T) {
 	assert.Len(t, items, 3)
 }
 
+func TestFunctionCallItemKey(t *testing.T) {
+	t.Run("prefers output item id", func(t *testing.T) {
+		key := functionCallItemKey(responses.ResponseOutputItemUnion{
+			ID:     "fc_123",
+			CallID: "call_123",
+		}, "")
+		assert.Equal(t, "fc_123", key)
+	})
+
+	t.Run("falls back to event item_id", func(t *testing.T) {
+		key := functionCallItemKey(responses.ResponseOutputItemUnion{
+			CallID: "call_123",
+		}, "fc_fallback")
+		assert.Equal(t, "fc_fallback", key)
+	})
+
+	t.Run("falls back to call_id when item ids missing", func(t *testing.T) {
+		key := functionCallItemKey(responses.ResponseOutputItemUnion{
+			CallID: "call_123",
+		}, "")
+		assert.Equal(t, "call_123", key)
+	})
+}
+
+func TestOpenAIModel_BuildToolCallsFromAccum_DeduplicatesByCallID(t *testing.T) {
+	m := &OpenAIModel{}
+	accum := map[string]*toolCallAccumEntry{
+		"call_abc": {
+			id:   "call_abc",
+			name: "sql_execute",
+			args: `{"query":"SELECT 1"}`,
+		},
+		"fc_123": {
+			id:     "fc_123",
+			callID: "call_abc",
+			name:   "sql_execute",
+			args:   `{"query":"SELECT 2"}`,
+		},
+	}
+
+	calls := m.buildToolCallsFromAccum(accum, []string{"call_abc", "fc_123"})
+	require.Len(t, calls, 1)
+	assert.Equal(t, "call_abc", calls[0].ID)
+	assert.Equal(t, "sql_execute", calls[0].Name)
+	assert.Equal(t, `{"query":"SELECT 2"}`, calls[0].Arguments)
+}
+
+func TestOpenAIModel_BuildReadyToolCallsFromAccum_DeduplicatesByCallID(t *testing.T) {
+	m := &OpenAIModel{}
+	accum := map[string]*toolCallAccumEntry{
+		"fc_1": {
+			id:     "fc_1",
+			callID: "call_1",
+			name:   "sql_execute",
+			args:   `{"query":"SELECT 1"}`,
+		},
+		"fc_1_dup": {
+			id:     "fc_1_dup",
+			callID: "call_1",
+			name:   "sql_execute",
+			args:   `{"query":"SELECT 1"}`,
+		},
+		"fc_2": {
+			id:     "fc_2",
+			callID: "call_2",
+			name:   "schema_list",
+			args:   `{}`,
+		},
+	}
+
+	calls := m.buildReadyToolCallsFromAccum(accum, []string{"fc_1", "fc_1_dup", "fc_2"})
+	require.Len(t, calls, 2)
+	assert.Equal(t, "call_1", calls[0].ID)
+	assert.Equal(t, "call_2", calls[1].ID)
+}
+
 func TestOpenAIModel_Pricing(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()

@@ -188,6 +188,30 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 			}
 			payload.Tool = toolPayload
 		}
+		if chunk.Interrupt != nil {
+			questions := make([]httpdto.InterruptQuestionPayload, 0, len(chunk.Interrupt.Questions))
+			for _, q := range chunk.Interrupt.Questions {
+				options := make([]httpdto.InterruptQuestionOptionPayload, 0, len(q.Options))
+				for _, opt := range q.Options {
+					options = append(options, httpdto.InterruptQuestionOptionPayload{
+						ID:    opt.ID,
+						Label: opt.Label,
+					})
+				}
+				questions = append(questions, httpdto.InterruptQuestionPayload{
+					ID:      q.ID,
+					Text:    q.Text,
+					Type:    string(q.Type),
+					Options: options,
+				})
+			}
+			payload.Interrupt = &httpdto.InterruptEventPayload{
+				CheckpointID:       chunk.Interrupt.CheckpointID,
+				AgentName:          chunk.Interrupt.AgentName,
+				ProviderResponseID: chunk.Interrupt.ProviderResponseID,
+				Questions:          questions,
+			}
+		}
 		if chunk.Error != nil {
 			// Avoid leaking internal errors to the client.
 			if chunk.Type == bichatservices.ChunkTypeError {
