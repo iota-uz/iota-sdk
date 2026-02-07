@@ -1,10 +1,9 @@
-package main
+package rpccodegen
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,78 +12,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/cmd/applet-rpc-typegen/internal/typegen"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 )
 
-func main() {
-	var routerPkg string
-	var routerFunc string
-	var outPath string
-	var typeName string
+var goIdentifierRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-	flag.StringVar(&routerPkg, "router-pkg", "", "Router package import path or module-relative path (e.g. modules/bichat/rpc)")
-	flag.StringVar(&routerFunc, "router-func", "Router", "Router factory function name in router package (e.g. Router)")
-	flag.StringVar(&outPath, "out", "", "Output TypeScript file path")
-	flag.StringVar(&typeName, "type-name", "", "Root TypeScript RPC type name (e.g. BichatRPC)")
-	flag.Parse()
-
-	if strings.TrimSpace(routerPkg) == "" || strings.TrimSpace(routerFunc) == "" || strings.TrimSpace(outPath) == "" || strings.TrimSpace(typeName) == "" {
-		_, _ = fmt.Fprintln(os.Stderr, "Usage: applet-rpc-typegen --router-pkg <pkg> --router-func <func> --out <file> --type-name <TypeName>")
-		os.Exit(2)
+// ValidateGoIdentifier returns an error if name is not a valid Go identifier.
+func ValidateGoIdentifier(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("router function is empty")
 	}
-
-	root, err := os.Getwd()
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+	if !goIdentifierRe.MatchString(name) {
+		return fmt.Errorf("invalid router function name %q: must be a valid Go identifier", name)
 	}
-
-	routerImport, err := resolveRouterImport(root, routerPkg)
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-
-	desc, err := inspectRouter(root, routerImport, routerFunc)
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-
-	ts, err := typegen.EmitTypeScript(desc, typeName)
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-	if err := os.WriteFile(outPath, []byte(ts), 0o644); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
+	return nil
 }
 
-func resolveRouterImport(repoRoot string, routerPkg string) (string, error) {
-	routerPkg = strings.TrimSpace(routerPkg)
-	if routerPkg == "" {
-		return "", fmt.Errorf("router package is empty")
-	}
-	if strings.HasPrefix(routerPkg, "modules/") || strings.HasPrefix(routerPkg, "./modules/") {
-		routerPkg = strings.TrimPrefix(routerPkg, "./")
-		mod, err := readModulePath(filepath.Join(repoRoot, "go.mod"))
-		if err != nil {
-			return "", err
-		}
-		return mod + "/" + routerPkg, nil
-	}
-	return routerPkg, nil
-}
-
-func readModulePath(goModPath string) (string, error) {
+// ReadModulePath reads the module path from a go.mod file.
+func ReadModulePath(goModPath string) (string, error) {
 	b, err := os.ReadFile(goModPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read go.mod: %w", err)
@@ -99,21 +45,26 @@ func readModulePath(goModPath string) (string, error) {
 	return "", fmt.Errorf("module path not found in go.mod")
 }
 
-var goIdentifierRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-
-func validateGoIdentifier(name string) error {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return fmt.Errorf("router function is empty")
+// ResolveRouterImport converts a module-relative router package path to a full import path.
+func ResolveRouterImport(repoRoot string, routerPkg string) (string, error) {
+	routerPkg = strings.TrimSpace(routerPkg)
+	if routerPkg == "" {
+		return "", fmt.Errorf("router package is empty")
 	}
-	if !goIdentifierRe.MatchString(name) {
-		return fmt.Errorf("invalid router function name %q: must be a valid Go identifier", name)
+	if strings.HasPrefix(routerPkg, "modules/") || strings.HasPrefix(routerPkg, "./modules/") {
+		routerPkg = strings.TrimPrefix(routerPkg, "./")
+		mod, err := ReadModulePath(filepath.Join(repoRoot, "go.mod"))
+		if err != nil {
+			return "", err
+		}
+		return mod + "/" + routerPkg, nil
 	}
-	return nil
+	return routerPkg, nil
 }
 
-func inspectRouter(repoRoot string, routerImport string, routerFunc string) (*applet.TypedRouterDescription, error) {
-	if err := validateGoIdentifier(routerFunc); err != nil {
+// InspectRouter generates a temporary Go program that loads the router package and runs DescribeTypedRPCRouter, then returns the description.
+func InspectRouter(repoRoot string, routerImport string, routerFunc string) (*applet.TypedRouterDescription, error) {
+	if err := ValidateGoIdentifier(routerFunc); err != nil {
 		return nil, err
 	}
 
@@ -133,11 +84,11 @@ func inspectRouter(repoRoot string, routerImport string, routerFunc string) (*ap
 	}()
 
 	mainPath := filepath.Join(tmpDir, "main.go")
-	mod, err := readModulePath(filepath.Join(repoRoot, "go.mod"))
+	mod, err := ReadModulePath(filepath.Join(repoRoot, "go.mod"))
 	if err != nil {
 		return nil, err
 	}
-	code := buildRouterInspectorProgram(mod, routerImport, routerFunc)
+	code := BuildRouterInspectorProgram(mod, routerImport, routerFunc)
 
 	if err := os.WriteFile(mainPath, []byte(code), 0o644); err != nil {
 		return nil, err
@@ -148,7 +99,7 @@ func inspectRouter(repoRoot string, routerImport string, routerFunc string) (*ap
 
 	cmd := exec.CommandContext(ctx, "go", "run", tmpDir)
 	cmd.Dir = repoRoot
-	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=auto")
+	cmd.Env = SetEnv(nil, "GOTOOLCHAIN", "auto")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -166,7 +117,8 @@ func inspectRouter(repoRoot string, routerImport string, routerFunc string) (*ap
 	return &desc, nil
 }
 
-func buildRouterInspectorProgram(modulePath string, routerImport string, routerFunc string) string {
+// BuildRouterInspectorProgram returns the source code of a small Go program that imports the router package and outputs the typed router description as JSON.
+func BuildRouterInspectorProgram(modulePath string, routerImport string, routerFunc string) string {
 	return fmt.Sprintf(`package main
 
 import (

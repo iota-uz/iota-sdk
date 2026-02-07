@@ -1,4 +1,4 @@
-package typegen
+package rpccodegen
 
 import (
 	"testing"

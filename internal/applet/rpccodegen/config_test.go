@@ -1,4 +1,4 @@
-package main
+package rpccodegen
 
 import (
 	"os"
@@ -28,7 +28,7 @@ func TestValidateAppletName(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := validateAppletName(tt.input)
+			err := ValidateAppletName(tt.input)
 			if tt.wantError {
 				require.Error(t, err)
 				return
@@ -56,7 +56,7 @@ func TestTypeNameFromAppletName(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, typeNameFromAppletName(tt.input))
+			assert.Equal(t, tt.want, TypeNameFromAppletName(tt.input))
 		})
 	}
 }
@@ -70,7 +70,7 @@ func TestBuildRPCConfig_TargetSelection(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "ui", "src", "bichat", "data"), 0o755))
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "modules", "bichat", "presentation", "web", "src"), 0o755))
 
-		cfg, err := buildRPCConfig(root, "bichat", "Router")
+		cfg, err := BuildRPCConfig(root, "bichat", "Router")
 		require.NoError(t, err)
 		assert.Equal(t, "ui/src/bichat/data/rpc.generated.ts", cfg.TargetOut)
 		assert.Equal(t, "BichatRPC", cfg.TypeName)
@@ -81,7 +81,7 @@ func TestBuildRPCConfig_TargetSelection(t *testing.T) {
 		root := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "modules", "foo", "presentation", "web", "src"), 0o755))
 
-		cfg, err := buildRPCConfig(root, "foo", "Router")
+		cfg, err := BuildRPCConfig(root, "foo", "Router")
 		require.NoError(t, err)
 		assert.Equal(t, "modules/foo/presentation/web/src/rpc.generated.ts", cfg.TargetOut)
 		assert.Equal(t, "modules/foo/rpc", cfg.RouterPackage)
@@ -92,13 +92,13 @@ func TestBichatReexportContent(t *testing.T) {
 	t.Parallel()
 	expected := "// Re-export canonical RPC contract from @iota-uz/sdk package.\n" +
 		"export type { BichatRPC } from '@iota-uz/sdk/bichat'\n"
-	assert.Equal(t, expected, bichatReexportContent("BichatRPC"))
+	assert.Equal(t, expected, BichatReexportContent("BichatRPC"))
 }
 
 func TestSetEnv(t *testing.T) {
 	t.Parallel()
 	env := []string{"A=1", "GOTOOLCHAIN=local", "B=2"}
-	out := setEnv(env, "GOTOOLCHAIN", "auto")
+	out := SetEnv(env, "GOTOOLCHAIN", "auto")
 	assert.Contains(t, out, "A=1")
 	assert.Contains(t, out, "B=2")
 	assert.Contains(t, out, "GOTOOLCHAIN=auto")

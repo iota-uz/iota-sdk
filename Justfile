@@ -394,9 +394,9 @@ dev name="":
 [doc("Applet commands (rpc-gen|rpc-check|deps-check)")]
 applet cmd="help" name="":
   case "{{cmd}}" in \
-    rpc-gen) GOTOOLCHAIN=auto go run ./cmd/applet rpc gen --name "{{name}}" ;; \
-    rpc-check) GOTOOLCHAIN=auto go run ./cmd/applet rpc check --name "{{name}}" ;; \
-    deps-check) GOTOOLCHAIN=auto go run ./cmd/applet deps check ;; \
+    rpc-gen) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet rpc gen --name "{{name}}" ;; \
+    rpc-check) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet rpc check --name "{{name}}" ;; \
+    deps-check) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet deps check ;; \
     *) \
       echo "Usage: just applet [rpc-gen <name>|rpc-check <name>|deps-check]" ; \
       exit 2 ;; \

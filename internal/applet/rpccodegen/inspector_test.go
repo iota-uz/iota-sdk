@@ -1,4 +1,4 @@
-package main
+package rpccodegen
 
 import (
 	"path/filepath"
@@ -27,7 +27,7 @@ func TestValidateGoIdentifier(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := validateGoIdentifier(tc.input)
+			err := ValidateGoIdentifier(tc.input)
 			if tc.wantErr {
 				require.Error(t, err)
 				return
@@ -41,13 +41,13 @@ func TestInspectRouter(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := findRepoRoot(t)
-	modPath, err := readModulePath(filepath.Join(repoRoot, "go.mod"))
+	modPath, err := ReadModulePath(filepath.Join(repoRoot, "go.mod"))
 	require.NoError(t, err)
-	importPath := modPath + "/cmd/applet-rpc-typegen/testfixtures/routerfixtures"
+	importPath := modPath + "/internal/applet/rpccodegen/testfixtures/routerfixtures"
 
 	t.Run("NoArgsRouter", func(t *testing.T) {
 		t.Parallel()
-		desc, err := inspectRouter(repoRoot, importPath, "Router")
+		desc, err := InspectRouter(repoRoot, importPath, "Router")
 		require.NoError(t, err)
 		require.NotNil(t, desc)
 		require.NotEmpty(t, desc.Methods)
@@ -56,7 +56,7 @@ func TestInspectRouter(t *testing.T) {
 
 	t.Run("DependencyfulRouter", func(t *testing.T) {
 		t.Parallel()
-		desc, err := inspectRouter(repoRoot, importPath, "RouterWithDeps")
+		desc, err := InspectRouter(repoRoot, importPath, "RouterWithDeps")
 		require.NoError(t, err)
 		require.NotNil(t, desc)
 		require.NotEmpty(t, desc.Methods)
@@ -65,7 +65,7 @@ func TestInspectRouter(t *testing.T) {
 
 	t.Run("InvalidReturnType", func(t *testing.T) {
 		t.Parallel()
-		_, err := inspectRouter(repoRoot, importPath, "RouterBadReturn")
+		_, err := InspectRouter(repoRoot, importPath, "RouterBadReturn")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "expected *applet.TypedRPCRouter")
 	})
@@ -74,7 +74,7 @@ func TestInspectRouter(t *testing.T) {
 func TestBuildRouterInspectorProgram(t *testing.T) {
 	t.Parallel()
 
-	code := buildRouterInspectorProgram(
+	code := BuildRouterInspectorProgram(
 		"github.com/iota-uz/iota-sdk",
 		"github.com/iota-uz/iota-sdk/modules/bichat/rpc",
 		"Router",
@@ -89,7 +89,7 @@ func findRepoRoot(t *testing.T) string {
 	wd, err := filepath.Abs(".")
 	require.NoError(t, err)
 	for {
-		if _, readErr := readModulePath(filepath.Join(wd, "go.mod")); readErr == nil {
+		if _, readErr := ReadModulePath(filepath.Join(wd, "go.mod")); readErr == nil {
 			return wd
 		}
 		parent := filepath.Dir(wd)

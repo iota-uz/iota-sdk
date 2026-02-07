@@ -28,6 +28,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(commands.NewMigrateCommand())
 	rootCmd.AddCommand(commands.NewKnowledgeCommand())
 	rootCmd.AddCommand(commands.NewBiChatCommand())
+	rootCmd.AddCommand(commands.NewAppletCommand())
 
 	return rootCmd
 }
