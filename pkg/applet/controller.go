@@ -218,6 +218,12 @@ func (c *AppletController) registerDevProxy(router *mux.Router, fullAssetsPath s
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		if r.Context().Err() != nil {
+			return // client disconnected (e.g. HMR page reload) — nothing to do
+		}
+		w.WriteHeader(http.StatusBadGateway)
+	}
 	origDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		originalHost := req.Host
