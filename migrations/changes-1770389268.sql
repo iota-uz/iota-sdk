@@ -92,7 +92,14 @@ ALTER TABLE bichat.sessions
 ALTER TABLE bichat.checkpoints
     ADD COLUMN IF NOT EXISTS previous_response_id varchar(255);
 
+-- Persist assistant debug trace for deterministic debug mode rendering.
+ALTER TABLE bichat.messages
+    ADD COLUMN IF NOT EXISTS debug_trace jsonb;
+
 -- +migrate Down
+ALTER TABLE bichat.messages
+    DROP COLUMN IF EXISTS debug_trace;
+
 ALTER TABLE bichat.checkpoints
     DROP COLUMN IF EXISTS previous_response_id;
 
