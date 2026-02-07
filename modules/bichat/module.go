@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/resolvers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/handlers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
@@ -59,6 +60,7 @@ type Module struct {
 	config                 *ModuleConfig
 	observabilityProviders []observability.Provider
 	eventBridge            *observability.EventBridge
+	artifactUnsubscribe    func()
 }
 
 func (m *Module) Register(app application.Application) error {
@@ -73,8 +75,15 @@ func (m *Module) Register(app application.Application) error {
 
 	controllersToRegister := []application.Controller{}
 
-	// Register GraphQL schema and controllers if config is available
+	// Register controllers if config is available
 	if m.config != nil {
+		// Sync analytics views to database (fail-fast on startup)
+		if m.config.ViewManager != nil {
+			if err := m.config.ViewManager.Sync(context.Background(), app.DB()); err != nil {
+				return fmt.Errorf("failed to sync analytics views: %w", err)
+			}
+		}
+
 		// Build services (fail fast - no try/continue)
 		if err := m.config.BuildServices(); err != nil {
 			return fmt.Errorf("failed to build BiChat services: %w", err)
@@ -85,44 +94,44 @@ func (m *Module) Register(app application.Application) error {
 		attachmentService := m.config.AttachmentService()
 		artifactService := m.config.ArtifactService()
 		app.RegisterServices(chatService, agentService, attachmentService, artifactService)
+
+		if m.artifactUnsubscribe == nil && m.config.EventBus != nil && m.config.ChatRepo != nil {
+			artifactHandler := handlers.NewArtifactHandler(m.config.ChatRepo)
+			m.artifactUnsubscribe = m.config.EventBus.Subscribe(
+				artifactHandler,
+				string(hooks.EventToolComplete),
+			)
+		}
+
 		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Icon, BiChatLink.Name, BiChatLink.Href))
 
-		// Register GraphQL schema (accessible at /query/bichat via core's GraphQLController)
-		resolver := resolvers.NewResolver(
-			app,
-			chatService,
-			agentService,
-			attachmentService,
-			artifactService,
-		)
-		app.RegisterGraphSchema(application.GraphSchema{
-			Value: generated.NewExecutableSchema(
-				generated.Config{
-					Resolvers: resolver,
-				},
-			),
-			BasePath: "/bichat",
-		})
+		// Create and register controllers.
+		// Applet request/response APIs should go through applet RPC.
+		// Streaming is exposed via StreamController.
+		streamRequirePermission := bichatperm.BiChatAccess
+		if m.config.StreamRequireAccessPermission != nil {
+			streamRequirePermission = m.config.StreamRequireAccessPermission
+		}
 
-		// Create and register ChatController with all services
-		chatController := controllers.NewChatController(
-			app,
-			chatService,
-			m.config.ChatRepo,
-			agentService,
-			attachmentService,
-			artifactService,
-		)
-		controllersToRegister = append(controllersToRegister, chatController)
-
+		streamOpts := []controllers.ControllerOption{
+			controllers.WithRequireAccessPermission(streamRequirePermission),
+		}
+		if m.config.StreamReadAllPermission != nil {
+			streamOpts = append(
+				streamOpts,
+				controllers.WithReadAllPermission(m.config.StreamReadAllPermission),
+			)
+		}
 		streamController := controllers.NewStreamController(
 			app,
 			chatService,
+			attachmentService,
+			streamOpts...,
 		)
 		controllersToRegister = append(controllersToRegister, streamController)
 
 		if m.config.Logger != nil {
-			m.config.Logger.Info("Registered BiChat GraphQL schema at /query/bichat and REST endpoints at /bi-chat/*")
+			m.config.Logger.Info("Registered BiChat stream endpoint at /bi-chat/stream")
 		}
 	}
 
@@ -148,6 +157,11 @@ func (m *Module) Name() string {
 //	module := bichat.NewModuleWithConfig(cfg)
 //	defer module.Shutdown(context.Background())
 func (m *Module) Shutdown(ctx context.Context) error {
+	if m.artifactUnsubscribe != nil {
+		m.artifactUnsubscribe()
+		m.artifactUnsubscribe = nil
+	}
+
 	if m.eventBridge == nil {
 		return nil // No observability configured
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
@@ -33,15 +34,19 @@ func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params
 
 // mockKBSearcher is a mock implementation of KBSearcher for testing.
 type mockKBSearcher struct {
-	searchFn      func(ctx context.Context, query string, limit int) ([]tools.SearchResult, error)
+	searchFn      func(ctx context.Context, query string, opts kb.SearchOptions) ([]kb.SearchResult, error)
 	isAvailableFn func() bool
 }
 
-func (m *mockKBSearcher) Search(ctx context.Context, query string, limit int) ([]tools.SearchResult, error) {
+func (m *mockKBSearcher) Search(ctx context.Context, query string, opts kb.SearchOptions) ([]kb.SearchResult, error) {
 	if m.searchFn != nil {
-		return m.searchFn(ctx, query, limit)
+		return m.searchFn(ctx, query, opts)
 	}
-	return []tools.SearchResult{}, nil
+	return []kb.SearchResult{}, nil
+}
+
+func (m *mockKBSearcher) GetDocument(ctx context.Context, id string) (*kb.Document, error) {
+	return nil, nil
 }
 
 func (m *mockKBSearcher) IsAvailable() bool {
@@ -134,6 +139,7 @@ func TestDefaultBIAgent_CoreTools(t *testing.T) {
 		"schema_list",
 		"schema_describe",
 		"sql_execute",
+		"export_query_to_excel",
 		"draw_chart",
 		"ask_user_question",
 	}
@@ -201,6 +207,32 @@ func TestDefaultBIAgent_WithExportTools(t *testing.T) {
 	assert.True(t, toolNames["export_to_pdf"], "export_to_pdf tool should be present when configured")
 }
 
+func TestDefaultBIAgent_WithArtifactReaderTool(t *testing.T) {
+	t.Parallel()
+
+	executor := &mockQueryExecutor{}
+	artifactReader := agents.NewTool(
+		"artifact_reader",
+		"Read session artifacts",
+		map[string]any{"type": "object"},
+		func(ctx context.Context, input string) (string, error) { return "ok", nil },
+	)
+
+	agent, err := NewDefaultBIAgent(
+		executor,
+		WithArtifactReaderTool(artifactReader),
+	)
+	require.NoError(t, err)
+
+	toolNames := make(map[string]bool)
+	for _, tool := range agent.Tools() {
+		toolNames[tool.Name()] = true
+	}
+
+	assert.True(t, toolNames["artifact_reader"])
+	assert.Contains(t, agent.SystemPrompt(context.Background()), "ATTACHMENT ANALYSIS:")
+}
+
 func TestDefaultBIAgent_WithoutExportTools(t *testing.T) {
 	t.Parallel()
 
@@ -216,6 +248,7 @@ func TestDefaultBIAgent_WithoutExportTools(t *testing.T) {
 		toolNames[tool.Name()] = true
 	}
 
+	assert.True(t, toolNames["export_query_to_excel"], "export_query_to_excel should be present by default")
 	assert.False(t, toolNames["export_data_to_excel"], "export_data_to_excel tool should not be present without configuration")
 	assert.False(t, toolNames["export_to_pdf"], "export_to_pdf tool should not be present without configuration")
 }
@@ -241,10 +274,10 @@ func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 	executor := &mockQueryExecutor{
 		executeQueryFn: func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 			// Schema tools use pg_catalog/information_schema via adapters.
-			if strings.Contains(sql, "pg_catalog.pg_views") {
+			if strings.Contains(sql, "pg_catalog.pg_views") || strings.Contains(sql, "FROM pg_class c") {
 				return &bichatsql.QueryResult{
-					Columns:  []string{"schema", "name", "type"},
-					Rows:     [][]any{{"analytics", "test_view", "view"}},
+					Columns:  []string{"schema", "name", "approximate_row_count"},
+					Rows:     [][]any{{"analytics", "test_view", int64(10)}},
 					RowCount: 1,
 				}, nil
 			}

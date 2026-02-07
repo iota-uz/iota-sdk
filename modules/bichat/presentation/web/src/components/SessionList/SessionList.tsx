@@ -13,9 +13,10 @@ interface SessionListProps {
   groups: SessionGroup[]
   pinnedSessions: ChatSession[]
   activeSessionId: string | undefined
-  onDelete: (sessionId: string, e: React.MouseEvent) => void
+  onDelete: (sessionId: string, e?: React.MouseEvent) => void
   onTogglePin: (sessionId: string, isPinned: boolean, e: React.MouseEvent) => void
   onRename: (sessionId: string, newTitle: string) => void
+  onNavigate?: () => void
 }
 
 export default function SessionList({
@@ -25,6 +26,7 @@ export default function SessionList({
   onDelete,
   onTogglePin,
   onRename,
+  onNavigate,
 }: SessionListProps) {
   return (
     <>
@@ -48,6 +50,7 @@ export default function SessionList({
                 onDelete={(e) => onDelete(session.id, e)}
                 onTogglePin={(e) => onTogglePin(session.id, session.pinned || false, e)}
                 onRename={(newTitle) => onRename(session.id, newTitle)}
+                onNavigate={onNavigate}
               />
             ))}
           </motion.div>
@@ -75,6 +78,7 @@ export default function SessionList({
                 onDelete={(e) => onDelete(session.id, e)}
                 onTogglePin={(e) => onTogglePin(session.id, session.pinned || false, e)}
                 onRename={(newTitle) => onRename(session.id, newTitle)}
+                onNavigate={onNavigate}
               />
             ))}
           </motion.div>

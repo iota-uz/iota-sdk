@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -68,6 +69,7 @@ type mockModel struct {
 	response *agents.Response
 	chunks   []agents.Chunk
 	err      error
+	requests []agents.Request
 }
 
 func newMockModel() *mockModel {
@@ -79,15 +81,17 @@ func newMockModel() *mockModel {
 				CompletionTokens: 20,
 				TotalTokens:      30,
 			},
-			FinishReason: "stop",
+			FinishReason:       "stop",
+			ProviderResponseID: "resp_mock_final",
 		},
 		chunks: []agents.Chunk{
 			{Delta: "Test ", Done: false},
 			{Delta: "response", Done: false},
 			{
-				Delta:        "",
-				FinishReason: "stop",
-				Done:         true,
+				Delta:              "",
+				FinishReason:       "stop",
+				Done:               true,
+				ProviderResponseID: "resp_mock_final",
 				Usage: &types.TokenUsage{
 					PromptTokens:     10,
 					CompletionTokens: 20,
@@ -99,6 +103,7 @@ func newMockModel() *mockModel {
 }
 
 func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
+	m.requests = append(m.requests, req)
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -106,6 +111,7 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 }
 
 func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
+	m.requests = append(m.requests, req)
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.Chunk) bool) error {
 		if m.err != nil {
 			return m.err
@@ -288,6 +294,7 @@ type mockChatRepository struct {
 	sessions    map[uuid.UUID]domain.Session
 	messages    map[uuid.UUID][]types.Message
 	attachments map[uuid.UUID]domain.Attachment
+	artifacts   map[uuid.UUID]domain.Artifact
 }
 
 func newMockChatRepository() *mockChatRepository {
@@ -295,6 +302,7 @@ func newMockChatRepository() *mockChatRepository {
 		sessions:    make(map[uuid.UUID]domain.Session),
 		messages:    make(map[uuid.UUID][]types.Message),
 		attachments: make(map[uuid.UUID]domain.Attachment),
+		artifacts:   make(map[uuid.UUID]domain.Artifact),
 	}
 }
 
@@ -356,7 +364,18 @@ func (m *mockChatRepository) GetSessionMessages(ctx context.Context, sessionID u
 }
 
 func (m *mockChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
-	return 0, nil
+	messages := m.messages[sessionID]
+	filtered := make([]types.Message, 0, len(messages))
+	var deleted int64
+	for _, msg := range messages {
+		if msg.CreatedAt().Before(from) {
+			filtered = append(filtered, msg)
+			continue
+		}
+		deleted++
+	}
+	m.messages[sessionID] = filtered
+	return deleted, nil
 }
 
 func (m *mockChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
@@ -386,18 +405,41 @@ func (m *mockChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID)
 }
 
 func (m *mockChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
+	m.artifacts[artifact.ID()] = artifact
 	return nil
 }
 
 func (m *mockChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
-	return nil, errors.New("artifact not found")
+	artifact, exists := m.artifacts[id]
+	if !exists {
+		return nil, errors.New("artifact not found")
+	}
+	return artifact, nil
 }
 
 func (m *mockChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
-	return nil, nil
+	result := make([]domain.Artifact, 0)
+	for _, artifact := range m.artifacts {
+		if artifact.SessionID() == sessionID {
+			result = append(result, artifact)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockChatRepository) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
+	var deleted int64
+	for id, artifact := range m.artifacts {
+		if artifact.SessionID() == sessionID {
+			delete(m.artifacts, id)
+			deleted++
+		}
+	}
+	return deleted, nil
 }
 
 func (m *mockChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
+	delete(m.artifacts, id)
 	return nil
 }
 
@@ -437,6 +479,13 @@ func TestProcessMessage_Success(t *testing.T) {
 	ctx = composables.WithTenantID(ctx, tenantID)
 
 	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
 	content := "Hello, test agent!"
 	require.NoError(t, chatRepo.SaveMessage(ctx, types.UserMessage(
 		"previous",
@@ -526,6 +575,183 @@ func TestProcessMessage_Success(t *testing.T) {
 	assert.Equal(t, 10, done.Usage.PromptTokens)
 	assert.Equal(t, 20, done.Usage.CompletionTokens)
 	assert.Equal(t, 30, done.Usage.TotalTokens)
+	assert.Equal(t, "resp_mock_final", done.ProviderResponseID)
+}
+
+func TestProcessMessage_AppendsProjectPromptExtension(t *testing.T) {
+	t.Parallel()
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	projectExtension := "You are operating in insurance BI domain."
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:                  agent,
+		Model:                  model,
+		Policy:                 policy,
+		Renderer:               renderer,
+		Checkpointer:           checkpointer,
+		ChatRepo:               chatRepo,
+		ProjectPromptExtension: projectExtension,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "hello", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	require.NotEmpty(t, rendered)
+	pinnedPayload, ok := rendered[0].Payload.(string)
+	require.True(t, ok)
+	assert.Equal(t, agent.systemPrompt+"\n\nPROJECT DOMAIN EXTENSION:\n"+projectExtension, pinnedPayload)
+}
+
+func TestProcessMessage_AppendsDebugPromptAfterProjectPromptExtension(t *testing.T) {
+	t.Parallel()
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	projectExtension := "Insurance domain extension."
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:                  agent,
+		Model:                  model,
+		Policy:                 policy,
+		Renderer:               renderer,
+		Checkpointer:           checkpointer,
+		ChatRepo:               chatRepo,
+		ProjectPromptExtension: projectExtension,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+	ctx = services.WithDebugMode(ctx, true)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "hello", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	require.NotEmpty(t, rendered)
+	pinnedPayload, ok := rendered[0].Payload.(string)
+	require.True(t, ok)
+	assert.Contains(t, pinnedPayload, "PROJECT DOMAIN EXTENSION:\n"+projectExtension)
+	assert.Contains(t, pinnedPayload, "DEBUG MODE ENABLED:")
+	assert.Less(
+		t,
+		strings.Index(pinnedPayload, "PROJECT DOMAIN EXTENSION:"),
+		strings.Index(pinnedPayload, "DEBUG MODE ENABLED:"),
+	)
+}
+
+func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {
+	t.Parallel()
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:        agent,
+		Model:        model,
+		Policy:       policy,
+		Renderer:     renderer,
+		Checkpointer: checkpointer,
+		ChatRepo:     chatRepo,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("continuity"),
+		domain.WithLLMPreviousResponseID("resp_prev_42"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "continue", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	for {
+		_, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
+			break
+		}
+		require.NoError(t, err)
+	}
+
+	require.NotEmpty(t, model.requests)
+	require.NotNil(t, model.requests[0].PreviousResponseID)
+	assert.Equal(t, "resp_prev_42", *model.requests[0].PreviousResponseID)
 }
 
 func TestProcessMessage_MissingTenantID(t *testing.T) {
@@ -765,6 +991,7 @@ func TestConvertExecutorEvent_ToolStart(t *testing.T) {
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeToolStart,
 		Tool: &agents.ToolEvent{
+			CallID:    "call_123",
 			Name:      "test_tool",
 			Arguments: `{"param": "value"}`,
 		},
@@ -774,6 +1001,7 @@ func TestConvertExecutorEvent_ToolStart(t *testing.T) {
 
 	assert.Equal(t, services.EventTypeToolStart, serviceEvent.Type)
 	require.NotNil(t, serviceEvent.Tool)
+	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
 	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
 	assert.JSONEq(t, `{"param": "value"}`, serviceEvent.Tool.Arguments)
 }
@@ -784,10 +1012,12 @@ func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeToolEnd,
 		Tool: &agents.ToolEvent{
-			Name:      "test_tool",
-			Arguments: `{"param": "value"}`,
-			Result:    "tool result",
-			Error:     nil,
+			CallID:     "call_123",
+			Name:       "test_tool",
+			Arguments:  `{"param": "value"}`,
+			Result:     "tool result",
+			Error:      nil,
+			DurationMs: 98,
 		},
 	}
 
@@ -795,8 +1025,10 @@ func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
 
 	assert.Equal(t, services.EventTypeToolEnd, serviceEvent.Type)
 	require.NotNil(t, serviceEvent.Tool)
+	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
 	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
 	assert.Equal(t, "tool result", serviceEvent.Tool.Result)
+	assert.Equal(t, int64(98), serviceEvent.Tool.DurationMs)
 	assert.NoError(t, serviceEvent.Tool.Error)
 }
 
@@ -811,10 +1043,11 @@ func TestConvertExecutorEvent_Interrupt(t *testing.T) {
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeInterrupt,
 		Interrupt: &agents.InterruptEvent{
-			Type:         agents.ToolAskUserQuestion,
-			SessionID:    sessionID,
-			Data:         interruptData,
-			CheckpointID: checkpointID,
+			Type:               agents.ToolAskUserQuestion,
+			SessionID:          sessionID,
+			Data:               interruptData,
+			CheckpointID:       checkpointID,
+			ProviderResponseID: "resp_interrupt_1",
 		},
 	}
 
@@ -823,6 +1056,7 @@ func TestConvertExecutorEvent_Interrupt(t *testing.T) {
 	assert.Equal(t, services.EventTypeInterrupt, serviceEvent.Type)
 	require.NotNil(t, serviceEvent.Interrupt)
 	assert.NotEmpty(t, serviceEvent.Interrupt.CheckpointID)
+	assert.Equal(t, "resp_interrupt_1", serviceEvent.Interrupt.ProviderResponseID)
 	require.Len(t, serviceEvent.Interrupt.Questions, 1)
 	assert.Equal(t, "q1", serviceEvent.Interrupt.Questions[0].ID)
 	assert.Equal(t, "What is your name?", serviceEvent.Interrupt.Questions[0].Text)
@@ -842,7 +1076,8 @@ func TestConvertExecutorEvent_Done(t *testing.T) {
 				CompletionTokens: 50,
 				TotalTokens:      150,
 			},
-			FinishReason: "stop",
+			FinishReason:       "stop",
+			ProviderResponseID: "resp_done_1",
 		},
 	}
 
@@ -854,6 +1089,7 @@ func TestConvertExecutorEvent_Done(t *testing.T) {
 	assert.Equal(t, 100, serviceEvent.Usage.PromptTokens)
 	assert.Equal(t, 50, serviceEvent.Usage.CompletionTokens)
 	assert.Equal(t, 150, serviceEvent.Usage.TotalTokens)
+	assert.Equal(t, "resp_done_1", serviceEvent.ProviderResponseID)
 }
 
 func TestConvertExecutorEvent_Error(t *testing.T) {

@@ -17,8 +17,32 @@ export function injectMockContext(): void {
         translations: {},
       },
       config: {
-        graphQLEndpoint: '/query/bichat',
         streamEndpoint: '/bi-chat/stream',
+        basePath: '',
+        assetsBasePath: '/bi-chat/assets',
+        rpcUIEndpoint: '/bi-chat/rpc',
+        shellMode: 'standalone',
+      },
+      route: {
+        path: '/',
+        params: {},
+        query: {},
+      },
+      session: {
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        refreshURL: '/auth/refresh',
+        csrfToken: 'dev-csrf-token',
+      },
+      error: null,
+      extensions: {
+        debug: {
+          limits: {
+            policyMaxTokens: 180000,
+            modelMaxTokens: 272000,
+            effectiveMaxTokens: 180000,
+            completionReserveTokens: 8000,
+          },
+        },
       },
     }
   }

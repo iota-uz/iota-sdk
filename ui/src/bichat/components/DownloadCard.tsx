@@ -1,66 +1,111 @@
 /**
  * DownloadCard component
- * Displays downloadable artifacts (Excel, PDF)
+ * Polished file-download card for artifacts (Excel, PDF)
+ * with type-specific icon, metadata chips, and hover animation.
  */
 
+import { FileXls, FilePdf, DownloadSimple } from '@phosphor-icons/react'
 import { Artifact } from '../types'
 
 interface DownloadCardProps {
   artifact: Artifact
 }
 
+const typeConfig = {
+  excel: {
+    Icon: FileXls,
+    accentBg: 'bg-emerald-50 dark:bg-emerald-950/20',
+    accentBorder: 'border-emerald-200/60 dark:border-emerald-800/40',
+    accentIcon: 'text-emerald-600 dark:text-emerald-400',
+    badge: 'XLSX',
+    badgeClass: 'bg-emerald-100/80 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
+  },
+  pdf: {
+    Icon: FilePdf,
+    accentBg: 'bg-rose-50 dark:bg-rose-950/20',
+    accentBorder: 'border-rose-200/60 dark:border-rose-800/40',
+    accentIcon: 'text-rose-600 dark:text-rose-400',
+    badge: 'PDF',
+    badgeClass: 'bg-rose-100/80 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300',
+  },
+} as const
+
 export function DownloadCard({ artifact }: DownloadCardProps) {
   const { type, filename, url, sizeReadable, rowCount, description } = artifact
-
-  const icon =
-    type === 'excel' ? (
-      <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-        <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z" />
-        <path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-      </svg>
-    ) : (
-      <svg className="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-        <path
-          fillRule="evenodd"
-          d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
-          clipRule="evenodd"
-        />
-      </svg>
-    )
+  const cfg = typeConfig[type]
 
   return (
     <a
       href={url}
       download={filename}
-      className="flex items-center gap-3 p-4 border border-[var(--bichat-border)] rounded-lg hover:bg-gray-50 transition-colors"
+      className={[
+        'group/dl flex items-center gap-3 px-3.5 py-3 rounded-xl',
+        'border transition-all duration-150',
+        'border-gray-200/80 dark:border-gray-700/60',
+        'bg-white dark:bg-gray-800/60',
+        'hover:border-gray-300 dark:hover:border-gray-600',
+        'hover:shadow-sm dark:hover:shadow-lg dark:hover:shadow-black/20',
+        'hover:-translate-y-px active:translate-y-0',
+      ].join(' ')}
     >
-      <div>{icon}</div>
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-gray-900 truncate">{filename}</div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          {sizeReadable && <span>{sizeReadable}</span>}
-          {rowCount !== undefined && (
-            <>
-              <span>•</span>
-              <span>{rowCount} rows</span>
-            </>
-          )}
-        </div>
-        {description && <div className="text-sm text-gray-600 mt-1">{description}</div>}
-      </div>
-      <svg
-        className="w-5 h-5 text-gray-400"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
+      {/* File type icon with tinted background */}
+      <div
+        className={[
+          'flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-lg border',
+          cfg.accentBg,
+          cfg.accentBorder,
+          'transition-transform duration-200 group-hover/dl:scale-105',
+        ].join(' ')}
       >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+        <cfg.Icon size={22} weight="duotone" className={cfg.accentIcon} />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        {/* Filename */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+            {filename}
+          </span>
+          <span
+            className={[
+              'flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded',
+              cfg.badgeClass,
+            ].join(' ')}
+          >
+            {cfg.badge}
+          </span>
+        </div>
+
+        {/* Metadata row */}
+        {(sizeReadable || rowCount !== undefined) && (
+          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {sizeReadable && <span>{sizeReadable}</span>}
+            {sizeReadable && rowCount !== undefined && (
+              <span className="w-0.5 h-0.5 rounded-full bg-gray-300 dark:bg-gray-600" />
+            )}
+            {rowCount !== undefined && (
+              <span>{rowCount.toLocaleString()} rows</span>
+            )}
+          </div>
+        )}
+
+        {/* Description */}
+        {description && (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
+            {description}
+          </p>
+        )}
+      </div>
+
+      {/* Download arrow */}
+      <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 dark:text-gray-500 group-hover/dl:text-gray-600 dark:group-hover/dl:text-gray-300 group-hover/dl:bg-gray-100 dark:group-hover/dl:bg-gray-700/50 transition-all duration-200">
+        <DownloadSimple
+          size={18}
+          weight="bold"
+          className="transition-transform duration-200 group-hover/dl:translate-y-0.5"
         />
-      </svg>
+      </div>
     </a>
   )
 }

@@ -18,30 +18,30 @@ import (
 const (
 	// Session queries
 	insertSessionQuery = `
-		INSERT INTO bichat.sessions (
-			id, tenant_id, user_id, title, status, pinned,
-			parent_session_id, pending_question_agent, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`
+			INSERT INTO bichat.sessions (
+				id, tenant_id, user_id, title, status, pinned,
+				parent_session_id, pending_question_agent, llm_previous_response_id, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		`
 	selectSessionQuery = `
-		SELECT id, tenant_id, user_id, title, status, pinned,
-			   parent_session_id, pending_question_agent, created_at, updated_at
-		FROM bichat.sessions
-		WHERE tenant_id = $1 AND id = $2
-	`
+			SELECT id, tenant_id, user_id, title, status, pinned,
+				   parent_session_id, pending_question_agent, llm_previous_response_id, created_at, updated_at
+			FROM bichat.sessions
+			WHERE tenant_id = $1 AND id = $2
+		`
 	updateSessionQuery = `
-		UPDATE bichat.sessions
-		SET title = $1, status = $2, pinned = $3,
-			parent_session_id = $4, pending_question_agent = $5,
-			updated_at = $6
-		WHERE tenant_id = $7 AND id = $8
-	`
+			UPDATE bichat.sessions
+			SET title = $1, status = $2, pinned = $3,
+				parent_session_id = $4, pending_question_agent = $5,
+				llm_previous_response_id = $6, updated_at = $7
+			WHERE tenant_id = $8 AND id = $9
+		`
 	listUserSessionsQuery = `
-		SELECT id, tenant_id, user_id, title, status, pinned,
-			   parent_session_id, pending_question_agent, created_at, updated_at
-		FROM bichat.sessions
-		WHERE tenant_id = $1 AND user_id = $2
-		ORDER BY pinned DESC, created_at DESC
+			SELECT id, tenant_id, user_id, title, status, pinned,
+				   parent_session_id, pending_question_agent, llm_previous_response_id, created_at, updated_at
+			FROM bichat.sessions
+			WHERE tenant_id = $1 AND user_id = $2 AND ($5::boolean OR status != 'ARCHIVED')
+			ORDER BY pinned DESC, created_at DESC
 		LIMIT $3 OFFSET $4
 	`
 	deleteSessionQuery = `
@@ -52,17 +52,17 @@ const (
 	// Message queries
 	insertMessageQuery = `
 		INSERT INTO bichat.messages (
-			id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			id, session_id, role, content, tool_calls, tool_call_id, citations, debug_trace, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	selectMessageQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.created_at
+		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND m.id = $2
 	`
 	selectSessionMessagesQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.created_at
+		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
@@ -172,6 +172,7 @@ func (r *PostgresChatRepository) CreateSession(ctx context.Context, session doma
 		session.Pinned(),
 		session.ParentSessionID(),
 		session.PendingQuestionAgent(),
+		session.LLMPreviousResponseID(),
 		createdAt,
 		updatedAt,
 	)
@@ -197,20 +198,21 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 	}
 
 	var (
-		sid                  uuid.UUID
-		tenantIDRow          uuid.UUID
-		userID               int64
-		title                string
-		status               domain.SessionStatus
-		pinned               bool
-		parentSessionID      *uuid.UUID
-		pendingQuestionAgent *string
-		createdAt            time.Time
-		updatedAt            time.Time
+		sid                   uuid.UUID
+		tenantIDRow           uuid.UUID
+		userID                int64
+		title                 string
+		status                domain.SessionStatus
+		pinned                bool
+		parentSessionID       *uuid.UUID
+		pendingQuestionAgent  *string
+		llmPreviousResponseID *string
+		createdAt             time.Time
+		updatedAt             time.Time
 	)
 	err = tx.QueryRow(ctx, selectSessionQuery, tenantID, id).Scan(
 		&sid, &tenantIDRow, &userID, &title, &status, &pinned,
-		&parentSessionID, &pendingQuestionAgent, &createdAt, &updatedAt,
+		&parentSessionID, &pendingQuestionAgent, &llmPreviousResponseID, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -235,6 +237,9 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 	if pendingQuestionAgent != nil {
 		opts = append(opts, domain.WithPendingQuestionAgent(*pendingQuestionAgent))
 	}
+	if llmPreviousResponseID != nil {
+		opts = append(opts, domain.WithLLMPreviousResponseID(*llmPreviousResponseID))
+	}
 	return domain.NewSession(opts...), nil
 }
 
@@ -258,6 +263,7 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session doma
 		session.Pinned(),
 		session.ParentSessionID(),
 		session.PendingQuestionAgent(),
+		session.LLMPreviousResponseID(),
 		session.UpdatedAt(),
 		tenantID,
 		session.ID(),
@@ -288,7 +294,7 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 		return nil, serrors.E(op, err)
 	}
 
-	rows, err := tx.Query(ctx, listUserSessionsQuery, tenantID, userID, opts.Limit, opts.Offset)
+	rows, err := tx.Query(ctx, listUserSessionsQuery, tenantID, userID, opts.Limit, opts.Offset, opts.IncludeArchived)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -297,20 +303,21 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 	var sessions []domain.Session
 	for rows.Next() {
 		var (
-			sid                  uuid.UUID
-			tenantIDRow          uuid.UUID
-			userIDRow            int64
-			title                string
-			status               domain.SessionStatus
-			pinned               bool
-			parentSessionID      *uuid.UUID
-			pendingQuestionAgent *string
-			createdAt            time.Time
-			updatedAt            time.Time
+			sid                   uuid.UUID
+			tenantIDRow           uuid.UUID
+			userIDRow             int64
+			title                 string
+			status                domain.SessionStatus
+			pinned                bool
+			parentSessionID       *uuid.UUID
+			pendingQuestionAgent  *string
+			llmPreviousResponseID *string
+			createdAt             time.Time
+			updatedAt             time.Time
 		)
 		err := rows.Scan(
 			&sid, &tenantIDRow, &userIDRow, &title, &status, &pinned,
-			&parentSessionID, &pendingQuestionAgent, &createdAt, &updatedAt,
+			&parentSessionID, &pendingQuestionAgent, &llmPreviousResponseID, &createdAt, &updatedAt,
 		)
 		if err != nil {
 			return nil, serrors.E(op, err)
@@ -330,6 +337,9 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 		}
 		if pendingQuestionAgent != nil {
 			opts = append(opts, domain.WithPendingQuestionAgent(*pendingQuestionAgent))
+		}
+		if llmPreviousResponseID != nil {
+			opts = append(opts, domain.WithLLMPreviousResponseID(*llmPreviousResponseID))
 		}
 		sessions = append(sessions, domain.NewSession(opts...))
 	}
@@ -390,6 +400,11 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		return serrors.E(op, err)
 	}
 
+	debugTraceJSON, err := json.Marshal(msg.DebugTrace())
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
 	createdAt := msg.CreatedAt()
 	if createdAt.IsZero() {
 		createdAt = time.Now()
@@ -403,6 +418,7 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		toolCallsJSON,
 		msg.ToolCallID(),
 		citationsJSON,
+		debugTraceJSON,
 		createdAt,
 	)
 	if err != nil {
@@ -448,14 +464,15 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	}
 
 	var (
-		msgID         uuid.UUID
-		sessionID     uuid.UUID
-		role          types.Role
-		content       string
-		toolCallsJSON []byte
-		toolCallID    *string
-		citationsJSON []byte
-		createdAt     time.Time
+		msgID          uuid.UUID
+		sessionID      uuid.UUID
+		role           types.Role
+		content        string
+		toolCallsJSON  []byte
+		toolCallID     *string
+		citationsJSON  []byte
+		debugTraceJSON []byte
+		createdAt      time.Time
 	)
 
 	err = tx.QueryRow(ctx, selectMessageQuery, tenantID, id).Scan(
@@ -466,6 +483,7 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		&toolCallsJSON,
 		&toolCallID,
 		&citationsJSON,
+		&debugTraceJSON,
 		&createdAt,
 	)
 	if err != nil {
@@ -486,11 +504,25 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		return nil, serrors.E(op, err)
 	}
 
+	var debugTrace *types.DebugTrace
+	if len(debugTraceJSON) > 0 && string(debugTraceJSON) != "null" {
+		var trace types.DebugTrace
+		if err := json.Unmarshal(debugTraceJSON, &trace); err != nil {
+			return nil, serrors.E(op, err)
+		}
+		debugTrace = &trace
+	}
+
 	// Load code interpreter outputs
 	codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, msgID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
+	domainAttachments, err := r.GetMessageAttachments(ctx, msgID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	attachments := convertDomainAttachmentsToTypes(domainAttachments)
 
 	// Build message options
 	opts := []types.MessageOption{
@@ -512,6 +544,12 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	if len(codeOutputs) > 0 {
 		opts = append(opts, types.WithCodeOutputs(codeOutputs...))
 	}
+	if len(attachments) > 0 {
+		opts = append(opts, types.WithAttachments(attachments...))
+	}
+	if debugTrace != nil {
+		opts = append(opts, types.WithDebugTrace(debugTrace))
+	}
 
 	return types.NewMessage(opts...), nil
 }
@@ -525,6 +563,7 @@ type messageData struct {
 	toolCalls  []types.ToolCall
 	toolCallID *string
 	citations  []types.Citation
+	debugTrace *types.DebugTrace
 	createdAt  time.Time
 }
 
@@ -553,14 +592,15 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 	var messagesData []messageData
 	for rows.Next() {
 		var (
-			msgID         uuid.UUID
-			sessID        uuid.UUID
-			role          types.Role
-			content       string
-			toolCallsJSON []byte
-			toolCallID    *string
-			citationsJSON []byte
-			createdAt     time.Time
+			msgID          uuid.UUID
+			sessID         uuid.UUID
+			role           types.Role
+			content        string
+			toolCallsJSON  []byte
+			toolCallID     *string
+			citationsJSON  []byte
+			debugTraceJSON []byte
+			createdAt      time.Time
 		)
 
 		err := rows.Scan(
@@ -571,6 +611,7 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			&toolCallsJSON,
 			&toolCallID,
 			&citationsJSON,
+			&debugTraceJSON,
 			&createdAt,
 		)
 		if err != nil {
@@ -588,6 +629,15 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			return nil, serrors.E(op, err)
 		}
 
+		var debugTrace *types.DebugTrace
+		if len(debugTraceJSON) > 0 && string(debugTraceJSON) != "null" {
+			var trace types.DebugTrace
+			if err := json.Unmarshal(debugTraceJSON, &trace); err != nil {
+				return nil, serrors.E(op, err)
+			}
+			debugTrace = &trace
+		}
+
 		messagesData = append(messagesData, messageData{
 			msgID:      msgID,
 			sessID:     sessID,
@@ -596,6 +646,7 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			toolCalls:  toolCalls,
 			toolCallID: toolCallID,
 			citations:  citations,
+			debugTrace: debugTrace,
 			createdAt:  createdAt,
 		})
 	}
@@ -611,6 +662,11 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
+		domainAttachments, err := r.GetMessageAttachments(ctx, md.msgID)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+		attachments := convertDomainAttachmentsToTypes(domainAttachments)
 
 		// Build message options
 		msgOpts := []types.MessageOption{
@@ -631,6 +687,12 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 		}
 		if len(codeOutputs) > 0 {
 			msgOpts = append(msgOpts, types.WithCodeOutputs(codeOutputs...))
+		}
+		if len(attachments) > 0 {
+			msgOpts = append(msgOpts, types.WithAttachments(attachments...))
+		}
+		if md.debugTrace != nil {
+			msgOpts = append(msgOpts, types.WithDebugTrace(md.debugTrace))
 		}
 
 		messages = append(messages, types.NewMessage(msgOpts...))
@@ -871,4 +933,25 @@ func (r *PostgresChatRepository) loadCodeOutputsForMessage(ctx context.Context, 
 	}
 
 	return outputs, nil
+}
+
+func convertDomainAttachmentsToTypes(in []domain.Attachment) []types.Attachment {
+	if len(in) == 0 {
+		return nil
+	}
+
+	out := make([]types.Attachment, 0, len(in))
+	for _, a := range in {
+		out = append(out, types.Attachment{
+			ID:        a.ID(),
+			MessageID: a.MessageID(),
+			FileName:  a.FileName(),
+			MimeType:  a.MimeType(),
+			SizeBytes: a.SizeBytes(),
+			FilePath:  a.FilePath(),
+			CreatedAt: a.CreatedAt(),
+		})
+	}
+
+	return out
 }

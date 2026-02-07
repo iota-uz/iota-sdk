@@ -184,6 +184,32 @@ export const typingDotVariants = {
 }
 
 /**
+ * Verb transition for typing indicator
+ * Smooth slide-up animation for rotating text
+ */
+export const verbTransitionVariants = {
+  initial: {
+    y: 16,
+    opacity: 0,
+  },
+  animate: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.2,
+      ease: 'easeOut',
+    },
+  },
+  exit: {
+    y: -16,
+    opacity: 0,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.15,
+    },
+  },
+}
+
+/**
  * Floating button (scroll to bottom, etc.)
  */
 export const floatingButtonVariants = {
@@ -241,6 +267,57 @@ export const toastVariants = {
     y: -8,
     transition: {
       duration: prefersReducedMotion() ? 0 : 0.15,
+    },
+  },
+}
+
+/**
+ * Session item with subtle slide-right on hover
+ */
+export const sessionItemVariants = {
+  initial: { opacity: 0, x: -20 },
+  animate: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.3,
+    },
+  },
+  hover: {
+    x: 4,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.2,
+    },
+  },
+  exit: {
+    opacity: 0,
+    x: -20,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.2,
+    },
+  },
+}
+
+/**
+ * Error/alert message slide-in
+ */
+export const errorMessageVariants = {
+  initial: { opacity: 0, y: -10, height: 0 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    height: 'auto',
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.3,
+      ease: [0.4, 0, 0.2, 1],
+    },
+  },
+  exit: {
+    opacity: 0,
+    y: -10,
+    height: 0,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.2,
     },
   },
 }

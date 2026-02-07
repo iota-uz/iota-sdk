@@ -3,8 +3,8 @@
  * Styled component with slot-based customization for assistant messages
  */
 
-import { useState, useCallback, lazy, Suspense, type ReactNode } from 'react'
-import { Copy, ArrowsClockwise } from '@phosphor-icons/react'
+import { useState, useCallback, lazy, Suspense, useRef, useEffect, type ReactNode } from 'react'
+import { Check, Copy, ArrowsClockwise } from '@phosphor-icons/react'
 import { formatDistanceToNow } from 'date-fns'
 import CodeOutputsPanel from './CodeOutputsPanel'
 import StreamingCursor from './StreamingCursor'
@@ -13,6 +13,8 @@ import { SourcesPanel } from './SourcesPanel'
 import { DownloadCard } from './DownloadCard'
 import { InlineQuestionForm } from './InlineQuestionForm'
 import type { AssistantTurn, Citation, ChartData, Artifact, CodeOutput, PendingQuestion } from '../types'
+import { DebugPanel } from './DebugPanel'
+import { useTranslation } from '../hooks/useTranslation'
 
 const MarkdownRenderer = lazy(() =>
   import('./MarkdownRenderer').then((module) => ({ default: module.MarkdownRenderer }))
@@ -155,7 +157,11 @@ export interface AssistantMessageProps {
   hideActions?: boolean
   /** Hide timestamp */
   hideTimestamp?: boolean
+  /** Show debug panel */
+  showDebug?: boolean
 }
+
+const COPY_FEEDBACK_MS = 2000
 
 /* -------------------------------------------------------------------------------------------------
  * Default Styles
@@ -172,7 +178,7 @@ const defaultClassNames: Required<AssistantMessageClassNames> = {
   sources: '',
   explanation: 'mt-4 border-t border-gray-100 dark:border-gray-700 pt-4',
   actions: 'flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150',
-  actionButton: 'p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50',
+  actionButton: 'cursor-pointer p-2 text-gray-500 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50',
   timestamp: 'text-xs text-gray-400 dark:text-gray-500 mr-1',
 }
 
@@ -215,9 +221,29 @@ export function AssistantMessage({
   hideAvatar = false,
   hideActions = false,
   hideTimestamp = false,
+  showDebug = false,
 }: AssistantMessageProps) {
+  const { t } = useTranslation()
   const [explanationExpanded, setExplanationExpanded] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
+  const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const classes = mergeClassNames(defaultClassNames, classNameOverrides)
+  const isSystemMessage = turn.role === 'system'
+  const avatarClassName = isSystemMessage
+    ? 'flex-shrink-0 w-8 h-8 rounded-full bg-gray-500 dark:bg-gray-600 flex items-center justify-center text-white font-medium text-xs'
+    : classes.avatar
+  const bubbleClassName = isSystemMessage
+    ? 'bg-gray-50 dark:bg-gray-900/40 border border-gray-300 dark:border-gray-700 rounded-2xl px-4 py-3'
+    : classes.bubble
+
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimeoutRef.current) {
+        clearTimeout(copyFeedbackTimeoutRef.current)
+        copyFeedbackTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   const hasContent = turn.content?.trim().length > 0
   const hasExplanation = !!turn.explanation?.trim()
@@ -227,14 +253,24 @@ export function AssistantMessage({
     pendingQuestion.turnId === turnId
 
   const handleCopyClick = useCallback(async () => {
-    if (onCopy) {
-      await onCopy(turn.content)
-    } else {
-      try {
+    try {
+      if (onCopy) {
+        await onCopy(turn.content)
+      } else {
         await navigator.clipboard.writeText(turn.content)
-      } catch (err) {
-        console.error('Failed to copy:', err)
       }
+
+      setIsCopied(true)
+      if (copyFeedbackTimeoutRef.current) {
+        clearTimeout(copyFeedbackTimeoutRef.current)
+      }
+      copyFeedbackTimeoutRef.current = setTimeout(() => {
+        setIsCopied(false)
+        copyFeedbackTimeoutRef.current = null
+      }, COPY_FEEDBACK_MS)
+    } catch (err) {
+      setIsCopied(false)
+      console.error('Failed to copy:', err)
     }
   }, [onCopy, turn.content])
 
@@ -247,7 +283,7 @@ export function AssistantMessage({
   const timestamp = formatDistanceToNow(new Date(turn.createdAt), { addSuffix: true })
 
   // Slot props
-  const avatarSlotProps: AssistantMessageAvatarSlotProps = { text: 'AI' }
+  const avatarSlotProps: AssistantMessageAvatarSlotProps = { text: isSystemMessage ? 'SYS' : 'AI' }
   const contentSlotProps: AssistantMessageContentSlotProps = {
     content: turn.content,
     citations: turn.citations,
@@ -267,10 +303,10 @@ export function AssistantMessage({
   }
   const actionsSlotProps: AssistantMessageActionsSlotProps = {
     onCopy: handleCopyClick,
-    onRegenerate: onRegenerate && turnId ? handleRegenerateClick : undefined,
+    onRegenerate: onRegenerate && turnId && !isSystemMessage ? handleRegenerateClick : undefined,
     timestamp,
     canCopy: hasContent,
-    canRegenerate: !!onRegenerate && !!turnId,
+    canRegenerate: !!onRegenerate && !!turnId && !isSystemMessage,
   }
   const explanationSlotProps: AssistantMessageExplanationSlotProps = {
     explanation: turn.explanation || '',
@@ -293,8 +329,8 @@ export function AssistantMessage({
     <div className={classes.root}>
       {/* Avatar */}
       {!hideAvatar && (
-        <div className={classes.avatar}>
-          {renderSlot(slots?.avatar, avatarSlotProps, 'AI')}
+        <div className={avatarClassName}>
+          {renderSlot(slots?.avatar, avatarSlotProps, isSystemMessage ? 'SYS' : 'AI')}
         </div>
       )}
 
@@ -317,22 +353,9 @@ export function AssistantMessage({
           </div>
         )}
 
-        {/* Artifacts */}
-        {turn.artifacts && turn.artifacts.length > 0 && (
-          <div className={classes.artifacts}>
-            {renderSlot(
-              slots?.artifacts,
-              artifactsSlotProps,
-              turn.artifacts.map((artifact, index) => (
-                <DownloadCard key={`${artifact.filename}-${index}`} artifact={artifact} />
-              ))
-            )}
-          </div>
-        )}
-
         {/* Message bubble */}
         {hasContent && (
-          <div className={classes.bubble}>
+          <div className={bubbleClassName}>
             {renderSlot(
               slots?.content,
               contentSlotProps,
@@ -393,7 +416,7 @@ export function AssistantMessage({
                           d="M9 5l7 7-7 7"
                         />
                       </svg>
-                      <span className="font-medium">How I arrived at this</span>
+                      <span className="font-medium">{t('assistant.explanation')}</span>
                     </button>
                     {explanationExpanded && (
                       <div className="pt-3 text-sm text-gray-600 dark:text-gray-400">
@@ -406,6 +429,21 @@ export function AssistantMessage({
                 )}
               </div>
             )}
+
+            {showDebug && <DebugPanel trace={turn.debug} />}
+          </div>
+        )}
+
+        {/* Artifacts */}
+        {turn.artifacts && turn.artifacts.length > 0 && (
+          <div className={classes.artifacts}>
+            {renderSlot(
+              slots?.artifacts,
+              artifactsSlotProps,
+              turn.artifacts.map((artifact, index) => (
+                <DownloadCard key={`${artifact.filename}-${index}`} artifact={artifact} />
+              ))
+            )}
           </div>
         )}
 
@@ -416,7 +454,7 @@ export function AssistantMessage({
 
         {/* Actions */}
         {hasContent && !hideActions && (
-          <div className={classes.actions}>
+          <div className={`${classes.actions} ${isCopied ? 'opacity-100' : ''}`}>
             {renderSlot(
               slots?.actions,
               actionsSlotProps,
@@ -425,17 +463,22 @@ export function AssistantMessage({
 
                 <button
                   onClick={handleCopyClick}
-                  className={classes.actionButton}
+                  className={`cursor-pointer ${classes.actionButton} ${isCopied ? 'text-green-600 dark:text-green-400' : ''}`}
                   aria-label="Copy message"
-                  title="Copy"
+                  title={isCopied ? t('message.copied') : t('message.copy')}
                 >
-                  <Copy size={14} weight="regular" />
+                  {isCopied ? <Check size={14} weight="bold" /> : <Copy size={14} weight="regular" />}
                 </button>
+                {isCopied && (
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                    {t('message.copied')}
+                  </span>
+                )}
 
-                {onRegenerate && turnId && (
+                {onRegenerate && turnId && !isSystemMessage && (
                   <button
                     onClick={handleRegenerateClick}
-                    className={classes.actionButton}
+                    className={`cursor-pointer ${classes.actionButton}`}
                     aria-label="Regenerate response"
                     title="Regenerate"
                   >

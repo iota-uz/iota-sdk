@@ -41,7 +41,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             break
           }
 
-          if (chunk.type === 'chunk' && chunk.content) {
+          if ((chunk.type === 'chunk' || chunk.type === 'content') && chunk.content) {
             setContent((prev) => {
               const newContent = prev + chunk.content
               options.onChunk?.(newContent)

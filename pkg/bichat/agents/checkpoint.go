@@ -13,16 +13,17 @@ import (
 // checkpointDTO is used for JSON serialization of Checkpoint.
 // Since Message is now an interface, we need to serialize messages to a storable format.
 type checkpointDTO struct {
-	ID            string           `json:"id"`
-	ThreadID      string           `json:"thread_id"`
-	AgentName     string           `json:"agent_name"`
-	SessionID     uuid.UUID        `json:"session_id"`
-	TenantID      uuid.UUID        `json:"tenant_id"`
-	Messages      []messageDTO     `json:"messages"`
-	PendingTools  []types.ToolCall `json:"pending_tools"`
-	InterruptType string           `json:"interrupt_type"`
-	InterruptData json.RawMessage  `json:"interrupt_data,omitempty"`
-	CreatedAt     time.Time        `json:"created_at"`
+	ID                 string           `json:"id"`
+	ThreadID           string           `json:"thread_id"`
+	AgentName          string           `json:"agent_name"`
+	SessionID          uuid.UUID        `json:"session_id"`
+	TenantID           uuid.UUID        `json:"tenant_id"`
+	PreviousResponseID *string          `json:"previous_response_id,omitempty"`
+	Messages           []messageDTO     `json:"messages"`
+	PendingTools       []types.ToolCall `json:"pending_tools"`
+	InterruptType      string           `json:"interrupt_type"`
+	InterruptData      json.RawMessage  `json:"interrupt_data,omitempty"`
+	CreatedAt          time.Time        `json:"created_at"`
 }
 
 // messageDTO is used for JSON serialization of Message interface.
@@ -42,32 +43,34 @@ type messageDTO struct {
 // Checkpoint represents a saved state for Human-in-the-Loop (HITL) support.
 // It captures the conversation state when agent execution is paused for user input.
 type Checkpoint struct {
-	ID            string           `json:"id"`
-	ThreadID      string           `json:"thread_id"`
-	AgentName     string           `json:"agent_name"`
-	SessionID     uuid.UUID        `json:"session_id"`
-	TenantID      uuid.UUID        `json:"tenant_id"`
-	Messages      []types.Message  `json:"messages"`
-	PendingTools  []types.ToolCall `json:"pending_tools"`
-	InterruptType string           `json:"interrupt_type"`
-	InterruptData json.RawMessage  `json:"interrupt_data,omitempty"`
-	CreatedAt     time.Time        `json:"created_at"`
+	ID                 string           `json:"id"`
+	ThreadID           string           `json:"thread_id"`
+	AgentName          string           `json:"agent_name"`
+	SessionID          uuid.UUID        `json:"session_id"`
+	TenantID           uuid.UUID        `json:"tenant_id"`
+	PreviousResponseID *string          `json:"previous_response_id,omitempty"`
+	Messages           []types.Message  `json:"messages"`
+	PendingTools       []types.ToolCall `json:"pending_tools"`
+	InterruptType      string           `json:"interrupt_type"`
+	InterruptData      json.RawMessage  `json:"interrupt_data,omitempty"`
+	CreatedAt          time.Time        `json:"created_at"`
 }
 
 // MarshalJSON implements json.Marshaler for Checkpoint.
 // Converts Message interfaces to messageDTO for serialization.
 func (cp *Checkpoint) MarshalJSON() ([]byte, error) {
 	dto := checkpointDTO{
-		ID:            cp.ID,
-		ThreadID:      cp.ThreadID,
-		AgentName:     cp.AgentName,
-		SessionID:     cp.SessionID,
-		TenantID:      cp.TenantID,
-		Messages:      make([]messageDTO, len(cp.Messages)),
-		PendingTools:  cp.PendingTools,
-		InterruptType: cp.InterruptType,
-		InterruptData: cp.InterruptData,
-		CreatedAt:     cp.CreatedAt,
+		ID:                 cp.ID,
+		ThreadID:           cp.ThreadID,
+		AgentName:          cp.AgentName,
+		SessionID:          cp.SessionID,
+		TenantID:           cp.TenantID,
+		PreviousResponseID: cp.PreviousResponseID,
+		Messages:           make([]messageDTO, len(cp.Messages)),
+		PendingTools:       cp.PendingTools,
+		InterruptType:      cp.InterruptType,
+		InterruptData:      cp.InterruptData,
+		CreatedAt:          cp.CreatedAt,
 	}
 
 	// Convert Message interfaces to DTOs
@@ -102,6 +105,7 @@ func (cp *Checkpoint) UnmarshalJSON(data []byte) error {
 	cp.AgentName = dto.AgentName
 	cp.SessionID = dto.SessionID
 	cp.TenantID = dto.TenantID
+	cp.PreviousResponseID = dto.PreviousResponseID
 	cp.PendingTools = dto.PendingTools
 	cp.InterruptType = dto.InterruptType
 	cp.InterruptData = dto.InterruptData
@@ -212,6 +216,13 @@ func WithSessionID(sessionID uuid.UUID) CheckpointOption {
 func WithTenantID(tenantID uuid.UUID) CheckpointOption {
 	return func(cp *Checkpoint) {
 		cp.TenantID = tenantID
+	}
+}
+
+// WithCheckpointPreviousResponseID sets the provider continuity token on the checkpoint.
+func WithCheckpointPreviousResponseID(previousResponseID *string) CheckpointOption {
+	return func(cp *Checkpoint) {
+		cp.PreviousResponseID = previousResponseID
 	}
 }
 

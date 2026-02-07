@@ -553,7 +553,7 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 		requireSameOrigin = *rpcCfg.RequireSameOrigin
 	}
 
-	trustForwardedHost := hasForwardedHeaders(r)
+	trustForwardedHost := false
 	if rpcCfg.TrustForwardedHost != nil {
 		trustForwardedHost = *rpcCfg.TrustForwardedHost
 	}
@@ -807,10 +807,6 @@ func enforceSameOrigin(r *http.Request, trustForwardedHost bool) error {
 	return nil
 }
 
-func hasForwardedHeaders(r *http.Request) bool {
-	return r.Header.Get("X-Forwarded-Proto") != "" || r.Header.Get("X-Forwarded-Host") != ""
-}
-
 func requestHost(r *http.Request, trustForwarded bool) string {
 	if trustForwarded {
 		xfh := strings.TrimSpace(r.Header.Get("X-Forwarded-Host"))
@@ -827,16 +823,20 @@ func requestHost(r *http.Request, trustForwarded bool) string {
 	return strings.TrimSpace(r.Host)
 }
 
-func requestProto(r *http.Request, trustForwarded bool) string {
-	if trustForwarded {
-		xfp := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
-		if xfp != "" {
-			parts := strings.Split(xfp, ",")
-			if len(parts) > 0 {
-				p := strings.ToLower(strings.TrimSpace(parts[0]))
-				if p != "" {
-					return p
-				}
+func requestProto(r *http.Request, _ bool) string {
+	// Always trust X-Forwarded-Proto for protocol detection. This header
+	// only affects default-port derivation and cannot be used to spoof the
+	// request host, so it is safe to read unconditionally.  It fixes the
+	// common deployment where a TLS-terminating proxy forwards plain HTTP
+	// to the backend: without this, Origin "https://host" would mismatch
+	// request proto "http" → different default ports → 403.
+	xfp := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
+	if xfp != "" {
+		parts := strings.Split(xfp, ",")
+		if len(parts) > 0 {
+			p := strings.ToLower(strings.TrimSpace(parts[0]))
+			if p != "" {
+				return p
 			}
 		}
 	}
@@ -881,19 +881,4 @@ func joinURLPath(base string, p string) string {
 		p = "/" + p
 	}
 	return base + p
-}
-
-func singleJoiningSlash(a, b string) string {
-	aslash := strings.HasSuffix(a, "/")
-	bslash := strings.HasPrefix(b, "/")
-	switch {
-	case aslash && bslash:
-		return a + b[1:]
-	case !aslash && !bslash:
-		if a == "" {
-			return "/" + b
-		}
-		return a + "/" + b
-	}
-	return a + b
 }

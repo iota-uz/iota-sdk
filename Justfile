@@ -181,6 +181,24 @@ test *args="":
   go test -tags {{GO_TEST_TAG}} {{args}} ./...
 
 [group("test")]
+[doc("Run BiChat smoke evals (offline fixture runner)")]
+eval *args="":
+  mkdir -p ./coverage
+  go run ./cmd/command/main.go bichat eval run --cases ./pkg/bichat/eval/testdata/smoke --runner fixture --judge none --report ./coverage/bichat_eval_report.json {{args}}
+
+[group("test")]
+[doc("Run BiChat smoke evals with OpenAI (requires OPENAI_API_KEY)")]
+eval-openai *args="":
+  mkdir -p ./coverage
+  go run ./cmd/command/main.go bichat eval run --cases ./pkg/bichat/eval/testdata/smoke --runner openai --judge openai --report ./coverage/bichat_eval_report.json {{args}}
+
+[group("test")]
+[doc("Run BiChat smoke evals with OpenAI judge (fixture runner; requires OPENAI_API_KEY)")]
+eval-judge-openai *args="":
+  mkdir -p ./coverage
+  go run ./cmd/command/main.go bichat eval run --cases ./pkg/bichat/eval/testdata/smoke --runner fixture --judge openai --report ./coverage/bichat_eval_report.json {{args}}
+
+[group("test")]
 [doc("Watch tests with gow")]
 test-watch *args="":
   gow test -tags {{GO_TEST_TAG}} -v {{args}} ./...

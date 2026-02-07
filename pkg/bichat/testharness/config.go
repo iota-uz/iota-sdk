@@ -8,37 +8,40 @@ import (
 )
 
 const (
-	DefaultServerURL           = "http://127.0.0.1:3200"
-	DefaultGraphQLEndpointPath = "/query/ali"
-	DefaultStreamEndpointPath  = "/admin/ali/chat/stream"
-	DefaultCookieName          = "granite_sid"
-	DefaultJudgeModel          = "gpt-5-mini"
-	DefaultParallelWorkers     = 8
-	DefaultGraphQLPollTimeout  = 15
-	DefaultGraphQLPollInterval = 250
-	DefaultStreamDoneDrainMS   = 3000
+	DefaultServerURL          = "http://127.0.0.1:3200"
+	DefaultRPCEndpointPath    = "/bi-chat/rpc"
+	DefaultStreamEndpointPath = "/bi-chat/stream"
+	DefaultCookieName         = "granite_sid"
+	DefaultJudgeModel         = "gpt-5-mini"
+	DefaultHITLModel          = "gpt-4o-mini"
+	DefaultParallelWorkers    = 8
+	DefaultRPCPollTimeout     = 60
+	DefaultRPCPollInterval    = 250
+	DefaultStreamDoneDrainMS  = 3000
 )
 
 type Config struct {
-	ServerURL           string
-	GraphQLEndpointPath string
-	StreamEndpointPath  string
-	CookieName          string
-	SessionToken        string
+	ServerURL          string
+	RPCEndpointPath    string
+	StreamEndpointPath string
+	CookieName         string
+	SessionToken       string
 
 	JudgeModel   string
+	HITLModel    string
 	OpenAIAPIKey string
-	DisableJudge bool
 
 	Parallel     int
+	FailFast     bool
 	CacheEnabled bool
 	CacheDir     string
 
 	ArtifactsDir string
+	OracleFacts  map[string]OracleFact
 
-	GraphQLPollTimeoutSeconds int
-	GraphQLPollIntervalMillis int
-	StreamDoneDrainMillis     int
+	RPCPollTimeoutSeconds int
+	RPCPollIntervalMillis int
+	StreamDoneDrainMillis int
 
 	IotaSDKRevision string
 	HostRevision    string
@@ -48,8 +51,8 @@ func (c *Config) ApplyDefaults() {
 	if c.ServerURL == "" {
 		c.ServerURL = DefaultServerURL
 	}
-	if c.GraphQLEndpointPath == "" {
-		c.GraphQLEndpointPath = DefaultGraphQLEndpointPath
+	if c.RPCEndpointPath == "" {
+		c.RPCEndpointPath = DefaultRPCEndpointPath
 	}
 	if c.StreamEndpointPath == "" {
 		c.StreamEndpointPath = DefaultStreamEndpointPath
@@ -60,11 +63,14 @@ func (c *Config) ApplyDefaults() {
 	if c.JudgeModel == "" {
 		c.JudgeModel = DefaultJudgeModel
 	}
-	if c.GraphQLPollTimeoutSeconds <= 0 {
-		c.GraphQLPollTimeoutSeconds = DefaultGraphQLPollTimeout
+	if c.HITLModel == "" {
+		c.HITLModel = DefaultHITLModel
 	}
-	if c.GraphQLPollIntervalMillis <= 0 {
-		c.GraphQLPollIntervalMillis = DefaultGraphQLPollInterval
+	if c.RPCPollTimeoutSeconds <= 0 {
+		c.RPCPollTimeoutSeconds = DefaultRPCPollTimeout
+	}
+	if c.RPCPollIntervalMillis <= 0 {
+		c.RPCPollIntervalMillis = DefaultRPCPollInterval
 	}
 	if c.StreamDoneDrainMillis <= 0 {
 		c.StreamDoneDrainMillis = DefaultStreamDoneDrainMS
@@ -81,14 +87,17 @@ func (c *Config) Validate() error {
 	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
 		return errors.New("server_url is invalid")
 	}
-	if !strings.HasPrefix(c.GraphQLEndpointPath, "/") {
-		return errors.New("graphql_endpoint_path must start with /")
+	if !strings.HasPrefix(c.RPCEndpointPath, "/") {
+		return errors.New("rpc_endpoint_path must start with /")
 	}
 	if !strings.HasPrefix(c.StreamEndpointPath, "/") {
 		return errors.New("stream_endpoint_path must start with /")
 	}
-	if !c.DisableJudge && c.OpenAIAPIKey == "" {
-		return errors.New("openai_api_key is required when judge is enabled")
+	if strings.TrimSpace(c.OpenAIAPIKey) == "" {
+		return errors.New("openai_api_key is required")
+	}
+	if strings.EqualFold(strings.TrimSpace(c.HITLModel), strings.TrimSpace(c.JudgeModel)) {
+		return errors.New("hitl_model must be different from judge_model")
 	}
 	if c.CacheEnabled {
 		if c.CacheDir == "" {

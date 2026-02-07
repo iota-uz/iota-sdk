@@ -22,7 +22,7 @@ export interface BiChatConfig {
     translations: Record<string, string>
   }
   endpoints: {
-    graphQL: string
+    rpc: string
     stream: string
   }
   csrfToken?: string
@@ -71,7 +71,7 @@ export function ConfigProvider({ config, useGlobalConfig = false, children }: Co
           translations: globalContext.locale?.translations || {},
         },
         endpoints: {
-          graphQL: globalContext.config?.graphQLEndpoint || '/graphql',
+          rpc: globalContext.config?.rpcUIEndpoint || '/rpc',
           stream: globalContext.config?.streamEndpoint || '/stream',
         },
         csrfToken: globalCSRF,

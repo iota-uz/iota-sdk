@@ -8,6 +8,9 @@
     "access": "public"
   },
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "engines": {
     "node": ">=18"
   },
@@ -41,8 +44,12 @@
     "build": "pnpm run build:js && pnpm run build:tailwind && pnpm run build:assets",
     "prepare": "pnpm run build",
     "build:js": "tsup",
+    "build:js:dev": "tsup --config tsup.dev.config.ts",
     "build:tailwind": "node ./scripts/build-tailwind-files.mjs",
     "build:assets": "node ./scripts/build-assets.mjs",
+    "storybook:css": "pnpm exec tailwindcss --input ui/.storybook/preview.css --output ui/.storybook/preview.generated.css",
+    "storybook": "pnpm run storybook:css && storybook dev -p 6006 -c ui/.storybook",
+    "storybook:build": "pnpm run storybook:css && storybook build -c ui/.storybook",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"no lint\""
   },
@@ -51,6 +58,7 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
+    "@headlessui/react": "^2.0.0",
     "@phosphor-icons/react": "^2.1.0",
     "apexcharts": "^3.45.0",
     "date-fns": "^3.0.0",
@@ -62,13 +70,21 @@
     "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
+    "@storybook/addon-essentials": "8.6.15",
+    "@storybook/addon-viewport": "8.6.15",
+    "@storybook/react": "8.6.15",
+    "@storybook/react-vite": "8.6.15",
     "@tailwindcss/cli": "4.1.18",
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^25.2.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "storybook": "8.6.15",
     "tailwindcss": "4.1.18",
     "tsup": "^8.5.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vite": "6.4.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

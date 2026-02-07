@@ -39,6 +39,7 @@ type Session interface {
 	Pinned() bool
 	ParentSessionID() *uuid.UUID
 	PendingQuestionAgent() *string
+	LLMPreviousResponseID() *string
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
@@ -52,20 +53,22 @@ type Session interface {
 	UpdateTitle(title string) Session
 	UpdatePinned(pinned bool) Session
 	UpdatePendingQuestionAgent(agent *string) Session
+	UpdateLLMPreviousResponseID(responseID *string) Session
 	UpdateUpdatedAt(t time.Time) Session
 }
 
 type session struct {
-	id                   uuid.UUID
-	tenantID             uuid.UUID
-	userID               int64
-	title                string
-	status               SessionStatus
-	pinned               bool
-	parentSessionID      *uuid.UUID
-	pendingQuestionAgent *string
-	createdAt            time.Time
-	updatedAt            time.Time
+	id                    uuid.UUID
+	tenantID              uuid.UUID
+	userID                int64
+	title                 string
+	status                SessionStatus
+	pinned                bool
+	parentSessionID       *uuid.UUID
+	pendingQuestionAgent  *string
+	llmPreviousResponseID *string
+	createdAt             time.Time
+	updatedAt             time.Time
 }
 
 // SessionOption configures a session in NewSession.
@@ -95,6 +98,9 @@ func WithParentSessionID(parentID uuid.UUID) SessionOption {
 func WithPendingQuestionAgent(agent string) SessionOption {
 	return func(s *session) { s.pendingQuestionAgent = &agent }
 }
+func WithLLMPreviousResponseID(responseID string) SessionOption {
+	return func(s *session) { s.llmPreviousResponseID = &responseID }
+}
 func WithCreatedAt(t time.Time) SessionOption {
 	return func(s *session) { s.createdAt = t }
 }
@@ -117,16 +123,17 @@ func NewSession(opts ...SessionOption) Session {
 	return s
 }
 
-func (s *session) ID() uuid.UUID                 { return s.id }
-func (s *session) TenantID() uuid.UUID           { return s.tenantID }
-func (s *session) UserID() int64                 { return s.userID }
-func (s *session) Title() string                 { return s.title }
-func (s *session) Status() SessionStatus         { return s.status }
-func (s *session) Pinned() bool                  { return s.pinned }
-func (s *session) ParentSessionID() *uuid.UUID   { return s.parentSessionID }
-func (s *session) PendingQuestionAgent() *string { return s.pendingQuestionAgent }
-func (s *session) CreatedAt() time.Time          { return s.createdAt }
-func (s *session) UpdatedAt() time.Time          { return s.updatedAt }
+func (s *session) ID() uuid.UUID                  { return s.id }
+func (s *session) TenantID() uuid.UUID            { return s.tenantID }
+func (s *session) UserID() int64                  { return s.userID }
+func (s *session) Title() string                  { return s.title }
+func (s *session) Status() SessionStatus          { return s.status }
+func (s *session) Pinned() bool                   { return s.pinned }
+func (s *session) ParentSessionID() *uuid.UUID    { return s.parentSessionID }
+func (s *session) PendingQuestionAgent() *string  { return s.pendingQuestionAgent }
+func (s *session) LLMPreviousResponseID() *string { return s.llmPreviousResponseID }
+func (s *session) CreatedAt() time.Time           { return s.createdAt }
+func (s *session) UpdatedAt() time.Time           { return s.updatedAt }
 
 func (s *session) IsActive() bool           { return s.status.IsActive() }
 func (s *session) IsArchived() bool         { return s.status.IsArchived() }
@@ -158,6 +165,13 @@ func (s *session) UpdatePinned(pinned bool) Session {
 func (s *session) UpdatePendingQuestionAgent(agent *string) Session {
 	c := *s
 	c.pendingQuestionAgent = agent
+	c.updatedAt = time.Now()
+	return &c
+}
+
+func (s *session) UpdateLLMPreviousResponseID(responseID *string) Session {
+	c := *s
+	c.llmPreviousResponseID = responseID
 	c.updatedAt = time.Now()
 	return &c
 }

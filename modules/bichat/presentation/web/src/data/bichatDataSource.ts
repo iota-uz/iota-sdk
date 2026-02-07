@@ -2,23 +2,28 @@ import { useMemo } from 'react'
 import type { ChatDataSource } from '@iota-uz/sdk/bichat'
 import { createHttpDataSource } from '@iota-uz/sdk/bichat'
 import { useIotaContext } from '../contexts/IotaContext'
+import { useSessionEvents } from '../contexts/SessionEventContext'
 
 export function useBiChatDataSource(
   onNavigateToSession?: (sessionId: string) => void
 ): ChatDataSource {
   const ctx = useIotaContext()
+  const sessionEvents = useSessionEvents()
 
   return useMemo(() => {
     const ds = createHttpDataSource({
       baseUrl: '',
-      graphQLEndpoint: ctx.config.graphQLEndpoint,
+      rpcEndpoint: ctx.config.rpcUIEndpoint,
       streamEndpoint: ctx.config.streamEndpoint,
     })
 
     if (onNavigateToSession) {
-      ds.navigateToSession = onNavigateToSession
+      ds.navigateToSession = (sessionId: string) => {
+        sessionEvents.notifySessionCreated(sessionId)
+        onNavigateToSession(sessionId)
+      }
     }
 
     return ds
-  }, [ctx.config.graphQLEndpoint, ctx.config.streamEndpoint, onNavigateToSession])
+  }, [ctx.config.rpcUIEndpoint, ctx.config.streamEndpoint, onNavigateToSession, sessionEvents])
 }

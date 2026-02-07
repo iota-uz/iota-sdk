@@ -22,6 +22,8 @@ type ChatService interface {
 	PinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	UnpinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
+	ClearSessionHistory(ctx context.Context, sessionID uuid.UUID) (ClearSessionHistoryResponse, error)
+	CompactSessionHistory(ctx context.Context, sessionID uuid.UUID) (CompactSessionHistoryResponse, error)
 
 	// Message management
 	SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResponse, error)
@@ -44,6 +46,10 @@ type SendMessageRequest struct {
 	UserID      int64
 	Content     string
 	Attachments []domain.Attachment
+	DebugMode   bool
+	// ReplaceFromMessageID truncates session history from this user message onward
+	// before sending the new content (used by edit/regenerate flows).
+	ReplaceFromMessageID *uuid.UUID
 }
 
 // SendMessageResponse contains the result of sending a message
@@ -91,30 +97,41 @@ type ResumeRequest struct {
 
 // StreamChunk represents a chunk of streaming response
 type StreamChunk struct {
-	Type      ChunkType
-	Content   string
-	Citation  *domain.Citation
-	Usage     *TokenUsage
-	Error     error
-	Timestamp time.Time
+	Type         ChunkType
+	Content      string
+	Citation     *domain.Citation
+	Usage        *types.DebugUsage
+	Tool         *ToolEvent
+	Interrupt    *InterruptEvent
+	GenerationMs int64
+	Error        error
+	Timestamp    time.Time
 }
 
 // ChunkType represents the type of streaming chunk
 type ChunkType string
 
 const (
-	ChunkTypeContent  ChunkType = "content"
-	ChunkTypeCitation ChunkType = "citation"
-	ChunkTypeUsage    ChunkType = "usage"
-	ChunkTypeDone     ChunkType = "done"
-	ChunkTypeError    ChunkType = "error"
+	ChunkTypeChunk     ChunkType = "chunk"
+	ChunkTypeContent   ChunkType = "content"
+	ChunkTypeCitation  ChunkType = "citation"
+	ChunkTypeToolStart ChunkType = "tool_start"
+	ChunkTypeToolEnd   ChunkType = "tool_end"
+	ChunkTypeInterrupt ChunkType = "interrupt"
+	ChunkTypeUsage     ChunkType = "usage"
+	ChunkTypeDone      ChunkType = "done"
+	ChunkTypeError     ChunkType = "error"
 )
 
-// TokenUsage tracks token consumption and costs
-type TokenUsage struct {
-	PromptTokens     int     `json:"promptTokens"`
-	CompletionTokens int     `json:"completionTokens"`
-	TotalTokens      int     `json:"totalTokens"`
-	CachedTokens     int     `json:"cachedTokens"`
-	Cost             float64 `json:"cost"` // Estimated cost in USD
+type ClearSessionHistoryResponse struct {
+	Success          bool
+	DeletedMessages  int64
+	DeletedArtifacts int64
+}
+
+type CompactSessionHistoryResponse struct {
+	Success          bool
+	Summary          string
+	DeletedMessages  int64
+	DeletedArtifacts int64
 }

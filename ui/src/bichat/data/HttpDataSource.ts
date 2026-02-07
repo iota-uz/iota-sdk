@@ -1,23 +1,31 @@
 /**
  * Built-in HTTP data source with SSE streaming and AbortController
- * Implements ChatDataSource interface with real HTTP/GraphQL calls
+ * Implements ChatDataSource interface with real HTTP/RPC calls
  *
  * Uses turn-based architecture - fetches ConversationTurns instead of flat messages.
  */
 
+import { createAppletRPCClient } from '../../applet-host'
+import type { BichatRPC, Session as RPCSession } from './rpc.generated'
 import type {
   ChatDataSource,
   Session,
+  SessionListResult,
   ConversationTurn,
+  Artifact as DownloadArtifact,
+  SessionArtifact,
   PendingQuestion,
+  Question,
   Attachment,
   StreamChunk,
   QuestionAnswers,
+  SendMessageOptions,
 } from '../types'
+import type { PendingQuestion as RPCPendingQuestion } from './rpc.generated'
 
 export interface HttpDataSourceConfig {
   baseUrl: string
-  graphQLEndpoint?: string
+  rpcEndpoint: string
   streamEndpoint?: string
   csrfToken?: string | (() => string)
   headers?: Record<string, string>
@@ -36,17 +44,239 @@ interface Result<T> {
   error?: string
 }
 
+interface RPCArtifact {
+  id: string
+  sessionId: string
+  messageId?: string
+  type: string
+  name: string
+  description?: string
+  mimeType?: string
+  url?: string
+  sizeBytes: number
+  metadata?: Record<string, unknown>
+  createdAt: string
+}
+
+function toSession(session: RPCSession): Session {
+  return {
+    ...session,
+    status: session.status === 'archived' ? 'archived' : 'active',
+  }
+}
+
+function toSessionArtifact(artifact: RPCArtifact): SessionArtifact {
+  return {
+    id: artifact.id,
+    sessionId: artifact.sessionId,
+    messageId: artifact.messageId,
+    type: artifact.type,
+    name: artifact.name,
+    description: artifact.description,
+    mimeType: artifact.mimeType,
+    url: artifact.url,
+    sizeBytes: artifact.sizeBytes,
+    metadata: artifact.metadata,
+    createdAt: artifact.createdAt,
+  }
+}
+
+function toPendingQuestion(
+  rpc: RPCPendingQuestion | null | undefined,
+  lastTurnId: string
+): PendingQuestion | null {
+  if (!rpc) return null
+
+  const questions: Question[] = (rpc.questions || []).map((q) => ({
+    id: q.id,
+    text: q.text,
+    type: q.type as 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE',
+    options: (q.options || []).map((o) => ({
+      id: o.id,
+      label: o.label,
+      value: o.label,
+    })),
+  }))
+
+  return {
+    id: rpc.checkpointId,
+    turnId: lastTurnId,
+    questions,
+    status: 'PENDING',
+  }
+}
+
+function formatSizeReadable(bytes: number): string | undefined {
+  if (!Number.isFinite(bytes) || bytes <= 0) return undefined
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let idx = 0
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024
+    idx++
+  }
+  const precision = idx === 0 ? 0 : value >= 10 ? 1 : 2
+  return `${value.toFixed(precision)} ${units[idx]}`
+}
+
+function parseRowCount(metadata?: Record<string, unknown>): number | undefined {
+  if (!metadata) return undefined
+  const raw = metadata.row_count ?? metadata.rowCount
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw
+  }
+  if (typeof raw === 'string') {
+    const parsed = Number.parseInt(raw, 10)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+  return undefined
+}
+
+function inferDownloadType(artifact: SessionArtifact): DownloadArtifact['type'] | null {
+  const mime = artifact.mimeType?.toLowerCase() || ''
+  const name = artifact.name?.toLowerCase() || ''
+  const cleanURL = artifact.url?.split('?')[0].toLowerCase() || ''
+
+  const isPDF = mime.includes('pdf') || name.endsWith('.pdf') || cleanURL.endsWith('.pdf')
+  if (isPDF) return 'pdf'
+
+  const isExcel =
+    mime.includes('spreadsheet') ||
+    mime.includes('excel') ||
+    name.endsWith('.xlsx') ||
+    name.endsWith('.xls') ||
+    cleanURL.endsWith('.xlsx') ||
+    cleanURL.endsWith('.xls')
+  if (isExcel) return 'excel'
+
+  return null
+}
+
+function extractFilename(artifact: SessionArtifact): string {
+  const name = artifact.name?.trim()
+  if (name) return name
+
+  const urlPath = artifact.url?.split('?')[0] || ''
+  const fromURL = urlPath.split('/').filter(Boolean).pop()
+  if (fromURL) return fromURL
+
+  return 'download'
+}
+
+function toDownloadArtifact(artifact: SessionArtifact): DownloadArtifact | null {
+  if (!artifact.url) return null
+  const type = inferDownloadType(artifact)
+  if (!type) return null
+
+  return {
+    type,
+    filename: extractFilename(artifact),
+    url: artifact.url,
+    sizeReadable: formatSizeReadable(artifact.sizeBytes),
+    rowCount: parseRowCount(artifact.metadata),
+    description: artifact.description,
+  }
+}
+
+function toMillis(value: string): number {
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
+function attachArtifactsToTurns(
+  turns: ConversationTurn[],
+  artifacts: SessionArtifact[]
+): ConversationTurn[] {
+  if (artifacts.length === 0) return turns
+
+  const downloadArtifacts = artifacts
+    .map((raw) => ({ raw, mapped: toDownloadArtifact(raw) }))
+    .filter((entry): entry is { raw: SessionArtifact; mapped: DownloadArtifact } => entry.mapped !== null)
+    .sort((a, b) => toMillis(a.raw.createdAt) - toMillis(b.raw.createdAt))
+
+  if (downloadArtifacts.length === 0) return turns
+
+  const nextTurns = turns.map((turn) => {
+    if (!turn.assistantTurn) {
+      return turn
+    }
+    return {
+      ...turn,
+      assistantTurn: {
+        ...turn.assistantTurn,
+        artifacts: [...(turn.assistantTurn.artifacts || [])],
+      },
+    }
+  })
+
+  const assistantPositions: Array<{ index: number; createdAtMs: number }> = []
+  const turnIndexByMessageID = new Map<string, number>()
+
+  nextTurns.forEach((turn, index) => {
+    turnIndexByMessageID.set(turn.userTurn.id, index)
+
+    const assistantTurn = turn.assistantTurn
+    if (!assistantTurn) return
+    turnIndexByMessageID.set(assistantTurn.id, index)
+    assistantPositions.push({
+      index,
+      createdAtMs: toMillis(assistantTurn.createdAt || turn.createdAt),
+    })
+  })
+
+  if (assistantPositions.length === 0) return turns
+
+  const findFallbackAssistantIndex = (artifactCreatedAt: string): number => {
+    const artifactMs = toMillis(artifactCreatedAt)
+    if (!Number.isFinite(artifactMs)) {
+      return assistantPositions[assistantPositions.length - 1].index
+    }
+    for (const pos of assistantPositions) {
+      if (Number.isFinite(pos.createdAtMs) && pos.createdAtMs >= artifactMs) {
+        return pos.index
+      }
+    }
+    return assistantPositions[assistantPositions.length - 1].index
+  }
+
+  for (const entry of downloadArtifacts) {
+    const messageID = entry.raw.messageId
+    const targetIndex =
+      (messageID ? turnIndexByMessageID.get(messageID) : undefined) ??
+      findFallbackAssistantIndex(entry.raw.createdAt)
+
+    const assistantTurn = nextTurns[targetIndex]?.assistantTurn
+    if (!assistantTurn) continue
+
+    const exists = assistantTurn.artifacts.some(
+      (existing) =>
+        existing.url === entry.mapped.url && existing.filename === entry.mapped.filename
+    )
+    if (!exists) {
+      assistantTurn.artifacts.push(entry.mapped)
+    }
+  }
+
+  return nextTurns
+}
+
 export class HttpDataSource implements ChatDataSource {
   private config: HttpDataSourceConfig
   private abortController: AbortController | null = null
+  private rpc: ReturnType<typeof createAppletRPCClient>
 
   constructor(config: HttpDataSourceConfig) {
     this.config = {
-      graphQLEndpoint: '/graphql',
       streamEndpoint: '/stream',
       timeout: 30000,
       ...config,
     }
+    this.rpc = createAppletRPCClient({
+      endpoint: `${this.config.baseUrl}${this.config.rpcEndpoint}`,
+    })
   }
 
   /**
@@ -79,153 +309,74 @@ export class HttpDataSource implements ChatDataSource {
     return headers
   }
 
-  /**
-   * Execute GraphQL query
-   */
-  private async graphql<T>(query: string, variables?: Record<string, any>): Promise<T> {
-    const url = `${this.config.baseUrl}${this.config.graphQLEndpoint}`
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: this.createHeaders(),
-      body: JSON.stringify({ query, variables }),
-      signal: this.abortController?.signal,
-    })
-
-    if (!response.ok) {
-      throw new Error(`GraphQL request failed: ${response.statusText}`)
-    }
-
-    const result = await response.json()
-
-    if (result.errors && result.errors.length > 0) {
-      throw new Error(result.errors[0].message || 'GraphQL error')
-    }
-
-    return result.data
+  private async callRPC<TMethod extends keyof BichatRPC & string>(
+    method: TMethod,
+    params: BichatRPC[TMethod]['params']
+  ): Promise<BichatRPC[TMethod]['result']> {
+    return this.rpc.callTyped<BichatRPC, TMethod>(method, params)
   }
 
   /**
    * Create a new chat session
    */
   async createSession(): Promise<Session> {
-    const query = `
-      mutation CreateChatSession {
-        createChatSession {
-          id
-          title
-          status
-          pinned
-          createdAt
-          updatedAt
-        }
-      }
-    `
-
-    const data = await this.graphql<{ createChatSession: Session }>(query)
-    return data.createChatSession
+    const data = await this.callRPC('bichat.session.create', { title: '' })
+    return toSession(data.session)
   }
 
   /**
    * Fetch an existing session with turns (turn-based architecture)
    */
   async fetchSession(id: string): Promise<SessionState | null> {
-    const query = `
-      query GetChatSession($id: ID!) {
-        chatSession(id: $id) {
-          session {
-            id
-            title
-            status
-            pinned
-            createdAt
-            updatedAt
-          }
-          turns {
-            id
-            sessionId
-            createdAt
-            userTurn {
-              id
-              content
-              attachments {
-                id
-                filename
-                mimeType
-                sizeBytes
-                base64Data
-              }
-              createdAt
-            }
-            assistantTurn {
-              id
-              content
-              explanation
-              citations {
-                id
-                type
-                title
-                url
-                startIndex
-                endIndex
-                excerpt
-                source
-              }
-              chartData {
-                chartType
-                title
-                series {
-                  name
-                  data
-                }
-                labels
-                colors
-                height
-              }
-              artifacts {
-                type
-                filename
-                url
-                sizeReadable
-                rowCount
-                description
-              }
-              codeOutputs {
-                type
-                content
-                filename
-                mimeType
-                sizeBytes
-              }
-              createdAt
-            }
-          }
-          pendingQuestion {
-            id
-            turnId
-            questions {
-              id
-              text
-              type
-              options {
-                id
-                label
-                value
-              }
-              required
-            }
-            status
-          }
-        }
-      }
-    `
-
     try {
-      const data = await this.graphql<{ chatSession: SessionState | null }>(query, { id })
-      return data.chatSession
+      const [data, artifactsData] = await Promise.all([
+        this.callRPC('bichat.session.get', { id }),
+        this.fetchSessionArtifacts(id, { limit: 200, offset: 0 }).catch((err) => {
+          console.warn('Failed to fetch session artifacts:', err)
+          return { artifacts: [] as SessionArtifact[], hasMore: false, nextOffset: 0 }
+        }),
+      ])
+
+      const turns = attachArtifactsToTurns(data.turns as ConversationTurn[], artifactsData.artifacts || [])
+      const lastTurnId = turns.length > 0 ? turns[turns.length - 1].id : ''
+
+      return {
+        session: toSession(data.session),
+        turns,
+        pendingQuestion: toPendingQuestion(data.pendingQuestion, lastTurnId),
+      }
     } catch (err) {
       console.error('Failed to fetch session:', err)
       return null
+    }
+  }
+
+  async fetchSessionArtifacts(
+    sessionId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<{ artifacts: SessionArtifact[]; hasMore?: boolean; nextOffset?: number }> {
+    const limit = options?.limit ?? 50
+    const offset = options?.offset ?? 0
+    const data = await this.callRPC('bichat.session.artifacts', {
+      sessionId,
+      limit,
+      offset,
+    })
+
+    const artifacts = (data.artifacts || []).map((artifact) => toSessionArtifact(artifact))
+    const hasMore =
+      typeof data.hasMore === 'boolean'
+        ? data.hasMore
+        : artifacts.length >= limit
+    const nextOffset =
+      typeof data.nextOffset === 'number'
+        ? data.nextOffset
+        : offset + artifacts.length
+
+    return {
+      artifacts,
+      hasMore,
+      nextOffset,
     }
   }
 
@@ -236,7 +387,8 @@ export class HttpDataSource implements ChatDataSource {
     sessionId: string,
     content: string,
     attachments: Attachment[] = [],
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: SendMessageOptions
   ): AsyncGenerator<StreamChunk> {
     // Create new abort controller for this stream
     this.abortController = new AbortController()
@@ -253,12 +405,14 @@ export class HttpDataSource implements ChatDataSource {
     const payload = {
       sessionId,
       content,
+      debugMode: options?.debugMode ?? false,
+      replaceFromMessageId: options?.replaceFromMessageID,
       attachments: attachments.map(a => ({
-        id: a.id,
         filename: a.filename,
         mimeType: a.mimeType,
         sizeBytes: a.sizeBytes,
         base64Data: a.base64Data,
+        url: a.url,
       })),
     }
 
@@ -305,11 +459,18 @@ export class HttpDataSource implements ChatDataSource {
               const data = line.slice(6)
 
               try {
-                const chunk = JSON.parse(data) as StreamChunk
-                yield chunk
+                const parsed = JSON.parse(data) as StreamChunk & { chunk?: string }
+                const inferredType =
+                  parsed.type || (parsed.content || parsed.chunk ? 'content' : 'error')
+                const normalized: StreamChunk = {
+                  ...parsed,
+                  type: inferredType,
+                  content: parsed.content ?? parsed.chunk,
+                }
+                yield normalized
 
                 // Stop if done or error
-                if (chunk.type === 'done' || chunk.type === 'error') {
+                if (normalized.type === 'done' || normalized.type === 'error') {
                   return
                 }
               } catch (parseErr) {
@@ -361,6 +522,29 @@ export class HttpDataSource implements ChatDataSource {
   }
 
   /**
+   * Clear session history in-place.
+   */
+  async clearSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    deletedMessages: number
+    deletedArtifacts: number
+  }> {
+    return this.callRPC('bichat.session.clear', { id: sessionId })
+  }
+
+  /**
+   * Compact session history into summarized turn.
+   */
+  async compactSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    summary: string
+    deletedMessages: number
+    deletedArtifacts: number
+  }> {
+    return this.callRPC('bichat.session.compact', { id: sessionId })
+  }
+
+  /**
    * Submit answers to a pending question
    */
   async submitQuestionAnswers(
@@ -368,53 +552,36 @@ export class HttpDataSource implements ChatDataSource {
     questionId: string,
     answers: QuestionAnswers
   ): Promise<Result<void>> {
-    const query = `
-      mutation SubmitQuestionAnswers($sessionId: ID!, $questionId: ID!, $answers: JSON!) {
-        submitQuestionAnswers(sessionId: $sessionId, questionId: $questionId, answers: $answers) {
-          success
-          error
+    try {
+      // Convert QuestionAnswers to flat map[string]string for RPC
+      const flatAnswers: Record<string, string> = {}
+      for (const [qId, answerData] of Object.entries(answers)) {
+        if (answerData.customText) {
+          flatAnswers[qId] = answerData.customText
+        } else if (answerData.options.length > 0) {
+          flatAnswers[qId] = answerData.options.join(', ')
         }
       }
-    `
-
-    try {
-      const data = await this.graphql<{
-        submitQuestionAnswers: Result<void>
-      }>(query, { sessionId, questionId, answers })
-
-      return data.submitQuestionAnswers
+      await this.callRPC('bichat.question.submit', {
+        sessionId,
+        checkpointId: questionId,
+        answers: flatAnswers,
+      })
+      return { success: true }
     } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to submit answers',
-      }
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   }
 
   /**
    * Cancel a pending question
    */
-  async cancelPendingQuestion(questionId: string): Promise<Result<void>> {
-    const query = `
-      mutation CancelPendingQuestion($questionId: ID!) {
-        cancelPendingQuestion(questionId: $questionId) {
-          success
-          error
-        }
-      }
-    `
-
+  async cancelPendingQuestion(sessionId: string): Promise<Result<void>> {
     try {
-      const data = await this.graphql<{
-        cancelPendingQuestion: Result<void>
-      }>(query, { questionId })
-
-      return data.cancelPendingQuestion
+      await this.callRPC('bichat.question.cancel', { sessionId })
+      return { success: true }
     } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to cancel question',
-      }
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   }
 
@@ -426,6 +593,51 @@ export class HttpDataSource implements ChatDataSource {
     if (typeof window !== 'undefined') {
       window.location.href = `/chat/${sessionId}`
     }
+  }
+
+  // Session management
+  async listSessions(options?: {
+    limit?: number
+    offset?: number
+    includeArchived?: boolean
+  }): Promise<SessionListResult> {
+    const data = await this.callRPC('bichat.session.list', {
+      limit: options?.limit ?? 200,
+      offset: options?.offset ?? 0,
+      includeArchived: options?.includeArchived ?? false,
+    })
+    return {
+      sessions: data.sessions.map(toSession),
+      total: data.sessions.length,
+      hasMore: false,
+    }
+  }
+  async archiveSession(sessionId: string): Promise<Session> {
+    const data = await this.callRPC('bichat.session.archive', { id: sessionId })
+    return toSession(data.session)
+  }
+  async unarchiveSession(sessionId: string): Promise<Session> {
+    const data = await this.callRPC('bichat.session.unarchive', { id: sessionId })
+    return toSession(data.session)
+  }
+  async pinSession(sessionId: string): Promise<Session> {
+    const data = await this.callRPC('bichat.session.pin', { id: sessionId })
+    return toSession(data.session)
+  }
+  async unpinSession(sessionId: string): Promise<Session> {
+    const data = await this.callRPC('bichat.session.unpin', { id: sessionId })
+    return toSession(data.session)
+  }
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.callRPC('bichat.session.delete', { id: sessionId })
+  }
+  async renameSession(sessionId: string, title: string): Promise<Session> {
+    const data = await this.callRPC('bichat.session.updateTitle', { id: sessionId, title })
+    return toSession(data.session)
+  }
+  async regenerateSessionTitle(sessionId: string): Promise<Session> {
+    const data = await this.callRPC('bichat.session.regenerateTitle', { id: sessionId })
+    return toSession(data.session)
   }
 }
 

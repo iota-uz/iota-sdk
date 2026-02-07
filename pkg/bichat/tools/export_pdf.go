@@ -122,7 +122,7 @@ func (t *ExportToPDFTool) Call(ctx context.Context, input string) (string, error
 			fmt.Sprintf("failed to parse input: %v", err),
 			HintCheckRequiredFields,
 			"Provide html parameter with content to convert",
-		), serrors.E(op, err, "failed to parse input")
+		), nil
 	}
 
 	if params.HTML == "" {
@@ -131,7 +131,7 @@ func (t *ExportToPDFTool) Call(ctx context.Context, input string) (string, error
 			"html parameter is required",
 			HintCheckRequiredFields,
 			"Provide HTML content to convert to PDF",
-		), serrors.E(op, "html parameter is required")
+		), nil
 	}
 
 	// Set defaults
@@ -170,6 +170,7 @@ func (t *ExportToPDFTool) Call(ctx context.Context, input string) (string, error
 		}
 		url = savedURL
 	}
+	url = resolveDownloadURL(ctx, url)
 
 	// Build response
 	response := pdfExportOutput{
