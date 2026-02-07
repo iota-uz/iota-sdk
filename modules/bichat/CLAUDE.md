@@ -135,6 +135,48 @@ cfg := bichat.NewModuleConfig(
 )
 ```
 
+### Project Prompt Extension
+
+Use repository-scoped extensions to add domain instructions while keeping the SDK vendor prompt intact.
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithProjectPromptExtension(`
+You are operating in insurance BI domain.
+Prioritize policy lifecycle, claims fraud signals, reserve adequacy, and underwriting KPIs.
+`),
+)
+```
+
+Provider-based extension (resolved once during `BuildServices()`):
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithProjectPromptExtensionProvider(
+        prompts.ProjectPromptExtensionProviderFunc(func() (string, error) {
+            return loadProjectPromptFromStore(), nil
+        }),
+    ),
+)
+```
+
+Behavior:
+- Vendor/base system prompt is always preserved.
+- Extension is appended in parent agent flow (`AgentService.ProcessMessage`).
+- Provider output takes precedence over static extension when non-empty.
+
 ## Database Schema
 
 See: `infrastructure/persistence/schema/bichat-schema.sql`

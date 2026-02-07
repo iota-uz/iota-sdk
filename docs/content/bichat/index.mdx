@@ -108,15 +108,67 @@ The module is configured via `ModuleConfig` in Go:
 
 ```go
 cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
     chatRepo,
     llmModel,
     bichat.DefaultContextPolicy(),
     parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments"),
     bichat.WithQueryExecutor(executor),
     bichat.WithVision(true),
     bichat.WithMultiAgent(true),
 )
 ```
+
+### Repository-Scoped Prompt Extensions
+
+BiChat always keeps the SDK vendor system prompt as the base.  
+Downstream repositories can append project/domain guidance without replacing it.
+
+Static extension:
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments"),
+    bichat.WithProjectPromptExtension(`
+You are operating in insurance BI domain.
+Prioritize policy lifecycle, claims fraud signals, reserve adequacy, and underwriting KPIs.
+Use domain terms: policy, endorsement, claim, loss ratio, combined ratio, IBNR.
+`),
+)
+```
+
+Provider extension (resolved once during `BuildServices()`):
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments"),
+    bichat.WithProjectPromptExtensionProvider(
+        prompts.ProjectPromptExtensionProviderFunc(func() (string, error) {
+            return loadProjectPrompt(), nil
+        }),
+    ),
+)
+```
+
+Behavior:
+- Extension scope is project/repository level (not tenant level).
+- Provider output wins when non-empty; otherwise static extension is used.
+- Provider errors fail service startup (`BuildServices()`).
+- Extension is applied in parent flow (`AgentService.ProcessMessage`) before debug augmentation.
 
 ## Environment Variables
 

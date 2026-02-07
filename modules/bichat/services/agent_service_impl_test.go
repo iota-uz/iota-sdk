@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -575,6 +576,125 @@ func TestProcessMessage_Success(t *testing.T) {
 	assert.Equal(t, 20, done.Usage.CompletionTokens)
 	assert.Equal(t, 30, done.Usage.TotalTokens)
 	assert.Equal(t, "resp_mock_final", done.ProviderResponseID)
+}
+
+func TestProcessMessage_AppendsProjectPromptExtension(t *testing.T) {
+	t.Parallel()
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	projectExtension := "You are operating in insurance BI domain."
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:                  agent,
+		Model:                  model,
+		Policy:                 policy,
+		Renderer:               renderer,
+		Checkpointer:           checkpointer,
+		ChatRepo:               chatRepo,
+		ProjectPromptExtension: projectExtension,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "hello", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	require.NotEmpty(t, rendered)
+	pinnedPayload, ok := rendered[0].Payload.(string)
+	require.True(t, ok)
+	assert.Equal(t, agent.systemPrompt+"\n\nPROJECT DOMAIN EXTENSION:\n"+projectExtension, pinnedPayload)
+}
+
+func TestProcessMessage_AppendsDebugPromptAfterProjectPromptExtension(t *testing.T) {
+	t.Parallel()
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	projectExtension := "Insurance domain extension."
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:                  agent,
+		Model:                  model,
+		Policy:                 policy,
+		Renderer:               renderer,
+		Checkpointer:           checkpointer,
+		ChatRepo:               chatRepo,
+		ProjectPromptExtension: projectExtension,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+	ctx = services.WithDebugMode(ctx, true)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "hello", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	require.NotEmpty(t, rendered)
+	pinnedPayload, ok := rendered[0].Payload.(string)
+	require.True(t, ok)
+	assert.Contains(t, pinnedPayload, "PROJECT DOMAIN EXTENSION:\n"+projectExtension)
+	assert.Contains(t, pinnedPayload, "DEBUG MODE ENABLED:")
+	assert.Less(
+		t,
+		strings.Index(pinnedPayload, "PROJECT DOMAIN EXTENSION:"),
+		strings.Index(pinnedPayload, "DEBUG MODE ENABLED:"),
+	)
 }
 
 func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {

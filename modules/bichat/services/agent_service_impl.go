@@ -23,28 +23,30 @@ import (
 // It bridges the chat domain with the Agent Framework, handling context building,
 // agent execution, and event streaming.
 type agentServiceImpl struct {
-	agent          agents.ExtendedAgent
-	model          agents.Model
-	policy         bichatctx.ContextPolicy
-	renderer       bichatctx.Renderer
-	checkpointer   agents.Checkpointer
-	eventBus       hooks.EventBus
-	chatRepo       domain.ChatRepository
-	agentRegistry  *agents.AgentRegistry   // Optional for multi-agent delegation
-	schemaMetadata schema.MetadataProvider // Optional for table metadata
+	agent                  agents.ExtendedAgent
+	model                  agents.Model
+	policy                 bichatctx.ContextPolicy
+	renderer               bichatctx.Renderer
+	checkpointer           agents.Checkpointer
+	eventBus               hooks.EventBus
+	chatRepo               domain.ChatRepository
+	agentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
+	schemaMetadata         schema.MetadataProvider // Optional for table metadata
+	projectPromptExtension string
 }
 
 // AgentServiceConfig holds configuration for creating an AgentService.
 type AgentServiceConfig struct {
-	Agent          agents.ExtendedAgent
-	Model          agents.Model
-	Policy         bichatctx.ContextPolicy
-	Renderer       bichatctx.Renderer
-	Checkpointer   agents.Checkpointer
-	EventBus       hooks.EventBus          // Optional
-	ChatRepo       domain.ChatRepository   // Repository for loading messages
-	AgentRegistry  *agents.AgentRegistry   // Optional for multi-agent delegation
-	SchemaMetadata schema.MetadataProvider // Optional for table metadata
+	Agent                  agents.ExtendedAgent
+	Model                  agents.Model
+	Policy                 bichatctx.ContextPolicy
+	Renderer               bichatctx.Renderer
+	Checkpointer           agents.Checkpointer
+	EventBus               hooks.EventBus          // Optional
+	ChatRepo               domain.ChatRepository   // Repository for loading messages
+	AgentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
+	SchemaMetadata         schema.MetadataProvider // Optional for table metadata
+	ProjectPromptExtension string
 }
 
 // NewAgentService creates a production implementation of AgentService.
@@ -64,15 +66,16 @@ type AgentServiceConfig struct {
 //	})
 func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 	return &agentServiceImpl{
-		agent:          cfg.Agent,
-		model:          cfg.Model,
-		policy:         cfg.Policy,
-		renderer:       cfg.Renderer,
-		checkpointer:   cfg.Checkpointer,
-		eventBus:       cfg.EventBus,
-		chatRepo:       cfg.ChatRepo,
-		agentRegistry:  cfg.AgentRegistry,
-		schemaMetadata: cfg.SchemaMetadata,
+		agent:                  cfg.Agent,
+		model:                  cfg.Model,
+		policy:                 cfg.Policy,
+		renderer:               cfg.Renderer,
+		checkpointer:           cfg.Checkpointer,
+		eventBus:               cfg.EventBus,
+		chatRepo:               cfg.ChatRepo,
+		agentRegistry:          cfg.AgentRegistry,
+		schemaMetadata:         cfg.SchemaMetadata,
+		projectPromptExtension: strings.TrimSpace(cfg.ProjectPromptExtension),
 	}
 }
 
@@ -113,6 +116,13 @@ func (s *agentServiceImpl) ProcessMessage(
 
 	// 1. System prompt (KindPinned)
 	systemPrompt := s.agent.SystemPrompt(ctx)
+	if s.projectPromptExtension != "" {
+		if systemPrompt == "" {
+			systemPrompt = "PROJECT DOMAIN EXTENSION:\n" + s.projectPromptExtension
+		} else {
+			systemPrompt = systemPrompt + "\n\nPROJECT DOMAIN EXTENSION:\n" + s.projectPromptExtension
+		}
+	}
 	if services.UseDebugMode(ctx) {
 		debugPrompt := `DEBUG MODE ENABLED:
 You are assisting a developer in diagnostic mode. Provide complete and explicit technical reasoning.

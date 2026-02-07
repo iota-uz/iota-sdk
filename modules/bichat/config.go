@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
@@ -56,6 +57,10 @@ type ModuleConfig struct {
 	// Optional: Parent agent (if nil, BuildParentAgent can construct default from QueryExecutor)
 	ParentAgent Agent
 	SubAgents   []Agent
+
+	// Optional: Project-scoped prompt extension appended to parent agent system prompt.
+	ProjectPromptExtension         string
+	ProjectPromptExtensionProvider prompts.ProjectPromptExtensionProvider
 
 	// Optional: Agent Registry for multi-agent orchestration
 	AgentRegistry *agents.AgentRegistry
@@ -111,6 +116,10 @@ type ModuleConfig struct {
 	agentService      bichatservices.AgentService
 	attachmentService bichatservices.AttachmentService
 	artifactService   bichatservices.ArtifactService
+
+	// Internal: Resolved once during BuildServices.
+	resolvedProjectPromptExtension string
+	projectPromptExtensionResolved bool
 }
 
 // ConfigOption is a functional option for ModuleConfig
@@ -183,6 +192,22 @@ func WithLearningStore(store learning.LearningStore) ConfigOption {
 func WithValidatedQueryStore(store learning.ValidatedQueryStore) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.ValidatedQueryStore = store
+	}
+}
+
+// WithProjectPromptExtension sets a project-scoped prompt extension that is appended
+// to the vendor system prompt in the parent agent execution flow.
+func WithProjectPromptExtension(text string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ProjectPromptExtension = text
+	}
+}
+
+// WithProjectPromptExtensionProvider sets a provider for loading project-scoped prompt extension text.
+// Provider output takes precedence over WithProjectPromptExtension when non-empty.
+func WithProjectPromptExtensionProvider(provider prompts.ProjectPromptExtensionProvider) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ProjectPromptExtensionProvider = provider
 	}
 }
 
@@ -557,6 +582,31 @@ func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 	}
 }
 
+func (c *ModuleConfig) resolveProjectPromptExtension() error {
+	if c.projectPromptExtensionResolved {
+		return nil
+	}
+
+	staticExtension := prompts.NormalizeProjectPromptExtension(c.ProjectPromptExtension)
+	resolved := staticExtension
+
+	if c.ProjectPromptExtensionProvider != nil {
+		providerExtension, err := c.ProjectPromptExtensionProvider.ProjectPromptExtension()
+		if err != nil {
+			return err
+		}
+		providerExtension = prompts.NormalizeProjectPromptExtension(providerExtension)
+		if providerExtension != "" {
+			resolved = providerExtension
+		}
+	}
+
+	c.resolvedProjectPromptExtension = resolved
+	c.projectPromptExtensionResolved = true
+
+	return nil
+}
+
 // BuildServices creates and initializes all BiChat services from the configuration.
 // This should be called after NewModuleConfig and before registering the module.
 // Services are cached in the config and reused on subsequent calls.
@@ -575,18 +625,23 @@ func (c *ModuleConfig) BuildServices() error {
 		return serrors.E(op, err)
 	}
 
+	if err := c.resolveProjectPromptExtension(); err != nil {
+		return serrors.E(op, err, "failed to resolve project prompt extension")
+	}
+
 	// Build AgentService first (ChatService depends on it)
 	if c.agentService == nil {
 		c.agentService = services.NewAgentService(services.AgentServiceConfig{
-			Agent:          c.ParentAgent,
-			Model:          c.Model,
-			Policy:         c.ContextPolicy,
-			Renderer:       c.Renderer, // Use configured renderer
-			Checkpointer:   c.Checkpointer,
-			EventBus:       c.EventBus,
-			ChatRepo:       c.ChatRepo,
-			AgentRegistry:  c.AgentRegistry,
-			SchemaMetadata: c.SchemaMetadataProvider,
+			Agent:                  c.ParentAgent,
+			Model:                  c.Model,
+			Policy:                 c.ContextPolicy,
+			Renderer:               c.Renderer, // Use configured renderer
+			Checkpointer:           c.Checkpointer,
+			EventBus:               c.EventBus,
+			ChatRepo:               c.ChatRepo,
+			AgentRegistry:          c.AgentRegistry,
+			SchemaMetadata:         c.SchemaMetadataProvider,
+			ProjectPromptExtension: c.resolvedProjectPromptExtension,
 		})
 	}
 

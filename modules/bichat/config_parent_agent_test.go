@@ -2,13 +2,16 @@ package bichat
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
@@ -105,6 +108,84 @@ func (m *configTestKBSearcher) IsAvailable() bool {
 	return true
 }
 
+type configTestChatRepository struct{}
+
+func (m *configTestChatRepository) CreateSession(ctx context.Context, session domain.Session) error {
+	return nil
+}
+
+func (m *configTestChatRepository) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
+	return nil, errors.New("session not found")
+}
+
+func (m *configTestChatRepository) UpdateSession(ctx context.Context, session domain.Session) error {
+	return nil
+}
+
+func (m *configTestChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
+	return []domain.Session{}, nil
+}
+
+func (m *configTestChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *configTestChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
+	return nil
+}
+
+func (m *configTestChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error) {
+	return nil, errors.New("message not found")
+}
+
+func (m *configTestChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
+	return []types.Message{}, nil
+}
+
+func (m *configTestChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *configTestChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
+	return nil
+}
+
+func (m *configTestChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (domain.Attachment, error) {
+	return nil, errors.New("attachment not found")
+}
+
+func (m *configTestChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]domain.Attachment, error) {
+	return []domain.Attachment{}, nil
+}
+
+func (m *configTestChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *configTestChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
+	return nil
+}
+
+func (m *configTestChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
+	return nil, errors.New("artifact not found")
+}
+
+func (m *configTestChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
+	return []domain.Artifact{}, nil
+}
+
+func (m *configTestChatRepository) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *configTestChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *configTestChatRepository) UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error {
+	return nil
+}
+
 func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T) {
 	t.Parallel()
 
@@ -138,4 +219,80 @@ func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T
 	assert.True(t, toolNames["save_validated_query"])
 	assert.True(t, toolNames["code_interpreter"])
 	assert.Equal(t, "gpt-test", cfg.ParentAgent.Metadata().Model)
+}
+
+func newConfigWithProjectPromptOpts(opts ...ConfigOption) *ModuleConfig {
+	baseOpts := []ConfigOption{
+		WithQueryExecutor(&configTestExecutor{}),
+		WithNoOpAttachmentStorage(),
+		WithTitleGenerationDisabled(),
+	}
+	baseOpts = append(baseOpts, opts...)
+
+	return NewModuleConfig(
+		func(ctx context.Context) uuid.UUID { return uuid.New() },
+		func(ctx context.Context) int64 { return 42 },
+		&configTestChatRepository{},
+		&configTestModel{},
+		DefaultContextPolicy(),
+		nil,
+		baseOpts...,
+	)
+}
+
+func TestModuleConfig_BuildServices_ResolvesStaticProjectPromptExtension(t *testing.T) {
+	t.Parallel()
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithProjectPromptExtension("  insurance bi domain  "),
+	)
+
+	err := cfg.BuildServices()
+	require.NoError(t, err)
+	assert.Equal(t, "insurance bi domain", cfg.resolvedProjectPromptExtension)
+}
+
+func TestModuleConfig_BuildServices_ResolvesProviderProjectPromptExtension(t *testing.T) {
+	t.Parallel()
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithProjectPromptExtension("fallback"),
+		WithProjectPromptExtensionProvider(prompts.ProjectPromptExtensionProviderFunc(func() (string, error) {
+			return "  provider extension  ", nil
+		})),
+	)
+
+	err := cfg.BuildServices()
+	require.NoError(t, err)
+	assert.Equal(t, "provider extension", cfg.resolvedProjectPromptExtension)
+}
+
+func TestModuleConfig_BuildServices_ProjectPromptProviderErrorFails(t *testing.T) {
+	t.Parallel()
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithProjectPromptExtension("fallback"),
+		WithProjectPromptExtensionProvider(prompts.ProjectPromptExtensionProviderFunc(func() (string, error) {
+			return "", errors.New("provider failed")
+		})),
+	)
+
+	err := cfg.BuildServices()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve project prompt extension")
+}
+
+func TestModuleConfig_BuildServices_EmptyProviderFallsBackToStaticPrompt(t *testing.T) {
+	t.Parallel()
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithProjectPromptExtension("  static extension  "),
+		WithProjectPromptExtensionProvider(prompts.ProjectPromptExtensionProviderFunc(func() (string, error) {
+			return "   ", nil
+		})),
+	)
+
+	err := cfg.BuildServices()
+	require.NoError(t, err)
+	assert.Equal(t, "static extension", cfg.resolvedProjectPromptExtension)
 }
