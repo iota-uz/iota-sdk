@@ -1,10 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { login, logout, waitForAlpine } from '../../fixtures/auth';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
 test.describe('role management flows', () => {
 	// Tests MUST run serially - some tests depend on data created by previous tests
 	test.describe.configure({ mode: 'serial' });
+
+	const saveRoleButton = (page: Page) => page.locator('[data-test-id="save-role-btn"], #save-btn');
 
 	// Reset database once for entire suite
 	test.beforeAll(async ({ request }) => {
@@ -41,7 +43,7 @@ test.describe('role management flows', () => {
 		// Verify form elements are present
 		await expect(page.locator('[data-test-id="role-name-input"]')).toBeVisible();
 		await expect(page.locator('[data-test-id="role-description-input"]')).toBeVisible();
-		await expect(page.locator('[data-test-id="save-role-btn"]')).toBeVisible();
+		await expect(saveRoleButton(page)).toBeVisible();
 
 		// Fill in role details
 		const testRoleName = 'Test Editor Role';
@@ -66,7 +68,7 @@ test.describe('role management flows', () => {
 		}
 
 		// Save the role
-		await page.locator('[data-test-id="save-role-btn"]').click();
+		await saveRoleButton(page).click();
 
 		// Wait for redirect back to roles list
 		await page.waitForURL(/\/roles$/);
@@ -96,7 +98,7 @@ test.describe('role management flows', () => {
 		await expect(page.locator('[data-test-id="role-name-input"]')).toHaveValue(updatedRoleName);
 
 		// Save changes
-		await page.locator('[data-test-id="save-role-btn"]').click();
+		await saveRoleButton(page).click();
 		await page.waitForURL(/\/roles$/);
 
 		// Verify name was updated in the list
@@ -257,7 +259,7 @@ test.describe('role management flows', () => {
 		}
 
 		// Save the role
-		await page.locator('[data-test-id="save-role-btn"]').click();
+		await saveRoleButton(page).click();
 		await page.waitForURL(/\/roles$/);
 
 		// Verify role was created and appears in the table
