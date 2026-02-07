@@ -14,8 +14,10 @@ import { memo, lazy, Suspense, useMemo, Children, isValidElement, type ReactNode
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { processCitations } from '../utils/citationProcessor'
+import { parseChartDataFromJsonString } from '../utils/chartSpec'
 import type { Citation } from '../types'
 import { TableWithExport } from './TableWithExport'
+import { ChartCard } from './ChartCard'
 
 // Lazy load CodeBlock for bundle optimization
 const CodeBlock = lazy(() => import('./CodeBlock').then((module) => ({ default: module.CodeBlock })))
@@ -124,6 +126,17 @@ function MarkdownRenderer({
           <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded text-sm font-mono">
             {value}
           </code>
+        )
+      }
+
+      const isChartBlock = language.toLowerCase() === 'chart' || language.toLowerCase() === 'json'
+      const chartData = isChartBlock ? parseChartDataFromJsonString(value, 'Chart') : null
+
+      if (chartData) {
+        return (
+          <div className="my-4">
+            <ChartCard chartData={chartData} />
+          </div>
         )
       }
 

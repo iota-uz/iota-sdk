@@ -21,6 +21,7 @@ import type {
   QuestionAnswers,
   SendMessageOptions,
 } from '../types'
+import { parseChartDataFromSpec } from '../utils/chartSpec'
 import type { PendingQuestion as RPCPendingQuestion } from './rpc.generated'
 
 export interface HttpDataSourceConfig {
@@ -257,6 +258,34 @@ function attachArtifactsToTurns(
     )
     if (!exists) {
       assistantTurn.artifacts.push(entry.mapped)
+    }
+  }
+
+  const chartArtifacts = artifacts
+    .filter((a) => a.type === 'chart')
+    .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt))
+
+  for (const raw of chartArtifacts) {
+    const messageID = raw.messageId
+    const targetIndex =
+      (messageID ? turnIndexByMessageID.get(messageID) : undefined) ??
+      findFallbackAssistantIndex(raw.createdAt)
+
+    const assistantTurn = nextTurns[targetIndex]?.assistantTurn
+    if (!assistantTurn) continue
+
+    if (assistantTurn.chartData) continue
+
+    const metadata = raw.metadata
+    if (!metadata || typeof metadata !== 'object' || metadata === null) continue
+    const spec =
+      metadata.spec && typeof metadata.spec === 'object' && metadata.spec !== null
+        ? (metadata.spec as Record<string, unknown>)
+        : (metadata as Record<string, unknown>)
+
+    const chartData = parseChartDataFromSpec(spec, raw.name)
+    if (chartData) {
+      assistantTurn.chartData = chartData
     }
   }
 

@@ -1,5 +1,6 @@
 import { WarningCircle, DownloadSimple, Calendar, HardDrive, Tag, File } from '@phosphor-icons/react'
-import type { ChartData, ChartSeries, SessionArtifact } from '../types'
+import type { SessionArtifact } from '../types'
+import { parseChartDataFromSpec } from '../utils/chartSpec'
 import { ChartCard } from './ChartCard'
 import { useTranslation } from '../hooks/useTranslation'
 
@@ -7,84 +8,22 @@ interface SessionArtifactPreviewProps {
   artifact: SessionArtifact
 }
 
-const SUPPORTED_CHART_TYPES = new Set<ChartData['chartType']>(['line', 'bar', 'area', 'pie', 'donut'])
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function toChartSeries(value: unknown): ChartSeries[] | null {
-  if (!Array.isArray(value) || value.length === 0) {
-    return null
-  }
-
-  const result: ChartSeries[] = []
-  for (const item of value) {
-    if (!isRecord(item) || typeof item.name !== 'string' || !Array.isArray(item.data)) {
-      return null
-    }
-
-    const data: number[] = []
-    for (const point of item.data) {
-      if (typeof point !== 'number' || !Number.isFinite(point)) {
-        return null
-      }
-      data.push(point)
-    }
-
-    result.push({
-      name: item.name,
-      data,
-    })
-  }
-
-  return result.length > 0 ? result : null
-}
-
-function parseChartDataFromArtifact(artifact: SessionArtifact): ChartData | null {
+function parseChartDataFromArtifact(artifact: SessionArtifact) {
   const metadata = artifact.metadata
   if (!metadata || !isRecord(metadata)) {
     return null
   }
 
-  const candidate = isRecord(metadata.spec) ? metadata.spec : metadata
-  if (!isRecord(candidate)) {
+  const spec = isRecord(metadata.spec) ? metadata.spec : metadata
+  if (!isRecord(spec)) {
     return null
   }
 
-  const chartTypeRaw = candidate.chartType
-  const titleRaw = candidate.title
-  const seriesRaw = candidate.series
-
-  if (typeof chartTypeRaw !== 'string' || !SUPPORTED_CHART_TYPES.has(chartTypeRaw as ChartData['chartType'])) {
-    return null
-  }
-
-  const series = toChartSeries(seriesRaw)
-  if (!series) {
-    return null
-  }
-
-  const labels = Array.isArray(candidate.labels)
-    ? candidate.labels.filter((label): label is string => typeof label === 'string')
-    : undefined
-
-  const colors = Array.isArray(candidate.colors)
-    ? candidate.colors.filter((color): color is string => typeof color === 'string')
-    : undefined
-
-  const height = typeof candidate.height === 'number' && Number.isFinite(candidate.height)
-    ? candidate.height
-    : undefined
-
-  return {
-    chartType: chartTypeRaw as ChartData['chartType'],
-    title: typeof titleRaw === 'string' && titleRaw.trim() ? titleRaw : artifact.name,
-    series,
-    labels,
-    colors,
-    height,
-  }
+  return parseChartDataFromSpec(spec, artifact.name)
 }
 
 function formatFileSize(bytes: number): string {
