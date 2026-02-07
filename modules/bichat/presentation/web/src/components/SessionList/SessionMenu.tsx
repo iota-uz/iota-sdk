@@ -1,20 +1,19 @@
 /**
  * SessionMenu Component
- * Dropdown menu for session actions (pin, rename, regenerate title, delete)
+ * Dropdown menu for session actions (pin, rename, archive)
  */
 
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
-import { DotsThreeVertical, Check, Bookmark, PencilSimple, Trash, Archive } from '@phosphor-icons/react'
+import { DotsThreeVertical, Check, Bookmark, PencilSimple, Archive } from '@phosphor-icons/react'
 
 interface SessionMenuProps {
   isPinned: boolean
   onPin: (e: React.MouseEvent) => void
   onRename: () => void
-  onArchive: (e: React.MouseEvent) => void
-  onDelete: (e?: React.MouseEvent) => void
+  onArchive: (e?: React.MouseEvent) => void
 }
 
-export default function SessionMenu({ isPinned, onPin, onRename, onArchive, onDelete }: SessionMenuProps) {
+export default function SessionMenu({ isPinned, onPin, onRename, onArchive }: SessionMenuProps) {
   return (
     <Menu>
       <MenuButton
@@ -87,24 +86,6 @@ export default function SessionMenu({ isPinned, onPin, onRename, onArchive, onDe
             >
               <Archive size={15} className="text-gray-400 dark:text-gray-500" />
               Archive
-            </button>
-          )}
-        </MenuItem>
-        <MenuItem>
-          {({ focus }) => (
-            <button
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onDelete(e)
-              }}
-              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-red-500 dark:text-red-400 transition-colors ${
-                focus ? 'bg-red-50 dark:bg-red-900/20' : ''
-              }`}
-              aria-label="Delete chat"
-            >
-              <Trash size={15} className="text-red-400 dark:text-red-500" />
-              Delete
             </button>
           )}
         </MenuItem>

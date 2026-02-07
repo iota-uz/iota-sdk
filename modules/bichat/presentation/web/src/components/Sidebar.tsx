@@ -204,25 +204,6 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
   // Group unpinned sessions by date
   const sessionGroups = groupSessionsByDate(unpinnedSessions)
 
-  const handleDeleteSession = async (sessionId: string, e?: React.MouseEvent) => {
-    e?.preventDefault?.()
-    e?.stopPropagation?.()
-
-    if (!confirm('Delete this chat session?')) return
-
-    try {
-      await callRPC('bichat.session.delete', { id: sessionId })
-      setActionError(null)
-      await reloadSessions()
-      toast.success('Chat deleted')
-    } catch (error) {
-      console.error('Failed to delete session:', error)
-      const display = toRPCErrorDisplay(error, 'Failed to delete session')
-      setActionError(display)
-      toast.error(display.title)
-    }
-  }
-
   const handleTogglePin = async (sessionId: string, currentlyPinned: boolean, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -261,9 +242,9 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
     }
   }
 
-  const handleArchiveSession = async (sessionId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleArchiveSession = async (sessionId: string, e?: React.MouseEvent) => {
+    e?.preventDefault?.()
+    e?.stopPropagation?.()
     try {
       await callRPC('bichat.session.archive', { id: sessionId })
       setActionError(null)
@@ -467,7 +448,6 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
                     groups={sessionGroups}
                     pinnedSessions={pinnedSessions}
                     activeSessionId={activeSessionId}
-                    onDelete={handleDeleteSession}
                     onTogglePin={handleTogglePin}
                     onRename={handleRenameSession}
                     onArchive={handleArchiveSession}

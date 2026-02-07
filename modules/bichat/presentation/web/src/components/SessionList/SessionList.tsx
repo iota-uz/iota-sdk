@@ -13,10 +13,9 @@ interface SessionListProps {
   groups: SessionGroup[]
   pinnedSessions: ChatSession[]
   activeSessionId: string | undefined
-  onDelete: (sessionId: string, e?: React.MouseEvent) => void
   onTogglePin: (sessionId: string, isPinned: boolean, e: React.MouseEvent) => void
   onRename: (sessionId: string, newTitle: string) => void
-  onArchive: (sessionId: string, e: React.MouseEvent) => void
+  onArchive: (sessionId: string, e?: React.MouseEvent) => void
   onNavigate?: () => void
 }
 
@@ -24,7 +23,6 @@ export default function SessionList({
   groups,
   pinnedSessions,
   activeSessionId,
-  onDelete,
   onTogglePin,
   onRename,
   onArchive,
@@ -49,7 +47,6 @@ export default function SessionList({
                 key={session.id}
                 session={session}
                 isActive={session.id === activeSessionId}
-                onDelete={(e) => onDelete(session.id, e)}
                 onTogglePin={(e) => onTogglePin(session.id, session.pinned || false, e)}
                 onRename={(newTitle) => onRename(session.id, newTitle)}
                 onArchive={(e) => onArchive(session.id, e)}
@@ -78,7 +75,6 @@ export default function SessionList({
                 key={session.id}
                 session={session}
                 isActive={session.id === activeSessionId}
-                onDelete={(e) => onDelete(session.id, e)}
                 onTogglePin={(e) => onTogglePin(session.id, session.pinned || false, e)}
                 onRename={(newTitle) => onRename(session.id, newTitle)}
                 onArchive={(e) => onArchive(session.id, e)}

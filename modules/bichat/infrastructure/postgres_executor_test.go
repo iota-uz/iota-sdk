@@ -92,7 +92,10 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 		)
 	`)
 	require.NoError(t, err)
-	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_tenant_data"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_tenant_data") }()
+	defer func() {
+		_, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_tenant_data")
+		_, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_tenant_data")
+	}()
 
 	// Create view in analytics schema with automatic tenant filtering
 	_, err = env.Pool.Exec(env.Ctx, `
@@ -160,7 +163,10 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 		)
 	`)
 	require.NoError(t, err)
-	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_data"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_data") }()
+	defer func() {
+		_, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_data")
+		_, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_data")
+	}()
 
 	_, err = env.Pool.Exec(env.Ctx, `
 		CREATE OR REPLACE VIEW analytics.analytics_test_data AS
@@ -214,7 +220,10 @@ func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 		)
 	`)
 	require.NoError(t, err)
-	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_products"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_products") }()
+	defer func() {
+		_, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_products")
+		_, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_products")
+	}()
 
 	_, err = env.Pool.Exec(env.Ctx, `
 		CREATE OR REPLACE VIEW analytics.analytics_test_products AS
@@ -267,7 +276,10 @@ func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
 		)
 	`)
 	require.NoError(t, err)
-	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_timeout"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_timeout") }()
+	defer func() {
+		_, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_timeout")
+		_, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_timeout")
+	}()
 
 	_, err = env.Pool.Exec(env.Ctx, `
 		CREATE OR REPLACE VIEW analytics.analytics_test_timeout AS
@@ -308,7 +320,10 @@ func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
 		)
 	`)
 	require.NoError(t, err)
-	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_large"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_large") }()
+	defer func() {
+		_, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_large")
+		_, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_large")
+	}()
 
 	_, err = env.Pool.Exec(env.Ctx, `
 		CREATE OR REPLACE VIEW analytics.analytics_test_large AS
