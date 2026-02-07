@@ -41,6 +41,10 @@ type AppConfig struct {
 	GraphQLEndpoint string `json:"graphQLEndpoint,omitempty"` // Optional: e.g., "/bichat/graphql"
 	StreamEndpoint  string `json:"streamEndpoint,omitempty"`  // Optional: e.g., "/bichat/stream"
 	RESTEndpoint    string `json:"restEndpoint,omitempty"`    // Optional: e.g., "/bichat/api"
+	BasePath        string `json:"basePath,omitempty"`        // e.g., "/bi-chat"
+	AssetsBasePath  string `json:"assetsBasePath,omitempty"`  // e.g., "/bi-chat/assets"
+	RPCUIEndpoint   string `json:"rpcUIEndpoint,omitempty"`   // e.g., "/bi-chat/rpc"
+	ShellMode       string `json:"shellMode,omitempty"`       // "embedded" | "standalone"
 }
 
 // RouteContext contains URL routing information for deep linking

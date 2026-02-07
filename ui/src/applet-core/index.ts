@@ -18,6 +18,7 @@ export { useTranslation } from './hooks/useTranslation'
 export { useSession } from './hooks/useSession'
 export { useRoute } from './hooks/useRoute'
 export { useStreaming } from './hooks/useStreaming'
+export { useAppletRuntime } from './hooks/useAppletRuntime'
 
 // Types
 export type {

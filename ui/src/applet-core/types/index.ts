@@ -36,6 +36,10 @@ export interface AppConfig {
   graphQLEndpoint?: string
   streamEndpoint?: string
   restEndpoint?: string
+  basePath?: string
+  assetsBasePath?: string
+  rpcUIEndpoint?: string
+  shellMode?: 'embedded' | 'standalone'
 }
 
 export interface RouteContext {

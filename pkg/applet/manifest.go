@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"path/filepath"
+	"path"
 )
 
 // ViteManifest represents a Vite build manifest.json structure
@@ -68,12 +68,12 @@ func resolveAssetsFromManifest(
 
 	// Collect CSS files
 	for _, cssFile := range entry.CSS {
-		assets.CSSFiles = append(assets.CSSFiles, filepath.Join(basePath, cssFile))
+		assets.CSSFiles = append(assets.CSSFiles, path.Join(basePath, cssFile))
 	}
 
 	// Collect JS file
 	if entry.File != "" {
-		assets.JSFiles = append(assets.JSFiles, filepath.Join(basePath, entry.File))
+		assets.JSFiles = append(assets.JSFiles, path.Join(basePath, entry.File))
 	}
 
 	// Also process imports (chunks) recursively
@@ -92,7 +92,7 @@ func resolveAssetsFromManifest(
 
 		// Add CSS files from imported chunks
 		for _, cssFile := range e.CSS {
-			cssPath := filepath.Join(basePath, cssFile)
+			cssPath := path.Join(basePath, cssFile)
 			// Avoid duplicates
 			found := false
 			for _, existing := range assets.CSSFiles {

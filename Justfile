@@ -368,27 +368,21 @@ tunnel:
 clean: css-clean
 
 [group("dev")]
-[doc("Dev commands (watch|bichat)")]
-dev cmd="help":
+[doc("Start dev (just dev = watch, just dev <applet> = with applet)")]
+dev name="":
+  go run cmd/dev/main.go {{name}}
+
+[group("dev")]
+[doc("Applet commands (rpc-gen|rpc-check|deps-check)")]
+applet cmd="help" name="":
   case "{{cmd}}" in \
-    watch) just _dev-watch ;; \
-    bichat) just _dev-bichat ;; \
+    rpc-gen) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet rpc gen --name "{{name}}" ;; \
+    rpc-check) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet rpc check --name "{{name}}" ;; \
+    deps-check) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet deps check ;; \
     *) \
-      echo "Usage: just dev [watch|bichat]" ; \
+      echo "Usage: just applet [rpc-gen <name>|rpc-check <name>|deps-check]" ; \
       exit 2 ;; \
   esac
-
-[group("dev")]
-_dev-watch:
-  echo "Starting development watch mode (templ + tailwind)..."
-  trap 'kill %1 %2 2>/dev/null || true; exit' INT TERM
-  templ generate --watch &
-  pnpm exec tailwindcss --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --watch &
-  wait
-
-[group("dev")]
-_dev-bichat:
-  ./scripts/dev-bichat.sh
 
 [group("meta")]
 [doc("Full local setup")]
