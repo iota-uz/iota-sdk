@@ -386,7 +386,7 @@ tunnel:
 clean: css-clean
 
 [group("dev")]
-[doc("Start dev (just dev = watch, just dev bichat = with applet)")]
+[doc("Start dev (just dev = watch, just dev <applet> = with applet)")]
 dev name="":
   go run cmd/dev/main.go {{name}}
 
