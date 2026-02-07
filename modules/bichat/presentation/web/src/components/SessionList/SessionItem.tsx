@@ -18,7 +18,7 @@ const DELETE_THRESHOLD = -80
 interface SessionItemProps {
   session: ChatSession
   isActive: boolean
-  onDelete: (e: React.MouseEvent) => void
+  onDelete: (e?: React.MouseEvent) => void
   onTogglePin: (e: React.MouseEvent) => void
   onRename: (newTitle: string) => void
   onNavigate?: () => void
@@ -41,9 +41,7 @@ const SessionItem = memo<SessionItemProps>(
     const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
       setIsDragging(false)
       if (info.offset.x < DELETE_THRESHOLD) {
-        // Trigger delete via a synthetic click event
-        const syntheticEvent = new MouseEvent('click', { bubbles: true }) as unknown as React.MouseEvent
-        onDelete(syntheticEvent)
+        onDelete()
       }
     }
 

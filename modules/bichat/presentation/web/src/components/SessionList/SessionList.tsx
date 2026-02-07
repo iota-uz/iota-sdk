@@ -13,7 +13,7 @@ interface SessionListProps {
   groups: SessionGroup[]
   pinnedSessions: ChatSession[]
   activeSessionId: string | undefined
-  onDelete: (sessionId: string, e: React.MouseEvent) => void
+  onDelete: (sessionId: string, e?: React.MouseEvent) => void
   onTogglePin: (sessionId: string, isPinned: boolean, e: React.MouseEvent) => void
   onRename: (sessionId: string, newTitle: string) => void
   onNavigate?: () => void

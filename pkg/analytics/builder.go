@@ -2,16 +2,29 @@ package analytics
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
+
+// validIdentifier matches PostgreSQL unquoted identifiers (schema/table names).
+// Used to avoid SQL injection when interpolating tableName/sourceSchema into view SQL.
+var validIdentifier = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
+func mustValidIdentifier(name, role string) {
+	if name == "" || !validIdentifier.MatchString(name) {
+		panic(fmt.Sprintf("analytics: %s must be a valid identifier (alphanumeric and underscore), got %q", role, name))
+	}
+}
 
 // ViewOption is a functional option for configuring a View.
 type ViewOption func(*View)
 
 // TenantView creates a tenant-isolated view.
 // It generates: SELECT * FROM public.{tableName} WHERE tenant_id = current_setting('app.tenant_id', true)::uuid
+// tableName is validated to prevent SQL injection; use constants only.
 func TenantView(tableName string, opts ...ViewOption) View {
+	mustValidIdentifier(tableName, "tableName")
 	v := View{
 		Name:   tableName,
 		Schema: "analytics",
@@ -27,7 +40,10 @@ func TenantView(tableName string, opts ...ViewOption) View {
 }
 
 // TenantViewFrom creates a tenant-isolated view with a custom name and source schema.
+// tableName and sourceSchema are validated to prevent SQL injection; use constants only.
 func TenantViewFrom(tableName, sourceSchema string, opts ...ViewOption) View {
+	mustValidIdentifier(tableName, "tableName")
+	mustValidIdentifier(sourceSchema, "sourceSchema")
 	v := View{
 		Name:   tableName,
 		Schema: "analytics",

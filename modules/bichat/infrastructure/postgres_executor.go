@@ -2,7 +2,6 @@ package infrastructure
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -29,20 +28,25 @@ func NewPostgresQueryExecutor(pool *pgxpool.Pool) bichatsql.QueryExecutor {
 // ExecuteQuery executes a read-only SQL query with tenant isolation and timeout enforcement.
 // SECURITY: Multi-tenant isolation is enforced at the database layer using PostgreSQL session variables.
 // The analytics schema views automatically filter by current_setting('app.tenant_id', true)::UUID.
+// For non-system-catalog queries, only the analytics schema is allowed to prevent cross-tenant leakage
+// (e.g. if the pool had broader privileges, public.* would not be filtered by app.tenant_id).
 // System catalog queries (pg_catalog, information_schema) are allowed for schema introspection.
-// SQL security is enforced by PostgreSQL role permissions (bichat_agent_role has SELECT only on analytics schema).
 func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 	const op serrors.Op = "PostgresQueryExecutor.ExecuteQuery"
 
 	// Get tenant ID from context for multi-tenant isolation
 	// Exception: System catalog queries don't need tenant context
 	var tenantID string
-	if !e.isSystemCatalogQuery(sql) {
+	systemCatalog := e.isSystemCatalogQuery(sql)
+	if !systemCatalog {
 		tid, err := composables.UseTenantID(ctx)
 		if err != nil {
 			return nil, serrors.E(op, err, "tenant ID required for query execution")
 		}
 		tenantID = tid.String()
+		if !e.referencesAnalyticsSchemaOnly(sql) {
+			return nil, serrors.E(op, nil, "query must reference only analytics schema for tenant isolation")
+		}
 	}
 
 	// Apply query timeout
@@ -59,12 +63,9 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 	}
 	defer tx.Rollback(queryCtx) //nolint:errcheck
 
-	// SECURITY: Set tenant_id session variable for automatic view filtering
-	// The analytics schema views use current_setting('app.tenant_id', true)::UUID for tenant isolation
-	// Note: SET commands don't support parameterized queries, but tenant_id is validated as a UUID
+	// SECURITY: Set tenant_id via parameterized set_config to avoid string interpolation
 	if tenantID != "" {
-		setSQL := fmt.Sprintf("SET LOCAL app.tenant_id = '%s'", tenantID)
-		_, err = tx.Exec(queryCtx, setSQL)
+		_, err = tx.Exec(queryCtx, "SELECT set_config('app.tenant_id', $1, true)", tenantID)
 		if err != nil {
 			return nil, serrors.E(op, err, "failed to set tenant context")
 		}
@@ -186,4 +187,14 @@ func (e *PostgresQueryExecutor) isSystemCatalogQuery(sql string) bool {
 	}
 
 	return false
+}
+
+// referencesAnalyticsSchemaOnly returns true if the query only references the analytics schema.
+// Rejects public.* and requires explicit analytics. to prevent cross-tenant data leakage.
+func (e *PostgresQueryExecutor) referencesAnalyticsSchemaOnly(sql string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(sql))
+	if strings.Contains(normalized, " from public.") || strings.Contains(normalized, " join public.") {
+		return false
+	}
+	return strings.Contains(normalized, " from analytics.") || strings.Contains(normalized, " join analytics.")
 }

@@ -81,7 +81,10 @@ function toSessionArtifact(artifact: RPCArtifact): SessionArtifact {
   }
 }
 
-function toPendingQuestion(rpc: RPCPendingQuestion | null | undefined): PendingQuestion | null {
+function toPendingQuestion(
+  rpc: RPCPendingQuestion | null | undefined,
+  lastTurnId: string
+): PendingQuestion | null {
   if (!rpc) return null
 
   const questions: Question[] = (rpc.questions || []).map((q) => ({
@@ -97,7 +100,7 @@ function toPendingQuestion(rpc: RPCPendingQuestion | null | undefined): PendingQ
 
   return {
     id: rpc.checkpointId,
-    turnId: '',
+    turnId: lastTurnId,
     questions,
     status: 'PENDING',
   }
@@ -334,10 +337,13 @@ export class HttpDataSource implements ChatDataSource {
         }),
       ])
 
+      const turns = attachArtifactsToTurns(data.turns as ConversationTurn[], artifactsData.artifacts || [])
+      const lastTurnId = turns.length > 0 ? turns[turns.length - 1].id : ''
+
       return {
         session: toSession(data.session),
-        turns: attachArtifactsToTurns(data.turns as ConversationTurn[], artifactsData.artifacts || []),
-        pendingQuestion: toPendingQuestion(data.pendingQuestion),
+        turns,
+        pendingQuestion: toPendingQuestion(data.pendingQuestion, lastTurnId),
       }
     } catch (err) {
       console.error('Failed to fetch session:', err)

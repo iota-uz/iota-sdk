@@ -53,6 +53,18 @@ func TestPostgresQueryExecutor_ExecuteQuery_MissingTenantID(t *testing.T) {
 	assert.Contains(t, err.Error(), "tenant ID required")
 }
 
+func TestPostgresQueryExecutor_ExecuteQuery_RejectsNonAnalyticsSchema(t *testing.T) {
+	t.Parallel()
+
+	requirePostgres(t)
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	executor := NewPostgresQueryExecutor(env.Pool)
+
+	_, err := executor.ExecuteQuery(env.Ctx, "SELECT 1 FROM public.some_table", nil, 5*time.Second)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "analytics schema")
+}
+
 func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T) {
 	t.Parallel()
 
@@ -70,9 +82,9 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 	`)
 	require.NoError(t, err)
 
-	// Create base table in public schema
+	// Create base table in public (view in analytics references it)
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP TABLE test_tenant_data (
+		CREATE TABLE test_tenant_data (
 			id SERIAL PRIMARY KEY,
 			tenant_id UUID NOT NULL,
 			name VARCHAR(100),
@@ -80,10 +92,11 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 		)
 	`)
 	require.NoError(t, err)
+	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_tenant_data"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_tenant_data") }()
 
-	// Create temp view with automatic tenant filtering (simulates analytics schema)
+	// Create view in analytics schema with automatic tenant filtering
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP VIEW analytics_test_tenant_data AS
+		CREATE OR REPLACE VIEW analytics.analytics_test_tenant_data AS
 		SELECT * FROM test_tenant_data
 		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
 	`)
@@ -106,9 +119,8 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 	`, otherTenantID)
 	require.NoError(t, err)
 
-	// Execute query on temp view (NO explicit WHERE tenant_id = $1 needed)
-	// Session variable is set automatically by executor
-	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM analytics_test_tenant_data ORDER BY value", nil, 5*time.Second)
+	// Execute query on analytics view (session variable set by executor)
+	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM analytics.analytics_test_tenant_data ORDER BY value", nil, 5*time.Second)
 	require.NoError(t, err)
 
 	// Verify ONLY current tenant's data is returned (automatic filtering by view)
@@ -136,9 +148,11 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	tenantID, err := composables.UseTenantID(env.Ctx)
 	require.NoError(t, err)
 
-	// Create test table with tenant_id
+	_, err = env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS analytics`)
+	require.NoError(t, err)
+
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP TABLE test_data (
+		CREATE TABLE test_data (
 			id SERIAL PRIMARY KEY,
 			tenant_id UUID NOT NULL,
 			name VARCHAR(100),
@@ -146,10 +160,10 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 		)
 	`)
 	require.NoError(t, err)
+	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_data"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_data") }()
 
-	// Create temp view with automatic tenant filtering (simulates analytics schema)
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP VIEW analytics_test_data AS
+		CREATE OR REPLACE VIEW analytics.analytics_test_data AS
 		SELECT * FROM test_data
 		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
 	`)
@@ -164,8 +178,8 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	`, tenantID)
 	require.NoError(t, err)
 
-	// Execute query on temp view (session variable handles tenant filtering)
-	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM analytics_test_data ORDER BY value", nil, 5*time.Second)
+	// Execute query on analytics view (session variable handles tenant filtering)
+	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM analytics.analytics_test_data ORDER BY value", nil, 5*time.Second)
 	require.NoError(t, err)
 
 	assert.Len(t, result.Columns, 2)
@@ -188,9 +202,11 @@ func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 	tenantID, err := composables.UseTenantID(env.Ctx)
 	require.NoError(t, err)
 
-	// Create test table with tenant_id
+	_, err = env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS analytics`)
+	require.NoError(t, err)
+
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP TABLE test_products (
+		CREATE TABLE test_products (
 			id SERIAL PRIMARY KEY,
 			tenant_id UUID NOT NULL,
 			name VARCHAR(100),
@@ -198,10 +214,10 @@ func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 		)
 	`)
 	require.NoError(t, err)
+	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_products"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_products") }()
 
-	// Create temp view with automatic tenant filtering (simulates analytics schema)
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP VIEW analytics_test_products AS
+		CREATE OR REPLACE VIEW analytics.analytics_test_products AS
 		SELECT * FROM test_products
 		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
 	`)
@@ -219,7 +235,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 	// Execute query with user parameter (price is $1, tenant_id is automatic via session variable)
 	result, err := executor.ExecuteQuery(
 		env.Ctx,
-		"SELECT name, price FROM analytics_test_products WHERE price > $1 ORDER BY price",
+		"SELECT name, price FROM analytics.analytics_test_products WHERE price > $1 ORDER BY price",
 		[]any{10.0},
 		5*time.Second,
 	)
@@ -241,18 +257,20 @@ func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
 	tenantID, err := composables.UseTenantID(env.Ctx)
 	require.NoError(t, err)
 
-	// Create temp table for timeout test
+	_, err = env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS analytics`)
+	require.NoError(t, err)
+
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP TABLE test_timeout (
+		CREATE TABLE test_timeout (
 			id SERIAL PRIMARY KEY,
 			tenant_id UUID NOT NULL
 		)
 	`)
 	require.NoError(t, err)
+	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_timeout"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_timeout") }()
 
-	// Create temp view with automatic tenant filtering (simulates analytics schema)
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP VIEW analytics_test_timeout AS
+		CREATE OR REPLACE VIEW analytics.analytics_test_timeout AS
 		SELECT * FROM test_timeout
 		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
 	`)
@@ -263,7 +281,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute query with very short timeout (1ms) on a slow query
-	_, err = executor.ExecuteQuery(env.Ctx, "SELECT pg_sleep(1) FROM analytics_test_timeout", nil, 1*time.Millisecond)
+	_, err = executor.ExecuteQuery(env.Ctx, "SELECT pg_sleep(1) FROM analytics.analytics_test_timeout", nil, 1*time.Millisecond)
 	assert.Error(t, err)
 	// Timeout errors vary by driver, just check that it failed
 }
@@ -279,19 +297,21 @@ func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
 	tenantID, err := composables.UseTenantID(env.Ctx)
 	require.NoError(t, err)
 
-	// Create test table with many rows and tenant_id
+	_, err = env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS analytics`)
+	require.NoError(t, err)
+
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP TABLE test_large (
+		CREATE TABLE test_large (
 			id SERIAL PRIMARY KEY,
 			tenant_id UUID NOT NULL,
 			value INT
 		)
 	`)
 	require.NoError(t, err)
+	defer func() { _, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_large"); _, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_large") }()
 
-	// Create temp view with automatic tenant filtering (simulates analytics schema)
 	_, err = env.Pool.Exec(env.Ctx, `
-		CREATE TEMP VIEW analytics_test_large AS
+		CREATE OR REPLACE VIEW analytics.analytics_test_large AS
 		SELECT * FROM test_large
 		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
 	`)
@@ -304,8 +324,8 @@ func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
 	`, tenantID)
 	require.NoError(t, err)
 
-	// Execute query on temp view (session variable handles tenant filtering)
-	result, err := executor.ExecuteQuery(env.Ctx, "SELECT * FROM analytics_test_large", nil, 10*time.Second)
+	// Execute query on analytics view (session variable handles tenant filtering)
+	result, err := executor.ExecuteQuery(env.Ctx, "SELECT * FROM analytics.analytics_test_large", nil, 10*time.Second)
 	require.NoError(t, err)
 
 	// Should be limited to 1000 rows

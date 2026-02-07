@@ -10,7 +10,7 @@ interface SessionMenuProps {
   isPinned: boolean
   onPin: (e: React.MouseEvent) => void
   onRename: () => void
-  onDelete: (e: React.MouseEvent) => void
+  onDelete: (e?: React.MouseEvent) => void
 }
 
 export default function SessionMenu({ isPinned, onPin, onRename, onDelete }: SessionMenuProps) {

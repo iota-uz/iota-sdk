@@ -204,9 +204,9 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
   // Group unpinned sessions by date
   const sessionGroups = groupSessionsByDate(unpinnedSessions)
 
-  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleDeleteSession = async (sessionId: string, e?: React.MouseEvent) => {
+    e?.preventDefault?.()
+    e?.stopPropagation?.()
 
     if (!confirm('Delete this chat session?')) return
 

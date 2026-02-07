@@ -80,11 +80,26 @@ func (c *UploadsController) Serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullPath := filepath.Join(c.baseDir, filepath.Base(name))
-	if _, err := os.Stat(fullPath); err != nil {
+
+	resolvedBase, err := filepath.EvalSymlinks(c.baseDir)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	resolvedBase = filepath.Clean(resolvedBase)
+
+	resolvedFull, err := filepath.EvalSymlinks(fullPath)
+	if err != nil {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+	resolvedFull = filepath.Clean(resolvedFull)
+
+	if resolvedFull != resolvedBase && !strings.HasPrefix(resolvedFull, resolvedBase+string(os.PathSeparator)) {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	http.ServeFile(w, r, fullPath)
+	http.ServeFile(w, r, resolvedFull)
 }

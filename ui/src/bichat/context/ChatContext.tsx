@@ -478,6 +478,7 @@ export function ChatSessionProvider({
 
         let accumulatedContent = ''
         let createdSessionId: string | undefined
+        let sessionFetched = false
         setIsStreaming(true)
 
         for await (const chunk of dataSource.sendMessage(
@@ -503,13 +504,16 @@ export function ChatSessionProvider({
             if (chunk.sessionId) {
               createdSessionId = chunk.sessionId
             }
-            const finalSessionId = createdSessionId || activeSessionId
-            if (finalSessionId && finalSessionId !== 'new') {
-              const state = await dataSource.fetchSession(finalSessionId)
-              if (state) {
-                setSession(state.session)
-                setTurns(state.turns)
-                setPendingQuestion(state.pendingQuestion || null)
+            if (!sessionFetched) {
+              sessionFetched = true
+              const finalSessionId = createdSessionId || activeSessionId
+              if (finalSessionId && finalSessionId !== 'new') {
+                const state = await dataSource.fetchSession(finalSessionId)
+                if (state) {
+                  setSession(state.session)
+                  setTurns(state.turns)
+                  setPendingQuestion(state.pendingQuestion || null)
+                }
               }
             }
           } else if (chunk.type === 'user_message' && chunk.sessionId) {

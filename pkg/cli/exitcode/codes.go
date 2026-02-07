@@ -5,4 +5,3 @@ const (
 	QualityRegressionCode = 1
 	InvalidUsageCode      = 2
 )
-
