@@ -342,7 +342,7 @@ bi-chat-root select:focus-visible,
 bi-chat-root [tabindex]:not([tabindex="-1"]):focus-visible {
   outline: none;
   box-shadow: var(--bichat-focus-ring-offset), var(--bichat-focus-ring);
-  border-radius: var(--bichat-radius-default);
+  border-radius: inherit;
 }
 
 .dark .bichat-session button:focus-visible,
