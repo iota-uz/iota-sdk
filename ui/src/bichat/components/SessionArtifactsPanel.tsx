@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CaretLeft, Paperclip } from '@phosphor-icons/react'
+import { Paperclip } from '@phosphor-icons/react'
 import type { ChatDataSource, SessionArtifact } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useChatMessaging } from '../context/ChatContext'
 import { SessionArtifactList } from './SessionArtifactList'
-import { SessionArtifactPreview } from './SessionArtifactPreview'
+import { SessionArtifactPreviewModal } from './SessionArtifactPreviewModal'
 
 interface SessionArtifactsPanelProps {
   dataSource: ChatDataSource
@@ -46,7 +46,7 @@ export function SessionArtifactsPanel({
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [artifacts, setArtifacts] = useState<SessionArtifact[]>([])
-  const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null)
+  const [previewArtifactID, setPreviewArtifactID] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [dropSuccess, setDropSuccess] = useState(false)
@@ -119,13 +119,6 @@ export function SessionArtifactsPanel({
 
         setHasMore(resolvedHasMore)
         nextOffsetRef.current = resolvedNextOffset
-
-        setSelectedArtifactId((current) => {
-          if (!current) {
-            return null
-          }
-          return nextList.some((artifact) => artifact.id === current) ? current : null
-        })
       } catch (err) {
         if (requestID !== requestSeq.current) {
           return
@@ -150,7 +143,7 @@ export function SessionArtifactsPanel({
     setError(null)
     setArtifacts([])
     artifactsRef.current = []
-    setSelectedArtifactId(null)
+    setPreviewArtifactID(null)
     setHasMore(false)
     nextOffsetRef.current = 0
     void fetchArtifacts({ reset: true, manual: false })
@@ -180,9 +173,9 @@ export function SessionArtifactsPanel({
     return () => document.removeEventListener('visibilitychange', handler)
   }, [sessionId, canFetchArtifacts, fetchArtifacts])
 
-  const selectedArtifact = useMemo(
-    () => artifacts.find((artifact) => artifact.id === selectedArtifactId) ?? null,
-    [artifacts, selectedArtifactId]
+  const previewArtifact = useMemo(
+    () => artifacts.find((artifact) => artifact.id === previewArtifactID) ?? null,
+    [artifacts, previewArtifactID]
   )
 
   const clearDropSuccessTimer = useCallback(() => {
@@ -261,6 +254,48 @@ export function SessionArtifactsPanel({
     }
   }, [canDropFiles, dataSource, fetchArtifacts, hasDragFiles, sessionId, setDropSuccessState])
 
+  const canRenameArtifacts = typeof dataSource.renameSessionArtifact === 'function'
+  const canDeleteArtifacts = typeof dataSource.deleteSessionArtifact === 'function'
+
+  const handleRenameArtifact = useCallback(
+    async (artifact: SessionArtifact, name: string) => {
+      if (!dataSource.renameSessionArtifact) {
+        return
+      }
+      const updatedArtifact = await dataSource.renameSessionArtifact(
+        artifact.id,
+        name,
+        artifact.description || ''
+      )
+      setArtifacts((prev) => {
+        const next = prev.map((item) => (item.id === updatedArtifact.id ? updatedArtifact : item))
+        artifactsRef.current = next
+        return next
+      })
+    },
+    [dataSource]
+  )
+
+  const canDeleteArtifact = useCallback((artifact: SessionArtifact): boolean => {
+    return artifact.type === 'attachment' && !artifact.messageId
+  }, [])
+
+  const handleDeleteArtifact = useCallback(
+    async (artifact: SessionArtifact) => {
+      if (!dataSource.deleteSessionArtifact || !canDeleteArtifact(artifact)) {
+        return
+      }
+      await dataSource.deleteSessionArtifact(artifact.id)
+      setArtifacts((prev) => {
+        const next = prev.filter((item) => item.id !== artifact.id)
+        artifactsRef.current = next
+        return next
+      })
+      setPreviewArtifactID((current) => (current === artifact.id ? null : current))
+    },
+    [canDeleteArtifact, dataSource]
+  )
+
   return (
     <aside
       className={[
@@ -293,74 +328,71 @@ export function SessionArtifactsPanel({
       )}
 
       <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700/80">
-          <div className="min-w-0 flex-1">
-            {selectedArtifact ? (
-              <button
-                type="button"
-                onClick={() => setSelectedArtifactId(null)}
-                className="cursor-pointer inline-flex items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-gray-700 transition-colors hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 dark:text-gray-300 dark:hover:text-gray-100"
-              >
-                <CaretLeft className="h-4 w-4" weight="bold" />
-                {t('artifacts.back')}
-              </button>
-            ) : (
-              <h2 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                {t('artifacts.title')} ({artifacts.length})
-              </h2>
-            )}
-          </div>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          {fetching ? (
-            <div className="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-              {t('artifacts.loading')}
-            </div>
-          ) : error ? (
-            <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900/70 dark:bg-red-950/30">
-              <p className="text-sm font-medium text-red-800 dark:text-red-300">{t('artifacts.failedToLoad')}</p>
-              <p className="text-xs text-red-700 dark:text-red-400">{error}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  void fetchArtifacts({ reset: true, manual: true })
-                }}
-                className="cursor-pointer rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/40"
-              >
-                {t('alert.retry')}
-              </button>
-            </div>
-          ) : !canFetchArtifacts ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
-              {t('artifacts.unsupported')}
-            </div>
-          ) : selectedArtifact ? (
-            <SessionArtifactPreview artifact={selectedArtifact} />
-          ) : (
-            <>
-              <SessionArtifactList
-                artifacts={artifacts}
-                selectedArtifactId={selectedArtifactId || undefined}
-                onSelect={(artifact) => setSelectedArtifactId(artifact.id)}
-              />
-
-              {hasMore && (
-                <div className="mt-3 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void fetchArtifacts({ reset: false, manual: true })
-                    }}
-                    disabled={loadingMore || refreshing || fetching}
-                    className="cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                  >
-                    {loadingMore ? t('artifacts.loadingMore') : t('artifacts.loadMore')}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+            {t('artifacts.title')} ({artifacts.length})
+          </h2>
         </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+        {fetching ? (
+          <div className="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+            {t('artifacts.loading')}
+          </div>
+        ) : error ? (
+          <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900/70 dark:bg-red-950/30">
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">{t('artifacts.failedToLoad')}</p>
+            <p className="text-xs text-red-700 dark:text-red-400">{error}</p>
+            <button
+              type="button"
+              onClick={() => {
+                void fetchArtifacts({ reset: true, manual: true })
+              }}
+              className="cursor-pointer rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/40"
+            >
+              {t('alert.retry')}
+            </button>
+          </div>
+        ) : !canFetchArtifacts ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
+            {t('artifacts.unsupported')}
+          </div>
+        ) : (
+          <>
+            <SessionArtifactList
+              artifacts={artifacts}
+              selectedArtifactId={previewArtifactID || undefined}
+              onSelect={(artifact) => setPreviewArtifactID(artifact.id)}
+            />
+
+            {hasMore && (
+              <div className="mt-3 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void fetchArtifacts({ reset: false, manual: true })
+                  }}
+                  disabled={loadingMore || refreshing || fetching}
+                  className="cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  {loadingMore ? t('artifacts.loadingMore') : t('artifacts.loadMore')}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <SessionArtifactPreviewModal
+        isOpen={previewArtifact !== null}
+        artifact={previewArtifact}
+        onClose={() => setPreviewArtifactID(null)}
+        canRename={canRenameArtifacts}
+        canDelete={Boolean(previewArtifact && canDeleteArtifacts && canDeleteArtifact(previewArtifact))}
+        onRename={canRenameArtifacts ? handleRenameArtifact : undefined}
+        onDelete={canDeleteArtifacts ? handleDeleteArtifact : undefined}
+      />
     </aside>
   )
 }

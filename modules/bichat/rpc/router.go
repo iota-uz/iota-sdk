@@ -344,6 +344,68 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		},
 	})
 
+	applet.AddProcedure(r, "bichat.artifact.update", applet.Procedure[ArtifactUpdateParams, ArtifactResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p ArtifactUpdateParams) (ArtifactResult, error) {
+			const op serrors.Op = "bichat.rpc.artifact.update"
+
+			artifactID, err := parseUUID(p.ID)
+			if err != nil {
+				return ArtifactResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+
+			currentArtifact, err := artifactSvc.GetArtifact(ctx, artifactID)
+			if err != nil {
+				return ArtifactResult{}, serrors.E(op, err)
+			}
+			if _, err := requireSessionOwner(ctx, chatSvc, currentArtifact.SessionID()); err != nil {
+				return ArtifactResult{}, serrors.E(op, err)
+			}
+
+			updatedName := strings.TrimSpace(p.Name)
+			if updatedName == "" {
+				return ArtifactResult{}, serrors.E(op, serrors.KindValidation, "name is required")
+			}
+
+			updatedArtifact, err := artifactSvc.UpdateArtifact(
+				ctx,
+				artifactID,
+				updatedName,
+				strings.TrimSpace(p.Description),
+			)
+			if err != nil {
+				return ArtifactResult{}, serrors.E(op, err)
+			}
+
+			return ArtifactResult{Artifact: toArtifactDTO(updatedArtifact)}, nil
+		},
+	})
+
+	applet.AddProcedure(r, "bichat.artifact.delete", applet.Procedure[SessionIDParams, OkResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p SessionIDParams) (OkResult, error) {
+			const op serrors.Op = "bichat.rpc.artifact.delete"
+
+			artifactID, err := parseUUID(p.ID)
+			if err != nil {
+				return OkResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+
+			artifact, err := artifactSvc.GetArtifact(ctx, artifactID)
+			if err != nil {
+				return OkResult{}, serrors.E(op, err)
+			}
+			if _, err := requireSessionOwner(ctx, chatSvc, artifact.SessionID()); err != nil {
+				return OkResult{}, serrors.E(op, err)
+			}
+
+			if err := artifactSvc.DeleteArtifact(ctx, artifactID); err != nil {
+				return OkResult{}, serrors.E(op, err)
+			}
+			return OkResult{Ok: true}, nil
+		},
+	})
+
 	applet.AddProcedure(r, "bichat.session.archive", applet.Procedure[SessionIDParams, SessionCreateResult]{
 		RequirePermissions: []string{"bichat.access"},
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {

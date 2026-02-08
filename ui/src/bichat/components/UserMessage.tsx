@@ -102,6 +102,8 @@ export interface UserMessageProps {
   hideActions?: boolean
   /** Hide timestamp */
   hideTimestamp?: boolean
+  /** Whether edit action should be available */
+  allowEdit?: boolean
 }
 
 const COPY_FEEDBACK_MS = 2000
@@ -155,6 +157,7 @@ export function UserMessage({
   hideAvatar = false,
   hideActions = false,
   hideTimestamp = false,
+  allowEdit = true,
 }: UserMessageProps) {
   const { t } = useTranslation()
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
@@ -298,10 +301,10 @@ export function UserMessage({
   }
   const actionsSlotProps: UserMessageActionsSlotProps = {
     onCopy: handleCopyClick,
-    onEdit: onEdit && turnId ? handleEditClick : undefined,
+    onEdit: onEdit && turnId && allowEdit ? handleEditClick : undefined,
     timestamp,
     canCopy: true,
-    canEdit: !!onEdit && !!turnId,
+    canEdit: !!onEdit && !!turnId && allowEdit,
   }
 
   // Render helpers
@@ -387,7 +390,7 @@ export function UserMessage({
                   {isCopied ? <Check size={14} weight="bold" /> : <Copy size={14} weight="regular" />}
                 </button>
 
-                {onEdit && turnId && (
+                {onEdit && turnId && allowEdit && (
                   <button
                     onClick={handleEditClick}
                     className={`cursor-pointer ${classes.actionButton}`}

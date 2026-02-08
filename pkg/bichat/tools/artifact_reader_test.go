@@ -310,9 +310,51 @@ func TestArtifactReaderTool_ReadTextWithPaginationAndSessionIsolation(t *testing
 	otherCtx := agents.WithRuntimeSessionID(context.Background(), otherSessionID)
 	denied, err := tool.Call(otherCtx, fmt.Sprintf(`{"action":"read","artifact_id":"%s"}`, textArtifact.ID()))
 	require.NoError(t, err)
-	assert.Contains(t, denied, "Access denied")
+	assert.Contains(t, denied, "access denied")
 
 	missingSessionCtxOutput, err := tool.Call(context.Background(), fmt.Sprintf(`{"action":"read","artifact_id":"%s"}`, textArtifact.ID()))
 	require.NoError(t, err)
 	assert.Contains(t, missingSessionCtxOutput, "Session context is unavailable")
+}
+
+func TestArtifactReaderTool_ReadByArtifactName(t *testing.T) {
+	t.Parallel()
+
+	sessionID := uuid.New()
+	artifactURL := "https://files.local/quarterly-notes.txt"
+	artifactName := "Q4 Notes"
+	content := "revenue up 12%\nchurn down 3%"
+
+	textArtifact := domain.NewArtifact(
+		domain.WithArtifactID(uuid.New()),
+		domain.WithArtifactSessionID(sessionID),
+		domain.WithArtifactType(domain.ArtifactTypeAttachment),
+		domain.WithArtifactName(artifactName),
+		domain.WithArtifactMimeType("text/plain"),
+		domain.WithArtifactURL(artifactURL),
+		domain.WithArtifactSizeBytes(int64(len(content))),
+	)
+
+	repo := &artifactReaderRepoStub{
+		artifactsByID: map[uuid.UUID]domain.Artifact{
+			textArtifact.ID(): textArtifact,
+		},
+		bySession: map[uuid.UUID][]domain.Artifact{
+			sessionID: {textArtifact},
+		},
+	}
+	storageStub := &artifactReaderStorageStub{
+		contents: map[string][]byte{
+			artifactURL: []byte(content),
+		},
+	}
+
+	tool := NewArtifactReaderTool(repo, storageStub)
+	ctx := agents.WithRuntimeSessionID(context.Background(), sessionID)
+
+	output, err := tool.Call(ctx, fmt.Sprintf(`{"action":"read","artifact_name":"%s"}`, artifactName))
+	require.NoError(t, err)
+	assert.Contains(t, output, "## Artifact Read")
+	assert.Contains(t, output, "- name: Q4 Notes")
+	assert.Contains(t, output, "revenue up 12%")
 }

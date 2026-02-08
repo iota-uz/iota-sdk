@@ -230,6 +230,16 @@ type SessionUploadArtifactsResult struct {
 	Artifacts []Artifact `json:"artifacts"`
 }
 
+type ArtifactUpdateParams struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+type ArtifactResult struct {
+	Artifact Artifact `json:"artifact"`
+}
+
 type QuestionSubmitParams struct {
 	SessionID    string            `json:"sessionId"`
 	CheckpointID string            `json:"checkpointId"`

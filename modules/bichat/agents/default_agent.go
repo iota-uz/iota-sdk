@@ -316,7 +316,7 @@ Provide context, explanations, and actionable recommendations based on the data.
 ATTACHMENT ANALYSIS:
 - When user files are attached, inspect them with artifact_reader before answering.
 - Use artifact_reader action="list" to discover available artifacts in the current session.
-- Use artifact_reader action="read" with artifact_id to inspect file content.
+- Use artifact_reader action="read" with artifact_id (or artifact_name) to inspect file content.
 - For chart artifacts, use mode="spec" to read chart metadata/spec.`
 	}
 

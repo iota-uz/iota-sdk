@@ -239,6 +239,10 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 				"codeInterpreter": false,
 				"multiAgent":      false,
 			},
+			"llm": map[string]interface{}{
+				"provider":         "",
+				"apiKeyConfigured": false,
+			},
 			"debug": map[string]interface{}{
 				"limits": map[string]int{
 					"policyMaxTokens":         0,
@@ -285,8 +289,21 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 		"completionReserveTokens": a.config.ContextPolicy.CompletionReserve,
 	}
 
+	modelProvider := ""
+	if a.config.Model != nil {
+		modelProvider = strings.ToLower(strings.TrimSpace(a.config.Model.Info().Provider))
+	}
+	apiKeyConfigured := true
+	if modelProvider == "openai" {
+		apiKeyConfigured = strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != ""
+	}
+
 	return map[string]interface{}{
 		"features": features,
+		"llm": map[string]interface{}{
+			"provider":         modelProvider,
+			"apiKeyConfigured": apiKeyConfigured,
+		},
 		"debug": map[string]interface{}{
 			"limits": limits,
 		},

@@ -27,6 +27,8 @@ export interface UserTurnViewProps {
   hideActions?: boolean
   /** Hide timestamp */
   hideTimestamp?: boolean
+  /** Whether edit action should be available */
+  allowEdit?: boolean
 }
 
 export function UserTurnView({
@@ -37,6 +39,7 @@ export function UserTurnView({
   hideAvatar,
   hideActions,
   hideTimestamp,
+  allowEdit,
 }: UserTurnViewProps) {
   const { handleEdit, handleCopy } = useChat()
 
@@ -52,6 +55,7 @@ export function UserTurnView({
       hideAvatar={hideAvatar}
       hideActions={hideActions}
       hideTimestamp={hideTimestamp}
+      allowEdit={allowEdit}
     />
   )
 }
