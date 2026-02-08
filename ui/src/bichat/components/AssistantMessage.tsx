@@ -135,6 +135,8 @@ export interface AssistantMessageProps {
   turn: AssistantTurn
   /** Turn ID for regenerate operations */
   turnId?: string
+  /** When true, this is the last turn (Regenerate button shown only on last assistant message) */
+  isLastTurn?: boolean
   /** Whether response is being streamed */
   isStreaming?: boolean
   /** Pending question for HITL */
@@ -210,6 +212,7 @@ function mergeClassNames(
 export function AssistantMessage({
   turn,
   turnId,
+  isLastTurn = false,
   isStreaming = false,
   pendingQuestion,
   slots,
@@ -303,10 +306,10 @@ export function AssistantMessage({
   }
   const actionsSlotProps: AssistantMessageActionsSlotProps = {
     onCopy: handleCopyClick,
-    onRegenerate: onRegenerate && turnId && !isSystemMessage ? handleRegenerateClick : undefined,
+    onRegenerate: onRegenerate && turnId && !isSystemMessage && isLastTurn ? handleRegenerateClick : undefined,
     timestamp,
     canCopy: hasContent,
-    canRegenerate: !!onRegenerate && !!turnId && !isSystemMessage,
+    canRegenerate: !!onRegenerate && !!turnId && !isSystemMessage && isLastTurn,
   }
   const explanationSlotProps: AssistantMessageExplanationSlotProps = {
     explanation: turn.explanation || '',
@@ -470,7 +473,7 @@ export function AssistantMessage({
                   {isCopied ? <Check size={14} weight="bold" /> : <Copy size={14} weight="regular" />}
                 </button>
 
-                {onRegenerate && turnId && !isSystemMessage && (
+                {onRegenerate && turnId && !isSystemMessage && isLastTurn && (
                   <button
                     onClick={handleRegenerateClick}
                     className={`cursor-pointer ${classes.actionButton}`}

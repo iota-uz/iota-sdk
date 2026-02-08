@@ -148,10 +148,11 @@ export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs
               </div>
             </div>
           )}
-          {turns.map((turn) => (
+          {turns.map((turn, index) => (
             <TurnBubble
               key={turn.id}
               turn={turn}
+              isLastTurn={index === turns.length - 1}
               renderUserTurn={renderUserTurn}
               renderAssistantTurn={renderAssistantTurn}
               userTurnProps={readOnly ? { hideActions: true } : undefined}

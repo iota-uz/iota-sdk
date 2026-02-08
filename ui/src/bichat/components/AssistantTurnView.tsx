@@ -16,6 +16,8 @@ import type { ConversationTurn } from '../types'
 export interface AssistantTurnViewProps {
   /** The conversation turn containing the assistant response */
   turn: ConversationTurn
+  /** When true, this is the last turn in the list (Regenerate button shown only on last assistant message) */
+  isLastTurn?: boolean
   /** Whether the response is currently being streamed */
   isStreaming?: boolean
   /** Slot overrides for customization */
@@ -32,6 +34,7 @@ export interface AssistantTurnViewProps {
 
 export function AssistantTurnView({
   turn,
+  isLastTurn = false,
   isStreaming = false,
   slots,
   classNames,
@@ -60,6 +63,7 @@ export function AssistantTurnView({
     <AssistantMessage
       turn={assistantTurn}
       turnId={turn.id}
+      isLastTurn={isLastTurn}
       isStreaming={isStreaming}
       pendingQuestion={pendingQuestion}
       slots={slots}
