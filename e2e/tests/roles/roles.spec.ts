@@ -6,7 +6,8 @@ test.describe('role management flows', () => {
 	// Tests MUST run serially - some tests depend on data created by previous tests
 	test.describe.configure({ mode: 'serial' });
 
-	const saveRoleButton = (page: Page) => page.locator('[data-test-id="save-role-btn"], #save-btn');
+	const saveRoleButton = (page: Page) =>
+		page.getByRole('button', { name: /save/i }).or(page.locator('[data-test-id="save-role-btn"], #save-btn'));
 
 	// Reset database once for entire suite
 	test.beforeAll(async ({ request }) => {
@@ -43,8 +44,8 @@ test.describe('role management flows', () => {
 		// Verify form elements are present
 		await expect(page.locator('[data-test-id="role-name-input"]')).toBeVisible();
 		await expect(page.locator('[data-test-id="role-description-input"]')).toBeVisible();
-		// Save button is in sticky footer; scroll into view and wait for it (may be below fold)
-		const saveBtn = saveRoleButton(page);
+		// Save button (by role or test-id); may be in sticky footer below fold
+		const saveBtn = saveRoleButton(page).first();
 		await saveBtn.waitFor({ state: 'attached', timeout: 15000 });
 		await saveBtn.scrollIntoViewIfNeeded();
 		await expect(saveBtn).toBeVisible();
