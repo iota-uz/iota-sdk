@@ -157,10 +157,6 @@ CREATE INDEX IF NOT EXISTS idx_bichat_vq_fts ON bichat.validated_queries
     USING GIN (to_tsvector('english', question || ' ' || summary));
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bichat_vq_dedup ON bichat.validated_queries(tenant_id, sql_hash);
 
--- Migration: move HITL question state from sessions to messages
-ALTER TABLE bichat.messages ADD COLUMN IF NOT EXISTS question_data jsonb;
-ALTER TABLE bichat.sessions DROP COLUMN IF EXISTS pending_question_agent;
-
 COMMENT ON TABLE bichat.sessions IS 'Chat sessions with multi-tenant support';
 COMMENT ON TABLE bichat.messages IS 'Messages within chat sessions';
 COMMENT ON TABLE bichat.attachments IS 'File attachments for messages';
