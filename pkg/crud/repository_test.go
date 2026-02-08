@@ -12,7 +12,6 @@ import (
 
 func TestReportRepository_AllMethods(t *testing.T) {
 	t.Helper()
-	skipUnlessDB(t)
 
 	fixture := setupTest(t)
 	ctx := fixture.ctx

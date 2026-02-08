@@ -171,6 +171,11 @@ type SessionGetResult struct {
 	PendingQuestion *PendingQuestion   `json:"pendingQuestion,omitempty"`
 }
 
+// ArtifactIDParams is used by bichat.artifact.delete (p.ID is artifact ID).
+type ArtifactIDParams struct {
+	ID string `json:"id"`
+}
+
 type SessionIDParams struct {
 	ID string `json:"id"`
 }
