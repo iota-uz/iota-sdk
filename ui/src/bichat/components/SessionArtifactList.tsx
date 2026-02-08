@@ -1,37 +1,19 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import {
   ChartBar,
   Code,
-  File,
   FileCsv,
-  FilePdf,
-  FileText,
   Image as ImageIcon,
   Package,
 } from '@phosphor-icons/react'
 import type { SessionArtifact } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
+import { formatFileSize, getFileVisual, CHART_VISUAL, type FileVisual } from '../utils/fileUtils'
 
 interface SessionArtifactListProps {
   artifacts: SessionArtifact[]
   selectedArtifactId?: string
   onSelect: (artifact: SessionArtifact) => void
-}
-
-function formatFileSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) {
-    return '0 B'
-  }
-
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let value = bytes
-  let idx = 0
-  while (value >= 1024 && idx < units.length - 1) {
-    value /= 1024
-    idx++
-  }
-  const precision = idx === 0 ? 0 : value >= 10 ? 1 : 2
-  return `${value.toFixed(precision)} ${units[idx]}`
 }
 
 const TYPE_LABEL_KEYS: Record<string, string> = {
@@ -58,64 +40,42 @@ function getGroupIcon(type: string): ReactNode {
   }
 }
 
-function getArtifactIcon(artifact: SessionArtifact): ReactNode {
-  const iconClass = 'h-4 w-4'
+function isImageArtifact(artifact: SessionArtifact): boolean {
   const mime = artifact.mimeType?.toLowerCase() || ''
   const name = artifact.name.toLowerCase()
-
-  if (artifact.type === 'chart') {
-    return <ChartBar className={iconClass} weight="duotone" />
-  }
-
-  if (artifact.type === 'code_output') {
-    if (mime.startsWith('image/')) {
-      return <ImageIcon className={iconClass} weight="duotone" />
-    }
-    if (mime.includes('json')) {
-      return <Code className={iconClass} weight="duotone" />
-    }
-    return <FileText className={iconClass} weight="duotone" />
-  }
-
-  if (artifact.type === 'export') {
-    if (
-      mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-      name.endsWith('.xlsx') ||
-      name.endsWith('.xls')
-    ) {
-      return <FileCsv className={iconClass} weight="duotone" />
-    }
-
-    if (mime === 'application/pdf' || name.endsWith('.pdf')) {
-      return <FilePdf className={iconClass} weight="duotone" />
-    }
-  }
-
-  return <File className={iconClass} weight="duotone" />
+  return mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/.test(name)
 }
 
-function getArtifactAccent(artifact: SessionArtifact): string {
-  const mime = artifact.mimeType?.toLowerCase() || ''
-  const name = artifact.name.toLowerCase()
+function ImageThumbnail({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) {
+    return (
+      <div className="w-full aspect-video rounded-lg bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center">
+        <ImageIcon className="h-6 w-6 text-violet-400 dark:text-violet-500" weight="duotone" />
+      </div>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setFailed(true)}
+      className="w-full rounded-lg object-cover max-h-32 bg-gray-100 dark:bg-gray-800"
+    />
+  )
+}
 
-  if (artifact.type === 'chart') return 'text-indigo-500 dark:text-indigo-400'
+function getArtifactFileVisual(artifact: SessionArtifact): FileVisual {
+  if (artifact.type === 'chart') return CHART_VISUAL
   if (artifact.type === 'code_output') {
-    if (mime.startsWith('image/')) return 'text-violet-500 dark:text-violet-400'
-    return 'text-sky-500 dark:text-sky-400'
-  }
-  if (artifact.type === 'export') {
-    if (
-      mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-      name.endsWith('.xlsx') ||
-      name.endsWith('.xls')
-    ) {
-      return 'text-emerald-500 dark:text-emerald-400'
+    const v = getFileVisual(artifact.mimeType, artifact.name)
+    // Code outputs get a sky accent unless they resolve to something specific (image, etc.)
+    if (v.label === 'TEXT' || v.label === 'FILE') {
+      return { ...v, iconColor: 'text-sky-600 dark:text-sky-400', bgColor: 'bg-sky-100 dark:bg-sky-900/40' }
     }
-    if (mime === 'application/pdf' || name.endsWith('.pdf')) {
-      return 'text-rose-500 dark:text-rose-400'
-    }
+    return v
   }
-  return 'text-gray-400 dark:text-gray-500'
+  return getFileVisual(artifact.mimeType, artifact.name)
 }
 
 function groupArtifactsByType(artifacts: SessionArtifact[]): Array<{ type: string; items: SessionArtifact[] }> {
@@ -181,35 +141,58 @@ export function SessionArtifactList({
           <div className="space-y-1">
             {group.items.map((artifact) => {
               const isSelected = artifact.id === selectedArtifactId
+              const visual = getArtifactFileVisual(artifact)
+              const Icon = visual.icon
               return (
                 <button
                   key={artifact.id}
                   type="button"
                   onClick={() => onSelect(artifact)}
-                  className={`cursor-pointer group/item w-full rounded-lg border px-3 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 ${
+                  className={`cursor-pointer group/item w-full rounded-lg border px-3 py-2 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 ${
                     isSelected
                       ? 'border-primary-200 bg-primary-50/80 shadow-sm dark:border-primary-800/60 dark:bg-primary-950/40'
                       : 'border-transparent bg-white hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm dark:bg-gray-900 dark:hover:border-gray-700/80 dark:hover:bg-gray-800/60'
                   }`}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <span className={`mt-0.5 transition-colors duration-150 ${getArtifactAccent(artifact)}`}>
-                      {getArtifactIcon(artifact)}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium text-gray-900 dark:text-gray-100">
-                        {artifact.name}
-                      </span>
-                      {artifact.description && (
-                        <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">
-                          {artifact.description}
+                  {isImageArtifact(artifact) && artifact.url ? (
+                    <div>
+                      <ImageThumbnail src={artifact.url} alt={artifact.name} />
+                      <div className="mt-2">
+                        <span className="block truncate text-[13px] font-medium text-gray-900 dark:text-gray-100">
+                          {artifact.name}
                         </span>
-                      )}
-                      <span className="mt-1 flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
-                        <span>{formatFileSize(artifact.sizeBytes)}</span>
+                        <span className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                          <span>{formatFileSize(artifact.sizeBytes)}</span>
+                          {artifact.description && (
+                            <>
+                              <span className="w-0.5 h-0.5 rounded-full bg-gray-300 dark:bg-gray-600" />
+                              <span className="truncate">{artifact.description}</span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2.5">
+                      <span className={`flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-lg ${visual.bgColor} ${visual.iconColor}`}>
+                        <Icon size={20} weight="duotone" />
                       </span>
-                    </span>
-                  </div>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-medium text-gray-900 dark:text-gray-100">
+                          {artifact.name}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                          <span>{formatFileSize(artifact.sizeBytes)}</span>
+                          {artifact.description && (
+                            <>
+                              <span className="w-0.5 h-0.5 rounded-full bg-gray-300 dark:bg-gray-600" />
+                              <span className="truncate">{artifact.description}</span>
+                            </>
+                          )}
+                        </span>
+                      </span>
+                    </div>
+                  )}
                 </button>
               )
             })}

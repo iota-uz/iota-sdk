@@ -205,3 +205,137 @@ export function validateFileCount(currentCount: number, newCount: number, maxCou
     throw new Error(`Cannot attach more than ${maxCount} files (attempting to add ${total})`)
   }
 }
+
+// ─── Shared file visual metadata ──────────────────────────────────────────────
+
+import {
+  File,
+  FileCode,
+  FileCsv,
+  FileDoc,
+  FilePdf,
+  FileText,
+  FileXls,
+  Image as ImageIcon,
+  ChartBar,
+} from '@phosphor-icons/react'
+
+export interface FileVisual {
+  /** Phosphor icon component */
+  icon: typeof File
+  /** Tailwind text-color classes for the icon (light + dark) */
+  iconColor: string
+  /** Tailwind background classes for the icon container (light + dark) */
+  bgColor: string
+  /** Short label (PDF, CSV, XLS, etc.) */
+  label: string
+}
+
+/**
+ * Resolves visual metadata (icon, colors, label) for a file based on
+ * its MIME type and/or filename. Single source of truth used by
+ * AttachmentGrid, SessionArtifactList, DownloadCard, etc.
+ */
+export function getFileVisual(mimeType?: string, filename?: string): FileVisual {
+  const mime = (mimeType || '').toLowerCase()
+  const name = (filename || '').toLowerCase()
+
+  // Images
+  if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/.test(name)) {
+    return {
+      icon: ImageIcon,
+      iconColor: 'text-violet-600 dark:text-violet-400',
+      bgColor: 'bg-violet-100 dark:bg-violet-900/40',
+      label: 'IMG',
+    }
+  }
+
+  // PDF
+  if (mime.includes('pdf') || name.endsWith('.pdf')) {
+    return {
+      icon: FilePdf,
+      iconColor: 'text-red-500 dark:text-red-400',
+      bgColor: 'bg-red-100 dark:bg-red-900/40',
+      label: 'PDF',
+    }
+  }
+
+  // Excel / spreadsheet
+  if (
+    mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mime.includes('excel') ||
+    mime.includes('spreadsheet') ||
+    /\.xlsx?$/.test(name)
+  ) {
+    return {
+      icon: FileXls,
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      bgColor: 'bg-emerald-100 dark:bg-emerald-900/40',
+      label: 'XLS',
+    }
+  }
+
+  // CSV / TSV
+  if (mime.includes('csv') || mime.includes('tab-separated') || /\.(csv|tsv)$/.test(name)) {
+    return {
+      icon: FileCsv,
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      bgColor: 'bg-emerald-100 dark:bg-emerald-900/40',
+      label: 'CSV',
+    }
+  }
+
+  // Word documents
+  if (mime.includes('wordprocessingml') || mime.includes('msword') || /\.docx?$/.test(name)) {
+    return {
+      icon: FileDoc,
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/40',
+      label: 'DOC',
+    }
+  }
+
+  // Code / structured data (JSON, XML, YAML, etc.)
+  if (
+    mime.includes('json') || mime.includes('xml') || mime.includes('yaml') ||
+    mime.includes('javascript') || mime.includes('typescript') ||
+    /\.(json|xml|ya?ml|js|ts)$/.test(name)
+  ) {
+    const l = mime.includes('json') || name.endsWith('.json') ? 'JSON'
+      : mime.includes('xml') || name.endsWith('.xml') ? 'XML'
+      : mime.includes('yaml') || /\.ya?ml$/.test(name) ? 'YAML'
+      : 'CODE'
+    return {
+      icon: FileCode,
+      iconColor: 'text-violet-500 dark:text-violet-400',
+      bgColor: 'bg-violet-100 dark:bg-violet-900/40',
+      label: l,
+    }
+  }
+
+  // Plain text / markdown / log
+  if (mime.startsWith('text/') || /\.(txt|md|log)$/.test(name)) {
+    return {
+      icon: FileText,
+      iconColor: 'text-gray-500 dark:text-gray-400',
+      bgColor: 'bg-gray-100 dark:bg-gray-800',
+      label: 'TEXT',
+    }
+  }
+
+  // Fallback
+  return {
+    icon: File,
+    iconColor: 'text-gray-400 dark:text-gray-500',
+    bgColor: 'bg-gray-100 dark:bg-gray-800',
+    label: (mime.split('/')[1] || 'FILE').toUpperCase().slice(0, 4),
+  }
+}
+
+/** Chart-specific visual (not mime-based, used for artifact type = 'chart') */
+export const CHART_VISUAL: FileVisual = {
+  icon: ChartBar,
+  iconColor: 'text-indigo-600 dark:text-indigo-400',
+  bgColor: 'bg-indigo-100 dark:bg-indigo-900/40',
+  label: 'CHART',
+}

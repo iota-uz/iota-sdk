@@ -4,9 +4,10 @@
  * Clean, professional design
  */
 
-import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react'
 import { Paperclip, PaperPlaneRight, X, Bug, ArrowUp, ArrowDown, Stack } from '@phosphor-icons/react'
 import AttachmentGrid from './AttachmentGrid'
+import ImageModal from './ImageModal'
 import {
   ATTACHMENT_ACCEPT_ATTRIBUTE,
   convertToBase64,
@@ -16,7 +17,7 @@ import {
   validateFileCount,
 } from '../utils/fileUtils'
 import { calculateContextUsagePercent } from '../utils/debugMetrics'
-import type { Attachment, DebugLimits, QueuedMessage, SessionDebugUsage } from '../types'
+import type { Attachment, ImageAttachment, DebugLimits, QueuedMessage, SessionDebugUsage } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 
 export interface MessageInputRef {
@@ -82,6 +83,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const [activeCommandIndex, setActiveCommandIndex] = useState(0)
     const [isComposing, setIsComposing] = useState(false)
     const [dropSuccess, setDropSuccess] = useState(false)
+    const [pendingFileCount, setPendingFileCount] = useState(0)
+    const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null)
 
     // Use override or translation
     const placeholder = placeholderOverride || t('input.placeholder')
@@ -199,6 +202,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           fileArray.push(file)
         }
 
+        // Show shimmer placeholders while processing
+        setPendingFileCount(fileArray.length)
+
         // Read all files in parallel
         const base64Results = await Promise.all(fileArray.map(convertToBase64))
 
@@ -217,9 +223,11 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         })
 
         setAttachments((prev) => [...prev, ...newAttachments])
+        setPendingFileCount(0)
         setError(null)
         return true
       } catch (err) {
+        setPendingFileCount(0)
         setError(err instanceof Error ? err.message : 'Failed to process attachments')
         return false
       }
@@ -243,6 +251,42 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       setAttachments((prev) => prev.filter((_, i) => i !== index))
       setError(null)
     }
+
+    // ── Image lightbox ──────────────────────────────────
+    const imageAttachments = useMemo(
+      () => attachments.filter((a): a is ImageAttachment =>
+        a.mimeType.startsWith('image/') && !!(a.base64Data && a.preview)
+      ),
+      [attachments]
+    )
+
+    const handleViewAttachment = useCallback((index: number) => {
+      const attachment = attachments[index]
+      if (!attachment || !attachment.mimeType.startsWith('image/')) return
+      const imgIdx = imageAttachments.findIndex((a) => a.filename === attachment.filename && a.preview === attachment.preview)
+      if (imgIdx >= 0) setViewingImageIndex(imgIdx)
+    }, [attachments, imageAttachments])
+
+    const handleImageNavigate = useCallback((direction: 'prev' | 'next') => {
+      setViewingImageIndex((prev) => {
+        if (prev === null) return null
+        return direction === 'prev' ? prev - 1 : prev + 1
+      })
+    }, [])
+
+    // ── Paste-to-attach ─────────────────────────────────
+    const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = Array.from(e.clipboardData.items)
+      const imageFiles = items
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null)
+
+      if (imageFiles.length > 0) {
+        e.preventDefault()
+        handleFileSelect(imageFiles)
+      }
+    }, [attachments.length, maxFiles, maxFileSize]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleDragOver = (e: React.DragEvent) => {
       e.preventDefault()
@@ -535,9 +579,14 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           )}
 
           {/* Attachment preview */}
-          {attachments.length > 0 && (
+          {(attachments.length > 0 || pendingFileCount > 0) && (
             <div className="mb-3">
-              <AttachmentGrid attachments={attachments} onRemove={handleRemoveAttachment} />
+              <AttachmentGrid
+                attachments={attachments}
+                onRemove={handleRemoveAttachment}
+                onView={handleViewAttachment}
+                pendingCount={pendingFileCount}
+              />
             </div>
           )}
 
@@ -612,6 +661,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                     onClearCommandError?.()
                   }}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                   onCompositionStart={() => setIsComposing(true)}
                   onCompositionEnd={() => setIsComposing(false)}
                   onFocus={() => setIsFocused(true)}
@@ -700,6 +750,17 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             )}
           </div>
 
+          {/* Image lightbox */}
+          {viewingImageIndex !== null && imageAttachments.length > 0 && (
+            <ImageModal
+              isOpen
+              onClose={() => setViewingImageIndex(null)}
+              attachment={imageAttachments[viewingImageIndex]}
+              allAttachments={imageAttachments}
+              currentIndex={viewingImageIndex}
+              onNavigate={handleImageNavigate}
+            />
+          )}
         </form>
       </div>
     )
