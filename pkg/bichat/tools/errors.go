@@ -3,6 +3,9 @@ package tools
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // ToolErrorCode represents a category of tool error for LLM self-correction.
@@ -96,22 +99,29 @@ func (e *ToolError) Error() string {
 //	  }
 //	}
 func FormatToolError(code ToolErrorCode, message string, hints ...string) string {
-	toolErr := ToolError{
-		Code:    code,
+	payload := types.ToolErrorPayload{
+		Code:    string(code),
 		Message: message,
 		Hints:   hints,
 	}
-
-	wrapper := map[string]interface{}{
-		"error": toolErr,
+	registry := formatters.DefaultFormatterRegistry()
+	if f := registry.Get(types.CodecToolError); f != nil {
+		s, err := f.Format(payload, types.DefaultFormatOptions())
+		if err == nil {
+			return s
+		}
 	}
-
-	data, err := json.MarshalIndent(wrapper, "", "  ")
+	// Fallback (should never happen — formatter is always registered)
+	data, err := json.MarshalIndent(map[string]interface{}{
+		"error": map[string]interface{}{
+			"code":    string(code),
+			"message": message,
+			"hints":   hints,
+		},
+	}, "", "  ")
 	if err != nil {
-		// Fallback to plain error message if JSON marshaling fails
 		return fmt.Sprintf(`{"error": {"code": "%s", "message": "%s"}}`, code, message)
 	}
-
 	return string(data)
 }
 

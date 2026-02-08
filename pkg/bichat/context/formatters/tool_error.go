@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // ToolErrorFormatter formats tool errors as JSON for LLM consumption.
@@ -16,11 +16,11 @@ func NewToolErrorFormatter() *ToolErrorFormatter {
 }
 
 // Format renders a ToolErrorPayload as JSON.
-func (f *ToolErrorFormatter) Format(payload any, opts context.FormatOptions) (string, error) {
+func (f *ToolErrorFormatter) Format(payload any, opts types.FormatOptions) (string, error) {
 	switch p := payload.(type) {
-	case ToolErrorPayload:
+	case types.ToolErrorPayload:
 		return formatToolErrorJSON(p.Code, p.Message, p.Hints)
-	case SQLDiagnosisPayload:
+	case types.SQLDiagnosisPayload:
 		return formatSQLDiagnosisJSON(p)
 	default:
 		return "", fmt.Errorf("ToolErrorFormatter: expected ToolErrorPayload or SQLDiagnosisPayload, got %T", payload)
@@ -38,12 +38,12 @@ func formatToolErrorJSON(code, message string, hints []string) (string, error) {
 
 	data, err := json.MarshalIndent(wrapper, "", "  ")
 	if err != nil {
-		return fmt.Sprintf(`{"error": {"code": "%s", "message": "%s"}}`, code, message), nil
+		return "", err
 	}
 	return string(data), nil
 }
 
-func formatSQLDiagnosisJSON(p SQLDiagnosisPayload) (string, error) {
+func formatSQLDiagnosisJSON(p types.SQLDiagnosisPayload) (string, error) {
 	wrapper := map[string]interface{}{
 		"error": map[string]interface{}{
 			"code":       p.Code,
@@ -57,7 +57,7 @@ func formatSQLDiagnosisJSON(p SQLDiagnosisPayload) (string, error) {
 
 	data, err := json.MarshalIndent(wrapper, "", "  ")
 	if err != nil {
-		return fmt.Sprintf(`{"error": {"code": "%s", "message": "%s"}}`, p.Code, p.Message), nil
+		return "", err
 	}
 	return string(data), nil
 }

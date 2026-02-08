@@ -40,6 +40,10 @@ func (s *artifactReaderRepoStub) ListUserSessions(ctx context.Context, userID in
 	return nil, nil
 }
 
+func (s *artifactReaderRepoStub) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	return 0, nil
+}
+
 func (s *artifactReaderRepoStub) DeleteSession(ctx context.Context, id uuid.UUID) error {
 	return nil
 }

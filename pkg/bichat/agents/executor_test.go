@@ -1465,14 +1465,8 @@ func TestExecutor_ToolCalls_RunInParallelWithinTurn(t *testing.T) {
 	var active atomic.Int32
 	var maxActive atomic.Int32
 
-	agent := &funcAgent{
-		name:         "parallel-agent",
-		systemPrompt: "You are a helpful assistant.",
-		tools: []agents.Tool{
-			&agents.ToolFunc{ToolName: "tool_a", ToolDescription: "a", ToolParameters: map[string]any{}, Fn: func(ctx context.Context, input string) (string, error) { return "a", nil }},
-			&agents.ToolFunc{ToolName: "tool_b", ToolDescription: "b", ToolParameters: map[string]any{}, Fn: func(ctx context.Context, input string) (string, error) { return "b", nil }},
-		},
-		onToolCall: func(ctx context.Context, toolName, input string) (string, error) {
+	trackConcurrency := func(toolName string) func(ctx context.Context, input string) (string, error) {
+		return func(ctx context.Context, input string) (string, error) {
 			count := active.Add(1)
 			defer active.Add(-1)
 
@@ -1488,6 +1482,15 @@ func TestExecutor_ToolCalls_RunInParallelWithinTurn(t *testing.T) {
 
 			time.Sleep(40 * time.Millisecond)
 			return fmt.Sprintf("ok:%s", toolName), nil
+		}
+	}
+
+	agent := &funcAgent{
+		name:         "parallel-agent",
+		systemPrompt: "You are a helpful assistant.",
+		tools: []agents.Tool{
+			&agents.ToolFunc{ToolName: "tool_a", ToolDescription: "a", ToolParameters: map[string]any{}, Fn: trackConcurrency("tool_a")},
+			&agents.ToolFunc{ToolName: "tool_b", ToolDescription: "b", ToolParameters: map[string]any{}, Fn: trackConcurrency("tool_b")},
 		},
 	}
 

@@ -3,7 +3,16 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"errors"
+
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
+
+// ErrStructuredToolOutput is returned by StructuredTool when the tool returns
+// a structured error payload (e.g. validation failure) that should be presented
+// to the LLM as the tool output without propagating a Go error. Callers should
+// format the result and return (formatted, nil) when errors.Is(err, ErrStructuredToolOutput).
+var ErrStructuredToolOutput = errors.New("structured tool error output")
 
 // BuiltinTool constants for special tools handled by the executor.
 // These tools have special semantics that affect the ReAct loop flow.
@@ -69,35 +78,6 @@ type ToolConcurrency interface {
 	ConcurrencyKey() string
 }
 
-// ToolResult carries a structured payload from a StructuredTool.
-// The CodecID identifies which Formatter should render the payload.
-type ToolResult struct {
-	// CodecID identifies the formatter to use (e.g. "query-result", "schema-list").
-	CodecID string
-	// Payload is the structured data to be formatted.
-	Payload any
-}
-
-// FormatOptions controls how a formatter renders structured data.
-// This is a minimal interface definition to avoid circular dependencies with pkg/bichat/context.
-type FormatOptions struct {
-	MaxRows         int
-	MaxCellWidth    int
-	MaxOutputTokens int
-}
-
-// Formatter converts a structured payload into an LLM-readable string.
-// This is a minimal interface definition to avoid circular dependencies with pkg/bichat/context.
-type Formatter interface {
-	Format(payload any, opts FormatOptions) (string, error)
-}
-
-// FormatterRegistry maps codec IDs to Formatters.
-// This is a minimal interface definition to avoid circular dependencies with pkg/bichat/context.
-type FormatterRegistry interface {
-	Get(codecID string) Formatter
-}
-
 // StructuredTool extends Tool with structured output support.
 // Tools that implement this interface return typed payloads instead of
 // pre-formatted strings. The executor uses a FormatterRegistry to
@@ -113,7 +93,7 @@ type StructuredTool interface {
 	// If the tool encounters a handled error (e.g., validation failure),
 	// it should return a ToolResult with a "tool-error" codec ID and
 	// ToolErrorPayload, not a Go error.
-	CallStructured(ctx context.Context, input string) (*ToolResult, error)
+	CallStructured(ctx context.Context, input string) (*types.ToolResult, error)
 }
 
 // ToolFunc is a convenience type for creating simple tools from functions.

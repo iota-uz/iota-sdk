@@ -51,6 +51,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			if err != nil {
 				return SessionListResult{}, serrors.E(op, err)
 			}
+			total, err := chatSvc.CountUserSessions(ctx, int64(user.ID()), domain.ListOptions{IncludeArchived: p.IncludeArchived})
+			if err != nil {
+				return SessionListResult{}, serrors.E(op, err)
+			}
 			hasMore := len(list) > requestedLimit
 			if hasMore {
 				list = list[:requestedLimit]
@@ -59,7 +63,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			for _, s := range list {
 				out = append(out, toSessionDTO(s))
 			}
-			return SessionListResult{Sessions: out, Total: len(out), HasMore: hasMore}, nil
+			return SessionListResult{Sessions: out, Total: total, HasMore: hasMore}, nil
 		},
 	})
 

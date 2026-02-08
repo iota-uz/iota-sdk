@@ -332,6 +332,10 @@ func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64,
 	return sessions, nil
 }
 
+func (m *mockChatRepository) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	return len(m.sessions), nil
+}
+
 func (m *mockChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
 	delete(m.sessions, id)
 	delete(m.messages, id)

@@ -1,4 +1,4 @@
-package formatters
+package types
 
 // QueryResultFormatPayload is the payload for the "query-result" formatter.
 // It extends the codec payload with presentation metadata.
@@ -58,8 +58,9 @@ type SchemaDescribeColumn struct {
 	Description  string  `json:"description,omitempty"`
 }
 
-// SearchResultsPayload is the generic payload for search results (KB, learnings, validated queries).
-type SearchResultsPayload struct {
+// JSONPayload is the generic payload for JSON-based formatters.
+// Consolidates SearchResultsPayload, TimePayload, GenericJSONPayload.
+type JSONPayload struct {
 	Output any `json:"output"` // The original output struct to serialize as JSON
 }
 
@@ -78,11 +79,6 @@ type SQLDiagnosisPayload struct {
 	Column     string   `json:"column,omitempty"`
 	Suggestion string   `json:"suggestion"`
 	Hints      []string `json:"hints"`
-}
-
-// TimePayload is the payload for the "time" formatter.
-type TimePayload struct {
-	Output any `json:"output"` // The timeToolOutput struct
 }
 
 // ArtifactListPayload is the payload for the "artifact-list" formatter.
@@ -116,9 +112,4 @@ type ArtifactContentPayload struct {
 	Content    string `json:"content"` // The page content
 	HasNext    bool   `json:"has_next"`
 	OutOfRange bool   `json:"out_of_range"`
-}
-
-// GenericJSONPayload is the payload for the "json" formatter (generic fallback).
-type GenericJSONPayload struct {
-	Output any `json:"output"`
 }

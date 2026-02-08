@@ -43,6 +43,11 @@ const (
 			ORDER BY pinned DESC, created_at DESC
 		LIMIT $3 OFFSET $4
 	`
+	countUserSessionsQuery = `
+			SELECT COUNT(*)
+			FROM bichat.sessions
+			WHERE tenant_id = $1 AND user_id = $2 AND ($3::boolean OR status != 'ARCHIVED')
+		`
 	deleteSessionQuery = `
 		DELETE FROM bichat.sessions
 		WHERE tenant_id = $1 AND id = $2
@@ -354,6 +359,28 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 	}
 
 	return sessions, nil
+}
+
+// CountUserSessions returns the total number of sessions for a user matching the same filter as ListUserSessions.
+func (r *PostgresChatRepository) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	const op serrors.Op = "PostgresChatRepository.CountUserSessions"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	var count int
+	err = tx.QueryRow(ctx, countUserSessionsQuery, tenantID, userID, opts.IncludeArchived).Scan(&count)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	return count, nil
 }
 
 // DeleteSession deletes a session and all related data (cascades to messages/attachments).
@@ -836,7 +863,7 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrNoPendingQuestion
+			return nil, serrors.E(op, domain.ErrNoPendingQuestion)
 		}
 		return nil, serrors.E(op, err)
 	}

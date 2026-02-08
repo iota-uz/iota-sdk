@@ -79,6 +79,16 @@ func (s *chatServiceImpl) ListUserSessions(ctx context.Context, userID int64, op
 	return sessions, nil
 }
 
+// CountUserSessions returns the total number of sessions for a user matching the same filter as ListUserSessions.
+func (s *chatServiceImpl) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	const op serrors.Op = "chatServiceImpl.CountUserSessions"
+	count, err := s.chatRepo.CountUserSessions(ctx, userID, opts)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	return count, nil
+}
+
 // ArchiveSession archives a session.
 func (s *chatServiceImpl) ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.ArchiveSession"
@@ -700,6 +710,7 @@ type agentResult struct {
 	interruptAgentName string
 	providerResponseID *string
 	usage              *types.DebugUsage
+	lastError          error
 }
 
 // consumeAgentEvents drains the generator and collects the result.
@@ -712,6 +723,7 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[bichatservices.
 	var interruptAgentName string
 	var providerResponseID *string
 	var finalUsage *types.DebugUsage
+	var lastError error
 
 	for {
 		event, err := gen.Next(ctx)
@@ -748,19 +760,30 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[bichatservices.
 			if event.Usage != nil {
 				finalUsage = event.Usage
 			}
-		case bichatservices.EventTypeCitation, bichatservices.EventTypeError:
+		case bichatservices.EventTypeCitation:
 			// no-op
+		case bichatservices.EventTypeError:
+			if event.Error != nil {
+				lastError = event.Error
+			} else if event.Content != "" {
+				lastError = fmt.Errorf("%s", event.Content)
+			}
 		}
 	}
 
-	return &agentResult{
+	result := &agentResult{
 		content:            content.String(),
 		toolCalls:          orderedToolCalls(toolCalls, toolOrder),
 		interrupt:          interrupt,
 		interruptAgentName: interruptAgentName,
 		providerResponseID: providerResponseID,
 		usage:              finalUsage,
-	}, nil
+		lastError:          lastError,
+	}
+	if lastError != nil {
+		return result, lastError
+	}
+	return result, nil
 }
 
 // saveAgentResult builds and persists the assistant message and updates the session.

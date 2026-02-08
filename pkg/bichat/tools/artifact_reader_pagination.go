@@ -95,17 +95,3 @@ func normalizeToLines(content string) []string {
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
 	return strings.Split(normalized, "\n")
 }
-
-func clampOutput(output string, maxChars int) string {
-	if maxChars <= 0 {
-		maxChars = artifactReaderMaxOutputSize
-	}
-	if len(output) <= maxChars {
-		return output
-	}
-	if maxChars <= 64 {
-		return output[:maxChars]
-	}
-	prefix := output[:maxChars-64]
-	return prefix + "\n\n[output truncated due to size limit]"
-}

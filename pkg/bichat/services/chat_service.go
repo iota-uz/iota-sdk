@@ -16,6 +16,7 @@ type ChatService interface {
 	CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error)
 	GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error)
+	CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error)
 	UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error)
 	ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)

@@ -31,6 +31,7 @@ type ChatRepository interface {
 	GetSession(ctx context.Context, id uuid.UUID) (Session, error)
 	UpdateSession(ctx context.Context, session Session) error
 	ListUserSessions(ctx context.Context, userID int64, opts ListOptions) ([]Session, error)
+	CountUserSessions(ctx context.Context, userID int64, opts ListOptions) (int, error)
 	DeleteSession(ctx context.Context, id uuid.UUID) error
 
 	// Message operations
@@ -44,7 +45,8 @@ type ChatRepository interface {
 
 	// UpdateMessageQuestionData updates the question_data JSONB on a specific message.
 	UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error
-	// GetPendingQuestionMessage returns the message with a pending question for a session, or nil if none.
+	// GetPendingQuestionMessage returns the message with a pending question for a session.
+	// It returns ErrNoPendingQuestion (not nil) when there is no pending question; callers should check with errors.Is(err, domain.ErrNoPendingQuestion).
 	GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error)
 
 	// Attachment operations

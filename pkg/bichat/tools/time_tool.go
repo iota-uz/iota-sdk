@@ -6,8 +6,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // GetCurrentTimeTool returns the current date and time in a specified timezone.
@@ -15,7 +14,7 @@ import (
 type GetCurrentTimeTool struct{}
 
 // NewGetCurrentTimeTool creates a new get current time tool.
-func NewGetCurrentTimeTool() agents.Tool {
+func NewGetCurrentTimeTool() *GetCurrentTimeTool {
 	return &GetCurrentTimeTool{}
 }
 
@@ -59,7 +58,7 @@ type timeToolOutput struct {
 }
 
 // CallStructured executes the get current time operation and returns a structured result.
-func (t *GetCurrentTimeTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+func (t *GetCurrentTimeTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
 	params, err := agents.ParseToolInput[timeToolInput](input)
 	if err != nil {
 		params = timeToolInput{Timezone: "UTC"}
@@ -72,9 +71,9 @@ func (t *GetCurrentTimeTool) CallStructured(ctx context.Context, input string) (
 
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: fmt.Sprintf("invalid timezone: %v", err),
 				Hints: []string{
@@ -104,25 +103,15 @@ func (t *GetCurrentTimeTool) CallStructured(ctx context.Context, input string) (
 		Quarter:     getQuarter(now),
 	}
 
-	return &agents.ToolResult{
-		CodecID: formatters.CodecTime,
-		Payload: formatters.TimePayload{Output: response},
+	return &types.ToolResult{
+		CodecID: types.CodecTime,
+		Payload: types.JSONPayload{Output: response},
 	}, nil
 }
 
 // Call executes the get current time operation.
 func (t *GetCurrentTimeTool) Call(ctx context.Context, input string) (string, error) {
-	result, err := t.CallStructured(ctx, input)
-	if err != nil {
-		return "", err
-	}
-
-	registry := formatters.DefaultFormatterRegistry()
-	f := registry.Get(result.CodecID)
-	if f == nil {
-		return agents.FormatToolOutput(result.Payload)
-	}
-	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
 // getWeekOfYear returns the ISO week number.

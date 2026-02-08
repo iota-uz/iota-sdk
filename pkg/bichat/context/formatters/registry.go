@@ -1,43 +1,39 @@
 package formatters
 
 import (
+	"sync"
+
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
-// Codec IDs for built-in formatters.
-const (
-	CodecQueryResult     = "query-result"
-	CodecExplainPlan     = "explain-plan"
-	CodecSchemaList      = "schema-list"
-	CodecSchemaDescribe  = "schema-describe"
-	CodecSearchResults   = "search-results"
-	CodecToolError       = "tool-error"
-	CodecSQLDiagnosis    = "sql-diagnosis"
-	CodecTime            = "time"
-	CodecArtifactList    = "artifact-list"
-	CodecArtifactContent = "artifact-content"
-	CodecJSON            = "json"
+var (
+	defaultRegistry     *context.FormatterRegistry
+	defaultRegistryOnce sync.Once
 )
 
-// DefaultFormatterRegistry returns a FormatterRegistry pre-populated
-// with all built-in formatters.
+// DefaultFormatterRegistry returns a shared FormatterRegistry pre-populated
+// with all built-in formatters. The registry is created once and reused.
 func DefaultFormatterRegistry() *context.FormatterRegistry {
-	r := context.NewFormatterRegistry()
+	defaultRegistryOnce.Do(func() {
+		r := context.NewFormatterRegistry()
 
-	r.Register(CodecQueryResult, NewQueryResultFormatter())
-	r.Register(CodecExplainPlan, NewExplainPlanFormatter())
-	r.Register(CodecSchemaList, NewSchemaListFormatter())
-	r.Register(CodecSchemaDescribe, NewSchemaDescribeFormatter())
-	r.Register(CodecToolError, NewToolErrorFormatter())
-	r.Register(CodecSQLDiagnosis, NewToolErrorFormatter()) // reuses same formatter
-	r.Register(CodecArtifactList, NewArtifactListFormatter())
-	r.Register(CodecArtifactContent, NewArtifactContentFormatter())
+		r.Register(types.CodecQueryResult, NewQueryResultFormatter())
+		r.Register(types.CodecExplainPlan, NewExplainPlanFormatter())
+		r.Register(types.CodecSchemaList, NewSchemaListFormatter())
+		r.Register(types.CodecSchemaDescribe, NewSchemaDescribeFormatter())
+		r.Register(types.CodecToolError, NewToolErrorFormatter())
+		r.Register(types.CodecSQLDiagnosis, NewToolErrorFormatter()) // reuses same formatter
+		r.Register(types.CodecArtifactList, NewArtifactListFormatter())
+		r.Register(types.CodecArtifactContent, NewArtifactContentFormatter())
 
-	// JSON-based formatters
-	jsonFmt := NewJSONFormatter()
-	r.Register(CodecSearchResults, jsonFmt)
-	r.Register(CodecTime, jsonFmt)
-	r.Register(CodecJSON, jsonFmt)
+		// JSON-based formatters
+		jsonFmt := NewJSONFormatter()
+		r.Register(types.CodecSearchResults, jsonFmt)
+		r.Register(types.CodecTime, jsonFmt)
+		r.Register(types.CodecJSON, jsonFmt)
 
-	return r
+		defaultRegistry = r
+	})
+	return defaultRegistry
 }
