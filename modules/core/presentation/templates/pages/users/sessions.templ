@@ -57,7 +57,7 @@ templ UserSessionsTab(props *UserSessionsTabProps) {
 						</thead>
 						<tbody class="bg-white divide-y divide-gray-200">
 							for _, sess := range props.Sessions {
-								<tr id={ fmt.Sprintf("session-%s", sess.FullToken) }>
+								<tr id={ fmt.Sprintf("session-%s", sess.TokenID) }>
 									<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 										<div class="flex items-center gap-2">
 											if sess.Icon != "" {
@@ -85,7 +85,7 @@ templ UserSessionsTab(props *UserSessionsTabProps) {
 												Attrs: templ.Attributes{
 													"hx-delete":  templ.URL(fmt.Sprintf("/users/%s/sessions/%s", props.User.ID, sess.FullToken)),
 													"hx-confirm": pageCtx.T("Users.Sessions.RevokeConfirm"),
-													"hx-target":  fmt.Sprintf("#session-%s", sess.FullToken),
+													"hx-target":  fmt.Sprintf("#session-%s", sess.TokenID),
 													"hx-swap":    "outerHTML swap:0.5s",
 												},
 											}) {

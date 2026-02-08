@@ -18,6 +18,7 @@ type Session struct {
 	CreatedAt    string
 	IsCurrent    bool
 	Icon         string
+	TokenID      string // Hash of token for safe DOM ids (session-row-*)
 	FullToken    string // Hidden from display, used for revocation
 }
 
@@ -46,17 +47,18 @@ func SessionToViewModel(s session.Session, currentToken string) *Session {
 		CreatedAt:    s.CreatedAt().Format("2006-01-02 15:04:05"),
 		IsCurrent:    s.Token() == currentToken,
 		Icon:         deviceInfo.Icon,
+		TokenID:      hashToken(s.Token()),
 		FullToken:    s.Token(), // Store raw token for revocation
 	}
 }
 
-// truncateToken returns the first 8 characters of the token followed by "..."
-// This is safe to display without exposing the full token
+// truncateToken returns at most the first 4 characters followed by "..." for display.
+// Short tokens are masked as "****" to avoid exposing them.
 func truncateToken(token string) string {
-	if len(token) <= 8 {
-		return token
+	if len(token) <= 4 {
+		return "****"
 	}
-	return token[:8] + "..."
+	return token[:4] + "..."
 }
 
 // hashToken creates a SHA-256 hash of the token for safe storage/comparison
@@ -67,7 +69,9 @@ func hashToken(token string) string {
 }
 
 // AdminSessionViewModel represents a session with enriched user information
-// for admin global sessions page
+// for admin global sessions page.
+//
+// SECURITY: Contains RawToken; only use in admin-gated UI (SessionDelete permission).
 type AdminSessionViewModel struct {
 	*Session        // Embed existing Session viewmodel
 	User     *User  // User who owns this session

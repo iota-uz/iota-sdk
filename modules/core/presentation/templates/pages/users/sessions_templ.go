@@ -186,9 +186,9 @@ func UserSessionsTab(props *UserSessionsTabProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var10 string
-					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("session-%s", sess.FullToken))
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("session-%s", sess.TokenID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/sessions.templ`, Line: 60, Col: 58}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/sessions.templ`, Line: 60, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -319,7 +319,7 @@ func UserSessionsTab(props *UserSessionsTabProps) templ.Component {
 							Attrs: templ.Attributes{
 								"hx-delete":  templ.URL(fmt.Sprintf("/users/%s/sessions/%s", props.User.ID, sess.FullToken)),
 								"hx-confirm": pageCtx.T("Users.Sessions.RevokeConfirm"),
-								"hx-target":  fmt.Sprintf("#session-%s", sess.FullToken),
+								"hx-target":  fmt.Sprintf("#session-%s", sess.TokenID),
 								"hx-swap":    "outerHTML swap:0.5s",
 							},
 						}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)

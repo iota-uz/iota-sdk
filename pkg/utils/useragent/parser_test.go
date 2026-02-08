@@ -72,7 +72,8 @@ func TestParse(t *testing.T) {
 			wantIcon:     "device-tablet",
 		},
 		{
-			name:         "Chrome on Android Tablet",
+			// mileusna/useragent detects Android tablets as Mobile; test documents this limitation.
+			name:         "Chrome on Android Tablet (detected as Mobile)",
 			userAgent:    "Mozilla/5.0 (Linux; Android 13; SM-X900) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Safari/537.36",
 			wantBrowser:  "Chrome",
 			wantOS:       "Android",

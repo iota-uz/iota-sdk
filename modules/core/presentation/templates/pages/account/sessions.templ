@@ -21,7 +21,7 @@ templ SessionRow(session *viewmodels.Session) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 	}}
-	<tr id={ fmt.Sprintf("session-row-%s", session.FullToken) } class="border-b border-gray-200 dark:border-gray-700">
+	<tr id={ fmt.Sprintf("session-row-%s", session.TokenID) } class="border-b border-gray-200 dark:border-gray-700">
 		<td class="px-6 py-4">
 			<div class="flex items-center gap-3">
 				<div class="flex-shrink-0">
@@ -67,7 +67,7 @@ templ SessionRow(session *viewmodels.Session) {
 					class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
 				hx-delete={ fmt.Sprintf("/account/sessions/%s", session.FullToken) }
 				hx-confirm={ pageCtx.T("Account.Sessions.ConfirmRevoke") }
-				hx-target={ fmt.Sprintf("#session-row-%s", session.FullToken) }
+				hx-target={ fmt.Sprintf("#session-row-%s", session.TokenID) }
 					hx-swap="outerHTML swap:0.3s"
 				>
 					{ pageCtx.T("Account.Sessions.Revoke") }

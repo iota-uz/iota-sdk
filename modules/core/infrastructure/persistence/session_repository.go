@@ -38,7 +38,7 @@ const (
             ip = $2,
             user_agent = $3
         WHERE token = $4 AND tenant_id = $5`
-	deleteUserSessionQuery    = `DELETE FROM sessions WHERE user_id = $1`
+	deleteUserSessionQuery    = `DELETE FROM sessions WHERE user_id = $1 AND tenant_id = $2`
 	deleteSessionQuery        = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
 	deleteAllExceptTokenQuery = `DELETE FROM sessions WHERE user_id = $1 AND token != $2 AND tenant_id = $3`
 )
@@ -277,14 +277,19 @@ func (g *SessionRepository) Delete(ctx context.Context, token string) error {
 }
 
 func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]session.Session, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	sql := repo.Join(
 		selectSessionQuery,
-		repo.JoinWhere("sessions.user_id = $1"),
+		repo.JoinWhere("sessions.user_id = $1", "sessions.tenant_id = $2"),
 	)
 	sessions, err := g.querySessions(
 		ctx,
 		sql,
 		userId,
+		tenantID,
 	)
 	if err != nil {
 		return nil, err
@@ -292,7 +297,7 @@ func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]
 	if len(sessions) == 0 {
 		return nil, nil
 	}
-	err = g.execQuery(ctx, deleteUserSessionQuery, userId)
+	err = g.execQuery(ctx, deleteUserSessionQuery, userId, tenantID)
 	if err != nil {
 		return nil, err
 	}

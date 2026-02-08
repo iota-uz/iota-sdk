@@ -74,7 +74,7 @@ func SessionRow(session *viewmodels.AdminSessionViewModel) templ.Component {
 		pageCtx := composables.UsePageCtx(ctx)
 		rowProps := &base.TableRowProps{
 			Attrs: templ.Attributes{
-				"id":    fmt.Sprintf("session-row-%s", session.FullToken),
+				"id":    fmt.Sprintf("session-row-%s", session.TokenID),
 				"class": "hide-on-load",
 			},
 		}
@@ -386,7 +386,7 @@ func SessionRow(session *viewmodels.AdminSessionViewModel) templ.Component {
 						Size:  button.SizeSM,
 						Class: "btn-fixed",
 						Attrs: templ.Attributes{
-							"hx-delete":  fmt.Sprintf("/settings/sessions/%s", session.RawToken),
+							"hx-delete":  templ.URL(fmt.Sprintf("/settings/sessions/%s", session.RawToken)),
 							"hx-confirm": pageCtx.T("Sessions.List.ConfirmRevoke"),
 							"hx-swap":    "outerHTML swap:0s",
 							"hx-target":  "closest tr",

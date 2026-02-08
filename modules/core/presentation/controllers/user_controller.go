@@ -1099,7 +1099,7 @@ func (c *UsersController) RevokeUserSession(
 	}
 
 	// Terminate session
-	if err := sessionService.Delete(r.Context(), sessionToRevoke); err != nil {
+	if err := sessionService.TerminateSession(r.Context(), sessionToRevoke); err != nil {
 		logger.WithError(err).Error("failed to terminate session")
 		http.Error(w, "Failed to revoke session", http.StatusInternalServerError)
 		return

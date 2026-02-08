@@ -194,7 +194,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 		// Actual indicator text depends on template implementation
 	})
 
-	t.Run("Returns_Empty_List_When_User_Has_No_Sessions", func(t *testing.T) {
+	t.Run("Returns_Single_Session_When_Only_Current_Exists", func(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
@@ -594,7 +594,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 		}
 	})
 
-	t.Run("Returns_500_For_NonExistent_Session", func(t *testing.T) {
+	t.Run("Returns_404_For_NonExistent_Session", func(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
