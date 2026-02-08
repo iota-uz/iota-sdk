@@ -266,7 +266,17 @@ export function ChatSessionProvider({
 
         if (state) {
           setSession(state.session)
-          setTurns(state.turns)
+          setTurns((prev) => {
+            const hasPendingUserOnly =
+              prev.length > 0 && !prev[prev.length - 1].assistantTurn
+            if (
+              hasPendingUserOnly &&
+              (!state.turns || state.turns.length === 0)
+            ) {
+              return prev
+            }
+            return state.turns ?? prev
+          })
           setPendingQuestion(state.pendingQuestion || null)
         } else {
           setError('Session not found')
@@ -511,7 +521,17 @@ export function ChatSessionProvider({
                 const state = await dataSource.fetchSession(finalSessionId)
                 if (state) {
                   setSession(state.session)
-                  setTurns(state.turns)
+                  setTurns((prev) => {
+                    const hasPendingUserOnly =
+                      prev.length > 0 && !prev[prev.length - 1].assistantTurn
+                    if (
+                      hasPendingUserOnly &&
+                      (!state.turns || state.turns.length === 0)
+                    ) {
+                      return prev
+                    }
+                    return state.turns ?? prev
+                  })
                   setPendingQuestion(state.pendingQuestion || null)
                 }
               }
