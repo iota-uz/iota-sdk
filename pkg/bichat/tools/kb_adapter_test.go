@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -27,8 +28,10 @@ func (m *mockCanonicalKBSearcher) Search(ctx context.Context, query string, opts
 	return m.results, nil
 }
 
+var errDocumentNotFoundKBA = errors.New("document not found")
+
 func (m *mockCanonicalKBSearcher) GetDocument(ctx context.Context, id string) (*kb.Document, error) {
-	return nil, nil
+	return nil, errDocumentNotFoundKBA
 }
 
 func (m *mockCanonicalKBSearcher) IsAvailable() bool {
@@ -66,7 +69,7 @@ func TestKBSearcherAdapter_Search_MapsResultsAndLimit(t *testing.T) {
 	assert.Equal(t, 7, src.lastOptions.TopK)
 	assert.Equal(t, "doc-1", results[0].ID)
 	assert.Equal(t, "Revenue Rules", results[0].Title)
-	assert.Equal(t, 0.93, results[0].Score)
+	assert.InEpsilon(t, 0.93, results[0].Score, 1e-9)
 	assert.Equal(t, "business", results[0].Metadata["source"])
 }
 

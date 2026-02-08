@@ -35,6 +35,10 @@ export function injectMockContext(): void {
       },
       error: null,
       extensions: {
+        llm: {
+          provider: 'openai',
+          apiKeyConfigured: true,
+        },
         debug: {
           limits: {
             policyMaxTokens: 180000,

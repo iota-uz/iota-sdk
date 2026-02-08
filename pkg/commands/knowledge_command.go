@@ -77,7 +77,9 @@ func runKnowledgeBootstrap(cmd *cobra.Command, opts knowledgeBootstrapOptions) e
 		}
 		kbIndexer = indexer
 		defer func() {
-			_ = kbIndexer.Close()
+			if err := kbIndexer.Close(); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "warning: failed to close KB indexer: %v\n", err)
+			}
 		}()
 	}
 
@@ -96,13 +98,27 @@ func runKnowledgeBootstrap(cmd *cobra.Command, opts knowledgeBootstrapOptions) e
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Knowledge %s complete\n", map[bool]string{true: "rebuild", false: "load"}[opts.Rebuild])
-	fmt.Fprintf(cmd.OutOrStdout(), "  tables: %d\n", result.TableFilesLoaded)
-	fmt.Fprintf(cmd.OutOrStdout(), "  business: %d\n", result.BusinessFilesLoaded)
-	fmt.Fprintf(cmd.OutOrStdout(), "  query patterns: %d\n", result.QueryPatternsLoaded)
-	fmt.Fprintf(cmd.OutOrStdout(), "  validated queries saved: %d\n", result.ValidatedQueriesSaved)
-	fmt.Fprintf(cmd.OutOrStdout(), "  metadata files: %d\n", result.MetadataFilesGenerated)
-	fmt.Fprintf(cmd.OutOrStdout(), "  indexed docs: %d\n", result.KnowledgeDocsIndexed)
-
+	out := cmd.OutOrStdout()
+	if _, err := fmt.Fprintf(out, "Knowledge %s complete\n", map[bool]string{true: "rebuild", false: "load"}[opts.Rebuild]); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  tables: %d\n", result.TableFilesLoaded); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  business: %d\n", result.BusinessFilesLoaded); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  query patterns: %d\n", result.QueryPatternsLoaded); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  validated queries saved: %d\n", result.ValidatedQueriesSaved); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  metadata files: %d\n", result.MetadataFilesGenerated); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  indexed docs: %d\n", result.KnowledgeDocsIndexed); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	return nil
 }

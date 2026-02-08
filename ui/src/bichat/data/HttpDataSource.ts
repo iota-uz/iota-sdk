@@ -21,6 +21,8 @@ import type {
   QuestionAnswers,
   SendMessageOptions,
 } from '../types'
+import { parseChartDataFromSpec } from '../utils/chartSpec'
+import { convertToBase64, validateAttachmentFile, validateFileCount } from '../utils/fileUtils'
 import type { PendingQuestion as RPCPendingQuestion } from './rpc.generated'
 
 export interface HttpDataSourceConfig {
@@ -82,8 +84,7 @@ function toSessionArtifact(artifact: RPCArtifact): SessionArtifact {
 }
 
 function toPendingQuestion(
-  rpc: RPCPendingQuestion | null | undefined,
-  lastTurnId: string
+  rpc: RPCPendingQuestion | null | undefined
 ): PendingQuestion | null {
   if (!rpc) return null
 
@@ -100,7 +101,7 @@ function toPendingQuestion(
 
   return {
     id: rpc.checkpointId,
-    turnId: lastTurnId,
+    turnId: rpc.turnId || '',
     questions,
     status: 'PENDING',
   }
@@ -197,7 +198,11 @@ function attachArtifactsToTurns(
     .filter((entry): entry is { raw: SessionArtifact; mapped: DownloadArtifact } => entry.mapped !== null)
     .sort((a, b) => toMillis(a.raw.createdAt) - toMillis(b.raw.createdAt))
 
-  if (downloadArtifacts.length === 0) return turns
+  const chartArtifacts = artifacts
+    .filter((a) => a.type === 'chart')
+    .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt))
+
+  if (downloadArtifacts.length === 0 && chartArtifacts.length === 0) return turns
 
   const nextTurns = turns.map((turn) => {
     if (!turn.assistantTurn) {
@@ -257,6 +262,30 @@ function attachArtifactsToTurns(
     )
     if (!exists) {
       assistantTurn.artifacts.push(entry.mapped)
+    }
+  }
+
+  for (const raw of chartArtifacts) {
+    const messageID = raw.messageId
+    const targetIndex =
+      (messageID ? turnIndexByMessageID.get(messageID) : undefined) ??
+      findFallbackAssistantIndex(raw.createdAt)
+
+    const assistantTurn = nextTurns[targetIndex]?.assistantTurn
+    if (!assistantTurn) continue
+
+    if (assistantTurn.chartData) continue
+
+    const metadata = raw.metadata
+    if (!metadata || typeof metadata !== 'object' || metadata === null) continue
+    const spec =
+      metadata.spec && typeof metadata.spec === 'object' && metadata.spec !== null
+        ? (metadata.spec as Record<string, unknown>)
+        : (metadata as Record<string, unknown>)
+
+    const chartData = parseChartDataFromSpec(spec, raw.name)
+    if (chartData) {
+      assistantTurn.chartData = chartData
     }
   }
 
@@ -338,12 +367,11 @@ export class HttpDataSource implements ChatDataSource {
       ])
 
       const turns = attachArtifactsToTurns(data.turns as ConversationTurn[], artifactsData.artifacts || [])
-      const lastTurnId = turns.length > 0 ? turns[turns.length - 1].id : ''
 
       return {
         session: toSession(data.session),
         turns,
-        pendingQuestion: toPendingQuestion(data.pendingQuestion, lastTurnId),
+        pendingQuestion: toPendingQuestion(data.pendingQuestion),
       }
     } catch (err) {
       console.error('Failed to fetch session:', err)
@@ -378,6 +406,60 @@ export class HttpDataSource implements ChatDataSource {
       hasMore,
       nextOffset,
     }
+  }
+
+  async uploadSessionArtifacts(
+    sessionId: string,
+    files: File[]
+  ): Promise<{ artifacts: SessionArtifact[] }> {
+    if (!Array.isArray(files) || files.length === 0) {
+      return { artifacts: [] }
+    }
+
+    validateFileCount(0, files.length, 10)
+    const attachments: Attachment[] = []
+    for (const file of files) {
+      validateAttachmentFile(file)
+      const base64Data = await convertToBase64(file)
+      attachments.push({
+        filename: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        base64Data,
+      })
+    }
+
+    const data = await this.callRPC('bichat.session.uploadArtifacts', {
+      sessionId,
+      attachments: attachments.map((a) => ({
+        id: '',
+        filename: a.filename,
+        mimeType: a.mimeType,
+        sizeBytes: a.sizeBytes,
+        base64Data: a.base64Data,
+      })),
+    })
+
+    return {
+      artifacts: (data.artifacts || []).map((artifact) => toSessionArtifact(artifact)),
+    }
+  }
+
+  async renameSessionArtifact(
+    artifactId: string,
+    name: string,
+    description: string = ''
+  ): Promise<SessionArtifact> {
+    const data = await this.callRPC('bichat.artifact.update', {
+      id: artifactId,
+      name,
+      description,
+    })
+    return toSessionArtifact(data.artifact as RPCArtifact)
+  }
+
+  async deleteSessionArtifact(artifactId: string): Promise<void> {
+    await this.callRPC('bichat.artifact.delete', { id: artifactId })
   }
 
   /**
@@ -574,11 +656,11 @@ export class HttpDataSource implements ChatDataSource {
   }
 
   /**
-   * Cancel a pending question
+   * Reject a pending question
    */
-  async cancelPendingQuestion(sessionId: string): Promise<Result<void>> {
+  async rejectPendingQuestion(sessionId: string): Promise<Result<void>> {
     try {
-      await this.callRPC('bichat.question.cancel', { sessionId })
+      await this.callRPC('bichat.question.reject', { sessionId })
       return { success: true }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
@@ -608,8 +690,8 @@ export class HttpDataSource implements ChatDataSource {
     })
     return {
       sessions: data.sessions.map(toSession),
-      total: data.sessions.length,
-      hasMore: false,
+      total: typeof data.total === 'number' ? data.total : data.sessions.length,
+      hasMore: typeof data.hasMore === 'boolean' ? data.hasMore : false,
     }
   }
   async archiveSession(sessionId: string): Promise<Session> {

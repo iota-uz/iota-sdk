@@ -165,7 +165,7 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 	params := oaiModel.buildResponseParams(req, config)
 
 	// Verify model
-	assert.Equal(t, "gpt-5.2-2025-12-11", string(params.Model))
+	assert.Equal(t, "gpt-5.2-2025-12-11", params.Model)
 
 	// Verify input items
 	assert.NotNil(t, params.Input.OfInputItemList)
@@ -387,7 +387,7 @@ func TestOpenAIModel_MapResponse_FunctionCalls(t *testing.T) {
 	tc := agentResp.Message.ToolCalls()[0]
 	assert.Equal(t, "call_abc", tc.ID)
 	assert.Equal(t, "sql_execute", tc.Name)
-	assert.Equal(t, `{"query":"SELECT 1"}`, tc.Arguments)
+	assert.JSONEq(t, `{"query":"SELECT 1"}`, tc.Arguments)
 }
 
 func TestOpenAIModel_MapResponse_WithCitations(t *testing.T) {
@@ -658,7 +658,7 @@ func TestOpenAIModel_BuildToolCallsFromAccum_DeduplicatesByCallID(t *testing.T) 
 	require.Len(t, calls, 1)
 	assert.Equal(t, "call_abc", calls[0].ID)
 	assert.Equal(t, "sql_execute", calls[0].Name)
-	assert.Equal(t, `{"query":"SELECT 2"}`, calls[0].Arguments)
+	assert.JSONEq(t, `{"query":"SELECT 2"}`, calls[0].Arguments)
 }
 
 func TestOpenAIModel_BuildReadyToolCallsFromAccum_DeduplicatesByCallID(t *testing.T) {
@@ -703,8 +703,8 @@ func TestOpenAIModel_Pricing(t *testing.T) {
 
 		pricing := model.Pricing()
 		assert.Equal(t, "USD", pricing.Currency)
-		assert.Equal(t, 2.50, pricing.InputPer1M)
-		assert.Equal(t, 10.00, pricing.OutputPer1M)
+		assert.InEpsilon(t, 2.50, pricing.InputPer1M, 1e-9)
+		assert.InEpsilon(t, 10.00, pricing.OutputPer1M, 1e-9)
 	})
 
 	t.Run("DefaultModel_GPT52", func(t *testing.T) {
@@ -716,9 +716,9 @@ func TestOpenAIModel_Pricing(t *testing.T) {
 
 		pricing := model.Pricing()
 		assert.Equal(t, "USD", pricing.Currency)
-		assert.Equal(t, 1.75, pricing.InputPer1M)
-		assert.Equal(t, 14.00, pricing.OutputPer1M)
-		assert.Equal(t, 0.18, pricing.CacheReadPer1M)
+		assert.InEpsilon(t, 1.75, pricing.InputPer1M, 1e-9)
+		assert.InEpsilon(t, 14.00, pricing.OutputPer1M, 1e-9)
+		assert.InEpsilon(t, 0.18, pricing.CacheReadPer1M, 1e-9)
 	})
 
 	t.Run("UnknownModel_FallsBackToGPT52", func(t *testing.T) {
@@ -730,6 +730,6 @@ func TestOpenAIModel_Pricing(t *testing.T) {
 
 		pricing := model.Pricing()
 		assert.Equal(t, "USD", pricing.Currency)
-		assert.Equal(t, 1.75, pricing.InputPer1M)
+		assert.InEpsilon(t, 1.75, pricing.InputPer1M, 1e-9)
 	})
 }

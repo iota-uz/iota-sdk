@@ -160,8 +160,9 @@ func TestSearchLearningsTool_StoreError(t *testing.T) {
 	input := `{"query": "sales error"}`
 	result, err := tool.Call(ctx, input)
 
-	if err == nil {
-		t.Error("expected non-nil error for unrecoverable store failure")
+	// StructuredTool returns error in payload, not as Go error
+	if err != nil {
+		t.Errorf("expected nil error (store failure conveyed in payload), got: %v", err)
 	}
 	if !strings.Contains(result, string(ErrCodeServiceUnavailable)) {
 		t.Errorf("expected ErrCodeServiceUnavailable in result, got: %s", result)
@@ -350,8 +351,9 @@ func TestSaveLearningTool_StoreError(t *testing.T) {
 	}`
 	result, err := tool.Call(ctx, input)
 
-	if err == nil {
-		t.Error("expected non-nil error for unrecoverable store failure")
+	// StructuredTool returns error in payload, not as Go error
+	if err != nil {
+		t.Errorf("expected nil error (store failure conveyed in payload), got: %v", err)
 	}
 	if !strings.Contains(result, string(ErrCodeServiceUnavailable)) {
 		t.Errorf("expected ErrCodeServiceUnavailable in result, got: %s", result)

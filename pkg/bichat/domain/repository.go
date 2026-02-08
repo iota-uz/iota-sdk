@@ -2,11 +2,15 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
+
+// ErrNoPendingQuestion is returned by GetPendingQuestionMessage when no message has a pending question.
+var ErrNoPendingQuestion = errors.New("no pending question message")
 
 // ListOptions provides pagination options for repository queries
 type ListOptions struct {
@@ -27,6 +31,7 @@ type ChatRepository interface {
 	GetSession(ctx context.Context, id uuid.UUID) (Session, error)
 	UpdateSession(ctx context.Context, session Session) error
 	ListUserSessions(ctx context.Context, userID int64, opts ListOptions) ([]Session, error)
+	CountUserSessions(ctx context.Context, userID int64, opts ListOptions) (int, error)
 	DeleteSession(ctx context.Context, id uuid.UUID) error
 
 	// Message operations
@@ -37,6 +42,12 @@ type ChatRepository interface {
 	// Returns the number of messages deleted.
 	// Used for regenerate/edit functionality.
 	TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error)
+
+	// UpdateMessageQuestionData updates the question_data JSONB on a specific message.
+	UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error
+	// GetPendingQuestionMessage returns the message with a pending question for a session.
+	// When there is no pending question it returns ErrNoPendingQuestion (not nil); callers must check with errors.Is(err, domain.ErrNoPendingQuestion).
+	GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error)
 
 	// Attachment operations
 	SaveAttachment(ctx context.Context, attachment Attachment) error

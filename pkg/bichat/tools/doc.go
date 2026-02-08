@@ -1,8 +1,19 @@
 // Package tools provides reusable tools for BI-Chat agents.
 //
 // This package contains common tools that can be used by agents to interact with
-// databases, knowledge bases, and external services. All tools implement the
-// agents.Tool interface and follow a provider-agnostic design.
+// databases, knowledge bases, and external services. Tools implement the
+// agents.StructuredTool interface (returning structured payloads) or the
+// simpler agents.Tool interface for tools that return plain strings.
+//
+// # StructuredTool Pattern
+//
+// Most tools implement agents.StructuredTool, which adds a CallStructured
+// method returning a ToolResult with a codec ID and typed payload. The
+// executor's FormatterRegistry formats payloads into LLM-readable text.
+// The Call method delegates to CallStructured for backward compatibility.
+//
+// Formatters live in pkg/bichat/context/formatters/ and are registered
+// via formatters.DefaultFormatterRegistry().
 //
 // # Available Tools
 //

@@ -77,7 +77,7 @@ export function Toast({
       <p className="flex-1 text-sm font-medium">{message}</p>
       <button
         onClick={() => onDismiss(id)}
-        className="ml-2 text-white hover:bg-white/20 p-1 rounded transition-colors flex-shrink-0"
+        className="cursor-pointer ml-2 text-white hover:bg-white/20 p-1 rounded transition-colors flex-shrink-0"
         aria-label={dismissLabel}
       >
         <X size={16} className="w-4 h-4" weight="bold" />

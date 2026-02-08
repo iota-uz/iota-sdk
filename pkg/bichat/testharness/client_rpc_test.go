@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,12 +16,12 @@ func TestRPCClient_DoSuccess(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodPost, r.Method)
-		require.Contains(t, r.Header.Get("Cookie"), "granite_sid=token")
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Contains(t, r.Header.Get("Cookie"), "granite_sid=token")
 
 		var req rpcRequest
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-		require.Equal(t, "bichat.ping", req.Method)
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		assert.Equal(t, "bichat.ping", req.Method)
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -83,7 +84,7 @@ func TestRPCClient_CreateSessionAndGetSession(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req rpcRequest
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 
 		w.Header().Set("Content-Type", "application/json")
 
@@ -127,7 +128,8 @@ func TestRPCClient_CreateSessionAndGetSession(t *testing.T) {
 				},
 			})
 		default:
-			require.FailNow(t, "unexpected method", req.Method)
+			assert.Fail(t, "unexpected method", req.Method)
+			return
 		}
 	}))
 	t.Cleanup(srv.Close)

@@ -4,9 +4,10 @@
  * Clean, professional design
  */
 
-import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react'
 import { Paperclip, PaperPlaneRight, X, Bug, ArrowUp, ArrowDown, Stack } from '@phosphor-icons/react'
 import AttachmentGrid from './AttachmentGrid'
+import ImageModal from './ImageModal'
 import {
   ATTACHMENT_ACCEPT_ATTRIBUTE,
   convertToBase64,
@@ -16,7 +17,7 @@ import {
   validateFileCount,
 } from '../utils/fileUtils'
 import { calculateContextUsagePercent } from '../utils/debugMetrics'
-import type { Attachment, DebugLimits, QueuedMessage, SessionDebugUsage } from '../types'
+import type { Attachment, ImageAttachment, DebugLimits, QueuedMessage, SessionDebugUsage } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 
 export interface MessageInputRef {
@@ -82,6 +83,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const [activeCommandIndex, setActiveCommandIndex] = useState(0)
     const [isComposing, setIsComposing] = useState(false)
     const [dropSuccess, setDropSuccess] = useState(false)
+    const [pendingFileCount, setPendingFileCount] = useState(0)
+    const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null)
 
     // Use override or translation
     const placeholder = placeholderOverride || t('input.placeholder')
@@ -111,15 +114,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       [commandQuery, slashCommands]
     )
     const isCommandListVisible = isSlashMode && !commandListDismissed && !loading && !disabled
-
-    useImperativeHandle(ref, () => ({
-      focus: () => textareaRef.current?.focus(),
-      clear: () => {
-        onMessageChange('')
-        setAttachments([])
-        setError(null)
-      }
-    }))
 
     useEffect(() => {
       const textarea = textareaRef.current
@@ -191,36 +185,49 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       })
     }, [activeCommandIndex, filteredCommands.length, isCommandListVisible])
 
-    const handleFileSelect = async (files: FileList | null): Promise<boolean> => {
-      if (!files || files.length === 0) return false
+    const handleFileSelect = async (files: FileList | File[] | null): Promise<boolean> => {
+      if (!files) return false
+      const selectedFiles = Array.isArray(files) ? files : Array.from(files)
+      if (selectedFiles.length === 0) return false
 
       try {
-        validateFileCount(attachments.length, files.length, maxFiles)
+        validateFileCount(attachments.length, selectedFiles.length, maxFiles)
 
-        const newAttachments: Attachment[] = []
-
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i]
+        // Extract and validate all files synchronously before any async work.
+        // This ensures File objects are captured while the DataTransfer is still valid.
+        const fileArray: File[] = []
+        for (let i = 0; i < selectedFiles.length; i++) {
+          const file = selectedFiles[i]
           validateAttachmentFile(file, maxFileSize)
-          const base64Data = await convertToBase64(file)
+          fileArray.push(file)
+        }
+
+        // Show shimmer placeholders while processing
+        setPendingFileCount(fileArray.length)
+
+        // Read all files in parallel
+        const base64Results = await Promise.all(fileArray.map(convertToBase64))
+
+        const newAttachments: Attachment[] = fileArray.map((file, i) => {
           const attachment: Attachment = {
             id: '',
             filename: file.name,
             mimeType: file.type,
             sizeBytes: file.size,
-            base64Data,
+            base64Data: base64Results[i],
           }
           if (isImageMimeType(file.type)) {
-            attachment.preview = createDataUrl(base64Data, file.type)
+            attachment.preview = createDataUrl(base64Results[i], file.type)
           }
-
-          newAttachments.push(attachment)
-        }
+          return attachment
+        })
 
         setAttachments((prev) => [...prev, ...newAttachments])
+        setPendingFileCount(0)
         setError(null)
         return true
       } catch (err) {
+        setPendingFileCount(0)
         setError(err instanceof Error ? err.message : 'Failed to process attachments')
         return false
       }
@@ -231,10 +238,68 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       e.target.value = ''
     }
 
+    useImperativeHandle(ref, () => ({
+      focus: () => textareaRef.current?.focus(),
+      clear: () => {
+        onMessageChange('')
+        setAttachments([])
+        setError(null)
+      },
+    }))
+
     const handleRemoveAttachment = (index: number) => {
       setAttachments((prev) => prev.filter((_, i) => i !== index))
       setError(null)
     }
+
+    // ── Image lightbox ──────────────────────────────────
+    const imageAttachments = useMemo(
+      () => attachments.filter((a): a is ImageAttachment =>
+        a.mimeType.startsWith('image/') && !!(a.base64Data && a.preview)
+      ),
+      [attachments]
+    )
+
+    const handleViewAttachment = useCallback((index: number) => {
+      const attachment = attachments[index]
+      if (!attachment || !attachment.mimeType.startsWith('image/')) return
+      const imgIdx = imageAttachments.findIndex((a) => a.filename === attachment.filename && a.preview === attachment.preview)
+      if (imgIdx >= 0) setViewingImageIndex(imgIdx)
+    }, [attachments, imageAttachments])
+
+    const handleImageNavigate = useCallback((direction: 'prev' | 'next') => {
+      setViewingImageIndex((prev) => {
+        if (prev === null) return null
+        const len = imageAttachments.length
+        if (len <= 0) return null
+        const newIndex = Math.max(0, Math.min(len - 1, prev + (direction === 'prev' ? -1 : 1)))
+        return newIndex
+      })
+    }, [imageAttachments.length])
+
+    useEffect(() => {
+      setViewingImageIndex((prev) => {
+        if (imageAttachments.length === 0) return null
+        if (prev != null && (prev < 0 || prev >= imageAttachments.length)) {
+          return Math.max(0, Math.min(prev, imageAttachments.length - 1))
+        }
+        return prev
+      })
+    }, [imageAttachments.length])
+
+    // ── Paste-to-attach ─────────────────────────────────
+    const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = Array.from(e.clipboardData.items)
+      const imageFiles = items
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null)
+
+      if (imageFiles.length > 0) {
+        e.preventDefault()
+        handleFileSelect(imageFiles)
+      }
+    }, [attachments.length, maxFiles, maxFileSize]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleDragOver = (e: React.DragEvent) => {
       e.preventDefault()
@@ -252,7 +317,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       e.preventDefault()
       e.stopPropagation()
       setIsDragging(false)
-      const ok = await handleFileSelect(e.dataTransfer.files)
+      const itemFiles = Array.from(e.dataTransfer.items || [])
+        .filter((item) => item.kind === 'file')
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null)
+      const droppedFiles = itemFiles.length > 0 ? itemFiles : Array.from(e.dataTransfer.files || [])
+      const ok = await handleFileSelect(droppedFiles)
       if (ok) {
         setDropSuccess(true)
         setTimeout(() => setDropSuccess(false), 1500)
@@ -380,7 +450,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                   setError(null)
                   onClearCommandError?.()
                 }}
-                className="ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded transition-colors"
+                className="cursor-pointer ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded transition-colors"
                 aria-label={t('input.dismissError')}
               >
                 <X size={14} />
@@ -522,9 +592,14 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           )}
 
           {/* Attachment preview */}
-          {attachments.length > 0 && (
+          {(attachments.length > 0 || pendingFileCount > 0) && (
             <div className="mb-3">
-              <AttachmentGrid attachments={attachments} onRemove={handleRemoveAttachment} />
+              <AttachmentGrid
+                attachments={attachments}
+                onRemove={handleRemoveAttachment}
+                onView={handleViewAttachment}
+                pendingCount={pendingFileCount}
+              />
             </div>
           )}
 
@@ -560,10 +635,10 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
             {/* Input container - using inline Tailwind classes */}
             <div
-              className={`flex items-center gap-2 rounded-2xl p-1.5 sm:p-2.5 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
+              className={`flex items-center gap-2 rounded-2xl p-2 sm:p-3 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
                 isFocused
-                  ? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-500/25 dark:ring-primary-500/30'
-                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  ? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-500/20 dark:ring-primary-500/25 shadow-[0_0_0_3px_rgba(37,99,235,0.08)]'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
               }`}
             >
               {/* Attach button */}
@@ -571,11 +646,11 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading || disabled || attachments.length >= maxFiles}
-                className="cursor-pointer flex-shrink-0 self-center p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="cursor-pointer flex-shrink-0 self-center p-2 text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label={t('input.attachFiles')}
                 title={t('input.attachFiles')}
               >
-                <Paperclip size={18} className="cursor-pointer" />
+                <Paperclip size={20} />
               </button>
 
               {/* Hidden file input */}
@@ -586,7 +661,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 multiple
                 onChange={handleFileInputChange}
                 className="hidden"
-                aria-label="File input"
+                aria-label={t('input.fileInput')}
               />
 
               {/* Textarea */}
@@ -599,6 +674,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                     onClearCommandError?.()
                   }}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                   onCompositionStart={() => setIsComposing(true)}
                   onCompositionEnd={() => setIsComposing(false)}
                   onFocus={() => setIsFocused(true)}
@@ -615,7 +691,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                   rows={1}
                   disabled={loading || disabled}
                   aria-busy={loading}
-                  aria-label="Message input"
+                  aria-label={t('input.messageInput')}
                 />
               </div>
 
@@ -623,7 +699,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="cursor-pointer flex-shrink-0 self-center p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
+                className="cursor-pointer flex-shrink-0 self-center p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 active:scale-95 text-white shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
                 aria-label={loading ? t('input.processing') : t('input.sendMessage')}
               >
                 {loading ? (
@@ -633,6 +709,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 )}
               </button>
             </div>
+
+            {/* Keyboard hint */}
+            {isFocused && !message && !loading && (
+              <span className="hidden sm:block absolute -bottom-5 left-14 text-[10px] text-gray-400 dark:text-gray-500 select-none animate-fade-in">
+                {t('input.shiftEnterHint')}
+              </span>
+            )}
 
             {isCommandListVisible && (
               <div className="absolute left-0 right-0 bottom-full mb-1.5 z-20 overflow-hidden rounded-lg border border-gray-200/70 bg-white/98 shadow-md backdrop-blur-xl dark:border-gray-700/70 dark:bg-gray-900/98 dark:shadow-black/20">
@@ -680,6 +763,19 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             )}
           </div>
 
+          {/* Image lightbox */}
+          {viewingImageIndex !== null &&
+            viewingImageIndex >= 0 &&
+            viewingImageIndex < imageAttachments.length && (
+            <ImageModal
+              isOpen
+              onClose={() => setViewingImageIndex(null)}
+              attachment={imageAttachments[viewingImageIndex]}
+              allAttachments={imageAttachments}
+              currentIndex={viewingImageIndex}
+              onNavigate={handleImageNavigate}
+            />
+          )}
         </form>
       </div>
     )

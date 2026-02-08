@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -70,6 +71,9 @@ type managedProcess struct {
 var outputMu sync.Mutex
 
 func main() {
+	log.SetFlags(0)
+	log.SetOutput(os.Stdout)
+
 	var appletName string
 	if len(os.Args) >= 2 && os.Args[1] != "" {
 		appletName = os.Args[1]
@@ -93,7 +97,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Invalid IOTA_PORT: %q\n", iotaPort)
 		os.Exit(1)
 	}
-	if err := checkPort(iotaPortNum, "Go server"); err != nil {
+	if err := checkPort(context.Background(), iotaPortNum, "Go server"); err != nil {
 		os.Exit(1)
 	}
 
@@ -130,7 +134,7 @@ func main() {
 		Dir: root, Color: colorYellow, Critical: true,
 	})
 
-	fmt.Printf("\n%sr restart air · c clear · q quit%s\n\n", colorDim, colorReset)
+	log.Printf("\n%sr restart air · c clear · q quit%s\n\n", colorDim, colorReset)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -147,50 +151,56 @@ func setupApplet(root, appletName string) ([]processSpec, error) {
 
 	viteDir := filepath.Join(root, applet.ViteDir)
 	if _, err := os.Stat(viteDir); err != nil {
-		return nil, fmt.Errorf("Vite directory not found: %s", viteDir)
+		return nil, fmt.Errorf("vite directory not found: %s", viteDir)
 	}
 
 	// Prebuild
 	if _, err := os.Stat(filepath.Join(root, "node_modules")); err != nil {
-		fmt.Println("Installing root dependencies...")
-		if err := runCommand(root, "pnpm", "install", "--prefer-frozen-lockfile"); err != nil {
-			return nil, fmt.Errorf("Failed to install root deps: %w", err)
+		log.Println("Installing root dependencies...")
+		if err := runCommand(context.Background(), root, "pnpm", "install", "--prefer-frozen-lockfile"); err != nil {
+			return nil, fmt.Errorf("failed to install root deps: %w", err)
 		}
 	}
 
 	if err := buildSDKIfNeeded(root); err != nil {
-		return nil, fmt.Errorf("SDK build failed: %w", err)
+		return nil, fmt.Errorf("sdk build failed: %w", err)
 	}
 
 	if err := refreshAppletDeps(root, viteDir); err != nil {
-		return nil, fmt.Errorf("Applet dep refresh failed: %w", err)
+		return nil, fmt.Errorf("applet dep refresh failed: %w", err)
 	}
 
 	// Vite port check
-	if err := checkPort(applet.VitePort, "Vite"); err != nil {
+	if err := checkPort(context.Background(), applet.VitePort, "Vite"); err != nil {
 		return nil, err
 	}
 
 	// Environment
 	iotaPort := getEnvOrDefault("IOTA_PORT", "3900")
 	upperName := strings.ToUpper(strings.ReplaceAll(applet.Name, "-", "_"))
-	os.Setenv("APPLET_ASSETS_BASE", applet.BasePath+"/assets/")
-	os.Setenv("APPLET_VITE_PORT", fmt.Sprintf("%d", applet.VitePort))
-	os.Setenv(fmt.Sprintf("IOTA_APPLET_DEV_%s", upperName), "1")
-	os.Setenv(fmt.Sprintf("IOTA_APPLET_VITE_URL_%s", upperName),
-		fmt.Sprintf("http://localhost:%d", applet.VitePort))
-	os.Setenv(fmt.Sprintf("IOTA_APPLET_ENTRY_%s", upperName), applet.EntryModule)
-	os.Setenv(fmt.Sprintf("IOTA_APPLET_CLIENT_%s", upperName), "/@vite/client")
-
-	// Build applet CSS before starting Vite (tailwindcss --watch needs TTY, may exit immediately)
-	fmt.Println("Building applet CSS...")
-	if err := runCommand(viteDir, "pnpm", "exec", "tailwindcss",
-		"-i", "src/index.css", "-o", "dist/style.css"); err != nil {
-		return nil, fmt.Errorf("Applet CSS build failed: %w", err)
+	envVars := map[string]string{
+		"APPLET_ASSETS_BASE":                              applet.BasePath + "/assets/",
+		"APPLET_VITE_PORT":                                fmt.Sprintf("%d", applet.VitePort),
+		fmt.Sprintf("IOTA_APPLET_DEV_%s", upperName):      "1",
+		fmt.Sprintf("IOTA_APPLET_VITE_URL_%s", upperName): fmt.Sprintf("http://localhost:%d", applet.VitePort),
+		fmt.Sprintf("IOTA_APPLET_ENTRY_%s", upperName):    applet.EntryModule,
+		fmt.Sprintf("IOTA_APPLET_CLIENT_%s", upperName):   "/@vite/client",
+	}
+	for k, v := range envVars {
+		if err := os.Setenv(k, v); err != nil {
+			return nil, fmt.Errorf("set env %s: %w", k, err)
+		}
 	}
 
-	fmt.Printf("Applet: %s\n", applet.Name)
-	fmt.Printf("URL:    http://localhost:%s%s\n", iotaPort, applet.BasePath)
+	// Build applet CSS before starting Vite (tailwindcss --watch needs TTY, may exit immediately)
+	log.Println("Building applet CSS...")
+	if err := runCommand(context.Background(), viteDir, "pnpm", "exec", "tailwindcss",
+		"-i", "src/index.css", "-o", "dist/style.css"); err != nil {
+		return nil, fmt.Errorf("applet CSS build failed: %w", err)
+	}
+
+	log.Printf("Applet: %s\n", applet.Name)
+	log.Printf("URL:    http://localhost:%s%s\n", iotaPort, applet.BasePath)
 
 	return []processSpec{
 		{
@@ -218,7 +228,7 @@ func (m *managedProcess) runCritical(ctx context.Context, exitCh chan<- string) 
 	m.restartCh = make(chan struct{}, 1)
 
 	for {
-		cmd, err := startProcess(m.spec, m.maxLen)
+		cmd, err := startProcess(ctx, m.spec, m.maxLen)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to start %s: %v\n", m.spec.Name, err)
 			exitCh <- m.spec.Name
@@ -228,7 +238,11 @@ func (m *managedProcess) runCritical(ctx context.Context, exitCh chan<- string) 
 		m.cmd = cmd
 		m.mu.Unlock()
 
-		cmd.Wait()
+		if waitErr := cmd.Wait(); waitErr != nil {
+			outputMu.Lock()
+			fmt.Fprintf(os.Stderr, "%s%s[%-*s]%s process exit: %v\n", m.spec.Color, colorDim, m.maxLen, m.spec.Name, colorReset, waitErr)
+			outputMu.Unlock()
+		}
 
 		if ctx.Err() != nil {
 			return
@@ -239,7 +253,7 @@ func (m *managedProcess) runCritical(ctx context.Context, exitCh chan<- string) 
 		case <-m.restartCh:
 			prefix := fmt.Sprintf("[%-*s]", m.maxLen, m.spec.Name)
 			outputMu.Lock()
-			fmt.Printf("%s%s%s restarting...\n", m.spec.Color, prefix, colorReset)
+			log.Printf("%s%s%s restarting...\n", m.spec.Color, prefix, colorReset)
 			outputMu.Unlock()
 			continue
 		default:
@@ -255,7 +269,7 @@ func (m *managedProcess) runAuxiliary(ctx context.Context) {
 
 	for {
 		start := time.Now()
-		cmd, err := startProcess(m.spec, m.maxLen)
+		cmd, err := startProcess(ctx, m.spec, m.maxLen)
 		if err != nil {
 			prefix := fmt.Sprintf("[%-*s]", m.maxLen, m.spec.Name)
 			outputMu.Lock()
@@ -338,7 +352,7 @@ func runProcesses(ctx context.Context, cancel context.CancelFunc, specs []proces
 		}
 	}
 
-	var managed []*managedProcess
+	managed := make([]*managedProcess, 0, len(specs))
 	criticalExitCh := make(chan string, len(specs))
 	var wg sync.WaitGroup
 
@@ -374,7 +388,7 @@ func runProcesses(ctx context.Context, cancel context.CancelFunc, specs []proces
 	}
 
 	// Keyboard input
-	restoreTerm := enableCbreak()
+	restoreTerm := enableCbreak(ctx)
 	defer restoreTerm()
 	keyCh := make(chan byte, 8)
 	go readKeys(keyCh)
@@ -402,7 +416,7 @@ loop:
 				}
 			case 'c':
 				outputMu.Lock()
-				fmt.Print("\033[2J\033[H")
+				log.Print("\033[2J\033[H")
 				outputMu.Unlock()
 			case 'q':
 				cancel()
@@ -432,24 +446,26 @@ loop:
 
 // --- Keyboard input ---
 
-func enableCbreak() func() {
-	save := exec.Command("stty", "-g")
+func enableCbreak(ctx context.Context) func() {
+	save := exec.CommandContext(ctx, "stty", "-g")
 	save.Stdin = os.Stdin
 	state, err := save.Output()
 	if err != nil {
 		return func() {} // not a terminal
 	}
 
-	set := exec.Command("stty", "cbreak", "-echo")
+	set := exec.CommandContext(ctx, "stty", "cbreak", "-echo")
 	set.Stdin = os.Stdin
 	if err := set.Run(); err != nil {
 		return func() {}
 	}
 
 	return func() {
-		restore := exec.Command("stty", strings.TrimSpace(string(state)))
+		restore := exec.CommandContext(context.Background(), "stty", strings.TrimSpace(string(state)))
 		restore.Stdin = os.Stdin
-		_ = restore.Run()
+		if err := restore.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to restore terminal (stty): %v\n", err)
+		}
 	}
 }
 
@@ -466,8 +482,8 @@ func readKeys(ch chan<- byte) {
 
 // --- Process launching ---
 
-func startProcess(spec processSpec, padLen int) (*exec.Cmd, error) {
-	cmd := exec.Command(spec.Command, spec.Args...)
+func startProcess(ctx context.Context, spec processSpec, padLen int) (*exec.Cmd, error) {
+	cmd := exec.CommandContext(ctx, spec.Command, spec.Args...)
 	cmd.Dir = spec.Dir
 	cmd.Env = os.Environ()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -493,7 +509,7 @@ func logOutput(r io.Reader, prefix string) {
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024) // 1MB max line
 	for scanner.Scan() {
 		outputMu.Lock()
-		fmt.Printf("%s %s\n", prefix, scanner.Text())
+		log.Printf("%s %s\n", prefix, scanner.Text())
 		outputMu.Unlock()
 	}
 }
@@ -536,7 +552,7 @@ func checkPrerequisites() error {
 
 	if len(missing) > 0 {
 		sort.Strings(missing)
-		return fmt.Errorf("Missing required tools:\n%s", strings.Join(missing, "\n"))
+		return fmt.Errorf("missing required tools:\n%s", strings.Join(missing, "\n"))
 	}
 
 	return nil
@@ -584,8 +600,8 @@ func buildSDKIfNeeded(root string) error {
 	}
 
 	if needsBuild {
-		fmt.Println("Building @iota-uz/sdk (tsup, dev mode)...")
-		if err := runCommand(root, "pnpm", "run", "build:js:dev"); err != nil {
+		log.Println("Building @iota-uz/sdk (tsup, dev mode)...")
+		if err := runCommand(context.Background(), root, "pnpm", "run", "build:js:dev"); err != nil {
 			return err
 		}
 
@@ -594,7 +610,9 @@ func buildSDKIfNeeded(root string) error {
 			return err
 		}
 
-		os.MkdirAll(filepath.Join(root, "dist"), 0755)
+		if err := os.MkdirAll(filepath.Join(root, "dist"), 0755); err != nil {
+			return fmt.Errorf("create dist directory: %w", err)
+		}
 		if err := os.WriteFile(hashFile, []byte(currentHash), 0644); err != nil {
 			return err
 		}
@@ -660,8 +678,8 @@ func refreshAppletDeps(root, viteDir string) error {
 	}
 
 	if _, err := os.Stat(nodeModules); err != nil {
-		fmt.Println("Installing applet dependencies...")
-		if err := runCommand(root, "pnpm", "-C", viteDir, "install", "--prefer-frozen-lockfile"); err != nil {
+		log.Println("Installing applet dependencies...")
+		if err := runCommand(context.Background(), root, "pnpm", "-C", viteDir, "install", "--prefer-frozen-lockfile"); err != nil {
 			return err
 		}
 		didInstall = true
@@ -670,8 +688,8 @@ func refreshAppletDeps(root, viteDir string) error {
 		sdkModule := filepath.Join(nodeModules, "@iota-uz/sdk/dist/index.mjs")
 
 		if isNewer(distIndex, sdkModule) {
-			fmt.Println("Refreshing applet deps (local @iota-uz/sdk changed)...")
-			if err := runCommand(root, "pnpm", "-C", viteDir, "install", "--prefer-frozen-lockfile"); err != nil {
+			log.Println("Refreshing applet deps (local @iota-uz/sdk changed)...")
+			if err := runCommand(context.Background(), root, "pnpm", "-C", viteDir, "install", "--prefer-frozen-lockfile"); err != nil {
 				return err
 			}
 			didInstall = true
@@ -680,12 +698,16 @@ func refreshAppletDeps(root, viteDir string) error {
 
 	viteCache := filepath.Join(nodeModules, ".vite")
 	if didInstall {
-		os.RemoveAll(viteCache)
+		if err := os.RemoveAll(viteCache); err != nil {
+			log.Printf("warning: failed to clear Vite cache after install: %v", err)
+		}
 	} else {
 		distIndex := filepath.Join(root, "dist/index.mjs")
 		if isNewer(distIndex, viteCache) {
-			fmt.Println("Clearing Vite dep cache (SDK bundle changed)...")
-			os.RemoveAll(viteCache)
+			log.Println("Clearing Vite dep cache (SDK bundle changed)...")
+			if err := os.RemoveAll(viteCache); err != nil {
+				log.Printf("warning: failed to clear Vite cache: %v", err)
+			}
 		}
 	}
 
@@ -728,20 +750,23 @@ func isNewer(source, target string) bool {
 	return srcInfo.ModTime().After(tgtInfo.ModTime())
 }
 
-func checkPort(port int, label string) error {
+func checkPort(ctx context.Context, port int, label string) error {
 	addr := fmt.Sprintf(":%d", port)
-	ln, err := net.Listen("tcp", addr)
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Port %d is already in use (%s)\n", port, label)
 		fmt.Fprintf(os.Stderr, "  Kill it: lsof -ti :%d | xargs kill\n", port)
 		return err
 	}
-	ln.Close()
+	if err := ln.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: close port check listener: %v\n", err)
+	}
 	return nil
 }
 
-func runCommand(dir, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+func runCommand(ctx context.Context, dir, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

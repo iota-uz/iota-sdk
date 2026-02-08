@@ -123,7 +123,7 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
                 messageQueue={messageQueue}
                 onUnqueue={handleUnqueue}
                 placeholder="Ask BiChat about your business data..."
-                containerClassName="pt-6 px-6"
+                containerClassName="pt-8 px-6"
                 formClassName="mx-auto"
               />
               <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400 pb-1">

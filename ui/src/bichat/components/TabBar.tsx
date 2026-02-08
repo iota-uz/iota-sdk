@@ -96,7 +96,7 @@ function TabButton({ id, label, isActive, onClick }: TabButtonProps) {
       tabIndex={isActive ? 0 : -1}
       onClick={onClick}
       className={`
-        relative px-4 py-2 rounded-t-lg text-sm font-medium transition-smooth focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50
+        cursor-pointer relative px-4 py-2 rounded-t-lg text-sm font-medium transition-smooth focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50
         ${
           isActive
             ? 'text-primary-700 dark:text-primary-400'

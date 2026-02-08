@@ -21,7 +21,7 @@ func TestParseJudgeVerdict_Strict(t *testing.T) {
 	v, err := parseJudgeVerdict([]byte(`{"passed":true,"score":0.95,"reason":"oracle aligned","missed_facts":[],"incorrect_claims":[]}`))
 	require.NoError(t, err)
 	require.True(t, v.Passed)
-	require.Equal(t, 0.95, v.Score)
+	require.InEpsilon(t, 0.95, v.Score, 1e-9)
 }
 
 func TestParseJudgeVerdict_ExtractsWrappedJSON(t *testing.T) {
@@ -30,7 +30,7 @@ func TestParseJudgeVerdict_ExtractsWrappedJSON(t *testing.T) {
 	v, err := parseJudgeVerdict([]byte("```json\n{\"passed\":false,\"score\":0.4,\"reason\":\"missing key fact\",\"missed_facts\":[\"x\"],\"incorrect_claims\":[]}\n```"))
 	require.NoError(t, err)
 	require.False(t, v.Passed)
-	require.Equal(t, 0.4, v.Score)
+	require.InEpsilon(t, 0.4, v.Score, 1e-9)
 	require.Equal(t, "missing key fact", v.Reason)
 }
 

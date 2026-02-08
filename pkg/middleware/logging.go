@@ -272,6 +272,13 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 				// Recover from panics, log them with full context, and return 500 error
 				defer func() {
 					if recovered := recover(); recovered != nil {
+						// http.ErrAbortHandler is a sentinel panic used to cleanly
+						// abort a request (e.g. reverse proxy client disconnect).
+						// Not a real error — stop processing silently.
+						if recovered == http.ErrAbortHandler {
+							return
+						}
+
 						duration := time.Since(start)
 
 						// Build comprehensive panic log fields

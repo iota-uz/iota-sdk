@@ -44,7 +44,7 @@ func TestPostgresChatRepository_CreateSession(t *testing.T) {
 	assert.Equal(t, int64(env.User.ID()), retrieved.UserID())
 }
 
-func TestPostgresChatRepository_CreateSession_WithParentAndPendingAgent(t *testing.T) {
+func TestPostgresChatRepository_CreateSession_WithParent(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
 
@@ -60,24 +60,20 @@ func TestPostgresChatRepository_CreateSession_WithParentAndPendingAgent(t *testi
 	require.NoError(t, err)
 
 	// Create child session with parent reference
-	agent := "sql_agent"
 	childSession := domain.NewSession(
 		domain.WithTenantID(env.Tenant.ID),
 		domain.WithUserID(int64(env.User.ID())),
 		domain.WithTitle("Child Session"),
 		domain.WithParentSessionID(parentSession.ID()),
-		domain.WithPendingQuestionAgent(agent),
 	)
 	err = repo.CreateSession(env.Ctx, childSession)
 	require.NoError(t, err)
 
-	// Verify parent and pending agent fields
+	// Verify parent field
 	retrieved, err := repo.GetSession(env.Ctx, childSession.ID())
 	require.NoError(t, err)
 	require.NotNil(t, retrieved.ParentSessionID())
 	assert.Equal(t, parentSession.ID(), *retrieved.ParentSessionID())
-	require.NotNil(t, retrieved.PendingQuestionAgent())
-	assert.Equal(t, agent, *retrieved.PendingQuestionAgent())
 }
 
 func TestPostgresChatRepository_GetSession(t *testing.T) {
@@ -133,12 +129,10 @@ func TestPostgresChatRepository_UpdateSession(t *testing.T) {
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	agent := "new_agent"
 	updated := session.
 		UpdateTitle("Updated Title").
 		UpdateStatus(domain.SessionStatusArchived).
-		UpdatePinned(true).
-		UpdatePendingQuestionAgent(&agent)
+		UpdatePinned(true)
 	err = repo.UpdateSession(env.Ctx, updated)
 	require.NoError(t, err)
 
@@ -147,8 +141,6 @@ func TestPostgresChatRepository_UpdateSession(t *testing.T) {
 	assert.Equal(t, "Updated Title", retrieved.Title())
 	assert.Equal(t, domain.SessionStatusArchived, retrieved.Status())
 	assert.True(t, retrieved.Pinned())
-	require.NotNil(t, retrieved.PendingQuestionAgent())
-	assert.Equal(t, "new_agent", *retrieved.PendingQuestionAgent())
 }
 
 func TestPostgresChatRepository_UpdateSession_NotFound(t *testing.T) {
@@ -1571,7 +1563,6 @@ func TestPostgresChatRepository_GetSession_WithSQLNullTypes(t *testing.T) {
 	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
 	assert.Nil(t, retrieved.ParentSessionID())
-	assert.Nil(t, retrieved.PendingQuestionAgent())
 }
 
 func TestPostgresChatRepository_InvalidTenantContext(t *testing.T) {

@@ -16,6 +16,7 @@ type ChatService interface {
 	CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error)
 	GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error)
+	CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error)
 	UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error)
 	ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
@@ -33,8 +34,9 @@ type ChatService interface {
 	// Resume after user answers questions (HITL)
 	ResumeWithAnswer(ctx context.Context, req ResumeRequest) (*SendMessageResponse, error)
 
-	// Cancel pending question - clears HITL state without resuming
-	CancelPendingQuestion(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
+	// RejectPendingQuestion rejects a pending HITL question and resumes the agent
+	// with "user rejected questions" feedback.
+	RejectPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*SendMessageResponse, error)
 
 	// Generate session title from first message
 	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error

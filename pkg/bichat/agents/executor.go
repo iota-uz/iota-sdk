@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -142,9 +143,10 @@ type Executor struct {
 	eventBus          hooks.EventBus
 	maxIterations     int
 	interruptRegistry *InterruptHandlerRegistry
-	tools             []Tool         // Optional override for agent tools (e.g., filtered for child executors)
-	tokenEstimator    TokenEstimator // Optional token estimator for cost tracking
-	speculativeTools  bool           // Start executing ready tool calls during streaming (best-effort)
+	tools             []Tool                  // Optional override for agent tools (e.g., filtered for child executors)
+	tokenEstimator    TokenEstimator          // Optional token estimator for cost tracking
+	speculativeTools  bool                    // Start executing ready tool calls during streaming (best-effort)
+	formatterRegistry types.FormatterRegistry // Optional formatter registry for StructuredTool support
 }
 
 // Input represents the input to Execute or Resume.
@@ -236,6 +238,15 @@ func WithSpeculativeTools(enabled bool) ExecutorOption {
 	}
 }
 
+// WithFormatterRegistry sets the formatter registry for StructuredTool support.
+// When set, the executor will check if tools implement StructuredTool and use
+// the registry to format their structured output.
+func WithFormatterRegistry(registry types.FormatterRegistry) ExecutorOption {
+	return func(e *Executor) {
+		e.formatterRegistry = registry
+	}
+}
+
 // NewExecutor creates a new Executor with the given agent and model.
 func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Executor {
 	executor := &Executor{
@@ -251,6 +262,52 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 	}
 
 	return executor
+}
+
+// callTool executes a tool, using StructuredTool + FormatterRegistry when available.
+// Accepts a tool directly to avoid O(n) lookup. If tool is nil or has nil handler,
+// falls back to agent.OnToolCall for backward compatibility.
+// After invoking StructuredTool.CallStructured we always return and never fall through to Tool.Call() to avoid double execution.
+func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (string, error) {
+	if e.formatterRegistry != nil && tool != nil {
+		if st, ok := tool.(StructuredTool); ok {
+			result, err := st.CallStructured(ctx, arguments)
+			if err != nil && result == nil {
+				return "", err
+			}
+			if result == nil {
+				return "", nil
+			}
+			// result != nil: format or fallback, then return (never fall through to tool.Call())
+			if f := e.formatterRegistry.Get(result.CodecID); f != nil {
+				formatted, fmtErr := f.Format(result.Payload, types.DefaultFormatOptions())
+				if fmtErr == nil {
+					if err != nil && errors.Is(err, ErrStructuredToolOutput) {
+						return formatted, nil
+					}
+					return formatted, err
+				}
+			}
+			// Formatter missing or format failed: return raw payload stringified
+			fallback, _ := FormatToolOutput(result.Payload)
+			if fallback == "" {
+				fallback = fmt.Sprintf("%v", result.Payload)
+			}
+			if err != nil && errors.Is(err, ErrStructuredToolOutput) {
+				return fallback, nil
+			}
+			return fallback, err
+		}
+	}
+
+	// Non-StructuredTool path: ToolFunc nil-handler fallback and agent.OnToolCall
+	if tool != nil {
+		if tf, ok := tool.(*ToolFunc); ok && tf.Fn == nil {
+			return e.agent.OnToolCall(ctx, toolName, arguments)
+		}
+		return tool.Call(ctx, arguments)
+	}
+	return e.agent.OnToolCall(ctx, toolName, arguments)
 }
 
 // Execute runs the ReAct loop and returns a Generator that yields ExecutorEvent objects.
@@ -541,7 +598,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				specPending++
 
-				go func(call types.ToolCall, concurrencyKey string) {
+				go func(call types.ToolCall, concurrencyKey string, t Tool) {
 					startedAt := time.Now()
 
 					if concurrencyKey != "" {
@@ -550,7 +607,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						defer lock.Unlock()
 					}
 
-					res, err := e.agent.OnToolCall(specToolCtx, call.Name, call.Arguments)
+					res, err := e.callTool(specToolCtx, t, call.Name, call.Arguments)
 					durationMs := time.Since(startedAt).Milliseconds()
 
 					select {
@@ -558,7 +615,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					case <-specToolCtx.Done():
 						return
 					}
-				}(tc, key)
+				}(tc, key, toolByName[tc.Name])
 
 				return true
 			}
@@ -1109,7 +1166,7 @@ func (e *Executor) executeToolCalls(
 			}
 		}
 
-		go func(idx int, call types.ToolCall, concurrencyKey string) {
+		go func(idx int, call types.ToolCall, concurrencyKey string, t Tool) {
 			startTime := time.Now()
 
 			if concurrencyKey != "" {
@@ -1118,7 +1175,7 @@ func (e *Executor) executeToolCalls(
 				defer lock.Unlock()
 			}
 
-			res, err := e.agent.OnToolCall(toolCtx, call.Name, call.Arguments)
+			res, err := e.callTool(toolCtx, t, call.Name, call.Arguments)
 			durationMs := time.Since(startTime).Milliseconds()
 
 			select {
@@ -1132,7 +1189,7 @@ func (e *Executor) executeToolCalls(
 			case <-toolCtx.Done():
 				return
 			}
-		}(i, tc, key)
+		}(i, tc, key, toolByName[tc.Name])
 	}
 
 	ordered := make([]types.Message, len(toolCalls))

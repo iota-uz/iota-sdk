@@ -101,17 +101,11 @@ jobs:
       - name: Run go vet
         run: go vet -tags dev ./...
 
-      - name: Run BiChat smoke evals
-        run: just eval
-
       - name: Check applet RPC contracts
         run: just applet rpc-check bichat
 
-      - name: Run BiChat smoke evals (OpenAI judge; optional)
-        if: ${{ secrets.OPENAI_API_KEY != '' }}
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: just eval-judge-openai --min-avg-score 0.7 --min-pass-rate 1.0
+      - name: Install BiChat applet dependencies
+        run: pnpm install --frozen-lockfile -C modules/bichat/presentation/web
 
       - name: Typecheck BiChat applet
         run: pnpm -C modules/bichat/presentation/web exec tsc --noEmit

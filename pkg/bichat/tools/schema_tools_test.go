@@ -158,12 +158,12 @@ func TestSchemaDescribeToolInvalidTableName(t *testing.T) {
 			input := `{"table_name": "` + tt.tableName + `"}`
 			result, err := tool.Call(context.Background(), input)
 
-			// Should return error response
-			if err == nil {
-				t.Fatal("expected error, got nil")
+			// Validation errors return nil error with error details in result
+			if err != nil {
+				t.Fatalf("expected nil error for validation failure, got: %v", err)
 			}
 
-			// Verify error format
+			// Verify error format in result string
 			if !strings.Contains(result, "INVALID_REQUEST") {
 				t.Errorf("expected INVALID_REQUEST error, got: %s", result)
 			}

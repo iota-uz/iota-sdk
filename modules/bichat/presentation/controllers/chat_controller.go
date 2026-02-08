@@ -58,16 +58,15 @@ func (c *ChatController) Key() string {
 
 // sessionResponse is the JSON shape for session endpoints
 type sessionResponse struct {
-	ID                   string  `json:"id"`
-	TenantID             string  `json:"tenant_id"`
-	UserID               int64   `json:"user_id"`
-	Title                string  `json:"title"`
-	Status               string  `json:"status"`
-	Pinned               bool    `json:"pinned"`
-	ParentSessionID      *string `json:"parent_session_id,omitempty"`
-	PendingQuestionAgent *string `json:"pending_question_agent,omitempty"`
-	CreatedAt            string  `json:"created_at"`
-	UpdatedAt            string  `json:"updated_at"`
+	ID              string  `json:"id"`
+	TenantID        string  `json:"tenant_id"`
+	UserID          int64   `json:"user_id"`
+	Title           string  `json:"title"`
+	Status          string  `json:"status"`
+	Pinned          bool    `json:"pinned"`
+	ParentSessionID *string `json:"parent_session_id,omitempty"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
 }
 
 func sessionToResponse(s domain.Session) sessionResponse {
@@ -87,9 +86,6 @@ func sessionToResponse(s domain.Session) sessionResponse {
 	if pid := s.ParentSessionID(); pid != nil {
 		str := pid.String()
 		resp.ParentSessionID = &str
-	}
-	if agent := s.PendingQuestionAgent(); agent != nil {
-		resp.PendingQuestionAgent = agent
 	}
 	return resp
 }

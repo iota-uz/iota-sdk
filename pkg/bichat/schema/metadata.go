@@ -1,6 +1,12 @@
 package schema
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrTableMetadataNotFound is returned when GetTableMetadata is called for a table that has no metadata.
+var ErrTableMetadataNotFound = errors.New("table metadata not found")
 
 // TableMetadata represents structured semantic information about a database table.
 // This includes business-friendly descriptions, use cases, data quality notes,

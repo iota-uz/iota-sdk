@@ -46,7 +46,7 @@ func TestBuildTurns_SystemMessageMappedInline(t *testing.T) {
 	turns := buildTurns([]types.Message{msg})
 	require.Len(t, turns, 1)
 	require.NotNil(t, turns[0].AssistantTurn)
-	assert.Equal(t, "", turns[0].UserTurn.Content)
+	assert.Empty(t, turns[0].UserTurn.Content)
 	assert.Equal(t, "system", turns[0].AssistantTurn.Role)
 	assert.Equal(t, "compacted summary", turns[0].AssistantTurn.Content)
 }
@@ -73,7 +73,7 @@ func TestBuildTurns_MixedHistoryKeepsSystemTurn(t *testing.T) {
 	assert.Equal(t, "assistant", turns[0].AssistantTurn.Role)
 	assert.Equal(t, "summary", turns[1].AssistantTurn.Content)
 	assert.Equal(t, "system", turns[1].AssistantTurn.Role)
-	assert.Equal(t, "", turns[1].UserTurn.Content)
+	assert.Empty(t, turns[1].UserTurn.Content)
 	assert.Equal(t, "u2", turns[2].UserTurn.Content)
 	assert.Equal(t, "assistant", turns[2].AssistantTurn.Role)
 }

@@ -21,7 +21,7 @@ export function SourcesPanel({ citations }: SourcesPanelProps) {
       <Disclosure>
         {({ open }) => (
           <>
-            <DisclosureButton className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded-md p-1 -m-1">
+            <DisclosureButton className="cursor-pointer flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded-md p-1 -m-1">
               <svg
                 className={`w-4 h-4 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
                 fill="none"

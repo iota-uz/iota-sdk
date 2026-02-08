@@ -36,7 +36,7 @@ func TestToHarnessOracleFacts(t *testing.T) {
 	out := dataset.ToHarnessOracleFacts(facts)
 	require.Len(t, out, 1)
 	require.Equal(t, "42", out["k1"].ExpectedValue)
-	require.Equal(t, 0.1, out["k1"].Tolerance)
+	require.InEpsilon(t, 0.1, out["k1"].Tolerance, 1e-9)
 }
 
 type testDataset struct {

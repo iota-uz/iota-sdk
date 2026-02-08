@@ -118,8 +118,7 @@ func (p *FileMetadataProvider) GetTableMetadata(ctx context.Context, tableName s
 		return metadata, nil
 	}
 
-	// Not found
-	return nil, nil
+	return nil, ErrTableMetadataNotFound
 }
 
 // ListMetadata returns metadata for all available tables.

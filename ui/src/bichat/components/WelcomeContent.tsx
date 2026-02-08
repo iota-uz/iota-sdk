@@ -168,7 +168,7 @@ function WelcomeContent({
                 key={index}
                 onClick={() => handlePromptClick(prompt.text)}
                 disabled={disabled}
-                className="cursor-pointer group flex flex-col items-start text-left p-4 rounded-xl bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="cursor-pointer group flex flex-col items-start text-left p-4 rounded-xl bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/80 dark:hover:bg-gray-700/30 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                 variants={activeItemVariants}
                 whileHover={disabled || shouldReduceMotion ? {} : { y: -3 }}
                 whileTap={disabled || shouldReduceMotion ? {} : { scale: 0.98 }}

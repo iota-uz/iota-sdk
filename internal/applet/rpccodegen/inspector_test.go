@@ -2,7 +2,6 @@ package rpccodegen
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,6 @@ func TestValidateGoIdentifier(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := ValidateGoIdentifier(tc.input)
@@ -79,8 +77,8 @@ func TestBuildRouterInspectorProgram(t *testing.T) {
 		"github.com/iota-uz/iota-sdk/modules/bichat/rpc",
 		"Router",
 	)
-	require.True(t, strings.Contains(code, `reflect.ValueOf(rpc.Router)`))
-	require.True(t, strings.Contains(code, `const routerFuncName = "Router"`))
+	require.Contains(t, code, `reflect.ValueOf(rpc.Router)`)
+	require.Contains(t, code, `const routerFuncName = "Router"`)
 }
 
 func findRepoRoot(t *testing.T) string {

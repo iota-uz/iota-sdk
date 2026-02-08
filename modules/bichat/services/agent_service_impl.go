@@ -33,6 +33,7 @@ type agentServiceImpl struct {
 	agentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	schemaMetadata         schema.MetadataProvider // Optional for table metadata
 	projectPromptExtension string
+	formatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
 
 // AgentServiceConfig holds configuration for creating an AgentService.
@@ -47,6 +48,7 @@ type AgentServiceConfig struct {
 	AgentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	SchemaMetadata         schema.MetadataProvider // Optional for table metadata
 	ProjectPromptExtension string
+	FormatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
 
 // NewAgentService creates a production implementation of AgentService.
@@ -76,6 +78,7 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 		agentRegistry:          cfg.AgentRegistry,
 		schemaMetadata:         cfg.SchemaMetadata,
 		projectPromptExtension: strings.TrimSpace(cfg.ProjectPromptExtension),
+		formatterRegistry:      cfg.FormatterRegistry,
 	}
 }
 
@@ -207,6 +210,11 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 		agents.WithMaxIterations(10),
 	}
 
+	// Add formatter registry if configured
+	if s.formatterRegistry != nil {
+		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
+	}
+
 	// Add delegation tool if registry is configured
 	if s.agentRegistry != nil && len(s.agentRegistry.All()) > 0 {
 		// Get agent's default tools
@@ -275,6 +283,11 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 		agents.WithCheckpointer(s.checkpointer),
 		agents.WithEventBus(s.eventBus),
 		agents.WithMaxIterations(10),
+	}
+
+	// Add formatter registry if configured
+	if s.formatterRegistry != nil {
+		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
 	}
 
 	// Add delegation tool if registry is configured

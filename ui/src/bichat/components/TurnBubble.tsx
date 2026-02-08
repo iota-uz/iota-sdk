@@ -27,6 +27,8 @@ export interface TurnBubbleClassNames {
 export interface TurnBubbleProps {
   /** The conversation turn containing user and optional assistant content */
   turn: ConversationTurn
+  /** When true, this turn is the last in the list (e.g. Regenerate shows only on last assistant message) */
+  isLastTurn?: boolean
   /** Custom render function for user turn (full control) */
   renderUserTurn?: (turn: ConversationTurn) => ReactNode
   /** Custom render function for assistant turn (full control) */
@@ -57,6 +59,7 @@ const defaultClassNames: Required<TurnBubbleClassNames> = {
 
 export function TurnBubble({
   turn,
+  isLastTurn = false,
   renderUserTurn,
   renderAssistantTurn,
   userTurnProps,
@@ -102,6 +105,7 @@ export function TurnBubble({
           ) : (
             <AssistantTurnView
               turn={turn}
+              isLastTurn={isLastTurn}
               isStreaming={isStreaming}
               slots={assistantMessageSlots}
               classNames={assistantMessageClassNames}

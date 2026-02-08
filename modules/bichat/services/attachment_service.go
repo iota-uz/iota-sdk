@@ -153,6 +153,16 @@ func (s *attachmentService) ValidateMultiple(files []bichatservices.FileUpload) 
 	return nil
 }
 
+// DeleteFiles removes the given storage paths (best effort).
+func (s *attachmentService) DeleteFiles(ctx context.Context, paths []string) {
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		_ = s.storage.Delete(ctx, path)
+	}
+}
+
 func normalizeAttachmentMimeType(filename string, mimeType string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(strings.Split(mimeType, ";")[0]))
 	ext := strings.ToLower(filepath.Ext(strings.TrimSpace(filename)))

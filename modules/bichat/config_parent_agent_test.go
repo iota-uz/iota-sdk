@@ -100,8 +100,10 @@ func (m *configTestKBSearcher) Search(ctx context.Context, query string, opts kb
 	return []kb.SearchResult{}, nil
 }
 
+var errDocumentNotFound = errors.New("document not found")
+
 func (m *configTestKBSearcher) GetDocument(ctx context.Context, id string) (*kb.Document, error) {
-	return nil, nil
+	return nil, errDocumentNotFound
 }
 
 func (m *configTestKBSearcher) IsAvailable() bool {
@@ -124,6 +126,10 @@ func (m *configTestChatRepository) UpdateSession(ctx context.Context, session do
 
 func (m *configTestChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	return []domain.Session{}, nil
+}
+
+func (m *configTestChatRepository) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	return 0, nil
 }
 
 func (m *configTestChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
@@ -184,6 +190,14 @@ func (m *configTestChatRepository) DeleteArtifact(ctx context.Context, id uuid.U
 
 func (m *configTestChatRepository) UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error {
 	return nil
+}
+
+func (m *configTestChatRepository) UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error {
+	return nil
+}
+
+func (m *configTestChatRepository) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
+	return nil, errors.New("no pending question")
 }
 
 func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T) {

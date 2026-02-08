@@ -245,7 +245,7 @@ func TestAskUserQuestionTool_Call_ValidationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := tool.Call(ctx, tt.input)
-			assert.NoError(t, err, "Validation errors should return nil error for: %s", tt.name)
+			require.NoError(t, err, "Validation errors should return nil error for: %s", tt.name)
 			assert.Contains(t, result, "error", "Expected formatted error in result for: %s", tt.name)
 		})
 	}

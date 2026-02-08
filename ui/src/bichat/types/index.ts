@@ -359,6 +359,16 @@ export interface ChatDataSource {
     sessionId: string,
     options?: { limit?: number; offset?: number }
   ): Promise<{ artifacts: SessionArtifact[]; hasMore?: boolean; nextOffset?: number }>
+  uploadSessionArtifacts?(
+    sessionId: string,
+    files: File[]
+  ): Promise<{ artifacts: SessionArtifact[] }>
+  renameSessionArtifact?(
+    artifactId: string,
+    name: string,
+    description?: string
+  ): Promise<SessionArtifact>
+  deleteSessionArtifact?(artifactId: string): Promise<void>
   sendMessage(
     sessionId: string,
     content: string,
@@ -382,7 +392,7 @@ export interface ChatDataSource {
     questionId: string,
     answers: QuestionAnswers
   ): Promise<{ success: boolean; error?: string }>
-  cancelPendingQuestion(sessionId: string): Promise<{ success: boolean; error?: string }>
+  rejectPendingQuestion(sessionId: string): Promise<{ success: boolean; error?: string }>
   navigateToSession?(sessionId: string): void
 
   // Session management
@@ -441,12 +451,14 @@ export interface ChatMessagingStateValue {
   codeOutputs: CodeOutput[]
   isCompacting: boolean
   compactionSummary: string | null
+  /** Bumped when artifacts should be refetched (e.g. tool_end for artifact-producing tools). */
+  artifactsInvalidationTrigger: number
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
   handleRegenerate?: (turnId: string) => Promise<void>
   handleEdit?: (turnId: string, newContent: string) => Promise<void>
   handleCopy: (text: string) => Promise<void>
   handleSubmitQuestionAnswers: (answers: QuestionAnswers) => void
-  handleCancelPendingQuestion: () => Promise<void>
+  handleRejectPendingQuestion: () => Promise<void>
   cancel: () => void
   setCodeOutputs: (outputs: CodeOutput[]) => void
 }

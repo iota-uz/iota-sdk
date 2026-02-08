@@ -14,8 +14,10 @@ import { memo, lazy, Suspense, useMemo, Children, isValidElement, type ReactNode
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { processCitations } from '../utils/citationProcessor'
+import { parseChartDataFromJsonString } from '../utils/chartSpec'
 import type { Citation } from '../types'
 import { TableWithExport } from './TableWithExport'
+import { ChartCard } from './ChartCard'
 
 // Lazy load CodeBlock for bundle optimization
 const CodeBlock = lazy(() => import('./CodeBlock').then((module) => ({ default: module.CodeBlock })))
@@ -127,6 +129,22 @@ function MarkdownRenderer({
         )
       }
 
+      const lang = language.toLowerCase()
+      const chartData =
+        lang === 'chart'
+          ? parseChartDataFromJsonString(value, 'Chart')
+          : lang === 'json' && value.includes('"chartType"')
+            ? parseChartDataFromJsonString(value, 'Chart')
+            : null
+
+      if (chartData) {
+        return (
+          <div className="my-4">
+            <ChartCard chartData={chartData} />
+          </div>
+        )
+      }
+
       // Block code - rendered outside of <p> context due to pre handler above
       return (
         <Suspense
@@ -158,7 +176,7 @@ function MarkdownRenderer({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="markdown-link text-[var(--bichat-primary)] hover:underline"
+        className="markdown-link text-[var(--bichat-color-accent)] underline decoration-[var(--bichat-color-accent)] decoration-from-font hover:text-[var(--bichat-color-accent-hover)] hover:decoration-[var(--bichat-color-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bichat-color-accent)] focus-visible:ring-offset-2 rounded"
       >
         {children}
       </a>
