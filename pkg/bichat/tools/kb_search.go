@@ -2,9 +2,11 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -156,5 +158,23 @@ func (t *KBSearchTool) CallStructured(ctx context.Context, input string) (*types
 
 // Call executes the knowledge base search.
 func (t *KBSearchTool) Call(ctx context.Context, input string) (string, error) {
-	return FormatStructuredResult(t.CallStructured(ctx, input))
+	result, err := t.CallStructured(ctx, input)
+	if err != nil {
+		if result != nil {
+			registry := formatters.DefaultFormatterRegistry()
+			if f := registry.Get(result.CodecID); f != nil {
+				formatted, fmtErr := f.Format(result.Payload, types.DefaultFormatOptions())
+				if fmtErr == nil {
+					if errors.Is(err, agents.ErrStructuredToolOutput) {
+						return formatted, nil
+					}
+					return formatted, err
+				}
+			}
+			formatted, _ := agents.FormatToolOutput(result.Payload)
+			return formatted, err
+		}
+		return "", err
+	}
+	return FormatStructuredResult(result, nil)
 }

@@ -77,6 +77,24 @@ func TestEscapeMarkdownCell(t *testing.T) {
 			maxWidth: 0,
 			want:     "col\\|val\\nue",
 		},
+		{
+			name:     "truncation when maxWidth is 1 (avoid negative slice)",
+			input:    "long",
+			maxWidth: 1,
+			want:     ".",
+		},
+		{
+			name:     "truncation when maxWidth is 2 (avoid negative slice)",
+			input:    "long",
+			maxWidth: 2,
+			want:     "..",
+		},
+		{
+			name:     "truncation when maxWidth is 3 (avoid negative slice)",
+			input:    "long",
+			maxWidth: 3,
+			want:     "...",
+		},
 	}
 
 	for _, tt := range tests {
@@ -695,6 +713,19 @@ func TestJSONFormatter(t *testing.T) {
 			wantTexts: []string{
 				`"status":"success"`,
 				`"count":42`,
+			},
+		},
+		{
+			name: "pointer JSONPayload unwrapping",
+			payload: &types.JSONPayload{
+				Output: map[string]any{
+					"status": "ok",
+					"value":  100,
+				},
+			},
+			wantTexts: []string{
+				`"status":"ok"`,
+				`"value":100`,
 			},
 		},
 		{

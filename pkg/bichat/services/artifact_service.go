@@ -3,10 +3,12 @@ package services
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -110,6 +112,12 @@ func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID 
 		return nil, serrors.E(op, err)
 	}
 
+	u, err := composables.UseUser(ctx)
+	if err != nil || u == nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "upload requires an authenticated user", err)
+	}
+	uploaderID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("user:%d", u.ID())))
+
 	files := make([]FileUpload, 0, len(uploads))
 	for _, upload := range uploads {
 		files = append(files, FileUpload{
@@ -122,35 +130,45 @@ func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID 
 		return nil, serrors.E(op, err)
 	}
 
-	artifacts := make([]domain.Artifact, 0, len(uploads))
-	for _, upload := range uploads {
-		attachment, err := s.attachmentService.ValidateAndSave(
-			ctx,
-			upload.Filename,
-			upload.MimeType,
-			upload.SizeBytes,
-			bytes.NewReader(upload.Data),
-			session.TenantID(),
-			uuid.Nil,
-		)
-		if err != nil {
-			return nil, serrors.E(op, err)
-		}
+	var artifacts []domain.Artifact
+	var savedPaths []string
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		artifacts = make([]domain.Artifact, 0, len(uploads))
+		savedPaths = make([]string, 0, len(uploads))
+		for _, upload := range uploads {
+			attachment, err := s.attachmentService.ValidateAndSave(
+				txCtx,
+				upload.Filename,
+				upload.MimeType,
+				upload.SizeBytes,
+				bytes.NewReader(upload.Data),
+				session.TenantID(),
+				uploaderID,
+			)
+			if err != nil {
+				return err
+			}
+			savedPaths = append(savedPaths, attachment.FilePath())
 
-		artifact := domain.NewArtifact(
-			domain.WithArtifactTenantID(session.TenantID()),
-			domain.WithArtifactSessionID(sessionID),
-			domain.WithArtifactType(domain.ArtifactTypeAttachment),
-			domain.WithArtifactName(attachment.FileName()),
-			domain.WithArtifactMimeType(attachment.MimeType()),
-			domain.WithArtifactURL(attachment.FilePath()),
-			domain.WithArtifactSizeBytes(attachment.SizeBytes()),
-		)
-		if err := s.repo.SaveArtifact(ctx, artifact); err != nil {
-			return nil, serrors.E(op, err)
+			artifact := domain.NewArtifact(
+				domain.WithArtifactTenantID(session.TenantID()),
+				domain.WithArtifactSessionID(sessionID),
+				domain.WithArtifactType(domain.ArtifactTypeAttachment),
+				domain.WithArtifactName(attachment.FileName()),
+				domain.WithArtifactMimeType(attachment.MimeType()),
+				domain.WithArtifactURL(attachment.FilePath()),
+				domain.WithArtifactSizeBytes(attachment.SizeBytes()),
+			)
+			if err := s.repo.SaveArtifact(txCtx, artifact); err != nil {
+				return err
+			}
+			artifacts = append(artifacts, artifact)
 		}
-		artifacts = append(artifacts, artifact)
+		return nil
+	})
+	if err != nil {
+		s.attachmentService.DeleteFiles(ctx, savedPaths)
+		return nil, serrors.E(op, err)
 	}
-
 	return artifacts, nil
 }

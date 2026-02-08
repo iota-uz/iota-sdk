@@ -289,6 +289,10 @@ func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments 
 			if err != nil {
 				return "", err
 			}
+			// StructuredTool returned (nil, nil); return immediately to avoid falling through to Call()/OnToolCall (double execution)
+			if result == nil {
+				return "", nil
+			}
 		}
 	}
 

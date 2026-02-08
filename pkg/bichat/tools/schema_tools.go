@@ -107,7 +107,17 @@ func (t *SchemaListTool) CallStructured(ctx context.Context, input string) (*typ
 		for i, table := range tables {
 			viewNames[i] = table.Name
 		}
-		rawInfos, _ := t.viewAccess.GetAccessibleViews(ctx, viewNames)
+		rawInfos, err := t.viewAccess.GetAccessibleViews(ctx, viewNames)
+		if err != nil {
+			return &types.ToolResult{
+				CodecID: types.CodecToolError,
+				Payload: types.ToolErrorPayload{
+					Code:    string(ErrCodeQueryError),
+					Message: fmt.Sprintf("failed to check view access: %v", err),
+					Hints:   []string{"Contact administrator if this error persists"},
+				},
+			}, serrors.E(op, err)
+		}
 		for _, info := range rawInfos {
 			viewInfos = append(viewInfos, types.ViewAccessInfo{Access: info.Access})
 		}

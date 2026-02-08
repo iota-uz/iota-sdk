@@ -270,9 +270,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const handleImageNavigate = useCallback((direction: 'prev' | 'next') => {
       setViewingImageIndex((prev) => {
         if (prev === null) return null
-        return direction === 'prev' ? prev - 1 : prev + 1
+        const len = imageAttachments.length
+        if (len <= 0) return null
+        const newIndex = Math.max(0, Math.min(len - 1, prev + (direction === 'prev' ? -1 : 1)))
+        return newIndex
       })
-    }, [])
+    }, [imageAttachments.length])
 
     // ── Paste-to-attach ─────────────────────────────────
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {

@@ -10,7 +10,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // SearchLearningsTool searches past learnings about SQL errors, type mismatches, and corrections.
@@ -90,8 +89,6 @@ type searchLearningsResultItem struct {
 
 // CallStructured executes the search learnings tool and returns a structured result.
 func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
-	const op serrors.Op = "SearchLearningsTool.CallStructured"
-
 	params, err := agents.ParseToolInput[searchLearningsInput](input)
 	if err != nil {
 		return &types.ToolResult{
@@ -117,14 +114,15 @@ func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) 
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return &types.ToolResult{
+		// Return ToolResult so executor formats the payload; err is conveyed in the payload.
+		return &types.ToolResult{ //nolint:nilerr
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeServiceUnavailable),
 				Message: "tenant context not available",
 				Hints:   []string{HintServiceMayBeDown},
 			},
-		}, serrors.E(op, err)
+		}, nil
 	}
 
 	limit := params.Limit
@@ -155,7 +153,7 @@ func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) 
 				Message: fmt.Sprintf("learning search failed: %v", err),
 				Hints:   []string{HintServiceMayBeDown, HintRetryLater},
 			},
-		}, serrors.E(op, err, "learning search failed")
+		}, nil
 	}
 
 	if len(learnings) == 0 {
@@ -275,8 +273,6 @@ type saveLearningOutput struct {
 
 // CallStructured executes the save learning tool and returns a structured result.
 func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
-	const op serrors.Op = "SaveLearningTool.CallStructured"
-
 	params, err := agents.ParseToolInput[saveLearningInput](input)
 	if err != nil {
 		return &types.ToolResult{
@@ -339,14 +335,15 @@ func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*t
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return &types.ToolResult{
+		// Return ToolResult so executor formats the payload; err is conveyed in the payload.
+		return &types.ToolResult{ //nolint:nilerr
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeServiceUnavailable),
 				Message: "tenant context not available",
 				Hints:   []string{HintServiceMayBeDown},
 			},
-		}, serrors.E(op, err)
+		}, nil
 	}
 
 	l := learning.Learning{
@@ -370,7 +367,7 @@ func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*t
 				Message: fmt.Sprintf("failed to save learning: %v", err),
 				Hints:   []string{HintServiceMayBeDown, HintRetryLater},
 			},
-		}, serrors.E(op, err, "failed to save learning")
+		}, nil
 	}
 
 	message := fmt.Sprintf("Learning saved successfully. This %s pattern will help avoid similar issues in the future.", params.Category)

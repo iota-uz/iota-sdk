@@ -763,10 +763,19 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[bichatservices.
 		case bichatservices.EventTypeCitation:
 			// no-op
 		case bichatservices.EventTypeError:
+			var errDetail error
 			if event.Error != nil {
-				lastError = event.Error
+				errDetail = event.Error
 			} else if event.Content != "" {
-				lastError = fmt.Errorf("%s", event.Content)
+				errDetail = fmt.Errorf("%s", event.Content)
+			} else {
+				errDetail = fmt.Errorf("agent error")
+			}
+			if event.ProviderResponseID != "" {
+				providerResponseID = optionalStringPtr(event.ProviderResponseID)
+				lastError = fmt.Errorf("providerResponseID=%s: %w", event.ProviderResponseID, errDetail)
+			} else {
+				lastError = errDetail
 			}
 		}
 	}
@@ -860,7 +869,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		return nil, serrors.E(op, err)
 	}
 	if pendingMsg == nil {
-		return nil, serrors.E(op, serrors.NotFound, "no pending question for session")
+		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
 	}
 
 	// Validate question data before resuming (defer mutation until resume succeeds)
@@ -933,7 +942,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 		return nil, serrors.E(op, err)
 	}
 	if pendingMsg == nil {
-		return nil, serrors.E(op, serrors.NotFound, "no pending question for session")
+		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
 	}
 
 	// Validate question data before resuming (defer mutation until resume succeeds)

@@ -673,8 +673,8 @@ export class HttpDataSource implements ChatDataSource {
     })
     return {
       sessions: data.sessions.map(toSession),
-      total: data.sessions.length,
-      hasMore: false,
+      total: typeof data.total === 'number' ? data.total : data.sessions.length,
+      hasMore: typeof data.hasMore === 'boolean' ? data.hasMore : false,
     }
   }
   async archiveSession(sessionId: string): Promise<Session> {

@@ -38,10 +38,12 @@ type SessionListParams struct {
 	IncludeArchived bool `json:"includeArchived"`
 }
 
+// SessionListResult is the response for bichat.session.list.
 type SessionListResult struct {
 	Sessions []Session `json:"sessions"`
-	Total    int       `json:"total,omitempty"`
-	HasMore  bool      `json:"hasMore"`
+	// Total is the full count of sessions matching the filter (includeArchived, etc.), not the page size.
+	Total   int  `json:"total,omitempty"`
+	HasMore bool `json:"hasMore"`
 }
 
 type SessionCreateParams struct {

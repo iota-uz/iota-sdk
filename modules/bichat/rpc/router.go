@@ -51,6 +51,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			if err != nil {
 				return SessionListResult{}, serrors.E(op, err)
 			}
+			// Total = full count matching filter (for pagination), not page size
 			total, err := chatSvc.CountUserSessions(ctx, int64(user.ID()), domain.ListOptions{IncludeArchived: p.IncludeArchived})
 			if err != nil {
 				return SessionListResult{}, serrors.E(op, err)
@@ -312,7 +313,12 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			if len(p.Attachments) == 0 {
 				return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, "attachments are required")
 			}
+			const maxAttachments = 10
+			if len(p.Attachments) > maxAttachments {
+				return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("too many attachments: max %d", maxAttachments))
+			}
 
+			const maxFileSizeBytes = 20 << 20
 			uploads := make([]services.ArtifactUpload, 0, len(p.Attachments))
 			for i, attachment := range p.Attachments {
 				filename := strings.TrimSpace(attachment.Filename)
@@ -326,6 +332,9 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				decoded, err := base64.StdEncoding.DecodeString(encoded)
 				if err != nil {
 					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].base64Data is invalid", i))
+				}
+				if len(decoded) > maxFileSizeBytes {
+					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d] exceeds max size", i))
 				}
 				uploads = append(uploads, services.ArtifactUpload{
 					Filename:  filename,

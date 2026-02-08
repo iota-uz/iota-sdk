@@ -24,7 +24,6 @@ test.describe('role management flows', () => {
 	});
 
 	test('complete role lifecycle: create, edit, and delete', async ({ page }) => {
-		test.skip(process.env.CI === 'true', 'skip on CI');
 		// Login as admin user
 		await login(page, 'test@gmail.com', 'TestPass123!');
 

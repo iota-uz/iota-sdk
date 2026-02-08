@@ -13,6 +13,9 @@ func EscapeMarkdownCell(s string, maxWidth int) string {
 	s = strings.ReplaceAll(s, "|", "\\|")
 	s = strings.TrimSpace(s)
 	if maxWidth > 0 && len(s) > maxWidth {
+		if maxWidth <= 3 {
+			return strings.Repeat(".", maxWidth)
+		}
 		return s[:maxWidth-3] + "..."
 	}
 	return s

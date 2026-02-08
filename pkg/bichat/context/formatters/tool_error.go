@@ -38,6 +38,13 @@ func formatToolErrorJSON(code, message string, hints []string) (string, error) {
 
 	data, err := json.MarshalIndent(wrapper, "", "  ")
 	if err != nil {
+		wrapperErr := map[string]interface{}{
+			"error": map[string]string{"code": code, "message": message},
+		}
+		fallback, fallbackErr := json.MarshalIndent(wrapperErr, "", "  ")
+		if fallbackErr == nil {
+			return string(fallback), err
+		}
 		return "", err
 	}
 	return string(data), nil
@@ -57,6 +64,13 @@ func formatSQLDiagnosisJSON(p types.SQLDiagnosisPayload) (string, error) {
 
 	data, err := json.MarshalIndent(wrapper, "", "  ")
 	if err != nil {
+		wrapperErr := map[string]interface{}{
+			"error": map[string]string{"code": p.Code, "message": p.Message},
+		}
+		fallback, fallbackErr := json.MarshalIndent(wrapperErr, "", "  ")
+		if fallbackErr == nil {
+			return string(fallback), err
+		}
 		return "", err
 	}
 	return string(data), nil

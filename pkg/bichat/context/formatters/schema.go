@@ -35,8 +35,9 @@ func (f *SchemaListFormatter) Format(payload any, opts types.FormatOptions) (str
 	}
 
 	// Rows
+	maxCell := opts.MaxCellWidth
 	for i, table := range p.Tables {
-		b.WriteString(fmt.Sprintf("| %d | %s | ", i+1, table.Name))
+		b.WriteString(fmt.Sprintf("| %d | %s | ", i+1, EscapeMarkdownCell(table.Name, maxCell)))
 
 		if table.RowCount > 0 {
 			b.WriteString(fmt.Sprintf("~%d | ", table.RowCount))
@@ -46,14 +47,14 @@ func (f *SchemaListFormatter) Format(payload any, opts types.FormatOptions) (str
 
 		if p.HasAccess {
 			if i < len(p.ViewInfos) {
-				b.WriteString(fmt.Sprintf("%s | ", p.ViewInfos[i].Access))
+				b.WriteString(EscapeMarkdownCell(p.ViewInfos[i].Access, maxCell) + " | ")
 			} else {
 				b.WriteString("- | ")
 			}
 		}
 
 		if table.Description != "" {
-			b.WriteString(fmt.Sprintf("%s |\n", table.Description))
+			b.WriteString(EscapeMarkdownCell(table.Description, maxCell) + " |\n")
 		} else {
 			b.WriteString("- |\n")
 		}
@@ -102,7 +103,7 @@ func (f *SchemaDescribeFormatter) Format(payload any, opts types.FormatOptions) 
 
 	// Rows
 	for i, col := range p.Columns {
-		b.WriteString(fmt.Sprintf("| %d | %s | %s | ", i+1, col.Name, col.Type))
+		b.WriteString(fmt.Sprintf("| %d | %s | %s | ", i+1, EscapeMarkdownCell(col.Name, 0), EscapeMarkdownCell(col.Type, 0)))
 
 		if col.Nullable {
 			b.WriteString("YES | ")
@@ -110,8 +111,8 @@ func (f *SchemaDescribeFormatter) Format(payload any, opts types.FormatOptions) 
 			b.WriteString("NO | ")
 		}
 
-		if col.DefaultValue != nil {
-			b.WriteString(fmt.Sprintf("%s ", *col.DefaultValue))
+		if col.DefaultValue != nil && *col.DefaultValue != "" {
+			b.WriteString(EscapeMarkdownCell(*col.DefaultValue, 0) + " ")
 		} else {
 			b.WriteString("- ")
 		}
@@ -119,7 +120,7 @@ func (f *SchemaDescribeFormatter) Format(payload any, opts types.FormatOptions) 
 		if hasDescription {
 			b.WriteString("| ")
 			if col.Description != "" {
-				b.WriteString(col.Description)
+				b.WriteString(EscapeMarkdownCell(col.Description, 0))
 			} else {
 				b.WriteString("-")
 			}
