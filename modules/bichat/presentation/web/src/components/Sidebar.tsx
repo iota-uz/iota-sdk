@@ -645,7 +645,7 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
             }}
             className={`flex items-center gap-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
               isCollapsed ? 'w-10 h-10 justify-center' : 'px-3 py-2'
-            }`}
+            } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50`}
             title={isCollapsed ? 'Expand sidebar (⌘B)' : 'Collapse sidebar (⌘B)'}
             aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >

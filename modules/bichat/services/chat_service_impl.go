@@ -791,6 +791,9 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
+	if pendingMsg == nil {
+		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
+	}
 
 	// Update question data with answers
 	qd := pendingMsg.QuestionData()
@@ -929,6 +932,9 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 	pendingMsg, err := s.chatRepo.GetPendingQuestionMessage(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
+	}
+	if pendingMsg == nil {
+		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
 	}
 
 	// Update question data to rejected state

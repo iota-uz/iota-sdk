@@ -637,7 +637,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             {/* Keyboard hint */}
             {isFocused && !message && !loading && (
               <span className="hidden sm:block absolute -bottom-5 left-14 text-[10px] text-gray-400 dark:text-gray-500 select-none animate-fade-in">
-                Shift + Enter for new line
+                {t('input.shiftEnterHint')}
               </span>
             )}
 

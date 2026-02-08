@@ -513,7 +513,7 @@ func (h *providerHandler) handleLLMRequest(ctx context.Context, e *events.LLMReq
 		Input:     string(inputJSON),
 		Output:    string(outputJSON),
 		Duration:  0,
-		Status:    "success",
+		Status:    "pending",
 		Attributes: map[string]interface{}{
 			"model":            e.Model,
 			"provider":         e.Provider,

@@ -66,6 +66,7 @@ export const defaultTranslations: Translations = {
   'input.messagesQueued': '{count} message(s) queued',
   'input.filesAdded': 'Files added successfully',
   'input.dismissError': 'Dismiss error',
+  'input.shiftEnterHint': 'Shift + Enter for new line',
   'slash.commandsList': 'Slash commands',
   'slash.clearDescription': 'Clear current chat history in place',
   'slash.debugDescription': 'Toggle developer debug mode for this session',
