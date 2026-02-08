@@ -20,7 +20,7 @@ import { ChatDataSource, ConversationTurn } from '../types'
 import { RateLimiter } from '../utils/RateLimiter'
 import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
-import { MessageInput, type MessageInputRef } from './MessageInput'
+import { MessageInput } from './MessageInput'
 import WelcomeContent from './WelcomeContent'
 import { useTranslation } from '../hooks/useTranslation'
 import { SessionArtifactsPanel } from './SessionArtifactsPanel'
@@ -108,7 +108,6 @@ function ChatSessionCore({
   const [artifactsPanelWidth, setArtifactsPanelWidth] = useState(ARTIFACTS_PANEL_WIDTH_DEFAULT)
   const [isResizingArtifactsPanel, setIsResizingArtifactsPanel] = useState(false)
   const layoutContainerRef = useRef<HTMLDivElement>(null)
-  const messageInputRef = useRef<MessageInputRef>(null)
 
   useEffect(() => {
     if (!showArtifactsPanel) {
@@ -223,21 +222,6 @@ function ChatSessionCore({
     setMessage(prompt)
   }
 
-  const handleArtifactsPanelDrop = async (files: File[]): Promise<boolean> => {
-    if (effectiveReadOnly || files.length === 0) {
-      return false
-    }
-    const input = messageInputRef.current
-    if (!input) {
-      return false
-    }
-    const added = await input.addFiles(files)
-    if (added) {
-      input.focus()
-    }
-    return added
-  }
-
   const handleToggleArtifactsPanel = () => {
     const nextValue = !artifactsPanelExpanded
     setArtifactsPanelExpanded(nextValue)
@@ -302,7 +286,6 @@ function ChatSessionCore({
                   )}
                   {!effectiveReadOnly && (
                     <MessageInput
-                      ref={messageInputRef}
                       message={message}
                       loading={loading}
                       fetching={fetching}
@@ -335,7 +318,6 @@ function ChatSessionCore({
               />
               {!effectiveReadOnly && (
                 <MessageInput
-                  ref={messageInputRef}
                   message={message}
                   loading={loading}
                   fetching={fetching}
@@ -386,7 +368,7 @@ function ChatSessionCore({
                 dataSource={dataSource}
                 sessionId={activeSessionId}
                 isStreaming={isStreaming}
-                onDropFiles={effectiveReadOnly ? undefined : handleArtifactsPanelDrop}
+                allowDrop={!effectiveReadOnly}
                 className="min-h-0 min-w-0 flex-1"
               />
             </motion.div>
@@ -418,7 +400,7 @@ function ChatSessionCore({
                 dataSource={dataSource}
                 sessionId={activeSessionId}
                 isStreaming={isStreaming}
-                onDropFiles={effectiveReadOnly ? undefined : handleArtifactsPanelDrop}
+                allowDrop={!effectiveReadOnly}
                 className="flex h-full w-full max-w-sm min-h-0"
               />
             </motion.div>

@@ -710,7 +710,7 @@ func (c *ModuleConfig) BuildServices() error {
 
 	// Build ArtifactService
 	if c.artifactService == nil {
-		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage)
+		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage, c.attachmentService)
 	}
 
 	return nil

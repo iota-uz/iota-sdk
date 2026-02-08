@@ -9,7 +9,7 @@ interface SessionArtifactsPanelProps {
   dataSource: ChatDataSource
   sessionId: string
   isStreaming: boolean
-  onDropFiles?: (files: File[]) => Promise<boolean> | boolean
+  allowDrop?: boolean
   className?: string
 }
 
@@ -34,7 +34,7 @@ export function SessionArtifactsPanel({
   dataSource,
   sessionId,
   isStreaming,
-  onDropFiles,
+  allowDrop = true,
   className = '',
 }: SessionArtifactsPanelProps) {
   const { t } = useTranslation()
@@ -58,7 +58,7 @@ export function SessionArtifactsPanel({
   const dropSuccessTimerRef = useRef<number | null>(null)
 
   const canFetchArtifacts = typeof dataSource.fetchSessionArtifacts === 'function'
-  const canDropFiles = typeof onDropFiles === 'function'
+  const canDropFiles = allowDrop && typeof dataSource.uploadSessionArtifacts === 'function'
 
   const tRef = useRef(t)
   tRef.current = t
@@ -218,7 +218,7 @@ export function SessionArtifactsPanel({
   }, [canDropFiles, hasDragFiles])
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
-    if (!canDropFiles || !onDropFiles || !hasDragFiles(e)) return
+    if (!canDropFiles || !dataSource.uploadSessionArtifacts || !hasDragFiles(e)) return
     e.preventDefault()
     e.stopPropagation()
     dragDepthRef.current = 0
@@ -231,10 +231,17 @@ export function SessionArtifactsPanel({
     const droppedFiles = itemFiles.length > 0 ? itemFiles : Array.from(e.dataTransfer.files || [])
 
     if (droppedFiles.length === 0) return
-    const accepted = await onDropFiles(droppedFiles)
-    if (!accepted) return
-    setDropSuccessState()
-  }, [canDropFiles, hasDragFiles, onDropFiles, setDropSuccessState])
+    try {
+      const result = await dataSource.uploadSessionArtifacts(sessionId, droppedFiles)
+      if ((result.artifacts || []).length > 0) {
+        setDropSuccessState()
+        void fetchArtifacts({ reset: true, manual: false })
+      }
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tRef.current('artifacts.failedToLoad'))
+    }
+  }, [canDropFiles, dataSource, fetchArtifacts, hasDragFiles, sessionId, setDropSuccessState])
 
   return (
     <aside

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/google/uuid"
@@ -15,18 +16,28 @@ type ArtifactService interface {
 	GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error)
 	DeleteArtifact(ctx context.Context, id uuid.UUID) error
 	UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) (domain.Artifact, error)
+	UploadSessionArtifacts(ctx context.Context, sessionID uuid.UUID, uploads []ArtifactUpload) ([]domain.Artifact, error)
+}
+
+type ArtifactUpload struct {
+	Filename  string
+	MimeType  string
+	SizeBytes int64
+	Data      []byte
 }
 
 type artifactService struct {
-	repo    domain.ChatRepository
-	storage storage.FileStorage
+	repo              domain.ChatRepository
+	storage           storage.FileStorage
+	attachmentService AttachmentService
 }
 
 // NewArtifactService creates a new ArtifactService.
-func NewArtifactService(repo domain.ChatRepository, fileStorage storage.FileStorage) ArtifactService {
+func NewArtifactService(repo domain.ChatRepository, fileStorage storage.FileStorage, attachmentService AttachmentService) ArtifactService {
 	return &artifactService{
-		repo:    repo,
-		storage: fileStorage,
+		repo:              repo,
+		storage:           fileStorage,
+		attachmentService: attachmentService,
 	}
 }
 
@@ -81,4 +92,65 @@ func (s *artifactService) UpdateArtifact(ctx context.Context, id uuid.UUID, name
 		return nil, serrors.E(op, err)
 	}
 	return artifact, nil
+}
+
+// UploadSessionArtifacts stores files and saves them as attachment artifacts without creating chat turns.
+func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID uuid.UUID, uploads []ArtifactUpload) ([]domain.Artifact, error) {
+	const op serrors.Op = "ArtifactService.UploadSessionArtifacts"
+
+	if s.attachmentService == nil {
+		return nil, serrors.E(op, serrors.Internal, "attachment service is not configured")
+	}
+	if len(uploads) == 0 {
+		return nil, serrors.E(op, serrors.KindValidation, "no uploads provided")
+	}
+
+	session, err := s.repo.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	files := make([]FileUpload, 0, len(uploads))
+	for _, upload := range uploads {
+		files = append(files, FileUpload{
+			Filename: upload.Filename,
+			MimeType: upload.MimeType,
+			Size:     upload.SizeBytes,
+		})
+	}
+	if err := s.attachmentService.ValidateMultiple(files); err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	artifacts := make([]domain.Artifact, 0, len(uploads))
+	for _, upload := range uploads {
+		attachment, err := s.attachmentService.ValidateAndSave(
+			ctx,
+			upload.Filename,
+			upload.MimeType,
+			upload.SizeBytes,
+			bytes.NewReader(upload.Data),
+			session.TenantID(),
+			uuid.Nil,
+		)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+
+		artifact := domain.NewArtifact(
+			domain.WithArtifactTenantID(session.TenantID()),
+			domain.WithArtifactSessionID(sessionID),
+			domain.WithArtifactType(domain.ArtifactTypeAttachment),
+			domain.WithArtifactName(attachment.FileName()),
+			domain.WithArtifactMimeType(attachment.MimeType()),
+			domain.WithArtifactURL(attachment.FilePath()),
+			domain.WithArtifactSizeBytes(attachment.SizeBytes()),
+		)
+		if err := s.repo.SaveArtifact(ctx, artifact); err != nil {
+			return nil, serrors.E(op, err)
+		}
+		artifacts = append(artifacts, artifact)
+	}
+
+	return artifacts, nil
 }

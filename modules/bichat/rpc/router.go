@@ -2,6 +2,9 @@ package rpc
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
@@ -287,6 +290,57 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				HasMore:    hasMore,
 				NextOffset: offset + len(out),
 			}, nil
+		},
+	})
+
+	applet.AddProcedure(r, "bichat.session.uploadArtifacts", applet.Procedure[SessionUploadArtifactsParams, SessionUploadArtifactsResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p SessionUploadArtifactsParams) (SessionUploadArtifactsResult, error) {
+			const op serrors.Op = "bichat.rpc.session.uploadArtifacts"
+
+			sessionID, err := parseUUID(p.SessionID)
+			if err != nil {
+				return SessionUploadArtifactsResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
+				return SessionUploadArtifactsResult{}, serrors.E(op, err)
+			}
+			if len(p.Attachments) == 0 {
+				return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, "attachments are required")
+			}
+
+			uploads := make([]services.ArtifactUpload, 0, len(p.Attachments))
+			for i, attachment := range p.Attachments {
+				filename := strings.TrimSpace(attachment.Filename)
+				if filename == "" {
+					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].filename is required", i))
+				}
+				encoded := strings.TrimSpace(attachment.Base64Data)
+				if encoded == "" {
+					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].base64Data is required", i))
+				}
+				decoded, err := base64.StdEncoding.DecodeString(encoded)
+				if err != nil {
+					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].base64Data is invalid", i))
+				}
+				uploads = append(uploads, services.ArtifactUpload{
+					Filename:  filename,
+					MimeType:  strings.TrimSpace(attachment.MimeType),
+					SizeBytes: int64(len(decoded)),
+					Data:      decoded,
+				})
+			}
+
+			artifacts, err := artifactSvc.UploadSessionArtifacts(ctx, sessionID, uploads)
+			if err != nil {
+				return SessionUploadArtifactsResult{}, serrors.E(op, err)
+			}
+
+			out := make([]Artifact, 0, len(artifacts))
+			for _, artifact := range artifacts {
+				out = append(out, toArtifactDTO(artifact))
+			}
+			return SessionUploadArtifactsResult{Artifacts: out}, nil
 		},
 	})
 

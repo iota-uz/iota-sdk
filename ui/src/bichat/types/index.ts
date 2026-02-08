@@ -359,6 +359,10 @@ export interface ChatDataSource {
     sessionId: string,
     options?: { limit?: number; offset?: number }
   ): Promise<{ artifacts: SessionArtifact[]; hasMore?: boolean; nextOffset?: number }>
+  uploadSessionArtifacts?(
+    sessionId: string,
+    files: File[]
+  ): Promise<{ artifacts: SessionArtifact[] }>
   sendMessage(
     sessionId: string,
     content: string,

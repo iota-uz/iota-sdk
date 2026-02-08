@@ -22,7 +22,6 @@ import { useTranslation } from '../hooks/useTranslation'
 export interface MessageInputRef {
   focus: () => void
   clear: () => void
-  addFiles: (files: FileList | File[]) => Promise<boolean>
 }
 
 export interface MessageInputProps {
@@ -238,7 +237,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         setAttachments([])
         setError(null)
       },
-      addFiles: (files: FileList | File[]) => handleFileSelect(files),
     }))
 
     const handleRemoveAttachment = (index: number) => {

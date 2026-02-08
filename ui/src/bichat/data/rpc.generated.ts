@@ -17,6 +17,7 @@ export type BichatRPC = {
   "bichat.session.unarchive": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.unpin": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.updateTitle": { params: SessionUpdateTitleParams; result: SessionCreateResult }
+  "bichat.session.uploadArtifacts": { params: SessionUploadArtifactsParams; result: SessionUploadArtifactsResult }
 }
 
 export interface Artifact {
@@ -216,6 +217,15 @@ export interface SessionListResult {
 export interface SessionUpdateTitleParams {
   id: string
   title: string
+}
+
+export interface SessionUploadArtifactsParams {
+  sessionId: string
+  attachments: Attachment[]
+}
+
+export interface SessionUploadArtifactsResult {
+  artifacts: Artifact[]
 }
 
 export interface ToolCall {

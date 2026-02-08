@@ -221,6 +221,15 @@ type SessionArtifactsResult struct {
 	NextOffset int        `json:"nextOffset"`
 }
 
+type SessionUploadArtifactsParams struct {
+	SessionID   string       `json:"sessionId"`
+	Attachments []Attachment `json:"attachments"`
+}
+
+type SessionUploadArtifactsResult struct {
+	Artifacts []Artifact `json:"artifacts"`
+}
+
 type QuestionSubmitParams struct {
 	SessionID    string            `json:"sessionId"`
 	CheckpointID string            `json:"checkpointId"`

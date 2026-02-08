@@ -22,6 +22,7 @@ import type {
   SendMessageOptions,
 } from '../types'
 import { parseChartDataFromSpec } from '../utils/chartSpec'
+import { convertToBase64, validateAttachmentFile, validateFileCount } from '../utils/fileUtils'
 import type { PendingQuestion as RPCPendingQuestion } from './rpc.generated'
 
 export interface HttpDataSourceConfig {
@@ -404,6 +405,43 @@ export class HttpDataSource implements ChatDataSource {
       artifacts,
       hasMore,
       nextOffset,
+    }
+  }
+
+  async uploadSessionArtifacts(
+    sessionId: string,
+    files: File[]
+  ): Promise<{ artifacts: SessionArtifact[] }> {
+    if (!Array.isArray(files) || files.length === 0) {
+      return { artifacts: [] }
+    }
+
+    validateFileCount(0, files.length, 10)
+    const attachments: Attachment[] = []
+    for (const file of files) {
+      validateAttachmentFile(file)
+      const base64Data = await convertToBase64(file)
+      attachments.push({
+        filename: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        base64Data,
+      })
+    }
+
+    const data = await this.callRPC('bichat.session.uploadArtifacts', {
+      sessionId,
+      attachments: attachments.map((a) => ({
+        id: '',
+        filename: a.filename,
+        mimeType: a.mimeType,
+        sizeBytes: a.sizeBytes,
+        base64Data: a.base64Data,
+      })),
+    })
+
+    return {
+      artifacts: (data.artifacts || []).map((artifact) => toSessionArtifact(artifact)),
     }
   }
 
