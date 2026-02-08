@@ -198,7 +198,11 @@ function attachArtifactsToTurns(
     .filter((entry): entry is { raw: SessionArtifact; mapped: DownloadArtifact } => entry.mapped !== null)
     .sort((a, b) => toMillis(a.raw.createdAt) - toMillis(b.raw.createdAt))
 
-  if (downloadArtifacts.length === 0) return turns
+  const chartArtifacts = artifacts
+    .filter((a) => a.type === 'chart')
+    .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt))
+
+  if (downloadArtifacts.length === 0 && chartArtifacts.length === 0) return turns
 
   const nextTurns = turns.map((turn) => {
     if (!turn.assistantTurn) {
@@ -260,10 +264,6 @@ function attachArtifactsToTurns(
       assistantTurn.artifacts.push(entry.mapped)
     }
   }
-
-  const chartArtifacts = artifacts
-    .filter((a) => a.type === 'chart')
-    .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt))
 
   for (const raw of chartArtifacts) {
     const messageID = raw.messageId
