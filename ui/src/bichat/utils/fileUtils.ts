@@ -93,20 +93,30 @@ export function validateImageFile(file: File, maxSizeBytes: number = MAX_FILE_SI
 }
 
 /**
- * Converts a file to base64 string (without data URL prefix)
+ * Encode an ArrayBuffer to a base64 string.
+ */
+function encodeArrayBuffer(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
+/**
+ * Converts a file to base64 string (without data URL prefix).
+ * Uses the Response constructor to read blob data via the Streams API,
+ * bypassing window.fetch and FileReader which can be intercepted by
+ * browser extensions or security software (antivirus proxies).
  */
 export async function convertToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = reader.result as string
-      // Strip data URL prefix (e.g., "data:image/png;base64,")
-      const base64 = result.split(',')[1]
-      resolve(base64)
-    }
-    reader.onerror = () => reject(new Error('Failed to read file'))
-    reader.readAsDataURL(file)
-  })
+  try {
+    const buffer = await new Response(file).arrayBuffer()
+    return encodeArrayBuffer(buffer)
+  } catch {
+    throw new Error(`Failed to read file: ${file.name}`)
+  }
 }
 
 /**

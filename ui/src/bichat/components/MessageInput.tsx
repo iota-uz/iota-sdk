@@ -197,25 +197,31 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       try {
         validateFileCount(attachments.length, files.length, maxFiles)
 
-        const newAttachments: Attachment[] = []
-
+        // Extract and validate all files synchronously before any async work.
+        // This ensures File objects are captured while the DataTransfer is still valid.
+        const fileArray: File[] = []
         for (let i = 0; i < files.length; i++) {
           const file = files[i]
           validateAttachmentFile(file, maxFileSize)
-          const base64Data = await convertToBase64(file)
+          fileArray.push(file)
+        }
+
+        // Read all files in parallel
+        const base64Results = await Promise.all(fileArray.map(convertToBase64))
+
+        const newAttachments: Attachment[] = fileArray.map((file, i) => {
           const attachment: Attachment = {
             id: '',
             filename: file.name,
             mimeType: file.type,
             sizeBytes: file.size,
-            base64Data,
+            base64Data: base64Results[i],
           }
           if (isImageMimeType(file.type)) {
-            attachment.preview = createDataUrl(base64Data, file.type)
+            attachment.preview = createDataUrl(base64Results[i], file.type)
           }
-
-          newAttachments.push(attachment)
-        }
+          return attachment
+        })
 
         setAttachments((prev) => [...prev, ...newAttachments])
         setError(null)
