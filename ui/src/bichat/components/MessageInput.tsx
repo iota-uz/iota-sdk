@@ -22,6 +22,7 @@ import { useTranslation } from '../hooks/useTranslation'
 export interface MessageInputRef {
   focus: () => void
   clear: () => void
+  addFiles: (files: FileList | File[]) => Promise<boolean>
 }
 
 export interface MessageInputProps {
@@ -112,15 +113,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     )
     const isCommandListVisible = isSlashMode && !commandListDismissed && !loading && !disabled
 
-    useImperativeHandle(ref, () => ({
-      focus: () => textareaRef.current?.focus(),
-      clear: () => {
-        onMessageChange('')
-        setAttachments([])
-        setError(null)
-      }
-    }))
-
     useEffect(() => {
       const textarea = textareaRef.current
       if (!textarea) return
@@ -191,17 +183,19 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       })
     }, [activeCommandIndex, filteredCommands.length, isCommandListVisible])
 
-    const handleFileSelect = async (files: FileList | null): Promise<boolean> => {
-      if (!files || files.length === 0) return false
+    const handleFileSelect = async (files: FileList | File[] | null): Promise<boolean> => {
+      if (!files) return false
+      const selectedFiles = Array.isArray(files) ? files : Array.from(files)
+      if (selectedFiles.length === 0) return false
 
       try {
-        validateFileCount(attachments.length, files.length, maxFiles)
+        validateFileCount(attachments.length, selectedFiles.length, maxFiles)
 
         // Extract and validate all files synchronously before any async work.
         // This ensures File objects are captured while the DataTransfer is still valid.
         const fileArray: File[] = []
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i]
+        for (let i = 0; i < selectedFiles.length; i++) {
+          const file = selectedFiles[i]
           validateAttachmentFile(file, maxFileSize)
           fileArray.push(file)
         }
@@ -237,6 +231,16 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       e.target.value = ''
     }
 
+    useImperativeHandle(ref, () => ({
+      focus: () => textareaRef.current?.focus(),
+      clear: () => {
+        onMessageChange('')
+        setAttachments([])
+        setError(null)
+      },
+      addFiles: (files: FileList | File[]) => handleFileSelect(files),
+    }))
+
     const handleRemoveAttachment = (index: number) => {
       setAttachments((prev) => prev.filter((_, i) => i !== index))
       setError(null)
@@ -258,7 +262,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       e.preventDefault()
       e.stopPropagation()
       setIsDragging(false)
-      const ok = await handleFileSelect(e.dataTransfer.files)
+      const itemFiles = Array.from(e.dataTransfer.items || [])
+        .filter((item) => item.kind === 'file')
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null)
+      const droppedFiles = itemFiles.length > 0 ? itemFiles : Array.from(e.dataTransfer.files || [])
+      const ok = await handleFileSelect(droppedFiles)
       if (ok) {
         setDropSuccess(true)
         setTimeout(() => setDropSuccess(false), 1500)

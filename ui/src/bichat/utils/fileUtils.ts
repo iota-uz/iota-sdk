@@ -97,14 +97,16 @@ export function validateImageFile(file: File, maxSizeBytes: number = MAX_FILE_SI
  */
 function encodeArrayBuffer(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
   let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize)
+    binary += String.fromCharCode(...chunk)
   }
   return btoa(binary)
 }
 
-function readWithFileReader(file: File): Promise<ArrayBuffer> {
+function readWithFileReaderArrayBuffer(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
@@ -120,6 +122,22 @@ function readWithFileReader(file: File): Promise<ArrayBuffer> {
   })
 }
 
+function readWithFileReaderDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error('Unexpected reader result'))
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'))
+    reader.onabort = () => reject(new Error('File read was aborted'))
+    reader.readAsDataURL(file)
+  })
+}
+
 async function readFileBuffer(file: File): Promise<ArrayBuffer> {
   try {
     return await new Response(file).arrayBuffer()
@@ -130,21 +148,34 @@ async function readFileBuffer(file: File): Promise<ArrayBuffer> {
   try {
     return await file.arrayBuffer()
   } catch {
-    return readWithFileReader(file)
+    return readWithFileReaderArrayBuffer(file)
   }
+}
+
+function extractBase64FromDataUrl(dataUrl: string): string {
+  const commaIndex = dataUrl.indexOf(',')
+  if (commaIndex < 0 || commaIndex === dataUrl.length - 1) {
+    throw new Error('Invalid data URL')
+  }
+  return dataUrl.slice(commaIndex + 1)
 }
 
 /**
  * Converts a file to base64 string (without data URL prefix).
- * Prefers Response/Streams reading, then falls back to native Blob and
- * FileReader strategies for drag/drop edge cases across browsers.
+ * Prefers FileReader data URLs, then falls back to buffer-based encoding.
  */
 export async function convertToBase64(file: File): Promise<string> {
   try {
-    const buffer = await readFileBuffer(file)
-    return encodeArrayBuffer(buffer)
+    const dataUrl = await readWithFileReaderDataUrl(file)
+    return extractBase64FromDataUrl(dataUrl)
   } catch {
-    throw new Error(`Failed to read file: ${file.name}`)
+    try {
+      const buffer = await readFileBuffer(file)
+      return encodeArrayBuffer(buffer)
+    } catch (err) {
+      const details = err instanceof Error ? ` (${err.message})` : ''
+      throw new Error(`Failed to read file: ${file.name}${details}`)
+    }
   }
 }
 

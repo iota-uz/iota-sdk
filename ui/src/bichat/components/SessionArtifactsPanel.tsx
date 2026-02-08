@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowsClockwise, CaretLeft } from '@phosphor-icons/react'
+import { ArrowsClockwise, CaretLeft, Paperclip } from '@phosphor-icons/react'
 import type { ChatDataSource, SessionArtifact } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { SessionArtifactList } from './SessionArtifactList'
@@ -9,6 +9,7 @@ interface SessionArtifactsPanelProps {
   dataSource: ChatDataSource
   sessionId: string
   isStreaming: boolean
+  onDropFiles?: (files: File[]) => Promise<boolean> | boolean
   className?: string
 }
 
@@ -33,6 +34,7 @@ export function SessionArtifactsPanel({
   dataSource,
   sessionId,
   isStreaming,
+  onDropFiles,
   className = '',
 }: SessionArtifactsPanelProps) {
   const { t } = useTranslation()
@@ -44,14 +46,19 @@ export function SessionArtifactsPanel({
   const [artifacts, setArtifacts] = useState<SessionArtifact[]>([])
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dropSuccess, setDropSuccess] = useState(false)
 
   const requestSeq = useRef(0)
   const hasLoadedRef = useRef(false)
   const prevStreamingRef = useRef(isStreaming)
   const artifactsRef = useRef<SessionArtifact[]>([])
   const nextOffsetRef = useRef(0)
+  const dragDepthRef = useRef(0)
+  const dropSuccessTimerRef = useRef<number | null>(null)
 
   const canFetchArtifacts = typeof dataSource.fetchSessionArtifacts === 'function'
+  const canDropFiles = typeof onDropFiles === 'function'
 
   const tRef = useRef(t)
   tRef.current = t
@@ -160,11 +167,106 @@ export function SessionArtifactsPanel({
     [artifacts, selectedArtifactId]
   )
 
+  const clearDropSuccessTimer = useCallback(() => {
+    if (dropSuccessTimerRef.current === null) return
+    window.clearTimeout(dropSuccessTimerRef.current)
+    dropSuccessTimerRef.current = null
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      clearDropSuccessTimer()
+    }
+  }, [clearDropSuccessTimer])
+
+  const setDropSuccessState = useCallback(() => {
+    setDropSuccess(true)
+    clearDropSuccessTimer()
+    dropSuccessTimerRef.current = window.setTimeout(() => {
+      setDropSuccess(false)
+      dropSuccessTimerRef.current = null
+    }, 1400)
+  }, [clearDropSuccessTimer])
+
+  const hasDragFiles = useCallback((e: React.DragEvent): boolean => {
+    return Array.from(e.dataTransfer.types || []).includes('Files')
+  }, [])
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (!canDropFiles || !hasDragFiles(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepthRef.current += 1
+    setIsDragging(true)
+  }, [canDropFiles, hasDragFiles])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!canDropFiles || !hasDragFiles(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+  }, [canDropFiles, hasDragFiles])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!canDropFiles || !hasDragFiles(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) {
+      setIsDragging(false)
+    }
+  }, [canDropFiles, hasDragFiles])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    if (!canDropFiles || !onDropFiles || !hasDragFiles(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepthRef.current = 0
+    setIsDragging(false)
+
+    const itemFiles = Array.from(e.dataTransfer.items || [])
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null)
+    const droppedFiles = itemFiles.length > 0 ? itemFiles : Array.from(e.dataTransfer.files || [])
+
+    if (droppedFiles.length === 0) return
+    const accepted = await onDropFiles(droppedFiles)
+    if (!accepted) return
+    setDropSuccessState()
+  }, [canDropFiles, hasDragFiles, onDropFiles, setDropSuccessState])
+
   return (
     <aside
-      className={`flex min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700/80 dark:bg-gray-900 ${className}`}
+      className={[
+        'relative flex min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700/80 dark:bg-gray-900',
+        isDragging ? 'bg-primary-50/40 dark:bg-primary-950/20' : '',
+        className,
+      ].join(' ')}
       aria-label={t('artifacts.title')}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
+      {(isDragging || dropSuccess) && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-white/85 dark:bg-gray-900/85">
+          <div
+            className={[
+              'mx-4 flex w-full max-w-xs flex-col items-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center',
+              dropSuccess
+                ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-emerald-300'
+                : 'border-primary-400 bg-primary-50 text-primary-700 dark:border-primary-500 dark:bg-primary-950/30 dark:text-primary-300',
+            ].join(' ')}
+          >
+            <Paperclip className="h-5 w-5" weight="bold" />
+            <span className="text-sm font-medium">
+              {dropSuccess ? t('input.filesAdded') : t('input.dropFiles')}
+            </span>
+          </div>
+        </div>
+      )}
+
       <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700/80">
           <div className="min-w-0">
             {selectedArtifact ? (
