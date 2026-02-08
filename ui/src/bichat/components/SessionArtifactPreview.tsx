@@ -1,15 +1,11 @@
 import { WarningCircle, DownloadSimple, Calendar, HardDrive, Tag, File } from '@phosphor-icons/react'
 import type { SessionArtifact } from '../types'
-import { parseChartDataFromSpec } from '../utils/chartSpec'
+import { parseChartDataFromSpec, isRecord } from '../utils/chartSpec'
 import { ChartCard } from './ChartCard'
 import { useTranslation } from '../hooks/useTranslation'
 
 interface SessionArtifactPreviewProps {
   artifact: SessionArtifact
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
 }
 
 function parseChartDataFromArtifact(artifact: SessionArtifact) {

@@ -733,7 +733,17 @@ export function ChatSessionProvider({
           const state = await dataSource.fetchSession(curSessionId)
           if (state) {
             setSession(state.session)
-            setTurns(state.turns)
+            setTurns((prev) => {
+              const hasPendingUserOnly =
+                prev.length > 0 && !prev[prev.length - 1].assistantTurn
+              if (
+                hasPendingUserOnly &&
+                (!state.turns || state.turns.length === 0)
+              ) {
+                return prev
+              }
+              return state.turns ?? prev
+            })
             setPendingQuestion(state.pendingQuestion || null)
           }
         }

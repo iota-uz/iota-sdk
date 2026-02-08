@@ -15,9 +15,10 @@ export interface AppProps {
   routerMode: 'url' | 'memory'
 }
 
+const routerFuture = { v7_startTransition: true } as const
+
 export default function App({ basePath, routerMode }: AppProps) {
   const Router = routerMode === 'memory' ? MemoryRouter : BrowserRouter
-  const routerFuture = { v7_startTransition: true }
 
   function GuardedRoutes() {
     useNavigationGuard()

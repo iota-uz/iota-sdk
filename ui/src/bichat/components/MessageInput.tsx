@@ -575,7 +575,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 aria-label={t('input.attachFiles')}
                 title={t('input.attachFiles')}
               >
-                <Paperclip size={20} className="cursor-pointer" />
+                <Paperclip size={20} />
               </button>
 
               {/* Hidden file input */}
@@ -586,7 +586,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 multiple
                 onChange={handleFileInputChange}
                 className="hidden"
-                aria-label="File input"
+                aria-label={t('input.fileInput')}
               />
 
               {/* Textarea */}
@@ -615,7 +615,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                   rows={1}
                   disabled={loading || disabled}
                   aria-busy={loading}
-                  aria-label="Message input"
+                  aria-label={t('input.messageInput')}
                 />
               </div>
 
