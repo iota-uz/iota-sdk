@@ -100,8 +100,10 @@ func (m *configTestKBSearcher) Search(ctx context.Context, query string, opts kb
 	return []kb.SearchResult{}, nil
 }
 
+var errDocumentNotFound = errors.New("document not found")
+
 func (m *configTestKBSearcher) GetDocument(ctx context.Context, id string) (*kb.Document, error) {
-	return nil, nil
+	return nil, errDocumentNotFound
 }
 
 func (m *configTestKBSearcher) IsAvailable() bool {

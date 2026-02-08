@@ -121,15 +121,17 @@ func (s *artifactReaderRepoStub) UpdateMessageQuestionData(ctx context.Context, 
 	return nil
 }
 
+var errNoPendingQuestion = errors.New("no pending question")
+
 func (s *artifactReaderRepoStub) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
-	return nil, nil
+	return nil, errNoPendingQuestion
 }
 
 type artifactReaderStorageStub struct {
 	contents map[string][]byte
 }
 
-func (s *artifactReaderStorageStub) Save(ctx context.Context, filename string, content io.Reader, metadata storage.FileMetadata) (url string, err error) {
+func (s *artifactReaderStorageStub) Save(ctx context.Context, filename string, content io.Reader, metadata storage.FileMetadata) (string, error) {
 	return "", nil
 }
 

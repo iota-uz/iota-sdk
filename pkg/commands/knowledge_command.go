@@ -96,13 +96,13 @@ func runKnowledgeBootstrap(cmd *cobra.Command, opts knowledgeBootstrapOptions) e
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Knowledge %s complete\n", map[bool]string{true: "rebuild", false: "load"}[opts.Rebuild])
-	fmt.Fprintf(cmd.OutOrStdout(), "  tables: %d\n", result.TableFilesLoaded)
-	fmt.Fprintf(cmd.OutOrStdout(), "  business: %d\n", result.BusinessFilesLoaded)
-	fmt.Fprintf(cmd.OutOrStdout(), "  query patterns: %d\n", result.QueryPatternsLoaded)
-	fmt.Fprintf(cmd.OutOrStdout(), "  validated queries saved: %d\n", result.ValidatedQueriesSaved)
-	fmt.Fprintf(cmd.OutOrStdout(), "  metadata files: %d\n", result.MetadataFilesGenerated)
-	fmt.Fprintf(cmd.OutOrStdout(), "  indexed docs: %d\n", result.KnowledgeDocsIndexed)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Knowledge %s complete\n", map[bool]string{true: "rebuild", false: "load"}[opts.Rebuild])
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  tables: %d\n", result.TableFilesLoaded)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  business: %d\n", result.BusinessFilesLoaded)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  query patterns: %d\n", result.QueryPatternsLoaded)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  validated queries saved: %d\n", result.ValidatedQueriesSaved)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  metadata files: %d\n", result.MetadataFilesGenerated)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  indexed docs: %d\n", result.KnowledgeDocsIndexed)
 
 	return nil
 }

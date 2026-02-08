@@ -186,9 +186,9 @@ func newBiChatEvalListCmd() *cobra.Command {
 				}
 				sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
 
-				fmt.Fprintf(cmd.OutOrStdout(), "id\tdataset\tcategory\ttags\tfirst_prompt\n")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "id\tdataset\tcategory\ttags\tfirst_prompt\n")
 				for _, ci := range infos {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\n", ci.ID, ci.DatasetID, ci.Category, strings.Join(ci.Tags, ","), ci.FirstPrompt)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\n", ci.ID, ci.DatasetID, ci.Category, strings.Join(ci.Tags, ","), ci.FirstPrompt)
 				}
 				return nil
 
@@ -203,7 +203,7 @@ func newBiChatEvalListCmd() *cobra.Command {
 				if err != nil {
 					return exitcode.New(exitcode.InvalidUsageCode, err)
 				}
-				fmt.Fprintln(cmd.OutOrStdout(), string(data))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 				return nil
 
 			default:

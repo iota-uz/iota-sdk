@@ -132,7 +132,7 @@ func TestKnowledgeBootstrapService_Load_Idempotent(t *testing.T) {
 	assert.Equal(t, 1, first.MetadataFilesGenerated)
 
 	assert.Equal(t, 2, second.QueryPatternsLoaded)
-	assert.Equal(t, 2, len(store.records[tenantID]), "upsert should keep unique SQL patterns")
+	assert.Len(t, store.records[tenantID], 2, "upsert should keep unique SQL patterns")
 	assert.Equal(t, 2, indexer.indexCalls, "load should index each run in upsert mode")
 	assert.Equal(t, 0, indexer.rebuildCalls)
 }

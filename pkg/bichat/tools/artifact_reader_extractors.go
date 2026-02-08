@@ -128,8 +128,9 @@ func extractXLSX(data []byte) (string, error) {
 	}
 	defer func() { _ = book.Close() }()
 
-	var lines []string
-	for _, sheet := range book.GetSheetList() {
+	sheets := book.GetSheetList()
+	lines := make([]string, 0, len(sheets)*32)
+	for _, sheet := range sheets {
 		rows, err := book.GetRows(sheet)
 		if err != nil {
 			continue

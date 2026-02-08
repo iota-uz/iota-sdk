@@ -49,7 +49,7 @@ func NewAppletCommand() *cobra.Command {
 		RunE:  runAppletRPCGen(&name, &routerFunc),
 	}
 	genCmd.Flags().StringVar(&name, "name", "", "Applet name (e.g. bichat)")
-	genCmd.MarkFlagRequired("name")
+	_ = genCmd.MarkFlagRequired("name")
 	genCmd.Flags().StringVar(&routerFunc, "router-func", defaultRouterFunc, "Router factory function name in applet rpc package")
 	rpcCmd.AddCommand(genCmd)
 
@@ -59,7 +59,7 @@ func NewAppletCommand() *cobra.Command {
 		RunE:  runAppletRPCCheck(&name, &routerFunc),
 	}
 	checkCmd.Flags().StringVar(&name, "name", "", "Applet name (e.g. bichat)")
-	checkCmd.MarkFlagRequired("name")
+	_ = checkCmd.MarkFlagRequired("name")
 	checkCmd.Flags().StringVar(&routerFunc, "router-func", defaultRouterFunc, "Router factory function name in applet rpc package")
 	rpcCmd.AddCommand(checkCmd)
 
@@ -141,7 +141,7 @@ func runAppletRPCCheck(name, routerFunc *string) func(*cobra.Command, []string) 
 		if err := tmpFile.Close(); err != nil {
 			return err
 		}
-		defer os.Remove(tmpPath)
+		defer func() { _ = os.Remove(tmpPath) }()
 		if err := rpccodegen.RunTypegen(root, cfg, tmpPath); err != nil {
 			return err
 		}
@@ -191,7 +191,7 @@ func runAppletDepsCheck(cmd *cobra.Command, args []string) error {
 	}
 	if len(violations) > 0 {
 		for _, v := range violations {
-			cmd.ErrOrStderr().Write([]byte(v + "\n"))
+			_, _ = cmd.ErrOrStderr().Write([]byte(v + "\n"))
 		}
 		return errors.New("applet SDK dependency policy check failed")
 	}

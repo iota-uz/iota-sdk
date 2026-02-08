@@ -310,6 +310,8 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 				CreatedAt: m.CreatedAt().Format(time.RFC3339),
 			}
 			turns = append(turns, t)
+		case types.RoleTool:
+			continue
 		case types.RoleAssistant:
 			if current == nil {
 				continue

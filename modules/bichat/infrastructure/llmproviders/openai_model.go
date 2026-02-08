@@ -306,7 +306,7 @@ func (m *OpenAIModel) Pricing() agents.ModelPricing {
 // buildResponseParams converts agents.Request to OpenAI Responses API parameters.
 func (m *OpenAIModel) buildResponseParams(req agents.Request, config agents.GenerateConfig) responses.ResponseNewParams {
 	params := responses.ResponseNewParams{
-		Model: shared.ResponsesModel(m.modelName),
+		Model: m.modelName,
 		Store: openai.Bool(true),
 	}
 

@@ -14,6 +14,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+
+	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 )
 
 // chatServiceImpl is the production implementation of ChatService.
@@ -831,10 +833,10 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	// Get pending question message
 	pendingMsg, err := s.chatRepo.GetPendingQuestionMessage(ctx, req.SessionID)
 	if err != nil {
+		if errors.Is(err, persistence.ErrNoPendingQuestion) {
+			return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
+		}
 		return nil, serrors.E(op, err)
-	}
-	if pendingMsg == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
 	}
 
 	// Validate question data before resuming (defer mutation until resume succeeds)
@@ -901,10 +903,10 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 	// Get pending question message
 	pendingMsg, err := s.chatRepo.GetPendingQuestionMessage(ctx, sessionID)
 	if err != nil {
+		if errors.Is(err, persistence.ErrNoPendingQuestion) {
+			return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
+		}
 		return nil, serrors.E(op, err)
-	}
-	if pendingMsg == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
 	}
 
 	// Validate question data before resuming (defer mutation until resume succeeds)
@@ -1015,6 +1017,8 @@ func (s *chatServiceImpl) generateCompactionSummary(ctx context.Context, message
 			transcript.WriteString("User: ")
 		case types.RoleAssistant:
 			transcript.WriteString("Assistant: ")
+		case types.RoleSystem, types.RoleTool:
+			continue
 		default:
 			continue
 		}
@@ -1047,7 +1051,7 @@ CHAT TRANSCRIPT:
 		Messages: []types.Message{types.SystemMessage(prompt)},
 	}, agents.WithMaxTokens(700))
 	if err != nil {
-		return "History compaction complete. Summary generation failed, original history was compacted.", nil
+		return "History compaction complete. Summary generation failed, original history was compacted.", err
 	}
 
 	summary := strings.TrimSpace(resp.Message.Content())

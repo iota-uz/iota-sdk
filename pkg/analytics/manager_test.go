@@ -128,8 +128,8 @@ func TestViews_ReturnsCopy(t *testing.T) {
 	views1 := m.Views()
 	originalLen := len(views1)
 
-	// Append to the returned slice
-	views1 = append(views1, TenantView("products"))
+	// Append to the returned slice (result not used; we only need to trigger potential mutation)
+	_ = append(views1, TenantView("products"))
 
 	// Get views again - should still have original length
 	views2 := m.Views()

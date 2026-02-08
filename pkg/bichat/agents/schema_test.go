@@ -30,9 +30,9 @@ func TestToolSchema_GeneratesObjectSchemaWithRequiredAndTags(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "integer", limit["type"])
 	// Numbers are represented as float64 after clone/unmarshal.
-	require.Equal(t, float64(5), limit["default"])
-	require.Equal(t, float64(1), limit["minimum"])
-	require.Equal(t, float64(20), limit["maximum"])
+	require.InEpsilon(t, float64(5), limit["default"], 1e-9)
+	require.InEpsilon(t, float64(1), limit["minimum"], 1e-9)
+	require.InEpsilon(t, float64(20), limit["maximum"], 1e-9)
 
 	required, ok := s["required"].([]any)
 	require.True(t, ok)

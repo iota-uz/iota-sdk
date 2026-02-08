@@ -342,9 +342,7 @@ func (t *SaveValidatedQueryTool) Call(ctx context.Context, input string) (string
 	}
 
 	// Build response
-	message := fmt.Sprintf(
-		"Query saved successfully. This pattern will be available for future searches when similar questions arise.",
-	)
+	message := "Query saved successfully. This pattern will be available for future searches when similar questions arise."
 
 	response := saveValidatedQueryOutput{
 		ID:       query.ID.String(),

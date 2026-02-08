@@ -387,7 +387,7 @@ func TestEventBridge_ToolStartSpanHasInputOutput(t *testing.T) {
 	assert.Equal(t, "tool.start", obs.Name)
 	require.NotEmpty(t, obs.Input)
 	require.NotEmpty(t, obs.Output)
-	assert.Equal(t, `{"query":"SELECT 1"}`, obs.Input)
+	assert.JSONEq(t, `{"query":"SELECT 1"}`, obs.Input)
 	var outputMap map[string]interface{}
 	require.NoError(t, json.Unmarshal([]byte(obs.Output), &outputMap))
 	assert.Equal(t, "started", outputMap["status"])

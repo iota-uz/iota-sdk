@@ -40,7 +40,7 @@ func (p *MemoryMetadataProvider) GetTableMetadata(ctx context.Context, tableName
 	if metadata, ok := p.metadata[tableName]; ok {
 		return metadata, nil
 	}
-	return nil, nil
+	return nil, ErrTableMetadataNotFound
 }
 
 // ListMetadata returns metadata for all available tables.

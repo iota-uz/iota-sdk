@@ -33,7 +33,10 @@ func cloneMap(in map[string]any) map[string]any {
 		return nil
 	}
 	// JSON roundtrip is simple and safe for our schema maps.
-	b, _ := json.Marshal(in)
+	b, err := json.Marshal(in)
+	if err != nil {
+		return nil
+	}
 	var out map[string]any
 	_ = json.Unmarshal(b, &out)
 	return out
@@ -53,6 +56,7 @@ func schemaForType(t reflect.Type, visiting map[reflect.Type]bool) map[string]an
 		return map[string]any{"type": "object"}
 	}
 
+	//nolint:exhaustive // Only Struct, String, Bool, numeric, Slice, Array, Map need explicit handling; default covers the rest.
 	switch t.Kind() {
 	case reflect.Struct:
 		visiting[t] = true
@@ -133,13 +137,12 @@ func schemaForType(t reflect.Type, visiting map[reflect.Type]bool) map[string]an
 	}
 }
 
-func parseJSONName(f reflect.StructField) (name string, omitempty bool, skip bool) {
+func parseJSONName(f reflect.StructField) (string, bool, bool) {
 	tag := f.Tag.Get("json")
 	if tag == "-" {
 		return "", false, true
 	}
 	if tag == "" {
-		// Best-effort default name. Most tool structs should specify json tags.
 		return lowerFirst(f.Name), false, false
 	}
 
@@ -148,11 +151,13 @@ func parseJSONName(f reflect.StructField) (name string, omitempty bool, skip boo
 		return lowerFirst(f.Name), false, false
 	}
 
+	var name string
 	if parts[0] == "" {
 		name = lowerFirst(f.Name)
 	} else {
 		name = parts[0]
 	}
+	var omitempty bool
 	for _, p := range parts[1:] {
 		if p == "omitempty" {
 			omitempty = true
@@ -268,6 +273,7 @@ func parseTypedScalar(raw string, t reflect.Type) (any, bool) {
 		t = t.Elem()
 	}
 
+	//nolint:exhaustive // Only Bool, int, uint, float, String need parsing; default returns raw.
 	switch t.Kind() {
 	case reflect.Bool:
 		b, err := strconv.ParseBool(raw)

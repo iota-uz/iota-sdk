@@ -657,7 +657,7 @@ func (r *Runner) waitForAssistantMessage(ctx context.Context, sessionID uuid.UUI
 			if isTransientRPCPollError(err) {
 				lastPollErr = err
 				if time.Now().After(deadline) {
-					return "", nil, nil, nil, fmt.Errorf("assistant message not persisted within %s (last rpc error: %w)", timeout, err)
+					return "", nil, nil, nil, fmt.Errorf("assistant message not persisted within %s (last rpc error: %w)", timeout, lastPollErr)
 				}
 				select {
 				case <-ctx.Done():

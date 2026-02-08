@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,8 +36,10 @@ func (s staticDocumentSource) List(ctx context.Context) ([]kb.Document, error) {
 	return s.documents, nil
 }
 
+var errWatchNotSupported = errors.New("watch not supported")
+
 func (s staticDocumentSource) Watch(ctx context.Context) (<-chan kb.DocumentChange, error) {
-	return nil, nil
+	return nil, errWatchNotSupported
 }
 
 type queryPattern struct {
@@ -142,14 +145,13 @@ func (s *KnowledgeBootstrapService) Load(ctx context.Context, req KnowledgeBoots
 	}
 
 	result := &KnowledgeBootstrapResult{}
-	var docs []kb.Document
-	var metadata []schema.TableMetadata
-
 	tablesDir := filepath.Join(knowledgeDir, "tables")
 	tableFiles, err := knowledgeFiles(tablesDir, ".json")
 	if err != nil {
 		return nil, serrors.E(op, err, "failed to list tables knowledge files")
 	}
+	docs := make([]kb.Document, 0, len(tableFiles))
+	metadata := make([]schema.TableMetadata, 0, len(tableFiles))
 	for _, filePath := range tableFiles {
 		raw, readErr := os.ReadFile(filePath)
 		if readErr != nil {

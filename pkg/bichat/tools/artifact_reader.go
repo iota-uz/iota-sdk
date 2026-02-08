@@ -107,7 +107,7 @@ type artifactReaderInput struct {
 func (t *ArtifactReaderTool) Call(ctx context.Context, input string) (string, error) {
 	params, err := agents.ParseToolInput[artifactReaderInput](input)
 	if err != nil {
-		return "## Artifact Reader\n\nInvalid input: unable to parse tool arguments.", nil
+		return "## Artifact Reader\n\nInvalid input: unable to parse tool arguments.", err
 	}
 
 	if t.repo == nil {

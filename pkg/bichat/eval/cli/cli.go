@@ -148,7 +148,7 @@ func WriteReport(outPath string, rep Report) error {
 	}
 
 	if strings.TrimSpace(outPath) == "" {
-		fmt.Println(string(data))
+		_, _ = os.Stdout.Write(append(data, '\n'))
 		return nil
 	}
 

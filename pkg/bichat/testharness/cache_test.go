@@ -54,7 +54,7 @@ func TestJudgeCache_SaveLoadVerdict(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, v.Passed, loaded.Passed)
-	require.Equal(t, v.Score, loaded.Score)
+	require.InEpsilon(t, v.Score, loaded.Score, 1e-9)
 	require.Equal(t, v.Reason, loaded.Reason)
 
 	// sanity path check (judge subdir)
