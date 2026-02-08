@@ -209,6 +209,8 @@ export interface SessionListParams {
 
 export interface SessionListResult {
   sessions: Session[]
+  total?: number
+  hasMore: boolean
 }
 
 export interface SessionUpdateTitleParams {

@@ -40,6 +40,8 @@ type SessionListParams struct {
 
 type SessionListResult struct {
 	Sessions []Session `json:"sessions"`
+	Total    int       `json:"total,omitempty"`
+	HasMore  bool      `json:"hasMore"`
 }
 
 type SessionCreateParams struct {
@@ -318,6 +320,9 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 			}
 			if current.AssistantTurn != nil {
 				// Concatenate consecutive assistant messages (e.g., original + continuation after resume)
+				if current.AssistantTurn.Content != "" && m.Content() != "" {
+					current.AssistantTurn.Content += "\n\n"
+				}
 				current.AssistantTurn.Content += m.Content()
 				// Merge tool calls
 				newToolCalls := mapToolCalls(m.ToolCalls())

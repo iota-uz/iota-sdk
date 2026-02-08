@@ -143,7 +143,6 @@ var (
 	ErrSessionNotFound    = errors.New("session not found")
 	ErrMessageNotFound    = errors.New("message not found")
 	ErrAttachmentNotFound = errors.New("attachment not found")
-	ErrNoPendingQuestion  = errors.New("no pending question message")
 )
 
 // PostgresChatRepository implements ChatRepository using PostgreSQL.
@@ -837,7 +836,7 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNoPendingQuestion
+			return nil, domain.ErrNoPendingQuestion
 		}
 		return nil, serrors.E(op, err)
 	}

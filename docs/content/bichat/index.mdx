@@ -113,7 +113,7 @@ All procedures require `bichat.access` unless noted. Session procedures enforce 
 
 | Type | When | Payload |
 |------|------|---------|
-| `chunk` / `content` | Assistant text delta | `content` |
+| `chunk` / `content` | Assistant text delta (same event; `chunk` is a legacy alias for `content`) | `content` |
 | `citation` | Web search citation | `citation` (title, url, excerpt, startIndex, endIndex) |
 | `tool_start` | Tool execution started | `tool` (callId, name, arguments) |
 | `tool_end` | Tool finished | `tool` (callId, result or error, durationMs) |

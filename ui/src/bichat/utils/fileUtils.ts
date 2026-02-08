@@ -104,15 +104,44 @@ function encodeArrayBuffer(buffer: ArrayBuffer): string {
   return btoa(binary)
 }
 
+function readWithFileReader(file: File): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (reader.result instanceof ArrayBuffer) {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error('Unexpected reader result'))
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'))
+    reader.onabort = () => reject(new Error('File read was aborted'))
+    reader.readAsArrayBuffer(file)
+  })
+}
+
+async function readFileBuffer(file: File): Promise<ArrayBuffer> {
+  try {
+    return await new Response(file).arrayBuffer()
+  } catch {
+    // Fall through to native/file-reader strategies for drag/drop edge cases.
+  }
+
+  try {
+    return await file.arrayBuffer()
+  } catch {
+    return readWithFileReader(file)
+  }
+}
+
 /**
  * Converts a file to base64 string (without data URL prefix).
- * Uses the Response constructor to read blob data via the Streams API,
- * bypassing window.fetch and FileReader which can be intercepted by
- * browser extensions or security software (antivirus proxies).
+ * Prefers Response/Streams reading, then falls back to native Blob and
+ * FileReader strategies for drag/drop edge cases across browsers.
  */
 export async function convertToBase64(file: File): Promise<string> {
   try {
-    const buffer = await new Response(file).arrayBuffer()
+    const buffer = await readFileBuffer(file)
     return encodeArrayBuffer(buffer)
   } catch {
     throw new Error(`Failed to read file: ${file.name}`)

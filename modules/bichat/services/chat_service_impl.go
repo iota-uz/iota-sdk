@@ -14,8 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-
-	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 )
 
 // chatServiceImpl is the production implementation of ChatService.
@@ -833,7 +831,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	// Get pending question message
 	pendingMsg, err := s.chatRepo.GetPendingQuestionMessage(ctx, req.SessionID)
 	if err != nil {
-		if errors.Is(err, persistence.ErrNoPendingQuestion) {
+		if errors.Is(err, domain.ErrNoPendingQuestion) {
 			return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
 		}
 		return nil, serrors.E(op, err)
@@ -903,7 +901,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 	// Get pending question message
 	pendingMsg, err := s.chatRepo.GetPendingQuestionMessage(ctx, sessionID)
 	if err != nil {
-		if errors.Is(err, persistence.ErrNoPendingQuestion) {
+		if errors.Is(err, domain.ErrNoPendingQuestion) {
 			return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
 		}
 		return nil, serrors.E(op, err)

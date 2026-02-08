@@ -2,11 +2,15 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
+
+// ErrNoPendingQuestion is returned by GetPendingQuestionMessage when no message has a pending question.
+var ErrNoPendingQuestion = errors.New("no pending question message")
 
 // ListOptions provides pagination options for repository queries
 type ListOptions struct {

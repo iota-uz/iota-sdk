@@ -39,16 +39,24 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				return SessionListResult{}, serrors.E(op, serrors.PermissionDenied, err)
 			}
 
-			opts := domain.ListOptions{Limit: p.Limit, Offset: p.Offset, IncludeArchived: p.IncludeArchived}
+			requestedLimit := p.Limit
+			if requestedLimit <= 0 {
+				requestedLimit = 50
+			}
+			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: p.Offset, IncludeArchived: p.IncludeArchived}
 			list, err := chatSvc.ListUserSessions(ctx, int64(user.ID()), opts)
 			if err != nil {
 				return SessionListResult{}, serrors.E(op, err)
+			}
+			hasMore := len(list) > requestedLimit
+			if hasMore {
+				list = list[:requestedLimit]
 			}
 			out := make([]Session, 0, len(list))
 			for _, s := range list {
 				out = append(out, toSessionDTO(s))
 			}
-			return SessionListResult{Sessions: out}, nil
+			return SessionListResult{Sessions: out, Total: len(out), HasMore: hasMore}, nil
 		},
 	})
 

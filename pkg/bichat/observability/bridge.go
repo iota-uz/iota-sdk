@@ -466,7 +466,7 @@ func (h *providerHandler) handleToolStart(ctx context.Context, e *events.ToolSta
 		Input:     inputStr,
 		Output:    string(outputJSON),
 		Duration:  0,
-		Status:    "success",
+		Status:    "pending",
 		ToolName:  e.ToolName,
 		CallID:    e.CallID,
 		Attributes: map[string]interface{}{
