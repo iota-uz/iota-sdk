@@ -386,11 +386,6 @@ export function UserMessage({
                 >
                   {isCopied ? <Check size={14} weight="bold" /> : <Copy size={14} weight="regular" />}
                 </button>
-                {isCopied && (
-                  <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                    {t('message.copied')}
-                  </span>
-                )}
 
                 {onEdit && turnId && (
                   <button
