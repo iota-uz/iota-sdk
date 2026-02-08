@@ -55,6 +55,10 @@ export interface Extensions {
     codeInterpreter?: boolean
     multiAgent?: boolean
   }
+  llm?: {
+    provider?: string
+    apiKeyConfigured?: boolean
+  }
   debug?: {
     limits?: {
       policyMaxTokens: number

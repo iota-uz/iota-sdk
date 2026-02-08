@@ -363,6 +363,12 @@ export interface ChatDataSource {
     sessionId: string,
     files: File[]
   ): Promise<{ artifacts: SessionArtifact[] }>
+  renameSessionArtifact?(
+    artifactId: string,
+    name: string,
+    description?: string
+  ): Promise<SessionArtifact>
+  deleteSessionArtifact?(artifactId: string): Promise<void>
   sendMessage(
     sessionId: string,
     content: string,

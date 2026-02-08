@@ -75,7 +75,11 @@ func (t *ArtifactReaderTool) Parameters() map[string]any {
 			},
 			"artifact_id": map[string]any{
 				"type":        "string",
-				"description": "UUID, required for read",
+				"description": "UUID, required for read when artifact_name is not provided",
+			},
+			"artifact_name": map[string]any{
+				"type":        "string",
+				"description": "Optional exact artifact name for read (supports renamed artifacts)",
 			},
 			"page": map[string]any{
 				"type":    "integer",
@@ -99,11 +103,12 @@ func (t *ArtifactReaderTool) Parameters() map[string]any {
 }
 
 type artifactReaderInput struct {
-	Action     string `json:"action"`
-	ArtifactID string `json:"artifact_id"`
-	Page       int    `json:"page"`
-	PageSize   int    `json:"page_size"`
-	Mode       string `json:"mode"`
+	Action       string `json:"action"`
+	ArtifactID   string `json:"artifact_id"`
+	ArtifactName string `json:"artifact_name"`
+	Page         int    `json:"page"`
+	PageSize     int    `json:"page_size"`
+	Mode         string `json:"mode"`
 }
 
 // CallStructured executes the artifact reader operation and returns a structured result.
@@ -155,7 +160,15 @@ func (t *ArtifactReaderTool) CallStructured(ctx context.Context, input string) (
 	case "list":
 		return t.listArtifactsStructured(ctx, sessionID, page, pageSize)
 	case "read":
-		return t.readArtifactStructured(ctx, sessionID, strings.TrimSpace(params.ArtifactID), page, pageSize, mode)
+		return t.readArtifactStructured(
+			ctx,
+			sessionID,
+			strings.TrimSpace(params.ArtifactID),
+			strings.TrimSpace(params.ArtifactName),
+			page,
+			pageSize,
+			mode,
+		)
 	default:
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,
@@ -246,48 +259,23 @@ func (t *ArtifactReaderTool) listArtifactsStructured(ctx context.Context, sessio
 	}, nil
 }
 
-func (t *ArtifactReaderTool) readArtifactStructured(ctx context.Context, sessionID uuid.UUID, artifactID string, page, pageSize int, mode string) (*types.ToolResult, error) {
-	if artifactID == "" {
-		return &types.ToolResult{
-			CodecID: types.CodecToolError,
-			Payload: types.ToolErrorPayload{
-				Code:    string(ErrCodeInvalidRequest),
-				Message: "action=\"read\" requires artifact_id.",
-				Hints:   []string{HintCheckRequiredFields},
-			},
-		}, nil
-	}
-
-	id, err := uuid.Parse(artifactID)
+func (t *ArtifactReaderTool) readArtifactStructured(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	artifactID string,
+	artifactName string,
+	page,
+	pageSize int,
+	mode string,
+) (*types.ToolResult, error) {
+	artifact, err := t.resolveArtifact(ctx, sessionID, artifactID, artifactName)
 	if err != nil {
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
-				Message: "artifact_id must be a valid UUID.",
-				Hints:   []string{HintCheckFieldFormat},
-			},
-		}, nil
-	}
-
-	artifact, err := t.repo.GetArtifact(ctx, id)
-	if err != nil {
-		return &types.ToolResult{
-			CodecID: types.CodecToolError,
-			Payload: types.ToolErrorPayload{
-				Code:    string(ErrCodeQueryError),
-				Message: fmt.Sprintf("Failed to read artifact: %v", err),
-				Hints:   []string{HintRetryLater},
-			},
-		}, err
-	}
-	if artifact.SessionID() != sessionID {
-		return &types.ToolResult{
-			CodecID: types.CodecToolError,
-			Payload: types.ToolErrorPayload{
-				Code:    string(ErrCodePermissionDenied),
-				Message: "Access denied: artifact is not in the current session.",
-				Hints:   []string{"Verify the artifact_id belongs to the current session"},
+				Message: err.Error(),
+				Hints:   []string{HintCheckRequiredFields, "Use action=\"list\" to discover available artifact names and IDs"},
 			},
 		}, nil
 	}
@@ -377,6 +365,65 @@ func (t *ArtifactReaderTool) readArtifactStructured(ctx context.Context, session
 			OutOfRange: window.OutOfRange,
 		},
 	}, nil
+}
+
+func (t *ArtifactReaderTool) resolveArtifact(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	artifactID string,
+	artifactName string,
+) (domain.Artifact, error) {
+	if artifactID != "" {
+		id, err := uuid.Parse(artifactID)
+		if err != nil {
+			return nil, fmt.Errorf("artifact_id must be a valid UUID")
+		}
+
+		artifact, err := t.repo.GetArtifact(ctx, id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read artifact: %v", err)
+		}
+		if artifact.SessionID() != sessionID {
+			return nil, fmt.Errorf("access denied: artifact is not in the current session")
+		}
+		return artifact, nil
+	}
+
+	if artifactName == "" {
+		return nil, fmt.Errorf("action=\"read\" requires artifact_id or artifact_name")
+	}
+
+	artifacts, err := t.repo.GetSessionArtifacts(ctx, sessionID, domain.ListOptions{
+		Limit:  artifactReaderMaxArtifacts,
+		Offset: 0,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list artifacts: %v", err)
+	}
+
+	var matches []domain.Artifact
+	for _, artifact := range artifacts {
+		if strings.EqualFold(strings.TrimSpace(artifact.Name()), artifactName) {
+			matches = append(matches, artifact)
+		}
+	}
+
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("artifact with name %q was not found in this session", artifactName)
+	}
+	if len(matches) > 1 {
+		ids := make([]string, 0, len(matches))
+		for _, artifact := range matches {
+			ids = append(ids, artifact.ID().String())
+		}
+		return nil, fmt.Errorf(
+			"multiple artifacts share name %q; use artifact_id instead (matches: %s)",
+			artifactName,
+			strings.Join(ids, ", "),
+		)
+	}
+
+	return matches[0], nil
 }
 
 func (t *ArtifactReaderTool) readChartArtifactStructured(artifact domain.Artifact, mode string) (*types.ToolResult, error) {

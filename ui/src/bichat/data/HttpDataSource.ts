@@ -445,6 +445,23 @@ export class HttpDataSource implements ChatDataSource {
     }
   }
 
+  async renameSessionArtifact(
+    artifactId: string,
+    name: string,
+    description: string = ''
+  ): Promise<SessionArtifact> {
+    const data = await this.callRPC('bichat.artifact.update', {
+      id: artifactId,
+      name,
+      description,
+    })
+    return toSessionArtifact(data.artifact as RPCArtifact)
+  }
+
+  async deleteSessionArtifact(artifactId: string): Promise<void> {
+    await this.callRPC('bichat.artifact.delete', { id: artifactId })
+  }
+
   /**
    * Send a message and stream the response using SSE
    */
