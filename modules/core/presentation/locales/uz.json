@@ -397,6 +397,7 @@
     }
   },
   "Modules": {
+    "BiChat": "BI-Chat",
     "Bichat": "Bichat",
     "Billing": "To'lov tizimi",
     "Core": "Boshqaruv",

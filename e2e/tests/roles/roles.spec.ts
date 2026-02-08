@@ -5,9 +5,14 @@ import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 test.describe('role management flows', () => {
 	// Tests MUST run serially - some tests depend on data created by previous tests
 	test.describe.configure({ mode: 'serial' });
+	// CI can be slower; allow more time for navigation and Alpine/UI
+	test.setTimeout(120000);
 
 	const saveRoleButton = (page: Page) =>
 		page.getByRole('button', { name: /save/i }).or(page.locator('[data-test-id="save-role-btn"], #save-btn'));
+
+	const navTimeout = 15000;
+	const visibleTimeout = 15000;
 
 	// Reset database once for entire suite
 	test.beforeAll(async ({ request }) => {
@@ -28,27 +33,27 @@ test.describe('role management flows', () => {
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
 		// Navigate to roles page
-		await page.goto('/roles');
-		await expect(page).toHaveURL(/\/roles$/);
+		await page.goto('/roles', { waitUntil: 'domcontentloaded' });
+		await expect(page).toHaveURL(/\/roles$/, { timeout: navTimeout });
 
 		// Verify page title and new button are visible
-		await expect(page.locator('[data-test-id="new-role-btn"]')).toBeVisible();
+		await expect(page.locator('[data-test-id="new-role-btn"]')).toBeVisible({ timeout: visibleTimeout });
 
 		// Count initial roles
 		const initialRoleCount = await page.locator('tbody tr:not(.hidden)').count();
 
 		// Click new role button
 		await page.locator('[data-test-id="new-role-btn"]').click();
-		await expect(page).toHaveURL(/\/roles\/new$/);
+		await expect(page).toHaveURL(/\/roles\/new$/, { timeout: navTimeout });
 
 		// Verify form elements are present
-		await expect(page.locator('[data-test-id="role-name-input"]')).toBeVisible();
-		await expect(page.locator('[data-test-id="role-description-input"]')).toBeVisible();
+		await expect(page.locator('[data-test-id="role-name-input"]')).toBeVisible({ timeout: visibleTimeout });
+		await expect(page.locator('[data-test-id="role-description-input"]')).toBeVisible({ timeout: visibleTimeout });
 		// Save button (by role or test-id); may be in sticky footer below fold
 		const saveBtn = saveRoleButton(page).first();
-		await saveBtn.waitFor({ state: 'attached', timeout: 15000 });
+		await saveBtn.waitFor({ state: 'attached', timeout: visibleTimeout });
 		await saveBtn.scrollIntoViewIfNeeded();
-		await expect(saveBtn).toBeVisible();
+		await expect(saveBtn).toBeVisible({ timeout: visibleTimeout });
 
 		// Fill in role details
 		const testRoleName = 'Test Editor Role';
@@ -60,8 +65,8 @@ test.describe('role management flows', () => {
 		await expect(page.locator('[data-test-id="role-name-input"]')).toHaveValue(testRoleName);
 		await expect(page.locator('[data-test-id="role-description-input"]')).toHaveValue(testRoleDescription);
 
-		// Wait for permission UI to load
-		await waitForAlpine(page);
+		// Wait for permission UI to load (CI may need longer for Alpine)
+		await waitForAlpine(page, 10000);
 
 		// Find and click on a permission toggle (first available permission set)
 		// The permission sets are rendered as switches in the form
@@ -77,11 +82,11 @@ test.describe('role management flows', () => {
 		await saveBtn.click();
 
 		// Wait for redirect back to roles list
-		await page.waitForURL(/\/roles$/);
+		await page.waitForURL(/\/roles$/, { timeout: navTimeout });
 
 		// Verify role appears in list
 		const createdRoleRow = page.locator('tbody tr').filter({ hasText: testRoleName });
-		await expect(createdRoleRow).toBeVisible();
+		await expect(createdRoleRow).toBeVisible({ timeout: visibleTimeout });
 
 		// Verify role count increased
 		const newRoleCount = await page.locator('tbody tr:not(.hidden)').count();
@@ -89,7 +94,7 @@ test.describe('role management flows', () => {
 
 		// Edit the role - find the edit button for our new role
 		await createdRoleRow.locator('a').first().click();
-		await expect(page).toHaveURL(/\/roles\/\d+$/);
+		await expect(page).toHaveURL(/\/roles\/\d+$/, { timeout: navTimeout });
 
 		// Verify the saved values are loaded in the edit form
 		await expect(page.locator('[data-test-id="role-name-input"]')).toHaveValue(testRoleName);
@@ -105,7 +110,7 @@ test.describe('role management flows', () => {
 
 		// Save changes
 		await saveRoleButton(page).first().click();
-		await page.waitForURL(/\/roles$/);
+		await page.waitForURL(/\/roles$/, { timeout: navTimeout });
 
 		// Verify name was updated in the list
 		await expect(page.locator('tbody tr').filter({ hasText: updatedRoleName })).toBeVisible();
@@ -124,13 +129,13 @@ test.describe('role management flows', () => {
 
 		// Wait for and click confirm in the confirmation dialog
 		const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
-		await expect(confirmDialog).toBeVisible();
+		await expect(confirmDialog).toBeVisible({ timeout: visibleTimeout });
 		const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
-		await expect(confirmButton).toBeVisible();
+		await expect(confirmButton).toBeVisible({ timeout: visibleTimeout });
 		await confirmButton.click();
 
 		// Wait for redirect back to roles list
-		await page.waitForURL(/\/roles$/);
+		await page.waitForURL(/\/roles$/, { timeout: navTimeout });
 
 		// Verify role was deleted from list
 		await expect(page.locator('tbody tr').filter({ hasText: updatedRoleName })).not.toBeVisible();
@@ -144,11 +149,11 @@ test.describe('role management flows', () => {
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
 		// Navigate to create role page
-		await page.goto('/roles/new');
-		await expect(page).toHaveURL(/\/roles\/new$/);
+		await page.goto('/roles/new', { waitUntil: 'domcontentloaded' });
+		await expect(page).toHaveURL(/\/roles\/new$/, { timeout: navTimeout });
 
 		// Wait for Alpine.js and permission UI to load
-		await waitForAlpine(page);
+		await waitForAlpine(page, 10000);
 
 		// Verify that module tabs exist (at least one should be visible)
 		// Module tabs are rendered with tab buttons
@@ -166,7 +171,7 @@ test.describe('role management flows', () => {
 		// This verifies that modules with empty ResourceGroups are not displayed (fix for #498)
 
 		// Wait for module content to be visible
-		await expect(moduleContentContainers.first()).toBeVisible({ timeout: 5000 });
+		await expect(moduleContentContainers.first()).toBeVisible({ timeout: visibleTimeout });
 
 		// The content should have at least one permission-related element
 		const permissionInputsInTab = page.locator('input[name^="Permissions"]');
@@ -188,12 +193,12 @@ test.describe('role management flows', () => {
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
 		// Navigate to roles page
-		await page.goto('/roles');
-		await expect(page).toHaveURL(/\/roles$/);
+		await page.goto('/roles', { waitUntil: 'domcontentloaded' });
+		await expect(page).toHaveURL(/\/roles$/, { timeout: navTimeout });
 
 		// Verify the roles table is visible and has content
 		const rolesTable = page.locator('tbody');
-		await expect(rolesTable).toBeVisible();
+		await expect(rolesTable).toBeVisible({ timeout: visibleTimeout });
 
 		// Count total roles in the table
 		const roleRows = page.locator('tbody tr:not(.hidden)');
@@ -245,8 +250,8 @@ test.describe('role management flows', () => {
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
 		// Create a limited role with only User.Read permission
-		await page.goto('/roles/new');
-		await expect(page).toHaveURL(/\/roles\/new$/);
+		await page.goto('/roles/new', { waitUntil: 'domcontentloaded' });
+		await expect(page).toHaveURL(/\/roles\/new$/, { timeout: navTimeout });
 
 		await page.locator('[data-test-id="role-name-input"]').fill(limitedRoleName);
 		await page.locator('[data-test-id="role-description-input"]').fill('Can only view users');
@@ -255,7 +260,7 @@ test.describe('role management flows', () => {
 		await expect(page.locator('[data-test-id="role-name-input"]')).toHaveValue(limitedRoleName);
 
 		// Wait for permissions to load
-		await waitForAlpine(page);
+		await waitForAlpine(page, 10000);
 
 		// Find and enable only the User Read permission
 		const userReadCheckbox = page.locator('input[type="checkbox"][name^="Permissions"]').first();

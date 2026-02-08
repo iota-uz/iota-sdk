@@ -267,47 +267,46 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 // callTool executes a tool, using StructuredTool + FormatterRegistry when available.
 // Accepts a tool directly to avoid O(n) lookup. If tool is nil or has nil handler,
 // falls back to agent.OnToolCall for backward compatibility.
+// After invoking StructuredTool.CallStructured we always return and never fall through to Tool.Call() to avoid double execution.
 func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (string, error) {
-	// If formatter registry is set and tool is valid, check if the tool implements StructuredTool
 	if e.formatterRegistry != nil && tool != nil {
 		if st, ok := tool.(StructuredTool); ok {
 			result, err := st.CallStructured(ctx, arguments)
-			if result != nil {
-				if f := e.formatterRegistry.Get(result.CodecID); f != nil {
-					formatted, fmtErr := f.Format(result.Payload, types.DefaultFormatOptions())
-					if fmtErr == nil {
-						// If ErrStructuredToolOutput, strip the error (formatted output is the real result)
-						if err != nil && errors.Is(err, ErrStructuredToolOutput) {
-							return formatted, nil
-						}
-						// Preserve both formatted result AND Go error
-						return formatted, err
-					}
-					// Formatter bug - fall through to Call() path
-				}
-			}
-			if err != nil {
+			if err != nil && result == nil {
 				return "", err
 			}
-			// StructuredTool returned (nil, nil); return immediately to avoid falling through to Call()/OnToolCall (double execution)
 			if result == nil {
 				return "", nil
 			}
+			// result != nil: format or fallback, then return (never fall through to tool.Call())
+			if f := e.formatterRegistry.Get(result.CodecID); f != nil {
+				formatted, fmtErr := f.Format(result.Payload, types.DefaultFormatOptions())
+				if fmtErr == nil {
+					if err != nil && errors.Is(err, ErrStructuredToolOutput) {
+						return formatted, nil
+					}
+					return formatted, err
+				}
+			}
+			// Formatter missing or format failed: return raw payload stringified
+			fallback, _ := FormatToolOutput(result.Payload)
+			if fallback == "" {
+				fallback = fmt.Sprintf("%v", result.Payload)
+			}
+			if err != nil && errors.Is(err, ErrStructuredToolOutput) {
+				return fallback, nil
+			}
+			return fallback, err
 		}
 	}
 
-	// Check if tool is usable (not nil and has handler if it's a ToolFunc)
+	// Non-StructuredTool path: ToolFunc nil-handler fallback and agent.OnToolCall
 	if tool != nil {
-		// For ToolFunc, check if handler is nil (test mocks may have nil handlers)
 		if tf, ok := tool.(*ToolFunc); ok && tf.Fn == nil {
-			// Fall back to agent.OnToolCall for nil handlers (backward compat)
 			return e.agent.OnToolCall(ctx, toolName, arguments)
 		}
-		// Call tool directly
 		return tool.Call(ctx, arguments)
 	}
-
-	// Fallback to agent.OnToolCall for nil tools
 	return e.agent.OnToolCall(ctx, toolName, arguments)
 }
 

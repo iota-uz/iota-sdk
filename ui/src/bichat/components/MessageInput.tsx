@@ -277,6 +277,16 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       })
     }, [imageAttachments.length])
 
+    useEffect(() => {
+      setViewingImageIndex((prev) => {
+        if (imageAttachments.length === 0) return null
+        if (prev != null && (prev < 0 || prev >= imageAttachments.length)) {
+          return Math.max(0, Math.min(prev, imageAttachments.length - 1))
+        }
+        return prev
+      })
+    }, [imageAttachments.length])
+
     // ── Paste-to-attach ─────────────────────────────────
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       const items = Array.from(e.clipboardData.items)
@@ -754,7 +764,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           </div>
 
           {/* Image lightbox */}
-          {viewingImageIndex !== null && imageAttachments.length > 0 && (
+          {viewingImageIndex !== null &&
+            viewingImageIndex >= 0 &&
+            viewingImageIndex < imageAttachments.length && (
             <ImageModal
               isOpen
               onClose={() => setViewingImageIndex(null)}

@@ -462,3 +462,28 @@ SUGGESTED ANALYSIS:
 		return ""
 	}
 }
+
+// DefaultBISystemPromptOpts configures which optional sections are included in the default BI system prompt.
+// Use this when building a custom parent agent that should share the SDK's base BI instructions.
+type DefaultBISystemPromptOpts struct {
+	CodeInterpreter        bool
+	AgentRegistry         *agents.AgentRegistry
+	LearningEnabled       bool
+	ValidatedQueryEnabled bool
+	InsightDepth          string // "", "brief", "standard", "detailed"
+	ArtifactReaderEnabled bool
+}
+
+// DefaultBISystemPrompt returns the default Business Intelligence system prompt used by the SDK's DefaultBIAgent.
+// Consumers (e.g. EAI) can use this for custom parent agents and append project-specific guidance via
+// the project prompt extension in AgentServiceConfig / ModuleConfig.
+func DefaultBISystemPrompt(opts DefaultBISystemPromptOpts) string {
+	return buildBISystemPrompt(
+		opts.CodeInterpreter,
+		opts.AgentRegistry,
+		opts.LearningEnabled,
+		opts.ValidatedQueryEnabled,
+		opts.InsightDepth,
+		opts.ArtifactReaderEnabled,
+	)
+}

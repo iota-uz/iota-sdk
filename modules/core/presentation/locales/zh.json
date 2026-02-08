@@ -397,6 +397,7 @@
     }
   },
   "Modules": {
+    "BiChat": "BI-聊天",
     "Bichat": "Bichat",
     "Billing": "计费",
     "Core": "管理",
