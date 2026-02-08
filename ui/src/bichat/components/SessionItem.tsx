@@ -7,7 +7,7 @@
 import React, { useRef, memo, useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
-import { DotsThree, Check, Bookmark, PencilSimple, Archive, ArrowsClockwise, ArrowUUpLeft } from '@phosphor-icons/react'
+import { DotsThree, Check, Bookmark, PencilSimple, Archive, ArrowsClockwise, ArrowUUpLeft, Trash } from '@phosphor-icons/react'
 import { EditableText, type EditableTextRef } from './EditableText'
 import { sessionItemVariants } from '../animations/variants'
 import type { Session } from '../types'
@@ -139,7 +139,7 @@ const SessionItem = memo<SessionItemProps>(
         ...(onDelete ? [{
           id: 'delete',
           label: t('sidebar.deleteChat'),
-          icon: <Archive size={20} />,
+          icon: <Trash size={20} />,
           onClick: () => onDelete(),
           variant: 'danger' as const,
         }] : []),
@@ -334,7 +334,7 @@ const SessionItem = memo<SessionItemProps>(
                             aria-label={t('sidebar.deleteChat')}
                             data-testid={`${testIdPrefix}-session-delete-${session.id}`}
                           >
-                            <Archive size={16} className="w-4 h-4" />
+                            <Trash size={16} className="w-4 h-4" />
                             {t('sidebar.deleteChat')}
                           </button>
                         )}

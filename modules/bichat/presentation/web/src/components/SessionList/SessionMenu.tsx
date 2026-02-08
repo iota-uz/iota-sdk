@@ -1,6 +1,6 @@
 /**
  * SessionMenu Component
- * Dropdown menu for session actions (pin, rename, archive)
+ * Dropdown menu for session actions (pin, rename, archive, delete)
  */
 
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'

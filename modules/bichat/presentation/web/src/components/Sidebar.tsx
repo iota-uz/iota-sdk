@@ -259,8 +259,8 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
   }
 
   const handleArchiveSession = async (sessionId: string, e?: React.MouseEvent) => {
-    e?.preventDefault?.()
-    e?.stopPropagation?.()
+    e?.preventDefault()
+    e?.stopPropagation()
     try {
       await callRPC('bichat.session.archive', { id: sessionId })
       setActionError(null)
