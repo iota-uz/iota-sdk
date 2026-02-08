@@ -178,13 +178,19 @@ func setupApplet(root, appletName string) ([]processSpec, error) {
 	// Environment
 	iotaPort := getEnvOrDefault("IOTA_PORT", "3900")
 	upperName := strings.ToUpper(strings.ReplaceAll(applet.Name, "-", "_"))
-	_ = os.Setenv("APPLET_ASSETS_BASE", applet.BasePath+"/assets/")
-	_ = os.Setenv("APPLET_VITE_PORT", fmt.Sprintf("%d", applet.VitePort))
-	_ = os.Setenv(fmt.Sprintf("IOTA_APPLET_DEV_%s", upperName), "1")
-	_ = os.Setenv(fmt.Sprintf("IOTA_APPLET_VITE_URL_%s", upperName),
-		fmt.Sprintf("http://localhost:%d", applet.VitePort))
-	_ = os.Setenv(fmt.Sprintf("IOTA_APPLET_ENTRY_%s", upperName), applet.EntryModule)
-	_ = os.Setenv(fmt.Sprintf("IOTA_APPLET_CLIENT_%s", upperName), "/@vite/client")
+	envVars := map[string]string{
+		"APPLET_ASSETS_BASE":                          applet.BasePath + "/assets/",
+		"APPLET_VITE_PORT":                            fmt.Sprintf("%d", applet.VitePort),
+		fmt.Sprintf("IOTA_APPLET_DEV_%s", upperName):  "1",
+		fmt.Sprintf("IOTA_APPLET_VITE_URL_%s", upperName): fmt.Sprintf("http://localhost:%d", applet.VitePort),
+		fmt.Sprintf("IOTA_APPLET_ENTRY_%s", upperName):   applet.EntryModule,
+		fmt.Sprintf("IOTA_APPLET_CLIENT_%s", upperName):   "/@vite/client",
+	}
+	for k, v := range envVars {
+		if err := os.Setenv(k, v); err != nil {
+			return nil, fmt.Errorf("set env %s: %w", k, err)
+		}
+	}
 
 	// Build applet CSS before starting Vite (tailwindcss --watch needs TTY, may exit immediately)
 	log.Println("Building applet CSS...")
@@ -232,7 +238,11 @@ func (m *managedProcess) runCritical(ctx context.Context, exitCh chan<- string) 
 		m.cmd = cmd
 		m.mu.Unlock()
 
-		_ = cmd.Wait()
+		if waitErr := cmd.Wait(); waitErr != nil {
+			outputMu.Lock()
+			fmt.Fprintf(os.Stderr, "%s%s[%-*s]%s process exit: %v\n", m.spec.Color, colorDim, m.maxLen, m.spec.Name, colorReset, waitErr)
+			outputMu.Unlock()
+		}
 
 		if ctx.Err() != nil {
 			return
@@ -453,7 +463,9 @@ func enableCbreak(ctx context.Context) func() {
 	return func() {
 		restore := exec.CommandContext(context.Background(), "stty", strings.TrimSpace(string(state)))
 		restore.Stdin = os.Stdin
-		_ = restore.Run()
+		if err := restore.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to restore terminal (stty): %v\n", err)
+		}
 	}
 }
 
@@ -598,7 +610,9 @@ func buildSDKIfNeeded(root string) error {
 			return err
 		}
 
-		_ = os.MkdirAll(filepath.Join(root, "dist"), 0755)
+		if err := os.MkdirAll(filepath.Join(root, "dist"), 0755); err != nil {
+			return fmt.Errorf("create dist directory: %w", err)
+		}
 		if err := os.WriteFile(hashFile, []byte(currentHash), 0644); err != nil {
 			return err
 		}
@@ -684,12 +698,16 @@ func refreshAppletDeps(root, viteDir string) error {
 
 	viteCache := filepath.Join(nodeModules, ".vite")
 	if didInstall {
-		_ = os.RemoveAll(viteCache)
+		if err := os.RemoveAll(viteCache); err != nil {
+			log.Printf("warning: failed to clear Vite cache after install: %v", err)
+		}
 	} else {
 		distIndex := filepath.Join(root, "dist/index.mjs")
 		if isNewer(distIndex, viteCache) {
 			log.Println("Clearing Vite dep cache (SDK bundle changed)...")
-			_ = os.RemoveAll(viteCache)
+			if err := os.RemoveAll(viteCache); err != nil {
+				log.Printf("warning: failed to clear Vite cache: %v", err)
+			}
 		}
 	}
 
@@ -741,7 +759,9 @@ func checkPort(ctx context.Context, port int, label string) error {
 		fmt.Fprintf(os.Stderr, "  Kill it: lsof -ti :%d | xargs kill\n", port)
 		return err
 	}
-	_ = ln.Close()
+	if err := ln.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: close port check listener: %v\n", err)
+	}
 	return nil
 }
 

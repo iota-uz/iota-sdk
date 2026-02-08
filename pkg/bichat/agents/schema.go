@@ -38,7 +38,9 @@ func cloneMap(in map[string]any) map[string]any {
 		return nil
 	}
 	var out map[string]any
-	_ = json.Unmarshal(b, &out)
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil
+	}
 	return out
 }
 

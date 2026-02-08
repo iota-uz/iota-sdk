@@ -148,8 +148,8 @@ func WriteReport(outPath string, rep Report) error {
 	}
 
 	if strings.TrimSpace(outPath) == "" {
-		_, _ = os.Stdout.Write(append(data, '\n'))
-		return nil
+		_, err = os.Stdout.Write(append(data, '\n'))
+		return err
 	}
 
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
