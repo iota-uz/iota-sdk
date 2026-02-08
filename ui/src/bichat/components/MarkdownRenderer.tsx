@@ -129,8 +129,13 @@ function MarkdownRenderer({
         )
       }
 
-      const isChartBlock = language.toLowerCase() === 'chart'
-      const chartData = isChartBlock ? parseChartDataFromJsonString(value, 'Chart') : null
+      const lang = language.toLowerCase()
+      const chartData =
+        lang === 'chart'
+          ? parseChartDataFromJsonString(value, 'Chart')
+          : lang === 'json' && value.includes('"chartType"')
+            ? parseChartDataFromJsonString(value, 'Chart')
+            : null
 
       if (chartData) {
         return (
