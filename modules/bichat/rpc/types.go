@@ -481,34 +481,6 @@ func toArtifactDTO(a domain.Artifact) Artifact {
 	return out
 }
 
-func toPendingQuestionDTO(interrupt *services.Interrupt) *PendingQuestion {
-	if interrupt == nil {
-		return nil
-	}
-
-	questions := make([]PendingQuestionItem, 0, len(interrupt.Questions))
-	for _, q := range interrupt.Questions {
-		options := make([]PendingQuestionOption, 0, len(q.Options))
-		for _, opt := range q.Options {
-			options = append(options, PendingQuestionOption{
-				ID:    opt.ID,
-				Label: opt.Label,
-			})
-		}
-		questions = append(questions, PendingQuestionItem{
-			ID:      q.ID,
-			Text:    q.Text,
-			Type:    string(q.Type),
-			Options: options,
-		})
-	}
-
-	return &PendingQuestion{
-		CheckpointID: interrupt.CheckpointID,
-		Questions:    questions,
-	}
-}
-
 func requireSessionOwner(ctx context.Context, chatSvc services.ChatService, sessionID uuid.UUID) (domain.Session, error) {
 	user, err := composables.UseUser(ctx)
 	if err != nil {

@@ -384,7 +384,10 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 
 	// Attach QuestionData if interrupted
 	if interrupt != nil {
-		qd := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
+		qd, err := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
 		if qd != nil {
 			assistantMsgOpts = append(assistantMsgOpts, types.WithQuestionData(qd))
 		}
@@ -606,7 +609,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 	// Attach QuestionData if interrupted
 	if interrupt != nil {
-		qd := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
+		qd, err := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
+		if err != nil {
+			return serrors.E(op, err)
+		}
 		if qd != nil {
 			assistantMsgOpts = append(assistantMsgOpts, types.WithQuestionData(qd))
 		}
@@ -795,7 +801,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
 	}
 
-	// Update question data with answers
+	// Validate question data before resuming (defer mutation until resume succeeds)
 	qd := pendingMsg.QuestionData()
 	if qd == nil {
 		return nil, serrors.E(op, serrors.KindValidation, "pending message has no question data")
@@ -803,10 +809,6 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 
 	answeredQD, err := qd.Answer(req.Answers)
 	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	if err := s.chatRepo.UpdateMessageQuestionData(ctx, pendingMsg.ID(), answeredQD); err != nil {
 		return nil, serrors.E(op, err)
 	}
 
@@ -874,6 +876,12 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		}
 	}
 
+	// Mark question as answered only after resume succeeds — prevents irreversible
+	// state drift if the provider returns a transient error, timeout, or bad checkpoint.
+	if err := s.chatRepo.UpdateMessageQuestionData(ctx, pendingMsg.ID(), answeredQD); err != nil {
+		return nil, serrors.E(op, err)
+	}
+
 	// Build assistant message options
 	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
 	savedToolCalls := orderedToolCalls(toolCalls, toolOrder)
@@ -886,7 +894,10 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 
 	// Attach QuestionData if re-interrupted
 	if interrupt != nil {
-		qd := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
+		qd, err := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
 		if qd != nil {
 			assistantMsgOpts = append(assistantMsgOpts, types.WithQuestionData(qd))
 		}
@@ -937,7 +948,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
 	}
 
-	// Update question data to rejected state
+	// Validate question data before resuming (defer mutation until resume succeeds)
 	qd := pendingMsg.QuestionData()
 	if qd == nil {
 		return nil, serrors.E(op, serrors.KindValidation, "pending message has no question data")
@@ -945,10 +956,6 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 
 	rejectedQD, err := qd.Reject()
 	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	if err := s.chatRepo.UpdateMessageQuestionData(ctx, pendingMsg.ID(), rejectedQD); err != nil {
 		return nil, serrors.E(op, err)
 	}
 
@@ -1014,6 +1021,12 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 		}
 	}
 
+	// Mark question as rejected only after resume succeeds — prevents irreversible
+	// state drift if the provider returns a transient error, timeout, or bad checkpoint.
+	if err := s.chatRepo.UpdateMessageQuestionData(ctx, pendingMsg.ID(), rejectedQD); err != nil {
+		return nil, serrors.E(op, err)
+	}
+
 	// Build assistant message options
 	assistantMsgOpts := []types.MessageOption{types.WithSessionID(sessionID)}
 	savedToolCalls := orderedToolCalls(toolCalls, toolOrder)
@@ -1026,7 +1039,10 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 
 	// Attach QuestionData if re-interrupted
 	if interrupt != nil {
-		qd := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
+		qd, err := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
 		if qd != nil {
 			assistantMsgOpts = append(assistantMsgOpts, types.WithQuestionData(qd))
 		}
@@ -1205,7 +1221,7 @@ func buildTitleGenerationContext(ctx context.Context) context.Context {
 }
 
 // buildQuestionData converts service-level interrupt questions to QuestionData
-func buildQuestionData(checkpointID, agentName string, questions []bichatservices.Question) *types.QuestionData {
+func buildQuestionData(checkpointID, agentName string, questions []bichatservices.Question) (*types.QuestionData, error) {
 	items := make([]types.QuestionDataItem, len(questions))
 	for i, q := range questions {
 		opts := make([]types.QuestionDataOption, len(q.Options))
@@ -1225,7 +1241,7 @@ func buildQuestionData(checkpointID, agentName string, questions []bichatservice
 	}
 	qd, err := types.NewQuestionData(checkpointID, agentName, items)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return qd
+	return qd, nil
 }

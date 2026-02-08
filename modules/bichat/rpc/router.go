@@ -358,7 +358,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 
-			resumeResp, err := chatSvc.ResumeWithAnswer(ctx, services.ResumeRequest{
+			_, err = chatSvc.ResumeWithAnswer(ctx, services.ResumeRequest{
 				SessionID:    sessionID,
 				CheckpointID: p.CheckpointID,
 				Answers:      p.Answers,
@@ -380,7 +380,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			return SessionGetResult{
 				Session:         toSessionDTO(s),
 				Turns:           buildTurns(msgs),
-				PendingQuestion: toPendingQuestionDTO(resumeResp.Interrupt),
+				PendingQuestion: pendingQuestionFromMessages(msgs),
 			}, nil
 		},
 	})
