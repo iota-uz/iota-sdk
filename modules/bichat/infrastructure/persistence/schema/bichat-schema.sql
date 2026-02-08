@@ -126,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_session ON bichat.messages(session_id, c
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON bichat.messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_role ON bichat.messages(role);
 CREATE INDEX IF NOT EXISTS idx_messages_tool_call ON bichat.messages(tool_call_id) WHERE tool_call_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_one_pending_question ON bichat.messages(session_id) WHERE question_data->>'status' = 'pending';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_one_pending_question ON bichat.messages(session_id) WHERE question_data->>'status' = 'PENDING';
 
 CREATE INDEX IF NOT EXISTS idx_attachments_message ON bichat.attachments(message_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_created_at ON bichat.attachments(created_at);

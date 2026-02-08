@@ -113,7 +113,7 @@ ALTER TABLE bichat.sessions
 -- At most one pending question per session (DB-level constraint)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_one_pending_question
     ON bichat.messages (session_id)
-    WHERE question_data ->> 'status' = 'pending';
+    WHERE question_data ->> 'status' = 'PENDING';
 
 -- +migrate Down
 DROP INDEX IF EXISTS bichat.idx_messages_one_pending_question;

@@ -89,7 +89,7 @@ const (
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
-		  AND m.question_data->>'status' = 'pending'
+		  AND m.question_data->>'status' = 'PENDING'
 		LIMIT 1
 	`
 

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -350,7 +351,7 @@ func TestEventBridge_InterruptSpanHasInputOutput(t *testing.T) {
 	defer func() { _ = bridge.Shutdown(context.Background()) }()
 	sessionID := uuid.New()
 	tenantID := uuid.New()
-	event := events.NewInterruptEvent(sessionID, tenantID, "ask_user_question", "default", "Which date range?", "cp-123")
+	event := events.NewInterruptEvent(sessionID, tenantID, string(types.InterruptTypeAskUserQuestion), "default", "Which date range?", "cp-123")
 	require.NoError(t, bus.Publish(context.Background(), event))
 	time.Sleep(100 * time.Millisecond)
 	spans := provider.getSpans()
@@ -361,7 +362,7 @@ func TestEventBridge_InterruptSpanHasInputOutput(t *testing.T) {
 	require.NotEmpty(t, obs.Output)
 	var inputMap map[string]interface{}
 	require.NoError(t, json.Unmarshal([]byte(obs.Input), &inputMap))
-	assert.Equal(t, "ask_user_question", inputMap["interrupt_type"])
+	assert.Equal(t, "ASK_USER_QUESTION", inputMap["interrupt_type"])
 	assert.Equal(t, "default", inputMap["agent_name"])
 	var outputMap map[string]interface{}
 	require.NoError(t, json.Unmarshal([]byte(obs.Output), &outputMap))

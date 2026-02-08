@@ -11,7 +11,7 @@ type InterruptType string
 
 const (
 	// InterruptTypeAskUserQuestion indicates a HITL interrupt waiting for user answers.
-	InterruptTypeAskUserQuestion InterruptType = "ask_user_question"
+	InterruptTypeAskUserQuestion InterruptType = "ASK_USER_QUESTION"
 )
 
 // AskUserQuestion represents a single question in a HITL interrupt.
@@ -38,7 +38,7 @@ type QuestionMetadata struct {
 // AskUserQuestionPayload represents the canonical HITL interrupt payload.
 // This is stored in InterruptEvent.Data and used for resume validation.
 type AskUserQuestionPayload struct {
-	Type      InterruptType     `json:"type"`               // "ask_user_question"
+	Type      InterruptType     `json:"type"`               // "ASK_USER_QUESTION"
 	Questions []AskUserQuestion `json:"questions"`          // The questions to ask (with stable IDs)
 	Metadata  *QuestionMetadata `json:"metadata,omitempty"` // Optional metadata
 }
@@ -91,9 +91,9 @@ func NewMultiAnswer(ss []string) Answer {
 type QuestionStatus string
 
 const (
-	QuestionStatusPending  QuestionStatus = "pending"
-	QuestionStatusAnswered QuestionStatus = "answered"
-	QuestionStatusRejected QuestionStatus = "rejected"
+	QuestionStatusPending  QuestionStatus = "PENDING"
+	QuestionStatusAnswered QuestionStatus = "ANSWERED"
+	QuestionStatusRejected QuestionStatus = "REJECTED"
 )
 
 var (
