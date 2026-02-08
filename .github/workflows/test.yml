@@ -102,7 +102,7 @@ jobs:
         run: go vet -tags dev ./...
 
       - name: Run BiChat smoke evals
-        run: just eval
+        run: go run ./cmd/command/main.go bichat eval list --cases ./pkg/bichat/eval/testdata/analytics
 
       - name: Check applet RPC contracts
         run: just applet rpc-check bichat
