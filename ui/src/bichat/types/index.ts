@@ -445,6 +445,8 @@ export interface ChatMessagingStateValue {
   codeOutputs: CodeOutput[]
   isCompacting: boolean
   compactionSummary: string | null
+  /** Bumped when artifacts should be refetched (e.g. tool_end for artifact-producing tools). */
+  artifactsInvalidationTrigger: number
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
   handleRegenerate?: (turnId: string) => Promise<void>
   handleEdit?: (turnId: string, newContent: string) => Promise<void>

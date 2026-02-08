@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowsClockwise, CaretLeft, Paperclip } from '@phosphor-icons/react'
+import { CaretLeft, Paperclip } from '@phosphor-icons/react'
 import type { ChatDataSource, SessionArtifact } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
+import { useChatMessaging } from '../context/ChatContext'
 import { SessionArtifactList } from './SessionArtifactList'
 import { SessionArtifactPreview } from './SessionArtifactPreview'
 
@@ -38,6 +39,7 @@ export function SessionArtifactsPanel({
   className = '',
 }: SessionArtifactsPanelProps) {
   const { t } = useTranslation()
+  const { artifactsInvalidationTrigger } = useChatMessaging()
 
   const [fetching, setFetching] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -162,6 +164,22 @@ export function SessionArtifactsPanel({
     prevStreamingRef.current = isStreaming
   }, [fetchArtifacts, isStreaming])
 
+  useEffect(() => {
+    if (artifactsInvalidationTrigger > 0 && sessionId && canFetchArtifacts) {
+      void fetchArtifacts({ reset: true, manual: false })
+    }
+  }, [artifactsInvalidationTrigger, sessionId, canFetchArtifacts, fetchArtifacts])
+
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === 'visible' && sessionId && canFetchArtifacts) {
+        void fetchArtifacts({ reset: true, manual: false })
+      }
+    }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [sessionId, canFetchArtifacts, fetchArtifacts])
+
   const selectedArtifact = useMemo(
     () => artifacts.find((artifact) => artifact.id === selectedArtifactId) ?? null,
     [artifacts, selectedArtifactId]
@@ -275,7 +293,7 @@ export function SessionArtifactsPanel({
       )}
 
       <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700/80">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             {selectedArtifact ? (
               <button
                 type="button"
@@ -291,20 +309,6 @@ export function SessionArtifactsPanel({
               </h2>
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              void fetchArtifacts({ reset: true, manual: true })
-            }}
-            disabled={fetching || refreshing || loadingMore || !canFetchArtifacts}
-            className="cursor-pointer inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-            title={t('artifacts.refresh')}
-            aria-label={t('artifacts.refresh')}
-          >
-            <ArrowsClockwise className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} weight="bold" />
-            {t('artifacts.refresh')}
-          </button>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">

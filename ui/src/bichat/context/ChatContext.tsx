@@ -198,7 +198,13 @@ export function ChatSessionProvider({
   const [codeOutputs, setCodeOutputs] = useState<CodeOutput[]>([])
   const [isCompacting, setIsCompacting] = useState(false)
   const [compactionSummary, setCompactionSummary] = useState<string | null>(null)
+  const [artifactsInvalidationTrigger, setArtifactsInvalidationTrigger] = useState(0)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  const ARTIFACT_TOOL_NAMES = useMemo(
+    () => new Set(['code_interpreter', 'draw_chart', 'export_query_to_excel', 'export_data_to_excel', 'export_to_pdf']),
+    []
+  )
 
   // ── Input state ────────────────────────────────────────────────────────
   const [message, setMessage] = useState('')
@@ -538,6 +544,8 @@ export function ChatSessionProvider({
             }
           } else if (chunk.type === 'user_message' && chunk.sessionId) {
             createdSessionId = chunk.sessionId
+          } else if (chunk.type === 'tool_end' && chunk.tool?.name && ARTIFACT_TOOL_NAMES.has(chunk.tool.name)) {
+            setArtifactsInvalidationTrigger((n) => n + 1)
           }
         }
 
@@ -779,6 +787,7 @@ export function ChatSessionProvider({
     codeOutputs,
     isCompacting,
     compactionSummary,
+    artifactsInvalidationTrigger,
     sendMessage: sendMessageDirect,
     handleRegenerate,
     handleEdit,
@@ -789,7 +798,7 @@ export function ChatSessionProvider({
     setCodeOutputs,
   }), [
     turns, streamingContent, isStreaming, loading, pendingQuestion,
-    codeOutputs, isCompacting, compactionSummary,
+    codeOutputs, isCompacting, compactionSummary, artifactsInvalidationTrigger,
     sendMessageDirect, handleRegenerate, handleEdit, handleCopy,
     handleSubmitQuestionAnswers, handleRejectPendingQuestion, cancelStream,
   ])
