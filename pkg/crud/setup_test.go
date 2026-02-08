@@ -256,9 +256,11 @@ func skipUnlessDB(t *testing.T) {
 	}
 }
 
-// setupTest creates all necessary dependencies for tests
+// setupTest creates all necessary dependencies for tests.
+// Calls skipUnlessDB so tests that use setupTest skip when Postgres is unavailable (e.g. -short or no DB).
 func setupTest(t *testing.T) *testFixtures {
 	t.Helper()
+	skipUnlessDB(t)
 
 	// Use DatabaseManager for proper semaphore handling
 	dm := itf.NewDatabaseManager(t)
