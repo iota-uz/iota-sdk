@@ -107,6 +107,9 @@ jobs:
       - name: Check applet RPC contracts
         run: just applet rpc-check bichat
 
+      - name: Install BiChat applet dependencies
+        run: pnpm install --frozen-lockfile -C modules/bichat/presentation/web
+
       - name: Typecheck BiChat applet
         run: pnpm -C modules/bichat/presentation/web exec tsc --noEmit
 
