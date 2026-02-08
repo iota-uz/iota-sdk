@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -87,40 +89,45 @@ type searchLearningsResultItem struct {
 	UsedCount int    `json:"used_count"`
 }
 
-// Call executes the search learnings tool.
-func (t *SearchLearningsTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "SearchLearningsTool.Call"
+// CallStructured executes the search learnings tool and returns a structured result.
+func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+	const op serrors.Op = "SearchLearningsTool.CallStructured"
 
-	// Parse input
 	params, err := agents.ParseToolInput[searchLearningsInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil
 	}
 
 	if params.Query == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"query parameter is required",
-			HintCheckRequiredFields,
-			"Provide search terms for learning query",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "query parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide search terms for learning query"},
+			},
+		}, nil
 	}
 
-	// Get tenant ID from context
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			"tenant context not available",
-			HintServiceMayBeDown,
-		), serrors.E(op, err)
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: "tenant context not available",
+				Hints:   []string{HintServiceMayBeDown},
+			},
+		}, serrors.E(op, err)
 	}
 
-	// Set defaults and limits
 	limit := params.Limit
 	if limit == 0 {
 		limit = 10
@@ -129,42 +136,44 @@ func (t *SearchLearningsTool) Call(ctx context.Context, input string) (string, e
 		limit = 50
 	}
 
-	// Build search options
 	opts := learning.SearchOpts{
 		TenantID:  tenantID,
 		TableName: params.TableName,
 		Limit:     limit,
 	}
 
-	// Add category filter if provided
 	if params.Category != "" {
 		cat := learning.Category(params.Category)
 		opts.Category = &cat
 	}
 
-	// Search learnings
 	learnings, err := t.store.Search(ctx, params.Query, opts)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			fmt.Sprintf("learning search failed: %v", err),
-			HintServiceMayBeDown,
-			HintRetryLater,
-		), serrors.E(op, err, "learning search failed")
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("learning search failed: %v", err),
+				Hints:   []string{HintServiceMayBeDown, HintRetryLater},
+			},
+		}, serrors.E(op, err, "learning search failed")
 	}
 
-	// Check if no results found
 	if len(learnings) == 0 {
-		return FormatToolError(
-			ErrCodeNoData,
-			fmt.Sprintf("no learnings found for query: %s", params.Query),
-			HintTryDifferentTerms,
-			"Try broader search terms or remove table filter",
-			"This might be a new pattern - proceed carefully and save learnings if you discover issues",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeNoData),
+				Message: fmt.Sprintf("no learnings found for query: %s", params.Query),
+				Hints: []string{
+					HintTryDifferentTerms,
+					"Try broader search terms or remove table filter",
+					"This might be a new pattern - proceed carefully and save learnings if you discover issues",
+				},
+			},
+		}, nil
 	}
 
-	// Build response
 	results := make([]searchLearningsResultItem, len(learnings))
 	for i, l := range learnings {
 		results[i] = searchLearningsResultItem{
@@ -184,7 +193,34 @@ func (t *SearchLearningsTool) Call(ctx context.Context, input string) (string, e
 		Learnings:   results,
 	}
 
-	return agents.FormatToolOutput(response)
+	return &agents.ToolResult{
+		CodecID: formatters.CodecSearchResults,
+		Payload: formatters.SearchResultsPayload{Output: response},
+	}, nil
+}
+
+// Call executes the search learnings tool.
+func (t *SearchLearningsTool) Call(ctx context.Context, input string) (string, error) {
+	result, err := t.CallStructured(ctx, input)
+	if err != nil {
+		if result != nil {
+			registry := formatters.DefaultFormatterRegistry()
+			if f := registry.Get(result.CodecID); f != nil {
+				formatted, fmtErr := f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+				if fmtErr == nil {
+					return formatted, err
+				}
+			}
+		}
+		return "", err
+	}
+
+	registry := formatters.DefaultFormatterRegistry()
+	f := registry.Get(result.CodecID)
+	if f == nil {
+		return agents.FormatToolOutput(result.Payload)
+	}
+	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
 }
 
 // SaveLearningTool saves a new learning when the agent discovers an error pattern or important insight.
@@ -257,47 +293,53 @@ type saveLearningOutput struct {
 	TableName string `json:"table_name,omitempty"`
 }
 
-// Call executes the save learning tool.
-func (t *SaveLearningTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "SaveLearningTool.Call"
+// CallStructured executes the save learning tool and returns a structured result.
+func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+	const op serrors.Op = "SaveLearningTool.CallStructured"
 
-	// Parse input
 	params, err := agents.ParseToolInput[saveLearningInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil
 	}
 
-	// Validate required fields
 	if params.Category == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"category parameter is required",
-			HintCheckRequiredFields,
-			"Valid categories: sql_error, type_mismatch, user_correction, business_rule",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "category parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Valid categories: sql_error, type_mismatch, user_correction, business_rule"},
+			},
+		}, nil
 	}
 	if params.Trigger == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"trigger parameter is required",
-			HintCheckRequiredFields,
-			"Describe what caused this learning (error message, user feedback, etc.)",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "trigger parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Describe what caused this learning (error message, user feedback, etc.)"},
+			},
+		}, nil
 	}
 	if params.Lesson == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"lesson parameter is required",
-			HintCheckRequiredFields,
-			"Describe what to do/avoid next time (be specific and actionable)",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "lesson parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Describe what to do/avoid next time (be specific and actionable)"},
+			},
+		}, nil
 	}
 
-	// Validate category
 	validCategories := map[string]bool{
 		"sql_error":       true,
 		"type_mismatch":   true,
@@ -305,25 +347,28 @@ func (t *SaveLearningTool) Call(ctx context.Context, input string) (string, erro
 		"business_rule":   true,
 	}
 	if !validCategories[params.Category] {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("invalid category: %s", params.Category),
-			HintCheckFieldTypes,
-			"Valid categories: sql_error, type_mismatch, user_correction, business_rule",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("invalid category: %s", params.Category),
+				Hints:   []string{HintCheckFieldTypes, "Valid categories: sql_error, type_mismatch, user_correction, business_rule"},
+			},
+		}, nil
 	}
 
-	// Get tenant ID from context
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			"tenant context not available",
-			HintServiceMayBeDown,
-		), serrors.E(op, err)
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: "tenant context not available",
+				Hints:   []string{HintServiceMayBeDown},
+			},
+		}, serrors.E(op, err)
 	}
 
-	// Create learning
 	l := learning.Learning{
 		ID:        uuid.New(),
 		TenantID:  tenantID,
@@ -336,18 +381,18 @@ func (t *SaveLearningTool) Call(ctx context.Context, input string) (string, erro
 		CreatedAt: time.Now(),
 	}
 
-	// Save to store
 	err = t.store.Save(ctx, l)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			fmt.Sprintf("failed to save learning: %v", err),
-			HintServiceMayBeDown,
-			HintRetryLater,
-		), serrors.E(op, err, "failed to save learning")
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("failed to save learning: %v", err),
+				Hints:   []string{HintServiceMayBeDown, HintRetryLater},
+			},
+		}, serrors.E(op, err, "failed to save learning")
 	}
 
-	// Build response
 	message := fmt.Sprintf("Learning saved successfully. This %s pattern will help avoid similar issues in the future.", params.Category)
 	if params.TableName != "" {
 		message = fmt.Sprintf("Learning saved for table '%s'. This %s pattern will help avoid similar issues in the future.", params.TableName, params.Category)
@@ -360,5 +405,32 @@ func (t *SaveLearningTool) Call(ctx context.Context, input string) (string, erro
 		TableName: params.TableName,
 	}
 
-	return agents.FormatToolOutput(response)
+	return &agents.ToolResult{
+		CodecID: formatters.CodecJSON,
+		Payload: formatters.GenericJSONPayload{Output: response},
+	}, nil
+}
+
+// Call executes the save learning tool.
+func (t *SaveLearningTool) Call(ctx context.Context, input string) (string, error) {
+	result, err := t.CallStructured(ctx, input)
+	if err != nil {
+		if result != nil {
+			registry := formatters.DefaultFormatterRegistry()
+			if f := registry.Get(result.CodecID); f != nil {
+				formatted, fmtErr := f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+				if fmtErr == nil {
+					return formatted, err
+				}
+			}
+		}
+		return "", err
+	}
+
+	registry := formatters.DefaultFormatterRegistry()
+	f := registry.Get(result.CodecID)
+	if f == nil {
+		return agents.FormatToolOutput(result.Payload)
+	}
+	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
 }

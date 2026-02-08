@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -72,30 +74,33 @@ type kbSearchOutput struct {
 	Results     []SearchResult `json:"results"`
 }
 
-// Call executes the knowledge base search.
-func (t *KBSearchTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "KBSearchTool.Call"
+// CallStructured executes the knowledge base search and returns a structured result.
+func (t *KBSearchTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+	const op serrors.Op = "KBSearchTool.CallStructured"
 
-	// Parse input
 	params, err := agents.ParseToolInput[kbSearchInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil
 	}
 
 	if params.Query == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"query parameter is required",
-			HintCheckRequiredFields,
-			"Provide search terms for knowledge base query",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "query parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide search terms for knowledge base query"},
+			},
+		}, nil
 	}
 
-	// Set defaults
 	limit := params.Limit
 	if limit == 0 {
 		limit = 5
@@ -104,45 +109,63 @@ func (t *KBSearchTool) Call(ctx context.Context, input string) (string, error) {
 		limit = 20
 	}
 
-	// Check if KB is available
 	if !t.searcher.IsAvailable() {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			"knowledge base is not available",
-			HintServiceMayBeDown,
-			HintRetryLater,
-			"Contact administrator to enable knowledge base",
-		), serrors.E(op, "knowledge base is not available")
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: "knowledge base is not available",
+				Hints:   []string{HintServiceMayBeDown, HintRetryLater, "Contact administrator to enable knowledge base"},
+			},
+		}, serrors.E(op, "knowledge base is not available")
 	}
 
-	// Search knowledge base
 	results, err := t.searcher.Search(ctx, params.Query, limit)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			fmt.Sprintf("knowledge base search failed: %v", err),
-			HintServiceMayBeDown,
-			HintRetryLater,
-		), serrors.E(op, err, "knowledge base search failed")
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("knowledge base search failed: %v", err),
+				Hints:   []string{HintServiceMayBeDown, HintRetryLater},
+			},
+		}, serrors.E(op, err, "knowledge base search failed")
 	}
 
-	// Check if no results found
 	if len(results) == 0 {
-		return FormatToolError(
-			ErrCodeNoData,
-			fmt.Sprintf("no knowledge base results found for query: %s", params.Query),
-			HintTryDifferentTerms,
-			"Try broader or more specific search terms",
-			"Check spelling and terminology",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeNoData),
+				Message: fmt.Sprintf("no knowledge base results found for query: %s", params.Query),
+				Hints:   []string{HintTryDifferentTerms, "Try broader or more specific search terms", "Check spelling and terminology"},
+			},
+		}, nil
 	}
 
-	// Build response
 	response := kbSearchOutput{
 		Query:       params.Query,
 		ResultCount: len(results),
 		Results:     results,
 	}
 
-	return agents.FormatToolOutput(response)
+	return &agents.ToolResult{
+		CodecID: formatters.CodecSearchResults,
+		Payload: formatters.SearchResultsPayload{Output: response},
+	}, nil
+}
+
+// Call executes the knowledge base search.
+func (t *KBSearchTool) Call(ctx context.Context, input string) (string, error) {
+	result, err := t.CallStructured(ctx, input)
+	if err != nil {
+		return "", err
+	}
+
+	registry := formatters.DefaultFormatterRegistry()
+	f := registry.Get(result.CodecID)
+	if f == nil {
+		return agents.FormatToolOutput(result.Payload)
+	}
+	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
 }

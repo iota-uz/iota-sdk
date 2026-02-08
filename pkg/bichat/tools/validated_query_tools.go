@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -83,40 +85,45 @@ type searchValidatedQueriesResultItem struct {
 	UsedCount        int      `json:"used_count"`
 }
 
-// Call executes the search validated queries tool.
-func (t *SearchValidatedQueriesTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "SearchValidatedQueriesTool.Call"
+// CallStructured executes the search validated queries tool and returns a structured result.
+func (t *SearchValidatedQueriesTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+	const op serrors.Op = "SearchValidatedQueriesTool.CallStructured"
 
-	// Parse input
 	params, err := agents.ParseToolInput[searchValidatedQueriesInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil
 	}
 
 	if params.Question == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"question parameter is required",
-			HintCheckRequiredFields,
-			"Provide search terms for validated query lookup",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "question parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide search terms for validated query lookup"},
+			},
+		}, nil
 	}
 
-	// Get tenant ID from context
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			"tenant context not available",
-			HintServiceMayBeDown,
-		), serrors.E(op, err)
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: "tenant context not available",
+				Hints:   []string{HintServiceMayBeDown},
+			},
+		}, serrors.E(op, err)
 	}
 
-	// Set defaults and limits
 	limit := params.Limit
 	if limit == 0 {
 		limit = 10
@@ -125,36 +132,39 @@ func (t *SearchValidatedQueriesTool) Call(ctx context.Context, input string) (st
 		limit = 50
 	}
 
-	// Build search options
 	opts := learning.ValidatedQuerySearchOpts{
 		TenantID: tenantID,
 		Tables:   params.Tables,
 		Limit:    limit,
 	}
 
-	// Search validated queries
 	queries, err := t.store.Search(ctx, params.Question, opts)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			fmt.Sprintf("validated query search failed: %v", err),
-			HintServiceMayBeDown,
-			HintRetryLater,
-		), serrors.E(op, err, "validated query search failed")
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("validated query search failed: %v", err),
+				Hints:   []string{HintServiceMayBeDown, HintRetryLater},
+			},
+		}, serrors.E(op, err, "validated query search failed")
 	}
 
-	// Check if no results found
 	if len(queries) == 0 {
-		return FormatToolError(
-			ErrCodeNoData,
-			fmt.Sprintf("no validated queries found for question: %s", params.Question),
-			HintTryDifferentTerms,
-			"Try broader search terms or remove table filter",
-			"This might be a new query pattern - write SQL carefully and save if successful",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeNoData),
+				Message: fmt.Sprintf("no validated queries found for question: %s", params.Question),
+				Hints: []string{
+					HintTryDifferentTerms,
+					"Try broader search terms or remove table filter",
+					"This might be a new query pattern - write SQL carefully and save if successful",
+				},
+			},
+		}, nil
 	}
 
-	// Build response
 	results := make([]searchValidatedQueriesResultItem, len(queries))
 	for i, q := range queries {
 		results[i] = searchValidatedQueriesResultItem{
@@ -174,7 +184,34 @@ func (t *SearchValidatedQueriesTool) Call(ctx context.Context, input string) (st
 		Queries:     results,
 	}
 
-	return agents.FormatToolOutput(response)
+	return &agents.ToolResult{
+		CodecID: formatters.CodecSearchResults,
+		Payload: formatters.SearchResultsPayload{Output: response},
+	}, nil
+}
+
+// Call executes the search validated queries tool.
+func (t *SearchValidatedQueriesTool) Call(ctx context.Context, input string) (string, error) {
+	result, err := t.CallStructured(ctx, input)
+	if err != nil {
+		if result != nil {
+			registry := formatters.DefaultFormatterRegistry()
+			if f := registry.Get(result.CodecID); f != nil {
+				formatted, fmtErr := f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+				if fmtErr == nil {
+					return formatted, err
+				}
+			}
+		}
+		return "", err
+	}
+
+	registry := formatters.DefaultFormatterRegistry()
+	f := registry.Get(result.CodecID)
+	if f == nil {
+		return agents.FormatToolOutput(result.Payload)
+	}
+	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
 }
 
 // SaveValidatedQueryTool saves a successful SQL query to the library for future reuse.
@@ -248,76 +285,87 @@ type saveValidatedQueryOutput struct {
 	Tables   []string `json:"tables"`
 }
 
-// Call executes the save validated query tool.
-func (t *SaveValidatedQueryTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "SaveValidatedQueryTool.Call"
+// CallStructured executes the save validated query tool and returns a structured result.
+func (t *SaveValidatedQueryTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+	const op serrors.Op = "SaveValidatedQueryTool.CallStructured"
 
-	// Parse input
 	params, err := agents.ParseToolInput[saveValidatedQueryInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil
 	}
 
-	// Validate required fields
 	if params.Question == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"question parameter is required",
-			HintCheckRequiredFields,
-			"Describe the business question this query answers",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "question parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Describe the business question this query answers"},
+			},
+		}, nil
 	}
 	if params.SQL == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"sql parameter is required",
-			HintCheckRequiredFields,
-			"Provide the validated SQL query",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "sql parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide the validated SQL query"},
+			},
+		}, nil
 	}
 	if params.Summary == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"summary parameter is required",
-			HintCheckRequiredFields,
-			"Provide a brief description of what the query does",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "summary parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide a brief description of what the query does"},
+			},
+		}, nil
 	}
 	if len(params.TablesUsed) == 0 {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"tables_used parameter is required",
-			HintCheckRequiredFields,
-			"Provide list of tables referenced in the query",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "tables_used parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide list of tables referenced in the query"},
+			},
+		}, nil
 	}
 
-	// Validate SQL is SELECT/WITH only
 	normalizedSQL := strings.TrimSpace(strings.ToUpper(params.SQL))
 	if !strings.HasPrefix(normalizedSQL, "SELECT") && !strings.HasPrefix(normalizedSQL, "WITH") {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"only SELECT and WITH queries can be saved",
-			HintCheckFieldTypes,
-			"Ensure the SQL query starts with SELECT or WITH",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "only SELECT and WITH queries can be saved",
+				Hints:   []string{HintCheckFieldTypes, "Ensure the SQL query starts with SELECT or WITH"},
+			},
+		}, nil
 	}
 
-	// Get tenant ID from context
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			"tenant context not available",
-			HintServiceMayBeDown,
-		), serrors.E(op, err)
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: "tenant context not available",
+				Hints:   []string{HintServiceMayBeDown},
+			},
+		}, serrors.E(op, err)
 	}
 
-	// Create validated query
 	query := learning.ValidatedQuery{
 		ID:               uuid.New(),
 		TenantID:         tenantID,
@@ -330,18 +378,18 @@ func (t *SaveValidatedQueryTool) Call(ctx context.Context, input string) (string
 		CreatedAt:        time.Now(),
 	}
 
-	// Save to store
 	err = t.store.Save(ctx, query)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			fmt.Sprintf("failed to save validated query: %v", err),
-			HintServiceMayBeDown,
-			HintRetryLater,
-		), serrors.E(op, err, "failed to save validated query")
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("failed to save validated query: %v", err),
+				Hints:   []string{HintServiceMayBeDown, HintRetryLater},
+			},
+		}, serrors.E(op, err, "failed to save validated query")
 	}
 
-	// Build response
 	message := "Query saved successfully. This pattern will be available for future searches when similar questions arise."
 
 	response := saveValidatedQueryOutput{
@@ -351,5 +399,32 @@ func (t *SaveValidatedQueryTool) Call(ctx context.Context, input string) (string
 		Tables:   params.TablesUsed,
 	}
 
-	return agents.FormatToolOutput(response)
+	return &agents.ToolResult{
+		CodecID: formatters.CodecJSON,
+		Payload: formatters.GenericJSONPayload{Output: response},
+	}, nil
+}
+
+// Call executes the save validated query tool.
+func (t *SaveValidatedQueryTool) Call(ctx context.Context, input string) (string, error) {
+	result, err := t.CallStructured(ctx, input)
+	if err != nil {
+		if result != nil {
+			registry := formatters.DefaultFormatterRegistry()
+			if f := registry.Get(result.CodecID); f != nil {
+				formatted, fmtErr := f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+				if fmtErr == nil {
+					return formatted, err
+				}
+			}
+		}
+		return "", err
+	}
+
+	registry := formatters.DefaultFormatterRegistry()
+	f := registry.Get(result.CodecID)
+	if f == nil {
+		return agents.FormatToolOutput(result.Payload)
+	}
+	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
 }

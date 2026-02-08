@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -122,102 +124,97 @@ type exportQueryOutput struct {
 	FileSizeKB  int64  `json:"file_size_kb"`
 }
 
-// Call executes the query and exports to Excel.
-func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "ExportQueryToExcelTool.Call"
+// CallStructured executes the query and exports to Excel, returning a structured result.
+func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+	const op serrors.Op = "ExportQueryToExcelTool.CallStructured"
 
-	// Parse input
 	params, err := agents.ParseToolInput[exportQueryInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-			HintCheckFieldTypes,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields, HintCheckFieldTypes},
+			},
+		}, nil
 	}
 
 	if params.SQL == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"sql parameter is required",
-			HintCheckRequiredFields,
-			"Provide a SELECT query to execute and export",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "sql parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide a SELECT query to execute and export"},
+			},
+		}, nil
 	}
 
-	// Validate query is read-only
 	if err := validateReadOnlyQuery(params.SQL); err != nil {
-		return FormatToolError(
-			ErrCodePolicyViolation,
-			err.Error(),
-			HintOnlySelectAllowed,
-			HintNoWriteOperations,
-			HintUseSchemaList,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodePolicyViolation),
+				Message: err.Error(),
+				Hints:   []string{HintOnlySelectAllowed, HintNoWriteOperations, HintUseSchemaList},
+			},
+		}, nil
 	}
 
-	// Set defaults
 	filename := params.Filename
 	if filename == "" {
 		filename = "export.xlsx"
 	}
 
-	// Ensure .xlsx extension
 	if !strings.HasSuffix(filename, ".xlsx") {
 		filename += ".xlsx"
 	}
 
-	// Apply row limit (50k max for exports)
 	querySql := applyRowLimit(params.SQL, 50000)
 
-	// Execute query
-	result, err := t.executor.ExecuteQuery(ctx, querySql, nil, 60*time.Second) // 60 second timeout for exports
+	result, err := t.executor.ExecuteQuery(ctx, querySql, nil, 60*time.Second)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeQueryError,
-			fmt.Sprintf("query execution failed: %v", err),
-			HintCheckSQLSyntax,
-			HintVerifyTableNames,
-			HintCheckJoinConditions,
-		), serrors.E(op, err, "failed to execute query")
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeQueryError),
+				Message: fmt.Sprintf("query execution failed: %v", err),
+				Hints:   []string{HintCheckSQLSyntax, HintVerifyTableNames, HintCheckJoinConditions},
+			},
+		}, serrors.E(op, err, "failed to execute query")
 	}
 
-	// Create datasource adapter
 	datasource := NewQueryResultDataSource(result)
-
-	// Use SDK exporter with configured options
 	exporter := excel.NewExcelExporter(t.exportOpts, t.styleOpts)
 
-	// Export to bytes
 	bytes, err := exporter.Export(ctx, datasource)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeQueryError,
-			fmt.Sprintf("failed to export Excel: %v", err),
-			"Verify data format is valid",
-			"Check for special characters in data",
-		), serrors.E(op, err, "failed to export Excel")
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeQueryError),
+				Message: fmt.Sprintf("failed to export Excel: %v", err),
+				Hints:   []string{"Verify data format is valid", "Check for special characters in data"},
+			},
+		}, serrors.E(op, err, "failed to export Excel")
 	}
 
-	// Save to file
 	filePath := filepath.Join(t.outputDir, filename)
 	if err := os.WriteFile(filePath, bytes, 0644); err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			fmt.Sprintf("failed to save Excel file: %v", err),
-			"File system may be full or permissions issue",
-			HintRetryLater,
-		), serrors.E(op, err, "failed to save Excel file")
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("failed to save Excel file: %v", err),
+				Hints:   []string{"File system may be full or permissions issue", HintRetryLater},
+			},
+		}, serrors.E(op, err, "failed to save Excel file")
 	}
 
-	// Calculate file size
 	fileSizeKB := int64(len(bytes)) / 1024
-
-	// Return download URL
 	url := buildDownloadURL(ctx, t.baseURL, filename)
 
-	// Build response
 	response := exportQueryOutput{
 		URL:         url,
 		Filename:    filename,
@@ -226,7 +223,25 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 		FileSizeKB:  fileSizeKB,
 	}
 
-	return agents.FormatToolOutput(response)
+	return &agents.ToolResult{
+		CodecID: formatters.CodecJSON,
+		Payload: formatters.GenericJSONPayload{Output: response},
+	}, nil
+}
+
+// Call executes the query and exports to Excel.
+func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string, error) {
+	result, err := t.CallStructured(ctx, input)
+	if err != nil {
+		return "", err
+	}
+
+	registry := formatters.DefaultFormatterRegistry()
+	f := registry.Get(result.CodecID)
+	if f == nil {
+		return agents.FormatToolOutput(result.Payload)
+	}
+	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
 }
 
 // applyRowLimit adds or enforces a LIMIT clause to the query.

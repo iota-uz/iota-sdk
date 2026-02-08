@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 )
@@ -104,19 +107,41 @@ type artifactReaderInput struct {
 	Mode       string `json:"mode"`
 }
 
-func (t *ArtifactReaderTool) Call(ctx context.Context, input string) (string, error) {
+// CallStructured executes the artifact reader operation and returns a structured result.
+func (t *ArtifactReaderTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
 	params, err := agents.ParseToolInput[artifactReaderInput](input)
 	if err != nil {
-		return FormatToolError(ErrCodeInvalidRequest, "failed to parse input: "+err.Error(), HintCheckRequiredFields), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "failed to parse input: " + err.Error(),
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil
 	}
 
 	if t.repo == nil {
-		return "## Artifact Reader\n\nRepository is not configured.", nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: "Repository is not configured.",
+				Hints:   []string{HintCheckConnection},
+			},
+		}, nil
 	}
 
 	sessionID, ok := agents.UseRuntimeSessionID(ctx)
 	if !ok {
-		return "## Artifact Reader\n\nSession context is unavailable for artifact lookup.", nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "Session context is unavailable for artifact lookup.",
+				Hints:   []string{"Ensure the agent is running in a session context"},
+			},
+		}, nil
 	}
 
 	action := strings.ToLower(strings.TrimSpace(params.Action))
@@ -129,21 +154,59 @@ func (t *ArtifactReaderTool) Call(ctx context.Context, input string) (string, er
 
 	switch action {
 	case "list":
-		return t.listArtifacts(ctx, sessionID, page, pageSize), nil
+		return t.listArtifactsStructured(ctx, sessionID, page, pageSize)
 	case "read":
-		return t.readArtifact(ctx, sessionID, strings.TrimSpace(params.ArtifactID), page, pageSize, mode), nil
+		return t.readArtifactStructured(ctx, sessionID, strings.TrimSpace(params.ArtifactID), page, pageSize, mode)
 	default:
-		return "## Artifact Reader\n\nInvalid action. Use action=\"list\" or action=\"read\".", nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "Invalid action. Use action=\"list\" or action=\"read\".",
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil
 	}
 }
 
-func (t *ArtifactReaderTool) listArtifacts(ctx context.Context, sessionID uuid.UUID, page, pageSize int) string {
+// Call executes the artifact reader operation (delegates to CallStructured).
+func (t *ArtifactReaderTool) Call(ctx context.Context, input string) (string, error) {
+	result, err := t.CallStructured(ctx, input)
+	if err != nil {
+		if result != nil {
+			registry := formatters.DefaultFormatterRegistry()
+			if f := registry.Get(result.CodecID); f != nil {
+				formatted, fmtErr := f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+				if fmtErr == nil {
+					return formatted, err
+				}
+			}
+		}
+		return "", err
+	}
+
+	registry := formatters.DefaultFormatterRegistry()
+	f := registry.Get(result.CodecID)
+	if f == nil {
+		return agents.FormatToolOutput(result.Payload)
+	}
+	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+}
+
+func (t *ArtifactReaderTool) listArtifactsStructured(ctx context.Context, sessionID uuid.UUID, page, pageSize int) (*agents.ToolResult, error) {
 	artifacts, err := t.repo.GetSessionArtifacts(ctx, sessionID, domain.ListOptions{
 		Limit:  artifactReaderMaxArtifacts,
 		Offset: 0,
 	})
 	if err != nil {
-		return fmt.Sprintf("## Artifact Reader\n\nFailed to list artifacts: %v", err)
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeQueryError),
+				Message: fmt.Sprintf("Failed to list artifacts: %v", err),
+				Hints:   []string{HintRetryLater},
+			},
+		}, err
 	}
 
 	total := len(artifacts)
@@ -152,11 +215,23 @@ func (t *ArtifactReaderTool) listArtifacts(ctx context.Context, sessionID uuid.U
 		pages = (total + pageSize - 1) / pageSize
 	}
 
-	if page > pages {
-		return fmt.Sprintf("## Artifacts (page %d/%d)\n\nNo artifacts on this page.\n\nhas_next_page: false", page, pages)
+	if page > pages && pages > 0 {
+		return &agents.ToolResult{
+			CodecID: formatters.CodecArtifactList,
+			Payload: formatters.ArtifactListPayload{
+				Page:       page,
+				TotalPages: pages,
+				Artifacts:  []formatters.ArtifactEntry{},
+				HasNext:    false,
+				HitCap:     total >= artifactReaderMaxArtifacts,
+			},
+		}, nil
 	}
 
 	start := (page - 1) * pageSize
+	if start < 0 {
+		start = 0
+	}
 	if start > total {
 		start = total
 	}
@@ -165,108 +240,216 @@ func (t *ArtifactReaderTool) listArtifacts(ctx context.Context, sessionID uuid.U
 		end = total
 	}
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "## Artifacts (page %d/%d)\n", page, pages)
-	b.WriteString("| id | type | name | mime | size_bytes | created_at |\n")
-	b.WriteString("| --- | --- | --- | --- | ---: | --- |\n")
-
+	entries := make([]formatters.ArtifactEntry, 0, end-start)
 	for _, artifact := range artifacts[start:end] {
-		fmt.Fprintf(&b,
-			"| %s | %s | %s | %s | %d | %s |\n",
-			artifact.ID().String(),
-			string(artifact.Type()),
-			escapeTableCell(artifact.Name()),
-			escapeTableCell(artifact.MimeType()),
-			artifact.SizeBytes(),
-			artifact.CreatedAt().UTC().Format(time.RFC3339),
-		)
+		entries = append(entries, formatters.ArtifactEntry{
+			ID:        artifact.ID().String(),
+			Type:      string(artifact.Type()),
+			Name:      artifact.Name(),
+			MimeType:  artifact.MimeType(),
+			SizeBytes: artifact.SizeBytes(),
+			CreatedAt: artifact.CreatedAt().UTC().Format(time.RFC3339),
+		})
 	}
 
 	hasNext := page < pages
-	fmt.Fprintf(&b, "\nhas_next_page: %t", hasNext)
-	if hasNext {
-		fmt.Fprintf(&b, " (use page=%d)", page+1)
-	}
-	if total >= artifactReaderMaxArtifacts {
-		b.WriteString("\n\nNote: artifact listing reached tool cap and may be truncated.")
-	}
 
-	return clampOutput(b.String(), t.maxOutputChars)
+	return &agents.ToolResult{
+		CodecID: formatters.CodecArtifactList,
+		Payload: formatters.ArtifactListPayload{
+			Page:       page,
+			TotalPages: pages,
+			Artifacts:  entries,
+			HasNext:    hasNext,
+			HitCap:     total >= artifactReaderMaxArtifacts,
+		},
+	}, nil
 }
 
-func (t *ArtifactReaderTool) readArtifact(ctx context.Context, sessionID uuid.UUID, artifactID string, page, pageSize int, mode string) string {
+func (t *ArtifactReaderTool) readArtifactStructured(ctx context.Context, sessionID uuid.UUID, artifactID string, page, pageSize int, mode string) (*agents.ToolResult, error) {
 	if artifactID == "" {
-		return "## Artifact Reader\n\naction=\"read\" requires artifact_id."
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "action=\"read\" requires artifact_id.",
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil
 	}
 
 	id, err := uuid.Parse(artifactID)
 	if err != nil {
-		return "## Artifact Reader\n\nartifact_id must be a valid UUID."
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "artifact_id must be a valid UUID.",
+				Hints:   []string{HintCheckFieldFormat},
+			},
+		}, nil
 	}
 
 	artifact, err := t.repo.GetArtifact(ctx, id)
 	if err != nil {
-		return fmt.Sprintf("## Artifact Reader\n\nFailed to read artifact: %v", err)
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeQueryError),
+				Message: fmt.Sprintf("Failed to read artifact: %v", err),
+				Hints:   []string{HintRetryLater},
+			},
+		}, err
 	}
 	if artifact.SessionID() != sessionID {
-		return "## Artifact Reader\n\nAccess denied: artifact is not in the current session."
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodePermissionDenied),
+				Message: "Access denied: artifact is not in the current session.",
+				Hints:   []string{"Verify the artifact_id belongs to the current session"},
+			},
+		}, nil
 	}
 
 	if artifact.Type() == domain.ArtifactTypeChart {
-		return clampOutput(renderChartArtifact(artifact, mode), t.maxOutputChars)
+		return t.readChartArtifactStructured(artifact, mode)
 	}
 
 	if t.fileStorage == nil {
-		return "## Artifact Read\n\nFile storage is not configured."
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: "File storage is not configured.",
+				Hints:   []string{HintCheckConnection},
+			},
+		}, nil
 	}
 	if strings.TrimSpace(artifact.URL()) == "" {
-		return "## Artifact Read\n\nArtifact has no file URL to read."
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeNoData),
+				Message: "Artifact has no file URL to read.",
+				Hints:   []string{"This artifact may not have associated file content"},
+			},
+		}, nil
 	}
 
 	rc, err := t.fileStorage.Get(ctx, artifact.URL())
 	if err != nil {
-		return fmt.Sprintf("## Artifact Read\n\nFailed to open artifact content: %v", err)
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("Failed to open artifact content: %v", err),
+				Hints:   []string{HintCheckConnection, HintRetryLater},
+			},
+		}, err
 	}
 	defer func() { _ = rc.Close() }()
 
 	data, err := io.ReadAll(rc)
 	if err != nil {
-		return fmt.Sprintf("## Artifact Read\n\nFailed to read artifact content: %v", err)
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("Failed to read artifact content: %v", err),
+				Hints:   []string{HintRetryLater},
+			},
+		}, err
 	}
 
 	content, err := t.extractArtifactContent(ctx, artifact, data)
 	if err != nil {
-		return fmt.Sprintf("## Artifact Read\n\nCould not extract content: %v", err)
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("Could not extract content: %v", err),
+				Hints:   []string{"File format may not be supported or file may be corrupted"},
+			},
+		}, nil
 	}
 
 	lines := normalizeToLines(content)
 	window := paginateLines(lines, page, pageSize)
 
-	var b strings.Builder
-	b.WriteString("## Artifact Read\n")
-	fmt.Fprintf(&b, "- id: %s\n", artifact.ID())
-	fmt.Fprintf(&b, "- type: %s\n", artifact.Type())
-	fmt.Fprintf(&b, "- name: %s\n", artifact.Name())
-	fmt.Fprintf(&b, "- mime: %s\n", artifact.MimeType())
-	fmt.Fprintf(&b, "- page: %d/%d\n", window.Page, window.TotalPages)
-	fmt.Fprintf(&b, "- page_size: %d\n\n", window.PageSize)
-
-	if window.OutOfRange {
-		b.WriteString("Requested page is out of range for this artifact content.\n")
-	} else if len(window.Lines) == 0 {
-		b.WriteString("(no content on this page)\n")
-	} else {
-		b.WriteString(strings.Join(window.Lines, "\n"))
-		b.WriteString("\n")
+	pageContent := ""
+	if !window.OutOfRange && len(window.Lines) > 0 {
+		pageContent = strings.Join(window.Lines, "\n")
 	}
 
-	if window.HasNext {
-		fmt.Fprintf(&b, "\nhas_next_page: true (use page=%d)", window.Page+1)
-	} else {
-		b.WriteString("\nhas_next_page: false")
+	return &agents.ToolResult{
+		CodecID: formatters.CodecArtifactContent,
+		Payload: formatters.ArtifactContentPayload{
+			ID:         artifact.ID().String(),
+			Type:       string(artifact.Type()),
+			Name:       artifact.Name(),
+			MimeType:   artifact.MimeType(),
+			Page:       window.Page,
+			TotalPages: window.TotalPages,
+			PageSize:   window.PageSize,
+			Content:    pageContent,
+			HasNext:    window.HasNext,
+			OutOfRange: window.OutOfRange,
+		},
+	}, nil
+}
+
+func (t *ArtifactReaderTool) readChartArtifactStructured(artifact domain.Artifact, mode string) (*agents.ToolResult, error) {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		mode = "default"
 	}
 
-	return clampOutput(b.String(), t.maxOutputChars)
+	if mode == "visual" {
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "Chart visual mode is not implemented yet. Use mode=\"spec\".",
+				Hints:   []string{"Use mode=\"spec\" or mode=\"default\" to view chart specification"},
+			},
+		}, nil
+	}
+
+	spec, ok := artifact.Metadata()["spec"]
+	if !ok {
+		spec = map[string]any{}
+	}
+
+	specJSON, err := json.MarshalIndent(spec, "", "  ")
+	if err != nil {
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("Failed to render chart spec: %v", err),
+				Hints:   []string{"Chart specification may be malformed"},
+			},
+		}, nil
+	}
+
+	content := "```json\n" + string(specJSON) + "\n```"
+
+	return &agents.ToolResult{
+		CodecID: formatters.CodecArtifactContent,
+		Payload: formatters.ArtifactContentPayload{
+			ID:         artifact.ID().String(),
+			Type:       string(artifact.Type()),
+			Name:       artifact.Name(),
+			MimeType:   artifact.MimeType(),
+			Page:       1,
+			TotalPages: 1,
+			PageSize:   0,
+			Content:    content,
+			HasNext:    false,
+			OutOfRange: false,
+		},
+	}, nil
 }
 
 func escapeTableCell(value string) string {

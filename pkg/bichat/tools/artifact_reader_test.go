@@ -240,12 +240,14 @@ func TestArtifactReaderTool_ReadChartModes(t *testing.T) {
 
 	specOutput, err := tool.Call(ctx, fmt.Sprintf(`{"action":"read","artifact_id":"%s","mode":"spec"}`, chartArtifact.ID()))
 	require.NoError(t, err)
-	assert.Contains(t, specOutput, "## Chart Spec")
+	assert.Contains(t, specOutput, "## Artifact Read")
+	assert.Contains(t, specOutput, "- type: chart")
 	assert.Contains(t, specOutput, `"chartType": "bar"`)
 
 	visualOutput, err := tool.Call(ctx, fmt.Sprintf(`{"action":"read","artifact_id":"%s","mode":"visual"}`, chartArtifact.ID()))
 	require.NoError(t, err)
-	assert.Contains(t, visualOutput, `Chart visual mode is not implemented yet. Use mode="spec".`)
+	assert.Contains(t, visualOutput, `"code": "INVALID_REQUEST"`)
+	assert.Contains(t, visualOutput, `Chart visual mode is not implemented yet`)
 }
 
 func TestArtifactReaderTool_ReadTextWithPaginationAndSessionIsolation(t *testing.T) {

@@ -142,9 +142,10 @@ type Executor struct {
 	eventBus          hooks.EventBus
 	maxIterations     int
 	interruptRegistry *InterruptHandlerRegistry
-	tools             []Tool         // Optional override for agent tools (e.g., filtered for child executors)
-	tokenEstimator    TokenEstimator // Optional token estimator for cost tracking
-	speculativeTools  bool           // Start executing ready tool calls during streaming (best-effort)
+	tools             []Tool            // Optional override for agent tools (e.g., filtered for child executors)
+	tokenEstimator    TokenEstimator    // Optional token estimator for cost tracking
+	speculativeTools  bool              // Start executing ready tool calls during streaming (best-effort)
+	formatterRegistry FormatterRegistry // Optional formatter registry for StructuredTool support
 }
 
 // Input represents the input to Execute or Resume.
@@ -236,6 +237,15 @@ func WithSpeculativeTools(enabled bool) ExecutorOption {
 	}
 }
 
+// WithFormatterRegistry sets the formatter registry for StructuredTool support.
+// When set, the executor will check if tools implement StructuredTool and use
+// the registry to format their structured output.
+func WithFormatterRegistry(registry FormatterRegistry) ExecutorOption {
+	return func(e *Executor) {
+		e.formatterRegistry = registry
+	}
+}
+
 // NewExecutor creates a new Executor with the given agent and model.
 func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Executor {
 	executor := &Executor{
@@ -251,6 +261,40 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 	}
 
 	return executor
+}
+
+// callTool executes a tool, using StructuredTool + FormatterRegistry when available.
+func (e *Executor) callTool(ctx context.Context, toolName, arguments string) (string, error) {
+	// If formatter registry is set, check if the tool implements StructuredTool
+	if e.formatterRegistry != nil {
+		tools := e.tools
+		if tools == nil {
+			tools = e.agent.Tools()
+		}
+		for _, tool := range tools {
+			if tool != nil && tool.Name() == toolName {
+				if st, ok := tool.(StructuredTool); ok {
+					result, err := st.CallStructured(ctx, arguments)
+					if err != nil {
+						return "", err
+					}
+					if result != nil {
+						formatter := e.formatterRegistry.Get(result.CodecID)
+						if formatter != nil {
+							opts := FormatOptions{
+								MaxRows:      25,
+								MaxCellWidth: 80,
+							}
+							return formatter.Format(result.Payload, opts)
+						}
+					}
+				}
+				break
+			}
+		}
+	}
+	// Fallback to existing path
+	return e.agent.OnToolCall(ctx, toolName, arguments)
 }
 
 // Execute runs the ReAct loop and returns a Generator that yields ExecutorEvent objects.
@@ -550,7 +594,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						defer lock.Unlock()
 					}
 
-					res, err := e.agent.OnToolCall(specToolCtx, call.Name, call.Arguments)
+					res, err := e.callTool(specToolCtx, call.Name, call.Arguments)
 					durationMs := time.Since(startedAt).Milliseconds()
 
 					select {
@@ -1118,7 +1162,7 @@ func (e *Executor) executeToolCalls(
 				defer lock.Unlock()
 			}
 
-			res, err := e.agent.OnToolCall(toolCtx, call.Name, call.Arguments)
+			res, err := e.callTool(toolCtx, call.Name, call.Arguments)
 			durationMs := time.Since(startTime).Milliseconds()
 
 			select {

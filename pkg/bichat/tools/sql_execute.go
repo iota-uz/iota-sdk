@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -125,40 +127,45 @@ const (
 	explainMaxLines = 200
 )
 
-// Call executes the SQL query and returns results as plain markdown/text.
-func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "SQLExecuteTool.Call"
+// CallStructured executes the SQL query and returns a structured result.
+func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+	const op serrors.Op = "SQLExecuteTool.CallStructured"
 
-	// Parse input
 	params, err := agents.ParseToolInput[sqlExecuteInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-			HintCheckFieldTypes,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields, HintCheckFieldTypes},
+			},
+		}, nil
 	}
 
 	if params.Query == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"query parameter is required",
-			HintCheckRequiredFields,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "query parameter is required",
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil
 	}
 
-	// Set defaults
 	if params.Limit == 0 {
 		params.Limit = defaultSQLExecuteLimit
 	}
 	if params.Limit < 1 {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"limit must be a positive integer",
-			HintCheckFieldTypes,
-			"Use limit between 1 and 1000",
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "limit must be a positive integer",
+				Hints:   []string{HintCheckFieldTypes, "Use limit between 1 and 1000"},
+			},
+		}, nil
 	}
 	if params.Limit > maxSQLExecuteLimit {
 		params.Limit = maxSQLExecuteLimit
@@ -166,30 +173,31 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 
 	normalizedQuery := normalizeSQL(params.Query)
 
-	// Validate query is read-only
 	if err := validateReadOnlyQuery(normalizedQuery); err != nil {
-		return FormatToolError(
-			ErrCodePolicyViolation,
-			err.Error(),
-			HintOnlySelectAllowed,
-			HintNoWriteOperations,
-			HintUseSchemaList,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodePolicyViolation),
+				Message: err.Error(),
+				Hints:   []string{HintOnlySelectAllowed, HintNoWriteOperations, HintUseSchemaList},
+			},
+		}, nil
 	}
 
-	// Check view permissions if configured
 	if t.viewAccess != nil {
 		deniedViews, err := t.viewAccess.CheckQueryPermissions(ctx, normalizedQuery)
 		if err != nil {
-			return FormatToolError(
-				ErrCodeQueryError,
-				fmt.Sprintf("failed to check query permissions: %v", err),
-				"Contact administrator if this error persists",
-			), serrors.E(op, err)
+			return &agents.ToolResult{
+				CodecID: formatters.CodecToolError,
+				Payload: formatters.ToolErrorPayload{
+					Code:    string(ErrCodeQueryError),
+					Message: fmt.Sprintf("failed to check query permissions: %v", err),
+					Hints:   []string{"Contact administrator if this error persists"},
+				},
+			}, serrors.E(op, err)
 		}
 
 		if len(deniedViews) > 0 {
-			// Get user for personalized error message
 			user, userErr := composables.UseUser(ctx)
 			userName := "User"
 			if userErr == nil {
@@ -198,24 +206,26 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 
 			errMsg := permissions.FormatPermissionError(userName, deniedViews)
 
-			return FormatToolError(
-				ErrCodePermissionDenied,
-				errMsg,
-				HintRequestAccess,
-				HintCheckAccessibleViews,
-			), nil
+			return &agents.ToolResult{
+				CodecID: formatters.CodecToolError,
+				Payload: formatters.ToolErrorPayload{
+					Code:    string(ErrCodePermissionDenied),
+					Message: errMsg,
+					Hints:   []string{HintRequestAccess, HintCheckAccessibleViews},
+				},
+			}, nil
 		}
 	}
 
-	// Check for placeholder/parameter mismatch
 	if err := validateQueryParameters(normalizedQuery, params.Params); err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			err.Error(),
-			"Use parameter binding for SQL injection protection",
-			"Provide params as a JSON array matching $1..$n placeholders",
-			HintCheckSQLSyntax,
-		), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecToolError,
+			Payload: formatters.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: err.Error(),
+				Hints:   []string{"Use parameter binding for SQL injection protection", "Provide params as a JSON array matching $1..$n placeholders", HintCheckSQLSyntax},
+			},
+		}, nil
 	}
 
 	// Explain plan mode
@@ -225,25 +235,34 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 		explainResult, err := t.executor.ExecuteQuery(ctx, explainSQL, params.Params, 30*time.Second)
 		duration := time.Since(start)
 		if err != nil {
-			return formatSQLError(
-				"EXPLAIN failed",
-				err,
-				HintCheckSQLSyntax,
-				HintVerifyTableNames,
-				HintCheckJoinConditions,
-			), nil
+			return &agents.ToolResult{
+				CodecID: formatters.CodecToolError,
+				Payload: formatters.ToolErrorPayload{
+					Code:    string(ErrCodeQueryError),
+					Message: fmt.Sprintf("EXPLAIN failed: %v", err),
+					Hints:   []string{HintCheckSQLSyntax, HintVerifyTableNames, HintCheckJoinConditions},
+				},
+			}, nil
 		}
 
 		planLines := extractExplainLines(explainResult, explainMaxLines)
-		planMarkdown := renderExplainMarkdown(planLines, len(explainResult.Rows) > len(planLines))
-		return renderExplainResponse(normalizedQuery, explainSQL, duration.Milliseconds(), planMarkdown), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecExplainPlan,
+			Payload: formatters.ExplainPlanPayload{
+				Query:       normalizedQuery,
+				ExecutedSQL: explainSQL,
+				DurationMs:  duration.Milliseconds(),
+				PlanLines:   planLines,
+				Truncated:   len(explainResult.Rows) > len(planLines),
+			},
+		}, nil
 	}
 
-	// Execute with tool-level limit enforced at SQL layer.
+	// Execute with tool-level limit enforced at SQL layer
 	effectiveLimit := params.Limit
 	fetchLimit := effectiveLimit
 	if effectiveLimit < maxSQLExecuteLimit {
-		fetchLimit = effectiveLimit + 1 // detect truncation cheaply
+		fetchLimit = effectiveLimit + 1
 	}
 
 	executedSQL := wrapQueryWithLimit(normalizedQuery, fetchLimit)
@@ -253,10 +272,19 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 	duration := time.Since(start)
 	if err != nil {
 		diagnosis := ClassifySQLError(err)
-		return FormatSQLDiagnosis(diagnosis), nil
+		return &agents.ToolResult{
+			CodecID: formatters.CodecSQLDiagnosis,
+			Payload: formatters.SQLDiagnosisPayload{
+				Code:       string(diagnosis.Code),
+				Message:    diagnosis.Message,
+				Table:      diagnosis.Table,
+				Column:     diagnosis.Column,
+				Suggestion: diagnosis.Suggestion,
+				Hints:      diagnosis.Hints,
+			},
+		}, nil
 	}
 
-	// Apply truncation semantics on returned data (limit + 1 pattern).
 	truncated := false
 	truncatedReason := ""
 
@@ -267,31 +295,42 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 		rows = rows[:effectiveLimit]
 	}
 	if result.Truncated {
-		// Executor-level cap (e.g. hard cap) or custom executor behavior.
 		truncated = true
 		if truncatedReason == "" {
 			truncatedReason = "system_cap"
 		}
 	}
 
-	// Normalize result to the rows we will return.
-	result.Rows = rows
-	result.RowCount = len(rows)
-	result.Truncated = truncated
-
 	previewRows := minInt(len(rows), previewMaxRows)
-	previewMarkdown := renderMarkdownPreview(
-		normalizedQuery,
-		executedSQL,
-		duration.Milliseconds(),
-		result.Columns,
-		rows[:previewRows],
-		result.RowCount,
-		effectiveLimit,
-		truncated,
-		truncatedReason,
-	)
-	return previewMarkdown, nil
+
+	return &agents.ToolResult{
+		CodecID: formatters.CodecQueryResult,
+		Payload: formatters.QueryResultFormatPayload{
+			Query:           normalizedQuery,
+			ExecutedSQL:     executedSQL,
+			DurationMs:      duration.Milliseconds(),
+			Columns:         result.Columns,
+			Rows:            rows[:previewRows],
+			RowCount:        len(rows),
+			Limit:           effectiveLimit,
+			Truncated:       truncated,
+			TruncatedReason: truncatedReason,
+		},
+	}, nil
+}
+
+// Call executes the SQL query and returns results as plain markdown/text.
+func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error) {
+	result, err := t.CallStructured(ctx, input)
+	if err != nil {
+		return "", err
+	}
+	registry := formatters.DefaultFormatterRegistry()
+	f := registry.Get(result.CodecID)
+	if f == nil {
+		return agents.FormatToolOutput(result.Payload)
+	}
+	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
 }
 
 // validateReadOnlyQuery ensures the query is a SELECT statement.
