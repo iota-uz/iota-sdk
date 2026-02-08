@@ -23,10 +23,8 @@ test.describe('role management flows', () => {
 		await logout(page);
 	});
 
-	test.skip(
-		() => process.env.CI === 'true',
-		'complete role lifecycle: create, edit, and delete',
-		async ({ page }) => {
+	test('complete role lifecycle: create, edit, and delete', async ({ page }) => {
+		test.skip(process.env.CI === 'true', 'skip on CI');
 		// Login as admin user
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
@@ -107,7 +105,7 @@ test.describe('role management flows', () => {
 		await expect(page.locator('[data-test-id="role-name-input"]')).toHaveValue(updatedRoleName);
 
 		// Save changes
-		await saveRoleButton(page).click();
+		await saveRoleButton(page).first().click();
 		await page.waitForURL(/\/roles$/);
 
 		// Verify name was updated in the list
@@ -268,7 +266,7 @@ test.describe('role management flows', () => {
 		}
 
 		// Save the role
-		await saveRoleButton(page).click();
+		await saveRoleButton(page).first().click();
 		await page.waitForURL(/\/roles$/);
 
 		// Verify role was created and appears in the table

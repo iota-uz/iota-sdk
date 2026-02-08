@@ -62,6 +62,15 @@ const DEFAULT_RATE_LIMIT_CONFIG = {
   windowMs: 60000,
 }
 
+/** Tool names that produce persisted artifacts; must match server ArtifactHandler. */
+const ARTIFACT_TOOL_NAMES = new Set([
+  'code_interpreter',
+  'draw_chart',
+  'export_query_to_excel',
+  'export_data_to_excel',
+  'export_to_pdf',
+])
+
 function generateTempId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
@@ -200,11 +209,6 @@ export function ChatSessionProvider({
   const [compactionSummary, setCompactionSummary] = useState<string | null>(null)
   const [artifactsInvalidationTrigger, setArtifactsInvalidationTrigger] = useState(0)
   const abortControllerRef = useRef<AbortController | null>(null)
-
-  const ARTIFACT_TOOL_NAMES = useMemo(
-    () => new Set(['code_interpreter', 'draw_chart', 'export_query_to_excel', 'export_data_to_excel', 'export_to_pdf']),
-    []
-  )
 
   // ── Input state ────────────────────────────────────────────────────────
   const [message, setMessage] = useState('')

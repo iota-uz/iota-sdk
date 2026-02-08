@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // JSONFormatter serializes any payload as JSON.
@@ -17,14 +17,10 @@ func NewJSONFormatter() *JSONFormatter {
 }
 
 // Format renders the payload as JSON.
-func (f *JSONFormatter) Format(payload any, opts context.FormatOptions) (string, error) {
-	// Handle SearchResultsPayload, TimePayload, GenericJSONPayload by unwrapping
+func (f *JSONFormatter) Format(payload any, opts types.FormatOptions) (string, error) {
+	// Handle JSONPayload by unwrapping
 	switch p := payload.(type) {
-	case SearchResultsPayload:
-		return marshalJSON(p.Output)
-	case TimePayload:
-		return marshalJSON(p.Output)
-	case GenericJSONPayload:
+	case types.JSONPayload:
 		return marshalJSON(p.Output)
 	default:
 		return marshalJSON(payload)

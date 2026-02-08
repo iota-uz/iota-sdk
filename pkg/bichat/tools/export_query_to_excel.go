@@ -9,9 +9,8 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -58,7 +57,7 @@ func WithQueryStyleOptions(opts *excel.StyleOptions) ExportQueryToolOption {
 }
 
 // NewExportQueryToExcelTool creates a new export query to Excel tool.
-func NewExportQueryToExcelTool(executor bichatsql.QueryExecutor, opts ...ExportQueryToolOption) agents.Tool {
+func NewExportQueryToExcelTool(executor bichatsql.QueryExecutor, opts ...ExportQueryToolOption) *ExportQueryToExcelTool {
 	tool := &ExportQueryToExcelTool{
 		executor:   executor,
 		exportOpts: excel.DefaultOptions(),
@@ -125,25 +124,25 @@ type exportQueryOutput struct {
 }
 
 // CallStructured executes the query and exports to Excel, returning a structured result.
-func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
 	const op serrors.Op = "ExportQueryToExcelTool.CallStructured"
 
 	params, err := agents.ParseToolInput[exportQueryInput](input)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: fmt.Sprintf("failed to parse input: %v", err),
 				Hints:   []string{HintCheckRequiredFields, HintCheckFieldTypes},
 			},
-		}, nil
+		}, agents.ErrStructuredToolOutput
 	}
 
 	if params.SQL == "" {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: "sql parameter is required",
 				Hints:   []string{HintCheckRequiredFields, "Provide a SELECT query to execute and export"},
@@ -152,14 +151,14 @@ func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input strin
 	}
 
 	if err := validateReadOnlyQuery(params.SQL); err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodePolicyViolation),
 				Message: err.Error(),
 				Hints:   []string{HintOnlySelectAllowed, HintNoWriteOperations, HintUseSchemaList},
 			},
-		}, nil
+		}, agents.ErrStructuredToolOutput
 	}
 
 	filename := params.Filename
@@ -175,9 +174,9 @@ func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input strin
 
 	result, err := t.executor.ExecuteQuery(ctx, querySql, nil, 60*time.Second)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeQueryError),
 				Message: fmt.Sprintf("query execution failed: %v", err),
 				Hints:   []string{HintCheckSQLSyntax, HintVerifyTableNames, HintCheckJoinConditions},
@@ -190,9 +189,9 @@ func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input strin
 
 	bytes, err := exporter.Export(ctx, datasource)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeQueryError),
 				Message: fmt.Sprintf("failed to export Excel: %v", err),
 				Hints:   []string{"Verify data format is valid", "Check for special characters in data"},
@@ -202,9 +201,9 @@ func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input strin
 
 	filePath := filepath.Join(t.outputDir, filename)
 	if err := os.WriteFile(filePath, bytes, 0644); err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeServiceUnavailable),
 				Message: fmt.Sprintf("failed to save Excel file: %v", err),
 				Hints:   []string{"File system may be full or permissions issue", HintRetryLater},
@@ -223,25 +222,15 @@ func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input strin
 		FileSizeKB:  fileSizeKB,
 	}
 
-	return &agents.ToolResult{
-		CodecID: formatters.CodecJSON,
-		Payload: formatters.GenericJSONPayload{Output: response},
+	return &types.ToolResult{
+		CodecID: types.CodecJSON,
+		Payload: types.JSONPayload{Output: response},
 	}, nil
 }
 
 // Call executes the query and exports to Excel.
 func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string, error) {
-	result, err := t.CallStructured(ctx, input)
-	if err != nil {
-		return "", err
-	}
-
-	registry := formatters.DefaultFormatterRegistry()
-	f := registry.Get(result.CodecID)
-	if f == nil {
-		return agents.FormatToolOutput(result.Payload)
-	}
-	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
 // applyRowLimit adds or enforces a LIMIT clause to the query.

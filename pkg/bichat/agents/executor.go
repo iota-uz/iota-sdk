@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -142,10 +143,10 @@ type Executor struct {
 	eventBus          hooks.EventBus
 	maxIterations     int
 	interruptRegistry *InterruptHandlerRegistry
-	tools             []Tool            // Optional override for agent tools (e.g., filtered for child executors)
-	tokenEstimator    TokenEstimator    // Optional token estimator for cost tracking
-	speculativeTools  bool              // Start executing ready tool calls during streaming (best-effort)
-	formatterRegistry FormatterRegistry // Optional formatter registry for StructuredTool support
+	tools             []Tool                  // Optional override for agent tools (e.g., filtered for child executors)
+	tokenEstimator    TokenEstimator          // Optional token estimator for cost tracking
+	speculativeTools  bool                    // Start executing ready tool calls during streaming (best-effort)
+	formatterRegistry types.FormatterRegistry // Optional formatter registry for StructuredTool support
 }
 
 // Input represents the input to Execute or Resume.
@@ -240,7 +241,7 @@ func WithSpeculativeTools(enabled bool) ExecutorOption {
 // WithFormatterRegistry sets the formatter registry for StructuredTool support.
 // When set, the executor will check if tools implement StructuredTool and use
 // the registry to format their structured output.
-func WithFormatterRegistry(registry FormatterRegistry) ExecutorOption {
+func WithFormatterRegistry(registry types.FormatterRegistry) ExecutorOption {
 	return func(e *Executor) {
 		e.formatterRegistry = registry
 	}
@@ -264,36 +265,45 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 }
 
 // callTool executes a tool, using StructuredTool + FormatterRegistry when available.
-func (e *Executor) callTool(ctx context.Context, toolName, arguments string) (string, error) {
-	// If formatter registry is set, check if the tool implements StructuredTool
-	if e.formatterRegistry != nil {
-		tools := e.tools
-		if tools == nil {
-			tools = e.agent.Tools()
-		}
-		for _, tool := range tools {
-			if tool != nil && tool.Name() == toolName {
-				if st, ok := tool.(StructuredTool); ok {
-					result, err := st.CallStructured(ctx, arguments)
-					if err != nil {
-						return "", err
-					}
-					if result != nil {
-						formatter := e.formatterRegistry.Get(result.CodecID)
-						if formatter != nil {
-							opts := FormatOptions{
-								MaxRows:      25,
-								MaxCellWidth: 80,
-							}
-							return formatter.Format(result.Payload, opts)
+// Accepts a tool directly to avoid O(n) lookup. If tool is nil or has nil handler,
+// falls back to agent.OnToolCall for backward compatibility.
+func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (string, error) {
+	// If formatter registry is set and tool is valid, check if the tool implements StructuredTool
+	if e.formatterRegistry != nil && tool != nil {
+		if st, ok := tool.(StructuredTool); ok {
+			result, err := st.CallStructured(ctx, arguments)
+			if result != nil {
+				if f := e.formatterRegistry.Get(result.CodecID); f != nil {
+					formatted, fmtErr := f.Format(result.Payload, types.DefaultFormatOptions())
+					if fmtErr == nil {
+						// If ErrStructuredToolOutput, strip the error (formatted output is the real result)
+						if err != nil && errors.Is(err, ErrStructuredToolOutput) {
+							return formatted, nil
 						}
+						// Preserve both formatted result AND Go error
+						return formatted, err
 					}
+					// Formatter bug - fall through to Call() path
 				}
-				break
+			}
+			if err != nil {
+				return "", err
 			}
 		}
 	}
-	// Fallback to existing path
+
+	// Check if tool is usable (not nil and has handler if it's a ToolFunc)
+	if tool != nil {
+		// For ToolFunc, check if handler is nil (test mocks may have nil handlers)
+		if tf, ok := tool.(*ToolFunc); ok && tf.Fn == nil {
+			// Fall back to agent.OnToolCall for nil handlers (backward compat)
+			return e.agent.OnToolCall(ctx, toolName, arguments)
+		}
+		// Call tool directly
+		return tool.Call(ctx, arguments)
+	}
+
+	// Fallback to agent.OnToolCall for nil tools
 	return e.agent.OnToolCall(ctx, toolName, arguments)
 }
 
@@ -585,7 +595,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				specPending++
 
-				go func(call types.ToolCall, concurrencyKey string) {
+				go func(call types.ToolCall, concurrencyKey string, t Tool) {
 					startedAt := time.Now()
 
 					if concurrencyKey != "" {
@@ -594,7 +604,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						defer lock.Unlock()
 					}
 
-					res, err := e.callTool(specToolCtx, call.Name, call.Arguments)
+					res, err := e.callTool(specToolCtx, t, call.Name, call.Arguments)
 					durationMs := time.Since(startedAt).Milliseconds()
 
 					select {
@@ -602,7 +612,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					case <-specToolCtx.Done():
 						return
 					}
-				}(tc, key)
+				}(tc, key, toolByName[tc.Name])
 
 				return true
 			}
@@ -1153,7 +1163,7 @@ func (e *Executor) executeToolCalls(
 			}
 		}
 
-		go func(idx int, call types.ToolCall, concurrencyKey string) {
+		go func(idx int, call types.ToolCall, concurrencyKey string, t Tool) {
 			startTime := time.Now()
 
 			if concurrencyKey != "" {
@@ -1162,7 +1172,7 @@ func (e *Executor) executeToolCalls(
 				defer lock.Unlock()
 			}
 
-			res, err := e.callTool(toolCtx, call.Name, call.Arguments)
+			res, err := e.callTool(toolCtx, t, call.Name, call.Arguments)
 			durationMs := time.Since(startTime).Milliseconds()
 
 			select {
@@ -1176,7 +1186,7 @@ func (e *Executor) executeToolCalls(
 			case <-toolCtx.Done():
 				return
 			}
-		}(i, tc, key)
+		}(i, tc, key, toolByName[tc.Name])
 	}
 
 	ordered := make([]types.Message, len(toolCalls))

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // QueryResultFormatter formats SQL query results as markdown tables.
@@ -16,8 +16,8 @@ func NewQueryResultFormatter() *QueryResultFormatter {
 }
 
 // Format renders a QueryResultFormatPayload as markdown.
-func (f *QueryResultFormatter) Format(payload any, opts context.FormatOptions) (string, error) {
-	p, ok := payload.(QueryResultFormatPayload)
+func (f *QueryResultFormatter) Format(payload any, opts types.FormatOptions) (string, error) {
+	p, ok := payload.(types.QueryResultFormatPayload)
 	if !ok {
 		return "", fmt.Errorf("QueryResultFormatter: expected QueryResultFormatPayload, got %T", payload)
 	}
@@ -75,7 +75,7 @@ func (f *QueryResultFormatter) Format(payload any, opts context.FormatOptions) (
 		if i > 0 {
 			b.WriteString(" | ")
 		}
-		b.WriteString(escapePreviewCell(c, maxCellWidth))
+		b.WriteString(EscapeMarkdownCell(c, maxCellWidth))
 	}
 	b.WriteString(" |\n")
 
@@ -97,7 +97,7 @@ func (f *QueryResultFormatter) Format(payload any, opts context.FormatOptions) (
 			if i < len(row) {
 				v = row[i]
 			}
-			b.WriteString(escapePreviewCell(formatPreviewValue(v), maxCellWidth))
+			b.WriteString(EscapeMarkdownCell(formatPreviewValue(v), maxCellWidth))
 		}
 		b.WriteString(" |\n")
 	}
@@ -123,8 +123,8 @@ func NewExplainPlanFormatter() *ExplainPlanFormatter {
 }
 
 // Format renders an ExplainPlanPayload as markdown.
-func (f *ExplainPlanFormatter) Format(payload any, opts context.FormatOptions) (string, error) {
-	p, ok := payload.(ExplainPlanPayload)
+func (f *ExplainPlanFormatter) Format(payload any, opts types.FormatOptions) (string, error) {
+	p, ok := payload.(types.ExplainPlanPayload)
 	if !ok {
 		return "", fmt.Errorf("ExplainPlanFormatter: expected ExplainPlanPayload, got %T", payload)
 	}
@@ -161,15 +161,4 @@ func formatPreviewValue(v any) string {
 		return "NULL"
 	}
 	return fmt.Sprint(v)
-}
-
-func escapePreviewCell(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\r", "")
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	s = strings.ReplaceAll(s, "|", "\\|")
-	s = strings.TrimSpace(s)
-	if maxLen > 0 && len(s) > maxLen {
-		return s[:maxLen-3] + "..."
-	}
-	return s
 }

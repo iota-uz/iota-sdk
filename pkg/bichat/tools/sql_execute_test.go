@@ -316,8 +316,7 @@ func TestSQLExecuteTool_EnforcesLimitAndWrapsQuery(t *testing.T) {
 	})
 
 	// Override ExecuteQuery to capture SQL.
-	toolImpl := tool.(*SQLExecuteTool)
-	toolImpl.executor = &mockSQLExecutorCapture{
+	tool.executor = &mockSQLExecutorCapture{
 		fn: func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 			gotSQL = sql
 			return executor.ExecuteQuery(ctx, sql, params, timeout)

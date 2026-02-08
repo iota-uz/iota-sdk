@@ -128,6 +128,10 @@ func (m *configTestChatRepository) ListUserSessions(ctx context.Context, userID 
 	return []domain.Session{}, nil
 }
 
+func (m *configTestChatRepository) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	return 0, nil
+}
+
 func (m *configTestChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
 	return nil
 }

@@ -11,10 +11,9 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
@@ -36,7 +35,7 @@ type SQLExecuteTool struct {
 // NewSQLExecuteTool creates a new SQL execute tool.
 // The executor parameter provides database access and should be provided by the consumer.
 // Optional WithViewAccessControl option enables permission checking.
-func NewSQLExecuteTool(executor bichatsql.QueryExecutor, opts ...SQLExecuteToolOption) agents.Tool {
+func NewSQLExecuteTool(executor bichatsql.QueryExecutor, opts ...SQLExecuteToolOption) *SQLExecuteTool {
 	tool := &SQLExecuteTool{
 		executor: executor,
 	}
@@ -120,33 +119,30 @@ const (
 	// previewMaxRows caps the markdown preview for token efficiency.
 	previewMaxRows = 25
 
-	// previewMaxCellLen caps individual cell length in preview.
-	previewMaxCellLen = 80
-
 	// explainMaxLines caps explain output lines.
 	explainMaxLines = 200
 )
 
 // CallStructured executes the SQL query and returns a structured result.
-func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
 	const op serrors.Op = "SQLExecuteTool.CallStructured"
 
 	params, err := agents.ParseToolInput[sqlExecuteInput](input)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: fmt.Sprintf("failed to parse input: %v", err),
 				Hints:   []string{HintCheckRequiredFields, HintCheckFieldTypes},
 			},
-		}, nil
+		}, agents.ErrStructuredToolOutput
 	}
 
 	if params.Query == "" {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: "query parameter is required",
 				Hints:   []string{HintCheckRequiredFields},
@@ -158,9 +154,9 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*age
 		params.Limit = defaultSQLExecuteLimit
 	}
 	if params.Limit < 1 {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: "limit must be a positive integer",
 				Hints:   []string{HintCheckFieldTypes, "Use limit between 1 and 1000"},
@@ -174,22 +170,22 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*age
 	normalizedQuery := normalizeSQL(params.Query)
 
 	if err := validateReadOnlyQuery(normalizedQuery); err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodePolicyViolation),
 				Message: err.Error(),
 				Hints:   []string{HintOnlySelectAllowed, HintNoWriteOperations, HintUseSchemaList},
 			},
-		}, nil
+		}, agents.ErrStructuredToolOutput
 	}
 
 	if t.viewAccess != nil {
 		deniedViews, err := t.viewAccess.CheckQueryPermissions(ctx, normalizedQuery)
 		if err != nil {
-			return &agents.ToolResult{
-				CodecID: formatters.CodecToolError,
-				Payload: formatters.ToolErrorPayload{
+			return &types.ToolResult{
+				CodecID: types.CodecToolError,
+				Payload: types.ToolErrorPayload{
 					Code:    string(ErrCodeQueryError),
 					Message: fmt.Sprintf("failed to check query permissions: %v", err),
 					Hints:   []string{"Contact administrator if this error persists"},
@@ -206,9 +202,9 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*age
 
 			errMsg := permissions.FormatPermissionError(userName, deniedViews)
 
-			return &agents.ToolResult{
-				CodecID: formatters.CodecToolError,
-				Payload: formatters.ToolErrorPayload{
+			return &types.ToolResult{
+				CodecID: types.CodecToolError,
+				Payload: types.ToolErrorPayload{
 					Code:    string(ErrCodePermissionDenied),
 					Message: errMsg,
 					Hints:   []string{HintRequestAccess, HintCheckAccessibleViews},
@@ -218,14 +214,14 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*age
 	}
 
 	if err := validateQueryParameters(normalizedQuery, params.Params); err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: err.Error(),
 				Hints:   []string{"Use parameter binding for SQL injection protection", "Provide params as a JSON array matching $1..$n placeholders", HintCheckSQLSyntax},
 			},
-		}, nil
+		}, agents.ErrStructuredToolOutput
 	}
 
 	// Explain plan mode
@@ -235,9 +231,9 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*age
 		explainResult, err := t.executor.ExecuteQuery(ctx, explainSQL, params.Params, 30*time.Second)
 		duration := time.Since(start)
 		if err != nil {
-			return &agents.ToolResult{
-				CodecID: formatters.CodecToolError,
-				Payload: formatters.ToolErrorPayload{
+			return &types.ToolResult{
+				CodecID: types.CodecToolError,
+				Payload: types.ToolErrorPayload{
 					Code:    string(ErrCodeQueryError),
 					Message: fmt.Sprintf("EXPLAIN failed: %v", err),
 					Hints:   []string{HintCheckSQLSyntax, HintVerifyTableNames, HintCheckJoinConditions},
@@ -246,9 +242,9 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*age
 		}
 
 		planLines := extractExplainLines(explainResult, explainMaxLines)
-		return &agents.ToolResult{
-			CodecID: formatters.CodecExplainPlan,
-			Payload: formatters.ExplainPlanPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecExplainPlan,
+			Payload: types.ExplainPlanPayload{
 				Query:       normalizedQuery,
 				ExecutedSQL: explainSQL,
 				DurationMs:  duration.Milliseconds(),
@@ -272,9 +268,9 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*age
 	duration := time.Since(start)
 	if err != nil {
 		diagnosis := ClassifySQLError(err)
-		return &agents.ToolResult{
-			CodecID: formatters.CodecSQLDiagnosis,
-			Payload: formatters.SQLDiagnosisPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecSQLDiagnosis,
+			Payload: types.SQLDiagnosisPayload{
 				Code:       string(diagnosis.Code),
 				Message:    diagnosis.Message,
 				Table:      diagnosis.Table,
@@ -303,9 +299,9 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*age
 
 	previewRows := minInt(len(rows), previewMaxRows)
 
-	return &agents.ToolResult{
-		CodecID: formatters.CodecQueryResult,
-		Payload: formatters.QueryResultFormatPayload{
+	return &types.ToolResult{
+		CodecID: types.CodecQueryResult,
+		Payload: types.QueryResultFormatPayload{
 			Query:           normalizedQuery,
 			ExecutedSQL:     executedSQL,
 			DurationMs:      duration.Milliseconds(),
@@ -321,16 +317,7 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*age
 
 // Call executes the SQL query and returns results as plain markdown/text.
 func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error) {
-	result, err := t.CallStructured(ctx, input)
-	if err != nil {
-		return "", err
-	}
-	registry := formatters.DefaultFormatterRegistry()
-	f := registry.Get(result.CodecID)
-	if f == nil {
-		return agents.FormatToolOutput(result.Payload)
-	}
-	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
 // validateReadOnlyQuery ensures the query is a SELECT statement.
@@ -561,112 +548,6 @@ func wrapQueryWithLimit(query string, limit int) string {
 	return fmt.Sprintf("SELECT * FROM (%s) AS _bichat_q LIMIT %d", query, limit)
 }
 
-func renderMarkdownPreview(
-	query string,
-	executedSQL string,
-	durationMs int64,
-	columns []string,
-	rows [][]any,
-	returnedRows int,
-	limit int,
-	truncated bool,
-	truncatedReason string,
-) string {
-	var b strings.Builder
-	b.WriteString("Query executed successfully.\n\n")
-	b.WriteString(fmt.Sprintf("- Query: `%s`\n", query))
-	b.WriteString(fmt.Sprintf("- Duration: %dms\n", durationMs))
-	b.WriteString(fmt.Sprintf("- Returned: %d row(s)\n", returnedRows))
-	b.WriteString(fmt.Sprintf("- Limit: %d\n", limit))
-	if truncated {
-		reason := truncatedReason
-		if reason == "" {
-			reason = "limit"
-		}
-		b.WriteString(fmt.Sprintf("- Truncated: yes (`%s`)\n", reason))
-	} else {
-		b.WriteString("- Truncated: no\n")
-	}
-	b.WriteString("\n\n")
-
-	if len(columns) == 0 {
-		b.WriteString("No columns returned.\n")
-		b.WriteString("\nExecuted SQL:\n\n```sql\n")
-		b.WriteString(executedSQL)
-		b.WriteString("\n```\n")
-		return b.String()
-	}
-	if len(rows) == 0 {
-		b.WriteString("No rows returned.\n")
-		b.WriteString("\nExecuted SQL:\n\n```sql\n")
-		b.WriteString(executedSQL)
-		b.WriteString("\n```\n")
-		return b.String()
-	}
-
-	// Header
-	b.WriteString("| ")
-	for i, c := range columns {
-		if i > 0 {
-			b.WriteString(" | ")
-		}
-		b.WriteString(escapePreviewCell(c, previewMaxCellLen))
-	}
-	b.WriteString(" |\n")
-
-	// Separator
-	b.WriteString("|")
-	for range columns {
-		b.WriteString(" --- |")
-	}
-	b.WriteString("\n")
-
-	// Rows
-	for _, row := range rows {
-		b.WriteString("| ")
-		for i := range columns {
-			if i > 0 {
-				b.WriteString(" | ")
-			}
-			var v any
-			if i < len(row) {
-				v = row[i]
-			}
-			b.WriteString(escapePreviewCell(formatPreviewValue(v), previewMaxCellLen))
-		}
-		b.WriteString(" |\n")
-	}
-
-	if truncated {
-		b.WriteString("\n")
-		b.WriteString("Use a follow-up query with tighter WHERE filters or a smaller projection. For more rows, increase limit (max 1000) or use export_query_to_excel for large exports.\n")
-	}
-
-	b.WriteString("\nExecuted SQL:\n\n```sql\n")
-	b.WriteString(executedSQL)
-	b.WriteString("\n```\n")
-
-	return b.String()
-}
-
-func formatPreviewValue(v any) string {
-	if v == nil {
-		return "NULL"
-	}
-	return fmt.Sprint(v)
-}
-
-func escapePreviewCell(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\r", "")
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	s = strings.ReplaceAll(s, "|", "\\|")
-	s = strings.TrimSpace(s)
-	if maxLen > 0 && len(s) > maxLen {
-		return s[:maxLen-3] + "..."
-	}
-	return s
-}
-
 func extractExplainLines(result *bichatsql.QueryResult, maxLines int) []string {
 	if result == nil || len(result.Rows) == 0 {
 		return nil
@@ -682,55 +563,6 @@ func extractExplainLines(result *bichatsql.QueryResult, maxLines int) []string {
 		lines = append(lines, fmt.Sprint(row[0]))
 	}
 	return lines
-}
-
-func renderExplainMarkdown(lines []string, truncated bool) string {
-	if len(lines) == 0 {
-		return "No plan output."
-	}
-	var b strings.Builder
-	b.WriteString("```text\n")
-	for _, l := range lines {
-		b.WriteString(l)
-		b.WriteString("\n")
-	}
-	if truncated {
-		b.WriteString("...\n")
-	}
-	b.WriteString("```\n")
-	return b.String()
-}
-
-func renderExplainResponse(query, executedSQL string, durationMs int64, planMarkdown string) string {
-	var b strings.Builder
-	b.WriteString("Explain plan generated successfully.\n\n")
-	b.WriteString(fmt.Sprintf("- Query: `%s`\n", query))
-	b.WriteString(fmt.Sprintf("- Duration: %dms\n\n", durationMs))
-	b.WriteString(planMarkdown)
-	b.WriteString("\nExecuted SQL:\n\n```sql\n")
-	b.WriteString(executedSQL)
-	b.WriteString("\n```\n")
-	return b.String()
-}
-
-func formatSQLError(title string, err error, hints ...string) string {
-	var b strings.Builder
-	b.WriteString(title)
-	if err != nil {
-		b.WriteString(fmt.Sprintf(": %v", err))
-	}
-	if len(hints) > 0 {
-		b.WriteString("\n\nHints:\n")
-		for _, h := range hints {
-			if strings.TrimSpace(h) == "" {
-				continue
-			}
-			b.WriteString("- ")
-			b.WriteString(h)
-			b.WriteString("\n")
-		}
-	}
-	return b.String()
 }
 
 func minInt(a, b int) int {

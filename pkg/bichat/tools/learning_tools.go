@@ -7,9 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -20,7 +19,7 @@ type SearchLearningsTool struct {
 }
 
 // NewSearchLearningsTool creates a new search learnings tool.
-func NewSearchLearningsTool(store learning.LearningStore) agents.Tool {
+func NewSearchLearningsTool(store learning.LearningStore) *SearchLearningsTool {
 	return &SearchLearningsTool{store: store}
 }
 
@@ -90,14 +89,14 @@ type searchLearningsResultItem struct {
 }
 
 // CallStructured executes the search learnings tool and returns a structured result.
-func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
 	const op serrors.Op = "SearchLearningsTool.CallStructured"
 
 	params, err := agents.ParseToolInput[searchLearningsInput](input)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: fmt.Sprintf("failed to parse input: %v", err),
 				Hints:   []string{HintCheckRequiredFields},
@@ -106,9 +105,9 @@ func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) 
 	}
 
 	if params.Query == "" {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: "query parameter is required",
 				Hints:   []string{HintCheckRequiredFields, "Provide search terms for learning query"},
@@ -118,9 +117,9 @@ func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) 
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeServiceUnavailable),
 				Message: "tenant context not available",
 				Hints:   []string{HintServiceMayBeDown},
@@ -149,9 +148,9 @@ func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) 
 
 	learnings, err := t.store.Search(ctx, params.Query, opts)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeServiceUnavailable),
 				Message: fmt.Sprintf("learning search failed: %v", err),
 				Hints:   []string{HintServiceMayBeDown, HintRetryLater},
@@ -160,9 +159,9 @@ func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) 
 	}
 
 	if len(learnings) == 0 {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeNoData),
 				Message: fmt.Sprintf("no learnings found for query: %s", params.Query),
 				Hints: []string{
@@ -193,34 +192,15 @@ func (t *SearchLearningsTool) CallStructured(ctx context.Context, input string) 
 		Learnings:   results,
 	}
 
-	return &agents.ToolResult{
-		CodecID: formatters.CodecSearchResults,
-		Payload: formatters.SearchResultsPayload{Output: response},
+	return &types.ToolResult{
+		CodecID: types.CodecSearchResults,
+		Payload: types.JSONPayload{Output: response},
 	}, nil
 }
 
 // Call executes the search learnings tool.
 func (t *SearchLearningsTool) Call(ctx context.Context, input string) (string, error) {
-	result, err := t.CallStructured(ctx, input)
-	if err != nil {
-		if result != nil {
-			registry := formatters.DefaultFormatterRegistry()
-			if f := registry.Get(result.CodecID); f != nil {
-				formatted, fmtErr := f.Format(result.Payload, bichatctx.DefaultFormatOptions())
-				if fmtErr == nil {
-					return formatted, err
-				}
-			}
-		}
-		return "", err
-	}
-
-	registry := formatters.DefaultFormatterRegistry()
-	f := registry.Get(result.CodecID)
-	if f == nil {
-		return agents.FormatToolOutput(result.Payload)
-	}
-	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
 // SaveLearningTool saves a new learning when the agent discovers an error pattern or important insight.
@@ -229,7 +209,7 @@ type SaveLearningTool struct {
 }
 
 // NewSaveLearningTool creates a new save learning tool.
-func NewSaveLearningTool(store learning.LearningStore) agents.Tool {
+func NewSaveLearningTool(store learning.LearningStore) *SaveLearningTool {
 	return &SaveLearningTool{store: store}
 }
 
@@ -294,14 +274,14 @@ type saveLearningOutput struct {
 }
 
 // CallStructured executes the save learning tool and returns a structured result.
-func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*agents.ToolResult, error) {
+func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
 	const op serrors.Op = "SaveLearningTool.CallStructured"
 
 	params, err := agents.ParseToolInput[saveLearningInput](input)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: fmt.Sprintf("failed to parse input: %v", err),
 				Hints:   []string{HintCheckRequiredFields},
@@ -310,9 +290,9 @@ func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*a
 	}
 
 	if params.Category == "" {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: "category parameter is required",
 				Hints:   []string{HintCheckRequiredFields, "Valid categories: sql_error, type_mismatch, user_correction, business_rule"},
@@ -320,9 +300,9 @@ func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*a
 		}, nil
 	}
 	if params.Trigger == "" {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: "trigger parameter is required",
 				Hints:   []string{HintCheckRequiredFields, "Describe what caused this learning (error message, user feedback, etc.)"},
@@ -330,9 +310,9 @@ func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*a
 		}, nil
 	}
 	if params.Lesson == "" {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: "lesson parameter is required",
 				Hints:   []string{HintCheckRequiredFields, "Describe what to do/avoid next time (be specific and actionable)"},
@@ -347,9 +327,9 @@ func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*a
 		"business_rule":   true,
 	}
 	if !validCategories[params.Category] {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
 				Message: fmt.Sprintf("invalid category: %s", params.Category),
 				Hints:   []string{HintCheckFieldTypes, "Valid categories: sql_error, type_mismatch, user_correction, business_rule"},
@@ -359,9 +339,9 @@ func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*a
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeServiceUnavailable),
 				Message: "tenant context not available",
 				Hints:   []string{HintServiceMayBeDown},
@@ -383,9 +363,9 @@ func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*a
 
 	err = t.store.Save(ctx, l)
 	if err != nil {
-		return &agents.ToolResult{
-			CodecID: formatters.CodecToolError,
-			Payload: formatters.ToolErrorPayload{
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeServiceUnavailable),
 				Message: fmt.Sprintf("failed to save learning: %v", err),
 				Hints:   []string{HintServiceMayBeDown, HintRetryLater},
@@ -405,32 +385,13 @@ func (t *SaveLearningTool) CallStructured(ctx context.Context, input string) (*a
 		TableName: params.TableName,
 	}
 
-	return &agents.ToolResult{
-		CodecID: formatters.CodecJSON,
-		Payload: formatters.GenericJSONPayload{Output: response},
+	return &types.ToolResult{
+		CodecID: types.CodecJSON,
+		Payload: types.JSONPayload{Output: response},
 	}, nil
 }
 
 // Call executes the save learning tool.
 func (t *SaveLearningTool) Call(ctx context.Context, input string) (string, error) {
-	result, err := t.CallStructured(ctx, input)
-	if err != nil {
-		if result != nil {
-			registry := formatters.DefaultFormatterRegistry()
-			if f := registry.Get(result.CodecID); f != nil {
-				formatted, fmtErr := f.Format(result.Payload, bichatctx.DefaultFormatOptions())
-				if fmtErr == nil {
-					return formatted, err
-				}
-			}
-		}
-		return "", err
-	}
-
-	registry := formatters.DefaultFormatterRegistry()
-	f := registry.Get(result.CodecID)
-	if f == nil {
-		return agents.FormatToolOutput(result.Payload)
-	}
-	return f.Format(result.Payload, bichatctx.DefaultFormatOptions())
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }

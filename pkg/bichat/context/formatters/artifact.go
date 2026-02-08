@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // ArtifactListFormatter formats artifact list results as markdown tables.
@@ -16,8 +16,8 @@ func NewArtifactListFormatter() *ArtifactListFormatter {
 }
 
 // Format renders an ArtifactListPayload as markdown.
-func (f *ArtifactListFormatter) Format(payload any, opts context.FormatOptions) (string, error) {
-	p, ok := payload.(ArtifactListPayload)
+func (f *ArtifactListFormatter) Format(payload any, opts types.FormatOptions) (string, error) {
+	p, ok := payload.(types.ArtifactListPayload)
 	if !ok {
 		return "", fmt.Errorf("ArtifactListFormatter: expected ArtifactListPayload, got %T", payload)
 	}
@@ -32,8 +32,8 @@ func (f *ArtifactListFormatter) Format(payload any, opts context.FormatOptions) 
 			"| %s | %s | %s | %s | %d | %s |\n",
 			a.ID,
 			a.Type,
-			escapeTableCell(a.Name),
-			escapeTableCell(a.MimeType),
+			EscapeMarkdownCell(a.Name, 0),
+			EscapeMarkdownCell(a.MimeType, 0),
 			a.SizeBytes,
 			a.CreatedAt,
 		)
@@ -59,8 +59,8 @@ func NewArtifactContentFormatter() *ArtifactContentFormatter {
 }
 
 // Format renders an ArtifactContentPayload as markdown.
-func (f *ArtifactContentFormatter) Format(payload any, opts context.FormatOptions) (string, error) {
-	p, ok := payload.(ArtifactContentPayload)
+func (f *ArtifactContentFormatter) Format(payload any, opts types.FormatOptions) (string, error) {
+	p, ok := payload.(types.ArtifactContentPayload)
 	if !ok {
 		return "", fmt.Errorf("ArtifactContentFormatter: expected ArtifactContentPayload, got %T", payload)
 	}
@@ -90,9 +90,4 @@ func (f *ArtifactContentFormatter) Format(payload any, opts context.FormatOption
 	}
 
 	return b.String(), nil
-}
-
-func escapeTableCell(value string) string {
-	replacer := strings.NewReplacer("|", "\\|", "\n", " ", "\r", " ")
-	return replacer.Replace(value)
 }

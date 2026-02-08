@@ -163,15 +163,26 @@ export function SessionArtifactsPanel({
     }
   }, [artifactsInvalidationTrigger, sessionId, canFetchArtifacts, fetchArtifacts])
 
+  const visibilityFetchRef = useRef(fetchArtifacts)
+  visibilityFetchRef.current = fetchArtifacts
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
+  const canFetchRef = useRef(canFetchArtifacts)
+  canFetchRef.current = canFetchArtifacts
+
   useEffect(() => {
     const handler = () => {
-      if (document.visibilityState === 'visible' && sessionId && canFetchArtifacts) {
-        void fetchArtifacts({ reset: true, manual: false })
+      if (
+        document.visibilityState === 'visible' &&
+        sessionIdRef.current &&
+        canFetchRef.current
+      ) {
+        void visibilityFetchRef.current({ reset: true, manual: false })
       }
     }
     document.addEventListener('visibilitychange', handler)
     return () => document.removeEventListener('visibilitychange', handler)
-  }, [sessionId, canFetchArtifacts, fetchArtifacts])
+  }, [])
 
   const previewArtifact = useMemo(
     () => artifacts.find((artifact) => artifact.id === previewArtifactID) ?? null,

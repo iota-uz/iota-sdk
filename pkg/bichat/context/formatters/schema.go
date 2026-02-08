@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // SchemaListFormatter formats schema list results as markdown tables.
@@ -16,8 +16,8 @@ func NewSchemaListFormatter() *SchemaListFormatter {
 }
 
 // Format renders a SchemaListPayload as markdown.
-func (f *SchemaListFormatter) Format(payload any, opts context.FormatOptions) (string, error) {
-	p, ok := payload.(SchemaListPayload)
+func (f *SchemaListFormatter) Format(payload any, opts types.FormatOptions) (string, error) {
+	p, ok := payload.(types.SchemaListPayload)
 	if !ok {
 		return "", fmt.Errorf("SchemaListFormatter: expected SchemaListPayload, got %T", payload)
 	}
@@ -73,8 +73,8 @@ func NewSchemaDescribeFormatter() *SchemaDescribeFormatter {
 }
 
 // Format renders a SchemaDescribePayload as markdown.
-func (f *SchemaDescribeFormatter) Format(payload any, opts context.FormatOptions) (string, error) {
-	p, ok := payload.(SchemaDescribePayload)
+func (f *SchemaDescribeFormatter) Format(payload any, opts types.FormatOptions) (string, error) {
+	p, ok := payload.(types.SchemaDescribePayload)
 	if !ok {
 		return "", fmt.Errorf("SchemaDescribeFormatter: expected SchemaDescribePayload, got %T", payload)
 	}

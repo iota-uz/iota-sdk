@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -187,31 +186,4 @@ func extractTableFromHint(hint string) string {
 	}
 
 	return ""
-}
-
-// FormatSQLDiagnosis formats a SQL diagnosis as JSON for LLM consumption.
-// It uses the same JSON structure as FormatToolError but includes additional diagnostic fields.
-func FormatSQLDiagnosis(diagnosis *SQLErrorDiagnosis) string {
-	if diagnosis == nil {
-		return FormatToolError(ErrCodeQueryError, "unknown error", HintCheckSQLSyntax)
-	}
-
-	wrapper := map[string]interface{}{
-		"error": map[string]interface{}{
-			"code":       diagnosis.Code,
-			"message":    diagnosis.Message,
-			"table":      diagnosis.Table,
-			"column":     diagnosis.Column,
-			"suggestion": diagnosis.Suggestion,
-			"hints":      diagnosis.Hints,
-		},
-	}
-
-	data, err := json.MarshalIndent(wrapper, "", "  ")
-	if err != nil {
-		// Fallback to simple format
-		return FormatToolError(diagnosis.Code, diagnosis.Message, diagnosis.Hints...)
-	}
-
-	return string(data)
 }

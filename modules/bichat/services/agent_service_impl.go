@@ -212,7 +212,7 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 
 	// Add formatter registry if configured
 	if s.formatterRegistry != nil {
-		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry.AsAgentsRegistry()))
+		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
 	}
 
 	// Add delegation tool if registry is configured
@@ -287,7 +287,7 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 
 	// Add formatter registry if configured
 	if s.formatterRegistry != nil {
-		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry.AsAgentsRegistry()))
+		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
 	}
 
 	// Add delegation tool if registry is configured
