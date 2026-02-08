@@ -65,6 +65,50 @@ func TestPostgresQueryExecutor_ExecuteQuery_RejectsNonAnalyticsSchema(t *testing
 	assert.Contains(t, err.Error(), "analytics schema")
 }
 
+func TestPostgresQueryExecutor_ExecuteQuery_AcceptsMultilineAnalyticsQuery(t *testing.T) {
+	t.Parallel()
+
+	requirePostgres(t)
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	executor := NewPostgresQueryExecutor(env.Pool)
+
+	tenantID, err := composables.UseTenantID(env.Ctx)
+	require.NoError(t, err)
+
+	_, err = env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS analytics`)
+	require.NoError(t, err)
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE TABLE test_multiline (
+			id SERIAL PRIMARY KEY,
+			tenant_id UUID NOT NULL,
+			name VARCHAR(100)
+		)
+	`)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics.analytics_test_multiline")
+		_, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS test_multiline")
+	}()
+
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE OR REPLACE VIEW analytics.analytics_test_multiline AS
+		SELECT * FROM test_multiline
+		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
+	`)
+	require.NoError(t, err)
+	_, err = env.Pool.Exec(env.Ctx, `INSERT INTO test_multiline (tenant_id, name) VALUES ($1, 'OK')`, tenantID)
+	require.NoError(t, err)
+
+	// Multi-line query (e.g. from export tool or LLM) must pass schema check
+	multilineQuery := `SELECT id, name
+FROM analytics.analytics_test_multiline
+ORDER BY id`
+	result, err := executor.ExecuteQuery(env.Ctx, multilineQuery, nil, 5*time.Second)
+	require.NoError(t, err)
+	require.Equal(t, 1, result.RowCount)
+	assert.Equal(t, "OK", result.ToMap(0)["name"])
+}
+
 func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T) {
 	t.Parallel()
 

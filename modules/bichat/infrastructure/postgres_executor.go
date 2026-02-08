@@ -191,10 +191,32 @@ func (e *PostgresQueryExecutor) isSystemCatalogQuery(sql string) bool {
 
 // referencesAnalyticsSchemaOnly returns true if the query only references the analytics schema.
 // Rejects public.* and requires explicit analytics. to prevent cross-tenant data leakage.
+// Whitespace (newlines, tabs) is normalized to spaces so multi-line queries are accepted.
 func (e *PostgresQueryExecutor) referencesAnalyticsSchemaOnly(sql string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(sql))
+	normalized := normalizeSQLForSchemaCheck(sql)
 	if strings.Contains(normalized, " from public.") || strings.Contains(normalized, " join public.") {
 		return false
 	}
 	return strings.Contains(normalized, " from analytics.") || strings.Contains(normalized, " join analytics.")
+}
+
+// normalizeSQLForSchemaCheck lowercases and collapses runs of whitespace to a single space.
+// This allows schema checks to match "FROM analytics.x" regardless of newlines/tabs before FROM.
+func normalizeSQLForSchemaCheck(sql string) string {
+	sql = strings.TrimSpace(sql)
+	var b strings.Builder
+	b.Grow(len(sql))
+	prevSpace := false
+	for _, r := range strings.ToLower(sql) {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			if !prevSpace {
+				b.WriteByte(' ')
+				prevSpace = true
+			}
+			continue
+		}
+		prevSpace = false
+		b.WriteRune(r)
+	}
+	return b.String()
 }
