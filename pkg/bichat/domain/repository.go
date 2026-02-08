@@ -38,6 +38,11 @@ type ChatRepository interface {
 	// Used for regenerate/edit functionality.
 	TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error)
 
+	// UpdateMessageQuestionData updates the question_data JSONB on a specific message.
+	UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error
+	// GetPendingQuestionMessage returns the message with a pending question for a session, or nil if none.
+	GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error)
+
 	// Attachment operations
 	SaveAttachment(ctx context.Context, attachment Attachment) error
 	GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)

@@ -719,22 +719,30 @@ export function ChatSessionProvider({
     [dataSource]
   )
 
-  const handleCancelPendingQuestion = useCallback(async () => {
+  const handleRejectPendingQuestion = useCallback(async () => {
     const curSessionId = sessionRef.current.currentSessionId
     const curPendingQuestion = messagingRef.current.pendingQuestion
     if (!curSessionId || !curPendingQuestion) return
 
     try {
-      const result = await dataSource.cancelPendingQuestion(curSessionId)
-
+      const result = await dataSource.rejectPendingQuestion(curSessionId)
       if (result.success) {
         setPendingQuestion(null)
+        // Re-fetch to get updated turns (agent may have resumed)
+        if (curSessionId !== 'new') {
+          const state = await dataSource.fetchSession(curSessionId)
+          if (state) {
+            setSession(state.session)
+            setTurns(state.turns)
+            setPendingQuestion(state.pendingQuestion || null)
+          }
+        }
       } else {
-        setError(result.error || 'Failed to cancel question')
+        setError(result.error || 'Failed to reject question')
       }
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : 'Failed to cancel question'
+        err instanceof Error ? err.message : 'Failed to reject question'
       setError(errorMessage)
     }
   }, [dataSource])
@@ -766,14 +774,14 @@ export function ChatSessionProvider({
     handleEdit,
     handleCopy,
     handleSubmitQuestionAnswers,
-    handleCancelPendingQuestion,
+    handleRejectPendingQuestion,
     cancel: cancelStream,
     setCodeOutputs,
   }), [
     turns, streamingContent, isStreaming, loading, pendingQuestion,
     codeOutputs, isCompacting, compactionSummary,
     sendMessageDirect, handleRegenerate, handleEdit, handleCopy,
-    handleSubmitQuestionAnswers, handleCancelPendingQuestion, cancelStream,
+    handleSubmitQuestionAnswers, handleRejectPendingQuestion, cancelStream,
   ])
 
   const inputValue: ChatInputStateValue = useMemo(() => ({

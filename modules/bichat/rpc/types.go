@@ -157,6 +157,7 @@ type PendingQuestionItem struct {
 type PendingQuestion struct {
 	CheckpointID string                `json:"checkpointId"`
 	AgentName    string                `json:"agentName,omitempty"`
+	TurnID       string                `json:"turnId"`
 	Questions    []PendingQuestionItem `json:"questions"`
 }
 
@@ -310,7 +311,26 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 			}
 			turns = append(turns, t)
 		case types.RoleAssistant:
-			if current == nil || current.AssistantTurn != nil {
+			if current == nil {
+				continue
+			}
+			if current.AssistantTurn != nil {
+				// Concatenate consecutive assistant messages (e.g., original + continuation after resume)
+				current.AssistantTurn.Content += m.Content()
+				// Merge tool calls
+				newToolCalls := mapToolCalls(m.ToolCalls())
+				if len(newToolCalls) > 0 {
+					current.AssistantTurn.ToolCalls = append(current.AssistantTurn.ToolCalls, newToolCalls...)
+				}
+				// Merge code outputs
+				newCodeOutputs := mapCodeOutputs(m.CodeOutputs())
+				if len(newCodeOutputs) > 0 {
+					current.AssistantTurn.CodeOutputs = append(current.AssistantTurn.CodeOutputs, newCodeOutputs...)
+				}
+				// Use latest debug trace
+				if dt := mapDebugTrace(m.DebugTrace()); dt != nil {
+					current.AssistantTurn.Debug = dt
+				}
 				continue
 			}
 			current.AssistantTurn = &AssistantTurn{
@@ -510,4 +530,48 @@ func parseUUID(s string) (uuid.UUID, error) {
 		return uuid.UUID{}, err
 	}
 	return id, nil
+}
+
+// pendingQuestionFromMessages scans messages for pending question data
+// and builds the DTO with turn ID inference.
+func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
+	// Find the message with pending question data
+	var pendingMsg types.Message
+	for _, m := range msgs {
+		if m != nil && m.HasPendingQuestion() {
+			pendingMsg = m
+			break
+		}
+	}
+	if pendingMsg == nil {
+		return nil
+	}
+	qd := pendingMsg.QuestionData()
+
+	// Find the turn ID: look backward for the nearest user message
+	turnID := pendingMsg.ID().String()
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i] != nil && msgs[i].Role() == types.RoleUser && msgs[i].CreatedAt().Before(pendingMsg.CreatedAt()) {
+			turnID = msgs[i].ID().String()
+			break
+		}
+	}
+
+	questions := make([]PendingQuestionItem, 0, len(qd.Questions))
+	for _, q := range qd.Questions {
+		options := make([]PendingQuestionOption, 0, len(q.Options))
+		for _, opt := range q.Options {
+			options = append(options, PendingQuestionOption{ID: opt.ID, Label: opt.Label})
+		}
+		questions = append(questions, PendingQuestionItem{
+			ID: q.ID, Text: q.Text, Type: q.Type, Options: options,
+		})
+	}
+
+	return &PendingQuestion{
+		CheckpointID: qd.CheckpointID,
+		AgentName:    qd.AgentName,
+		TurnID:       turnID,
+		Questions:    questions,
+	}
 }

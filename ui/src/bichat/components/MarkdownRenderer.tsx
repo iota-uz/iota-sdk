@@ -171,7 +171,7 @@ function MarkdownRenderer({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="markdown-link text-[var(--bichat-primary)] hover:underline"
+        className="markdown-link text-[var(--bichat-color-accent)] underline decoration-[var(--bichat-color-accent)] decoration-from-font hover:text-[var(--bichat-color-accent-hover)] hover:decoration-[var(--bichat-color-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bichat-color-accent)] focus-visible:ring-offset-2 rounded"
       >
         {children}
       </a>

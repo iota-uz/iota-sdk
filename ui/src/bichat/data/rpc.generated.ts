@@ -2,7 +2,7 @@
 
 export type BichatRPC = {
   "bichat.ping": { params: PingParams; result: PingResult }
-  "bichat.question.cancel": { params: QuestionCancelParams; result: SessionCreateResult }
+  "bichat.question.reject": { params: QuestionCancelParams; result: SessionGetResult }
   "bichat.question.submit": { params: QuestionSubmitParams; result: SessionGetResult }
   "bichat.session.archive": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.artifacts": { params: SessionArtifactsParams; result: SessionArtifactsResult }
@@ -112,6 +112,7 @@ export interface OkResult {
 export interface PendingQuestion {
   checkpointId: string
   agentName?: string
+  turnId: string
   questions: PendingQuestionItem[]
 }
 

@@ -186,6 +186,14 @@ func (m *configTestChatRepository) UpdateArtifact(ctx context.Context, id uuid.U
 	return nil
 }
 
+func (m *configTestChatRepository) UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error {
+	return nil
+}
+
+func (m *configTestChatRepository) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
+	return nil, errors.New("no pending question")
+}
+
 func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T) {
 	t.Parallel()
 

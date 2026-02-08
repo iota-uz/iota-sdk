@@ -10,10 +10,8 @@
 
 import { type ReactNode } from 'react'
 import type { ConversationTurn } from '../types'
-import { useChatMessaging } from '../context/ChatContext'
 import { UserTurnView, type UserTurnViewProps } from './UserTurnView'
 import { AssistantTurnView, type AssistantTurnViewProps } from './AssistantTurnView'
-import { InlineQuestionForm } from './InlineQuestionForm'
 import type { UserMessageSlots, UserMessageClassNames } from './UserMessage'
 import type { AssistantMessageSlots, AssistantMessageClassNames } from './AssistantMessage'
 
@@ -73,7 +71,6 @@ export function TurnBubble({
   classNames,
   isStreaming = false,
 }: TurnBubbleProps) {
-  const { pendingQuestion } = useChatMessaging()
   const classes = {
     root: classNames?.root ?? defaultClassNames.root,
     userTurn: classNames?.userTurn ?? defaultClassNames.userTurn,
@@ -81,14 +78,6 @@ export function TurnBubble({
   }
   const isSystemSummaryTurn =
     turn.userTurn.content.trim() === '' && turn.assistantTurn?.role === 'system'
-
-  // Show standalone pending question when there's no assistant turn
-  // (agent called ask_user_question without generating content first)
-  const showStandalonePendingQuestion =
-    !turn.assistantTurn &&
-    !!pendingQuestion &&
-    pendingQuestion.status === 'PENDING' &&
-    pendingQuestion.turnId === turn.id
 
   return (
     <div className={classes.root} data-turn-id={turn.id}>
@@ -124,11 +113,6 @@ export function TurnBubble({
             />
           )}
         </div>
-      )}
-
-      {/* Standalone pending question (no assistant turn yet) */}
-      {showStandalonePendingQuestion && (
-        <InlineQuestionForm pendingQuestion={pendingQuestion} />
       )}
     </div>
   )

@@ -94,10 +94,12 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 
+			pq := pendingQuestionFromMessages(msgs)
+
 			return SessionGetResult{
 				Session:         toSessionDTO(s),
 				Turns:           buildTurns(msgs),
-				PendingQuestion: nil,
+				PendingQuestion: pq,
 			}, nil
 		},
 	})
@@ -383,23 +385,36 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		},
 	})
 
-	applet.AddProcedure(r, "bichat.question.cancel", applet.Procedure[QuestionCancelParams, SessionCreateResult]{
+	applet.AddProcedure(r, "bichat.question.reject", applet.Procedure[QuestionCancelParams, SessionGetResult]{
 		RequirePermissions: []string{"bichat.access"},
-		Handler: func(ctx context.Context, p QuestionCancelParams) (SessionCreateResult, error) {
-			const op serrors.Op = "bichat.rpc.question.cancel"
+		Handler: func(ctx context.Context, p QuestionCancelParams) (SessionGetResult, error) {
+			const op serrors.Op = "bichat.rpc.question.reject"
 
 			sessionID, err := parseUUID(p.SessionID)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
+				return SessionGetResult{}, serrors.E(op, serrors.Invalid, err)
 			}
 			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionGetResult{}, serrors.E(op, err)
 			}
-			s, err := chatSvc.CancelPendingQuestion(ctx, sessionID)
+			_, err = chatSvc.RejectPendingQuestion(ctx, sessionID)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionGetResult{}, serrors.E(op, err)
 			}
-			return SessionCreateResult{Session: toSessionDTO(s)}, nil
+			// Re-fetch to return updated state
+			s, err := chatSvc.GetSession(ctx, sessionID)
+			if err != nil {
+				return SessionGetResult{}, serrors.E(op, err)
+			}
+			msgs, err := chatSvc.GetSessionMessages(ctx, sessionID, domain.ListOptions{Limit: 500})
+			if err != nil {
+				return SessionGetResult{}, serrors.E(op, err)
+			}
+			return SessionGetResult{
+				Session:         toSessionDTO(s),
+				Turns:           buildTurns(msgs),
+				PendingQuestion: pendingQuestionFromMessages(msgs),
+			}, nil
 		},
 	})
 

@@ -117,6 +117,14 @@ func (s *artifactReaderRepoStub) UpdateArtifact(ctx context.Context, id uuid.UUI
 	return nil
 }
 
+func (s *artifactReaderRepoStub) UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error {
+	return nil
+}
+
+func (s *artifactReaderRepoStub) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
+	return nil, nil
+}
+
 type artifactReaderStorageStub struct {
 	contents map[string][]byte
 }

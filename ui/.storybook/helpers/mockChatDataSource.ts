@@ -78,8 +78,8 @@ export class MockChatDataSource implements ChatDataSource {
     return { success: true }
   }
 
-  async cancelPendingQuestion(_questionId: string): Promise<{ success: boolean; error?: string }> {
-    console.log('Mock cancel question:', _questionId)
+  async rejectPendingQuestion(_questionId: string): Promise<{ success: boolean; error?: string }> {
+    console.log('Mock reject question:', _questionId)
     return { success: true }
   }
 

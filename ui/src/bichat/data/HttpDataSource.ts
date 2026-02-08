@@ -83,8 +83,7 @@ function toSessionArtifact(artifact: RPCArtifact): SessionArtifact {
 }
 
 function toPendingQuestion(
-  rpc: RPCPendingQuestion | null | undefined,
-  lastTurnId: string
+  rpc: RPCPendingQuestion | null | undefined
 ): PendingQuestion | null {
   if (!rpc) return null
 
@@ -101,7 +100,7 @@ function toPendingQuestion(
 
   return {
     id: rpc.checkpointId,
-    turnId: lastTurnId,
+    turnId: rpc.turnId || '',
     questions,
     status: 'PENDING',
   }
@@ -367,12 +366,11 @@ export class HttpDataSource implements ChatDataSource {
       ])
 
       const turns = attachArtifactsToTurns(data.turns as ConversationTurn[], artifactsData.artifacts || [])
-      const lastTurnId = turns.length > 0 ? turns[turns.length - 1].id : ''
 
       return {
         session: toSession(data.session),
         turns,
-        pendingQuestion: toPendingQuestion(data.pendingQuestion, lastTurnId),
+        pendingQuestion: toPendingQuestion(data.pendingQuestion),
       }
     } catch (err) {
       console.error('Failed to fetch session:', err)
@@ -603,11 +601,11 @@ export class HttpDataSource implements ChatDataSource {
   }
 
   /**
-   * Cancel a pending question
+   * Reject a pending question
    */
-  async cancelPendingQuestion(sessionId: string): Promise<Result<void>> {
+  async rejectPendingQuestion(sessionId: string): Promise<Result<void>> {
     try {
-      await this.callRPC('bichat.question.cancel', { sessionId })
+      await this.callRPC('bichat.question.reject', { sessionId })
       return { success: true }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

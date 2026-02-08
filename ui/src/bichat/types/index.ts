@@ -382,7 +382,7 @@ export interface ChatDataSource {
     questionId: string,
     answers: QuestionAnswers
   ): Promise<{ success: boolean; error?: string }>
-  cancelPendingQuestion(sessionId: string): Promise<{ success: boolean; error?: string }>
+  rejectPendingQuestion(sessionId: string): Promise<{ success: boolean; error?: string }>
   navigateToSession?(sessionId: string): void
 
   // Session management
@@ -446,7 +446,7 @@ export interface ChatMessagingStateValue {
   handleEdit?: (turnId: string, newContent: string) => Promise<void>
   handleCopy: (text: string) => Promise<void>
   handleSubmitQuestionAnswers: (answers: QuestionAnswers) => void
-  handleCancelPendingQuestion: () => Promise<void>
+  handleRejectPendingQuestion: () => Promise<void>
   cancel: () => void
   setCodeOutputs: (outputs: CodeOutput[]) => void
 }

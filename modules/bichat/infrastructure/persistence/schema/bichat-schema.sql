@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS bichat.sessions (
     status varchar(20) NOT NULL DEFAULT 'ACTIVE',
     pinned boolean NOT NULL DEFAULT FALSE,
     parent_session_id uuid REFERENCES bichat.sessions(id) ON DELETE SET NULL,
-    pending_question_agent varchar(100),
     llm_previous_response_id varchar(255),
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW(),
@@ -27,6 +26,7 @@ CREATE TABLE IF NOT EXISTS bichat.messages (
     tool_call_id varchar(255),
     citations jsonb,
     debug_trace jsonb,
+    question_data jsonb,
     created_at timestamptz NOT NULL DEFAULT NOW(),
     CONSTRAINT messages_role_check CHECK (role IN ('user', 'assistant', 'tool', 'system'))
 );
@@ -126,6 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_session ON bichat.messages(session_id, c
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON bichat.messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_role ON bichat.messages(role);
 CREATE INDEX IF NOT EXISTS idx_messages_tool_call ON bichat.messages(tool_call_id) WHERE tool_call_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_one_pending_question ON bichat.messages(session_id) WHERE question_data->>'status' = 'pending';
 
 CREATE INDEX IF NOT EXISTS idx_attachments_message ON bichat.attachments(message_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_created_at ON bichat.attachments(created_at);
@@ -155,6 +156,10 @@ CREATE INDEX IF NOT EXISTS idx_bichat_vq_tables ON bichat.validated_queries USIN
 CREATE INDEX IF NOT EXISTS idx_bichat_vq_fts ON bichat.validated_queries
     USING GIN (to_tsvector('english', question || ' ' || summary));
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bichat_vq_dedup ON bichat.validated_queries(tenant_id, sql_hash);
+
+-- Migration: move HITL question state from sessions to messages
+ALTER TABLE bichat.messages ADD COLUMN IF NOT EXISTS question_data jsonb;
+ALTER TABLE bichat.sessions DROP COLUMN IF EXISTS pending_question_agent;
 
 COMMENT ON TABLE bichat.sessions IS 'Chat sessions with multi-tenant support';
 COMMENT ON TABLE bichat.messages IS 'Messages within chat sessions';

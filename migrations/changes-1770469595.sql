@@ -58,8 +58,8 @@ CREATE INDEX IF NOT EXISTS idx_bichat_vq_fts ON bichat.validated_queries
 -- ========================================
 -- Deduplication Indexes
 -- ========================================
-CREATE UNIQUE INDEX idx_bichat_learnings_dedup ON bichat.learnings(tenant_id, content_hash);
-CREATE UNIQUE INDEX idx_bichat_vq_dedup ON bichat.validated_queries(tenant_id, sql_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bichat_learnings_dedup ON bichat.learnings(tenant_id, content_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bichat_vq_dedup ON bichat.validated_queries(tenant_id, sql_hash);
 
 -- ========================================
 -- Comments
