@@ -170,15 +170,26 @@ export function SessionArtifactsPanel({
     }
   }, [artifactsInvalidationTrigger, sessionId, canFetchArtifacts, fetchArtifacts])
 
+  const visibilityFetchRef = useRef(fetchArtifacts)
+  visibilityFetchRef.current = fetchArtifacts
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
+  const canFetchRef = useRef(canFetchArtifacts)
+  canFetchRef.current = canFetchArtifacts
+
   useEffect(() => {
     const handler = () => {
-      if (document.visibilityState === 'visible' && sessionId && canFetchArtifacts) {
-        void fetchArtifacts({ reset: true, manual: false })
+      if (
+        document.visibilityState === 'visible' &&
+        sessionIdRef.current &&
+        canFetchRef.current
+      ) {
+        void visibilityFetchRef.current({ reset: true, manual: false })
       }
     }
     document.addEventListener('visibilitychange', handler)
     return () => document.removeEventListener('visibilitychange', handler)
-  }, [sessionId, canFetchArtifacts, fetchArtifacts])
+  }, [])
 
   const selectedArtifact = useMemo(
     () => artifacts.find((artifact) => artifact.id === selectedArtifactId) ?? null,
@@ -292,8 +303,8 @@ export function SessionArtifactsPanel({
         </div>
       )}
 
-      <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700/80">
-          <div className="min-w-0 flex-1">
+      <header className="flex items-center border-b border-gray-200 px-3 py-2 dark:border-gray-700/80">
+          <div className="min-w-0">
             {selectedArtifact ? (
               <button
                 type="button"
