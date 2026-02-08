@@ -466,7 +466,7 @@ SUGGESTED ANALYSIS:
 // DefaultBISystemPromptOpts configures which optional sections are included in the default BI system prompt.
 // Use this when building a custom parent agent that should share the SDK's base BI instructions.
 type DefaultBISystemPromptOpts struct {
-	CodeInterpreter        bool
+	CodeInterpreter       bool
 	AgentRegistry         *agents.AgentRegistry
 	LearningEnabled       bool
 	ValidatedQueryEnabled bool
