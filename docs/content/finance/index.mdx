@@ -1,0 +1,321 @@
+---
+title: 'Finance Module'
+description: 'Comprehensive financial management including payments, expenses, accounts, and reporting'
+---
+
+# Finance Module
+
+The Finance module provides comprehensive financial management capabilities including income tracking, expense management, multi-currency accounts, and financial reporting.
+
+## Purpose
+
+This module handles:
+- Income and expense tracking
+- Multi-currency money accounts
+- Financial transaction recording
+- Counterparty (client/supplier) management
+- Debt tracking (receivables and payables: %v", err)
+- Financial reporting (Income Statement, Cashflow: %v", err)
+
+## Key Concepts
+
+### MoneyAccount
+
+Financial accounts that hold funds:
+- **Cash** - Physical cash accounts
+- **Bank** - Bank accounts with optional integration
+- **Multi-currency** - Each account has a primary currency
+- **Balance tracking** - Real-time balance calculations
+
+### Payment
+
+Income transactions representing money coming in:
+- Categorized by PaymentCategory
+- Linked to MoneyAccount
+- Can have attachments (documents, receipts: %v", err)
+- Associated with Counterparty
+
+### Expense
+
+Outgoing transactions representing money going out:
+- Categorized by ExpenseCategory
+- Linked to MoneyAccount
+- Can have attachments
+- Associated with Counterparty
+
+### Transaction
+
+Internal transfers between MoneyAccounts:
+- Records movement between accounts
+- Maintains audit trail
+- Supports currency conversion
+
+### Counterparty
+
+External entities in financial transactions:
+- **Clients** - Customers who pay you
+- **Suppliers** - Vendors you pay
+- **Partners** - Business partners
+- **Other** - Miscellaneous entities
+
+### Debt
+
+Tracking of receivables and payables:
+- **Receivable** - Money owed to you
+- **Payable** - Money you owe
+- **Status tracking** - Pending, Partial, Paid, Overdue
+- **Payment linking** - Link payments/expenses to debts
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph "Finance Module Architecture"
+        A[Controllers] --> B[Services]
+        B --> C[Domain Layer]
+        C --> D[Repositories]
+        D --> E[(Database)]
+        
+        subgraph "Domain Aggregates"
+            C --> F[Payment]
+            C --> G[Expense]
+            C --> H[MoneyAccount]
+            C --> I[Transaction]
+            C --> J[Counterparty]
+            C --> K[Debt]
+        end
+        
+        subgraph "Value Objects"
+            C --> L[Money]
+            C --> M[PaymentCategory]
+            C --> N[ExpenseCategory]
+        end
+    end
+    
+    subgraph "External Dependencies"
+        B --> O[Core UserService]
+        B --> P[Core UploadService]
+    end
+```
+
+## Data Flow
+
+### Payment Recording
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Controller
+    participant PaymentService
+    participant MoneyAccount
+    participant Repository
+    participant DB
+    
+    User->>Controller: Record payment
+    Controller->>PaymentService: Create payment
+    PaymentService->>MoneyAccount: Update balance
+    PaymentService->>Repository: Save payment
+    Repository->>DB: Insert record
+    PaymentService->>PaymentService: Publish event
+```
+
+### Financial Reporting
+
+```mermaid
+graph TD
+    A[Report Request] --> B[FinancialReportService]
+    B --> C[Payment Repository]
+    B --> D[Expense Repository]
+    B --> E[Account Repository]
+    C --> F[(Payments)]
+    D --> G[(Expenses)]
+    E --> H[(Accounts)]
+    C -->|Data| B
+    D -->|Data| B
+    E -->|Data| B
+    B --> I[Calculate Totals]
+    B --> J[Generate Report]
+```
+
+## Components
+
+### Money Accounts
+
+Account management features:
+- Create/edit/delete accounts
+- Multi-currency support
+- Opening/closing balances
+- Account archiving
+
+### Payments
+
+Income tracking:
+- Record incoming payments
+- Categorize by type
+- Link to counterparties
+- Attach supporting documents
+- Associate with debts
+
+### Expenses
+
+Outgoing transaction tracking:
+- Record expenses
+- Categorize spending
+- Track by counterparty
+- Attach receipts
+- Link to payables
+
+### Categories
+
+Hierarchical categorization:
+- **Payment Categories** - Income types (Sales, Services, etc.: %v", err)
+- **Expense Categories** - Spending types (Rent, Salaries, etc.: %v", err)
+- Nested categories supported
+
+### Transactions
+
+Account-to-account transfers:
+- Internal movements
+- Currency conversion
+- Transaction fees
+- Audit trail
+
+### Counterparties
+
+External entity management:
+- Client database
+- Supplier tracking
+- Contact information
+- Transaction history per entity
+
+### Debts
+
+Receivables and payables:
+- Track outstanding amounts
+- Payment reminders
+- Partial payment tracking
+- Overdue alerts
+
+### Inventory
+
+Basic inventory tracking:
+- Product stock levels
+- Valuation
+- Movement tracking
+
+## Financial Reports
+
+### Income Statement
+
+Profit/Loss report showing:
+- Total income by category
+- Total expenses by category
+- Net profit/loss
+- Period comparison
+
+### Cashflow Statement
+
+Cash movement analysis:
+- Operating activities
+- Opening/closing balances
+- Net cash change
+- Cash position
+
+### Account Balance
+
+Individual account reports:
+- Transaction history
+- Balance over time
+- Income/expense breakdown
+
+## API Reference
+
+### GraphQL Schema
+
+The Finance module exposes GraphQL endpoints for:
+
+| Entity | Queries | Mutations |
+|--------|---------|-----------|
+| **MoneyAccount** | account, accounts | createAccount, updateAccount |
+| **Payment** | payment, payments | createPayment, updatePayment |
+| **Expense** | expense, expenses | createExpense, updateExpense |
+| **Transaction** | transaction, transactions | createTransaction |
+| **Counterparty** | counterparty, counterparties | createCounterparty |
+| **Debt** | debt, debts | createDebt, updateDebt |
+
+See [API Reference](/api) for detailed schema.
+
+## Permissions
+
+### Available Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `money_accounts.view` | View accounts |
+| `money_accounts.create` | Create accounts |
+| `money_accounts.edit` | Modify accounts |
+| `money_accounts.delete` | Delete accounts |
+| `payments.view` | View payments |
+| `payments.create` | Record payments |
+| `payments.edit` | Modify payments |
+| `payments.delete` | Delete payments |
+| `expenses.view` | View expenses |
+| `expenses.create` | Record expenses |
+| `expenses.edit` | Modify expenses |
+| `expenses.delete` | Delete expenses |
+| `debts.view` | View debts |
+| `debts.create` | Create debts |
+| `debts.edit` | Modify debts |
+| `reports.view` | Generate reports |
+
+## Integration with Other Modules
+
+### Core Module
+
+Uses Core services:
+- **UserService** - Track who created/modified records
+- **UploadService** - Handle attachments
+- **Currency** - Multi-currency support
+
+### Warehouse Module
+
+Integration points:
+- Inventory valuation
+- Stock movement costs
+- Order financial tracking
+
+### CRM Module
+
+Integration points:
+- Client payment history
+- Counterparty linking
+- Automated invoicing
+
+### Events
+
+Published domain events:
+
+| Event | Description |
+|-------|-------------|
+| `PaymentCreated` | New payment recorded |
+| `PaymentUpdated` | Payment modified |
+| `ExpenseCreated` | New expense recorded |
+| `ExpenseUpdated` | Expense modified |
+| `TransactionCreated` | Transfer completed |
+| `DebtCreated` | New debt recorded |
+| `DebtPaid` | Debt fully paid |
+| `AccountBalanceChanged` | Account balance updated |
+
+## Best Practices
+
+1. **Reconcile regularly** - Match transactions with bank statements
+2. **Categorize consistently** - Use standardized categories
+3. **Attach documents** - Keep receipts and invoices
+4. **Track debts promptly** - Record receivables/payables immediately
+5. **Review reports** - Regular financial analysis
+6. **Multi-currency care** - Track exchange rates for conversions
+
+## Next Steps
+
+- [Warehouse Module](/warehouse) - Inventory management
+- [Billing Module](/billing) - Payment processing integration

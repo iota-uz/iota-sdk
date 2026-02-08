@@ -414,7 +414,7 @@
     }
   },
   "Modules": {
-    "Bichat": "Bichat",
+    "BiChat": "BI-Chat",
     "Billing": "Billing",
     "Core": "Administration",
     "CRM": "CRM",
@@ -708,6 +708,20 @@
         "_Description": "Full employee management capabilities"
       }
     },
+    "BiChat": {
+      "AccessView": {
+        "Label": "Access BI Chat",
+        "_Description": "Use the BI-Chat conversational interface"
+      },
+      "ReadAllView": {
+        "Label": "Read All Sessions",
+        "_Description": "View all users' chat sessions"
+      },
+      "Export": {
+        "Label": "Export Data",
+        "_Description": "Export chat data"
+      }
+    },
     "Website": {
       "WebsiteView": {
         "Label": "View Website",
@@ -803,6 +817,7 @@
   },
   "Remove": "Remove",
   "Resources": {
+    "bichat": "BI-Chat",
     "user": "Users",
     "role": "Roles",
     "group": "Groups",

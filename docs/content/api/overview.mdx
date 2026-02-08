@@ -1,0 +1,34 @@
+---
+title: 'API Module'
+description: 'GraphQL and REST API endpoints for platform integration'
+---
+
+# API Module
+
+The API module provides GraphQL and REST API endpoints for platform integration.
+
+## Features
+
+This module includes essential features for api management.
+
+## Usage
+
+The API module is registered automatically when you include it in your application setup. To register API-related components in your module:
+
+```go
+func (m *Module) Register(app application.Application) error {
+    // Register API controllers
+    app.RegisterControllers(
+        controllers.NewApiController(app),
+    )
+    
+    // Register GraphQL schema if applicable
+    app.RegisterGraphSchema(application.GraphSchema{
+        Name:    "api",
+        Schema:  schema,
+        Handler: handler,
+    })
+    
+    return nil
+}
+```

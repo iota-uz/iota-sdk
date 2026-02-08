@@ -414,7 +414,7 @@
     }
   },
   "Modules": {
-    "Bichat": "Bichat",
+    "BiChat": "BI-聊天",
     "Billing": "计费",
     "Core": "管理",
     "CRM": "CRM",
@@ -712,6 +712,20 @@
         "_Description": "完整的员工管理功能"
       }
     },
+    "BiChat": {
+      "AccessView": {
+        "Label": "访问 BI-聊天",
+        "_Description": "使用 BI-聊天对话界面"
+      },
+      "ReadAllView": {
+        "Label": "查看所有会话",
+        "_Description": "查看所有用户的聊天会话"
+      },
+      "Export": {
+        "Label": "导出数据",
+        "_Description": "导出聊天数据"
+      }
+    },
     "Website": {
       "WebsiteView": {
         "Label": "查看网站",
@@ -807,6 +821,7 @@
   },
   "Remove": "移除",
   "Resources": {
+    "bichat": "BI-聊天",
     "user": "用户",
     "role": "角色",
     "group": "组",

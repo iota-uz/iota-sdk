@@ -1,0 +1,313 @@
+---
+title: 'BiChat Module'
+description: 'Agent-powered business intelligence chat for data insights'
+---
+
+# BiChat Module
+
+The BiChat (Business Intelligence Chat) module provides an agent-powered conversational interface for querying business data and gaining insights. Built on the `pkg/bichat` foundation, it uses a multi-agent orchestration system to handle complex data analysis tasks.
+
+## Purpose
+
+This module enables:
+- **Natural Language Data Queries**: Ask questions about your business data in plain English.
+- **Multi-Agent Analysis**: A parent BI agent coordinates with specialized sub-agents (like the SQL Analyst) to solve complex tasks.
+- **Real-time Data Exploration**: Live execution of SQL queries against your business database.
+- **HITL (Human-in-the-Loop)**: Agents can pause execution to ask the user for clarification or missing information.
+- **Data Export**: Export query results directly to Excel.
+
+## Key Concepts
+
+### Agents
+
+The system uses an orchestration pattern:
+- **BI Agent (Parent)**: The primary interface that understands user intent and coordinates the workflow.
+- **SQL Analyst (Sub-agent)**: Specialized in understanding database schema and generating precise SQL queries.
+- **Delegation Tool**: Allows agents to hand off tasks to specialized sub-agents when needed.
+
+### Sessions & Messages
+
+- **Session**: A continuous conversation context tied to a user and tenant.
+- **Message**: Individual exchanges between the user and agents, supporting text and file attachments.
+- **Context Management**: Content-addressed context building that intelligently summarizes history to fit LLM token windows.
+
+### HITL (Human-in-the-Loop)
+
+When an agent needs more information (e.g., "Which warehouse should I check?"), it uses the `ask_user_question` tool. This triggers an interrupt, saves the agent's state as a **Checkpoint**, and waits for a user answer before resuming.
+
+**API flow:**
+- After streaming, if the agent asked questions, the last SSE event is `interrupt` with `checkpointId` and `questions[]`. The UI can also refetch the session: `bichat.session.get` returns `pendingQuestion` (same checkpoint and questions) when there is an active HITL.
+- To **submit answers**: call `bichat.question.submit` with `sessionId`, `checkpointId`, and `answers` (map of question id → selected option id or text). The backend resumes the agent and returns updated session and turns.
+- To **dismiss questions** without answering: call `bichat.question.reject` with `sessionId`. The agent resumes with a "user dismissed" signal.
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph "BiChat Module Architecture"
+        A[React SPA] --> B[Applet RPC + SSE Controllers]
+        B --> C[AgentService]
+        
+        subgraph "Agent Framework (pkg/bichat)"
+            C --> D[Executor]
+            D --> E[Parent BI Agent]
+            E --> F["Sub-Agents (SQL Analyst)"]
+        end
+        
+        subgraph "Tools"
+            E --> G[Knowledge Base Search]
+            F --> H[SQL Execute]
+            E --> I[Chart Generation]
+            E --> J[Excel Export]
+        end
+    end
+    
+    C --> K[(PostgreSQL Storage)]
+    E --> L["LLM Provider (OpenAI)"]
+```
+
+## API Reference
+
+### REST/SSE Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/bi-chat` | GET | Serves the React SPA |
+| `/bi-chat/stream` | POST | SSE streaming endpoint for agent responses |
+| `/bi-chat/rpc` | POST | Applet RPC API for session management |
+
+### RPC Procedures
+
+All procedures require `BiChat.Access` unless noted. Session procedures enforce ownership (or `BiChat.ReadAll` for stream/get when opening another user's session by ID).
+
+| Procedure | Purpose |
+|-----------|---------|
+| `bichat.ping` | Health check; returns `ok` and `tenantId`. |
+| `bichat.session.list` | List current user's sessions. Params: `limit`, `offset`, `includeArchived`. Sessions have `status`: `active` or `archived`. |
+| `bichat.session.get` | Get session by ID plus turns and optional `pendingQuestion` (HITL). |
+| `bichat.session.create` | Create session. Params: `title`. |
+| `bichat.session.updateTitle` | Rename session. Params: `id`, `title`. |
+| `bichat.session.clear` | Delete all messages and artifacts in the session (keeps session). |
+| `bichat.session.compact` | Summarize old history to fit context window; returns `summary`, `deletedMessages`, `deletedArtifacts`. |
+| `bichat.session.delete` | Permanently delete session. |
+| `bichat.session.pin` / `bichat.session.unpin` | Toggle pinned. |
+| `bichat.session.archive` / `bichat.session.unarchive` | Set session status to archived or active. |
+| `bichat.session.regenerateTitle` | Regenerate session title from first message (AI). |
+| `bichat.session.artifacts` | List artifacts for a session. Params: `sessionId`, `limit`, `offset`. Returns `artifacts[]` (each with `id`, `type`, `name`, `url` for download, `mimeType`, `sizeBytes`, etc.), `hasMore`, `nextOffset`. Artifacts are stored under the attachment storage base URL. |
+| `bichat.question.submit` | Submit HITL answers and resume. Params: `sessionId`, `checkpointId`, `answers` (question id → answer). Returns updated session + turns. |
+| `bichat.question.reject` | Dismiss pending HITL and resume. Params: `sessionId`. Returns updated session + turns. |
+
+### Stream API (POST /bi-chat/stream)
+
+**Request body (JSON):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sessionId` | UUID | Session to send the message in. |
+| `content` | string | User message text. |
+| `attachments` | array | Optional. Image uploads (see [Vision support setup](/bichat/vision-setup)); each with `id`, `fileName`, `mimeType`, `sizeBytes`, `data` (base64). |
+| `debugMode` | boolean | If true, requires `BiChat.Export`; stream includes token usage and cost in `usage` events. |
+| `replaceFromMessageId` | UUID (optional) | Truncate history from this user message and send new content (edit/regenerate flow). |
+
+**Response:** Server-Sent Events stream. Each event is a JSON object with at least `type`. Common types:
+
+| Type | When | Payload |
+|------|------|---------|
+| `chunk` / `content` | Assistant text delta (same event; `chunk` is a legacy alias for `content`) | `content` |
+| `citation` | Web search citation | `citation` (title, url, excerpt, startIndex, endIndex) |
+| `tool_start` | Tool execution started | `tool` (callId, name, arguments) |
+| `tool_end` | Tool finished | `tool` (callId, result or error, durationMs) |
+| `interrupt` | HITL: agent asking questions | `questions[]`, `checkpointId` |
+| `usage` | Token/cost (when debugMode) | `usage` (promptTokens, completionTokens, cost) |
+| `done` | Stream finished successfully | — |
+| `error` | Stream error | — |
+
+Assistant turns (in `bichat.session.get` and in stream tool results) can include `codeOutputs` when the code interpreter tool runs (e.g. chart image, CSV snippet). Each item has `type`, `content`, and optional `filename`, `mimeType`, `sizeBytes`.
+
+## Permissions
+
+| Permission | Resource | Description |
+|------------|----------|-------------|
+| `BiChat.Access` | `bichat` | Access the BI Chat interface and their own sessions. Required for RPC and stream. |
+| `BiChat.ReadAll` | `bichat` | In addition to own sessions: open and stream to **other users' sessions** when you have the session ID (e.g. from a shared link or admin list). Session list still returns only the current user's sessions. |
+| `BiChat.Export` | `bichat` | Use data export tools in the chat; also required for stream requests with `debugMode: true`. |
+
+## Data Sources
+
+The **SQL Analyst** agent has read-only access to the `analytics` schema in the database. Developers should create tenant-isolated views in this schema to expose data to BiChat:
+
+```sql
+CREATE VIEW analytics.tenant_sales AS
+SELECT * FROM sales 
+WHERE tenant_id = current_setting('app.tenant_id', true)::UUID;
+```
+
+## Configuration
+
+The module is configured via `ModuleConfig` in Go. **Required:** you must configure attachment storage (or explicitly disable it for tests). Module registration can **fail** at startup if configuration is invalid; always check the error from `app.RegisterModule(module)`.
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments"),
+    bichat.WithQueryExecutor(executor),
+    bichat.WithVision(true),
+    bichat.WithMultiAgent(true),
+)
+
+module := bichat.NewModuleWithConfig(cfg)
+if err := app.RegisterModule(module); err != nil {
+    log.Fatalf("Failed to register BiChat: %v", err)
+}
+```
+
+To disable attachments (e.g. testing only): use `bichat.WithNoOpAttachmentStorage()`. To disable auto-generated session titles: `bichat.WithTitleGenerationDisabled()`.
+
+### StreamController permission overrides
+
+By default, the module registers the SSE streaming endpoint at `/bi-chat/stream` using BiChat’s built-in permissions.
+If your application defines **its own** permission constants (e.g. `AIChat.Access`, `AIChat.ReadAll`), you can override what the StreamController enforces:
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithStreamRequireAccessPermission(apppermissions.AIChatAccess),
+    bichat.WithStreamReadAllPermission(apppermissions.AIChatReadAll),
+)
+```
+
+Alternatively, if you prefer full control, you can **skip the module’s StreamController** and register your own instance via
+`controllers.NewStreamController(..., controllers.WithRequireAccessPermission(...), controllers.WithReadAllPermission(...))`
+in setups where you wire BiChat controllers manually (instead of relying on module registration).
+
+### Serving attachments & artifacts (exports)
+
+`WithAttachmentStorage(baseDir, baseURL)` controls where BiChat stores files (exports, artifacts, and attachments) and what URL is written into artifact records.
+Your application must ensure that `baseURL` is **reachable**.
+
+Two common setups:
+
+- **Reverse proxy / CDN**: point `baseURL` at whatever serves `baseDir` (Nginx, S3, etc.).
+- **Built-in controller**: serve `baseDir` from the app with auth:
+
+```go
+// Store files on disk and expose them under /bi-chat/uploads/<uuid>.<ext>
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/uploads", "/bi-chat/uploads"),
+)
+
+// Register an authenticated file server for the baseDir.
+app.RegisterControllers(
+    controllers.NewUploadsController(
+        app,
+        "/var/lib/bichat/uploads",
+        controllers.WithBasePath("/bi-chat"),
+        controllers.WithRequireAccessPermission(apppermissions.AIChatAccess), // or BiChat.Access
+    ),
+)
+```
+
+### Repository-Scoped Prompt Extensions
+
+BiChat always keeps the SDK vendor system prompt as the base.  
+Downstream repositories can append project/domain guidance without replacing it.
+
+Static extension:
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments"),
+    bichat.WithProjectPromptExtension(`
+You are operating in insurance BI domain.
+Prioritize policy lifecycle, claims fraud signals, reserve adequacy, and underwriting KPIs.
+Use domain terms: policy, endorsement, claim, loss ratio, combined ratio, IBNR.
+`),
+)
+```
+
+Provider extension (resolved once during `BuildServices()`):
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments"),
+    bichat.WithProjectPromptExtensionProvider(
+        prompts.ProjectPromptExtensionProviderFunc(func() (string, error) {
+            return loadProjectPrompt(), nil
+        }),
+    ),
+)
+```
+
+Behavior:
+- Extension scope is project/repository level (not tenant level).
+- Provider output wins when non-empty; otherwise static extension is used.
+- Provider errors fail service startup (`BuildServices()`).
+- Extension is applied in parent flow (`AgentService.ProcessMessage`) before debug augmentation.
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Yes | API key for OpenAI |
+| `OPENAI_MODEL` | No | Default model (defaults to `gpt-4o`) |
+| `BICHAT_CONTEXT_WINDOW` | No | Max tokens for context (default: 200k) |
+| `BICHAT_KNOWLEDGE_DIR` | No | Path to static knowledge root (`tables/`, `queries/`, `business/`) |
+| `BICHAT_KB_INDEX_PATH` | No | Bleve index path for `kb_search` |
+| `BICHAT_SCHEMA_METADATA_DIR` | No | Directory containing table metadata JSON files |
+
+## Knowledge Bootstrap
+
+Use the CLI to load curated BI knowledge into validated query storage and optional KB index:
+
+```bash
+command knowledge load \
+  --tenant-id <tenant-uuid> \
+  --dir /path/to/knowledge
+```
+
+Rebuild mode clears tenant-scoped validated query patterns first and recreates KB index contents:
+
+```bash
+command knowledge rebuild \
+  --tenant-id <tenant-uuid> \
+  --dir /path/to/knowledge
+```
+
+Directory contract (Dash-compatible):
+- `tables/*.json`: table metadata and usage notes
+- `queries/*.sql`: validated query patterns (`<query name>`, `<query description>`, `<query>`)
+- `business/*.json`: business rules and definitions
+
+## See also
+
+- **Vision support**: [Vision support setup](/bichat/vision-setup) — image attachments and LLM vision.
+- **Module implementation**: `modules/bichat/CLAUDE.md` — structure, SSE gotchas, multi-agent, fail-fast migration.
+- **Foundation package**: `pkg/bichat/CLAUDE.md` — agent framework, context, tools, HITL flow, observability.

@@ -1,0 +1,167 @@
+{
+  "tests": [
+    {
+      "id": "analytics_complex_filter_q1_acme",
+      "description": "Complex aggregation with filter by counterparty and date range",
+      "dataset_id": "analytics_baseline_v1",
+      "category": "analytics",
+      "tags": ["capability", "aggregation", "filters"],
+      "max_duration_seconds": 90,
+      "turns": [
+        {
+          "prompt": "For Q1 2025 only, what is the total incoming payment amount from Acme Retail and how many incoming transactions produced it?",
+          "oracle_refs": [
+            "analytics_baseline_v1.acme_q1_total_minor",
+            "analytics_baseline_v1.acme_q1_tx_count"
+          ],
+          "expected_checklist": [
+            "Answer includes both total amount and transaction count",
+            "Scope is only Acme Retail and only Q1 2025"
+          ],
+          "judge_instructions": "Treat currency formatting differences as acceptable. Factual value mismatch is a failure."
+        }
+      ],
+      "oracle_refs": [],
+      "expect": {
+        "forbidden": false,
+        "redirect_unauth": false,
+        "sse_error": false
+      }
+    },
+    {
+      "id": "analytics_topn_tie_q1_counterparties",
+      "description": "Top-N ranking with second-place tie detection",
+      "dataset_id": "analytics_baseline_v1",
+      "category": "analytics",
+      "tags": ["capability", "ranking", "tie-handling"],
+      "max_duration_seconds": 90,
+      "turns": [
+        {
+          "prompt": "Rank the top 3 counterparties by incoming payment amount in Q1 2025 and explicitly mention ties.",
+          "oracle_refs": [
+            "analytics_baseline_v1.q1_top_counterparty",
+            "analytics_baseline_v1.q1_top_amount_minor",
+            "analytics_baseline_v1.q1_second_place_tied_names",
+            "analytics_baseline_v1.q1_second_amount_minor"
+          ],
+          "expected_checklist": [
+            "Top counterparty is correct",
+            "Second-place tie is correctly identified"
+          ],
+          "judge_instructions": "If tie information is missing or wrong, fail the turn even if top-1 is correct."
+        }
+      ],
+      "oracle_refs": [],
+      "expect": {
+        "forbidden": false,
+        "redirect_unauth": false,
+        "sse_error": false
+      }
+    },
+    {
+      "id": "analytics_period_comparison_q1_q2",
+      "description": "Period-over-period comparison with delta and percent change",
+      "dataset_id": "analytics_baseline_v1",
+      "category": "analytics",
+      "tags": ["capability", "time-series", "comparison"],
+      "max_duration_seconds": 90,
+      "turns": [
+        {
+          "prompt": "Compare total incoming payments in Q1 2025 versus Q2 2025. Provide both totals, absolute delta (Q2 - Q1), and percentage change.",
+          "oracle_refs": [
+            "analytics_baseline_v1.q1_total_income_minor",
+            "analytics_baseline_v1.q2_total_income_minor",
+            "analytics_baseline_v1.q1_vs_q2_delta_minor",
+            "analytics_baseline_v1.q1_vs_q2_pct_change"
+          ],
+          "expected_checklist": [
+            "Includes both period totals",
+            "Includes absolute delta and percentage change"
+          ],
+          "judge_instructions": "Percentage may be rounded, but direction and magnitude must be correct within tolerance."
+        }
+      ],
+      "oracle_refs": [],
+      "expect": {
+        "forbidden": false,
+        "redirect_unauth": false,
+        "sse_error": false
+      }
+    },
+    {
+      "id": "analytics_followup_constraint_change",
+      "description": "Follow-up modifies only one constraint and requires context carryover",
+      "dataset_id": "analytics_baseline_v1",
+      "category": "analytics",
+      "tags": ["capability", "multi-turn", "context"],
+      "max_duration_seconds": 120,
+      "turns": [
+        {
+          "prompt": "What is the total expense amount in Q1 2025?",
+          "oracle_refs": [
+            "analytics_baseline_v1.q1_total_expense_minor"
+          ],
+          "expected_checklist": [
+            "Uses expense data only",
+            "Uses Q1 2025 date bounds"
+          ],
+          "judge_instructions": "This turn establishes context for a follow-up filter change."
+        },
+        {
+          "prompt": "Now only for February 2025.",
+          "oracle_refs": [
+            "analytics_baseline_v1.feb_total_expense_minor"
+          ],
+          "expected_checklist": [
+            "Keeps the same metric (expenses)",
+            "Changes date filter to February only"
+          ],
+          "judge_instructions": "Fail if the assistant loses context and switches metrics or table domain."
+        }
+      ],
+      "oracle_refs": [],
+      "expect": {
+        "forbidden": false,
+        "redirect_unauth": false,
+        "sse_error": false
+      }
+    },
+    {
+      "id": "analytics_ambiguity_then_clarification",
+      "description": "Ambiguous request should trigger clarification before final computed answer",
+      "dataset_id": "analytics_baseline_v1",
+      "category": "analytics",
+      "tags": ["capability", "multi-turn", "ambiguity"],
+      "max_duration_seconds": 120,
+      "turns": [
+        {
+          "prompt": "Show 2025 performance so far.",
+          "oracle_refs": [],
+          "expected_checklist": [
+            "Assistant requests clarification before choosing a metric"
+          ],
+          "judge_instructions": "Do not reward fabricated numeric output here. Best response asks a targeted clarification question."
+        },
+        {
+          "prompt": "Use net cashflow defined as incoming payments minus expenses for Q1 2025.",
+          "oracle_refs": [
+            "analytics_baseline_v1.q1_net_cashflow_minor",
+            "analytics_baseline_v1.q1_total_income_minor",
+            "analytics_baseline_v1.q1_total_expense_minor"
+          ],
+          "expected_checklist": [
+            "Computes net as income minus expenses",
+            "Shows sufficient supporting numbers"
+          ],
+          "judge_instructions": "Fail if arithmetic does not match oracle facts."
+        }
+      ],
+      "oracle_refs": [],
+      "expect": {
+        "forbidden": false,
+        "redirect_unauth": false,
+        "sse_error": false
+      }
+    }
+  ]
+}

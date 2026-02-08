@@ -1,0 +1,716 @@
+---
+title: 'Controllers & HTMX Integration'
+description: 'Build reactive web interfaces with type-safe templates and HTMX'
+---
+
+# Controllers & HTMX Integration
+
+This guide covers controller implementation in IOTA SDK, focusing on request handling, form validation, HTMX integration, and template rendering. We'll use the Expense controller as a comprehensive real-world example.
+
+## Controller Architecture
+
+Controllers in IOTA SDK handle:
+
+- **HTTP request routing** and middleware application
+- **DTO parsing and validation** from form data
+- **Service coordination** for business operations
+- **Response rendering** with Templ templates
+- **HTMX detection** for partial vs full-page responses
+
+## Controller Structure
+
+### Basic Controller Setup
+
+```go
+// modules/finance/presentation/controllers/expense_controller.go
+
+type ExpenseController struct {
+	app      application.Application
+	basePath string
+}
+
+func NewExpensesController(app application.Application) application.Controller {
+	return &ExpenseController{
+		app:      app,
+		basePath: "/finance/expenses",
+	}
+}
+
+// Key returns the unique identifier for this controller
+func (c *ExpenseController) Key() string {
+	return c.basePath
+}
+```
+
+### Route Registration
+
+Register routes with middleware and dependency injection:
+
+```go
+func (c *ExpenseController) Register(r *mux.Router) {
+	router := r.PathPrefix(c.basePath).Subrouter()
+	
+	// Apply common middleware
+	router.Use(
+		middleware.Authorize(),              // Check authentication
+		middleware.RedirectNotAuthenticated(), // Redirect if not logged in
+		middleware.ProvideUser(),            // Add user to context
+		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideLocalizer(c.app),  // Add i18n support
+		middleware.NavItems(),               // Navigation items
+		middleware.WithPageContext(),        // Page metadata
+	)
+
+	// Register routes with DI
+	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
+	router.HandleFunc("/export", di.H(c.Export)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
+	router.HandleFunc("/new", di.H(c.GetNew)).Methods(http.MethodGet)
+	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Update)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
+	
+	// HTMX endpoints for dynamic content
+	router.HandleFunc("/selects/accounts", di.H(c.GetAccountsSelect)).Methods(http.MethodGet)
+	router.HandleFunc("/selects/categories", di.H(c.GetCategoriesSelect)).Methods(http.MethodGet)
+	
+	// File attachment endpoints
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/attachments", di.H(c.AttachFile)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/attachments/{uploadId:[0-9]+}", di.H(c.DetachFile)).Methods(http.MethodDelete)
+}
+```
+
+## Request Handlers
+
+### List Handler with Pagination
+
+```go
+func (c *ExpenseController) List(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+) {
+	// Get pagination params from request
+	params := composables.UsePaginated(r)
+	
+	// Build find params
+	findParams := &expense.FindParams{
+		Offset: params.Offset,
+		Limit:  params.Limit,
+		SortBy: expense.SortBy{
+			Fields: []repo.SortByField[expense.Field]{
+				{
+					Field:     expense.CreatedAt,
+					Ascending: false,
+				},
+			},
+		},
+		Search: r.URL.Query().Get("Search"),
+	}
+
+	// Apply date filters from query params
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.Errorf("Error parsing CreatedAt.To: %v", err)
+			http.Error(w, "Invalid date format", http.StatusBadRequest)
+			return
+		}
+		findParams.Filters = append(findParams.Filters, expense.Filter{
+			Column: expense.CreatedAt,
+			Filter: repo.Lt(t),
+		})
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.Errorf("Error parsing CreatedAt.From: %v", err)
+			http.Error(w, "Invalid date format", http.StatusBadRequest)
+			return
+		}
+		findParams.Filters = append(findParams.Filters, expense.Filter{
+			Column: expense.CreatedAt,
+			Filter: repo.Gt(t),
+		})
+	}
+
+	// Fetch data
+	expenseEntities, err := expenseService.GetPaginated(r.Context(), findParams)
+	if err != nil {
+		logger.Errorf("Error retrieving expenses: %v", err)
+		http.Error(w, "Error retrieving expenses", http.StatusInternalServerError)
+		return
+	}
+
+	countParams := *findParams
+	countParams.Limit = 0
+	countParams.Offset = 0
+	total, err := expenseService.Count(r.Context(), &countParams)
+	if err != nil {
+		logger.Errorf("Error counting expenses: %v", err)
+		http.Error(w, "Error counting expenses", http.StatusInternalServerError)
+		return
+	}
+
+	// Build view props
+	props := &expensesui.IndexPageProps{
+		Expenses:        mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel),
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+	}
+
+	// Determine response type
+	isEmbedded := r.URL.Query().Get("embedded") == "true"
+
+	if isEmbedded {
+		// Embedded view: return just the content
+		templ.Handler(expensesui.ExpensesEmbedded(props), templ.WithStreaming()).ServeHTTP(w, r)
+	} else if htmx.IsHxRequest(r) {
+		// HTMX request: return table partial
+		templ.Handler(expensesui.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+	} else {
+		// Regular request: return full page
+		templ.Handler(expensesui.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
+}
+```
+
+## Form Handling
+
+### Creating Entities from Forms
+
+```go
+func (c *ExpenseController) Create(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+	moneyAccountService *services.MoneyAccountService,
+	expenseCategoryService *services.ExpenseCategoryService,
+) {
+	// Parse form into DTO
+	dto, err := composables.UseForm(&dtos.ExpenseCreateDTO{}, r)
+	if err != nil {
+		logger.Errorf("Error parsing form: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Get tenant from context
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		logger.Errorf("Error getting tenant: %v", err)
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse and validate related entity IDs
+	accountID, err := uuid.Parse(dto.AccountID)
+	if err != nil {
+		logger.Errorf("Invalid account ID: %v", err)
+		http.Error(w, "Invalid account ID", http.StatusBadRequest)
+		return
+	}
+
+	categoryID, err := uuid.Parse(dto.CategoryID)
+	if err != nil {
+		logger.Errorf("Invalid category ID: %v", err)
+		http.Error(w, "Invalid category ID", http.StatusBadRequest)
+		return
+	}
+
+	// Load related entities
+	account, err := moneyAccountService.GetByID(r.Context(), accountID)
+	if err != nil {
+		logger.Errorf("Error retrieving account: %v", err)
+		http.Error(w, "Error retrieving account", http.StatusInternalServerError)
+		return
+	}
+
+	cat, err := expenseCategoryService.GetByID(r.Context(), categoryID)
+	if err != nil {
+		logger.Errorf("Error retrieving category: %v", err)
+		http.Error(w, "Error retrieving category", http.StatusInternalServerError)
+		return
+	}
+
+	// Validate DTO
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		// Return form with validation errors
+		entity, err := dto.ToEntityWithReferences(tenantID, account, cat)
+		if err != nil {
+			logger.Errorf("Error building entity: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		props := &expensesui.CreatePageProps{
+			Errors:  errorsMap,
+			Expense: mappers.ExpenseToViewModel(entity),
+		}
+		templ.Handler(expensesui.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	// Build domain entity
+	entity, err := dto.ToEntityWithReferences(tenantID, account, cat)
+	if err != nil {
+		logger.Errorf("Error building entity: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Persist to database
+	createdEntity, err := expenseService.Create(r.Context(), entity)
+	if err != nil {
+		logger.Errorf("Error creating expense: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Handle file attachments
+	for _, uploadID := range dto.Attachments {
+		if uploadID > 0 {
+			if err := expenseService.AttachFileToExpense(r.Context(), createdEntity.ID(), uploadID); err != nil {
+				logger.Errorf("Error attaching file: %v", err)
+				// Don't fail the whole operation for attachment errors
+			}
+		}
+	}
+
+	// Redirect to list page
+	shared.Redirect(w, r, c.basePath)
+}
+```
+
+### Updating Entities
+
+```go
+func (c *ExpenseController) Update(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+	expenseCategoryService *services.ExpenseCategoryService,
+) {
+	// Parse ID from URL
+	id, err := shared.ParseUUID(r)
+	if err != nil {
+		logger.Errorf("Error parsing expense ID: %v", err)
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse form
+	dto, err := composables.UseForm(&dtos.ExpenseUpdateDTO{}, r)
+	if err != nil {
+		logger.Errorf("Error parsing form: %v", err)
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
+
+	// Load existing entity
+	existing, err := expenseService.GetByID(r.Context(), id)
+	if errors.Is(err, persistence.ErrExpenseNotFound) {
+		logger.Errorf("Expense not found: %v", err)
+		http.Error(w, "Expense not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		logger.Errorf("Error retrieving expense: %v", err)
+		http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
+		return
+	}
+
+	// Load category if changed
+	categoryID, err := uuid.Parse(dto.CategoryID)
+	if err != nil {
+		logger.Errorf("Invalid category ID: %v", err)
+		http.Error(w, "Invalid category ID", http.StatusBadRequest)
+		return
+	}
+	cat, err := expenseCategoryService.GetByID(r.Context(), categoryID)
+	if err != nil {
+		logger.Errorf("Error retrieving category: %v", err)
+		http.Error(w, "Error retrieving category", http.StatusInternalServerError)
+		return
+	}
+
+	// Validate DTO
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		props := &expensesui.EditPageProps{
+			Expense: mappers.ExpenseToViewModel(existing),
+			Errors:  errorsMap,
+		}
+		templ.Handler(expensesui.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	// Apply updates to entity
+	entity, err := dto.Apply(existing, cat)
+	if err != nil {
+		logger.Errorf("Error applying changes: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Save changes
+	if _, err := expenseService.Update(r.Context(), entity); err != nil {
+		logger.Errorf("Error updating expense: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Handle file attachments
+	for _, uploadID := range dto.Attachments {
+		if uploadID > 0 {
+			if err := expenseService.AttachFileToExpense(r.Context(), id, uploadID); err != nil {
+				logger.Errorf("Error attaching file: %v", err)
+			}
+		}
+	}
+
+	shared.Redirect(w, r, c.basePath)
+}
+```
+
+## HTMX Integration
+
+### Detecting HTMX Requests
+
+```go
+import "github.com/iota-uz/iota-sdk/pkg/htmx"
+
+// Check if request came from HTMX
+if htmx.IsHxRequest(r) {
+	// Return partial HTML
+} else {
+	// Return full page
+}
+```
+
+### HTMX Triggers
+
+Set response headers for HTMX to trigger client-side actions:
+
+```go
+// Redirect after HTMX request
+func (c *ExpenseController) AttachFile(...) {
+	// ... attachment logic
+	
+	if htmx.IsHxRequest(r) {
+		// Set HX-Redirect header
+		htmx.Redirect(w, fmt.Sprintf("%s/%s", c.basePath, id.String()))
+	} else {
+		http.Redirect(w, r, fmt.Sprintf("%s/%s", c.basePath, id.String()), http.StatusSeeOther)
+	}
+}
+
+// Trigger custom events
+func (c *ExpenseController) Delete(...) {
+	// ... deletion logic
+	
+	if htmx.IsHxRequest(r) {
+		// Return empty response with trigger
+		htmx.SetTrigger(w, "expenseDeleted", map[string]string{
+			"id": id.String(),
+		})
+	} else {
+		shared.Redirect(w, r, c.basePath)
+	}
+}
+```
+
+### Dynamic Select Elements
+
+Serve HTMX-powered dropdowns:
+
+```go
+func (c *ExpenseController) GetAccountsSelect(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	moneyAccountService *services.MoneyAccountService,
+) {
+	value := r.URL.Query().Get("value")
+	form := r.URL.Query().Get("form")
+
+	accounts, err := moneyAccountService.GetAll(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving accounts: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build attributes for the select element
+	attrs := templ.Attributes{"name": "AccountID"}
+	if form != "" {
+		attrs["form"] = form
+	}
+
+	props := &expensesui.AccountSelectProps{
+		Value:    value,
+		Accounts: mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
+		Attrs:    attrs,
+	}
+
+	templ.Handler(expensesui.AccountSelect(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+```
+
+## Template Rendering
+
+### Using Templ Components
+
+```go
+import "github.com/a-h/templ"
+
+// Render a full page
+templ.Handler(expensesui.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+
+// Render a partial component (for HTMX)
+templ.Handler(expensesui.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+
+// Render a form with errors
+templ.Handler(expensesui.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+```
+
+### Template Structure
+
+```templ
+// templates/pages/expenses/list.templ
+
+package expensesui
+
+templ Index(props *IndexPageProps) {
+	@layouts.Default(layouts.DefaultProps{
+		Title: "Expenses",
+	}) {
+		<div class="container mx-auto p-6">
+			<h1 class="text-2xl font-bold mb-4">Expenses</h1>
+			
+			<!-- Search and filters -->
+			<form hx-get="/finance/expenses" hx-target="#expenses-table" class="mb-4">
+				<input type="search" name="Search" placeholder="Search..." />
+			</form>
+			
+			<!-- Expenses table -->
+			<div id="expenses-table">
+				@ExpensesTable(props)
+			</div>
+			
+			<!-- Pagination -->
+			@components.Pagination(props.PaginationState)
+			
+			<!-- New button -->
+			<a href="/finance/expenses/new" class="btn btn-primary">New Expense</a>
+		</div>
+	}
+}
+
+templ ExpensesTable(props *IndexPageProps) {
+	<table class="w-full">
+		<thead>
+			<tr>
+				<th>Date</th>
+				<th>Category</th>
+				<th>Amount</th>
+				<th>Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+			for _, exp := range props.Expenses {
+				<tr>
+					<td>{ exp.Date }</td>
+					<td>{ exp.CategoryName }</td>
+					<td>{ exp.Amount }</td>
+					<td>
+						<a href={ templ.SafeURL("/finance/expenses/" + exp.ID) }>Edit</a>
+						<button 
+							hx-delete={ "/finance/expenses/" + exp.ID }
+							hx-confirm="Are you sure?"
+							hx-target="closest tr"
+							hx-swap="outerHTML">
+							Delete
+						</button>
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+```
+
+## Error Handling
+
+### HTTP Status Codes
+
+```go
+// Bad request - invalid input
+http.Error(w, "Invalid request", http.StatusBadRequest)
+
+// Not found - resource doesn't exist
+if errors.Is(err, persistence.ErrExpenseNotFound) {
+	http.Error(w, "Expense not found", http.StatusNotFound)
+	return
+}
+
+// Forbidden - permission denied
+if err := composables.CanUser(ctx, permission); err != nil {
+	http.Error(w, "Forbidden", http.StatusForbidden)
+	return
+}
+
+// Internal error - unexpected failure
+logger.Errorf("Unexpected error: %v", err)
+http.Error(w, "Internal server error", http.StatusInternalServerError)
+```
+
+### Structured Error Responses
+
+For API endpoints, return structured errors:
+
+```go
+type ErrorResponse struct {
+	Code    string            `json:"code"`
+	Message string            `json:"message"`
+	Details map[string]string `json:"details,omitempty"`
+}
+
+func respondWithError(w http.ResponseWriter, code string, message string, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(ErrorResponse{
+		Code:    code,
+		Message: message,
+	})
+}
+```
+
+## Testing Controllers
+
+### Integration Test with ITF
+
+```go
+func TestExpenseController_Create(t *testing.T) {
+	// Setup ITF (Integration Test Framework)
+	env := itf.Setup(t, itf.WithModules(finance.NewModule()))
+	defer env.Teardown()
+
+	t.Run("create expense", func(t *testing.T) {
+		// Create test user with permissions
+		testUser := itf.User(permissions.ExpenseCreate)
+		ctx := composables.WithUser(env.Ctx, testUser)
+
+		// Create category and account first
+		category := createTestCategory(env.DB(), testUser.TenantID())
+		account := createTestAccount(env.DB(), testUser.TenantID())
+
+		// Submit form
+		resp := itf.DoRequest(itf.NewRequest(t, http.MethodPost, "/finance/expenses", 
+			strings.NewReader(url.Values{
+				"Amount":           {"100.00"},
+				"AccountID":        {account.ID.String()},
+				"CategoryID":       {category.ID.String()},
+				"Comment":          {"Test expense"},
+				"AccountingPeriod": {time.Now().Format("2006-01-02")},
+				"Date":             {time.Now().Format("2006-01-02")},
+			}.Encode()),
+			itf.WithCookies(cookies),
+			itf.WithHeader("Content-Type", "application/x-www-form-urlencoded"),
+		))
+
+		// Assert redirect
+		assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
+		assert.Contains(t, resp.Header.Get("Location"), "/finance/expenses")
+	})
+}
+```
+
+### Unit Test with Mock Services
+
+```go
+func TestExpenseController_List(t *testing.T) {
+	// Create mocks
+	mockService := new(MockExpenseService)
+	
+	controller := &ExpenseController{
+		app:      nil,
+		basePath: "/finance/expenses",
+	}
+
+	t.Run("returns list", func(t *testing.T) {
+		// Setup request
+		req := httptest.NewRequest(http.MethodGet, "/finance/expenses", nil)
+		w := httptest.NewRecorder()
+		
+		// Mock service response
+		mockService.On("GetPaginated", mock.Anything, mock.Anything).
+			Return([]expense.Expense{testExpense}, nil)
+		mockService.On("Count", mock.Anything, mock.Anything).
+			Return(int64(1), nil)
+
+		// Execute
+		controller.List(req, w, testLogger, mockService)
+
+		// Assert
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Expense")
+	})
+}
+```
+
+## Best Practices Summary
+
+### Controller Design
+
+1. **Single Responsibility**: Each handler does one thing
+2. **Early Validation**: Check permissions and parse inputs first
+3. **Error Handling**: Return appropriate HTTP status codes
+4. **Logging**: Log errors with context for debugging
+
+### HTMX Patterns
+
+1. **Progressive Enhancement**: Pages work without JavaScript
+2. **Partial Updates**: Return only changed HTML
+3. **HX-Redirect**: Redirect after POST/PUT/DELETE
+4. **HX-Trigger**: Notify client of changes
+
+### Form Handling
+
+1. **DTO Validation**: Use go-playground/validator
+2. **Localized Errors**: Translate validation messages
+3. **Preserve Input**: Return form with values on error
+4. **Display Errors**: Show field-level validation errors
+
+### Testing
+
+1. **Integration Tests**: Use ITF for end-to-end flows
+2. **Mock Services**: Unit test with mocked dependencies
+3. **Test Permissions**: Verify unauthorized access is blocked
+4. **Test HTMX**: Verify partial responses work correctly
+
+## Common Patterns Checklist
+
+When implementing a controller:
+
+- [ ] Define basePath and Key() method
+- [ ] Register routes with appropriate middleware
+- [ ] Use di.H() for dependency injection
+- [ ] Parse IDs from URL parameters
+- [ ] Parse and validate DTOs from forms
+- [ ] Check permissions using composables.CanUser()
+- [ ] Handle validation errors with localized messages
+- [ ] Support both full-page and HTMX partial responses
+- [ ] Use proper HTTP status codes
+- [ ] Log errors with context
+- [ ] Write integration tests with ITF
+- [ ] Test HTMX behavior separately
+
+## Next Steps
+
+- Deep dive into [Repository Patterns](/patterns/repositories)
+- Master [Service Layer](/patterns/services)
+- Study [Complex Features](/development/complex-features)
+- Review [Module Development Guide](/development/module-development)

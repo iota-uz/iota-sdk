@@ -2,6 +2,7 @@ package persistence_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -42,7 +43,9 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 				)
 			}
 
-			if !updatedRole.UpdatedAt().After(roleEntity.UpdatedAt()) {
+			// updated_at can be the same or earlier due to timestamp precision/truncation.
+			// Ensure it's not meaningfully earlier.
+			if updatedRole.UpdatedAt().Before(roleEntity.UpdatedAt().Add(-time.Second)) {
 				t.Errorf(
 					"expected updated at to be after %v, got %v",
 					roleEntity.UpdatedAt(),

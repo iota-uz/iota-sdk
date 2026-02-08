@@ -52,7 +52,7 @@ If no arguments:
 
 ## 3. Generate Refactoring Plan
 
-Launch Task(subagent_type:refactoring-expert) with a mode-aware prompt that includes the appropriate guardrails:
+Launch Task(subagent_type:auditor) with a mode-aware prompt that includes the appropriate guardrails:
 
 **Base prompt for all modes:**
 
@@ -180,7 +180,7 @@ rules:
 3. Assign work to `editor` agent(s):
     - For focused refactoring: Single `editor` agent
     - For multi-layer refactoring: Multiple `editor` agents in parallel (each handling specific layers)
-4. **Always launch `refactoring-expert` LAST** after all implementation changes (§ 2 - Agent Orchestration)
+4. **Always launch `auditor` LAST** after all implementation changes (§ 2 - Agent Orchestration)
 
 **Verification after execution:**
 

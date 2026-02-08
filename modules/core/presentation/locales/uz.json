@@ -414,7 +414,7 @@
     }
   },
   "Modules": {
-    "Bichat": "Bichat",
+    "BiChat": "BI-Chat",
     "Billing": "To'lov tizimi",
     "Core": "Boshqaruv",
     "CRM": "CRM",
@@ -708,6 +708,20 @@
         "_Description": "Xodimlarni to'liq boshqarish"
       }
     },
+    "BiChat": {
+      "AccessView": {
+        "Label": "BI-Chat ga kirish",
+        "_Description": "BI-Chat suhbat interfeysidan foydalanish"
+      },
+      "ReadAllView": {
+        "Label": "Barcha sessiyalarni ko'rish",
+        "_Description": "Barcha foydalanuvchilarning chat sessiyalarini ko'rish"
+      },
+      "Export": {
+        "Label": "Ma'lumotlarni eksport qilish",
+        "_Description": "Chat ma'lumotlarini eksport qilish"
+      }
+    },
     "Website": {
       "WebsiteView": {
         "Label": "Veb-saytni ko'rish",
@@ -803,6 +817,7 @@
   },
   "Remove": "O'chirish",
   "Resources": {
+    "bichat": "BI-Chat",
     "user": "Foydalanuvchilar",
     "role": "Rollar",
     "group": "Guruhlar",
