@@ -179,11 +179,11 @@ func setupApplet(root, appletName string) ([]processSpec, error) {
 	iotaPort := getEnvOrDefault("IOTA_PORT", "3900")
 	upperName := strings.ToUpper(strings.ReplaceAll(applet.Name, "-", "_"))
 	envVars := map[string]string{
-		"APPLET_ASSETS_BASE":                          applet.BasePath + "/assets/",
-		"APPLET_VITE_PORT":                            fmt.Sprintf("%d", applet.VitePort),
-		fmt.Sprintf("IOTA_APPLET_DEV_%s", upperName):  "1",
+		"APPLET_ASSETS_BASE":                              applet.BasePath + "/assets/",
+		"APPLET_VITE_PORT":                                fmt.Sprintf("%d", applet.VitePort),
+		fmt.Sprintf("IOTA_APPLET_DEV_%s", upperName):      "1",
 		fmt.Sprintf("IOTA_APPLET_VITE_URL_%s", upperName): fmt.Sprintf("http://localhost:%d", applet.VitePort),
-		fmt.Sprintf("IOTA_APPLET_ENTRY_%s", upperName):   applet.EntryModule,
+		fmt.Sprintf("IOTA_APPLET_ENTRY_%s", upperName):    applet.EntryModule,
 		fmt.Sprintf("IOTA_APPLET_CLIENT_%s", upperName):   "/@vite/client",
 	}
 	for k, v := range envVars {

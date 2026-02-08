@@ -43,7 +43,11 @@ test.describe('role management flows', () => {
 		// Verify form elements are present
 		await expect(page.locator('[data-test-id="role-name-input"]')).toBeVisible();
 		await expect(page.locator('[data-test-id="role-description-input"]')).toBeVisible();
-		await expect(saveRoleButton(page)).toBeVisible();
+		// Save button is in sticky footer; scroll into view and wait for it (may be below fold)
+		const saveBtn = saveRoleButton(page);
+		await saveBtn.waitFor({ state: 'attached', timeout: 15000 });
+		await saveBtn.scrollIntoViewIfNeeded();
+		await expect(saveBtn).toBeVisible();
 
 		// Fill in role details
 		const testRoleName = 'Test Editor Role';
@@ -67,8 +71,9 @@ test.describe('role management flows', () => {
 			await expect(firstPermissionSwitch).toBeChecked();
 		}
 
-		// Save the role
-		await saveRoleButton(page).click();
+		// Save the role (scroll into view again in case viewport changed)
+		await saveBtn.scrollIntoViewIfNeeded();
+		await saveBtn.click();
 
 		// Wait for redirect back to roles list
 		await page.waitForURL(/\/roles$/);
