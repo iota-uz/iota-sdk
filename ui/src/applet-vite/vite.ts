@@ -156,32 +156,39 @@ export function createLocalSdkAliases(opts?: {
 
 /**
  * Merges base config with extend: full spread so no Vite fields from b are dropped.
- * resolve.alias: only coerce to array when value is actually an Array; merge by
- * concatenating when both are arrays, otherwise prefer b's Record or array.
+ * resolve, server, and plugins are merged from a and b originals (not from post-spread merged) so we don't use b's values as "original" a.
  */
 function mergeConfig(a: UserConfig, b: UserConfig): UserConfig {
+  const aResolve = a.resolve
+  const bResolve = b.resolve
+  const aServer = a.server
+  const bServer = b.server
+  const aPlugins = a.plugins
+  const bPlugins = b.plugins
+
   const merged: UserConfig = { ...a, ...b }
-  if (b.resolve) {
-    const aAlias = merged.resolve?.alias
-    const bAlias = b.resolve.alias
+
+  if (bResolve) {
+    const aAlias = aResolve?.alias
+    const bAlias = bResolve.alias
     const aArr = Array.isArray(aAlias) ? aAlias : undefined
     const bArr = Array.isArray(bAlias) ? bAlias : undefined
     const alias =
       aArr && bArr
         ? [...aArr, ...bArr]
-        : (bAlias !== undefined ? bAlias : merged.resolve?.alias)
+        : (bAlias !== undefined ? bAlias : aResolve?.alias)
     merged.resolve = {
-      ...merged.resolve,
-      ...b.resolve,
+      ...aResolve,
+      ...bResolve,
       alias,
-      dedupe: b.resolve.dedupe ?? merged.resolve?.dedupe,
+      dedupe: bResolve.dedupe ?? aResolve?.dedupe,
     }
   }
-  if (b.server) {
-    merged.server = { ...merged.server, ...b.server }
+  if (bServer) {
+    merged.server = { ...aServer, ...bServer }
   }
-  if (b.plugins) {
-    merged.plugins = [...(merged.plugins ?? []), ...b.plugins]
+  if (bPlugins) {
+    merged.plugins = [...(aPlugins ?? []), ...bPlugins]
   }
   return merged
 }

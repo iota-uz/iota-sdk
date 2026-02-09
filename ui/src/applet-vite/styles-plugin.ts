@@ -108,9 +108,9 @@ export function createAppletStylesVirtualModulePlugin(
             args.push('-c', configPath)
           }
         }
-        const result = spawnSync('pnpm', ['exec', 'tailwindcss', ...args], {
+        const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+        const result = spawnSync(pnpmCmd, ['exec', 'tailwindcss', ...args], {
           cwd: root,
-          shell: true,
           stdio: 'pipe',
         })
         if (result.status === 0 && fs.existsSync(tmpFile)) {
