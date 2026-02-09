@@ -169,6 +169,7 @@ let dialog = (initialState) => ({
   dialog: {
     ["x-effect"]() {
       if (this.open) this.$el.showModal();
+      else this.$el.close();
     },
     async ["x-init"]() {
       this.attrsObserver.observe(this.$el, {
@@ -965,7 +966,7 @@ function createPermissionSetData(allChecked, someChecked, permissionIds, setId) 
       checkboxes.forEach(checkbox => {
         if (checkbox) {
           checkbox.checked = checked;
-          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+          checkbox.dispatchEvent(new Event('change', {bubbles: true}));
         }
       });
 
@@ -1034,7 +1035,7 @@ function createPermissionFormData(allChecked, someChecked, permissionIds) {
       const checkboxes = this.getPermissionCheckboxes();
       checkboxes.forEach(checkbox => {
         checkbox.checked = checked;
-        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        checkbox.dispatchEvent(new Event('change', {bubbles: true}));
       });
 
       this.updateVisualToggle();
@@ -1088,6 +1089,195 @@ function createPermissionFormData(allChecked, someChecked, permissionIds) {
   };
 }
 
+let tableConfig = ({id} = {}) => ({
+  get key() {
+    return "iota-table-config-" + (id || (window.location.origin + window.location.pathname))
+  },
+  columns: [],
+  fixedColumns: [],
+  table: null,
+  observer: null,
+  toggleColumn(colKey) {
+    let col = this.columns.find(c => c.key === colKey);
+    if (!col) return;
+    col.visible = !col.visible;
+    this.save();
+    this.applyConfiguration();
+  },
+
+  moveColumn(fromIndex, toIndex, sync = false) {
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= this.columns.length || toIndex >= this.columns.length) {
+      return;
+    }
+    if (fromIndex === toIndex) return;
+    let [col] = this.columns.splice(fromIndex, 1);
+    this.columns.splice(toIndex, 0, col);
+    if (sync) {
+      this.fixedColumns = this.columns;
+    }
+    this.save();
+    this.applyConfiguration();
+  },
+
+  reorderRow(row) {
+    let cells = Array.from(row.children);
+    let cellMap = new Map();
+
+    cells.forEach((cell, index) => {
+      let key = cell.dataset.col || `col-${index}`;
+      cellMap.set(key, cell);
+    });
+
+    let fragment = document.createDocumentFragment();
+
+    this.columns.forEach(col => {
+      let cell = cellMap.get(col.key);
+      if (cell) {
+        if (!col.visible) {
+          cell.style.display = 'none';
+        } else {
+          cell.style.display = '';
+        }
+        fragment.appendChild(cell);
+      }
+    });
+
+    cellMap.forEach((cell, key) => {
+      if (!this.columns.find(c => c.key === key)) {
+        fragment.appendChild(cell);
+      }
+    });
+
+    row.innerHTML = '';
+    row.appendChild(fragment);
+  },
+
+  applyConfiguration() {
+    if (!this.table) return;
+
+    let tHead = this.table.querySelector("thead");
+    if (tHead) {
+      let headerRows = tHead.querySelectorAll("tr");
+      headerRows.forEach(row => this.reorderRow(row));
+    }
+
+    let tBodies = this.table.querySelectorAll("tbody");
+    tBodies.forEach(tbody => {
+      let rows = tbody.querySelectorAll("tr");
+      rows.forEach(row => this.reorderRow(row));
+    });
+
+    let tFoot = this.table.querySelector("tfoot");
+    if (tFoot) {
+      let footerRows = tFoot.querySelectorAll("tr");
+      footerRows.forEach(row => this.reorderRow(row));
+    }
+  },
+
+  syncConfiguration(domColumns) {
+    let savedConfig = window.localStorage.getItem(this.key);
+
+    if (!savedConfig) {
+      savedConfig = this.save();
+    }
+
+    try {
+      let saved = JSON.parse(savedConfig);
+      let savedColumns = saved.columns || [];
+      let savedColumnMap = new Map(savedColumns.map(c => [c.key, c]));
+      let mergedColumns = [];
+
+      savedColumns.forEach(savedCol => {
+        let domCol = domColumns.find(c => c.key === savedCol.key);
+        if (domCol) {
+          mergedColumns.push({
+            ...domCol,
+            sticky: savedCol.sticky != undefined ? savedCol.sticky : domCol.sticky,
+            visible: savedCol.visible != undefined ? savedCol.visible : true,
+          });
+        }
+      });
+
+      domColumns.forEach(domCol => {
+        if (!savedColumnMap.has(domCol.key)) {
+          mergedColumns.push(domCol);
+        }
+      });
+
+      return mergedColumns;
+    } catch (e) {
+      console.error('Failed to parse saved table config:', e);
+      return domColumns;
+    }
+  },
+
+  extractColumnsFromDOM() {
+    let table = this.$el.querySelector("table");
+    if (!table) return [];
+
+    let headerRow = table.querySelector("thead tr");
+    if (!headerRow) return [];
+
+    let columns = [];
+    let headerCells = headerRow.querySelectorAll("th");
+
+    headerCells.forEach((th, index) => {
+      let key = th.dataset.col || `col-${index}`;
+      let sticky = th.dataset.colSticky != undefined;
+      columns.push({
+        key,
+        label: th.textContent.trim(),
+        sticky,
+      });
+    });
+
+    return columns;
+  },
+
+
+  save() {
+    let config = JSON.stringify({key: this.key, columns: this.columns});
+    window.localStorage.setItem(this.key, config);
+    return config;
+  },
+
+  init() {
+    this.table = this.$el.querySelector("table");
+    if (!this.table) return;
+
+    let tBodies = this.table.querySelectorAll("tbody");
+    if (!tBodies.length) return;
+
+    if (!this.columns || this.columns.length === 0) {
+      this.columns = this.extractColumnsFromDOM();
+    }
+
+    this.columns = this.syncConfiguration(this.columns);
+    this.fixedColumns = [...this.columns];
+    this.applyConfiguration();
+
+    this.observer = new MutationObserver((mutations) => {
+      for (let mutation of mutations) {
+        if (mutation.type === "childList") {
+          for (let node of mutation.addedNodes) {
+            if (node.tagName === "TR") {
+              this.reorderRow(node);
+            }
+          }
+        }
+      }
+    });
+
+    for (let body of tBodies) {
+      this.observer.observe(body, {childList: true});
+    }
+  },
+
+  destroy() {
+    if (this.observer) this.observer.disconnect();
+  },
+})
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("dateTimeFormat", dateTimeFormat)
   Alpine.data("relativeformat", relativeFormat);
@@ -1106,7 +1296,8 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("kanban", kanban);
   Alpine.data("moneyInput", moneyInput);
   Alpine.data("dateRangeButtons", dateRangeButtons);
-  Alpine.data("createPermissionFormData", createPermissionFormData)
-  Alpine.data("createPermissionSetData", createPermissionSetData)
+  Alpine.data("createPermissionFormData", createPermissionFormData);
+  Alpine.data("createPermissionSetData", createPermissionSetData);
+  Alpine.data("tableConfig", tableConfig);
   Sortable(Alpine);
 });

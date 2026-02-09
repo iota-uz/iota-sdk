@@ -773,6 +773,12 @@ func WithEditable(config TableEditableConfig) TableConfigOpt {
 	}
 }
 
+func WithHead(config TableHeadConfig) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.Head = config
+	}
+}
+
 func WithInfiniteScroll(hasMore bool, page, perPage int) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.Infinite.HasMore = hasMore
@@ -803,7 +809,8 @@ type TableEditableConfig struct {
 }
 
 type TableHeadConfig struct {
-	Attrs templ.Attributes
+	Sticky bool
+	Attrs  templ.Attributes
 }
 
 type TableConfig struct {
