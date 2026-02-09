@@ -52,13 +52,15 @@ export function readAppletDevManifest(viteDir?: string): AppletDevManifest | nul
 
 const DEFAULT_DEDUPE = ['react', 'react-dom', 'react-router-dom', 'react-is']
 
+export type AppletDevManifestOrNull = AppletDevManifest | null
+
 /**
- * Returns base URL for assets (with trailing slash). Prefers applet-dev.json when present, then APPLET_ASSETS_BASE env.
+ * Returns base URL for assets (with trailing slash). Prefers manifest when provided (avoids re-reading file), then applet-dev.json, then APPLET_ASSETS_BASE env.
  */
-export function getAppletAssetsBase(viteDir?: string): string {
-  const manifest = readAppletDevManifest(viteDir)
-  if (manifest) {
-    const base = manifest.assetsBase
+export function getAppletAssetsBase(viteDir?: string, manifest?: AppletDevManifestOrNull): string {
+  const resolved = manifest ?? readAppletDevManifest(viteDir)
+  if (resolved) {
+    const base = resolved.assetsBase
     return base.endsWith('/') ? base : base + '/'
   }
   const base = process.env.APPLET_ASSETS_BASE ?? ''
@@ -66,11 +68,11 @@ export function getAppletAssetsBase(viteDir?: string): string {
 }
 
 /**
- * Returns dev server port. Prefers applet-dev.json when present, then APPLET_VITE_PORT env.
+ * Returns dev server port. Prefers manifest when provided (avoids re-reading file), then applet-dev.json, then APPLET_VITE_PORT env.
  */
-export function getAppletVitePort(defaultPort = 5173, viteDir?: string): number {
-  const manifest = readAppletDevManifest(viteDir)
-  if (manifest) return manifest.vitePort
+export function getAppletVitePort(defaultPort = 5173, viteDir?: string, manifest?: AppletDevManifestOrNull): number {
+  const resolved = manifest ?? readAppletDevManifest(viteDir)
+  if (resolved) return resolved.vitePort
   const p = process.env.APPLET_VITE_PORT
   if (p === undefined || p === '') return defaultPort
   const n = Number(p)
@@ -89,8 +91,8 @@ export function getAppletVitePort(defaultPort = 5173, viteDir?: string): number 
  */
 export function createAppletViteConfig(opts: AppletViteOptions): UserConfig {
   const manifest = readAppletDevManifest(opts.viteConfigDir)
-  const base = manifest ? (manifest.assetsBase.endsWith('/') ? manifest.assetsBase : manifest.assetsBase + '/') : getAppletAssetsBase(opts.viteConfigDir)
-  const port = manifest ? manifest.vitePort : getAppletVitePort(5173, opts.viteConfigDir)
+  const base = getAppletAssetsBase(opts.viteConfigDir, manifest)
+  const port = getAppletVitePort(5173, opts.viteConfigDir, manifest)
   const basePath = manifest?.basePath ?? opts.basePath
   const backendUrl = manifest?.backendUrl ?? opts.backendUrl
   const config: UserConfig = {
@@ -120,6 +122,7 @@ export function createAppletViteConfig(opts: AppletViteOptions): UserConfig {
 /**
  * Returns proxy entries for applet RPC and stream under basePath.
  * Use as server.proxy in Vite config.
+ * Note: /stream is SSE; plain string targets do not set ws or changeOrigin. If WebSocket upgrade or SSE proxying issues arise, configure proxy with ws: true or a custom configure.
  */
 export function createAppletBackendProxy(opts: {
   basePath: string
@@ -152,25 +155,33 @@ export function createLocalSdkAliases(opts?: {
 }
 
 /**
- * Merges base config with extend: alias and plugins arrays are concatenated;
- * server, base, and other fields are overridden by b (spread).
+ * Merges base config with extend: full spread so no Vite fields from b are dropped.
+ * resolve.alias: only coerce to array when value is actually an Array; merge by
+ * concatenating when both are arrays, otherwise prefer b's Record or array.
  */
 function mergeConfig(a: UserConfig, b: UserConfig): UserConfig {
-  const merged = { ...a }
-  if (b.base) merged.base = b.base
+  const merged: UserConfig = { ...a, ...b }
   if (b.resolve) {
-    const aAlias = Array.isArray(merged.resolve?.alias) ? merged.resolve.alias : (merged.resolve?.alias ? [merged.resolve.alias] : [])
-    const bAlias = Array.isArray(b.resolve.alias) ? b.resolve.alias : (b.resolve.alias ? [b.resolve.alias] : [])
+    const aAlias = merged.resolve?.alias
+    const bAlias = b.resolve.alias
+    const aArr = Array.isArray(aAlias) ? aAlias : undefined
+    const bArr = Array.isArray(bAlias) ? bAlias : undefined
+    const alias =
+      aArr && bArr
+        ? [...aArr, ...bArr]
+        : (bAlias !== undefined ? bAlias : merged.resolve?.alias)
     merged.resolve = {
       ...merged.resolve,
       ...b.resolve,
-      alias: [...aAlias, ...bAlias],
+      alias,
       dedupe: b.resolve.dedupe ?? merged.resolve?.dedupe,
     }
   }
   if (b.server) {
     merged.server = { ...merged.server, ...b.server }
   }
-  if (b.plugins) merged.plugins = [...(merged.plugins ?? []), ...b.plugins]
+  if (b.plugins) {
+    merged.plugins = [...(merged.plugins ?? []), ...b.plugins]
+  }
   return merged
 }

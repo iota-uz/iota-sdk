@@ -1,6 +1,8 @@
 // Package devrunner provides process supervision for dev environments: run multiple
 // processes (templ, tailwind, vite, air, etc.) with consistent output prefixing,
 // process-group shutdown (SIGTERM then SIGKILL), and keyboard controls (r restart, c clear, q quit).
+//
+// Process signaling (stop, forceKill) uses syscall.Kill(-pid, ...) and Setpgid and is Unix-only; this package does not compile on Windows.
 package devrunner
 
 import (
@@ -75,7 +77,7 @@ func Run(ctx context.Context, cancel context.CancelFunc, specs []ProcessSpec, op
 	}
 
 	// Preflight
-	if opts.PreflightNodeMajor > 0 || opts.PreflightPnpm || opts.PreflightDeps {
+	if opts.PreflightNodeMajor > 0 || opts.PreflightPnpm || opts.PreflightDeps || opts.PreflightPackageJSONPath != "" {
 		nodeMajor := opts.PreflightNodeMajor
 		if nodeMajor == 0 && opts.ProjectRoot != "" && opts.PreflightPackageJSONPath != "" {
 			if m, err := PreflightFromPackageJSON(opts.ProjectRoot); err == nil && m > 0 {
@@ -103,6 +105,11 @@ func Run(ctx context.Context, cancel context.CancelFunc, specs []ProcessSpec, op
 				return 1, err
 			}
 		}
+	}
+
+	// Hint only after preflight succeeded (so users don't see it when preflight fails).
+	if opts.RestartProcessName != "" {
+		log.Printf("\n%sr restart %s · c clear · q quit%s\n\n", ColorDim, opts.RestartProcessName, ColorReset)
 	}
 
 	maxLen := 0
@@ -333,12 +340,7 @@ func (m *managedProcess) forceKill() {
 func startProcess(ctx context.Context, spec ProcessSpec, padLen int) (*exec.Cmd, error) {
 	cmd := exec.Command(spec.Command, spec.Args...)
 	cmd.Dir = spec.Dir
-	cmd.Env = os.Environ()
-	if len(spec.Env) > 0 {
-		for k, v := range spec.Env {
-			cmd.Env = append(cmd.Env, k+"="+v)
-		}
-	}
+	cmd.Env = mergeEnv(os.Environ(), spec.Env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, _ := cmd.StdoutPipe()
@@ -390,6 +392,7 @@ func enableCbreak(ctx context.Context) func() {
 	}
 }
 
+// readKeys reads keypresses in a goroutine; it is not interrupted when context is cancelled, so Run is not reentrant and the goroutine outlives Run until process exit. Fine when Run is invoked once from cmd/dev.
 func readKeys(ch chan<- byte) {
 	buf := make([]byte, 1)
 	for {
@@ -401,9 +404,30 @@ func readKeys(ch chan<- byte) {
 	}
 }
 
-func min(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
+// mergeEnv returns a new environment slice with base entries plus spec overrides; keys in overrides override any existing key in base.
+func mergeEnv(base []string, overrides map[string]string) []string {
+	if len(overrides) == 0 {
+		return base
 	}
-	return b
+	seen := make(map[string]bool)
+	out := make([]string, 0, len(base)+len(overrides))
+	for _, s := range base {
+		i := strings.IndexByte(s, '=')
+		if i <= 0 {
+			continue
+		}
+		k := s[:i]
+		v := s[i+1:]
+		if ov, ok := overrides[k]; ok {
+			v = ov
+		}
+		out = append(out, k+"="+v)
+		seen[k] = true
+	}
+	for k, v := range overrides {
+		if !seen[k] {
+			out = append(out, k+"="+v)
+		}
+	}
+	return out
 }

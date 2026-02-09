@@ -86,32 +86,42 @@ func PreflightPnpm() error {
 	return nil
 }
 
+// pnpmListDep is one entry in the dependencies object from pnpm list --json.
+type pnpmListDep struct {
+	Version string `json:"version"`
+}
+
+// pnpmListEntry is one item in the top-level array from pnpm list --json.
+type pnpmListEntry struct {
+	Dependencies map[string]pnpmListDep `json:"dependencies"`
+}
+
 // PreflightDeps checks that react and react-dom resolve to a single version in the project
-// (avoids "invalid hook call" from duplicate React instances). Runs pnpm list in projectRoot.
+// (avoids "invalid hook call" from duplicate React instances). Uses pnpm list --json for stable parsing.
 func PreflightDeps(projectRoot string) error {
-	cmd := exec.Command("pnpm", "list", "react", "react-dom", "--depth", "0")
+	cmd := exec.Command("pnpm", "list", "react", "react-dom", "--depth", "0", "--json")
 	cmd.Dir = projectRoot
 	out, err := cmd.Output()
 	if err != nil {
 		// pnpm list can exit non-zero if deps not installed; treat as warning, not hard fail
 		return nil
 	}
-	// Look for multiple versions: "react 18.2.0" and "react 19.0.0" would indicate duplicates.
-	// pnpm list output format: "react 18.2.0" or "react@18.2.0". Count unique versions per package.
-	lines := strings.Split(string(out), "\n")
+	var entries []pnpmListEntry
+	if err := json.Unmarshal(out, &entries); err != nil {
+		return nil // ignore malformed JSON; avoid breaking on pnpm output changes
+	}
 	reactVersions := make(map[string]bool)
 	reactDomVersions := make(map[string]bool)
-	versionRe := regexp.MustCompile(`react(?:-dom)?\s+(\S+)`)
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "react ") && !strings.HasPrefix(line, "react-dom") {
-			if m := versionRe.FindStringSubmatch(line); len(m) >= 2 {
-				reactVersions[m[1]] = true
+	for _, e := range entries {
+		for name, dep := range e.Dependencies {
+			if dep.Version == "" {
+				continue
 			}
-		}
-		if strings.HasPrefix(line, "react-dom ") {
-			if m := versionRe.FindStringSubmatch(line); len(m) >= 2 {
-				reactDomVersions[m[1]] = true
+			switch name {
+			case "react":
+				reactVersions[dep.Version] = true
+			case "react-dom":
+				reactDomVersions[dep.Version] = true
 			}
 		}
 	}

@@ -100,8 +100,6 @@ func main() {
 		Dir: root, Color: devrunner.ColorYellow, Critical: true,
 	})
 
-	log.Printf("\n%sr restart air · c clear · q quit%s\n\n", devrunner.ColorDim, devrunner.ColorReset)
-
 	ctx, cancel := devrunner.NotifyContext(context.Background())
 	defer cancel()
 
@@ -234,12 +232,11 @@ func findProjectRoot() (string, error) {
 	}
 }
 
+// checkPrerequisites verifies air and templ only. Node and pnpm are checked by devrunner preflight (version + remediation).
 func checkPrerequisites() error {
 	required := map[string]string{
 		"air":   "go install github.com/air-verse/air@latest",
 		"templ": "go install github.com/a-h/templ/cmd/templ@latest",
-		"pnpm":  "npm install -g pnpm",
-		"node":  "https://nodejs.org/",
 	}
 
 	var missing []string

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
@@ -214,8 +215,8 @@ func (app *application) Controllers() []Controller {
 	// dev proxy requests (@vite/client, /src/*, etc.).
 	sort.Slice(controllers, func(i, j int) bool {
 		ki, kj := controllers[i].Key(), controllers[j].Key()
-		appletI := len(ki) >= 7 && ki[:7] == "applet_"
-		appletJ := len(kj) >= 7 && kj[:7] == "applet_"
+		appletI := strings.HasPrefix(ki, "applet_")
+		appletJ := strings.HasPrefix(kj, "applet_")
 		if appletI != appletJ {
 			return appletI
 		}

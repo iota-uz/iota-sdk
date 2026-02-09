@@ -4,11 +4,12 @@
  * Can compile CSS via Tailwind CLI in the plugin or fall back to reading a prebuilt file.
  */
 import type { Plugin } from 'vite'
-import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
-import path from 'node:path'
+import { createRequire } from 'node:module'
 import os from 'node:os'
+import path from 'node:path'
 
 export const VIRTUAL_APPLET_STYLES_ID = 'virtual:applet-styles'
 const RESOLVED_ID = '\0' + VIRTUAL_APPLET_STYLES_ID
@@ -36,12 +37,16 @@ export type AppletStylesVirtualModuleOptions = {
   prependCss?: string[]
 }
 
+/**
+ * Resolves a prepend CSS entry: absolute paths returned as-is; non-relative, non-absolute
+ * specifiers (e.g. @iota-uz/sdk/bichat/styles.css or some-lib/styles.css) are resolved via
+ * Node module resolution first; relative paths are joined to root.
+ */
 function resolvePrependPath(specifierOrPath: string, root: string): string | null {
   if (path.isAbsolute(specifierOrPath)) {
     return specifierOrPath
   }
-  // Package-like specifier (e.g. @iota-uz/sdk/bichat/styles.css)
-  if (specifierOrPath.includes('@') && !specifierOrPath.startsWith('.')) {
+  if (!specifierOrPath.startsWith('.') && !specifierOrPath.startsWith('/')) {
     try {
       const req = createRequire(path.join(root, 'package.json'))
       return req.resolve(specifierOrPath)
@@ -93,9 +98,9 @@ export function createAppletStylesVirtualModulePlugin(
       const inputPath = path.join(root, inputCss)
       let mainCss: string | null = null
 
-      // Try Tailwind CLI if input file exists
+      // Try Tailwind CLI if input file exists. spawnSync blocks the event loop; for parallel builds consider a random suffix (e.g. crypto.randomUUID()).
       if (fs.existsSync(inputPath)) {
-        const tmpFile = path.join(os.tmpdir(), `applet-styles-${Date.now()}.css`)
+        const tmpFile = path.join(os.tmpdir(), `applet-styles-${Date.now()}-${crypto.randomUUID()}.css`)
         const args = ['-i', inputPath, '-o', tmpFile]
         if (tailwindConfigPath) {
           const configPath = path.join(root, tailwindConfigPath)

@@ -17,5 +17,13 @@ export default defineConfig({
   clean: true,
   treeshake: true,
   splitting: false,
-  external: ['react', 'react-dom'],
+  external: [
+    'react',
+    'react-dom',
+    'node:fs',
+    'node:path',
+    'node:module',
+    'node:child_process',
+    'node:os',
+  ],
 })
