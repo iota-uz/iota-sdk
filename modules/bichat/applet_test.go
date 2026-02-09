@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"

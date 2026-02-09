@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"

@@ -13,7 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/assets"
 	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )

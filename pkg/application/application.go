@@ -19,7 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/i18nutil"

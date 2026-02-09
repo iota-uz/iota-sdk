@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets/pkg/applet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -5,7 +5,7 @@ import (
 	"embed"
 	"reflect"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"

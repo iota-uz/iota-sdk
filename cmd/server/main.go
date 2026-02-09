@@ -22,7 +22,7 @@ import (
 	bichatpersistence "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	langfuseprovider "github.com/iota-uz/iota-sdk/pkg/bichat/observability/langfuse"
