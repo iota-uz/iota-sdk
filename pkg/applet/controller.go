@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -61,7 +60,7 @@ func NewAppletController(
 	logger *logrus.Logger,
 	metrics MetricsRecorder,
 	opts ...BuilderOption,
-) *AppletController {
+) (*AppletController, error) {
 	config := applet.Config()
 	builder := NewContextBuilder(config, bundle, sessionConfig, logger, metrics, opts...)
 
@@ -70,8 +69,10 @@ func NewAppletController(
 		builder: builder,
 		logger:  logger,
 	}
-	c.initAssets()
-	return c
+	if err := c.initAssets(); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 func (c *AppletController) Register(router *mux.Router) {
@@ -132,7 +133,7 @@ func (c *AppletController) RegisterRoutes(router *mux.Router) {
 	appletRouter.PathPrefix("/").HandlerFunc(c.RenderApp).Methods(http.MethodGet, http.MethodHead)
 }
 
-func (c *AppletController) initAssets() {
+func (c *AppletController) initAssets() error {
 	const op serrors.Op = "applet.Controller.initAssets"
 
 	config := c.applet.Config()
@@ -156,29 +157,26 @@ func (c *AppletController) initAssets() {
 			dev.StripPrefix = &v
 		}
 		c.devAssets = &dev
-		return
+		return nil
 	}
 
 	if config.Assets.FS == nil {
-		c.assetsErr = serrors.E(op, serrors.Invalid, "assets FS is required when dev proxy is disabled")
-		return
+		return serrors.E(op, serrors.Invalid, "assets FS is required when dev proxy is disabled")
 	}
 	if strings.TrimSpace(config.Assets.ManifestPath) == "" || strings.TrimSpace(config.Assets.Entrypoint) == "" {
-		c.assetsErr = serrors.E(op, serrors.Invalid, "assets ManifestPath and Entrypoint are required when dev proxy is disabled")
-		return
+		return serrors.E(op, serrors.Invalid, "assets ManifestPath and Entrypoint are required when dev proxy is disabled")
 	}
 
 	manifest, err := loadManifest(config.Assets.FS, config.Assets.ManifestPath)
 	if err != nil {
-		c.assetsErr = serrors.E(op, err)
-		return
+		return serrors.E(op, err)
 	}
 	resolved, err := resolveAssetsFromManifest(manifest, config.Assets.Entrypoint, c.assetsBasePath)
 	if err != nil {
-		c.assetsErr = serrors.E(op, err)
-		return
+		return serrors.E(op, err)
 	}
 	c.resolvedAssets = resolved
+	return nil
 }
 
 func (c *AppletController) registerAssetRoutes(router *mux.Router, fullAssetsPath string) {
@@ -552,33 +550,9 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requireSameOrigin := true
-	if rpcCfg.RequireSameOrigin != nil {
-		requireSameOrigin = *rpcCfg.RequireSameOrigin
-	}
-
-	trustForwardedHost := true
-	if rpcCfg.TrustForwardedHost != nil {
-		trustForwardedHost = *rpcCfg.TrustForwardedHost
-	}
-
 	exposeInternalErrors := false
 	if rpcCfg.ExposeInternalErrors != nil {
 		exposeInternalErrors = *rpcCfg.ExposeInternalErrors
-	}
-
-	if requireSameOrigin {
-		if err := enforceSameOrigin(r, trustForwardedHost); err != nil {
-			writeRPC(w, http.StatusForbidden, rpcResponse{
-				ID: "",
-				Error: &rpcError{
-					Code:    "forbidden",
-					Message: "cross-origin request blocked",
-					Details: map[string]string{"reason": err.Error()},
-				},
-			})
-			return
-		}
 	}
 
 	maxBytes := rpcCfg.MaxBodyBytes
@@ -783,98 +757,6 @@ func requirePermissionStrings(ctx context.Context, required []string) error {
 	return nil
 }
 
-func enforceSameOrigin(r *http.Request, trustForwardedHost bool) error {
-	const op serrors.Op = "applet.enforceSameOrigin"
-
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return nil
-	}
-	u, err := url.Parse(origin)
-	if err != nil {
-		return serrors.E(op, serrors.Invalid, "invalid origin", err)
-	}
-
-	originHost, originPort := normalizeHostPort(strings.TrimSpace(u.Host))
-	reqHost, reqPort := normalizeHostPort(requestHost(r, trustForwardedHost))
-
-	if originHost == "" || reqHost == "" {
-		return serrors.E(op, serrors.Invalid, "invalid host")
-	}
-
-	originPort = defaultPortIfEmpty(originPort, strings.ToLower(strings.TrimSpace(u.Scheme)))
-	reqPort = defaultPortIfEmpty(reqPort, requestProto(r, trustForwardedHost))
-
-	if originHost != reqHost || originPort != reqPort {
-		return serrors.E(op, serrors.Invalid, "origin mismatch")
-	}
-	return nil
-}
-
-func requestHost(r *http.Request, trustForwarded bool) string {
-	if trustForwarded {
-		xfh := strings.TrimSpace(r.Header.Get("X-Forwarded-Host"))
-		if xfh != "" {
-			parts := strings.Split(xfh, ",")
-			if len(parts) > 0 {
-				h := strings.TrimSpace(parts[0])
-				if h != "" {
-					return h
-				}
-			}
-		}
-	}
-	return strings.TrimSpace(r.Host)
-}
-
-func requestProto(r *http.Request, _ bool) string {
-	// Always trust X-Forwarded-Proto for protocol detection. This header
-	// only affects default-port derivation and cannot be used to spoof the
-	// request host, so it is safe to read unconditionally.  It fixes the
-	// common deployment where a TLS-terminating proxy forwards plain HTTP
-	// to the backend: without this, Origin "https://host" would mismatch
-	// request proto "http" → different default ports → 403.
-	xfp := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
-	if xfp != "" {
-		parts := strings.Split(xfp, ",")
-		if len(parts) > 0 {
-			p := strings.ToLower(strings.TrimSpace(parts[0]))
-			if p != "" {
-				return p
-			}
-		}
-	}
-	if r.TLS != nil {
-		return "https"
-	}
-	return "http"
-}
-
-func normalizeHostPort(hostport string) (string, string) {
-	hostport = strings.TrimSpace(hostport)
-	if hostport == "" {
-		return "", ""
-	}
-	if h, p, err := net.SplitHostPort(hostport); err == nil {
-		return strings.ToLower(h), p
-	}
-	if strings.HasPrefix(hostport, "[") && strings.HasSuffix(hostport, "]") {
-		return strings.ToLower(strings.Trim(hostport, "[]")), ""
-	}
-	return strings.ToLower(hostport), ""
-}
-
-func defaultPortIfEmpty(port string, proto string) string {
-	if port != "" {
-		return port
-	}
-	switch strings.ToLower(strings.TrimSpace(proto)) {
-	case "https":
-		return "443"
-	default:
-		return "80"
-	}
-}
 
 func joinURLPath(base string, p string) string {
 	base = strings.TrimRight(base, "/")

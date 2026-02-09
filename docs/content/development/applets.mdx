@@ -179,16 +179,10 @@ await rpc.callTyped<MyAppletRPC>('my.method', { /* params */ })
 
 ### Security model (RPC)
 
-- Transport: plain HTTP `POST` to `<basePath>/rpc` (same-origin by default).
+- Transport: plain HTTP `POST` to `<basePath>/rpc`.
 - Auth: uses the normal IOTA session/cookies; handlers receive a request `context.Context` with tenant/user.
 - Authorization: per-method permission enforcement (`RequirePermissions`).
 - Data access: applets do **not** access the database directly; Go handlers do.
-
-#### Reverse proxies (same-origin)
-
-`X-Forwarded-Host` is trusted by default for RPC same-origin checks, which is safe for standard reverse-proxy deployments. To disable it:
-
-- `Config.RPC.TrustForwardedHost = boolPtr(false)`
 
 ## Devtools overlay (optional)
 

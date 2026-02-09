@@ -160,8 +160,6 @@ type DevAssetConfig struct {
 
 type RPCConfig struct {
 	Path                 string // default: /rpc
-	RequireSameOrigin    *bool  // default: true
-	TrustForwardedHost   *bool  // default: true
 	ExposeInternalErrors *bool  // default: false
 	MaxBodyBytes         int64  // default: 1<<20
 	Methods              map[string]RPCMethod
