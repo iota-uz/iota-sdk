@@ -104,12 +104,12 @@ func main() {
 	defer cancel()
 
 	runOpts := &devrunner.RunOptions{
-		RestartProcessName:      "air",
-		ProjectRoot:             root,
-		PreflightNodeMajor:      0, // read from package.json
-		PreflightPnpm:           true,
+		RestartProcessName:       "air",
+		ProjectRoot:              root,
+		PreflightNodeMajor:       0, // read from package.json
+		PreflightPnpm:            true,
 		PreflightPackageJSONPath: "package.json",
-		PreflightDeps:           appletName != "", // check when running an applet (vite/react)
+		PreflightDeps:            appletName != "", // check when running an applet (vite/react)
 	}
 	exitCode, err := devrunner.Run(ctx, cancel, processes, runOpts)
 	if err != nil {

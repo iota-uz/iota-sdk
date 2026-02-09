@@ -22,13 +22,13 @@ import (
 
 // ANSI color codes for output prefixing.
 const (
-	ColorReset  = "\033[0m"
-	ColorCyan   = "\033[36m"
+	ColorReset   = "\033[0m"
+	ColorCyan    = "\033[36m"
 	ColorMagenta = "\033[35m"
-	ColorGreen  = "\033[32m"
-	ColorYellow = "\033[33m"
-	ColorBlue   = "\033[34m"
-	ColorDim    = "\033[2m"
+	ColorGreen   = "\033[32m"
+	ColorYellow  = "\033[33m"
+	ColorBlue    = "\033[34m"
+	ColorDim     = "\033[2m"
 )
 
 // ProcessSpec describes a process to run.
@@ -220,10 +220,10 @@ func NotifyContext(ctx context.Context) (context.Context, context.CancelFunc) {
 var outputMu sync.Mutex
 
 type managedProcess struct {
-	spec     ProcessSpec
-	maxLen   int
-	mu       sync.Mutex
-	cmd      *exec.Cmd
+	spec      ProcessSpec
+	maxLen    int
+	mu        sync.Mutex
+	cmd       *exec.Cmd
 	restartCh chan struct{}
 }
 

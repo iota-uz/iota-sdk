@@ -62,8 +62,8 @@ func TestRegisterDevProxy_StripPrefix(t *testing.T) {
 					Assets: AssetConfig{
 						BasePath: assetsPath,
 						Dev: &DevAssetConfig{
-							Enabled:    true,
-							TargetURL:  backend.URL,
+							Enabled:     true,
+							TargetURL:   backend.URL,
 							StripPrefix: strip,
 						},
 					},
