@@ -127,7 +127,6 @@ func (m *Module) Register(app application.Application) error {
 	if ctrl := controllers.NewShowcaseController(app); ctrl != nil {
 		app.RegisterControllers(ctrl)
 	}
-	//nolint:staticcheck // SA4023: always true in dev build; production build-tagged stub returns nil
 	if ctrl := controllers.NewCrudShowcaseController(app); ctrl != nil {
 		app.RegisterControllers(ctrl)
 	}

@@ -1,6 +1,7 @@
 package devrunner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -53,8 +54,8 @@ func PreflightFromPackageJSON(projectRoot string) (int, error) {
 
 // PreflightNode checks that the current Node.js version meets the required major version (e.g. 18).
 // Returns an error with remediation if the version is too old or node is not found.
-func PreflightNode(requiredMajor int) error {
-	out, err := exec.Command("node", "-v").Output()
+func PreflightNode(ctx context.Context, requiredMajor int) error {
+	out, err := exec.CommandContext(ctx, "node", "-v").Output()
 	if err != nil {
 		return fmt.Errorf("node not found or not runnable: %w\nremediation: install Node.js %d+ from https://nodejs.org/ or use nvm", err, requiredMajor)
 	}
@@ -77,8 +78,8 @@ func PreflightNode(requiredMajor int) error {
 
 // PreflightPnpm checks that pnpm is available and optionally prints its version.
 // Returns an error if pnpm is not found.
-func PreflightPnpm() error {
-	out, err := exec.Command("pnpm", "-v").Output()
+func PreflightPnpm(ctx context.Context) error {
+	out, err := exec.CommandContext(ctx, "pnpm", "-v").Output()
 	if err != nil {
 		return fmt.Errorf("pnpm not found: %w\nremediation: npm install -g pnpm or enable corepack", err)
 	}
@@ -98,8 +99,8 @@ type pnpmListEntry struct {
 
 // PreflightDeps checks that react and react-dom resolve to a single version in the project
 // (avoids "invalid hook call" from duplicate React instances). Uses pnpm list --json for stable parsing.
-func PreflightDeps(projectRoot string) error {
-	cmd := exec.Command("pnpm", "list", "react", "react-dom", "--depth", "0", "--json")
+func PreflightDeps(ctx context.Context, projectRoot string) error {
+	cmd := exec.CommandContext(ctx, "pnpm", "list", "react", "react-dom", "--depth", "0", "--json")
 	cmd.Dir = projectRoot
 	out, err := cmd.Output()
 	if err != nil {

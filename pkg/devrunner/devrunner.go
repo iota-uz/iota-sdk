@@ -85,23 +85,23 @@ func Run(ctx context.Context, cancel context.CancelFunc, specs []ProcessSpec, op
 			}
 		}
 		if nodeMajor > 0 {
-			if err := PreflightNode(nodeMajor); err != nil {
+			if err := PreflightNode(ctx, nodeMajor); err != nil {
 				return 1, err
 			}
-			if out, err := exec.Command("node", "-v").Output(); err == nil {
+			if out, err := exec.CommandContext(ctx, "node", "-v").Output(); err == nil {
 				log.Printf("Node %s", strings.TrimSpace(string(out)))
 			}
 		}
 		if opts.PreflightPnpm {
-			if err := PreflightPnpm(); err != nil {
+			if err := PreflightPnpm(ctx); err != nil {
 				return 1, err
 			}
-			if out, err := exec.Command("pnpm", "-v").Output(); err == nil {
+			if out, err := exec.CommandContext(ctx, "pnpm", "-v").Output(); err == nil {
 				log.Printf("pnpm %s", strings.TrimSpace(string(out)))
 			}
 		}
 		if opts.PreflightDeps && opts.ProjectRoot != "" {
-			if err := PreflightDeps(opts.ProjectRoot); err != nil {
+			if err := PreflightDeps(ctx, opts.ProjectRoot); err != nil {
 				return 1, err
 			}
 		}
@@ -338,7 +338,7 @@ func (m *managedProcess) forceKill() {
 }
 
 func startProcess(ctx context.Context, spec ProcessSpec, padLen int) (*exec.Cmd, error) {
-	cmd := exec.Command(spec.Command, spec.Args...)
+	cmd := exec.CommandContext(ctx, spec.Command, spec.Args...)
 	cmd.Dir = spec.Dir
 	cmd.Env = mergeEnv(os.Environ(), spec.Env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

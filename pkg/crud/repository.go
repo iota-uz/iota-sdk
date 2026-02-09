@@ -253,7 +253,8 @@ func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params
 	baseQuery := fmt.Sprintf("SELECT 1 FROM %s", r.schema.Name())
 
 	joinClauses := params.Joins.ToSQL()
-	parts := []string{baseQuery}
+	parts := make([]string, 0, 2+len(joinClauses))
+	parts = append(parts, baseQuery)
 	parts = append(parts, joinClauses...)
 
 	whereClause := fmt.Sprintf("%s.%s = $1", r.schema.Name(), value.Field().Name())
@@ -530,7 +531,8 @@ func (r *repository[TEntity]) buildJoinQueryBase(params *FindParams) (string, er
 	baseQuery := fmt.Sprintf("SELECT %s FROM %s", selectClause, r.schema.Name())
 
 	joinClauses := params.Joins.ToSQL()
-	parts := []string{baseQuery}
+	parts := make([]string, 0, 1+len(joinClauses))
+	parts = append(parts, baseQuery)
 	parts = append(parts, joinClauses...)
 
 	return repo.Join(parts...), nil

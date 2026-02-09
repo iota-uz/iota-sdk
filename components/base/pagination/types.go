@@ -42,10 +42,12 @@ func (s *State) Pages() []Page {
 		return append(s.pages[:10], filler, s.pages[len(s.pages)-1])
 	}
 	if s.Current > len(s.pages)-5 {
-		data := []Page{s.pages[0], filler}
+		data := make([]Page, 0, 2+10)
+		data = append(data, s.pages[0], filler)
 		return append(data, s.pages[len(s.pages)-10:]...)
 	}
-	data := []Page{s.pages[0], filler}
+	data := make([]Page, 0, 2+10)
+	data = append(data, s.pages[0], filler)
 	data = append(data, s.pages[s.Current-5:s.Current+5]...)
 	return append(data, filler, s.pages[len(s.pages)-1])
 }

@@ -96,7 +96,8 @@ func TestRegisterDevProxy_502WhenTargetDown(t *testing.T) {
 	t.Parallel()
 
 	// Start a server, get URL, then close it so the target is deterministically unreachable (connection refused).
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
 	require.NoError(t, listener.Close())
