@@ -7,7 +7,9 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChatSessionProvider,
-  useChat,
+  useChatSession,
+  useChatMessaging,
+  useChatInput,
   ChatHeader,
   WelcomeContent,
   MessageList,
@@ -24,24 +26,17 @@ type LocationState = {
 
 function LandingChat({ initialPrompt }: { initialPrompt: string }) {
   const { t } = useTranslation()
+  const { session, fetching, error, debugMode, sessionDebugUsage, debugLimits } = useChatSession()
+  const { turns, loading, sendMessage } = useChatMessaging()
   const {
-    session,
-    turns,
-    fetching,
-    error,
     message,
     setMessage,
     inputError,
     setInputError,
-    debugMode,
-    sessionDebugUsage,
-    debugLimits,
-    loading,
     handleSubmit,
-    sendMessage,
     messageQueue,
     handleUnqueue,
-  } = useChat()
+  } = useChatInput()
 
   const seededRef = useRef(false)
 
