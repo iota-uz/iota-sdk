@@ -1289,8 +1289,8 @@ func parseAndCanonicalizeAskUserQuestionArgs(args string) (types.AskUserQuestion
 		if q.Header == "" {
 			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: header is required", i))
 		}
-		if len(q.Header) > 12 {
-			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: header exceeds 12 characters", i))
+		if len(q.Header) > 50 {
+			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: header exceeds 50 characters", i))
 		}
 		if len(q.Options) < 2 {
 			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: at least 2 options required", i))
