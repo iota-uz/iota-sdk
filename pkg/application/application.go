@@ -343,7 +343,7 @@ func (app *application) CreateAppletControllers(
 
 	controllers := make([]Controller, 0, len(applets))
 	for _, a := range applets {
-		controller := applet.NewAppletController(
+		controller, err := applet.NewAppletController(
 			a,
 			app.Bundle(),
 			sessionConfig,
@@ -351,6 +351,9 @@ func (app *application) CreateAppletControllers(
 			metrics,
 			opts...,
 		)
+		if err != nil {
+			return nil, err
+		}
 		controllers = append(controllers, controller)
 	}
 
