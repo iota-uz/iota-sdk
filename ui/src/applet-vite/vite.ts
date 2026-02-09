@@ -155,8 +155,10 @@ export function createLocalSdkAliases(opts?: {
 }
 
 /**
- * Merges base config with extend: full spread so no Vite fields from b are dropped.
- * resolve, server, and plugins are merged from a and b originals (not from post-spread merged) so we don't use b's values as "original" a.
+ * Merges base config with extend. Start with merged = { ...a, ...b } so no Vite fields from b are dropped.
+ * We capture a.resolve, b.resolve, a.server, b.server, a.plugins, b.plugins before the spread so we never
+ * read b's values as "original" a when merging. resolve.alias: only coerce to array when both sides are
+ * actually arrays (concat); otherwise leave Record/object as-is and prefer b's value then a's.
  */
 function mergeConfig(a: UserConfig, b: UserConfig): UserConfig {
   const aResolve = a.resolve
@@ -171,17 +173,17 @@ function mergeConfig(a: UserConfig, b: UserConfig): UserConfig {
   if (bResolve) {
     const aAlias = aResolve?.alias
     const bAlias = bResolve.alias
-    const aArr = Array.isArray(aAlias) ? aAlias : undefined
-    const bArr = Array.isArray(bAlias) ? bAlias : undefined
+    const aIsArray = Array.isArray(aAlias)
+    const bIsArray = Array.isArray(bAlias)
     const alias =
-      aArr && bArr
-        ? [...aArr, ...bArr]
+      aIsArray && bIsArray
+        ? [...(aAlias as Array<{ find: string | RegExp; replacement: string }>), ...(bAlias as Array<{ find: string | RegExp; replacement: string }>)]
         : (bAlias !== undefined ? bAlias : aResolve?.alias)
     merged.resolve = {
       ...aResolve,
       ...bResolve,
       alias,
-      dedupe: bResolve.dedupe ?? aResolve?.dedupe,
+      dedupe: bResolve.dedupe ?? merged.resolve?.dedupe ?? aResolve?.dedupe,
     }
   }
   if (bServer) {

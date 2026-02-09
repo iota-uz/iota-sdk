@@ -108,6 +108,7 @@ export function createAppletStylesVirtualModulePlugin(
             args.push('-c', configPath)
           }
         }
+        // Use platform-specific executable and no shell so args (paths with spaces) are passed safely on Windows.
         const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
         const result = spawnSync(pnpmCmd, ['exec', 'tailwindcss', ...args], {
           cwd: root,
