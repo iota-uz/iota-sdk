@@ -41,9 +41,6 @@ jobs:
         with:
           version: 9.15.0
 
-      - name: Install JS dependencies (Tailwind v4)
-        run: pnpm install --frozen-lockfile
-
       - name: Install pg_formatter for SQL formatting
         run: |
           sudo apt-get update
@@ -313,9 +310,6 @@ jobs:
         uses: pnpm/action-setup@v3
         with:
           version: 9.15.0
-
-      - name: Install JS dependencies (Tailwind v4)
-        run: pnpm install --frozen-lockfile
 
       - name: Download Go dependencies
         run: go mod download

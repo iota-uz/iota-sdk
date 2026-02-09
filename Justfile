@@ -219,9 +219,9 @@ coverage-report:
   go tool cover -html=./coverage/coverage.out -o ./coverage/cover.html
 
 [group("assets")]
-[doc("Build Tailwind CSS. Extra arguments are passed to `tailwindcss`")]
+[doc("Build Tailwind CSS. Extra arguments are passed to `tailwindcss` (uses npx, no root package.json required)")]
 css *args="":
-  pnpm exec tailwindcss --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --minify {{args}}
+  npx @tailwindcss/cli@4.1.18 --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --minify {{args}}
 
 [group("assets")]
 [doc("Remove generated CSS file")]
