@@ -3,6 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": { "node": ">=18" },
   "scripts": {
     "dev": "pnpm run dev:standalone",
     "build:css": "tailwindcss -i ./src/index.css -o ./dist/style.css --minify",
@@ -15,7 +17,7 @@
     "codegen": "echo \"codegen removed (RPC-only)\""
   },
   "dependencies": {
-    "@iota-uz/sdk": "0.3.0",
+    "@iota-uz/sdk": "link:../../../../",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",

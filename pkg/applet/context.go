@@ -365,7 +365,9 @@ func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]stri
 	// Create localizer for the user's locale
 	localizer := i18n.NewLocalizer(b.bundle, locale.String())
 
-	// Iterate all message IDs and localize
+	// Iterate all message IDs and localize. Use Localize (not MustLocalize) so that
+	// parent/category keys (e.g. List.Meta with only nested Description) that have
+	// no direct string value are skipped instead of panicking.
 	for messageID := range localeMessages {
 		if mode == TranslationModePrefixes {
 			match := false
@@ -379,9 +381,15 @@ func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]stri
 				continue
 			}
 		}
-		translation := localizer.MustLocalize(&i18n.LocalizeConfig{
+		translation, err := localizer.Localize(&i18n.LocalizeConfig{
 			MessageID: messageID,
 		})
+		if err != nil {
+			if b.logger != nil {
+				b.logger.WithError(err).WithField("message_id", messageID).Debug("Skipping message ID with no direct string (e.g. parent key)")
+			}
+			continue
+		}
 		translations[messageID] = translation
 	}
 

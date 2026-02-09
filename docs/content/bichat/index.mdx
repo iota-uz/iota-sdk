@@ -306,6 +306,37 @@ Directory contract (Dash-compatible):
 - `queries/*.sql`: validated query patterns (`<query name>`, `<query description>`, `<query>`)
 - `business/*.json`: business rules and definitions
 
+## Downstream applet checklist (Tailwind + Shadow DOM)
+
+When building an applet that uses BiChat components (e.g. `ChatSession`, `MessageInput`) outside the SDK repo:
+
+1. **Tailwind config** — Use the SDK preset and content helper so utilities used by BiChat are generated:
+
+```js
+import { bichatTailwindContent, bichatTailwindPreset } from '@iota-uz/sdk/bichat/tailwind'
+
+export default {
+  presets: [bichatTailwindPreset],
+  content: [
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
+    ...bichatTailwindContent(),
+  ],
+  darkMode: 'selector',
+}
+```
+
+2. **Applet CSS** — Import BiChat design tokens, then Tailwind layers:
+
+```css
+@import "@iota-uz/sdk/bichat/styles.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+3. **Shadow DOM** — Inject the compiled CSS string into the host so styles apply inside the shadow root. Use the SDK **`createBichatStylesPlugin()`** (or `createAppletStylesVirtualModulePlugin` with `prependCss: ['@iota-uz/sdk/bichat/styles.css']`) so that `import styles from 'virtual:applet-styles'` returns the compiled CSS with SDK BiChat styles prepended. Default convention: input `src/index.css`, output `dist/style.css`. Add the plugin to your Vite config, then pass the string to `defineReactAppletElement({ styles })`. Add `declare module 'virtual:applet-styles' { const css: string; export default css }` to your `vite-env.d.ts`.
+
 ## See also
 
 - **Vision support**: [Vision support setup](/bichat/vision-setup) — image attachments and LLM vision.

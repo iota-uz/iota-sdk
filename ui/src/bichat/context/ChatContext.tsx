@@ -848,6 +848,11 @@ export function useChatMessaging(): ChatMessagingStateValue {
   return context
 }
 
+/** Returns messaging context or null when outside ChatSessionProvider. Use when component can receive values via props (e.g. SessionArtifactsPanel with artifactsInvalidationTrigger prop). */
+export function useOptionalChatMessaging(): ChatMessagingStateValue | null {
+  return useContext(MessagingCtx)
+}
+
 export function useChatInput(): ChatInputStateValue {
   const context = useContext(InputCtx)
   if (!context) {

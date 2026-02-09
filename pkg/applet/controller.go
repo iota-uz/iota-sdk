@@ -152,7 +152,7 @@ func (c *AppletController) initAssets() {
 			dev.ClientModule = "/@vite/client"
 		}
 		if dev.StripPrefix == nil {
-			v := false
+			v := true // strip assets path so Vite receives e.g. /@vite/client not /basePath/assets/@vite/client
 			dev.StripPrefix = &v
 		}
 		c.devAssets = &dev

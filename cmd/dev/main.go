@@ -1,36 +1,22 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
-	"syscall"
-	"time"
-)
 
-const (
-	colorReset   = "\033[0m"
-	colorCyan    = "\033[36m"
-	colorMagenta = "\033[35m"
-	colorGreen   = "\033[32m"
-	colorYellow  = "\033[33m"
-	colorBlue    = "\033[34m"
-	colorDim     = "\033[2m"
+	"github.com/iota-uz/iota-sdk/pkg/devrunner"
 )
 
 type appletConfig struct {
@@ -49,26 +35,6 @@ type packageDeps struct {
 	Dependencies    map[string]string `json:"dependencies"`
 	DevDependencies map[string]string `json:"devDependencies"`
 }
-
-type processSpec struct {
-	Name     string
-	Command  string
-	Args     []string
-	Dir      string
-	Color    string
-	Critical bool
-}
-
-type managedProcess struct {
-	spec   processSpec
-	maxLen int
-
-	mu        sync.Mutex
-	cmd       *exec.Cmd
-	restartCh chan struct{} // manual restart signal (critical only)
-}
-
-var outputMu sync.Mutex
 
 func main() {
 	log.SetFlags(0)
@@ -101,19 +67,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	var processes []processSpec
+	var processes []devrunner.ProcessSpec
 
 	// Always add templ watcher
-	processes = append(processes, processSpec{
+	processes = append(processes, devrunner.ProcessSpec{
 		Name: "templ", Command: "templ", Args: []string{"generate", "--watch"},
-		Dir: root, Color: colorCyan, Critical: false,
+		Dir: root, Color: devrunner.ColorCyan, Critical: false,
 	})
 
 	// Add tailwind if input exists
 	tailwindInput := filepath.Join(root, "styles/tailwind/input.css")
 	if _, err := os.Stat(tailwindInput); err == nil {
-		processes = append(processes, processSpec{
-			Name: "css", Command: "pnpm", Dir: root, Color: colorMagenta, Critical: false,
+		processes = append(processes, devrunner.ProcessSpec{
+			Name: "css", Command: "pnpm", Dir: root, Color: devrunner.ColorMagenta, Critical: false,
 			Args: []string{"exec", "tailwindcss", "--input", "styles/tailwind/input.css",
 				"--output", "modules/core/presentation/assets/css/main.min.css", "--watch"},
 		})
@@ -129,21 +95,33 @@ func main() {
 	}
 
 	// Air always runs
-	processes = append(processes, processSpec{
+	processes = append(processes, devrunner.ProcessSpec{
 		Name: "air", Command: "air", Args: nil,
-		Dir: root, Color: colorYellow, Critical: true,
+		Dir: root, Color: devrunner.ColorYellow, Critical: true,
 	})
 
-	log.Printf("\n%sr restart air · c clear · q quit%s\n\n", colorDim, colorReset)
+	log.Printf("\n%sr restart air · c clear · q quit%s\n\n", devrunner.ColorDim, devrunner.ColorReset)
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := devrunner.NotifyContext(context.Background())
 	defer cancel()
 
-	exitCode := runProcesses(ctx, cancel, processes)
+	runOpts := &devrunner.RunOptions{
+		RestartProcessName:      "air",
+		ProjectRoot:             root,
+		PreflightNodeMajor:      0, // read from package.json
+		PreflightPnpm:           true,
+		PreflightPackageJSONPath: "package.json",
+		PreflightDeps:           appletName != "", // check when running an applet (vite/react)
+	}
+	exitCode, err := devrunner.Run(ctx, cancel, processes, runOpts)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Preflight: %v\n", err)
+		os.Exit(1)
+	}
 	os.Exit(exitCode)
 }
 
-func setupApplet(root, appletName string) ([]processSpec, error) {
+func setupApplet(root, appletName string) ([]devrunner.ProcessSpec, error) {
 	applet, err := loadAppletConfig(filepath.Join(root, "scripts/applets.json"), appletName)
 	if err != nil {
 		return nil, err
@@ -192,326 +170,47 @@ func setupApplet(root, appletName string) ([]processSpec, error) {
 		}
 	}
 
-	// Build applet CSS before starting Vite (tailwindcss --watch needs TTY, may exit immediately)
-	log.Println("Building applet CSS...")
-	if err := runCommand(context.Background(), viteDir, "pnpm", "exec", "tailwindcss",
-		"-i", "src/index.css", "-o", "dist/style.css"); err != nil {
-		return nil, fmt.Errorf("applet CSS build failed: %w", err)
+	// Write applet-dev.json so the frontend can read base path, port, and backend URL (single source of truth).
+	backendURL := fmt.Sprintf("http://localhost:%s", iotaPort)
+	manifest := struct {
+		BasePath   string `json:"basePath"`
+		AssetsBase string `json:"assetsBase"`
+		VitePort   int    `json:"vitePort"`
+		BackendURL string `json:"backendUrl"`
+	}{
+		BasePath:   applet.BasePath,
+		AssetsBase: applet.BasePath + "/assets/",
+		VitePort:   applet.VitePort,
+		BackendURL: backendURL,
+	}
+	manifestBytes, _ := json.MarshalIndent(manifest, "", "  ")
+	manifestPath := filepath.Join(viteDir, "applet-dev.json")
+	if err := os.WriteFile(manifestPath, manifestBytes, 0644); err != nil {
+		log.Printf("warning: could not write %s: %v", manifestPath, err)
 	}
 
+	// Applet CSS is compiled by the Vite styles plugin (virtual:applet-styles) on demand, or by the tailwind watch process below.
 	log.Printf("Applet: %s\n", applet.Name)
 	log.Printf("URL:    http://localhost:%s%s\n", iotaPort, applet.BasePath)
 
-	return []processSpec{
+	return []devrunner.ProcessSpec{
 		{
 			Name: "sdk", Command: "pnpm",
 			Args: []string{"exec", "tsup", "--config", "tsup.dev.config.ts", "--watch"},
-			Dir:  root, Color: colorBlue, Critical: false,
+			Dir:  root, Color: devrunner.ColorBlue, Critical: false,
 		},
 		{
 			Name: "acss", Command: "pnpm",
 			Args: []string{"-C", viteDir, "exec", "tailwindcss",
 				"-i", "src/index.css", "-o", "dist/style.css", "--watch"},
-			Dir: root, Color: colorMagenta, Critical: false,
+			Dir: root, Color: devrunner.ColorMagenta, Critical: false,
 		},
 		{
 			Name: "vite", Command: "pnpm",
 			Args: []string{"-C", viteDir, "exec", "vite"},
-			Dir:  root, Color: colorGreen, Critical: true,
+			Dir:  root, Color: devrunner.ColorGreen, Critical: true,
 		},
 	}, nil
-}
-
-// --- Process management ---
-
-func (m *managedProcess) runCritical(ctx context.Context, exitCh chan<- string) {
-	m.restartCh = make(chan struct{}, 1)
-
-	for {
-		cmd, err := startProcess(ctx, m.spec, m.maxLen)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to start %s: %v\n", m.spec.Name, err)
-			exitCh <- m.spec.Name
-			return
-		}
-		m.mu.Lock()
-		m.cmd = cmd
-		m.mu.Unlock()
-
-		if waitErr := cmd.Wait(); waitErr != nil {
-			outputMu.Lock()
-			fmt.Fprintf(os.Stderr, "%s%s[%-*s]%s process exit: %v\n", m.spec.Color, colorDim, m.maxLen, m.spec.Name, colorReset, waitErr)
-			outputMu.Unlock()
-		}
-
-		if ctx.Err() != nil {
-			return
-		}
-
-		// Was this a manual restart?
-		select {
-		case <-m.restartCh:
-			prefix := fmt.Sprintf("[%-*s]", m.maxLen, m.spec.Name)
-			outputMu.Lock()
-			log.Printf("%s%s%s restarting...\n", m.spec.Color, prefix, colorReset)
-			outputMu.Unlock()
-			continue
-		default:
-			exitCh <- m.spec.Name
-			return
-		}
-	}
-}
-
-func (m *managedProcess) runAuxiliary(ctx context.Context) {
-	backoff := time.Second
-	const maxBackoff = 30 * time.Second
-
-	for {
-		start := time.Now()
-		cmd, err := startProcess(ctx, m.spec, m.maxLen)
-		if err != nil {
-			prefix := fmt.Sprintf("[%-*s]", m.maxLen, m.spec.Name)
-			outputMu.Lock()
-			fmt.Fprintf(os.Stderr, "%s%s%s failed to start: %v\n",
-				m.spec.Color, prefix, colorReset, err)
-			outputMu.Unlock()
-		} else {
-			m.mu.Lock()
-			m.cmd = cmd
-			m.mu.Unlock()
-
-			waitErr := cmd.Wait()
-
-			if ctx.Err() != nil {
-				return
-			}
-
-			// Clean exit (code 0): don't restart
-			if waitErr == nil {
-				prefix := fmt.Sprintf("[%-*s]", m.maxLen, m.spec.Name)
-				outputMu.Lock()
-				fmt.Fprintf(os.Stderr, "%s%s%s finished\n",
-					m.spec.Color, prefix, colorReset)
-				outputMu.Unlock()
-				return
-			}
-
-			// Reset backoff if process ran for a while
-			if time.Since(start) > 10*time.Second {
-				backoff = time.Second
-			}
-		}
-
-		prefix := fmt.Sprintf("[%-*s]", m.maxLen, m.spec.Name)
-		outputMu.Lock()
-		fmt.Fprintf(os.Stderr, "%s%s%s crashed, restarting in %s...\n",
-			m.spec.Color, prefix, colorReset, backoff)
-		outputMu.Unlock()
-
-		select {
-		case <-time.After(backoff):
-			backoff = min(backoff*2, maxBackoff)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func (m *managedProcess) restart() {
-	if m.restartCh != nil {
-		select {
-		case m.restartCh <- struct{}{}:
-		default:
-		}
-	}
-	m.stop()
-}
-
-func (m *managedProcess) stop() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.cmd != nil && m.cmd.Process != nil {
-		_ = syscall.Kill(-m.cmd.Process.Pid, syscall.SIGTERM)
-	}
-}
-
-func (m *managedProcess) forceKill() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.cmd != nil && m.cmd.Process != nil {
-		_ = syscall.Kill(-m.cmd.Process.Pid, syscall.SIGKILL)
-	}
-}
-
-func runProcesses(ctx context.Context, cancel context.CancelFunc, specs []processSpec) int {
-	maxLen := 0
-	for _, s := range specs {
-		if len(s.Name) > maxLen {
-			maxLen = len(s.Name)
-		}
-	}
-
-	managed := make([]*managedProcess, 0, len(specs))
-	criticalExitCh := make(chan string, len(specs))
-	var wg sync.WaitGroup
-
-	for _, spec := range specs {
-		mp := &managedProcess{spec: spec, maxLen: maxLen}
-		managed = append(managed, mp)
-
-		wg.Add(1)
-		if spec.Critical {
-			go func(m *managedProcess) {
-				defer wg.Done()
-				defer func() {
-					if r := recover(); r != nil {
-						criticalExitCh <- fmt.Sprintf("%s (panic: %v)", m.spec.Name, r)
-					}
-				}()
-				m.runCritical(ctx, criticalExitCh)
-			}(mp)
-		} else {
-			go func(m *managedProcess) {
-				defer wg.Done()
-				defer func() {
-					if r := recover(); r != nil {
-						prefix := fmt.Sprintf("[%-*s]", m.maxLen, m.spec.Name)
-						outputMu.Lock()
-						fmt.Fprintf(os.Stderr, "%s%s%s panic: %v\n", m.spec.Color, prefix, colorReset, r)
-						outputMu.Unlock()
-					}
-				}()
-				m.runAuxiliary(ctx)
-			}(mp)
-		}
-	}
-
-	// Keyboard input
-	restoreTerm := enableCbreak(ctx)
-	defer restoreTerm()
-	keyCh := make(chan byte, 8)
-	go readKeys(keyCh)
-
-	exitCode := 0
-loop:
-	for {
-		select {
-		case <-ctx.Done():
-			break loop
-		case name := <-criticalExitCh:
-			outputMu.Lock()
-			fmt.Fprintf(os.Stderr, "\n%s exited. Shutting down.\n", name)
-			outputMu.Unlock()
-			exitCode = 1
-			cancel()
-			break loop
-		case key := <-keyCh:
-			switch key {
-			case 'r':
-				for _, m := range managed {
-					if m.spec.Name == "air" {
-						m.restart()
-					}
-				}
-			case 'c':
-				outputMu.Lock()
-				log.Print("\033[2J\033[H")
-				outputMu.Unlock()
-			case 'q':
-				cancel()
-				break loop
-			}
-		}
-	}
-
-	// Graceful shutdown
-	for _, m := range managed {
-		m.stop()
-	}
-
-	done := make(chan struct{})
-	go func() { wg.Wait(); close(done) }()
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		for _, m := range managed {
-			m.forceKill()
-		}
-		<-done
-	}
-
-	return exitCode
-}
-
-// --- Keyboard input ---
-
-func enableCbreak(ctx context.Context) func() {
-	save := exec.CommandContext(ctx, "stty", "-g")
-	save.Stdin = os.Stdin
-	state, err := save.Output()
-	if err != nil {
-		return func() {} // not a terminal
-	}
-
-	set := exec.CommandContext(ctx, "stty", "cbreak", "-echo")
-	set.Stdin = os.Stdin
-	if err := set.Run(); err != nil {
-		return func() {}
-	}
-
-	return func() {
-		restore := exec.CommandContext(context.Background(), "stty", strings.TrimSpace(string(state)))
-		restore.Stdin = os.Stdin
-		if err := restore.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to restore terminal (stty): %v\n", err)
-		}
-	}
-}
-
-func readKeys(ch chan<- byte) {
-	buf := make([]byte, 1)
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil || n == 0 {
-			return
-		}
-		ch <- buf[0]
-	}
-}
-
-// --- Process launching ---
-
-func startProcess(ctx context.Context, spec processSpec, padLen int) (*exec.Cmd, error) {
-	cmd := exec.CommandContext(ctx, spec.Command, spec.Args...)
-	cmd.Dir = spec.Dir
-	cmd.Env = os.Environ()
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	stdout, _ := cmd.StdoutPipe()
-	stderr, _ := cmd.StderrPipe()
-
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	prefix := fmt.Sprintf("[%-*s]", padLen, spec.Name)
-	coloredPrefix := spec.Color + prefix + colorReset
-
-	go logOutput(stdout, coloredPrefix)
-	go logOutput(stderr, coloredPrefix)
-
-	return cmd, nil
-}
-
-func logOutput(r io.Reader, prefix string) {
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024) // 1MB max line
-	for scanner.Scan() {
-		outputMu.Lock()
-		log.Printf("%s %s\n", prefix, scanner.Text())
-		outputMu.Unlock()
-	}
 }
 
 // --- Prerequisites & config ---

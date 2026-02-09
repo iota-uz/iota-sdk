@@ -11,6 +11,7 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=18"
   },
@@ -22,6 +23,7 @@
     "LICENSE"
   ],
   "exports": {
+    "./package.json": "./package.json",
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
@@ -33,6 +35,16 @@
       "require": "./dist/bichat/index.cjs"
     },
     "./bichat/styles.css": "./dist/bichat/styles.css",
+    "./bichat/tailwind": {
+      "types": "./dist/bichat/tailwind.d.ts",
+      "import": "./dist/bichat/tailwind.mjs",
+      "require": "./dist/bichat/tailwind.cjs"
+    },
+    "./applet/vite": {
+      "types": "./dist/applet/vite.d.ts",
+      "import": "./dist/applet/vite.mjs",
+      "require": "./dist/applet/vite.cjs"
+    },
     "./tailwind/main.css": "./tailwind/main.css",
     "./tailwind/iota.css": "./tailwind/iota.css",
     "./tailwind/compiled.css": "./tailwind/compiled.css",

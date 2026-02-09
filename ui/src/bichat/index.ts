@@ -188,7 +188,7 @@ export * from './animations'
 // Context
 // =============================================================================
 
-export { ChatSessionProvider, useChat, useChatSession, useChatMessaging, useChatInput } from './context/ChatContext'
+export { ChatSessionProvider, useChat, useChatSession, useChatMessaging, useOptionalChatMessaging, useChatInput } from './context/ChatContext'
 export { IotaContextProvider, useIotaContext, hasPermission } from './context/IotaContext'
 export {
   ConfigProvider,

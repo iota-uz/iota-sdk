@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Paperclip } from '@phosphor-icons/react'
 import type { ChatDataSource, SessionArtifact } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
-import { useChatMessaging } from '../context/ChatContext'
+import { useOptionalChatMessaging } from '../context/ChatContext'
 import { SessionArtifactList } from './SessionArtifactList'
 import { SessionArtifactPreviewModal } from './SessionArtifactPreviewModal'
 
@@ -12,6 +12,8 @@ interface SessionArtifactsPanelProps {
   isStreaming: boolean
   allowDrop?: boolean
   className?: string
+  /** When provided, used instead of useChatMessaging().artifactsInvalidationTrigger (allows use outside SDK ChatSessionProvider). */
+  artifactsInvalidationTrigger?: number
 }
 
 const PAGE_SIZE = 50
@@ -37,9 +39,14 @@ export function SessionArtifactsPanel({
   isStreaming,
   allowDrop = true,
   className = '',
+  artifactsInvalidationTrigger: artifactsInvalidationTriggerProp,
 }: SessionArtifactsPanelProps) {
   const { t } = useTranslation()
-  const { artifactsInvalidationTrigger } = useChatMessaging()
+  const messaging = useOptionalChatMessaging()
+  const artifactsInvalidationTrigger =
+    typeof artifactsInvalidationTriggerProp === 'number'
+      ? artifactsInvalidationTriggerProp
+      : messaging?.artifactsInvalidationTrigger ?? 0
 
   const [fetching, setFetching] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
