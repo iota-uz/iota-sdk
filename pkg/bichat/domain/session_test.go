@@ -54,16 +54,6 @@ func TestSession_Creation(t *testing.T) {
 		assert.Equal(t, customID, session.ID(), "ID mismatch")
 	})
 
-	t.Run("creation with pending question agent", func(t *testing.T) {
-		agentName := "test-agent"
-		session := domain.NewSession(
-			domain.WithPendingQuestionAgent(agentName),
-		)
-
-		require.NotNil(t, session.PendingQuestionAgent(), "Expected PendingQuestionAgent to be set")
-		assert.Equal(t, agentName, *session.PendingQuestionAgent(), "Agent name mismatch")
-	})
-
 	t.Run("creation with llm previous response id", func(t *testing.T) {
 		session := domain.NewSession(
 			domain.WithLLMPreviousResponseID("resp_prev_1"),
@@ -195,16 +185,6 @@ func TestSession_HasParent(t *testing.T) {
 	assert.False(t, sessionWithoutParent.HasParent(), "Expected session without parent to return false for HasParent()")
 }
 
-func TestSession_HasPendingQuestion(t *testing.T) {
-	t.Parallel()
-
-	sessionWithQuestion := domain.NewSession(domain.WithPendingQuestionAgent("agent"))
-	sessionWithoutQuestion := domain.NewSession()
-
-	assert.True(t, sessionWithQuestion.HasPendingQuestion(), "Expected session with pending question to return true")
-	assert.False(t, sessionWithoutQuestion.HasPendingQuestion(), "Expected session without pending question to return false")
-}
-
 func TestSession_MultipleOptions(t *testing.T) {
 	t.Parallel()
 
@@ -212,7 +192,6 @@ func TestSession_MultipleOptions(t *testing.T) {
 	userID := int64(456)
 	title := "Complex Session"
 	parentID := uuid.New()
-	agent := "test-agent"
 
 	session := domain.NewSession(
 		domain.WithTenantID(tenantID),
@@ -220,7 +199,6 @@ func TestSession_MultipleOptions(t *testing.T) {
 		domain.WithTitle(title),
 		domain.WithPinned(true),
 		domain.WithParentSessionID(parentID),
-		domain.WithPendingQuestionAgent(agent),
 		domain.WithStatus(domain.SessionStatusArchived),
 	)
 
@@ -230,8 +208,6 @@ func TestSession_MultipleOptions(t *testing.T) {
 	assert.True(t, session.Pinned(), "Pinned not set correctly")
 	require.True(t, session.HasParent(), "ParentSessionID not set correctly")
 	assert.Equal(t, parentID, *session.ParentSessionID(), "ParentSessionID value mismatch")
-	require.True(t, session.HasPendingQuestion(), "PendingQuestionAgent not set correctly")
-	assert.Equal(t, agent, *session.PendingQuestionAgent(), "PendingQuestionAgent value mismatch")
 	assert.Equal(t, domain.SessionStatusArchived, session.Status(), "Status not set correctly")
 }
 

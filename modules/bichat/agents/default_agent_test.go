@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -45,8 +46,10 @@ func (m *mockKBSearcher) Search(ctx context.Context, query string, opts kb.Searc
 	return []kb.SearchResult{}, nil
 }
 
+var errGetDocumentNotFound = errors.New("document not found")
+
 func (m *mockKBSearcher) GetDocument(ctx context.Context, id string) (*kb.Document, error) {
-	return nil, nil
+	return nil, errGetDocumentNotFound
 }
 
 func (m *mockKBSearcher) IsAvailable() bool {

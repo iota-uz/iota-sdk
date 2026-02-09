@@ -102,6 +102,8 @@ export interface UserMessageProps {
   hideActions?: boolean
   /** Hide timestamp */
   hideTimestamp?: boolean
+  /** Whether edit action should be available */
+  allowEdit?: boolean
 }
 
 const COPY_FEEDBACK_MS = 2000
@@ -114,7 +116,7 @@ const defaultClassNames: Required<UserMessageClassNames> = {
   root: 'flex gap-3 justify-end group',
   wrapper: 'flex-1 flex flex-col items-end max-w-[75%]',
   avatar: 'flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-sm',
-  bubble: 'bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-3',
+  bubble: 'bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-sm',
   content: 'text-sm whitespace-pre-wrap break-words leading-relaxed',
   attachments: 'mb-2 w-full',
   actions: 'flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150',
@@ -155,6 +157,7 @@ export function UserMessage({
   hideAvatar = false,
   hideActions = false,
   hideTimestamp = false,
+  allowEdit = true,
 }: UserMessageProps) {
   const { t } = useTranslation()
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
@@ -298,10 +301,10 @@ export function UserMessage({
   }
   const actionsSlotProps: UserMessageActionsSlotProps = {
     onCopy: handleCopyClick,
-    onEdit: onEdit && turnId ? handleEditClick : undefined,
+    onEdit: onEdit && turnId && allowEdit ? handleEditClick : undefined,
     timestamp,
     canCopy: true,
-    canEdit: !!onEdit && !!turnId,
+    canEdit: !!onEdit && !!turnId && allowEdit,
   }
 
   // Render helpers
@@ -348,14 +351,14 @@ export function UserMessage({
                     <button
                       type="button"
                       onClick={handleEditCancel}
-                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm font-medium"
+                      className="cursor-pointer px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm font-medium"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handleEditSave}
-                      className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/25 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="cursor-pointer px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/25 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!draftContent.trim() || draftContent === turn.content}
                     >
                       Save
@@ -386,13 +389,8 @@ export function UserMessage({
                 >
                   {isCopied ? <Check size={14} weight="bold" /> : <Copy size={14} weight="regular" />}
                 </button>
-                {isCopied && (
-                  <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                    {t('message.copied')}
-                  </span>
-                )}
 
-                {onEdit && turnId && (
+                {onEdit && turnId && allowEdit && (
                   <button
                     onClick={handleEditClick}
                     className={`cursor-pointer ${classes.actionButton}`}

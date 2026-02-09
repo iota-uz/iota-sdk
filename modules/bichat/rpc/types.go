@@ -38,8 +38,12 @@ type SessionListParams struct {
 	IncludeArchived bool `json:"includeArchived"`
 }
 
+// SessionListResult is the response for bichat.session.list.
 type SessionListResult struct {
 	Sessions []Session `json:"sessions"`
+	// Total is the full count of sessions matching the filter (includeArchived, etc.), not the page size.
+	Total   int  `json:"total,omitempty"`
+	HasMore bool `json:"hasMore"`
 }
 
 type SessionCreateParams struct {
@@ -157,6 +161,7 @@ type PendingQuestionItem struct {
 type PendingQuestion struct {
 	CheckpointID string                `json:"checkpointId"`
 	AgentName    string                `json:"agentName,omitempty"`
+	TurnID       string                `json:"turnId"`
 	Questions    []PendingQuestionItem `json:"questions"`
 }
 
@@ -164,6 +169,11 @@ type SessionGetResult struct {
 	Session         Session            `json:"session"`
 	Turns           []ConversationTurn `json:"turns"`
 	PendingQuestion *PendingQuestion   `json:"pendingQuestion,omitempty"`
+}
+
+// ArtifactIDParams is used by bichat.artifact.delete (p.ID is artifact ID).
+type ArtifactIDParams struct {
+	ID string `json:"id"`
 }
 
 type SessionIDParams struct {
@@ -216,6 +226,25 @@ type SessionArtifactsResult struct {
 	Artifacts  []Artifact `json:"artifacts"`
 	HasMore    bool       `json:"hasMore"`
 	NextOffset int        `json:"nextOffset"`
+}
+
+type SessionUploadArtifactsParams struct {
+	SessionID   string       `json:"sessionId"`
+	Attachments []Attachment `json:"attachments"`
+}
+
+type SessionUploadArtifactsResult struct {
+	Artifacts []Artifact `json:"artifacts"`
+}
+
+type ArtifactUpdateParams struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+type ArtifactResult struct {
+	Artifact Artifact `json:"artifact"`
 }
 
 type QuestionSubmitParams struct {
@@ -309,8 +338,32 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 				CreatedAt: m.CreatedAt().Format(time.RFC3339),
 			}
 			turns = append(turns, t)
+		case types.RoleTool:
+			continue
 		case types.RoleAssistant:
-			if current == nil || current.AssistantTurn != nil {
+			if current == nil {
+				continue
+			}
+			if current.AssistantTurn != nil {
+				// Concatenate consecutive assistant messages (e.g., original + continuation after resume)
+				if current.AssistantTurn.Content != "" && m.Content() != "" {
+					current.AssistantTurn.Content += "\n\n"
+				}
+				current.AssistantTurn.Content += m.Content()
+				// Merge tool calls
+				newToolCalls := mapToolCalls(m.ToolCalls())
+				if len(newToolCalls) > 0 {
+					current.AssistantTurn.ToolCalls = append(current.AssistantTurn.ToolCalls, newToolCalls...)
+				}
+				// Merge code outputs
+				newCodeOutputs := mapCodeOutputs(m.CodeOutputs())
+				if len(newCodeOutputs) > 0 {
+					current.AssistantTurn.CodeOutputs = append(current.AssistantTurn.CodeOutputs, newCodeOutputs...)
+				}
+				// Use latest debug trace
+				if dt := mapDebugTrace(m.DebugTrace()); dt != nil {
+					current.AssistantTurn.Debug = dt
+				}
 				continue
 			}
 			current.AssistantTurn = &AssistantTurn{
@@ -461,34 +514,6 @@ func toArtifactDTO(a domain.Artifact) Artifact {
 	return out
 }
 
-func toPendingQuestionDTO(interrupt *services.Interrupt) *PendingQuestion {
-	if interrupt == nil {
-		return nil
-	}
-
-	questions := make([]PendingQuestionItem, 0, len(interrupt.Questions))
-	for _, q := range interrupt.Questions {
-		options := make([]PendingQuestionOption, 0, len(q.Options))
-		for _, opt := range q.Options {
-			options = append(options, PendingQuestionOption{
-				ID:    opt.ID,
-				Label: opt.Label,
-			})
-		}
-		questions = append(questions, PendingQuestionItem{
-			ID:      q.ID,
-			Text:    q.Text,
-			Type:    string(q.Type),
-			Options: options,
-		})
-	}
-
-	return &PendingQuestion{
-		CheckpointID: interrupt.CheckpointID,
-		Questions:    questions,
-	}
-}
-
 func requireSessionOwner(ctx context.Context, chatSvc services.ChatService, sessionID uuid.UUID) (domain.Session, error) {
 	user, err := composables.UseUser(ctx)
 	if err != nil {
@@ -510,4 +535,48 @@ func parseUUID(s string) (uuid.UUID, error) {
 		return uuid.UUID{}, err
 	}
 	return id, nil
+}
+
+// pendingQuestionFromMessages scans messages for pending question data
+// and builds the DTO with turn ID inference.
+func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
+	// Find the message with pending question data
+	var pendingMsg types.Message
+	for _, m := range msgs {
+		if m != nil && m.HasPendingQuestion() {
+			pendingMsg = m
+			break
+		}
+	}
+	if pendingMsg == nil {
+		return nil
+	}
+	qd := pendingMsg.QuestionData()
+
+	// Find the turn ID: look backward for the nearest user message
+	turnID := pendingMsg.ID().String()
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i] != nil && msgs[i].Role() == types.RoleUser && msgs[i].CreatedAt().Before(pendingMsg.CreatedAt()) {
+			turnID = msgs[i].ID().String()
+			break
+		}
+	}
+
+	questions := make([]PendingQuestionItem, 0, len(qd.Questions))
+	for _, q := range qd.Questions {
+		options := make([]PendingQuestionOption, 0, len(q.Options))
+		for _, opt := range q.Options {
+			options = append(options, PendingQuestionOption{ID: opt.ID, Label: opt.Label})
+		}
+		questions = append(questions, PendingQuestionItem{
+			ID: q.ID, Text: q.Text, Type: q.Type, Options: options,
+		})
+	}
+
+	return &PendingQuestion{
+		CheckpointID: qd.CheckpointID,
+		AgentName:    qd.AgentName,
+		TurnID:       turnID,
+		Questions:    questions,
+	}
 }

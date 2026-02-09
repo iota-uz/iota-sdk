@@ -82,7 +82,7 @@ export default function QuestionStep({
               key={option.id}
               onClick={() => handleOptionClick(option.label)}
               className={`
-                relative p-4 text-left border-2 rounded-lg transition-all
+                cursor-pointer relative p-4 text-left border-2 rounded-lg transition-all
                 ${
                   isSelected
                     ? 'border-primary-500 bg-white dark:bg-gray-800'

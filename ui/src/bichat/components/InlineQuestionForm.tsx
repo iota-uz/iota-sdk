@@ -25,7 +25,7 @@ interface InlineQuestionFormProps {
 }
 
 export function InlineQuestionForm({ pendingQuestion }: InlineQuestionFormProps) {
-  const { handleSubmitQuestionAnswers, handleCancelPendingQuestion, loading } = useChat()
+  const { handleSubmitQuestionAnswers, handleRejectPendingQuestion, loading } = useChat()
   const [currentStep, setCurrentStep] = useState(0)
   const [answers, setAnswers] = useState<QuestionAnswers>({})
   const [otherTexts, setOtherTexts] = useState<Record<string, string>>({})
@@ -178,7 +178,7 @@ export function InlineQuestionForm({ pendingQuestion }: InlineQuestionFormProps)
           </div>
           <button
             type="button"
-            onClick={handleCancelPendingQuestion}
+            onClick={handleRejectPendingQuestion}
             disabled={loading}
             className="cursor-pointer p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-40"
             aria-label="Dismiss"

@@ -29,7 +29,7 @@ function UserFilter({ users, selectedUser, onUserChange, loading }: UserFilterPr
             <MenuButton
               disabled={loading}
               className={`
-                w-full px-3 py-2 bg-white dark:bg-gray-800
+                cursor-pointer w-full px-3 py-2 bg-white dark:bg-gray-800
                 border border-gray-300 dark:border-gray-600
                 rounded-lg text-sm text-left
                 hover:bg-gray-50 dark:hover:bg-gray-700
@@ -66,7 +66,7 @@ function UserFilter({ users, selectedUser, onUserChange, loading }: UserFilterPr
                       e.stopPropagation()
                       onUserChange(null)
                     }}
-                    className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-smooth"
+                    className="cursor-pointer p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-smooth"
                     aria-label={t('common.clear')}
                   >
                     <X size={14} className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
@@ -100,7 +100,7 @@ function UserFilter({ users, selectedUser, onUserChange, loading }: UserFilterPr
                   <button
                     onClick={() => onUserChange(null)}
                     className={`
-                      w-full text-left px-3 py-2 rounded-lg text-sm
+                      cursor-pointer w-full text-left px-3 py-2 rounded-lg text-sm
                       transition-smooth
                       ${
                         focus
@@ -131,7 +131,7 @@ function UserFilter({ users, selectedUser, onUserChange, loading }: UserFilterPr
                     <button
                       onClick={() => onUserChange(user)}
                       className={`
-                        w-full text-left px-3 py-2 rounded-lg text-sm
+                        cursor-pointer w-full text-left px-3 py-2 rounded-lg text-sm
                         transition-smooth
                         flex items-center gap-2
                         ${

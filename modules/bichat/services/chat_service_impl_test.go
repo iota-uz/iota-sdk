@@ -51,7 +51,6 @@ func TestChatService_ClearSessionHistory(t *testing.T) {
 		domain.WithUserID(1),
 		domain.WithTitle("keep me"),
 		domain.WithPinned(true),
-		domain.WithPendingQuestionAgent("sql_agent"),
 		domain.WithLLMPreviousResponseID("resp_prev_clear"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
@@ -82,7 +81,6 @@ func TestChatService_ClearSessionHistory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, session.Title(), updatedSession.Title())
 	assert.Equal(t, session.Pinned(), updatedSession.Pinned())
-	assert.Nil(t, updatedSession.PendingQuestionAgent())
 	assert.Nil(t, updatedSession.LLMPreviousResponseID())
 
 	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
@@ -106,7 +104,6 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 		domain.WithTenantID(uuid.New()),
 		domain.WithUserID(1),
 		domain.WithTitle("to compact"),
-		domain.WithPendingQuestionAgent("sql_agent"),
 		domain.WithLLMPreviousResponseID("resp_prev_compact"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
@@ -136,7 +133,6 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 
 	updatedSession, err := chatRepo.GetSession(t.Context(), session.ID())
 	require.NoError(t, err)
-	assert.Nil(t, updatedSession.PendingQuestionAgent())
 	assert.Nil(t, updatedSession.LLMPreviousResponseID())
 }
 
@@ -178,7 +174,6 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 		domain.WithTenantID(uuid.New()),
 		domain.WithUserID(1),
 		domain.WithTitle("replace"),
-		domain.WithPendingQuestionAgent("sql_agent"),
 		domain.WithLLMPreviousResponseID("resp_prev_replace"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
@@ -213,7 +208,6 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 	updated, err := svc.maybeReplaceHistoryFromMessage(t.Context(), session, &replaceFromID)
 	require.NoError(t, err)
 	require.NotNil(t, updated)
-	assert.Nil(t, updated.PendingQuestionAgent())
 	assert.Nil(t, updated.LLMPreviousResponseID())
 
 	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
@@ -256,6 +250,27 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
+	// Save an assistant message with pending question data (simulates initial interrupt)
+	qd, err := types.NewQuestionData("cp-prev", "bi_agent", []types.QuestionDataItem{
+		{
+			ID:   "metric",
+			Text: "Choose metric",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "rev", Label: "Revenue"},
+				{ID: "exp", Label: "Expense"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole("assistant"),
+		types.WithContent("I need more information."),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
 	agentSvc := &stubAgentService{
 		resumeEvents: []bichatservices.Event{
 			{
@@ -290,20 +305,19 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Nil(t, resp.AssistantMessage)
+	require.NotNil(t, resp.AssistantMessage, "resume always saves an assistant continuation message")
 	require.NotNil(t, resp.Interrupt)
 	require.Equal(t, "cp-next", resp.Interrupt.CheckpointID)
 
 	updatedSession, err := chatRepo.GetSession(t.Context(), session.ID())
 	require.NoError(t, err)
-	require.NotNil(t, updatedSession.PendingQuestionAgent())
-	assert.Equal(t, "bi_agent", *updatedSession.PendingQuestionAgent())
 	require.NotNil(t, updatedSession.LLMPreviousResponseID())
 	assert.Equal(t, "resp-next", *updatedSession.LLMPreviousResponseID())
 
 	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 	require.NoError(t, err)
-	assert.Empty(t, messages)
+	// Original pending message + new continuation message
+	assert.Len(t, messages, 2)
 }
 
 type captureTitleContextService struct {

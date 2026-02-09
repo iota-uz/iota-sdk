@@ -168,7 +168,9 @@ func main() {
 				if lfPublicKey := os.Getenv("LANGFUSE_PUBLIC_KEY"); lfPublicKey != "" {
 					// Bridge LANGFUSE_BASE_URL → LANGFUSE_HOST for the langfuse-go SDK
 					if baseURL := os.Getenv("LANGFUSE_BASE_URL"); baseURL != "" && os.Getenv("LANGFUSE_HOST") == "" {
-						os.Setenv("LANGFUSE_HOST", baseURL)
+						if err := os.Setenv("LANGFUSE_HOST", baseURL); err != nil {
+							logger.Warnf("Failed to set LANGFUSE_HOST for Langfuse SDK: %v", err)
+						}
 					}
 
 					lfClient := langfusego.New(context.Background())

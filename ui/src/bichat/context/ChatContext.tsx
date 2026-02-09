@@ -62,6 +62,15 @@ const DEFAULT_RATE_LIMIT_CONFIG = {
   windowMs: 60000,
 }
 
+/** Tool names that produce persisted artifacts; must match server ArtifactHandler. */
+const ARTIFACT_TOOL_NAMES = new Set([
+  'code_interpreter',
+  'draw_chart',
+  'export_query_to_excel',
+  'export_data_to_excel',
+  'export_to_pdf',
+])
+
 function generateTempId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
@@ -198,6 +207,7 @@ export function ChatSessionProvider({
   const [codeOutputs, setCodeOutputs] = useState<CodeOutput[]>([])
   const [isCompacting, setIsCompacting] = useState(false)
   const [compactionSummary, setCompactionSummary] = useState<string | null>(null)
+  const [artifactsInvalidationTrigger, setArtifactsInvalidationTrigger] = useState(0)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // ── Input state ────────────────────────────────────────────────────────
@@ -266,7 +276,17 @@ export function ChatSessionProvider({
 
         if (state) {
           setSession(state.session)
-          setTurns(state.turns)
+          setTurns((prev) => {
+            const hasPendingUserOnly =
+              prev.length > 0 && !prev[prev.length - 1].assistantTurn
+            if (
+              hasPendingUserOnly &&
+              (!state.turns || state.turns.length === 0)
+            ) {
+              return prev
+            }
+            return state.turns ?? prev
+          })
           setPendingQuestion(state.pendingQuestion || null)
         } else {
           setError('Session not found')
@@ -511,13 +531,25 @@ export function ChatSessionProvider({
                 const state = await dataSource.fetchSession(finalSessionId)
                 if (state) {
                   setSession(state.session)
-                  setTurns(state.turns)
+                  setTurns((prev) => {
+                    const hasPendingUserOnly =
+                      prev.length > 0 && !prev[prev.length - 1].assistantTurn
+                    if (
+                      hasPendingUserOnly &&
+                      (!state.turns || state.turns.length === 0)
+                    ) {
+                      return prev
+                    }
+                    return state.turns ?? prev
+                  })
                   setPendingQuestion(state.pendingQuestion || null)
                 }
               }
             }
           } else if (chunk.type === 'user_message' && chunk.sessionId) {
             createdSessionId = chunk.sessionId
+          } else if (chunk.type === 'tool_end' && chunk.tool?.name && ARTIFACT_TOOL_NAMES.has(chunk.tool.name)) {
+            setArtifactsInvalidationTrigger((n) => n + 1)
           }
         }
 
@@ -699,22 +731,40 @@ export function ChatSessionProvider({
     [dataSource]
   )
 
-  const handleCancelPendingQuestion = useCallback(async () => {
+  const handleRejectPendingQuestion = useCallback(async () => {
     const curSessionId = sessionRef.current.currentSessionId
     const curPendingQuestion = messagingRef.current.pendingQuestion
     if (!curSessionId || !curPendingQuestion) return
 
     try {
-      const result = await dataSource.cancelPendingQuestion(curSessionId)
-
+      const result = await dataSource.rejectPendingQuestion(curSessionId)
       if (result.success) {
         setPendingQuestion(null)
+        // Re-fetch to get updated turns (agent may have resumed)
+        if (curSessionId !== 'new') {
+          const state = await dataSource.fetchSession(curSessionId)
+          if (state) {
+            setSession(state.session)
+            setTurns((prev) => {
+              const hasPendingUserOnly =
+                prev.length > 0 && !prev[prev.length - 1].assistantTurn
+              if (
+                hasPendingUserOnly &&
+                (!state.turns || state.turns.length === 0)
+              ) {
+                return prev
+              }
+              return state.turns ?? prev
+            })
+            setPendingQuestion(state.pendingQuestion || null)
+          }
+        }
       } else {
-        setError(result.error || 'Failed to cancel question')
+        setError(result.error || 'Failed to reject question')
       }
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : 'Failed to cancel question'
+        err instanceof Error ? err.message : 'Failed to reject question'
       setError(errorMessage)
     }
   }, [dataSource])
@@ -741,19 +791,20 @@ export function ChatSessionProvider({
     codeOutputs,
     isCompacting,
     compactionSummary,
+    artifactsInvalidationTrigger,
     sendMessage: sendMessageDirect,
     handleRegenerate,
     handleEdit,
     handleCopy,
     handleSubmitQuestionAnswers,
-    handleCancelPendingQuestion,
+    handleRejectPendingQuestion,
     cancel: cancelStream,
     setCodeOutputs,
   }), [
     turns, streamingContent, isStreaming, loading, pendingQuestion,
-    codeOutputs, isCompacting, compactionSummary,
+    codeOutputs, isCompacting, compactionSummary, artifactsInvalidationTrigger,
     sendMessageDirect, handleRegenerate, handleEdit, handleCopy,
-    handleSubmitQuestionAnswers, handleCancelPendingQuestion, cancelStream,
+    handleSubmitQuestionAnswers, handleRejectPendingQuestion, cancelStream,
   ])
 
   const inputValue: ChatInputStateValue = useMemo(() => ({
@@ -795,6 +846,11 @@ export function useChatMessaging(): ChatMessagingStateValue {
     throw new Error('useChatMessaging must be used within ChatSessionProvider')
   }
   return context
+}
+
+/** Returns messaging context or null when outside ChatSessionProvider. Use when component can receive values via props (e.g. SessionArtifactsPanel with artifactsInvalidationTrigger prop). */
+export function useOptionalChatMessaging(): ChatMessagingStateValue | null {
+  return useContext(MessagingCtx)
 }
 
 export function useChatInput(): ChatInputStateValue {

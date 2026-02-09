@@ -135,6 +135,8 @@ export interface AssistantMessageProps {
   turn: AssistantTurn
   /** Turn ID for regenerate operations */
   turnId?: string
+  /** When true, this is the last turn (Regenerate button shown only on last assistant message) */
+  isLastTurn?: boolean
   /** Whether response is being streamed */
   isStreaming?: boolean
   /** Pending question for HITL */
@@ -171,7 +173,7 @@ const defaultClassNames: Required<AssistantMessageClassNames> = {
   root: 'flex gap-3 group',
   wrapper: 'flex-1 flex flex-col gap-3 max-w-[85%]',
   avatar: 'flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-xs',
-  bubble: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-4 py-3',
+  bubble: 'bg-white dark:bg-gray-800 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm',
   codeOutputs: '',
   charts: 'mb-1 w-full',
   artifacts: 'mb-1 flex flex-wrap gap-2',
@@ -210,6 +212,7 @@ function mergeClassNames(
 export function AssistantMessage({
   turn,
   turnId,
+  isLastTurn = false,
   isStreaming = false,
   pendingQuestion,
   slots,
@@ -233,7 +236,7 @@ export function AssistantMessage({
     ? 'flex-shrink-0 w-8 h-8 rounded-full bg-gray-500 dark:bg-gray-600 flex items-center justify-center text-white font-medium text-xs'
     : classes.avatar
   const bubbleClassName = isSystemMessage
-    ? 'bg-gray-50 dark:bg-gray-900/40 border border-gray-300 dark:border-gray-700 rounded-2xl px-4 py-3'
+    ? 'bg-gray-50 dark:bg-gray-900/40 rounded-2xl px-4 py-3 shadow-sm'
     : classes.bubble
 
   useEffect(() => {
@@ -303,10 +306,10 @@ export function AssistantMessage({
   }
   const actionsSlotProps: AssistantMessageActionsSlotProps = {
     onCopy: handleCopyClick,
-    onRegenerate: onRegenerate && turnId && !isSystemMessage ? handleRegenerateClick : undefined,
+    onRegenerate: onRegenerate && turnId && !isSystemMessage && isLastTurn ? handleRegenerateClick : undefined,
     timestamp,
     canCopy: hasContent,
-    canRegenerate: !!onRegenerate && !!turnId && !isSystemMessage,
+    canRegenerate: !!onRegenerate && !!turnId && !isSystemMessage && isLastTurn,
   }
   const explanationSlotProps: AssistantMessageExplanationSlotProps = {
     explanation: turn.explanation || '',
@@ -400,7 +403,7 @@ export function AssistantMessage({
                     <button
                       type="button"
                       onClick={() => setExplanationExpanded(!explanationExpanded)}
-                      className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded-md p-1 -m-1"
+                      className="cursor-pointer flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded-md p-1 -m-1"
                       aria-expanded={explanationExpanded}
                     >
                       <svg
@@ -469,13 +472,8 @@ export function AssistantMessage({
                 >
                   {isCopied ? <Check size={14} weight="bold" /> : <Copy size={14} weight="regular" />}
                 </button>
-                {isCopied && (
-                  <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                    {t('message.copied')}
-                  </span>
-                )}
 
-                {onRegenerate && turnId && !isSystemMessage && (
+                {onRegenerate && turnId && !isSystemMessage && isLastTurn && (
                   <button
                     onClick={handleRegenerateClick}
                     className={`cursor-pointer ${classes.actionButton}`}

@@ -115,7 +115,7 @@ func TestDefaultTenantViews_NoPermissions(t *testing.T) {
 
 	// All default views should be public (no permissions)
 	for _, view := range views {
-		if view.Required != nil && len(view.Required) > 0 {
+		if len(view.Required) > 0 {
 			t.Errorf("view %q should be public (no permissions), but has %d permissions", view.Name, len(view.Required))
 		}
 	}

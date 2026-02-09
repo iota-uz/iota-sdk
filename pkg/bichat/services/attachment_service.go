@@ -37,6 +37,10 @@ type AttachmentService interface {
 	// ValidateMultiple validates a batch of file uploads without saving.
 	// Used for pre-flight validation before processing uploads.
 	ValidateMultiple(files []FileUpload) error
+
+	// DeleteFiles removes the given storage paths (best effort). Used to clean up
+	// already-written files when a subsequent step (e.g. DB save) fails.
+	DeleteFiles(ctx context.Context, paths []string)
 }
 
 // FileUpload represents a file being uploaded (for validation).

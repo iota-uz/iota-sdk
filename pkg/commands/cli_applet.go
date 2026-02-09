@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -49,7 +50,9 @@ func NewAppletCommand() *cobra.Command {
 		RunE:  runAppletRPCGen(&name, &routerFunc),
 	}
 	genCmd.Flags().StringVar(&name, "name", "", "Applet name (e.g. bichat)")
-	genCmd.MarkFlagRequired("name")
+	if err := genCmd.MarkFlagRequired("name"); err != nil {
+		panic("applet gen: mark flag required: " + err.Error())
+	}
 	genCmd.Flags().StringVar(&routerFunc, "router-func", defaultRouterFunc, "Router factory function name in applet rpc package")
 	rpcCmd.AddCommand(genCmd)
 
@@ -59,7 +62,9 @@ func NewAppletCommand() *cobra.Command {
 		RunE:  runAppletRPCCheck(&name, &routerFunc),
 	}
 	checkCmd.Flags().StringVar(&name, "name", "", "Applet name (e.g. bichat)")
-	checkCmd.MarkFlagRequired("name")
+	if err := checkCmd.MarkFlagRequired("name"); err != nil {
+		panic("applet check: mark flag required: " + err.Error())
+	}
 	checkCmd.Flags().StringVar(&routerFunc, "router-func", defaultRouterFunc, "Router factory function name in applet rpc package")
 	rpcCmd.AddCommand(checkCmd)
 
@@ -141,7 +146,11 @@ func runAppletRPCCheck(name, routerFunc *string) func(*cobra.Command, []string) 
 		if err := tmpFile.Close(); err != nil {
 			return err
 		}
-		defer os.Remove(tmpPath)
+		defer func() {
+			if err := os.Remove(tmpPath); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "warning: failed to remove temp file %s: %v\n", tmpPath, err)
+			}
+		}()
 		if err := rpccodegen.RunTypegen(root, cfg, tmpPath); err != nil {
 			return err
 		}
@@ -190,8 +199,11 @@ func runAppletDepsCheck(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	if len(violations) > 0 {
+		stderr := cmd.ErrOrStderr()
 		for _, v := range violations {
-			cmd.ErrOrStderr().Write([]byte(v + "\n"))
+			if _, err := stderr.Write([]byte(v + "\n")); err != nil {
+				return fmt.Errorf("write violation to stderr: %w", err)
+			}
 		}
 		return errors.New("applet SDK dependency policy check failed")
 	}

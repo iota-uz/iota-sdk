@@ -90,7 +90,7 @@ func PermissionSchema() *rbac.PermissionSchema {
 
 // buildModulePermissionSets creates permission sets for all modules using the builder pattern
 func buildModulePermissionSets() []rbac.PermissionSet {
-	var sets []rbac.PermissionSet
+	sets := make([]rbac.PermissionSet, 0, 37)
 
 	// Core module
 	core := newPermissionSetBuilder("Core")
@@ -188,7 +188,7 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 // appendRemainingPermissionSets adds remaining modules as individual permission sets
 func appendRemainingPermissionSets(sets []rbac.PermissionSet) []rbac.PermissionSet {
 	// Collect all remaining permissions
-	remainingPermissions := make([]permission.Permission, 0)
+	remainingPermissions := make([]permission.Permission, 0, len(billingPerms.Permissions)+len(loggingPerms.Permissions))
 	remainingPermissions = append(remainingPermissions, billingPerms.Permissions...)
 	remainingPermissions = append(remainingPermissions, loggingPerms.Permissions...)
 

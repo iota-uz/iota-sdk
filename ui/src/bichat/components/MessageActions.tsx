@@ -58,7 +58,7 @@ function MessageActions({
         onClick={handleCopy}
         disabled={copying}
         title={copying ? 'Copying...' : 'Copy message (Cmd/Ctrl+C on selection)'}
-        className="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 rounded-md transition-colors disabled:opacity-50 p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
+        className="cursor-pointer text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 rounded-md transition-colors disabled:opacity-50 p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
         aria-label={copying ? 'Copying message' : 'Copy message'}
       >
         {copying ? (
@@ -74,7 +74,7 @@ function MessageActions({
           onClick={handleRegenerate}
           disabled={regenerating}
           title={regenerating ? 'Regenerating...' : 'Regenerate response'}
-          className="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 rounded-md transition-colors disabled:opacity-50 p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
+          className="cursor-pointer text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 rounded-md transition-colors disabled:opacity-50 p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
           aria-label={regenerating ? 'Regenerating response' : 'Regenerate response'}
         >
           {regenerating ? (
@@ -90,7 +90,7 @@ function MessageActions({
         <button
           onClick={() => onEdit(message)}
           title="Edit message"
-          className="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 rounded-md transition-colors p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
+          className="cursor-pointer text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 rounded-md transition-colors p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
           aria-label="Edit message"
         >
           <PencilSimple size={16} className="w-4 h-4" />

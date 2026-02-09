@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -34,7 +34,7 @@ type SchemaListTool struct {
 // NewSchemaListTool creates a new schema list tool.
 // The lister parameter provides schema listing functionality.
 // Optional WithSchemaListViewAccess option enables permission-based access annotations.
-func NewSchemaListTool(lister bichatsql.SchemaLister, opts ...SchemaListToolOption) agents.Tool {
+func NewSchemaListTool(lister bichatsql.SchemaLister, opts ...SchemaListToolOption) *SchemaListTool {
 	tool := &SchemaListTool{
 		lister: lister,
 	}
@@ -72,83 +72,80 @@ func (t *SchemaListTool) Parameters() map[string]any {
 	}
 }
 
-// Call executes the schema list operation.
-func (t *SchemaListTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "SchemaListTool.Call"
+// CallStructured executes the schema list operation and returns a structured result.
+func (t *SchemaListTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
+	const op serrors.Op = "SchemaListTool.CallStructured"
 
 	tables, err := t.lister.SchemaList(ctx)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeQueryError,
-			fmt.Sprintf("failed to list schema: %v", err),
-			HintCheckConnection,
-		), serrors.E(op, err, "failed to list schema")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeQueryError),
+				Message: fmt.Sprintf("failed to list schema: %v", err),
+				Hints:   []string{HintCheckConnection},
+			},
+		}, serrors.E(op, err, "failed to list schema")
 	}
 
 	if len(tables) == 0 {
-		return FormatToolError(
-			ErrCodeNoData,
-			"no tables or views found in analytics schema",
-			"Analytics schema may not be initialized",
-			"Contact administrator to set up analytics views",
-		), serrors.E(op, "no tables found")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeNoData),
+				Message: "no tables or views found in analytics schema",
+				Hints:   []string{"Analytics schema may not be initialized", "Contact administrator to set up analytics views"},
+			},
+		}, nil // Data condition, not infrastructure failure
 	}
 
 	// Check permissions if view access control is configured
-	var viewInfos []permissions.ViewInfo
+	var viewInfos []types.ViewAccessInfo
+	hasAccess := t.viewAccess != nil
 	if t.viewAccess != nil {
 		viewNames := make([]string, len(tables))
 		for i, table := range tables {
 			viewNames[i] = table.Name
 		}
-		viewInfos, _ = t.viewAccess.GetAccessibleViews(ctx, viewNames)
+		rawInfos, err := t.viewAccess.GetAccessibleViews(ctx, viewNames)
+		if err != nil {
+			return &types.ToolResult{
+				CodecID: types.CodecToolError,
+				Payload: types.ToolErrorPayload{
+					Code:    string(ErrCodeQueryError),
+					Message: fmt.Sprintf("failed to check view access: %v", err),
+					Hints:   []string{"Contact administrator if this error persists"},
+				},
+			}, serrors.E(op, err)
+		}
+		for _, info := range rawInfos {
+			viewInfos = append(viewInfos, types.ViewAccessInfo{Access: info.Access})
+		}
 	}
 
-	// Build markdown table
-	var b strings.Builder
-	b.WriteString("## Available Tables\n\n")
-
-	// Header
-	if t.viewAccess != nil {
-		b.WriteString("| # | Table | ~Rows | Access | Description |\n")
-		b.WriteString("| --- | --- | --- | --- | --- |\n")
-	} else {
-		b.WriteString("| # | Table | ~Rows | Description |\n")
-		b.WriteString("| --- | --- | --- | --- |\n")
-	}
-
-	// Rows
+	// Build payload
+	schemaListTables := make([]types.SchemaListTable, len(tables))
 	for i, table := range tables {
-		b.WriteString(fmt.Sprintf("| %d | %s | ", i+1, table.Name))
-
-		// Row count
-		if table.RowCount > 0 {
-			b.WriteString(fmt.Sprintf("~%d | ", table.RowCount))
-		} else {
-			b.WriteString("- | ")
-		}
-
-		// Access (if configured)
-		if t.viewAccess != nil {
-			if i < len(viewInfos) {
-				b.WriteString(fmt.Sprintf("%s | ", viewInfos[i].Access))
-			} else {
-				b.WriteString("- | ")
-			}
-		}
-
-		// Description
-		if table.Description != "" {
-			b.WriteString(fmt.Sprintf("%s |\n", table.Description))
-		} else {
-			b.WriteString("- |\n")
+		schemaListTables[i] = types.SchemaListTable{
+			Name:        table.Name,
+			RowCount:    table.RowCount,
+			Description: table.Description,
 		}
 	}
 
-	// Footer
-	b.WriteString(fmt.Sprintf("\n%d table(s) found.", len(tables)))
+	return &types.ToolResult{
+		CodecID: types.CodecSchemaList,
+		Payload: types.SchemaListPayload{
+			Tables:    schemaListTables,
+			ViewInfos: viewInfos,
+			HasAccess: hasAccess,
+		},
+	}, nil
+}
 
-	return b.String(), nil
+// Call executes the schema list operation.
+func (t *SchemaListTool) Call(ctx context.Context, input string) (string, error) {
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
 // SchemaDescribeToolOption configures a SchemaDescribeTool.
@@ -164,7 +161,7 @@ type SchemaDescribeTool struct {
 // NewSchemaDescribeTool creates a new schema describe tool.
 // The describer parameter provides schema description functionality.
 // Optional WithSchemaDescribeViewAccess option enables permission checking.
-func NewSchemaDescribeTool(describer bichatsql.SchemaDescriber, opts ...SchemaDescribeToolOption) agents.Tool {
+func NewSchemaDescribeTool(describer bichatsql.SchemaDescriber, opts ...SchemaDescribeToolOption) *SchemaDescribeTool {
 	tool := &SchemaDescribeTool{
 		describer: describer,
 	}
@@ -214,60 +211,65 @@ type schemaDescribeInput struct {
 	TableName string `json:"table_name"`
 }
 
-// Call executes the schema describe operation.
-func (t *SchemaDescribeTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "SchemaDescribeTool.Call"
+// CallStructured executes the schema describe operation and returns a structured result.
+func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
+	const op serrors.Op = "SchemaDescribeTool.CallStructured"
 
-	// Parse input
 	params, err := agents.ParseToolInput[schemaDescribeInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-		), serrors.E(op, err, "failed to parse input")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields},
+			},
+		}, nil // Input validation error, not infrastructure failure
 	}
 
 	if params.TableName == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"table_name parameter is required",
-			HintCheckRequiredFields,
-			"Use schema_list to see available tables",
-		), serrors.E(op, "table_name parameter is required")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "table_name parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Use schema_list to see available tables"},
+			},
+		}, nil // Input validation error, not infrastructure failure
 	}
 
-	// Validate table name to prevent SQL injection
 	if !isValidIdentifier(params.TableName) {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("invalid table name '%s': must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$", params.TableName),
-			HintCheckFieldFormat,
-			"Table names must start with letter or underscore",
-			"Use schema_list to see valid table names",
-		), serrors.E(op, "invalid table name: must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("invalid table name '%s': must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$", params.TableName),
+				Hints:   []string{HintCheckFieldFormat, "Table names must start with letter or underscore", "Use schema_list to see valid table names"},
+			},
+		}, nil // Input validation error, not infrastructure failure
 	}
 
 	// Check view permission if configured
 	if t.viewAccess != nil {
 		canAccess, err := t.viewAccess.CanAccess(ctx, params.TableName)
 		if err != nil {
-			return FormatToolError(
-				ErrCodeQueryError,
-				fmt.Sprintf("failed to check view access: %v", err),
-				"Contact administrator if this error persists",
-			), serrors.E(op, err)
+			return &types.ToolResult{
+				CodecID: types.CodecToolError,
+				Payload: types.ToolErrorPayload{
+					Code:    string(ErrCodeQueryError),
+					Message: fmt.Sprintf("failed to check view access: %v", err),
+					Hints:   []string{"Contact administrator if this error persists"},
+				},
+			}, serrors.E(op, err)
 		}
 
 		if !canAccess {
-			// Get user for personalized error message
 			user, userErr := composables.UseUser(ctx)
 			userName := "User"
 			if userErr == nil {
 				userName = fmt.Sprintf("%s %s", user.FirstName(), user.LastName())
 			}
 
-			// Get required permissions
 			requiredPerms := t.viewAccess.GetRequiredPermissions(params.TableName)
 			deniedViews := []permissions.DeniedView{{
 				Name:                params.TableName,
@@ -276,89 +278,63 @@ func (t *SchemaDescribeTool) Call(ctx context.Context, input string) (string, er
 
 			errMsg := permissions.FormatPermissionError(userName, deniedViews)
 
-			return FormatToolError(
-				ErrCodePermissionDenied,
-				errMsg,
-				HintRequestAccess,
-				HintCheckAccessibleViews,
-			), nil
+			return &types.ToolResult{
+				CodecID: types.CodecToolError,
+				Payload: types.ToolErrorPayload{
+					Code:    string(ErrCodePermissionDenied),
+					Message: errMsg,
+					Hints:   []string{HintRequestAccess, HintCheckAccessibleViews},
+				},
+			}, nil
 		}
 	}
 
 	schema, err := t.describer.SchemaDescribe(ctx, params.TableName)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeQueryError,
-			fmt.Sprintf("failed to describe schema: %v", err),
-			HintCheckConnection,
-		), serrors.E(op, err, "failed to describe schema")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeQueryError),
+				Message: fmt.Sprintf("failed to describe schema: %v", err),
+				Hints:   []string{HintCheckConnection},
+			},
+		}, serrors.E(op, err, "failed to describe schema")
 	}
 
 	if schema == nil || len(schema.Columns) == 0 {
-		return FormatToolError(
-			ErrCodeNoData,
-			fmt.Sprintf("table not found: %s", params.TableName),
-			HintUseSchemaList,
-			"Check spelling and case sensitivity",
-			"Table must exist in analytics schema",
-		), serrors.E(op, fmt.Sprintf("table not found: %s", params.TableName))
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeNoData),
+				Message: fmt.Sprintf("table not found: %s", params.TableName),
+				Hints:   []string{HintUseSchemaList, "Check spelling and case sensitivity", "Table must exist in analytics schema"},
+			},
+		}, nil // Data condition, not infrastructure failure
 	}
 
-	// Check if any column has a description
-	hasDescription := false
-	for _, col := range schema.Columns {
-		if col.Description != "" {
-			hasDescription = true
-			break
-		}
-	}
-
-	// Build markdown table
-	var b strings.Builder
-	b.WriteString(fmt.Sprintf("## Table: %s (%s)\n\n", schema.Name, schema.Schema))
-
-	// Header
-	if hasDescription {
-		b.WriteString("| # | Column | Type | Nullable | Default | Description |\n")
-		b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
-	} else {
-		b.WriteString("| # | Column | Type | Nullable | Default |\n")
-		b.WriteString("| --- | --- | --- | --- | --- |\n")
-	}
-
-	// Rows
+	// Build payload
+	columns := make([]types.SchemaDescribeColumn, len(schema.Columns))
 	for i, col := range schema.Columns {
-		b.WriteString(fmt.Sprintf("| %d | %s | %s | ", i+1, col.Name, col.Type))
-
-		// Nullable
-		if col.Nullable {
-			b.WriteString("YES | ")
-		} else {
-			b.WriteString("NO | ")
+		columns[i] = types.SchemaDescribeColumn{
+			Name:         col.Name,
+			Type:         col.Type,
+			Nullable:     col.Nullable,
+			DefaultValue: col.DefaultValue,
+			Description:  col.Description,
 		}
-
-		// Default
-		if col.DefaultValue != nil {
-			b.WriteString(fmt.Sprintf("%s ", *col.DefaultValue))
-		} else {
-			b.WriteString("- ")
-		}
-
-		// Description (if column exists)
-		if hasDescription {
-			b.WriteString("| ")
-			if col.Description != "" {
-				b.WriteString(col.Description)
-			} else {
-				b.WriteString("-")
-			}
-		}
-
-		b.WriteString("|\n")
 	}
 
-	// Footer
-	b.WriteString(fmt.Sprintf("\n%d column(s)", len(schema.Columns)))
+	return &types.ToolResult{
+		CodecID: types.CodecSchemaDescribe,
+		Payload: types.SchemaDescribePayload{
+			Name:    schema.Name,
+			Schema:  schema.Schema,
+			Columns: columns,
+		},
+	}, nil
+}
 
-	return b.String(), nil
+// Call executes the schema describe operation.
+func (t *SchemaDescribeTool) Call(ctx context.Context, input string) (string, error) {
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }

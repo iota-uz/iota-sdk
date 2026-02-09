@@ -50,7 +50,7 @@ export function StreamError({
         {onRetry && (
           <button
             onClick={onRetry}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-200 bg-red-100 dark:bg-red-800/50 hover:bg-red-200 dark:hover:bg-red-800 rounded-md transition-colors"
+            className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-200 bg-red-100 dark:bg-red-800/50 hover:bg-red-200 dark:hover:bg-red-800 rounded-md transition-colors"
             type="button"
           >
             <ArrowClockwise className="w-4 h-4" />
@@ -60,7 +60,7 @@ export function StreamError({
         {onRegenerate && (
           <button
             onClick={onRegenerate}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors"
+            className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors"
             type="button"
           >
             <ArrowsCounterClockwise className="w-4 h-4" />

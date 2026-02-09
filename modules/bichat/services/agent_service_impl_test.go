@@ -332,6 +332,10 @@ func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64,
 	return sessions, nil
 }
 
+func (m *mockChatRepository) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	return len(m.sessions), nil
+}
+
 func (m *mockChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
 	delete(m.sessions, id)
 	delete(m.messages, id)
@@ -445,6 +449,36 @@ func (m *mockChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUID) e
 
 func (m *mockChatRepository) UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error {
 	return nil
+}
+
+func (m *mockChatRepository) UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error {
+	msgs := m.messages
+	for sid, sessionMsgs := range msgs {
+		for i, msg := range sessionMsgs {
+			if msg.ID() == msgID {
+				updated := types.NewMessage(
+					types.WithMessageID(msg.ID()),
+					types.WithSessionID(msg.SessionID()),
+					types.WithRole(msg.Role()),
+					types.WithContent(msg.Content()),
+					types.WithQuestionData(qd),
+					types.WithCreatedAt(msg.CreatedAt()),
+				)
+				m.messages[sid][i] = updated
+				return nil
+			}
+		}
+	}
+	return errors.New("message not found")
+}
+
+func (m *mockChatRepository) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
+	for _, msg := range m.messages[sessionID] {
+		if msg.HasPendingQuestion() {
+			return msg, nil
+		}
+	}
+	return nil, errors.New("no pending question found")
 }
 
 func TestProcessMessage_Success(t *testing.T) {

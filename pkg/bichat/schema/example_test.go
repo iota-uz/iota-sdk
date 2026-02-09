@@ -3,6 +3,7 @@ package schema_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,11 +79,14 @@ func TestMemoryProvider(t *testing.T) {
 
 	// Test non-existent table
 	nonExistent, err := provider.GetTableMetadata(ctx, "nonexistent")
-	if err != nil {
-		t.Fatalf("GetTableMetadata failed: %v", err)
+	if err == nil {
+		t.Fatal("Expected error for non-existent table, got nil")
+	}
+	if !errors.Is(err, schema.ErrTableMetadataNotFound) {
+		t.Errorf("Expected ErrTableMetadataNotFound, got %v", err)
 	}
 	if nonExistent != nil {
-		t.Error("Expected nil for non-existent table, got metadata")
+		t.Error("Expected nil metadata for non-existent table, got metadata")
 	}
 }
 
@@ -106,8 +110,11 @@ func TestFileProvider(t *testing.T) {
 			},
 		},
 	}
-	ordersJSON, _ := json.MarshalIndent(ordersMetadata, "", "  ")
-	err := os.WriteFile(filepath.Join(tmpDir, "orders.json"), ordersJSON, 0644)
+	ordersJSON, err := json.MarshalIndent(ordersMetadata, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal orders metadata: %v", err)
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, "orders.json"), ordersJSON, 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
@@ -117,7 +124,10 @@ func TestFileProvider(t *testing.T) {
 		TableName:        "customers",
 		TableDescription: "Customer information",
 	}
-	customersJSON, _ := json.MarshalIndent(customersMetadata, "", "  ")
+	customersJSON, err := json.MarshalIndent(customersMetadata, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal customers metadata: %v", err)
+	}
 	err = os.WriteFile(filepath.Join(tmpDir, "customers.json"), customersJSON, 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)

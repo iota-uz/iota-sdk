@@ -1,36 +1,36 @@
 /**
  * SessionItem Component
  * Individual chat session item in the sidebar with actions menu
- * Supports swipe-left gesture to reveal delete action
+ * Supports swipe-left gesture to reveal archive action
  */
 
 import { useRef, useState, memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion'
-import { Trash } from '@phosphor-icons/react'
+import { Archive } from '@phosphor-icons/react'
 import { EditableText, type EditableTextRef } from '@iota-uz/sdk/bichat'
 import SessionMenu from './SessionMenu'
 import { sessionItemVariants } from '../../animations/variants'
 import type { ChatSession } from '../../utils/sessionGrouping'
 
-const DELETE_THRESHOLD = -80
+const ARCHIVE_THRESHOLD = -80
 
 interface SessionItemProps {
   session: ChatSession
   isActive: boolean
-  onDelete: (e?: React.MouseEvent) => void
   onTogglePin: (e: React.MouseEvent) => void
   onRename: (newTitle: string) => void
+  onArchive: (e?: React.MouseEvent) => void
   onNavigate?: () => void
 }
 
 const SessionItem = memo<SessionItemProps>(
-  ({ session, isActive, onDelete, onTogglePin, onRename, onNavigate }) => {
+  ({ session, isActive, onTogglePin, onRename, onArchive, onNavigate }) => {
     const editableTitleRef = useRef<EditableTextRef>(null)
     const [isDragging, setIsDragging] = useState(false)
     const dragX = useMotionValue(0)
-    const deleteOpacity = useTransform(dragX, [-80, -40, 0], [1, 0.5, 0])
-    const deleteScale = useTransform(dragX, [-80, -40, 0], [1, 0.8, 0.6])
+    const archiveOpacity = useTransform(dragX, [-80, -40, 0], [1, 0.5, 0])
+    const archiveScale = useTransform(dragX, [-80, -40, 0], [1, 0.8, 0.6])
 
     // Check if title is being generated (null or empty)
     const isTitleGenerating = !session.title
@@ -40,8 +40,8 @@ const SessionItem = memo<SessionItemProps>(
 
     const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
       setIsDragging(false)
-      if (info.offset.x < DELETE_THRESHOLD) {
-        onDelete()
+      if (info.offset.x < ARCHIVE_THRESHOLD) {
+        onArchive()
       }
     }
 
@@ -54,13 +54,13 @@ const SessionItem = memo<SessionItemProps>(
         exit="exit"
         className="relative overflow-hidden rounded-xl"
       >
-        {/* Delete zone revealed behind the item */}
+        {/* Archive zone revealed behind the item */}
         <motion.div
-          className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-red-500 rounded-r-xl"
-          style={{ opacity: deleteOpacity, scale: deleteScale }}
+          className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-gray-500 dark:bg-gray-600 rounded-r-xl"
+          style={{ opacity: archiveOpacity, scale: archiveScale }}
           aria-hidden="true"
         >
-          <Trash size={20} weight="bold" className="text-white" />
+          <Archive size={20} weight="bold" className="text-white" />
         </motion.div>
 
         {/* Draggable content layer */}
@@ -108,7 +108,7 @@ const SessionItem = memo<SessionItemProps>(
                 isPinned={session.pinned || false}
                 onPin={onTogglePin}
                 onRename={() => editableTitleRef.current?.startEditing()}
-                onDelete={onDelete}
+                onArchive={onArchive}
               />
             </div>
           </Link>

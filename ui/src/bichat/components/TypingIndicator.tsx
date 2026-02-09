@@ -63,8 +63,13 @@ function TypingIndicator({
     <div
       role="status"
       aria-live="polite"
-      className={`flex items-center gap-2 text-gray-500 dark:text-gray-400 ${className}`}
+      className={`flex items-center gap-2.5 text-gray-500 dark:text-gray-400 ${className}`}
     >
+      <div className="flex items-center gap-1" aria-hidden="true">
+        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce motion-reduce:animate-none [animation-delay:0ms]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce motion-reduce:animate-none [animation-delay:150ms]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce motion-reduce:animate-none [animation-delay:300ms]" />
+      </div>
       <div className="overflow-hidden h-6 relative">
         <AnimatePresence mode="wait">
           <motion.span
@@ -73,7 +78,7 @@ function TypingIndicator({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="text-base bichat-thinking-shimmer block"
+            className="text-sm bichat-thinking-shimmer block"
             aria-label={`AI is ${verb}`}
           >
             {verb}...

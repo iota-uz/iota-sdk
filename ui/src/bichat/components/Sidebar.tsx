@@ -298,7 +298,7 @@ export default function Sidebar({
           {onClose && (
             <motion.button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-smooth text-gray-600 dark:text-gray-400"
+              className="cursor-pointer p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-smooth text-gray-600 dark:text-gray-400"
               title={t('sidebar.closeSidebar')}
               aria-label={t('sidebar.closeSidebar')}
               whileHover="hover"
@@ -342,7 +342,7 @@ export default function Sidebar({
               <motion.button
                 onClick={onNewChat}
                 disabled={creating || loading}
-                className="w-full px-4 py-3 bg-primary-600 dark:bg-primary-700 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-800 transition-smooth font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                className="cursor-pointer w-full px-4 py-3 bg-primary-600 dark:bg-primary-700 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-800 transition-smooth font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 title={t('chat.newChat')}
                 aria-label={t('sidebar.createNewChat')}
                 whileHover={shouldReduceMotion ? {} : { scale: 1.02 }}
@@ -364,7 +364,7 @@ export default function Sidebar({
               <div className="px-4 pb-2">
                 <button
                   onClick={onArchivedView}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-smooth text-sm font-medium w-full"
+                  className="cursor-pointer flex items-center gap-2 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-smooth text-sm font-medium w-full"
                   title={t('sidebar.archivedChats')}
                 >
                   <Archive size={18} className="w-4.5 h-4.5" />
@@ -480,7 +480,7 @@ export default function Sidebar({
                         searchQuery ? (
                           <button
                             onClick={() => setSearchQuery('')}
-                            className="text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                            className="cursor-pointer text-sm text-primary-600 dark:text-primary-400 hover:underline"
                           >
                             {t('common.clear')}
                           </button>

@@ -12,7 +12,8 @@
  * - actionsSlot: Custom action buttons in the header
  */
 
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Sidebar } from '@phosphor-icons/react'
 import { ChatSessionProvider, useChat } from '../context/ChatContext'
 import { ChatDataSource, ConversationTurn } from '../types'
@@ -57,6 +58,10 @@ interface ChatSessionProps {
   artifactsPanelStorageKey?: string
 }
 
+const ARTIFACTS_PANEL_WIDTH_DEFAULT = 352
+const ARTIFACTS_PANEL_WIDTH_MIN = 280
+const ARTIFACTS_PANEL_WIDTH_MAX = 560
+
 function ChatSessionCore({
   dataSource,
   readOnly,
@@ -100,6 +105,9 @@ function ChatSessionCore({
   const [artifactsPanelExpanded, setArtifactsPanelExpanded] = useState(
     artifactsPanelDefaultExpanded
   )
+  const [artifactsPanelWidth, setArtifactsPanelWidth] = useState(ARTIFACTS_PANEL_WIDTH_DEFAULT)
+  const [isResizingArtifactsPanel, setIsResizingArtifactsPanel] = useState(false)
+  const layoutContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!showArtifactsPanel) {
@@ -116,6 +124,67 @@ function ChatSessionCore({
 
     setArtifactsPanelExpanded(nextValue)
   }, [artifactsPanelDefaultExpanded, artifactsPanelStorageKey, showArtifactsPanel])
+
+  useEffect(() => {
+    if (!showArtifactsPanel) return
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(`${artifactsPanelStorageKey}.width`)
+      if (raw !== null) {
+        const n = Number.parseInt(raw, 10)
+        if (Number.isFinite(n) && n >= ARTIFACTS_PANEL_WIDTH_MIN && n <= ARTIFACTS_PANEL_WIDTH_MAX) {
+          setArtifactsPanelWidth(n)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [artifactsPanelStorageKey, showArtifactsPanel])
+
+  const handleArtifactsResizeStart = useCallback(() => {
+    setIsResizingArtifactsPanel(true)
+  }, [])
+
+  const lastPanelWidthRef = useRef(artifactsPanelWidth)
+  lastPanelWidthRef.current = artifactsPanelWidth
+
+  useEffect(() => {
+    if (!isResizingArtifactsPanel) return
+
+    const move = (e: MouseEvent) => {
+      const el = layoutContainerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const w = rect.right - e.clientX
+      const clamped = Math.min(ARTIFACTS_PANEL_WIDTH_MAX, Math.max(ARTIFACTS_PANEL_WIDTH_MIN, w))
+      setArtifactsPanelWidth(clamped)
+    }
+
+    const up = () => {
+      setIsResizingArtifactsPanel(false)
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(
+            `${artifactsPanelStorageKey}.width`,
+            String(lastPanelWidthRef.current)
+          )
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    document.addEventListener('mousemove', move, { passive: true })
+    document.addEventListener('mouseup', up)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    return () => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizingArtifactsPanel, artifactsPanelStorageKey])
 
   if (fetching) {
     return (
@@ -159,6 +228,9 @@ function ChatSessionCore({
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(artifactsPanelStorageKey, nextValue ? 'true' : 'false')
+      if (nextValue) {
+        window.dispatchEvent(new CustomEvent('bichat:artifacts-panel-expanded', { detail: { expanded: true } }))
+      }
     }
   }
 
@@ -200,7 +272,10 @@ function ChatSessionCore({
         />
       )}
 
-      <div className="flex min-h-0 flex-1">
+      <div
+        ref={layoutContainerRef}
+        className="relative flex min-h-0 flex-1 overflow-hidden"
+      >
         <div className="flex min-h-0 flex-1 flex-col">
           {showWelcome ? (
             <div className="flex flex-1 flex-col overflow-auto">
@@ -261,19 +336,63 @@ function ChatSessionCore({
           )}
         </div>
 
-        {shouldRenderArtifactsPanel && activeSessionId && (
-          <>
-            <SessionArtifactsPanel
-              dataSource={dataSource}
-              sessionId={activeSessionId}
-              isStreaming={isStreaming}
-              className="hidden lg:flex lg:min-h-0"
-            />
+        {/* Desktop: persistent slot with animated width so main content expands in sync */}
+        <motion.div
+          className="hidden lg:flex lg:min-h-0 shrink-0 overflow-hidden"
+          animate={{
+            width: shouldRenderArtifactsPanel && activeSessionId ? artifactsPanelWidth : 0,
+          }}
+          transition={
+            isResizingArtifactsPanel
+              ? { duration: 0 }
+              : { type: 'spring', stiffness: 320, damping: 32 }
+          }
+        >
+          {shouldRenderArtifactsPanel && activeSessionId && (
+            <motion.div
+              className="flex min-h-0"
+              style={{ width: artifactsPanelWidth }}
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            >
+              <div
+                role="separator"
+                aria-label={t('artifacts.resize')}
+                onMouseDown={handleArtifactsResizeStart}
+                className="relative flex shrink-0 cursor-col-resize touch-none items-center justify-center w-2 transition-colors lg:flex group/resize after:absolute after:inset-y-0 after:left-0 after:w-0.5 after:bg-gray-300 dark:after:bg-gray-600 after:transition-colors group-hover/resize:after:bg-primary-400 dark:group-hover/resize:after:bg-primary-500"
+              >
+                <span className="absolute h-10 w-1.5 cursor-col-resize rounded-full bg-gray-400 transition-colors group-hover/resize:bg-primary-400 dark:bg-gray-500 dark:group-hover/resize:bg-primary-500" />
+              </div>
+              <SessionArtifactsPanel
+                dataSource={dataSource}
+                sessionId={activeSessionId}
+                isStreaming={isStreaming}
+                allowDrop={!effectiveReadOnly}
+                className="min-h-0 min-w-0 flex-1"
+              />
+            </motion.div>
+          )}
+        </motion.div>
 
-            <div className="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true">
-              <button
+        <AnimatePresence>
+          {shouldRenderArtifactsPanel && activeSessionId && (
+            <motion.div
+              key="artifacts-mobile"
+              className="fixed inset-0 z-40 flex lg:hidden"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              role="dialog"
+              aria-modal="true"
+            >
+              <motion.button
                 type="button"
-                className="flex-1 bg-black/40"
+                className="cursor-pointer flex-1 bg-black/40"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 onClick={handleToggleArtifactsPanel}
                 aria-label={t('common.close')}
               />
@@ -281,11 +400,12 @@ function ChatSessionCore({
                 dataSource={dataSource}
                 sessionId={activeSessionId}
                 isStreaming={isStreaming}
+                allowDrop={!effectiveReadOnly}
                 className="flex h-full w-full max-w-sm min-h-0"
               />
-            </div>
-          </>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </main>
   )

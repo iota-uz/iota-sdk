@@ -180,7 +180,11 @@ func (ed *EvaluatedDashboard) HasErrors() bool {
 
 // GetAllErrors returns all errors from the dashboard and panels
 func (ed *EvaluatedDashboard) GetAllErrors() []EvaluationError {
-	var allErrors []EvaluationError
+	n := len(ed.Errors)
+	for _, panel := range ed.Panels {
+		n += len(panel.Errors)
+	}
+	allErrors := make([]EvaluationError, 0, n)
 	allErrors = append(allErrors, ed.Errors...)
 
 	for _, panel := range ed.Panels {

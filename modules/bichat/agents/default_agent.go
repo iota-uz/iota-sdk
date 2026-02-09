@@ -316,7 +316,7 @@ Provide context, explanations, and actionable recommendations based on the data.
 ATTACHMENT ANALYSIS:
 - When user files are attached, inspect them with artifact_reader before answering.
 - Use artifact_reader action="list" to discover available artifacts in the current session.
-- Use artifact_reader action="read" with artifact_id to inspect file content.
+- Use artifact_reader action="read" with artifact_id (or artifact_name) to inspect file content.
 - For chart artifacts, use mode="spec" to read chart metadata/spec.`
 	}
 
@@ -461,4 +461,29 @@ SUGGESTED ANALYSIS:
 	default:
 		return ""
 	}
+}
+
+// DefaultBISystemPromptOpts configures which optional sections are included in the default BI system prompt.
+// Use this when building a custom parent agent that should share the SDK's base BI instructions.
+type DefaultBISystemPromptOpts struct {
+	CodeInterpreter       bool
+	AgentRegistry         *agents.AgentRegistry
+	LearningEnabled       bool
+	ValidatedQueryEnabled bool
+	InsightDepth          string // "", "brief", "standard", "detailed"
+	ArtifactReaderEnabled bool
+}
+
+// DefaultBISystemPrompt returns the default Business Intelligence system prompt used by the SDK's DefaultBIAgent.
+// Consumers (e.g. EAI) can use this for custom parent agents and append project-specific guidance via
+// the project prompt extension in AgentServiceConfig / ModuleConfig.
+func DefaultBISystemPrompt(opts DefaultBISystemPromptOpts) string {
+	return buildBISystemPrompt(
+		opts.CodeInterpreter,
+		opts.AgentRegistry,
+		opts.LearningEnabled,
+		opts.ValidatedQueryEnabled,
+		opts.InsightDepth,
+		opts.ArtifactReaderEnabled,
+	)
 }

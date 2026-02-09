@@ -25,7 +25,6 @@ func TestValidateAppletName(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			err := ValidateAppletName(tt.input)
@@ -53,7 +52,6 @@ func TestTypeNameFromAppletName(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, TypeNameFromAppletName(tt.input))

@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/analytics"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
@@ -680,6 +681,7 @@ func (c *ModuleConfig) BuildServices() error {
 			AgentRegistry:          c.AgentRegistry,
 			SchemaMetadata:         c.SchemaMetadataProvider,
 			ProjectPromptExtension: c.resolvedProjectPromptExtension,
+			FormatterRegistry:      formatters.DefaultFormatterRegistry(),
 		})
 	}
 
@@ -710,7 +712,7 @@ func (c *ModuleConfig) BuildServices() error {
 
 	// Build ArtifactService
 	if c.artifactService == nil {
-		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage)
+		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage, c.attachmentService)
 	}
 
 	return nil

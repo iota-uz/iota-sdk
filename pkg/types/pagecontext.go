@@ -4,6 +4,7 @@ import (
 	"net/url"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/pkg/i18nutil"
 	"golang.org/x/text/language"
 )
 
@@ -100,9 +101,9 @@ func (p *PageContext) T(k string, args ...map[string]interface{}) string {
 	}
 
 	if len(args) == 0 {
-		return p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: messageID})
+		return i18nutil.MustLocalize(p.Localizer, &i18n.LocalizeConfig{MessageID: messageID})
 	}
-	return p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: messageID, TemplateData: args[0]})
+	return i18nutil.MustLocalize(p.Localizer, &i18n.LocalizeConfig{MessageID: messageID, TemplateData: args[0]})
 }
 
 func (p *PageContext) TSafe(k string, args ...map[string]interface{}) string {

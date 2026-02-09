@@ -8,12 +8,15 @@
 import {
   ChatDataSource,
   Session,
-  Message,
+  ConversationTurn,
+  UserTurn,
+  AssistantTurn,
   PendingQuestion,
   Attachment,
   StreamChunk,
   QuestionAnswers,
   MessageRole,
+  SessionListResult,
 } from '@iota-uz/sdk/bichat'
 
 /**
@@ -22,7 +25,7 @@ import {
 export class MockDataSource implements ChatDataSource {
   private baseUrl: string
   private sessions: Map<string, Session> = new Map()
-  private messages: Map<string, Message[]> = new Map()
+  private turns: Map<string, ConversationTurn[]> = new Map()
 
   constructor(baseUrl: string = 'http://localhost:3000') {
     this.baseUrl = baseUrl
@@ -38,7 +41,7 @@ export class MockDataSource implements ChatDataSource {
       try {
         const data = JSON.parse(stored)
         this.sessions = new Map(data.sessions)
-        this.messages = new Map(data.messages)
+        this.turns = new Map(data.turns)
       } catch (err) {
         console.error('Failed to load sessions:', err)
       }
@@ -51,7 +54,7 @@ export class MockDataSource implements ChatDataSource {
   private saveToLocalStorage() {
     const data = {
       sessions: Array.from(this.sessions.entries()),
-      messages: Array.from(this.messages.entries()),
+      turns: Array.from(this.turns.entries()),
     }
     localStorage.setItem('bichat_sessions', JSON.stringify(data))
   }
@@ -60,7 +63,7 @@ export class MockDataSource implements ChatDataSource {
    * Generate unique ID
    */
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
   }
 
   /**
@@ -77,7 +80,7 @@ export class MockDataSource implements ChatDataSource {
     }
 
     this.sessions.set(session.id, session)
-    this.messages.set(session.id, [])
+    this.turns.set(session.id, [])
     this.saveToLocalStorage()
 
     return session
@@ -88,7 +91,7 @@ export class MockDataSource implements ChatDataSource {
    */
   async fetchSession(id: string): Promise<{
     session: Session
-    messages: Message[]
+    turns: ConversationTurn[]
     pendingQuestion?: PendingQuestion | null
   } | null> {
     const session = this.sessions.get(id)
@@ -96,11 +99,11 @@ export class MockDataSource implements ChatDataSource {
       return null
     }
 
-    const messages = this.messages.get(id) || []
+    const turns = this.turns.get(id) || []
 
     return {
       session,
-      messages,
+      turns,
       pendingQuestion: null,
     }
   }
@@ -114,18 +117,25 @@ export class MockDataSource implements ChatDataSource {
     attachments: Attachment[] = [],
     signal?: AbortSignal
   ): AsyncGenerator<StreamChunk> {
-    // Add user message
-    const userMessage: Message = {
+    // Create conversation turn
+    const turnId = this.generateId()
+    const userTurn: UserTurn = {
       id: this.generateId(),
-      sessionId,
-      role: MessageRole.User,
       content,
+      attachments,
       createdAt: new Date().toISOString(),
     }
 
-    const messages = this.messages.get(sessionId) || []
-    messages.push(userMessage)
-    this.messages.set(sessionId, messages)
+    const turn: ConversationTurn = {
+      id: turnId,
+      sessionId,
+      userTurn,
+      createdAt: new Date().toISOString(),
+    }
+
+    const turns = this.turns.get(sessionId) || []
+    turns.push(turn)
+    this.turns.set(sessionId, turns)
     this.saveToLocalStorage()
 
     // Yield user message event
@@ -202,17 +212,18 @@ export class MockDataSource implements ChatDataSource {
                 yield chunk
                 return
               } else if (chunk.type === 'done') {
-                // Save assistant message
-                const assistantMessage: Message = {
+                // Save assistant turn
+                const assistantTurn: AssistantTurn = {
                   id: this.generateId(),
-                  sessionId,
-                  role: MessageRole.Assistant,
                   content: assistantContent,
+                  citations: [],
+                  artifacts: [],
+                  codeOutputs: [],
                   createdAt: new Date().toISOString(),
                 }
 
-                messages.push(assistantMessage)
-                this.messages.set(sessionId, messages)
+                turn.assistantTurn = assistantTurn
+                this.turns.set(sessionId, turns)
                 this.saveToLocalStorage()
 
                 yield chunk
@@ -273,13 +284,11 @@ export class MockDataSource implements ChatDataSource {
   }
 
   /**
-   * Cancel a pending question
+   * Reject a pending question
    */
-  async cancelPendingQuestion(
-    questionId: string
-  ): Promise<{ success: boolean; error?: string }> {
+  async rejectPendingQuestion(sessionId: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/questions/${questionId}/cancel`, {
+      const response = await fetch(`${this.baseUrl}/api/sessions/${sessionId}/reject-question`, {
         method: 'POST',
       })
 
@@ -309,6 +318,176 @@ export class MockDataSource implements ChatDataSource {
     // Or vanilla JS
     window.history.pushState({}, '', `/chat/${sessionId}`)
   }
+
+  /**
+   * List all sessions with pagination
+   */
+  async listSessions(options?: {
+    limit?: number
+    offset?: number
+    includeArchived?: boolean
+  }): Promise<SessionListResult> {
+    const allSessions = Array.from(this.sessions.values())
+    const filtered = options?.includeArchived
+      ? allSessions
+      : allSessions.filter((s) => s.status === 'active')
+
+    const limit = options?.limit || 20
+    const offset = options?.offset || 0
+    const sessions = filtered.slice(offset, offset + limit)
+
+    return {
+      sessions,
+      total: filtered.length,
+      hasMore: offset + limit < filtered.length,
+    }
+  }
+
+  /**
+   * Archive a session
+   */
+  async archiveSession(sessionId: string): Promise<Session> {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error('Session not found')
+    }
+
+    const updated = { ...session, status: 'archived' as const, updatedAt: new Date().toISOString() }
+    this.sessions.set(sessionId, updated)
+    this.saveToLocalStorage()
+    return updated
+  }
+
+  /**
+   * Unarchive a session
+   */
+  async unarchiveSession(sessionId: string): Promise<Session> {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error('Session not found')
+    }
+
+    const updated = { ...session, status: 'active' as const, updatedAt: new Date().toISOString() }
+    this.sessions.set(sessionId, updated)
+    this.saveToLocalStorage()
+    return updated
+  }
+
+  /**
+   * Pin a session
+   */
+  async pinSession(sessionId: string): Promise<Session> {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error('Session not found')
+    }
+
+    const updated = { ...session, pinned: true, updatedAt: new Date().toISOString() }
+    this.sessions.set(sessionId, updated)
+    this.saveToLocalStorage()
+    return updated
+  }
+
+  /**
+   * Unpin a session
+   */
+  async unpinSession(sessionId: string): Promise<Session> {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error('Session not found')
+    }
+
+    const updated = { ...session, pinned: false, updatedAt: new Date().toISOString() }
+    this.sessions.set(sessionId, updated)
+    this.saveToLocalStorage()
+    return updated
+  }
+
+  /**
+   * Delete a session
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    this.sessions.delete(sessionId)
+    this.turns.delete(sessionId)
+    this.saveToLocalStorage()
+  }
+
+  /**
+   * Rename a session
+   */
+  async renameSession(sessionId: string, title: string): Promise<Session> {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error('Session not found')
+    }
+
+    const updated = { ...session, title, updatedAt: new Date().toISOString() }
+    this.sessions.set(sessionId, updated)
+    this.saveToLocalStorage()
+    return updated
+  }
+
+  /**
+   * Regenerate session title
+   */
+  async regenerateSessionTitle(sessionId: string): Promise<Session> {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error('Session not found')
+    }
+
+    // Mock title generation
+    const title = `Chat ${new Date().toLocaleString()}`
+    const updated = { ...session, title, updatedAt: new Date().toISOString() }
+    this.sessions.set(sessionId, updated)
+    this.saveToLocalStorage()
+    return updated
+  }
+
+  /**
+   * Clear session history
+   */
+  async clearSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    deletedMessages: number
+    deletedArtifacts: number
+  }> {
+    const turns = this.turns.get(sessionId) || []
+    const count = turns.length
+    this.turns.set(sessionId, [])
+    this.saveToLocalStorage()
+
+    return {
+      success: true,
+      deletedMessages: count,
+      deletedArtifacts: 0,
+    }
+  }
+
+  /**
+   * Compact session history
+   */
+  async compactSessionHistory(sessionId: string): Promise<{
+    success: boolean
+    summary: string
+    deletedMessages: number
+    deletedArtifacts: number
+  }> {
+    const turns = this.turns.get(sessionId) || []
+    const count = turns.length
+
+    // Mock compaction - keep only last 3 turns
+    const compacted = turns.slice(-3)
+    this.turns.set(sessionId, compacted)
+    this.saveToLocalStorage()
+
+    return {
+      success: true,
+      summary: `Compacted ${count - compacted.length} turns`,
+      deletedMessages: count - compacted.length,
+      deletedArtifacts: 0,
+    }
+  }
 }
 
 /**
@@ -336,7 +515,7 @@ export class SimpleMockDataSource implements ChatDataSource {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
-      messages: [],
+      turns: [],
       pendingQuestion: null,
     }
   }
@@ -368,7 +547,59 @@ export class SimpleMockDataSource implements ChatDataSource {
     return { success: true }
   }
 
-  async cancelPendingQuestion() {
+  async rejectPendingQuestion() {
     return { success: true }
+  }
+
+  async listSessions(): Promise<SessionListResult> {
+    return { sessions: [], total: 0, hasMore: false }
+  }
+
+  async archiveSession(sessionId: string): Promise<Session> {
+    return this.createSession()
+  }
+
+  async unarchiveSession(sessionId: string): Promise<Session> {
+    return this.createSession()
+  }
+
+  async pinSession(sessionId: string): Promise<Session> {
+    return this.createSession()
+  }
+
+  async unpinSession(sessionId: string): Promise<Session> {
+    return this.createSession()
+  }
+
+  async deleteSession(): Promise<void> {}
+
+  async renameSession(sessionId: string, title: string): Promise<Session> {
+    return this.createSession()
+  }
+
+  async regenerateSessionTitle(sessionId: string): Promise<Session> {
+    return this.createSession()
+  }
+
+  async clearSessionHistory(): Promise<{
+    success: boolean
+    deletedMessages: number
+    deletedArtifacts: number
+  }> {
+    return { success: true, deletedMessages: 0, deletedArtifacts: 0 }
+  }
+
+  async compactSessionHistory(): Promise<{
+    success: boolean
+    summary: string
+    deletedMessages: number
+    deletedArtifacts: number
+  }> {
+    return {
+      success: true,
+      summary: 'No turns to compact',
+      deletedMessages: 0,
+      deletedArtifacts: 0,
+    }
   }
 }

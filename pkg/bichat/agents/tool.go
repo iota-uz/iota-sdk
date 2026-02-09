@@ -3,7 +3,16 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"errors"
+
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
+
+// ErrStructuredToolOutput is returned by StructuredTool when the tool returns
+// a structured error payload (e.g. validation failure) that should be presented
+// to the LLM as the tool output without propagating a Go error. Callers should
+// format the result and return (formatted, nil) when errors.Is(err, ErrStructuredToolOutput).
+var ErrStructuredToolOutput = errors.New("structured tool error output")
 
 // BuiltinTool constants for special tools handled by the executor.
 // These tools have special semantics that affect the ReAct loop flow.
@@ -67,6 +76,24 @@ type Tool interface {
 // (while tools with different keys may execute in parallel).
 type ToolConcurrency interface {
 	ConcurrencyKey() string
+}
+
+// StructuredTool extends Tool with structured output support.
+// Tools that implement this interface return typed payloads instead of
+// pre-formatted strings. The executor uses a FormatterRegistry to
+// convert the payload to a string before sending it to the LLM.
+//
+// For backward compatibility, tools may implement both Tool and StructuredTool.
+// The executor will prefer CallStructured when available.
+type StructuredTool interface {
+	Tool
+
+	// CallStructured executes the tool and returns a structured result.
+	// The returned ToolResult contains a codec ID and typed payload.
+	// If the tool encounters a handled error (e.g., validation failure),
+	// it should return a ToolResult with a "tool-error" codec ID and
+	// ToolErrorPayload, not a Go error.
+	CallStructured(ctx context.Context, input string) (*types.ToolResult, error)
 }
 
 // ToolFunc is a convenience type for creating simple tools from functions.

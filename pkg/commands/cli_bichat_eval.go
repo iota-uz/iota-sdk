@@ -3,6 +3,7 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -42,7 +43,6 @@ func newBiChatEvalRunCmd() *cobra.Command {
 		sessionToken string
 		judgeModel   string
 		hitlModel    string
-		openAIAPIKey string
 		seed         bool
 		seedDSN      string
 		seedTenantID string
@@ -62,7 +62,6 @@ func newBiChatEvalRunCmd() *cobra.Command {
     --rpc-path /bi-chat/rpc \
     --stream-path /bi-chat/stream \
     --session-token '<granite_sid>' \
-    --openai-api-key "$OPENAI_API_KEY" \
     --seed-dsn 'postgres://postgres:postgres@localhost:5432/iota?sslmode=disable' \
     --seed-tenant-id '00000000-0000-0000-0000-000000000001' \
     --report ./coverage/bichat_eval_report.json`,
@@ -79,8 +78,9 @@ func newBiChatEvalRunCmd() *cobra.Command {
 			if strings.TrimSpace(seedTenantID) == "" {
 				return exitcode.InvalidUsage(fmt.Errorf("--seed-tenant-id is required"))
 			}
-			if strings.TrimSpace(openAIAPIKey) == "" {
-				return exitcode.InvalidUsage(fmt.Errorf("--openai-api-key (or OPENAI_API_KEY) is required"))
+			openAIAPIKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+			if openAIAPIKey == "" {
+				return exitcode.InvalidUsage(fmt.Errorf("OPENAI_API_KEY environment variable is required"))
 			}
 			if minPass < 0 || minPass > 1 {
 				return exitcode.InvalidUsage(fmt.Errorf("--min-pass-rate must be between 0.0 and 1.0"))
@@ -104,7 +104,7 @@ func newBiChatEvalRunCmd() *cobra.Command {
 				SessionToken: strings.TrimSpace(sessionToken),
 				JudgeModel:   strings.TrimSpace(judgeModel),
 				HITLModel:    strings.TrimSpace(hitlModel),
-				OpenAIAPIKey: strings.TrimSpace(openAIAPIKey),
+				OpenAIAPIKey: openAIAPIKey,
 				Seed:         seed,
 				SeedDSN:      strings.TrimSpace(seedDSN),
 				SeedTenantID: strings.TrimSpace(seedTenantID),
@@ -135,8 +135,7 @@ func newBiChatEvalRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&cookieName, "cookie-name", "granite_sid", "Session cookie name")
 	cmd.Flags().StringVar(&sessionToken, "session-token", "", "Authenticated session token (cookie value)")
 	cmd.Flags().StringVar(&judgeModel, "judge-model", "gpt-5-mini", "OpenAI judge model")
-	cmd.Flags().StringVar(&hitlModel, "hitl-model", "gpt-4o-mini", "OpenAI model used to answer HITL clarification questions")
-	cmd.Flags().StringVar(&openAIAPIKey, "openai-api-key", "", "OpenAI API key (required; falls back to OPENAI_API_KEY)")
+	cmd.Flags().StringVar(&hitlModel, "hitl-model", "gpt-5-nano", "OpenAI model used to answer HITL clarification questions")
 	cmd.Flags().BoolVar(&seed, "seed", true, "Seed deterministic analytics data before running evals")
 	cmd.Flags().StringVar(&seedDSN, "seed-dsn", "", "PostgreSQL DSN for seeding and oracle computation")
 	cmd.Flags().StringVar(&seedTenantID, "seed-tenant-id", "", "Tenant UUID for seeded analytics data")
@@ -186,9 +185,14 @@ func newBiChatEvalListCmd() *cobra.Command {
 				}
 				sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
 
-				fmt.Fprintf(cmd.OutOrStdout(), "id\tdataset\tcategory\ttags\tfirst_prompt\n")
+				out := cmd.OutOrStdout()
+				if _, err := fmt.Fprintf(out, "id\tdataset\tcategory\ttags\tfirst_prompt\n"); err != nil {
+					return err
+				}
 				for _, ci := range infos {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\n", ci.ID, ci.DatasetID, ci.Category, strings.Join(ci.Tags, ","), ci.FirstPrompt)
+					if _, err := fmt.Fprintf(out, "%s\t%s\t%s\t%s\t%s\n", ci.ID, ci.DatasetID, ci.Category, strings.Join(ci.Tags, ","), ci.FirstPrompt); err != nil {
+						return err
+					}
 				}
 				return nil
 
@@ -203,7 +207,9 @@ func newBiChatEvalListCmd() *cobra.Command {
 				if err != nil {
 					return exitcode.New(exitcode.InvalidUsageCode, err)
 				}
-				fmt.Fprintln(cmd.OutOrStdout(), string(data))
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
+					return err
+				}
 				return nil
 
 			default:

@@ -145,6 +145,11 @@ func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {
 	assert.False(t, features["codeInterpreter"])
 	assert.False(t, features["multiAgent"])
 
+	llm, ok := custom["llm"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Empty(t, llm["provider"])
+	assert.Equal(t, false, llm["apiKeyConfigured"])
+
 	debug, ok := custom["debug"].(map[string]interface{})
 	require.True(t, ok)
 	limits, ok := debug["limits"].(map[string]int)
@@ -186,6 +191,11 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 	assert.False(t, features["webSearch"])
 	assert.True(t, features["codeInterpreter"])
 	assert.False(t, features["multiAgent"])
+
+	llm, ok := custom["llm"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Empty(t, llm["provider"])
+	assert.Equal(t, true, llm["apiKeyConfigured"])
 
 	debug, ok := custom["debug"].(map[string]interface{})
 	require.True(t, ok)

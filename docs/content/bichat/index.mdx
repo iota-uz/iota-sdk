@@ -35,6 +35,11 @@ The system uses an orchestration pattern:
 
 When an agent needs more information (e.g., "Which warehouse should I check?"), it uses the `ask_user_question` tool. This triggers an interrupt, saves the agent's state as a **Checkpoint**, and waits for a user answer before resuming.
 
+**API flow:**
+- After streaming, if the agent asked questions, the last SSE event is `interrupt` with `checkpointId` and `questions[]`. The UI can also refetch the session: `bichat.session.get` returns `pendingQuestion` (same checkpoint and questions) when there is an active HITL.
+- To **submit answers**: call `bichat.question.submit` with `sessionId`, `checkpointId`, and `answers` (map of question id → selected option id or text). The backend resumes the agent and returns updated session and turns.
+- To **dismiss questions** without answering: call `bichat.question.reject` with `sessionId`. The agent resumes with a "user dismissed" signal.
+
 ## Architecture
 
 ```mermaid
@@ -73,24 +78,59 @@ graph TB
 
 ### RPC Procedures
 
-**Session:**
-- `bichat.session.list`: List user's chat sessions
-- `bichat.session.get`: Get session state (session + turns)
-- `bichat.session.create`: Create a new session
-- `bichat.session.updateTitle`: Rename a session
-- `bichat.session.pin` / `bichat.session.unpin`: Toggle pinned
-- `bichat.session.delete`: Delete a session
+All procedures require `BiChat.Access` unless noted. Session procedures enforce ownership (or `BiChat.ReadAll` for stream/get when opening another user's session by ID).
 
-**Artifacts:**
-- `bichat.session.artifacts`: List artifacts for a session
+| Procedure | Purpose |
+|-----------|---------|
+| `bichat.ping` | Health check; returns `ok` and `tenantId`. |
+| `bichat.session.list` | List current user's sessions. Params: `limit`, `offset`, `includeArchived`. Sessions have `status`: `active` or `archived`. |
+| `bichat.session.get` | Get session by ID plus turns and optional `pendingQuestion` (HITL). |
+| `bichat.session.create` | Create session. Params: `title`. |
+| `bichat.session.updateTitle` | Rename session. Params: `id`, `title`. |
+| `bichat.session.clear` | Delete all messages and artifacts in the session (keeps session). |
+| `bichat.session.compact` | Summarize old history to fit context window; returns `summary`, `deletedMessages`, `deletedArtifacts`. |
+| `bichat.session.delete` | Permanently delete session. |
+| `bichat.session.pin` / `bichat.session.unpin` | Toggle pinned. |
+| `bichat.session.archive` / `bichat.session.unarchive` | Set session status to archived or active. |
+| `bichat.session.regenerateTitle` | Regenerate session title from first message (AI). |
+| `bichat.session.artifacts` | List artifacts for a session. Params: `sessionId`, `limit`, `offset`. Returns `artifacts[]` (each with `id`, `type`, `name`, `url` for download, `mimeType`, `sizeBytes`, etc.), `hasMore`, `nextOffset`. Artifacts are stored under the attachment storage base URL. |
+| `bichat.question.submit` | Submit HITL answers and resume. Params: `sessionId`, `checkpointId`, `answers` (question id → answer). Returns updated session + turns. |
+| `bichat.question.reject` | Dismiss pending HITL and resume. Params: `sessionId`. Returns updated session + turns. |
+
+### Stream API (POST /bi-chat/stream)
+
+**Request body (JSON):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sessionId` | UUID | Session to send the message in. |
+| `content` | string | User message text. |
+| `attachments` | array | Optional. Image uploads (see [Vision support setup](/bichat/vision-setup)); each with `id`, `fileName`, `mimeType`, `sizeBytes`, `data` (base64). |
+| `debugMode` | boolean | If true, requires `BiChat.Export`; stream includes token usage and cost in `usage` events. |
+| `replaceFromMessageId` | UUID (optional) | Truncate history from this user message and send new content (edit/regenerate flow). |
+
+**Response:** Server-Sent Events stream. Each event is a JSON object with at least `type`. Common types:
+
+| Type | When | Payload |
+|------|------|---------|
+| `chunk` / `content` | Assistant text delta (same event; `chunk` is a legacy alias for `content`) | `content` |
+| `citation` | Web search citation | `citation` (title, url, excerpt, startIndex, endIndex) |
+| `tool_start` | Tool execution started | `tool` (callId, name, arguments) |
+| `tool_end` | Tool finished | `tool` (callId, result or error, durationMs) |
+| `interrupt` | HITL: agent asking questions | `questions[]`, `checkpointId` |
+| `usage` | Token/cost (when debugMode) | `usage` (promptTokens, completionTokens, cost) |
+| `done` | Stream finished successfully | — |
+| `error` | Stream error | — |
+
+Assistant turns (in `bichat.session.get` and in stream tool results) can include `codeOutputs` when the code interpreter tool runs (e.g. chart image, CSV snippet). Each item has `type`, `content`, and optional `filename`, `mimeType`, `sizeBytes`.
 
 ## Permissions
 
 | Permission | Resource | Description |
 |------------|----------|-------------|
-| `BiChat.Access` | `bichat` | Access the BI Chat interface and their own sessions |
-| `BiChat.ReadAll` | `bichat` | View chat sessions from all users in the tenant |
-| `BiChat.Export` | `bichat` | Use data export tools within the chat |
+| `BiChat.Access` | `bichat` | Access the BI Chat interface and their own sessions. Required for RPC and stream. |
+| `BiChat.ReadAll` | `bichat` | In addition to own sessions: open and stream to **other users' sessions** when you have the session ID (e.g. from a shared link or admin list). Session list still returns only the current user's sessions. |
+| `BiChat.Export` | `bichat` | Use data export tools in the chat; also required for stream requests with `debugMode: true`. |
 
 ## Data Sources
 
@@ -104,7 +144,7 @@ WHERE tenant_id = current_setting('app.tenant_id', true)::UUID;
 
 ## Configuration
 
-The module is configured via `ModuleConfig` in Go:
+The module is configured via `ModuleConfig` in Go. **Required:** you must configure attachment storage (or explicitly disable it for tests). Module registration can **fail** at startup if configuration is invalid; always check the error from `app.RegisterModule(module)`.
 
 ```go
 cfg := bichat.NewModuleConfig(
@@ -119,7 +159,14 @@ cfg := bichat.NewModuleConfig(
     bichat.WithVision(true),
     bichat.WithMultiAgent(true),
 )
+
+module := bichat.NewModuleWithConfig(cfg)
+if err := app.RegisterModule(module); err != nil {
+    log.Fatalf("Failed to register BiChat: %v", err)
+}
 ```
+
+To disable attachments (e.g. testing only): use `bichat.WithNoOpAttachmentStorage()`. To disable auto-generated session titles: `bichat.WithTitleGenerationDisabled()`.
 
 ### StreamController permission overrides
 
@@ -258,3 +305,40 @@ Directory contract (Dash-compatible):
 - `tables/*.json`: table metadata and usage notes
 - `queries/*.sql`: validated query patterns (`<query name>`, `<query description>`, `<query>`)
 - `business/*.json`: business rules and definitions
+
+## Downstream applet checklist (Tailwind + Shadow DOM)
+
+When building an applet that uses BiChat components (e.g. `ChatSession`, `MessageInput`) outside the SDK repo:
+
+1. **Tailwind config** — Use the SDK preset and content helper so utilities used by BiChat are generated:
+
+```js
+import { bichatTailwindContent, bichatTailwindPreset } from '@iota-uz/sdk/bichat/tailwind'
+
+export default {
+  presets: [bichatTailwindPreset],
+  content: [
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
+    ...bichatTailwindContent(),
+  ],
+  darkMode: 'selector',
+}
+```
+
+2. **Applet CSS** — Import BiChat design tokens, then Tailwind layers:
+
+```css
+@import "@iota-uz/sdk/bichat/styles.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+3. **Shadow DOM** — Inject the compiled CSS string into the host so styles apply inside the shadow root. Use the SDK **`createBichatStylesPlugin()`** (or `createAppletStylesVirtualModulePlugin` with `prependCss: ['@iota-uz/sdk/bichat/styles.css']`) so that `import styles from 'virtual:applet-styles'` returns the compiled CSS with SDK BiChat styles prepended. Default convention: input `src/index.css`, output `dist/style.css`. Add the plugin to your Vite config, then pass the string to `defineReactAppletElement({ styles })`. Add `declare module 'virtual:applet-styles' { const css: string; export default css }` to your `vite-env.d.ts`.
+
+## See also
+
+- **Vision support**: [Vision support setup](/bichat/vision-setup) — image attachments and LLM vision.
+- **Module implementation**: `modules/bichat/CLAUDE.md` — structure, SSE gotchas, multi-agent, fail-fast migration.
+- **Foundation package**: `pkg/bichat/CLAUDE.md` — agent framework, context, tools, HITL flow, observability.

@@ -201,10 +201,12 @@
   --bichat-shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
   --bichat-shadow-none: 0 0 #0000;
 
-  /* Focus ring */
+  /* Focus ring (WCAG 2.4.7 Focus Visible - high contrast for keyboard users) */
   --bichat-ring-width: 2px;
   --bichat-ring-offset: 2px;
-  --bichat-ring-color: rgba(59, 130, 246, 0.5);
+  --bichat-ring-color: var(--bichat-color-primary-500);
+  --bichat-focus-ring: 0 0 0 var(--bichat-ring-width) var(--bichat-ring-color);
+  --bichat-focus-ring-offset: 0 0 0 var(--bichat-ring-offset) var(--bichat-color-surface);
 
   /* -------------------------------------------------------------------------
      Transitions & Animation
@@ -317,6 +319,73 @@
   line-height: var(--bichat-line-height-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Buttons and button-like elements: pointer cursor; disabled: not-allowed
+   :host is required when styles are injected into the applet shadow root (bi-chat-root) */
+:host button,
+:host [role="button"],
+:host [role="tab"],
+.bichat-session button,
+.bichat-session [role="button"],
+.bichat-session [role="tab"],
+bi-chat-root button,
+bi-chat-root [role="button"],
+bi-chat-root [role="tab"] {
+  cursor: pointer;
+}
+:host button:disabled,
+:host [role="button"][aria-disabled="true"],
+.bichat-session button:disabled,
+.bichat-session [role="button"][aria-disabled="true"],
+bi-chat-root button:disabled,
+bi-chat-root [role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* Focus visible: high-contrast focus rings for keyboard navigation (WCAG 2.4.7) */
+.bichat-session button:focus-visible,
+.bichat-session a:focus-visible,
+.bichat-session input:focus-visible,
+.bichat-session textarea:focus-visible,
+.bichat-session [role="button"]:focus-visible,
+.bichat-session [role="menuitem"]:focus-visible,
+.bichat-session [role="tab"]:focus-visible,
+.bichat-session select:focus-visible,
+.bichat-session [tabindex]:not([tabindex="-1"]):focus-visible,
+bi-chat-root button:focus-visible,
+bi-chat-root a:focus-visible,
+bi-chat-root input:focus-visible,
+bi-chat-root textarea:focus-visible,
+bi-chat-root [role="button"]:focus-visible,
+bi-chat-root [role="menuitem"]:focus-visible,
+bi-chat-root [role="tab"]:focus-visible,
+bi-chat-root select:focus-visible,
+bi-chat-root [tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: none;
+  box-shadow: var(--bichat-focus-ring-offset), var(--bichat-focus-ring);
+  border-radius: inherit;
+}
+
+.dark .bichat-session button:focus-visible,
+.dark .bichat-session a:focus-visible,
+.dark .bichat-session input:focus-visible,
+.dark .bichat-session textarea:focus-visible,
+.dark .bichat-session [role="button"]:focus-visible,
+.dark .bichat-session [role="menuitem"]:focus-visible,
+.dark .bichat-session [role="tab"]:focus-visible,
+.dark .bichat-session select:focus-visible,
+.dark .bichat-session [tabindex]:not([tabindex="-1"]):focus-visible,
+.dark bi-chat-root button:focus-visible,
+.dark bi-chat-root a:focus-visible,
+.dark bi-chat-root input:focus-visible,
+.dark bi-chat-root textarea:focus-visible,
+.dark bi-chat-root [role="button"]:focus-visible,
+.dark bi-chat-root [role="menuitem"]:focus-visible,
+.dark bi-chat-root [role="tab"]:focus-visible,
+.dark bi-chat-root select:focus-visible,
+.dark bi-chat-root [tabindex]:not([tabindex="-1"]):focus-visible {
+  --bichat-focus-ring: 0 0 0 var(--bichat-ring-width) var(--bichat-color-primary-400);
 }
 
 /* =============================================================================
@@ -513,10 +582,26 @@
   line-height: var(--bichat-line-height-tight);
 }
 
-.prose h1 { font-size: var(--bichat-font-size-2xl); }
-.prose h2 { font-size: var(--bichat-font-size-xl); }
-.prose h3 { font-size: var(--bichat-font-size-lg); }
+.prose h1 {
+  font-size: 1.625rem;
+  font-weight: var(--bichat-font-weight-bold);
+}
+
+.prose h2 {
+  font-size: 1.375rem;
+  margin-top: 2em;
+}
+
+.prose h3 {
+  font-size: var(--bichat-font-size-lg);
+  font-weight: var(--bichat-font-weight-semibold);
+}
+
 .prose h4 { font-size: var(--bichat-font-size-base); }
+
+.prose > * + h2 {
+  margin-top: 2em;
+}
 
 .prose p {
   margin-top: 0.75em;
@@ -531,8 +616,9 @@
 .prose code {
   background-color: var(--bichat-color-code-bg);
   color: var(--bichat-color-code-text);
-  padding: 0.125em 0.375em;
-  border-radius: var(--bichat-radius-default);
+  padding: 0.2em 0.5em;
+  border-radius: var(--bichat-radius-md);
+  border: 1px solid var(--bichat-color-border-subtle);
   font-family: var(--bichat-font-family-mono);
   font-size: 0.875em;
 }
@@ -556,6 +642,7 @@
   color: inherit;
   font-size: inherit;
   border-radius: 0;
+  border: none;
 }
 
 .prose a {
