@@ -181,10 +181,14 @@ func setupApplet(root, appletName string) ([]devrunner.ProcessSpec, error) {
 		VitePort:   applet.VitePort,
 		BackendURL: backendURL,
 	}
-	manifestBytes, _ := json.MarshalIndent(manifest, "", "  ")
-	manifestPath := filepath.Join(viteDir, "applet-dev.json")
-	if err := os.WriteFile(manifestPath, manifestBytes, 0644); err != nil {
-		log.Printf("warning: could not write %s: %v", manifestPath, err)
+	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		log.Printf("warning: could not marshal applet-dev.json: %v", err)
+	} else {
+		manifestPath := filepath.Join(viteDir, "applet-dev.json")
+		if err := os.WriteFile(manifestPath, manifestBytes, 0644); err != nil {
+			log.Printf("warning: could not write %s: %v", manifestPath, err)
+		}
 	}
 
 	// Applet CSS is compiled by the Vite styles plugin (virtual:applet-styles) on demand, or by the tailwind watch process below.

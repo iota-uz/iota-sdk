@@ -226,7 +226,7 @@ func TestDevProxy_HTMLShell(t *testing.T) {
 	ctx := context.Background()
 	ctx = composables.WithUser(ctx, u)
 	ctx = composables.WithTenantID(ctx, tenantID)
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{Locale: language.English})
+	ctx = composables.WithPageCtx(ctx, &types.PageContext{Locale: language.English}) //nolint:staticcheck // SA1019: backward compat in test
 
 	req := httptest.NewRequest(http.MethodGet, basePath, nil).WithContext(ctx)
 	rec := httptest.NewRecorder()

@@ -22,7 +22,7 @@ type packageJSON struct {
 
 // PreflightFromPackageJSON parses package.json under projectRoot and returns the minimum Node major
 // from engines.node (e.g. ">=18" -> 18, "18" -> 18). If file or field is missing, returns 0, nil.
-func PreflightFromPackageJSON(projectRoot string) (minNodeMajor int, err error) {
+func PreflightFromPackageJSON(projectRoot string) (int, error) {
 	path := filepath.Join(projectRoot, "package.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -33,7 +33,7 @@ func PreflightFromPackageJSON(projectRoot string) (minNodeMajor int, err error) 
 	}
 	var pkg packageJSON
 	if err := json.Unmarshal(data, &pkg); err != nil {
-		return 0, nil // ignore malformed
+		return 0, nil //nolint:nilerr // ignore malformed package.json
 	}
 	if pkg.Engines == nil || pkg.Engines.Node == "" {
 		return 0, nil
@@ -46,7 +46,7 @@ func PreflightFromPackageJSON(projectRoot string) (minNodeMajor int, err error) 
 	}
 	major, err := strconv.Atoi(m[1])
 	if err != nil {
-		return 0, nil
+		return 0, nil //nolint:nilerr // ignore unparseable engines.node
 	}
 	return major, nil
 }
@@ -104,11 +104,11 @@ func PreflightDeps(projectRoot string) error {
 	out, err := cmd.Output()
 	if err != nil {
 		// pnpm list can exit non-zero if deps not installed; treat as warning, not hard fail
-		return nil
+		return nil //nolint:nilerr // intentional: do not fail preflight on missing deps
 	}
 	var entries []pnpmListEntry
 	if err := json.Unmarshal(out, &entries); err != nil {
-		return nil // ignore malformed JSON; avoid breaking on pnpm output changes
+		return nil //nolint:nilerr // intentional: ignore malformed JSON; avoid breaking on pnpm output changes
 	}
 	reactVersions := make(map[string]bool)
 	reactDomVersions := make(map[string]bool)
