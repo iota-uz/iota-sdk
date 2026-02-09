@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -64,7 +65,6 @@ func (c *UploadAPIController) Register(r *mux.Router) {
 		router.Use(c.ensureTenantID())
 	}
 	router.Use(middleware.ProvideLocalizer(c.app))
-	router.Use(middleware.WithTransaction())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 }
 
@@ -174,8 +174,12 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Create upload
 	uploadService := c.app.Service(services.UploadService{}).(*services.UploadService)
-	uploadEntity, err := uploadService.Create(r.Context(), dto)
-	if err != nil {
+	var uploadEntity upload.Upload
+	if err := composables.InTx(r.Context(), func(txCtx context.Context) error {
+		var createErr error
+		uploadEntity, createErr = uploadService.Create(txCtx, dto)
+		return createErr
+	}); err != nil {
 		c.writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
