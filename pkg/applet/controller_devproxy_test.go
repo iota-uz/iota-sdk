@@ -69,7 +69,8 @@ func TestRegisterDevProxy_StripPrefix(t *testing.T) {
 					},
 				},
 			}
-			c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+			c, err := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	require.NoError(t, err)
 			router := mux.NewRouter()
 			c.RegisterRoutes(router)
 
@@ -118,7 +119,8 @@ func TestRegisterDevProxy_502WhenTargetDown(t *testing.T) {
 			},
 		},
 	}
-	c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	c, err := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
 
@@ -165,7 +167,8 @@ func TestDevProxy_BlackBox_AssetRoutes(t *testing.T) {
 			},
 		},
 	}
-	c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	c, err := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
 
@@ -218,7 +221,8 @@ func TestDevProxy_HTMLShell(t *testing.T) {
 			},
 		},
 	}
-	c := NewAppletController(a, bundle, DefaultSessionConfig, nil, nil)
+	c, err := NewAppletController(a, bundle, DefaultSessionConfig, nil, nil)
+	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
 
@@ -264,7 +268,8 @@ func TestRegisterDevProxy_502WhenUpstreamReturns502(t *testing.T) {
 			},
 		},
 	}
-	c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	c, err := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
 
