@@ -557,7 +557,7 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 		requireSameOrigin = *rpcCfg.RequireSameOrigin
 	}
 
-	trustForwardedHost := false
+	trustForwardedHost := true
 	if rpcCfg.TrustForwardedHost != nil {
 		trustForwardedHost = *rpcCfg.TrustForwardedHost
 	}

@@ -186,9 +186,9 @@ await rpc.callTyped<MyAppletRPC>('my.method', { /* params */ })
 
 #### Reverse proxies (same-origin)
 
-If IOTA is deployed behind a reverse proxy/ingress that sets forwarded headers, you can enable host checks using `X-Forwarded-Host` for RPC:
+`X-Forwarded-Host` is trusted by default for RPC same-origin checks, which is safe for standard reverse-proxy deployments. To disable it:
 
-- `Config.RPC.TrustForwardedHost = true`
+- `Config.RPC.TrustForwardedHost = boolPtr(false)`
 
 ## Devtools overlay (optional)
 

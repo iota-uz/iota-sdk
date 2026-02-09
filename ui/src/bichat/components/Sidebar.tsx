@@ -108,22 +108,20 @@ export default function Sidebar({
     fetchSessions()
   }, [fetchSessions, refreshKey])
 
-  // Poll for title updates on sessions with placeholder titles
-  const sessionsKey = useMemo(
-    () => sessions.map((s) => `${s.id}:${s.title || ''}`).join(','),
-    [sessions]
-  )
+  // Poll for title updates on sessions with placeholder titles.
+  // Use a ref to track whether polling should start, so that updating
+  // sessions inside the interval does NOT re-trigger the effect (which
+  // would reset the poll counter and create overlapping intervals).
+  const sessionsRef = useRef(sessions)
+  sessionsRef.current = sessions
+
+  const hasPlaceholderTitles = useMemo(() => {
+    const newChatLabel = t('chat.newChat')
+    return sessions.some((s) => s && (!s.title || s.title === newChatLabel))
+  }, [sessions, t])
 
   useEffect(() => {
-    if (!Array.isArray(sessions) || sessions.length === 0) return
-
-    const newChatLabel = t('chat.newChat')
-
-    const sessionsWithPlaceholderTitles = sessions.filter(
-      (s) => s && (!s.title || s.title === newChatLabel)
-    )
-
-    if (sessionsWithPlaceholderTitles.length === 0) return
+    if (!hasPlaceholderTitles) return
 
     const pollInterval = 2000
     const maxPolls = 5
@@ -135,7 +133,8 @@ export default function Sidebar({
         const result = await dataSource.listSessions({ limit: 50 })
         setSessions(result.sessions)
       } catch {
-        // ignore poll errors
+        clearInterval(intervalId)
+        return
       }
       if (pollCount >= maxPolls) {
         clearInterval(intervalId)
@@ -143,7 +142,7 @@ export default function Sidebar({
     }, pollInterval)
 
     return () => clearInterval(intervalId)
-  }, [sessionsKey, dataSource, sessions, t])
+  }, [hasPlaceholderTitles, dataSource])
 
   const handleArchiveRequest = (sessionId: string) => {
     setSessionToArchive(sessionId)
