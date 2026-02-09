@@ -17,7 +17,7 @@ type TranslationProvider interface {
 	Get(locale, key string) string
 
 	// GetAll returns all translations for a locale as a flat map.
-	// Keys use dot notation (e.g., "welcome.title").
+	// Keys use PascalCase per segment (e.g., "Welcome.Title", "Input.Placeholder").
 	GetAll(locale string) map[string]string
 
 	// Locales returns the list of supported locales.
@@ -25,7 +25,7 @@ type TranslationProvider interface {
 }
 
 // Translations is a map of locale -> key -> value.
-// Keys use dot notation: "welcome.title", "chat.newChat", etc.
+// Keys use PascalCase per segment: "Welcome.Title", "Chat.NewChat", etc.
 type Translations map[string]map[string]string
 
 // FileTranslationProvider loads translations from JSON files.
@@ -218,14 +218,24 @@ func (p *MapTranslationProvider) Locales() []string {
 	return locales
 }
 
-// flattenMap converts a nested map to dot-notation keys.
+// pascalSegment returns the segment with first character uppercased (PascalCase).
+func pascalSegment(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// flattenMap converts a nested map to dot-notation keys with PascalCase per segment.
+// e.g. {"welcome": {"title": "Hi"}} -> {"Welcome.Title": "Hi"}
 func flattenMap(m map[string]any, prefix string) map[string]string {
 	result := make(map[string]string)
 
 	for k, v := range m {
-		key := k
+		segment := pascalSegment(k)
+		key := segment
 		if prefix != "" {
-			key = prefix + "." + k
+			key = prefix + "." + segment
 		}
 
 		switch val := v.(type) {
@@ -242,86 +252,259 @@ func flattenMap(m map[string]any, prefix string) map[string]string {
 }
 
 // DefaultTranslations returns the default English translations.
-// These serve as fallback when no translations are configured.
+// Keys use PascalCase per segment (e.g. Input.Placeholder, Welcome.Title).
 func DefaultTranslations() Translations {
 	return Translations{
 		"en": {
 			// Welcome screen
-			"welcome.title":       "Welcome to BiChat",
-			"welcome.description": "Your intelligent business analytics assistant. Ask questions about your data, generate reports, or explore insights.",
-			"welcome.tryAsking":   "Try asking",
+			"Welcome.Title":       "Welcome to BiChat",
+			"Welcome.Description": "Your intelligent business analytics assistant. Ask questions about your data, generate reports, or explore insights.",
+			"Welcome.TryAsking":   "Try asking",
 
 			// Chat header
-			"chat.newChat":  "New Chat",
-			"chat.archived": "Archived",
-			"chat.pinned":   "Pinned",
-			"chat.goBack":   "Go back",
+			"Chat.NewChat":  "New Chat",
+			"Chat.Archived": "Archived",
+			"Chat.Pinned":   "Pinned",
+			"Chat.GoBack":   "Go back",
 
 			// Message input
-			"input.placeholder":    "Type a message...",
-			"input.attachFiles":    "Attach files",
-			"input.attachImages":   "Attach images",
-			"input.dropImages":     "Drop images here",
-			"input.sendMessage":    "Send message",
-			"input.aiThinking":     "AI is thinking...",
-			"input.processing":     "Processing...",
-			"input.messagesQueued": "{count} message(s) queued",
-			"input.dismissError":   "Dismiss error",
+			"Input.Placeholder":    "Type a message...",
+			"Input.AttachFiles":    "Attach files",
+			"Input.AttachImages":   "Attach images",
+			"Input.DropImages":     "Drop images here",
+			"Input.SendMessage":    "Send message",
+			"Input.AiThinking":     "AI is thinking...",
+			"Input.Processing":     "Processing...",
+			"Input.MessagesQueued": "{count} message(s) queued",
+			"Input.DismissError":   "Dismiss error",
+			"Input.DropFiles":      "Drop files here",
+			"Input.FilesAdded":     "Files added",
+			"Input.FileInput":      "File input",
+			"Input.MessageInput":   "Message input",
+			"Input.ShiftEnterHint": "Press Enter to send, Shift+Enter for new line",
+
+			// Slash commands
+			"Slash.ClearDescription":              "Clear history",
+			"Slash.DebugDescription":               "Debug mode",
+			"Slash.CompactDescription":             "Compact history",
+			"Slash.CommandsList":                  "Commands",
+			"Slash.NoMatches":                     "No matches",
+			"Slash.DebugBadge":                    "Debug",
+			"Slash.DebugPromptTokens":             "Prompt tokens",
+			"Slash.DebugCompletionTokens":         "Completion tokens",
+			"Slash.DebugTotalTokens":              "Total tokens",
+			"Slash.DebugSessionUsageUnavailable":  "Session usage unavailable",
+			"Slash.DebugPolicyMaxContextWindow":   "Policy max context window",
+			"Slash.DebugModelMaxContextWindow":    "Model max context window",
+			"Slash.DebugEffectiveContextWindow":   "Effective context window",
+			"Slash.DebugContextUsage":             "Context usage",
+			"Slash.CompactingTitle":               "Compacting",
+			"Slash.CompactingSubtitle":             "Compacting history...",
+			"Slash.DebugArguments":                  "Arguments",
+			"Slash.DebugCopyTrace":                  "Copy trace",
+			"Slash.DebugCopied":                     "Copied",
+			"Slash.DebugResult":                     "Result",
+			"Slash.DebugError":                      "Error",
+			"Slash.DebugGeneration":                 "Generation",
+			"Slash.DebugTokensPerSecond":            "Tokens/s",
+			"Slash.DebugCachedTokens":               "Cached tokens",
+			"Slash.DebugPanelTitle":                 "Debug",
+			"Slash.DebugToolCalls":                  "Tool calls",
+			"Slash.DebugUnavailable":                "Debug data unavailable",
+
+			// Date groups (session grouping)
+			"DateGroup.Today":      "Today",
+			"DateGroup.Yesterday":  "Yesterday",
+			"DateGroup.Last7Days":  "Last 7 Days",
+			"DateGroup.Last30Days": "Last 30 Days",
+			"DateGroup.Older":      "Older",
+
+			// Attachments
+			"Attachment.FileAdded":   "File added: {{size}}",
+			"Attachment.InvalidFile":  "Invalid file",
+			"Attachment.SelectFiles":  "Select files",
+
+			// Artifacts
+			"Artifacts.Title":              "Artifacts",
+			"Artifacts.ToggleShow":          "Show artifacts",
+			"Artifacts.ToggleHide":          "Hide artifacts",
+			"Artifacts.Resize":              "Resize panel",
+			"Artifacts.Empty":               "No artifacts yet",
+			"Artifacts.EmptySubtitle":       "Artifacts will appear here",
+			"Artifacts.GroupCharts":         "Charts",
+			"Artifacts.GroupCodeOutputs":    "Code Outputs",
+			"Artifacts.GroupExports":        "Exports",
+			"Artifacts.GroupAttachments":    "Attachments",
+			"Artifacts.GroupOther":          "Other",
+			"Artifacts.Rename":              "Rename",
+			"Artifacts.Delete":              "Delete",
+			"Artifacts.RenameFailed":        "Failed to rename",
+			"Artifacts.DeleteConfirm":       "Delete this artifact?",
+			"Artifacts.DeleteFailed":        "Failed to delete",
+			"Artifacts.FailedToLoad":         "Failed to load artifacts",
+			"Artifacts.Loading":              "Loading artifacts...",
+			"Artifacts.LoadingMore":          "Loading more...",
+			"Artifacts.LoadMore":             "Load more",
+			"Artifacts.Unsupported":         "Artifacts panel not available",
+			"Artifacts.OpenInNewTab":         "Open in new tab",
+			"Artifacts.Download":             "Download",
+			"Artifacts.TextPreviewFailed":    "Failed to load preview",
+			"Artifacts.PreviewLoading":       "Loading preview...",
+			"Artifacts.PreviewUnavailable":   "Preview unavailable",
+			"Artifacts.TextPreviewTruncated": "Preview truncated",
+			"Artifacts.ChartUnavailable":     "Chart not renderable",
+			"Artifacts.ImageUnavailable":     "Image unavailable",
+			"Artifacts.DownloadUnavailable":  "Download unavailable",
+			"Artifacts.OfficePreviewUnavailable": "Office preview unavailable",
+			"Artifacts.PreviewNotSupported":  "Preview not supported",
+
+			// Alert
+			"Alert.Retry": "Retry",
+
+			// Chat (extra)
+			"Chat.GoBack":            "Go back",
+			"Chat.ReadOnly":          "Read only",
+			"Chat.Retry":             "Retry",
+			"Chat.DismissNotification": "Dismiss",
+
+			// Assistant
+			"Assistant.Explanation": "Explanation",
+
+			// Welcome
+			"Welcome.QuickStart": "Quick Start",
+
+			// Chart (extra)
+			"Chart.Exporting":   "Exporting...",
+			"Chart.DownloadPNG": "Download PNG",
+
+			// Question
+			"Question.Other": "Other",
+
+			// Error (extra)
+			"Error.AllQuestionsRequired": "Please answer all questions",
+			"Error.CustomTextRequired":   "Please specify: {{question}}",
+
+			// Common
+			"Common.Close":       "Close",
+			"Common.Cancel":      "Cancel",
+			"Common.Back":        "Back",
+			"Common.Clear":       "Clear",
+			"Common.Untitled":    "Untitled",
+			"Common.Generating":  "Generating...",
+			"Common.Pinned":      "Pinned",
+
+			// Sidebar
+			"Sidebar.MyChats":                  "My chats",
+			"Sidebar.AllChats":                 "All chats",
+			"Sidebar.ChatSessions":             "Chat sessions",
+			"Sidebar.CloseSidebar":             "Close sidebar",
+			"Sidebar.SearchChats":              "Search chats",
+			"Sidebar.CreateNewChat":            "New chat",
+			"Sidebar.ArchivedChats":            "Archived chats",
+			"Sidebar.PinnedChats":              "Pinned chats",
+			"Sidebar.ChatOptions":              "Chat options",
+			"Sidebar.RenameChat":               "Rename chat",
+			"Sidebar.UnpinChat":                "Unpin",
+			"Sidebar.PinChat":                 "Pin",
+			"Sidebar.RegenerateTitle":          "Regenerate title",
+			"Sidebar.ArchiveChat":              "Archive chat",
+			"Sidebar.DeleteChat":              "Delete chat",
+			"Sidebar.NoChatsYet":               "No chats yet",
+			"Sidebar.NoChatsFound":             "No results for \"{{query}}\"",
+			"Sidebar.CreateOneToGetStarted":   "Create one to get started",
+			"Sidebar.ChatRenamedSuccessfully":  "Chat renamed",
+			"Sidebar.FailedToRenameChat":       "Failed to rename",
+			"Sidebar.TitleRegenerated":         "Title updated",
+			"Sidebar.FailedToRegenerateTitle": "Failed to regenerate title",
+			"Sidebar.FailedToLoadSessions":     "Failed to load sessions",
+			"Sidebar.FailedToArchiveChat":       "Failed to archive",
+			"Sidebar.FailedToTogglePin":        "Failed to update pin",
+			"Sidebar.ArchiveChatSession":       "Archive chat",
+			"Sidebar.ArchiveChatMessage":       "Archive this chat?",
+			"Sidebar.ArchiveButton":            "Archive",
+
+			// Archived
+			"Archived.Title":                    "Archived",
+			"Archived.BackToChats":             "Back to chats",
+			"Archived.SearchArchivedChats":     "Search archived",
+			"Archived.NoArchivedChats":         "No archived chats",
+			"Archived.NoArchivedChatsDescription": "Archived chats will appear here",
+			"Archived.NoResults":               "No results",
+			"Archived.NoResultsDescription":    "No chats match \"{{query}}\"",
+			"Archived.RestoreChat":             "Restore chat",
+			"Archived.RestoreChatMessage":      "Restore this chat?",
+			"Archived.RestoreButton":           "Restore",
+			"Archived.ChatRestoredSuccessfully": "Chat restored",
+			"Archived.FailedToRestoreChat":     "Failed to restore",
+
+			// Welcome
+			"Welcome.Disclaimer": "This chat is powered by AI. Mistakes are possible.",
+
+			// Retry
+			"Retry.Title":       "Retry",
+			"Retry.Description": "Something went wrong. Try again.",
+			"Retry.Button":      "Retry",
+
+			// System
+			"System.ConversationSummary": "Conversation summary",
+			"System.LoadingSummary":      "Loading summary...",
+			"System.ShowLess":            "Show less",
+			"System.ShowMore":            "Show more",
 
 			// Message actions
-			"message.copy":       "Copy",
-			"message.copied":     "Copied!",
-			"message.regenerate": "Regenerate",
-			"message.edit":       "Edit",
-			"message.save":       "Save",
-			"message.cancel":     "Cancel",
+			"Message.Copy":       "Copy",
+			"Message.Copied":     "Copied!",
+			"Message.Regenerate": "Regenerate",
+			"Message.Edit":       "Edit",
+			"Message.Save":       "Save",
+			"Message.Cancel":     "Cancel",
 
 			// Assistant turn
-			"assistant.thinking":   "Thinking...",
-			"assistant.toolCall":   "Using tool: {name}",
-			"assistant.generating": "Generating response...",
+			"Assistant.Thinking":   "Thinking...",
+			"Assistant.ToolCall":   "Using tool: {name}",
+			"Assistant.Generating": "Generating response...",
 
 			// Question form
-			"question.submit":       "Submit",
-			"question.selectOne":    "Select one option",
-			"question.selectMulti":  "Select one or more options",
-			"question.required":     "This field is required",
-			"question.other":        "Other",
-			"question.specifyOther": "Please specify",
+			"Question.Submit":       "Submit",
+			"Question.SelectOne":    "Select one option",
+			"Question.SelectMulti":  "Select one or more options",
+			"Question.Required":     "This field is required",
+			"Question.Other":        "Other",
+			"Question.SpecifyOther": "Please specify",
 
 			// Errors
-			"error.generic":        "Something went wrong",
-			"error.networkError":   "Network error. Please try again.",
-			"error.sessionExpired": "Session expired. Please refresh.",
-			"error.fileTooLarge":   "File is too large",
-			"error.invalidFile":    "Invalid file type",
-			"error.maxFiles":       "Maximum {max} files allowed",
+			"Error.Generic":        "Something went wrong",
+			"Error.NetworkError":   "Network error. Please try again.",
+			"Error.SessionExpired": "Session expired. Please refresh.",
+			"Error.FileTooLarge":   "File is too large",
+			"Error.InvalidFile":    "Invalid file type",
+			"Error.MaxFiles":       "Maximum {max} files allowed",
 
 			// Empty states
-			"empty.noMessages": "No messages yet",
-			"empty.noSessions": "No chat sessions",
-			"empty.startChat":  "Start a new chat to begin",
+			"Empty.NoMessages": "No messages yet",
+			"Empty.NoSessions": "No chat sessions",
+			"Empty.StartChat":  "Start a new chat to begin",
 
 			// Sources panel
-			"sources.title":     "Sources",
-			"sources.viewMore":  "View more",
-			"sources.citations": "{count} citation(s)",
+			"Sources.Title":     "Sources",
+			"Sources.ViewMore":  "View more",
+			"Sources.Citations": "{count} citation(s)",
 
 			// Code outputs
-			"codeOutputs.title":    "Code Outputs",
-			"codeOutputs.download": "Download",
-			"codeOutputs.expand":   "Expand",
-			"codeOutputs.collapse": "Collapse",
+			"CodeOutputs.Title":    "Code Outputs",
+			"CodeOutputs.Download": "Download",
+			"CodeOutputs.Expand":   "Expand",
+			"CodeOutputs.Collapse": "Collapse",
 
 			// Charts
-			"chart.download":   "Download chart",
-			"chart.fullscreen": "View fullscreen",
-			"chart.noData":     "No data available",
+			"Chart.Download":   "Download chart",
+			"Chart.Fullscreen": "View fullscreen",
+			"Chart.NoData":     "No data available",
 
 			// Example prompt categories
-			"category.analysis": "Data Analysis",
-			"category.reports":  "Reports",
-			"category.insights": "Insights",
+			"Category.Analysis": "Data Analysis",
+			"Category.Reports":  "Reports",
+			"Category.Insights": "Insights",
 		},
 	}
 }
