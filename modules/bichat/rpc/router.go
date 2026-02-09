@@ -394,9 +394,9 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		},
 	})
 
-	applet.AddProcedure(r, "bichat.artifact.delete", applet.Procedure[SessionIDParams, OkResult]{
+	applet.AddProcedure(r, "bichat.artifact.delete", applet.Procedure[ArtifactIDParams, OkResult]{
 		RequirePermissions: []string{"bichat.access"},
-		Handler: func(ctx context.Context, p SessionIDParams) (OkResult, error) {
+		Handler: func(ctx context.Context, p ArtifactIDParams) (OkResult, error) {
 			const op serrors.Op = "bichat.rpc.artifact.delete"
 
 			artifactID, err := parseUUID(p.ID)
