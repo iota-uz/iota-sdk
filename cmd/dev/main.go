@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -113,7 +114,12 @@ func main() {
 	}
 	exitCode, err := devrunner.Run(ctx, cancel, processes, runOpts)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Preflight: %v\n", err)
+		var preflightErr *devrunner.PreflightError
+		if errors.As(err, &preflightErr) {
+			fmt.Fprintf(os.Stderr, "Preflight: %v\n", preflightErr.Err)
+		} else {
+			fmt.Fprintf(os.Stderr, "devrunner run failed: %v\n", err)
+		}
 		os.Exit(1)
 	}
 	os.Exit(exitCode)

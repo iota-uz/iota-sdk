@@ -243,6 +243,9 @@ func (app *application) GraphSchemas() []GraphSchema {
 
 func (app *application) RegisterControllers(controllers ...Controller) {
 	for _, c := range controllers {
+		if c == nil {
+			continue
+		}
 		app.controllers[c.Key()] = c
 	}
 }

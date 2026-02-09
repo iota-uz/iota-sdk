@@ -39,14 +39,17 @@ func (s *State) Pages() []Page {
 		return s.pages
 	}
 	if s.Current < 5 {
-		return append(s.pages[:10], filler, s.pages[len(s.pages)-1])
+		// Copy so we don't mutate s.pages' backing array.
+		base := make([]Page, 0, 12)
+		base = append(base, s.pages[:10]...)
+		return append(base, filler, s.pages[len(s.pages)-1])
 	}
 	if s.Current > len(s.pages)-5 {
-		data := make([]Page, 0, 2+10)
+		data := make([]Page, 0, 14)
 		data = append(data, s.pages[0], filler)
 		return append(data, s.pages[len(s.pages)-10:]...)
 	}
-	data := make([]Page, 0, 2+10)
+	data := make([]Page, 0, 14)
 	data = append(data, s.pages[0], filler)
 	data = append(data, s.pages[s.Current-5:s.Current+5]...)
 	return append(data, filler, s.pages[len(s.pages)-1])

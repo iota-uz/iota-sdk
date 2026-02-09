@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 // Package devrunner provides process supervision for dev environments: run multiple
 // processes (templ, tailwind, vite, air, etc.) with consistent output prefixing,
 // process-group shutdown (SIGTERM then SIGKILL), and keyboard controls (r restart, c clear, q quit).
@@ -86,7 +89,7 @@ func Run(ctx context.Context, cancel context.CancelFunc, specs []ProcessSpec, op
 		}
 		if nodeMajor > 0 {
 			if err := PreflightNode(ctx, nodeMajor); err != nil {
-				return 1, err
+				return 1, &PreflightError{Err: err}
 			}
 			if out, err := exec.CommandContext(ctx, "node", "-v").Output(); err == nil {
 				log.Printf("Node %s", strings.TrimSpace(string(out)))
@@ -94,7 +97,7 @@ func Run(ctx context.Context, cancel context.CancelFunc, specs []ProcessSpec, op
 		}
 		if opts.PreflightPnpm {
 			if err := PreflightPnpm(ctx); err != nil {
-				return 1, err
+				return 1, &PreflightError{Err: err}
 			}
 			if out, err := exec.CommandContext(ctx, "pnpm", "-v").Output(); err == nil {
 				log.Printf("pnpm %s", strings.TrimSpace(string(out)))
@@ -102,7 +105,7 @@ func Run(ctx context.Context, cancel context.CancelFunc, specs []ProcessSpec, op
 		}
 		if opts.PreflightDeps && opts.ProjectRoot != "" {
 			if err := PreflightDeps(ctx, opts.ProjectRoot); err != nil {
-				return 1, err
+				return 1, &PreflightError{Err: err}
 			}
 		}
 	}
@@ -124,7 +127,12 @@ func Run(ctx context.Context, cancel context.CancelFunc, specs []ProcessSpec, op
 	var wg sync.WaitGroup
 
 	for _, spec := range specs {
-		mp := &managedProcess{spec: spec, maxLen: maxLen}
+		mp := &managedProcess{
+			spec:            spec,
+			maxLen:          maxLen,
+			restartCh:       make(chan struct{}, 1),
+			shutdownTimeout: shutdownTimeout,
+		}
 		managed = append(managed, mp)
 
 		wg.Add(1)
@@ -220,18 +228,17 @@ func NotifyContext(ctx context.Context) (context.Context, context.CancelFunc) {
 var outputMu sync.Mutex
 
 type managedProcess struct {
-	spec      ProcessSpec
-	maxLen    int
-	mu        sync.Mutex
-	cmd       *exec.Cmd
-	restartCh chan struct{}
+	spec            ProcessSpec
+	maxLen          int
+	mu              sync.Mutex
+	cmd             *exec.Cmd
+	restartCh       chan struct{}
+	shutdownTimeout time.Duration
 }
 
 func (m *managedProcess) runCritical(ctx context.Context, exitCh chan<- string) {
-	m.restartCh = make(chan struct{}, 1)
-
 	for {
-		cmd, err := startProcess(ctx, m.spec, m.maxLen)
+		cmd, err := startProcess(ctx, m.spec, m.maxLen, m.shutdownTimeout)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to start %s: %v\n", m.spec.Name, err)
 			exitCh <- m.spec.Name
@@ -270,7 +277,7 @@ func (m *managedProcess) runAuxiliary(ctx context.Context) {
 
 	for {
 		start := time.Now()
-		cmd, err := startProcess(ctx, m.spec, m.maxLen)
+		cmd, err := startProcess(ctx, m.spec, m.maxLen, m.shutdownTimeout)
 		if err != nil {
 			outputMu.Lock()
 			fmt.Fprintf(os.Stderr, "%s%s[%-*s]%s failed to start: %v\n", m.spec.Color, ColorDim, m.maxLen, m.spec.Name, ColorReset, err)
@@ -337,11 +344,22 @@ func (m *managedProcess) forceKill() {
 	}
 }
 
-func startProcess(ctx context.Context, spec ProcessSpec, padLen int) (*exec.Cmd, error) {
+func startProcess(ctx context.Context, spec ProcessSpec, padLen int, shutdownTimeout time.Duration) (*exec.Cmd, error) {
 	cmd := exec.CommandContext(ctx, spec.Command, spec.Args...)
 	cmd.Dir = spec.Dir
 	cmd.Env = mergeEnv(os.Environ(), spec.Env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// On context cancel, send SIGTERM to the process group so stop()/forceKill() semantics are preserved.
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = 3 * time.Second
+	}
+	cmd.Cancel = func() error {
+		if cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		}
+		return nil
+	}
+	cmd.WaitDelay = shutdownTimeout
 
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()

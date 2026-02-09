@@ -12,6 +12,13 @@ import (
 	"strings"
 )
 
+// PreflightError wraps an error from a preflight check (Node, pnpm, deps).
+// Callers can use errors.As(err, new(*PreflightError)) to distinguish preflight failures from other Run errors.
+type PreflightError struct{ Err error }
+
+func (e *PreflightError) Error() string { return e.Err.Error() }
+func (e *PreflightError) Unwrap() error { return e.Err }
+
 // packageJSONEngines is a minimal struct for reading engines from package.json.
 type packageJSONEngines struct {
 	Node string `json:"node"`
