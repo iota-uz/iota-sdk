@@ -18,7 +18,7 @@ import {
   RateLimiter,
   BiChatConfig,
   useChat,
-} from '@iotauz/bichat-ui'
+} from '@iota-uz/sdk/bichat'
 
 // 1. Define your configuration
 const biChatConfig: BiChatConfig = {
@@ -44,7 +44,7 @@ const biChatConfig: BiChatConfig = {
     },
   },
   endpoints: {
-    graphQL: '/api/graphql',
+    rpc: '/api/rpc',
     stream: '/api/stream',
   },
   csrfToken: 'your-csrf-token-here',
@@ -53,7 +53,7 @@ const biChatConfig: BiChatConfig = {
 // 2. Create HTTP data source
 const dataSource = createHttpDataSource({
   baseUrl: 'https://api.example.com',
-  graphQLEndpoint: '/graphql',
+  rpcEndpoint: '/rpc',
   streamEndpoint: '/stream',
   csrfToken: () => biChatConfig.csrfToken || '',
   headers: {

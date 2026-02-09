@@ -144,7 +144,7 @@ func (r *OpenAIRenderer) renderHistory(block context.ContextBlock) (context.Rend
 	}
 
 	// Emit one message per history entry
-	var messages []types.Message
+	messages := make([]types.Message, 0, len(historyPayload.Messages))
 	for _, msg := range historyPayload.Messages {
 		role := types.RoleUser // Default
 		switch msg.Role {

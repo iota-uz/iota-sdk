@@ -3,10 +3,12 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
+	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -44,7 +46,7 @@ func (h *ArtifactHandler) Handle(ctx context.Context, event hooks.Event) error {
 		return h.handleCodeInterpreter(ctx, toolEvent)
 	case "draw_chart":
 		return h.handleChart(ctx, toolEvent)
-	case "export_query_to_excel", "export_data_to_excel":
+	case "export_query_to_excel", "export_data_to_excel", "export_to_pdf":
 		return h.handleExport(ctx, toolEvent)
 	}
 	return nil
@@ -72,8 +74,10 @@ func (h *ArtifactHandler) handleCodeInterpreter(ctx context.Context, e *events.T
 		return nil
 	}
 
+	messageID, hasMessageID := bichatservices.UseArtifactMessageID(ctx)
+
 	for _, out := range result.Outputs {
-		a := domain.NewArtifact(
+		opts := []domain.ArtifactOption{
 			domain.WithArtifactTenantID(e.TenantID()),
 			domain.WithArtifactSessionID(e.SessionID()),
 			domain.WithArtifactType(domain.ArtifactTypeCodeOutput),
@@ -81,7 +85,12 @@ func (h *ArtifactHandler) handleCodeInterpreter(ctx context.Context, e *events.T
 			domain.WithArtifactMimeType(out.MimeType),
 			domain.WithArtifactURL(out.URL),
 			domain.WithArtifactSizeBytes(out.Size),
-		)
+		}
+		if hasMessageID {
+			opts = append(opts, domain.WithArtifactMessageID(messageID))
+		}
+
+		a := domain.NewArtifact(opts...)
 		if err := h.repo.SaveArtifact(ctx, a); err != nil {
 			return serrors.E(op, err, "failed to save code_output artifact")
 		}
@@ -102,13 +111,19 @@ func (h *ArtifactHandler) handleChart(ctx context.Context, e *events.ToolComplet
 		title = "Chart"
 	}
 
-	a := domain.NewArtifact(
+	opts := []domain.ArtifactOption{
 		domain.WithArtifactTenantID(e.TenantID()),
 		domain.WithArtifactSessionID(e.SessionID()),
 		domain.WithArtifactType(domain.ArtifactTypeChart),
 		domain.WithArtifactName(title),
 		domain.WithArtifactMetadata(map[string]any{"spec": spec}),
-	)
+	}
+
+	if messageID, ok := bichatservices.UseArtifactMessageID(ctx); ok {
+		opts = append(opts, domain.WithArtifactMessageID(messageID))
+	}
+
+	a := domain.NewArtifact(opts...)
 	if err := h.repo.SaveArtifact(ctx, a); err != nil {
 		return serrors.E(op, err, "failed to save chart artifact")
 	}
@@ -120,6 +135,8 @@ type exportResult struct {
 	Filename    string `json:"filename"`
 	RowCount    int    `json:"row_count"`
 	Description string `json:"description,omitempty"`
+	Size        int64  `json:"size,omitempty"`
+	FileSizeKB  int64  `json:"file_size_kb,omitempty"`
 }
 
 func (h *ArtifactHandler) handleExport(ctx context.Context, e *events.ToolCompleteEvent) error {
@@ -135,20 +152,45 @@ func (h *ArtifactHandler) handleExport(ctx context.Context, e *events.ToolComple
 		name = "export.xlsx"
 	}
 
-	metadata := map[string]any{"row_count": result.RowCount}
+	metadata := map[string]any{}
+	if result.RowCount > 0 {
+		metadata["row_count"] = result.RowCount
+	}
 	if result.Description != "" {
 		metadata["description"] = result.Description
 	}
 
-	a := domain.NewArtifact(
+	sizeBytes := result.Size
+	if sizeBytes == 0 && result.FileSizeKB > 0 {
+		sizeBytes = result.FileSizeKB * 1024
+	}
+
+	opts := []domain.ArtifactOption{
 		domain.WithArtifactTenantID(e.TenantID()),
 		domain.WithArtifactSessionID(e.SessionID()),
 		domain.WithArtifactType(domain.ArtifactTypeExport),
 		domain.WithArtifactName(name),
 		domain.WithArtifactDescription(result.Description),
 		domain.WithArtifactURL(result.URL),
-		domain.WithArtifactMetadata(metadata),
-	)
+	}
+	if len(metadata) > 0 {
+		opts = append(opts, domain.WithArtifactMetadata(metadata))
+	}
+	if sizeBytes > 0 {
+		opts = append(opts, domain.WithArtifactSizeBytes(sizeBytes))
+	}
+
+	lowerName := strings.ToLower(name)
+	if strings.HasSuffix(lowerName, ".pdf") {
+		opts = append(opts, domain.WithArtifactMimeType("application/pdf"))
+	} else if strings.HasSuffix(lowerName, ".xlsx") || strings.HasSuffix(lowerName, ".xls") {
+		opts = append(opts, domain.WithArtifactMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+	}
+	if messageID, ok := bichatservices.UseArtifactMessageID(ctx); ok {
+		opts = append(opts, domain.WithArtifactMessageID(messageID))
+	}
+
+	a := domain.NewArtifact(opts...)
 	if err := h.repo.SaveArtifact(ctx, a); err != nil {
 		return serrors.E(op, err, "failed to save export artifact")
 	}

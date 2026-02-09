@@ -174,14 +174,22 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use InTx to ensure the session is committed before the redirect is sent.
+	// This prevents a race condition where the client follows the redirect
+	// before the session transaction commits, causing session lookup to fail.
+	logger.Info("POST /login: starting authentication")
+
 	var cookie *http.Cookie
-	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
-		var err error
-		cookie, err = c.authService.CookieAuthenticate(txCtx, dto.Email, dto.Password)
-		return err
+	err = composables.InTx(r.Context(), func(ctx context.Context) error {
+		var authErr error
+		cookie, authErr = c.authService.CookieAuthenticate(ctx, dto.Email, dto.Password)
+		if authErr != nil {
+			logger.Error("POST /login: CookieAuthenticate failed", "error", authErr)
+		}
+		return authErr
 	})
 	if err != nil {
-		logger.Error("Failed to authenticate user", "error", err)
+		logger.Error("POST /login: InTx failed", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
 		} else if errors.Is(err, persistence.ErrUserNotFound) {
@@ -193,10 +201,13 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger.Info("POST /login: session committed successfully, sending redirect")
+
 	redirectURL := r.URL.Query().Get("next")
 	if redirectURL == "" {
 		redirectURL = "/"
 	}
 	http.SetCookie(w, cookie)
+	logger.Info("POST /login: redirecting to", "url", redirectURL, "cookie", cookie.Name)
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }

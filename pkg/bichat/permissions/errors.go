@@ -3,6 +3,8 @@ package permissions
 import (
 	"fmt"
 	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/analytics"
 )
 
 // FormatPermissionError creates a user-friendly error message for permission denial.
@@ -72,7 +74,7 @@ func formatMultipleDeniedViews(userName string, deniedViews []DeniedView) string
 //   - ["Expense.Read"] with LogicAny -> "Expense.Read"
 //   - ["Expense.Read", "Payment.Read"] with LogicAny -> "Expense.Read OR Payment.Read"
 //   - ["Expense.Read", "Payment.Read"] with LogicAll -> "Expense.Read AND Payment.Read"
-func FormatRequiredPermissions(permNames []string, logic PermissionLogic) string {
+func FormatRequiredPermissions(permNames []string, logic analytics.PermissionLogic) string {
 	if len(permNames) == 0 {
 		return ""
 	}
@@ -83,8 +85,10 @@ func FormatRequiredPermissions(permNames []string, logic PermissionLogic) string
 
 	var operator string
 	switch logic {
-	case LogicAll:
+	case analytics.LogicAll:
 		operator = " AND "
+	case analytics.LogicAny:
+		operator = " OR "
 	default:
 		operator = " OR "
 	}

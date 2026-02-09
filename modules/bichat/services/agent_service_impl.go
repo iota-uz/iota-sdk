@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -11,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -21,26 +23,32 @@ import (
 // It bridges the chat domain with the Agent Framework, handling context building,
 // agent execution, and event streaming.
 type agentServiceImpl struct {
-	agent         agents.ExtendedAgent
-	model         agents.Model
-	policy        bichatctx.ContextPolicy
-	renderer      bichatctx.Renderer
-	checkpointer  agents.Checkpointer
-	eventBus      hooks.EventBus
-	chatRepo      domain.ChatRepository
-	agentRegistry *agents.AgentRegistry // Optional for multi-agent delegation
+	agent                  agents.ExtendedAgent
+	model                  agents.Model
+	policy                 bichatctx.ContextPolicy
+	renderer               bichatctx.Renderer
+	checkpointer           agents.Checkpointer
+	eventBus               hooks.EventBus
+	chatRepo               domain.ChatRepository
+	agentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
+	schemaMetadata         schema.MetadataProvider // Optional for table metadata
+	projectPromptExtension string
+	formatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
 
 // AgentServiceConfig holds configuration for creating an AgentService.
 type AgentServiceConfig struct {
-	Agent         agents.ExtendedAgent
-	Model         agents.Model
-	Policy        bichatctx.ContextPolicy
-	Renderer      bichatctx.Renderer
-	Checkpointer  agents.Checkpointer
-	EventBus      hooks.EventBus        // Optional
-	ChatRepo      domain.ChatRepository // Repository for loading messages
-	AgentRegistry *agents.AgentRegistry // Optional for multi-agent delegation
+	Agent                  agents.ExtendedAgent
+	Model                  agents.Model
+	Policy                 bichatctx.ContextPolicy
+	Renderer               bichatctx.Renderer
+	Checkpointer           agents.Checkpointer
+	EventBus               hooks.EventBus          // Optional
+	ChatRepo               domain.ChatRepository   // Repository for loading messages
+	AgentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
+	SchemaMetadata         schema.MetadataProvider // Optional for table metadata
+	ProjectPromptExtension string
+	FormatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
 
 // NewAgentService creates a production implementation of AgentService.
@@ -56,17 +64,21 @@ type AgentServiceConfig struct {
 //	    EventBus:     eventBus,
 //	    ChatRepo:     chatRepo,
 //	    AgentRegistry: agentRegistry,  // Optional for multi-agent
+//	    SchemaMetadata: schemaProvider, // Optional for table metadata
 //	})
 func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 	return &agentServiceImpl{
-		agent:         cfg.Agent,
-		model:         cfg.Model,
-		policy:        cfg.Policy,
-		renderer:      cfg.Renderer,
-		checkpointer:  cfg.Checkpointer,
-		eventBus:      cfg.EventBus,
-		chatRepo:      cfg.ChatRepo,
-		agentRegistry: cfg.AgentRegistry,
+		agent:                  cfg.Agent,
+		model:                  cfg.Model,
+		policy:                 cfg.Policy,
+		renderer:               cfg.Renderer,
+		checkpointer:           cfg.Checkpointer,
+		eventBus:               cfg.EventBus,
+		chatRepo:               cfg.ChatRepo,
+		agentRegistry:          cfg.AgentRegistry,
+		schemaMetadata:         cfg.SchemaMetadata,
+		projectPromptExtension: strings.TrimSpace(cfg.ProjectPromptExtension),
+		formatterRegistry:      cfg.FormatterRegistry,
 	}
 }
 
@@ -83,9 +95,15 @@ func (s *agentServiceImpl) ProcessMessage(
 	attachments []domain.Attachment,
 ) (types.Generator[services.Event], error) {
 	const op serrors.Op = "agentServiceImpl.ProcessMessage"
+	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
 	// Get tenant ID for multi-tenant isolation
 	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -102,9 +120,38 @@ func (s *agentServiceImpl) ProcessMessage(
 
 	// 1. System prompt (KindPinned)
 	systemPrompt := s.agent.SystemPrompt(ctx)
+	if s.projectPromptExtension != "" {
+		if systemPrompt == "" {
+			systemPrompt = "PROJECT DOMAIN EXTENSION:\n" + s.projectPromptExtension
+		} else {
+			systemPrompt = systemPrompt + "\n\nPROJECT DOMAIN EXTENSION:\n" + s.projectPromptExtension
+		}
+	}
+	if services.UseDebugMode(ctx) {
+		debugPrompt := `DEBUG MODE ENABLED:
+You are assisting a developer in diagnostic mode. Provide complete and explicit technical reasoning.
+- Include exact tool calls you make (tool name, call id, arguments, and outcomes).
+- Include exact SQL queries you execute and explain why each query is needed.
+- Explain intermediate reasoning steps, assumptions, and error handling decisions.
+- Do not hide implementation details behind business-safe summaries.`
+		if systemPrompt == "" {
+			systemPrompt = debugPrompt
+		} else {
+			systemPrompt = strings.TrimSpace(systemPrompt + "\n\n" + debugPrompt)
+		}
+	}
 	if systemPrompt != "" {
 		systemCodec := codecs.NewSystemRulesCodec()
 		builder.System(systemCodec, systemPrompt)
+	}
+
+	// 1.5. Schema metadata (KindReference) - if provider configured
+	if s.schemaMetadata != nil {
+		metadata, err := s.schemaMetadata.ListMetadata(ctx)
+		if err == nil && len(metadata) > 0 {
+			metadataCodec := codecs.NewSchemaMetadataCodec()
+			builder.Reference(metadataCodec, codecs.SchemaMetadataPayload{Tables: metadata})
+		}
 	}
 
 	// 2. Session history (KindHistory)
@@ -163,6 +210,11 @@ func (s *agentServiceImpl) ProcessMessage(
 		agents.WithMaxIterations(10),
 	}
 
+	// Add formatter registry if configured
+	if s.formatterRegistry != nil {
+		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
+	}
+
 	// Add delegation tool if registry is configured
 	if s.agentRegistry != nil && len(s.agentRegistry.All()) > 0 {
 		// Get agent's default tools
@@ -188,9 +240,10 @@ func (s *agentServiceImpl) ProcessMessage(
 
 	// Execute agent and get event generator
 	input := agents.Input{
-		Messages:  executorMessages,
-		SessionID: sessionID,
-		TenantID:  tenantID,
+		Messages:           executorMessages,
+		SessionID:          sessionID,
+		TenantID:           tenantID,
+		PreviousResponseID: session.LLMPreviousResponseID(),
 	}
 
 	execGen := executor.Execute(ctx, input)
@@ -212,6 +265,7 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 	answers map[string]types.Answer,
 ) (types.Generator[services.Event], error) {
 	const op serrors.Op = "agentServiceImpl.ResumeWithAnswer"
+	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
 	// Validate inputs
 	if checkpointID == "" {
@@ -229,6 +283,11 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 		agents.WithCheckpointer(s.checkpointer),
 		agents.WithEventBus(s.eventBus),
 		agents.WithMaxIterations(10),
+	}
+
+	// Add formatter registry if configured
+	if s.formatterRegistry != nil {
+		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
 	}
 
 	// Add delegation tool if registry is configured
@@ -301,6 +360,7 @@ func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
 		event.Type = services.EventTypeToolStart
 		if execEvent.Tool != nil {
 			event.Tool = &services.ToolEvent{
+				CallID:    execEvent.Tool.CallID,
 				Name:      execEvent.Tool.Name,
 				Arguments: execEvent.Tool.Arguments,
 			}
@@ -310,10 +370,12 @@ func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
 		event.Type = services.EventTypeToolEnd
 		if execEvent.Tool != nil {
 			event.Tool = &services.ToolEvent{
-				Name:      execEvent.Tool.Name,
-				Arguments: execEvent.Tool.Arguments,
-				Result:    execEvent.Tool.Result,
-				Error:     execEvent.Tool.Error,
+				CallID:     execEvent.Tool.CallID,
+				Name:       execEvent.Tool.Name,
+				Arguments:  execEvent.Tool.Arguments,
+				Result:     execEvent.Tool.Result,
+				Error:      execEvent.Tool.Error,
+				DurationMs: execEvent.Tool.DurationMs,
 			}
 		}
 
@@ -328,10 +390,19 @@ func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
 		event.Done = true
 		// Extract usage from result if available
 		if execEvent.Result != nil {
-			event.Usage = &services.TokenUsage{
-				PromptTokens:     execEvent.Result.Usage.PromptTokens,
-				CompletionTokens: execEvent.Result.Usage.CompletionTokens,
-				TotalTokens:      execEvent.Result.Usage.TotalTokens,
+			event.ProviderResponseID = execEvent.Result.ProviderResponseID
+			usage := execEvent.Result.Usage
+			if usage.PromptTokens > 0 || usage.CompletionTokens > 0 || usage.TotalTokens > 0 || usage.CachedTokens > 0 || usage.CacheReadTokens > 0 || usage.CacheWriteTokens > 0 {
+				cachedTokens := usage.CachedTokens
+				if cachedTokens == 0 {
+					cachedTokens = usage.CacheReadTokens
+				}
+				event.Usage = &types.DebugUsage{
+					PromptTokens:     usage.PromptTokens,
+					CompletionTokens: usage.CompletionTokens,
+					TotalTokens:      usage.TotalTokens,
+					CachedTokens:     cachedTokens,
+				}
 			}
 		}
 
@@ -365,14 +436,11 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 					})
 				}
 
-				// Determine question type
-				// If no options, it's a text question; otherwise single/multiple choice
-				questionType := services.QuestionTypeText
-				if len(options) > 0 {
-					questionType = services.QuestionTypeSingleChoice
-					if q.MultiSelect {
-						questionType = services.QuestionTypeMultipleChoice
-					}
+				// Determine question type.
+				// Questions are always single_choice or multiple_choice (no standalone free-text type).
+				questionType := services.QuestionTypeSingleChoice
+				if q.MultiSelect {
+					questionType = services.QuestionTypeMultipleChoice
 				}
 
 				questions = append(questions, services.Question{
@@ -390,9 +458,10 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 	agentName := agentInterrupt.AgentName
 
 	return &services.InterruptEvent{
-		CheckpointID: checkpointID,
-		AgentName:    agentName,
-		Questions:    questions,
+		CheckpointID:       checkpointID,
+		AgentName:          agentName,
+		ProviderResponseID: agentInterrupt.ProviderResponseID,
+		Questions:          questions,
 	}
 }
 

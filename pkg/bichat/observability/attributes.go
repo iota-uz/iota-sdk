@@ -159,9 +159,9 @@ func (a Attributes) Merge(other Attributes) Attributes {
 
 // Copy creates a shallow copy of the attributes.
 func (a Attributes) Copy() Attributes {
-	copy := make(Attributes, len(a))
+	out := make(Attributes, len(a))
 	for k, v := range a {
-		copy[k] = v
+		out[k] = v
 	}
-	return copy
+	return out
 }

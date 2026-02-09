@@ -295,7 +295,7 @@ Test in continuous integration:
 # GitHub Actions example
 - name: Run E2E tests
   run: |
-    make test-e2e
+    just e2e ci
   env:
     ENABLE_TEST_ENDPOINTS: true
     DATABASE_URL: postgres://localhost/iota_sdk_test

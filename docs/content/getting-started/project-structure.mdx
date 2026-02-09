@@ -18,7 +18,7 @@ iota-sdk/
 ├── pkg/                    # Shared packages
 ├── static/                 # Static assets
 ├── web/                    # Web assets (CSS, JS: %v", err)
-├── Makefile               # Build commands
+├── Justfile               # Build commands
 └── go.mod                 # Go dependencies
 ```
 
@@ -150,7 +150,7 @@ modules/finance/infrastructure/persistence/schema/
 └── finance-migration-*.sql # Migration files
 ```
 
-Migrations are applied via `make db migrate up`.
+Migrations are applied via `just db migrate up`.
 
 ## Frontend Assets
 

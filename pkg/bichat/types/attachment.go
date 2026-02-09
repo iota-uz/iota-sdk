@@ -9,29 +9,14 @@ import (
 
 // Attachment represents a file attached to a message.
 type Attachment struct {
-	// ID is the unique identifier for this attachment
-	ID uuid.UUID
-
-	// MessageID is the ID of the message this attachment belongs to
-	MessageID uuid.UUID
-
-	// FileName is the original name of the file
-	FileName string
-
-	// MimeType is the MIME type of the file (e.g., "image/png", "application/pdf")
-	MimeType string
-
-	// SizeBytes is the size of the file in bytes
-	SizeBytes int64
-
-	// FilePath is the storage path or URL of the file
-	FilePath string
-
-	// Data contains the raw file data (optional, may be nil if stored externally)
-	Data []byte
-
-	// CreatedAt is when the attachment was created
-	CreatedAt time.Time
+	ID        uuid.UUID `json:"id"`
+	MessageID uuid.UUID `json:"message_id"`
+	FileName  string    `json:"file_name"`
+	MimeType  string    `json:"mime_type"`
+	SizeBytes int64     `json:"size_bytes"`
+	FilePath  string    `json:"file_path"`
+	Data      []byte    `json:"data,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // IsImage returns true if the attachment is an image file.

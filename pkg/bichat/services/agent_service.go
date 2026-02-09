@@ -23,14 +23,15 @@ type AgentService interface {
 // Event represents an event during agent execution.
 // This aligns with the ExecutorEvent from pkg/bichat/agents.
 type Event struct {
-	Type      EventType
-	Content   string          // For content chunks
-	Citation  *types.Citation // For citation events
-	Usage     *TokenUsage     // For usage events
-	Tool      *ToolEvent      // For tool execution events
-	Interrupt *InterruptEvent // For HITL interrupts
-	Error     error           // For error events
-	Done      bool            // True when execution complete
+	Type               EventType
+	Content            string            // For content chunks
+	Citation           *types.Citation   // For citation events
+	Usage              *types.DebugUsage // For usage events
+	Tool               *ToolEvent        // For tool execution events
+	Interrupt          *InterruptEvent   // For HITL interrupts
+	ProviderResponseID string            // Provider continuity token (on done events)
+	Error              error             // For error events
+	Done               bool              // True when execution complete
 }
 
 // EventType identifies the kind of event
@@ -49,15 +50,18 @@ const (
 
 // ToolEvent represents a tool execution event
 type ToolEvent struct {
-	Name      string
-	Arguments string
-	Result    string
-	Error     error
+	CallID     string
+	Name       string
+	Arguments  string
+	Result     string
+	Error      error
+	DurationMs int64
 }
 
 // InterruptEvent represents a HITL interrupt
 type InterruptEvent struct {
-	CheckpointID string
-	AgentName    string // Name of the agent that triggered this interrupt
-	Questions    []Question
+	CheckpointID       string
+	AgentName          string // Name of the agent that triggered this interrupt
+	ProviderResponseID string
+	Questions          []Question
 }

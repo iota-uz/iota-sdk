@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@config "../tailwind.config.js";
+@import "tailwindcss";
+@import "../../../../../ui/src/bichat/styles.css";
 
 @layer base {
   :root {

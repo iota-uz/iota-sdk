@@ -4,22 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/analytics"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
+	bichattools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -50,17 +57,24 @@ type ModuleConfig struct {
 	// Required: Context management
 	ContextPolicy bichatcontext.ContextPolicy
 
-	// Required: Agents
+	// Optional: Parent agent (if nil, BuildParentAgent can construct default from QueryExecutor)
 	ParentAgent Agent
 	SubAgents   []Agent
+
+	// Optional: Project-scoped prompt extension appended to parent agent system prompt.
+	ProjectPromptExtension         string
+	ProjectPromptExtensionProvider prompts.ProjectPromptExtensionProvider
 
 	// Optional: Agent Registry for multi-agent orchestration
 	AgentRegistry *agents.AgentRegistry
 
 	// Optional services (can be nil)
-	QueryExecutor bichatsql.QueryExecutor
-	KBSearcher    kb.KBSearcher
-	TenantService *coreservices.TenantService
+	QueryExecutor          bichatsql.QueryExecutor
+	KBSearcher             kb.KBSearcher
+	TenantService          *coreservices.TenantService
+	SchemaMetadataProvider schema.MetadataProvider
+	LearningStore          learning.LearningStore       // Optional: Dynamic learnings system
+	ValidatedQueryStore    learning.ValidatedQueryStore // Optional: Validated query library
 
 	// BiChat query executor pool (restricted permissions)
 	// This pool should be configured with bichat_agent_role for SQL security
@@ -96,16 +110,24 @@ type ModuleConfig struct {
 	// Feature toggles
 	DisableTitleGeneration bool // Disable auto-title generation
 
-	// Optional: View access control for SQL execution
-	// When configured, SQL queries are validated against user permissions
-	// before execution to the analytics schema views
-	ViewAccessConfig *permissions.Config
+	// Optional: ViewManager manages analytics view definitions and syncs them to DB.
+	// When configured, views are synced on startup and used for permission-based access control.
+	ViewManager *analytics.ViewManager
+
+	// Optional: Permission overrides for StreamController.
+	// When not set, the module uses BiChat defaults.
+	StreamRequireAccessPermission permission.Permission
+	StreamReadAllPermission       permission.Permission
 
 	// Internal: Created services (initialized during BuildServices)
 	chatService       bichatservices.ChatService
 	agentService      bichatservices.AgentService
 	attachmentService bichatservices.AttachmentService
 	artifactService   bichatservices.ArtifactService
+
+	// Internal: Resolved once during BuildServices.
+	resolvedProjectPromptExtension string
+	projectPromptExtensionResolved bool
 }
 
 // ConfigOption is a functional option for ModuleConfig
@@ -136,6 +158,64 @@ func WithKBSearcher(searcher kb.KBSearcher) ConfigOption {
 func WithTenantService(svc *coreservices.TenantService) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.TenantService = svc
+	}
+}
+
+// WithSchemaMetadata sets the schema metadata provider for table documentation.
+// When configured, table metadata (descriptions, use cases, metrics) will be
+// injected into agent context as KindReference blocks.
+//
+// Example:
+//
+//	provider, _ := schema.NewFileMetadataProvider("/var/lib/bichat/metadata")
+//	cfg := bichat.NewModuleConfig(..., bichat.WithSchemaMetadata(provider))
+func WithSchemaMetadata(provider schema.MetadataProvider) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.SchemaMetadataProvider = provider
+	}
+}
+
+// WithLearningStore sets the learning store for dynamic agent learnings.
+// When configured, the agent can save and retrieve learnings from SQL errors,
+// type mismatches, and user corrections to avoid repeating mistakes.
+//
+// Example:
+//
+//	learningStore := persistence.NewLearningRepository(dbPool)
+//	cfg := bichat.NewModuleConfig(..., bichat.WithLearningStore(learningStore))
+func WithLearningStore(store learning.LearningStore) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.LearningStore = store
+	}
+}
+
+// WithValidatedQueryStore sets the validated query store for query pattern library.
+// When configured, the agent can search and save validated SQL query patterns
+// to reuse proven solutions for similar questions.
+//
+// Example:
+//
+//	validatedQueryStore := persistence.NewValidatedQueryRepository(dbPool)
+//	cfg := bichat.NewModuleConfig(..., bichat.WithValidatedQueryStore(validatedQueryStore))
+func WithValidatedQueryStore(store learning.ValidatedQueryStore) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ValidatedQueryStore = store
+	}
+}
+
+// WithProjectPromptExtension sets a project-scoped prompt extension that is appended
+// to the vendor system prompt in the parent agent execution flow.
+func WithProjectPromptExtension(text string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ProjectPromptExtension = text
+	}
+}
+
+// WithProjectPromptExtensionProvider sets a provider for loading project-scoped prompt extension text.
+// Provider output takes precedence over WithProjectPromptExtension when non-empty.
+func WithProjectPromptExtensionProvider(provider prompts.ProjectPromptExtensionProvider) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ProjectPromptExtensionProvider = provider
 	}
 }
 
@@ -254,24 +334,37 @@ func WithTitleGenerationDisabled() ConfigOption {
 	}
 }
 
-// WithViewAccessConfig configures permission-based view access control for SQL execution.
-// When configured, the SQL execute and schema tools will validate user permissions
-// against the analytics schema views before execution.
+// WithAnalyticsViews sets the ViewManager for analytics view sync and access control.
+// The ViewManager defines view SQL + permissions in Go and syncs them to the database
+// on every app start via CREATE OR REPLACE VIEW.
 //
 // Example:
 //
-//	viewConfig := permissions.NewConfig("analytics", []permissions.ViewPermission{
-//	    {ViewName: "expenses", Required: []permission.Permission{financeperm.ExpenseRead}},
-//	    {ViewName: "payments", Required: []permission.Permission{financeperm.PaymentRead}},
-//	})
-//	cfg := bichat.NewModuleConfig(..., bichat.WithViewAccessConfig(viewConfig))
-func WithViewAccessConfig(cfg *permissions.Config) ConfigOption {
+//	vm := analytics.NewViewManager()
+//	vm.Register(analytics.DefaultTenantViews()...)
+//	vm.Register(analytics.CustomView("custom_report", sql, analytics.RequireAny(perm)))
+//	cfg := bichat.NewModuleConfig(..., bichat.WithAnalyticsViews(vm))
+func WithAnalyticsViews(vm *analytics.ViewManager) ConfigOption {
 	return func(c *ModuleConfig) {
-		c.ViewAccessConfig = cfg
+		c.ViewManager = vm
 	}
 }
 
-// NewModuleConfig creates a new module configuration with required dependencies.
+// WithStreamRequireAccessPermission overrides the permission required to access StreamController.
+func WithStreamRequireAccessPermission(p permission.Permission) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.StreamRequireAccessPermission = p
+	}
+}
+
+// WithStreamReadAllPermission overrides the permission required to read other users' sessions via StreamController.
+func WithStreamReadAllPermission(p permission.Permission) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.StreamReadAllPermission = p
+	}
+}
+
+// NewModuleConfig creates a new module configuration.
 // Use ConfigOption functions to set optional dependencies.
 func NewModuleConfig(
 	tenantID func(ctx context.Context) uuid.UUID,
@@ -397,8 +490,8 @@ func (c *ModuleConfig) Validate() error {
 	if c.Model == nil {
 		return errors.New("Model is required")
 	}
-	if c.ParentAgent == nil {
-		return errors.New("ParentAgent is required")
+	if c.ParentAgent == nil && c.QueryExecutor == nil {
+		return errors.New("ParentAgent is required when QueryExecutor is not configured")
 	}
 	if c.ContextPolicy.ContextWindow == 0 {
 		return errors.New("ContextPolicy.ContextWindow must be set")
@@ -406,7 +499,7 @@ func (c *ModuleConfig) Validate() error {
 
 	// Validate Renderer
 	if c.Renderer == nil {
-		return errors.New("Renderer is required")
+		return errors.New("renderer is required")
 	}
 
 	// Validate TokenEstimator
@@ -449,6 +542,18 @@ func (c *ModuleConfig) Validate() error {
 	return nil
 }
 
+func defaultKindPriorities() []bichatcontext.KindPriority {
+	return []bichatcontext.KindPriority{
+		{Kind: bichatcontext.KindPinned, MinTokens: 1000, MaxTokens: 5000, Truncatable: false},
+		{Kind: bichatcontext.KindReference, MinTokens: 2000, MaxTokens: 10000, Truncatable: true},
+		{Kind: bichatcontext.KindMemory, MinTokens: 1000, MaxTokens: 5000, Truncatable: true},
+		{Kind: bichatcontext.KindState, MinTokens: 500, MaxTokens: 2000, Truncatable: false},
+		{Kind: bichatcontext.KindToolOutput, MinTokens: 2000, MaxTokens: 20000, Truncatable: true},
+		{Kind: bichatcontext.KindHistory, MinTokens: 5000, MaxTokens: 100000, Truncatable: true},
+		{Kind: bichatcontext.KindTurn, MinTokens: 1000, MaxTokens: 10000, Truncatable: false},
+	}
+}
+
 // DefaultContextPolicy returns a sensible default context policy for Claude 3.5 Sonnet.
 // Uses OverflowTruncate strategy - history is truncated when token budget is exceeded.
 // For intelligent summarization, use DefaultContextPolicyWithCompaction.
@@ -457,15 +562,7 @@ func DefaultContextPolicy() bichatcontext.ContextPolicy {
 		ContextWindow:     180000, // Claude 3.5 context window
 		CompletionReserve: 8000,   // Reserve for completion
 		OverflowStrategy:  bichatcontext.OverflowTruncate,
-		KindPriorities: []bichatcontext.KindPriority{
-			{Kind: bichatcontext.KindPinned, MinTokens: 1000, MaxTokens: 5000, Truncatable: false},
-			{Kind: bichatcontext.KindReference, MinTokens: 2000, MaxTokens: 10000, Truncatable: true},
-			{Kind: bichatcontext.KindMemory, MinTokens: 1000, MaxTokens: 5000, Truncatable: true},
-			{Kind: bichatcontext.KindState, MinTokens: 500, MaxTokens: 2000, Truncatable: false},
-			{Kind: bichatcontext.KindToolOutput, MinTokens: 2000, MaxTokens: 20000, Truncatable: true},
-			{Kind: bichatcontext.KindHistory, MinTokens: 5000, MaxTokens: 100000, Truncatable: true},
-			{Kind: bichatcontext.KindTurn, MinTokens: 1000, MaxTokens: 10000, Truncatable: false},
-		},
+		KindPriorities:    defaultKindPriorities(),
 		Compaction: &bichatcontext.CompactionConfig{
 			PruneToolOutputs:   true,
 			MaxToolOutputAge:   0, // Keep all by default
@@ -493,15 +590,7 @@ func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 		ContextWindow:     180000,                        // Claude 3.5 context window
 		CompletionReserve: 8000,                          // Reserve for completion
 		OverflowStrategy:  bichatcontext.OverflowCompact, // Intelligent compaction
-		KindPriorities: []bichatcontext.KindPriority{
-			{Kind: bichatcontext.KindPinned, MinTokens: 1000, MaxTokens: 5000, Truncatable: false},
-			{Kind: bichatcontext.KindReference, MinTokens: 2000, MaxTokens: 10000, Truncatable: true},
-			{Kind: bichatcontext.KindMemory, MinTokens: 1000, MaxTokens: 5000, Truncatable: true},
-			{Kind: bichatcontext.KindState, MinTokens: 500, MaxTokens: 2000, Truncatable: false},
-			{Kind: bichatcontext.KindToolOutput, MinTokens: 2000, MaxTokens: 20000, Truncatable: true},
-			{Kind: bichatcontext.KindHistory, MinTokens: 5000, MaxTokens: 100000, Truncatable: true},
-			{Kind: bichatcontext.KindTurn, MinTokens: 1000, MaxTokens: 10000, Truncatable: false},
-		},
+		KindPriorities:    defaultKindPriorities(),
 		Compaction: &bichatcontext.CompactionConfig{
 			PruneToolOutputs:      true,
 			MaxToolOutputAge:      3600, // 1 hour (remove old tool outputs)
@@ -513,6 +602,31 @@ func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 		RedactRestricted: true,
 		// Summarizer will be set automatically by NewModuleConfig
 	}
+}
+
+func (c *ModuleConfig) resolveProjectPromptExtension() error {
+	if c.projectPromptExtensionResolved {
+		return nil
+	}
+
+	staticExtension := prompts.NormalizeProjectPromptExtension(c.ProjectPromptExtension)
+	resolved := staticExtension
+
+	if c.ProjectPromptExtensionProvider != nil {
+		providerExtension, err := c.ProjectPromptExtensionProvider.ProjectPromptExtension()
+		if err != nil {
+			return err
+		}
+		providerExtension = prompts.NormalizeProjectPromptExtension(providerExtension)
+		if providerExtension != "" {
+			resolved = providerExtension
+		}
+	}
+
+	c.resolvedProjectPromptExtension = resolved
+	c.projectPromptExtensionResolved = true
+
+	return nil
 }
 
 // BuildServices creates and initializes all BiChat services from the configuration.
@@ -528,17 +642,46 @@ func (c *ModuleConfig) BuildServices() error {
 		return serrors.E(op, err)
 	}
 
+	if err := c.resolveProjectPromptExtension(); err != nil {
+		return serrors.E(op, err, "failed to resolve project prompt extension")
+	}
+
+	// Create file storage once for attachment/artifact services and artifact_reader tool wiring.
+	var fileStorage storage.FileStorage
+	if c.ParentAgent == nil || c.attachmentService == nil || c.artifactService == nil {
+		if c.DisableAttachmentStorage {
+			fileStorage = storage.NewNoOpFileStorage()
+		} else {
+			fs, err := storage.NewLocalFileStorage(
+				c.AttachmentStorageBasePath,
+				c.AttachmentStorageBaseURL,
+			)
+			if err != nil {
+				return serrors.E(op, err, "failed to create file storage")
+			}
+			fileStorage = fs
+		}
+	}
+
+	// Build default parent agent from config when caller did not provide one.
+	if err := c.buildParentAgent(fileStorage); err != nil {
+		return serrors.E(op, err)
+	}
+
 	// Build AgentService first (ChatService depends on it)
 	if c.agentService == nil {
 		c.agentService = services.NewAgentService(services.AgentServiceConfig{
-			Agent:         c.ParentAgent,
-			Model:         c.Model,
-			Policy:        c.ContextPolicy,
-			Renderer:      c.Renderer, // Use configured renderer
-			Checkpointer:  c.Checkpointer,
-			EventBus:      c.EventBus,
-			ChatRepo:      c.ChatRepo,
-			AgentRegistry: c.AgentRegistry,
+			Agent:                  c.ParentAgent,
+			Model:                  c.Model,
+			Policy:                 c.ContextPolicy,
+			Renderer:               c.Renderer, // Use configured renderer
+			Checkpointer:           c.Checkpointer,
+			EventBus:               c.EventBus,
+			ChatRepo:               c.ChatRepo,
+			AgentRegistry:          c.AgentRegistry,
+			SchemaMetadata:         c.SchemaMetadataProvider,
+			ProjectPromptExtension: c.resolvedProjectPromptExtension,
+			FormatterRegistry:      formatters.DefaultFormatterRegistry(),
 		})
 	}
 
@@ -562,47 +705,69 @@ func (c *ModuleConfig) BuildServices() error {
 		)
 	}
 
-	// Build AttachmentService (required unless disabled)
+	// Build AttachmentService
 	if c.attachmentService == nil {
-		var fileStorage storage.FileStorage
-
-		if c.DisableAttachmentStorage {
-			fileStorage = storage.NewNoOpFileStorage()
-		} else {
-			// Create LocalFileStorage with configured paths
-			fs, err := storage.NewLocalFileStorage(
-				c.AttachmentStorageBasePath,
-				c.AttachmentStorageBaseURL,
-			)
-			if err != nil {
-				return serrors.E(op, err, "failed to create attachment storage")
-			}
-			fileStorage = fs
-		}
-
 		c.attachmentService = services.NewAttachmentService(fileStorage)
 	}
 
-	// Build ArtifactService (uses same file storage as attachments)
+	// Build ArtifactService
 	if c.artifactService == nil {
-		var fileStorage storage.FileStorage
-
-		if c.DisableAttachmentStorage {
-			fileStorage = storage.NewNoOpFileStorage()
-		} else {
-			// Create LocalFileStorage with configured paths
-			fs, err := storage.NewLocalFileStorage(
-				c.AttachmentStorageBasePath,
-				c.AttachmentStorageBaseURL,
-			)
-			if err != nil {
-				return serrors.E(op, err, "failed to create artifact storage")
-			}
-			fileStorage = fs
-		}
-
-		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage)
+		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage, c.attachmentService)
 	}
+
+	return nil
+}
+
+// BuildParentAgent creates the default BI parent agent when ParentAgent is nil.
+// It applies KB, learning, validated query, and code interpreter options from ModuleConfig.
+func (c *ModuleConfig) BuildParentAgent() error {
+	return c.buildParentAgent(nil)
+}
+
+func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
+	const op serrors.Op = "ModuleConfig.BuildParentAgent"
+
+	if c.ParentAgent != nil {
+		return nil
+	}
+
+	if c.QueryExecutor == nil {
+		return serrors.E(op, serrors.KindValidation, "ParentAgent or QueryExecutor is required")
+	}
+
+	opts := make([]bichatagents.BIAgentOption, 0, 6)
+	if c.KBSearcher != nil {
+		opts = append(opts, bichatagents.WithKBSearcher(c.KBSearcher))
+	}
+	if c.LearningStore != nil {
+		opts = append(opts, bichatagents.WithLearningStore(c.LearningStore))
+	}
+	if c.ValidatedQueryStore != nil {
+		opts = append(opts, bichatagents.WithValidatedQueryStore(c.ValidatedQueryStore))
+	}
+	if c.AgentRegistry != nil {
+		opts = append(opts, bichatagents.WithAgentRegistry(c.AgentRegistry))
+	}
+	if c.EnableCodeInterpreter {
+		opts = append(opts, bichatagents.WithCodeInterpreter(true))
+	}
+	if c.Model != nil {
+		modelName := strings.TrimSpace(c.Model.Info().Name)
+		if modelName != "" {
+			opts = append(opts, bichatagents.WithModel(modelName))
+		}
+	}
+	if c.ChatRepo != nil && fileStorage != nil {
+		opts = append(opts, bichatagents.WithArtifactReaderTool(
+			bichattools.NewArtifactReaderTool(c.ChatRepo, fileStorage),
+		))
+	}
+
+	parentAgent, err := bichatagents.NewDefaultBIAgent(c.QueryExecutor, opts...)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	c.ParentAgent = parentAgent
 
 	return nil
 }

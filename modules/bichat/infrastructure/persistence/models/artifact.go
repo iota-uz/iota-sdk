@@ -2,10 +2,16 @@ package models
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+)
+
+var (
+	ErrNilArtifactModel = errors.New("artifact model is nil")
+	ErrNilArtifact      = errors.New("artifact is nil")
 )
 
 // ArtifactModel is the database model for bichat.artifacts.
@@ -27,7 +33,7 @@ type ArtifactModel struct {
 // ToDomain converts the model to a domain Artifact.
 func (m *ArtifactModel) ToDomain() (domain.Artifact, error) {
 	if m == nil {
-		return nil, nil
+		return nil, ErrNilArtifactModel
 	}
 	id, err := uuid.Parse(m.ID)
 	if err != nil {
@@ -83,7 +89,7 @@ func (m *ArtifactModel) ToDomain() (domain.Artifact, error) {
 // ArtifactModelFromDomain converts a domain Artifact to the DB model.
 func ArtifactModelFromDomain(a domain.Artifact) (*ArtifactModel, error) {
 	if a == nil {
-		return nil, nil
+		return nil, ErrNilArtifact
 	}
 	m := &ArtifactModel{
 		ID:        a.ID().String(),

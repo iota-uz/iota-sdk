@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/henomis/langfuse-go/model"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/sirupsen/logrus"
@@ -128,6 +127,8 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 		Usage:               usage,
 		Level:               model.ObservationLevelDefault,
 		CompletionStartTime: timePtr(obs.Timestamp.Add(obs.Duration)),
+		Input:               obs.Input,
+		Output:              obs.Output,
 	}
 
 	// Create generation in Langfuse
@@ -138,6 +139,20 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 
 	// Store generation ID mapping
 	p.state.setGenerationID(obs.ID, obs.ID)
+
+	// Update trace with Input/Output (only if this is the first generation)
+	// This ensures the trace shows the initial user input and final response
+	if obs.Input != nil || obs.Output != nil {
+		trace := &model.Trace{
+			ID:     obs.SessionID.String(),
+			Input:  obs.Input,
+			Output: obs.Output,
+		}
+		if _, err := p.client.Trace(trace); err != nil {
+			p.log.Errorf("langfuse: failed to update trace with Input/Output: %v", err)
+			// Non-blocking - continue with generation
+		}
+	}
 
 	// End generation
 	generation.EndTime = timePtr(obs.Timestamp.Add(obs.Duration))
@@ -431,9 +446,4 @@ func mapLevelToLangfuseModel(level string) model.ObservationLevel {
 // timePtr returns a pointer to the given time.
 func timePtr(t time.Time) *time.Time {
 	return &t
-}
-
-// uuidPtr returns a pointer to the given UUID (unused but kept for consistency).
-func uuidPtr(id uuid.UUID) *uuid.UUID {
-	return &id
 }

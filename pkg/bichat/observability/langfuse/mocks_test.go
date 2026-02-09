@@ -224,10 +224,10 @@ func TestMockClient_Reset(t *testing.T) {
 		mock := NewMockClient()
 
 		// Make some calls
-		mock.Generation(&model.Generation{}, nil)
-		mock.Span(&model.Span{}, nil)
-		mock.Event(&model.Event{}, nil)
-		mock.Trace(&model.Trace{})
+		_, _ = mock.Generation(&model.Generation{}, nil)
+		_, _ = mock.Span(&model.Span{}, nil)
+		_, _ = mock.Event(&model.Event{}, nil)
+		_, _ = mock.Trace(&model.Trace{})
 		mock.Flush(context.Background())
 
 		// Set some errors
@@ -273,13 +273,13 @@ func TestMockClient_CallCounts(t *testing.T) {
 		mock := NewMockClient()
 
 		// Make multiple calls
-		mock.Generation(&model.Generation{}, nil)
-		mock.Generation(&model.Generation{}, nil)
-		mock.Span(&model.Span{}, nil)
-		mock.Event(&model.Event{}, nil)
-		mock.Event(&model.Event{}, nil)
-		mock.Event(&model.Event{}, nil)
-		mock.Trace(&model.Trace{})
+		_, _ = mock.Generation(&model.Generation{}, nil)
+		_, _ = mock.Generation(&model.Generation{}, nil)
+		_, _ = mock.Span(&model.Span{}, nil)
+		_, _ = mock.Event(&model.Event{}, nil)
+		_, _ = mock.Event(&model.Event{}, nil)
+		_, _ = mock.Event(&model.Event{}, nil)
+		_, _ = mock.Trace(&model.Trace{})
 
 		if mock.GenerationCallCount() != 2 {
 			t.Errorf("expected 2 generation calls, got %d", mock.GenerationCallCount())
@@ -337,9 +337,9 @@ func TestMockClient_ThreadSafety(t *testing.T) {
 		// Start multiple goroutines
 		for i := 0; i < 10; i++ {
 			go func() {
-				mock.Generation(&model.Generation{}, nil)
-				mock.Span(&model.Span{}, nil)
-				mock.Event(&model.Event{}, nil)
+				_, _ = mock.Generation(&model.Generation{}, nil)
+				_, _ = mock.Span(&model.Span{}, nil)
+				_, _ = mock.Event(&model.Event{}, nil)
 				done <- true
 			}()
 		}

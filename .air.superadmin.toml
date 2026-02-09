@@ -5,8 +5,8 @@ tmp_dir = "tmp"
 [build]
 args_bin = []
 bin = "./tmp/superadmin"
-cmd = "go build -tags dev -o ./tmp/superadmin cmd/superadmin/main.go"
-delay = 1000
+cmd = "go build -tags dev -gcflags='all=-N -l' -o ./tmp/superadmin cmd/superadmin/main.go"
+delay = 500
 exclude_dir = [
   "tmp",
   "vendor",
@@ -16,10 +16,13 @@ exclude_dir = [
   "py-embed",
   "e2e",
   "node_modules",
+  "dist",
   "ui/applet-core/node_modules",
   "ui/bichat/node_modules",
   "ui/tailwind-preset/node_modules",
   "modules/bichat/presentation/web/node_modules",
+  "modules/bichat/presentation/web/dist",
+  "modules/bichat/presentation/assets/dist",
   "var",
 ]
 exclude_file = [
@@ -35,7 +38,7 @@ exclude_unchanged = false
 follow_symlink = false
 full_bin = ""
 include_dir = []
-include_ext = ["go", "html", "json", "js", "css", "toml", "yml", "yaml"]
+include_ext = ["go", "html", "json", "toml", "yml", "yaml"]
 include_file = []
 kill_delay = "0s"
 log = "build-errors.log"

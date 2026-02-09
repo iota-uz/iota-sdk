@@ -80,8 +80,7 @@ func main() {
 	// Manually register only necessary parts from core module (without its controllers)
 	// This avoids exposing core module's admin pages (/users, /roles, etc.) in superadmin
 
-	// Register core migrations and locales
-	app.Migrations().RegisterSchema(&core.MigrationFiles)
+	// Register core locales
 	app.RegisterLocaleFiles(&core.LocaleFiles)
 
 	// Register core repositories and services (needed for authentication)

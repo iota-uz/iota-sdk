@@ -28,7 +28,7 @@ type TwillioController struct {
 func (c *TwillioController) Register(r *mux.Router) {
 	subRouter := r.PathPrefix("/twilio").Subrouter()
 	webhookHandler := c.twilioProvider.WebhookHandler(c.app.EventPublisher())
-	
+
 	// Wrap the webhook handler with transaction support
 	wrappedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := composables.InTx(r.Context(), func(txCtx context.Context) error {
@@ -43,7 +43,7 @@ func (c *TwillioController) Register(r *mux.Router) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})
-	
+
 	subRouter.HandleFunc("", wrappedHandler).Methods(http.MethodPost)
 }
 

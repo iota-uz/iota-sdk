@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -268,6 +270,33 @@ func extractTranslationKeys(rootPath string) (map[string][]string, error) {
 	})
 
 	return keysWithLocations, err
+}
+
+// WriteRequiredKeysFile extracts T/TSafe translation keys from the codebase under projectRoot
+// and writes the unique, sorted list to outputPath as a JSON array of strings.
+// outputPath is created or overwritten. projectRoot is typically the application root (e.g. where go.mod lives).
+func WriteRequiredKeysFile(projectRoot, outputPath string) error {
+	keysWithLocations, err := extractTranslationKeys(projectRoot)
+	if err != nil {
+		return fmt.Errorf("extract translation keys: %w", err)
+	}
+	keys := make([]string, 0, len(keysWithLocations))
+	for key := range keysWithLocations {
+		// Skip dynamic key suffixes (e.g. "Countries.") same as checkForUndefinedKeys
+		if strings.HasSuffix(key, ".") {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	data, err := json.MarshalIndent(keys, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal required keys: %w", err)
+	}
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+		return fmt.Errorf("write %s: %w", outputPath, err)
+	}
+	return nil
 }
 
 func checkForUndefinedKeys(allKeys map[string]map[language.Tag]bool, logger *logrus.Logger) error {

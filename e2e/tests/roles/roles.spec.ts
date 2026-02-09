@@ -1,10 +1,13 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { login, logout, waitForAlpine } from '../../fixtures/auth';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
 test.describe('role management flows', () => {
 	// Tests MUST run serially - some tests depend on data created by previous tests
 	test.describe.configure({ mode: 'serial' });
+
+	const saveRoleButton = (page: Page) =>
+		page.getByRole('button', { name: /save/i }).or(page.locator('[data-test-id="save-role-btn"], #save-btn'));
 
 	// Reset database once for entire suite
 	test.beforeAll(async ({ request }) => {
@@ -41,7 +44,11 @@ test.describe('role management flows', () => {
 		// Verify form elements are present
 		await expect(page.locator('[data-test-id="role-name-input"]')).toBeVisible();
 		await expect(page.locator('[data-test-id="role-description-input"]')).toBeVisible();
-		await expect(page.locator('[data-test-id="save-role-btn"]')).toBeVisible();
+		// Save button (by role or test-id); may be in sticky footer below fold
+		const saveBtn = saveRoleButton(page).first();
+		await saveBtn.waitFor({ state: 'attached', timeout: 15000 });
+		await saveBtn.scrollIntoViewIfNeeded();
+		await expect(saveBtn).toBeVisible();
 
 		// Fill in role details
 		const testRoleName = 'Test Editor Role';
@@ -65,8 +72,9 @@ test.describe('role management flows', () => {
 			await expect(firstPermissionSwitch).toBeChecked();
 		}
 
-		// Save the role
-		await page.locator('[data-test-id="save-role-btn"]').click();
+		// Save the role (scroll into view again in case viewport changed)
+		await saveBtn.scrollIntoViewIfNeeded();
+		await saveBtn.click();
 
 		// Wait for redirect back to roles list
 		await page.waitForURL(/\/roles$/);
@@ -96,7 +104,7 @@ test.describe('role management flows', () => {
 		await expect(page.locator('[data-test-id="role-name-input"]')).toHaveValue(updatedRoleName);
 
 		// Save changes
-		await page.locator('[data-test-id="save-role-btn"]').click();
+		await saveRoleButton(page).first().click();
 		await page.waitForURL(/\/roles$/);
 
 		// Verify name was updated in the list
@@ -136,7 +144,7 @@ test.describe('role management flows', () => {
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
 		// Navigate to create role page
-		await page.goto('/roles/new');
+		await page.goto('/roles/new', { waitUntil: 'domcontentloaded' });
 		await expect(page).toHaveURL(/\/roles\/new$/);
 
 		// Wait for Alpine.js and permission UI to load
@@ -180,7 +188,7 @@ test.describe('role management flows', () => {
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
 		// Navigate to roles page
-		await page.goto('/roles');
+		await page.goto('/roles', { waitUntil: 'domcontentloaded' });
 		await expect(page).toHaveURL(/\/roles$/);
 
 		// Verify the roles table is visible and has content
@@ -237,7 +245,7 @@ test.describe('role management flows', () => {
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
 		// Create a limited role with only User.Read permission
-		await page.goto('/roles/new');
+		await page.goto('/roles/new', { waitUntil: 'domcontentloaded' });
 		await expect(page).toHaveURL(/\/roles\/new$/);
 
 		await page.locator('[data-test-id="role-name-input"]').fill(limitedRoleName);
@@ -257,7 +265,7 @@ test.describe('role management flows', () => {
 		}
 
 		// Save the role
-		await page.locator('[data-test-id="save-role-btn"]').click();
+		await saveRoleButton(page).first().click();
 		await page.waitForURL(/\/roles$/);
 
 		// Verify role was created and appears in the table

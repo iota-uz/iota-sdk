@@ -46,11 +46,11 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-light"
-			class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/system:visible"
+			class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer invisible peer-checked/system:visible"
 		>
 			@icons.Desktop(icons.Props{
 				Size:  "20",
-				Class: "scale-0 duration-200 peer-checked/system:group-[]/system:scale-100",
+				Class: "scale-100 transition-transform duration-200",
 			})
 		</label>
 		<input
@@ -63,12 +63,12 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-dark"
-			class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/light:visible"
+			class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer invisible peer-checked/light:visible"
 		>
 			@icons.Sun(icons.Props{
 				Size:    "20",
 				Variant: icons.Filled,
-				Class:   "scale-0 duration-200 peer-checked/light:group-[]/light:scale-100",
+				Class:   "scale-100 transition-transform duration-200",
 			})
 		</label>
 		<input
@@ -81,12 +81,12 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-system"
-			class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white invisible peer-checked/dark:visible"
+			class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white cursor-pointer invisible peer-checked/dark:visible"
 		>
 			@icons.Moon(icons.Props{
 				Size:       "20",
 				Variant:    icons.Filled,
-				Class:      "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100",
+				Class:      "scale-100 transition-transform duration-200",
 				Attributes: templ.Attributes{"fill": "currentColor"},
 			})
 		</label>

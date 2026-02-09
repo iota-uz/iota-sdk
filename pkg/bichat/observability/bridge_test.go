@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,6 +56,12 @@ func (m *mockProvider) getGenerations() []GenerationObservation {
 	return append([]GenerationObservation{}, m.generations...)
 }
 
+func (m *mockProvider) getSpans() []SpanObservation {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]SpanObservation{}, m.spans...)
+}
+
 func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +69,7 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 	bus := hooks.NewEventBus()
 	provider := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	sessionID := uuid.New()
 	tenantID := uuid.New()
@@ -70,9 +78,10 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 	requestEvent := events.NewLLMRequestEvent(
 		sessionID, tenantID,
 		"claude-3-5-sonnet-20241022", "anthropic",
-		3,    // messages
-		5,    // tools
-		1000, // estimatedTokens
+		3,                 // messages
+		5,                 // tools
+		1000,              // estimatedTokens
+		"test user input", // userInput
 	)
 	require.NoError(t, bus.Publish(context.Background(), requestEvent))
 
@@ -87,7 +96,8 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 		950, 120, 1070, // tokens
 		1234, // latencyMs
 		"stop",
-		2, // toolCalls
+		2,                    // toolCalls
+		"test response text", // responseText
 	)
 	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 
@@ -118,7 +128,7 @@ func TestEventBridge_MissingRequest(t *testing.T) {
 	bus := hooks.NewEventBus()
 	provider := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	sessionID := uuid.New()
 	tenantID := uuid.New()
@@ -131,6 +141,7 @@ func TestEventBridge_MissingRequest(t *testing.T) {
 		1234,
 		"stop",
 		2,
+		"test response text",
 	)
 	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 
@@ -154,7 +165,7 @@ func TestEventBridge_OrphanCleanup(t *testing.T) {
 	bus := hooks.NewEventBus()
 	provider := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	sessionID := uuid.New()
 
@@ -166,6 +177,7 @@ func TestEventBridge_OrphanCleanup(t *testing.T) {
 		timestamp: time.Now().Add(-6 * time.Minute),
 		messages:  3,
 		tools:     5,
+		userInput: "old user input",
 	}
 	bridge.mu.Unlock()
 
@@ -185,10 +197,11 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 	bus := hooks.NewEventBus()
 	provider := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	tenantID := uuid.New()
 	var wg sync.WaitGroup
+	errCh := make(chan error, 20)
 
 	// Launch 10 goroutines emitting requests
 	for i := 0; i < 10; i++ {
@@ -200,8 +213,9 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 				sessionID, tenantID,
 				"claude-3-5-sonnet-20241022", "anthropic",
 				3, 5, 1000,
+				"test user input",
 			)
-			bus.Publish(context.Background(), requestEvent)
+			errCh <- bus.Publish(context.Background(), requestEvent)
 		}()
 	}
 
@@ -215,12 +229,17 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 				sessionID, tenantID,
 				"claude-3-5-sonnet-20241022", "anthropic",
 				950, 120, 1070, 1234, "stop", 2,
+				"test response text",
 			)
-			bus.Publish(context.Background(), responseEvent)
+			errCh <- bus.Publish(context.Background(), responseEvent)
 		}()
 	}
 
 	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		require.NoError(t, err)
+	}
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify no panics (test passes if no race conditions)
@@ -237,7 +256,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 	provider2 := &mockProvider{}
 	provider3 := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider1, provider2, provider3})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	sessionID := uuid.New()
 	tenantID := uuid.New()
@@ -247,16 +266,18 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 		sessionID, tenantID,
 		"claude-3-5-sonnet-20241022", "anthropic",
 		3, 5, 1000,
+		"test user input",
 	)
-	bus.Publish(context.Background(), requestEvent)
+	require.NoError(t, bus.Publish(context.Background(), requestEvent))
 	time.Sleep(50 * time.Millisecond)
 
 	responseEvent := events.NewLLMResponseEvent(
 		sessionID, tenantID,
 		"claude-3-5-sonnet-20241022", "anthropic",
 		950, 120, 1070, 1234, "stop", 2,
+		"test response text",
 	)
-	bus.Publish(context.Background(), responseEvent)
+	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 
 	// Wait longer for all async handlers (3 providers) to process
 	time.Sleep(300 * time.Millisecond)
@@ -268,4 +289,137 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 		assert.Equal(t, 3, generations[0].PromptMessages, "Provider %d PromptMessages", idx+1)
 		assert.Equal(t, 5, generations[0].Tools, "Provider %d Tools", idx+1)
 	}
+}
+
+func TestEventBridge_ContextCompileSpanHasInputOutput(t *testing.T) {
+	t.Parallel()
+
+	bus := hooks.NewEventBus()
+	provider := &mockProvider{}
+	bridge := NewEventBridge(bus, []Provider{provider})
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
+
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	tokensByKind := map[string]int{"history": 13, "pinned": 980, "turn": 13}
+
+	event := events.NewContextCompileEvent(
+		sessionID, tenantID,
+		"anthropic",
+		1006,
+		tokensByKind,
+		3,
+		false, false,
+		0,
+	)
+	require.NoError(t, bus.Publish(context.Background(), event))
+
+	time.Sleep(100 * time.Millisecond)
+
+	spans := provider.getSpans()
+	require.Len(t, spans, 1)
+	obs := spans[0]
+	assert.Equal(t, "context.compile", obs.Name)
+	assert.Equal(t, "context", obs.Type)
+
+	require.NotEmpty(t, obs.Input, "Input should be set")
+	require.NotEmpty(t, obs.Output, "Output should be set")
+
+	var inputMap map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(obs.Input), &inputMap), "Input should be valid JSON")
+	assert.Equal(t, "anthropic", inputMap["provider"])
+	assert.EqualValues(t, 3, inputMap["block_count"])
+
+	var outputMap map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(obs.Output), &outputMap), "Output should be valid JSON")
+	assert.EqualValues(t, 1006, outputMap["total_tokens"])
+	tbk, ok := outputMap["tokens_by_kind"].(map[string]interface{})
+	require.True(t, ok, "tokens_by_kind should be an object")
+	assert.EqualValues(t, 13, tbk["history"])
+	assert.EqualValues(t, 980, tbk["pinned"])
+	assert.EqualValues(t, 13, tbk["turn"])
+	assert.Equal(t, false, outputMap["truncated"])
+	assert.Equal(t, false, outputMap["compacted"])
+	assert.EqualValues(t, 0, outputMap["excluded_blocks"])
+}
+
+func TestEventBridge_InterruptSpanHasInputOutput(t *testing.T) {
+	t.Parallel()
+	bus := hooks.NewEventBus()
+	provider := &mockProvider{}
+	bridge := NewEventBridge(bus, []Provider{provider})
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	event := events.NewInterruptEvent(sessionID, tenantID, string(types.InterruptTypeAskUserQuestion), "default", "Which date range?", "cp-123")
+	require.NoError(t, bus.Publish(context.Background(), event))
+	time.Sleep(100 * time.Millisecond)
+	spans := provider.getSpans()
+	require.Len(t, spans, 1)
+	obs := spans[0]
+	assert.Equal(t, "interrupt", obs.Name)
+	require.NotEmpty(t, obs.Input)
+	require.NotEmpty(t, obs.Output)
+	var inputMap map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(obs.Input), &inputMap))
+	assert.Equal(t, "ASK_USER_QUESTION", inputMap["interrupt_type"])
+	assert.Equal(t, "default", inputMap["agent_name"])
+	var outputMap map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(obs.Output), &outputMap))
+	assert.Equal(t, "Which date range?", outputMap["question"])
+	assert.Equal(t, "cp-123", outputMap["checkpoint_id"])
+}
+
+func TestEventBridge_ToolStartSpanHasInputOutput(t *testing.T) {
+	t.Parallel()
+	bus := hooks.NewEventBus()
+	provider := &mockProvider{}
+	bridge := NewEventBridge(bus, []Provider{provider})
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	event := events.NewToolStartEvent(sessionID, tenantID, "sql_execute", `{"query":"SELECT 1"}`, "call-1")
+	require.NoError(t, bus.Publish(context.Background(), event))
+	time.Sleep(100 * time.Millisecond)
+	spans := provider.getSpans()
+	require.Len(t, spans, 1)
+	obs := spans[0]
+	assert.Equal(t, "tool.start", obs.Name)
+	require.NotEmpty(t, obs.Input)
+	require.NotEmpty(t, obs.Output)
+	assert.JSONEq(t, `{"query":"SELECT 1"}`, obs.Input)
+	var outputMap map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(obs.Output), &outputMap))
+	assert.Equal(t, "started", outputMap["status"])
+	assert.Equal(t, "sql_execute", outputMap["tool"])
+	assert.Equal(t, "call-1", outputMap["call_id"])
+}
+
+func TestEventBridge_LLMRequestSpanHasInputOutput(t *testing.T) {
+	t.Parallel()
+	bus := hooks.NewEventBus()
+	provider := &mockProvider{}
+	bridge := NewEventBridge(bus, []Provider{provider})
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	event := events.NewLLMRequestEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 5, 3, 1000, "Show me sales")
+	require.NoError(t, bus.Publish(context.Background(), event))
+	time.Sleep(100 * time.Millisecond)
+	spans := provider.getSpans()
+	require.Len(t, spans, 1)
+	obs := spans[0]
+	assert.Equal(t, "llm.request", obs.Name)
+	require.NotEmpty(t, obs.Input)
+	require.NotEmpty(t, obs.Output)
+	var inputMap map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(obs.Input), &inputMap))
+	assert.Equal(t, "claude-3-5-sonnet", inputMap["model"])
+	assert.Equal(t, "anthropic", inputMap["provider"])
+	assert.EqualValues(t, 5, inputMap["messages"])
+	assert.EqualValues(t, 3, inputMap["tools"])
+	assert.Equal(t, "Show me sales", inputMap["user_input"])
+	var outputMap map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(obs.Output), &outputMap))
+	assert.Equal(t, "pending", outputMap["status"])
 }

@@ -5,22 +5,39 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBiChatApplet_Name(t *testing.T) {
-	t.Parallel()
+type appletTestModel struct{}
 
-	bichatApplet := NewBiChatApplet(nil)
-	assert.Equal(t, "bichat", bichatApplet.Name())
+func (m *appletTestModel) Generate(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
+	return &agents.Response{Message: types.AssistantMessage("ok")}, nil
 }
 
-func TestBiChatApplet_BasePath(t *testing.T) {
-	t.Parallel()
+func (m *appletTestModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.Chunk) bool) error {
+		return nil
+	}), nil
+}
 
-	bichatApplet := NewBiChatApplet(nil)
-	assert.Equal(t, "/bi-chat", bichatApplet.BasePath())
+func (m *appletTestModel) Info() agents.ModelInfo {
+	return agents.ModelInfo{
+		Name:          "gpt-5.2-2025-12-11",
+		Provider:      "openai",
+		ContextWindow: 272000,
+	}
+}
+
+func (m *appletTestModel) HasCapability(capability agents.Capability) bool {
+	return false
+}
+
+func (m *appletTestModel) Pricing() agents.ModelPricing {
+	return agents.ModelPricing{}
 }
 
 func TestBiChatApplet_Config(t *testing.T) {
@@ -29,28 +46,83 @@ func TestBiChatApplet_Config(t *testing.T) {
 	bichatApplet := NewBiChatApplet(nil)
 	config := bichatApplet.Config()
 
-	// Verify window global
-	assert.Equal(t, "__BICHAT_CONTEXT__", config.WindowGlobal)
+	t.Run("WindowGlobal", func(t *testing.T) {
+		assert.Equal(t, "__BICHAT_CONTEXT__", config.WindowGlobal)
+	})
 
-	// Verify endpoints
-	assert.Equal(t, "/query/bichat", config.Endpoints.GraphQL)
-	assert.Equal(t, "/bi-chat/stream", config.Endpoints.Stream)
+	t.Run("Endpoints", func(t *testing.T) {
+		assert.Equal(t, "/bi-chat/stream", config.Endpoints.Stream)
+	})
 
-	// Verify assets
-	assert.NotNil(t, config.Assets.FS)
-	assert.Equal(t, "/assets", config.Assets.BasePath)
-	assert.Equal(t, ".vite/manifest.json", config.Assets.ManifestPath)
-	assert.Equal(t, "index.html", config.Assets.Entrypoint)
+	t.Run("Assets", func(t *testing.T) {
+		assert.NotNil(t, config.Assets.FS)
+		assert.Equal(t, "/assets", config.Assets.BasePath)
+		assert.Equal(t, "manifest.json", config.Assets.ManifestPath)
+		assert.Equal(t, "index.html", config.Assets.Entrypoint)
 
-	// Verify router
-	assert.NotNil(t, config.Router)
+		require.NotNil(t, config.Assets.Dev)
+		assert.False(t, config.Assets.Dev.Enabled)
+		assert.Equal(t, "http://localhost:5173", config.Assets.Dev.TargetURL)
+		assert.Equal(t, "/src/main.tsx", config.Assets.Dev.EntryModule)
+		assert.Equal(t, "/@vite/client", config.Assets.Dev.ClientModule)
+	})
 
-	// Verify custom context is set
-	assert.NotNil(t, config.CustomContext)
+	t.Run("Router", func(t *testing.T) {
+		assert.NotNil(t, config.Router)
+	})
 
-	// Verify middleware
-	assert.NotNil(t, config.Middleware)
-	assert.NotEmpty(t, config.Middleware) // BiChat requires authentication middleware
+	t.Run("CustomContext", func(t *testing.T) {
+		assert.NotNil(t, config.CustomContext)
+	})
+
+	t.Run("Middleware", func(t *testing.T) {
+		assert.NotNil(t, config.Middleware)
+		assert.NotEmpty(t, config.Middleware)
+	})
+
+	t.Run("Shell", func(t *testing.T) {
+		assert.Equal(t, applet.ShellModeEmbedded, config.Shell.Mode)
+		assert.NotNil(t, config.Shell.Layout)
+		assert.Equal(t, "BiChat", config.Shell.Title)
+	})
+
+	t.Run("RPC", func(t *testing.T) {
+		assert.Nil(t, config.RPC)
+	})
+}
+
+func TestBiChatApplet_Config_BasePathDerivedValues(t *testing.T) {
+	tests := []struct {
+		name               string
+		moduleConfig       *ModuleConfig
+		expectedBasePath   string
+		expectedStreamPath string
+	}{
+		{
+			name:               "nil config derives base path correctly",
+			moduleConfig:       nil,
+			expectedBasePath:   "/bi-chat",
+			expectedStreamPath: "/bi-chat/stream",
+		},
+		{
+			name:               "config with features derives base path correctly",
+			moduleConfig:       &ModuleConfig{EnableVision: true},
+			expectedBasePath:   "/bi-chat",
+			expectedStreamPath: "/bi-chat/stream",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bichatApplet := NewBiChatApplet(tt.moduleConfig)
+			basePath := bichatApplet.BasePath()
+			config := bichatApplet.Config()
+
+			require.Equal(t, tt.expectedBasePath, basePath, "BasePath() should return expected value")
+			assert.Equal(t, basePath, config.Mount.Attributes["base-path"], "config.Mount.Attributes[base-path] should match BasePath()")
+			assert.Equal(t, tt.expectedStreamPath, config.Endpoints.Stream, "config.Endpoints.Stream should be basePath+/stream")
+		})
+	}
 }
 
 func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {
@@ -72,6 +144,20 @@ func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {
 	assert.False(t, features["webSearch"])
 	assert.False(t, features["codeInterpreter"])
 	assert.False(t, features["multiAgent"])
+
+	llm, ok := custom["llm"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Empty(t, llm["provider"])
+	assert.Equal(t, false, llm["apiKeyConfigured"])
+
+	debug, ok := custom["debug"].(map[string]interface{})
+	require.True(t, ok)
+	limits, ok := debug["limits"].(map[string]int)
+	require.True(t, ok)
+	assert.Equal(t, 0, limits["policyMaxTokens"])
+	assert.Equal(t, 0, limits["modelMaxTokens"])
+	assert.Equal(t, 0, limits["effectiveMaxTokens"])
+	assert.Equal(t, 0, limits["completionReserveTokens"])
 }
 
 func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
@@ -83,6 +169,10 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 		EnableWebSearch:       false,
 		EnableCodeInterpreter: true,
 		EnableMultiAgent:      false,
+		ContextPolicy: bichatcontext.ContextPolicy{
+			ContextWindow:     180000,
+			CompletionReserve: 8000,
+		},
 	}
 
 	bichatApplet := NewBiChatApplet(config)
@@ -101,6 +191,20 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 	assert.False(t, features["webSearch"])
 	assert.True(t, features["codeInterpreter"])
 	assert.False(t, features["multiAgent"])
+
+	llm, ok := custom["llm"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Empty(t, llm["provider"])
+	assert.Equal(t, true, llm["apiKeyConfigured"])
+
+	debug, ok := custom["debug"].(map[string]interface{})
+	require.True(t, ok)
+	limits, ok := debug["limits"].(map[string]int)
+	require.True(t, ok)
+	assert.Equal(t, 180000, limits["policyMaxTokens"])
+	assert.Equal(t, 0, limits["modelMaxTokens"])
+	assert.Equal(t, 180000, limits["effectiveMaxTokens"])
+	assert.Equal(t, 8000, limits["completionReserveTokens"])
 }
 
 func TestBiChatApplet_SetConfig(t *testing.T) {
@@ -127,11 +231,27 @@ func TestBiChatApplet_SetConfig(t *testing.T) {
 	assert.True(t, features["vision"])
 }
 
-func TestBiChatApplet_ImplementsAppletInterface(t *testing.T) {
+func TestBiChatApplet_buildCustomContext_UsesEffectiveContextWindow(t *testing.T) {
 	t.Parallel()
 
-	// Verify BiChatApplet implements applet.Applet interface
-	var _ applet.Applet = (*BiChatApplet)(nil)
+	config := &ModuleConfig{
+		Model: &appletTestModel{},
+		ContextPolicy: bichatcontext.ContextPolicy{
+			ContextWindow: 180000,
+		},
+	}
+
+	bichatApplet := NewBiChatApplet(config)
+	custom, err := bichatApplet.buildCustomContext(context.Background())
+	require.NoError(t, err)
+
+	debug, ok := custom["debug"].(map[string]interface{})
+	require.True(t, ok)
+	limits, ok := debug["limits"].(map[string]int)
+	require.True(t, ok)
+	assert.Equal(t, 180000, limits["effectiveMaxTokens"])
+	assert.Equal(t, 180000, limits["policyMaxTokens"])
+	assert.Equal(t, 272000, limits["modelMaxTokens"])
 }
 
 func TestModuleConfig_FeatureFlagOptions(t *testing.T) {

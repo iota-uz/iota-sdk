@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"path/filepath"
 	"reflect"
+	"sort"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
@@ -20,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/i18nutil"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -28,7 +31,7 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 	translated := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
 		translated = append(translated, types.NavigationItem{
-			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+			Name: i18nutil.MustLocalize(localizer, &i18n.LocalizeConfig{
 				MessageID: item.Name,
 			}),
 			Href:        item.Href,
@@ -103,6 +106,31 @@ func LoadBundle() *i18n.Bundle {
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 	return bundle
+}
+
+// LoadBundleFromLocaleFiles creates a bundle and loads all message files from the given embed.FS slices.
+// Use this to build a bundle from locale files only (e.g. for tests without DB or config).
+func LoadBundleFromLocaleFiles(fs ...*embed.FS) *i18n.Bundle {
+	bundle := LoadBundle()
+	for _, localeFs := range fs {
+		loadLocaleFSIntoBundle(bundle, localeFs)
+	}
+	return bundle
+}
+
+// loadLocaleFSIntoBundle reads all files from the given embed.FS and parses them into the bundle.
+func loadLocaleFSIntoBundle(bundle *i18n.Bundle, localeFs *embed.FS) {
+	files, err := listFiles(localeFs, ".")
+	if err != nil {
+		panic(err)
+	}
+	for _, file := range files {
+		localeFile, err := localeFs.ReadFile(file)
+		if err != nil {
+			panic(err)
+		}
+		bundle.MustParseMessageFileBytes(localeFile, filepath.Base(file))
+	}
 }
 
 func New(opts *ApplicationOptions) Application {
@@ -182,6 +210,18 @@ func (app *application) Controllers() []Controller {
 	for _, c := range app.controllers {
 		controllers = append(controllers, c)
 	}
+	// Register applet controllers first so their asset routes (e.g. /admin/ali/chat/assets)
+	// are added before other controllers that might match /admin/... and return 404 for
+	// dev proxy requests (@vite/client, /src/*, etc.).
+	sort.Slice(controllers, func(i, j int) bool {
+		ki, kj := controllers[i].Key(), controllers[j].Key()
+		appletI := strings.HasPrefix(ki, "applet_")
+		appletJ := strings.HasPrefix(kj, "applet_")
+		if appletI != appletJ {
+			return appletI
+		}
+		return ki < kj
+	})
 	return controllers
 }
 
@@ -203,6 +243,9 @@ func (app *application) GraphSchemas() []GraphSchema {
 
 func (app *application) RegisterControllers(controllers ...Controller) {
 	for _, c := range controllers {
+		if c == nil {
+			continue
+		}
 		app.controllers[c.Key()] = c
 	}
 }
@@ -225,17 +268,7 @@ func (app *application) RegisterGraphSchema(schema GraphSchema) {
 
 func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
 	for _, localeFs := range fs {
-		files, err := listFiles(localeFs, ".")
-		if err != nil {
-			panic(err)
-		}
-		for _, file := range files {
-			localeFile, err := localeFs.ReadFile(file)
-			if err != nil {
-				panic(err)
-			}
-			app.bundle.MustParseMessageFileBytes(localeFile, filepath.Base(file))
-		}
+		loadLocaleFSIntoBundle(app.bundle, localeFs)
 	}
 }
 

@@ -1,0 +1,746 @@
+/**
+ * BI-Chat UI Styles
+ * Comprehensive CSS variable system for theming and customization
+ */
+
+/* =============================================================================
+   CSS Variables - Design Tokens
+   ============================================================================= */
+
+:root {
+  /* -------------------------------------------------------------------------
+     Spacing Scale
+     ------------------------------------------------------------------------- */
+  --bichat-spacing-0: 0;
+  --bichat-spacing-px: 1px;
+  --bichat-spacing-0_5: 0.125rem;
+  --bichat-spacing-1: 0.25rem;
+  --bichat-spacing-1_5: 0.375rem;
+  --bichat-spacing-2: 0.5rem;
+  --bichat-spacing-2_5: 0.625rem;
+  --bichat-spacing-3: 0.75rem;
+  --bichat-spacing-3_5: 0.875rem;
+  --bichat-spacing-4: 1rem;
+  --bichat-spacing-5: 1.25rem;
+  --bichat-spacing-6: 1.5rem;
+  --bichat-spacing-7: 1.75rem;
+  --bichat-spacing-8: 2rem;
+  --bichat-spacing-9: 2.25rem;
+  --bichat-spacing-10: 2.5rem;
+  --bichat-spacing-12: 3rem;
+  --bichat-spacing-14: 3.5rem;
+  --bichat-spacing-16: 4rem;
+
+  /* Semantic spacing aliases */
+  --bichat-spacing-xs: var(--bichat-spacing-1);
+  --bichat-spacing-sm: var(--bichat-spacing-2);
+  --bichat-spacing-md: var(--bichat-spacing-4);
+  --bichat-spacing-lg: var(--bichat-spacing-6);
+  --bichat-spacing-xl: var(--bichat-spacing-8);
+  --bichat-spacing-2xl: var(--bichat-spacing-12);
+
+  /* -------------------------------------------------------------------------
+     Color Palette - Gray Scale
+     ------------------------------------------------------------------------- */
+  --bichat-color-gray-50: #f9fafb;
+  --bichat-color-gray-100: #f3f4f6;
+  --bichat-color-gray-200: #e5e7eb;
+  --bichat-color-gray-300: #d1d5db;
+  --bichat-color-gray-400: #9ca3af;
+  --bichat-color-gray-500: #6b7280;
+  --bichat-color-gray-600: #4b5563;
+  --bichat-color-gray-700: #374151;
+  --bichat-color-gray-800: #1f2937;
+  --bichat-color-gray-900: #111827;
+  --bichat-color-gray-950: #030712;
+
+  /* -------------------------------------------------------------------------
+     Color Palette - Primary (Blue)
+     ------------------------------------------------------------------------- */
+  --bichat-color-primary-50: #eff6ff;
+  --bichat-color-primary-100: #dbeafe;
+  --bichat-color-primary-200: #bfdbfe;
+  --bichat-color-primary-300: #93c5fd;
+  --bichat-color-primary-400: #60a5fa;
+  --bichat-color-primary-500: #3b82f6;
+  --bichat-color-primary-600: #2563eb;
+  --bichat-color-primary-700: #1d4ed8;
+  --bichat-color-primary-800: #1e40af;
+  --bichat-color-primary-900: #1e3a8a;
+  --bichat-color-primary-950: #172554;
+
+  /* -------------------------------------------------------------------------
+     Color Palette - Semantic Colors
+     ------------------------------------------------------------------------- */
+  --bichat-color-success-50: #f0fdf4;
+  --bichat-color-success-500: #22c55e;
+  --bichat-color-success-600: #16a34a;
+  --bichat-color-success-700: #15803d;
+
+  --bichat-color-error-50: #fef2f2;
+  --bichat-color-error-500: #ef4444;
+  --bichat-color-error-600: #dc2626;
+  --bichat-color-error-700: #b91c1c;
+
+  --bichat-color-warning-50: #fffbeb;
+  --bichat-color-warning-500: #f59e0b;
+  --bichat-color-warning-600: #d97706;
+  --bichat-color-warning-700: #b45309;
+
+  --bichat-color-info-50: #eff6ff;
+  --bichat-color-info-500: #3b82f6;
+  --bichat-color-info-600: #2563eb;
+  --bichat-color-info-700: #1d4ed8;
+
+  /* -------------------------------------------------------------------------
+     Semantic Color Tokens (Light Mode)
+     ------------------------------------------------------------------------- */
+  --bichat-color-bg: var(--bichat-color-gray-50);
+  --bichat-color-bg-subtle: var(--bichat-color-gray-100);
+  --bichat-color-bg-muted: var(--bichat-color-gray-200);
+
+  --bichat-color-surface: #ffffff;
+  --bichat-color-surface-raised: #ffffff;
+  --bichat-color-surface-overlay: rgba(255, 255, 255, 0.9);
+
+  --bichat-color-text: var(--bichat-color-gray-900);
+  --bichat-color-text-secondary: var(--bichat-color-gray-600);
+  --bichat-color-text-muted: var(--bichat-color-gray-500);
+  --bichat-color-text-disabled: var(--bichat-color-gray-400);
+  --bichat-color-text-inverse: #ffffff;
+  --bichat-color-code-text: var(--bichat-color-gray-800);
+  --bichat-color-code-bg: var(--bichat-color-gray-100);
+  --bichat-color-text-icon: var(--bichat-color-gray-500);
+
+  --bichat-color-border: var(--bichat-color-gray-200);
+  --bichat-color-border-subtle: var(--bichat-color-gray-100);
+  --bichat-color-border-strong: var(--bichat-color-gray-300);
+
+  --bichat-color-accent: var(--bichat-color-primary-600);
+  --bichat-color-accent-hover: var(--bichat-color-primary-700);
+  --bichat-color-accent-muted: var(--bichat-color-primary-100);
+
+  /* Chat-specific semantic tokens */
+  --bichat-color-user-bubble-bg: var(--bichat-color-primary-600);
+  --bichat-color-user-bubble-text: #ffffff;
+  --bichat-color-user-bubble-border: transparent;
+
+  --bichat-color-assistant-bubble-bg: var(--bichat-color-surface);
+  --bichat-color-assistant-bubble-text: var(--bichat-color-text);
+  --bichat-color-assistant-bubble-border: var(--bichat-color-border);
+
+  --bichat-color-system-bubble-bg: var(--bichat-color-bg-subtle);
+  --bichat-color-system-bubble-text: var(--bichat-color-text-secondary);
+
+  --bichat-color-input-bg: var(--bichat-color-surface);
+  --bichat-color-input-text: var(--bichat-color-text);
+  --bichat-color-input-border: var(--bichat-color-border);
+  --bichat-color-input-focus-border: var(--bichat-color-accent);
+  --bichat-color-input-placeholder: var(--bichat-color-text-muted);
+
+  /* -------------------------------------------------------------------------
+     Typography
+     ------------------------------------------------------------------------- */
+  --bichat-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  --bichat-font-family-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+    Consolas, 'Liberation Mono', monospace;
+
+  --bichat-font-size-xs: 0.75rem;
+  --bichat-font-size-sm: 0.875rem;
+  --bichat-font-size-base: 1rem;
+  --bichat-font-size-lg: 1.125rem;
+  --bichat-font-size-xl: 1.25rem;
+  --bichat-font-size-2xl: 1.5rem;
+  --bichat-font-size-3xl: 1.875rem;
+
+  --bichat-font-weight-normal: 400;
+  --bichat-font-weight-medium: 500;
+  --bichat-font-weight-semibold: 600;
+  --bichat-font-weight-bold: 700;
+
+  --bichat-line-height-tight: 1.25;
+  --bichat-line-height-normal: 1.5;
+  --bichat-line-height-relaxed: 1.625;
+
+  --bichat-letter-spacing-tight: -0.025em;
+  --bichat-letter-spacing-normal: 0;
+  --bichat-letter-spacing-wide: 0.025em;
+
+  /* -------------------------------------------------------------------------
+     Border Radius
+     ------------------------------------------------------------------------- */
+  --bichat-radius-none: 0;
+  --bichat-radius-sm: 0.125rem;
+  --bichat-radius-default: 0.25rem;
+  --bichat-radius-md: 0.375rem;
+  --bichat-radius-lg: 0.5rem;
+  --bichat-radius-xl: 0.75rem;
+  --bichat-radius-2xl: 1rem;
+  --bichat-radius-3xl: 1.5rem;
+  --bichat-radius-full: 9999px;
+
+  /* Semantic radius aliases */
+  --bichat-radius-bubble: var(--bichat-radius-2xl);
+  --bichat-radius-bubble-tail: var(--bichat-radius-sm);
+  --bichat-radius-button: var(--bichat-radius-lg);
+  --bichat-radius-input: var(--bichat-radius-lg);
+  --bichat-radius-card: var(--bichat-radius-xl);
+  --bichat-radius-modal: var(--bichat-radius-2xl);
+
+  /* -------------------------------------------------------------------------
+     Shadows
+     ------------------------------------------------------------------------- */
+  --bichat-shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --bichat-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --bichat-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --bichat-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --bichat-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --bichat-shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --bichat-shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  --bichat-shadow-none: 0 0 #0000;
+
+  /* Focus ring (WCAG 2.4.7 Focus Visible - high contrast for keyboard users) */
+  --bichat-ring-width: 2px;
+  --bichat-ring-offset: 2px;
+  --bichat-ring-color: var(--bichat-color-primary-500);
+  --bichat-focus-ring: 0 0 0 var(--bichat-ring-width) var(--bichat-ring-color);
+  --bichat-focus-ring-offset: 0 0 0 var(--bichat-ring-offset) var(--bichat-color-surface);
+
+  /* -------------------------------------------------------------------------
+     Transitions & Animation
+     ------------------------------------------------------------------------- */
+  --bichat-transition-fast: 100ms;
+  --bichat-transition-normal: 150ms;
+  --bichat-transition-slow: 200ms;
+  --bichat-transition-slower: 300ms;
+
+  --bichat-ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --bichat-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --bichat-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --bichat-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --bichat-ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* -------------------------------------------------------------------------
+     Z-Index Scale
+     ------------------------------------------------------------------------- */
+  --bichat-z-base: 0;
+  --bichat-z-dropdown: 10;
+  --bichat-z-sticky: 20;
+  --bichat-z-overlay: 30;
+  --bichat-z-modal: 40;
+  --bichat-z-popover: 50;
+  --bichat-z-toast: 60;
+  --bichat-z-tooltip: 70;
+
+  /* -------------------------------------------------------------------------
+     Component-Specific Sizes
+     ------------------------------------------------------------------------- */
+  --bichat-avatar-size-sm: 1.5rem;
+  --bichat-avatar-size-md: 2rem;
+  --bichat-avatar-size-lg: 2.5rem;
+  --bichat-avatar-size-xl: 3rem;
+
+  --bichat-bubble-max-width: 75%;
+  --bichat-bubble-assistant-max-width: 85%;
+
+  --bichat-input-min-height: 2.5rem;
+  --bichat-input-max-height: 12rem;
+
+  /* Legacy compatibility (keep for backward compat) */
+  --bichat-primary: var(--bichat-color-primary-500);
+  --bichat-bg: var(--bichat-color-bg);
+  --bichat-text: var(--bichat-color-text);
+  --bichat-border: var(--bichat-color-border);
+  --bichat-bubble-user: var(--bichat-color-user-bubble-bg);
+  --bichat-bubble-assistant: var(--bichat-color-assistant-bubble-bg);
+}
+
+/* =============================================================================
+   Dark Mode Overrides
+   ============================================================================= */
+
+/* Class-based dark mode (for Tailwind .dark class) */
+.dark,
+[data-theme="dark"] {
+  --bichat-color-bg: var(--bichat-color-gray-900);
+  --bichat-color-bg-subtle: var(--bichat-color-gray-800);
+  --bichat-color-bg-muted: var(--bichat-color-gray-700);
+
+  --bichat-color-surface: var(--bichat-color-gray-800);
+  --bichat-color-surface-raised: var(--bichat-color-gray-750, #2d3748);
+  --bichat-color-surface-overlay: rgba(31, 41, 55, 0.9);
+
+  --bichat-color-text: var(--bichat-color-gray-100);
+  --bichat-color-text-secondary: var(--bichat-color-gray-300);
+  --bichat-color-text-muted: var(--bichat-color-gray-400);
+  --bichat-color-text-disabled: var(--bichat-color-gray-500);
+  --bichat-color-code-text: var(--bichat-color-gray-200);
+  --bichat-color-code-bg: var(--bichat-color-gray-800);
+  --bichat-color-text-icon: var(--bichat-color-gray-400);
+
+  --bichat-color-border: var(--bichat-color-gray-700);
+  --bichat-color-border-subtle: var(--bichat-color-gray-800);
+  --bichat-color-border-strong: var(--bichat-color-gray-600);
+
+  --bichat-color-accent-muted: var(--bichat-color-primary-900);
+
+  /* Chat-specific dark mode */
+  --bichat-color-user-bubble-bg: var(--bichat-color-primary-700);
+  --bichat-color-assistant-bubble-bg: var(--bichat-color-gray-800);
+  --bichat-color-assistant-bubble-border: var(--bichat-color-gray-700);
+  --bichat-color-system-bubble-bg: var(--bichat-color-gray-800);
+
+  --bichat-color-input-bg: var(--bichat-color-gray-800);
+  --bichat-color-input-border: var(--bichat-color-gray-700);
+
+  /* Legacy compatibility */
+  --bichat-bg: var(--bichat-color-bg);
+  --bichat-text: var(--bichat-color-text);
+  --bichat-border: var(--bichat-color-border);
+  --bichat-bubble-assistant: var(--bichat-color-assistant-bubble-bg);
+
+  /* Adjust shadows for dark mode */
+  --bichat-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --bichat-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --bichat-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* =============================================================================
+   Base Styles
+   ============================================================================= */
+
+.bichat-session {
+  background-color: var(--bichat-color-bg);
+  color: var(--bichat-color-text);
+  font-family: var(--bichat-font-family);
+  font-size: var(--bichat-font-size-base);
+  line-height: var(--bichat-line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Buttons and button-like elements: pointer cursor; disabled: not-allowed
+   :host is required when styles are injected into the applet shadow root (bi-chat-root) */
+:host button,
+:host [role="button"],
+:host [role="tab"],
+.bichat-session button,
+.bichat-session [role="button"],
+.bichat-session [role="tab"],
+bi-chat-root button,
+bi-chat-root [role="button"],
+bi-chat-root [role="tab"] {
+  cursor: pointer;
+}
+:host button:disabled,
+:host [role="button"][aria-disabled="true"],
+.bichat-session button:disabled,
+.bichat-session [role="button"][aria-disabled="true"],
+bi-chat-root button:disabled,
+bi-chat-root [role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* Focus visible: high-contrast focus rings for keyboard navigation (WCAG 2.4.7) */
+.bichat-session button:focus-visible,
+.bichat-session a:focus-visible,
+.bichat-session input:focus-visible,
+.bichat-session textarea:focus-visible,
+.bichat-session [role="button"]:focus-visible,
+.bichat-session [role="menuitem"]:focus-visible,
+.bichat-session [role="tab"]:focus-visible,
+.bichat-session select:focus-visible,
+.bichat-session [tabindex]:not([tabindex="-1"]):focus-visible,
+bi-chat-root button:focus-visible,
+bi-chat-root a:focus-visible,
+bi-chat-root input:focus-visible,
+bi-chat-root textarea:focus-visible,
+bi-chat-root [role="button"]:focus-visible,
+bi-chat-root [role="menuitem"]:focus-visible,
+bi-chat-root [role="tab"]:focus-visible,
+bi-chat-root select:focus-visible,
+bi-chat-root [tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: none;
+  box-shadow: var(--bichat-focus-ring-offset), var(--bichat-focus-ring);
+  border-radius: inherit;
+}
+
+.dark .bichat-session button:focus-visible,
+.dark .bichat-session a:focus-visible,
+.dark .bichat-session input:focus-visible,
+.dark .bichat-session textarea:focus-visible,
+.dark .bichat-session [role="button"]:focus-visible,
+.dark .bichat-session [role="menuitem"]:focus-visible,
+.dark .bichat-session [role="tab"]:focus-visible,
+.dark .bichat-session select:focus-visible,
+.dark .bichat-session [tabindex]:not([tabindex="-1"]):focus-visible,
+.dark bi-chat-root button:focus-visible,
+.dark bi-chat-root a:focus-visible,
+.dark bi-chat-root input:focus-visible,
+.dark bi-chat-root textarea:focus-visible,
+.dark bi-chat-root [role="button"]:focus-visible,
+.dark bi-chat-root [role="menuitem"]:focus-visible,
+.dark bi-chat-root [role="tab"]:focus-visible,
+.dark bi-chat-root select:focus-visible,
+.dark bi-chat-root [tabindex]:not([tabindex="-1"]):focus-visible {
+  --bichat-focus-ring: 0 0 0 var(--bichat-ring-width) var(--bichat-color-primary-400);
+}
+
+/* =============================================================================
+   Scrollbar Styles
+   ============================================================================= */
+
+.bichat-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.bichat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bichat-messages::-webkit-scrollbar-thumb {
+  background: var(--bichat-color-gray-300);
+  border-radius: var(--bichat-radius-full);
+}
+
+.bichat-messages::-webkit-scrollbar-thumb:hover {
+  background: var(--bichat-color-gray-400);
+}
+
+.dark .bichat-messages::-webkit-scrollbar-thumb {
+  background: var(--bichat-color-gray-600);
+}
+
+.dark .bichat-messages::-webkit-scrollbar-thumb:hover {
+  background: var(--bichat-color-gray-500);
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+@keyframes bichat-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes bichat-bounce {
+  0%, 100% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+@keyframes bichat-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bichat-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bichat-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-pulse {
+  animation: bichat-pulse 1s var(--bichat-ease-in-out) infinite;
+}
+
+.animate-bounce {
+  animation: bichat-bounce 1s infinite;
+}
+
+.animate-spin {
+  animation: bichat-spin 1s linear infinite;
+}
+
+.animate-fade-in {
+  animation: bichat-fade-in var(--bichat-transition-normal) var(--bichat-ease-out);
+}
+
+.animate-slide-up {
+  animation: bichat-slide-up var(--bichat-transition-slow) var(--bichat-ease-out);
+}
+
+/* =============================================================================
+   Thinking Shimmer Animation
+   ============================================================================= */
+
+.bichat-thinking-shimmer {
+  -webkit-mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 40%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 1) 80%
+  );
+  mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 40%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 1) 80%
+  );
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  animation: bichat-thinking-shimmer 4.5s linear infinite;
+}
+
+.dark .bichat-thinking-shimmer {
+  -webkit-mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 15%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 1) 65%,
+    rgba(0, 0, 0, 1) 85%
+  );
+  mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 15%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 1) 65%,
+    rgba(0, 0, 0, 1) 85%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bichat-thinking-shimmer,
+  .animate-pulse,
+  .animate-bounce,
+  .animate-spin,
+  .animate-fade-in,
+  .animate-slide-up {
+    animation: none;
+  }
+}
+
+@keyframes bichat-thinking-shimmer {
+  0% { -webkit-mask-position: 130% 0; mask-position: 130% 0; }
+  100% { -webkit-mask-position: -30% 0; mask-position: -30% 0; }
+}
+
+/* =============================================================================
+   Prose / Markdown Styles
+   ============================================================================= */
+
+.prose {
+  color: var(--bichat-color-text);
+  font-size: var(--bichat-font-size-base);
+  line-height: var(--bichat-line-height-relaxed);
+}
+
+.prose > :first-child {
+  margin-top: 0;
+}
+
+.prose > :last-child {
+  margin-bottom: 0;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  color: var(--bichat-color-text);
+  font-weight: var(--bichat-font-weight-semibold);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: var(--bichat-line-height-tight);
+}
+
+.prose h1 {
+  font-size: 1.625rem;
+  font-weight: var(--bichat-font-weight-bold);
+}
+
+.prose h2 {
+  font-size: 1.375rem;
+  margin-top: 2em;
+}
+
+.prose h3 {
+  font-size: var(--bichat-font-size-lg);
+  font-weight: var(--bichat-font-weight-semibold);
+}
+
+.prose h4 { font-size: var(--bichat-font-size-base); }
+
+.prose > * + h2 {
+  margin-top: 2em;
+}
+
+.prose p {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+
+.prose strong {
+  font-weight: var(--bichat-font-weight-semibold);
+  color: var(--bichat-color-text);
+}
+
+.prose code {
+  background-color: var(--bichat-color-code-bg);
+  color: var(--bichat-color-code-text);
+  padding: 0.2em 0.5em;
+  border-radius: var(--bichat-radius-md);
+  border: 1px solid var(--bichat-color-border-subtle);
+  font-family: var(--bichat-font-family-mono);
+  font-size: 0.875em;
+}
+
+.prose pre {
+  background-color: var(--bichat-color-code-bg);
+  color: var(--bichat-color-gray-100);
+  padding: var(--bichat-spacing-4);
+  border-radius: var(--bichat-radius-lg);
+  overflow-x: auto;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  font-family: var(--bichat-font-family-mono);
+  font-size: var(--bichat-font-size-sm);
+  line-height: var(--bichat-line-height-relaxed);
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  border-radius: 0;
+  border: none;
+}
+
+.prose a {
+  color: var(--bichat-color-accent);
+  text-decoration: none;
+  font-weight: var(--bichat-font-weight-medium);
+}
+
+.prose a:hover {
+  text-decoration: underline;
+}
+
+.prose ul,
+.prose ol {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+  padding-left: 1.5em;
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+.prose li {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.prose blockquote {
+  border-left: 4px solid var(--bichat-color-border-strong);
+  padding-left: var(--bichat-spacing-4);
+  margin-left: 0;
+  font-style: italic;
+  color: var(--bichat-color-text-secondary);
+}
+
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--bichat-color-border);
+  margin: 2em 0;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  font-size: var(--bichat-font-size-sm);
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--bichat-color-border);
+  padding: var(--bichat-spacing-2) var(--bichat-spacing-3);
+  text-align: left;
+}
+
+.prose th {
+  background-color: var(--bichat-color-bg-subtle);
+  font-weight: var(--bichat-font-weight-semibold);
+}
+
+.prose tbody tr:nth-child(even) {
+  background-color: var(--bichat-color-bg-subtle);
+}
+
+/* =============================================================================
+   Focus Styles
+   ============================================================================= */
+
+.bichat-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--bichat-ring-offset) var(--bichat-color-bg),
+    0 0 0 calc(var(--bichat-ring-offset) + var(--bichat-ring-width)) var(--bichat-ring-color);
+}
+
+/* =============================================================================
+   Utility Classes
+   ============================================================================= */
+
+.bichat-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ type simplePendingGeneration struct {
 	messages        int
 	tools           int
 	estimatedTokens int
+	userInput       string
 }
 
 // EventBridge connects BiChat's EventBus to observability providers.
@@ -181,6 +183,7 @@ func (h *llmRequestHandler) Handle(ctx context.Context, event hooks.Event) error
 		messages:        llmEvent.Messages,
 		tools:           llmEvent.Tools,
 		estimatedTokens: llmEvent.EstimatedTokens,
+		userInput:       llmEvent.UserInput,
 	}
 
 	return nil
@@ -197,12 +200,18 @@ func (h *providerHandler) Handle(ctx context.Context, event hooks.Event) error {
 	switch e := event.(type) {
 	case *events.LLMResponseEvent:
 		return h.handleLLMResponse(ctx, e)
+	case *events.LLMRequestEvent:
+		return h.handleLLMRequest(ctx, e)
 	case *events.ToolCompleteEvent:
 		return h.handleToolComplete(ctx, e)
 	case *events.ToolErrorEvent:
 		return h.handleToolError(ctx, e)
+	case *events.ToolStartEvent:
+		return h.handleToolStart(ctx, e)
 	case *events.ContextCompileEvent:
 		return h.handleContextCompile(ctx, e)
+	case *events.InterruptEvent:
+		return h.handleInterrupt(ctx, e)
 	default:
 		// Convert generic events to EventObservation
 		return h.handleGenericEvent(ctx, event)
@@ -233,9 +242,11 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 	// Populate observation with correlated data (graceful degradation)
 	promptMessages := 0
 	tools := 0
+	userInput := ""
 	if matchedGen != nil {
 		promptMessages = matchedGen.messages
 		tools = matchedGen.tools
+		userInput = matchedGen.userInput
 	}
 
 	obs := GenerationObservation{
@@ -255,7 +266,15 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		FinishReason:     e.FinishReason,
 		ToolCalls:        e.ToolCalls,
 		Duration:         time.Duration(e.LatencyMs) * time.Millisecond,
+		Input:            userInput,
+		Output:           e.ResponseText,
 		Attributes:       make(map[string]interface{}),
+	}
+
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.Attributes["otel.span_id"] = spanID
 	}
 
 	return h.provider.RecordGeneration(ctx, obs)
@@ -280,6 +299,13 @@ func (h *providerHandler) handleToolComplete(ctx context.Context, e *events.Tool
 			"tool_name": e.ToolName,
 			"call_id":   e.CallID,
 		},
+	}
+
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.ParentID = spanID
+		obs.Attributes["otel.span_id"] = spanID
 	}
 
 	return h.provider.RecordSpan(ctx, obs)
@@ -307,10 +333,38 @@ func (h *providerHandler) handleToolError(ctx context.Context, e *events.ToolErr
 		},
 	}
 
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.ParentID = spanID
+		obs.Attributes["otel.span_id"] = spanID
+	}
+
 	return h.provider.RecordSpan(ctx, obs)
 }
 
 func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.ContextCompileEvent) error {
+	inputSummary := map[string]interface{}{
+		"provider":    e.Provider,
+		"block_count": e.BlockCount,
+	}
+	inputJSON, err := json.Marshal(inputSummary)
+	if err != nil {
+		inputJSON = []byte(`{"error":"marshal"}`)
+	}
+
+	outputSummary := map[string]interface{}{
+		"total_tokens":    e.TotalTokens,
+		"tokens_by_kind":  e.TokensByKind,
+		"truncated":       e.Truncated,
+		"compacted":       e.Compacted,
+		"excluded_blocks": e.ExcludedBlocks,
+	}
+	outputJSON, err := json.Marshal(outputSummary)
+	if err != nil {
+		outputJSON = []byte(`{"error":"marshal"}`)
+	}
+
 	obs := SpanObservation{
 		ID:        uuid.New().String(),
 		TraceID:   e.SessionID().String(),
@@ -319,8 +373,8 @@ func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.Co
 		Timestamp: e.Timestamp(),
 		Name:      "context.compile",
 		Type:      "context",
-		Input:     "",
-		Output:    "",
+		Input:     string(inputJSON),
+		Output:    string(outputJSON),
 		Duration:  0, // Context compilation is instantaneous
 		Status:    "success",
 		Attributes: map[string]interface{}{
@@ -334,6 +388,145 @@ func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.Co
 		},
 	}
 
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.ParentID = spanID
+		obs.Attributes["otel.span_id"] = spanID
+	}
+
+	return h.provider.RecordSpan(ctx, obs)
+}
+
+func (h *providerHandler) handleInterrupt(ctx context.Context, e *events.InterruptEvent) error {
+	inputSummary := map[string]interface{}{
+		"interrupt_type": e.InterruptType,
+		"agent_name":     e.AgentName,
+	}
+	inputJSON, err := json.Marshal(inputSummary)
+	if err != nil {
+		inputJSON = []byte(`{"error":"marshal"}`)
+	}
+	outputSummary := map[string]interface{}{
+		"question":      e.Question,
+		"checkpoint_id": e.CheckpointID,
+	}
+	outputJSON, err := json.Marshal(outputSummary)
+	if err != nil {
+		outputJSON = []byte(`{"error":"marshal"}`)
+	}
+	obs := SpanObservation{
+		ID:        uuid.New().String(),
+		TraceID:   e.SessionID().String(),
+		TenantID:  e.TenantID(),
+		SessionID: e.SessionID(),
+		Timestamp: e.Timestamp(),
+		Name:      "interrupt",
+		Type:      "session",
+		Input:     string(inputJSON),
+		Output:    string(outputJSON),
+		Duration:  0,
+		Status:    "success",
+		Attributes: map[string]interface{}{
+			"interrupt_type": e.InterruptType,
+			"agent_name":     e.AgentName,
+			"checkpoint_id":  e.CheckpointID,
+		},
+	}
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.ParentID = spanID
+		obs.Attributes["otel.span_id"] = spanID
+	}
+	return h.provider.RecordSpan(ctx, obs)
+}
+
+func (h *providerHandler) handleToolStart(ctx context.Context, e *events.ToolStartEvent) error {
+	inputStr := e.Arguments
+	if inputStr == "" {
+		inputStr = "{}"
+	}
+	outputSummary := map[string]interface{}{
+		"status":  "started",
+		"tool":    e.ToolName,
+		"call_id": e.CallID,
+	}
+	outputJSON, err := json.Marshal(outputSummary)
+	if err != nil {
+		outputJSON = []byte(`{"error":"marshal"}`)
+	}
+	obs := SpanObservation{
+		ID:        uuid.New().String(),
+		TraceID:   e.SessionID().String(),
+		TenantID:  e.TenantID(),
+		SessionID: e.SessionID(),
+		Timestamp: e.Timestamp(),
+		Name:      "tool.start",
+		Type:      "tool",
+		Input:     inputStr,
+		Output:    string(outputJSON),
+		Duration:  0,
+		Status:    "pending",
+		ToolName:  e.ToolName,
+		CallID:    e.CallID,
+		Attributes: map[string]interface{}{
+			"tool_name": e.ToolName,
+			"call_id":   e.CallID,
+		},
+	}
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.ParentID = spanID
+		obs.Attributes["otel.span_id"] = spanID
+	}
+	return h.provider.RecordSpan(ctx, obs)
+}
+
+func (h *providerHandler) handleLLMRequest(ctx context.Context, e *events.LLMRequestEvent) error {
+	inputSummary := map[string]interface{}{
+		"model":            e.Model,
+		"provider":         e.Provider,
+		"messages":         e.Messages,
+		"tools":            e.Tools,
+		"estimated_tokens": e.EstimatedTokens,
+		"user_input":       e.UserInput,
+	}
+	inputJSON, err := json.Marshal(inputSummary)
+	if err != nil {
+		inputJSON = []byte(`{"error":"marshal"}`)
+	}
+	outputSummary := map[string]interface{}{
+		"status": "pending",
+	}
+	outputJSON, err := json.Marshal(outputSummary)
+	if err != nil {
+		outputJSON = []byte(`{"error":"marshal"}`)
+	}
+	obs := SpanObservation{
+		ID:        uuid.New().String(),
+		TraceID:   e.SessionID().String(),
+		TenantID:  e.TenantID(),
+		SessionID: e.SessionID(),
+		Timestamp: e.Timestamp(),
+		Name:      "llm.request",
+		Type:      "llm",
+		Input:     string(inputJSON),
+		Output:    string(outputJSON),
+		Duration:  0,
+		Status:    "pending",
+		Attributes: map[string]interface{}{
+			"model":            e.Model,
+			"provider":         e.Provider,
+			"messages":         e.Messages,
+			"tools":            e.Tools,
+			"estimated_tokens": e.EstimatedTokens,
+		},
+	}
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.ParentID = spanID
+		obs.Attributes["otel.span_id"] = spanID
+	}
 	return h.provider.RecordSpan(ctx, obs)
 }
 
@@ -344,11 +537,17 @@ func (h *providerHandler) handleGenericEvent(ctx context.Context, event hooks.Ev
 		TenantID:   event.TenantID(),
 		SessionID:  event.SessionID(),
 		Timestamp:  event.Timestamp(),
-		Name:       string(event.Type()),
+		Name:       event.Type(),
 		Type:       "custom",
 		Message:    "",
 		Level:      "info",
 		Attributes: make(map[string]interface{}),
+	}
+
+	// Prefer OpenTelemetry trace context if present on ctx.
+	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
+		obs.TraceID = traceID
+		obs.Attributes["otel.span_id"] = spanID
 	}
 
 	return h.provider.RecordEvent(ctx, obs)

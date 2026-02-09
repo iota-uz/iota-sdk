@@ -2,12 +2,13 @@ package agents_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 )
 
 // ExampleNewDefaultBIAgent demonstrates basic usage of the default BI agent.
@@ -33,7 +34,7 @@ func ExampleNewDefaultBIAgent() {
 	// Output:
 	// Agent name: bi_agent
 	// Agent model: gpt-4
-	// Number of tools: 6
+	// Number of tools: 7
 }
 
 // ExampleNewDefaultBIAgent_withOptions demonstrates using optional tools.
@@ -59,7 +60,38 @@ func ExampleNewDefaultBIAgent_withOptions() {
 
 	// Output:
 	// Model: gpt-3.5-turbo
-	// Tools count: 7
+	// Tools count: 8
+}
+
+// ExampleNewDefaultBIAgent_withInsightPrompting demonstrates insight-focused response prompting.
+func ExampleNewDefaultBIAgent_withInsightPrompting() {
+	executor := &mockQueryExecutor{}
+
+	// Create agent with "standard" insight depth
+	// This configures the agent to provide structured analysis with key findings,
+	// trends, anomalies, and comparisons after presenting data
+	agent, err := bichatagents.NewDefaultBIAgent(
+		executor,
+		bichatagents.WithInsightPrompting("standard"),
+		bichatagents.WithModel("gpt-4"),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	metadata := agent.Metadata()
+	fmt.Println("Model:", metadata.Model)
+	fmt.Println("Agent configured for insight-focused responses")
+
+	// The agent's system prompt now includes instructions to provide:
+	// - KEY FINDINGS: 2-3 most important observations
+	// - TRENDS: Notable patterns over time or across categories
+	// - ANOMALIES: Unexpected values or outliers worth investigating
+	// - COMPARISONS: How results compare to baselines, targets, or prior periods
+
+	// Output:
+	// Model: gpt-4
+	// Agent configured for insight-focused responses
 }
 
 // Mock implementations for examples
@@ -76,8 +108,14 @@ func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params
 
 type mockKBSearcher struct{}
 
-func (m *mockKBSearcher) Search(ctx context.Context, query string, limit int) ([]tools.SearchResult, error) {
-	return []tools.SearchResult{}, nil
+func (m *mockKBSearcher) Search(ctx context.Context, query string, opts kb.SearchOptions) ([]kb.SearchResult, error) {
+	return []kb.SearchResult{}, nil
+}
+
+var errExampleDocNotFound = errors.New("document not found")
+
+func (m *mockKBSearcher) GetDocument(ctx context.Context, id string) (*kb.Document, error) {
+	return nil, errExampleDocNotFound
 }
 
 func (m *mockKBSearcher) IsAvailable() bool {

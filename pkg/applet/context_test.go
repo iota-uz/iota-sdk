@@ -170,15 +170,19 @@ func (m *mockMetrics) IncrementCounter(name string, labels map[string]string) {
 
 func createTestBundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.English)
-	bundle.AddMessages(language.English, &i18n.Message{
+	_ = bundle.AddMessages(language.English, &i18n.Message{
 		ID:    "greeting",
 		Other: "Hello",
 	})
-	bundle.AddMessages(language.English, &i18n.Message{
+	_ = bundle.AddMessages(language.English, &i18n.Message{
 		ID:    "farewell",
 		Other: "Goodbye",
 	})
-	bundle.AddMessages(language.Russian, &i18n.Message{
+	_ = bundle.AddMessages(language.English, &i18n.Message{
+		ID:    "Common.Greeting",
+		Other: "Hello (Common)",
+	})
+	_ = bundle.AddMessages(language.Russian, &i18n.Message{
 		ID:    "greeting",
 		Other: "Привет",
 	})
@@ -215,7 +219,8 @@ func createTestContext(t *testing.T, opts ...func(*testContextOptions)) context.
 	ctx := context.Background()
 	ctx = composables.WithUser(ctx, mockUser)
 	ctx = context.WithValue(ctx, constants.TenantIDKey, options.tenantID)
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
+	// PageContext kept for backward compatibility; prefer PageContextProvider for new code.
+	ctx = composables.WithPageCtx(ctx, &types.PageContext{ //nolint:staticcheck // SA1019: backward compat
 		Locale: options.locale,
 	})
 
@@ -245,12 +250,6 @@ func withPermissions(perms ...string) func(*testContextOptions) {
 			permissions[i] = &mockPermission{name: p}
 		}
 		o.permissions = permissions
-	}
-}
-
-func withLocale(locale language.Tag) func(*testContextOptions) {
-	return func(o *testContextOptions) {
-		o.locale = locale
 	}
 }
 
@@ -289,8 +288,11 @@ func TestContextBuilder_Build_Success(t *testing.T) {
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Request now has CSRF token
 		initialCtx, err := builder.Build(ctx, r, "")
-		require.NoError(t, err)
-		require.NotNil(t, initialCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, initialCtx)
+		if err != nil || initialCtx == nil {
+			return
+		}
 
 		// Verify user context
 		assert.Equal(t, int64(42), initialCtx.User.ID)
@@ -354,7 +356,7 @@ func TestContextBuilder_Build_MissingUser(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	initialCtx, err := builder.Build(ctx, r, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, initialCtx)
 	assert.Contains(t, err.Error(), "user extraction failed")
 }
@@ -388,7 +390,7 @@ func TestContextBuilder_Build_MissingTenant(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	initialCtx, err := builder.Build(ctx, r, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, initialCtx)
 	assert.Contains(t, err.Error(), "tenant extraction failed")
 }
@@ -431,6 +433,49 @@ func TestGetAllTranslations_LocaleNotFound(t *testing.T) {
 
 	// Test unsupported locale
 	translations := builder.getAllTranslations(language.Japanese)
+	assert.Empty(t, translations)
+}
+
+func TestGetAllTranslations_PrefixesMode(t *testing.T) {
+	t.Parallel()
+
+	bundle := createTestBundle()
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+	metrics := &mockMetrics{}
+	sessionConfig := DefaultSessionConfig
+
+	config := Config{
+		I18n: I18nConfig{
+			Mode:     TranslationModePrefixes,
+			Prefixes: []string{"Common."},
+		},
+	}
+	builder := NewContextBuilder(config, bundle, sessionConfig, logger, metrics)
+
+	translations := builder.getAllTranslations(language.English)
+	assert.Equal(t, "Hello (Common)", translations["Common.Greeting"])
+	_, ok := translations["greeting"]
+	assert.False(t, ok)
+}
+
+func TestGetAllTranslations_NoneMode(t *testing.T) {
+	t.Parallel()
+
+	bundle := createTestBundle()
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+	metrics := &mockMetrics{}
+	sessionConfig := DefaultSessionConfig
+
+	config := Config{
+		I18n: I18nConfig{
+			Mode: TranslationModeNone,
+		},
+	}
+	builder := NewContextBuilder(config, bundle, sessionConfig, logger, metrics)
+
+	translations := builder.getAllTranslations(language.English)
 	assert.Empty(t, translations)
 }
 
@@ -520,6 +565,25 @@ func TestGetUserPermissions_Success(t *testing.T) {
 	assert.Contains(t, permissions, "bichat.access")
 	assert.Contains(t, permissions, "finance.read")
 	assert.Contains(t, permissions, "core.admin")
+}
+
+func TestGetUserPermissions_IncludesRolePermissions(t *testing.T) {
+	t.Parallel()
+
+	p := permission.New(
+		permission.WithID(uuid.New()),
+		permission.WithName("BiChat.Access"),
+		permission.WithResource("bichat"),
+		permission.WithAction(permission.ActionRead),
+		permission.WithModifier(permission.ModifierAll),
+	)
+	r := role.New("Admin", role.WithPermissions([]permission.Permission{p}))
+	u := user.New("T", "U", internet.MustParseEmail("role@example.com"), user.UILanguageEN, user.WithID(1))
+	u = u.AddRole(r)
+
+	ctx := composables.WithUser(context.Background(), u)
+	permissions := getUserPermissions(ctx)
+	assert.Contains(t, permissions, "bichat.access")
 }
 
 func TestGetUserPermissions_ErrorCase(t *testing.T) {
@@ -652,18 +716,22 @@ func TestContextBuilder_Build_WithCustomContext(t *testing.T) {
 		[]byte("32-byte-long-secret-key-for-testing!"),
 		csrf.Secure(false),
 	)
-	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		initialCtx, err := builder.Build(ctx, r, "")
-		require.NoError(t, err)
-		require.NotNil(t, initialCtx)
+	var capturedCtx *InitialContext
+	var capturedErr error
 
-		assert.NotNil(t, initialCtx.Extensions)
-		assert.Equal(t, "customValue", initialCtx.Extensions["customField"])
-		assert.Equal(t, 42, initialCtx.Extensions["userId"])
+	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedCtx, capturedErr = builder.Build(ctx, r, "")
 	}))
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
+
+	// Assert after handler completes
+	require.NoError(t, capturedErr)
+	require.NotNil(t, capturedCtx)
+	assert.NotNil(t, capturedCtx.Extensions)
+	assert.Equal(t, "customValue", capturedCtx.Extensions["customField"])
+	assert.Equal(t, 42, capturedCtx.Extensions["userId"])
 }
 
 func TestContextBuilder_Build_WithMuxRouter(t *testing.T) {
@@ -689,17 +757,20 @@ func TestContextBuilder_Build_WithMuxRouter(t *testing.T) {
 		[]byte("32-byte-long-secret-key-for-testing!"),
 		csrf.Secure(false),
 	)
-	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		initialCtx, err := builder.Build(ctx, r, "")
-		require.NoError(t, err)
-		require.NotNil(t, initialCtx)
+	var capturedCtx *InitialContext
+	var capturedErr error
 
-		// Verify route context has query params
-		assert.Equal(t, "history", initialCtx.Route.Query["tab"])
+	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedCtx, capturedErr = builder.Build(ctx, r, "")
 	}))
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
+
+	// Assert after handler completes
+	require.NoError(t, capturedErr)
+	require.NotNil(t, capturedCtx)
+	assert.Equal(t, "history", capturedCtx.Route.Query["tab"])
 }
 
 func TestContextBuilder_Build_MetricsRecorded(t *testing.T) {
@@ -724,7 +795,10 @@ func TestContextBuilder_Build_MetricsRecorded(t *testing.T) {
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := builder.Build(ctx, r, "")
-		require.NoError(t, err)
+		assert.NoError(t, err)
+		if err != nil {
+			return
+		}
 
 		// Verify metrics were recorded
 		assert.NotEmpty(t, metrics.durations)
@@ -911,8 +985,11 @@ func TestContextBuilder_Build_WithSessionStore(t *testing.T) {
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		initialCtx, err := builder.Build(ctx, r, "")
-		require.NoError(t, err)
-		require.NotNil(t, initialCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, initialCtx)
+		if err != nil || initialCtx == nil {
+			return
+		}
 
 		// Verify session uses actual expiry from store (48 hours)
 		expectedExpiry := actualExpiry.UnixMilli()

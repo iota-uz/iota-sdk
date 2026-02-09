@@ -1,0 +1,226 @@
+---
+title: 'Applets'
+description: 'Build, run, and type RPC for React/Vite applets'
+---
+
+# Applets
+
+Applets are React (Vite) applications embedded into IOTA SDK via the Go applet runtime. They can be served:
+
+- Embedded in the authenticated IOTA shell (recommended)
+- Standalone for local development
+
+This guide covers running embedded HMR, typed RPC type generation, and runtime behavior.
+
+## Mental model
+
+An applet is:
+
+- A Go registration (`modules/<name>/applet.go`) that declares:
+  - `basePath` (where the applet is mounted, e.g. `/bichat`)
+  - asset serving (prod: embedded `dist/` + Vite manifest, dev: proxy to Vite)
+  - shell mode (embedded vs standalone)
+  - optional RPC methods (typed router)
+- A Vite + React project (`modules/<name>/presentation/web`) that mounts via a custom element using `defineReactAppletElement`.
+
+At runtime, IOTA injects `InitialContext` into `window[<WindowGlobal>]`. The frontend reads it via `@iota-uz/sdk` applet-core utilities.
+
+## Create an applet
+
+There is currently no scaffold generator. To create an applet:
+
+- Create a module under `modules/<name>/` and register an `applet.Applet`.
+- Add a dev entry to `scripts/applets.json` so `just dev <name>` can run embedded HMR.
+
+## SDK dependency policy
+
+Applet web packages must pin `@iota-uz/sdk` to an exact npm version (for example `0.3.0`).
+
+- Do not use local overrides like `file:`, `link:`, or `workspace:` for `@iota-uz/sdk`.
+- Local SDK hot reload is provided by `just dev <name>` via Vite dev aliasing and SDK watch builds.
+- CI enforces this policy with `just applet deps-check`.
+
+## Embedded HMR (one command)
+
+Run the Go server and Vite dev server (HMR) with same-origin proxying through Go:
+
+```bash
+just dev <name>
+```
+
+Example:
+
+```bash
+just dev bichat
+```
+
+The command:
+
+- Reads `scripts/applets.json`
+- Starts Vite in embedded mode with `APPLET_ASSETS_BASE=<basePath>/assets/`
+- Enables the Go-side dev proxy via env (`IOTA_APPLET_DEV_<NAME>=1`)
+- Starts the Go server via `air`
+
+Then open:
+
+```text
+http://localhost:${IOTA_PORT:-3200}<basePath>
+```
+
+### Vite contract (base path and env)
+
+When you use **`just dev <name>`**, the Go dev runner writes **`applet-dev.json`** in the applet's Vite directory. The frontend helpers (`createAppletViteConfig`, `getAppletAssetsBase`, `getAppletVitePort`) read this file and use it for `base`, port, and proxy—so the manifest is the single source of truth; env vars below are the fallback when not using the dev runner.
+
+The Go dev runner also sets these env vars for compatibility:
+
+- `APPLET_ASSETS_BASE` — must end with `/`; Vite uses it as `base` when no manifest is present.
+- `APPLET_VITE_PORT` — Vite dev server port (used when no manifest is present).
+
+Use **`@iota-uz/sdk/applet/vite`** helpers so you don’t replicate this by hand:
+
+- `createAppletViteConfig({ basePath, backendUrl, extend })` — full config with base, port, dedupe, and optional proxy/aliases. When using **extend**, alias and plugin arrays are concatenated with the base; other fields (e.g. server.port) are overridden by your extend object.
+- `createAppletBackendProxy({ basePath, backendUrl })` — `server.proxy` for `/rpc` and `/stream`.
+- `createLocalSdkAliases({ enabled, sdkDistDir })` — point `@iota-uz/sdk` to a local dist. When **`IOTA_SDK_DIST`** is set, local aliases are enabled by default.
+- `createAppletStylesVirtualModulePlugin({ inputCss, outputCssPath, prependCss })` — virtual module `virtual:applet-styles` that compiles CSS (via Tailwind CLI when available) or reads a prebuilt file. Defaults: `inputCss: "src/index.css"`, `outputCssPath: "dist/style.css"`.
+- **`createBichatStylesPlugin()`** — convenience for BiChat applets: prepends `@iota-uz/sdk/bichat/styles.css` and uses default paths. See [BiChat checklist](/bichat#downstream-applet-checklist-tailwind--shadow-dom).
+
+See [BiChat Downstream applet checklist](/bichat#downstream-applet-checklist-tailwind--shadow-dom) for Tailwind and Shadow DOM.
+
+### Local SDK iteration in downstream apps
+
+To iterate on `@iota-uz/sdk` inside a downstream app (e.g. EAI) without publishing:
+
+1. Build the SDK in watch mode in one terminal: `cd /path/to/iota-sdk && pnpm run build:js:dev`
+2. Set `IOTA_SDK_DIST=/path/to/iota-sdk/dist` and start the app’s dev server. The applet Vite config should use `createLocalSdkAliases({ enabled: true })` (or rely on `IOTA_SDK_DIST` so aliases point at the local dist).
+3. In EAI, `just dev-bichat-local-sdk` runs SDK watch and `just dev bichat` in one go; set `IOTA_SDK_ROOT` or `IOTA_SDK_DIST` if the SDK repo is not at `../../iota-sdk`.
+
+### Dev env toggles
+
+Per applet (name uppercased, `-` replaced with `_`):
+
+- `IOTA_APPLET_DEV_<NAME>=1` enables dev proxy
+- `IOTA_APPLET_VITE_URL_<NAME>=http://localhost:<vitePort>` overrides Vite target
+- `IOTA_APPLET_ENTRY_<NAME>=/src/main.tsx` overrides Vite entry module
+- `IOTA_APPLET_CLIENT_<NAME>=/@vite/client` overrides Vite client module
+
+The helper `just dev <name>` sets these automatically.
+
+### How the dev proxy works (same-origin HMR)
+
+When dev proxy is enabled:
+
+- Browser requests `GET <basePath>/assets/...`
+- The Go server reverse-proxies those requests to Vite (including HMR websocket upgrades)
+- Your app stays same-origin with IOTA (cookies/session work without CORS setup)
+
+## Standalone dev (Vite only)
+
+Run the Vite app directly:
+
+```bash
+pnpm -C modules/<name>/presentation/web run dev:standalone
+```
+
+Applets can inject a mock IOTA context in dev (see `src/dev/mockIotaContext.ts`).
+
+## Build embedded assets (production)
+
+To produce an embedded build (into `modules/<name>/presentation/assets/dist`):
+
+```bash
+pnpm -C modules/<name>/presentation/web run build
+```
+
+Notes:
+
+- The repo does **not** commit build output by default.
+- A scaffolded applet includes `modules/<name>/presentation/assets/dist/.keep` so `go:embed dist/*` compiles on a fresh checkout.
+
+## Typed RPC (Go → TypeScript)
+
+### Define procedures in Go
+
+Add procedures in `modules/<name>/rpc/router.go` using `applet.TypedRPCRouter`:
+
+- Params and result are Go structs (or primitives)
+- The runtime enforces permissions declared per procedure
+- Procedures are registered via `applet.AddProcedure(...)`
+
+### Generate TypeScript types
+
+Generate `rpc.generated.ts` for an applet:
+
+```bash
+just applet rpc-gen <name>
+```
+
+This writes:
+
+- `ui/src/<name>/data/rpc.generated.ts` (canonical SDK contract)
+- For BiChat, `modules/bichat/presentation/web/src/rpc.generated.ts` is a re-export shim to avoid duplicate contracts.
+
+Validate generated contracts are in sync:
+
+```bash
+just applet rpc-check <name>
+```
+
+### Call from the frontend
+
+In the applet web code:
+
+```ts
+import { createAppletRPCClient } from '@iota-uz/sdk'
+import type { MyAppletRPC } from './rpc.generated'
+
+const rpc = createAppletRPCClient({ endpoint: ctx.config.rpcUIEndpoint! })
+await rpc.callTyped<MyAppletRPC>('my.method', { /* params */ })
+```
+
+### Security model (RPC)
+
+- Transport: plain HTTP `POST` to `<basePath>/rpc` (same-origin by default).
+- Auth: uses the normal IOTA session/cookies; handlers receive a request `context.Context` with tenant/user.
+- Authorization: per-method permission enforcement (`RequirePermissions`).
+- Data access: applets do **not** access the database directly; Go handlers do.
+
+#### Reverse proxies (same-origin)
+
+If IOTA is deployed behind a reverse proxy/ingress that sets forwarded headers, you can enable host checks using `X-Forwarded-Host` for RPC:
+
+- `Config.RPC.TrustForwardedHost = true`
+
+## Devtools overlay (optional)
+
+Enable devtools via:
+
+- Query param: `?appletDebug=1`, or
+- `localStorage.iotaAppletDevtools = "1"`
+
+The overlay shows:
+
+- Resolved runtime config (basePath/assets/rpc endpoint)
+- Current route context
+- Recent RPC calls (start/success/error)
+
+## Translations
+
+The backend injects translations into `ctx.locale.translations` (consumed via `useTranslation()`).
+
+By default, the runtime includes **all** translations for the current locale. If payload size becomes a concern, you can scope translations per applet:
+
+- `Config.I18n.Mode = "prefixes"` with `Config.I18n.Prefixes = []string{"MyApplet.", "Common."}`
+- `Config.I18n.Mode = "none"` if the applet does not need backend-provided translations
+
+## Router mode (embedded vs standalone)
+
+Applets can run with either:
+
+- `router-mode="url"` (default): uses `BrowserRouter` with `basename=<basePath>` so the URL stays in sync.
+- `router-mode="memory"`: uses `MemoryRouter` and does not modify the parent page URL (useful for PiP/embedded experiences).
+
+The host element reads these attributes:
+
+- `base-path`
+- `shell-mode`
+- `router-mode`

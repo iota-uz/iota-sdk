@@ -1,0 +1,12 @@
+{
+  "applets": [
+    {
+      "name": "bichat",
+      "basePath": "/bi-chat",
+      "viteDir": "modules/bichat/presentation/web",
+      "vitePort": 5173,
+      "entryModule": "/src/main.tsx"
+    }
+  ]
+}
+

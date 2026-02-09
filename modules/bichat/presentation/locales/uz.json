@@ -26,6 +26,14 @@
 			"Access": "BI-chatga kirish",
 			"ReadAll": "Barcha sessiyalarni ko'rish",
 			"Export": "Ma'lumotlarni eksport qilish"
+		},
+		"SlashCommands": {
+			"Clear": "Tarixni tozalash",
+			"Debug": "Debug rejimi",
+			"Compact": "Tarixni ixchamlashtirish",
+			"Compacting": "Tarix ixchamlashtirilmoqda",
+			"CompactedSummary": "Ixcham xulosa",
+			"DebugTrace": "Debug izi"
 		}
 	}
 }

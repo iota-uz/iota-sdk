@@ -3,12 +3,17 @@ package applet
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
+	"path"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,6 +32,9 @@ type ContextBuilder struct {
 	tenantNameResolver TenantNameResolver
 	errorEnricher      ErrorContextEnricher
 	sessionStore       SessionStore
+
+	translationsMu    sync.RWMutex
+	translationsCache map[string]map[string]string
 }
 
 // NewContextBuilder creates a new ContextBuilder with required dependencies.
@@ -52,11 +60,12 @@ func NewContextBuilder(
 	opts ...BuilderOption,
 ) *ContextBuilder {
 	b := &ContextBuilder{
-		config:        config,
-		bundle:        bundle,
-		sessionConfig: sessionConfig,
-		logger:        logger,
-		metrics:       metrics,
+		config:            config,
+		bundle:            bundle,
+		sessionConfig:     sessionConfig,
+		logger:            logger,
+		metrics:           metrics,
+		translationsCache: make(map[string]map[string]string),
 	}
 
 	for _, opt := range opts {
@@ -157,6 +166,21 @@ func (b *ContextBuilder) Build(ctx context.Context, r *http.Request, basePath st
 	}
 
 	// Build initial context
+	assetsPath := b.config.Assets.BasePath
+	if assetsPath == "" {
+		assetsPath = "/assets"
+	}
+	assetsBasePath := path.Join("/", strings.TrimPrefix(basePath, "/"), strings.TrimPrefix(assetsPath, "/"))
+
+	rpcPath := ""
+	if b.config.RPC != nil {
+		rpcPath = b.config.RPC.Path
+		if rpcPath == "" {
+			rpcPath = "/rpc"
+		}
+		rpcPath = path.Join("/", strings.TrimPrefix(basePath, "/"), strings.TrimPrefix(rpcPath, "/"))
+	}
+
 	initialContext := &InitialContext{
 		User: UserContext{
 			ID:          int64(user.ID()),
@@ -177,6 +201,10 @@ func (b *ContextBuilder) Build(ctx context.Context, r *http.Request, basePath st
 			GraphQLEndpoint: b.config.Endpoints.GraphQL,
 			StreamEndpoint:  b.config.Endpoints.Stream,
 			RESTEndpoint:    b.config.Endpoints.REST,
+			BasePath:        basePath,
+			AssetsBasePath:  assetsBasePath,
+			RPCUIEndpoint:   rpcPath,
+			ShellMode:       string(b.config.Shell.Mode),
 		},
 		Route:   route,
 		Session: session,
@@ -226,21 +254,96 @@ func getUserPermissions(ctx context.Context) []string {
 	if err != nil {
 		return []string{}
 	}
+	return collectUserPermissionNames(user)
+}
 
-	perms := make([]string, 0, len(user.Permissions()))
-	for _, perm := range user.Permissions() {
-		// Use Name() which returns the string identifier (e.g., "bichat.access")
-		perms = append(perms, perm.Name())
+func collectUserPermissionNames(u user.User) []string {
+	if u == nil {
+		return []string{}
+	}
+
+	perms := make([]string, 0, len(u.Permissions()))
+	seen := make(map[string]struct{}, len(u.Permissions()))
+
+	add := func(name string) {
+		normalized := normalizePermissionName(name)
+		if normalized == "" {
+			return
+		}
+		if _, ok := seen[normalized]; ok {
+			return
+		}
+		seen[normalized] = struct{}{}
+		perms = append(perms, normalized)
+	}
+
+	for _, perm := range u.Permissions() {
+		add(perm.Name())
+	}
+	for _, role := range u.Roles() {
+		for _, perm := range role.Permissions() {
+			add(perm.Name())
+		}
 	}
 	return perms
 }
 
-// getAllTranslations extracts ALL translations from the i18n bundle for the user's locale.
-// Uses bundle.Messages() to iterate all message IDs and localize each one.
-// NO caching - loads fresh each time from bundle for correctness.
+// getAllTranslations returns applet translation key/value pairs for the provided locale.
+// Results are cached per locale and shaped by the configured I18n mode:
+//   - all: include all translation keys
+//   - prefixes: include only keys matching configured prefixes
+//   - none: include no translations
 //
-// Performance: Pre-allocates map with estimated size for efficiency.
+// The returned map is safe to mutate (it is a copy of the cached data).
 func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]string {
+	localeKey := locale.String()
+
+	b.translationsMu.RLock()
+	if cached, ok := b.translationsCache[localeKey]; ok {
+		b.translationsMu.RUnlock()
+		return maps.Clone(cached)
+	}
+	b.translationsMu.RUnlock()
+
+	b.translationsMu.Lock()
+	if cached, ok := b.translationsCache[localeKey]; ok {
+		b.translationsMu.Unlock()
+		return maps.Clone(cached)
+	}
+	defer b.translationsMu.Unlock()
+
+	mode := b.config.I18n.Mode
+	if mode == "" {
+		mode = TranslationModeAll
+	}
+	if mode == TranslationModeNone {
+		out := make(map[string]string)
+		b.translationsCache[localeKey] = out
+		return maps.Clone(out)
+	}
+
+	prefixes := make([]string, 0, len(b.config.I18n.Prefixes))
+	if mode == TranslationModePrefixes {
+		for _, p := range b.config.I18n.Prefixes {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			prefixes = append(prefixes, p)
+		}
+		if len(prefixes) == 0 {
+			out := make(map[string]string)
+			b.translationsCache[localeKey] = out
+			return maps.Clone(out)
+		}
+	}
+
+	if b.bundle == nil {
+		out := make(map[string]string)
+		b.translationsCache[localeKey] = out
+		return maps.Clone(out)
+	}
+
 	// Get all messages for the user's locale
 	messages := b.bundle.Messages()
 	localeMessages, exists := messages[locale]
@@ -249,24 +352,49 @@ func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]stri
 		if b.logger != nil {
 			b.logger.WithField("locale", locale.String()).Warn("No translations found for locale")
 		}
-		return make(map[string]string)
+		out := make(map[string]string)
+		b.translationsCache[localeKey] = out
+		return maps.Clone(out)
 	}
 
-	// Pre-allocate with exact size
 	translations := make(map[string]string, len(localeMessages))
+	if mode == TranslationModePrefixes {
+		translations = make(map[string]string)
+	}
 
 	// Create localizer for the user's locale
 	localizer := i18n.NewLocalizer(b.bundle, locale.String())
 
-	// Iterate all message IDs and localize
+	// Iterate all message IDs and localize. Use Localize (not MustLocalize) so that
+	// parent/category keys (e.g. List.Meta with only nested Description) that have
+	// no direct string value are skipped instead of panicking.
 	for messageID := range localeMessages {
-		translation := localizer.MustLocalize(&i18n.LocalizeConfig{
+		if mode == TranslationModePrefixes {
+			match := false
+			for _, p := range prefixes {
+				if strings.HasPrefix(messageID, p) {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+		translation, err := localizer.Localize(&i18n.LocalizeConfig{
 			MessageID: messageID,
 		})
+		if err != nil {
+			if b.logger != nil {
+				b.logger.WithError(err).WithField("message_id", messageID).Debug("Skipping message ID with no direct string (e.g. parent key)")
+			}
+			continue
+		}
 		translations[messageID] = translation
 	}
 
-	return translations
+	b.translationsCache[localeKey] = translations
+	return maps.Clone(translations)
 }
 
 // getTenantName returns the tenant name using multi-layer fallback:

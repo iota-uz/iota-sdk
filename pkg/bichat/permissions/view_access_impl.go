@@ -7,6 +7,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/analytics"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -18,31 +19,25 @@ var tableReferenceRegex = regexp.MustCompile(`(?i)\b(?:FROM|JOIN)\s+(\w+)\.(\w+)
 
 // viewAccessControl implements ViewAccessControl interface.
 type viewAccessControl struct {
-	config          *Config
-	permissionMap   map[string]ViewPermission
+	permissionMap   map[string]analytics.View
 	schemaNameLower string
+	defaultAccess   bool
 }
 
-// NewViewAccessControl creates a new ViewAccessControl instance with the given configuration.
-// If config is nil, returns a permissive instance that allows all views.
-func NewViewAccessControl(config *Config) ViewAccessControl {
-	if config == nil {
-		// Return permissive instance with empty config
-		return &viewAccessControl{
-			config: &Config{
-				SchemaName:      "",
-				ViewPermissions: nil,
-				DefaultAccess:   true,
-			},
-			permissionMap:   make(map[string]ViewPermission),
-			schemaNameLower: "",
-		}
+// NewViewAccessControl creates a new ViewAccessControl instance.
+// schema is the database schema to match in SQL queries.
+// views are the registered analytics views with their permission requirements.
+// defaultAccess controls behavior for unmapped views (true = allow, false = deny).
+func NewViewAccessControl(schema string, views []analytics.View, defaultAccess bool) ViewAccessControl {
+	m := make(map[string]analytics.View, len(views))
+	for _, v := range views {
+		m[normalizeViewName(v.Name)] = v
 	}
 
 	return &viewAccessControl{
-		config:          config,
-		permissionMap:   config.buildPermissionMap(),
-		schemaNameLower: strings.ToLower(config.SchemaName),
+		permissionMap:   m,
+		schemaNameLower: strings.ToLower(schema),
+		defaultAccess:   defaultAccess,
 	}
 }
 
@@ -50,34 +45,28 @@ func NewViewAccessControl(config *Config) ViewAccessControl {
 func (v *viewAccessControl) CanAccess(ctx context.Context, viewName string) (bool, error) {
 	const op serrors.Op = "viewAccessControl.CanAccess"
 
-	// Get user from context
 	u, err := composables.UseUser(ctx)
 	if err != nil {
 		return false, serrors.E(op, "failed to get user from context", err)
 	}
 
-	// Normalize view name for lookup
 	normalizedName := normalizeViewName(viewName)
 
-	// Look up view permission configuration
 	vp, exists := v.permissionMap[normalizedName]
 	if !exists {
-		// View not in permission map - use default access policy
-		return v.config.DefaultAccess, nil
+		return v.defaultAccess, nil
 	}
 
-	// Check if view is public (nil or empty required permissions)
 	if len(vp.Required) == 0 {
 		return true, nil
 	}
 
-	// Check permissions based on logic type
 	switch vp.Logic {
-	case LogicAll:
-		// AND logic: user needs ALL permissions
+	case analytics.LogicAll:
 		return v.hasAllPermissions(u, vp.Required), nil
+	case analytics.LogicAny:
+		return v.hasAnyPermission(u, vp.Required), nil
 	default:
-		// LogicAny (default): user needs ANY ONE permission
 		return v.hasAnyPermission(u, vp.Required), nil
 	}
 }
@@ -104,19 +93,13 @@ func (v *viewAccessControl) hasAllPermissions(u user.User, required []permission
 
 // hasPermission checks if user has a specific permission (direct or via roles).
 func (v *viewAccessControl) hasPermission(u user.User, reqPerm permission.Permission) bool {
-	// Check direct user permissions (if user has Permissions() method)
-	// Most systems store permissions in roles, but check both
-
-	// Check permissions from user's roles
 	for _, role := range u.Roles() {
 		for _, userPerm := range role.Permissions() {
-			// Match by ID for exact permission match
 			if userPerm.ID() == reqPerm.ID() {
 				return true
 			}
 		}
 	}
-
 	return false
 }
 
@@ -149,13 +132,11 @@ func (v *viewAccessControl) GetAccessibleViews(ctx context.Context, views []stri
 func (v *viewAccessControl) CheckQueryPermissions(ctx context.Context, sql string) ([]DeniedView, error) {
 	const op serrors.Op = "viewAccessControl.CheckQueryPermissions"
 
-	// Extract all table references from the SQL
 	matches := tableReferenceRegex.FindAllStringSubmatch(sql, -1)
 	if len(matches) == 0 {
 		return nil, nil
 	}
 
-	// Get unique view names that match our configured schema
 	viewSet := make(map[string]bool)
 	for _, match := range matches {
 		if len(match) >= 3 {
@@ -176,7 +157,6 @@ func (v *viewAccessControl) CheckQueryPermissions(ctx context.Context, sql strin
 		}
 
 		if !canAccess {
-			// Get required permissions for error message
 			requiredPerms := v.GetRequiredPermissions(viewName)
 
 			deniedViews = append(deniedViews, DeniedView{
@@ -204,16 +184,20 @@ func (v *viewAccessControl) GetRequiredPermissions(viewName string) []string {
 	return extractPermissionNames(vp)
 }
 
-// extractPermissionNames converts ViewPermission to human-readable permission names.
-func extractPermissionNames(vp ViewPermission) []string {
-	if len(vp.Required) == 0 {
+// extractPermissionNames converts an analytics.View's required permissions to names.
+func extractPermissionNames(v analytics.View) []string {
+	if len(v.Required) == 0 {
 		return nil
 	}
 
-	names := make([]string, len(vp.Required))
-	for i, perm := range vp.Required {
+	names := make([]string, len(v.Required))
+	for i, perm := range v.Required {
 		names[i] = perm.Name()
 	}
-
 	return names
+}
+
+// normalizeViewName converts view name to lowercase for case-insensitive matching.
+func normalizeViewName(name string) string {
+	return strings.ToLower(name)
 }

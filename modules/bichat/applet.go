@@ -4,11 +4,14 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/assets"
+	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -72,24 +75,26 @@ func (a *BiChatApplet) Config() applet.Config {
 
 		// Endpoints configures API endpoint paths
 		Endpoints: applet.EndpointConfig{
-			GraphQL: "/query/bichat",   // GraphQL API endpoint (via core's GraphQLController)
-			Stream:  "/bi-chat/stream", // SSE streaming endpoint
+			Stream: "/bi-chat/stream", // SSE streaming endpoint
 		},
 
 		// Assets configuration for serving the built React app
 		// Uses Vite manifest for hashed asset resolution
 		Assets: applet.AssetConfig{
-			FS:           distFS,                // Sub-filesystem rooted at dist/ for direct file access
-			BasePath:     "/assets",             // URL prefix for asset serving (relative to applet base path)
-			ManifestPath: ".vite/manifest.json", // Path to Vite manifest within distFS (relative to dist/)
-			Entrypoint:   "index.html",          // Entry point file name (Vite default, matches manifest key)
+			FS:           distFS,          // Sub-filesystem rooted at dist/ for direct file access
+			BasePath:     "/assets",       // URL prefix for asset serving (relative to applet base path)
+			ManifestPath: "manifest.json", // Vite build manifest path within distFS
+			Entrypoint:   "index.html",    // Entry point file name (Vite default, matches manifest key)
+			Dev:          bichatDevAssets(),
 		},
 
 		Mount: applet.MountConfig{
 			Tag: "bi-chat-root",
 			Attributes: map[string]string{
-				"base-path": "/bi-chat",
-				"style":     "display: flex; flex: 1; flex-direction: column; min-height: 0; height: 100%; width: 100%;",
+				"base-path":   a.BasePath(),
+				"router-mode": "url",
+				"shell-mode":  "embedded",
+				"style":       "display: flex; flex: 1; flex-direction: column; min-height: 0; height: 100%; width: 100%;",
 			},
 		},
 
@@ -103,14 +108,63 @@ func (a *BiChatApplet) Config() applet.Config {
 		// Order matters: Authorize -> User -> Localizer -> PageContext
 		Middleware: a.getMiddleware(),
 
-		// Layout: Render inside the standard iota authenticated shell
-		// so the sidebar, navbar, and head assets are present.
-		Layout: func(title string) templ.Component {
-			return layouts.Authenticated(layouts.AuthenticatedProps{
-				BaseProps: layouts.BaseProps{Title: title},
-			})
+		Shell: applet.ShellConfig{
+			Mode: applet.ShellModeEmbedded,
+			Layout: func(title string) templ.Component {
+				return layouts.Authenticated(layouts.AuthenticatedProps{
+					BaseProps: layouts.BaseProps{Title: title},
+				})
+			},
+			Title: "BiChat",
 		},
-		Title: "BiChat",
+
+		RPC: func() *applet.RPCConfig {
+			if a.config == nil {
+				return nil
+			}
+			chatSvc := a.config.ChatService()
+			artifactSvc := a.config.ArtifactService()
+			if chatSvc == nil || artifactSvc == nil {
+				return nil
+			}
+			return bichatrpc.Router(chatSvc, artifactSvc).Config()
+		}(),
+	}
+}
+
+func bichatDevAssets() *applet.DevAssetConfig {
+	enabled := envBool("IOTA_APPLET_DEV_BICHAT")
+	target := strings.TrimSpace(os.Getenv("IOTA_APPLET_VITE_URL_BICHAT"))
+	if target == "" {
+		target = "http://localhost:5173"
+	}
+	entry := strings.TrimSpace(os.Getenv("IOTA_APPLET_ENTRY_BICHAT"))
+	if entry == "" {
+		entry = "/src/main.tsx"
+	}
+	client := strings.TrimSpace(os.Getenv("IOTA_APPLET_CLIENT_BICHAT"))
+	if client == "" {
+		client = "/@vite/client"
+	}
+
+	return &applet.DevAssetConfig{
+		Enabled:      enabled,
+		TargetURL:    target,
+		EntryModule:  entry,
+		ClientModule: client,
+	}
+}
+
+func envBool(key string) bool {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return false
+	}
+	switch strings.ToLower(v) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -165,6 +219,14 @@ func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
 //	    "webSearch": false,
 //	    "codeInterpreter": true,
 //	    "multiAgent": false
+//	  },
+//	  "debug": {
+//	    "limits": {
+//	      "policyMaxTokens": 180000,
+//	      "modelMaxTokens": 272000,
+//	      "effectiveMaxTokens": 180000,
+//	      "completionReserveTokens": 8000
+//	    }
 //	  }
 //	}
 func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]interface{}, error) {
@@ -177,6 +239,18 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 				"codeInterpreter": false,
 				"multiAgent":      false,
 			},
+			"llm": map[string]interface{}{
+				"provider":         "",
+				"apiKeyConfigured": false,
+			},
+			"debug": map[string]interface{}{
+				"limits": map[string]int{
+					"policyMaxTokens":         0,
+					"modelMaxTokens":          0,
+					"effectiveMaxTokens":      0,
+					"completionReserveTokens": 0,
+				},
+			},
 		}, nil
 	}
 
@@ -188,7 +262,50 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 		"multiAgent":      a.config.EnableMultiAgent,
 	}
 
+	policyMax := a.config.ContextPolicy.ContextWindow
+	modelMax := 0
+	if a.config.Model != nil {
+		modelMax = a.config.Model.Info().ContextWindow
+	}
+
+	effectiveMax := 0
+	switch {
+	case policyMax > 0 && modelMax > 0:
+		if policyMax < modelMax {
+			effectiveMax = policyMax
+		} else {
+			effectiveMax = modelMax
+		}
+	case policyMax > 0:
+		effectiveMax = policyMax
+	case modelMax > 0:
+		effectiveMax = modelMax
+	}
+
+	limits := map[string]int{
+		"policyMaxTokens":         policyMax,
+		"modelMaxTokens":          modelMax,
+		"effectiveMaxTokens":      effectiveMax,
+		"completionReserveTokens": a.config.ContextPolicy.CompletionReserve,
+	}
+
+	modelProvider := ""
+	if a.config.Model != nil {
+		modelProvider = strings.ToLower(strings.TrimSpace(a.config.Model.Info().Provider))
+	}
+	apiKeyConfigured := true
+	if modelProvider == "openai" {
+		apiKeyConfigured = strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != ""
+	}
+
 	return map[string]interface{}{
 		"features": features,
+		"llm": map[string]interface{}{
+			"provider":         modelProvider,
+			"apiKeyConfigured": apiKeyConfigured,
+		},
+		"debug": map[string]interface{}{
+			"limits": limits,
+		},
 	}, nil
 }

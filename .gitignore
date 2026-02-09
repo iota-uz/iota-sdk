@@ -11,17 +11,32 @@ uploads
 *_templ.txt
 modules/core/presentation/assets/css/main.min.css
 modules/bichat/presentation/assets/dist/
+/tailwind/
+/assets/
 bin/
 logs/
+*.tgz
 
 # Build artifacts
 dist/
 **/dist/
 
+# Dev runner manifest (written by `just dev <name>`)
+applet-dev.json
+
+# Applet embedded assets are build output; keep only a placeholder for go:embed.
+!**/presentation/assets/dist/
+**/presentation/assets/dist/*
+!**/presentation/assets/dist/.keep
+
 go.work*
 
 **/.claude/settings.local.json
 .claude/backlog
+
+# Storybook (generated Tailwind bundle)
+ui/.storybook/preview.generated.css
+storybook-static/
 
 # Local scratch (history rewrite tooling)
 .git-rewrite/
@@ -30,3 +45,9 @@ go.work*
 e2e/playwright-report/
 e2e/test-results/
 server
+
+# CLI binary (go build ./cmd/command/)
+/command
+
+# Playwright CLI snapshots/artifacts
+.playwright-cli/

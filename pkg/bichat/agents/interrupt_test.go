@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 func TestInterruptHandlerRegistry_Register(t *testing.T) {
@@ -130,7 +131,7 @@ func TestAskUserQuestionHandler_Handle(t *testing.T) {
 	}
 
 	event := InterruptEvent{
-		Type:      "ask_user_question",
+		Type:      string(types.InterruptTypeAskUserQuestion),
 		Data:      data,
 		AgentName: "test_agent",
 		SessionID: uuid.New(),
@@ -154,7 +155,7 @@ func TestAskUserQuestionHandler_Handle_InvalidData(t *testing.T) {
 
 	// Invalid JSON
 	event := InterruptEvent{
-		Type:      "ask_user_question",
+		Type:      string(types.InterruptTypeAskUserQuestion),
 		Data:      []byte("{invalid json}"),
 		AgentName: "test_agent",
 		SessionID: uuid.New(),
@@ -271,7 +272,7 @@ func TestInterruptHandlerRegistry_CustomHandler(t *testing.T) {
 	// Test custom handler behavior
 	ctx := context.Background()
 	event := InterruptEvent{
-		Type:      "ask_user_question",
+		Type:      string(types.InterruptTypeAskUserQuestion),
 		Data:      json.RawMessage(`{}`),
 		AgentName: "test",
 		SessionID: uuid.New(),

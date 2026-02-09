@@ -1,0 +1,21 @@
+import { defineConfig } from 'tsup'
+
+export default defineConfig({
+  entry: {
+    index: 'ui/src/index.ts',
+    'bichat/index': 'ui/src/bichat/index.ts',
+    'bichat/tailwind': 'ui/src/bichat/tailwind.ts',
+    'applet/vite': 'ui/src/applet-vite/index.ts',
+  },
+  outDir: 'dist',
+  format: ['esm'],
+  outExtension() {
+    return { js: '.mjs' }
+  },
+  dts: false,
+  sourcemap: false,
+  clean: false,
+  treeshake: false,
+  splitting: false,
+  external: ['react', 'react-dom'],
+})

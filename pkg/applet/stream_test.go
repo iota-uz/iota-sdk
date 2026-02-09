@@ -44,7 +44,7 @@ func TestNewStreamWriter_NoFlusher(t *testing.T) {
 	w := &nonFlusher{ResponseWriter: httptest.NewRecorder()}
 	sw, err := NewStreamWriter(w)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, sw)
 	assert.Contains(t, err.Error(), "does not support flushing")
 }
@@ -211,8 +211,11 @@ func TestStreamContextBuilder_Build_Success(t *testing.T) {
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		streamCtx, err := builder.Build(ctx, r)
-		require.NoError(t, err)
-		require.NotNil(t, streamCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, streamCtx)
+		if err != nil || streamCtx == nil {
+			return
+		}
 
 		// Verify lightweight context
 		assert.Equal(t, int64(42), streamCtx.UserID)
@@ -249,7 +252,7 @@ func TestStreamContextBuilder_Build_MissingUser(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/stream", nil)
 
 	streamCtx, err := builder.Build(ctx, r)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, streamCtx)
 	assert.Contains(t, err.Error(), "user extraction failed")
 }
@@ -265,9 +268,8 @@ func TestStreamContextBuilder_Build_MissingTenant(t *testing.T) {
 	config := Config{}
 	builder := NewStreamContextBuilder(config, sessionConfig, logger)
 
-	// Create context with user but no tenant
-	ctx := createTestContext(t)
-	ctx = context.Background() // Reset to remove tenant
+	// Create context with user but no tenant (Background so tenant extraction fails)
+	ctx := context.Background()
 	ctx = composables.WithUser(ctx, &mockUser{
 		id:        123,
 		firstName: "John",
@@ -277,7 +279,7 @@ func TestStreamContextBuilder_Build_MissingTenant(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/stream", nil)
 
 	streamCtx, err := builder.Build(ctx, r)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, streamCtx)
 	assert.Contains(t, err.Error(), "tenant extraction failed")
 }
@@ -311,8 +313,11 @@ func TestStreamContextBuilder_Build_WithCustomContext(t *testing.T) {
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		streamCtx, err := builder.Build(ctx, r)
-		require.NoError(t, err)
-		require.NotNil(t, streamCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, streamCtx)
+		if err != nil || streamCtx == nil {
+			return
+		}
 
 		// Verify custom context is included
 		assert.NotNil(t, streamCtx.Extensions)
@@ -352,7 +357,7 @@ func TestStreamContextBuilder_Build_Performance(t *testing.T) {
 		_, err := builder.Build(ctx, r)
 		duration := time.Since(start)
 
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// Performance target: <5ms
 		assert.Less(t, duration.Milliseconds(), int64(5),
@@ -390,8 +395,11 @@ func TestStreamContextBuilder_Build_WithCustomContextError(t *testing.T) {
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Should succeed but log warning (error is swallowed)
 		streamCtx, err := builder.Build(ctx, r)
-		require.NoError(t, err)
-		require.NotNil(t, streamCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, streamCtx)
+		if err != nil || streamCtx == nil {
+			return
+		}
 
 		// Extensions should be nil due to error
 		assert.Nil(t, streamCtx.Extensions)
@@ -426,8 +434,11 @@ func TestStreamContextBuilder_VerifyLightweight(t *testing.T) {
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		streamCtx, err := builder.Build(ctx, r)
-		require.NoError(t, err)
-		require.NotNil(t, streamCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, streamCtx)
+		if err != nil || streamCtx == nil {
+			return
+		}
 
 		// Verify StreamContext is truly lightweight
 		// It should only have: UserID, TenantID, Permissions, CSRFToken, Session

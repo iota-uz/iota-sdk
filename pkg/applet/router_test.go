@@ -123,7 +123,7 @@ func TestDefaultRouter_ParseRoute_EmptyQueryValue(t *testing.T) {
 
 	routeCtx := router.ParseRoute(r, "/bichat")
 
-	assert.Equal(t, "", routeCtx.Query["empty"])
+	assert.Empty(t, routeCtx.Query["empty"])
 	assert.Equal(t, "value", routeCtx.Query["normal"])
 }
 

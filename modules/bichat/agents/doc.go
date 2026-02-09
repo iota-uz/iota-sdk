@@ -50,6 +50,7 @@
 //   - schema_list: List all database tables
 //   - schema_describe: Get detailed table schema information
 //   - sql_execute: Execute read-only SQL queries
+//   - export_query_to_excel: Execute read-only SQL and export results to Excel
 //   - draw_chart: Create chart visualizations
 //   - ask_user_question: Ask clarifying questions (HITL)
 //
