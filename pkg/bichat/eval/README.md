@@ -14,6 +14,8 @@ The library is composable. External SDK users can plug:
 
 ## Run
 
+Set `OPENAI_API_KEY` in the environment, then:
+
 ```bash
 command bichat eval run \
   --cases ./pkg/bichat/eval/testdata/analytics/suite.json \
@@ -21,8 +23,7 @@ command bichat eval run \
   --rpc-path /bi-chat/rpc \
   --stream-path /bi-chat/stream \
   --session-token '<granite_sid>' \
-  --hitl-model 'gpt-4o-mini' \
-  --openai-api-key "$OPENAI_API_KEY" \
+  --hitl-model 'gpt-5-nano' \
   --seed-dsn 'postgres://postgres:postgres@localhost:5432/iota?sslmode=disable' \
   --seed-tenant-id '00000000-0000-0000-0000-000000000001'
 ```

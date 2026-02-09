@@ -39,7 +39,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 10.19.0
+          version: 9.15.0
 
       - name: Install JS dependencies (Tailwind v4)
         run: pnpm install --frozen-lockfile
@@ -312,7 +312,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 10.19.0
+          version: 9.15.0
 
       - name: Install JS dependencies (Tailwind v4)
         run: pnpm install --frozen-lockfile
@@ -326,11 +326,6 @@ jobs:
       - name: Setup E2E database
         run: |
           just e2e reset
-
-      - name: Install PNPM
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Install Node dependencies
         run: pnpm install
@@ -419,7 +414,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 10.19.0
+          version: 9.15.0
 
       - name: Install documentation dependencies
         working-directory: ./docs

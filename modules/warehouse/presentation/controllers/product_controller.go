@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -68,7 +69,6 @@ func (c *ProductsController) Register(r *mux.Router) {
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 }
@@ -188,7 +188,10 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.productService.Update(r.Context(), id, dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		return c.productService.Update(txCtx, id, dto)
+	})
+	if err != nil {
 		var vErr serrors.Base
 		if errors.As(err, &vErr) {
 			// Create a new product with the invalid RFID for display purposes
@@ -255,7 +258,10 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.productService.Create(r.Context(), dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		return c.productService.Create(txCtx, dto)
+	})
+	if err != nil {
 		var vErr serrors.Base
 		if errors.As(err, &vErr) {
 			props := &products.CreatePageProps{

@@ -85,8 +85,6 @@ func (c *LoginController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix("/login").Subrouter()
 	setRouter.Use(
 		middleware.ProvideLocalizer(c.app),
-		// NOTE: WithTransaction() removed intentionally to fix race condition.
-		// Transaction is managed explicitly in Post() to ensure commit before redirect.
 		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
 	)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
@@ -190,7 +188,6 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		}
 		return authErr
 	})
-
 	if err != nil {
 		logger.Error("POST /login: InTx failed", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {

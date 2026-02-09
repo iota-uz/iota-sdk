@@ -3,7 +3,6 @@
  */
 
 import { useIotaContext } from '../context/IotaContext'
-import { defaultTranslations } from '../locales/defaults'
 
 export function useTranslation() {
   const { locale } = useIotaContext()
@@ -15,7 +14,7 @@ export function useTranslation() {
    * @returns Translated string
    */
   const t = (key: string, params?: Record<string, any>): string => {
-    let text = locale.translations[key] || defaultTranslations[key] || key
+    let text = locale.translations[key] || key
 
     // Simple interpolation: replace {{key}} with params[key]
     if (params) {

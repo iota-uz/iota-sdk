@@ -32,6 +32,8 @@ export interface HttpDataSourceConfig {
   csrfToken?: string | (() => string)
   headers?: Record<string, string>
   timeout?: number
+  /** Optional: called when a new session is created so the host app can navigate (e.g. SPA router) */
+  navigateToSession?: (sessionId: string) => void
 }
 
 interface SessionState {
@@ -302,6 +304,9 @@ export class HttpDataSource implements ChatDataSource {
       streamEndpoint: '/stream',
       timeout: 30000,
       ...config,
+    }
+    if (config.navigateToSession) {
+      this.navigateToSession = config.navigateToSession
     }
     this.rpc = createAppletRPCClient({
       endpoint: `${this.config.baseUrl}${this.config.rpcEndpoint}`,

@@ -45,8 +45,9 @@ const (
 )
 
 type I18nConfig struct {
-	Mode     TranslationMode
-	Prefixes []string
+	Mode         TranslationMode
+	Prefixes     []string
+	RequiredKeys []string // Optional: message IDs that must exist in every locale (validated via applet.ValidateI18n or i18nutil.ValidateRequiredKeys)
 }
 
 // Config contains all configuration needed to integrate an applet with the SDK runtime.
@@ -154,13 +155,11 @@ type DevAssetConfig struct {
 	TargetURL    string // e.g. http://localhost:5173
 	EntryModule  string // e.g. /src/main.tsx
 	ClientModule string // default: /@vite/client
-	StripPrefix  *bool  // default: false
+	StripPrefix  *bool  // when nil or true, proxy strips fullAssetsPath before forwarding to Vite
 }
 
 type RPCConfig struct {
 	Path                 string // default: /rpc
-	RequireSameOrigin    *bool  // default: true
-	TrustForwardedHost   *bool  // default: false
 	ExposeInternalErrors *bool  // default: false
 	MaxBodyBytes         int64  // default: 1<<20
 	Methods              map[string]RPCMethod

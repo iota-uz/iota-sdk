@@ -236,11 +236,12 @@ func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T
 }
 
 func newConfigWithProjectPromptOpts(opts ...ConfigOption) *ModuleConfig {
-	baseOpts := []ConfigOption{
+	baseOpts := make([]ConfigOption, 0, 3+len(opts))
+	baseOpts = append(baseOpts,
 		WithQueryExecutor(&configTestExecutor{}),
 		WithNoOpAttachmentStorage(),
 		WithTitleGenerationDisabled(),
-	}
+	)
 	baseOpts = append(baseOpts, opts...)
 
 	return NewModuleConfig(

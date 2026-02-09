@@ -429,6 +429,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var finalUsage *types.DebugUsage
 	var generationMs int64
 
+	var streamErr error
 	for {
 		event, err := gen.Next(processCtx)
 		if errors.Is(err, types.ErrGeneratorDone) {
@@ -441,7 +442,8 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				Error:     err,
 				Timestamp: time.Now(),
 			})
-			return serrors.E(op, err)
+			streamErr = err
+			break
 		}
 
 		switch event.Type {
@@ -530,6 +532,11 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 	}
 
+	// Always persist assistant message, even if streaming had errors.
+	// Use a non-cancelable context so DB writes succeed even when the
+	// original HTTP context is already canceled.
+	persistCtx := context.WithoutCancel(ctx)
+
 	// Build assistant message options
 	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
 	savedToolCalls := orderedToolCalls(toolCalls, toolOrder)
@@ -551,9 +558,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 	}
 
-	// Always save assistant message
+	// Always save assistant message (partial or complete)
 	assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
-	err = s.chatRepo.SaveMessage(ctx, assistantMsg)
+	err = s.chatRepo.SaveMessage(persistCtx, assistantMsg)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -562,8 +569,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	session = session.
 		UpdateLLMPreviousResponseID(providerResponseID).
 		UpdateUpdatedAt(time.Now())
-	if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
+	if err := s.chatRepo.UpdateSession(persistCtx, session); err != nil {
 		return serrors.E(op, err)
+	}
+
+	if streamErr != nil {
+		return serrors.E(op, streamErr)
 	}
 
 	// Generate title if not interrupted
