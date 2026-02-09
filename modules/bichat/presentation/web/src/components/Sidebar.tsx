@@ -177,23 +177,17 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
     })
   }, [reloadSessions, sessionEvents])
 
-  // Poll for title updates on sessions with placeholder titles
-  const sessionsKey = useMemo(
-    () => sessions.map((s) => `${s.id}:${s.title || ''}`).join(','),
+  // Poll for title updates on sessions with placeholder titles.
+  // Use a stable boolean so that updating sessions inside the poll
+  // does NOT re-trigger the effect (which would create overlapping intervals).
+  const hasPlaceholderTitles = useMemo(
+    () => sessions.some((s: ChatSession) => !s.title),
     [sessions]
   )
 
   useEffect(() => {
-    // Check if any session has a placeholder title (null or empty)
-    const sessionsWithPlaceholderTitles = sessions.filter(
-      (s: ChatSession) => !s.title
-    )
+    if (!hasPlaceholderTitles) return
 
-    if (sessionsWithPlaceholderTitles.length === 0) {
-      return
-    }
-
-    // Poll every 2 seconds for up to 10 seconds
     const pollInterval = 2000
     const maxPolls = 5
     let pollCount = 0
@@ -208,7 +202,7 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
     }, pollInterval)
 
     return () => clearInterval(intervalId)
-  }, [reloadSessions, sessions, sessionsKey])
+  }, [hasPlaceholderTitles, reloadSessions])
 
   // Get all sessions and apply search filter
   const filteredSessions = useSessionSearch(sessions, searchQuery)
