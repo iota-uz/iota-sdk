@@ -17,7 +17,7 @@ type Module struct {
 }
 
 //go:embed presentation/locales/*.json
-var localeFiles embed.FS
+var LocaleFiles embed.FS
 
 //go:embed infrastructure/persistence/schema/billing-schema.sql
 var migrationFiles embed.FS
@@ -127,7 +127,7 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
-	app.RegisterLocaleFiles(&localeFiles)
+	app.RegisterLocaleFiles(&LocaleFiles)
 
 	return nil
 }

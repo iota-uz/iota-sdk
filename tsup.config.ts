@@ -4,6 +4,8 @@ export default defineConfig({
   entry: {
     index: 'ui/src/index.ts',
     'bichat/index': 'ui/src/bichat/index.ts',
+    'bichat/tailwind': 'ui/src/bichat/tailwind.ts',
+    'applet/vite': 'ui/src/applet-vite/index.ts',
   },
   outDir: 'dist',
   format: ['esm', 'cjs'],
@@ -15,5 +17,13 @@ export default defineConfig({
   clean: true,
   treeshake: true,
   splitting: false,
-  external: ['react', 'react-dom'],
+  external: [
+    'react',
+    'react-dom',
+    'node:fs',
+    'node:path',
+    'node:module',
+    'node:child_process',
+    'node:os',
+  ],
 })

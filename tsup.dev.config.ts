@@ -4,6 +4,8 @@ export default defineConfig({
   entry: {
     index: 'ui/src/index.ts',
     'bichat/index': 'ui/src/bichat/index.ts',
+    'bichat/tailwind': 'ui/src/bichat/tailwind.ts',
+    'applet/vite': 'ui/src/applet-vite/index.ts',
   },
   outDir: 'dist',
   format: ['esm'],

@@ -152,7 +152,7 @@ func (c *AppletController) initAssets() {
 			dev.ClientModule = "/@vite/client"
 		}
 		if dev.StripPrefix == nil {
-			v := false
+			v := true // strip assets path so Vite receives e.g. /@vite/client not /basePath/assets/@vite/client
 			dev.StripPrefix = &v
 		}
 		c.devAssets = &dev
@@ -519,13 +519,11 @@ func buildSafeContextScript(windowGlobal string, contextJSON []byte) (string, er
 	return fmt.Sprintf(`<script>window[%s] = %s;</script>`, safeKey, safeValue), nil
 }
 
+// scriptTagCloseRe matches </script> in any casing for defense-in-depth (e.g. user-supplied data in contextJSON).
+var scriptTagCloseRe = regexp.MustCompile(`(?i)</(script)>`)
+
 func escapeJSONForScriptTag(jsonBytes []byte) string {
-	jsonStr := string(jsonBytes)
-	jsonStr = strings.ReplaceAll(jsonStr, "</script>", "<\\/script>")
-	jsonStr = strings.ReplaceAll(jsonStr, "</SCRIPT>", "<\\/SCRIPT>")
-	jsonStr = strings.ReplaceAll(jsonStr, "</Script>", "<\\/Script>")
-	jsonStr = strings.ReplaceAll(jsonStr, "</sCrIpT>", "<\\/sCrIpT>")
-	return jsonStr
+	return scriptTagCloseRe.ReplaceAllString(string(jsonBytes), "<\\/$1>")
 }
 
 type rpcRequest struct {
