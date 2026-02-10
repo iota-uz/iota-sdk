@@ -1,0 +1,44 @@
+# Publish @iota-uz/sdk to npm. Version is always taken from package.json.
+# - Trigger manually: Actions → "Publish @iota-uz/sdk to npm" → Run workflow.
+# - Or push a tag: npm-v* (e.g. npm-v0.4.0) to run publish.
+# Requires repository secret: NPM_TOKEN (npm auth token with publish access for @iota-uz/sdk).
+name: Publish @iota-uz/sdk to npm
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "npm-v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build SDK
+        run: pnpm run build
+
+      - name: Publish to npm
+        run: pnpm publish --no-git-checks --ignore-scripts --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
