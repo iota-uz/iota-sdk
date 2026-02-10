@@ -104,6 +104,9 @@ jobs:
       - name: Check applet RPC contracts
         run: just applet rpc-check bichat
 
+      - name: Install root dependencies (for Tailwind CSS)
+        run: pnpm install --frozen-lockfile
+
       - name: Install BiChat applet dependencies
         run: pnpm install --frozen-lockfile -C modules/bichat/presentation/web
 
@@ -317,6 +320,9 @@ jobs:
 
       - name: Download Go dependencies
         run: go mod download
+
+      - name: Install root dependencies (for Tailwind CSS)
+        run: pnpm install --frozen-lockfile
 
       - name: Generate CSS files
         run: just css
