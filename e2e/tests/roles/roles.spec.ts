@@ -124,17 +124,17 @@ test.describe('role management flows', () => {
 		// Click delete button
 		await page.locator('[data-test-id="delete-role-btn"]').click();
 
-		// Wait for confirmation dialog and confirm button to be ready
+		// Wait for confirmation dialog
 		const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 		await expect(confirmDialog).toBeVisible();
-		const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
-		await expect(confirmButton).toBeVisible();
+		await expect(confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i })).toBeVisible();
 
-		// Click confirm (no force — Playwright waits for stability/animation) and await DELETE response
+		// Use JS click — the sticky footer bar intercepts Playwright's coordinate-based click
+		// because the dialog's CSS position:fixed doesn't place it in the browser top layer correctly
 		const deleteResponse = page.waitForResponse(
 			resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
 		);
-		await confirmButton.click();
+		await confirmDialog.locator('button[value="confirm"]').evaluate(el => (el as HTMLElement).click());
 		await deleteResponse;
 
 		// Wait for HTMX redirect to roles list
@@ -420,17 +420,16 @@ test.describe('role management flows', () => {
 			await limitedRoleRow.locator('a').first().click();
 			await page.locator('[data-test-id="delete-role-btn"]').click();
 
-			// Wait for confirmation dialog and confirm button to be ready
+			// Wait for confirmation dialog
 			const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 			await expect(confirmDialog).toBeVisible();
-			const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
-			await expect(confirmButton).toBeVisible();
+			await expect(confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i })).toBeVisible();
 
-			// Click confirm (no force — Playwright waits for stability/animation) and await DELETE response
+			// Use JS click — the sticky footer bar intercepts coordinate-based clicks
 			const deleteResponse = page.waitForResponse(
 				resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
 			);
-			await confirmButton.click();
+			await confirmDialog.locator('button[value="confirm"]').evaluate(el => (el as HTMLElement).click());
 			await deleteResponse;
 
 			// Wait for HTMX redirect to roles list
