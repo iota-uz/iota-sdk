@@ -356,12 +356,13 @@ jobs:
           GO_APP_ENV: production
           ENABLE_TEST_ENDPOINTS: true
         run: |
-          go run -tags dev cmd/server/main.go &
+          go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
           # Wait for server to be ready (timeout: 60 seconds)
           timeout 60 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'
+          echo "Server started successfully"
 
       - name: Run Playwright Tests
         env:
@@ -372,6 +373,12 @@ jobs:
       - name: Stop Go Server
         if: always()
         run: kill ${{ env.SERVER_PID }} || true
+
+      - name: Show Server Logs
+        if: failure()
+        run: |
+          echo "=== Server Logs ==="
+          cat /tmp/server.log || echo "No server logs found"
 
       - name: Upload Playwright Report
         if: always()
@@ -388,3 +395,52 @@ jobs:
           name: test-results
           path: e2e/test-results/
           retention-days: 30
+
+      - name: Upload Server Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: /tmp/server.log
+          retention-days: 7
+
+  docs-build:
+    name: Documentation Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Install documentation dependencies
+        working-directory: ./docs
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Mermaid diagrams
+        working-directory: ./docs
+        run: pnpm run check:mermaid
+
+      - name: Build documentation
+        working-directory: ./docs
+        run: pnpm build
+
+      - name: Check documentation build artifacts
+        run: |
+          if [ ! -d "docs/out" ]; then
+            echo "Error: Documentation build output not found"
+            exit 1
+          fi
+          if [ ! -f "docs/out/index.html" ]; then
+            echo "Error: Documentation index.html not found"
+            exit 1
+          fi
+          echo "Documentation build successful"

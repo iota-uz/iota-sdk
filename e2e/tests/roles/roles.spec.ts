@@ -124,21 +124,15 @@ test.describe('role management flows', () => {
 		// Click delete button
 		await page.locator('[data-test-id="delete-role-btn"]').click();
 
-		// Wait for confirmation dialog
+		// Wait for and click confirm in the confirmation dialog
 		const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 		await expect(confirmDialog).toBeVisible();
-		await expect(confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i })).toBeVisible();
+		const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
+		await expect(confirmButton).toBeVisible();
+		await confirmButton.click();
 
-		// Use keyboard to confirm — the sticky footer intercepts pointer events on the button
-		const deleteResponse = page.waitForResponse(
-			resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
-		);
-		await confirmDialog.locator('button[value="confirm"]').focus();
-		await page.keyboard.press('Enter');
-		await deleteResponse;
-
-		// Wait for HTMX redirect to roles list
-		await page.waitForURL(/\/roles$/, { timeout: 15000 });
+		// Wait for redirect back to roles list
+		await page.waitForURL(/\/roles$/);
 
 		// Verify role was deleted from list
 		await expect(page.locator('tbody tr').filter({ hasText: updatedRoleName })).not.toBeVisible();
@@ -420,21 +414,15 @@ test.describe('role management flows', () => {
 			await limitedRoleRow.locator('a').first().click();
 			await page.locator('[data-test-id="delete-role-btn"]').click();
 
-			// Wait for confirmation dialog
+			// Wait for and click confirm in the confirmation dialog
 			const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 			await expect(confirmDialog).toBeVisible();
-			await expect(confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i })).toBeVisible();
+			const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
+			await expect(confirmButton).toBeVisible();
+			await confirmButton.click();
 
-			// Use keyboard to confirm — the sticky footer intercepts pointer events on the button
-			const deleteResponse = page.waitForResponse(
-				resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
-			);
-			await confirmDialog.locator('button[value="confirm"]').focus();
-			await page.keyboard.press('Enter');
-			await deleteResponse;
-
-			// Wait for HTMX redirect to roles list
-			await page.waitForURL(/\/roles$/, { timeout: 15000 });
+			// Wait for redirect back to roles list
+			await page.waitForURL(/\/roles$/);
 		}
 
 		// Verify role was deleted
