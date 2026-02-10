@@ -219,9 +219,9 @@ coverage-report:
   go tool cover -html=./coverage/coverage.out -o ./coverage/cover.html
 
 [group("assets")]
-[doc("Build Tailwind CSS. Extra arguments are passed to `tailwindcss`")]
+[doc("Build Tailwind CSS. Extra arguments are passed to `tailwindcss` (uses npx, no root package.json required)")]
 css *args="":
-  pnpm exec tailwindcss --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --minify {{args}}
+  npx @tailwindcss/cli@4.1.18 --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --minify {{args}}
 
 [group("assets")]
 [doc("Remove generated CSS file")]
@@ -391,12 +391,12 @@ dev name="":
   go run cmd/dev/main.go {{name}}
 
 [group("dev")]
-[doc("Applet commands (rpc-gen|rpc-check|deps-check)")]
+[doc("Applet commands (rpc-gen|rpc-check|deps-check). Requires applet CLI: go install github.com/iota-uz/applets/cmd/applet@latest")]
 applet cmd="help" name="":
   case "{{cmd}}" in \
-    rpc-gen) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet rpc gen --name "{{name}}" ;; \
-    rpc-check) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet rpc check --name "{{name}}" ;; \
-    deps-check) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet deps check ;; \
+    rpc-gen) applet rpc gen --name "{{name}}" ;; \
+    rpc-check) applet rpc check --name "{{name}}" ;; \
+    deps-check) applet deps check ;; \
     *) \
       echo "Usage: just applet [rpc-gen <name>|rpc-check <name>|deps-check]" ; \
       exit 2 ;; \

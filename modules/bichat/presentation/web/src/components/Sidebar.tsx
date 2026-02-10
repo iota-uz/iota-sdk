@@ -463,8 +463,8 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
                 <div
                   className={
                     loadError.isPermissionDenied
-                      ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
-                      : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
+                      ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl cursor-default'
+                      : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl cursor-default'
                   }
                 >
                   <p
@@ -492,8 +492,8 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
                 <div
                   className={
                     actionError.isPermissionDenied
-                      ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
-                      : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
+                      ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl cursor-default'
+                      : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl cursor-default'
                   }
                 >
                   <p

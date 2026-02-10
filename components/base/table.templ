@@ -13,6 +13,41 @@ const (
 	StickyPositionRight = StickyPosition("right")
 )
 
+func (sp StickyPosition) Unknown() bool {
+	switch sp {
+	case StickyPositionLeft, StickyPositionRight, StickyPositionNone:
+		return false
+	}
+	return true
+}
+
+func (sp StickyPosition) None() bool {
+	return sp == StickyPositionNone
+}
+
+func (sp StickyPosition) Left() bool {
+	return sp == StickyPositionLeft
+}
+
+func (sp StickyPosition) Right() bool {
+	return sp == StickyPositionRight
+}
+
+type ScrollbarPosition string
+
+const (
+	ScrollbarPositionBottom = ScrollbarPosition("bottom")
+	ScrollbarPositionTop    = ScrollbarPosition("top")
+)
+
+func (sp ScrollbarPosition) Top() bool {
+	return sp == ScrollbarPositionTop
+}
+
+func (sp ScrollbarPosition) Bottom() bool {
+	return sp == ScrollbarPositionBottom
+}
+
 type SortDirection string
 
 const (
@@ -54,14 +89,15 @@ type Addon struct {
 }
 
 type TableColumn struct {
-	Label       string
-	Key         string
-	Class       string
-	Sortable    bool
-	SortDir     SortDirection
-	SortURL     string // URL for sorting this column
-	StickyPos   StickyPosition
-	AddonBottom *Addon
+	Label        string
+	Key          string
+	Class        string
+	Sortable     bool
+	SortDir      SortDirection
+	SortURL      string // URL for sorting this column
+	Sticky       bool
+	Configurable bool
+	AddonBottom  *Addon
 }
 
 type TableRowProps struct {
@@ -88,33 +124,59 @@ templ TableCell(props TableCellProps) {
 	</td>
 }
 
+type TableHead struct {
+	Attrs   templ.Attributes
+	Classes templ.CSSClasses
+}
+
 type TableProps struct {
-	Columns      []*TableColumn
-	Classes      templ.CSSClasses
-	Attrs        templ.Attributes
-	TBodyClasses templ.CSSClasses
-	TBodyAttrs   templ.Attributes
-	THeadAttrs   templ.Attributes
-	NoTBody      bool
+	Columns           []*TableColumn
+	Configurable      bool
+	Classes           templ.CSSClasses
+	WrapperClasses    templ.CSSClasses
+	Attrs             templ.Attributes
+	TBodyClasses      templ.CSSClasses
+	TBodyAttrs        templ.Attributes
+	THead             TableHead
+	NoTBody           bool
+	ScrollbarPosition ScrollbarPosition
 }
 
 templ Table(props TableProps) {
-	<div class="overflow-x-auto relative">
+	<div class={ twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String()) }>
 		<table
 			class={
 				twmerge.Merge(
-					"min-w-full rounded-b-lg table bg-surface-600 text-sm",
-					props.Classes.String(),
+					templ.Classes(
+						"min-w-full rounded-b-lg table bg-surface-600 text-sm",
+						templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
+						props.Classes.String(),
+					).String(),
 				),
 			}
 			{ props.Attrs... }
 		>
-			<thead { props.THeadAttrs... }>
-				<tr class="bg-surface-500 text-200">
+			<thead class={ props.THead.Classes } { props.THead.Attrs... }>
+				<tr
+					class="bg-surface-500 text-200"
+					if props.Configurable {
+						x-sort.ghost
+						x-sort:config="{
+							onEnd: (event) => {
+								moveColumn(event.oldIndex, event.newIndex, true);
+							},
+						}"
+					}
+				>
 					for _, col := range props.Columns {
 						if col.Sortable {
 							<th
 								class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class }
+								if col.Configurable {
+									data-col={ col.Key }
+									data-col-sticky?={ !col.Sticky }
+									x-sort:item
+								}
 							>
 								<div class="flex flex-col gap-1">
 									<div
@@ -124,6 +186,11 @@ templ Table(props TableProps) {
 										hx-swap="outerHTML"
 										hx-include="closest form"
 									>
+										if col.Configurable {
+											<button x-sort:handle type="button" class="-ml-1.5">
+												@icons.DotsSixVertical(icons.Props{Size: "20"})
+											</button>
+										}
 										<span>{ col.Label }</span>
 										<span class="sort-indicator">
 											if col.SortDir.IsAsc() {
@@ -146,10 +213,22 @@ templ Table(props TableProps) {
 							</th>
 						} else {
 							<th
-								class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", templ.KV("bg-surface-500 sticky shadow-lg", col.StickyPos == StickyPositionRight || col.StickyPos == StickyPositionLeft), templ.KV("right-0", col.StickyPos == StickyPositionRight), templ.KV("left-0", col.StickyPos == StickyPositionLeft), col.Class }
+								class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", col.Class }
+								if col.Configurable {
+									data-col={ col.Key }
+									data-col-sticky?={ col.Sticky }
+									x-sort:item
+								}
 							>
 								<div class="flex flex-col gap-1">
-									{ col.Label }
+									<div class="flex items-center gap-2">
+										if col.Configurable {
+											<button x-sort:handle type="button" class="-ml-1.5">
+												@icons.DotsSixVertical(icons.Props{Size: "20"})
+											</button>
+										}
+										{ col.Label }
+									</div>
 									if col.AddonBottom != nil {
 										if col.AddonBottom.Render != nil {
 											@col.AddonBottom.Render(col)

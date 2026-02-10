@@ -76,12 +76,12 @@ func main() {
 		Dir: root, Color: devrunner.ColorCyan, Critical: false,
 	})
 
-	// Add tailwind if input exists
+	// Add tailwind if input exists (uses npx, no root package.json required)
 	tailwindInput := filepath.Join(root, "styles/tailwind/input.css")
 	if _, err := os.Stat(tailwindInput); err == nil {
 		processes = append(processes, devrunner.ProcessSpec{
-			Name: "css", Command: "pnpm", Dir: root, Color: devrunner.ColorMagenta, Critical: false,
-			Args: []string{"exec", "tailwindcss", "--input", "styles/tailwind/input.css",
+			Name: "css", Command: "npx", Dir: root, Color: devrunner.ColorMagenta, Critical: false,
+			Args: []string{"@tailwindcss/cli@4.1.18", "--input", "styles/tailwind/input.css",
 				"--output", "modules/core/presentation/assets/css/main.min.css", "--watch"},
 		})
 	}

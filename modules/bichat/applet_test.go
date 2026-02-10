@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
@@ -57,7 +57,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 	t.Run("Assets", func(t *testing.T) {
 		assert.NotNil(t, config.Assets.FS)
 		assert.Equal(t, "/assets", config.Assets.BasePath)
-		assert.Equal(t, "manifest.json", config.Assets.ManifestPath)
+		assert.Equal(t, ".vite/manifest.json", config.Assets.ManifestPath)
 		assert.Equal(t, "index.html", config.Assets.Entrypoint)
 
 		require.NotNil(t, config.Assets.Dev)
@@ -81,7 +81,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 	})
 
 	t.Run("Shell", func(t *testing.T) {
-		assert.Equal(t, applet.ShellModeEmbedded, config.Shell.Mode)
+		assert.Equal(t, applets.ShellModeEmbedded, config.Shell.Mode)
 		assert.NotNil(t, config.Shell.Layout)
 		assert.Equal(t, "BiChat", config.Shell.Title)
 	})

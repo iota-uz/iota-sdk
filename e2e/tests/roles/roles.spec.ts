@@ -31,14 +31,16 @@ test.describe('role management flows', () => {
 		await page.goto('/roles');
 		await expect(page).toHaveURL(/\/roles$/);
 
-		// Verify page title and new button are visible
-		await expect(page.locator('[data-test-id="new-role-btn"]')).toBeVisible();
+		// Wait for roles page to be ready and new button to be visible and clickable
+		const newRoleBtn = page.locator('[data-test-id="new-role-btn"]');
+		await expect(newRoleBtn).toBeVisible({ timeout: 20000 });
+		await expect(newRoleBtn).toBeEnabled();
 
 		// Count initial roles
 		const initialRoleCount = await page.locator('tbody tr:not(.hidden)').count();
 
 		// Click new role button
-		await page.locator('[data-test-id="new-role-btn"]').click();
+		await newRoleBtn.click();
 		await expect(page).toHaveURL(/\/roles\/new$/);
 
 		// Verify form elements are present
@@ -412,9 +414,14 @@ test.describe('role management flows', () => {
 			await limitedRoleRow.locator('a').first().click();
 			await page.locator('[data-test-id="delete-role-btn"]').click();
 
-			const confirmButton = page.locator('[data-test-id="delete-confirmation-dialog"]').locator('button').filter({ hasText: /Delete|Confirm/i });
+			// Wait for and click confirm in the confirmation dialog
+			const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
+			await expect(confirmDialog).toBeVisible();
+			const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
 			await expect(confirmButton).toBeVisible();
 			await confirmButton.click();
+
+			// Wait for redirect back to roles list
 			await page.waitForURL(/\/roles$/);
 		}
 

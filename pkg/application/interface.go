@@ -5,7 +5,7 @@ import (
 	"embed"
 	"reflect"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -54,10 +54,11 @@ type Application interface {
 	RegisterApplet(applet Applet) error
 	AppletRegistry() AppletRegistry
 	CreateAppletControllers(
-		sessionConfig applet.SessionConfig,
+		host applets.HostServices,
+		sessionConfig applets.SessionConfig,
 		logger *logrus.Logger,
-		metrics applet.MetricsRecorder,
-		opts ...applet.BuilderOption,
+		metrics applets.MetricsRecorder,
+		opts ...applets.BuilderOption,
 	) ([]Controller, error)
 }
 
@@ -79,10 +80,10 @@ type Module interface {
 }
 
 // Applet represents a React/Next.js application that integrates with the SDK
-// This is now an alias for applet.Applet to unify the applet system.
-// All applets should implement applet.Applet directly, which includes Config().
-type Applet = applet.Applet
+// This is now an alias for applets.Applet to unify the applet system.
+// All applets should implement applets.Applet directly, which includes Config().
+type Applet = applets.Applet
 
-// AppletRegistry is now an alias for applet.Registry to unify the registry system.
-// The application uses pkg/applet.Registry directly for all applet operations.
-type AppletRegistry = applet.Registry
+// AppletRegistry is now an alias for applets.Registry to unify the registry system.
+// The application uses pkg/applets.Registry directly for all applet operations.
+type AppletRegistry = applets.Registry

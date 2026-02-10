@@ -29,8 +29,11 @@ export async function resetTestDatabase(
 	});
 
 	if (!response.ok()) {
-		const body = await response.json().catch(() => ({ error: 'Unknown error' }));
-		throw new Error(`Database reset failed: ${body.error || response.statusText()}`);
+		const text = await response.text().catch(() => '');
+		const hint = response.status() === 404
+			? '\nHint: ensure the server is running with ENABLE_TEST_ENDPOINTS=true'
+			: '';
+		throw new Error(`Database reset failed (${response.status()}): ${text.trim() || response.statusText()}${hint}`);
 	}
 
 	const body = await response.json();
