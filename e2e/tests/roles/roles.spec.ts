@@ -124,21 +124,25 @@ test.describe('role management flows', () => {
 		// Click delete button
 		await page.locator('[data-test-id="delete-role-btn"]').click();
 
-		// Wait for and click confirm in the confirmation dialog
+		// Wait for and interact with confirmation dialog
 		const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 		await expect(confirmDialog).toBeVisible();
-		await confirmDialog.scrollIntoViewIfNeeded();
+
+		// Wait for dialog to fully open (open attribute confirms showModal() completed)
+		await page.locator('[data-test-id="delete-confirmation-dialog"][open]').waitFor({ state: 'visible' });
+
 		const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
 		await expect(confirmButton).toBeVisible();
-		await confirmButton.scrollIntoViewIfNeeded();
-		await page.waitForTimeout(300); // allow overlay/dialog to settle
-		await confirmButton.click({ force: true });
 
-		// Wait for redirect (roles list or login if session expired in CI)
-		await page.waitForURL(/\/(roles|login)$/, { timeout: 15000 });
-		await expect(page).toHaveURL(/\/roles$/, {
-			message: 'After delete confirm, expected redirect to /roles but got ' + page.url() + ' (session may have expired in CI)',
-		});
+		// Click confirm and wait for the DELETE response to ensure the HTMX request was triggered
+		const deleteResponse = page.waitForResponse(
+			resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
+		);
+		await confirmButton.click();
+		await deleteResponse;
+
+		// Wait for HTMX redirect to roles list
+		await page.waitForURL(/\/roles$/, { timeout: 15000 });
 
 		// Verify role was deleted from list
 		await expect(page.locator('tbody tr').filter({ hasText: updatedRoleName })).not.toBeVisible();
@@ -420,10 +424,25 @@ test.describe('role management flows', () => {
 			await limitedRoleRow.locator('a').first().click();
 			await page.locator('[data-test-id="delete-role-btn"]').click();
 
-			const confirmButton = page.locator('[data-test-id="delete-confirmation-dialog"]').locator('button').filter({ hasText: /Delete|Confirm/i });
+			// Wait for and interact with confirmation dialog
+			const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
+			await expect(confirmDialog).toBeVisible();
+
+			// Wait for dialog to fully open (open attribute confirms showModal() completed)
+			await page.locator('[data-test-id="delete-confirmation-dialog"][open]').waitFor({ state: 'visible' });
+
+			const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
 			await expect(confirmButton).toBeVisible();
+
+			// Click confirm and wait for the DELETE response to ensure the HTMX request was triggered
+			const deleteResponse = page.waitForResponse(
+				resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
+			);
 			await confirmButton.click();
-			await page.waitForURL(/\/roles$/);
+			await deleteResponse;
+
+			// Wait for HTMX redirect to roles list
+			await page.waitForURL(/\/roles$/, { timeout: 15000 });
 		}
 
 		// Verify role was deleted
