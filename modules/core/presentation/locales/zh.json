@@ -843,7 +843,8 @@
     "Table": {
       "NoDataTitle": "无可用数据",
       "NoDataDescription": "此表没有可用数据。",
-      "NothingFound": "未找到任何内容"
+      "NothingFound": "未找到任何内容",
+      "TableSettings": "表格设置"
     },
     "Filters": {
       "Title": "筛选器",
