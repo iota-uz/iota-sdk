@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	langfusego "github.com/henomis/langfuse-go"
-	"github.com/iota-uz/applets/pkg/applet"
+	"github.com/iota-uz/applets"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -46,7 +46,7 @@ type noopMetrics struct{}
 func (n noopMetrics) RecordDuration(name string, duration time.Duration, labels map[string]string) {}
 func (n noopMetrics) IncrementCounter(name string, labels map[string]string)                       {}
 
-// sdkAppletUserAdapter adapts iota-sdk user.User to applet.AppletUser.
+// sdkAppletUserAdapter adapts iota-sdk user.User to applets.AppletUser.
 type sdkAppletUserAdapter struct{ u user.User }
 
 func (a *sdkAppletUserAdapter) ID() uint { return a.u.ID() }
@@ -76,10 +76,10 @@ func (a *sdkAppletUserAdapter) PermissionNames() []string {
 	return names
 }
 
-// sdkHostServices implements applet.HostServices using composables.
+// sdkHostServices implements applets.HostServices using composables.
 type sdkHostServices struct{ pool *pgxpool.Pool }
 
-func (h *sdkHostServices) ExtractUser(ctx context.Context) (applet.AppletUser, error) {
+func (h *sdkHostServices) ExtractUser(ctx context.Context) (applets.AppletUser, error) {
 	u, err := composables.UseUser(ctx)
 	if err != nil || u == nil {
 		return nil, err
@@ -297,7 +297,7 @@ func main() {
 	hostServices := &sdkHostServices{pool: pool}
 	appletControllers, err := app.CreateAppletControllers(
 		hostServices,
-		applet.DefaultSessionConfig,
+		applets.DefaultSessionConfig,
 		logger,
 		noopMetrics{},
 	)

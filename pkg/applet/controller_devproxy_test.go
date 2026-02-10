@@ -15,7 +15,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/applets/pkg/applet"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
@@ -26,18 +26,18 @@ import (
 	"golang.org/x/text/language"
 )
 
-// testApplet implements applet.Applet for tests.
+// testApplet implements applets.Applet for tests.
 type testApplet struct {
 	name     string
 	basePath string
-	config   applet.Config
+	config   applets.Config
 }
 
-func (a *testApplet) Name() string          { return a.name }
-func (a *testApplet) BasePath() string      { return a.basePath }
-func (a *testApplet) Config() applet.Config { return a.config }
+func (a *testApplet) Name() string           { return a.name }
+func (a *testApplet) BasePath() string       { return a.basePath }
+func (a *testApplet) Config() applets.Config { return a.config }
 
-// appletUserAdapter adapts iota-sdk user.User to applet.AppletUser.
+// appletUserAdapter adapts iota-sdk user.User to applets.AppletUser.
 type appletUserAdapter struct {
 	u user.User
 }
@@ -65,10 +65,10 @@ func (a *appletUserAdapter) PermissionNames() []string {
 	return names
 }
 
-// testHostServices implements applet.HostServices using iota-sdk composables.
+// testHostServices implements applets.HostServices using iota-sdk composables.
 type testHostServices struct{}
 
-func (h *testHostServices) ExtractUser(ctx context.Context) (applet.AppletUser, error) {
+func (h *testHostServices) ExtractUser(ctx context.Context) (applets.AppletUser, error) {
 	u, err := composables.UseUser(ctx)
 	if err != nil || u == nil {
 		return nil, fmt.Errorf("no user in context")
@@ -122,12 +122,12 @@ func TestRegisterDevProxy_StripPrefix(t *testing.T) {
 			a := &testApplet{
 				name:     "chat",
 				basePath: basePath,
-				config: applet.Config{
+				config: applets.Config{
 					WindowGlobal: "__T__",
-					Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "t"},
-					Assets: applet.AssetConfig{
+					Shell:        applets.ShellConfig{Mode: applets.ShellModeStandalone, Title: "t"},
+					Assets: applets.AssetConfig{
 						BasePath: assetsPath,
-						Dev: &applet.DevAssetConfig{
+						Dev: &applets.DevAssetConfig{
 							Enabled:     true,
 							TargetURL:   backend.URL,
 							StripPrefix: strip,
@@ -135,7 +135,7 @@ func TestRegisterDevProxy_StripPrefix(t *testing.T) {
 					},
 				},
 			}
-			c, err := applet.NewAppletController(a, nil, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
+			c, err := applets.NewAppletController(a, nil, applets.DefaultSessionConfig, nil, nil, &testHostServices{})
 			require.NoError(t, err)
 			router := mux.NewRouter()
 			c.RegisterRoutes(router)
@@ -172,19 +172,19 @@ func TestRegisterDevProxy_502WhenTargetDown(t *testing.T) {
 	a := &testApplet{
 		name:     "chat",
 		basePath: "/bi-chat",
-		config: applet.Config{
+		config: applets.Config{
 			WindowGlobal: "__T__",
-			Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "t"},
-			Assets: applet.AssetConfig{
+			Shell:        applets.ShellConfig{Mode: applets.ShellModeStandalone, Title: "t"},
+			Assets: applets.AssetConfig{
 				BasePath: "/assets",
-				Dev: &applet.DevAssetConfig{
+				Dev: &applets.DevAssetConfig{
 					Enabled:   true,
 					TargetURL: targetURL,
 				},
 			},
 		},
 	}
-	c, err := applet.NewAppletController(a, nil, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
+	c, err := applets.NewAppletController(a, nil, applets.DefaultSessionConfig, nil, nil, &testHostServices{})
 	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
@@ -220,19 +220,19 @@ func TestDevProxy_BlackBox_AssetRoutes(t *testing.T) {
 	a := &testApplet{
 		name:     "chat",
 		basePath: "/bi-chat",
-		config: applet.Config{
+		config: applets.Config{
 			WindowGlobal: "__T__",
-			Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "t"},
-			Assets: applet.AssetConfig{
+			Shell:        applets.ShellConfig{Mode: applets.ShellModeStandalone, Title: "t"},
+			Assets: applets.AssetConfig{
 				BasePath: "/assets",
-				Dev: &applet.DevAssetConfig{
+				Dev: &applets.DevAssetConfig{
 					Enabled:   true,
 					TargetURL: vite.URL,
 				},
 			},
 		},
 	}
-	c, err := applet.NewAppletController(a, nil, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
+	c, err := applets.NewAppletController(a, nil, applets.DefaultSessionConfig, nil, nil, &testHostServices{})
 	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
@@ -272,12 +272,12 @@ func TestDevProxy_HTMLShell(t *testing.T) {
 	a := &testApplet{
 		name:     "chat",
 		basePath: basePath,
-		config: applet.Config{
+		config: applets.Config{
 			WindowGlobal: "__T__",
-			Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "Test"},
-			Assets: applet.AssetConfig{
+			Shell:        applets.ShellConfig{Mode: applets.ShellModeStandalone, Title: "Test"},
+			Assets: applets.AssetConfig{
 				BasePath: "/assets",
-				Dev: &applet.DevAssetConfig{
+				Dev: &applets.DevAssetConfig{
 					Enabled:     true,
 					TargetURL:   vite.URL,
 					EntryModule: entryModule,
@@ -285,7 +285,7 @@ func TestDevProxy_HTMLShell(t *testing.T) {
 			},
 		},
 	}
-	c, err := applet.NewAppletController(a, bundle, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
+	c, err := applets.NewAppletController(a, bundle, applets.DefaultSessionConfig, nil, nil, &testHostServices{})
 	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
@@ -319,19 +319,19 @@ func TestRegisterDevProxy_502WhenUpstreamReturns502(t *testing.T) {
 	a := &testApplet{
 		name:     "chat",
 		basePath: "/bi-chat",
-		config: applet.Config{
+		config: applets.Config{
 			WindowGlobal: "__T__",
-			Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "t"},
-			Assets: applet.AssetConfig{
+			Shell:        applets.ShellConfig{Mode: applets.ShellModeStandalone, Title: "t"},
+			Assets: applets.AssetConfig{
 				BasePath: "/assets",
-				Dev: &applet.DevAssetConfig{
+				Dev: &applets.DevAssetConfig{
 					Enabled:   true,
 					TargetURL: upstream.URL,
 				},
 			},
 		},
 	}
-	c, err := applet.NewAppletController(a, nil, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
+	c, err := applets.NewAppletController(a, nil, applets.DefaultSessionConfig, nil, nil, &testHostServices{})
 	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)

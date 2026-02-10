@@ -9,7 +9,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/applets/pkg/applet"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/assets"
 	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
@@ -30,7 +30,7 @@ func init() {
 	}
 }
 
-// BiChatApplet implements the applet.Applet interface for BiChat.
+// BiChatApplet implements the applets.Applet interface for BiChat.
 // This enables BiChat to integrate with the SDK's generic applet system,
 // providing context injection, routing, and asset serving.
 type BiChatApplet struct {
@@ -51,7 +51,7 @@ func (a *BiChatApplet) SetConfig(config *ModuleConfig) {
 	a.config = config
 }
 
-// Name returns the unique identifier for the BiChat applet.
+// Name returns the unique identifier for the BiChat applets.
 // Using lowercase to match existing convention.
 func (a *BiChatApplet) Name() string {
 	return "bichat"
@@ -67,20 +67,20 @@ func (a *BiChatApplet) BasePath() string {
 //
 // Note: This requires the application to be available in the context.
 // The middleware uses composables.UseApp() which depends on prior middleware setup.
-func (a *BiChatApplet) Config() applet.Config {
-	return applet.Config{
+func (a *BiChatApplet) Config() applets.Config {
+	return applets.Config{
 		// WindowGlobal specifies the JavaScript global variable for context injection
 		// Creates: window.__BICHAT_CONTEXT__ = { user, tenant, locale, config, ... }
 		WindowGlobal: "__BICHAT_CONTEXT__",
 
 		// Endpoints configures API endpoint paths
-		Endpoints: applet.EndpointConfig{
+		Endpoints: applets.EndpointConfig{
 			Stream: "/bi-chat/stream", // SSE streaming endpoint
 		},
 
 		// Assets configuration for serving the built React app
 		// Uses Vite manifest for hashed asset resolution
-		Assets: applet.AssetConfig{
+		Assets: applets.AssetConfig{
 			FS:           distFS,                // Sub-filesystem rooted at dist/ for direct file access
 			BasePath:     "/assets",             // URL prefix for asset serving (relative to applet base path)
 			ManifestPath: ".vite/manifest.json", // Vite with manifest: true writes to dist/.vite/manifest.json
@@ -88,7 +88,7 @@ func (a *BiChatApplet) Config() applet.Config {
 			Dev:          bichatDevAssets(),
 		},
 
-		Mount: applet.MountConfig{
+		Mount: applets.MountConfig{
 			Tag: "bi-chat-root",
 			Attributes: map[string]string{
 				"base-path":   a.BasePath(),
@@ -99,7 +99,7 @@ func (a *BiChatApplet) Config() applet.Config {
 		},
 
 		// Router uses MuxRouter to extract route parameters (e.g., /sessions/{id})
-		Router: applet.NewMuxRouter(),
+		Router: applets.NewMuxRouter(),
 
 		// CustomContext injects BiChat feature flags into InitialContext.Extensions
 		CustomContext: a.buildCustomContext,
@@ -108,8 +108,8 @@ func (a *BiChatApplet) Config() applet.Config {
 		// Order matters: Authorize -> User -> Localizer -> PageContext
 		Middleware: a.getMiddleware(),
 
-		Shell: applet.ShellConfig{
-			Mode: applet.ShellModeEmbedded,
+		Shell: applets.ShellConfig{
+			Mode: applets.ShellModeEmbedded,
 			Layout: func(title string) templ.Component {
 				return layouts.Authenticated(layouts.AuthenticatedProps{
 					BaseProps: layouts.BaseProps{Title: title},
@@ -118,7 +118,7 @@ func (a *BiChatApplet) Config() applet.Config {
 			Title: "BiChat",
 		},
 
-		RPC: func() *applet.RPCConfig {
+		RPC: func() *applets.RPCConfig {
 			if a.config == nil {
 				return nil
 			}
@@ -132,7 +132,7 @@ func (a *BiChatApplet) Config() applet.Config {
 	}
 }
 
-func bichatDevAssets() *applet.DevAssetConfig {
+func bichatDevAssets() *applets.DevAssetConfig {
 	enabled := envBool("IOTA_APPLET_DEV_BICHAT")
 	target := strings.TrimSpace(os.Getenv("IOTA_APPLET_VITE_URL_BICHAT"))
 	if target == "" {
@@ -147,7 +147,7 @@ func bichatDevAssets() *applet.DevAssetConfig {
 		client = "/@vite/client"
 	}
 
-	return &applet.DevAssetConfig{
+	return &applets.DevAssetConfig{
 		Enabled:      enabled,
 		TargetURL:    target,
 		EntryModule:  entry,

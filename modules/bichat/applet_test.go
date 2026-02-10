@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/iota-uz/applets/pkg/applet"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
@@ -81,7 +81,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 	})
 
 	t.Run("Shell", func(t *testing.T) {
-		assert.Equal(t, applet.ShellModeEmbedded, config.Shell.Mode)
+		assert.Equal(t, applets.ShellModeEmbedded, config.Shell.Mode)
 		assert.NotNil(t, config.Shell.Layout)
 		assert.Equal(t, "BiChat", config.Shell.Title)
 	})
