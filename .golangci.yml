@@ -22,10 +22,6 @@ issues:
       text: "SA4023"
       linters:
         - staticcheck
-    # Dev CLI: allow fmt for user-facing output
-    - path: "cmd/dev/main\\.go"
-      linters:
-        - forbidigo
 output:
   format: colored-line-number
   sort-results: true
