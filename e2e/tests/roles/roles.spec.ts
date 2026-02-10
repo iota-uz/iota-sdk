@@ -129,12 +129,13 @@ test.describe('role management flows', () => {
 		await expect(confirmDialog).toBeVisible();
 		await expect(confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i })).toBeVisible();
 
-		// Use JS click — the sticky footer bar intercepts Playwright's coordinate-based click
-		// because the dialog's CSS position:fixed doesn't place it in the browser top layer correctly
+		// Close dialog with "confirm" — the sticky footer bar intercepts coordinate-based clicks
+		// on the button, so we close the dialog programmatically which triggers the full
+		// Alpine @closing → htmx.trigger(deleteForm, "submit") → DELETE request flow
 		const deleteResponse = page.waitForResponse(
 			resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
 		);
-		await confirmDialog.locator('button[value="confirm"]').evaluate(el => (el as HTMLElement).click());
+		await confirmDialog.evaluate(el => (el as HTMLDialogElement).close('confirm'));
 		await deleteResponse;
 
 		// Wait for HTMX redirect to roles list
@@ -425,11 +426,11 @@ test.describe('role management flows', () => {
 			await expect(confirmDialog).toBeVisible();
 			await expect(confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i })).toBeVisible();
 
-			// Use JS click — the sticky footer bar intercepts coordinate-based clicks
+			// Close dialog programmatically — sticky footer intercepts coordinate-based clicks
 			const deleteResponse = page.waitForResponse(
 				resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
 			);
-			await confirmDialog.locator('button[value="confirm"]').evaluate(el => (el as HTMLElement).click());
+			await confirmDialog.evaluate(el => (el as HTMLDialogElement).close('confirm'));
 			await deleteResponse;
 
 			// Wait for HTMX redirect to roles list
