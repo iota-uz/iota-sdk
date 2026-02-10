@@ -11,6 +11,9 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
     name: Code Quality & Formatting
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
 
     steps:
       - name: Checkout repository
@@ -121,6 +124,9 @@ jobs:
   test-unit-integration:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: Unit & Integration Tests
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
 
     services:
       postgres:
@@ -242,6 +248,9 @@ jobs:
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: E2E Tests
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
 
     services:
       postgres:
