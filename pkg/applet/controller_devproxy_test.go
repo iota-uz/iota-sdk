@@ -81,16 +81,18 @@ func (h *testHostServices) ExtractTenantID(ctx context.Context) (uuid.UUID, erro
 }
 
 func (h *testHostServices) ExtractPool(ctx context.Context) (*pgxpool.Pool, error) {
-	return nil, nil
+	// No pool in tests; use sentinel to satisfy nilnil (do not return nil, nil for pointer type).
+	return nil, errNoPool
 }
+
+var errNoPool = fmt.Errorf("no pool in test")
 
 func (h *testHostServices) ExtractPageLocale(ctx context.Context) language.Tag {
 	return composables.UsePageCtx(ctx).GetLocale()
 }
 
 func TestRegisterDevProxy_StripPrefix(t *testing.T) {
-	t.Parallel()
-
+	// Do not use t.Parallel() so the shared backend is not closed by another test; avoids CI 502 flakiness.
 	basePath := "/bi-chat"
 	assetsPath := "/assets"
 	fullAssetsPath := basePath + assetsPath
