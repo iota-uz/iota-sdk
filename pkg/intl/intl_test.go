@@ -1,4 +1,4 @@
-package i18nutil
+package intl
 
 import (
 	"fmt"
