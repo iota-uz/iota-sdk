@@ -56,8 +56,12 @@ func (a *sdkAppletUserAdapter) DisplayName() string {
 }
 
 func (a *sdkAppletUserAdapter) HasPermission(name string) bool {
+	nameNorm := strings.ToLower(strings.TrimSpace(name))
+	if nameNorm == "" {
+		return false
+	}
 	for _, p := range a.u.Permissions() {
-		if p.Name() == name {
+		if strings.ToLower(p.Name()) == nameNorm {
 			return true
 		}
 	}

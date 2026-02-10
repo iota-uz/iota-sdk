@@ -57,7 +57,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 	t.Run("Assets", func(t *testing.T) {
 		assert.NotNil(t, config.Assets.FS)
 		assert.Equal(t, "/assets", config.Assets.BasePath)
-		assert.Equal(t, "manifest.json", config.Assets.ManifestPath)
+		assert.Equal(t, ".vite/manifest.json", config.Assets.ManifestPath)
 		assert.Equal(t, "index.html", config.Assets.Entrypoint)
 
 		require.NotNil(t, config.Assets.Dev)

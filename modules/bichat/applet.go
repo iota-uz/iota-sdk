@@ -81,10 +81,10 @@ func (a *BiChatApplet) Config() applet.Config {
 		// Assets configuration for serving the built React app
 		// Uses Vite manifest for hashed asset resolution
 		Assets: applet.AssetConfig{
-			FS:           distFS,          // Sub-filesystem rooted at dist/ for direct file access
-			BasePath:     "/assets",       // URL prefix for asset serving (relative to applet base path)
-			ManifestPath: "manifest.json", // Vite build manifest path within distFS
-			Entrypoint:   "index.html",    // Entry point file name (Vite default, matches manifest key)
+			FS:           distFS,                // Sub-filesystem rooted at dist/ for direct file access
+			BasePath:     "/assets",             // URL prefix for asset serving (relative to applet base path)
+			ManifestPath: ".vite/manifest.json", // Vite with manifest: true writes to dist/.vite/manifest.json
+			Entrypoint:   "index.html",          // Entry point file name (Vite default, matches manifest key)
 			Dev:          bichatDevAssets(),
 		},
 
