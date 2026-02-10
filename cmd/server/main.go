@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	langfusego "github.com/henomis/langfuse-go"
+	"github.com/iota-uz/applets"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -20,20 +21,23 @@ import (
 	bichatinfra "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure"
 	llmproviders "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/llmproviders"
 	bichatpersistence "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	langfuseprovider "github.com/iota-uz/iota-sdk/pkg/bichat/observability/langfuse"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
+	"golang.org/x/text/language"
 )
 
 // noopMetrics is a no-op implementation of MetricsRecorder
@@ -41,6 +45,67 @@ type noopMetrics struct{}
 
 func (n noopMetrics) RecordDuration(name string, duration time.Duration, labels map[string]string) {}
 func (n noopMetrics) IncrementCounter(name string, labels map[string]string)                       {}
+
+// sdkAppletUserAdapter adapts iota-sdk user.User to applets.AppletUser.
+type sdkAppletUserAdapter struct{ u user.User }
+
+func (a *sdkAppletUserAdapter) ID() uint { return a.u.ID() }
+
+func (a *sdkAppletUserAdapter) DisplayName() string {
+	return strings.TrimSpace(a.u.FirstName() + " " + a.u.LastName())
+}
+
+func (a *sdkAppletUserAdapter) HasPermission(name string) bool {
+	nameNorm := strings.ToLower(strings.TrimSpace(name))
+	if nameNorm == "" {
+		return false
+	}
+	for _, p := range a.u.Permissions() {
+		if strings.ToLower(p.Name()) == nameNorm {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *sdkAppletUserAdapter) PermissionNames() []string {
+	names := make([]string, 0, len(a.u.Permissions()))
+	for _, p := range a.u.Permissions() {
+		names = append(names, p.Name())
+	}
+	return names
+}
+
+// sdkHostServices implements applets.HostServices using composables.
+type sdkHostServices struct{ pool *pgxpool.Pool }
+
+func (h *sdkHostServices) ExtractUser(ctx context.Context) (applets.AppletUser, error) {
+	u, err := composables.UseUser(ctx)
+	if err != nil || u == nil {
+		return nil, err
+	}
+	return &sdkAppletUserAdapter{u: u}, nil
+}
+
+func (h *sdkHostServices) ExtractTenantID(ctx context.Context) (uuid.UUID, error) {
+	return composables.UseTenantID(ctx)
+}
+
+func (h *sdkHostServices) ExtractPool(ctx context.Context) (*pgxpool.Pool, error) {
+	return h.pool, nil
+}
+
+func (h *sdkHostServices) ExtractPageLocale(ctx context.Context) language.Tag {
+	pc := ctx.Value(constants.PageContext)
+	if pc == nil {
+		return language.English
+	}
+	p, ok := pc.(types.PageContextProvider)
+	if !ok {
+		return language.English
+	}
+	return p.GetLocale()
+}
 
 func main() {
 	defer func() {
@@ -229,8 +294,10 @@ func main() {
 	}
 
 	// Register applet controllers for all registered applets
+	hostServices := &sdkHostServices{pool: pool}
 	appletControllers, err := app.CreateAppletControllers(
-		applet.DefaultSessionConfig,
+		hostServices,
+		applets.DefaultSessionConfig,
 		logger,
 		noopMetrics{},
 	)

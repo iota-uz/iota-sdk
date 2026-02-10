@@ -42,6 +42,8 @@ just db migrate up                 # Apply migrations
 
 **Never run `go build`** - use `go vet` instead.
 
+**NPM @iota-uz/sdk** is published from the applets repo (tag v0.x.x). Do not add a publish workflow in iota-sdk.
+
 ## Module Architecture (DDD)
 
 ```

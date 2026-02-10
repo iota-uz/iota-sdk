@@ -6,17 +6,22 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) *applet.TypedRPCRouter {
-	r := applet.NewTypedRPCRouter()
-	applet.AddProcedure(r, "bichat.ping", applet.Procedure[PingParams, PingResult]{
-		RequirePermissions: []string{"bichat.access"},
+func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) *applets.TypedRPCRouter {
+	r := applets.NewTypedRPCRouter()
+	mustAdd := func(err error) {
+		if err != nil {
+			panic(err)
+		}
+	}
+	mustAdd(applets.AddProcedure(r, "bichat.ping", applets.Procedure[PingParams, PingResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, _ PingParams) (PingResult, error) {
 			const op serrors.Op = "bichat.rpc.ping"
 
@@ -30,10 +35,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				TenantID: tenantID.String(),
 			}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.list", applet.Procedure[SessionListParams, SessionListResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.list", applets.Procedure[SessionListParams, SessionListResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionListParams) (SessionListResult, error) {
 			const op serrors.Op = "bichat.rpc.session.list"
 
@@ -66,10 +71,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return SessionListResult{Sessions: out, Total: total, HasMore: hasMore}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.create", applet.Procedure[SessionCreateParams, SessionCreateResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.create", applets.Procedure[SessionCreateParams, SessionCreateResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionCreateParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.create"
 
@@ -88,10 +93,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.get", applet.Procedure[SessionGetParams, SessionGetResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.get", applets.Procedure[SessionGetParams, SessionGetResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionGetParams) (SessionGetResult, error) {
 			const op serrors.Op = "bichat.rpc.session.get"
 
@@ -118,10 +123,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				PendingQuestion: pq,
 			}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.updateTitle", applet.Procedure[SessionUpdateTitleParams, SessionCreateResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.updateTitle", applets.Procedure[SessionUpdateTitleParams, SessionCreateResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionUpdateTitleParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.updateTitle"
 
@@ -139,10 +144,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.clear", applet.Procedure[SessionIDParams, SessionClearResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.clear", applets.Procedure[SessionIDParams, SessionClearResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionClearResult, error) {
 			const op serrors.Op = "bichat.rpc.session.clear"
 
@@ -165,10 +170,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				DeletedArtifacts: result.DeletedArtifacts,
 			}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.compact", applet.Procedure[SessionIDParams, SessionCompactResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.compact", applets.Procedure[SessionIDParams, SessionCompactResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCompactResult, error) {
 			const op serrors.Op = "bichat.rpc.session.compact"
 
@@ -192,10 +197,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				DeletedArtifacts: result.DeletedArtifacts,
 			}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.delete", applet.Procedure[SessionIDParams, OkResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.delete", applets.Procedure[SessionIDParams, OkResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionIDParams) (OkResult, error) {
 			const op serrors.Op = "bichat.rpc.session.delete"
 
@@ -211,10 +216,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return OkResult{Ok: true}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.pin", applet.Procedure[SessionIDParams, SessionCreateResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.pin", applets.Procedure[SessionIDParams, SessionCreateResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.pin"
 
@@ -231,10 +236,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.unpin", applet.Procedure[SessionIDParams, SessionCreateResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.unpin", applets.Procedure[SessionIDParams, SessionCreateResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.unpin"
 
@@ -251,10 +256,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.artifacts", applet.Procedure[SessionArtifactsParams, SessionArtifactsResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.artifacts", applets.Procedure[SessionArtifactsParams, SessionArtifactsResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionArtifactsParams) (SessionArtifactsResult, error) {
 			const op serrors.Op = "bichat.rpc.session.artifacts"
 
@@ -296,10 +301,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				NextOffset: offset + len(out),
 			}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.uploadArtifacts", applet.Procedure[SessionUploadArtifactsParams, SessionUploadArtifactsResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.uploadArtifacts", applets.Procedure[SessionUploadArtifactsParams, SessionUploadArtifactsResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionUploadArtifactsParams) (SessionUploadArtifactsResult, error) {
 			const op serrors.Op = "bichat.rpc.session.uploadArtifacts"
 
@@ -355,10 +360,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return SessionUploadArtifactsResult{Artifacts: out}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.artifact.update", applet.Procedure[ArtifactUpdateParams, ArtifactResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.artifact.update", applets.Procedure[ArtifactUpdateParams, ArtifactResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p ArtifactUpdateParams) (ArtifactResult, error) {
 			const op serrors.Op = "bichat.rpc.artifact.update"
 
@@ -392,10 +397,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 
 			return ArtifactResult{Artifact: toArtifactDTO(updatedArtifact)}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.artifact.delete", applet.Procedure[ArtifactIDParams, OkResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.artifact.delete", applets.Procedure[ArtifactIDParams, OkResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p ArtifactIDParams) (OkResult, error) {
 			const op serrors.Op = "bichat.rpc.artifact.delete"
 
@@ -417,10 +422,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return OkResult{Ok: true}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.archive", applet.Procedure[SessionIDParams, SessionCreateResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.archive", applets.Procedure[SessionIDParams, SessionCreateResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.archive"
 
@@ -437,10 +442,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.unarchive", applet.Procedure[SessionIDParams, SessionCreateResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.unarchive", applets.Procedure[SessionIDParams, SessionCreateResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.unarchive"
 
@@ -457,10 +462,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.session.regenerateTitle", applet.Procedure[SessionIDParams, SessionCreateResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.session.regenerateTitle", applets.Procedure[SessionIDParams, SessionCreateResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.regenerateTitle"
 
@@ -480,10 +485,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.question.submit", applet.Procedure[QuestionSubmitParams, SessionGetResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.question.submit", applets.Procedure[QuestionSubmitParams, SessionGetResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p QuestionSubmitParams) (SessionGetResult, error) {
 			const op serrors.Op = "bichat.rpc.question.submit"
 
@@ -520,10 +525,10 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				PendingQuestion: pendingQuestionFromMessages(msgs),
 			}, nil
 		},
-	})
+	}))
 
-	applet.AddProcedure(r, "bichat.question.reject", applet.Procedure[QuestionCancelParams, SessionGetResult]{
-		RequirePermissions: []string{"bichat.access"},
+	mustAdd(applets.AddProcedure(r, "bichat.question.reject", applets.Procedure[QuestionCancelParams, SessionGetResult]{
+		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p QuestionCancelParams) (SessionGetResult, error) {
 			const op serrors.Op = "bichat.rpc.question.reject"
 
@@ -553,7 +558,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				PendingQuestion: pendingQuestionFromMessages(msgs),
 			}, nil
 		},
-	})
+	}))
 
 	return r
 }

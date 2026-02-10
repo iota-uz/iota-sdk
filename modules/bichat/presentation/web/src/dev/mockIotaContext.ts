@@ -6,7 +6,7 @@ export function injectMockContext(): void {
         email: 'dev@example.com',
         firstName: 'Dev',
         lastName: 'User',
-        permissions: ['bichat.access'],
+        permissions: ['BiChat.Access'],
       },
       tenant: {
         id: '00000000-0000-0000-0000-000000000000',

@@ -17,6 +17,7 @@ require (
 	github.com/benbjohnson/hashfs v0.2.2
 	github.com/blevesearch/bleve/v2 v2.5.7
 	github.com/caarlos0/env/v11 v11.2.2
+	github.com/extrame/xls v0.0.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gabriel-vasile/mimetype v1.4.7
 	github.com/go-faster/errors v0.7.1
@@ -26,11 +27,11 @@ require (
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/go-playground/validator/v10 v10.23.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/csrf v1.7.3
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
 	github.com/henomis/langfuse-go v0.0.3
+	github.com/iota-uz/applets v0.4.3
 	github.com/iota-uz/click v1.0.4
 	github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049
 	github.com/iota-uz/go-i18n/v2 v2.6.1
@@ -70,6 +71,7 @@ require (
 	golang.org/x/sync v0.17.0
 	golang.org/x/text v0.30.0
 	google.golang.org/api v0.209.0
+	rsc.io/pdf v0.1.1
 )
 
 require (
@@ -106,7 +108,6 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/extrame/ole2 v0.0.0-20160812065207-d69429661ad7 // indirect
-	github.com/extrame/xls v0.0.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-faster/jx v1.1.0 // indirect
 	github.com/go-faster/xor v1.0.0 // indirect
@@ -119,6 +120,7 @@ require (
 	github.com/google/s2a-go v0.1.8 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.0 // indirect
+	github.com/gorilla/csrf v1.7.3 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
@@ -176,6 +178,5 @@ require (
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect
-	rsc.io/pdf v0.1.1 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
