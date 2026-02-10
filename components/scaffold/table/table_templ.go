@@ -902,15 +902,38 @@ func TableSection(config *TableConfig) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</div></div></div><div class=\"overflow-x-auto\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Table(config).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
+		if config.TopScrollbar {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<div x-data=\"{\n\t\t\t\t\t\t\t\tscrollEl: null,\n\t\t\t\t\t\t\t\ttopBar: null,\n\t\t\t\t\t\t\t\tspacer: null,\n\t\t\t\t\t\t\t\tsyncing: false,\n\t\t\t\t\t\t\t\tinit() {\n\t\t\t\t\t\t\t\t\tthis.topBar = this.$refs.topBar;\n\t\t\t\t\t\t\t\t\tthis.spacer = this.$refs.spacer;\n\t\t\t\t\t\t\t\t\tthis.$nextTick(() =&gt; this.bindScroll());\n\t\t\t\t\t\t\t\t\tthis.$el.addEventListener(&#39;htmx:afterSwap&#39;, () =&gt; this.$nextTick(() =&gt; this.bindScroll()));\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\tbindScroll() {\n\t\t\t\t\t\t\t\t\tconst el = this.$el.querySelector(&#39;.overflow-x-auto:not([x-ref])&#39;);\n\t\t\t\t\t\t\t\t\tif (!el) return;\n\t\t\t\t\t\t\t\t\tthis.scrollEl = el;\n\t\t\t\t\t\t\t\t\tthis.syncWidth();\n\t\t\t\t\t\t\t\t\tif (this._ro) this._ro.disconnect();\n\t\t\t\t\t\t\t\t\tthis._ro = new ResizeObserver(() =&gt; this.syncWidth());\n\t\t\t\t\t\t\t\t\tthis._ro.observe(el);\n\t\t\t\t\t\t\t\t\tconst tbl = el.querySelector(&#39;table&#39;);\n\t\t\t\t\t\t\t\t\tif (tbl) this._ro.observe(tbl);\n\t\t\t\t\t\t\t\t\tel.addEventListener(&#39;scroll&#39;, () =&gt; { if (!this.syncing) { this.syncing = true; this.topBar.scrollLeft = el.scrollLeft; this.syncing = false; } }, { passive: true });\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\tsyncWidth() {\n\t\t\t\t\t\t\t\t\tif (!this.scrollEl) return;\n\t\t\t\t\t\t\t\t\tconst sw = this.scrollEl.scrollWidth;\n\t\t\t\t\t\t\t\t\tconst cw = this.scrollEl.clientWidth;\n\t\t\t\t\t\t\t\t\tthis.spacer.style.width = sw + &#39;px&#39;;\n\t\t\t\t\t\t\t\t\tthis.topBar.style.display = sw &lt;= cw ? &#39;none&#39; : &#39;&#39;;\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\tonTopScroll() { if (!this.syncing &amp;&amp; this.scrollEl) { this.syncing = true; this.scrollEl.scrollLeft = this.topBar.scrollLeft; this.syncing = false; } }\n\t\t\t\t\t\t\t}\"><div x-ref=\"topBar\" @scroll=\"onTopScroll()\" class=\"overflow-x-auto\" style=\"height: 12px; display: none;\"><div x-ref=\"spacer\" style=\"height: 1px;\"></div></div><div class=\"overflow-x-auto\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = Table(config).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<div class=\"overflow-x-auto\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = Table(config).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "</div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -926,7 +949,7 @@ func TableSection(config *TableConfig) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<div x-data=\"disableFormElementsWhen(&#39;(min-width: 48rem)&#39;)\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<div x-data=\"disableFormElementsWhen(&#39;(min-width: 48rem)&#39;)\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -942,7 +965,7 @@ func TableSection(config *TableConfig) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -955,7 +978,7 @@ func TableSection(config *TableConfig) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -989,7 +1012,7 @@ func EmbeddedContent(config *TableConfig) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<!-- Placeholder for the view drawer --><div id=\"view-drawer\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<!-- Placeholder for the view drawer --><div id=\"view-drawer\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1020,20 +1043,20 @@ func Content(config *TableConfig) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<div class=\"m-6\"><div class=\"flex justify-between md:justify-start\"><h1 class=\"text-2xl font-medium\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "<div class=\"m-6\"><div class=\"flex justify-between md:justify-start\"><h1 class=\"text-2xl font-medium\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(config.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 393, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 442, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</h1><div class=\"flex md:hidden gap-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</h1><div class=\"flex md:hidden gap-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1052,7 +1075,7 @@ func Content(config *TableConfig) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Scaffold.Filters.Title"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 405, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 454, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -1078,7 +1101,7 @@ func Content(config *TableConfig) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</div></div><div class=\"mt-5\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</div></div><div class=\"mt-5\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1086,7 +1109,7 @@ func Content(config *TableConfig) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

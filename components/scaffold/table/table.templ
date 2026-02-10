@@ -355,9 +355,58 @@ templ TableSection(config *TableConfig) {
 							</div>
 						</div>
 					</div>
-					<div class="overflow-x-auto">
-						@Table(config)
-					</div>
+					if config.TopScrollbar {
+						<div
+							x-data="{
+								scrollEl: null,
+								topBar: null,
+								spacer: null,
+								syncing: false,
+								init() {
+									this.topBar = this.$refs.topBar;
+									this.spacer = this.$refs.spacer;
+									this.$nextTick(() => this.bindScroll());
+									this.$el.addEventListener('htmx:afterSwap', () => this.$nextTick(() => this.bindScroll()));
+								},
+								bindScroll() {
+									const el = this.$el.querySelector('.overflow-x-auto:not([x-ref])');
+									if (!el) return;
+									this.scrollEl = el;
+									this.syncWidth();
+									if (this._ro) this._ro.disconnect();
+									this._ro = new ResizeObserver(() => this.syncWidth());
+									this._ro.observe(el);
+									const tbl = el.querySelector('table');
+									if (tbl) this._ro.observe(tbl);
+									el.addEventListener('scroll', () => { if (!this.syncing) { this.syncing = true; this.topBar.scrollLeft = el.scrollLeft; this.syncing = false; } }, { passive: true });
+								},
+								syncWidth() {
+									if (!this.scrollEl) return;
+									const sw = this.scrollEl.scrollWidth;
+									const cw = this.scrollEl.clientWidth;
+									this.spacer.style.width = sw + 'px';
+									this.topBar.style.display = sw <= cw ? 'none' : '';
+								},
+								onTopScroll() { if (!this.syncing && this.scrollEl) { this.syncing = true; this.scrollEl.scrollLeft = this.topBar.scrollLeft; this.syncing = false; } }
+							}"
+						>
+							<div
+								x-ref="topBar"
+								@scroll="onTopScroll()"
+								class="overflow-x-auto"
+								style="height: 12px; display: none;"
+							>
+								<div x-ref="spacer" style="height: 1px;"></div>
+							</div>
+							<div class="overflow-x-auto">
+								@Table(config)
+							</div>
+						</div>
+					} else {
+						<div class="overflow-x-auto">
+							@Table(config)
+						</div>
+					}
 				</div>
 			</div>
 		</div>

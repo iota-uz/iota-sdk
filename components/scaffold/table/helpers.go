@@ -778,6 +778,15 @@ func WithInfiniteScroll(hasMore bool, page, perPage int) TableConfigOpt {
 		c.Infinite.HasMore = hasMore
 		c.Infinite.Page = page
 		c.Infinite.PerPage = perPage
+		c.TopScrollbar = true
+	}
+}
+
+// WithTopScrollbar enables a synchronized horizontal scrollbar above the table.
+// Automatically enabled when WithInfiniteScroll is used.
+func WithTopScrollbar(enabled bool) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.TopScrollbar = enabled
 	}
 }
 
@@ -818,6 +827,7 @@ type TableConfig struct {
 	SideFilter        templ.Component
 	Editable          TableEditableConfig
 	WithoutSearch     bool
+	TopScrollbar      bool   // Show a synchronized horizontal scrollbar above the table
 	SearchPlaceholder string // Custom placeholder for search input
 
 	// Sorting configuration
