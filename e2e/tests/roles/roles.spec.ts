@@ -31,14 +31,16 @@ test.describe('role management flows', () => {
 		await page.goto('/roles');
 		await expect(page).toHaveURL(/\/roles$/);
 
-		// Verify page title and new button are visible
-		await expect(page.locator('[data-test-id="new-role-btn"]')).toBeVisible();
+		// Wait for roles page to be ready and new button to be visible and clickable
+		const newRoleBtn = page.locator('[data-test-id="new-role-btn"]');
+		await expect(newRoleBtn).toBeVisible({ timeout: 20000 });
+		await expect(newRoleBtn).toBeEnabled();
 
 		// Count initial roles
 		const initialRoleCount = await page.locator('tbody tr:not(.hidden)').count();
 
 		// Click new role button
-		await page.locator('[data-test-id="new-role-btn"]').click();
+		await newRoleBtn.click();
 		await expect(page).toHaveURL(/\/roles\/new$/);
 
 		// Verify form elements are present
