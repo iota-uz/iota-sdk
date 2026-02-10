@@ -30,7 +30,7 @@ At runtime, IOTA injects `InitialContext` into `window[<WindowGlobal>]`. The fro
 There is currently no scaffold generator. To create an applet:
 
 - Create a module under `modules/<name>/` and register an `applet.Applet`.
-- Add a dev entry to `scripts/applets.json` so `just dev <name>` can run embedded HMR.
+- Add an applet entry to `.applets/config.toml` so `just dev <name>` can run embedded HMR.
 
 ## SDK dependency policy
 
@@ -56,7 +56,7 @@ just dev bichat
 
 The command:
 
-- Reads `scripts/applets.json`
+- Reads `.applets/config.toml`
 - Starts Vite in embedded mode with `APPLET_ASSETS_BASE=<basePath>/assets/`
 - Enables the Go-side dev proxy via env (`IOTA_APPLET_DEV_<NAME>=1`)
 - Starts the Go server via `air`
