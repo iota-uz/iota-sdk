@@ -391,12 +391,12 @@ dev name="":
   go run cmd/dev/main.go {{name}}
 
 [group("dev")]
-[doc("Applet commands (rpc-gen|rpc-check|deps-check)")]
+[doc("Applet commands (rpc-gen|rpc-check|deps-check). Uses applets CLI from go.work.")]
 applet cmd="help" name="":
   case "{{cmd}}" in \
-    rpc-gen) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet rpc gen --name "{{name}}" ;; \
-    rpc-check) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet rpc check --name "{{name}}" ;; \
-    deps-check) GOTOOLCHAIN=auto go run ./cmd/command/main.go applet deps check ;; \
+    rpc-gen) GOTOOLCHAIN=auto go run github.com/iota-uz/applets/cmd/applet rpc gen --name "{{name}}" ;; \
+    rpc-check) GOTOOLCHAIN=auto go run github.com/iota-uz/applets/cmd/applet rpc check --name "{{name}}" ;; \
+    deps-check) GOTOOLCHAIN=auto go run github.com/iota-uz/applets/cmd/applet deps check ;; \
     *) \
       echo "Usage: just applet [rpc-gen <name>|rpc-check <name>|deps-check]" ; \
       exit 2 ;; \

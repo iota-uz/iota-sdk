@@ -54,6 +54,7 @@ type Application interface {
 	RegisterApplet(applet Applet) error
 	AppletRegistry() AppletRegistry
 	CreateAppletControllers(
+		host applet.HostServices,
 		sessionConfig applet.SessionConfig,
 		logger *logrus.Logger,
 		metrics applet.MetricsRecorder,

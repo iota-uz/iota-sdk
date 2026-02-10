@@ -1,4 +1,4 @@
-package applet
+package applet_test
 
 import (
 	"context"
@@ -15,14 +15,78 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/applets/pkg/applet"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
+
+// testApplet implements applet.Applet for tests.
+type testApplet struct {
+	name     string
+	basePath string
+	config   applet.Config
+}
+
+func (a *testApplet) Name() string          { return a.name }
+func (a *testApplet) BasePath() string      { return a.basePath }
+func (a *testApplet) Config() applet.Config { return a.config }
+
+// appletUserAdapter adapts iota-sdk user.User to applet.AppletUser.
+type appletUserAdapter struct {
+	u user.User
+}
+
+func (a *appletUserAdapter) ID() uint { return a.u.ID() }
+
+func (a *appletUserAdapter) DisplayName() string {
+	return strings.TrimSpace(a.u.FirstName() + " " + a.u.LastName())
+}
+
+func (a *appletUserAdapter) HasPermission(name string) bool {
+	for _, p := range a.u.Permissions() {
+		if p.Name() == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *appletUserAdapter) PermissionNames() []string {
+	names := make([]string, 0, len(a.u.Permissions()))
+	for _, p := range a.u.Permissions() {
+		names = append(names, p.Name())
+	}
+	return names
+}
+
+// testHostServices implements applet.HostServices using iota-sdk composables.
+type testHostServices struct{}
+
+func (h *testHostServices) ExtractUser(ctx context.Context) (applet.AppletUser, error) {
+	u, err := composables.UseUser(ctx)
+	if err != nil || u == nil {
+		return nil, fmt.Errorf("no user in context")
+	}
+	return &appletUserAdapter{u: u}, nil
+}
+
+func (h *testHostServices) ExtractTenantID(ctx context.Context) (uuid.UUID, error) {
+	return composables.UseTenantID(ctx)
+}
+
+func (h *testHostServices) ExtractPool(ctx context.Context) (*pgxpool.Pool, error) {
+	return nil, nil
+}
+
+func (h *testHostServices) ExtractPageLocale(ctx context.Context) language.Tag {
+	return composables.UsePageCtx(ctx).GetLocale()
+}
 
 func TestRegisterDevProxy_StripPrefix(t *testing.T) {
 	t.Parallel()
@@ -56,12 +120,12 @@ func TestRegisterDevProxy_StripPrefix(t *testing.T) {
 			a := &testApplet{
 				name:     "chat",
 				basePath: basePath,
-				config: Config{
+				config: applet.Config{
 					WindowGlobal: "__T__",
-					Shell:        ShellConfig{Mode: ShellModeStandalone, Title: "t"},
-					Assets: AssetConfig{
+					Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "t"},
+					Assets: applet.AssetConfig{
 						BasePath: assetsPath,
-						Dev: &DevAssetConfig{
+						Dev: &applet.DevAssetConfig{
 							Enabled:     true,
 							TargetURL:   backend.URL,
 							StripPrefix: strip,
@@ -69,8 +133,8 @@ func TestRegisterDevProxy_StripPrefix(t *testing.T) {
 					},
 				},
 			}
-			c, err := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
-	require.NoError(t, err)
+			c, err := applet.NewAppletController(a, nil, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
+			require.NoError(t, err)
 			router := mux.NewRouter()
 			c.RegisterRoutes(router)
 
@@ -96,7 +160,6 @@ func TestRegisterDevProxy_StripPrefix(t *testing.T) {
 func TestRegisterDevProxy_502WhenTargetDown(t *testing.T) {
 	t.Parallel()
 
-	// Start a server, get URL, then close it so the target is deterministically unreachable (connection refused).
 	var lc net.ListenConfig
 	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -107,19 +170,19 @@ func TestRegisterDevProxy_502WhenTargetDown(t *testing.T) {
 	a := &testApplet{
 		name:     "chat",
 		basePath: "/bi-chat",
-		config: Config{
+		config: applet.Config{
 			WindowGlobal: "__T__",
-			Shell:        ShellConfig{Mode: ShellModeStandalone, Title: "t"},
-			Assets: AssetConfig{
+			Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "t"},
+			Assets: applet.AssetConfig{
 				BasePath: "/assets",
-				Dev: &DevAssetConfig{
+				Dev: &applet.DevAssetConfig{
 					Enabled:   true,
 					TargetURL: targetURL,
 				},
 			},
 		},
 	}
-	c, err := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	c, err := applet.NewAppletController(a, nil, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
 	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
@@ -155,19 +218,19 @@ func TestDevProxy_BlackBox_AssetRoutes(t *testing.T) {
 	a := &testApplet{
 		name:     "chat",
 		basePath: "/bi-chat",
-		config: Config{
+		config: applet.Config{
 			WindowGlobal: "__T__",
-			Shell:        ShellConfig{Mode: ShellModeStandalone, Title: "t"},
-			Assets: AssetConfig{
+			Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "t"},
+			Assets: applet.AssetConfig{
 				BasePath: "/assets",
-				Dev: &DevAssetConfig{
+				Dev: &applet.DevAssetConfig{
 					Enabled:   true,
 					TargetURL: vite.URL,
 				},
 			},
 		},
 	}
-	c, err := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	c, err := applet.NewAppletController(a, nil, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
 	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
@@ -189,7 +252,6 @@ func TestDevProxy_BlackBox_AssetRoutes(t *testing.T) {
 	})
 }
 
-// TestDevProxy_HTMLShell asserts that GET basePath returns HTML containing the expected script tags for dev (Vite client + entry).
 func TestDevProxy_HTMLShell(t *testing.T) {
 	t.Parallel()
 
@@ -208,12 +270,12 @@ func TestDevProxy_HTMLShell(t *testing.T) {
 	a := &testApplet{
 		name:     "chat",
 		basePath: basePath,
-		config: Config{
+		config: applet.Config{
 			WindowGlobal: "__T__",
-			Shell:        ShellConfig{Mode: ShellModeStandalone, Title: "Test"},
-			Assets: AssetConfig{
+			Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "Test"},
+			Assets: applet.AssetConfig{
 				BasePath: "/assets",
-				Dev: &DevAssetConfig{
+				Dev: &applet.DevAssetConfig{
 					Enabled:     true,
 					TargetURL:   vite.URL,
 					EntryModule: entryModule,
@@ -221,7 +283,7 @@ func TestDevProxy_HTMLShell(t *testing.T) {
 			},
 		},
 	}
-	c, err := NewAppletController(a, bundle, DefaultSessionConfig, nil, nil)
+	c, err := applet.NewAppletController(a, bundle, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
 	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)
@@ -244,7 +306,6 @@ func TestDevProxy_HTMLShell(t *testing.T) {
 	require.True(t, strings.Contains(body, "<script") && strings.Contains(body, "src="), "HTML should contain at least one script tag with src")
 }
 
-// TestRegisterDevProxy_502WhenUpstreamReturns502 asserts the proxy returns 502 when the upstream responds with 502.
 func TestRegisterDevProxy_502WhenUpstreamReturns502(t *testing.T) {
 	t.Parallel()
 
@@ -256,19 +317,19 @@ func TestRegisterDevProxy_502WhenUpstreamReturns502(t *testing.T) {
 	a := &testApplet{
 		name:     "chat",
 		basePath: "/bi-chat",
-		config: Config{
+		config: applet.Config{
 			WindowGlobal: "__T__",
-			Shell:        ShellConfig{Mode: ShellModeStandalone, Title: "t"},
-			Assets: AssetConfig{
+			Shell:        applet.ShellConfig{Mode: applet.ShellModeStandalone, Title: "t"},
+			Assets: applet.AssetConfig{
 				BasePath: "/assets",
-				Dev: &DevAssetConfig{
+				Dev: &applet.DevAssetConfig{
 					Enabled:   true,
 					TargetURL: upstream.URL,
 				},
 			},
 		},
 	}
-	c, err := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	c, err := applet.NewAppletController(a, nil, applet.DefaultSessionConfig, nil, nil, &testHostServices{})
 	require.NoError(t, err)
 	router := mux.NewRouter()
 	c.RegisterRoutes(router)

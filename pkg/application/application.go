@@ -314,6 +314,7 @@ func (app *application) AppletRegistry() AppletRegistry {
 // This provides a single mounting point for all applets in the application.
 //
 // Parameters:
+//   - host: Host services for extracting user, tenant, pool, locale from request context
 //   - sessionConfig: Session configuration for context building
 //   - logger: Logger for applet operations
 //   - metrics: Metrics recorder (can be nil)
@@ -324,6 +325,7 @@ func (app *application) AppletRegistry() AppletRegistry {
 // Example usage:
 //
 //	controllers, err := app.CreateAppletControllers(
+//		hostServices,
 //		applet.DefaultSessionConfig,
 //		logger,
 //		metrics,
@@ -333,6 +335,7 @@ func (app *application) AppletRegistry() AppletRegistry {
 //	}
 //	app.RegisterControllers(controllers...)
 func (app *application) CreateAppletControllers(
+	host applet.HostServices,
 	sessionConfig applet.SessionConfig,
 	logger *logrus.Logger,
 	metrics applet.MetricsRecorder,
@@ -349,6 +352,7 @@ func (app *application) CreateAppletControllers(
 			sessionConfig,
 			logger,
 			metrics,
+			host,
 			opts...,
 		)
 		if err != nil {
