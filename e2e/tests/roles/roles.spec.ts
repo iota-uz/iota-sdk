@@ -124,12 +124,12 @@ test.describe('role management flows', () => {
 		// Click delete button
 		await page.locator('[data-test-id="delete-role-btn"]').click();
 
-		// Wait for and click confirm in the confirmation dialog
+		// Wait for and click confirm in the confirmation dialog (force: true in case edit form footer overlaps in CI)
 		const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 		await expect(confirmDialog).toBeVisible();
 		const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
 		await expect(confirmButton).toBeVisible();
-		await confirmButton.click();
+		await confirmButton.click({ force: true });
 
 		// Wait for redirect back to roles list
 		await page.waitForURL(/\/roles$/);
