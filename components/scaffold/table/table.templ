@@ -258,7 +258,7 @@ templ Table(config *TableConfig) {
 		if config.Editable.Enabled {
 			{ setupAlpineData(ctx, config)... }
 		}
-		x-data="tableConfig()"
+		x-data={ fmt.Sprintf("tableConfig('%s')", config.ID) }
 	>
 		{{ headAttrs := templ.Attributes{} }}
 		{{
@@ -269,8 +269,9 @@ templ Table(config *TableConfig) {
 			maps.Copy(headAttrs, config.Head.Attrs)
 		}}
 		@base.Table(base.TableProps{
-			WrapperClasses: templ.Classes(templ.KV("max-h-[100svh]", config.Head.Sticky)),
-			Columns:        toBaseTableColumns(config, pageCtx),
+			ScrollbarPosition: config.ScrollbarPosition,
+			WrapperClasses:    templ.Classes(templ.KV("max-h-[100svh]", config.Head.Sticky)),
+			Columns:           toBaseTableColumns(config, pageCtx),
 			TBodyAttrs: templ.Attributes{
 				"id":          "table-body",
 				"hx-push-url": "false",
@@ -326,7 +327,7 @@ templ Table(config *TableConfig) {
 					<div class="flex flex-col h-full">
 						<div class="flex justify-between px-4 py-3 border-b border-primary">
 							<h3 class="font-medium">
-								Table settings
+								{ pageCtx.T("Scaffold.Table.TableSettings") }
 							</h3>
 							<button class="cursor-pointer" type="button" @click="toggle">
 								@icons.XCircle(icons.Props{Size: "20"})
@@ -424,18 +425,20 @@ templ TableSection(config *TableConfig) {
 								})
 							</div>
 						}
-						<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
-							for _, filter := range config.Filters {
-								@filter
-							}
-							if len(config.Actions) > 0 {
-								<div class="flex gap-3 ml-auto">
-									for _, action := range config.Actions {
-										@action
-									}
-								</div>
-							}
-						</div>
+						if len(config.Filters) > 0 || len(config.Actions) > 0 {
+							<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
+								for _, filter := range config.Filters {
+									@filter
+								}
+								if len(config.Actions) > 0 {
+									<div class="flex gap-3 ml-auto">
+										for _, action := range config.Actions {
+											@action
+										}
+									</div>
+								}
+							</div>
+						}
 						@TableSettingsTrigger()
 					</div>
 					<div class="overflow-x-auto">

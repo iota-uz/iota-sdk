@@ -1089,7 +1089,7 @@ function createPermissionFormData(allChecked, someChecked, permissionIds) {
   };
 }
 
-let tableConfig = ({id} = {}) => ({
+let tableConfig = (id) => ({
   get key() {
     return "iota-table-config-" + (id || (window.location.origin + window.location.pathname))
   },

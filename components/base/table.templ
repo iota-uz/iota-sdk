@@ -33,6 +33,21 @@ func (sp StickyPosition) Right() bool {
 	return sp == StickyPositionRight
 }
 
+type ScrollbarPosition string
+
+const (
+	ScrollbarPositionBottom = ScrollbarPosition("bottom")
+	ScrollbarPositionTop    = ScrollbarPosition("top")
+)
+
+func (sp ScrollbarPosition) Top() bool {
+	return sp == ScrollbarPositionTop
+}
+
+func (sp ScrollbarPosition) Bottom() bool {
+	return sp == ScrollbarPositionBottom
+}
+
 type SortDirection string
 
 const (
@@ -114,23 +129,27 @@ type TableHead struct {
 }
 
 type TableProps struct {
-	Columns        []*TableColumn
-	Classes        templ.CSSClasses
-	WrapperClasses templ.CSSClasses
-	Attrs          templ.Attributes
-	TBodyClasses   templ.CSSClasses
-	TBodyAttrs     templ.Attributes
-	THead          TableHead
-	NoTBody        bool
+	Columns           []*TableColumn
+	Classes           templ.CSSClasses
+	WrapperClasses    templ.CSSClasses
+	Attrs             templ.Attributes
+	TBodyClasses      templ.CSSClasses
+	TBodyAttrs        templ.Attributes
+	THead             TableHead
+	NoTBody           bool
+	ScrollbarPosition ScrollbarPosition
 }
 
 templ Table(props TableProps) {
-	<div class={ twmerge.Merge("overflow-x-auto relative", props.WrapperClasses.String()) }>
+	<div class={ twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String()) }>
 		<table
 			class={
 				twmerge.Merge(
-					"min-w-full rounded-b-lg table bg-surface-600 text-sm",
-					props.Classes.String(),
+					templ.Classes(
+						"min-w-full rounded-b-lg table bg-surface-600 text-sm",
+						templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
+						props.Classes.String(),
+					).String(),
 				),
 			}
 			{ props.Attrs... }

@@ -41,6 +41,21 @@ func (sp StickyPosition) Right() bool {
 	return sp == StickyPositionRight
 }
 
+type ScrollbarPosition string
+
+const (
+	ScrollbarPositionBottom = ScrollbarPosition("bottom")
+	ScrollbarPositionTop    = ScrollbarPosition("top")
+)
+
+func (sp ScrollbarPosition) Top() bool {
+	return sp == ScrollbarPositionTop
+}
+
+func (sp ScrollbarPosition) Bottom() bool {
+	return sp == ScrollbarPositionBottom
+}
+
 type SortDirection string
 
 const (
@@ -215,14 +230,15 @@ type TableHead struct {
 }
 
 type TableProps struct {
-	Columns        []*TableColumn
-	Classes        templ.CSSClasses
-	WrapperClasses templ.CSSClasses
-	Attrs          templ.Attributes
-	TBodyClasses   templ.CSSClasses
-	TBodyAttrs     templ.Attributes
-	THead          TableHead
-	NoTBody        bool
+	Columns           []*TableColumn
+	Classes           templ.CSSClasses
+	WrapperClasses    templ.CSSClasses
+	Attrs             templ.Attributes
+	TBodyClasses      templ.CSSClasses
+	TBodyAttrs        templ.Attributes
+	THead             TableHead
+	NoTBody           bool
+	ScrollbarPosition ScrollbarPosition
 }
 
 func Table(props TableProps) templ.Component {
@@ -246,7 +262,7 @@ func Table(props TableProps) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var6 = []any{twmerge.Merge("overflow-x-auto relative", props.WrapperClasses.String())}
+		var templ_7745c5c3_Var6 = []any{twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String())}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -270,8 +286,11 @@ func Table(props TableProps) templ.Component {
 		}
 		var templ_7745c5c3_Var8 = []any{
 			twmerge.Merge(
-				"min-w-full rounded-b-lg table bg-surface-600 text-sm",
-				props.Classes.String(),
+				templ.Classes(
+					"min-w-full rounded-b-lg table bg-surface-600 text-sm",
+					templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
+					props.Classes.String(),
+				).String(),
 			),
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var8...)
@@ -360,7 +379,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 152, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 171, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -383,7 +402,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var15 string
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(col.SortURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 159, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 178, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
@@ -404,7 +423,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 167, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 186, Col: 27}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -477,7 +496,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var19 string
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 190, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 209, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -508,7 +527,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 199, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 218, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {

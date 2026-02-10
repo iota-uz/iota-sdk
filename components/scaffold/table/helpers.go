@@ -761,6 +761,12 @@ func WithEditableColumn(field crud.Field) ColumnOpt {
 
 type TableConfigOpt func(c *TableConfig)
 
+func WithID(id string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.ID = id
+	}
+}
+
 func WithoutSearch() TableConfigOpt {
 	return func(c *TableConfig) {
 		c.WithoutSearch = true
@@ -776,6 +782,12 @@ func WithEditable(config TableEditableConfig) TableConfigOpt {
 func WithHead(config TableHeadConfig) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.Head = config
+	}
+}
+
+func WithScrollbarPosition(pos ScrollbarPosition) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.ScrollbarPosition = pos
 	}
 }
 
@@ -814,6 +826,7 @@ type TableHeadConfig struct {
 }
 
 type TableConfig struct {
+	ID                string
 	Title             string
 	DataURL           string
 	Filters           []templ.Component
@@ -824,6 +837,7 @@ type TableConfig struct {
 	Infinite          *InfiniteScrollConfig
 	SideFilter        templ.Component
 	Editable          TableEditableConfig
+	ScrollbarPosition ScrollbarPosition
 	WithoutSearch     bool
 	SearchPlaceholder string // Custom placeholder for search input
 
