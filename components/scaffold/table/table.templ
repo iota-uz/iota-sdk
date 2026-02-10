@@ -258,7 +258,9 @@ templ Table(config *TableConfig) {
 		if config.Editable.Enabled {
 			{ setupAlpineData(ctx, config)... }
 		}
-		x-data={ fmt.Sprintf("tableConfig('%s')", config.ID) }
+		if config.Configurable {
+			x-data={ fmt.Sprintf("tableConfig('%s')", config.ID) }
+		}
 	>
 		{{ headAttrs := templ.Attributes{} }}
 		{{
@@ -269,6 +271,7 @@ templ Table(config *TableConfig) {
 			maps.Copy(headAttrs, config.Head.Attrs)
 		}}
 		@base.Table(base.TableProps{
+			Configurable:      config.Configurable,
 			ScrollbarPosition: config.ScrollbarPosition,
 			WrapperClasses:    templ.Classes(templ.KV("max-h-[100svh]", config.Head.Sticky)),
 			Columns:           toBaseTableColumns(config, pageCtx),
@@ -534,11 +537,12 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContextProvider) 
 				templ.KV("shadow-lg", (col.StickyPos().Right() || col.StickyPos().Left()) && !config.Head.Sticky),
 				col.Class(),
 			).String(),
-			Sortable:    col.Sortable(),
-			SortDir:     col.SortDir(),
-			SortURL:     col.SortURL(),
-			Sticky:      !col.StickyPos().Unknown(),
-			AddonBottom: col.AddonBottom(),
+			Sortable:     col.Sortable(),
+			SortDir:      col.SortDir(),
+			SortURL:      col.SortURL(),
+			Configurable: config.Configurable,
+			Sticky:       !col.StickyPos().Unknown(),
+			AddonBottom:  col.AddonBottom(),
 		}
 	}
 

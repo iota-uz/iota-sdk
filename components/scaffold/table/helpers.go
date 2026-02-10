@@ -767,6 +767,12 @@ func WithID(id string) TableConfigOpt {
 	}
 }
 
+func WithConfigurable(configurable bool) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.Configurable = configurable
+	}
+}
+
 func WithoutSearch() TableConfigOpt {
 	return func(c *TableConfig) {
 		c.WithoutSearch = true
@@ -827,6 +833,7 @@ type TableHeadConfig struct {
 
 type TableConfig struct {
 	ID                string
+	Configurable      bool
 	Title             string
 	DataURL           string
 	Filters           []templ.Component
@@ -851,13 +858,14 @@ type TableConfig struct {
 
 func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig {
 	t := &TableConfig{
-		Title:    title,
-		DataURL:  dataURL,
-		Infinite: &InfiniteScrollConfig{},
-		Columns:  []TableColumn{},
-		Filters:  []templ.Component{},
-		Actions:  []templ.Component{},
-		Rows:     []TableRow{},
+		Title:        title,
+		DataURL:      dataURL,
+		Infinite:     &InfiniteScrollConfig{},
+		Columns:      []TableColumn{},
+		Filters:      []templ.Component{},
+		Actions:      []templ.Component{},
+		Rows:         []TableRow{},
+		Configurable: true,
 	}
 	for _, o := range opts {
 		o(t)
