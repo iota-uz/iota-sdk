@@ -54,6 +54,9 @@ jobs:
       - name: Download Go dependencies
         run: go mod download
 
+      - name: Install applet CLI
+        run: go install github.com/iota-uz/applets/cmd/applet@latest
+
       - name: Test generated files are up to date
         run: |
           just generate
