@@ -124,17 +124,13 @@ test.describe('role management flows', () => {
 		// Click delete button
 		await page.locator('[data-test-id="delete-role-btn"]').click();
 
-		// Wait for and interact with confirmation dialog
+		// Wait for confirmation dialog and confirm button to be ready
 		const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 		await expect(confirmDialog).toBeVisible();
-
-		// Wait for dialog to fully open (open attribute confirms showModal() completed)
-		await page.locator('[data-test-id="delete-confirmation-dialog"][open]').waitFor({ state: 'visible' });
-
 		const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
 		await expect(confirmButton).toBeVisible();
 
-		// Click confirm and wait for the DELETE response to ensure the HTMX request was triggered
+		// Click confirm (no force — Playwright waits for stability/animation) and await DELETE response
 		const deleteResponse = page.waitForResponse(
 			resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
 		);
@@ -424,17 +420,13 @@ test.describe('role management flows', () => {
 			await limitedRoleRow.locator('a').first().click();
 			await page.locator('[data-test-id="delete-role-btn"]').click();
 
-			// Wait for and interact with confirmation dialog
+			// Wait for confirmation dialog and confirm button to be ready
 			const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 			await expect(confirmDialog).toBeVisible();
-
-			// Wait for dialog to fully open (open attribute confirms showModal() completed)
-			await page.locator('[data-test-id="delete-confirmation-dialog"][open]').waitFor({ state: 'visible' });
-
 			const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
 			await expect(confirmButton).toBeVisible();
 
-			// Click confirm and wait for the DELETE response to ensure the HTMX request was triggered
+			// Click confirm (no force — Playwright waits for stability/animation) and await DELETE response
 			const deleteResponse = page.waitForResponse(
 				resp => resp.request().method() === 'DELETE' && /\/roles\/\d+/.test(resp.url())
 			);
