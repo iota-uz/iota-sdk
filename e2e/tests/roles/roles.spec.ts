@@ -124,15 +124,21 @@ test.describe('role management flows', () => {
 		// Click delete button
 		await page.locator('[data-test-id="delete-role-btn"]').click();
 
-		// Wait for and click confirm in the confirmation dialog (force: true in case edit form footer overlaps in CI)
+		// Wait for and click confirm in the confirmation dialog
 		const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 		await expect(confirmDialog).toBeVisible();
+		await confirmDialog.scrollIntoViewIfNeeded();
 		const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
 		await expect(confirmButton).toBeVisible();
+		await confirmButton.scrollIntoViewIfNeeded();
+		await page.waitForTimeout(300); // allow overlay/dialog to settle
 		await confirmButton.click({ force: true });
 
-		// Wait for redirect back to roles list
-		await page.waitForURL(/\/roles$/);
+		// Wait for redirect (roles list or login if session expired in CI)
+		await page.waitForURL(/\/(roles|login)$/, { timeout: 15000 });
+		await expect(page).toHaveURL(/\/roles$/, {
+			message: 'After delete confirm, expected redirect to /roles but got ' + page.url() + ' (session may have expired in CI)',
+		});
 
 		// Verify role was deleted from list
 		await expect(page.locator('tbody tr').filter({ hasText: updatedRoleName })).not.toBeVisible();
