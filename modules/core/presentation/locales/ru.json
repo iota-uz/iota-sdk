@@ -839,7 +839,8 @@
     "Table": {
       "NoDataTitle": "Данные недоступны",
       "NoDataDescription": "Для этой таблицы нет доступных данных.",
-      "NothingFound": "Ничего не найдено"
+      "NothingFound": "Ничего не найдено",
+      "TableSettings": "Настройки таблицы"
     },
     "Filters": {
       "Title": "Фильтры",

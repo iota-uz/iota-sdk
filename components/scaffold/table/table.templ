@@ -15,6 +15,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/loaders"
@@ -146,6 +147,15 @@ templ Rows(cfg *TableConfig) {
 					Attrs: rowAttrs,
 				}) {
 					for i, cell := range row.Cells() {
+						{{
+						cellAttrs := templ.Attributes{
+							"data-col": cfg.Columns[i].Key(),
+						}
+						if !cfg.Columns[i].StickyPos().Unknown() {
+							cellAttrs["data-col-sticky"] = "true"
+						}
+						maps.Copy(cellAttrs, cell.Attrs())
+						}}
 						@base.TableCell(base.TableCellProps{
 							Classes: templ.Classes(
 								templ.KV("sticky bg-surface-600 shadow-lg", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
@@ -153,7 +163,7 @@ templ Rows(cfg *TableConfig) {
 								templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 								cell.Classes(),
 							),
-							Attrs: cell.Attrs(),
+							Attrs: cellAttrs,
 						}) {
 							@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{})
 						}
@@ -248,6 +258,7 @@ templ Table(config *TableConfig) {
 		if config.Editable.Enabled {
 			{ setupAlpineData(ctx, config)... }
 		}
+		x-data={ fmt.Sprintf("tableConfig('%s')", config.ID) }
 	>
 		{{ headAttrs := templ.Attributes{} }}
 		{{
@@ -258,13 +269,20 @@ templ Table(config *TableConfig) {
 			maps.Copy(headAttrs, config.Head.Attrs)
 		}}
 		@base.Table(base.TableProps{
-			Columns: toBaseTableColumns(config, pageCtx),
+			ScrollbarPosition: config.ScrollbarPosition,
+			WrapperClasses:    templ.Classes(templ.KV("max-h-[100svh]", config.Head.Sticky)),
+			Columns:           toBaseTableColumns(config, pageCtx),
 			TBodyAttrs: templ.Attributes{
 				"id":          "table-body",
 				"hx-push-url": "false",
 			},
-			THeadAttrs: headAttrs,
-			NoTBody:    config.Editable.Enabled,
+			THead: base.TableHead{
+				Attrs: headAttrs,
+				Classes: templ.Classes(
+					templ.KV("sticky top-0 z-10 shadow-lg", config.Head.Sticky),
+				),
+			},
+			NoTBody: config.Editable.Enabled,
 		}) {
 			if len(config.Rows) == 0 && !config.Editable.Enabled {
 				<tr>
@@ -298,6 +316,69 @@ templ Table(config *TableConfig) {
 					</tr>
 				</tbody>
 			}
+		}
+		@dialog.Drawer(dialog.DrawerProps{
+			Action:    "open-table-settings",
+			Direction: dialog.RTL,
+			Classes:   templ.Classes("max-w-96 ml-auto flex items-stretch"),
+		}) {
+			<div class="p-4 w-full">
+				<div class="flex flex-col h-full bg-white rounded-lg">
+					<div class="flex flex-col h-full">
+						<div class="flex justify-between px-4 py-3 border-b border-primary">
+							<h3 class="font-medium">
+								{ pageCtx.T("Scaffold.Table.TableSettings") }
+							</h3>
+							<button class="cursor-pointer" type="button" @click="toggle">
+								@icons.XCircle(icons.Props{Size: "20"})
+							</button>
+						</div>
+						<div class="flex-1 min-h-0 overflow-y-auto">
+							<div class="p-4">
+								<ul
+									class="flex flex-col gap-2"
+									x-sort.ghost
+									x-sort:config="{
+										onEnd: (event) => {
+											moveColumn(event.oldIndex, event.newIndex);
+										},
+									}"
+								>
+									<template x-for="col in fixedColumns" :key="col.key">
+										<li
+											class="flex items-center justify-between gap-2"
+											:x-sort:item="col.key"
+										>
+											<div class="flex items-center gap-1">
+												<button x-sort:handle type="button">
+													@icons.DotsSixVertical(icons.Props{Size: "20"})
+												</button>
+												<label :for="`col-${col.key}`" class="text-sm font-medium" x-text="col.label"></label>
+											</div>
+											@input.Switch(&input.SwitchProps{
+												Size: input.SwitchSizeSM,
+												LabelAttrs: templ.Attributes{
+													":for": "`col-${col.key}`",
+												},
+												Attrs: templ.Attributes{
+													":id":      "`col-${col.key}`",
+													":value":   "col.key",
+													":checked": "col.visible",
+													"@change": `(e) => {
+														e.stopPropagation();
+														e.stopImmediatePropagation();
+														toggleColumn(e.target.value);
+													}`,
+												},
+											})
+										</li>
+									</template>
+								</ul>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
 		}
 	</div>
 }
@@ -344,16 +425,21 @@ templ TableSection(config *TableConfig) {
 								})
 							</div>
 						}
-						<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
-							for _, filter := range config.Filters {
-								@filter
-							}
-							<div class="flex gap-3 ml-auto">
-								for _, action := range config.Actions {
-									@action
+						if len(config.Filters) > 0 || len(config.Actions) > 0 {
+							<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
+								for _, filter := range config.Filters {
+									@filter
+								}
+								if len(config.Actions) > 0 {
+									<div class="flex gap-3 ml-auto">
+										for _, action := range config.Actions {
+											@action
+										}
+									</div>
 								}
 							</div>
-						</div>
+						}
+						@TableSettingsTrigger()
 					</div>
 					<div class="overflow-x-auto">
 						@Table(config)
@@ -375,6 +461,16 @@ templ TableSection(config *TableConfig) {
 			</div>
 		}
 	</form>
+}
+
+templ TableSettingsTrigger() {
+	@button.Secondary(button.Props{
+		Icon: icons.Gear(icons.Props{Size: "20"}),
+		Attrs: templ.Attributes{
+			"type":   "button",
+			"@click": "$dispatch('open-table-settings')",
+		},
+	})
 }
 
 // EmbeddedContent renders the table content without margins for embedded view
@@ -429,13 +525,19 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContextProvider) 
 	result := make([]*base.TableColumn, len(config.Columns))
 	for i, col := range config.Columns {
 		result[i] = &base.TableColumn{
-			Key:         col.Key(),
-			Label:       col.Label(),
-			Class:       col.Class(),
+			Key:   col.Key(),
+			Label: col.Label(),
+			Class: templ.Classes(
+				templ.KV("bg-surface-500 sticky", col.StickyPos().Right() || col.StickyPos().Left()),
+				templ.KV("right-0", col.StickyPos().Right()),
+				templ.KV("left-0", col.StickyPos().Left()),
+				templ.KV("shadow-lg", (col.StickyPos().Right() || col.StickyPos().Left()) && !config.Head.Sticky),
+				col.Class(),
+			).String(),
 			Sortable:    col.Sortable(),
 			SortDir:     col.SortDir(),
 			SortURL:     col.SortURL(),
-			StickyPos:   col.StickyPos(),
+			Sticky:      !col.StickyPos().Unknown(),
 			AddonBottom: col.AddonBottom(),
 		}
 	}
