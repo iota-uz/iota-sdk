@@ -59,9 +59,12 @@ func (m *ViewManager) Views() []View {
 	return out
 }
 
-// Sync creates or replaces all registered views in the database within a single transaction.
+// Sync drops and recreates all registered views in the database within a single transaction.
+// Uses DROP CASCADE + CREATE (not CREATE OR REPLACE) to support column type changes.
+// The entire operation is atomic: if any view fails, the transaction rolls back.
 // It does NOT create the schema (assumes it exists from migration).
-// It does NOT drop views (old migration views remain, harmless).
+// NOTE: DROP CASCADE may remove views that depend on managed views but are not
+// themselves registered. Ensure all inter-dependent views are registered.
 func (m *ViewManager) Sync(ctx context.Context, pool *pgxpool.Pool) error {
 	if len(m.views) == 0 {
 		return nil
