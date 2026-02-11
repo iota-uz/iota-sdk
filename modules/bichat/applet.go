@@ -127,13 +127,19 @@ func (a *BiChatApplet) Config() applets.Config {
 			if chatSvc == nil || artifactSvc == nil {
 				return nil
 			}
-			return bichatrpc.Router(chatSvc, artifactSvc).Config()
+			cfg := bichatrpc.Router(chatSvc, artifactSvc).Config()
+			// Expose internal error details in development mode.
+			if isDev() {
+				t := true
+				cfg.ExposeInternalErrors = &t
+			}
+			return cfg
 		}(),
 	}
 }
 
 func bichatDevAssets() *applets.DevAssetConfig {
-	enabled := envBool("IOTA_APPLET_DEV_BICHAT")
+	enabled := isDev()
 	target := strings.TrimSpace(os.Getenv("IOTA_APPLET_VITE_URL_BICHAT"))
 	if target == "" {
 		target = "http://localhost:5173"
@@ -155,17 +161,14 @@ func bichatDevAssets() *applets.DevAssetConfig {
 	}
 }
 
-func envBool(key string) bool {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" {
-		return false
+// isDev returns true when GO_APP_ENV is not "production".
+// GO_APP_ENV defaults to "development" when unset.
+func isDev() bool {
+	env := strings.TrimSpace(os.Getenv("GO_APP_ENV"))
+	if env == "" {
+		env = "development"
 	}
-	switch strings.ToLower(v) {
-	case "1", "true", "yes", "y", "on":
-		return true
-	default:
-		return false
-	}
+	return env != "production"
 }
 
 // getMiddleware returns the required middleware stack for BiChat.
