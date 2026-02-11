@@ -13,8 +13,16 @@
     "MessagePlaceholder": "Введите сообщение...",
     "SendMessage": "Отправить сообщение",
     "Loading": "Загрузка...",
-    "Error": "Ошибка",
-    "Retry": "Повторить",
+    "Error": {
+      "Generic": "Произошла ошибка",
+      "Label": "Ошибка"
+    },
+    "Retry": {
+      "Title": "Повторить",
+      "Subtitle": "Что-то пошло не так. Хотите попробовать снова?",
+      "Button": "Попробовать снова",
+      "Label": "Повторить"
+    },
     "Cancel": "Отмена",
     "Submit": "Отправить",
     "Export": "Экспорт",
@@ -34,6 +42,278 @@
       "Compacting": "Сжатие истории",
       "CompactedSummary": "Сжатое резюме",
       "DebugTrace": "Трассировка отладки"
+    },
+    "InlineQuestion": {
+      "InputNeeded": "Требуется ввод",
+      "Next": "Далее",
+      "Back": "Назад",
+      "OtherOption": "Другое",
+      "TypeYourAnswer": "Введите ваш ответ...",
+      "SelectAllThatApply": "Выберите все подходящие",
+      "Dismiss": "Закрыть"
+    },
+    "Thinking": {
+      "Thinking": "Думаю",
+      "Processing": "Обрабатываю",
+      "Analyzing": "Анализирую",
+      "Synthesizing": "Синтезирую",
+      "Computing": "Вычисляю",
+      "WorkingOnIt": "Работаю над этим"
+    },
+    "Search": {
+      "Clear": "Очистить поиск"
+    },
+    "EditableText": {
+      "AriaLabel": "Редактировать текст. Enter — сохранить, Escape — отменить",
+      "DoubleClickToEdit": "Двойной клик для редактирования"
+    },
+    "ContextMenu": "Контекстное меню",
+    "Archive": {
+      "Banner": "Архивный баннер",
+      "Archived": "Этот чат был архивирован",
+      "Restore": "Восстановить",
+      "Restoring": "Восстановление...",
+      "RestoreFailed": "Не удалось восстановить"
+    },
+    "Message": {
+      "CopiedToClipboard": "Скопировано в буфер обмена",
+      "FailedToCopy": "Не удалось скопировать сообщение",
+      "CopyMessage": "Копировать сообщение",
+      "Copying": "Копирование...",
+      "Regenerate": "Перегенерировать ответ",
+      "Regenerating": "Перегенерация...",
+      "EditMessage": "Редактировать сообщение",
+      "Copy": "Копировать",
+      "Copied": "Скопировано",
+      "Save": "Сохранить",
+      "Cancel": "Отмена"
+    },
+    "Attachment": {
+      "PreviewUnavailable": "Предпросмотр недоступен",
+      "Remove": "Удалить вложение",
+      "InvalidFile": "Недопустимый файл",
+      "SelectFiles": "Выбрать файлы"
+    },
+    "Image": {
+      "Close": "Закрыть",
+      "FailedToLoad": "Не удалось загрузить изображение",
+      "Retry": "Повторить загрузку",
+      "Previous": "Предыдущее изображение",
+      "Next": "Следующее изображение"
+    },
+    "Sidebar": {
+      "ChatHistory": "История чатов",
+      "CloseSidebar": "Закрыть боковую панель",
+      "ChatSessions": "Сессии чата",
+      "SearchChats": "Поиск чатов...",
+      "CreateNewChat": "Создать новый чат",
+      "ArchivedChats": "Архивные чаты",
+      "PinnedChats": "Закрепленные чаты",
+      "NoChatsYet": "Чатов пока нет",
+      "CreateOneToGetStarted": "Создайте один, чтобы начать!",
+      "FailedToLoadSessions": "Не удалось загрузить сессии",
+      "ChatRenamedSuccessfully": "Чат успешно переименован",
+      "FailedToRenameChat": "Не удалось переименовать чат",
+      "TitleRegenerated": "Заголовок перегенерирован",
+      "FailedToRegenerateTitle": "Не удалось перегенерировать заголовок",
+      "ChatOptions": "Параметры чата",
+      "PinChat": "Закрепить чат",
+      "UnpinChat": "Открепить чат",
+      "RenameChat": "Переименовать чат",
+      "RegenerateTitle": "Перегенерировать заголовок",
+      "ArchiveChat": "Архивировать чат",
+      "ArchiveChatSession": "Архивировать сессию чата",
+      "ArchiveChatMessage": "Архивировать этот чат? Вы сможете восстановить его позже из раздела Архивные чаты.",
+      "ArchiveButton": "Архивировать",
+      "MyChats": "Мои чаты",
+      "AllChats": "Все чаты",
+      "ChatViewSelector": "Выбор представления чатов",
+      "DeleteChat": "Удалить чат",
+      "FailedToArchiveChat": "Не удалось архивировать чат",
+      "FailedToTogglePin": "Не удалось изменить закрепление"
+    },
+    "Welcome": {
+      "QuickStart": "Быстрый старт",
+      "Disclaimer": "Работает на ИИ. Возможны ошибки.",
+      "Prompt1Category": "Анализ данных",
+      "Prompt1Text": "Покажи сводку ключевых показателей",
+      "Prompt2Category": "Отчёты",
+      "Prompt2Text": "Сформируй отчёт за текущий период",
+      "Prompt3Category": "Аналитика",
+      "Prompt3Text": "Какие тенденции можно выявить в данных?"
+    },
+    "Common": {
+      "Loading": "Загрузка...",
+      "Generating": "Генерация...",
+      "Untitled": "Безымянный чат",
+      "Clear": "Очистить поиск",
+      "Cancel": "Отмена",
+      "Back": "Назад",
+      "Close": "Закрыть",
+      "Pinned": "Закреплено"
+    },
+    "Chat": {
+      "NewChat": "Новый чат",
+      "GoBack": "Назад",
+      "Pinned": "Закреплено",
+      "ReadOnly": "Только чтение",
+      "Archived": "Архив",
+      "Retry": "Повторить",
+      "DismissNotification": "Закрыть уведомление"
+    },
+    "Archived": {
+      "RestoreButton": "Восстановить",
+      "ChatRestoredSuccessfully": "Чат успешно восстановлен",
+      "FailedToRestoreChat": "Не удалось восстановить чат",
+      "BackToChats": "Вернуться к чатам",
+      "Title": "Архивные чаты",
+      "SearchArchivedChats": "Поиск архивных чатов...",
+      "NoArchivedChats": "Нет архивных чатов",
+      "NoArchivedChatsDescription": "У вас пока нет архивных чатов. Когда вы архивируете чат из основного списка, он появится здесь.",
+      "NoResults": "Результаты не найдены",
+      "NoResultsDescription": "Попробуйте другой поисковый запрос",
+      "FailedToLoadChats": "Не удалось загрузить архивные чаты",
+      "RestoreChat": "Восстановить чат",
+      "RestoreChatMessage": "Восстановить этот архивный чат в основной список чатов?"
+    },
+    "AllChats": {
+      "AllUsers": "Все пользователи",
+      "LoadingUsers": "Загрузка пользователей...",
+      "NoUsersFound": "Пользователи не найдены",
+      "FailedToLoad": "Не удалось загрузить чаты организации",
+      "IncludeArchived": "Включить архивные",
+      "OrganizationChats": "Чаты организации",
+      "OrganizationChatSessions": "Сессии чатов организации",
+      "LoadMore": "Загрузить еще",
+      "NoChatsFound": "Чаты не найдены",
+      "NoChatsInOrg": "В этой организации пока нет чатов",
+      "NoActiveChatsInOrg": "В этой организации нет активных чатов"
+    },
+    "Artifacts": {
+      "Title": "Артефакты",
+      "ToggleShow": "Показать артефакты",
+      "ToggleHide": "Скрыть артефакты",
+      "Resize": "Изменить размер панели",
+      "Loading": "Загрузка артефактов...",
+      "Empty": "Пока нет артефактов",
+      "EmptySubtitle": "Артефакты появятся здесь по мере общения",
+      "Back": "Назад",
+      "Refresh": "Обновить",
+      "LoadMore": "Загрузить ещё",
+      "LoadingMore": "Загрузка...",
+      "FailedToLoad": "Не удалось загрузить артефакты",
+      "Unsupported": "Панель артефактов недоступна для этого источника.",
+      "Download": "Скачать",
+      "OpenInNewTab": "Открыть в новой вкладке",
+      "DownloadUnavailable": "URL скачивания недоступен.",
+      "ImageUnavailable": "URL изображения недоступен.",
+      "ChartUnavailable": "Метаданные графика в неподдерживаемом формате.",
+      "PreviewLoading": "Загрузка превью...",
+      "PreviewUnavailable": "Превью недоступно.",
+      "PreviewNotSupported": "Этот тип файла нельзя просмотреть.",
+      "OfficePreviewUnavailable": "Превью Office недоступно. Откройте или скачайте файл.",
+      "TextPreviewFailed": "Не удалось загрузить текстовое превью.",
+      "TextPreviewTruncated": "Превью сокращено. Откройте файл для полного просмотра.",
+      "Rename": "Переименовать артефакт",
+      "RenameFailed": "Не удалось переименовать",
+      "Delete": "Удалить артефакт",
+      "DeleteConfirm": "Удалить загруженный артефакт? Это действие нельзя отменить.",
+      "DeleteFailed": "Не удалось удалить"
+    },
+    "Input": {
+      "Placeholder": "Введите сообщение...",
+      "AttachFiles": "Прикрепить файлы",
+      "SendMessage": "Отправить сообщение",
+      "Processing": "Обработка...",
+      "DropFiles": "Перетащите файлы сюда",
+      "FilesAdded": "Файлы добавлены",
+      "DismissError": "Закрыть ошибку",
+      "ShiftEnterHint": "Shift+Enter для новой строки",
+      "FileInput": "Выбор файла",
+      "MessageInput": "Ввод сообщения"
+    },
+    "Assistant": {
+      "Explanation": "Объяснение"
+    },
+    "System": {
+      "ConversationSummary": "Краткое содержание",
+      "LoadingSummary": "Загрузка краткого содержания...",
+      "ShowMore": "Показать больше",
+      "ShowLess": "Показать меньше"
+    },
+    "Question": {
+      "SelectMulti": "Выберите несколько вариантов",
+      "SpecifyOther": "Укажите другое",
+      "OtherOption": "Другое"
+    },
+    "QuestionForm": {
+      "Title": "Вопросы",
+      "Back": "Назад",
+      "Next": "Далее",
+      "Confirm": "Подтвердить",
+      "Submitting": "Отправка...",
+      "ReviewTitle": "Проверьте ваши ответы",
+      "ReviewDescription": "Пожалуйста, проверьте ответы перед отправкой",
+      "Skip": "Пропустить"
+    },
+    "StreamError": {
+      "Retry": "Повторить",
+      "Regenerate": "Перегенерировать"
+    },
+    "Chart": {
+      "NoData": "Нет данных",
+      "Download": "Скачать график",
+      "DownloadPNG": "Скачать PNG",
+      "Exporting": "Экспорт..."
+    },
+    "Alert": {
+      "Retry": "Повторить"
+    },
+    "SkipLink": {
+      "Label": "Перейти к содержимому"
+    },
+    "Slash": {
+      "CommandsList": "Команды",
+      "ClearDescription": "Очистить разговор",
+      "DebugDescription": "Панель отладки",
+      "CompactDescription": "Сжать разговор",
+      "NoMatches": "Нет подходящих команд",
+      "DebugBadge": "Отладка",
+      "CompactingTitle": "Сжатие разговора...",
+      "CompactingSubtitle": "Это может занять некоторое время",
+      "DebugPanelTitle": "Панель отладки",
+      "DebugGeneration": "Генерация",
+      "DebugTokensPerSecond": "Токенов/сек",
+      "DebugUnavailable": "Отладочная информация недоступна",
+      "DebugToolCalls": "Вызовы инструментов",
+      "DebugArguments": "Аргументы",
+      "DebugResult": "Результат",
+      "DebugCopyTrace": "Копировать трассировку",
+      "DebugCopied": "Скопировано!",
+      "DebugError": "Ошибка",
+      "DebugCachedTokens": "Кэшированные токены",
+      "DebugPromptTokens": "Токены запроса",
+      "DebugCompletionTokens": "Токены ответа",
+      "DebugTotalTokens": "Всего токенов",
+      "DebugContextUsage": "Использование контекста",
+      "DebugContextWindow": "Окно контекста",
+      "DebugPolicyMaxContextWindow": "Макс. контекст политики",
+      "DebugModelMaxContextWindow": "Макс. контекст модели",
+      "DebugEffectiveContextWindow": "Эффективный контекст",
+      "DebugSessionUsageUnavailable": "Использование сеанса недоступно"
+    },
+    "DateGroup": {
+      "Today": "Сегодня",
+      "Yesterday": "Вчера",
+      "Last7Days": "Последние 7 дней",
+      "Last30Days": "Последние 30 дней",
+      "Older": "Ранее"
+    },
+    "RelativeTime": {
+      "JustNow": "Только что",
+      "MinutesAgo": "{{count}} мин. назад",
+      "HoursAgo": "{{count}} ч. назад",
+      "DaysAgo": "{{count}} дн. назад"
     }
   }
 }

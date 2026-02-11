@@ -21,6 +21,10 @@ type state struct {
 	// spanIDs maps BiChat span IDs to Langfuse span IDs.
 	// Used for hierarchical span tracking (nested operations).
 	spanIDs map[string]string
+
+	// traceNamed tracks which sessions have had their trace name set
+	// from user input (to avoid overwriting on subsequent generations).
+	traceNamed map[string]bool
 }
 
 // newState creates a new state tracker.
@@ -29,6 +33,7 @@ func newState() *state {
 		traceIDs:      make(map[string]string),
 		generationIDs: make(map[string]string),
 		spanIDs:       make(map[string]string),
+		traceNamed:    make(map[string]bool),
 	}
 }
 
@@ -77,6 +82,20 @@ func (s *state) getSpanID(spanID string) string {
 	return s.spanIDs[spanID]
 }
 
+// isTraceNamed returns whether a trace has already been named.
+func (s *state) isTraceNamed(sessionID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.traceNamed[sessionID]
+}
+
+// setTraceNamed marks a trace as having been named.
+func (s *state) setTraceNamed(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.traceNamed[sessionID] = true
+}
+
 // clear removes all state (useful for testing or reset scenarios).
 func (s *state) clear() {
 	s.mu.Lock()
@@ -84,4 +103,5 @@ func (s *state) clear() {
 	s.traceIDs = make(map[string]string)
 	s.generationIDs = make(map[string]string)
 	s.spanIDs = make(map[string]string)
+	s.traceNamed = make(map[string]bool)
 }

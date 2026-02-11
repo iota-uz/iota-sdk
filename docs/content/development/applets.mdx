@@ -30,7 +30,7 @@ At runtime, IOTA injects `InitialContext` into `window[<WindowGlobal>]`. The fro
 There is currently no scaffold generator. To create an applet:
 
 - Create a module under `modules/<name>/` and register an `applet.Applet`.
-- Add a dev entry to `scripts/applets.json` so `just dev <name>` can run embedded HMR.
+- Add an applet entry to `.applets/config.toml` so `just dev <name>` can run embedded HMR.
 
 ## SDK dependency policy
 
@@ -56,7 +56,7 @@ just dev bichat
 
 The command:
 
-- Reads `scripts/applets.json`
+- Reads `.applets/config.toml`
 - Starts Vite in embedded mode with `APPLET_ASSETS_BASE=<basePath>/assets/`
 - Enables the Go-side dev proxy via env (`IOTA_APPLET_DEV_<NAME>=1`)
 - Starts the Go server via `air`
@@ -64,19 +64,17 @@ The command:
 Then open:
 
 ```text
-http://localhost:${IOTA_PORT:-3200}<basePath>
+http://localhost:3200<basePath>
 ```
 
 ### Vite contract (base path and env)
 
-When you use **`just dev <name>`**, the Go dev runner writes **`applet-dev.json`** in the applet's Vite directory. The frontend helpers (`createAppletViteConfig`, `getAppletAssetsBase`, `getAppletVitePort`) read this file and use it for `base`, port, and proxy—so the manifest is the single source of truth; env vars below are the fallback when not using the dev runner.
+The Go dev runner sets these env vars for each applet's Vite process:
 
-The Go dev runner also sets these env vars for compatibility:
+- `APPLET_ASSETS_BASE` — must end with `/`; Vite uses it as `base`.
+- `APPLET_VITE_PORT` — Vite dev server port.
 
-- `APPLET_ASSETS_BASE` — must end with `/`; Vite uses it as `base` when no manifest is present.
-- `APPLET_VITE_PORT` — Vite dev server port (used when no manifest is present).
-
-Use **`@iota-uz/sdk/applet/vite`** helpers so you don’t replicate this by hand:
+Use **`@iota-uz/sdk/applet/vite`** helpers so you don't replicate this by hand:
 
 - `createAppletViteConfig({ basePath, backendUrl, extend })` — full config with base, port, dedupe, and optional proxy/aliases. When using **extend**, alias and plugin arrays are concatenated with the base; other fields (e.g. server.port) are overridden by your extend object.
 - `createAppletBackendProxy({ basePath, backendUrl })` — `server.proxy` for `/rpc` and `/stream`.
@@ -103,7 +101,7 @@ Per applet (name uppercased, `-` replaced with `_`):
 - `IOTA_APPLET_ENTRY_<NAME>=/src/main.tsx` overrides Vite entry module
 - `IOTA_APPLET_CLIENT_<NAME>=/@vite/client` overrides Vite client module
 
-The helper `just dev <name>` sets these automatically.
+The `applet dev` command sets these automatically.
 
 ### How the dev proxy works (same-origin HMR)
 

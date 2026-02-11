@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -91,74 +90,6 @@ func (h *testHostServices) ExtractPageLocale(ctx context.Context) language.Tag {
 	return composables.UsePageCtx(ctx).GetLocale()
 }
 
-func TestRegisterDevProxy_StripPrefix(t *testing.T) {
-	// Do not use t.Parallel() so the shared backend is not closed by another test; avoids CI 502 flakiness.
-	basePath := "/bi-chat"
-	assetsPath := "/assets"
-	fullAssetsPath := basePath + assetsPath
-
-	var receivedPath string
-	var mu sync.Mutex
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		receivedPath = r.URL.Path
-		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer backend.Close()
-
-	for _, strip := range []*bool{nil, ptr(true), ptr(false)} {
-		name := "StripPrefix_default_true"
-		if strip != nil && !*strip {
-			name = "StripPrefix_false"
-		} else if strip != nil && *strip {
-			name = "StripPrefix_true"
-		}
-		t.Run(name, func(t *testing.T) {
-			mu.Lock()
-			receivedPath = ""
-			mu.Unlock()
-
-			a := &testApplet{
-				name:     "chat",
-				basePath: basePath,
-				config: applets.Config{
-					WindowGlobal: "__T__",
-					Shell:        applets.ShellConfig{Mode: applets.ShellModeStandalone, Title: "t"},
-					Assets: applets.AssetConfig{
-						BasePath: assetsPath,
-						Dev: &applets.DevAssetConfig{
-							Enabled:     true,
-							TargetURL:   backend.URL,
-							StripPrefix: strip,
-						},
-					},
-				},
-			}
-			c, err := applets.NewAppletController(a, nil, applets.DefaultSessionConfig, nil, nil, &testHostServices{})
-			require.NoError(t, err)
-			router := mux.NewRouter()
-			c.RegisterRoutes(router)
-
-			req := httptest.NewRequest(http.MethodGet, fullAssetsPath+"/@vite/client", nil)
-			rec := httptest.NewRecorder()
-			router.ServeHTTP(rec, req)
-
-			require.Equal(t, http.StatusOK, rec.Code)
-			mu.Lock()
-			got := receivedPath
-			mu.Unlock()
-
-			expectStrip := strip == nil || (strip != nil && *strip)
-			if expectStrip {
-				require.Equal(t, "/@vite/client", got, "with StripPrefix true, backend should receive path without assets prefix")
-			} else {
-				require.Equal(t, fullAssetsPath+"/@vite/client", got, "with StripPrefix false, backend should receive full path")
-			}
-		})
-	}
-}
-
 func TestRegisterDevProxy_502WhenTargetDown(t *testing.T) {
 	t.Parallel()
 
@@ -203,12 +134,13 @@ func TestDevProxy_BlackBox_AssetRoutes(t *testing.T) {
 
 	viteBody := []byte("vite client js")
 	mainBody := []byte("main tsx")
+	// The proxy always forwards the full path — Vite's base is set to the prefix.
 	vite := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/@vite/client":
+		case "/bi-chat/assets/@vite/client":
 			w.Header().Set("Content-Type", "application/javascript")
 			_, _ = w.Write(viteBody)
-		case "/src/main.tsx":
+		case "/bi-chat/assets/src/main.tsx":
 			w.Header().Set("Content-Type", "application/javascript")
 			_, _ = w.Write(mainBody)
 		default:
@@ -342,5 +274,3 @@ func TestRegisterDevProxy_502WhenUpstreamReturns502(t *testing.T) {
 
 	require.Equal(t, http.StatusBadGateway, rec.Code, "proxy should pass through upstream 502")
 }
-
-func ptr(b bool) *bool { return &b }

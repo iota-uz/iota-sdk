@@ -1,39 +1,319 @@
 {
-	"NavigationLinks": {
-		"BiChat": "BI-Chat"
-	},
-	"BiChat": {
-		"Meta": {
-			"Index": {
-				"Title": "BI-Chat"
-			}
-		},
-		"Title": "BI-Chat",
-		"NewChat": "Yangi chat",
-		"MessagePlaceholder": "Xabar yozing...",
-		"SendMessage": "Xabar yuborish",
-		"Loading": "Yuklanmoqda...",
-		"Error": "Xato",
-		"Retry": "Qayta urinish",
-		"Cancel": "Bekor qilish",
-		"Submit": "Yuborish",
-		"Export": "Eksport",
-		"History": {
-			"Empty": "Tarix bo'sh",
-			"HelpText": "Yangi chat boshlash uchun \"Yangi chat\" tugmasini bosing"
-		},
-		"Permissions": {
-			"Access": "BI-chatga kirish",
-			"ReadAll": "Barcha sessiyalarni ko'rish",
-			"Export": "Ma'lumotlarni eksport qilish"
-		},
-		"SlashCommands": {
-			"Clear": "Tarixni tozalash",
-			"Debug": "Debug rejimi",
-			"Compact": "Tarixni ixchamlashtirish",
-			"Compacting": "Tarix ixchamlashtirilmoqda",
-			"CompactedSummary": "Ixcham xulosa",
-			"DebugTrace": "Debug izi"
-		}
-	}
+  "NavigationLinks": {
+    "BiChat": "BI-Chat"
+  },
+  "BiChat": {
+    "Meta": {
+      "Index": {
+        "Title": "BI-Chat"
+      }
+    },
+    "Title": "BI-Chat",
+    "NewChat": "Yangi chat",
+    "MessagePlaceholder": "Xabar yozing...",
+    "SendMessage": "Xabar yuborish",
+    "Loading": "Yuklanmoqda...",
+    "Error": {
+      "Generic": "Xatolik yuz berdi",
+      "Label": "Xato"
+    },
+    "Retry": {
+      "Title": "Qayta urinish",
+      "Subtitle": "Nimadir xato ketdi. Qayta urinib ko'rmoqchimisiz?",
+      "Button": "Qayta urinish",
+      "Label": "Qayta urinish"
+    },
+    "Cancel": "Bekor qilish",
+    "Submit": "Yuborish",
+    "Export": "Eksport",
+    "History": {
+      "Empty": "Tarix bo'sh",
+      "HelpText": "Yangi chat boshlash uchun \"Yangi chat\" tugmasini bosing"
+    },
+    "Permissions": {
+      "Access": "BI-chatga kirish",
+      "ReadAll": "Barcha sessiyalarni ko'rish",
+      "Export": "Ma'lumotlarni eksport qilish"
+    },
+    "SlashCommands": {
+      "Clear": "Tarixni tozalash",
+      "Debug": "Debug rejimi",
+      "Compact": "Tarixni ixchamlashtirish",
+      "Compacting": "Tarix ixchamlashtirilmoqda",
+      "CompactedSummary": "Ixcham xulosa",
+      "DebugTrace": "Debug izi"
+    },
+    "InlineQuestion": {
+      "InputNeeded": "Kiritish kerak",
+      "Next": "Keyingisi",
+      "Back": "Orqaga",
+      "OtherOption": "Boshqa",
+      "TypeYourAnswer": "Javobingizni yozing...",
+      "SelectAllThatApply": "Tegishli barchasini tanlang",
+      "Dismiss": "Yopish"
+    },
+    "Thinking": {
+      "Thinking": "O'ylamoqda",
+      "Processing": "Qayta ishlamoqda",
+      "Analyzing": "Tahlil qilmoqda",
+      "Synthesizing": "Sintez qilmoqda",
+      "Computing": "Hisoblashmoqda",
+      "WorkingOnIt": "Ustida ishlamoqda"
+    },
+    "Search": {
+      "Clear": "Qidiruvni tozalash"
+    },
+    "EditableText": {
+      "AriaLabel": "Matnni tahrirlash. Enter — saqlash, Escape — bekor qilish",
+      "DoubleClickToEdit": "Tahrirlash uchun ikki marta bosing"
+    },
+    "ContextMenu": "Kontekst menyusi",
+    "Archive": {
+      "Banner": "Arxiv banneri",
+      "Archived": "Bu chat arxivlangan",
+      "Restore": "Tiklash",
+      "Restoring": "Tiklanmoqda...",
+      "RestoreFailed": "Tiklab bo'lmadi"
+    },
+    "Message": {
+      "CopiedToClipboard": "Buferga nusxalandi",
+      "FailedToCopy": "Xabarni nusxalab bo'lmadi",
+      "CopyMessage": "Xabarni nusxalash",
+      "Copying": "Nusxalanmoqda...",
+      "Regenerate": "Javobni qayta yaratish",
+      "Regenerating": "Qayta yaratilmoqda...",
+      "EditMessage": "Xabarni tahrirlash",
+      "Copy": "Nusxalash",
+      "Copied": "Nusxalandi",
+      "Save": "Saqlash",
+      "Cancel": "Bekor qilish"
+    },
+    "Attachment": {
+      "PreviewUnavailable": "Ko'rib chiqish mavjud emas",
+      "Remove": "Ilovani olib tashlash",
+      "InvalidFile": "Noto'g'ri fayl",
+      "SelectFiles": "Fayllarni tanlash"
+    },
+    "Image": {
+      "Close": "Yopish",
+      "FailedToLoad": "Rasmni yuklab bo'lmadi",
+      "Retry": "Qayta yuklash",
+      "Previous": "Oldingi rasm",
+      "Next": "Keyingi rasm"
+    },
+    "Sidebar": {
+      "ChatHistory": "Chat tarixi",
+      "CloseSidebar": "Yon panelni yopish",
+      "ChatSessions": "Chat sessiyalari",
+      "SearchChats": "Chatlarni qidirish...",
+      "CreateNewChat": "Yangi chat yaratish",
+      "ArchivedChats": "Arxivlangan chatlar",
+      "PinnedChats": "Biriktirilgan chatlar",
+      "NoChatsYet": "Hali chatlar yo'q",
+      "CreateOneToGetStarted": "Boshlash uchun bitta yarating!",
+      "FailedToLoadSessions": "Sessiyalarni yuklashda xatolik",
+      "ChatRenamedSuccessfully": "Chat muvaffaqiyatli qayta nomlandi",
+      "FailedToRenameChat": "Chatni qayta nomlashda xatolik",
+      "TitleRegenerated": "Sarlavha qayta yaratildi",
+      "FailedToRegenerateTitle": "Sarlavhani qayta yaratishda xatolik",
+      "ChatOptions": "Chat parametrlari",
+      "PinChat": "Chatni bog'lash",
+      "UnpinChat": "Chatni bog'lamaslik",
+      "RenameChat": "Chatni qayta nomlash",
+      "RegenerateTitle": "Sarlavhani qayta yaratish",
+      "ArchiveChat": "Chatni arxivlash",
+      "ArchiveChatSession": "Chat sessiyasini arxivlash",
+      "ArchiveChatMessage": "Ushbu chatni arxivlash? Keyinroq Arxivlangan chatlar bo'limidan qayta tiklash mumkin.",
+      "ArchiveButton": "Arxivlash",
+      "MyChats": "Mening chatlarim",
+      "AllChats": "Barcha chatlar",
+      "ChatViewSelector": "Chat ko'rinishini tanlash",
+      "DeleteChat": "Chatni o'chirish",
+      "FailedToArchiveChat": "Chatni arxivlashda xatolik",
+      "FailedToTogglePin": "Biriktirishni o'zgartirishda xatolik"
+    },
+    "Welcome": {
+      "QuickStart": "Tezkor boshlash",
+      "Disclaimer": "Sun'iy intellekt asosida ishlaydi. Xatolar bo'lishi mumkin.",
+      "Prompt1Category": "Ma'lumotlar tahlili",
+      "Prompt1Text": "Asosiy ko'rsatkichlar bo'yicha xulosani ko'rsating",
+      "Prompt2Category": "Hisobotlar",
+      "Prompt2Text": "Joriy davr uchun hisobot yarating",
+      "Prompt3Category": "Tahlillar",
+      "Prompt3Text": "Ma'lumotlarda qanday tendentsiyalarni aniqlash mumkin?"
+    },
+    "Common": {
+      "Loading": "Yuklanmoqda...",
+      "Generating": "Yaratilmoqda...",
+      "Untitled": "Nomsiz chat",
+      "Clear": "Qidiruvni tozalash",
+      "Cancel": "Bekor qilish",
+      "Back": "Orqaga",
+      "Close": "Yopish",
+      "Pinned": "Biriktirilgan"
+    },
+    "Chat": {
+      "NewChat": "Yangi chat",
+      "GoBack": "Orqaga",
+      "Pinned": "Biriktirilgan",
+      "ReadOnly": "Faqat o'qish",
+      "Archived": "Arxiv",
+      "Retry": "Qayta urinish",
+      "DismissNotification": "Xabarni yopish"
+    },
+    "Archived": {
+      "RestoreButton": "Qayta tiklash",
+      "ChatRestoredSuccessfully": "Chat muvaffaqiyatli qayta tiklandi",
+      "FailedToRestoreChat": "Chatni qayta tiklashda xatolik",
+      "BackToChats": "Chatlarga qaytish",
+      "Title": "Arxivlangan chatlar",
+      "SearchArchivedChats": "Arxivlangan chatlarni qidirish...",
+      "NoArchivedChats": "Arxivlangan chatlar yo'q",
+      "NoArchivedChatsDescription": "Hali arxivlangan chatlaringiz yo'q. Asosiy ro'yxatdan chatni arxivlasangiz, u bu yerda paydo bo'ladi.",
+      "NoResults": "Natijalar topilmadi",
+      "NoResultsDescription": "Boshqa qidiruv so'zini sinab ko'ring",
+      "FailedToLoadChats": "Arxivlangan chatlarni yuklashda xatolik",
+      "RestoreChat": "Chatni qayta tiklash",
+      "RestoreChatMessage": "Ushbu arxivlangan chatni asosiy chat ro'yxatiga qayta tiklash?"
+    },
+    "AllChats": {
+      "AllUsers": "Barcha foydalanuvchilar",
+      "LoadingUsers": "Foydalanuvchilar yuklanmoqda...",
+      "NoUsersFound": "Foydalanuvchilar topilmadi",
+      "FailedToLoad": "Tashkilot chatlarini yuklashda xatolik",
+      "IncludeArchived": "Arxivlanganlarni qo'shish",
+      "OrganizationChats": "Tashkilot chatlari",
+      "OrganizationChatSessions": "Tashkilot chat sessiyalari",
+      "LoadMore": "Ko'proq yuklash",
+      "NoChatsFound": "Chatlar topilmadi",
+      "NoChatsInOrg": "Ushbu tashkilotda hali chatlar yo'q",
+      "NoActiveChatsInOrg": "Ushbu tashkilotda faol chatlar yo'q"
+    },
+    "Artifacts": {
+      "Title": "Artefaktlar",
+      "ToggleShow": "Artefaktlarni ko'rsatish",
+      "ToggleHide": "Artefaktlarni yashirish",
+      "Resize": "Panel o'lchamini o'zgartirish",
+      "Loading": "Artefaktlar yuklanmoqda...",
+      "Empty": "Hali artefaktlar yo'q",
+      "EmptySubtitle": "Suhbat davomida artefaktlar shu yerda paydo bo'ladi",
+      "Back": "Orqaga",
+      "Refresh": "Yangilash",
+      "LoadMore": "Ko'proq yuklash",
+      "LoadingMore": "Yuklanmoqda...",
+      "FailedToLoad": "Artefaktlarni yuklab bo'lmadi",
+      "Unsupported": "Ushbu manba uchun artefaktlar paneli mavjud emas.",
+      "Download": "Yuklab olish",
+      "OpenInNewTab": "Yangi tabda ochish",
+      "DownloadUnavailable": "Yuklab olish URL mavjud emas.",
+      "ImageUnavailable": "Rasm URL mavjud emas.",
+      "ChartUnavailable": "Grafik metadatalari qo'llab-quvvatlanmaydigan formatda.",
+      "PreviewLoading": "Ko'rib chiqish yuklanmoqda...",
+      "PreviewUnavailable": "Ko'rib chiqish mavjud emas.",
+      "PreviewNotSupported": "Ushbu fayl turini ko'rib chiqib bo'lmaydi.",
+      "OfficePreviewUnavailable": "Office ko'rib chiqishi mavjud emas. Faylni oching yoki yuklab oling.",
+      "TextPreviewFailed": "Matn ko'rib chiqishni yuklab bo'lmadi.",
+      "TextPreviewTruncated": "Ko'rib chiqish qisqartirilgan. To'liq matn uchun faylni oching.",
+      "Rename": "Artefaktni qayta nomlash",
+      "RenameFailed": "Qayta nomlash muvaffaqiyatsiz",
+      "Delete": "Artefaktni o'chirish",
+      "DeleteConfirm": "Yuklangan artefaktni o'chirish? Bu amalni bekor qilib bo'lmaydi.",
+      "DeleteFailed": "O'chirish muvaffaqiyatsiz"
+    },
+    "Input": {
+      "Placeholder": "Xabaringizni kiriting...",
+      "AttachFiles": "Fayllarni biriktirish",
+      "SendMessage": "Xabar yuborish",
+      "Processing": "Qayta ishlanmoqda...",
+      "DropFiles": "Fayllarni bu yerga tashlang",
+      "FilesAdded": "Fayllar qo'shildi",
+      "DismissError": "Xatoni yopish",
+      "ShiftEnterHint": "Yangi qator uchun Shift+Enter",
+      "FileInput": "Fayl tanlash",
+      "MessageInput": "Xabar kiritish"
+    },
+    "Assistant": {
+      "Explanation": "Tushuntirish"
+    },
+    "System": {
+      "ConversationSummary": "Suhbat xulosasi",
+      "LoadingSummary": "Xulosa yuklanmoqda...",
+      "ShowMore": "Ko'proq ko'rsatish",
+      "ShowLess": "Kamroq ko'rsatish"
+    },
+    "Question": {
+      "SelectMulti": "Bir nechta variantni tanlang",
+      "SpecifyOther": "Boshqasini kiriting",
+      "OtherOption": "Boshqa"
+    },
+    "QuestionForm": {
+      "Title": "Savollar",
+      "Back": "Orqaga",
+      "Next": "Keyingi",
+      "Confirm": "Tasdiqlash",
+      "Submitting": "Yuborilmoqda...",
+      "ReviewTitle": "Javoblaringizni ko'rib chiqing",
+      "ReviewDescription": "Yuborishdan oldin javoblaringizni ko'rib chiqing",
+      "Skip": "O'tkazib yuborish"
+    },
+    "StreamError": {
+      "Retry": "Qayta urinish",
+      "Regenerate": "Qayta yaratish"
+    },
+    "Chart": {
+      "NoData": "Ma'lumotlar yo'q",
+      "Download": "Grafikni yuklab olish",
+      "DownloadPNG": "PNG yuklab olish",
+      "Exporting": "Eksport qilinmoqda..."
+    },
+    "Alert": {
+      "Retry": "Qayta urinish"
+    },
+    "SkipLink": {
+      "Label": "Kontentga o'tish"
+    },
+    "Slash": {
+      "CommandsList": "Buyruqlar",
+      "ClearDescription": "Suhbatni tozalash",
+      "DebugDescription": "Nosozliklarni tuzatish paneli",
+      "CompactDescription": "Suhbatni qisqartirish",
+      "NoMatches": "Mos buyruqlar topilmadi",
+      "DebugBadge": "Nosozlik",
+      "CompactingTitle": "Suhbat qisqartirilmoqda...",
+      "CompactingSubtitle": "Bu biroz vaqt olishi mumkin",
+      "DebugPanelTitle": "Nosozliklarni tuzatish paneli",
+      "DebugGeneration": "Generatsiya",
+      "DebugTokensPerSecond": "Token/sek",
+      "DebugUnavailable": "Nosozlik ma'lumotlari mavjud emas",
+      "DebugToolCalls": "Asbob chaqiruvlari",
+      "DebugArguments": "Argumentlar",
+      "DebugResult": "Natija",
+      "DebugCopyTrace": "Izni nusxalash",
+      "DebugCopied": "Nusxalandi!",
+      "DebugError": "Xato",
+      "DebugCachedTokens": "Keshlangan tokenlar",
+      "DebugPromptTokens": "So'rov tokenlari",
+      "DebugCompletionTokens": "Javob tokenlari",
+      "DebugTotalTokens": "Jami tokenlar",
+      "DebugContextUsage": "Kontekst foydalanishi",
+      "DebugContextWindow": "Kontekst oynasi",
+      "DebugPolicyMaxContextWindow": "Siyosat max kontekst",
+      "DebugModelMaxContextWindow": "Model max kontekst",
+      "DebugEffectiveContextWindow": "Samarali kontekst",
+      "DebugSessionUsageUnavailable": "Sessiya foydalanishi mavjud emas"
+    },
+    "DateGroup": {
+      "Today": "Bugun",
+      "Yesterday": "Kecha",
+      "Last7Days": "Oxirgi 7 kun",
+      "Last30Days": "Oxirgi 30 kun",
+      "Older": "Eski"
+    },
+    "RelativeTime": {
+      "JustNow": "Hozirgina",
+      "MinutesAgo": "{{count}} daqiqa oldin",
+      "HoursAgo": "{{count}} soat oldin",
+      "DaysAgo": "{{count}} kun oldin"
+    }
+  }
 }

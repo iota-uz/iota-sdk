@@ -386,19 +386,23 @@ tunnel:
 clean: css-clean
 
 [group("dev")]
-[doc("Start dev (just dev = watch, just dev <applet> = with applet)")]
+[doc("Start dev: just dev = project processes only; just dev <applet> = with applet")]
 dev name="":
-  go run cmd/dev/main.go {{name}}
+  applet dev {{name}}
 
 [group("dev")]
-[doc("Applet commands (rpc-gen|rpc-check|deps-check). Requires applet CLI: go install github.com/iota-uz/applets/cmd/applet@latest")]
+[doc("Applet commands. Requires applet CLI: go install github.com/iota-uz/applets/cmd/applet@latest")]
 applet cmd="help" name="":
   case "{{cmd}}" in \
+    dev) applet dev "{{name}}" ;; \
+    list) applet list ;; \
+    build) applet build "{{name}}" ;; \
+    check) applet check ;; \
     rpc-gen) applet rpc gen --name "{{name}}" ;; \
     rpc-check) applet rpc check --name "{{name}}" ;; \
     deps-check) applet deps check ;; \
     *) \
-      echo "Usage: just applet [rpc-gen <name>|rpc-check <name>|deps-check]" ; \
+      echo "Usage: just applet [dev <name>|list|build <name>|check|rpc-gen <name>|rpc-check <name>|deps-check]" ; \
       exit 2 ;; \
   esac
 

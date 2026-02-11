@@ -12,6 +12,7 @@ type QueryResultFormatPayload struct {
 	Limit           int      `json:"limit"`
 	Truncated       bool     `json:"truncated"`
 	TruncatedReason string   `json:"truncated_reason,omitempty"`
+	Hints           []string `json:"hints,omitempty"`
 }
 
 // ExplainPlanPayload is the payload for the "explain-plan" formatter.
