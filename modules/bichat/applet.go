@@ -3,8 +3,8 @@ package bichat
 import (
 	"context"
 	"io/fs"
-	"net/http"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 
