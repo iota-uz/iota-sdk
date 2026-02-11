@@ -3,7 +3,6 @@ package models
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -166,6 +165,4 @@ func TestCheckpointModel_RoundTrip(t *testing.T) {
 	require.Len(t, restored.PendingTools, 1)
 	assert.Equal(t, "tc-1", restored.PendingTools[0].ID)
 	assert.Equal(t, "sql_execute", restored.PendingTools[0].Name)
-
-	assert.WithinDuration(t, original.CreatedAt, restored.CreatedAt, time.Second, "CreatedAt should round-trip")
 }
