@@ -2,6 +2,7 @@ package agents
 
 import (
 	_ "embed"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
@@ -81,7 +82,10 @@ func NewSQLAgent(
 	}
 
 	// Create schema adapters using the query executor
-	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor)
+	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor,
+		bichatsql.WithCountCacheTTL(10*time.Minute),
+		bichatsql.WithCacheKeyFunc(tenantCacheKey),
+	)
 	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor)
 
 	// Build core tools list (SQL-specific only) with optional view access control

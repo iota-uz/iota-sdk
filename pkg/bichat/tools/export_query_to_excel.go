@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -233,18 +234,27 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
-// applyRowLimit adds or enforces a LIMIT clause to the query.
-// If the query already has a LIMIT, it's capped at maxRows.
+// applyRowLimit applies a LIMIT to the query. If the query already has a top-level
+// LIMIT clause it is returned unchanged. For CTE queries (starting with "WITH"),
+// it appends LIMIT directly to avoid breaking the CTE syntax. For other queries,
+// it wraps the query as a subquery with an outer LIMIT.
 func applyRowLimit(query string, maxRows int) string {
-	normalized := strings.ToUpper(strings.TrimSpace(query))
-
-	// Check if query already has a LIMIT
-	if strings.Contains(normalized, "LIMIT") {
-		// Parse existing limit and cap if necessary
-		// For simplicity, just append our limit - PostgreSQL will use the smaller one
-		return fmt.Sprintf("%s LIMIT %d", query, maxRows)
+	q := strings.TrimSpace(query)
+	q = strings.TrimRight(q, ";")
+	if hasTopLevelLimit(q) {
+		return q
 	}
+	if strings.HasPrefix(strings.ToUpper(q), "WITH ") {
+		return fmt.Sprintf("%s LIMIT %d", q, maxRows)
+	}
+	return fmt.Sprintf("SELECT * FROM (%s) AS _bichat_export LIMIT %d", q, maxRows)
+}
 
-	// No LIMIT present, add one
-	return fmt.Sprintf("%s LIMIT %d", query, maxRows)
+// trailingLimitRe matches a top-level LIMIT <number> (with optional OFFSET) at the
+// end of a query, avoiding false positives from LIMIT inside subqueries.
+var trailingLimitRe = regexp.MustCompile(`(?i)\bLIMIT\s+\d+(\s+OFFSET\s+\d+)?\s*$`)
+
+// hasTopLevelLimit reports whether q already ends with a LIMIT clause.
+func hasTopLevelLimit(q string) bool {
+	return trailingLimitRe.MatchString(q)
 }

@@ -130,7 +130,14 @@
       "ChatViewSelector": "聊天视图选择",
       "DeleteChat": "删除聊天",
       "FailedToArchiveChat": "归档聊天失败",
-      "FailedToTogglePin": "切换置顶失败"
+      "FailedToTogglePin": "切换置顶失败",
+      "CollapseSidebar": "收起侧边栏",
+      "Collapse": "收起",
+      "ExpandSidebar": "展开侧边栏",
+      "Expand": "展开",
+      "NoChatsFound": "未找到\"{{query}}\"的结果",
+      "Settings": "设置",
+      "MissingPermission": "缺少BiChat权限"
     },
     "Welcome": {
       "QuickStart": "快速入门",
@@ -150,7 +157,8 @@
       "Cancel": "取消",
       "Back": "返回",
       "Close": "关闭",
-      "Pinned": "已置顶"
+      "Pinned": "已置顶",
+      "Creating": "创建中..."
     },
     "Chat": {
       "NewChat": "新聊天",
@@ -268,6 +276,9 @@
     },
     "Alert": {
       "Retry": "重试"
+    },
+    "Layout": {
+      "OpenSidebar": "打开侧边栏"
     },
     "SkipLink": {
       "Label": "跳转到内容"

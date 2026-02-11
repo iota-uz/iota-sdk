@@ -679,7 +679,7 @@
     padding: 0;
     position: fixed;
     inset: 0;
-    overflow: hidden;
+    overflow: clip;
     transition: opacity 500ms var(--ease-3);
   }
 

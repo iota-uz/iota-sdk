@@ -159,12 +159,11 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 			Output: obs.Output,
 		}
 
-		// Set trace name from first user input
+		// Set trace name from first user input (atomic check-and-set).
 		sessionKey := obs.SessionID.String()
-		if !p.state.isTraceNamed(sessionKey) {
-			if inputStr, ok := obs.Input.(string); ok && inputStr != "" {
+		if inputStr, ok := obs.Input.(string); ok && inputStr != "" {
+			if p.state.setTraceNamedIfUnset(sessionKey) {
 				trace.Name = truncateForTraceName(inputStr, 100)
-				p.state.setTraceNamed(sessionKey)
 			}
 		}
 

@@ -167,6 +167,10 @@ type Input struct {
 	// PreviousResponseID is a provider continuity token for multi-turn state.
 	// For OpenAI Responses API this maps to previous_response_id.
 	PreviousResponseID *string
+
+	// isResume is set internally by Resume() so that AgentStartEvent.IsResume
+	// is emitted correctly. Callers should not set this directly.
+	isResume bool
 }
 
 // ExecutorOption configures an Executor.
@@ -181,10 +185,12 @@ func WithCheckpointer(checkpointer Checkpointer) ExecutorOption {
 }
 
 // WithEventBus sets the event bus for observability.
-// If nil, events will not be published.
+// Passing nil is ignored and the default event bus will be kept.
 func WithEventBus(eventBus hooks.EventBus) ExecutorOption {
 	return func(e *Executor) {
-		e.eventBus = eventBus
+		if eventBus != nil {
+			e.eventBus = eventBus
+		}
 	}
 }
 
@@ -351,7 +357,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			input.SessionID,
 			input.TenantID,
 			agentName,
-			false,
+			input.isResume,
 		))
 
 		// Start ReAct loop
@@ -1054,6 +1060,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 			TenantID:           checkpoint.TenantID,
 			ThreadID:           checkpoint.ThreadID,
 			PreviousResponseID: checkpoint.PreviousResponseID,
+			isResume:           true,
 		}
 
 		// Create a new generator that delegates to Execute

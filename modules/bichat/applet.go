@@ -3,7 +3,6 @@ package bichat
 import (
 	"context"
 	"io/fs"
-	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -130,7 +130,7 @@ func (a *BiChatApplet) Config() applets.Config {
 			}
 			cfg := bichatrpc.Router(chatSvc, artifactSvc).Config()
 			// Expose internal error details in development mode.
-			if isDev() {
+			if configuration.Use().IsDev() {
 				t := true
 				cfg.ExposeInternalErrors = &t
 			}
@@ -140,7 +140,7 @@ func (a *BiChatApplet) Config() applets.Config {
 }
 
 func bichatDevAssets() *applets.DevAssetConfig {
-	enabled := isDev()
+	enabled := configuration.Use().IsDev()
 	target := strings.TrimSpace(os.Getenv("IOTA_APPLET_VITE_URL_BICHAT"))
 	if target == "" {
 		target = "http://localhost:5173"
@@ -159,26 +159,6 @@ func bichatDevAssets() *applets.DevAssetConfig {
 		TargetURL:    target,
 		EntryModule:  entry,
 		ClientModule: client,
-	}
-}
-
-// isDev returns true when GO_APP_ENV matches a known development value.
-// Recognized dev values: "development", "dev", "test", "local".
-// Unset GO_APP_ENV defaults to "development" (dev mode).
-// Unrecognized non-empty values are treated as production with a warning.
-func isDev() bool {
-	env := strings.TrimSpace(os.Getenv("GO_APP_ENV"))
-	if env == "" {
-		return true // default to development
-	}
-	switch strings.ToLower(env) {
-	case "development", "dev", "test", "local":
-		return true
-	case "production":
-		return false
-	default:
-		slog.Warn("unrecognized GO_APP_ENV value, treating as production", "GO_APP_ENV", env)
-		return false
 	}
 }
 
