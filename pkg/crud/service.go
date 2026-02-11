@@ -88,21 +88,29 @@ func (s *service[TEntity]) Save(ctx context.Context, entity TEntity) (TEntity, e
 		return zero, errors.Wrap(err, "failed to map entity to field values for saving")
 	}
 
-	var keyFieldVal FieldValue
+	// Extract all key field values for composite key support
+	var keyFieldValues []FieldValue
 	for _, fv := range fieldValues {
 		if fv.Field().Key() {
-			keyFieldVal = fv
-			break
+			keyFieldValues = append(keyFieldValues, fv)
 		}
 	}
-	if keyFieldVal == nil {
+	if len(keyFieldValues) == 0 {
 		return zero, errors.New("missing primary key in entity for save operation")
 	}
 
-	isCreate := keyFieldVal.IsZero()
+	// If any key field is zero, it's a create operation
+	isCreate := false
+	for _, kfv := range keyFieldValues {
+		if kfv.IsZero() {
+			isCreate = true
+			break
+		}
+	}
 
 	if !isCreate {
-		exists, err := s.repository.Exists(ctx, keyFieldVal)
+		// Check existence using all key fields for composite key support
+		exists, err := s.repository.Exists(ctx, keyFieldValues[0], WithKeyValues(keyFieldValues...))
 		if err != nil {
 			return zero, errors.Wrap(err, "service failed to check if entity exists")
 		}
@@ -172,15 +180,19 @@ func (s *service[TEntity]) Save(ctx context.Context, entity TEntity) (TEntity, e
 			if err != nil {
 				return zero, errors.Wrap(err, "ToFieldValues for refetch failed")
 			}
+			// Extract all key fields for composite key support
+			var savedKeyFieldValues []FieldValue
 			for _, fv := range savedFieldValues {
 				if fv.Field().Key() {
-					refetched, err := s.repository.Get(ctx, fv)
-					if err != nil {
-						return zero, errors.Wrap(err, "repository.Get during refetch failed")
-					}
-					savedEntity = refetched
-					break
+					savedKeyFieldValues = append(savedKeyFieldValues, fv)
 				}
+			}
+			if len(savedKeyFieldValues) > 0 {
+				refetched, err := s.repository.Get(ctx, savedKeyFieldValues[0], WithKeyValues(savedKeyFieldValues...))
+				if err != nil {
+					return zero, errors.Wrap(err, "repository.Get during refetch failed")
+				}
+				savedEntity = refetched
 			}
 		}
 	}
@@ -231,11 +243,12 @@ func (s *service[TEntity]) validation(ctx context.Context, entity TEntity) error
 		return errors.Join(errs...)
 	}
 
-	var keyFieldVal FieldValue
+	// Extract all key field values for composite key support
+	var keyFieldValues []FieldValue
 	readonlyFieldValues := make([]FieldValue, 0)
 	for _, fv := range fieldValues {
 		if fv.Field().Key() {
-			keyFieldVal = fv
+			keyFieldValues = append(keyFieldValues, fv)
 		}
 
 		if fv.Field().Readonly() && !fv.Field().Virtual() {
@@ -247,14 +260,23 @@ func (s *service[TEntity]) validation(ctx context.Context, entity TEntity) error
 			}
 		}
 	}
-	if keyFieldVal == nil {
+	if len(keyFieldValues) == 0 {
 		errs = append(errs, errors.New("missing primary key for validation"))
 		return errors.Join(errs...)
 	}
 
-	if !keyFieldVal.IsZero() && len(readonlyFieldValues) > 0 {
+	// Check if any key field is non-zero
+	hasNonZeroKey := false
+	for _, kfv := range keyFieldValues {
+		if !kfv.IsZero() {
+			hasNonZeroKey = true
+			break
+		}
+	}
+
+	if hasNonZeroKey && len(readonlyFieldValues) > 0 {
 		// Check if entity actually exists before validating readonly fields
-		exists, err := s.repository.Exists(ctx, keyFieldVal)
+		exists, err := s.repository.Exists(ctx, keyFieldValues[0], WithKeyValues(keyFieldValues...))
 		if err != nil {
 			errs = append(errs, errors.Wrap(err, "failed to check if entity exists for readonly field validation"))
 			return errors.Join(errs...)
@@ -262,7 +284,7 @@ func (s *service[TEntity]) validation(ctx context.Context, entity TEntity) error
 
 		// Only validate readonly fields if entity exists (update operation)
 		if exists {
-			dbEntity, err := s.repository.Get(ctx, keyFieldVal)
+			dbEntity, err := s.repository.Get(ctx, keyFieldValues[0], WithKeyValues(keyFieldValues...))
 			if err != nil {
 				errs = append(errs, errors.Wrap(err, "failed to retrieve existing entity for readonly field validation"))
 				return errors.Join(errs...)
