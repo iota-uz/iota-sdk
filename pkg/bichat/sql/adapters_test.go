@@ -191,6 +191,92 @@ func TestSchemaLister_CachesViewCounts(t *testing.T) {
 	assert.Equal(t, int64(5), count2, "second call should return cached count, not updated 10")
 }
 
+func TestSchemaLister_CacheExpiresAfterTTL(t *testing.T) {
+	t.Parallel()
+	requirePostgres(t)
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+
+	tenantID, err := composables.UseTenantID(env.Ctx)
+	require.NoError(t, err)
+
+	_, err = env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS analytics`)
+	require.NoError(t, err)
+
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE TABLE _test_ttl_base (
+			id SERIAL PRIMARY KEY,
+			tenant_id UUID NOT NULL,
+			val INT
+		)
+	`)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = env.Pool.Exec(env.Ctx, "DROP VIEW IF EXISTS analytics._test_ttl_view")
+		_, _ = env.Pool.Exec(env.Ctx, "DROP TABLE IF EXISTS _test_ttl_base")
+	}()
+
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE OR REPLACE VIEW analytics._test_ttl_view AS
+		SELECT * FROM _test_ttl_base
+		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
+	`)
+	require.NoError(t, err)
+
+	_, err = env.Pool.Exec(env.Ctx, `
+		INSERT INTO _test_ttl_base (tenant_id, val)
+		SELECT $1, generate_series(1, 3)
+	`, tenantID)
+	require.NoError(t, err)
+
+	executor := infrastructure.NewPostgresQueryExecutor(env.Pool)
+	lister := bichatsql.NewQueryExecutorSchemaLister(executor,
+		bichatsql.WithCountCacheTTL(1*time.Millisecond), // Extremely short TTL
+		bichatsql.WithCacheKeyFunc(func(ctx context.Context) (string, error) {
+			tid, err := composables.UseTenantID(ctx)
+			if err != nil {
+				return "", err
+			}
+			return tid.String(), nil
+		}),
+	)
+
+	// First call populates cache
+	tables1, err := lister.SchemaList(env.Ctx)
+	require.NoError(t, err)
+
+	var count1 int64
+	for _, tbl := range tables1 {
+		if tbl.Name == "_test_ttl_view" {
+			count1 = tbl.RowCount
+			break
+		}
+	}
+	require.Equal(t, int64(3), count1)
+
+	// Insert more rows
+	_, err = env.Pool.Exec(env.Ctx, `
+		INSERT INTO _test_ttl_base (tenant_id, val)
+		SELECT $1, generate_series(4, 7)
+	`, tenantID)
+	require.NoError(t, err)
+
+	// Wait for TTL to expire
+	time.Sleep(5 * time.Millisecond)
+
+	// Second call should fetch fresh data (cache expired)
+	tables2, err := lister.SchemaList(env.Ctx)
+	require.NoError(t, err)
+
+	var count2 int64
+	for _, tbl := range tables2 {
+		if tbl.Name == "_test_ttl_view" {
+			count2 = tbl.RowCount
+			break
+		}
+	}
+	assert.Equal(t, int64(7), count2, "after TTL expiry, cache should refresh and return updated count")
+}
+
 func TestSchemaLister_NoCacheWithoutKeyFunc(t *testing.T) {
 	t.Parallel()
 	requirePostgres(t)

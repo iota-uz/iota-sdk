@@ -12,6 +12,9 @@ import (
 // validIdentifier validates SQL identifiers for safe dynamic query construction.
 var validIdentifier = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
+// maxCacheEntries limits the cache map size; stale entries are evicted when exceeded.
+const maxCacheEntries = 256
+
 // CacheKeyFunc extracts a cache key (typically tenant ID) from context.
 type CacheKeyFunc func(context.Context) (string, error)
 
@@ -120,17 +123,29 @@ func (l *QueryExecutorSchemaLister) SchemaList(ctx context.Context) ([]TableInfo
 
 // getViewCounts returns estimated row counts for views, using cache when available.
 func (l *QueryExecutorSchemaLister) getViewCounts(ctx context.Context, views []string) map[string]int64 {
-	// Try cache first
+	// Compute cache key once to avoid redundant calls and potential inconsistency.
+	var cacheKey string
+	var cacheEnabled bool
 	if l.cacheKeyFunc != nil {
 		key, err := l.cacheKeyFunc(ctx)
 		if err == nil {
-			l.mu.Lock()
-			cached, ok := l.cache[key]
-			l.mu.Unlock()
+			cacheKey = key
+			cacheEnabled = true
+		}
+	}
 
-			if ok && time.Since(cached.fetchedAt) < l.cacheTTL {
-				return cached.counts
-			}
+	// Try cache first
+	if cacheEnabled {
+		l.mu.Lock()
+		cached, ok := l.cache[cacheKey]
+		// Evict stale entries while holding the lock.
+		if len(l.cache) > maxCacheEntries {
+			l.evictStaleLocked()
+		}
+		l.mu.Unlock()
+
+		if ok && time.Since(cached.fetchedAt) < l.cacheTTL {
+			return cached.counts
 		}
 	}
 
@@ -140,16 +155,22 @@ func (l *QueryExecutorSchemaLister) getViewCounts(ctx context.Context, views []s
 	}
 
 	// Store in cache
-	if l.cacheKeyFunc != nil {
-		key, err := l.cacheKeyFunc(ctx)
-		if err == nil {
-			l.mu.Lock()
-			l.cache[key] = &cachedCounts{counts: counts, fetchedAt: time.Now()}
-			l.mu.Unlock()
-		}
+	if cacheEnabled {
+		l.mu.Lock()
+		l.cache[cacheKey] = &cachedCounts{counts: counts, fetchedAt: time.Now()}
+		l.mu.Unlock()
 	}
 
 	return counts
+}
+
+// evictStaleLocked removes entries older than cacheTTL. Must be called with l.mu held.
+func (l *QueryExecutorSchemaLister) evictStaleLocked() {
+	for k, v := range l.cache {
+		if time.Since(v.fetchedAt) >= l.cacheTTL {
+			delete(l.cache, k)
+		}
+	}
 }
 
 // fetchViewCounts runs a batch count(*) query for the given views.
@@ -195,6 +216,12 @@ func parseIntColumn(v any) int64 {
 	case int:
 		return int64(n)
 	case int32:
+		return int64(n)
+	case int16:
+		return int64(n)
+	case int8:
+		return int64(n)
+	case uint64:
 		return int64(n)
 	case float64:
 		return int64(n)
