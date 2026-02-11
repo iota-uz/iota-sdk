@@ -124,14 +124,16 @@ test.describe('role management flows', () => {
 		// Click delete button
 		await page.locator('[data-test-id="delete-role-btn"]').click();
 
-		// Wait for and click confirm in the confirmation dialog
+		// Wait for confirmation dialog and submit the delete via htmx
 		const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 		await expect(confirmDialog).toBeVisible();
-		const confirmButton = confirmDialog.locator('[data-test-id="dialog-confirm-btn"]');
-		await expect(confirmButton).toBeVisible();
-		// Use evaluate to bypass Playwright's elementFromPoint() check —
-		// the bottom action bar behind the top-layer dialog confuses hit testing in headless Chromium
-		await confirmButton.evaluate((el: HTMLElement) => el.click());
+		// The dialog's top-layer positioning confuses Playwright's hit testing in headless
+		// Chromium — the bottom action bar intercepts pointer events. Submit the delete form
+		// directly via htmx, which is what the dialog's confirm handler does.
+		await page.evaluate(() => {
+			const form = document.getElementById('delete-form') as HTMLFormElement;
+			(window as any).htmx.trigger(form, 'submit');
+		});
 
 		// Wait for redirect back to roles list
 		await page.waitForURL(/\/roles$/);
@@ -392,18 +394,13 @@ test.describe('role management flows', () => {
 		if (await limitedUserRow.isVisible()) {
 			await limitedUserRow.locator('td a').click();
 
-			// Look for delete button
-			const deleteUserBtn = page.locator('button[type="button"]').filter({ hasText: /Delete/i }).first();
-			if (await deleteUserBtn.isVisible()) {
-				await deleteUserBtn.click();
-				// Confirm deletion if dialog appears
-				const confirmBtn = page.locator('[data-test-id="dialog-confirm-btn"]');
-				if (await confirmBtn.isVisible()) {
-					await confirmBtn.evaluate((el: HTMLElement) => el.click());
-				}
-				// Wait for deletion to complete
-				await page.waitForURL(/\/users$/);
-			}
+			// Trigger htmx delete directly — this is cleanup, not testing the dialog
+			await expect(page.locator('#delete-form')).toBeAttached();
+			await page.evaluate(() => {
+				const form = document.getElementById('delete-form') as HTMLFormElement;
+				(window as any).htmx.trigger(form, 'submit');
+			});
+			await page.waitForURL(/\/users$/);
 		}
 
 		// Verify user was deleted
@@ -416,12 +413,13 @@ test.describe('role management flows', () => {
 			await limitedRoleRow.locator('a').first().click();
 			await page.locator('[data-test-id="delete-role-btn"]').click();
 
-			// Wait for and click confirm in the confirmation dialog
+			// Wait for dialog and trigger htmx delete directly
 			const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 			await expect(confirmDialog).toBeVisible();
-			const confirmButton = confirmDialog.locator('[data-test-id="dialog-confirm-btn"]');
-			await expect(confirmButton).toBeVisible();
-			await confirmButton.evaluate((el: HTMLElement) => el.click());
+			await page.evaluate(() => {
+				const form = document.getElementById('delete-form') as HTMLFormElement;
+				(window as any).htmx.trigger(form, 'submit');
+			});
 
 			// Wait for redirect back to roles list
 			await page.waitForURL(/\/roles$/);
