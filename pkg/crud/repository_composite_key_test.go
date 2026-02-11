@@ -34,10 +34,10 @@ type compositeKeyEntity struct {
 	email  string
 }
 
-func (e *compositeKeyEntity) OrgID() int              { return e.orgID }
-func (e *compositeKeyEntity) UserID() int             { return e.userID }
-func (e *compositeKeyEntity) Name() string            { return e.name }
-func (e *compositeKeyEntity) Email() string           { return e.email }
+func (e *compositeKeyEntity) OrgID() int    { return e.orgID }
+func (e *compositeKeyEntity) UserID() int   { return e.userID }
+func (e *compositeKeyEntity) Name() string  { return e.name }
+func (e *compositeKeyEntity) Email() string { return e.email }
 func (e *compositeKeyEntity) SetOrgID(id int) CompositeKeyEntity {
 	result := *e
 	result.orgID = id
