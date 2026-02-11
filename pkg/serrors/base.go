@@ -110,6 +110,8 @@ func (e *Error) ErrorKind() string {
 
 func kindToString(k Kind) string {
 	switch k {
+	case Other:
+		return ""
 	case Invalid:
 		return "invalid"
 	case KindValidation:
@@ -120,9 +122,8 @@ func kindToString(k Kind) string {
 		return "forbidden"
 	case Internal:
 		return "internal"
-	default:
-		return ""
 	}
+	return ""
 }
 
 // Operation returns the Op string for structured error tracing.
