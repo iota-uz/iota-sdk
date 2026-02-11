@@ -264,21 +264,28 @@ WORKFLOW GUIDELINES:
 
 SEARCHING BY USER-PROVIDED DATA:
 Users often provide approximate or misspelled names, IDs, or keywords.
-NEVER use exact equality (=) for user-provided text like names, addresses, or free-text identifiers.
-Instead:
+Match strategy depends on the identifier type:
+
+Structured identifiers (UUIDs, order IDs, ISO codes, enum values, and other canonical IDs):
+- ALWAYS use exact equality (=). These are machine-generated and must match precisely.
+
+Soft human-facing identifiers (names, addresses, policy numbers, license plates, nicknames):
 - Use ILIKE with wildcards: WHERE name ILIKE '%ali%'
 - For names, search by parts: WHERE last_name ILIKE '%alibaev%' (ignore first name typos)
-- If available, use similarity(): WHERE similarity(name, 'input') > 0.3 ORDER BY similarity DESC
 - For codes/numbers (policy numbers, license plates), use ILIKE or LIKE with wildcards for partial matches
+- similarity() requires the pg_trgm extension; only use it if the database supports it.
+  Example: WHERE similarity(name, 'input') > 0.3 ORDER BY similarity DESC
+
+General rules:
 - When a query returns 0 rows but the user clearly expects results, try a broader search
 - If you find close but not exact matches, use ask_user_question to confirm: "Did you mean X?"
 - NEVER tell the user "no results found" without first trying at least one broader/fuzzy search
 
 RESOLVE-THEN-QUERY PATTERN:
 When a user refers to an entity by name or partial identifier, first resolve it to a concrete ID:
-1. Search broadly (ILIKE) to find matching records with their IDs
+1. Search broadly (ILIKE/wildcards) to find matching records with their IDs
 2. If multiple matches, use ask_user_question to let the user pick
-3. Once resolved, use the concrete ID (not the name) for all subsequent queries in the conversation
+3. Once resolved, use the concrete ID (exact equality) for all subsequent queries in the conversation
 This avoids repeated fuzzy matching and ensures consistency across follow-up questions.
 
 IMPORTANT CONSTRAINTS:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -161,14 +162,24 @@ func bichatDevAssets() *applets.DevAssetConfig {
 	}
 }
 
-// isDev returns true when GO_APP_ENV is not "production".
-// GO_APP_ENV defaults to "development" when unset.
+// isDev returns true when GO_APP_ENV matches a known development value.
+// Recognized dev values: "development", "dev", "test", "local".
+// Unset GO_APP_ENV defaults to "development" (dev mode).
+// Unrecognized non-empty values are treated as production with a warning.
 func isDev() bool {
 	env := strings.TrimSpace(os.Getenv("GO_APP_ENV"))
 	if env == "" {
-		env = "development"
+		return true // default to development
 	}
-	return env != "production"
+	switch strings.ToLower(env) {
+	case "development", "dev", "test", "local":
+		return true
+	case "production":
+		return false
+	default:
+		slog.Warn("unrecognized GO_APP_ENV value, treating as production", "GO_APP_ENV", env)
+		return false
+	}
 }
 
 // getMiddleware returns the required middleware stack for BiChat.

@@ -532,8 +532,10 @@ func TestEventBridge_HierarchicalNesting(t *testing.T) {
 
 	// Resolve agent span ID from bridge state
 	bridge.mu.RLock()
-	agentSpanID := bridge.agentSpans[sessionID].spanID
+	agentSpan := bridge.agentSpans[sessionID]
 	bridge.mu.RUnlock()
+	require.NotNil(t, agentSpan, "agent span state should exist for session %s", sessionID)
+	agentSpanID := agentSpan.spanID
 
 	// Generation is parented under agent span
 	assert.Equal(t, agentSpanID, gen.ParentID, "generation should be parented under agent span")

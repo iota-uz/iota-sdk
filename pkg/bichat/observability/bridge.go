@@ -132,8 +132,9 @@ func NewEventBridge(eventBus hooks.EventBus, providers []Provider, opts ...Bridg
 		eventBus.SubscribeAll(asyncHandler)
 	}
 
-	// Subscribe to LLMRequestEvent for correlation
+	// Subscribe synchronous handlers for correlation state
 	eventBus.Subscribe(&llmRequestHandler{bridge: bridge}, string(hooks.EventLLMRequest))
+	eventBus.Subscribe(&agentStartHandler{bridge: bridge}, string(hooks.EventAgentStart))
 
 	// Start cleanup goroutine
 	go bridge.cleanupOrphans()
@@ -239,6 +240,28 @@ func (h *llmRequestHandler) Handle(ctx context.Context, event hooks.Event) error
 	return nil
 }
 
+// agentStartHandler initializes agent span state once per AgentStart event.
+// Runs synchronously (not per-provider) so the span ID is deterministic.
+type agentStartHandler struct {
+	bridge *EventBridge
+}
+
+func (h *agentStartHandler) Handle(_ context.Context, event hooks.Event) error {
+	e, ok := event.(*events.AgentStartEvent)
+	if !ok {
+		return nil
+	}
+	h.bridge.mu.Lock()
+	defer h.bridge.mu.Unlock()
+	if _, exists := h.bridge.agentSpans[e.SessionID()]; !exists {
+		h.bridge.agentSpans[e.SessionID()] = &agentSpanState{
+			spanID:    uuid.New().String(),
+			startTime: e.Timestamp(),
+		}
+	}
+	return nil
+}
+
 // providerHandler adapts BiChat events to Provider interface
 type providerHandler struct {
 	provider Provider
@@ -274,16 +297,9 @@ func (h *providerHandler) Handle(ctx context.Context, event hooks.Event) error {
 	}
 }
 
-func (h *providerHandler) handleAgentStart(_ context.Context, e *events.AgentStartEvent) error {
-	// Store agent span state for child nesting; the actual span is created at complete/error time
-	// (same pattern as handleToolStart — no-op to avoid duplicate spans).
-	h.bridge.mu.Lock()
-	h.bridge.agentSpans[e.SessionID()] = &agentSpanState{
-		spanID:    uuid.New().String(),
-		startTime: e.Timestamp(),
-	}
-	h.bridge.mu.Unlock()
-
+func (h *providerHandler) handleAgentStart(_ context.Context, _ *events.AgentStartEvent) error {
+	// No-op: agent span state is initialized by the synchronous agentStartHandler
+	// to avoid N providers writing different span IDs for the same session.
 	return nil
 }
 

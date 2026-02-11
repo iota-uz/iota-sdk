@@ -24,7 +24,8 @@ const DEFAULT_DEDUPE = ['react', 'react-dom', 'react-router-dom', 'react-is']
  * Returns base URL for assets (with trailing slash). Uses APPLET_ASSETS_BASE env if set, otherwise derives from basePath.
  */
 export function getAppletAssetsBase(basePath: string): string {
-  const base = process.env.APPLET_ASSETS_BASE ?? basePath + '/assets/'
+  const normalized = basePath.replace(/\/+$/, '')
+  const base = process.env.APPLET_ASSETS_BASE ?? normalized + '/assets/'
   return base.endsWith('/') ? base : base + '/'
 }
 
