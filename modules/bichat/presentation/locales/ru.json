@@ -226,7 +226,12 @@
       "RenameFailed": "Не удалось переименовать",
       "Delete": "Удалить артефакт",
       "DeleteConfirm": "Удалить загруженный артефакт? Это действие нельзя отменить.",
-      "DeleteFailed": "Не удалось удалить"
+      "DeleteFailed": "Не удалось удалить",
+      "GroupCharts": "Графики",
+      "GroupCodeOutputs": "Результаты кода",
+      "GroupExports": "Экспорты",
+      "GroupAttachments": "Вложения",
+      "GroupOther": "Другое"
     },
     "Input": {
       "Placeholder": "Введите сообщение...",
@@ -311,7 +316,14 @@
       "DebugPolicyMaxContextWindow": "Макс. контекст политики",
       "DebugModelMaxContextWindow": "Макс. контекст модели",
       "DebugEffectiveContextWindow": "Эффективный контекст",
-      "DebugSessionUsageUnavailable": "Использование сеанса недоступно"
+      "DebugSessionUsageUnavailable": "Использование сеанса недоступно",
+      "ErrorNoArguments": "Команды не принимают аргументы",
+      "ErrorDebugUnauthorized": "У вас нет прав для использования режима отладки",
+      "ErrorSessionRequired": "Эта команда требует активную сессию чата",
+      "ErrorClearFailed": "Не удалось очистить разговор",
+      "ErrorCompactFailed": "Не удалось сжать разговор",
+      "ErrorUnknownCommand": "Неизвестная команда",
+      "ErrorNoAttachments": "Команды не поддерживают вложения"
     },
     "DateGroup": {
       "Today": "Сегодня",

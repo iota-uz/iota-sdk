@@ -226,7 +226,12 @@
       "RenameFailed": "Qayta nomlash muvaffaqiyatsiz",
       "Delete": "Artefaktni o'chirish",
       "DeleteConfirm": "Yuklangan artefaktni o'chirish? Bu amalni bekor qilib bo'lmaydi.",
-      "DeleteFailed": "O'chirish muvaffaqiyatsiz"
+      "DeleteFailed": "O'chirish muvaffaqiyatsiz",
+      "GroupCharts": "Grafiklar",
+      "GroupCodeOutputs": "Kod natijalari",
+      "GroupExports": "Eksportlar",
+      "GroupAttachments": "Biriktirmalar",
+      "GroupOther": "Boshqa"
     },
     "Input": {
       "Placeholder": "Xabaringizni kiriting...",
@@ -311,7 +316,14 @@
       "DebugPolicyMaxContextWindow": "Siyosat max kontekst",
       "DebugModelMaxContextWindow": "Model max kontekst",
       "DebugEffectiveContextWindow": "Samarali kontekst",
-      "DebugSessionUsageUnavailable": "Sessiya foydalanishi mavjud emas"
+      "DebugSessionUsageUnavailable": "Sessiya foydalanishi mavjud emas",
+      "ErrorNoArguments": "Buyruqlar argumentlarni qabul qilmaydi",
+      "ErrorDebugUnauthorized": "Nosozlik rejimidan foydalanish uchun ruxsatingiz yo'q",
+      "ErrorSessionRequired": "Bu buyruq faol chat sessiyasini talab qiladi",
+      "ErrorClearFailed": "Suhbatni tozalab bo'lmadi",
+      "ErrorCompactFailed": "Suhbatni qisqartirib bo'lmadi",
+      "ErrorUnknownCommand": "Noma'lum buyruq",
+      "ErrorNoAttachments": "Buyruqlar biriktirmalarni qo'llab-quvvatlamaydi"
     },
     "DateGroup": {
       "Today": "Bugun",

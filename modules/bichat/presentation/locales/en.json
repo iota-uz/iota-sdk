@@ -226,7 +226,12 @@
       "RenameFailed": "Failed to rename artifact",
       "Delete": "Delete artifact",
       "DeleteConfirm": "Delete this uploaded artifact? This action cannot be undone.",
-      "DeleteFailed": "Failed to delete artifact"
+      "DeleteFailed": "Failed to delete artifact",
+      "GroupCharts": "Charts",
+      "GroupCodeOutputs": "Code outputs",
+      "GroupExports": "Exports",
+      "GroupAttachments": "Attachments",
+      "GroupOther": "Other"
     },
     "Input": {
       "Placeholder": "Type your message...",
@@ -311,7 +316,14 @@
       "DebugPolicyMaxContextWindow": "Policy Max Context",
       "DebugModelMaxContextWindow": "Model Max Context",
       "DebugEffectiveContextWindow": "Effective Context",
-      "DebugSessionUsageUnavailable": "Session usage unavailable"
+      "DebugSessionUsageUnavailable": "Session usage unavailable",
+      "ErrorNoArguments": "Slash commands do not accept arguments",
+      "ErrorDebugUnauthorized": "You do not have permission to use debug mode",
+      "ErrorSessionRequired": "This command requires an active chat session",
+      "ErrorClearFailed": "Failed to clear conversation",
+      "ErrorCompactFailed": "Failed to compact conversation",
+      "ErrorUnknownCommand": "Unknown command",
+      "ErrorNoAttachments": "Slash commands do not support attachments"
     },
     "DateGroup": {
       "Today": "Today",
