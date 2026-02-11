@@ -182,26 +182,24 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 	}
 
 	// Emit context.compile event
-	if s.eventBus != nil {
-		// Convert TokensByKind map keys from BlockKind to string
-		tokensByKindStr := make(map[string]int)
-		for kind, tokens := range compiled.TokensByKind {
-			tokensByKindStr[string(kind)] = tokens
-		}
-
-		event := events.NewContextCompileEvent(
-			sessionID,
-			tenantID,
-			s.renderer.Provider(),
-			compiled.TotalTokens,
-			tokensByKindStr,
-			len(compiled.Messages),
-			compiled.Compacted,
-			compiled.Truncated,
-			compiled.ExcludedBlocks,
-		)
-		_ = s.eventBus.Publish(ctx, event)
+	// Convert TokensByKind map keys from BlockKind to string
+	tokensByKindStr := make(map[string]int)
+	for kind, tokens := range compiled.TokensByKind {
+		tokensByKindStr[string(kind)] = tokens
 	}
+
+	event := events.NewContextCompileEvent(
+		sessionID,
+		tenantID,
+		s.renderer.Provider(),
+		compiled.TotalTokens,
+		tokensByKindStr,
+		len(compiled.Messages),
+		compiled.Compacted,
+		compiled.Truncated,
+		compiled.ExcludedBlocks,
+	)
+	_ = s.eventBus.Publish(ctx, event)
 
 	// Use compiled.Messages directly (now canonical []types.Message)
 	executorMessages := compiled.Messages

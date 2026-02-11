@@ -108,7 +108,7 @@
       "SearchChats": "Chatlarni qidirish...",
       "CreateNewChat": "Yangi chat yaratish",
       "ArchivedChats": "Arxivlangan chatlar",
-      "PinnedChats": "Bog'langan chatlar",
+      "PinnedChats": "Biriktirilgan chatlar",
       "NoChatsYet": "Hali chatlar yo'q",
       "CreateOneToGetStarted": "Boshlash uchun bitta yarating!",
       "FailedToLoadSessions": "Sessiyalarni yuklashda xatolik",
@@ -150,7 +150,7 @@
       "Cancel": "Bekor qilish",
       "Back": "Orqaga",
       "Close": "Yopish",
-      "Pinned": "Bog'langan"
+      "Pinned": "Biriktirilgan"
     },
     "Chat": {
       "NewChat": "Yangi chat",

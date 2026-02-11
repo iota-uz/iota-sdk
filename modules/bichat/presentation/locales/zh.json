@@ -180,7 +180,7 @@
       "AllUsers": "所有用户",
       "LoadingUsers": "加载用户...",
       "NoUsersFound": "未找到用户",
-      "FailedToLoad": "加载失败",
+      "FailedToLoad": "加载组织聊天失败",
       "IncludeArchived": "包含已归档",
       "OrganizationChats": "组织聊天",
       "OrganizationChatSessions": "组织聊天会话",
