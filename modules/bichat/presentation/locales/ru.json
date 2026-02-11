@@ -231,7 +231,9 @@
       "GroupCodeOutputs": "Результаты кода",
       "GroupExports": "Экспорты",
       "GroupAttachments": "Вложения",
-      "GroupOther": "Другое"
+      "GroupOther": "Другое",
+      "EmptyHint": "Перетащите файлы сюда или нажмите кнопку прикрепления",
+      "AttachFiles": "Прикрепить файлы"
     },
     "Input": {
       "Placeholder": "Введите сообщение...",

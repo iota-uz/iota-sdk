@@ -231,7 +231,9 @@
       "GroupCodeOutputs": "代码输出",
       "GroupExports": "导出",
       "GroupAttachments": "附件",
-      "GroupOther": "其他"
+      "GroupOther": "其他",
+      "EmptyHint": "将文件拖放到此处或使用附加按钮",
+      "AttachFiles": "附加文件"
     },
     "Input": {
       "Placeholder": "输入您的消息...",

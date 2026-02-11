@@ -231,7 +231,9 @@
       "GroupCodeOutputs": "Code outputs",
       "GroupExports": "Exports",
       "GroupAttachments": "Attachments",
-      "GroupOther": "Other"
+      "GroupOther": "Other",
+      "EmptyHint": "Drag and drop files here or use the attach button",
+      "AttachFiles": "Attach files"
     },
     "Input": {
       "Placeholder": "Type your message...",

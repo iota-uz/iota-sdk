@@ -231,7 +231,9 @@
       "GroupCodeOutputs": "Kod natijalari",
       "GroupExports": "Eksportlar",
       "GroupAttachments": "Biriktirmalar",
-      "GroupOther": "Boshqa"
+      "GroupOther": "Boshqa",
+      "EmptyHint": "Fayllarni bu yerga tashlang yoki biriktirish tugmasini bosing",
+      "AttachFiles": "Fayllarni biriktirish"
     },
     "Input": {
       "Placeholder": "Xabaringizni kiriting...",
