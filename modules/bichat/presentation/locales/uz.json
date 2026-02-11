@@ -117,8 +117,8 @@
       "TitleRegenerated": "Sarlavha qayta yaratildi",
       "FailedToRegenerateTitle": "Sarlavhani qayta yaratishda xatolik",
       "ChatOptions": "Chat parametrlari",
-      "PinChat": "Chatni bog'lash",
-      "UnpinChat": "Chatni bog'lamaslik",
+      "PinChat": "Chatni biriktirish",
+      "UnpinChat": "Chatni ajratish",
       "RenameChat": "Chatni qayta nomlash",
       "RegenerateTitle": "Sarlavhani qayta yaratish",
       "ArchiveChat": "Chatni arxivlash",
@@ -130,7 +130,14 @@
       "ChatViewSelector": "Chat ko'rinishini tanlash",
       "DeleteChat": "Chatni o'chirish",
       "FailedToArchiveChat": "Chatni arxivlashda xatolik",
-      "FailedToTogglePin": "Biriktirishni o'zgartirishda xatolik"
+      "FailedToTogglePin": "Biriktirishni o'zgartirishda xatolik",
+      "CollapseSidebar": "Yon panelni yig'ish",
+      "Collapse": "Yig'ish",
+      "ExpandSidebar": "Yon panelni ochish",
+      "Expand": "Ochish",
+      "NoChatsFound": "\"{{query}}\" bo'yicha natija topilmadi",
+      "Settings": "Sozlamalar",
+      "MissingPermission": "BiChat uchun ruxsat yo'q"
     },
     "Welcome": {
       "QuickStart": "Tezkor boshlash",
@@ -144,13 +151,14 @@
     },
     "Common": {
       "Loading": "Yuklanmoqda...",
-      "Generating": "Yaratilmoqda...",
+      "Generating": "Hosil qilinmoqda...",
       "Untitled": "Nomsiz chat",
       "Clear": "Qidiruvni tozalash",
       "Cancel": "Bekor qilish",
       "Back": "Orqaga",
       "Close": "Yopish",
-      "Pinned": "Biriktirilgan"
+      "Pinned": "Biriktirilgan",
+      "Creating": "Yaratilmoqda..."
     },
     "Chat": {
       "NewChat": "Yangi chat",
@@ -268,6 +276,9 @@
     },
     "Alert": {
       "Retry": "Qayta urinish"
+    },
+    "Layout": {
+      "OpenSidebar": "Yon panelni ochish"
     },
     "SkipLink": {
       "Label": "Kontentga o'tish"

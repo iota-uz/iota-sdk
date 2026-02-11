@@ -76,8 +76,8 @@ func MustLocalize(localizer *i18n.Localizer, cfg *i18n.LocalizeConfig) string {
 		if cfg != nil {
 			msgID = cfg.MessageID
 		}
-		panic(fmt.Sprintf("i18n missing translation: message_id=%q callsite=%s:%d hint=missing or not a leaf string (e.g. parent/category key) remediation=\"run: go test ./... -run TestI18nRequiredKeys or add the key to locale files\"",
-			msgID, file, line))
+		panic(fmt.Sprintf("i18n missing translation: message_id=%q callsite=%s:%d error=%q hint=missing or not a leaf string (e.g. parent/category key) remediation=\"run: go test ./... -run TestI18nRequiredKeys or add the key to locale files\"",
+			msgID, file, line, err))
 	}
 	return s
 }

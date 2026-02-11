@@ -470,6 +470,12 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 func convertToHistoryPayload(messages []types.Message) codecs.ConversationHistoryPayload {
 	historyMessages := make([]codecs.ConversationMessage, 0, len(messages))
 	for _, msg := range messages {
+		// Skip messages with empty content (e.g., HITL question messages)
+		// These messages have question_data in the database but should not
+		// be included in the conversation history sent to the LLM
+		if msg.Content() == "" {
+			continue
+		}
 		historyMessages = append(historyMessages, codecs.ConversationMessage{
 			Role:    string(msg.Role()),
 			Content: msg.Content(),

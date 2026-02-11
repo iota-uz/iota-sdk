@@ -82,18 +82,17 @@ func (s *state) getSpanID(spanID string) string {
 	return s.spanIDs[spanID]
 }
 
-// isTraceNamed returns whether a trace has already been named.
-func (s *state) isTraceNamed(sessionID string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.traceNamed[sessionID]
-}
-
-// setTraceNamed marks a trace as having been named.
-func (s *state) setTraceNamed(sessionID string) {
+// setTraceNamedIfUnset atomically checks whether a trace has been named and, if not,
+// marks it as named. Returns true if this call performed the set (i.e., the trace was
+// not previously named), false if it was already named.
+func (s *state) setTraceNamedIfUnset(sessionID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.traceNamed[sessionID] {
+		return false
+	}
 	s.traceNamed[sessionID] = true
+	return true
 }
 
 // clear removes all state (useful for testing or reset scenarios).

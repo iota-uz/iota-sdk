@@ -130,7 +130,14 @@
       "ChatViewSelector": "Chat view selector",
       "DeleteChat": "Delete Chat",
       "FailedToArchiveChat": "Failed to archive chat",
-      "FailedToTogglePin": "Failed to toggle pin"
+      "FailedToTogglePin": "Failed to toggle pin",
+      "CollapseSidebar": "Collapse sidebar",
+      "Collapse": "Collapse",
+      "ExpandSidebar": "Expand sidebar",
+      "Expand": "Expand",
+      "NoChatsFound": "No results for \"{{query}}\"",
+      "Settings": "Settings",
+      "MissingPermission": "Missing permission for BiChat"
     },
     "Welcome": {
       "QuickStart": "Quick Start",
@@ -150,7 +157,8 @@
       "Cancel": "Cancel",
       "Back": "Back",
       "Close": "Close",
-      "Pinned": "Pinned"
+      "Pinned": "Pinned",
+      "Creating": "Creating..."
     },
     "Chat": {
       "NewChat": "New Chat",
@@ -268,6 +276,9 @@
     },
     "Alert": {
       "Retry": "Retry"
+    },
+    "Layout": {
+      "OpenSidebar": "Open sidebar"
     },
     "SkipLink": {
       "Label": "Skip to content"

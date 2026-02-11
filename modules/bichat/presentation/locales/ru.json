@@ -130,7 +130,14 @@
       "ChatViewSelector": "Выбор представления чатов",
       "DeleteChat": "Удалить чат",
       "FailedToArchiveChat": "Не удалось архивировать чат",
-      "FailedToTogglePin": "Не удалось изменить закрепление"
+      "FailedToTogglePin": "Не удалось изменить закрепление",
+      "CollapseSidebar": "Свернуть боковую панель",
+      "Collapse": "Свернуть",
+      "ExpandSidebar": "Развернуть боковую панель",
+      "Expand": "Развернуть",
+      "NoChatsFound": "Нет результатов для \"{{query}}\"",
+      "Settings": "Настройки",
+      "MissingPermission": "Нет разрешения для BiChat"
     },
     "Welcome": {
       "QuickStart": "Быстрый старт",
@@ -150,7 +157,8 @@
       "Cancel": "Отмена",
       "Back": "Назад",
       "Close": "Закрыть",
-      "Pinned": "Закреплено"
+      "Pinned": "Закреплено",
+      "Creating": "Создание..."
     },
     "Chat": {
       "NewChat": "Новый чат",
@@ -268,6 +276,9 @@
     },
     "Alert": {
       "Retry": "Повторить"
+    },
+    "Layout": {
+      "OpenSidebar": "Открыть боковую панель"
     },
     "SkipLink": {
       "Label": "Перейти к содержимому"

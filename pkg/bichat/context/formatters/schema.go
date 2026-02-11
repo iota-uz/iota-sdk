@@ -27,10 +27,10 @@ func (f *SchemaListFormatter) Format(payload any, opts types.FormatOptions) (str
 
 	// Header
 	if p.HasAccess {
-		b.WriteString("| # | Table | ~Rows | Access | Description |\n")
+		b.WriteString("| # | Table | Est. Rows | Access | Description |\n")
 		b.WriteString("| --- | --- | --- | --- | --- |\n")
 	} else {
-		b.WriteString("| # | Table | ~Rows | Description |\n")
+		b.WriteString("| # | Table | Est. Rows | Description |\n")
 		b.WriteString("| --- | --- | --- | --- |\n")
 	}
 
@@ -38,12 +38,7 @@ func (f *SchemaListFormatter) Format(payload any, opts types.FormatOptions) (str
 	maxCell := opts.MaxCellWidth
 	for i, table := range p.Tables {
 		b.WriteString(fmt.Sprintf("| %d | %s | ", i+1, EscapeMarkdownCell(table.Name, maxCell)))
-
-		if table.RowCount > 0 {
-			b.WriteString(fmt.Sprintf("~%d | ", table.RowCount))
-		} else {
-			b.WriteString("- | ")
-		}
+		b.WriteString(abbreviateCount(table.RowCount) + " | ")
 
 		if p.HasAccess {
 			if i < len(p.ViewInfos) {
@@ -132,4 +127,41 @@ func (f *SchemaDescribeFormatter) Format(payload any, opts types.FormatOptions) 
 	b.WriteString(fmt.Sprintf("\n%d column(s)", len(p.Columns)))
 
 	return b.String(), nil
+}
+
+// abbreviateCount formats a row count as a human-friendly estimate.
+//
+//	0 → "-", 54 → "~50", 1234 → "~1.2K", 54000 → "~54K", 1243230 → "~1.2M"
+func abbreviateCount(n int64) string {
+	if n <= 0 {
+		return "-"
+	}
+	switch {
+	case n < 100:
+		rounded := (n / 10) * 10
+		if rounded == 0 {
+			rounded = n
+		}
+		return fmt.Sprintf("~%d", rounded)
+	case n < 1_000:
+		return fmt.Sprintf("~%d", (n/100)*100)
+	case n < 10_000:
+		whole := n / 1_000
+		frac := (n % 1_000) / 100
+		if frac > 0 {
+			return fmt.Sprintf("~%d.%dK", whole, frac)
+		}
+		return fmt.Sprintf("~%dK", whole)
+	case n < 1_000_000:
+		return fmt.Sprintf("~%dK", n/1_000)
+	case n < 10_000_000:
+		whole := n / 1_000_000
+		frac := (n % 1_000_000) / 100_000
+		if frac > 0 {
+			return fmt.Sprintf("~%d.%dM", whole, frac)
+		}
+		return fmt.Sprintf("~%dM", whole)
+	default:
+		return fmt.Sprintf("~%dM", n/1_000_000)
+	}
 }
