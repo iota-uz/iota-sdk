@@ -257,7 +257,12 @@
       "DismissError": "Закрыть ошибку",
       "ShiftEnterHint": "Shift+Enter для новой строки",
       "FileInput": "Выбор файла",
-      "MessageInput": "Ввод сообщения"
+      "MessageInput": "Ввод сообщения",
+      "MessagesQueued": "{{count}} в очереди",
+      "QueueFull": "Очередь заполнена (макс. 5 сообщений)",
+      "QueuedMessages": "{{count}} в очереди",
+      "EditQueueItem": "Редактировать сообщение в очереди",
+      "RemoveQueueItem": "Удалить из очереди"
     },
     "Assistant": {
       "Explanation": "Объяснение"

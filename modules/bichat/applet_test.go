@@ -47,7 +47,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 	config := bichatApplet.Config()
 
 	t.Run("WindowGlobal", func(t *testing.T) {
-		assert.Equal(t, "__BICHAT_CONTEXT__", config.WindowGlobal)
+		assert.Equal(t, "__APPLET_CONTEXT__", config.WindowGlobal)
 	})
 
 	t.Run("Endpoints", func(t *testing.T) {

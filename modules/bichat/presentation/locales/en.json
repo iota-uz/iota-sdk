@@ -257,7 +257,12 @@
       "DismissError": "Dismiss error",
       "ShiftEnterHint": "Shift+Enter for new line",
       "FileInput": "File input",
-      "MessageInput": "Message input"
+      "MessageInput": "Message input",
+      "MessagesQueued": "{{count}} queued",
+      "QueueFull": "Queue is full (max 5 messages)",
+      "QueuedMessages": "{{count}} queued",
+      "EditQueueItem": "Edit queued message",
+      "RemoveQueueItem": "Remove from queue"
     },
     "Assistant": {
       "Explanation": "Explanation"

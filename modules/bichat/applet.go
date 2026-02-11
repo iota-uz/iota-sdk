@@ -71,8 +71,8 @@ func (a *BiChatApplet) BasePath() string {
 func (a *BiChatApplet) Config() applets.Config {
 	return applets.Config{
 		// WindowGlobal specifies the JavaScript global variable for context injection
-		// Creates: window.__BICHAT_CONTEXT__ = { user, tenant, locale, config, ... }
-		WindowGlobal: "__BICHAT_CONTEXT__",
+		// Creates: window.__APPLET_CONTEXT__ = { user, tenant, locale, config, ... }
+		WindowGlobal: "__APPLET_CONTEXT__",
 
 		// Endpoints configures API endpoint paths
 		Endpoints: applets.EndpointConfig{

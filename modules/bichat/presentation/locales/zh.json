@@ -257,7 +257,12 @@
       "DismissError": "关闭错误",
       "ShiftEnterHint": "Shift+Enter换行",
       "FileInput": "文件输入",
-      "MessageInput": "消息输入"
+      "MessageInput": "消息输入",
+      "MessagesQueued": "{{count}}条排队中",
+      "QueueFull": "队列已满（最多5条消息）",
+      "QueuedMessages": "{{count}}条排队中",
+      "EditQueueItem": "编辑排队消息",
+      "RemoveQueueItem": "从队列中移除"
     },
     "Assistant": {
       "Explanation": "解释"

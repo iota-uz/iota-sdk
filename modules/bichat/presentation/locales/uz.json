@@ -257,7 +257,12 @@
       "DismissError": "Xatoni yopish",
       "ShiftEnterHint": "Yangi qator uchun Shift+Enter",
       "FileInput": "Fayl tanlash",
-      "MessageInput": "Xabar kiritish"
+      "MessageInput": "Xabar kiritish",
+      "MessagesQueued": "{{count}} navbatda",
+      "QueueFull": "Navbat to'ldi (maks. 5 xabar)",
+      "QueuedMessages": "{{count}} navbatda",
+      "EditQueueItem": "Navbatdagi xabarni tahrirlash",
+      "RemoveQueueItem": "Navbatdan olib tashlash"
     },
     "Assistant": {
       "Explanation": "Tushuntirish"
