@@ -135,7 +135,9 @@
       "Collapse": "Yig'ish",
       "ExpandSidebar": "Yon panelni ochish",
       "Expand": "Ochish",
-      "NoChatsFound": "\"{{query}}\" bo'yicha natija topilmadi"
+      "NoChatsFound": "\"{{query}}\" bo'yicha natija topilmadi",
+      "Settings": "Sozlamalar",
+      "MissingPermission": "BiChat uchun ruxsat yo'q"
     },
     "Welcome": {
       "QuickStart": "Tezkor boshlash",
@@ -155,7 +157,8 @@
       "Cancel": "Bekor qilish",
       "Back": "Orqaga",
       "Close": "Yopish",
-      "Pinned": "Biriktirilgan"
+      "Pinned": "Biriktirilgan",
+      "Creating": "Yaratilmoqda..."
     },
     "Chat": {
       "NewChat": "Yangi chat",
@@ -273,6 +276,9 @@
     },
     "Alert": {
       "Retry": "Qayta urinish"
+    },
+    "Layout": {
+      "OpenSidebar": "Yon panelni ochish"
     },
     "SkipLink": {
       "Label": "Kontentga o'tish"

@@ -135,7 +135,9 @@
       "Collapse": "Свернуть",
       "ExpandSidebar": "Развернуть боковую панель",
       "Expand": "Развернуть",
-      "NoChatsFound": "Нет результатов для \"{{query}}\""
+      "NoChatsFound": "Нет результатов для \"{{query}}\"",
+      "Settings": "Настройки",
+      "MissingPermission": "Нет разрешения для BiChat"
     },
     "Welcome": {
       "QuickStart": "Быстрый старт",
@@ -155,7 +157,8 @@
       "Cancel": "Отмена",
       "Back": "Назад",
       "Close": "Закрыть",
-      "Pinned": "Закреплено"
+      "Pinned": "Закреплено",
+      "Creating": "Создание..."
     },
     "Chat": {
       "NewChat": "Новый чат",
@@ -273,6 +276,9 @@
     },
     "Alert": {
       "Retry": "Повторить"
+    },
+    "Layout": {
+      "OpenSidebar": "Открыть боковую панель"
     },
     "SkipLink": {
       "Label": "Перейти к содержимому"
