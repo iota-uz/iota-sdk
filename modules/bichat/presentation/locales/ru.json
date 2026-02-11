@@ -318,7 +318,6 @@
       "DebugEffectiveContextWindow": "Эффективный контекст",
       "DebugSessionUsageUnavailable": "Использование сеанса недоступно",
       "ErrorNoArguments": "Команды не принимают аргументы",
-      "ErrorDebugUnauthorized": "У вас нет прав для использования режима отладки",
       "ErrorSessionRequired": "Эта команда требует активную сессию чата",
       "ErrorClearFailed": "Не удалось очистить разговор",
       "ErrorCompactFailed": "Не удалось сжать разговор",

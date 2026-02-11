@@ -318,7 +318,6 @@
       "DebugEffectiveContextWindow": "Effective Context",
       "DebugSessionUsageUnavailable": "Session usage unavailable",
       "ErrorNoArguments": "Slash commands do not accept arguments",
-      "ErrorDebugUnauthorized": "You do not have permission to use debug mode",
       "ErrorSessionRequired": "This command requires an active chat session",
       "ErrorClearFailed": "Failed to clear conversation",
       "ErrorCompactFailed": "Failed to compact conversation",

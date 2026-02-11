@@ -318,7 +318,6 @@
       "DebugEffectiveContextWindow": "有效上下文",
       "DebugSessionUsageUnavailable": "会话使用情况不可用",
       "ErrorNoArguments": "命令不接受参数",
-      "ErrorDebugUnauthorized": "您没有使用调试模式的权限",
       "ErrorSessionRequired": "此命令需要活跃的聊天会话",
       "ErrorClearFailed": "清除对话失败",
       "ErrorCompactFailed": "压缩对话失败",

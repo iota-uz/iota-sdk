@@ -318,7 +318,6 @@
       "DebugEffectiveContextWindow": "Samarali kontekst",
       "DebugSessionUsageUnavailable": "Sessiya foydalanishi mavjud emas",
       "ErrorNoArguments": "Buyruqlar argumentlarni qabul qilmaydi",
-      "ErrorDebugUnauthorized": "Nosozlik rejimidan foydalanish uchun ruxsatingiz yo'q",
       "ErrorSessionRequired": "Bu buyruq faol chat sessiyasini talab qiladi",
       "ErrorClearFailed": "Suhbatni tozalab bo'lmadi",
       "ErrorCompactFailed": "Suhbatni qisqartirib bo'lmadi",
