@@ -130,7 +130,12 @@
       "ChatViewSelector": "Выбор представления чатов",
       "DeleteChat": "Удалить чат",
       "FailedToArchiveChat": "Не удалось архивировать чат",
-      "FailedToTogglePin": "Не удалось изменить закрепление"
+      "FailedToTogglePin": "Не удалось изменить закрепление",
+      "CollapseSidebar": "Свернуть боковую панель",
+      "Collapse": "Свернуть",
+      "ExpandSidebar": "Развернуть боковую панель",
+      "Expand": "Развернуть",
+      "NoChatsFound": "Нет результатов для \"{{query}}\""
     },
     "Welcome": {
       "QuickStart": "Быстрый старт",

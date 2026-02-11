@@ -1,7 +1,9 @@
 package agents
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
@@ -9,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -149,7 +152,10 @@ func NewDefaultBIAgent(
 	}
 
 	// Create schema adapters using the query executor
-	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor)
+	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor,
+		bichatsql.WithCountCacheTTL(10*time.Minute),
+		bichatsql.WithCacheKeyFunc(tenantCacheKey),
+	)
 	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor)
 
 	// Build core tools list with optional view access control
@@ -489,6 +495,15 @@ SUGGESTED ANALYSIS:
 	default:
 		return ""
 	}
+}
+
+// tenantCacheKey extracts the tenant ID from context as a cache key string.
+func tenantCacheKey(ctx context.Context) (string, error) {
+	tid, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return "", err
+	}
+	return tid.String(), nil
 }
 
 // DefaultBISystemPromptOpts configures which optional sections are included in the default BI system prompt.

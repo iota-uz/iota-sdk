@@ -233,18 +233,10 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
-// applyRowLimit adds or enforces a LIMIT clause to the query.
-// If the query already has a LIMIT, it's capped at maxRows.
+// applyRowLimit wraps the query as a subquery and applies an outer LIMIT.
+// This safely handles queries that already contain LIMIT/OFFSET clauses.
 func applyRowLimit(query string, maxRows int) string {
-	normalized := strings.ToUpper(strings.TrimSpace(query))
-
-	// Check if query already has a LIMIT
-	if strings.Contains(normalized, "LIMIT") {
-		// Parse existing limit and cap if necessary
-		// For simplicity, just append our limit - PostgreSQL will use the smaller one
-		return fmt.Sprintf("%s LIMIT %d", query, maxRows)
-	}
-
-	// No LIMIT present, add one
-	return fmt.Sprintf("%s LIMIT %d", query, maxRows)
+	q := strings.TrimSpace(query)
+	q = strings.TrimRight(q, ";")
+	return fmt.Sprintf("SELECT * FROM (%s) AS _bichat_export LIMIT %d", q, maxRows)
 }

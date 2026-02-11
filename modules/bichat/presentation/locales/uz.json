@@ -130,7 +130,12 @@
       "ChatViewSelector": "Chat ko'rinishini tanlash",
       "DeleteChat": "Chatni o'chirish",
       "FailedToArchiveChat": "Chatni arxivlashda xatolik",
-      "FailedToTogglePin": "Biriktirishni o'zgartirishda xatolik"
+      "FailedToTogglePin": "Biriktirishni o'zgartirishda xatolik",
+      "CollapseSidebar": "Yon panelni yig'ish",
+      "Collapse": "Yig'ish",
+      "ExpandSidebar": "Yon panelni ochish",
+      "Expand": "Ochish",
+      "NoChatsFound": "\"{{query}}\" bo'yicha natija topilmadi"
     },
     "Welcome": {
       "QuickStart": "Tezkor boshlash",

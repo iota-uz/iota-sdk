@@ -130,7 +130,12 @@
       "ChatViewSelector": "聊天视图选择",
       "DeleteChat": "删除聊天",
       "FailedToArchiveChat": "归档聊天失败",
-      "FailedToTogglePin": "切换置顶失败"
+      "FailedToTogglePin": "切换置顶失败",
+      "CollapseSidebar": "收起侧边栏",
+      "Collapse": "收起",
+      "ExpandSidebar": "展开侧边栏",
+      "Expand": "展开",
+      "NoChatsFound": "未找到\"{{query}}\"的结果"
     },
     "Welcome": {
       "QuickStart": "快速入门",

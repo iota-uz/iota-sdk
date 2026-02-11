@@ -130,7 +130,12 @@
       "ChatViewSelector": "Chat view selector",
       "DeleteChat": "Delete Chat",
       "FailedToArchiveChat": "Failed to archive chat",
-      "FailedToTogglePin": "Failed to toggle pin"
+      "FailedToTogglePin": "Failed to toggle pin",
+      "CollapseSidebar": "Collapse sidebar",
+      "Collapse": "Collapse",
+      "ExpandSidebar": "Expand sidebar",
+      "Expand": "Expand",
+      "NoChatsFound": "No results for \"{{query}}\""
     },
     "Welcome": {
       "QuickStart": "Quick Start",

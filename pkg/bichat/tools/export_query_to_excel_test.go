@@ -284,19 +284,25 @@ func TestApplyRowLimit(t *testing.T) {
 			name:     "no existing limit",
 			query:    "SELECT * FROM test",
 			maxRows:  1000,
-			expected: "SELECT * FROM test LIMIT 1000",
+			expected: "SELECT * FROM (SELECT * FROM test) AS _bichat_export LIMIT 1000",
 		},
 		{
 			name:     "existing limit",
 			query:    "SELECT * FROM test LIMIT 500",
 			maxRows:  1000,
-			expected: "SELECT * FROM test LIMIT 500 LIMIT 1000",
+			expected: "SELECT * FROM (SELECT * FROM test LIMIT 500) AS _bichat_export LIMIT 1000",
 		},
 		{
 			name:     "with where clause",
 			query:    "SELECT * FROM test WHERE id > 10",
 			maxRows:  50000,
-			expected: "SELECT * FROM test WHERE id > 10 LIMIT 50000",
+			expected: "SELECT * FROM (SELECT * FROM test WHERE id > 10) AS _bichat_export LIMIT 50000",
+		},
+		{
+			name:     "strips trailing semicolon",
+			query:    "SELECT * FROM test;",
+			maxRows:  1000,
+			expected: "SELECT * FROM (SELECT * FROM test) AS _bichat_export LIMIT 1000",
 		},
 	}
 
