@@ -190,7 +190,11 @@ func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
 			// Get app from context (added by global middleware)
 			app, err := application.UseApp(r.Context())
 			if err != nil {
-				panic("app not found in context - ensure middleware.Provide(constants.AppKey, app) runs first")
+				configuration.Use().Logger().
+					WithError(err).
+					Error("BiChat applet localizer middleware missing app in request context")
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
 			}
 
 			// Create the ProvideLocalizer middleware dynamically

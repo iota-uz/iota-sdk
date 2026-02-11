@@ -2,7 +2,6 @@ package agents
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -121,7 +120,8 @@ func WithInsightPrompting(depth string) BIAgentOption {
 			"detailed": true,
 		}
 		if !validDepths[depth] {
-			panic(fmt.Sprintf("invalid insight depth: %s (must be one of: \"\", \"brief\", \"standard\", \"detailed\")", depth))
+			a.insightDepth = ""
+			return
 		}
 		a.insightDepth = depth
 	}

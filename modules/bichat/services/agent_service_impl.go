@@ -67,8 +67,9 @@ type AgentServiceConfig struct {
 //	    SchemaMetadata: schemaProvider, // Optional for table metadata
 //	})
 func NewAgentService(cfg AgentServiceConfig) services.AgentService {
-	if cfg.EventBus == nil {
-		panic("AgentServiceConfig.EventBus is required")
+	eventBus := cfg.EventBus
+	if eventBus == nil {
+		eventBus = hooks.NewEventBus()
 	}
 	return &agentServiceImpl{
 		agent:                  cfg.Agent,
@@ -76,7 +77,7 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 		policy:                 cfg.Policy,
 		renderer:               cfg.Renderer,
 		checkpointer:           cfg.Checkpointer,
-		eventBus:               cfg.EventBus,
+		eventBus:               eventBus,
 		chatRepo:               cfg.ChatRepo,
 		agentRegistry:          cfg.AgentRegistry,
 		schemaMetadata:         cfg.SchemaMetadata,

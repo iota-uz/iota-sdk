@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -27,6 +28,8 @@ type StreamController struct {
 	attachmentService bichatservices.AttachmentService
 	opts              ControllerOptions
 }
+
+const maxStreamRequestBodyBytes int64 = 32 << 20 // 32 MiB
 
 // NewStreamController creates a new stream controller.
 func NewStreamController(
@@ -113,7 +116,20 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req streamRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxStreamRequestBodyBytes)
+	defer func() { _ = r.Body.Close() }()
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "Request too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}

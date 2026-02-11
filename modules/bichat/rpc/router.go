@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -17,7 +18,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 	r := applets.NewTypedRPCRouter()
 	mustAdd := func(err error) {
 		if err != nil {
-			panic(err)
+			configuration.Use().Logger().WithError(err).Error("failed to register BiChat RPC procedure")
 		}
 	}
 	mustAdd(applets.AddProcedure(r, "bichat.ping", applets.Procedure[PingParams, PingResult]{
