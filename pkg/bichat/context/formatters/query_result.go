@@ -1,6 +1,7 @@
 package formatters
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -166,5 +167,21 @@ func formatPreviewValue(v any) string {
 	if v == nil {
 		return "NULL"
 	}
+
+	// Check if value implements json.Marshaler (e.g., pgtype.Numeric)
+	if m, ok := v.(json.Marshaler); ok {
+		if raw, err := m.MarshalJSON(); err == nil {
+			s := string(raw)
+			// Strip surrounding quotes for simple values
+			if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+				return s[1 : len(s)-1]
+			}
+			if s != "null" {
+				return s
+			}
+			return "NULL"
+		}
+	}
+
 	return fmt.Sprint(v)
 }

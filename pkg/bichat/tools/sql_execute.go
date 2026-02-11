@@ -760,7 +760,7 @@ func formatNumeric(v pgtype.Numeric) any {
 
 	raw, err := v.MarshalJSON()
 	if err != nil {
-		return fmt.Sprint(v)
+		return numericToString(v)
 	}
 
 	if string(raw) == "null" {
@@ -780,4 +780,69 @@ func formatNumeric(v pgtype.Numeric) any {
 	}
 
 	return strings.Trim(string(raw), "\"")
+}
+
+// numericToString converts a pgtype.Numeric to a decimal string representation.
+// This is a fallback for when MarshalJSON fails.
+func numericToString(v pgtype.Numeric) string {
+	if !v.Valid {
+		return "NULL"
+	}
+
+	// Handle special cases
+	if v.NaN {
+		return "NaN"
+	}
+	if v.InfinityModifier == pgtype.Infinity {
+		return "Infinity"
+	}
+	if v.InfinityModifier == pgtype.NegativeInfinity {
+		return "-Infinity"
+	}
+
+	// Handle nil Int (shouldn't happen for valid numerics, but be safe)
+	if v.Int == nil {
+		return "0"
+	}
+
+	// Convert Int to string
+	intStr := v.Int.String()
+
+	// Handle zero exponent (integer)
+	if v.Exp == 0 {
+		return intStr
+	}
+
+	// Handle positive exponent (multiply by 10^exp)
+	if v.Exp > 0 {
+		return intStr + strings.Repeat("0", int(v.Exp))
+	}
+
+	// Handle negative exponent (insert decimal point)
+	absExp := int(-v.Exp)
+
+	// Handle negative numbers
+	negative := false
+	if len(intStr) > 0 && intStr[0] == '-' {
+		negative = true
+		intStr = intStr[1:]
+	}
+
+	// If exponent magnitude >= length, we need leading zeros
+	if absExp >= len(intStr) {
+		zeros := strings.Repeat("0", absExp-len(intStr))
+		result := "0." + zeros + intStr
+		if negative {
+			return "-" + result
+		}
+		return result
+	}
+
+	// Insert decimal point
+	decimalPos := len(intStr) - absExp
+	result := intStr[:decimalPos] + "." + intStr[decimalPos:]
+	if negative {
+		return "-" + result
+	}
+	return result
 }
