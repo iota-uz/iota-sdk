@@ -19,7 +19,7 @@
     },
     "Retry": {
       "Title": "Qayta urinish",
-      "Description": "Nimadir xato ketdi. Qayta urinib ko'rmoqchimisiz?",
+      "Subtitle": "Nimadir xato ketdi. Qayta urinib ko'rmoqchimisiz?",
       "Button": "Qayta urinish",
       "Label": "Qayta urinish"
     },
@@ -47,7 +47,7 @@
       "InputNeeded": "Kiritish kerak",
       "Next": "Keyingisi",
       "Back": "Orqaga",
-      "Other": "Boshqa",
+      "OtherOption": "Boshqa",
       "TypeYourAnswer": "Javobingizni yozing...",
       "SelectAllThatApply": "Tegishli barchasini tanlang",
       "Dismiss": "Yopish"
@@ -143,6 +143,7 @@
       "Prompt3Text": "Ma'lumotlarda qanday tendentsiyalarni aniqlash mumkin?"
     },
     "Common": {
+      "Loading": "Yuklanmoqda...",
       "Generating": "Yaratilmoqda...",
       "Untitled": "Nomsiz chat",
       "Clear": "Qidiruvni tozalash",
@@ -170,6 +171,8 @@
       "NoArchivedChats": "Arxivlangan chatlar yo'q",
       "NoArchivedChatsDescription": "Hali arxivlangan chatlaringiz yo'q. Asosiy ro'yxatdan chatni arxivlasangiz, u bu yerda paydo bo'ladi.",
       "NoResults": "Natijalar topilmadi",
+      "NoResultsDescription": "Boshqa qidiruv so'zini sinab ko'ring",
+      "FailedToLoadChats": "Arxivlangan chatlarni yuklashda xatolik",
       "RestoreChat": "Chatni qayta tiklash",
       "RestoreChatMessage": "Ushbu arxivlangan chatni asosiy chat ro'yxatiga qayta tiklash?"
     },
@@ -241,7 +244,7 @@
     "Question": {
       "SelectMulti": "Bir nechta variantni tanlang",
       "SpecifyOther": "Boshqasini kiriting",
-      "Other": "Boshqa"
+      "OtherOption": "Boshqa"
     },
     "QuestionForm": {
       "Title": "Savollar",

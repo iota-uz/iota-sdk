@@ -19,7 +19,7 @@
     },
     "Retry": {
       "Title": "Retry",
-      "Description": "Something went wrong. Would you like to try again?",
+      "Subtitle": "Something went wrong. Would you like to try again?",
       "Button": "Try again",
       "Label": "Retry"
     },
@@ -47,7 +47,7 @@
       "InputNeeded": "Input needed",
       "Next": "Next",
       "Back": "Back",
-      "Other": "Other",
+      "OtherOption": "Other",
       "TypeYourAnswer": "Type your answer...",
       "SelectAllThatApply": "Select all that apply",
       "Dismiss": "Dismiss"
@@ -143,6 +143,7 @@
       "Prompt3Text": "What trends can you identify in the data?"
     },
     "Common": {
+      "Loading": "Loading...",
       "Generating": "Generating...",
       "Untitled": "Untitled Chat",
       "Clear": "Clear search",
@@ -170,6 +171,8 @@
       "NoArchivedChats": "No Archived Chats",
       "NoArchivedChatsDescription": "You don't have any archived chats yet. When you archive a chat from the main list, it will appear here.",
       "NoResults": "No Results",
+      "NoResultsDescription": "Try a different search term",
+      "FailedToLoadChats": "Failed to load archived chats",
       "RestoreChat": "Restore Chat",
       "RestoreChatMessage": "Restore this archived chat to your main chat list?"
     },
@@ -241,7 +244,7 @@
     "Question": {
       "SelectMulti": "Select multiple options",
       "SpecifyOther": "Specify other",
-      "Other": "Other"
+      "OtherOption": "Other"
     },
     "QuestionForm": {
       "Title": "Questions",
