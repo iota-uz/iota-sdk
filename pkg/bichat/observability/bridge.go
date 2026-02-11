@@ -76,7 +76,7 @@ type EventBridge struct {
 	mu                 sync.RWMutex
 	pendingGenerations map[string]*simplePendingGeneration
 	agentSpans         map[uuid.UUID]*agentSpanState // sessionID → agent span state
-	lastGenerationIDs  map[uuid.UUID]string           // sessionID → last generation span ID
+	lastGenerationIDs  map[uuid.UUID]string          // sessionID → last generation span ID
 	cleanupStop        chan struct{}
 	cleanupDone        chan struct{}
 }

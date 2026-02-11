@@ -274,4 +274,3 @@ func TestRegisterDevProxy_502WhenUpstreamReturns502(t *testing.T) {
 
 	require.Equal(t, http.StatusBadGateway, rec.Code, "proxy should pass through upstream 502")
 }
-

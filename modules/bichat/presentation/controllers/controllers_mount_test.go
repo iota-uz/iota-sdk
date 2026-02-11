@@ -19,6 +19,7 @@ import (
 	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
 	bichatdomain "github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	bichathooks "github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	pkgservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	bichattypes "github.com/iota-uz/iota-sdk/pkg/bichat/types"
@@ -114,6 +115,7 @@ func newControllerDeps(t *testing.T) controllerDeps {
 		Policy:       bichatctx.DefaultPolicy(),
 		Renderer:     renderers.NewAnthropicRenderer(),
 		Checkpointer: bichatagents.NewInMemoryCheckpointer(),
+		EventBus:     bichathooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 

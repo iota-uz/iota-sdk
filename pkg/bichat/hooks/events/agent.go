@@ -25,10 +25,10 @@ func NewAgentStartEvent(sessionID, tenantID uuid.UUID, agentName string, isResum
 // Emitted when the ReAct loop finishes normally.
 type AgentCompleteEvent struct {
 	baseEvent
-	AgentName  string // Name of the agent
-	Iterations int    // Number of ReAct loop iterations
-	TotalTokens int   // Accumulated tokens across all LLM calls
-	DurationMs int64  // Total execution duration in milliseconds
+	AgentName   string // Name of the agent
+	Iterations  int    // Number of ReAct loop iterations
+	TotalTokens int    // Accumulated tokens across all LLM calls
+	DurationMs  int64  // Total execution duration in milliseconds
 }
 
 // NewAgentCompleteEvent creates a new AgentCompleteEvent.

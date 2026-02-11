@@ -13,8 +13,16 @@
     "MessagePlaceholder": "Type a message...",
     "SendMessage": "Send Message",
     "Loading": "Loading...",
-    "Error": "Error",
-    "Retry": "Retry",
+    "Error": {
+      "Generic": "An error occurred",
+      "Label": "Error"
+    },
+    "Retry": {
+      "Title": "Retry",
+      "Description": "Something went wrong. Would you like to try again?",
+      "Button": "Try again",
+      "Label": "Retry"
+    },
     "Cancel": "Cancel",
     "Submit": "Submit",
     "Export": "Export",
@@ -74,11 +82,17 @@
       "Copying": "Copying...",
       "Regenerate": "Regenerate response",
       "Regenerating": "Regenerating...",
-      "EditMessage": "Edit message"
+      "EditMessage": "Edit message",
+      "Copy": "Copy",
+      "Copied": "Copied",
+      "Save": "Save",
+      "Cancel": "Cancel"
     },
     "Attachment": {
       "PreviewUnavailable": "Preview unavailable",
-      "Remove": "Remove attachment"
+      "Remove": "Remove attachment",
+      "InvalidFile": "Invalid file",
+      "SelectFiles": "Select files"
     },
     "Image": {
       "Close": "Close",
@@ -88,7 +102,215 @@
       "Next": "Next image"
     },
     "Sidebar": {
-      "ChatHistory": "Chat history"
+      "ChatHistory": "Chat history",
+      "CloseSidebar": "Close sidebar",
+      "ChatSessions": "Chat sessions",
+      "SearchChats": "Search chats...",
+      "CreateNewChat": "Create new chat",
+      "ArchivedChats": "Archived Chats",
+      "PinnedChats": "Pinned chats",
+      "NoChatsYet": "No chats yet",
+      "CreateOneToGetStarted": "Create one to get started!",
+      "FailedToLoadSessions": "Failed to load sessions",
+      "ChatRenamedSuccessfully": "Chat renamed successfully",
+      "FailedToRenameChat": "Failed to rename chat",
+      "TitleRegenerated": "Title regenerated",
+      "FailedToRegenerateTitle": "Failed to regenerate title",
+      "ChatOptions": "Chat options",
+      "PinChat": "Pin Chat",
+      "UnpinChat": "Unpin Chat",
+      "RenameChat": "Rename Chat",
+      "RegenerateTitle": "Regenerate Title",
+      "ArchiveChat": "Archive Chat",
+      "ArchiveChatSession": "Archive Chat Session",
+      "ArchiveChatMessage": "Archive this chat? You can restore it later from the Archived Chats section.",
+      "ArchiveButton": "Archive",
+      "MyChats": "My Chats",
+      "AllChats": "All Chats",
+      "ChatViewSelector": "Chat view selector",
+      "DeleteChat": "Delete Chat",
+      "FailedToArchiveChat": "Failed to archive chat",
+      "FailedToTogglePin": "Failed to toggle pin"
+    },
+    "Welcome": {
+      "QuickStart": "Quick Start",
+      "Disclaimer": "Powered by AI. Mistakes are possible.",
+      "Prompt1Category": "Data Analysis",
+      "Prompt1Text": "Show me a summary of key metrics",
+      "Prompt2Category": "Reports",
+      "Prompt2Text": "Generate a report for the current period",
+      "Prompt3Category": "Insights",
+      "Prompt3Text": "What trends can you identify in the data?"
+    },
+    "Common": {
+      "Generating": "Generating...",
+      "Untitled": "Untitled Chat",
+      "Clear": "Clear search",
+      "Cancel": "Cancel",
+      "Back": "Back",
+      "Close": "Close",
+      "Pinned": "Pinned"
+    },
+    "Chat": {
+      "NewChat": "New Chat",
+      "GoBack": "Go back",
+      "Pinned": "Pinned",
+      "ReadOnly": "Read-only",
+      "Archived": "Archived",
+      "Retry": "Retry",
+      "DismissNotification": "Dismiss notification"
+    },
+    "Archived": {
+      "RestoreButton": "Restore",
+      "ChatRestoredSuccessfully": "Chat restored successfully",
+      "FailedToRestoreChat": "Failed to restore chat",
+      "BackToChats": "Back to chats",
+      "Title": "Archived Chats",
+      "SearchArchivedChats": "Search archived chats...",
+      "NoArchivedChats": "No Archived Chats",
+      "NoArchivedChatsDescription": "You don't have any archived chats yet. When you archive a chat from the main list, it will appear here.",
+      "NoResults": "No Results",
+      "RestoreChat": "Restore Chat",
+      "RestoreChatMessage": "Restore this archived chat to your main chat list?"
+    },
+    "AllChats": {
+      "AllUsers": "All users",
+      "LoadingUsers": "Loading users...",
+      "NoUsersFound": "No users found",
+      "FailedToLoad": "Failed to load organization chats",
+      "IncludeArchived": "Include archived",
+      "OrganizationChats": "Organization chats",
+      "OrganizationChatSessions": "Organization chat sessions",
+      "LoadMore": "Load more",
+      "NoChatsFound": "No chats found",
+      "NoChatsInOrg": "No chats in this organization yet",
+      "NoActiveChatsInOrg": "No active chats in this organization"
+    },
+    "Artifacts": {
+      "Title": "Artifacts",
+      "ToggleShow": "Show artifacts",
+      "ToggleHide": "Hide artifacts",
+      "Resize": "Resize panel",
+      "Loading": "Loading artifacts...",
+      "Empty": "No artifacts yet",
+      "EmptySubtitle": "Artifacts will appear here as you chat",
+      "Back": "Back",
+      "Refresh": "Refresh",
+      "LoadMore": "Load more",
+      "LoadingMore": "Loading more...",
+      "FailedToLoad": "Failed to load artifacts",
+      "Unsupported": "Artifacts panel is not available for this data source.",
+      "Download": "Download",
+      "OpenInNewTab": "Open in new tab",
+      "DownloadUnavailable": "Download URL is not available for this artifact.",
+      "ImageUnavailable": "Image URL is not available for this artifact.",
+      "ChartUnavailable": "Chart metadata is not in a renderable format.",
+      "PreviewLoading": "Loading preview...",
+      "PreviewUnavailable": "Preview is unavailable for this artifact.",
+      "PreviewNotSupported": "This file type cannot be previewed inline.",
+      "OfficePreviewUnavailable": "Office preview is unavailable. Open or download the file.",
+      "TextPreviewFailed": "Failed to load text preview.",
+      "TextPreviewTruncated": "Preview is truncated. Open the file to view full content.",
+      "Rename": "Rename artifact",
+      "RenameFailed": "Failed to rename artifact",
+      "Delete": "Delete artifact",
+      "DeleteConfirm": "Delete this uploaded artifact? This action cannot be undone.",
+      "DeleteFailed": "Failed to delete artifact"
+    },
+    "Input": {
+      "Placeholder": "Type your message...",
+      "AttachFiles": "Attach files",
+      "SendMessage": "Send message",
+      "Processing": "Processing...",
+      "DropFiles": "Drop files here",
+      "FilesAdded": "Files added",
+      "DismissError": "Dismiss error",
+      "ShiftEnterHint": "Shift+Enter for new line",
+      "FileInput": "File input",
+      "MessageInput": "Message input"
+    },
+    "Assistant": {
+      "Explanation": "Explanation"
+    },
+    "System": {
+      "ConversationSummary": "Conversation Summary",
+      "LoadingSummary": "Loading summary...",
+      "ShowMore": "Show more",
+      "ShowLess": "Show less"
+    },
+    "Question": {
+      "SelectMulti": "Select multiple options",
+      "SpecifyOther": "Specify other",
+      "Other": "Other"
+    },
+    "QuestionForm": {
+      "Title": "Questions",
+      "Back": "Back",
+      "Next": "Next",
+      "Confirm": "Confirm",
+      "Submitting": "Submitting...",
+      "ReviewTitle": "Review your answers",
+      "ReviewDescription": "Please review your answers before submitting",
+      "Skip": "Skip"
+    },
+    "StreamError": {
+      "Retry": "Retry",
+      "Regenerate": "Regenerate"
+    },
+    "Chart": {
+      "NoData": "No data available",
+      "Download": "Download chart",
+      "DownloadPNG": "Download PNG",
+      "Exporting": "Exporting..."
+    },
+    "Alert": {
+      "Retry": "Retry"
+    },
+    "SkipLink": {
+      "Label": "Skip to content"
+    },
+    "Slash": {
+      "CommandsList": "Commands",
+      "ClearDescription": "Clear conversation",
+      "DebugDescription": "Toggle debug panel",
+      "CompactDescription": "Compact conversation",
+      "NoMatches": "No matching commands",
+      "DebugBadge": "Debug",
+      "CompactingTitle": "Compacting conversation...",
+      "CompactingSubtitle": "This may take a moment",
+      "DebugPanelTitle": "Debug Panel",
+      "DebugGeneration": "Generation",
+      "DebugTokensPerSecond": "Tokens/sec",
+      "DebugUnavailable": "Debug info unavailable",
+      "DebugToolCalls": "Tool Calls",
+      "DebugArguments": "Arguments",
+      "DebugResult": "Result",
+      "DebugCopyTrace": "Copy trace",
+      "DebugCopied": "Copied!",
+      "DebugError": "Error",
+      "DebugCachedTokens": "Cached Tokens",
+      "DebugPromptTokens": "Prompt Tokens",
+      "DebugCompletionTokens": "Completion Tokens",
+      "DebugTotalTokens": "Total Tokens",
+      "DebugContextUsage": "Context Usage",
+      "DebugContextWindow": "Context Window",
+      "DebugPolicyMaxContextWindow": "Policy Max Context",
+      "DebugModelMaxContextWindow": "Model Max Context",
+      "DebugEffectiveContextWindow": "Effective Context",
+      "DebugSessionUsageUnavailable": "Session usage unavailable"
+    },
+    "DateGroup": {
+      "Today": "Today",
+      "Yesterday": "Yesterday",
+      "Last7Days": "Last 7 Days",
+      "Last30Days": "Last 30 Days",
+      "Older": "Older"
+    },
+    "RelativeTime": {
+      "JustNow": "Just now",
+      "MinutesAgo": "{{count}}m ago",
+      "HoursAgo": "{{count}}h ago",
+      "DaysAgo": "{{count}}d ago"
     }
   }
 }

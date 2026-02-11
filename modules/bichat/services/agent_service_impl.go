@@ -43,7 +43,7 @@ type AgentServiceConfig struct {
 	Policy                 bichatctx.ContextPolicy
 	Renderer               bichatctx.Renderer
 	Checkpointer           agents.Checkpointer
-	EventBus               hooks.EventBus          // Optional
+	EventBus               hooks.EventBus          // Required
 	ChatRepo               domain.ChatRepository   // Repository for loading messages
 	AgentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	SchemaMetadata         schema.MetadataProvider // Optional for table metadata
@@ -67,6 +67,9 @@ type AgentServiceConfig struct {
 //	    SchemaMetadata: schemaProvider, // Optional for table metadata
 //	})
 func NewAgentService(cfg AgentServiceConfig) services.AgentService {
+	if cfg.EventBus == nil {
+		panic("AgentServiceConfig.EventBus is required")
+	}
 	return &agentServiceImpl{
 		agent:                  cfg.Agent,
 		model:                  cfg.Model,

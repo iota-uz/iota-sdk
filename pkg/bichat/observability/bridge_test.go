@@ -524,7 +524,7 @@ func TestEventBridge_HierarchicalNesting(t *testing.T) {
 	spans := provider.getSpans()
 	generations := provider.getGenerations()
 
-	require.Len(t, spans, 1)  // tool.complete only (agent.start is no-op)
+	require.Len(t, spans, 1) // tool.complete only (agent.start is no-op)
 	require.Len(t, generations, 1)
 
 	toolSpan := spans[0]

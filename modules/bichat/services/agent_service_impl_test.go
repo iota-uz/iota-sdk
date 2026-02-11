@@ -13,6 +13,7 @@ import (
 	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/codecs"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -504,6 +505,7 @@ func TestProcessMessage_Success(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -636,6 +638,7 @@ func TestProcessMessage_AppendsProjectPromptExtension(t *testing.T) {
 		Policy:                 policy,
 		Renderer:               renderer,
 		Checkpointer:           checkpointer,
+		EventBus:               hooks.NewEventBus(),
 		ChatRepo:               chatRepo,
 		ProjectPromptExtension: projectExtension,
 	})
@@ -692,6 +695,7 @@ func TestProcessMessage_AppendsDebugPromptAfterProjectPromptExtension(t *testing
 		Policy:                 policy,
 		Renderer:               renderer,
 		Checkpointer:           checkpointer,
+		EventBus:               hooks.NewEventBus(),
 		ChatRepo:               chatRepo,
 		ProjectPromptExtension: projectExtension,
 	})
@@ -753,6 +757,7 @@ func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -811,6 +816,7 @@ func TestProcessMessage_MissingTenantID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -851,6 +857,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -944,6 +951,7 @@ func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -986,6 +994,7 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
