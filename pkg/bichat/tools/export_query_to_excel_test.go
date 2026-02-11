@@ -287,10 +287,22 @@ func TestApplyRowLimit(t *testing.T) {
 			expected: "SELECT * FROM (SELECT * FROM test) AS _bichat_export LIMIT 1000",
 		},
 		{
-			name:     "existing limit",
+			name:     "existing limit preserved",
 			query:    "SELECT * FROM test LIMIT 500",
 			maxRows:  1000,
-			expected: "SELECT * FROM (SELECT * FROM test LIMIT 500) AS _bichat_export LIMIT 1000",
+			expected: "SELECT * FROM test LIMIT 500",
+		},
+		{
+			name:     "existing limit with offset preserved",
+			query:    "SELECT * FROM test LIMIT 100 OFFSET 10",
+			maxRows:  1000,
+			expected: "SELECT * FROM test LIMIT 100 OFFSET 10",
+		},
+		{
+			name:     "CTE with existing limit preserved",
+			query:    "WITH cte AS (SELECT * FROM test) SELECT * FROM cte LIMIT 100",
+			maxRows:  50000,
+			expected: "WITH cte AS (SELECT * FROM test) SELECT * FROM cte LIMIT 100",
 		},
 		{
 			name:     "with where clause",
@@ -305,10 +317,22 @@ func TestApplyRowLimit(t *testing.T) {
 			expected: "SELECT * FROM (SELECT * FROM test) AS _bichat_export LIMIT 1000",
 		},
 		{
-			name:     "CTE query",
+			name:     "existing limit with semicolon preserved",
+			query:    "SELECT * FROM test LIMIT 500;",
+			maxRows:  1000,
+			expected: "SELECT * FROM test LIMIT 500",
+		},
+		{
+			name:     "CTE query without limit",
 			query:    "WITH cte AS (SELECT * FROM test) SELECT * FROM cte",
 			maxRows:  1000,
 			expected: "WITH cte AS (SELECT * FROM test) SELECT * FROM cte LIMIT 1000",
+		},
+		{
+			name:     "limit in subquery only still wraps",
+			query:    "SELECT * FROM (SELECT * FROM test LIMIT 10) sub",
+			maxRows:  1000,
+			expected: "SELECT * FROM (SELECT * FROM (SELECT * FROM test LIMIT 10) sub) AS _bichat_export LIMIT 1000",
 		},
 	}
 
