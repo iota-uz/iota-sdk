@@ -255,6 +255,7 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 		maxIterations:     10,
 		interruptRegistry: NewInterruptHandlerRegistry(),
 		speculativeTools:  true,
+		eventBus:          hooks.NewEventBus(),
 	}
 
 	for _, opt := range opts {
@@ -340,6 +341,19 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 		// Track provider continuity across iterations in a single execution.
 		previousResponseID := input.PreviousResponseID
 
+		// Agent lifecycle tracking
+		agentStartTime := time.Now()
+		agentName := e.agent.Metadata().Name
+		totalAgentTokens := 0
+
+		// Emit agent.start event
+		_ = e.eventBus.Publish(ctx, events.NewAgentStartEvent(
+			input.SessionID,
+			input.TenantID,
+			agentName,
+			false,
+		))
+
 		// Start ReAct loop
 		iteration := 0
 		for iteration < e.maxIterations {
@@ -359,39 +373,44 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			}
 
 			// Emit LLM request event
-			if e.eventBus != nil {
-				modelInfo := e.model.Info()
+			modelInfo := e.model.Info()
 
-				// Estimate tokens if estimator is configured
-				estimatedTokens := 0
-				if e.tokenEstimator != nil {
-					estimatedTokens, _ = e.tokenEstimator.EstimateMessages(ctx, req.Messages)
-				}
-
-				// Extract last user message content for trace Input
-				userInput := ""
-				for i := len(req.Messages) - 1; i >= 0; i-- {
-					if req.Messages[i].Role() == types.RoleUser {
-						userInput = req.Messages[i].Content()
-						break
-					}
-				}
-
-				_ = e.eventBus.Publish(ctx, events.NewLLMRequestEvent(
-					input.SessionID,
-					input.TenantID,
-					modelInfo.Name,
-					modelInfo.Provider,
-					len(req.Messages),
-					len(req.Tools),
-					estimatedTokens,
-					userInput,
-				))
+			// Estimate tokens if estimator is configured
+			estimatedTokens := 0
+			if e.tokenEstimator != nil {
+				estimatedTokens, _ = e.tokenEstimator.EstimateMessages(ctx, req.Messages)
 			}
+
+			// Extract last user message content for trace Input
+			userInput := ""
+			for i := len(req.Messages) - 1; i >= 0; i-- {
+				if req.Messages[i].Role() == types.RoleUser {
+					userInput = req.Messages[i].Content()
+					break
+				}
+			}
+
+			_ = e.eventBus.Publish(ctx, events.NewLLMRequestEvent(
+				input.SessionID,
+				input.TenantID,
+				modelInfo.Name,
+				modelInfo.Provider,
+				len(req.Messages),
+				len(req.Tools),
+				estimatedTokens,
+				userInput,
+			))
 
 			// Call model (streaming)
 			gen, err := e.model.Stream(ctx, req)
 			if err != nil {
+				// Emit agent.error event
+				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEvent(
+					input.SessionID, input.TenantID, agentName,
+					iteration, err.Error(),
+					time.Since(agentStartTime).Milliseconds(),
+				))
+
 				// Emit error event
 				if !yield(ExecutorEvent{
 					Type:  EventTypeError,
@@ -466,28 +485,26 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}
 
 				// Emit tool completion/error event
-				if e.eventBus != nil {
-					if tr.err != nil {
-						_ = e.eventBus.Publish(ctx, events.NewToolErrorEvent(
-							input.SessionID,
-							input.TenantID,
-							tr.call.Name,
-							tr.call.Arguments,
-							tr.call.ID,
-							tr.err.Error(),
-							tr.durationMs,
-						))
-					} else {
-						_ = e.eventBus.Publish(ctx, events.NewToolCompleteEvent(
-							input.SessionID,
-							input.TenantID,
-							tr.call.Name,
-							tr.call.Arguments,
-							tr.call.ID,
-							toolOutput,
-							tr.durationMs,
-						))
-					}
+				if tr.err != nil {
+					_ = e.eventBus.Publish(ctx, events.NewToolErrorEvent(
+						input.SessionID,
+						input.TenantID,
+						tr.call.Name,
+						tr.call.Arguments,
+						tr.call.ID,
+						tr.err.Error(),
+						tr.durationMs,
+					))
+				} else {
+					_ = e.eventBus.Publish(ctx, events.NewToolCompleteEvent(
+						input.SessionID,
+						input.TenantID,
+						tr.call.Name,
+						tr.call.Arguments,
+						tr.call.ID,
+						toolOutput,
+						tr.durationMs,
+					))
 				}
 
 				// Yield tool end event
@@ -565,15 +582,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				specStarted[callID] = struct{}{}
 
 				// Emit tool start event
-				if e.eventBus != nil {
-					_ = e.eventBus.Publish(specToolCtx, events.NewToolStartEvent(
-						input.SessionID,
-						input.TenantID,
-						tc.Name,
-						tc.Arguments,
-						tc.ID,
-					))
-				}
+				_ = e.eventBus.Publish(specToolCtx, events.NewToolStartEvent(
+					input.SessionID,
+					input.TenantID,
+					tc.Name,
+					tc.Arguments,
+					tc.ID,
+				))
 
 				// Yield tool start event
 				if !yield(ExecutorEvent{
@@ -697,8 +712,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				previousResponseID = &id
 			}
 
+			// Accumulate tokens for agent lifecycle tracking
+			if usage != nil {
+				totalAgentTokens += usage.TotalTokens
+			}
+
 			// Emit LLM response event
-			if e.eventBus != nil {
+			{
 				modelInfo := e.model.Info()
 				var usageTokens types.TokenUsage
 				if usage != nil {
@@ -746,6 +766,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 			// Check for tool calls
 			if len(toolCalls) == 0 {
+				// Emit agent.complete event
+				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEvent(
+					input.SessionID, input.TenantID, agentName,
+					iteration, totalAgentTokens,
+					time.Since(agentStartTime).Milliseconds(),
+				))
+
 				// No tools, execution complete
 				result := &Response{
 					Message:            responseMessage,
@@ -806,6 +833,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			}
 
 			if toolErr != nil {
+				// Emit agent.error event
+				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEvent(
+					input.SessionID, input.TenantID, agentName,
+					iteration, toolErr.Error(),
+					time.Since(agentStartTime).Milliseconds(),
+				))
+
 				if !yield(ExecutorEvent{
 					Type:  EventTypeError,
 					Error: serrors.E(op, toolErr),
@@ -832,26 +866,31 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}
 
 				// Emit interrupt event to EventBus
-				if e.eventBus != nil {
-					var question string
-					var data struct {
-						Questions []struct {
-							Question string `json:"question"`
-						} `json:"questions"`
-					}
-					if err := json.Unmarshal(interrupt.Data, &data); err == nil && len(data.Questions) > 0 {
-						question = data.Questions[0].Question
-					}
-
-					_ = e.eventBus.Publish(ctx, events.NewInterruptEvent(
-						input.SessionID,
-						input.TenantID,
-						interrupt.Type,
-						e.agent.Metadata().Name,
-						question,
-						checkpointID,
-					))
+				var question string
+				var data struct {
+					Questions []struct {
+						Question string `json:"question"`
+					} `json:"questions"`
 				}
+				if err := json.Unmarshal(interrupt.Data, &data); err == nil && len(data.Questions) > 0 {
+					question = data.Questions[0].Question
+				}
+
+				_ = e.eventBus.Publish(ctx, events.NewInterruptEvent(
+					input.SessionID,
+					input.TenantID,
+					interrupt.Type,
+					e.agent.Metadata().Name,
+					question,
+					checkpointID,
+				))
+
+				// Emit agent.complete event (interrupted, will resume later)
+				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEvent(
+					input.SessionID, input.TenantID, agentName,
+					iteration, totalAgentTokens,
+					time.Since(agentStartTime).Milliseconds(),
+				))
 
 				// Yield interrupt event to generator consumer
 				if !yield(ExecutorEvent{
@@ -882,6 +921,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 							}
 						}
 
+						// Emit agent.complete event (termination tool)
+						_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEvent(
+							input.SessionID, input.TenantID, agentName,
+							iteration, totalAgentTokens,
+							time.Since(agentStartTime).Milliseconds(),
+						))
+
 						// Termination tool called, return result
 						result := &Response{
 							Message:            types.AssistantMessage(resultContent),
@@ -906,6 +952,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 			// Continue to next iteration
 		}
+
+		// Emit agent.error event (max iterations)
+		_ = e.eventBus.Publish(ctx, events.NewAgentErrorEvent(
+			input.SessionID, input.TenantID, agentName,
+			iteration, ErrMaxIterations.Error(),
+			time.Since(agentStartTime).Milliseconds(),
+		))
 
 		// Max iterations reached
 		return serrors.E(op, ErrMaxIterations)
@@ -1055,15 +1108,13 @@ func (e *Executor) executeToolCalls(
 		tc := toolCalls[interruptIdx]
 
 		// Emit tool start event
-		if e.eventBus != nil {
-			_ = e.eventBus.Publish(ctx, events.NewToolStartEvent(
-				sessionID,
-				tenantID,
-				tc.Name,
-				tc.Arguments,
-				tc.ID,
-			))
-		}
+		_ = e.eventBus.Publish(ctx, events.NewToolStartEvent(
+			sessionID,
+			tenantID,
+			tc.Name,
+			tc.Arguments,
+			tc.ID,
+		))
 
 		// Yield tool start event
 		if !yield(ExecutorEvent{
@@ -1135,15 +1186,13 @@ func (e *Executor) executeToolCalls(
 	// Emit tool start events before launching each tool execution.
 	for i, tc := range toolCalls {
 		// Emit tool start event
-		if e.eventBus != nil {
-			_ = e.eventBus.Publish(toolCtx, events.NewToolStartEvent(
-				sessionID,
-				tenantID,
-				tc.Name,
-				tc.Arguments,
-				tc.ID,
-			))
-		}
+		_ = e.eventBus.Publish(toolCtx, events.NewToolStartEvent(
+			sessionID,
+			tenantID,
+			tc.Name,
+			tc.Arguments,
+			tc.ID,
+		))
 
 		// Yield tool start event
 		if !yield(ExecutorEvent{
@@ -1211,28 +1260,26 @@ func (e *Executor) executeToolCalls(
 		}
 
 		// Emit tool completion/error event
-		if e.eventBus != nil {
-			if tr.err != nil {
-				_ = e.eventBus.Publish(toolCtx, events.NewToolErrorEvent(
-					sessionID,
-					tenantID,
-					tr.call.Name,
-					tr.call.Arguments,
-					tr.call.ID,
-					tr.err.Error(),
-					tr.durationMs,
-				))
-			} else {
-				_ = e.eventBus.Publish(toolCtx, events.NewToolCompleteEvent(
-					sessionID,
-					tenantID,
-					tr.call.Name,
-					tr.call.Arguments,
-					tr.call.ID,
-					toolOutput,
-					tr.durationMs,
-				))
-			}
+		if tr.err != nil {
+			_ = e.eventBus.Publish(toolCtx, events.NewToolErrorEvent(
+				sessionID,
+				tenantID,
+				tr.call.Name,
+				tr.call.Arguments,
+				tr.call.ID,
+				tr.err.Error(),
+				tr.durationMs,
+			))
+		} else {
+			_ = e.eventBus.Publish(toolCtx, events.NewToolCompleteEvent(
+				sessionID,
+				tenantID,
+				tr.call.Name,
+				tr.call.Arguments,
+				tr.call.ID,
+				toolOutput,
+				tr.durationMs,
+			))
 		}
 
 		// Yield tool end event

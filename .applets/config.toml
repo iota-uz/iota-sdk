@@ -15,6 +15,3 @@ args = ["@tailwindcss/cli@4.1.18", "--input", "styles/tailwind/input.css", "--ou
 
 [applets.bichat]
 base_path = "/bi-chat"
-
-[applets.bichat.dev]
-vite_port = 5173

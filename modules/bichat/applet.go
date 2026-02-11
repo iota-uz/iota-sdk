@@ -3,6 +3,7 @@ package bichat
 import (
 	"context"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -127,13 +128,19 @@ func (a *BiChatApplet) Config() applets.Config {
 			if chatSvc == nil || artifactSvc == nil {
 				return nil
 			}
-			return bichatrpc.Router(chatSvc, artifactSvc).Config()
+			cfg := bichatrpc.Router(chatSvc, artifactSvc).Config()
+			// Expose internal error details in development mode.
+			if isDev() {
+				t := true
+				cfg.ExposeInternalErrors = &t
+			}
+			return cfg
 		}(),
 	}
 }
 
 func bichatDevAssets() *applets.DevAssetConfig {
-	enabled := envBool("IOTA_APPLET_DEV_BICHAT")
+	enabled := isDev()
 	target := strings.TrimSpace(os.Getenv("IOTA_APPLET_VITE_URL_BICHAT"))
 	if target == "" {
 		target = "http://localhost:5173"
@@ -155,15 +162,22 @@ func bichatDevAssets() *applets.DevAssetConfig {
 	}
 }
 
-func envBool(key string) bool {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" {
-		return false
+// isDev returns true when GO_APP_ENV matches a known development value.
+// Recognized dev values: "development", "dev", "test", "local".
+// Unset GO_APP_ENV defaults to "development" (dev mode).
+// Unrecognized non-empty values are treated as production with a warning.
+func isDev() bool {
+	env := strings.TrimSpace(os.Getenv("GO_APP_ENV"))
+	if env == "" {
+		return true // default to development
 	}
-	switch strings.ToLower(v) {
-	case "1", "true", "yes", "y", "on":
+	switch strings.ToLower(env) {
+	case "development", "dev", "test", "local":
 		return true
+	case "production":
+		return false
 	default:
+		slog.Warn("unrecognized GO_APP_ENV value, treating as production", "GO_APP_ENV", env)
 		return false
 	}
 }

@@ -57,6 +57,12 @@ func (f *QueryResultFormatter) Format(payload any, opts types.FormatOptions) (st
 	}
 	if len(p.Rows) == 0 {
 		b.WriteString("No rows returned.\n")
+		if len(p.Hints) > 0 {
+			b.WriteString("\n**Hints:**\n")
+			for _, hint := range p.Hints {
+				b.WriteString(fmt.Sprintf("- %s\n", hint))
+			}
+		}
 		b.WriteString("\nExecuted SQL:\n\n```sql\n")
 		b.WriteString(p.ExecutedSQL)
 		b.WriteString("\n```\n")

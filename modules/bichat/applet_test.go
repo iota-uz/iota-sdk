@@ -61,7 +61,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 		assert.Equal(t, "index.html", config.Assets.Entrypoint)
 
 		require.NotNil(t, config.Assets.Dev)
-		assert.False(t, config.Assets.Dev.Enabled)
+		assert.True(t, config.Assets.Dev.Enabled) // isDev() returns true when GO_APP_ENV is unset
 		assert.Equal(t, "http://localhost:5173", config.Assets.Dev.TargetURL)
 		assert.Equal(t, "/src/main.tsx", config.Assets.Dev.EntryModule)
 		assert.Equal(t, "/@vite/client", config.Assets.Dev.ClientModule)

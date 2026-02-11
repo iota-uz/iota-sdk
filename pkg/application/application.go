@@ -22,7 +22,7 @@ import (
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/i18nutil"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -31,7 +31,7 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 	translated := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
 		translated = append(translated, types.NavigationItem{
-			Name: i18nutil.MustLocalize(localizer, &i18n.LocalizeConfig{
+			Name: intl.MustLocalize(localizer, &i18n.LocalizeConfig{
 				MessageID: item.Name,
 			}),
 			Href:        item.Href,

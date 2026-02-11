@@ -21,8 +21,6 @@ logs/
 dist/
 **/dist/
 
-# Dev runner manifest (written by `just dev <name>`)
-applet-dev.json
 
 # Applet embedded assets are build output; keep only a placeholder for go:embed.
 !**/presentation/assets/dist/

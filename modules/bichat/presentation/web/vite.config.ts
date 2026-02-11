@@ -11,7 +11,7 @@ const sdkDist = path.resolve(__dirname, '../../../../dist')
 export default defineConfig(({ command }) =>
   createAppletViteConfig({
     basePath: '/bi-chat',
-    backendUrl: process.env.IOTA_PORT ? `http://localhost:${process.env.IOTA_PORT}` : 'http://localhost:3900',
+    backendUrl: 'http://localhost:3900',
     enableLocalSdkAliases: command === 'serve',
     sdkDistDir: command === 'serve' ? sdkDist : undefined,
     extend: {
