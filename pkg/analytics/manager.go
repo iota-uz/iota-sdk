@@ -79,9 +79,15 @@ func (m *ViewManager) Sync(ctx context.Context, pool *pgxpool.Pool) error {
 			schema = m.schema
 		}
 
-		ddl := fmt.Sprintf("CREATE OR REPLACE VIEW %s.%s AS %s",
-			quoteIdent(schema), quoteIdent(v.Name), v.SQL)
+		qualifiedName := fmt.Sprintf("%s.%s", quoteIdent(schema), quoteIdent(v.Name))
 
+		// DROP first to allow column type changes (CREATE OR REPLACE cannot change types).
+		drop := fmt.Sprintf("DROP VIEW IF EXISTS %s CASCADE", qualifiedName)
+		if _, err := tx.Exec(ctx, drop); err != nil {
+			return fmt.Errorf("analytics.ViewManager.Sync: drop %s.%s: %w", schema, v.Name, err)
+		}
+
+		ddl := fmt.Sprintf("CREATE VIEW %s AS %s", qualifiedName, v.SQL)
 		if _, err := tx.Exec(ctx, ddl); err != nil {
 			return fmt.Errorf("analytics.ViewManager.Sync: view %s.%s: %w", schema, v.Name, err)
 		}
