@@ -34,6 +34,61 @@
       "Compacting": "正在压缩历史",
       "CompactedSummary": "压缩摘要",
       "DebugTrace": "调试轨迹"
+    },
+    "InlineQuestion": {
+      "InputNeeded": "需要输入",
+      "Next": "下一步",
+      "Back": "返回",
+      "Other": "其他",
+      "TypeYourAnswer": "输入您的答案...",
+      "SelectAllThatApply": "选择所有适用项",
+      "Dismiss": "关闭"
+    },
+    "Thinking": {
+      "Thinking": "思考中",
+      "Processing": "处理中",
+      "Analyzing": "分析中",
+      "Synthesizing": "合成中",
+      "Computing": "计算中",
+      "WorkingOnIt": "正在处理"
+    },
+    "Search": {
+      "Clear": "清除搜索"
+    },
+    "EditableText": {
+      "AriaLabel": "编辑文本。按 Enter 保存，按 Escape 取消",
+      "DoubleClickToEdit": "双击编辑"
+    },
+    "ContextMenu": "上下文菜单",
+    "Archive": {
+      "Banner": "归档横幅",
+      "Archived": "此聊天会话已归档",
+      "Restore": "恢复",
+      "Restoring": "恢复中...",
+      "RestoreFailed": "恢复失败"
+    },
+    "Message": {
+      "CopiedToClipboard": "已复制到剪贴板",
+      "FailedToCopy": "复制消息失败",
+      "CopyMessage": "复制消息",
+      "Copying": "复制中...",
+      "Regenerate": "重新生成回复",
+      "Regenerating": "重新生成中...",
+      "EditMessage": "编辑消息"
+    },
+    "Attachment": {
+      "PreviewUnavailable": "预览不可用",
+      "Remove": "移除附件"
+    },
+    "Image": {
+      "Close": "关闭",
+      "FailedToLoad": "加载图片失败",
+      "Retry": "重新加载图片",
+      "Previous": "上一张图片",
+      "Next": "下一张图片"
+    },
+    "Sidebar": {
+      "ChatHistory": "聊天记录"
     }
   }
 }

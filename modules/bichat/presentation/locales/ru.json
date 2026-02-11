@@ -34,6 +34,61 @@
       "Compacting": "Сжатие истории",
       "CompactedSummary": "Сжатое резюме",
       "DebugTrace": "Трассировка отладки"
+    },
+    "InlineQuestion": {
+      "InputNeeded": "Требуется ввод",
+      "Next": "Далее",
+      "Back": "Назад",
+      "Other": "Другое",
+      "TypeYourAnswer": "Введите ваш ответ...",
+      "SelectAllThatApply": "Выберите все подходящие",
+      "Dismiss": "Закрыть"
+    },
+    "Thinking": {
+      "Thinking": "Думаю",
+      "Processing": "Обрабатываю",
+      "Analyzing": "Анализирую",
+      "Synthesizing": "Синтезирую",
+      "Computing": "Вычисляю",
+      "WorkingOnIt": "Работаю над этим"
+    },
+    "Search": {
+      "Clear": "Очистить поиск"
+    },
+    "EditableText": {
+      "AriaLabel": "Редактировать текст. Enter — сохранить, Escape — отменить",
+      "DoubleClickToEdit": "Двойной клик для редактирования"
+    },
+    "ContextMenu": "Контекстное меню",
+    "Archive": {
+      "Banner": "Архивный баннер",
+      "Archived": "Этот чат был архивирован",
+      "Restore": "Восстановить",
+      "Restoring": "Восстановление...",
+      "RestoreFailed": "Не удалось восстановить"
+    },
+    "Message": {
+      "CopiedToClipboard": "Скопировано в буфер обмена",
+      "FailedToCopy": "Не удалось скопировать сообщение",
+      "CopyMessage": "Копировать сообщение",
+      "Copying": "Копирование...",
+      "Regenerate": "Перегенерировать ответ",
+      "Regenerating": "Перегенерация...",
+      "EditMessage": "Редактировать сообщение"
+    },
+    "Attachment": {
+      "PreviewUnavailable": "Предпросмотр недоступен",
+      "Remove": "Удалить вложение"
+    },
+    "Image": {
+      "Close": "Закрыть",
+      "FailedToLoad": "Не удалось загрузить изображение",
+      "Retry": "Повторить загрузку",
+      "Previous": "Предыдущее изображение",
+      "Next": "Следующее изображение"
+    },
+    "Sidebar": {
+      "ChatHistory": "История чатов"
     }
   }
 }

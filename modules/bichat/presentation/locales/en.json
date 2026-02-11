@@ -34,6 +34,61 @@
       "Compacting": "Compacting history",
       "CompactedSummary": "Compacted Summary",
       "DebugTrace": "Debug Trace"
+    },
+    "InlineQuestion": {
+      "InputNeeded": "Input needed",
+      "Next": "Next",
+      "Back": "Back",
+      "Other": "Other",
+      "TypeYourAnswer": "Type your answer...",
+      "SelectAllThatApply": "Select all that apply",
+      "Dismiss": "Dismiss"
+    },
+    "Thinking": {
+      "Thinking": "Thinking",
+      "Processing": "Processing",
+      "Analyzing": "Analyzing",
+      "Synthesizing": "Synthesizing",
+      "Computing": "Computing",
+      "WorkingOnIt": "Working on it"
+    },
+    "Search": {
+      "Clear": "Clear search"
+    },
+    "EditableText": {
+      "AriaLabel": "Edit text. Press Enter to save, Escape to cancel",
+      "DoubleClickToEdit": "Double-click to edit"
+    },
+    "ContextMenu": "Context menu",
+    "Archive": {
+      "Banner": "Archive banner",
+      "Archived": "This chat session has been archived",
+      "Restore": "Restore",
+      "Restoring": "Restoring...",
+      "RestoreFailed": "Restore Failed"
+    },
+    "Message": {
+      "CopiedToClipboard": "Copied to clipboard",
+      "FailedToCopy": "Failed to copy message",
+      "CopyMessage": "Copy message",
+      "Copying": "Copying...",
+      "Regenerate": "Regenerate response",
+      "Regenerating": "Regenerating...",
+      "EditMessage": "Edit message"
+    },
+    "Attachment": {
+      "PreviewUnavailable": "Preview unavailable",
+      "Remove": "Remove attachment"
+    },
+    "Image": {
+      "Close": "Close",
+      "FailedToLoad": "Failed to load image",
+      "Retry": "Retry loading image",
+      "Previous": "Previous image",
+      "Next": "Next image"
+    },
+    "Sidebar": {
+      "ChatHistory": "Chat history"
     }
   }
 }

@@ -3,16 +3,13 @@
  * with dev proxy and optional local SDK aliasing.
  */
 import type { UserConfig } from 'vite'
-import fs from 'node:fs'
 import path from 'node:path'
 
 export type AppletViteOptions = {
-  /** Applet base path (e.g. "/admin/ali/chat" or "/bi-chat"); overridden by applet-dev.json when present. */
+  /** Applet base path (e.g. "/admin/ali/chat" or "/bi-chat"). */
   basePath: string
-  /** Backend URL for proxy (e.g. "http://localhost:3200"); overridden by applet-dev.json when present. */
+  /** Backend URL for proxy (e.g. "http://localhost:3200"). */
   backendUrl: string
-  /** Directory containing applet-dev.json (default: process.cwd()). When set, base/port/proxy use manifest if present. */
-  viteConfigDir?: string
   /** Enable Vite aliases to local SDK dist for HMR when iterating on SDK (default: from IOTA_SDK_DIST) */
   enableLocalSdkAliases?: boolean
   /** Override SDK dist directory when enableLocalSdkAliases is true (default: process.env.IOTA_SDK_DIST) */
@@ -21,58 +18,20 @@ export type AppletViteOptions = {
   extend?: UserConfig
 }
 
-/** Shape of applet-dev.json written by the Go dev runner (single source of truth when using `just dev <name>`). */
-export type AppletDevManifest = {
-  basePath: string
-  assetsBase: string
-  vitePort: number
-  backendUrl: string
-}
-
-const APPLET_DEV_MANIFEST = 'applet-dev.json'
-
-/**
- * Reads applet-dev.json from viteDir (default process.cwd()). When using `just dev <name>`, the Go runner writes this file.
- * Returns null if file is missing or invalid (env vars remain the fallback).
- */
-export function readAppletDevManifest(viteDir?: string): AppletDevManifest | null {
-  const dir = viteDir ?? process.cwd()
-  const filePath = path.join(dir, APPLET_DEV_MANIFEST)
-  try {
-    const raw = fs.readFileSync(filePath, 'utf-8')
-    const data = JSON.parse(raw) as AppletDevManifest
-    if (typeof data.basePath === 'string' && typeof data.assetsBase === 'string' && typeof data.vitePort === 'number' && typeof data.backendUrl === 'string') {
-      return data
-    }
-  } catch {
-    // file missing or invalid
-  }
-  return null
-}
-
 const DEFAULT_DEDUPE = ['react', 'react-dom', 'react-router-dom', 'react-is']
 
-export type AppletDevManifestOrNull = AppletDevManifest | null
-
 /**
- * Returns base URL for assets (with trailing slash). Prefers manifest when provided (avoids re-reading file), then applet-dev.json, then APPLET_ASSETS_BASE env.
+ * Returns base URL for assets (with trailing slash). Uses APPLET_ASSETS_BASE env if set, otherwise derives from basePath.
  */
-export function getAppletAssetsBase(viteDir?: string, manifest?: AppletDevManifestOrNull): string {
-  const resolved = manifest ?? readAppletDevManifest(viteDir)
-  if (resolved) {
-    const base = resolved.assetsBase
-    return base.endsWith('/') ? base : base + '/'
-  }
-  const base = process.env.APPLET_ASSETS_BASE ?? ''
-  return base.endsWith('/') ? base : base ? base + '/' : '/'
+export function getAppletAssetsBase(basePath: string): string {
+  const base = process.env.APPLET_ASSETS_BASE ?? basePath + '/assets/'
+  return base.endsWith('/') ? base : base + '/'
 }
 
 /**
- * Returns dev server port. Prefers manifest when provided (avoids re-reading file), then applet-dev.json, then APPLET_VITE_PORT env.
+ * Returns dev server port from APPLET_VITE_PORT env, or the given default.
  */
-export function getAppletVitePort(defaultPort = 5173, viteDir?: string, manifest?: AppletDevManifestOrNull): number {
-  const resolved = manifest ?? readAppletDevManifest(viteDir)
-  if (resolved) return resolved.vitePort
+export function getAppletVitePort(defaultPort = 5173): number {
   const p = process.env.APPLET_VITE_PORT
   if (p === undefined || p === '') return defaultPort
   const n = Number(p)
@@ -81,7 +40,6 @@ export function getAppletVitePort(defaultPort = 5173, viteDir?: string, manifest
 
 /**
  * Builds a full Vite config for an applet: base, port, dedupe, proxy, optional local SDK aliases.
- * When applet-dev.json is present (e.g. when using `just dev <name>`), base, port, basePath, and backendUrl come from it.
  *
  * **Merge semantics for `extend`:** When you pass `extend`, it is merged with the base config as follows:
  * - **resolve.alias**: arrays are concatenated (base aliases first, then extend aliases).
@@ -90,11 +48,8 @@ export function getAppletVitePort(defaultPort = 5173, viteDir?: string, manifest
  * To fully override the base config, spread first: `defineConfig({ ...createAppletViteConfig(opts), ...yourOverrides })`.
  */
 export function createAppletViteConfig(opts: AppletViteOptions): UserConfig {
-  const manifest = readAppletDevManifest(opts.viteConfigDir)
-  const base = getAppletAssetsBase(opts.viteConfigDir, manifest)
-  const port = getAppletVitePort(5173, opts.viteConfigDir, manifest)
-  const basePath = manifest?.basePath ?? opts.basePath
-  const backendUrl = manifest?.backendUrl ?? opts.backendUrl
+  const base = getAppletAssetsBase(opts.basePath)
+  const port = getAppletVitePort(5173)
   const config: UserConfig = {
     base,
     resolve: {
@@ -108,8 +63,8 @@ export function createAppletViteConfig(opts: AppletViteOptions): UserConfig {
       port,
       strictPort: true,
       proxy: createAppletBackendProxy({
-        basePath,
-        backendUrl,
+        basePath: opts.basePath,
+        backendUrl: opts.backendUrl,
       }),
     },
   }

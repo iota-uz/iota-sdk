@@ -34,6 +34,61 @@
 			"Compacting": "Tarix ixchamlashtirilmoqda",
 			"CompactedSummary": "Ixcham xulosa",
 			"DebugTrace": "Debug izi"
+		},
+		"InlineQuestion": {
+			"InputNeeded": "Kiritish kerak",
+			"Next": "Keyingisi",
+			"Back": "Orqaga",
+			"Other": "Boshqa",
+			"TypeYourAnswer": "Javobingizni yozing...",
+			"SelectAllThatApply": "Tegishli barchasini tanlang",
+			"Dismiss": "Yopish"
+		},
+		"Thinking": {
+			"Thinking": "O'ylamoqda",
+			"Processing": "Qayta ishlamoqda",
+			"Analyzing": "Tahlil qilmoqda",
+			"Synthesizing": "Sintez qilmoqda",
+			"Computing": "Hisoblashmoqda",
+			"WorkingOnIt": "Ustida ishlamoqda"
+		},
+		"Search": {
+			"Clear": "Qidiruvni tozalash"
+		},
+		"EditableText": {
+			"AriaLabel": "Matnni tahrirlash. Enter — saqlash, Escape — bekor qilish",
+			"DoubleClickToEdit": "Tahrirlash uchun ikki marta bosing"
+		},
+		"ContextMenu": "Kontekst menyusi",
+		"Archive": {
+			"Banner": "Arxiv banneri",
+			"Archived": "Bu chat arxivlangan",
+			"Restore": "Tiklash",
+			"Restoring": "Tiklanmoqda...",
+			"RestoreFailed": "Tiklab bo'lmadi"
+		},
+		"Message": {
+			"CopiedToClipboard": "Buferga nusxalandi",
+			"FailedToCopy": "Xabarni nusxalab bo'lmadi",
+			"CopyMessage": "Xabarni nusxalash",
+			"Copying": "Nusxalanmoqda...",
+			"Regenerate": "Javobni qayta yaratish",
+			"Regenerating": "Qayta yaratilmoqda...",
+			"EditMessage": "Xabarni tahrirlash"
+		},
+		"Attachment": {
+			"PreviewUnavailable": "Ko'rib chiqish mavjud emas",
+			"Remove": "Ilovani olib tashlash"
+		},
+		"Image": {
+			"Close": "Yopish",
+			"FailedToLoad": "Rasmni yuklab bo'lmadi",
+			"Retry": "Qayta yuklash",
+			"Previous": "Oldingi rasm",
+			"Next": "Keyingi rasm"
+		},
+		"Sidebar": {
+			"ChatHistory": "Chat tarixi"
 		}
 	}
 }
