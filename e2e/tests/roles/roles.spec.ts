@@ -127,9 +127,11 @@ test.describe('role management flows', () => {
 		// Wait for and click confirm in the confirmation dialog
 		const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 		await expect(confirmDialog).toBeVisible();
-		const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
+		const confirmButton = confirmDialog.locator('[data-test-id="dialog-confirm-btn"]');
 		await expect(confirmButton).toBeVisible();
-		await confirmButton.click();
+		// Use evaluate to bypass Playwright's elementFromPoint() check —
+		// the bottom action bar behind the top-layer dialog confuses hit testing in headless Chromium
+		await confirmButton.evaluate((el: HTMLElement) => el.click());
 
 		// Wait for redirect back to roles list
 		await page.waitForURL(/\/roles$/);
@@ -395,9 +397,9 @@ test.describe('role management flows', () => {
 			if (await deleteUserBtn.isVisible()) {
 				await deleteUserBtn.click();
 				// Confirm deletion if dialog appears
-				const confirmBtn = page.locator('button').filter({ hasText: /Confirm|Delete/i }).last();
+				const confirmBtn = page.locator('[data-test-id="dialog-confirm-btn"]');
 				if (await confirmBtn.isVisible()) {
-					await confirmBtn.click();
+					await confirmBtn.evaluate((el: HTMLElement) => el.click());
 				}
 				// Wait for deletion to complete
 				await page.waitForURL(/\/users$/);
@@ -417,9 +419,9 @@ test.describe('role management flows', () => {
 			// Wait for and click confirm in the confirmation dialog
 			const confirmDialog = page.locator('[data-test-id="delete-confirmation-dialog"]');
 			await expect(confirmDialog).toBeVisible();
-			const confirmButton = confirmDialog.locator('button').filter({ hasText: /Delete|Confirm/i });
+			const confirmButton = confirmDialog.locator('[data-test-id="dialog-confirm-btn"]');
 			await expect(confirmButton).toBeVisible();
-			await confirmButton.click();
+			await confirmButton.evaluate((el: HTMLElement) => el.click());
 
 			// Wait for redirect back to roles list
 			await page.waitForURL(/\/roles$/);

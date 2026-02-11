@@ -156,7 +156,7 @@ func (l *QueryExecutorSchemaLister) getViewCounts(ctx context.Context, views []s
 func (l *QueryExecutorSchemaLister) fetchViewCounts(ctx context.Context, views []string) map[string]int64 {
 	const limit = 1_000_001
 
-	var parts []string
+	parts := make([]string, 0, len(views))
 	for _, name := range views {
 		if !validIdentifier.MatchString(name) {
 			continue
