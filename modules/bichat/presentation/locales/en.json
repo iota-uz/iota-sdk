@@ -15,7 +15,9 @@
     "Loading": "Loading...",
     "Error": {
       "Generic": "An error occurred",
-      "Label": "Error"
+      "Label": "Error",
+      "SomethingWentWrong": "Something went wrong",
+      "UnexpectedError": "An unexpected error occurred. Please try again."
     },
     "Retry": {
       "Title": "Retry",
@@ -26,6 +28,7 @@
     "Cancel": "Cancel",
     "Submit": "Submit",
     "Export": "Export",
+    "ExportTableToExcel": "Export the table above to Excel",
     "History": {
       "Empty": "Empty history",
       "HelpText": "Press \"New Chat\" to start a new chat"
@@ -58,7 +61,8 @@
       "Analyzing": "Analyzing",
       "Synthesizing": "Synthesizing",
       "Computing": "Computing",
-      "WorkingOnIt": "Working on it"
+      "WorkingOnIt": "Working on it",
+      "AriaLabel": "AI is {{verb}}"
     },
     "Search": {
       "Clear": "Clear search"
@@ -86,7 +90,8 @@
       "Copy": "Copy",
       "Copied": "Copied",
       "Save": "Save",
-      "Cancel": "Cancel"
+      "Cancel": "Cancel",
+      "CopyFailed": "Failed"
     },
     "Attachment": {
       "PreviewUnavailable": "Preview unavailable",
@@ -158,7 +163,14 @@
       "Back": "Back",
       "Close": "Close",
       "Pinned": "Pinned",
-      "Creating": "Creating..."
+      "Creating": "Creating...",
+      "AITyping": "AI is typing",
+      "Notifications": "Notifications",
+      "ScrollToBottom": "Scroll to bottom",
+      "Search": "Search",
+      "Confirm": "Confirm",
+      "TryAgain": "Try Again",
+      "PleaseWait": "Please wait..."
     },
     "Chat": {
       "NewChat": "New Chat",
@@ -249,6 +261,10 @@
     },
     "Assistant": {
       "Explanation": "Explanation"
+    },
+    "CodeOutput": {
+      "Title": "Code Output",
+      "CodeOutput": "Code output"
     },
     "System": {
       "ConversationSummary": "Conversation Summary",
