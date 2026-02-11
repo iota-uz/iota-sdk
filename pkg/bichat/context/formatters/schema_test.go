@@ -1,7 +1,10 @@
 package formatters
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAbbreviateCount(t *testing.T) {
@@ -41,9 +44,9 @@ func TestAbbreviateCount(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := abbreviateCount(tt.input)
-		if got != tt.expected {
-			t.Errorf("abbreviateCount(%d) = %q, want %q", tt.input, got, tt.expected)
-		}
+		t.Run(fmt.Sprintf("input_%d", tt.input), func(t *testing.T) {
+			got := abbreviateCount(tt.input)
+			assert.Equal(t, tt.expected, got, "abbreviateCount(%d)", tt.input)
+		})
 	}
 }

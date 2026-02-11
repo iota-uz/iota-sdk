@@ -139,7 +139,7 @@ function mergeConfig(a: UserConfig, b: UserConfig): UserConfig {
       ...aResolve,
       ...bResolve,
       alias,
-      dedupe: bResolve.dedupe ?? merged.resolve?.dedupe ?? aResolve?.dedupe,
+      dedupe: bResolve.dedupe ?? aResolve?.dedupe,
     }
   }
   if (bServer) {

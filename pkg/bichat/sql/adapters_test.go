@@ -162,9 +162,9 @@ func TestSchemaLister_CachesViewCounts(t *testing.T) {
 	require.NoError(t, err)
 
 	var count1 int64
-	for _, t := range tables1 {
-		if t.Name == "_test_cache_view" {
-			count1 = t.RowCount
+	for _, tbl := range tables1 {
+		if tbl.Name == "_test_cache_view" {
+			count1 = tbl.RowCount
 			break
 		}
 	}
@@ -182,9 +182,9 @@ func TestSchemaLister_CachesViewCounts(t *testing.T) {
 	require.NoError(t, err)
 
 	var count2 int64
-	for _, t := range tables2 {
-		if t.Name == "_test_cache_view" {
-			count2 = t.RowCount
+	for _, tbl := range tables2 {
+		if tbl.Name == "_test_cache_view" {
+			count2 = tbl.RowCount
 			break
 		}
 	}

@@ -233,10 +233,14 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
-// applyRowLimit wraps the query as a subquery and applies an outer LIMIT.
-// This safely handles queries that already contain LIMIT/OFFSET clauses.
+// applyRowLimit applies a LIMIT to the query. For CTE queries (starting with "WITH"),
+// it appends LIMIT directly to avoid breaking the CTE syntax. For other queries,
+// it wraps the query as a subquery with an outer LIMIT.
 func applyRowLimit(query string, maxRows int) string {
 	q := strings.TrimSpace(query)
 	q = strings.TrimRight(q, ";")
+	if strings.HasPrefix(strings.ToUpper(q), "WITH ") {
+		return fmt.Sprintf("%s LIMIT %d", q, maxRows)
+	}
 	return fmt.Sprintf("SELECT * FROM (%s) AS _bichat_export LIMIT %d", q, maxRows)
 }

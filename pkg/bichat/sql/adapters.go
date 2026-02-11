@@ -194,6 +194,8 @@ func parseIntColumn(v any) int64 {
 		return n
 	case int:
 		return int64(n)
+	case int32:
+		return int64(n)
 	case float64:
 		return int64(n)
 	default:

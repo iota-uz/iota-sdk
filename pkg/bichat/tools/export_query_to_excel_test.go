@@ -304,6 +304,12 @@ func TestApplyRowLimit(t *testing.T) {
 			maxRows:  1000,
 			expected: "SELECT * FROM (SELECT * FROM test) AS _bichat_export LIMIT 1000",
 		},
+		{
+			name:     "CTE query",
+			query:    "WITH cte AS (SELECT * FROM test) SELECT * FROM cte",
+			maxRows:  1000,
+			expected: "WITH cte AS (SELECT * FROM test) SELECT * FROM cte LIMIT 1000",
+		},
 	}
 
 	for _, tt := range tests {

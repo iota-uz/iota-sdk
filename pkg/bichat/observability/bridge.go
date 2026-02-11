@@ -303,15 +303,24 @@ func (h *providerHandler) handleAgentStart(_ context.Context, _ *events.AgentSta
 	return nil
 }
 
-func (h *providerHandler) handleAgentComplete(ctx context.Context, e *events.AgentCompleteEvent) error {
+func (h *providerHandler) finalizeAgentSpan(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	tenantID uuid.UUID,
+	timestamp time.Time,
+	durationMs int64,
+	status string,
+	output string,
+	attrs map[string]interface{},
+) error {
 	h.bridge.mu.Lock()
-	as := h.bridge.agentSpans[e.SessionID()]
-	delete(h.bridge.agentSpans, e.SessionID())
-	delete(h.bridge.lastGenerationIDs, e.SessionID())
+	as := h.bridge.agentSpans[sessionID]
+	delete(h.bridge.agentSpans, sessionID)
+	delete(h.bridge.lastGenerationIDs, sessionID)
 	h.bridge.mu.Unlock()
 
 	spanID := ""
-	startTime := e.Timestamp()
+	startTime := timestamp
 	if as != nil {
 		spanID = as.spanID
 		startTime = as.startTime
@@ -321,67 +330,43 @@ func (h *providerHandler) handleAgentComplete(ctx context.Context, e *events.Age
 	}
 
 	obs := SpanObservation{
-		ID:        spanID,
-		TraceID:   e.SessionID().String(),
-		TenantID:  e.TenantID(),
-		SessionID: e.SessionID(),
-		Timestamp: startTime,
-		Name:      "agent.execute",
-		Type:      "agent",
-		Duration:  time.Duration(e.DurationMs) * time.Millisecond,
-		Status:    "success",
-		Attributes: map[string]interface{}{
-			"agent_name":   e.AgentName,
-			"iterations":   e.Iterations,
-			"total_tokens": e.TotalTokens,
-		},
+		ID:         spanID,
+		TraceID:    sessionID.String(),
+		TenantID:   tenantID,
+		SessionID:  sessionID,
+		Timestamp:  startTime,
+		Name:       "agent.execute",
+		Type:       "agent",
+		Duration:   time.Duration(durationMs) * time.Millisecond,
+		Status:     status,
+		Output:     output,
+		Attributes: attrs,
 	}
 
 	return h.provider.RecordSpan(ctx, obs)
 }
 
+func (h *providerHandler) handleAgentComplete(ctx context.Context, e *events.AgentCompleteEvent) error {
+	return h.finalizeAgentSpan(ctx, e.SessionID(), e.TenantID(), e.Timestamp(), e.DurationMs, "success", "", map[string]interface{}{
+		"agent_name":   e.AgentName,
+		"iterations":   e.Iterations,
+		"total_tokens": e.TotalTokens,
+	})
+}
+
 func (h *providerHandler) handleAgentError(ctx context.Context, e *events.AgentErrorEvent) error {
-	h.bridge.mu.Lock()
-	as := h.bridge.agentSpans[e.SessionID()]
-	delete(h.bridge.agentSpans, e.SessionID())
-	delete(h.bridge.lastGenerationIDs, e.SessionID())
-	h.bridge.mu.Unlock()
-
-	spanID := ""
-	startTime := e.Timestamp()
-	if as != nil {
-		spanID = as.spanID
-		startTime = as.startTime
-	}
-	if spanID == "" {
-		spanID = uuid.New().String()
-	}
-
-	obs := SpanObservation{
-		ID:        spanID,
-		TraceID:   e.SessionID().String(),
-		TenantID:  e.TenantID(),
-		SessionID: e.SessionID(),
-		Timestamp: startTime,
-		Name:      "agent.execute",
-		Type:      "agent",
-		Duration:  time.Duration(e.DurationMs) * time.Millisecond,
-		Status:    "error",
-		Output:    e.Error,
-		Attributes: map[string]interface{}{
-			"agent_name": e.AgentName,
-			"iterations": e.Iterations,
-			"error":      e.Error,
-		},
-	}
-
-	return h.provider.RecordSpan(ctx, obs)
+	return h.finalizeAgentSpan(ctx, e.SessionID(), e.TenantID(), e.Timestamp(), e.DurationMs, "error", e.Error, map[string]interface{}{
+		"agent_name": e.AgentName,
+		"iterations": e.Iterations,
+		"error":      e.Error,
+	})
 }
 
 func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMResponseEvent) error {
 	// Find matching pending generation (correlation)
 	var matchedGen *simplePendingGeneration
 
+	// Single RLock to read both pending generation correlation and agent span parent.
 	h.bridge.mu.RLock()
 	// Search within correlation window (30 seconds)
 	for _, pending := range h.bridge.pendingGenerations {
@@ -392,6 +377,10 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 				break
 			}
 		}
+	}
+	var agentSpanID string
+	if as := h.bridge.agentSpans[e.SessionID()]; as != nil {
+		agentSpanID = as.spanID
 	}
 	h.bridge.mu.RUnlock()
 
@@ -434,14 +423,6 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 	if h.bridge.userIDFromCtx != nil {
 		userID = h.bridge.userIDFromCtx(ctx)
 	}
-
-	// Resolve parent span (agent span) for hierarchical nesting
-	h.bridge.mu.RLock()
-	var agentSpanID string
-	if as := h.bridge.agentSpans[e.SessionID()]; as != nil {
-		agentSpanID = as.spanID
-	}
-	h.bridge.mu.RUnlock()
 
 	genID := uuid.New().String()
 
@@ -511,6 +492,7 @@ func (h *providerHandler) handleToolComplete(ctx context.Context, e *events.Tool
 	}
 
 	// Prefer OpenTelemetry trace context if present on ctx.
+	// This overrides the bridge-computed ParentID (lastGenerationID) in favor of the OTel span hierarchy.
 	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
 		obs.TraceID = traceID
 		obs.ParentID = spanID
