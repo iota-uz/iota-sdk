@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
@@ -13,8 +14,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-// validIdentifierPattern validates SQL identifiers (table/column names).
-var validIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+// validIdentifierPattern validates SQL identifiers, optionally schema-qualified (e.g., "analytics.policies").
+var validIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$`)
 
 // isValidIdentifier validates that a name is a valid SQL identifier.
 func isValidIdentifier(name string) bool {
@@ -126,8 +127,12 @@ func (t *SchemaListTool) CallStructured(ctx context.Context, input string) (*typ
 	// Build payload
 	schemaListTables := make([]types.SchemaListTable, len(tables))
 	for i, table := range tables {
+		name := table.Name
+		if table.Schema != "" {
+			name = table.Schema + "." + table.Name
+		}
 		schemaListTables[i] = types.SchemaListTable{
-			Name:        table.Name,
+			Name:        name,
 			RowCount:    table.RowCount,
 			Description: table.Description,
 		}
@@ -199,7 +204,7 @@ func (t *SchemaDescribeTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"table_name": map[string]any{
 				"type":        "string",
-				"description": "The name of the table or view to describe (e.g., 'policies_with_details')",
+				"description": "Schema-qualified name of the table or view (e.g., 'analytics.policies_with_details')",
 			},
 		},
 		"required": []string{"table_name"},
@@ -243,15 +248,21 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeInvalidRequest),
-				Message: fmt.Sprintf("invalid table name '%s': must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$", params.TableName),
-				Hints:   []string{HintCheckFieldFormat, "Table names must start with letter or underscore", "Use schema_list to see valid table names"},
+				Message: fmt.Sprintf("invalid table name '%s': use schema-qualified format like 'analytics.table_name'", params.TableName),
+				Hints:   []string{HintCheckFieldFormat, HintUseSchemaList},
 			},
 		}, nil // Input validation error, not infrastructure failure
 	}
 
+	// Strip schema prefix for underlying calls (describer/permissions expect bare names)
+	bareName := params.TableName
+	if idx := strings.Index(params.TableName, "."); idx >= 0 {
+		bareName = params.TableName[idx+1:]
+	}
+
 	// Check view permission if configured
 	if t.viewAccess != nil {
-		canAccess, err := t.viewAccess.CanAccess(ctx, params.TableName)
+		canAccess, err := t.viewAccess.CanAccess(ctx, bareName)
 		if err != nil {
 			return &types.ToolResult{
 				CodecID: types.CodecToolError,
@@ -270,9 +281,9 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 				userName = fmt.Sprintf("%s %s", user.FirstName(), user.LastName())
 			}
 
-			requiredPerms := t.viewAccess.GetRequiredPermissions(params.TableName)
+			requiredPerms := t.viewAccess.GetRequiredPermissions(bareName)
 			deniedViews := []permissions.DeniedView{{
-				Name:                params.TableName,
+				Name:                bareName,
 				RequiredPermissions: requiredPerms,
 			}}
 
@@ -289,7 +300,7 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 		}
 	}
 
-	schema, err := t.describer.SchemaDescribe(ctx, params.TableName)
+	schema, err := t.describer.SchemaDescribe(ctx, bareName)
 	if err != nil {
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,
@@ -306,7 +317,7 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(ErrCodeNoData),
-				Message: fmt.Sprintf("table not found: %s", params.TableName),
+				Message: fmt.Sprintf("table not found: %s", bareName),
 				Hints:   []string{HintUseSchemaList, "Check spelling and case sensitivity", "Table must exist in analytics schema"},
 			},
 		}, nil // Data condition, not infrastructure failure

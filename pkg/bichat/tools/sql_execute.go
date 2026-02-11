@@ -66,6 +66,7 @@ func (t *SQLExecuteTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *SQLExecuteTool) Description() string {
 	return "Execute a read-only SQL query against the analytics database (SELECT or WITH...SELECT only). " +
+		"Always use schema-qualified table names (e.g., analytics.policies_with_details, NOT just policies_with_details). " +
 		"Use small limits for previews (default 25, max 1000). " +
 		"Supports positional parameters for $1..$n via params array. " +
 		"Set explain_plan=true to return an EXPLAIN plan instead of rows. " +
