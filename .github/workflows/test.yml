@@ -8,6 +8,9 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
     name: Code Quality & Formatting
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
 
     steps:
       - name: Checkout repository
@@ -28,30 +31,42 @@ jobs:
           go install github.com/a-h/templ/cmd/templ@v0.3.857
           templ --help
 
-      - name: Install TailwindCSS
-        run: |
-          echo "Installing TailwindCSS for x64 architecture..."
-          mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
-          chmod +x downloaded/tailwindcss
-          echo "$PWD/downloaded" >> $GITHUB_PATH
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
 
       - name: Install pg_formatter for SQL formatting
         run: |
           sudo apt-get update
           sudo apt-get install -y pgformatter
 
+      - name: Install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+          just --version
+
       - name: Download Go dependencies
         run: go mod download
 
+      - name: Install applet CLI
+        run: go install github.com/iota-uz/applets/cmd/applet@latest
+
       - name: Test generated files are up to date
         run: |
-          go generate ./...
-          make generate
+          just generate
           git diff --exit-code
 
       - name: Check translation files
-        run: make check tr
+        run: just check tr
+
+      - name: Enforce applet SDK dependency policy
+        run: just applet deps-check
 
       - name: Check templ files formatting
         run: |
@@ -87,17 +102,32 @@ jobs:
           echo "All SQL files are properly formatted"
 
       - name: Run go vet
-        run: go vet ./...
+        run: go vet -tags dev ./...
+
+      - name: Check applet RPC contracts
+        run: just applet rpc-check bichat
+
+      - name: Install root dependencies (for Tailwind CSS)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install BiChat applet dependencies
+        run: pnpm install --frozen-lockfile -C modules/bichat/presentation/web
+
+      - name: Typecheck BiChat applet
+        run: pnpm -C modules/bichat/presentation/web exec tsc --noEmit
 
       - name: Generate CSS files
-        run: make css
+        run: just css
 
       - name: Run golangci-lint (unused variables/functions)
-        run: make check lint
+        run: just check lint
 
   test-unit-integration:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: Unit & Integration Tests
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
 
     services:
       postgres:
@@ -147,17 +177,15 @@ jobs:
         with:
           go-version: "1.23.2"
 
+      - name: Install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+          just --version
+
       - name: Install tools
         run: |
           # Install templ (needed for CSS generation)
           go install github.com/a-h/templ/cmd/templ@v0.3.857
-
-          # Install TailwindCSS
-          echo "Installing TailwindCSS for x64 architecture..."
-          mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
-          chmod +x downloaded/tailwindcss
-          echo "$PWD/downloaded" >> $GITHUB_PATH
 
       - name: Download Go dependencies
         run: go mod download
@@ -169,7 +197,7 @@ jobs:
             sleep 1
           done
 
-      - name: Test Makefile targets
+      - name: Test just recipes
         env:
           DB_HOST: localhost
           DB_PORT: 5432
@@ -177,10 +205,10 @@ jobs:
           DB_USER: postgres
           DB_PASSWORD: postgres
         run: |
-          make db migrate up
-          make db migrate up
-          make db seed
-          make db seed
+          just db migrate up
+          just db migrate up
+          just db seed
+          just db seed
 
       - name: Run tests with coverage
         env:
@@ -189,14 +217,14 @@ jobs:
           DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
-        run: go test -v ./... -coverprofile=coverage.out -covermode=atomic
+        run: go test -tags dev -v ./... -coverprofile=coverage.out -covermode=atomic
 
       - name: Generate coverage report
         env:
           COVERAGE_THRESHOLD: 10
           COVERAGE_MAX_FILES_DISPLAY: 100
           COVERAGE_IGNORE_PATTERNS: "cmd/,*_templ.go,viewmodels/"
-        run: node ./.github/scripts/coverage-report.js --file coverage.out --output github
+        run: node ./.github/scripts/coverage-report.cjs --file coverage.out --output github
 
       - name: Generate HTML coverage report
         run: go tool cover -html=coverage.out -o coverage.html
@@ -216,11 +244,14 @@ jobs:
           DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
-        run: make db migrate down
+        run: just db migrate down
 
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: E2E Tests
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
 
     services:
       postgres:
@@ -270,32 +301,38 @@ jobs:
         with:
           go-version: "1.23.2"
 
+      - name: Install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+          just --version
+
       - name: Install tools
         run: |
           # Install templ (needed for CSS generation)
           go install github.com/a-h/templ/cmd/templ@v0.3.857
 
-          # Install TailwindCSS
-          echo "Installing TailwindCSS for x64 architecture..."
-          mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
-          chmod +x downloaded/tailwindcss
-          echo "$PWD/downloaded" >> $GITHUB_PATH
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
 
       - name: Download Go dependencies
         run: go mod download
 
+      - name: Install root dependencies (for Tailwind CSS)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
       - name: Generate CSS files
-        run: make css
+        run: just css
 
       - name: Setup E2E database
         run: |
-          make e2e reset
-
-      - name: Install PNPM
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+          just e2e reset
 
       - name: Install Node dependencies
         run: pnpm install
@@ -319,12 +356,13 @@ jobs:
           GO_APP_ENV: production
           ENABLE_TEST_ENDPOINTS: true
         run: |
-          go run cmd/server/main.go &
+          go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
           # Wait for server to be ready (timeout: 60 seconds)
           timeout 60 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'
+          echo "Server started successfully"
 
       - name: Run Playwright Tests
         env:
@@ -335,6 +373,12 @@ jobs:
       - name: Stop Go Server
         if: always()
         run: kill ${{ env.SERVER_PID }} || true
+
+      - name: Show Server Logs
+        if: failure()
+        run: |
+          echo "=== Server Logs ==="
+          cat /tmp/server.log || echo "No server logs found"
 
       - name: Upload Playwright Report
         if: always()
@@ -351,3 +395,52 @@ jobs:
           name: test-results
           path: e2e/test-results/
           retention-days: 30
+
+      - name: Upload Server Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: /tmp/server.log
+          retention-days: 7
+
+  docs-build:
+    name: Documentation Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Install documentation dependencies
+        working-directory: ./docs
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Mermaid diagrams
+        working-directory: ./docs
+        run: pnpm run check:mermaid
+
+      - name: Build documentation
+        working-directory: ./docs
+        run: pnpm build
+
+      - name: Check documentation build artifacts
+        run: |
+          if [ ! -d "docs/out" ]; then
+            echo "Error: Documentation build output not found"
+            exit 1
+          fi
+          if [ ! -f "docs/out/index.html" ]; then
+            echo "Error: Documentation index.html not found"
+            exit 1
+          fi
+          echo "Documentation build successful"

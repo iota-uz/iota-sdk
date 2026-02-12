@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"github.com/iota-uz/psql-parser/util/uuid"
 
 	"github.com/go-faster/errors"
 )
@@ -18,7 +18,7 @@ var (
 )
 
 const (
-	selectSessionQuery = `SELECT token, user_id, expires_at, ip, user_agent, created_at, tenant_id FROM sessions`
+	selectSessionQuery = `SELECT token, user_id, expires_at, ip, user_agent, created_at, tenant_id, audience FROM sessions`
 	countSessionQuery  = `SELECT COUNT(*) as count FROM sessions`
 	insertSessionQuery = `
         INSERT INTO sessions (
@@ -28,9 +28,10 @@ const (
             ip,
             user_agent,
             created_at,
-            tenant_id
+            tenant_id,
+            audience
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)`
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	updateSessionQuery = `
         UPDATE sessions
         SET expires_at = $1,
@@ -139,6 +140,40 @@ func (g *SessionRepository) GetByToken(ctx context.Context, token string) (sessi
 	return sessions[0], nil
 }
 
+func (g *SessionRepository) GetByTokenAndAudience(ctx context.Context, token string, audience session.SessionAudience) (session.Session, error) {
+	// First try with tenant from context
+	tenantID, err := composables.UseTenantID(ctx)
+
+	// If tenant is not in context (like during login), get the session regardless of tenant
+	if err != nil {
+		// Ensure we have a transaction context
+		_, err := composables.UseTx(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Query without tenant filter during login
+		sessions, err := g.querySessions(ctx, repo.Join(selectSessionQuery, "WHERE token = $1 AND audience = $2"), token, audience)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get session by token and audience")
+		}
+		if len(sessions) == 0 {
+			return nil, ErrSessionNotFound
+		}
+		return sessions[0], nil
+	}
+
+	// Normal flow with tenant from context
+	sessions, err := g.querySessions(ctx, repo.Join(selectSessionQuery, "WHERE token = $1 AND tenant_id = $2 AND audience = $3"), token, tenantID, audience)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get session by token and audience")
+	}
+	if len(sessions) == 0 {
+		return nil, ErrSessionNotFound
+	}
+	return sessions[0], nil
+}
+
 func (g *SessionRepository) Create(ctx context.Context, data session.Session) error {
 	dbSession := ToDBSession(data)
 
@@ -158,6 +193,7 @@ func (g *SessionRepository) Create(ctx context.Context, data session.Session) er
 		dbSession.UserAgent,
 		dbSession.CreatedAt,
 		dbSession.TenantID,
+		dbSession.Audience,
 	)
 }
 
@@ -241,6 +277,7 @@ func (g *SessionRepository) querySessions(ctx context.Context, query string, arg
 			&sessionRow.UserAgent,
 			&sessionRow.CreatedAt,
 			&sessionRow.TenantID,
+			&sessionRow.Audience,
 		); err != nil {
 			return nil, err
 		}

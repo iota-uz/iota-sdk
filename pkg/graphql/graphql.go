@@ -19,7 +19,6 @@ import (
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
 )
@@ -31,6 +30,11 @@ import (
 type Resolver struct {
 	// Removed unused field: app application.Application
 }
+
+// registerIntrospection is a package-level variable that can be overridden by build tags.
+// In development builds, this will enable GraphQL introspection.
+// In production builds, this will be a no-op.
+var registerIntrospection = func(server *Handler, rootExecutor *executor.Executor) {}
 
 func NewBaseServer(schema graphql.ExecutableSchema) *Handler {
 	ex := executor.New(schema)
@@ -85,10 +89,12 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 	}
 
 	execsLen := len(execs)
+	var lastErr gqlerror.List
 	for i, ex := range execs {
 		rc, opErr := ex.CreateOperationContext(ctx, params)
 		if opErr != nil {
 			if i < execsLen && rc.Operation == nil {
+				lastErr = opErr
 				continue
 			}
 			w.WriteHeader(statusFor(opErr))
@@ -102,6 +108,19 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 		writeJson(w, responses(ctx))
 		return
 	}
+
+	// If no executor could handle the operation, return the last error (if any)
+	if lastErr != nil {
+		w.WriteHeader(statusFor(lastErr))
+		resp := exec.DispatchError(ctx, lastErr)
+		writeJson(w, resp)
+		return
+	}
+
+	// Fallback to a generic error to avoid empty responses
+	gqlErr := gqlerror.Errorf("no executable schema matched the operation")
+	resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
+	writeJson(w, resp)
 }
 
 type MyPOST struct {
@@ -203,9 +222,7 @@ func NewHandler(rootExecutor *executor.Executor) *Handler {
 	// TODO: make LRU work
 	// srv.SetQueryCache(lru.New(1000))
 
-	server.Use(map[*executor.Executor]graphql.HandlerExtension{
-		rootExecutor: extension.Introspection{},
-	})
+	registerIntrospection(server, rootExecutor)
 	return server
 }
 

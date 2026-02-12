@@ -1,0 +1,331 @@
+---
+title: 'Multi-Tenancy'
+description: 'Tenant isolation and data separation'
+---
+
+# Multi-Tenancy
+
+IOTA SDK implements multi-tenancy to serve multiple organizations (tenants) from a single deployment while maintaining complete data isolation.
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "IOTA SDK Platform"
+        App[Application Layer]
+        
+        subgraph "Tenant Isolation"
+            Middleware[Tenant Middleware]
+            Context[Tenant Context]
+        end
+        
+        subgraph "Data Layer"
+            DB[(PostgreSQL)]
+            SchemaA["Schema: tenant_a"]
+            SchemaB["Schema: tenant_b"]
+            SchemaC["Schema: tenant_c"]
+        end
+    end
+    
+    UserA["User A<br/>tenant_a"] -->|Request| Middleware
+    UserB["User B<br/>tenant_b"] -->|Request| Middleware
+    UserC["User C<br/>tenant_c"] -->|Request| Middleware
+    
+    Middleware -->|Set Context| Context
+    Context -->|Query| DB
+    DB --> SchemaA
+    DB --> SchemaB
+    DB --> SchemaC
+```
+
+## Tenant Identification
+
+### Subdomain-Based Routing
+
+Tenants are identified by subdomain:
+
+```
+tenant-a.iota-sdk.com → Tenant A
+tenant-b.iota-sdk.com → Tenant B
+tenant-c.iota-sdk.com → Tenant C
+```
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant DNS
+    participant Router
+    participant Middleware
+    participant Context
+    
+    User->>DNS: tenant-a.iota-sdk.com
+    DNS->>Router: Route to app
+    Router->>Middleware: Process request
+    Middleware->>Middleware: Extract subdomain
+    Middleware->>Middleware: Lookup tenant
+    Middleware->>Context: Set tenant in context
+    Context-->>User: Tenant-scoped response
+```
+
+### Tenant Resolution Flow
+
+```mermaid
+graph TD
+    A[HTTP Request] -->|Extract Host| B{Parse Subdomain}
+    B -->|tenant-slug| C[Lookup Tenant ID]
+    C -->|Found| D[Set Tenant Context]
+    C -->|Not Found| E[Return 404]
+    D --> F[Process Request]
+    F --> G[Apply Tenant Filter]
+    G --> H[Query Database]
+```
+
+## Data Isolation
+
+### Schema-Based Isolation
+
+Each tenant has a separate database schema:
+
+```mermaid
+graph TB
+    subgraph "PostgreSQL Database"
+        DB["Database: iota_sdk"]
+        
+        subgraph "Tenant A Schema"
+            A1[users]
+            A2[payments]
+            A3[products]
+        end
+        
+        subgraph "Tenant B Schema"
+            B1[users]
+            B2[payments]
+            B3[products]
+        end
+        
+        subgraph "Tenant C Schema"
+            C1[users]
+            C2[payments]
+            C3[products]
+        end
+        
+        DB --> A1
+        DB --> A2
+        DB --> A3
+        DB --> B1
+        DB --> B2
+        DB --> B3
+        DB --> C1
+        DB --> C2
+        DB --> C3
+    end
+```
+
+### Automatic Query Filtering
+
+All database queries automatically include tenant filters:
+
+```mermaid
+sequenceDiagram
+    participant Service
+    participant Repository
+    participant QueryBuilder
+    participant DB
+    
+    Service->>Repository: List users
+    Repository->>QueryBuilder: Build query
+    QueryBuilder->>QueryBuilder: Add WHERE tenant_id = ?
+    QueryBuilder->>DB: Execute filtered query
+    DB-->>Repository: Tenant-scoped results
+    Repository-->>Service: Return entities
+```
+
+## Tenant Context
+
+### Context Propagation
+
+Tenant ID flows through the request context:
+
+```mermaid
+graph LR
+    A[HTTP Request] -->|Middleware| B[Context]
+    B -->|Repository| C[SQL Query]
+    B -->|Service| D[Business Logic]
+    B -->|Event| E[Domain Event]
+    
+    C -->|WHERE tenant_id = x| F[(Database)]
+    E -->|Include tenant| G[Event Handler]
+```
+
+### Context Safety
+
+Tenant context is:
+- Set once per request
+- Immutable after setting
+- Passed to all layers
+- Used in all queries
+
+## Shared Resources
+
+### Cross-Tenant Services
+
+Some services operate across tenants:
+
+```mermaid
+graph TB
+    subgraph "Tenant A"
+        A[Services]
+    end
+    
+    subgraph "Tenant B"
+        B[Services]
+    end
+    
+    subgraph "Superadmin"
+        C[Analytics Service]
+        D[Tenant Management]
+    end
+    
+    A -.->|Read-only| C
+    B -.->|Read-only| C
+    D -->|Manages| A
+    D -->|Manages| B
+```
+
+### Shared Entities
+
+Certain entities are shared across tenants:
+
+| Entity | Sharing | Purpose |
+|--------|---------|---------|
+| **Currency** | Global | ISO standard codes |
+| **Settings Schema** | Template | Default settings structure |
+| **Permissions** | Template | RBAC definitions |
+
+## Tenant Lifecycle
+
+### Creating a Tenant
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant Superadmin
+    participant DB
+    participant App
+    
+    Admin->>Superadmin: Create tenant request
+    Superadmin->>Superadmin: Validate subdomain
+    Superadmin->>DB: Create schema
+    Superadmin->>DB: Run migrations
+    Superadmin->>DB: Seed default data
+    Superadmin->>App: Register tenant
+    Superadmin-->>Admin: Tenant ready
+```
+
+### Tenant Operations
+
+| Operation | Effect | Access |
+|-----------|--------|--------|
+| **Create** | New schema, migrations applied | Superadmin only |
+| **Suspend** | Block all access | Superadmin only |
+| **Delete** | Remove schema and data | Superadmin only |
+| **Backup** | Export tenant data | Superadmin only |
+| **Settings** | Configure tenant | Tenant admin |
+
+## Security Considerations
+
+### Data Leakage Prevention
+
+```mermaid
+graph TD
+    A[Request] -->|Auth| B{Valid Token?}
+    B -->|No| C[401 Unauthorized]
+    B -->|Yes| D{Tenant Match?}
+    D -->|No| E[403 Forbidden]
+    D -->|Yes| F[Validate Permissions]
+    F -->|No| G[403 Forbidden]
+    F -->|Yes| H[Process Request]
+```
+
+### Security Layers
+
+1. **Authentication** - Valid session/token required
+2. **Tenant Assignment** - User belongs to tenant
+3. **Permission Check** - User has required permission
+4. **Query Filtering** - All queries scoped to tenant
+
+## Tenant-Aware Features
+
+### Localization
+
+Each tenant can have different defaults:
+
+| Setting | Scope | Example |
+|---------|-------|---------|
+| **Language** | Tenant | English, Russian, Uzbek |
+| **Currency** | Tenant | USD, UZS, EUR |
+| **Timezone** | Tenant | UTC+5, UTC+3 |
+
+### Customization
+
+Tenants can customize:
+
+- Branding (logos, colors: %v", err)
+- Feature flags (enable/disable modules: %v", err)
+- Default settings (date formats, number formats: %v", err)
+- Custom fields (extend entities: %v", err)
+
+## Implementation Details
+
+### Database Connection
+
+Single connection pool with schema switching:
+
+```mermaid
+graph LR
+    A[Connection Pool] -->|SET search_path| B[Tenant A Schema]
+    A -->|SET search_path| C[Tenant B Schema]
+    A -->|SET search_path| D[Tenant C Schema]
+```
+
+### Migration Strategy
+
+Migrations run per-tenant:
+
+```mermaid
+graph TB
+    A[Migration File] -->|Apply| B[Tenant A Schema]
+    A -->|Apply| C[Tenant B Schema]
+    A -->|Apply| D[Tenant C Schema]
+    
+    B -->|Version| E[Schema Migrations Table]
+    C -->|Version| F[Schema Migrations Table]
+    D -->|Version| G[Schema Migrations Table]
+```
+
+## Performance Considerations
+
+### Connection Pooling
+
+- Shared pool across all tenants
+- Schema context set per query
+- No connection per tenant overhead
+
+### Query Optimization
+
+- Tenant ID in all indexes
+- Partitioning by tenant for large tables
+- Query plan caching per schema
+
+## Best Practices
+
+1. **Never Bypass Tenant Context** - Always use middleware
+2. **Test with Multiple Tenants** - Ensure isolation in tests
+3. **Monitor Per-Tenant** - Track usage and performance per tenant
+4. **Backup Individually** - Tenant-level backup/restore
+5. **Schema Migrations** - Test on all tenant schemas
+
+## Next Steps
+
+- **[Domain-Driven Design](/architecture/domain-driven-design)** - How DDD works with multi-tenancy
+- **[Module System](/architecture/module-system)** - Module registration in multi-tenant setup

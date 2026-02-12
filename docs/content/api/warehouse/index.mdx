@@ -1,0 +1,292 @@
+---
+title: 'Warehouse API'
+description: 'GraphQL API reference for Warehouse module'
+---
+
+# Warehouse API
+
+This section documents the GraphQL API for the Warehouse module.
+
+## Types
+
+### Position
+
+Product definition and catalog entry.
+
+**Fields:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| id | `ID!` | Unique identifier |
+| name | `String!` | Product name |
+| description | `String` | Product description |
+| barcode | `String` | Product barcode |
+| price | `Float` | Unit price |
+| unit | `Unit!` | Unit of measurement |
+| createdAt | `Time!` | Creation timestamp |
+| updatedAt | `Time!` | Last update timestamp |
+
+### Product
+
+Individual inventory item with RFID tracking.
+
+**Fields:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| id | `ID!` | Unique identifier |
+| rfid | `String!` | RFID tag number |
+| position | `Position!` | Product type reference |
+| status | `ProductStatus!` | Current status |
+| location | `String` | Warehouse location |
+| createdAt | `Time!` | Creation timestamp |
+
+### ProductStatus
+
+Enum representing product states:
+- `AVAILABLE` - In stock and available
+- `RESERVED` - Reserved for order
+- `SOLD` - Sold and delivered
+- `DAMAGED` - Damaged/unusable
+- `LOST` - Missing inventory
+
+### Order
+
+Warehouse order for inbound or outbound operations.
+
+**Fields:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| id | `ID!` | Unique identifier |
+| type | `OrderType!` | Inbound or outbound |
+| status | `OrderStatus!` | Current order status |
+| items | `[OrderItem!]!` | Order line items |
+| counterparty | `Counterparty` | Client or supplier |
+| createdAt | `Time!` | Creation timestamp |
+| updatedAt | `Time!` | Last update timestamp |
+
+### OrderType
+
+Enum for order direction:
+- `INBOUND` - Receiving from supplier
+- `OUTBOUND` - Shipping to client
+- `INTERNAL` - Warehouse transfer
+
+### OrderStatus
+
+Enum for order workflow states:
+- `DRAFT` - Order being prepared
+- `CONFIRMED` - Order confirmed
+- `PROCESSING` - Being picked/packed
+- `SHIPPED` - Outbound in transit
+- `COMPLETED` - Order fulfilled
+- `CANCELLED` - Order cancelled
+
+### OrderItem
+
+Individual line item in an order.
+
+**Fields:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| id | `ID!` | Unique identifier |
+| position | `Position!` | Product type |
+| quantity | `Int!` | Quantity ordered |
+| fulfilled | `Int!` | Quantity fulfilled |
+
+### Unit
+
+Unit of measurement.
+
+**Fields:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| id | `ID!` | Unique identifier |
+| name | `String!` | Unit name |
+| symbol | `String!` | Display symbol |
+| description | `String` | Unit description |
+
+### Inventory
+
+Inventory snapshot for a position.
+
+**Fields:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| position | `Position!` | Product type |
+| quantity | `Int!` | Current stock level |
+| reserved | `Int!` | Reserved quantity |
+| available | `Int!` | Available quantity |
+
+## Queries
+
+### position
+
+Fetch a single position by ID.
+
+```graphql
+position(id: ID!): Position
+```
+
+### positions
+
+Fetch a list of positions.
+
+```graphql
+positions(offset: Int!, limit: Int!): [Position!]!
+```
+
+### product
+
+Fetch a single product by ID or RFID.
+
+```graphql
+product(id: ID): Product
+productByRfid(rfid: String!): Product
+```
+
+### products
+
+Fetch a list of products.
+
+```graphql
+products(offset: Int!, limit: Int!, status: ProductStatus): [Product!]!
+```
+
+### order
+
+Fetch a single order by ID.
+
+```graphql
+order(id: ID!): Order
+```
+
+### orders
+
+Fetch a list of orders.
+
+```graphql
+orders(offset: Int!, limit: Int!, type: OrderType, status: OrderStatus): [Order!]!
+```
+
+### inventory
+
+Fetch inventory levels.
+
+```graphql
+inventory(positionId: ID): [Inventory!]!
+```
+
+## Mutations
+
+### createPosition
+
+Create a new product position.
+
+```graphql
+createPosition(input: CreatePositionInput!): Position!
+```
+
+### updatePosition
+
+Update an existing position.
+
+```graphql
+updatePosition(id: ID!, input: UpdatePositionInput!): Position!
+```
+
+### createProduct
+
+Add a new product to inventory.
+
+```graphql
+createProduct(input: CreateProductInput!): Product!
+```
+
+### updateProduct
+
+Update product details.
+
+```graphql
+updateProduct(id: ID!, input: UpdateProductInput!): Product!
+```
+
+### createOrder
+
+Create a new warehouse order.
+
+```graphql
+createOrder(input: CreateOrderInput!): Order!
+```
+
+### updateOrder
+
+Update order details.
+
+```graphql
+updateOrder(id: ID!, input: UpdateOrderInput!): Order!
+```
+
+### addOrderItem
+
+Add item to existing order.
+
+```graphql
+addOrderItem(orderId: ID!, input: OrderItemInput!): Order!
+```
+
+### processOrder
+
+Move order to next workflow step.
+
+```graphql
+processOrder(id: ID!): Order!
+```
+
+### completeOrder
+
+Mark order as completed.
+
+```graphql
+completeOrder(id: ID!): Order!
+```
+
+### cancelOrder
+
+Cancel an order.
+
+```graphql
+cancelOrder(id: ID!): Order!
+```
+
+## Subscriptions
+
+### productStockChanged
+
+Real-time stock level updates.
+
+```graphql
+productStockChanged(positionId: ID): Inventory!
+```
+
+### orderStatusChanged
+
+Real-time order status updates.
+
+```graphql
+orderStatusChanged(orderId: ID): Order!
+```
+
+## Scalars
+
+### Time
+
+ISO 8601 timestamp.
+
+---
+
+*This documentation is auto-generated from GraphQL schema files. Last updated: 2026-01-31*

@@ -1,0 +1,308 @@
+---
+title: 'Module System'
+description: 'Understanding module registration and lifecycle'
+---
+
+# Module System
+
+IOTA SDK's module system enables modular, composable architecture. Each module is self-contained and can be added or removed without affecting others.
+
+## Module Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Registered: Load()
+    Registered --> Initialized: Register()
+    Initialized --> Running: Start()
+    Running --> [*]: Shutdown
+     
+    Registered --> Unloaded: Error
+    Initialized --> Unloaded: Error
+```
+
+### 1. Registration Phase
+
+During application startup, each module's `Register()` method is called:
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Mod as Module
+    participant Registry as Service Registry
+    participant Router as Router
+    participant Migrations as Migration Manager
+    
+    App->>Mod: Register(app)
+    Mod->>Migrations: Register schema files
+    Mod->>Registry: Register services
+    Mod->>Router: Register controllers
+    Mod->>App: Register middleware
+    Mod->>App: Register navigation items
+```
+
+### 2. Initialization Phase
+
+Services are wired together via dependency injection:
+
+```mermaid
+graph TB
+    A[User Service] -->|needs| B[User Repository]
+    A -->|needs| C[Event Publisher]
+    A -->|needs| D[Validator]
+    
+    B -->|uses| E[Database]
+    C -->|uses| F[Event Bus]
+```
+
+### 3. Running Phase
+
+The application serves requests with all modules active:
+
+```mermaid
+graph LR
+    A[HTTP Request] --> B{Router}
+    B -->|/finance/*| C[Finance Controllers]
+    B -->|/warehouse/*| D[Warehouse Controllers]
+    B -->|/users/*| E[Core Controllers]
+    
+    C --> F[Finance Services]
+    D --> G[Warehouse Services]
+    E --> H[Core Services]
+```
+
+## Module Structure
+
+### Required Files
+
+```
+modules/{module}/
+├── module.go              # Module interface implementation
+└── links.go               # Navigation definition
+```
+
+### Standard Structure
+
+```
+modules/{module}/
+├── domain/                # Business logic
+│   ├── aggregates/        # Aggregate roots
+│   ├── entities/          # Domain entities
+│   └── value_objects/     # Value objects
+├── infrastructure/
+│   └── persistence/       # Data access
+│       ├── models/        # Database models
+│       ├── schema/        # SQL migrations
+│       └── *.go           # Repository implementations
+├── services/              # Business services
+├── presentation/
+│   ├── controllers/       # HTTP handlers
+│   └── templates/         # Templ files
+├── module.go              # Module registration
+└── links.go               # Navigation
+```
+
+## Module Interface
+
+All modules implement the `application.Module` interface:
+
+```mermaid
+classDiagram
+    class Module {
+        +Register(app Application) error
+    }
+    
+    class Application {
+        +RegisterServices(services...)
+        +RegisterControllers(controllers...)
+        +RegisterMiddleware(middleware...)
+        +Migrations() MigrationManager
+        +EventPublisher() EventBus
+        +Service(service) any
+    }
+    
+    Module ..> Application : uses
+```
+
+### Registration Methods
+
+| Method | Purpose | Called In |
+|--------|---------|-----------|
+| `RegisterServices()` | Add business services | Services layer |
+| `RegisterControllers()` | Add HTTP handlers | Presentation layer |
+| `RegisterMiddleware()` | Add request middleware | Infrastructure |
+| `RegisterLocaleFiles()` | Translations | Presentation |
+| `RegisterHashFsAssets()` | Static assets | Presentation |
+| `QuickLinks().Add()` | Spotlight search | Navigation |
+
+## Service Registration
+
+### Service Pattern
+
+Services are registered as interfaces and retrieved by type:
+
+```mermaid
+graph TB
+    A[Module] -->|registers| B[UserService]
+    C[Controller] -->|retrieves| D[Service Registry]
+    D -->|returns| B
+    
+    B -->|uses| E[UserRepository]
+    B -->|uses| F[EventBus]
+```
+
+### Dependency Injection
+
+Services declare dependencies explicitly:
+
+```mermaid
+sequenceDiagram
+    participant Mod as Module
+    participant Repo as Repository
+    participant Service as Service
+    participant App as Application
+    participant Controller as Controller
+    
+    Mod->>Repo: Create repository
+    Mod->>Service: Create service(repo, bus, validator)
+    Mod->>App: RegisterServices(service)
+    
+    Note over App,Controller: Later...
+    Controller->>App: Service(UserService{})
+    App-->>Controller: Return service instance
+```
+
+## Controller Registration
+
+### Routing
+
+Controllers define their base path during registration:
+
+```mermaid
+graph LR
+    A[UsersController] -->|BasePath: /users| B[Router]
+    C[PaymentsController] -->|BasePath: /finance/payments| B
+    D[ProductsController] -->|BasePath: /warehouse/products| B
+    
+    B -->|GET /users| E[List Handler]
+    B -->|POST /users| F[Create Handler]
+    B -->|GET /users/:id| G[Get Handler]
+```
+
+### Permission Integration
+
+Controllers check permissions via middleware:
+
+```mermaid
+sequenceDiagram
+    participant Request
+    participant Middleware
+    participant RBAC
+    participant Controller
+    
+    Request->>Middleware: HTTP Request
+    Middleware->>RBAC: Check permission
+    RBAC-->>Middleware: Allowed/Denied
+    alt Allowed
+        Middleware->>Controller: Proceed
+    else Denied
+        Middleware-->>Request: 403 Forbidden
+    end
+```
+
+## Cross-Module Communication
+
+### Service Access
+
+Modules access other modules via the service registry:
+
+```mermaid
+graph TB
+    subgraph "Finance Module"
+        A[PaymentService]
+        B[PaymentController]
+    end
+    
+    subgraph "Core Module"
+        C[UserService]
+        D[UserRepository]
+    end
+    
+    B -->|"app.Service()"| C
+    A -.->|"needs user info"| C
+```
+
+### Event-Driven Communication
+
+Loose coupling via domain events:
+
+```mermaid
+sequenceDiagram
+    participant Finance
+    participant EventBus
+    participant CRM
+    participant Warehouse
+    
+    Finance->>EventBus: PaymentCreated event
+    EventBus->>CRM: Notify client
+    EventBus->>Warehouse: Check inventory
+    EventBus->>Finance: Update analytics
+```
+
+## Module Configuration
+
+### Module Options
+
+Modules accept configuration via options pattern:
+
+```mermaid
+graph TD
+    A[NewModule] --> B[Option 1: PermissionSchema]
+    A --> C[Option 2: DefaultCurrency]
+    A --> D[Option 3: FeatureFlags]
+    
+    B --> E[Configured Module]
+    C --> E
+    D --> E
+```
+
+### Environment-Based Config
+
+Configuration can vary by environment:
+
+| Environment | Configuration | Purpose |
+|-------------|---------------|---------|
+| Development | Debug logging, test endpoints | Development |
+| Staging | Production-like, limited data | Testing |
+| Production | Optimized, no debug info | Production |
+
+## Best Practices
+
+1. **Single Responsibility** - Each module handles one business domain
+2. **Explicit Dependencies** - Declare all required services
+3. **No Circular Dependencies** - Module A shouldn't depend on B if B depends on A
+4. **Event-Based Coupling** - Use events for loose coupling
+5. **Interface Segregation** - Small, focused service interfaces
+
+## Built-in Modules
+
+Modules are loaded in `modules.BuiltInModules`:
+
+```mermaid
+graph LR
+    A[Application] -->|Loads| B[Core]
+    A -->|Loads| C[Finance]
+    A -->|Loads| D[Warehouse]
+    A -->|Loads| E[CRM]
+    A -->|Loads| F[HRM]
+    A -->|Loads| G[Projects]
+    A -->|Loads| H[Billing]
+    A -->|Loads| I[BiChat]
+    A -->|Loads| J[Website]
+    A -->|Loads| K[Logging]
+```
+
+## Next Steps
+
+- **[Multi-Tenancy](/architecture/multi-tenancy)** - How modules handle tenant isolation
+- **[Domain-Driven Design](/architecture/domain-driven-design)** - DDD patterns in modules
+- **[Core Module](/core)** - See a complete module implementation

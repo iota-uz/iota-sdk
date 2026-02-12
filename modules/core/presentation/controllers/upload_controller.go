@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -16,9 +17,11 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/multifs"
 )
 
 type UploadController struct {
@@ -44,7 +47,6 @@ func (c *UploadController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
 	router.Use(middleware.ProvideLocalizer(c.app))
-	router.Use(middleware.WithTransaction())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
 	workDir, err := os.Getwd()
@@ -53,7 +55,8 @@ func (c *UploadController) Register(r *mux.Router) {
 	}
 	fullPath := filepath.Join(workDir, conf.UploadsPath)
 	prefix := path.Join("/", conf.UploadsPath, "/")
-	r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.FileServer(http.Dir(fullPath))))
+	neuteredFS := multifs.NewNeuteredFileSystem(http.Dir(fullPath))
+	r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.FileServer(neuteredFS)))
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +116,12 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		dtos = append(dtos, dto)
 	}
 
-	uploadEntities, err := c.uploadService.CreateMany(r.Context(), dtos)
+	var uploadEntities []upload.Upload
+	err := composables.InTx(r.Context(), func(txCtx context.Context) error {
+		var err error
+		uploadEntities, err = c.uploadService.CreateMany(txCtx, dtos)
+		return err
+	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

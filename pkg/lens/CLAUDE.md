@@ -1,258 +1,139 @@
-# Lens Dashboard Framework - Development Guide
+# Lens Dashboard Framework
 
-## Code Structure and Architecture
+Dashboard framework with layered architecture: Configuration → Evaluation → Execution → Rendering.
 
-The lens framework follows a strict layered architecture with **evaluation-first design**:
+## Architecture
 
 ```
 pkg/lens/
-├── types.go                    # Core types - ALWAYS start here
-├── builder/                    # Fluent API - programmatic dashboard creation
-│   └── dashboard.go           # Dashboard and panel builders
-├── evaluation/                 # CORE: Layout & config processing
-│   └── layout.go              # Grid calculations, responsive breakpoints
-├── executor/                   # Query execution - data format assignment
-│   └── executor.go            # Query orchestration (line ~184 critical!)
-├── datasource/                 # Data abstraction - NEVER import ui/
-│   └── postgres/              # Implementation - handles FormatTable/TimeSeries
-└── ui/                        # Rendering layer - consumes evaluated configs
-    ├── helpers.go             # Chart data transformation only
-    └── dashboard.templ        # Templates - pure presentation
+├── types.go              # Core types - START HERE
+├── builder/              # Fluent API for dashboard creation
+├── evaluation/           # Layout & config processing
+├── executor/             # Query execution (line ~184 critical!)
+├── datasource/           # Data abstraction - NEVER import ui/
+└── ui/                   # Rendering - consumes evaluated configs
 ```
 
-**RULE**: Configuration → Evaluation → Execution → Rendering
+**RULE**: Never import `datasource` from `ui/` or `ui` from `datasource/`.
 
 ## Adding New Chart Types
 
-**CRITICAL**: Follow this exact sequence when adding chart types:
-
-### 1. Define the Type (types.go)
+### 1. Define Type (`types.go`)
 ```go
 const ChartTypeNewChart ChartType = "new_chart"
 ```
 
-### 2. Add Builder Function (builder/dashboard.go)
+### 2. Add Builder (`builder/dashboard.go`)
 ```go
-// NewChart creates a new chart panel builder
 func NewChart() PanelBuilder {
     return NewPanel().Type(lens.ChartTypeNewChart)
 }
 ```
 
-### 3. Set Query Format (executor/executor.go)
-**CRITICAL**: Add to the switch statement at line ~184:
+### 3. Set Query Format (`executor/executor.go:184`)
 ```go
-case lens.ChartTypeBar, lens.ChartTypeColumn, lens.ChartTypeStackedBar, lens.ChartTypeNewChart:
-    query.Format = datasource.FormatTable
+case lens.ChartTypeBar, lens.ChartTypeNewChart:
+    query.Format = datasource.FormatTable  // or FormatTimeSeries
 ```
-**RULE**: Use `FormatTable` for categorical data, `FormatTimeSeries` for time-based data.
 
-### 4. Handle Chart Conversion (ui/helpers.go)
-In `convertLensToChartsType` function:
+**CRITICAL**: Use `FormatTable` for categorical data, `FormatTimeSeries` for time-based.
+
+### 4. Handle Conversion (`ui/helpers.go`)
 ```go
 case lens.ChartTypeNewChart:
     return charts.NewChartType
 ```
 
-### 5. Add Data Processing (ui/helpers.go)
-In `buildChartOptionsFromResult` function:
+### 5. Add Data Processing (`ui/helpers.go`)
 ```go
 } else if config.Type == lens.ChartTypeNewChart {
     options.Series = buildNewChartSeriesFromResult(result)
-    // Add any specific options
+}
 ```
 
-### 6. Add Chart-Specific Options (ui/helpers.go)
-In `addChartSpecificOptions` function:
+### 6. Add Chart Options (`ui/helpers.go`)
 ```go
 case lens.ChartTypeNewChart:
-    // Configure chart-specific options
-    options.PlotOptions = &charts.PlotOptions{
-        // Chart configuration
-    }
+    options.PlotOptions = &charts.PlotOptions{...}
 ```
 
-### 7. Add Colors (ui/helpers.go)
-In `getChartColors` function:
+### 7. Add Colors (`ui/helpers.go`)
 ```go
 case lens.ChartTypeNewChart:
-    return []string{"#color1", "#color2"}
+    return []string{"#3b82f6", "#10b981"}
 ```
 
 ## Query Format Rules
 
-**CRITICAL**: Chart types must use the correct query format:
-
-### FormatTable (Categorical Data)
-- `bar`, `column`, `stacked_bar`, `pie`, `table`, `metric`, `gauge`
-- All columns mapped to `point.Fields`
-- Use for: `SELECT category, series, value FROM ...`
-
-### FormatTimeSeries (Time Data)  
-- `line`, `area`
-- First column: timestamp, Second: value, Rest: fields/labels
-- Use for: `SELECT timestamp, value FROM ...`
+| Format | Chart Types | Query Pattern |
+|--------|-------------|---------------|
+| **FormatTable** | bar, column, stacked_bar, pie, table, metric, gauge | `SELECT category, series, value FROM ...` |
+| **FormatTimeSeries** | line, area | `SELECT timestamp, value FROM ...` |
 
 ## Data Processing Patterns
 
-### Standard Charts (bar, line, area)
+### Standard Charts (single series)
 ```go
 func buildSeriesFromResult(result *executor.ExecutionResult) []charts.Series {
-    // Extract single value series
     // Expects: label/timestamp, value columns
 }
 ```
 
-### Multi-Series Charts (stacked_bar)
+### Multi-Series (stacked_bar)
 ```go
 func buildStackedSeriesFromResult(result *executor.ExecutionResult) []charts.Series {
-    // Extract multiple series grouped by series name
     // Expects: category, series, value columns
+    // Groups by series name
 }
 ```
 
-### Single Value Charts (pie, gauge)
+### Single Value (pie, gauge)
 ```go
 func buildPieSeriesFromResult(result *executor.ExecutionResult) []interface{} {
-    // Extract values for pie/gauge charts
     // Returns flat array of values
 }
 ```
 
-## Data Source Development
+## PostgreSQL Column Mapping
 
-### PostgreSQL Query Execution Flow
-
-1. **executeTableQuery**: Maps all columns to `Fields`
-2. **executeTimeSeriesQuery**: Maps timestamp+value, extras to Fields/Labels
-
-**RULE**: Never modify PostgreSQL data source without understanding both execution paths.
-
-### Column Mapping Rules
+**FormatTable**: All columns → `point.Fields`
 ```go
-// Table format - all columns to Fields
 fields[columnName] = value
-
-// TimeSeries format - structured mapping
-if i >= 2 { // Additional columns beyond timestamp, value
-    if strValue, ok := columnValue.(string); ok {
-        labels[columnName] = strValue  // Strings to Labels
-    } else {
-        fields[columnName] = columnValue  // Numbers to Fields
-    }
-}
 ```
 
-## Common Development Patterns
-
-### Multi-Series Chart Pattern
-1. Use `FormatTable` format in `executor.go`
-2. Query: `SELECT category, series, value FROM ...`
-3. Create `buildXxxSeriesFromResult(result)` function that groups by series name
-
-### Chart Option Configuration
+**FormatTimeSeries**: Structured mapping
 ```go
-// In addChartSpecificOptions
-case lens.ChartTypeNewChart:
-    options.PlotOptions = &charts.PlotOptions{
-        // Chart-specific configuration
-    }
-    // Position legend if needed
-    position := charts.LegendPositionBottom
-    options.Legend = &charts.LegendConfig{
-        Position: &position,
-    }
+// col 0: timestamp, col 1: value
+col 2+: if string → labels[columnName], else → fields[columnName]
 ```
 
-### Color Schemes
-Follow the existing color pattern:
-- Single series: One color
-- Multi-series: Array of complementary colors
-- Use hex colors: `#3b82f6`, `#10b981`, etc.
+## Critical Gotchas
 
-## Critical Dependencies
+1. **Empty Chart**: Most common cause is wrong query format in `executor.go:184`. Verify chart type is in correct case (Table vs TimeSeries).
 
-### Import Rules
-- `ui/helpers.go` imports: `charts`, `lens`, `evaluation`, `executor`
-- **NEVER** import `datasource` from `ui/`
-- **NEVER** import `ui/` from `datasource/`
-- `executor` orchestrates between layers
+2. **No Data Grouping**: Query must return `category, series, value` columns for multi-series charts.
 
-### Chart Component Integration
-The lens framework integrates with `components/charts`:
-- Lens types convert to Charts types via `convertLensToChartsType`
-- Chart options built in `buildChartOptionsFromResult`  
-- Final rendering handled by `components/charts/chars.templ`
+3. **Import Cycles**: Never import `datasource` from `ui/` or vice versa. `executor` orchestrates between layers.
 
-## Testing and Debugging
+4. **Template Changes**: Always run `templ generate && just css` after modifying .templ files.
 
-### Common Issues & Quick Fixes
-1. **Empty Chart**: Check query format in `executor.go` line ~184
-2. **No Data Grouping**: Verify query returns `category, series, value` columns
-3. **JS Errors**: Run `templ generate && make css` after template changes
+5. **Query Timeout**: Default 30s. Long queries need optimization or pagination.
 
-### Empty Chart Debugging
-**MOST COMMON**: Wrong query format assignment in `executor.go` line ~184
-1. Check if chart type is in correct format case (Table vs TimeSeries)
-2. Verify query returns expected columns: `category, series, value` (Table) or `timestamp, value` (TimeSeries)
-3. Test query directly in database first
+## Testing & Debugging
 
-## Performance Guidelines
+```bash
+# Common fixes
+templ generate && just css              # After template changes
+go vet ./...                            # Check types
 
-### Query Optimization
-- Always include appropriate `ORDER BY` clauses
-- Use `LIMIT` for large datasets (handled automatically)
-- Avoid N+1 queries in multi-panel dashboards
-
-### Data Processing
-- Minimize allocations in series building functions
-- Use pre-allocated slices where possible
-- Cache color arrays and options objects
-
-## Error Handling Requirements
-
-### Data Source Errors
-```go
-return &datasource.QueryError{
-    Code:    datasource.ErrorCodeSyntax,
-    Message: "Description",
-    Query:   query,
-}
+# Debug empty charts
+1. Check executor.go:184 - is chart type in correct format case?
+2. Verify query returns expected columns
+3. Test query directly in database
 ```
 
-### Graceful Degradation
-- Charts must render empty when data unavailable
-- Log errors but don't crash dashboard
-- Provide meaningful error messages in UI
+## Code Style
 
-## Code Style Guidelines
-
-1. **Function Naming**: `buildXxxFromResult`, `addXxxOptions`, `convertXxxType`
-2. **Constants**: Use lens prefix: `lens.ChartTypeXxx`
-3. **Error Messages**: Include context and query information
-4. **Comments**: Document expected query formats and column requirements
-5. **Type Safety**: Prefer type assertions with ok checks over casting
-
-## Integration Points
-
-### Builder Pattern Integration
-Use fluent API for programmatic dashboard creation:
-```go
-dashboard := builder.NewDashboard("sales-dashboard").
-    Panel(builder.StackedBarChart().
-        ID("expenses").Title("Monthly Expenses").
-        Position(0, 0).Size(6, 4).
-        DataSource("postgres").
-        Query("SELECT month, category, amount FROM expenses").
-        Build()).
-    Build()
-```
-
-### Controller Integration  
-Controllers use builder → executor → renderer flow:
-```go
-dashboardConfig := c.createDashboard()  // Uses builder pattern
-result, err := c.executor.ExecuteDashboard(ctx, dashboardConfig)
-```
-
-**RULE**: Builder → Evaluation → Execution → Rendering flow
+- Function naming: `buildXxxFromResult`, `addXxxOptions`, `convertXxxType`
+- Constants: `lens.ChartTypeXxx`
+- Type safety: Use `value, ok := column.(type)` assertions

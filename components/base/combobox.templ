@@ -59,9 +59,9 @@ templ DropdownIndicator() {
 }
 
 templ SelectedValues() {
-	<ul class="flex items-center gap-2 flex-wrap">
+	<ul class="contents">
 		<template x-for="item in Array.from(selectedValues.values())">
-			<li class="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100">
+			<li class="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100 whitespace-nowrap">
 				<span class="whitespace-nowrap" x-text="item.label"></span>
 				<button
 					class="text-brand-500 cursor-pointer"
@@ -171,7 +171,7 @@ templ Combobox(props ComboboxProps) {
 				@input.Text(&input.Props{
 					WrapperProps: templ.Attributes{
 						"x-ref":    "trigger",
-						"class":    "flex-wrap",
+						"class":    "flex-wrap gap-1",
 						"tabindex": "0",
 						"@focus":   "$refs.input.focus()",
 					},
@@ -180,6 +180,7 @@ templ Combobox(props ComboboxProps) {
 						Attrs: templ.Attributes{
 							"x-show": "selectedValues.size > 0",
 						},
+						Class: "contents",
 					},
 					Attrs: templ.Attributes{
 						"x-ref":                      "input",
@@ -187,9 +188,10 @@ templ Combobox(props ComboboxProps) {
 						"x-on:keydown.enter.prevent": "setValue(activeValue)",
 						"@input.debounce":            "onSearch",
 						"@input":                     "searchQuery = $event.target.value",
-						":size":                      "searchQuery.length + 1",
+						":size":                      "selectedValues.size > 0 ? (searchQuery.length || 1) : null",
+						":class":                     "selectedValues.size > 0 ? '!w-auto min-w-0 flex-shrink' : 'flex-1'",
+						":placeholder":               "selectedValues.size > 0 ? '' : '" + props.Placeholder + "'",
 					},
-					Class: "w-auto min-w-0",
 					AddonRight: &input.Addon{
 						Class: "ml-auto",
 						Component: icons.CaretDown(icons.Props{

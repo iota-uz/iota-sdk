@@ -1,73 +1,22 @@
 name: Setup TailwindCSS
-description: Install TailwindCSS standalone binary for CSS compilation
-
-inputs:
-  version:
-    description: TailwindCSS version to install
-    required: false
-    default: 'v3.4.15'
-  github-token:
-    description: GitHub token for authenticated downloads (increases rate limit)
-    required: false
-    default: ${{ github.token }}
+description: Install TailwindCSS via pnpm (Tailwind v4)
 
 runs:
   using: composite
   steps:
-    - name: Cache TailwindCSS binary
-      id: cache-tailwind
-      uses: actions/cache@v4
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
       with:
-        path: /tmp/tailwind-bin/tailwindcss
-        key: tailwindcss-standalone-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+        node-version: "20"
 
-    - name: Install TailwindCSS
-      if: steps.cache-tailwind.outputs.cache-hit != 'true'
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 9.15.0
+
+    - name: Install JS dependencies (Tailwind v4)
       shell: bash
-      env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         set -euo pipefail
-        echo "::group::Installing TailwindCSS ${{ inputs.version }}"
-
-        # Create directory for tailwind binary
-        mkdir -p /tmp/tailwind-bin
-
-        # Detect OS
-        case "$(uname -s)" in
-          Linux) OS="linux";;
-          Darwin) OS="macos";;
-          MINGW*|MSYS*) OS="windows";;
-          *) echo "::error::Unsupported OS: $(uname -s)"; exit 1;;
-        esac
-
-        # Detect architecture
-        case "$(uname -m)" in
-          x86_64) ARCH="x64";;
-          arm64|aarch64) ARCH="arm64";;
-          *) echo "::error::Unsupported architecture: $(uname -m)"; exit 1;;
-        esac
-
-        # Download TailwindCSS standalone binary with authentication
-        DOWNLOAD_URL="https://github.com/tailwindlabs/tailwindcss/releases/download/${{ inputs.version }}/tailwindcss-${OS}-${ARCH}"
-        echo "Downloading from: $DOWNLOAD_URL"
-
-        if ! curl -sSfL \
-          -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-          -o /tmp/tailwind-bin/tailwindcss \
-          "$DOWNLOAD_URL"; then
-          echo "::error::Failed to download TailwindCSS binary from $DOWNLOAD_URL"
-          exit 1
-        fi
-
-        echo "TailwindCSS ${{ inputs.version }} downloaded successfully"
-        echo "::endgroup::"
-
-    - name: Make binary executable and add to PATH
-      shell: bash
-      run: |
-        # Make binary executable (whether cached or freshly downloaded)
-        chmod +x /tmp/tailwind-bin/tailwindcss
-
-        # Add to PATH
-        echo "/tmp/tailwind-bin" >> $GITHUB_PATH
+        pnpm install --frozen-lockfile
+        pnpm exec tailwindcss --help >/dev/null

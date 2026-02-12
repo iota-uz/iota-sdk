@@ -1,0 +1,17 @@
+[[dev.processes]]
+name = "air"
+command = "air"
+critical = true
+
+[[dev.processes]]
+name = "templ"
+command = "templ"
+args = ["generate", "--watch"]
+
+[[dev.processes]]
+name = "css"
+command = "npx"
+args = ["@tailwindcss/cli@4.1.18", "--input", "styles/tailwind/input.css", "--output", "modules/core/presentation/assets/css/main.min.css", "--watch"]
+
+[applets.bichat]
+base_path = "/bi-chat"

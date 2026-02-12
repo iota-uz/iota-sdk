@@ -266,8 +266,21 @@ func (c *ClickController) Complete(
 	}
 
 	oldStatus := entity.Status()
+
+	// Determine status based on error code: 0 = success, any other value = error
+	// https://docs.click.uz/click-api-error/
+	newStatus := billing.Completed
+	if dto.Error != 0 {
+		newStatus = billing.Failed
+		logger.WithFields(logrus.Fields{
+			"error_code":        dto.Error,
+			"error_note":        dto.ErrorNote,
+			"merchant_trans_id": dto.MerchantTransId,
+		}).Warn("Click Complete received error from gateway")
+	}
+
 	entity = entity.
-		SetStatus(billing.Completed).
+		SetStatus(newStatus).
 		SetDetails(
 			clickDetails.
 				SetMerchantConfirmID(entity.UpdatedAt().Unix()).
@@ -309,8 +322,8 @@ func (c *ClickController) Complete(
 		"click_trans_id":    clickDetails.PaymentID(),
 		"merchant_trans_id": clickDetails.MerchantTransID(),
 		"old_status":        oldStatus,
-		"new_status":        billing.Completed,
-	}).Info("Click Complete transaction successful")
+		"new_status":        newStatus,
+	}).Info("Click Complete transaction processed")
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {

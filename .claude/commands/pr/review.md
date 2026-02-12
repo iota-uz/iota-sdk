@@ -12,7 +12,7 @@ Performs comprehensive code review on GitHub PR and posts review comments with i
 ## Workflow
 
 1. **Extract PR Info**: Parse PR URL, fetch metadata and diff using `gh pr view` and `gh pr diff`
-2. **Review Changes**: Delegate to refactoring-expert agent; request structured output with path/line/body for each comment
+2. **Review Changes**: Delegate to auditor agent; request structured output with path/line/body for each comment
 3. **Post Review**: Convert agent output to `gh api` call with inline comments array, post with appropriate status (APPROVE/REQUEST_CHANGES/COMMENT)
 
 ## Key Commands
@@ -40,7 +40,7 @@ gh pr review <number> --comment --body "Suggestions"
 
 ## Agent Task
 
-Delegate to refactoring-expert with PR metadata and diff. Request output in this format for each issue:
+Delegate to auditor with PR metadata and diff. Request output in this format for each issue:
 ```
 path: src/file.go
 line: 42
@@ -54,7 +54,7 @@ Agent should apply IOTA SDK standards: SQL patterns, HTMX workflows, DDD archite
 
 1. Parse PR URL from `$ARGUMENTS` (extract owner/repo/number)
 2. Fetch PR details and diff
-3. Delegate to refactoring-expert; provide structured output format for comments
+3. Delegate to auditor; provide structured output format for comments
 4. Build `gh api` POST command from agent output
 5. Determine status: REQUEST_CHANGES if critical issues, COMMENT if only minor/style
 6. Post review and summarize findings

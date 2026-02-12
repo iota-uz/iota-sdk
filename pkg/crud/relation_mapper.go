@@ -183,7 +183,8 @@ func isNilEntity[T any](entity T) bool {
 	if !v.IsValid() {
 		return true
 	}
-	switch v.Kind() { //nolint:exhaustive // Only nullable kinds need IsNil check
+	//nolint:exhaustive // Only nullable kinds need IsNil check
+	switch v.Kind() {
 	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
 		return v.IsNil()
 	default:

@@ -1,668 +1,177 @@
 # IOTA SDK - Claude Code Orchestrator Configuration
 
-Claude serves as a **pure orchestrator** with general project knowledge, translating business requirements into specific code paths and delegating all implementation work to specialized agents.
+## Design Philosophy
+iota-sdk is a general purpose ERP building engine/solution. When designing anything inside iota-sdk:
+- Make it extensible, generalizable, and customizable
+- Prefer interfaces over concrete structs at boundaries
+- Apply dependency inversion and inject interfaces
+- Keep domain and services decoupled from infrastructure details
 
-## QUICK DECISION TREE
+## Quick Decision Tree
 
-**Task Classification → Agent Selection:**
+**Task Classification:**
+- **1-3 files**: No agents needed - use Read/Edit/Bash directly
+- **4-15 files**: 1-2 agents (small-medium features)
+- **16-30 files**: 3-4 agents parallel (large features)
+- **30+ files**: 5-7+ agents (cross-module)
 
-**Single Read (1-3 files):** No agents needed
-- Documentation lookup, code reading
+**Agent Selection:**
+- Errors/Failures → `debugger` first
+- Go code → `auditor` last (always)
+- Database/Schema → `editor`  
+- UI/Templates → `editor`
+- Production → `auditor` always
 
-**Small Fix (1-5 files):** `debugger` + 1 specialist
-- Single controller bug, small template fix
+## Build/Test Commands
 
-**Medium Feature (6-15 files):** 3-4 agents parallel
-- New form, API endpoint, page updates
+```bash
+# After Go changes
+go vet ./...
 
-**Large Feature (16-30 files):** 5-7 agents parallel
-- New module, major refactoring
+# After template/css changes  
+templ generate && just css
 
-**Cross-Module (30+ files):** 7-10+ agents parallel
-- Architecture changes, bulk renaming
+# Testing
+just test -v                       # All tests (verbose)
+go test -v ./path -run TestName    # Single test
 
-**Agent Selection Matrix:**
-- **Errors/Failures**: Always start with `debugger`
-- **Go Code Changes**: Always end with `refactoring-expert`
-- **Database Changes**: Always include `editor`
-- **Template/Translation**: Always include `editor`
-- **Production Changes**: `refactoring-expert` ALWAYS
-- **Complex Research/Discovery**: Use `general-purpose` when uncertain about code location or architecture
-- **Multi-Step Search Operations**: Use `general-purpose` when simple grep/glob won't suffice
+# Other
+just check tr                      # Validate translations
+just db migrate up                 # Apply migrations
+```
 
-## PROJECT OVERVIEW
+**Never run `go build`** - use `go vet` instead.
 
-### Business Overview
-IOTA SDK is a multi-tenant business management platform providing modular solutions for financial management, CRM, warehouse operations, project management, and HR functionality.
+**NPM @iota-uz/sdk** is published from the applets repo (tag v0.x.x). Do not add a publish workflow in iota-sdk.
 
-### Core Business Domains
-- **Financial Management**: Payments, expenses, debts, transactions, counterparties, accounts
-- **Customer Relations**: Client management, communication, message templates
-- **Warehouse Operations**: Inventory, products, orders, positions, units
-- **Project Management**: Project tracking, stage management, task coordination
-- **Human Resources**: Employee management, organizational structure
-- **Billing & Subscriptions**: Payment processing, subscription management
+## Module Architecture (DDD)
 
-### Technology Stack
+```
+modules/{module}/
+├── domain/aggregates/{entity}/    # Entity + events + repository interface
+├── infrastructure/persistence/    # DB models, mappers, repository impl
+├── services/                      # Business logic orchestration
+├── presentation/
+│   ├── controllers/               # HTTP handlers + DTOs
+│   ├── templates/pages/{entity}/  # list.templ, edit.templ, new.templ
+│   ├── viewmodels/                # Presentation models
+│   └── locales/                   # en.json, ru.json, uz.json
+├── module.go                      # Registration
+├── links.go                       # Navigation
+└── permissions/constants.go       # RBAC
+```
+
+## Creating New Entities
+
+1. **Domain**: `modules/{m}/domain/aggregates/{entity}/` - entity, impl, events, repository interface
+2. **Infrastructure**: `infrastructure/persistence/{entity}_repository.go` + models + mappers
+3. **Service**: `services/{entity}_service.go` with `NewEntityService(repo, eventPublisher)` constructor
+4. **Presentation**: controller + DTOs + viewmodel + mapper
+5. **Templates**: `templates/pages/{entity}/` - list.templ, edit.templ, new.templ
+6. **Localization**: Add keys to en/ru/uz.json
+7. **Registration**: Add to `module.go`, `links.go`
+8. **Verify**: `go vet ./...` and `templ generate && just css`
+
+## Multi-Agent Orchestration
+
+**Launch agents in parallel** (same message) with specific scope:
+
+```
+# Bug fix
+debugger && editor && auditor
+
+# New feature  
+editor && auditor
+
+# Database changes
+editor && auditor
+
+# Multi-module (parallel)
+(editor & editor & editor) && auditor
+
+# Research needed
+general-purpose && editor && auditor
+```
+
+**Workflow Rules:**
+- Always analyze scope first: `go vet ./...`, `find . -name "*.templ"`
+- Divide work evenly between agents of same type
+- Scale: 1-5 files → 1 agent, 6-15 → 3 agents, 16-30 → 5 agents, 31+ → 7-10 agents
+- **>10 agents degrades coordination** - avoid
+
+**Critical coordination rule:**
+- **Before agent completes**: Agent must create tasks for ANY unfinished work (stubs, TODOs, partial implementations)
+- **After agents complete**: Orchestrator must call `TaskList` and either implement remaining tasks or create new agents
+- **Never assume**: Agents completed everything unless explicitly verified via `TaskList`
+
+## E2E Testing
+
+Use the `/e2e-testing` skill for setup, running, and debugging E2E tests locally.
+Always reproduce and fix locally before pushing to CI.
+
+```bash
+just e2e dev      # Start E2E server (hot-reload)
+just e2e run      # Interactive Playwright UI
+just e2e ci       # Headless CI mode
+cd e2e && npx playwright test tests/module/specific.spec.ts:LINE  # Single test by line
+```
+
+## Technology Stack
+
 - **Backend**: Go 1.23.2, IOTA SDK framework, GraphQL
 - **Database**: PostgreSQL 13+ (multi-tenant with organization_id)
 - **Frontend**: HTMX + Alpine.js + Templ + Tailwind CSS
 - **Auth**: Cookie-based sessions with RBAC
-- **Payments**: Stripe subscriptions
 
-## Build/Lint/Test Commands
-- Format Go code and templates: `make fix fmt`
-- Organize and format Go imports: `make fix imports`
-- Template generation: `templ generate` (or `make generate watch` for watch mode)
-- Apply migrations: `make db migrate up` / `make db migrate down`
-- After changes to Go code: `go vet ./...`
-- DO NOT run `go build`, as it does the same thing as `go vet`
-
-### Testing Commands:
-- Run all tests: `make test`
-- Run tests with coverage: `make test coverage`
-- Run tests in watch mode: `make test watch`
-- Run tests with verbose output: `make test verbose`
-- Run individual test by name: `go test -v ./path/to/package -run TestSpecificName` (for debugging/focused testing)
-- Run tests in Docker: `make test docker`
-- Generate coverage report: `make test report`
-- Check coverage score: `make test score`
-
-### CSS Commands:
-- Compile CSS: `make css`
-- Compile CSS in development mode: `make css dev`
-- Watch CSS changes: `make css watch`
-- Clean CSS artifacts: `make css clean`
-
-### Docker Compose Commands:
-- Start all services: `make compose up`
-- Stop all services: `make compose down`
-- Restart services: `make compose restart`
-- View logs: `make compose logs`
-
-### Build Commands:
-- Build for local OS: `make build local`
-- Build for Linux (production): `make build linux`
-- Build Docker base image: `make build docker-base`
-- Build Docker production image: `make build docker-prod`
-
-### Code Quality Commands:
-- Format Go code and templates: `make fix fmt`
-- Organize and format Go imports: `make fix imports`
-- Lint code (check unused variables/functions): `make check lint`
-- Check translation files: `make check tr`
-
-### Other Commands:
-- Generate dependency graph: `make graph`
-
-### Documentation Commands:
-- Serve docs locally: `make docs serve` (Jekyll server with live reload)
-- Install docs dependencies: `make docs install` (Ruby/Jekyll deps)
-
-## E2E Testing Commands
-Playwright E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev). Config: `/e2e/.env.e2e`, `/e2e/playwright.config.ts`
-
-**IMPORTANT**: For ANY E2E test work (writing, editing, debugging), ALWAYS use the `e2e-tester` agent.
-
-### Commands:
-- Setup/reset: `make e2e test|reset|seed|migrate|clean`
-- Run tests interactively: `make e2e run` - Open Playwright UI mode for interactive test running
-- Run tests in CI mode: `make e2e ci` - Run all tests headless (no UI, serial execution) - ideal for terminal/CI
-- Run individual e2e test: `cd e2e && npx playwright test tests/module/specific-test.spec.ts` (for debugging/focused testing)
-- Debug mode: `cd e2e && npx playwright test --debug` (Playwright Inspector)
-- Generate traces: `cd e2e && npx playwright test --trace on` (for debugging)
-- View traces: `cd e2e && npx playwright show-trace trace.zip`
-
-### Structure:
-Tests in `/e2e/tests/{module}/`, fixtures in `/e2e/fixtures/`, page objects in `/e2e/pages/`
-
-### When to Use e2e-tester Agent:
-- Writing new Playwright test files (.spec.ts)
-- Editing existing E2E tests
-- Debugging failing Playwright tests
-- Creating test fixtures (auth, test-data)
-- Building page objects for UI interactions
-- Adding test coverage for new features
-- Improving test reliability and reducing flakiness
-- Testing HTMX interactions and realtime SSE updates
-
-### Environment Branches
-- **Production**: `main` branch
-- **Staging**: `staging` branch
-
-## CODE ORGANIZATION
-
-### File Path Patterns
-```
-modules/{module}/
-├── presentation/controllers/{page}_controller.go           # HTTP handlers
-├── services/{domain}_service.go                            # Business logic
-├── infrastructure/persistence/{entity}_repository.go       # Data access
-├── presentation/templates/pages/{page}/                    # UI templates
-└── presentation/locales/{lang}.json                        # Translations
-```
-
-## BUSINESS → CODE MAPPING
-
-### Core Module Mapping
-
-**Core Module** (Path: `modules/core/`)
-- Dashboard: `/` → `presentation/controllers/dashboard_controller.go` | `services/dashboard_service.go` | `presentation/templates/pages/dashboard/index.templ`
-- Users: `/users` → `presentation/controllers/user_controller.go` | `services/user_service.go` | `infrastructure/persistence/user_repository.go` | `presentation/templates/pages/users/index.templ`
-- Roles: `/roles` → `presentation/controllers/roles_controller.go` | `services/roles_service.go` | `infrastructure/persistence/roles_repository.go` | `presentation/templates/pages/roles/index.templ`
-- Groups: `/groups` → `presentation/controllers/group_controller.go` | `services/group_service.go` | `infrastructure/persistence/group_repository.go` | `presentation/templates/pages/groups/index.templ`
-- Settings: `/settings` → `presentation/controllers/settings_controller.go` | `services/settings_service.go` | `infrastructure/persistence/settings_repository.go` | `presentation/templates/pages/settings/index.templ`
-- Account: `/account` → `presentation/controllers/account_controller.go` | `services/account_service.go` | `infrastructure/persistence/account_repository.go` | `presentation/templates/pages/account/index.templ`
-
-**Finance Module** (Path: `modules/finance/`)
-- Financial Overview: `/finance` → `presentation/controllers/financial_overview_controller.go` | `services/financial_service.go` | `infrastructure/persistence/financial_repository.go` | `presentation/templates/pages/financial_overview/index.templ`
-- Payments: `/finance/payments` → `presentation/controllers/payment_controller.go` | `services/payment_service.go` | `infrastructure/persistence/payment_repository.go` | `presentation/templates/pages/payments/index.templ`
-- Expenses: `/finance/expenses` → `presentation/controllers/expense_controller.go` | `services/expense_service.go` | `infrastructure/persistence/expense_repository.go` | `presentation/templates/pages/expenses/index.templ`
-- Debts: `/finance/debts` → `presentation/controllers/debt_controller.go` | `services/debt_service.go` | `infrastructure/persistence/debt_repository.go` | `presentation/templates/pages/debts/index.templ`
-- Transactions: `/finance/transactions` → `presentation/controllers/transaction_controller.go` | `services/transaction_service.go` | `infrastructure/persistence/transaction_repository.go` | `presentation/templates/pages/transactions/index.templ`
-- Counterparties: `/finance/counterparties` → `presentation/controllers/counterparties_controller.go` | `services/counterparties_service.go` | `infrastructure/persistence/counterparties_repository.go` | `presentation/templates/pages/counterparties/index.templ`
-- Money Accounts: `/finance/accounts` → `presentation/controllers/money_account_controller.go` | `services/money_account_service.go` | `infrastructure/persistence/money_account_repository.go` | `presentation/templates/pages/moneyaccounts/index.templ`
-- Reports: `/finance/reports` → `presentation/controllers/financial_report_controller.go` | `services/report_service.go` | `infrastructure/persistence/report_repository.go` | `presentation/templates/pages/reports/index.templ`
-
-**CRM Module** (Path: `modules/crm/`)
-- Clients: `/crm/clients` → `presentation/controllers/client_controller.go` | `services/client_service.go` | `infrastructure/persistence/client_repository.go` | `presentation/templates/pages/clients/index.templ`
-- Chats: `/crm/chats` → `presentation/controllers/chat_controller.go` | `services/chat_service.go` | `infrastructure/persistence/chat_repository.go` | `presentation/templates/pages/chats/index.templ`
-- Message Templates: `/crm/message-templates` → `presentation/controllers/message_template_controller.go` | `services/message_template_service.go` | `infrastructure/persistence/message_template_repository.go` | `presentation/templates/pages/message-templates/index.templ`
-
-**Warehouse Module** (Path: `modules/warehouse/`)
-- Inventory: `/warehouse/inventory` → `presentation/controllers/inventory_controller.go` | `services/inventory_service.go` | `infrastructure/persistence/inventory_repository.go` | `presentation/templates/pages/inventory/index.templ`
-- Products: `/warehouse/products` → `presentation/controllers/product_controller.go` | `services/product_service.go` | `infrastructure/persistence/product_repository.go` | `presentation/templates/pages/products/index.templ`
-- Orders: `/warehouse/orders` → `presentation/controllers/order_controller.go` | `services/order_service.go` | `infrastructure/persistence/order_repository.go` | `presentation/templates/pages/orders/index.templ`
-- Positions: `/warehouse/positions` → `presentation/controllers/position_controller.go` | `services/position_service.go` | `infrastructure/persistence/position_repository.go` | `presentation/templates/pages/positions/index.templ`
-- Units: `/warehouse/units` → `presentation/controllers/unit_controller.go` | `services/unit_service.go` | `infrastructure/persistence/unit_repository.go` | `presentation/templates/pages/units/index.templ`
-
-**Projects Module** (Path: `modules/projects/`)
-- Projects: `/projects` → `presentation/controllers/project_controller.go` | `services/project_service.go` | `infrastructure/persistence/project_repository.go` | `presentation/templates/pages/projects/index.templ`
-- Project Stages: `/projects/stages` → `presentation/controllers/project_stage_controller.go` | `services/project_stage_service.go` | `infrastructure/persistence/project_stage_repository.go` | `presentation/templates/pages/project_stages/index.templ`
-
-**HRM Module** (Path: `modules/hrm/`)
-- Employees: `/hrm/employees` → `presentation/controllers/employee_controller.go` | `services/employee_service.go` | `infrastructure/persistence/employee_repository.go` | `presentation/templates/pages/employees/index.templ`
-
-**Billing Module** (Path: `modules/billing/`)
-- Billing Dashboard: `/billing` → `presentation/controllers/billing_controller.go` | `services/billing_service.go` | `infrastructure/persistence/billing_repository.go` | `presentation/templates/pages/billing/index.templ`
-
-**Website Module** (Path: `modules/website/`)
-- Public Pages: `/` → `presentation/controllers/website_controller.go` | `services/website_service.go` | `infrastructure/persistence/website_repository.go` | `presentation/templates/pages/website/index.templ`
-
-**Superadmin Module** (Path: `modules/superadmin/`)
-- Dashboard: `/` → `presentation/controllers/dashboard_controller.go` | `services/analytics_service.go` | `infrastructure/persistence/analytics_query_repository.go` | `presentation/templates/pages/dashboard/index.templ`
-- Tenants: `/superadmin/tenants` → `presentation/controllers/tenants_controller.go` | `services/tenant_service.go` | `infrastructure/persistence/analytics_query_repository.go` | `presentation/templates/pages/tenants/index.templ`
-
-**Security**: All superadmin routes MUST use `RequireSuperAdmin()` middleware to restrict access to superadmin users only.
-
-### Core Rules
-- **Use `// TODO` comments** for unimplemented parts or future enhancements
-
-### Extensibility Patterns for Child Projects
-
-#### PageContextProvider Interface
-
-The `PageContextProvider` interface (`pkg/types/pagecontext.go`) enables child projects to extend page context behavior without modifying SDK code. Child projects can implement custom PageContext types with additional fields and override methods.
-
-**Why Use PageContextProvider:**
-- Add custom fields (tenant branding, feature flags, analytics)
-- Override translation logic (custom locales, tenant-specific strings)
-- Extend logging/metrics capabilities
-- Maintain full backward compatibility with existing SDK code
-
-**Implementation Pattern:**
-
-```go
-// In your child project's types package
-import "github.com/iota-uz/iota-sdk/pkg/types"
-
-// Step 1: Define your custom context struct
-type TenantBrandingData struct {
-    PrimaryColor   string
-    CompanyLogo    string
-    CompanyName    string
-}
-
-type CustomPageContext struct {
-    // Embed the SDK's PageContextProvider interface
-    base types.PageContextProvider
-
-    // Add custom fields
-    TenantBranding TenantBrandingData
-    FeatureFlags   map[string]bool
-    Analytics      AnalyticsConfig
-}
-
-// Step 2: Create a constructor
-func NewCustomPageContext(
-    sdkCtx types.PageContextProvider,
-    branding TenantBrandingData,
-) *CustomPageContext {
-    return &CustomPageContext{
-        base:           sdkCtx,
-        TenantBranding: branding,
-        FeatureFlags:   make(map[string]bool),
-    }
-}
-
-// Step 3: Override methods as needed
-// Override T() to provide tenant-specific translations
-func (c *CustomPageContext) T(key string, args ...map[string]interface{}) string {
-    // Check for tenant-specific override
-    if override := c.lookupTenantTranslation(key); override != "" {
-        return override
-    }
-    // Fall back to SDK default
-    return c.base.T(key, args...)
-}
-
-// Override TSafe() similarly
-func (c *CustomPageContext) TSafe(key string, args ...map[string]interface{}) string {
-    if override := c.lookupTenantTranslation(key); override != "" {
-        return override
-    }
-    return c.base.TSafe(key, args...)
-}
-
-// Pass through other methods to the base implementation
-func (c *CustomPageContext) Namespace(prefix string) types.PageContextProvider {
-    newBase := c.base.Namespace(prefix)
-    return &CustomPageContext{
-        base:           newBase,
-        TenantBranding: c.TenantBranding,
-        FeatureFlags:   c.FeatureFlags,
-    }
-}
-
-func (c *CustomPageContext) ToJSLocale() string {
-    return c.base.ToJSLocale()
-}
-
-func (c *CustomPageContext) GetLocale() language.Tag {
-    return c.base.GetLocale()
-}
-
-func (c *CustomPageContext) GetURL() *url.URL {
-    return c.base.GetURL()
-}
-
-func (c *CustomPageContext) GetLocalizer() *i18n.Localizer {
-    return c.base.GetLocalizer()
-}
-
-// Add custom methods
-func (c *CustomPageContext) TenantColor() string {
-    return c.TenantBranding.PrimaryColor
-}
-
-func (c *CustomPageContext) HasFeature(flag string) bool {
-    enabled, exists := c.FeatureFlags[flag]
-    return exists && enabled
-}
-
-// Step 4: In your middleware, replace SDK context with custom context
-func WithCustomPageContext(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Get the SDK-provided base context
-        baseCtx := composables.UsePageCtx(r.Context())
-
-        // Fetch tenant branding (from DB or cache)
-        branding := fetchTenantBranding(r.Context())
-
-        // Create custom context wrapping the base
-        customCtx := NewCustomPageContext(baseCtx, branding)
-
-        // Store custom context in request context
-        newCtx := composables.WithPageCtx(r.Context(), customCtx)
-        next.ServeHTTP(w, r.WithContext(newCtx))
-    })
-}
-```
-
-**Key Points:**
-- Child projects embed `PageContextProvider` interface, not `PageContext` struct
-- SDK code continues using `PageContextProvider` interface (not `*PageContext`)
-- `WithPageCtx()` accepts `PageContextProvider` for full extensibility
-- Override only the methods you need; delegate others to base implementation
-- Add `Namespace()` support if you override translation methods
-- No changes to SDK code required - fully backward compatible
-
-### Build/Test Commands
-```bash
-# Code Quality & Testing
-go vet ./...                          # After Go changes (prefer over go build)
-make test                             # Run all tests (default, use 10-minute timeout for full suite)
-make test failures                    # Show only failing tests (JSON format, use 10-minute timeout)
-make test coverage                    # Run tests with simple coverage report (Go default, use 10-minute timeout)
-make test detailed-coverage           # Run tests with detailed coverage analysis & insights (use 10-minute timeout)
-make test verbose                     # Run tests with verbose output (use 10-minute timeout)
-go test -v ./path/to/package -run TestSpecificName  # Run individual test by name (for debugging/focused testing)
-make check tr                         # Validate translations
-
-# Linting & Code Quality
-make lint                             # Run golangci-lint (checks for unused variables/functions)
-# Note: Run `make lint` after Go code changes to check for unused code before committing
-
-# CSS Compilation
-make css                              # Compile CSS with minification (default)
-make css watch                        # Compile and watch for changes
-make css dev                          # Compile without minification (debugging)
-make css clean                        # Clean CSS build artifacts
-
-# Template Generation
-templ generate                          # Generate templ templates (default)
-make generate watch                   # Watch and regenerate templ templates on changes
-
-# Migrations & Setup
-make migrate up                       # Apply migrations
-make migrate down                     # Rollback migrations
-```
-
-## AGENT ORCHESTRATION WORKFLOWS
-
-**Claude's Default Operating Mode: Multi-Agent Parallel Execution**
-
-Multi-agent workflows are the **standard approach** for all non-trivial development tasks. Single agents are the exception, not the rule.
-
-### Multi-Agent Workflow Matrix
-
-**Workflow Types:**
-
-**Feature Development:** Use `editor` agent
-- Optional: `refactoring-expert` (always after editor)
-- When: New features, enhancements, major functionality
-
-**Bug Resolution:** `debugger` → `editor` + `refactoring-expert`
-- When: Bug fixes, error resolution, system failures
-
-**Performance Issues:** `debugger` + `editor` + `refactoring-expert`
-- When: Slow queries, high latency, resource usage
-
-**UI/Template Changes:** Use `editor` agent
-- When: UI updates, forms, frontend functionality
-
-**Database Changes:** `editor` + `refactoring-expert`
-- Note: editor handles all layers
-- When: Schema changes, migrations, query optimization
-
-**Cross-Module Work:** Multiple `editor` + `refactoring-expert`
-- When: Architecture changes, large refactoring
-
-**Config Management:** Use `editor` agent
-- Handles: CLAUDE.md updates, env files, docs, agent defs
-
-**E2E Test Work:** Use `e2e-tester` agent
-- Optional: `debugger` (for debugging failing tests)
-- When: Playwright tests, fixtures, page objects
-
-**Research & Discovery:** Use `general-purpose` agent
-- Feeds findings to implementation agents
-- When: Codebase exploration, pattern analysis, architecture understanding, complex searches
-
-**Agent Launch Rules:**
-- **Always parallel**: Launch required agents simultaneously in single message
-- **Always sequential**: `debugger` first for bugs, `refactoring-expert` last for Go changes
-- **Scale by scope**: 1-3 agents (small), 4-6 agents (medium), 7-10+ agents (large)
-
-### Workflow Execution Patterns
-
-#### Orchestrator Analysis & Work Distribution (Critical Phase)
-
-**BEFORE launching any agents, Claude must:**
-
-##### 1. Scope Analysis Phase
-```bash
-# Always analyze full scope first using available tools:
-go vet ./...                    # Identify all type errors, issues
-grep -r "TODO" --include="*.go" # Find incomplete work
-find . -name "*.templ" | wc -l  # Count template files
-find . -name "*_test.go" | wc -l # Assess test coverage needs
-```
-
-##### 2. Work Distribution Strategy
-- **Count total issues/files** before delegation
-- **Divide work evenly** between multiple agents of same type
-- **Assign specific scope** to each agent (files, modules, error ranges)
-
-##### 3. Balanced Delegation Patterns
-
-**Example: Type Errors Across Codebase**
-```
-1. Run: go vet ./... (discovers 45 type errors across 3 modules)
-2. Analysis: 15 errors in core, 20 in finance, 10 in warehouse
-3. Launch 3 editor agents with specific scope:
-   → editor (1): Fix 15 core module type errors
-   → editor (2): Fix 20 finance module type errors
-   → editor (3): Fix 10 warehouse module type errors
-```
-
-**Example: Template Updates Across Pages**
-```
-1. Run: find . -name "*.templ" (discovers 28 template files)
-2. Analysis: 12 in core, 10 in finance, 6 in warehouse
-3. Launch balanced editor agents:
-   → editor (1): Update 12 core templates
-   → editor (2): Update 10 finance templates
-   → editor (3): Update 6 warehouse templates
-```
-
-**Example: Test Coverage Gaps**
-```
-1. Run: find . -name "*_test.go" + coverage analysis
-2. Analysis: Missing tests in 8 services, 12 controllers, 5 repositories
-3. Launch editor agents with balanced scope:
-   → editor (1): Services (8 files) - implement missing tests
-   → editor (2): Controllers (12 files) - implement missing tests
-   → editor (3): Repositories (5 files) - implement missing tests
-```
-
-
-##### 4. Assessment Tools for Orchestrators
-
-**Type Errors:**
-- Analysis: `go vet ./...`, `go build ./...`
-- Distribution: Split by module/package
-
-**Template Work:**
-- Analysis: `find . -name "*.templ"`
-- Distribution: Split by functional area
-
-**Translation Missing:**
-- Analysis: `make check tr`, `grep -r "missing"`
-- Distribution: Split by language files
-
-**Test Coverage:**
-- Analysis: `go test -cover ./...`, find tests
-- Distribution: Split by layer/domain
-
-**Performance Issues:**
-- Analysis: `go test -bench ./...`, profiling
-- Distribution: Split by service/component
-
-#### Parallel Agent Launch (After Analysis)
-- **Always analyze scope FIRST** using assessment tools
-- **Launch agents with specific, balanced scope** in single message
-- **Scale UP agent usage** based on analysis results:
-    - **1-5 files**: 1-2 agents maximum
-    - **6-15 files**: 3-4 agents (optimal)
-    - **16-30 files**: 5-7 agents (high efficiency)
-    - **31+ files**: 8-10 agents (maximum capacity)
-- **Performance threshold**: >10 agents degrades coordination efficiency
-
-#### Agent Handoff Protocol
-1. **Pre-Analysis Phase**: Claude assesses full scope using tools
-2. **Balanced Distribution Phase**: Work divided evenly between agents
-3. **Independent Work Phase**: Agents work in parallel on assigned scope
-4. **Integration Points**: Outputs from one agent feed others as needed
-5. **Final Review Phase**: `refactoring-expert` reviews all changes
-
-#### Scaling Triggers
-- **Large scope discovered**: Add more agents of same type with balanced loads
-- **Cross-layer changes**: Add specialized agents for each layer
-- **Multiple modules**: Launch multiple instances with module-specific scope
-- **Complex integrations**: Include coordination agents with clear responsibilities
-
-### Practical Workflow Examples
-
-**Example 1: Bug Investigation & Fix**
-```
-1. Investigation: debugger (investigate error, identify root cause)
-2. Implementation: editor (fix the bug across affected files)
-3. Quality review: refactoring-expert (review changes, ensure code quality)
-
-Syntax: debugger && editor && refactoring-expert
-```
-
-**Example 2: New Feature Development**
-```
-1. Planning (optional): general-purpose for architecture research if needed
-2. Implementation: editor (implement domain, service, repository, controller, templates)
-3. Quality review: refactoring-expert (ensure production-ready code)
-
-Syntax: editor && refactoring-expert
-Or with research: general-purpose && editor && refactoring-expert
-```
-
-**Example 3: Database Schema Changes**
-```
-1. Migration: editor (create migration, update domain entities)
-2. Data layer: editor (update repositories for new schema)
-3. Quality review: refactoring-expert (verify migration safety, code quality)
-
-Syntax: editor (migrations + domain) && editor (repositories) && refactoring-expert
-Or single editor: editor && refactoring-expert
-```
-
-**Example 4: UI/Template Updates**
-```
-1. Templates: editor (update .templ files, controllers, ViewModels)
-2. Translations: editor (update en.toml, ru.toml, uz.toml)
-3. Quality review: refactoring-expert (verify HTMX patterns, security)
-
-Syntax: editor && refactoring-expert
-```
-
-**Example 5: Performance Optimization**
-```
-1. Investigation: debugger (identify bottlenecks, analyze queries)
-2. Optimization: editor (optimize queries, add indexes, improve algorithms)
-3. Quality review: refactoring-expert (ensure no regressions)
-
-Syntax: debugger && editor && refactoring-expert
-```
-
-**Example 6: E2E Test Development**
-```
-1. Test creation: e2e-tester (write Playwright tests, fixtures, page objects)
-2. Debug failures (if needed): debugger && e2e-tester
-
-Syntax: e2e-tester
-Or with debugging: debugger && e2e-tester
-```
-
-**Example 7: Multi-Module Changes (Parallel Execution)**
-```
-1. Parallel implementation:
-   - editor (finance module changes)
-   - editor (warehouse module changes)
-   - editor (CRM module changes)
-2. Sequential review: refactoring-expert (review all changes)
-
-Syntax: (editor & editor & editor) && refactoring-expert
-```
-
-**Example 8: Complex Research & Implementation**
-```
-1. Research: general-purpose (explore codebase, find patterns, analyze architecture)
-2. Implementation: editor (apply findings, implement solution)
-3. Quality review: refactoring-expert (ensure consistency with codebase)
-
-Syntax: general-purpose && editor && refactoring-expert
-```
-
-### Single Agent Exceptions
-
-**Use single agents ONLY for:**
-- **Simple read-only queries**: Documentation lookups, code reading
-- **Emergency hotfixes**: Time-critical production issues (but follow up with multi-agent review)
-- **Single-file documentation updates**: README changes, comment additions
-- **Configuration tweaks**: Small settings adjustments
-
-**Never use single agents for:**
-- Cross-layer changes (controller + template + service)
-- Data schema modifications
-- Feature development
-- Bug fixes with unknown scope
-- Performance optimization
-
-### Anti-Patterns to Avoid
-
-**❌ Agent Misuse:**
-- Using `editor` for E2E test work (use `e2e-tester` instead)
-- Using `e2e-tester` for Go code changes (use `editor` instead)
-- Splitting related changes across multiple uncoordinated `editor` agents
-
-**❌ Workflow Mistakes:**
-- Launching agents sequentially when parallel is possible
-- Skipping `debugger` for unknown issues
-- Missing `refactoring-expert` after Go code changes
-- Using direct tools instead of `editor` for complex multi-file changes
-
-### Business Context Translation
-
-**Business Request → Multi-Agent Orchestration Examples:**
-
-**"Fix dashboard bug"**
-→ `debugger` && (`editor` & `refactoring-expert`)
-
-**"Add new payment form"**
-→ `editor` && `refactoring-expert`
-
-**"Optimize accounting performance"**
-→ `debugger` && `editor` && `refactoring-expert`
-
-**"Update finance module"**
-→ (Multiple `editor`) && `refactoring-expert`
-
-**"Update CLAUDE.md with new agent"**
-→ `editor`
-
-**"Fix environment configuration issues"**
-→ `editor`
-
-**"Add new documentation section"**
-→ `editor`
-
-**"Write E2E tests for user registration"**
-→ `e2e-tester`
-
-**"Debug failing Playwright test"**
-→ `debugger` && `e2e-tester`
-
-**"Add page objects for vehicles module"**
-→ `e2e-tester`
-
-**"How is authentication implemented?"**
-→ `general-purpose` (research) → findings inform implementation agents
-
-**"Find all places where payment is processed"**
-→ `general-purpose` (multi-step search) → guide `editor` to relevant files
-
-**"Understand the multi-tenant architecture"**
-→ `general-purpose` (architecture exploration) → inform feature design
-
-**"Where should I add new RBAC check?"**
-→ `general-purpose` (pattern analysis) → guide `editor` to correct location
-
-**"What's the standard error handling pattern?"**
-→ `general-purpose` (codebase patterns) → inform implementation approach
-
-**Agent Execution Syntax:**
-- `&` = Parallel execution (agents run simultaneously)
-- `&&` = Sequential execution (wait for completion before next step)
-- `Multiple agent` = Launch several instances of same agent type with divided scope
-
-## Special instructions for plan mode
-When in plan mode, your plan should always include the following:
-- A clear decision on whether to use single-agent or multi-agent workflow, with justification.
-- If multi-agent, specify the exact agents to be used, their roles, and how they will collaborate.
+## Core Rules
+
+### Task Management (NEVER leave unfinished work unmarked)
+
+**CRITICAL: Do NOT leave stubs, partial implementations, or TODO comments without creating tasks.**
+
+Prohibited patterns:
+- `// TODO: implement validation`
+- `// FIXME: handle error case`
+- `// This will be implemented later`
+- Function stubs with `return nil, nil` or `panic("not implemented")`
+- Commented-out code awaiting completion
+- Partial feature implementations without tracking
+
+When you identify unfinished work, immediately use `TaskCreate`:
+- **subject**: "Implement validation for user input"
+- **description**: Full context, affected files (e.g., `user_service.go:123`), acceptance criteria
+- **activeForm**: "Implementing validation for user input"
+
+Common scenarios requiring TaskCreate:
+- Feature partially implemented (stub functions, incomplete logic)
+- Missing validation or error handling
+- Tests not yet written
+- Refactoring needed after POC
+- Documentation updates required
+- Edge cases not handled
+
+**Agent workflow**: Before completing, agents MUST:
+1. Search their changes for stubs/incomplete code
+2. Create tasks for ALL unfinished work with file:line references
+3. Return task IDs in completion message
+
+**Orchestrator workflow**: After agents complete:
+1. Call `TaskList` to verify all unfinished work is tracked
+2. Implement tasks or assign to new agents
+3. Show user final task list
+
+**Exception**: Preserve existing TODO comments when editing legacy code (but never add new ones).
+
+### Other Rules
+
+- **Multi-tenant isolation**: Always include `tenant_id` in WHERE clauses
+- **Error handling**: Use `pkg/serrors` - `serrors.E(op, err)`
+- **HTMX**: Check `htmx.IsHxRequest(r)`, use `htmx.SetTrigger(w, "event", payload)`
+- **Never read `*_templ.go` files** - they're generated
+
+## Child Module CLAUDE.md Files
+
+- `modules/bichat/CLAUDE.md` - BiChat module specifics
+- `modules/bichat/agents/CLAUDE.md` - Agent implementations
+- `pkg/bichat/CLAUDE.md` - BiChat foundation framework
+- `pkg/lens/CLAUDE.md` - Dashboard framework

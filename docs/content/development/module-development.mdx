@@ -1,0 +1,1042 @@
+---
+title: 'Module Development Guide'
+description: 'Complete guide to building custom IOTA SDK modules from scratch'
+---
+
+# Module Development Guide
+
+This comprehensive guide walks you through creating a custom IOTA SDK module from scratch. We'll build a **Product Catalog** module that demonstrates all the patterns and best practices used in the SDK.
+
+## What You'll Build
+
+By the end of this guide, you'll have a fully functional Product Catalog module with:
+
+- Domain entity with business rules
+- Repository for data persistence
+- Service layer for business logic
+- Controller with HTMX-powered UI
+- Database migrations
+- Navigation integration
+- Permission-based access control
+
+## Prerequisites
+
+Before starting, ensure you have:
+- Understanding of [IOTA SDK Architecture](/architecture
+- Go 1.23+ installed
+- PostgreSQL database set up
+- IOTA SDK project cloned and running
+
+## Module Structure Overview
+
+Every IOTA SDK module follows a consistent Domain-Driven Design structure:
+
+```
+modules/productcatalog/
+├── domain/
+│   └── aggregates/
+│       └── product/
+│           ├── product.go              # Entity interface
+│           ├── product_impl.go         # Entity implementation
+│           └── product_repository.go   # Repository interface
+├── infrastructure/
+│   └── persistence/
+│       ├── models/
+│       │   └── models.go               # Database models
+│       ├── schema/
+│       │   └── productcatalog-schema.sql # Database schema
+│       ├── product_repository.go       # Repository implementation
+│       └── productcatalog_mappers.go   # Domain/DB mapping
+├── services/
+│   └── product_service.go              # Business logic
+├── presentation/
+│   ├── controllers/
+│   │   ├── product_controller.go       # HTTP handlers
+│   │   └── dtos/
+│   │       └── product_dto.go          # Data transfer objects
+│   ├── viewmodels/
+│   │   └── product_viewmodel.go        # Presentation models
+│   ├── mappers/
+│   │   └── mappers.go                  # View/DTO mapping
+│   └── templates/
+│       └── pages/
+│           └── products/
+│               ├── list.templ          # List view
+│               ├── edit.templ          # Edit form
+│               └── new.templ           # Create form
+├── permissions/
+│   └── constants.go                    # RBAC permissions
+├── links.go                            # Navigation items
+└── module.go                           # Module registration
+```
+
+## Step 1: Domain Layer
+
+The domain layer contains pure business logic with no external dependencies.
+
+### 1.1 Create the Entity Interface
+
+Create `modules/productcatalog/domain/aggregates/product/product.go`:
+
+```go
+package product
+
+import (
+	"time"
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/money"
+
+
+type Field int
+
+const (
+	ID Field = iota
+	Name
+	Description
+	Price
+	SKU
+	CreatedAt
+	UpdatedAt
+
+
+// Product is the aggregate root for the product catalog domain
+type Product interface {
+	ID() uuid.UUID
+	Name() string
+	Description() string
+	Price() *money.Money
+	SKU() string
+	CreatedAt() time.Time
+	UpdatedAt() time.Time
+	
+	// Setters return new instances (immutable pattern
+	SetName(name string) Product
+	SetDescription(desc string) Product
+	SetPrice(price *money.Money) Product
+	SetSKU(sku string) Product
+}
+
+// Repository interface for persistence
+type Repository interface {
+	GetPaginated(ctx context.Context, params *FindParams) ([]Product, error
+	GetAll(ctx context.Context) ([]Product, error
+	GetByID(ctx context.Context, id uuid.UUID) (Product, error
+	Create(ctx context.Context, product Product) (Product, error
+	Update(ctx context.Context, product Product) (Product, error
+	Delete(ctx context.Context, id uuid.UUID) error
+	Count(ctx context.Context, params *FindParams) (int64, error
+}
+
+// FindParams for querying products
+type FindParams struct {
+	Limit  int
+	Offset int
+	SortBy SortBy
+	Search string
+	Filters []Filter
+}
+
+type SortBy struct {
+	Fields []SortField
+}
+
+type SortField struct {
+	Field     Field
+	Ascending bool
+}
+
+type Filter struct {
+	Column Field
+	Filter repo.Filter
+}
+```
+
+### 1.2 Implement the Entity
+
+Create `modules/productcatalog/domain/aggregates/product/product_impl.go`:
+
+```go
+package product
+
+import (
+	"time"
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/money"
+
+
+// Option pattern for flexible entity construction
+type Option func(p *product
+
+func WithID(id uuid.UUID) Option {
+	return func(p *product) {
+		p.id = id
+	}
+}
+
+func WithDescription(desc string) Option {
+	return func(p *product) {
+		p.description = desc
+	}
+}
+
+func WithSKU(sku string) Option {
+	return func(p *product) {
+		p.sku = sku
+	}
+}
+
+func WithCreatedAt(t time.Time) Option {
+	return func(p *product) {
+		p.createdAt = t
+	}
+}
+
+func WithUpdatedAt(t time.Time) Option {
+	return func(p *product) {
+		p.updatedAt = t
+	}
+}
+
+// product is the private implementation
+type product struct {
+	id          uuid.UUID
+	name        string
+	description string
+	price       *money.Money
+	sku         string
+	createdAt   time.Time
+	updatedAt   time.Time
+}
+
+// New creates a new product with validation
+func New(name string, price *money.Money, opts ...Option) Product {
+	p := &product{
+		id:        uuid.New(),
+		name:      name,
+		price:     price,
+		createdAt: time.Now(),
+		updatedAt: time.Now(),
+	}
+	
+	for _, opt := range opts {
+		opt(p
+	}
+	
+	return p
+}
+
+// Getters
+func (p *product) ID() uuid.UUID        { return p.id }
+func (p *product) Name() string         { return p.name }
+func (p *product) Description() string  { return p.description }
+func (p *product) Price() *money.Money  { return p.price }
+func (p *product) SKU() string          { return p.sku }
+func (p *product) CreatedAt() time.Time { return p.createdAt }
+func (p *product) UpdatedAt() time.Time { return p.updatedAt }
+
+// Setters - return new instances for immutability
+func (p *product) SetName(name string) Product {
+	result := *p
+	result.name = name
+	result.updatedAt = time.Now(
+	return &result
+}
+
+func (p *product) SetDescription(desc string) Product {
+	result := *p
+	result.description = desc
+	result.updatedAt = time.Now(
+	return &result
+}
+
+func (p *product) SetPrice(price *money.Money) Product {
+	result := *p
+	result.price = price
+	result.updatedAt = time.Now(
+	return &result
+}
+
+func (p *product) SetSKU(sku string) Product {
+	result := *p
+	result.sku = sku
+	result.updatedAt = time.Now(
+	return &result
+}
+```
+
+## Step 2: Infrastructure Layer
+
+### 2.1 Database Schema
+
+Create `modules/productcatalog/infrastructure/persistence/schema/productcatalog-schema.sql`:
+
+```sql
+-- Products table with multi-tenant support
+CREATE TABLE products (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    name varchar(255) NOT NULL,
+    description text,
+    price bigint NOT NULL, -- stored in cents/smallest currency unit
+    currency_id varchar(3) NOT NULL REFERENCES currencies (code) ON DELETE CASCADE,
+    sku varchar(100),
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    UNIQUE (tenant_id, sku
+);
+
+-- Index for common queries
+CREATE INDEX idx_products_tenant_id ON products (tenant_id);
+CREATE INDEX idx_products_sku ON products (sku);
+```
+
+### 2.2 Database Models
+
+Create `modules/productcatalog/infrastructure/persistence/models/models.go`:
+
+```go
+package models
+
+import (
+	"time"
+	"github.com/google/uuid"
+
+
+type Product struct {
+	ID          uuid.UUID `db:"id"`
+	TenantID    uuid.UUID `db:"tenant_id"`
+	Name        string    `db:"name"`
+	Description string    `db:"description"`
+	Price       int64     `db:"price"`
+	CurrencyID  string    `db:"currency_id"`
+	SKU         string    `db:"sku"`
+	CreatedAt   time.Time `db:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at"`
+}
+```
+
+### 2.3 Domain-to-DB Mappers
+
+Create `modules/productcatalog/infrastructure/persistence/productcatalog_mappers.go`:
+
+```go
+package persistence
+
+import (
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/money"
+
+
+// ToDBProduct converts domain entity to database model
+func ToDBProduct(p product.Product) *models.Product {
+	return &models.Product{
+		ID:          p.ID(),
+		Name:        p.Name(),
+		Description: p.Description(),
+		Price:       p.Price().Amount(),
+		CurrencyID:  p.Price().Currency().Code(),
+		SKU:         p.SKU(),
+		CreatedAt:   p.CreatedAt(),
+		UpdatedAt:   p.UpdatedAt(),
+	}
+}
+
+// ToDomainProduct converts database model to domain entity
+func ToDomainProduct(m *models.Product) (product.Product, error) {
+	return product.New(
+		m.Name,
+		money.New(m.Price, m.CurrencyID),
+		product.WithID(m.ID),
+		product.WithDescription(m.Description),
+		product.WithSKU(m.SKU),
+		product.WithCreatedAt(m.CreatedAt),
+		product.WithUpdatedAt(m.UpdatedAt),
+	), nil
+}
+```
+
+### 2.4 Repository Implementation
+
+Create `modules/productcatalog/infrastructure/persistence/product_repository.go`:
+
+```go
+package persistence
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
+
+
+var ErrProductNotFound = errors.New("product not found"
+
+const (
+	selectProductQuery = `
+		SELECT id, tenant_id, name, description, price, currency_id, sku, created_at, updated_at
+		FROM products
+	`
+	countProductQuery  = `SELECT COUNT(*) FROM products`
+	insertProductQuery = `
+		INSERT INTO products (tenant_id, name, description, price, currency_id, sku
+		VALUES ($1, $2, $3, $4, $5, $6
+		RETURNING id, created_at, updated_at`
+	updateProductQuery = `
+		UPDATE products
+		SET name = $1, description = $2, price = $3, currency_id = $4, sku = $5, updated_at = now(
+		WHERE id = $6 AND tenant_id = $7`
+	deleteProductQuery = `DELETE FROM products WHERE id = $1 AND tenant_id = $2`
+
+
+type PgProductRepository struct {
+	fieldMap map[product.Field]string
+}
+
+func NewProductRepository() product.Repository {
+	return &PgProductRepository{
+		fieldMap: map[product.Field]string{
+			product.ID:          "id",
+			product.Name:        "name",
+			product.Description: "description",
+			product.Price:       "price",
+			product.SKU:         "sku",
+			product.CreatedAt:   "created_at",
+			product.UpdatedAt:   "updated_at",
+		},
+	}
+}
+
+func (r *PgProductRepository) buildFilters(ctx context.Context, params *product.FindParams) ([]string, []interface{}, error) {
+	tenantID, err := composables.UseTenantID(ctx
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get tenant: %w", err
+	}
+
+	where := []string{"tenant_id = $1"}
+	args := []interface{}{tenantID}
+
+	for _, filter := range params.Filters {
+		column, ok := r.fieldMap[filter.Column]
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown filter field: %v", filter.Column
+		}
+		where = append(where, filter.Filter.String(column, len(args)+1)
+		args = append(args, filter.Filter.Value()...
+	}
+
+	if params.Search != "" {
+		index := len(args) + 1
+		where = append(where, fmt.Sprintf("(name ILIKE $%d OR description ILIKE $%d OR sku ILIKE $%d)", index, index, index)
+		args = append(args, "%"+params.Search+"%"
+	}
+
+	return where, args, nil
+}
+
+func (r *PgProductRepository) queryProducts(ctx context.Context, query string, args ...interface{}) ([]product.Product, error) {
+	tx, err := composables.UseTx(ctx
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction: %w", err
+	}
+
+	rows, err := tx.Query(ctx, query, args...
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err
+	}
+	defer rows.Close(
+
+	var products []product.Product
+	for rows.Next() {
+		var m models.Product
+		if err := rows.Scan(
+			&m.ID, &m.TenantID, &m.Name, &m.Description,
+			&m.Price, &m.CurrencyID, &m.SKU, &m.CreatedAt, &m.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err
+		}
+
+		p, err := ToDomainProduct(&m
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert to domain: %w", err
+		}
+		products = append(products, p
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err
+	}
+
+	return products, nil
+}
+
+func (r *PgProductRepository) GetPaginated(ctx context.Context, params *product.FindParams) ([]product.Product, error) {
+	where, args, err := r.buildFilters(ctx, params
+	if err != nil {
+		return nil, err
+	}
+
+	query := repo.Join(
+		selectProductQuery,
+		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(r.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	
+
+	return r.queryProducts(ctx, query, args...
+}
+
+func (r *PgProductRepository) Count(ctx context.Context, params *product.FindParams) (int64, error) {
+	tx, err := composables.UseTx(ctx
+	if err != nil {
+		return 0, err
+	}
+
+	where, args, err := r.buildFilters(ctx, params
+	if err != nil {
+		return 0, err
+	}
+
+	query := repo.Join(countProductQuery, repo.JoinWhere(where...)
+
+	var count int64
+	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count: %w", err
+	}
+	return count, nil
+}
+
+func (r *PgProductRepository) GetAll(ctx context.Context) ([]product.Product, error) {
+	tenantID, err := composables.UseTenantID(ctx
+	if err != nil {
+		return nil, err
+	}
+
+	query := repo.Join(selectProductQuery, repo.JoinWhere("tenant_id = $1")
+	return r.queryProducts(ctx, query, tenantID
+}
+
+func (r *PgProductRepository) GetByID(ctx context.Context, id uuid.UUID) (product.Product, error) {
+	tenantID, err := composables.UseTenantID(ctx
+	if err != nil {
+		return nil, err
+	}
+
+	query := repo.Join(selectProductQuery, repo.JoinWhere("id = $1 AND tenant_id = $2")
+	products, err := r.queryProducts(ctx, query, id, tenantID
+	if err != nil {
+		return nil, err
+	}
+	if len(products) == 0 {
+		return nil, fmt.Errorf("%w: id=%s", ErrProductNotFound, id
+	}
+	return products[0], nil
+}
+
+func (r *PgProductRepository) Create(ctx context.Context, p product.Product) (product.Product, error) {
+	tx, err := composables.UseTx(ctx
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID, err := composables.UseTenantID(ctx
+	if err != nil {
+		return nil, err
+	}
+
+	m := ToDBProduct(p
+	var id uuid.UUID
+	var createdAt, updatedAt time.Time
+
+	err = tx.QueryRow(ctx, insertProductQuery,
+		tenantID, m.Name, m.Description, m.Price, m.CurrencyID, m.SKU,
+	).Scan(&id, &createdAt, &updatedAt
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product: %w", err
+	}
+
+	return r.GetByID(ctx, id
+}
+
+func (r *PgProductRepository) Update(ctx context.Context, p product.Product) (product.Product, error) {
+	tx, err := composables.UseTx(ctx
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID, err := composables.UseTenantID(ctx
+	if err != nil {
+		return nil, err
+	}
+
+	m := ToDBProduct(p
+	if _, err := tx.Exec(ctx, updateProductQuery,
+		m.Name, m.Description, m.Price, m.CurrencyID, m.SKU, m.ID, tenantID,
+	); err != nil {
+		return nil, fmt.Errorf("failed to update product: %w", err
+	}
+
+	return r.GetByID(ctx, p.ID()
+}
+
+func (r *PgProductRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	tx, err := composables.UseTx(ctx
+	if err != nil {
+		return err
+	}
+
+	tenantID, err := composables.UseTenantID(ctx
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, deleteProductQuery, id, tenantID); err != nil {
+		return fmt.Errorf("failed to delete product: %w", err
+	}
+	return nil
+}
+```
+
+## Step 3: Service Layer
+
+Create `modules/productcatalog/services/product_service.go`:
+
+```go
+package services
+
+import (
+	"context"
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+
+
+type ProductService struct {
+	repo      product.Repository
+	publisher eventbus.EventBus
+}
+
+func NewProductService(repo product.Repository, publisher eventbus.EventBus) *ProductService {
+	return &ProductService{
+		repo:      repo,
+		publisher: publisher,
+	}
+}
+
+func (s *ProductService) GetByID(ctx context.Context, id uuid.UUID) (product.Product, error) {
+	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByID(ctx, id
+}
+
+func (s *ProductService) GetAll(ctx context.Context) ([]product.Product, error) {
+	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetAll(ctx
+}
+
+func (s *ProductService) GetPaginated(ctx context.Context, params *product.FindParams) ([]product.Product, error) {
+	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetPaginated(ctx, params
+}
+
+func (s *ProductService) Count(ctx context.Context, params *product.FindParams) (uint, error) {
+	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
+		return 0, err
+	}
+	count, err := s.repo.Count(ctx, params
+	return uint(count), err
+}
+
+func (s *ProductService) Create(ctx context.Context, p product.Product) (product.Product, error) {
+	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
+		return nil, err
+	}
+
+	created, err := s.repo.Create(ctx, p
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish domain event
+	createDTO := ProductCreateDTO{
+		Name:        p.Name(),
+		SKU:         p.SKU(),
+		Price:       p.Price().Amount(),
+		Currency:    p.Price().Currency(),
+		CategoryIDs: p.CategoryIDs(),
+	}
+	event, err := product.NewCreatedEvent(ctx, createDTO, created
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(event
+	return created, nil
+}
+
+func (s *ProductService) Update(ctx context.Context, p product.Product) (product.Product, error) {
+	if err := composables.CanUser(ctx, permissions.ProductUpdate); err != nil {
+		return nil, err
+	}
+
+	updated, err := s.repo.Update(ctx, p
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish domain event
+	updateDTO := ProductUpdateDTO{
+		ID:          p.ID(),
+		Name:        p.Name(),
+		SKU:         p.SKU(),
+		Price:       p.Price().Amount(),
+		Currency:    p.Price().Currency(),
+		CategoryIDs: p.CategoryIDs(),
+	}
+	event, err := product.NewUpdatedEvent(ctx, updateDTO, updated
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(event
+	return updated, nil
+}
+
+func (s *ProductService) Delete(ctx context.Context, id uuid.UUID) (product.Product, error) {
+	if err := composables.CanUser(ctx, permissions.ProductDelete); err != nil {
+		return nil, err
+	}
+
+	p, err := s.repo.GetByID(ctx, id
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+
+	// Publish domain event
+	event, err := product.NewDeletedEvent(ctx, p
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(event
+	return p, nil
+}
+```
+
+## Step 4: Presentation Layer
+
+### 4.1 DTOs
+
+Create `modules/productcatalog/presentation/controllers/dtos/product_dto.go`:
+
+```go
+package dtos
+
+import (
+	"context"
+	"fmt"
+	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
+	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/money"
+
+
+type ProductCreateDTO struct {
+	Name        string  `validate:"required,min=1,max=255"`
+	Description string  `validate:"max=1000"`
+	Price       float64 `validate:"required,gt=0"`
+	Currency    string  `validate:"required,len=3"`
+	SKU         string  `validate:"omitempty,max=100"`
+}
+
+type ProductUpdateDTO struct {
+	Name        string  `validate:"omitempty,min=1,max=255"`
+	Description string  `validate:"max=1000"`
+	Price       float64 `validate:"omitempty,gt=0"`
+	Currency    string  `validate:"omitempty,len=3"`
+	SKU         string  `validate:"omitempty,max=100"`
+}
+
+func (d *ProductCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	l, ok := intl.UseLocalizer(ctx
+	if !ok {
+		panic(intl.ErrNoLocalizer
+	}
+
+	errors := map[string]string{}
+	if errs := constants.Validate.Struct(d); errs != nil {
+		for _, err := range errs.(validator.ValidationErrors) {
+			field := l.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: fmt.Sprintf("Products.Single.%s", err.Field()),
+			}
+			errors[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+				MessageID:    fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+				TemplateData: map[string]string{"Field": field},
+			}
+		}
+	}
+	return errors, len(errors) == 0
+}
+
+func (d *ProductCreateDTO) ToEntity(tenantID uuid.UUID) (product.Product, error) {
+	amount := money.NewFromFloat(d.Price, d.Currency
+	return product.New(
+		d.Name,
+		amount,
+		product.WithDescription(d.Description),
+		product.WithSKU(d.SKU),
+	), nil
+}
+
+func (d *ProductUpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	// Same pattern as ProductCreateDTO
+	// ... implementation
+	return nil, true
+}
+
+func (d *ProductUpdateDTO) Apply(entity product.Product) (product.Product, error) {
+	if d.Name != "" {
+		entity = entity.SetName(d.Name
+	}
+	if d.Description != "" {
+		entity = entity.SetDescription(d.Description
+	}
+	if d.Price > 0 {
+		entity = entity.SetPrice(money.NewFromFloat(d.Price, d.Currency)
+	}
+	if d.SKU != "" {
+		entity = entity.SetSKU(d.SKU
+	}
+	return entity, nil
+}
+```
+
+### 4.2 ViewModels
+
+Create `modules/productcatalog/presentation/viewmodels/product_viewmodel.go`:
+
+```go
+package viewmodels
+
+import (
+	"fmt"
+	"time"
+	"github.com/google/uuid"
+
+
+type Product struct {
+	ID          string
+	Name        string
+	Description string
+	Price       string
+	Currency    string
+	SKU         string
+	CreatedAt   string
+	UpdatedAt   string
+}
+
+func NewProduct(id uuid.UUID, name, description string, price float64, currency, sku string, createdAt, updatedAt time.Time) *Product {
+	return &Product{
+		ID:          id.String(),
+		Name:        name,
+		Description: description,
+		Price:       fmt.Sprintf("%.2f", price),
+		Currency:    currency,
+		SKU:         sku,
+		CreatedAt:   createdAt.Format("2006-01-02"),
+		UpdatedAt:   updatedAt.Format("2006-01-02"),
+	}
+}
+```
+
+## Step 5: Module Registration
+
+### 5.1 Permissions
+
+Create `modules/productcatalog/permissions/constants.go`:
+
+```go
+package permissions
+
+const (
+	ProductCreate = "product.create"
+	ProductRead   = "product.read"
+	ProductUpdate = "product.update"
+	ProductDelete = "product.delete"
+
+```
+
+### 5.2 Navigation Links
+
+Create `modules/productcatalog/links.go`:
+
+```go
+package productcatalog
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+
+
+var ProductItem = types.NavigationItem{
+	Name:     "NavigationLinks.Products",
+	Href:     "/productcatalog/products",
+	Icon:     icons.Package(icons.Props{Size: "20"}),
+	Children: nil,
+}
+
+var NavItems = []types.NavigationItem{
+	{
+		Name: "NavigationLinks.ProductCatalog",
+		Href: "/productcatalog",
+		Icon: icons.ShoppingCart(icons.Props{Size: "20"}),
+		Children: []types.NavigationItem{
+			ProductItem,
+		},
+	},
+}
+```
+
+### 5.3 Module Registration
+
+Create `modules/productcatalog/module.go`:
+
+```go
+package productcatalog
+
+import (
+	"embed"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+)
+
+//go:embed presentation/locales/*.json
+var localeFiles embed.FS
+
+func NewModule() application.Module {
+	return &Module{}
+}
+
+type Module struct{}
+
+func (m *Module) Register(app application.Application) error {
+	// Create repositories
+	productRepo := persistence.NewProductRepository()
+
+	// Register services
+	app.RegisterServices(
+		services.NewProductService(productRepo, app.EventPublisher()),
+	)
+
+	// Register controllers
+	app.RegisterControllers(
+		controllers.NewProductController(app),
+	)
+
+	// Register quick links
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(NavItems[0].Icon, NavItems[0].Name, NavItems[0].Href),
+	)
+
+	// Register locale files
+	app.RegisterLocaleFiles(&localeFiles)
+
+	return nil
+}
+
+func (m *Module) Name() string {
+	return "productcatalog"
+}
+```
+
+## Step 6: Localization
+
+Create `modules/productcatalog/presentation/locales/en.json`:
+
+```json
+{
+  "NavigationLinks": {
+    "ProductCatalog": "Product Catalog",
+    "Products": "Products"
+  },
+  "Products": {
+    "List": {
+      "Title": "Products",
+      "New": "New Product",
+      "Search": "Search products...",
+      "NoProducts": "No products found"
+    },
+    "Single": {
+      "Name": "Name",
+      "Description": "Description",
+      "Price": "Price",
+      "Currency": "Currency",
+      "SKU": "SKU",
+      "CreatedAt": "Created At",
+      "UpdatedAt": "Updated At"
+    }
+  }
+}
+```
+
+## Step 7: Apply Migrations
+
+After implementing your module, apply the database schema:
+
+```bash
+just db migrate up
+```
+
+## Best Practices Summary
+
+### Domain Layer
+- Keep domain logic pure (no external dependencies
+- Use immutable entities (setters return new instances
+- Define clear interfaces for repositories
+- Use the Option pattern for flexible construction
+
+### Infrastructure Layer
+- Always filter by tenant_id for multi-tenancy
+- Use transactions from context via `composables.UseTx(ctx)`
+- Map between domain and database models explicitly
+- Handle errors with context using `fmt.Errorf("context: %w", err)`
+
+### Service Layer
+- Always check permissions using `composables.CanUser(ctx, permission)`
+- Use transactions for multi-entity operations
+- Publish domain events after successful operations
+- Return domain entities, not DTOs
+
+### Presentation Layer
+- Validate DTOs using `go-playground/validator`
+- Use localized error messages
+- Map domain entities to view models for templates
+- Handle both full-page and HTMX partial requests
+
+## Next Steps
+
+Now that you understand how to create a module:
+
+1. Learn about [Complex Features](/development/complex-features) with relationships
+2. Deep dive into [Repository Patterns](/patterns/repositories
+3. Master [Service Layer Patterns](/patterns/services
+4. Build reactive UIs with [Controllers and HTMX](/patterns/controllers

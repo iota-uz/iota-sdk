@@ -28,13 +28,21 @@ type QueryOption func(*queryOptions)
 
 // queryOptions holds optional query configuration
 type queryOptions struct {
-	joins *JoinOptions
+	joins     *JoinOptions
+	keyValues []FieldValue
 }
 
 // WithJoins adds JOIN clauses to the query
 func WithJoins(joins *JoinOptions) QueryOption {
 	return func(opts *queryOptions) {
 		opts.joins = joins
+	}
+}
+
+// WithKeyValues specifies all primary key field values for queries.
+func WithKeyValues(keyValues ...FieldValue) QueryOption {
+	return func(opts *queryOptions) {
+		opts.keyValues = keyValues
 	}
 }
 
@@ -74,7 +82,7 @@ type Repository[TEntity any] interface {
 	List(ctx context.Context, params *FindParams) ([]TEntity, error)
 	Create(ctx context.Context, values []FieldValue) (TEntity, error)
 	Update(ctx context.Context, values []FieldValue) (TEntity, error)
-	Delete(ctx context.Context, value FieldValue) (TEntity, error)
+	Delete(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error)
 }
 
 func DefaultRepository[TEntity any](
@@ -96,9 +104,48 @@ type repository[TEntity any] struct {
 	fieldMap map[string]string
 }
 
+// persistableFieldNames returns field names that correspond to actual database columns,
+// excluding virtual fields that are computed or populated via JOINs.
+func (r *repository[TEntity]) persistableFieldNames() []string {
+	allFields := r.schema.Fields().Fields()
+	names := make([]string, 0, len(allFields))
+	for _, f := range allFields {
+		if !f.Virtual() {
+			names = append(names, f.Name())
+		}
+	}
+	return names
+}
+
 func (r *repository[TEntity]) GetAll(ctx context.Context) ([]TEntity, error) {
+	// Check if schema has relations that need to be loaded
+	effectiveJoins := getSchemaDefaultJoins(r.schema)
+
+	// If JOINs present, use JOIN query path
+	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
+		return r.getAllWithJoins(ctx, effectiveJoins)
+	}
+
+	// Simple query without JOINs
 	query := fmt.Sprintf("SELECT * FROM %s", r.schema.Name())
 	return r.queryEntities(ctx, query)
+}
+
+// getAllWithJoins is the internal implementation for GetAll with JOINs
+func (r *repository[TEntity]) getAllWithJoins(ctx context.Context, joins *JoinOptions) ([]TEntity, error) {
+	const op = serrors.Op("repository.getAllWithJoins")
+
+	baseQuery, err := r.buildJoinQuery(&FindParams{Joins: joins})
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	entities, err := r.queryEntities(ctx, baseQuery)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	return entities, nil
 }
 
 func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error) {
@@ -106,24 +153,43 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options
 
 	opts := applyOptions(options)
 
+	// Use keyValues option if provided, otherwise use single value parameter
+	keyValues := opts.keyValues
+	if len(keyValues) == 0 && value != nil {
+		keyValues = []FieldValue{value}
+	}
+
+	// Validate key values are provided
+	if len(keyValues) == 0 {
+		return zero, errors.New("no key values provided for Get")
+	}
+
 	// Merge schema default JOINs with request JOINs
 	effectiveJoins := MergeJoinOptions(getSchemaDefaultJoins(r.schema), opts.joins)
 
 	// If JOINs present, use JOIN query path
 	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
-		return r.getWithJoins(ctx, value, effectiveJoins)
+		return r.getWithJoins(ctx, keyValues, effectiveJoins)
 	}
 
-	// Original implementation for queries without JOINs
+	// Build WHERE clause with all key values
+	whereClauses := make([]string, len(keyValues))
+	args := make([]any, len(keyValues))
+	for i, kv := range keyValues {
+		whereClauses[i] = fmt.Sprintf("%s = $%d", kv.Field().Name(), i+1)
+		args[i] = kv.Value()
+	}
+	whereClause := strings.Join(whereClauses, " AND ")
+
 	query := fmt.Sprintf(
-		"SELECT * FROM %s WHERE %s = $1",
+		"SELECT * FROM %s WHERE %s",
 		r.schema.Name(),
-		value.Field().Name(),
+		whereClause,
 	)
 
-	entities, err := r.queryEntities(ctx, query, value.Value())
+	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
-		return zero, errors.Wrap(err, fmt.Sprintf("failed to get entity by %s", value.Field().Name()))
+		return zero, errors.Wrap(err, "failed to get entity")
 	}
 	if len(entities) == 0 {
 		return zero, errors.New("entity not found")
@@ -133,16 +199,21 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options
 }
 
 // getWithJoins is the internal implementation for Get with JOINs
-func (r *repository[TEntity]) getWithJoins(ctx context.Context, value FieldValue, joins *JoinOptions) (TEntity, error) {
+func (r *repository[TEntity]) getWithJoins(ctx context.Context, keyValues []FieldValue, joins *JoinOptions) (TEntity, error) {
 	const op = serrors.Op("repository.getWithJoins")
 	var zero TEntity
 
-	query, err := r.buildGetWithJoinsQuery(value, &FindParams{Joins: joins})
+	query, err := r.buildGetWithJoinsQuery(keyValues, &FindParams{Joins: joins})
 	if err != nil {
 		return zero, serrors.E(op, err)
 	}
 
-	entities, err := r.queryEntities(ctx, query, value.Value())
+	args := make([]any, len(keyValues))
+	for i, kv := range keyValues {
+		args[i] = kv.Value()
+	}
+
+	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
 		return zero, serrors.E(op, err)
 	}
@@ -156,36 +227,55 @@ func (r *repository[TEntity]) getWithJoins(ctx context.Context, value FieldValue
 func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue, options ...QueryOption) (bool, error) {
 	opts := applyOptions(options)
 
+	// Use keyValues option if provided, otherwise use single value parameter
+	keyValues := opts.keyValues
+	if len(keyValues) == 0 && value != nil {
+		keyValues = []FieldValue{value}
+	}
+
+	// Validate key values are provided
+	if len(keyValues) == 0 {
+		return false, errors.New("no key values provided for Exists")
+	}
+
 	// Merge schema default JOINs with request JOINs
 	effectiveJoins := MergeJoinOptions(getSchemaDefaultJoins(r.schema), opts.joins)
 
 	// If JOINs present, use JOIN query path
 	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
-		return r.existsWithJoins(ctx, value, effectiveJoins)
+		return r.existsWithJoins(ctx, keyValues, effectiveJoins)
 	}
 
-	// Original implementation for queries without JOINs
+	// Build WHERE clause with all key values
+	whereClauses := make([]string, len(keyValues))
+	args := make([]any, len(keyValues))
+	for i, kv := range keyValues {
+		whereClauses[i] = fmt.Sprintf("%s = $%d", kv.Field().Name(), i+1)
+		args[i] = kv.Value()
+	}
+	whereClause := strings.Join(whereClauses, " AND ")
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to get transaction")
 	}
 
 	base := fmt.Sprintf(
-		"SELECT 1 FROM %s WHERE %s = $1",
+		"SELECT 1 FROM %s WHERE %s",
 		r.schema.Name(),
-		value.Field().Name(),
+		whereClause,
 	)
 	query := repo.Exists(base)
 
 	exists := false
-	if err := tx.QueryRow(ctx, query, value.Value()).Scan(&exists); err != nil {
-		return false, errors.Wrap(err, fmt.Sprintf("failed to check if %s exists", value.Field().Name()))
+	if err := tx.QueryRow(ctx, query, args...).Scan(&exists); err != nil {
+		return false, errors.Wrap(err, "failed to check if entity exists")
 	}
 	return exists, nil
 }
 
 // existsWithJoins is the internal implementation for Exists with JOINs
-func (r *repository[TEntity]) existsWithJoins(ctx context.Context, value FieldValue, joins *JoinOptions) (bool, error) {
+func (r *repository[TEntity]) existsWithJoins(ctx context.Context, keyValues []FieldValue, joins *JoinOptions) (bool, error) {
 	const op = serrors.Op("repository.existsWithJoins")
 
 	tx, err := composables.UseTx(ctx)
@@ -193,20 +283,25 @@ func (r *repository[TEntity]) existsWithJoins(ctx context.Context, value FieldVa
 		return false, serrors.E(op, err)
 	}
 
-	query, err := r.buildExistsWithJoinsQuery(value, &FindParams{Joins: joins})
+	query, err := r.buildExistsWithJoinsQuery(keyValues, &FindParams{Joins: joins})
 	if err != nil {
 		return false, serrors.E(op, err)
 	}
 
+	args := make([]any, len(keyValues))
+	for i, kv := range keyValues {
+		args[i] = kv.Value()
+	}
+
 	exists := false
-	if err := tx.QueryRow(ctx, query, value.Value()).Scan(&exists); err != nil {
+	if err := tx.QueryRow(ctx, query, args...).Scan(&exists); err != nil {
 		return false, serrors.E(op, err)
 	}
 
 	return exists, nil
 }
 
-func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params *FindParams) (string, error) {
+func (r *repository[TEntity]) buildExistsWithJoinsQuery(keyValues []FieldValue, params *FindParams) (string, error) {
 	if err := params.Joins.Validate(); err != nil {
 		return "", errors.Wrap(err, "invalid join options")
 	}
@@ -214,10 +309,15 @@ func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params
 	baseQuery := fmt.Sprintf("SELECT 1 FROM %s", r.schema.Name())
 
 	joinClauses := params.Joins.ToSQL()
-	parts := []string{baseQuery}
+	parts := make([]string, 0, 2+len(joinClauses))
+	parts = append(parts, baseQuery)
 	parts = append(parts, joinClauses...)
 
-	whereClause := fmt.Sprintf("%s.%s = $1", r.schema.Name(), value.Field().Name())
+	whereClauses := make([]string, len(keyValues))
+	for i, kv := range keyValues {
+		whereClauses[i] = fmt.Sprintf("%s.%s = $%d", r.schema.Name(), kv.Field().Name(), i+1)
+	}
+	whereClause := strings.Join(whereClauses, " AND ")
 	parts = append(parts, repo.JoinWhere(whereClause))
 
 	innerQuery := repo.Join(parts...)
@@ -351,7 +451,7 @@ func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (
 		return zero, errors.New("no fields to create for entity")
 	}
 
-	query := repo.Insert(r.schema.Name(), columns, r.schema.Fields().Names()...)
+	query := repo.Insert(r.schema.Name(), columns, r.persistableFieldNames()...)
 	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
 		return zero, errors.Wrap(err, "failed to create entity")
@@ -365,8 +465,8 @@ func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (
 func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (TEntity, error) {
 	var zero TEntity
 
-	keyField := r.schema.Fields().KeyField()
-	var fieldKeyValue FieldValue
+	keyFields := r.schema.Fields().KeyFields()
+	keyValues := make(map[string]FieldValue)
 
 	updates := make([]string, 0, len(values))
 	args := make([]any, 0, len(values))
@@ -375,7 +475,7 @@ func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (
 		field := fv.Field()
 		val := fv.Value()
 		if field.Key() {
-			fieldKeyValue = fv
+			keyValues[field.Name()] = fv
 			continue
 		}
 		if field.Virtual() {
@@ -385,12 +485,22 @@ func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (
 		args = append(args, val)
 	}
 
-	if fieldKeyValue == nil || fieldKeyValue.IsZero() {
-		return zero, errors.New("missing primary key or value")
+	// Validate all key fields are present and non-zero
+	for _, keyField := range keyFields {
+		keyValue, exists := keyValues[keyField.Name()]
+		if !exists || keyValue.IsZero() {
+			return zero, fmt.Errorf("missing or zero value for primary key field: %s", keyField.Name())
+		}
 	}
 
-	whereClause := fmt.Sprintf("%s = $%d", keyField.Name(), len(args)+1)
-	args = append(args, fieldKeyValue.Value())
+	// Build WHERE clause with all key fields
+	whereClauses := make([]string, len(keyFields))
+	baseIdx := len(args)
+	for i, keyField := range keyFields {
+		whereClauses[i] = fmt.Sprintf("%s = $%d", keyField.Name(), baseIdx+i+1)
+		args = append(args, keyValues[keyField.Name()].Value())
+	}
+	whereClause := strings.Join(whereClauses, " AND ")
 
 	query := repo.Update(r.schema.Name(), updates, whereClause) + " RETURNING *"
 	entities, err := r.queryEntities(ctx, query, args...)
@@ -403,15 +513,38 @@ func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (
 	return entities[0], nil
 }
 
-func (r *repository[TEntity]) Delete(ctx context.Context, value FieldValue) (TEntity, error) {
+func (r *repository[TEntity]) Delete(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error) {
 	var zero TEntity
+
+	opts := applyOptions(options)
+
+	// Use keyValues option if provided, otherwise use single value parameter
+	keyValues := opts.keyValues
+	if len(keyValues) == 0 && value != nil {
+		keyValues = []FieldValue{value}
+	}
+
+	// Validate key values are provided
+	if len(keyValues) == 0 {
+		return zero, errors.New("no key values provided for Delete")
+	}
+
+	// Build WHERE clause with all key values
+	whereClauses := make([]string, len(keyValues))
+	args := make([]any, len(keyValues))
+	for i, kv := range keyValues {
+		whereClauses[i] = fmt.Sprintf("%s = $%d", kv.Field().Name(), i+1)
+		args[i] = kv.Value()
+	}
+	whereClause := strings.Join(whereClauses, " AND ")
+
 	query := fmt.Sprintf(
-		"DELETE FROM %s WHERE %s = $1 RETURNING *",
+		"DELETE FROM %s WHERE %s RETURNING *",
 		r.schema.Name(),
-		value.Field().Name(),
+		whereClause,
 	)
 
-	entities, err := r.queryEntities(ctx, query, value.Value())
+	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
 		return zero, errors.Wrap(err, "failed to delete entity")
 	}
@@ -491,7 +624,8 @@ func (r *repository[TEntity]) buildJoinQueryBase(params *FindParams) (string, er
 	baseQuery := fmt.Sprintf("SELECT %s FROM %s", selectClause, r.schema.Name())
 
 	joinClauses := params.Joins.ToSQL()
-	parts := []string{baseQuery}
+	parts := make([]string, 0, 1+len(joinClauses))
+	parts = append(parts, baseQuery)
 	parts = append(parts, joinClauses...)
 
 	return repo.Join(parts...), nil
@@ -502,13 +636,18 @@ func (r *repository[TEntity]) buildJoinQuery(params *FindParams) (string, error)
 	return r.buildJoinQueryBase(params)
 }
 
-func (r *repository[TEntity]) buildGetWithJoinsQuery(value FieldValue, params *FindParams) (string, error) {
+func (r *repository[TEntity]) buildGetWithJoinsQuery(keyValues []FieldValue, params *FindParams) (string, error) {
 	baseQuery, err := r.buildJoinQueryBase(params)
 	if err != nil {
 		return "", err
 	}
 
-	whereClause := fmt.Sprintf("%s.%s = $1", r.schema.Name(), value.Field().Name())
+	whereClauses := make([]string, len(keyValues))
+	for i, kv := range keyValues {
+		whereClauses[i] = fmt.Sprintf("%s.%s = $%d", r.schema.Name(), kv.Field().Name(), i+1)
+	}
+	whereClause := strings.Join(whereClauses, " AND ")
+
 	return repo.Join(baseQuery, repo.JoinWhere(whereClause)), nil
 }
 

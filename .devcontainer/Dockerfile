@@ -9,8 +9,7 @@ RUN go install github.com/a-h/templ/cmd/templ@v0.3.857 \
     && go install github.com/air-verse/air@v1.61.5 \
     && go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 \
     && go install golang.org/x/tools/cmd/goimports@v0.31.0 \
-    && go install github.com/loov/goda@v0.5.11 \
-    && go install github.com/iota-uz/devhub/cmd/devhub@v0.0.2
+    && go install github.com/loov/goda@v0.5.11
 
 # Install additional tools
 RUN apt-get update && apt-get install -y \
@@ -53,8 +52,6 @@ RUN mkdir -p /home/vscode/.claude && \
       "mcp__bloom__search_code", \
       "Bash(echo $PATH)", \
       "Bash(gh --version)", \
-      "mcp__devhub__get_logs", \
-      "mcp__devhub__search_logs", \
       "mcp__sequential-thinking__sequentialthinking" \
     ], \
     "deny": [] \

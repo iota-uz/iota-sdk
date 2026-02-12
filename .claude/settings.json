@@ -33,7 +33,7 @@
       "Bash(wc:*)",
       "Bash(mv:*)",
       "Bash(chmod:*)",
-      "Bash(make:*)",
+      "Bash(just:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git status:*)",
@@ -116,7 +116,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "make fix fmt && make fix imports && go vet ./..."
+            "command": "just fix fmt && just fix imports && go vet ./..."
           }
         ]
       }
@@ -126,7 +126,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "make fix fmt && make fix imports && go vet ./..."
+            "command": "just fix fmt && just fix imports && go vet ./..."
           }
         ]
       }

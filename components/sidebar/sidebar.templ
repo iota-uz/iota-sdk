@@ -26,9 +26,10 @@ templ Sidebar(props Props) {
 	<div
 		x-data="sidebar()"
 		x-cloak
-		:class="{ 'sidebar-collapsed': isCollapsed }"
+		@click="handleSidebarClick($event)"
+		:class="{ 'sidebar-collapsed': isCollapsed, 'sidebar-expanded': !isCollapsed, 'sidebar-expand-cursor': isCollapsed, 'sidebar-collapse-cursor': !isCollapsed }"
 		x-init="initSidebar()"
-		class="flex w-full flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
+		class="flex flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
 	>
 		{{
 			// For single groups, use the group's value as default, otherwise use provided default
@@ -38,6 +39,7 @@ templ Sidebar(props Props) {
 			}
 			navTabsProps := navtabs.Props{
 				DefaultValue: defaultValue,
+				Class:        "flex-1 flex flex-col min-h-0",
 				Attrs: templ.Attributes{
 					"@tab-changed": "handleTabChange($event)",
 				},
@@ -62,32 +64,25 @@ templ Sidebar(props Props) {
 					</div>
 				}
 			</div>
-			@SidebarContent(props)
+			@SidebarNav(props)
+		}
+		<!-- Footer is outside navtabs.Root so it's in sidebar's x-data scope -->
+		if props.Footer != nil {
+			<div :class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }" class="mt-auto transition-all duration-300">
+				@props.Footer
+			</div>
 		}
 	</div>
 }
 
-templ SidebarContent(props Props) {
-	<div class="relative mb-4">
-		<button
-			@click="toggle(); $dispatch('sidebar-toggle')"
-			class="btn btn-sidebar-toggle btn-sm btn-fixed btn-rounded absolute -right-3 top-0 z-10 hidden lg:flex"
-		>
-			<div x-show="!isCollapsed">
-				@icons.CaretLeft(icons.Props{Size: "16"})
-			</div>
-			<div x-show="isCollapsed">
-				@icons.CaretRight(icons.Props{Size: "16"})
-			</div>
-		</button>
-	</div>
-	<nav class="py-4 flex-1">
+templ SidebarNav(props Props) {
+	<nav class="py-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar">
 		for _, tabGroup := range props.TabGroups.Groups {
 			@navtabs.Content(tabGroup.Value) {
 				<ul
 					id="sidebar-navigation"
 					:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
-					class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-17rem)] hide-scrollbar transition-all duration-300"
+					class="flex flex-col gap-2 transition-all duration-300"
 				>
 					for _, item := range tabGroup.Items {
 						if item.IsLink() {
@@ -100,11 +95,6 @@ templ SidebarContent(props Props) {
 			}
 		}
 	</nav>
-	if props.Footer != nil {
-		<div :class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }" class="transition-all duration-300">
-			@props.Footer
-		</div>
-	}
 }
 
 templ AccordionGroup(group Group) {
@@ -112,7 +102,7 @@ templ AccordionGroup(group Group) {
 		<!-- Collapsed view: only icon -->
 		<div
 			x-show="isCollapsed"
-			@click="toggle(); $dispatch('sidebar-toggle')"
+			@click.stop="toggle(); $dispatch('sidebar-toggle')"
 			x-tooltip.placement.right.raw={ group.Text() }
 			class="accordion-group-collapsed w-full cursor-pointer"
 		>

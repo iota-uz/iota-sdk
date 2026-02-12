@@ -26,7 +26,7 @@ runs:
     - name: Install pnpm
       uses: pnpm/action-setup@v4
       with:
-        version: 9
+        version: 9.15.0
 
     - name: Check for package.json
       id: check-package
