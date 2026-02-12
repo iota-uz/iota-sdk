@@ -541,7 +541,9 @@ func (app *application) CreateAppletControllers(
 				if err != nil {
 					return nil, fmt.Errorf("create applet jobs runner: %w", err)
 				}
-				go runner.Start(context.Background())
+				jobCtx, jobCancel := context.WithCancel(context.Background())
+				runtimeManager.SetJobCancel(jobCancel)
+				go runner.Start(jobCtx)
 			}
 			if wsBridge != nil {
 				wsBridge.SetRuntimeManager(runtimeManager)

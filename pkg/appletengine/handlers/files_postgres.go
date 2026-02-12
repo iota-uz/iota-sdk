@@ -32,7 +32,10 @@ func NewPostgresFilesStore(pool *pgxpool.Pool, baseDir string) (*PostgresFilesSt
 }
 
 func (s *PostgresFilesStore) Store(ctx context.Context, name, contentType string, data []byte) (map[string]any, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres files.store: %w", err)
+	}
 	id := uuid.NewString()
 	safeName := sanitizeFileName(name)
 	if safeName == "" {
@@ -54,6 +57,8 @@ func (s *PostgresFilesStore) Store(ctx context.Context, name, contentType string
 	`, tenantID, appletID, id, safeName, strings.TrimSpace(contentType), len(data), filePath)
 	var createdAt time.Time
 	if err := row.Scan(&createdAt); err != nil {
+		// Clean up orphaned file on DB failure
+		_ = os.Remove(filePath)
 		return nil, fmt.Errorf("postgres files.store: %w", err)
 	}
 
@@ -68,7 +73,10 @@ func (s *PostgresFilesStore) Store(ctx context.Context, name, contentType string
 }
 
 func (s *PostgresFilesStore) Get(ctx context.Context, id string) (map[string]any, bool, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("postgres files.get: %w", err)
+	}
 	row := s.pool.QueryRow(ctx, `
 		SELECT file_name, content_type, size_bytes, storage_path, created_at
 		FROM applet_engine_files
@@ -98,7 +106,10 @@ func (s *PostgresFilesStore) Get(ctx context.Context, id string) (map[string]any
 }
 
 func (s *PostgresFilesStore) Delete(ctx context.Context, id string) (bool, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("postgres files.delete: %w", err)
+	}
 	row := s.pool.QueryRow(ctx, `
 		DELETE FROM applet_engine_files
 		WHERE tenant_id = $1 AND applet_id = $2 AND file_id = $3

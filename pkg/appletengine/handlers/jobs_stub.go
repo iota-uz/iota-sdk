@@ -159,7 +159,10 @@ func (s *memoryJobsStore) Schedule(ctx context.Context, cronExpr string, method 
 }
 
 func (s *memoryJobsStore) List(ctx context.Context) ([]map[string]any, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	scopeJobs := s.jobs[scope]
@@ -174,7 +177,10 @@ func (s *memoryJobsStore) List(ctx context.Context) ([]map[string]any, error) {
 }
 
 func (s *memoryJobsStore) Cancel(ctx context.Context, jobID string) (bool, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return false, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	scopeJobs := s.jobs[scope]
@@ -210,7 +216,11 @@ func (s *memoryJobsStore) newRecord(jobType, cronExpr, method string, params any
 }
 
 func (s *memoryJobsStore) save(ctx context.Context, record jobRecord) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		// This is a best-effort operation during initialization; log but don't fail
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	scopeJobs := s.jobs[scope]

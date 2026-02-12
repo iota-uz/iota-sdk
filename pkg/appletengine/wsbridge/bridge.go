@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
@@ -49,7 +50,7 @@ func (b *Bridge) SetRuntimeManager(runtime *appletengineruntime.Manager) {
 	b.runtime = runtime
 }
 
-func (b *Bridge) AddConnection(appletID, tenantID string, conn websocketConn) string {
+func (b *Bridge) AddConnection(ctx context.Context, appletID, tenantID string, conn websocketConn) string {
 	connectionID := uuid.NewString()
 	entry := &connEntry{
 		appletID:     appletID,
@@ -63,14 +64,16 @@ func (b *Bridge) AddConnection(appletID, tenantID string, conn websocketConn) st
 	b.mu.Unlock()
 
 	if runtime != nil {
-		if err := runtime.DispatchWebsocketEvent(context.Background(), appletID, tenantID, connectionID, "open", nil); err != nil {
+		dispatchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		if err := runtime.DispatchWebsocketEvent(dispatchCtx, appletID, tenantID, connectionID, "open", nil); err != nil {
 			b.logger.WithError(err).WithField("applet", appletID).WithField("connection_id", connectionID).Warn("failed to dispatch websocket open event to applet")
 		}
 	}
 	return connectionID
 }
 
-func (b *Bridge) RemoveConnection(connectionID string) {
+func (b *Bridge) RemoveConnection(ctx context.Context, connectionID string) {
 	b.mu.Lock()
 	entry := b.entries[connectionID]
 	if entry != nil {
@@ -82,12 +85,14 @@ func (b *Bridge) RemoveConnection(connectionID string) {
 	if entry == nil || runtime == nil {
 		return
 	}
-	if err := runtime.DispatchWebsocketEvent(context.Background(), entry.appletID, entry.tenantID, connectionID, "close", nil); err != nil {
+	dispatchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := runtime.DispatchWebsocketEvent(dispatchCtx, entry.appletID, entry.tenantID, connectionID, "close", nil); err != nil {
 		b.logger.WithError(err).WithField("applet", entry.appletID).WithField("connection_id", connectionID).Warn("failed to dispatch websocket close event to applet")
 	}
 }
 
-func (b *Bridge) DispatchMessage(connectionID string, message []byte) {
+func (b *Bridge) DispatchMessage(ctx context.Context, connectionID string, message []byte) {
 	b.mu.RLock()
 	entry := b.entries[connectionID]
 	runtime := b.runtime
@@ -96,7 +101,9 @@ func (b *Bridge) DispatchMessage(connectionID string, message []byte) {
 	if entry == nil || runtime == nil {
 		return
 	}
-	if err := runtime.DispatchWebsocketEvent(context.Background(), entry.appletID, entry.tenantID, connectionID, "message", message); err != nil {
+	dispatchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := runtime.DispatchWebsocketEvent(dispatchCtx, entry.appletID, entry.tenantID, connectionID, "message", message); err != nil {
 		b.logger.WithError(err).WithField("applet", entry.appletID).WithField("connection_id", connectionID).Warn("failed to dispatch websocket message event to applet")
 	}
 }

@@ -74,7 +74,7 @@ export function ArtifactList({ artifacts, onSelect }: ArtifactListProps) {
       {types.map((type) => (
         <div key={type}>
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 px-2">
-            {type.replace('_', ' ')}
+            {type.replace(/_/g, ' ')}
           </h3>
           <div className="space-y-1">
             {grouped[type].map((artifact) => (

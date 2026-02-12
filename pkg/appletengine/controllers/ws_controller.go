@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -21,11 +22,9 @@ func NewWSController(bridge *appletenginewsbridge.Bridge, logger *logrus.Logger)
 		logger = logrus.StandardLogger()
 	}
 	return &WSController{
-		bridge: bridge,
-		logger: logger,
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(_ *http.Request) bool { return true },
-		},
+		bridge:   bridge,
+		logger:   logger,
+		upgrader: websocket.Upgrader{},
 	}
 }
 
@@ -49,7 +48,8 @@ func (c *WSController) handleBrowserWS(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := strings.TrimSpace(r.Header.Get("X-Iota-Tenant-Id"))
 	if tenantID == "" {
-		tenantID = "default"
+		http.Error(w, "missing X-Iota-Tenant-Id header", http.StatusBadRequest)
+		return
 	}
 
 	conn, err := c.upgrader.Upgrade(w, r, nil)
@@ -58,11 +58,11 @@ func (c *WSController) handleBrowserWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	connectionID := c.bridge.AddConnection(appletID, tenantID, conn)
+	connectionID := c.bridge.AddConnection(r.Context(), appletID, tenantID, conn)
 	c.logger.WithField("applet", appletID).WithField("connection_id", connectionID).Info("applet websocket connected")
 
 	defer func() {
-		c.bridge.RemoveConnection(connectionID)
+		c.bridge.RemoveConnection(context.Background(), connectionID)
 		_ = conn.Close()
 	}()
 
@@ -71,6 +71,6 @@ func (c *WSController) handleBrowserWS(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
-		c.bridge.DispatchMessage(connectionID, message)
+		c.bridge.DispatchMessage(r.Context(), connectionID, message)
 	}
 }

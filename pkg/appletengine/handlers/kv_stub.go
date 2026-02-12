@@ -130,7 +130,10 @@ func (s *KVStub) Register(registry *appletenginerpc.Registry, appletName string)
 }
 
 func (s *memoryKVStore) Get(ctx context.Context, key string) (any, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	bucket := s.store[scope]
@@ -145,7 +148,10 @@ func (s *memoryKVStore) Get(ctx context.Context, key string) (any, error) {
 }
 
 func (s *memoryKVStore) Set(ctx context.Context, key string, value any, _ *int) error {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bucket := s.store[scope]
@@ -158,7 +164,10 @@ func (s *memoryKVStore) Set(ctx context.Context, key string, value any, _ *int) 
 }
 
 func (s *memoryKVStore) Delete(ctx context.Context, key string) (bool, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return false, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bucket := s.store[scope]
@@ -184,19 +193,22 @@ func (s *memoryKVStore) MGet(ctx context.Context, keys []string) ([]any, error) 
 	return values, nil
 }
 
-func scopeFromContext(ctx context.Context) string {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
-	return tenantID + "::" + appletID
+func scopeFromContext(ctx context.Context) (string, error) {
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return "", err
+	}
+	return tenantID + "::" + appletID, nil
 }
 
-func tenantAndAppletFromContext(ctx context.Context) (string, string) {
+func tenantAndAppletFromContext(ctx context.Context) (string, string, error) {
 	tenantID, ok := appletenginerpc.TenantIDFromContext(ctx)
 	if !ok {
-		tenantID = "default"
+		return "", "", fmt.Errorf("tenant ID not found in context")
 	}
 	appletID, ok := appletenginerpc.AppletIDFromContext(ctx)
 	if !ok {
-		appletID = "unknown"
+		return "", "", fmt.Errorf("applet ID not found in context")
 	}
-	return tenantID, appletID
+	return tenantID, appletID, nil
 }

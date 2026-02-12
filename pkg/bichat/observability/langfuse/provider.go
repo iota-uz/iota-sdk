@@ -561,32 +561,6 @@ func mapLevelToLangfuseModel(level string) model.ObservationLevel {
 	}
 }
 
-// Helper functions
-
-// truncateForTraceName truncates a string to maxLen runes, breaking at word boundary and appending "...".
-func truncateForTraceName(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s
-	}
-	// Find last space before maxLen-3 (room for "...")
-	cutoff := maxLen - 3
-	if cutoff <= 0 {
-		return string(runes[:maxLen])
-	}
-	lastSpace := -1
-	for i := cutoff; i >= 0; i-- {
-		if runes[i] == ' ' {
-			lastSpace = i
-			break
-		}
-	}
-	if lastSpace > 0 {
-		return string(runes[:lastSpace]) + "..."
-	}
-	return string(runes[:cutoff]) + "..."
-}
-
 // timePtr returns a pointer to the given time.
 func timePtr(t time.Time) *time.Time {
 	return &t

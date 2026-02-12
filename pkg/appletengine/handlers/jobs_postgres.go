@@ -38,15 +38,18 @@ func (s *PostgresJobsStore) Schedule(ctx context.Context, cronExpr string, metho
 }
 
 func (s *PostgresJobsStore) List(ctx context.Context) ([]map[string]any, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
-	rows, err := s.pool.Query(ctx, `
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres jobs.list: %w", err)
+	}
+	rows, queryErr := s.pool.Query(ctx, `
 		SELECT job_id, job_type, cron_expr, method_name, params, status, next_run_at, last_run_at, last_status, last_error, created_at, updated_at
 		FROM applet_engine_jobs
 		WHERE tenant_id = $1 AND applet_id = $2
 		ORDER BY created_at DESC
 	`, tenantID, appletID)
-	if err != nil {
-		return nil, fmt.Errorf("postgres jobs.list: %w", err)
+	if queryErr != nil {
+		return nil, fmt.Errorf("postgres jobs.list: %w", queryErr)
 	}
 	defer rows.Close()
 
@@ -65,20 +68,26 @@ func (s *PostgresJobsStore) List(ctx context.Context) ([]map[string]any, error) 
 }
 
 func (s *PostgresJobsStore) Cancel(ctx context.Context, jobID string) (bool, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
-	commandTag, err := s.pool.Exec(ctx, `
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("postgres jobs.cancel: %w", err)
+	}
+	commandTag, execErr := s.pool.Exec(ctx, `
 		UPDATE applet_engine_jobs
 		SET status = 'canceled', next_run_at = NULL, last_status = 'canceled', last_error = '', updated_at = NOW()
 		WHERE tenant_id = $1 AND applet_id = $2 AND job_id = $3 AND status <> 'canceled'
 	`, tenantID, appletID, jobID)
-	if err != nil {
-		return false, fmt.Errorf("postgres jobs.cancel: %w", err)
+	if execErr != nil {
+		return false, fmt.Errorf("postgres jobs.cancel: %w", execErr)
 	}
 	return commandTag.RowsAffected() > 0, nil
 }
 
 func (s *PostgresJobsStore) insert(ctx context.Context, jobType, cronExpr, method string, params any, status string, nextRunAt *time.Time) (map[string]any, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres jobs.insert: %w", err)
+	}
 	jobID := uuid.NewString()
 	encoded, err := json.Marshal(params)
 	if err != nil {

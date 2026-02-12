@@ -25,12 +25,14 @@ import (
 )
 
 const (
-	healthPath             = "/__health"
-	healthCheckTimeout     = 8 * time.Second
-	healthCheckPollDelay   = 150 * time.Millisecond
-	maxRestartBackoff      = 30 * time.Second
-	defaultShutdownTimeout = 3 * time.Second
-	maxUnixSocketPath      = 100
+	healthPath                   = "/__health"
+	healthCheckTimeout           = 8 * time.Second
+	healthCheckPollDelay         = 150 * time.Millisecond
+	maxRestartBackoff            = 30 * time.Second
+	defaultShutdownTimeout       = 3 * time.Second
+	maxUnixSocketPath            = 100
+	maxFileUploadBytes     int64 = 50 << 20 // 50 MB
+	maxConsecutiveRestarts       = 10
 )
 
 type AppletProcess struct {
@@ -43,6 +45,7 @@ type AppletProcess struct {
 
 type Manager struct {
 	mu              sync.Mutex
+	startLocks      map[string]*sync.Mutex
 	baseDir         string
 	bunBin          string
 	logger          *logrus.Logger
@@ -55,6 +58,7 @@ type Manager struct {
 	entrypoints     map[string]string
 	fileStores      map[string]FileStore
 	shuttingDown    bool
+	jobCancel       context.CancelFunc
 }
 
 type FileStore interface {
@@ -79,6 +83,7 @@ func NewManager(baseDir string, dispatcher *appletenginerpc.Dispatcher, logger *
 		restartAttempts: make(map[string]int),
 		entrypoints:     make(map[string]string),
 		fileStores:      make(map[string]FileStore),
+		startLocks:      make(map[string]*sync.Mutex),
 	}
 }
 
@@ -108,6 +113,12 @@ func (m *Manager) RegisterFileStore(appletID string, store FileStore) {
 	m.fileStores[appletID] = store
 }
 
+func (m *Manager) SetJobCancel(cancel context.CancelFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.jobCancel = cancel
+}
+
 func (m *Manager) EnsureStarted(ctx context.Context, appletID, entryPoint string) (*AppletProcess, error) {
 	if strings.TrimSpace(entryPoint) == "" {
 		m.mu.Lock()
@@ -121,11 +132,29 @@ func (m *Manager) EnsureStarted(ctx context.Context, appletID, entryPoint string
 		return nil, err
 	}
 
+	// Get or create per-applet lock
 	m.mu.Lock()
 	if m.shuttingDown {
 		m.mu.Unlock()
 		return nil, fmt.Errorf("runtime manager is shutting down")
 	}
+	if process := m.processes[appletID]; process != nil && isRunning(process.Cmd) {
+		m.mu.Unlock()
+		return process, nil
+	}
+	startLock, ok := m.startLocks[appletID]
+	if !ok {
+		startLock = &sync.Mutex{}
+		m.startLocks[appletID] = startLock
+	}
+	m.mu.Unlock()
+
+	// Serialize concurrent start attempts per applet
+	startLock.Lock()
+	defer startLock.Unlock()
+
+	// Re-check after acquiring start lock (another caller may have started it)
+	m.mu.Lock()
 	if process := m.processes[appletID]; process != nil && isRunning(process.Cmd) {
 		m.mu.Unlock()
 		return process, nil
@@ -188,6 +217,13 @@ func (m *Manager) monitor(appletID string) {
 		cancel()
 		if startErr != nil {
 			m.logger.WithField("applet", appletID).WithError(startErr).Error("failed to restart bun applet process")
+			m.mu.Lock()
+			attempts := m.restartAttempts[appletID]
+			m.mu.Unlock()
+			if attempts >= maxConsecutiveRestarts {
+				m.logger.WithField("applet", appletID).Error("max restart attempts exceeded, giving up")
+				return
+			}
 			continue
 		}
 
@@ -285,6 +321,10 @@ func (m *Manager) EngineSocketPath() string {
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Lock()
 	m.shuttingDown = true
+	// Cancel jobs runner if present
+	if m.jobCancel != nil {
+		m.jobCancel()
+	}
 	processes := make([]*AppletProcess, 0, len(m.processes))
 	for _, p := range m.processes {
 		processes = append(processes, p)
@@ -301,7 +341,10 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			_ = process.Cmd.Process.Signal(syscall.SIGTERM)
 		}
 	}
-	time.Sleep(defaultShutdownTimeout)
+	select {
+	case <-ctx.Done():
+	case <-time.After(defaultShutdownTimeout):
+	}
 	for _, process := range processes {
 		if process == nil || process.Cmd == nil || process.Cmd.Process == nil {
 			continue
@@ -311,7 +354,9 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		}
 	}
 	if server != nil {
-		_ = server.Shutdown(ctx)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		_ = server.Shutdown(shutdownCtx)
 	}
 	if listener != nil {
 		_ = listener.Close()
@@ -525,7 +570,7 @@ func (m *Manager) fileStoreFromRequest(ctx context.Context, r *http.Request) (Fi
 	}
 	tenantID := strings.TrimSpace(r.Header.Get("X-Iota-Tenant-Id"))
 	if tenantID == "" {
-		tenantID = "default"
+		return nil, ctx, fmt.Errorf("missing X-Iota-Tenant-Id")
 	}
 	m.mu.Lock()
 	store := m.fileStores[appletID]
@@ -549,8 +594,14 @@ func (m *Manager) handleFileStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = r.Body.Close() }()
+	r.Body = http.MaxBytesReader(w, r.Body, maxFileUploadBytes)
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "file too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "failed to read payload", http.StatusBadRequest)
 		return
 	}

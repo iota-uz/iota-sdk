@@ -158,7 +158,10 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 }
 
 func (s *memoryDBStore) Get(ctx context.Context, id string) (any, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	scopeRecords := s.records[scope]
@@ -173,7 +176,10 @@ func (s *memoryDBStore) Get(ctx context.Context, id string) (any, error) {
 }
 
 func (s *memoryDBStore) Query(ctx context.Context, table string, options DBQueryOptions) ([]any, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	scopeRecords := s.records[scope]
@@ -207,7 +213,10 @@ func (s *memoryDBStore) Query(ctx context.Context, table string, options DBQuery
 }
 
 func (s *memoryDBStore) Insert(ctx context.Context, table string, value any) (any, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sequence++
@@ -234,7 +243,10 @@ func (s *memoryDBStore) Replace(ctx context.Context, id string, value any) (any,
 }
 
 func (s *memoryDBStore) update(ctx context.Context, id string, value any, strict bool) (any, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	scopeRecords := s.records[scope]
@@ -258,7 +270,10 @@ func (s *memoryDBStore) update(ctx context.Context, id string, value any, strict
 }
 
 func (s *memoryDBStore) Delete(ctx context.Context, id string) (bool, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return false, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	scopeRecords := s.records[scope]

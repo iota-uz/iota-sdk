@@ -32,6 +32,8 @@ type response struct {
 }
 
 type rpcError struct {
+	// Code is a JSON-RPC error code. Protocol errors use standard integers (-32600, -32601, -32603).
+	// Application errors use string codes ("forbidden", "validation", "not_found", etc.) for better DX.
 	Code    any    `json:"code"`
 	Message string `json:"message"`
 	Details any    `json:"details,omitempty"`
@@ -202,10 +204,18 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 	wrapped.ServeHTTP(recorder, reqClone)
 
 	if !ran {
-		if recorder.Code == http.StatusOK {
+		switch {
+		case recorder.Code == http.StatusUnauthorized:
+			return nil, &rpcError{Code: "unauthorized", Message: "authentication required"}
+		case recorder.Code == http.StatusForbidden:
+			return nil, &rpcError{Code: "forbidden", Message: "permission denied"}
+		case recorder.Code == http.StatusTooManyRequests:
+			return nil, &rpcError{Code: "rate_limited", Message: "too many requests"}
+		case recorder.Code >= 400 && recorder.Code < 500:
+			return nil, &rpcError{Code: "forbidden", Message: "request blocked by middleware"}
+		default:
 			return nil, &rpcError{Code: -32603, Message: "Internal error"}
 		}
-		return nil, &rpcError{Code: "forbidden", Message: "permission denied"}
 	}
 	if handlerErr != nil {
 		if d.logger != nil {

@@ -21,13 +21,16 @@ func TestNewPostgresDBStore_RequiresPool(t *testing.T) {
 func TestTenantAndAppletFromContext_Defaults(t *testing.T) {
 	t.Parallel()
 
-	tenantID, appletID := tenantAndAppletFromContext(context.Background())
-	assert.Equal(t, "default", tenantID)
-	assert.Equal(t, "unknown", appletID)
+	tenantID, appletID, err := tenantAndAppletFromContext(context.Background())
+	assert.Error(t, err)
+	assert.Empty(t, tenantID)
+	assert.Empty(t, appletID)
+	assert.Contains(t, err.Error(), "tenant ID not found in context")
 
 	ctx := appletenginerpc.WithTenantID(context.Background(), "tenant-1")
 	ctx = appletenginerpc.WithAppletID(ctx, "bichat")
-	tenantID, appletID = tenantAndAppletFromContext(ctx)
+	tenantID, appletID, err = tenantAndAppletFromContext(ctx)
+	require.NoError(t, err)
 	assert.Equal(t, "tenant-1", tenantID)
 	assert.Equal(t, "bichat", appletID)
 }

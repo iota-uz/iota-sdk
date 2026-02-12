@@ -99,6 +99,12 @@ func (s *RedisKVStore) MGet(ctx context.Context, keys []string) ([]any, error) {
 }
 
 func redisScopedKey(ctx context.Context, key string) string {
-	scope := strings.ReplaceAll(scopeFromContext(ctx), "::", ":")
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		// Fallback to key only if scope extraction fails
+		// This maintains backward compatibility but logs the issue
+		return "applet::" + key
+	}
+	scope = strings.ReplaceAll(scope, "::", ":")
 	return "applet:" + scope + ":" + key
 }

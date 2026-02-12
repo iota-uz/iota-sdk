@@ -139,8 +139,14 @@ func (s *FilesStub) Register(registry *appletenginerpc.Registry, appletName stri
 }
 
 func (s *localFilesStore) Store(ctx context.Context, name, contentType string, data []byte) (map[string]any, error) {
-	scope := scopeFromContext(ctx)
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	id := uuid.NewString()
 	safeName := sanitizeFileName(name)
 	if safeName == "" {
@@ -176,7 +182,10 @@ func (s *localFilesStore) Store(ctx context.Context, name, contentType string, d
 }
 
 func (s *localFilesStore) Get(ctx context.Context, id string) (map[string]any, bool, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return nil, false, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	scopeFiles := s.files[scope]
@@ -191,7 +200,10 @@ func (s *localFilesStore) Get(ctx context.Context, id string) (map[string]any, b
 }
 
 func (s *localFilesStore) Delete(ctx context.Context, id string) (bool, error) {
-	scope := scopeFromContext(ctx)
+	scope, err := scopeFromContext(ctx)
+	if err != nil {
+		return false, err
+	}
 
 	s.mu.Lock()
 	scopeFiles := s.files[scope]

@@ -24,7 +24,10 @@ func NewPostgresDBStore(pool *pgxpool.Pool) (*PostgresDBStore, error) {
 }
 
 func (s *PostgresDBStore) Get(ctx context.Context, id string) (any, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres db.get: %w", err)
+	}
 	row := s.pool.QueryRow(ctx, `
 		SELECT table_name, value
 		FROM applet_engine_documents
@@ -47,7 +50,10 @@ func (s *PostgresDBStore) Get(ctx context.Context, id string) (any, error) {
 }
 
 func (s *PostgresDBStore) Query(ctx context.Context, table string, options DBQueryOptions) ([]any, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres db.query: %w", err)
+	}
 	args := []any{tenantID, appletID, table}
 	conditions := []string{
 		"tenant_id = $1",
@@ -114,7 +120,10 @@ func (s *PostgresDBStore) Query(ctx context.Context, table string, options DBQue
 }
 
 func (s *PostgresDBStore) Insert(ctx context.Context, table string, value any) (any, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres db.insert: %w", err)
+	}
 	documentID := uuid.NewString()
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -139,10 +148,13 @@ func (s *PostgresDBStore) Replace(ctx context.Context, id string, value any) (an
 }
 
 func (s *PostgresDBStore) update(ctx context.Context, id string, value any, strict bool) (any, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
-	encoded, err := json.Marshal(value)
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("marshal db value: %w", err)
+		return nil, fmt.Errorf("postgres db.update: %w", err)
+	}
+	encoded, marshalErr := json.Marshal(value)
+	if marshalErr != nil {
+		return nil, fmt.Errorf("marshal db value: %w", marshalErr)
 	}
 
 	row := s.pool.QueryRow(ctx, `
@@ -166,13 +178,16 @@ func (s *PostgresDBStore) update(ctx context.Context, id string, value any, stri
 }
 
 func (s *PostgresDBStore) Delete(ctx context.Context, id string) (bool, error) {
-	tenantID, appletID := tenantAndAppletFromContext(ctx)
-	commandTag, err := s.pool.Exec(ctx, `
+	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("postgres db.delete: %w", err)
+	}
+	commandTag, execErr := s.pool.Exec(ctx, `
 		DELETE FROM applet_engine_documents
 		WHERE tenant_id = $1 AND applet_id = $2 AND document_id = $3
 	`, tenantID, appletID, id)
-	if err != nil {
-		return false, fmt.Errorf("postgres db.delete: %w", err)
+	if execErr != nil {
+		return false, fmt.Errorf("postgres db.delete: %w", execErr)
 	}
 	return commandTag.RowsAffected() > 0, nil
 }
