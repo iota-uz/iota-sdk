@@ -177,7 +177,7 @@ await rpc.callTyped<MyAppletRPC>('my.method', { /* params */ })
 
 ### Security model (RPC)
 
-- Transport: plain HTTP `POST` to `<basePath>/rpc`.
+- Transport: plain HTTP `POST` to `/rpc` (global applet RPC ingress).
 - Auth: uses the normal IOTA session/cookies; handlers receive a request `context.Context` with tenant/user.
 - Authorization: per-method permission enforcement (`RequirePermissions`).
 - Data access: applets do **not** access the database directly; Go handlers do.
@@ -194,6 +194,24 @@ The overlay shows:
 - Resolved runtime config (basePath/assets/rpc endpoint)
 - Current route context
 - Recent RPC calls (start/success/error)
+
+## Bun runtime pilot (BiChat)
+
+Slice 1 includes non-user-facing Bun runtime plumbing for BiChat.
+
+- Enable with `IOTA_APPLET_ENGINE_BICHAT=bun`
+- Runtime env vars passed to Bun:
+  - `IOTA_APPLET_ID=bichat`
+  - `IOTA_ENGINE_SOCKET=<engine uds>`
+  - `IOTA_APPLET_SOCKET=<applet uds>`
+- Runtime SDK subpath: `@iota-uz/sdk/applet-runtime`
+  - `defineApplet({ fetch })`
+  - `auth.currentUser()`
+  - `engine.call(method, params)`
+  - `kv.get|set|del|mget`
+  - `db.get|query|insert|patch|replace|delete`
+
+In slice 1, `kv`/`db` are in-memory server-only stubs used for runtime validation.
 
 ## Translations
 

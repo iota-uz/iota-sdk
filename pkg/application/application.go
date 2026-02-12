@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"reflect"
+	goruntime "runtime"
 	"sort"
 	"strings"
 
@@ -20,6 +21,10 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/applets"
+	appletenginecontrollers "github.com/iota-uz/iota-sdk/pkg/appletengine/controllers"
+	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
+	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
+	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -171,6 +176,7 @@ type application struct {
 	navItems           []types.NavigationItem
 	supportedLanguages []string
 	appletRegistry     applets.Registry
+	appletRuntime      *appletengineruntime.Manager
 }
 
 func (app *application) Spotlight() spotlight.Spotlight {
@@ -343,9 +349,19 @@ func (app *application) CreateAppletControllers(
 ) ([]Controller, error) {
 	registry := app.AppletRegistry()
 	allApplets := registry.All()
+	rpcRegistry := appletenginerpc.NewRegistry()
 
-	controllers := make([]Controller, 0, len(allApplets))
+	controllers := make([]Controller, 0, len(allApplets)+1)
 	for _, a := range allApplets {
+		cfg := a.Config()
+		if cfg.RPC != nil {
+			for methodName, method := range cfg.RPC.Methods {
+				if err := rpcRegistry.RegisterPublic(a.Name(), methodName, method, cfg.Middleware); err != nil {
+					return nil, err
+				}
+			}
+		}
+
 		controller, err := applets.NewAppletController(
 			a,
 			app.Bundle(),
@@ -361,5 +377,54 @@ func (app *application) CreateAppletControllers(
 		controllers = append(controllers, controller)
 	}
 
+	// Register in-memory server-only KV/DB methods for BiChat thin-slice runtime validation.
+	hasBiChat := false
+	for _, a := range allApplets {
+		if a.Name() == "bichat" {
+			hasBiChat = true
+			break
+		}
+	}
+	if hasBiChat {
+		kvStub := appletenginehandlers.NewKVStub()
+		if err := kvStub.Register(rpcRegistry, "bichat"); err != nil {
+			return nil, err
+		}
+		dbStub := appletenginehandlers.NewDBStub()
+		if err := dbStub.Register(rpcRegistry, "bichat"); err != nil {
+			return nil, err
+		}
+	}
+
+	if rpcRegistry.CountPublic() > 0 {
+		dispatcher := appletenginerpc.NewDispatcher(rpcRegistry, host, logger)
+
+		// Bun runtime process plumbing (BiChat only, feature-flagged).
+		if hasBiChat && appletengineruntime.EnabledForApplet("bichat") {
+			runtimeManager := appletengineruntime.NewManager("", dispatcher, logger)
+			entrypoint := resolveBiChatRuntimeEntrypoint()
+			dispatcher.SetBeforeDispatch(func(ctx context.Context, appletName string) error {
+				if appletName != "bichat" {
+					return nil
+				}
+				_, err := runtimeManager.EnsureStarted(ctx, "bichat", entrypoint)
+				return err
+			})
+			app.appletRuntime = runtimeManager
+		}
+
+		controllers = append(controllers, appletenginecontrollers.NewRPCController(dispatcher))
+	}
+
 	return controllers, nil
+}
+
+func resolveBiChatRuntimeEntrypoint() string {
+	_, currentFile, _, ok := goruntime.Caller(0)
+	if !ok {
+		return "modules/bichat/runtime/index.ts"
+	}
+	// pkg/application/application.go -> repo root -> modules/bichat/runtime/index.ts
+	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	return filepath.Join(root, "modules", "bichat", "runtime", "index.ts")
 }

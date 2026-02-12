@@ -19,7 +19,7 @@ Applets are React (Vite) applications that run inside IOTA SDK, backed by a Go �
   - *Production*: serve embedded build artifacts (Vite output + manifest) from an `fs.FS`.
   - *Development*: reverse-proxy `/<basePath>/assets/*` to the Vite dev server (same-origin HMR).
 - **RPC bridge**:
-  - HTTP endpoint under the applet (`/<basePath>/rpc`) for applet → Go capability calls.
+  - Global HTTP endpoint (`/rpc`) for applet → Go capability calls.
   - Permission checks are enforced server-side.
 
 ### Frontend runtime (SDK)
@@ -72,7 +72,7 @@ sequenceDiagram
   participant App as "Applet Frontend"
   participant IOTA as "IOTA Go Server"
 
-  App->>IOTA: POST "<basePath>/rpc" {id, method, params}
+  App->>IOTA: POST "/rpc" {id, method, params}
   IOTA->>IOTA: enforce same-origin (optional)
   IOTA->>IOTA: auth + permissions (per method)
   IOTA->>IOTA: execute handler with request ctx (tenant/user)
@@ -82,9 +82,20 @@ sequenceDiagram
 ## Security & boundaries
 
 - **No direct DB access from JS**: applets call Go capabilities (RPC/GraphQL/REST); Go owns tenant isolation and authorization.
-- **Same-origin protection**: applet RPC defaults to blocking cross-origin browser requests (based on `Origin` vs `Host`).
+- **Same-origin protection**: applet RPC defaults to blocking cross-origin browser requests (based on `Origin` vs `Host`) on global `/rpc`.
 - **Permission checks**: procedures can declare required permissions; enforcement happens server-side.
 - **Translation payload**: applets can scope injected translations by key prefix to keep `InitialContext` small.
+
+## Bun runtime pilot (Slice 1)
+
+- Per-applet flag: `IOTA_APPLET_ENGINE_BICHAT=bun`
+- Browser-facing applet methods still execute in Go handlers.
+- Bun runtime is started lazily for BiChat and uses Unix sockets:
+  - `IOTA_ENGINE_SOCKET` for Bun -> engine server-only RPC calls
+  - `IOTA_APPLET_SOCKET` for Go health/probe calls into Bun
+- Slice 1 server-only capability methods are in-memory stubs:
+  - `bichat.kv.get|set|del|mget`
+  - `bichat.db.get|query|insert|patch|replace|delete`
 
 ## Extension points (future)
 
