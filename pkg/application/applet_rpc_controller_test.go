@@ -82,8 +82,6 @@ func (h *rpcTestHostServices) ExtractPageLocale(context.Context) language.Tag {
 }
 
 func TestCreateAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
-	t.Parallel()
-
 	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
 
