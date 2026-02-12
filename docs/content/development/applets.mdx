@@ -242,6 +242,7 @@ Server-only jobs methods are available in BiChat namespace:
 Optional Postgres persistence:
 
 - `IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND=postgres`
+- `IOTA_APPLET_ENGINE_BICHAT_JOBS_RUNNER=1` to enable the background poller that dispatches queued jobs to Bun (`/__job`).
 
 This backend stores jobs in `applet_engine_jobs` (see migrations). If enabled without an initialized application DB pool, app startup fails fast.
 

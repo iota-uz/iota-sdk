@@ -1,9 +1,11 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -48,6 +50,7 @@ type Manager struct {
 	engineHTTP      *http.Server
 	processes       map[string]*AppletProcess
 	restartAttempts map[string]int
+	entrypoints     map[string]string
 	shuttingDown    bool
 }
 
@@ -64,12 +67,24 @@ func NewManager(baseDir string, dispatcher *appletenginerpc.Dispatcher, logger *
 		logger:          logger,
 		processes:       make(map[string]*AppletProcess),
 		restartAttempts: make(map[string]int),
+		entrypoints:     make(map[string]string),
 	}
+}
+
+func (m *Manager) RegisterApplet(appletID, entryPoint string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.entrypoints[appletID] = entryPoint
 }
 
 func (m *Manager) EnsureStarted(ctx context.Context, appletID, entryPoint string) (*AppletProcess, error) {
 	if !EnabledForApplet(appletID) {
 		return nil, nil
+	}
+	if strings.TrimSpace(entryPoint) == "" {
+		m.mu.Lock()
+		entryPoint = m.entrypoints[appletID]
+		m.mu.Unlock()
 	}
 	if strings.TrimSpace(entryPoint) == "" {
 		return nil, fmt.Errorf("entry point is required for applet %q", appletID)
@@ -271,6 +286,38 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+func (m *Manager) DispatchJob(ctx context.Context, appletID, tenantID, jobID, method string, params any) error {
+	process, err := m.EnsureStarted(ctx, appletID, "")
+	if err != nil {
+		return err
+	}
+	if process == nil {
+		return fmt.Errorf("applet runtime %q is disabled", appletID)
+	}
+	payload := map[string]any{
+		"jobId":    jobID,
+		"method":   method,
+		"params":   params,
+		"applet":   appletID,
+		"tenantId": tenantID,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal job payload: %w", err)
+	}
+	statusCode, err := m.postToAppletSocket(ctx, process.AppletSocket, "/__job", body, map[string]string{
+		"X-Iota-Tenant-Id":  tenantID,
+		"X-Iota-Request-Id": fmt.Sprintf("job-%s", jobID),
+	})
+	if err != nil {
+		return err
+	}
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("applet job endpoint returned status %d", statusCode)
+	}
+	return nil
+}
+
 func (m *Manager) isShuttingDown() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -368,6 +415,33 @@ func waitForHealth(ctx context.Context, socketPath string, timeout time.Duration
 		time.Sleep(healthCheckPollDelay)
 	}
 	return fmt.Errorf("health endpoint %s not ready within %s", healthPath, timeout)
+}
+
+func (m *Manager) postToAppletSocket(ctx context.Context, socketPath, path string, body []byte, headers map[string]string) (int, error) {
+	dialer := &net.Dialer{}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return dialer.DialContext(ctx, "unix", socketPath)
+		},
+	}
+	defer transport.CloseIdleConnections()
+
+	client := &http.Client{Transport: transport}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://unix"+path, bytes.NewReader(body))
+	if err != nil {
+		return 0, fmt.Errorf("build applet request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("dispatch job to applet: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode, nil
 }
 
 func (m *Manager) resolveSocketPath(fileName string) string {

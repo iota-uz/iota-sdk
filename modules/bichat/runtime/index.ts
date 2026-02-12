@@ -50,6 +50,21 @@ defineApplet({
       })
     }
 
+    if (url.pathname === '/__job' && request.method === 'POST') {
+      const payload = (await request.json()) as {
+        jobId?: string
+        method?: string
+        params?: unknown
+      }
+      const jobKey = `job:last:${payload.jobId ?? 'unknown'}`
+      await kv.set(jobKey, {
+        method: payload.method ?? '',
+        params: payload.params ?? null,
+        touchedAt: new Date().toISOString(),
+      })
+      return json({ ok: true, jobId: payload.jobId ?? null })
+    }
+
     return json({ error: 'not_found' }, 404)
   },
 })

@@ -12,6 +12,7 @@ import (
 	goruntime "runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
@@ -24,6 +25,7 @@ import (
 	"github.com/iota-uz/applets"
 	appletenginecontrollers "github.com/iota-uz/iota-sdk/pkg/appletengine/controllers"
 	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
+	appletenginejobs "github.com/iota-uz/iota-sdk/pkg/appletengine/jobs"
 	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -430,13 +432,21 @@ func (app *application) CreateAppletControllers(
 		if hasBiChat && appletengineruntime.EnabledForApplet("bichat") {
 			runtimeManager := appletengineruntime.NewManager("", dispatcher, logger)
 			entrypoint := resolveBiChatRuntimeEntrypoint()
+			runtimeManager.RegisterApplet("bichat", entrypoint)
 			dispatcher.SetBeforeDispatch(func(ctx context.Context, appletName string) error {
 				if appletName != "bichat" {
 					return nil
 				}
-				_, err := runtimeManager.EnsureStarted(ctx, "bichat", entrypoint)
+				_, err := runtimeManager.EnsureStarted(ctx, "bichat", "")
 				return err
 			})
+			if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_JOBS_RUNNER")), "1") && app.DB() != nil {
+				runner, err := appletenginejobs.NewRunner(app.DB(), runtimeManager, logger, 2*time.Second)
+				if err != nil {
+					return nil, fmt.Errorf("create applet jobs runner: %w", err)
+				}
+				go runner.Start(context.Background())
+			}
 			app.appletRuntime = runtimeManager
 		}
 

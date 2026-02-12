@@ -101,6 +101,25 @@ func TestManager_CrashAndRestartBackoff(t *testing.T) {
 	t.Fatalf("expected bun process restart with new pid (initial=%d)", firstPID)
 }
 
+func TestManager_DispatchJob(t *testing.T) {
+	requireBun(t)
+	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "bun")
+
+	manager := NewManager(t.TempDir(), appletenginerpc.NewDispatcher(appletenginerpc.NewRegistry(), nil, logrus.New()), logrus.New())
+	entrypoint := writeRuntimeEntry(t, t.TempDir())
+	manager.RegisterApplet("bichat", entrypoint)
+
+	_, err := manager.EnsureStarted(context.Background(), "bichat", "")
+	require.NoError(t, err)
+
+	err = manager.DispatchJob(context.Background(), "bichat", "tenant-1", "job-1", "bichat.test", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = manager.Shutdown(context.Background())
+	})
+}
+
 func writeRuntimeEntry(t *testing.T, dir string) string {
 	t.Helper()
 	entry := filepath.Join(dir, "runtime.ts")
@@ -117,8 +136,12 @@ if (crashOnce && markerPath && !existsSync(markerPath)) {
 Bun.serve({
   unix: process.env.IOTA_APPLET_SOCKET!,
   fetch(request: Request) {
-    if (new URL(request.url).pathname === "/__health") {
+    const pathname = new URL(request.url).pathname
+    if (pathname === "/__health") {
       return new Response("ok", { status: 200 })
+    }
+    if (pathname === "/__job" && request.method === "POST") {
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } })
     }
     return new Response("not found", { status: 404 })
   },
