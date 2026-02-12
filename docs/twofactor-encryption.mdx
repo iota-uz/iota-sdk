@@ -1,3 +1,9 @@
+---
+title: TOTP Secret Encryption
+description: Secure TOTP secret storage with AES-256-GCM encryption in IOTA SDK
+tags: [security, two-factor, encryption, authentication]
+---
+
 # TOTP Secret Encryption
 
 ## Overview
@@ -18,6 +24,7 @@ openssl rand -base64 32
 ```
 
 Example output:
+
 ```text
 XyZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFG=
 ```
@@ -38,7 +45,9 @@ The SDK automatically selects the appropriate encryptor:
 - **With encryption key**: Uses `AESEncryptor` (production)
 - **Without encryption key**: Uses `NoopEncryptor` (development only)
 
+<Callout type="error">
 **Production Environment Protection**: The system will fail to start if `TOTP_ENCRYPTION_KEY` is missing in production, preventing accidental plaintext storage of TOTP secrets.
+</Callout>
 
 Check the module initialization in `modules/core/module.go`:
 
@@ -64,7 +73,9 @@ if conf.TwoFactorAuth.EncryptionKey != "" {
 
 For local development, you can omit the `TOTP_ENCRYPTION_KEY` variable. The system will use `NoopEncryptor` which stores secrets in plaintext.
 
+<Callout type="warning">
 **IMPORTANT**: The system enforces this restriction - attempting to start in production mode (`GO_APP_ENV=production`) without `TOTP_ENCRYPTION_KEY` will cause startup to fail with an error message. This prevents accidental plaintext storage of TOTP secrets in production.
+</Callout>
 
 ## Security Considerations
 
@@ -84,7 +95,9 @@ When rotating encryption keys:
 3. Re-encrypt existing TOTP secrets with the new key
 4. Update the environment variable
 
+<Callout type="info">
 **Note**: Key rotation requires a maintenance window to re-encrypt existing secrets.
+</Callout>
 
 ### AES-256-GCM Details
 
@@ -198,7 +211,9 @@ AES-256-GCM encryption helps meet compliance requirements for:
 - **GDPR**: General Data Protection Regulation
 - **SOC 2**: Service Organization Control 2
 
+<Callout type="info">
 Consult your security team for specific compliance requirements in your jurisdiction.
+</Callout>
 
 ## References
 
