@@ -39,6 +39,7 @@ type GenerationObservation struct {
 	TenantID  uuid.UUID // Multi-tenant isolation
 	SessionID uuid.UUID // Chat session
 	UserID    string    // User who initiated the session (for trace enrichment)
+	UserEmail string    // User email (for trace metadata enrichment)
 	Timestamp time.Time // When generation started
 
 	// Model metadata
@@ -111,6 +112,13 @@ type EventObservation struct {
 
 	// Metadata
 	Attributes map[string]interface{} // Extensible metadata
+}
+
+// TraceNameUpdater is an optional interface that providers can implement
+// to support updating trace names after initial creation (e.g., when a
+// generated chat title becomes available asynchronously).
+type TraceNameUpdater interface {
+	UpdateTraceName(ctx context.Context, sessionID, name string) error
 }
 
 // TraceObservation represents a complete trace (session-level hierarchy).

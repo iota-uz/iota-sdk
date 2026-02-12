@@ -34,6 +34,14 @@ func WithUserIDFromContext(fn func(context.Context) string) BridgeOption {
 	}
 }
 
+// WithUserEmailFromContext sets a function to extract user email from request context.
+// The returned string is stored in Langfuse trace metadata as "user_email".
+func WithUserEmailFromContext(fn func(context.Context) string) BridgeOption {
+	return func(b *EventBridge) {
+		b.userEmailFromCtx = fn
+	}
+}
+
 // WithModelPricing sets model pricing for cost calculation on generations.
 // Pricing fields are added to GenerationObservation.Attributes so the provider
 // can compute cost from token counts.
@@ -69,8 +77,9 @@ type EventBridge struct {
 	handlers  []hooks.EventHandler
 
 	// Optional context extractors
-	userIDFromCtx func(context.Context) string
-	pricing       *modelPricing
+	userIDFromCtx    func(context.Context) string
+	userEmailFromCtx func(context.Context) string
+	pricing          *modelPricing
 
 	// Correlation state
 	mu                 sync.RWMutex
@@ -291,6 +300,8 @@ func (h *providerHandler) Handle(ctx context.Context, event hooks.Event) error {
 		return h.handleContextCompile(ctx, e)
 	case *events.InterruptEvent:
 		return h.handleInterrupt(ctx, e)
+	case *events.SessionTitleUpdatedEvent:
+		return h.handleSessionTitleUpdated(ctx, e)
 	default:
 		// Convert generic events to EventObservation
 		return h.handleGenericEvent(ctx, event)
@@ -418,10 +429,14 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		}
 	}
 
-	// Resolve user ID from context for trace enrichment.
+	// Resolve user ID and email from context for trace enrichment.
 	var userID string
 	if h.bridge.userIDFromCtx != nil {
 		userID = h.bridge.userIDFromCtx(ctx)
+	}
+	var userEmail string
+	if h.bridge.userEmailFromCtx != nil {
+		userEmail = h.bridge.userEmailFromCtx(ctx)
 	}
 
 	genID := uuid.New().String()
@@ -433,6 +448,7 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		TenantID:         e.TenantID(),
 		SessionID:        e.SessionID(),
 		UserID:           userID,
+		UserEmail:        userEmail,
 		Timestamp:        e.Timestamp(),
 		Model:            e.Model,
 		Provider:         e.Provider,
@@ -638,6 +654,13 @@ func (h *providerHandler) handleInterrupt(ctx context.Context, e *events.Interru
 		obs.Attributes["otel.span_id"] = spanID
 	}
 	return h.provider.RecordSpan(ctx, obs)
+}
+
+func (h *providerHandler) handleSessionTitleUpdated(ctx context.Context, e *events.SessionTitleUpdatedEvent) error {
+	if updater, ok := h.provider.(TraceNameUpdater); ok {
+		return updater.UpdateTraceName(ctx, e.SessionID().String(), e.Title)
+	}
+	return nil
 }
 
 func (h *providerHandler) handleToolStart(_ context.Context, _ *events.ToolStartEvent) error {
