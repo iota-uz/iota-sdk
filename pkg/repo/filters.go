@@ -247,7 +247,11 @@ func (f *orFilter) String(column string, argIdx int) string {
 }
 
 func (f *orFilter) Value() []any {
-	var values []any
+	n := 0
+	for _, filter := range f.filters {
+		n += len(filter.Value())
+	}
+	values := make([]any, 0, n)
 	for _, filter := range f.filters {
 		values = append(values, filter.Value()...)
 	}
@@ -267,7 +271,11 @@ func (f *andFilter) String(column string, argIdx int) string {
 }
 
 func (f *andFilter) Value() []any {
-	var values []any
+	n := 0
+	for _, filter := range f.filters {
+		n += len(filter.Value())
+	}
+	values := make([]any, 0, n)
 	for _, filter := range f.filters {
 		values = append(values, filter.Value()...)
 	}

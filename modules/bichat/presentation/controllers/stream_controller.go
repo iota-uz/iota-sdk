@@ -4,35 +4,45 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/bichat/permissions"
+	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/httpdto"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
 type StreamController struct {
-	app         application.Application
-	chatService services.ChatService
+	app               application.Application
+	chatService       bichatservices.ChatService
+	attachmentService bichatservices.AttachmentService
+	opts              ControllerOptions
 }
+
+const maxStreamRequestBodyBytes int64 = 32 << 20 // 32 MiB
 
 // NewStreamController creates a new stream controller.
 func NewStreamController(
 	app application.Application,
-	chatService services.ChatService,
+	chatService bichatservices.ChatService,
+	attachmentService bichatservices.AttachmentService,
+	opts ...ControllerOption,
 ) *StreamController {
 	return &StreamController{
-		app:         app,
-		chatService: chatService,
+		app:               app,
+		chatService:       chatService,
+		attachmentService: attachmentService,
+		opts:              applyControllerOptions(opts...),
 	}
 }
 
@@ -53,7 +63,7 @@ func (c *StreamController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	}
 
-	subRouter := r.PathPrefix("/bi-chat").Subrouter()
+	subRouter := r.PathPrefix(c.opts.BasePath).Subrouter()
 	subRouter.Use(commonMiddleware...)
 
 	// Stream route
@@ -88,20 +98,68 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 3. Parse request
+	// 3. Enforce access permission early (avoid DB work for forbidden users)
+	if c.opts.RequireAccessPermission != nil {
+		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+	}
+
+	// 4. Parse request
 	type streamRequest struct {
-		SessionID   uuid.UUID           `json:"sessionId"`
-		Content     string              `json:"content"`
-		Attachments []domain.Attachment `json:"attachments"`
+		SessionID   uuid.UUID             `json:"sessionId"`
+		Content     string                `json:"content"`
+		Attachments []AttachmentUploadDTO `json:"attachments"`
+		DebugMode   bool                  `json:"debugMode"`
+		ReplaceFrom *uuid.UUID            `json:"replaceFromMessageId,omitempty"`
 	}
 
 	var req streamRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxStreamRequestBodyBytes)
+	defer func() { _ = r.Body.Close() }()
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "Request too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
-	// 4. Validate session access
+	if req.DebugMode {
+		if err := composables.CanUser(r.Context(), bichatperm.BiChatExport); err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+	}
+
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		http.Error(w, "Invalid tenant context", http.StatusBadRequest)
+		return
+	}
+
+	domainAttachments, err := convertAttachmentDTOs(
+		r.Context(),
+		c.attachmentService,
+		req.Attachments,
+		tenantID,
+		uuid.Nil,
+	)
+	if err != nil {
+		http.Error(w, "Invalid attachments", http.StatusBadRequest)
+		return
+	}
+
+	// 5. Validate session access
 	session, err := c.chatService.GetSession(r.Context(), req.SessionID)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
@@ -113,32 +171,31 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Check permission (user owns session or has read_all permission)
-	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), permissions.BiChatReadAll) != nil {
+	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}
 
-	// 5. Set SSE headers
+	// 6. Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	// 6. Stream chunks
-	type streamChunkDTO struct {
-		Type     string               `json:"type"`
-		Content  string               `json:"content,omitempty"`
-		Citation *domain.Citation     `json:"citation,omitempty"`
-		Usage    *services.TokenUsage `json:"usage,omitempty"`
-		Error    string               `json:"error,omitempty"`
+	// 7. Stream chunks
+	ctx := r.Context()
+	if req.DebugMode {
+		ctx = bichatservices.WithDebugMode(ctx, true)
 	}
 
-	err = c.chatService.SendMessageStream(r.Context(), services.SendMessageRequest{
-		SessionID:   req.SessionID,
-		UserID:      int64(user.ID()),
-		Content:     req.Content,
-		Attachments: req.Attachments,
-	}, func(chunk services.StreamChunk) {
+	err = c.chatService.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+		SessionID:            req.SessionID,
+		UserID:               int64(user.ID()),
+		Content:              req.Content,
+		Attachments:          domainAttachments,
+		DebugMode:            req.DebugMode,
+		ReplaceFromMessageID: req.ReplaceFrom,
+	}, func(chunk bichatservices.StreamChunk) {
 		// Handle context cancellation
 		select {
 		case <-r.Context().Done():
@@ -146,15 +203,54 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		default:
 		}
 
-		payload := streamChunkDTO{
-			Type:     string(chunk.Type),
-			Content:  chunk.Content,
-			Citation: chunk.Citation,
-			Usage:    chunk.Usage,
+		payload := httpdto.StreamChunkPayload{
+			Type:         string(chunk.Type),
+			Content:      chunk.Content,
+			Citation:     chunk.Citation,
+			Usage:        chunk.Usage,
+			GenerationMs: chunk.GenerationMs,
+			Timestamp:    chunk.Timestamp.UnixMilli(),
+		}
+		if chunk.Tool != nil {
+			toolPayload := &httpdto.ToolEventPayload{
+				CallID:     chunk.Tool.CallID,
+				Name:       chunk.Tool.Name,
+				Arguments:  chunk.Tool.Arguments,
+				Result:     chunk.Tool.Result,
+				DurationMs: chunk.Tool.DurationMs,
+			}
+			if chunk.Tool.Error != nil {
+				toolPayload.Error = chunk.Tool.Error.Error()
+			}
+			payload.Tool = toolPayload
+		}
+		if chunk.Interrupt != nil {
+			questions := make([]httpdto.InterruptQuestionPayload, 0, len(chunk.Interrupt.Questions))
+			for _, q := range chunk.Interrupt.Questions {
+				options := make([]httpdto.InterruptQuestionOptionPayload, 0, len(q.Options))
+				for _, opt := range q.Options {
+					options = append(options, httpdto.InterruptQuestionOptionPayload{
+						ID:    opt.ID,
+						Label: opt.Label,
+					})
+				}
+				questions = append(questions, httpdto.InterruptQuestionPayload{
+					ID:      q.ID,
+					Text:    q.Text,
+					Type:    string(q.Type),
+					Options: options,
+				})
+			}
+			payload.Interrupt = &httpdto.InterruptEventPayload{
+				CheckpointID:       chunk.Interrupt.CheckpointID,
+				AgentName:          chunk.Interrupt.AgentName,
+				ProviderResponseID: chunk.Interrupt.ProviderResponseID,
+				Questions:          questions,
+			}
 		}
 		if chunk.Error != nil {
 			// Avoid leaking internal errors to the client.
-			if chunk.Type == services.ChunkTypeError {
+			if chunk.Type == bichatservices.ChunkTypeError {
 				payload.Error = "An error occurred while processing your request"
 			} else {
 				payload.Error = chunk.Error.Error()
@@ -172,19 +268,22 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		// Log actual error server-side
 		logger := configuration.Use().Logger()
-		logger.WithError(serrors.E(op, err)).Error("Stream error")
+		entry := logger.WithError(serrors.E(op, err))
+		entry.Error("Stream error")
 
 		// Send sanitized error to client
-		c.sendSSEEvent(w, flusher, "error", map[string]string{
-			"type":  "error",
-			"error": "An error occurred while processing your request",
+		c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
+			Type:      "error",
+			Error:     "An error occurred while processing your request",
+			Timestamp: time.Now().UnixMilli(),
 		})
 		return
 	}
 
 	// Send done event
-	c.sendSSEEvent(w, flusher, "done", map[string]string{
-		"type": "done",
+	c.sendSSEEvent(w, flusher, "done", httpdto.StreamChunkPayload{
+		Type:      "done",
+		Timestamp: time.Now().UnixMilli(),
 	})
 }
 

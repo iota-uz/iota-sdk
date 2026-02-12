@@ -40,6 +40,9 @@ type InterruptEvent struct {
 	// CheckpointID is the identifier for the saved checkpoint.
 	// Used to resume execution after the interrupt is resolved.
 	CheckpointID string
+
+	// ProviderResponseID is the provider's response identifier at interrupt time.
+	ProviderResponseID string
 }
 
 // InterruptHandler processes a specific type of interrupt event.

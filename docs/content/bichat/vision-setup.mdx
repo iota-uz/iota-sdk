@@ -1,0 +1,158 @@
+---
+title: 'Vision support setup'
+description: 'Enable image attachments and OpenAI vision in BiChat'
+---
+
+# Vision support setup
+
+BiChat supports **image attachments** and can pass them through to **vision-capable LLM models**. This guide shows how to enable it in your application and what constraints apply.
+
+## What’s implemented (SDK)
+
+- **AttachmentService** (`modules/bichat/services/attachment_service.go`)
+  - Validates image uploads (JPEG, PNG, GIF, WebP)
+  - Enforces size limits (max 20MB per image, max 10 images)
+  - Saves to storage with tenant isolation
+- **OpenAI vision integration** (`modules/bichat/infrastructure/llmproviders/openai_model.go`)
+  - Converts attachments to OpenAI multipart content format
+  - Uses low-detail mode (85 tokens per image)
+  - Supports multiple images per message
+- **Stream upload handling** (`modules/bichat/presentation/controllers/stream_controller.go`)
+  - Accepts attachments in the stream request payload
+  - Validates + stores attachments via BiChat services
+  - Streams assistant chunks as SSE events
+
+## Setup steps
+
+### 1) Create file storage
+
+```go
+import "github.com/iota-uz/iota-sdk/pkg/bichat/storage"
+
+// Local filesystem storage
+fileStorage, err := storage.NewLocalFileStorage(
+	"/var/lib/bichat/uploads", // upload directory
+	"https://cdn.example.com", // CDN URL prefix (or empty for local URLs)
+)
+```
+
+### 2) Create AttachmentService
+
+```go
+import bichatservices "github.com/iota-uz/iota-sdk/modules/bichat/services"
+
+attachmentService := bichatservices.NewAttachmentService(fileStorage)
+```
+
+### 3) Enable vision in BiChat config
+
+```go
+import "github.com/iota-uz/iota-sdk/modules/bichat"
+
+cfg := bichat.NewModuleConfig(
+	tenantID,
+	userID,
+	chatRepo,
+	model,
+	contextPolicy,
+	agent,
+	bichat.WithVision(true), // Enable vision feature flag
+)
+```
+
+This flag is passed to the React frontend via `window.__BICHAT_CONTEXT__.extensions.features.vision`.
+
+### 4) Stream request payload
+
+The stream endpoint accepts attachments as part of the JSON payload:
+
+```json
+{
+  "sessionId": "uuid",
+  "content": "Analyze these charts",
+  "attachments": [
+    {
+      "id": "uuid",
+      "fileName": "a.png",
+      "mimeType": "image/png",
+      "sizeBytes": 123,
+      "data": "base64..."
+    }
+  ]
+}
+```
+
+## Frontend integration
+
+The React frontend can use `window.__BICHAT_CONTEXT__.extensions.features.vision` to conditionally show image upload UI:
+
+```typescript
+const { extensions } = useIotaContext()
+
+if (extensions.features.vision) {
+  // Show image upload button in MessageInput
+  <ImageUploadButton onUpload={handleUpload} />
+}
+```
+
+## Validation rules
+
+- **MIME types**: `image/jpeg`, `image/png`, `image/gif`, `image/webp`
+- **File size**: max 20MB per image
+- **Count**: max 10 images per message
+- **Token cost**: 85 tokens per image (low-detail mode)
+
+## Storage structure
+
+Images are saved with tenant isolation:
+
+```
+/var/lib/bichat/uploads/
+├── {tenant-id}/
+│   ├── {file-id}.jpg
+│   ├── {file-id}.png
+│   └── ...
+```
+
+## Error handling
+
+`AttachmentService` returns structured errors:
+
+- `KindValidation`: unsupported type, file too large, too many files
+- `KindInternal`: storage failure
+
+Example error response:
+
+```json
+{
+  "errors": [
+    {
+      "message": "unsupported image type: image/bmp (supported: jpeg, png, gif, webp)",
+      "extensions": { "code": "VALIDATION_ERROR" }
+    }
+  ]
+}
+```
+
+## Security considerations
+
+1. **Tenant isolation**: files are stored per tenant to prevent cross-tenant access
+2. **MIME type validation**: only safe image formats allowed
+3. **Size limits**: prevents DoS attacks via large uploads
+4. **Token budgeting**: vision uses low-detail mode to limit costs
+
+## Testing
+
+```bash
+# Test attachment service
+go test ./modules/bichat/services -run TestAttachmentService -v
+
+# Test vision integration
+go test ./modules/bichat/infrastructure/llmproviders -run TestOpenAIVision -v
+```
+
+## Troubleshooting
+
+- **Images not displaying**: check CDN URL configuration in `FileStorage`
+- **Upload fails**: check file permissions on the upload directory
+- **Vision not working**: ensure the configured OpenAI model supports vision (e.g. `gpt-4o`)

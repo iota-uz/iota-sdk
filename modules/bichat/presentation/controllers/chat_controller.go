@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -9,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -26,10 +26,11 @@ type ChatController struct {
 	agentService      services.AgentService
 	attachmentService services.AttachmentService
 	artifactService   services.ArtifactService
+	opts              ControllerOptions
 }
 
 // NewChatController creates a new chat controller.
-// Services can be nil - they're optional for REST endpoints, required for GraphQL.
+// Services can be nil - they're optional for legacy REST endpoints.
 func NewChatController(
 	app application.Application,
 	chatService services.ChatService,
@@ -37,6 +38,7 @@ func NewChatController(
 	agentService services.AgentService,
 	attachmentService services.AttachmentService,
 	artifactService services.ArtifactService,
+	opts ...ControllerOption,
 ) *ChatController {
 	return &ChatController{
 		app:               app,
@@ -45,6 +47,7 @@ func NewChatController(
 		agentService:      agentService,
 		attachmentService: attachmentService,
 		artifactService:   artifactService,
+		opts:              applyControllerOptions(opts...),
 	}
 }
 
@@ -55,16 +58,15 @@ func (c *ChatController) Key() string {
 
 // sessionResponse is the JSON shape for session endpoints
 type sessionResponse struct {
-	ID                   string  `json:"id"`
-	TenantID             string  `json:"tenant_id"`
-	UserID               int64   `json:"user_id"`
-	Title                string  `json:"title"`
-	Status               string  `json:"status"`
-	Pinned               bool    `json:"pinned"`
-	ParentSessionID      *string `json:"parent_session_id,omitempty"`
-	PendingQuestionAgent *string `json:"pending_question_agent,omitempty"`
-	CreatedAt            string  `json:"created_at"`
-	UpdatedAt            string  `json:"updated_at"`
+	ID              string  `json:"id"`
+	TenantID        string  `json:"tenant_id"`
+	UserID          int64   `json:"user_id"`
+	Title           string  `json:"title"`
+	Status          string  `json:"status"`
+	Pinned          bool    `json:"pinned"`
+	ParentSessionID *string `json:"parent_session_id,omitempty"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
 }
 
 func sessionToResponse(s domain.Session) sessionResponse {
@@ -85,9 +87,6 @@ func sessionToResponse(s domain.Session) sessionResponse {
 		str := pid.String()
 		resp.ParentSessionID = &str
 	}
-	if agent := s.PendingQuestionAgent(); agent != nil {
-		resp.PendingQuestionAgent = agent
-	}
 	return resp
 }
 
@@ -103,10 +102,11 @@ func (c *ChatController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	}
 
-	subRouter := r.PathPrefix("/bi-chat").Subrouter()
+	subRouter := r.PathPrefix(c.opts.BasePath).Subrouter()
 	subRouter.Use(commonMiddleware...)
 
-	// Session routes (GraphQL is now handled by core's GraphQLController at /query/bichat)
+	// Session routes (legacy REST API).
+	// BiChat applet UI uses applet RPC for request/response and StreamController for streaming.
 	subRouter.HandleFunc("/sessions", c.ListSessions).Methods("GET")
 	subRouter.HandleFunc("/sessions", c.CreateSession).Methods("POST")
 	subRouter.HandleFunc("/sessions/{id}", c.GetSession).Methods("GET")
@@ -117,8 +117,7 @@ func (c *ChatController) Register(r *mux.Router) {
 	subRouter.HandleFunc("/sessions/{id}", c.DeleteSession).Methods("DELETE")
 }
 
-// GraphQL registration has been moved to module.go
-// BiChat GraphQL schema is now accessible at /query/bichat via core's GraphQLController
+// Note: This controller is not registered by default. Prefer applet RPC for applet UI.
 
 // ListSessions returns all sessions for the current user.
 func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {
@@ -127,6 +126,10 @@ func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		return
+	}
+	if err := c.enforceAccess(r.Context()); err != nil {
+		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
@@ -156,6 +159,10 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		return
+	}
+	if err := c.enforceAccess(r.Context()); err != nil {
+		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
@@ -190,6 +197,10 @@ func (c *ChatController) GetSession(w http.ResponseWriter, r *http.Request) {
 		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
 		return
 	}
+	if err := c.enforceAccess(r.Context()); err != nil {
+		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		return
+	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
@@ -208,7 +219,7 @@ func (c *ChatController) GetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), permissions.BiChatReadAll) != nil {
+	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
 		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
@@ -222,6 +233,10 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		return
+	}
+	if err := c.enforceAccess(r.Context()); err != nil {
+		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
@@ -240,17 +255,35 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if session.UserID() != int64(user.ID()) {
-		if err := composables.CanUser(r.Context(), permissions.BiChatReadAll); err != nil {
+		if err := composables.CanUser(r.Context(), c.opts.ReadAllPermission); err != nil {
 			c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 			return
 		}
 	}
 
 	var req struct {
-		Content     string              `json:"content"`
-		Attachments []domain.Attachment `json:"attachments"`
+		Content     string                `json:"content"`
+		Attachments []AttachmentUploadDTO `json:"attachments"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
+		return
+	}
+
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
+		return
+	}
+
+	domainAttachments, err := convertAttachmentDTOs(
+		r.Context(),
+		c.attachmentService,
+		req.Attachments,
+		tenantID,
+		uuid.Nil,
+	)
+	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return
 	}
@@ -259,7 +292,7 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		SessionID:   sessionID,
 		UserID:      int64(user.ID()),
 		Content:     req.Content,
-		Attachments: req.Attachments,
+		Attachments: domainAttachments,
 	})
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
@@ -278,6 +311,10 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
 		return
 	}
+	if err := c.enforceAccess(r.Context()); err != nil {
+		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		return
+	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
@@ -294,7 +331,7 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 	}
 
 	if session.UserID() != int64(user.ID()) {
-		if err := composables.CanUser(r.Context(), permissions.BiChatReadAll); err != nil {
+		if err := composables.CanUser(r.Context(), c.opts.ReadAllPermission); err != nil {
 			c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 			return
 		}
@@ -329,6 +366,10 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		return
+	}
+	if err := c.enforceAccess(r.Context()); err != nil {
+		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
@@ -370,6 +411,10 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		return
+	}
+	if err := c.enforceAccess(r.Context()); err != nil {
+		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
@@ -415,6 +460,10 @@ func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		return
+	}
+	if err := c.enforceAccess(r.Context()); err != nil {
+		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
@@ -466,4 +515,11 @@ func (c *ChatController) sendError(w http.ResponseWriter, err error, statusCode 
 	if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
 		slog.Error("failed to encode error response", "err", encErr)
 	}
+}
+
+func (c *ChatController) enforceAccess(ctx context.Context) error {
+	if c.opts.RequireAccessPermission == nil {
+		return nil
+	}
+	return composables.CanUser(ctx, c.opts.RequireAccessPermission)
 }

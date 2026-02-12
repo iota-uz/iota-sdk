@@ -29,6 +29,13 @@ const (
 	StickyPositionNone  = base.StickyPositionNone
 )
 
+type ScrollbarPosition = base.ScrollbarPosition
+
+const (
+	ScrollbarPositionTop    = base.ScrollbarPositionTop
+	ScrollbarPositionBottom = base.ScrollbarPositionBottom
+)
+
 // Re-export function for backwards compatibility
 func ParseSortDirection(value string) SortDirection {
 	return base.ParseSortDirection(value)

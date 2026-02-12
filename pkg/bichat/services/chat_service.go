@@ -16,11 +16,15 @@ type ChatService interface {
 	CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error)
 	GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error)
+	CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error)
 	UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error)
 	ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
+	UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	PinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	UnpinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
+	ClearSessionHistory(ctx context.Context, sessionID uuid.UUID) (ClearSessionHistoryResponse, error)
+	CompactSessionHistory(ctx context.Context, sessionID uuid.UUID) (CompactSessionHistoryResponse, error)
 
 	// Message management
 	SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResponse, error)
@@ -30,8 +34,9 @@ type ChatService interface {
 	// Resume after user answers questions (HITL)
 	ResumeWithAnswer(ctx context.Context, req ResumeRequest) (*SendMessageResponse, error)
 
-	// Cancel pending question - clears HITL state without resuming
-	CancelPendingQuestion(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
+	// RejectPendingQuestion rejects a pending HITL question and resumes the agent
+	// with "user rejected questions" feedback.
+	RejectPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*SendMessageResponse, error)
 
 	// Generate session title from first message
 	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
@@ -43,6 +48,10 @@ type SendMessageRequest struct {
 	UserID      int64
 	Content     string
 	Attachments []domain.Attachment
+	DebugMode   bool
+	// ReplaceFromMessageID truncates session history from this user message onward
+	// before sending the new content (used by edit/regenerate flows).
+	ReplaceFromMessageID *uuid.UUID
 }
 
 // SendMessageResponse contains the result of sending a message
@@ -71,7 +80,6 @@ type Question struct {
 type QuestionType string
 
 const (
-	QuestionTypeText           QuestionType = "text"
 	QuestionTypeSingleChoice   QuestionType = "single_choice"
 	QuestionTypeMultipleChoice QuestionType = "multiple_choice"
 )
@@ -91,30 +99,41 @@ type ResumeRequest struct {
 
 // StreamChunk represents a chunk of streaming response
 type StreamChunk struct {
-	Type      ChunkType
-	Content   string
-	Citation  *domain.Citation
-	Usage     *TokenUsage
-	Error     error
-	Timestamp time.Time
+	Type         ChunkType
+	Content      string
+	Citation     *domain.Citation
+	Usage        *types.DebugUsage
+	Tool         *ToolEvent
+	Interrupt    *InterruptEvent
+	GenerationMs int64
+	Error        error
+	Timestamp    time.Time
 }
 
 // ChunkType represents the type of streaming chunk
 type ChunkType string
 
 const (
-	ChunkTypeContent  ChunkType = "content"
-	ChunkTypeCitation ChunkType = "citation"
-	ChunkTypeUsage    ChunkType = "usage"
-	ChunkTypeDone     ChunkType = "done"
-	ChunkTypeError    ChunkType = "error"
+	ChunkTypeChunk     ChunkType = "chunk"
+	ChunkTypeContent   ChunkType = "content"
+	ChunkTypeCitation  ChunkType = "citation"
+	ChunkTypeToolStart ChunkType = "tool_start"
+	ChunkTypeToolEnd   ChunkType = "tool_end"
+	ChunkTypeInterrupt ChunkType = "interrupt"
+	ChunkTypeUsage     ChunkType = "usage"
+	ChunkTypeDone      ChunkType = "done"
+	ChunkTypeError     ChunkType = "error"
 )
 
-// TokenUsage tracks token consumption and costs
-type TokenUsage struct {
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
-	CachedTokens     int
-	Cost             float64 // Estimated cost in USD
+type ClearSessionHistoryResponse struct {
+	Success          bool
+	DeletedMessages  int64
+	DeletedArtifacts int64
+}
+
+type CompactSessionHistoryResponse struct {
+	Success          bool
+	Summary          string
+	DeletedMessages  int64
+	DeletedArtifacts int64
 }

@@ -170,7 +170,7 @@ func Confirmation(p *Props) templ.Component {
 		})
 		templ_7745c5c3_Err = button.Secondary(button.Props{
 			Class: "flex-1 justify-center",
-			Attrs: templ.Attributes{"value": "cancel"},
+			Attrs: templ.Attributes{"value": "cancel", "data-test-id": "dialog-cancel-btn"},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -200,7 +200,7 @@ func Confirmation(p *Props) templ.Component {
 		})
 		templ_7745c5c3_Err = button.Primary(button.Props{
 			Class: "flex-1 justify-center",
-			Attrs: templ.Attributes{"value": "confirm"},
+			Attrs: templ.Attributes{"value": "confirm", "data-test-id": "dialog-confirm-btn"},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

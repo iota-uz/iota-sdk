@@ -163,7 +163,7 @@ func TestRepository_Get_WithFunctionalOptions(t *testing.T) {
 		idField := fields.KeyField()
 
 		// Build query using internal method to verify it works
-		query, err := repo.buildGetWithJoinsQuery(idField.Value(int(1)), &FindParams{Joins: joins})
+		query, err := repo.buildGetWithJoinsQuery([]FieldValue{idField.Value(int(1))}, &FindParams{Joins: joins})
 		require.NoError(t, err)
 		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")
 		assert.Contains(t, query, "WHERE test_table.id = $1")
@@ -214,7 +214,7 @@ func TestRepository_Exists_WithFunctionalOptions(t *testing.T) {
 		idField := fields.KeyField()
 
 		// Build query using internal method to verify it works
-		query, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), &FindParams{Joins: joins})
+		query, err := repo.buildExistsWithJoinsQuery([]FieldValue{idField.Value(int(1))}, &FindParams{Joins: joins})
 		require.NoError(t, err)
 		assert.Contains(t, query, "SELECT EXISTS")
 		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")

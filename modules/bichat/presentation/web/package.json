@@ -3,21 +3,24 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": { "node": ">=18" },
   "scripts": {
-    "dev": "pnpm run build:css && vite",
+    "dev": "pnpm run dev:standalone",
     "build:css": "tailwindcss -i ./src/index.css -o ./dist/style.css --minify",
+    "build:css:watch": "tailwindcss -i ./src/index.css -o ./dist/style.css --watch",
+    "dev:embedded": "bash -lc 'trap \"kill 0\" EXIT INT TERM; pnpm run build:css:watch & vite'",
+    "dev:standalone": "bash -lc 'trap \"kill 0\" EXIT INT TERM; pnpm run build:css:watch & APPLET_ASSETS_BASE=/ vite'",
     "build": "pnpm run build:css && tsc && vite build",
     "build:watch": "chokidar \"src/**\" \"*.config.*\" \"index.html\" \"tailwind.config.js\" \"tsconfig.json\" \"vite.config.ts\" -c \"pnpm run build\"",
     "preview": "vite preview",
-    "codegen": "graphql-codegen"
+    "codegen": "echo \"codegen removed (RPC-only)\""
   },
   "dependencies": {
-    "@iota-uz/sdk": "file:../../../../",
+    "@iota-uz/sdk": "0.4.11",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",
-    "urql": "^4.1.0",
-    "graphql": "^16.9.0",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.0.0",
     "fuse.js": "^7.0.0",
@@ -36,10 +39,6 @@
     "tailwindcss": "4.1.18",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.41",
-    "@graphql-codegen/cli": "^5.0.2",
-    "@graphql-codegen/typescript": "^4.0.9",
-    "@graphql-codegen/typescript-operations": "^4.2.3",
-    "@graphql-codegen/typescript-urql": "^4.0.0",
     "chokidar-cli": "^3.0.0"
   }
 }

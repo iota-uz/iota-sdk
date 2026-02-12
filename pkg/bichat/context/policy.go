@@ -79,7 +79,7 @@ type ContextPolicy struct {
 // DefaultKindPriorities returns sensible defaults for kind priorities.
 func DefaultKindPriorities() []KindPriority {
 	return []KindPriority{
-		{Kind: KindPinned, MinTokens: 500, MaxTokens: 2000, Truncatable: false},
+		{Kind: KindPinned, MinTokens: 500, MaxTokens: 5000, Truncatable: false},
 		{Kind: KindReference, MinTokens: 1000, MaxTokens: 10000, Truncatable: true},
 		{Kind: KindMemory, MinTokens: 500, MaxTokens: 5000, Truncatable: true},
 		{Kind: KindState, MinTokens: 200, MaxTokens: 2000, Truncatable: false},

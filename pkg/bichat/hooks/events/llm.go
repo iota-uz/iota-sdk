@@ -13,10 +13,11 @@ type LLMRequestEvent struct {
 	Messages        int    // Number of messages in the request
 	Tools           int    // Number of tools provided
 	EstimatedTokens int    // Estimated token count (if available)
+	UserInput       string // Last user message content (for trace Input)
 }
 
 // NewLLMRequestEvent creates a new LLMRequestEvent.
-func NewLLMRequestEvent(sessionID, tenantID uuid.UUID, model, provider string, messages, tools, estimatedTokens int) *LLMRequestEvent {
+func NewLLMRequestEvent(sessionID, tenantID uuid.UUID, model, provider string, messages, tools, estimatedTokens int, userInput string) *LLMRequestEvent {
 	return &LLMRequestEvent{
 		baseEvent:       newBaseEvent("llm.request", sessionID, tenantID),
 		Model:           model,
@@ -24,6 +25,7 @@ func NewLLMRequestEvent(sessionID, tenantID uuid.UUID, model, provider string, m
 		Messages:        messages,
 		Tools:           tools,
 		EstimatedTokens: estimatedTokens,
+		UserInput:       userInput,
 	}
 }
 
@@ -41,6 +43,7 @@ type LLMResponseEvent struct {
 	LatencyMs        int64  // Response latency in milliseconds
 	FinishReason     string // "stop", "tool_calls", "length", etc.
 	ToolCalls        int    // Number of tool calls in the response
+	ResponseText     string // Accumulated response text (for trace Output)
 }
 
 // NewLLMResponseEvent creates a new LLMResponseEvent.
@@ -51,6 +54,7 @@ func NewLLMResponseEvent(
 	latencyMs int64,
 	finishReason string,
 	toolCalls int,
+	responseText string,
 ) *LLMResponseEvent {
 	return &LLMResponseEvent{
 		baseEvent:        newBaseEvent("llm.response", sessionID, tenantID),
@@ -64,6 +68,7 @@ func NewLLMResponseEvent(
 		LatencyMs:        latencyMs,
 		FinishReason:     finishReason,
 		ToolCalls:        toolCalls,
+		ResponseText:     responseText,
 	}
 }
 
@@ -76,6 +81,7 @@ func NewLLMResponseEventWithCache(
 	latencyMs int64,
 	finishReason string,
 	toolCalls int,
+	responseText string,
 ) *LLMResponseEvent {
 	return &LLMResponseEvent{
 		baseEvent:        newBaseEvent("llm.response", sessionID, tenantID),
@@ -89,6 +95,7 @@ func NewLLMResponseEventWithCache(
 		LatencyMs:        latencyMs,
 		FinishReason:     finishReason,
 		ToolCalls:        toolCalls,
+		ResponseText:     responseText,
 	}
 }
 

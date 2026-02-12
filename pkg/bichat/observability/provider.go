@@ -35,8 +35,10 @@ type GenerationObservation struct {
 	// Identity
 	ID        string    // Unique generation ID
 	TraceID   string    // Parent trace ID (session ID)
+	ParentID  string    // Parent span ID for nesting (e.g., agent span)
 	TenantID  uuid.UUID // Multi-tenant isolation
 	SessionID uuid.UUID // Chat session
+	UserID    string    // User who initiated the session (for trace enrichment)
 	Timestamp time.Time // When generation started
 
 	// Model metadata
@@ -57,6 +59,10 @@ type GenerationObservation struct {
 	ToolCalls        int           // Number of tool calls in response
 	CompletionText   string        // Optional: completion text for debugging (may contain PII)
 	Duration         time.Duration // Total duration
+
+	// Input/Output for trace visualization
+	Input  interface{} // Prompt messages or user input
+	Output interface{} // LLM response text
 
 	// Metadata
 	Attributes map[string]interface{} // Extensible metadata (tags, custom fields)

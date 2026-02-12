@@ -18,6 +18,8 @@ type Message interface {
 	Attachments() []Attachment
 	Citations() []Citation
 	CodeOutputs() []CodeInterpreterOutput
+	DebugTrace() *DebugTrace
+	QuestionData() *QuestionData
 	CreatedAt() time.Time
 
 	HasToolCalls() bool
@@ -25,19 +27,22 @@ type Message interface {
 	HasCitations() bool
 	IsToolMessage() bool
 	HasCodeOutputs() bool
+	HasPendingQuestion() bool
 }
 
 type message struct {
-	id          uuid.UUID
-	sessionID   uuid.UUID
-	role        Role
-	content     string
-	toolCalls   []ToolCall
-	toolCallID  *string
-	attachments []Attachment
-	citations   []Citation
-	codeOutputs []CodeInterpreterOutput
-	createdAt   time.Time
+	id           uuid.UUID
+	sessionID    uuid.UUID
+	role         Role
+	content      string
+	toolCalls    []ToolCall
+	toolCallID   *string
+	attachments  []Attachment
+	citations    []Citation
+	codeOutputs  []CodeInterpreterOutput
+	debugTrace   *DebugTrace
+	questionData *QuestionData
+	createdAt    time.Time
 }
 
 // MessageOption is a functional option for configuring a Message.
@@ -103,6 +108,20 @@ func WithCitations(citations ...Citation) MessageOption {
 func WithCodeOutputs(outputs ...CodeInterpreterOutput) MessageOption {
 	return func(m *message) {
 		m.codeOutputs = outputs
+	}
+}
+
+// WithDebugTrace sets the debug trace payload.
+func WithDebugTrace(trace *DebugTrace) MessageOption {
+	return func(m *message) {
+		m.debugTrace = trace
+	}
+}
+
+// WithQuestionData sets the HITL question data.
+func WithQuestionData(qd *QuestionData) MessageOption {
+	return func(m *message) {
+		m.questionData = qd
 	}
 }
 
@@ -220,6 +239,14 @@ func (m *message) CodeOutputs() []CodeInterpreterOutput {
 	return m.codeOutputs
 }
 
+func (m *message) DebugTrace() *DebugTrace {
+	return m.debugTrace
+}
+
+func (m *message) QuestionData() *QuestionData {
+	return m.questionData
+}
+
 func (m *message) CreatedAt() time.Time {
 	return m.createdAt
 }
@@ -247,4 +274,9 @@ func (m *message) IsToolMessage() bool {
 // HasCodeOutputs returns true if the message has code interpreter outputs.
 func (m *message) HasCodeOutputs() bool {
 	return len(m.codeOutputs) > 0
+}
+
+// HasPendingQuestion returns true if this message has a pending HITL question.
+func (m *message) HasPendingQuestion() bool {
+	return m.questionData.IsPending()
 }

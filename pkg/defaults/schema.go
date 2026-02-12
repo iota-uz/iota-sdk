@@ -1,6 +1,7 @@
 package defaults
 
 import (
+	bichatPerms "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 
@@ -55,6 +56,7 @@ func (b *permissionSetBuilder) manageSet(resource string, create, read, update, 
 func AllPermissions() []permission.Permission {
 	// Pre-calculate total capacity to avoid slice re-allocations
 	totalCapacity := len(corePerms.Permissions) +
+		len(bichatPerms.Permissions) +
 		len(billingPerms.Permissions) +
 		len(crmPerms.Permissions) +
 		len(financePerms.Permissions) +
@@ -65,6 +67,7 @@ func AllPermissions() []permission.Permission {
 
 	permissions := make([]permission.Permission, 0, totalCapacity)
 	permissions = append(permissions, corePerms.Permissions...)
+	permissions = append(permissions, bichatPerms.Permissions...)
 	permissions = append(permissions, billingPerms.Permissions...)
 	permissions = append(permissions, crmPerms.Permissions...)
 	permissions = append(permissions, financePerms.Permissions...)
@@ -87,7 +90,7 @@ func PermissionSchema() *rbac.PermissionSchema {
 
 // buildModulePermissionSets creates permission sets for all modules using the builder pattern
 func buildModulePermissionSets() []rbac.PermissionSet {
-	var sets []rbac.PermissionSet
+	sets := make([]rbac.PermissionSet, 0, 37)
 
 	// Core module
 	core := newPermissionSetBuilder("Core")
@@ -165,13 +168,27 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 		hrm.manageSet("Employee", hrmPerms.EmployeeCreate, hrmPerms.EmployeeRead, hrmPerms.EmployeeUpdate, hrmPerms.EmployeeDelete),
 	)
 
+	// BiChat module
+	bichat := newPermissionSetBuilder("BiChat")
+	sets = append(sets,
+		bichat.viewSet("Access", bichatPerms.BiChatAccess),
+		bichat.viewSet("ReadAll", bichatPerms.BiChatReadAll),
+		rbac.PermissionSet{
+			Key:         "bichat_export",
+			Label:       "PermissionSets.BiChat.Export.Label",
+			Description: "PermissionSets.BiChat.Export._Description",
+			Module:      "BiChat",
+			Permissions: []permission.Permission{bichatPerms.BiChatExport},
+		},
+	)
+
 	return sets
 }
 
 // appendRemainingPermissionSets adds remaining modules as individual permission sets
 func appendRemainingPermissionSets(sets []rbac.PermissionSet) []rbac.PermissionSet {
 	// Collect all remaining permissions
-	remainingPermissions := make([]permission.Permission, 0)
+	remainingPermissions := make([]permission.Permission, 0, len(billingPerms.Permissions)+len(loggingPerms.Permissions))
 	remainingPermissions = append(remainingPermissions, billingPerms.Permissions...)
 	remainingPermissions = append(remainingPermissions, loggingPerms.Permissions...)
 

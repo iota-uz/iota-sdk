@@ -51,6 +51,10 @@ type CompilationMetadata struct {
 
 	// Overflowed indicates if the context exceeded the token budget.
 	Overflowed bool
+
+	// OverBudgetKinds maps block kinds that exceeded their configured MaxTokens to their actual token count.
+	// This only tracks non-truncatable kinds since truncatable kinds are handled by overflow strategies.
+	OverBudgetKinds map[BlockKind]int
 }
 
 // Compile compiles the context using the given renderer and policy.
@@ -85,6 +89,18 @@ func (b *ContextBuilder) Compile(renderer Renderer, policy ContextPolicy) (*Comp
 	totalTokens := 0
 	for _, tokens := range blockTokens {
 		totalTokens += tokens
+	}
+
+	// Check for non-truncatable blocks exceeding their MaxTokens budget
+	priorityMap := make(map[BlockKind]KindPriority)
+	for _, p := range policy.KindPriorities {
+		priorityMap[p.Kind] = p
+	}
+	overBudgetKinds := make(map[BlockKind]int)
+	for kind, tokens := range tokensByKind {
+		if priority, ok := priorityMap[kind]; ok && !priority.Truncatable && tokens > priority.MaxTokens {
+			overBudgetKinds[kind] = tokens
+		}
 	}
 
 	// Handle overflow
@@ -138,6 +154,7 @@ func (b *ContextBuilder) Compile(renderer Renderer, policy ContextPolicy) (*Comp
 			CompletionReserve: policy.CompletionReserve,
 			AvailableTokens:   availableTokens,
 			Overflowed:        totalTokens > availableTokens,
+			OverBudgetKinds:   overBudgetKinds,
 		},
 	}, nil
 }
