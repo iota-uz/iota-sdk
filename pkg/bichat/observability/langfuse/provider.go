@@ -123,9 +123,10 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 		Name:                obs.Model,
 		StartTime:           &obs.Timestamp,
 		Model:               obs.Model,
+		ModelParameters:     obs.ModelParameters,
 		Metadata:            metadata,
 		Usage:               usage,
-		Level:               model.ObservationLevelDefault,
+		Level:               mapLevelToLangfuseModel(obs.Level),
 		CompletionStartTime: timePtr(obs.Timestamp.Add(obs.Duration)),
 		Input:               obs.Input,
 		Output:              obs.Output,
@@ -238,7 +239,7 @@ func (p *LangfuseProvider) RecordSpan(ctx context.Context, obs observability.Spa
 		Metadata:  metadata,
 		Input:     obs.Input,
 		Output:    obs.Output,
-		Level:     model.ObservationLevelDefault,
+		Level:     mapLevelToLangfuseModel(obs.Level),
 	}
 
 	// Create span in Langfuse
@@ -453,6 +454,40 @@ func (p *LangfuseProvider) UpdateTraceName(_ context.Context, sessionID, name st
 	}
 
 	p.log.Debugf("langfuse: updated trace name for session %s to %q", sessionID, name)
+	return nil
+}
+
+// UpdateTraceTags updates the tags on an existing trace.
+// It merges the provided dynamic tags with the provider's static config tags.
+func (p *LangfuseProvider) UpdateTraceTags(_ context.Context, sessionID string, tags []string) error {
+	if !p.config.Enabled {
+		return nil
+	}
+
+	// Merge config tags with dynamic tags (deduplicated).
+	merged := make(map[string]struct{}, len(p.config.Tags)+len(tags))
+	for _, t := range p.config.Tags {
+		merged[t] = struct{}{}
+	}
+	for _, t := range tags {
+		merged[t] = struct{}{}
+	}
+	allTags := make([]string, 0, len(merged))
+	for t := range merged {
+		allTags = append(allTags, t)
+	}
+
+	trace := &model.Trace{
+		ID:   sessionID,
+		Tags: allTags,
+	}
+
+	if _, err := p.client.Trace(trace); err != nil {
+		p.log.Errorf("langfuse: failed to update trace tags: %v", err)
+		return nil // Non-blocking
+	}
+
+	p.log.Debugf("langfuse: updated trace tags for session %s: %v", sessionID, allTags)
 	return nil
 }
 
