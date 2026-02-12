@@ -212,6 +212,7 @@ Slice 1 includes non-user-facing Bun runtime plumbing for BiChat.
   - `db.get|query|insert|patch|replace|delete`
   - `jobs.enqueue|schedule|list|cancel`
   - `secrets.get`
+  - `files.store|get|delete`
 
 In slice 1, `kv`/`db` are in-memory server-only stubs used for runtime validation.
 
@@ -264,6 +265,16 @@ Environment-backed secret contract:
 
 - `IOTA_APPLET_SECRET_<APPLET>_<NAME>`
 - Example: `IOTA_APPLET_SECRET_BICHAT_OPENAI_API_KEY=...`
+
+### Slice 2 kickoff: Files API (BiChat)
+
+Server-only methods are available in BiChat namespace:
+
+- `bichat.files.store`
+- `bichat.files.get`
+- `bichat.files.delete`
+
+Current storage backend is local disk with tenant+applet scoping under the engine temp directory.
 
 ## Translations
 

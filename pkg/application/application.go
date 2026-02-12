@@ -424,6 +424,11 @@ func (app *application) CreateAppletControllers(
 			return nil, err
 		}
 
+		filesStub := appletenginehandlers.NewFilesStub()
+		if err := filesStub.Register(rpcRegistry, "bichat"); err != nil {
+			return nil, err
+		}
+
 		secretsStub := appletenginehandlers.NewSecretsStub()
 		if err := secretsStub.Register(rpcRegistry, "bichat"); err != nil {
 			return nil, err
