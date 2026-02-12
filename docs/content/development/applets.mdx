@@ -210,6 +210,8 @@ Slice 1 includes non-user-facing Bun runtime plumbing for BiChat.
   - `engine.call(method, params)`
   - `kv.get|set|del|mget`
   - `db.get|query|insert|patch|replace|delete`
+  - `jobs.enqueue|schedule|list|cancel`
+  - `secrets.get`
 
 In slice 1, `kv`/`db` are in-memory server-only stubs used for runtime validation.
 
@@ -251,6 +253,17 @@ Scheduled jobs now include runtime metadata in `jobs.schedule`/`jobs.list` respo
 - `lastRunAt`
 - `lastStatus`
 - `lastError`
+
+### Slice 2 kickoff: Secrets API (BiChat)
+
+Server-only method is available in BiChat namespace:
+
+- `bichat.secrets.get`
+
+Environment-backed secret contract:
+
+- `IOTA_APPLET_SECRET_<APPLET>_<NAME>`
+- Example: `IOTA_APPLET_SECRET_BICHAT_OPENAI_API_KEY=...`
 
 ## Translations
 

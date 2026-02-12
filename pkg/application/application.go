@@ -423,6 +423,11 @@ func (app *application) CreateAppletControllers(
 		if err := jobsStub.Register(rpcRegistry, "bichat"); err != nil {
 			return nil, err
 		}
+
+		secretsStub := appletenginehandlers.NewSecretsStub()
+		if err := secretsStub.Register(rpcRegistry, "bichat"); err != nil {
+			return nil, err
+		}
 	}
 
 	if rpcRegistry.CountPublic() > 0 {
