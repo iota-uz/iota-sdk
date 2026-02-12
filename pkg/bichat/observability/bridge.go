@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -84,7 +85,7 @@ type EventBridge struct {
 	// Correlation state
 	mu                 sync.RWMutex
 	pendingGenerations map[string]*simplePendingGeneration
-	agentSpans         map[uuid.UUID]*agentSpanState    // sessionID → agent span state
+	agentSpans         map[uuid.UUID]*agentSpanState     // sessionID → agent span state
 	lastGenerationIDs  map[uuid.UUID]string              // sessionID → last generation span ID
 	sessionTags        map[uuid.UUID]map[string]struct{} // sessionID → accumulated dynamic tags
 	cleanupStop        chan struct{}
@@ -394,6 +395,7 @@ func (h *providerHandler) finalizeAgentSpan(
 		for t := range dynTags {
 			tags = append(tags, t)
 		}
+		slices.Sort(tags)
 		_ = tagUpdater.UpdateTraceTags(ctx, sessionID.String(), tags)
 	}
 
@@ -489,7 +491,8 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 
 	// Determine log level based on finish reason.
 	level := "info"
-	if e.FinishReason == "length" {
+	switch e.FinishReason {
+	case "length", "content_filter":
 		level = "warning"
 	}
 

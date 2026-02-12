@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"slices"
 	"time"
 
 	"github.com/henomis/langfuse-go/model"
@@ -476,6 +477,7 @@ func (p *LangfuseProvider) UpdateTraceTags(_ context.Context, sessionID string, 
 	for t := range merged {
 		allTags = append(allTags, t)
 	}
+	slices.Sort(allTags)
 
 	trace := &model.Trace{
 		ID:   sessionID,
