@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -51,6 +52,80 @@ func (s *PostgresSecretsStore) Get(ctx context.Context, appletName, name string)
 		return "", false, fmt.Errorf("decrypt secret: %w", err)
 	}
 	return plain, true, nil
+}
+
+func (s *PostgresSecretsStore) Set(ctx context.Context, appletName, name, value string) error {
+	appletName = strings.TrimSpace(appletName)
+	name = strings.TrimSpace(name)
+	if appletName == "" {
+		return fmt.Errorf("applet name is required")
+	}
+	if name == "" {
+		return fmt.Errorf("secret name is required")
+	}
+	cipherText, err := encryptString(s.masterKey, value)
+	if err != nil {
+		return fmt.Errorf("encrypt secret: %w", err)
+	}
+	_, err = s.pool.Exec(ctx, `
+INSERT INTO applet_engine_secrets(applet_id, secret_name, cipher_text)
+VALUES ($1, $2, $3)
+ON CONFLICT (applet_id, secret_name)
+DO UPDATE SET cipher_text = EXCLUDED.cipher_text, updated_at = NOW()
+`, appletName, name, cipherText)
+	if err != nil {
+		return fmt.Errorf("postgres secrets.set: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresSecretsStore) List(ctx context.Context, appletName string) ([]string, error) {
+	appletName = strings.TrimSpace(appletName)
+	if appletName == "" {
+		return nil, fmt.Errorf("applet name is required")
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT secret_name
+FROM applet_engine_secrets
+WHERE applet_id = $1
+`, appletName)
+	if err != nil {
+		return nil, fmt.Errorf("postgres secrets.list: %w", err)
+	}
+	defer rows.Close()
+
+	values := make([]string, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("postgres secrets.list scan: %w", err)
+		}
+		values = append(values, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("postgres secrets.list rows: %w", err)
+	}
+	sort.Strings(values)
+	return values, nil
+}
+
+func (s *PostgresSecretsStore) Delete(ctx context.Context, appletName, name string) (bool, error) {
+	appletName = strings.TrimSpace(appletName)
+	name = strings.TrimSpace(name)
+	if appletName == "" {
+		return false, fmt.Errorf("applet name is required")
+	}
+	if name == "" {
+		return false, fmt.Errorf("secret name is required")
+	}
+	commandTag, err := s.pool.Exec(ctx, `
+DELETE FROM applet_engine_secrets
+WHERE applet_id = $1 AND secret_name = $2
+`, appletName, name)
+	if err != nil {
+		return false, fmt.Errorf("postgres secrets.delete: %w", err)
+	}
+	return commandTag.RowsAffected() > 0, nil
 }
 
 func EncryptSecretValue(masterKey string, plaintext string) (string, error) {

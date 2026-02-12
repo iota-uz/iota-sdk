@@ -22,14 +22,18 @@ type SecretsStub struct {
 }
 
 func NewSecretsStub() *SecretsStub {
-	return &SecretsStub{store: &envSecretsStore{}}
+	return &SecretsStub{store: NewEnvSecretsStore()}
 }
 
 func NewSecretsStubWithStore(store SecretsStore) *SecretsStub {
 	if store == nil {
-		store = &envSecretsStore{}
+		store = NewEnvSecretsStore()
 	}
 	return &SecretsStub{store: store}
+}
+
+func NewEnvSecretsStore() SecretsStore {
+	return &envSecretsStore{}
 }
 
 func (s *SecretsStub) Register(registry *appletenginerpc.Registry, appletName string) error {

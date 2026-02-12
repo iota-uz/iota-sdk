@@ -8,7 +8,7 @@ async function loadRuntimeSDK(): Promise<RuntimeSDK> {
   }
 }
 
-const { auth, db, defineApplet, kv, ws } = await loadRuntimeSDK()
+const { auth, db, defineApplet, engine, kv, ws } = await loadRuntimeSDK()
 
 ws.onConnection(async (connectionId) => {
   await kv.set(`ws:connection:${connectionId}`, {
@@ -42,9 +42,87 @@ function json(payload: unknown, status = 200): Response {
   })
 }
 
+function resolveGoDelegateMethod(method: string): string {
+  const trimmed = String(method).trim()
+  if (!trimmed.startsWith('bichat.')) {
+    return trimmed
+  }
+  return `bichat.__go.${trimmed.slice('bichat.'.length)}`
+}
+
+const bichatPublicMethods = new Set<string>([
+  'bichat.ping',
+  'bichat.session.list',
+  'bichat.session.create',
+  'bichat.session.get',
+  'bichat.session.updateTitle',
+  'bichat.session.clear',
+  'bichat.session.compact',
+  'bichat.session.delete',
+  'bichat.session.pin',
+  'bichat.session.unpin',
+  'bichat.session.artifacts',
+  'bichat.session.uploadArtifacts',
+  'bichat.artifact.update',
+  'bichat.artifact.delete',
+  'bichat.session.archive',
+  'bichat.session.unarchive',
+  'bichat.session.regenerateTitle',
+  'bichat.question.submit',
+  'bichat.question.reject',
+])
+
 defineApplet({
   async fetch(request) {
     const url = new URL(request.url)
+
+    if (url.pathname === '/__public_rpc' && request.method === 'POST') {
+      const payload = (await request.json()) as {
+        id?: string | number | null
+        method?: string
+        params?: unknown
+      }
+      const method = String(payload.method ?? '').trim()
+      if (!method) {
+        return json(
+          {
+            jsonrpc: '2.0',
+            id: payload.id ?? null,
+            error: { code: -32600, message: 'Invalid Request' },
+          },
+          200,
+        )
+      }
+      if (!bichatPublicMethods.has(method)) {
+        return json(
+          {
+            jsonrpc: '2.0',
+            id: payload.id ?? null,
+            error: { code: -32601, message: 'Method not found' },
+          },
+          200,
+        )
+      }
+
+      try {
+        const result = await engine.call(resolveGoDelegateMethod(method), payload.params ?? {})
+        return json({
+          jsonrpc: '2.0',
+          id: payload.id ?? null,
+          result,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'request failed'
+        return json(
+          {
+            jsonrpc: '2.0',
+            id: payload.id ?? null,
+            error: { code: 'error', message },
+          },
+          200,
+        )
+      }
+    }
 
     if (url.pathname === '/__health') {
       return json({ ok: true, applet: process.env.IOTA_APPLET_ID ?? 'unknown' })

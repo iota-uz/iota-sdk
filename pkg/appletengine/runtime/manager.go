@@ -61,6 +61,43 @@ type Manager struct {
 	jobCancel       context.CancelFunc
 }
 
+type PublicCallError struct {
+	Code    any
+	Message string
+	Details any
+}
+
+func (e *PublicCallError) Error() string {
+	if e == nil {
+		return "public call failed"
+	}
+	if strings.TrimSpace(e.Message) != "" {
+		return e.Message
+	}
+	return "public call failed"
+}
+
+func (e *PublicCallError) RPCCode() any {
+	if e == nil {
+		return "error"
+	}
+	return e.Code
+}
+
+func (e *PublicCallError) RPCMessage() string {
+	if e == nil {
+		return "request failed"
+	}
+	return e.Message
+}
+
+func (e *PublicCallError) RPCDetails() any {
+	if e == nil {
+		return nil
+	}
+	return e.Details
+}
+
 type FileStore interface {
 	Store(ctx context.Context, name, contentType string, data []byte) (map[string]any, error)
 	Get(ctx context.Context, id string) (map[string]any, bool, error)
@@ -396,6 +433,71 @@ func (m *Manager) DispatchJob(ctx context.Context, appletID, tenantID, jobID, me
 	return nil
 }
 
+func (m *Manager) CallPublicMethod(ctx context.Context, appletID, method string, params json.RawMessage, headers http.Header) (any, error) {
+	process, err := m.EnsureStarted(ctx, appletID, "")
+	if err != nil {
+		return nil, err
+	}
+	if process == nil {
+		return nil, fmt.Errorf("applet runtime %q is disabled", appletID)
+	}
+
+	var decodedParams any
+	if len(bytes.TrimSpace(params)) > 0 && !bytes.Equal(bytes.TrimSpace(params), []byte("null")) {
+		if err := json.Unmarshal(params, &decodedParams); err != nil {
+			return nil, fmt.Errorf("decode public rpc params: %w", err)
+		}
+	}
+
+	payload := map[string]any{
+		"jsonrpc": "2.0",
+		"id":      "go-forward",
+		"method":  method,
+		"params":  decodedParams,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal public rpc payload: %w", err)
+	}
+
+	forwardHeaders := map[string]string{
+		"X-Iota-Applet-Id": appletID,
+	}
+	copyForwardHeader(headers, forwardHeaders, "X-Iota-Tenant-Id")
+	copyForwardHeader(headers, forwardHeaders, "X-Iota-User-Id")
+	copyForwardHeader(headers, forwardHeaders, "X-Iota-Permissions")
+	copyForwardHeader(headers, forwardHeaders, "X-Iota-Request-Id")
+	copyForwardHeader(headers, forwardHeaders, "Cookie")
+	copyForwardHeader(headers, forwardHeaders, "Authorization")
+
+	statusCode, respBody, err := m.postToAppletSocketWithResponse(ctx, process.AppletSocket, "/__public_rpc", body, forwardHeaders)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("applet public rpc endpoint returned status %d", statusCode)
+	}
+	var response struct {
+		Result any `json:"result"`
+		Error  *struct {
+			Code    any    `json:"code"`
+			Message string `json:"message"`
+			Details any    `json:"details"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("decode applet public rpc response: %w", err)
+	}
+	if response.Error != nil {
+		return nil, &PublicCallError{
+			Code:    response.Error.Code,
+			Message: response.Error.Message,
+			Details: response.Error.Details,
+		}
+	}
+	return response.Result, nil
+}
+
 func (m *Manager) DispatchWebsocketEvent(ctx context.Context, appletID, tenantID, connectionID, event string, data []byte) error {
 	process, err := m.EnsureStarted(ctx, appletID, "")
 	if err != nil {
@@ -530,6 +632,11 @@ func waitForHealth(ctx context.Context, socketPath string, timeout time.Duration
 }
 
 func (m *Manager) postToAppletSocket(ctx context.Context, socketPath, path string, body []byte, headers map[string]string) (int, error) {
+	statusCode, _, err := m.postToAppletSocketWithResponse(ctx, socketPath, path, body, headers)
+	return statusCode, err
+}
+
+func (m *Manager) postToAppletSocketWithResponse(ctx context.Context, socketPath, path string, body []byte, headers map[string]string) (int, []byte, error) {
 	dialer := &net.Dialer{}
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -541,7 +648,7 @@ func (m *Manager) postToAppletSocket(ctx context.Context, socketPath, path strin
 	client := &http.Client{Transport: transport}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://unix"+path, bytes.NewReader(body))
 	if err != nil {
-		return 0, fmt.Errorf("build applet request: %w", err)
+		return 0, nil, fmt.Errorf("build applet request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range headers {
@@ -549,11 +656,14 @@ func (m *Manager) postToAppletSocket(ctx context.Context, socketPath, path strin
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("dispatch job to applet: %w", err)
+		return 0, nil, fmt.Errorf("dispatch request to applet: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	_, _ = io.Copy(io.Discard, resp.Body)
-	return resp.StatusCode, nil
+	responseBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return 0, nil, fmt.Errorf("read applet response: %w", readErr)
+	}
+	return resp.StatusCode, responseBody, nil
 }
 
 func encodeBase64(data []byte) string {
@@ -682,6 +792,17 @@ func writeJSONResponse(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(buf.Bytes())
+}
+
+func copyForwardHeader(src http.Header, dst map[string]string, name string) {
+	if src == nil {
+		return
+	}
+	value := strings.TrimSpace(src.Get(name))
+	if value == "" {
+		return
+	}
+	dst[name] = value
 }
 
 func (m *Manager) resolveSocketPath(fileName string) string {

@@ -18,8 +18,11 @@ Applets are React (Vite) applications that run inside IOTA SDK, backed by a Go â
 - **Assets**:
   - *Production*: serve embedded build artifacts (Vite output + manifest) from an `fs.FS`.
   - *Development*: reverse-proxy `/<basePath>/assets/*` to the Vite dev server (same-origin HMR).
+  - *SSR mode*: applet page requests can be proxied to Bun runtime when `frontend.type="ssr"`.
 - **RPC bridge**:
   - Global HTTP endpoint (`/rpc`) for applet â†’ Go capability calls.
+  - Public methods can execute on Go handlers or Bun runtime targets per applet/method metadata.
+  - Unix socket transport exposes the full registry (`public + server-only`) for Bun.
   - Permission checks are enforced server-side.
 
 ### Frontend runtime (SDK)

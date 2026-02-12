@@ -29,6 +29,7 @@ func TestRegistry_AcceptsNamespacedMethod(t *testing.T) {
 	require.True(t, exists)
 	assert.Equal(t, "bichat", method.AppletName)
 	assert.Equal(t, "bichat.ping", method.Name)
+	assert.Equal(t, MethodTargetGo, method.Target)
 	assert.Equal(t, 1, registry.CountPublic())
 }
 
@@ -51,4 +52,37 @@ func TestRegistry_RejectsDuplicateMethods(t *testing.T) {
 	err = registry.RegisterPublic("bichat", "bichat.ping", dummyMethod(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate method")
+}
+
+func TestRegistry_SetPublicTargetForApplet(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry()
+	require.NoError(t, registry.RegisterPublic("bichat", "bichat.ping", dummyMethod(), nil))
+	require.NoError(t, registry.RegisterServerOnly("bichat", "bichat.kv.get", dummyMethod(), nil))
+
+	require.NoError(t, registry.SetPublicTargetForApplet("bichat", MethodTargetBun))
+
+	publicMethod, ok := registry.Get("bichat.ping")
+	require.True(t, ok)
+	assert.Equal(t, MethodTargetBun, publicMethod.Target)
+
+	serverMethod, ok := registry.Get("bichat.kv.get")
+	require.True(t, ok)
+	assert.Equal(t, MethodTargetGo, serverMethod.Target)
+}
+
+func TestRegistry_RejectsBunTargetForServerOnlyMethods(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry()
+	err := registry.register(Method{
+		AppletName: "bichat",
+		Name:       "bichat.kv.get",
+		Visibility: visibilityServerOnly,
+		Target:     MethodTargetBun,
+		Method:     dummyMethod(),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only valid for public methods")
 }

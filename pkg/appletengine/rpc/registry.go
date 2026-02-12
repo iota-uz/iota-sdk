@@ -16,10 +16,18 @@ const (
 	visibilityServerOnly
 )
 
+type MethodTarget string
+
+const (
+	MethodTargetGo  MethodTarget = "go"
+	MethodTargetBun MethodTarget = "bun"
+)
+
 type Method struct {
 	AppletName  string
 	Name        string
 	Visibility  visibility
+	Target      MethodTarget
 	Middlewares []mux.MiddlewareFunc
 	Method      applets.RPCMethod
 }
@@ -36,10 +44,15 @@ func NewRegistry() *Registry {
 }
 
 func (r *Registry) RegisterPublic(appletName, methodName string, method applets.RPCMethod, middlewares []mux.MiddlewareFunc) error {
+	return r.RegisterPublicWithTarget(appletName, methodName, MethodTargetGo, method, middlewares)
+}
+
+func (r *Registry) RegisterPublicWithTarget(appletName, methodName string, target MethodTarget, method applets.RPCMethod, middlewares []mux.MiddlewareFunc) error {
 	return r.register(Method{
 		AppletName:  appletName,
 		Name:        methodName,
 		Visibility:  visibilityPublic,
+		Target:      target,
 		Middlewares: middlewares,
 		Method:      method,
 	})
@@ -50,6 +63,7 @@ func (r *Registry) RegisterServerOnly(appletName, methodName string, method appl
 		AppletName:  appletName,
 		Name:        methodName,
 		Visibility:  visibilityServerOnly,
+		Target:      MethodTargetGo,
 		Middlewares: middlewares,
 		Method:      method,
 	})
@@ -70,6 +84,16 @@ func (r *Registry) register(method Method) error {
 	if method.Method.Handler == nil {
 		return fmt.Errorf("rpc registry: handler is required for method %q", name)
 	}
+	switch method.Target {
+	case "", MethodTargetGo:
+		method.Target = MethodTargetGo
+	case MethodTargetBun:
+		if method.Visibility != visibilityPublic {
+			return fmt.Errorf("rpc registry: target %q is only valid for public methods (%q)", MethodTargetBun, name)
+		}
+	default:
+		return fmt.Errorf("rpc registry: unsupported target %q for method %q", method.Target, name)
+	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -79,6 +103,29 @@ func (r *Registry) register(method Method) error {
 	method.Name = name
 	method.AppletName = appletName
 	r.methods[name] = method
+	return nil
+}
+
+func (r *Registry) SetPublicTargetForApplet(appletName string, target MethodTarget) error {
+	appletName = strings.TrimSpace(appletName)
+	if appletName == "" {
+		return fmt.Errorf("rpc registry: applet name is required")
+	}
+	switch target {
+	case MethodTargetGo, MethodTargetBun:
+	default:
+		return fmt.Errorf("rpc registry: unsupported target %q", target)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for name, method := range r.methods {
+		if method.Visibility != visibilityPublic || method.AppletName != appletName {
+			continue
+		}
+		method.Target = target
+		r.methods[name] = method
+	}
 	return nil
 }
 

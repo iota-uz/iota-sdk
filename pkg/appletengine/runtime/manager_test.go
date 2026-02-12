@@ -157,6 +157,45 @@ func TestManager_DispatchJob(t *testing.T) {
 	})
 }
 
+func TestManager_CallPublicMethod_ForwardsHeaders(t *testing.T) {
+	requireBun(t)
+
+	manager := NewManager(t.TempDir(), appletenginerpc.NewDispatcher(appletenginerpc.NewRegistry(), nil, logrus.New()), logrus.New())
+	entrypoint := writeRuntimeEntry(t, t.TempDir())
+	manager.RegisterApplet("bichat", entrypoint)
+
+	_, err := manager.EnsureStarted(context.Background(), "bichat", "")
+	require.NoError(t, err)
+
+	result, err := manager.CallPublicMethod(
+		context.Background(),
+		"bichat",
+		"bichat.ping",
+		json.RawMessage(`{"value":"ok"}`),
+		http.Header{
+			"X-Iota-Tenant-Id":  []string{"tenant-1"},
+			"X-Iota-User-Id":    []string{"user-1"},
+			"X-Iota-Request-Id": []string{"req-1"},
+			"Cookie":            []string{"sid=abc123"},
+			"Authorization":     []string{"Bearer token-1"},
+		},
+	)
+	require.NoError(t, err)
+
+	payload, ok := result.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "bichat.ping", payload["method"])
+	assert.Equal(t, "tenant-1", payload["tenantId"])
+	assert.Equal(t, "user-1", payload["userId"])
+	assert.Equal(t, "req-1", payload["requestId"])
+	assert.Equal(t, "sid=abc123", payload["cookie"])
+	assert.Equal(t, "Bearer token-1", payload["authorization"])
+
+	t.Cleanup(func() {
+		_ = manager.Shutdown(context.Background())
+	})
+}
+
 func TestManager_EngineSocketFilesEndpoints(t *testing.T) {
 	manager := NewManager(t.TempDir(), appletenginerpc.NewDispatcher(appletenginerpc.NewRegistry(), nil, logrus.New()), logrus.New())
 	manager.RegisterFileStore("bichat", newTestFileStore())
@@ -229,6 +268,25 @@ Bun.serve({
     const pathname = new URL(request.url).pathname
     if (pathname === "/__health") {
       return new Response("ok", { status: 200 })
+    }
+    if (pathname === "/__public_rpc" && request.method === "POST") {
+      return request.json().then((payload: any) =>
+        new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: payload?.id ?? null,
+            result: {
+              method: payload?.method ?? "",
+              tenantId: request.headers.get("x-iota-tenant-id") ?? "",
+              userId: request.headers.get("x-iota-user-id") ?? "",
+              requestId: request.headers.get("x-iota-request-id") ?? "",
+              cookie: request.headers.get("cookie") ?? "",
+              authorization: request.headers.get("authorization") ?? "",
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
     }
     if (pathname === "/__job" && request.method === "POST") {
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } })

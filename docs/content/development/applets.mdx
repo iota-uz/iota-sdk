@@ -211,9 +211,13 @@ version = 2
 
 [applets.bichat]
 base_path = "/bi-chat"
+hosts = ["chat.example.com"] # optional host-based mount
 
 [applets.bichat.engine]
 runtime = "bun"
+
+[applets.bichat.frontend]
+type = "static" # static|ssr
 
 [applets.bichat.engine.backends]
 kv = "memory"
@@ -267,6 +271,12 @@ db = "postgres"
 ```
 
 This backend stores applet records in `applet_engine_documents` (see migrations). If enabled without an initialized application DB pool, app startup fails fast.
+If `modules/<applet>/runtime/schema.artifact.json` exists, startup validates persisted documents against required fields and fails fast on violations.
+Generate the artifact from `runtime/schema.ts` with:
+
+```bash
+applet schema export --name <applet>
+```
 
 ### Slice 2 kickoff: Jobs API + Postgres backend (BiChat)
 
@@ -316,6 +326,7 @@ secrets = "postgres"
 
 [applets.bichat.engine.secrets]
 master_key_file = "/run/secrets/applet_engine_master_key"
+required = ["OPENAI_API_KEY"] # optional startup-required keys
 ```
 
 `master_key_file` must point to a file containing a base64-encoded 32-byte key.
@@ -347,6 +358,21 @@ dir = "/var/lib/iota/applet-files" # optional; defaults to temp dir
 
 This backend persists metadata in `applet_engine_files` and stores file bytes on local disk.
 
+Optional S3 backend (metadata in Postgres, bytes in S3):
+
+```toml
+[applets.bichat.engine.backends]
+files = "s3"
+
+[applets.bichat.engine.s3]
+bucket = "iota-applets"
+region = "us-east-1"
+endpoint = "https://s3.amazonaws.com" # optional for S3-compatible providers
+access_key_env = "APPLET_S3_ACCESS_KEY"
+secret_key_env = "APPLET_S3_SECRET_KEY"
+force_path_style = false
+```
+
 ### Slice 2 kickoff: WebSocket bridge (BiChat)
 
 Browser WebSocket endpoint:
@@ -376,8 +402,23 @@ Go forwards browser messages to Bun via `POST /__ws` and Bun runtime SDK exposes
 | `IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND` | `applets.bichat.engine.backends.jobs` |
 | `IOTA_APPLET_ENGINE_BICHAT_FILES_BACKEND` | `applets.bichat.engine.backends.files` |
 | `IOTA_APPLET_ENGINE_FILES_DIR` | `applets.bichat.engine.files.dir` |
+| `APPLET_S3_ACCESS_KEY` | `applets.bichat.engine.s3.access_key_env` |
+| `APPLET_S3_SECRET_KEY` | `applets.bichat.engine.s3.secret_key_env` |
 | `IOTA_APPLET_ENGINE_BICHAT_SECRETS_BACKEND` | `applets.bichat.engine.backends.secrets` |
 | `IOTA_APPLET_ENGINE_SECRETS_MASTER_KEY` | `applets.bichat.engine.secrets.master_key_file` |
+
+### Secrets CLI (CLI-first)
+
+Manage applet secrets from the applet CLI:
+
+```bash
+applet secrets set --name bichat --key OPENAI_API_KEY --value "..."
+applet secrets list --name bichat
+applet secrets delete --name bichat --key OPENAI_API_KEY
+```
+
+- `secrets=postgres`: reads/writes `applet_engine_secrets` (encrypted at rest).
+- `secrets=env`: operates on process-local `IOTA_APPLET_SECRET_<APPLET>_<NAME>` env vars.
 
 ## Translations
 

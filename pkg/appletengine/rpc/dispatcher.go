@@ -45,7 +45,19 @@ type Dispatcher struct {
 	logger         *logrus.Logger
 	maxBodySize    int64
 	beforeDispatch func(context.Context, string) error
+	bunCaller      BunPublicCaller
 }
+
+type BunPublicCaller interface {
+	CallPublicMethod(ctx context.Context, appletID, method string, params json.RawMessage, headers http.Header) (any, error)
+}
+
+type dispatchTransport int
+
+const (
+	transportPublic dispatchTransport = iota + 1
+	transportInternal
+)
 
 func NewDispatcher(registry *Registry, host applets.HostServices, logger *logrus.Logger) *Dispatcher {
 	if logger == nil {
@@ -60,18 +72,22 @@ func NewDispatcher(registry *Registry, host applets.HostServices, logger *logrus
 }
 
 func (d *Dispatcher) HandlePublicHTTP(w http.ResponseWriter, r *http.Request) {
-	d.handleHTTP(w, r, visibilityPublic)
+	d.handleHTTP(w, r, transportPublic)
 }
 
 func (d *Dispatcher) HandleServerOnlyHTTP(w http.ResponseWriter, r *http.Request) {
-	d.handleHTTP(w, r, visibilityServerOnly)
+	d.handleHTTP(w, r, transportInternal)
 }
 
 func (d *Dispatcher) SetBeforeDispatch(hook func(context.Context, string) error) {
 	d.beforeDispatch = hook
 }
 
-func (d *Dispatcher) handleHTTP(w http.ResponseWriter, r *http.Request, allowed visibility) {
+func (d *Dispatcher) SetBunPublicCaller(caller BunPublicCaller) {
+	d.bunCaller = caller
+}
+
+func (d *Dispatcher) handleHTTP(w http.ResponseWriter, r *http.Request, transport dispatchTransport) {
 	if r.Method != http.MethodPost {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
@@ -116,7 +132,7 @@ func (d *Dispatcher) handleHTTP(w http.ResponseWriter, r *http.Request, allowed 
 		}
 		out := make([]response, 0, len(batch))
 		for _, req := range batch {
-			out = append(out, d.dispatch(ctx, req, allowed, r))
+			out = append(out, d.dispatch(ctx, req, transport, r.Header, r))
 		}
 		d.writeJSON(w, http.StatusOK, out)
 		return
@@ -130,11 +146,11 @@ func (d *Dispatcher) handleHTTP(w http.ResponseWriter, r *http.Request, allowed 
 		})
 		return
 	}
-	resp := d.dispatch(ctx, req, allowed, r)
+	resp := d.dispatch(ctx, req, transport, r.Header, r)
 	d.writeJSON(w, http.StatusOK, resp)
 }
 
-func (d *Dispatcher) dispatch(baseCtx context.Context, req request, allowed visibility, httpReq *http.Request) response {
+func (d *Dispatcher) dispatch(baseCtx context.Context, req request, transport dispatchTransport, headers http.Header, httpReq *http.Request) response {
 	id := req.ID
 	methodName := strings.TrimSpace(req.Method)
 	if methodName == "" {
@@ -146,7 +162,7 @@ func (d *Dispatcher) dispatch(baseCtx context.Context, req request, allowed visi
 	}
 
 	method, ok := d.registry.Get(methodName)
-	if !ok || method.Visibility != allowed {
+	if !ok || !allowedOnTransport(method.Visibility, transport) {
 		return response{
 			ID:      id,
 			Error:   &rpcError{Code: -32601, Message: "Method not found"},
@@ -166,7 +182,23 @@ func (d *Dispatcher) dispatch(baseCtx context.Context, req request, allowed visi
 		}
 	}
 
-	result, rpcErr := d.executeWithMiddleware(baseCtx, httpReq, method, req.Params)
+	exec := func(ctx context.Context) (any, error) {
+		return method.Method.Handler(ctx, req.Params)
+	}
+	if method.Visibility == visibilityPublic && transport == transportPublic && method.Target == MethodTargetBun {
+		if d.bunCaller == nil {
+			return response{
+				ID:      id,
+				Error:   &rpcError{Code: -32603, Message: "Internal error"},
+				JSONRPC: "2.0",
+			}
+		}
+		exec = func(ctx context.Context) (any, error) {
+			return d.bunCaller.CallPublicMethod(ctx, method.AppletName, method.Name, req.Params, headers)
+		}
+	}
+
+	result, rpcErr := d.executeWithMiddleware(baseCtx, httpReq, method, exec)
 	if rpcErr != nil {
 		return response{
 			ID:      id,
@@ -182,7 +214,19 @@ func (d *Dispatcher) dispatch(baseCtx context.Context, req request, allowed visi
 	}
 }
 
-func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *http.Request, method Method, params json.RawMessage) (any, *rpcError) {
+func allowedOnTransport(v visibility, transport dispatchTransport) bool {
+	switch transport {
+	case transportPublic:
+		return v == visibilityPublic
+	case transportInternal:
+		// Internal transport can reach full registry (public + server-only).
+		return v == visibilityPublic || v == visibilityServerOnly
+	default:
+		return false
+	}
+}
+
+func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *http.Request, method Method, execute func(context.Context) (any, error)) (any, *rpcError) {
 	ctx := WithAppletID(baseCtx, method.AppletName)
 
 	var result any
@@ -195,7 +239,7 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 			handlerErr = err
 			return
 		}
-		result, handlerErr = method.Method.Handler(r.Context(), params)
+		result, handlerErr = execute(r.Context())
 	})
 
 	wrapped := applyMiddleware(finalHandler, method.Middlewares)
@@ -221,13 +265,39 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 		if d.logger != nil {
 			d.logger.WithField("method", method.Name).WithError(handlerErr).Error("applet rpc handler error")
 		}
-		code := mapErrorCode(handlerErr)
-		return nil, &rpcError{
-			Code:    code,
-			Message: mapErrorMessage(code),
-		}
+		return nil, mapExecutionError(handlerErr)
 	}
 	return result, nil
+}
+
+type rpcErrorCarrier interface {
+	RPCCode() any
+	RPCMessage() string
+}
+
+type rpcErrorDetailsCarrier interface {
+	RPCDetails() any
+}
+
+func mapExecutionError(err error) *rpcError {
+	var carrier rpcErrorCarrier
+	if errors.As(err, &carrier) {
+		out := &rpcError{
+			Code:    carrier.RPCCode(),
+			Message: carrier.RPCMessage(),
+		}
+		var detailsCarrier rpcErrorDetailsCarrier
+		if errors.As(err, &detailsCarrier) {
+			out.Details = detailsCarrier.RPCDetails()
+		}
+		return out
+	}
+
+	code := mapErrorCode(err)
+	return &rpcError{
+		Code:    code,
+		Message: mapErrorMessage(code),
+	}
 }
 
 func applyMiddleware(final http.Handler, middlewares []mux.MiddlewareFunc) http.Handler {

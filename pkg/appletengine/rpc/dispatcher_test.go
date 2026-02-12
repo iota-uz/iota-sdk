@@ -100,6 +100,65 @@ func TestDispatcher_InvalidRequestMethodAndRequestIDPassthrough(t *testing.T) {
 	assert.Equal(t, float64(42), decoded["id"])
 }
 
+type bunCallerStub struct {
+	called     bool
+	lastApplet string
+	lastMethod string
+}
+
+func (s *bunCallerStub) CallPublicMethod(_ context.Context, appletID, method string, _ json.RawMessage, _ http.Header) (any, error) {
+	s.called = true
+	s.lastApplet = appletID
+	s.lastMethod = method
+	return map[string]any{"via": "bun"}, nil
+}
+
+func TestDispatcher_PublicTargetBun_UsesBunCaller(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry()
+	require.NoError(t, registry.RegisterPublicWithTarget("bichat", "bichat.ping", MethodTargetBun, applets.RPCMethod{
+		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return map[string]any{"via": "go"}, nil
+		},
+	}, nil))
+
+	dispatcher := NewDispatcher(registry, nil, logrus.New())
+	bunCaller := &bunCallerStub{}
+	dispatcher.SetBunPublicCaller(bunCaller)
+
+	resp := doRPCRequest(t, dispatcher.HandlePublicHTTP, `{"id":"1","method":"bichat.ping","params":{}}`)
+	require.Equal(t, http.StatusOK, resp.Code)
+	decoded := decodeObject(t, resp.Body.Bytes())
+	result := decoded["result"].(map[string]any)
+	assert.Equal(t, "bun", result["via"])
+	assert.True(t, bunCaller.called)
+	assert.Equal(t, "bichat", bunCaller.lastApplet)
+	assert.Equal(t, "bichat.ping", bunCaller.lastMethod)
+}
+
+func TestDispatcher_InternalTransport_CallsGoHandlerEvenWhenTargetBun(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry()
+	require.NoError(t, registry.RegisterPublicWithTarget("bichat", "bichat.ping", MethodTargetBun, applets.RPCMethod{
+		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return map[string]any{"via": "go"}, nil
+		},
+	}, nil))
+
+	dispatcher := NewDispatcher(registry, nil, logrus.New())
+	bunCaller := &bunCallerStub{}
+	dispatcher.SetBunPublicCaller(bunCaller)
+
+	resp := doRPCRequest(t, dispatcher.HandleServerOnlyHTTP, `{"id":"1","method":"bichat.ping","params":{}}`)
+	require.Equal(t, http.StatusOK, resp.Code)
+	decoded := decodeObject(t, resp.Body.Bytes())
+	result := decoded["result"].(map[string]any)
+	assert.Equal(t, "go", result["via"])
+	assert.False(t, bunCaller.called)
+}
+
 func testDispatcherWithPublicMethod(t *testing.T, methodName string, handler func(context.Context, json.RawMessage) (any, error)) *Dispatcher {
 	t.Helper()
 	registry := NewRegistry()

@@ -405,6 +405,154 @@ secrets = "env"
 	assert.Contains(t, err.Error(), "configure postgres files store for bichat")
 }
 
+func TestCreateAppletControllers_RequiredSecretsValidation(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+
+[applets.bichat.engine.secrets]
+required = ["OPENAI_API_KEY"]
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "required secrets missing for bichat")
+}
+
+func TestCreateAppletControllers_S3FilesRequiresCredentials(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "s3"
+secrets = "env"
+
+[applets.bichat.engine.s3]
+bucket = "demo-bucket"
+region = "us-east-1"
+access_key_env = "APPLET_S3_ACCESS_KEY"
+secret_key_env = "APPLET_S3_SECRET_KEY"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure s3 files store for bichat")
+}
+
+func TestCreateAppletControllers_HostOverrideFromAppletsConfig(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.demo]
+base_path = "/demo"
+hosts = ["demo.example.com"]
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Host = "demo.example.com"
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	assert.NotEqual(t, http.StatusNotFound, res.Code)
+}
+
+func TestCreateAppletControllers_SSRRouteMounted(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.demo]
+base_path = "/demo"
+
+[applets.demo.frontend]
+type = "ssr"
+
+[applets.demo.engine]
+runtime = "bun"
+
+[applets.demo.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/demo", nil)
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	assert.NotEqual(t, http.StatusNotFound, res.Code)
+}
+
 func withAppletConfig(t *testing.T, configContent string) {
 	t.Helper()
 	root := t.TempDir()
