@@ -6,7 +6,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // Internal types for parsing tool input JSON (not part of public API)
@@ -142,8 +141,6 @@ type askQuestionInput struct {
 // Call executes the ask user question operation.
 // This creates the question structure that will be used by the interrupt handler.
 func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "AskUserQuestionTool.Call"
-
 	// Parse input
 	params, err := agents.ParseToolInput[askQuestionInput](input)
 	if err != nil {
@@ -152,7 +149,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 			fmt.Sprintf("failed to parse input: %v", err),
 			HintCheckRequiredFields,
 			"Provide questions array with valid structure",
-		), serrors.E(op, err, "failed to parse input")
+		), nil
 	}
 
 	// Validate questions array
@@ -162,7 +159,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 			"at least one question is required",
 			HintCheckRequiredFields,
 			"Provide 1-4 questions to ask the user",
-		), serrors.E(op, "at least one question is required")
+		), nil
 	}
 	if len(params.Questions) > 4 {
 		return FormatToolError(
@@ -170,7 +167,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 			"maximum 4 questions allowed",
 			"Limit to 4 questions per request",
 			"Consider asking fewer, more focused questions",
-		), serrors.E(op, "maximum 4 questions allowed")
+		), nil
 	}
 
 	// Validate each question
@@ -181,7 +178,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 				fmt.Sprintf("question[%d]: question text is required", i),
 				HintCheckRequiredFields,
 				"Each question must have question text ending with ?",
-			), serrors.E(op, fmt.Sprintf("question[%d]: question text is required", i))
+			), nil
 		}
 		if q.Header == "" {
 			return FormatToolError(
@@ -189,7 +186,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 				fmt.Sprintf("question[%d]: header is required", i),
 				HintCheckRequiredFields,
 				"Each question must have a short header (max 12 chars)",
-			), serrors.E(op, fmt.Sprintf("question[%d]: header is required", i))
+			), nil
 		}
 		if len(q.Header) > 12 {
 			return FormatToolError(
@@ -197,7 +194,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 				fmt.Sprintf("question[%d]: header exceeds 12 characters", i),
 				HintCheckFieldFormat,
 				"Headers must be 12 characters or less",
-			), serrors.E(op, fmt.Sprintf("question[%d]: header exceeds 12 characters", i))
+			), nil
 		}
 		if len(q.Options) < 2 {
 			return FormatToolError(
@@ -205,7 +202,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 				fmt.Sprintf("question[%d]: at least 2 options required", i),
 				HintCheckRequiredFields,
 				"Each question must have 2-4 options",
-			), serrors.E(op, fmt.Sprintf("question[%d]: at least 2 options required", i))
+			), nil
 		}
 		if len(q.Options) > 4 {
 			return FormatToolError(
@@ -213,7 +210,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 				fmt.Sprintf("question[%d]: maximum 4 options allowed", i),
 				"Limit to 4 options per question",
 				"Consider combining similar options",
-			), serrors.E(op, fmt.Sprintf("question[%d]: maximum 4 options allowed", i))
+			), nil
 		}
 
 		// Validate each option
@@ -224,7 +221,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 					fmt.Sprintf("question[%d].option[%d]: label is required", i, j),
 					HintCheckRequiredFields,
 					"Each option must have label and description",
-				), serrors.E(op, fmt.Sprintf("question[%d].option[%d]: label is required", i, j))
+				), nil
 			}
 			if opt.Description == "" {
 				return FormatToolError(
@@ -232,7 +229,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 					fmt.Sprintf("question[%d].option[%d]: description is required", i, j),
 					HintCheckRequiredFields,
 					"Each option must have label and description",
-				), serrors.E(op, fmt.Sprintf("question[%d].option[%d]: description is required", i, j))
+				), nil
 			}
 		}
 	}
@@ -253,7 +250,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 				fmt.Sprintf("duplicate question ID: %s", qid),
 				HintCheckFieldFormat,
 				"Question IDs must be unique",
-			), serrors.E(op, fmt.Sprintf("duplicate question ID: %s", qid))
+			), nil
 		}
 		questionIDs[qid] = true
 
@@ -272,7 +269,7 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 					fmt.Sprintf("question[%d]: duplicate option ID: %s", i, oid),
 					HintCheckFieldFormat,
 					"Option IDs must be unique within a question",
-				), serrors.E(op, fmt.Sprintf("question[%d]: duplicate option ID: %s", i, oid))
+				), nil
 			}
 			optionIDs[oid] = true
 

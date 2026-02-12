@@ -97,7 +97,7 @@ _compose-logs:
   docker compose -f {{DEV_COMPOSE_FILE}} logs -f
 
 [group("db")]
-[doc("Database commands (local|stop|clean|reset|seed|migrate)")]
+[doc("Database commands (local|stop|clean|reset|seed|migrate|status)")]
 db cmd="help" direction="":
   case "{{cmd}}" in \
     local) just _db-local ;; \
@@ -106,8 +106,9 @@ db cmd="help" direction="":
     reset) just _db-reset ;; \
     seed) just _db-seed ;; \
     migrate) just _db-migrate {{direction}} ;; \
+    status) just _db-migrate status ;; \
     *) \
-      echo "Usage: just db [local|stop|clean|reset|seed|migrate] [up|down|redo|collect]" ; \
+      echo "Usage: just db [local|stop|clean|reset|seed|migrate|status] [for migrate: up|down|redo|status]" ; \
       exit 2 ;; \
   esac
 
@@ -180,6 +181,24 @@ test *args="":
   go test -tags {{GO_TEST_TAG}} {{args}} ./...
 
 [group("test")]
+[doc("Run BiChat smoke evals (offline fixture runner)")]
+eval *args="":
+  mkdir -p ./coverage
+  go run ./cmd/command/main.go bichat eval run --cases ./pkg/bichat/eval/testdata/smoke --runner fixture --judge none --report ./coverage/bichat_eval_report.json {{args}}
+
+[group("test")]
+[doc("Run BiChat smoke evals with OpenAI (requires OPENAI_API_KEY)")]
+eval-openai *args="":
+  mkdir -p ./coverage
+  go run ./cmd/command/main.go bichat eval run --cases ./pkg/bichat/eval/testdata/smoke --runner openai --judge openai --report ./coverage/bichat_eval_report.json {{args}}
+
+[group("test")]
+[doc("Run BiChat smoke evals with OpenAI judge (fixture runner; requires OPENAI_API_KEY)")]
+eval-judge-openai *args="":
+  mkdir -p ./coverage
+  go run ./cmd/command/main.go bichat eval run --cases ./pkg/bichat/eval/testdata/smoke --runner fixture --judge openai --report ./coverage/bichat_eval_report.json {{args}}
+
+[group("test")]
 [doc("Watch tests with gow")]
 test-watch *args="":
   gow test -tags {{GO_TEST_TAG}} -v {{args}} ./...
@@ -200,9 +219,9 @@ coverage-report:
   go tool cover -html=./coverage/coverage.out -o ./coverage/cover.html
 
 [group("assets")]
-[doc("Build Tailwind CSS. Extra arguments are passed to `tailwindcss`")]
+[doc("Build Tailwind CSS. Extra arguments are passed to `tailwindcss` (uses npx, no root package.json required)")]
 css *args="":
-  pnpm exec tailwindcss --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --minify {{args}}
+  npx @tailwindcss/cli@4.1.18 --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --minify {{args}}
 
 [group("assets")]
 [doc("Remove generated CSS file")]
@@ -210,19 +229,20 @@ css-clean:
   rm -rf {{TAILWIND_OUTPUT}}
 
 [group("e2e")]
-[doc("E2E commands (test|reset|seed|migrate|run|ci|dev|clean)")]
+[doc("E2E commands (test|reset|seed|migrate|status|run|ci|dev|clean)")]
 e2e cmd="help" direction="":
   case "{{cmd}}" in \
     test) just _e2e-test ;; \
     reset) just _e2e-reset ;; \
     seed) just _e2e-seed ;; \
     migrate) just _e2e-migrate {{direction}} ;; \
+    status) just _e2e-migrate status ;; \
     run) just _e2e-run ;; \
     ci) just _e2e-ci ;; \
     dev) just _e2e-dev ;; \
     clean) just _e2e-clean ;; \
     *) \
-      echo "Usage: just e2e [test|reset|seed|migrate|run|ci|dev|clean] [up|down|redo|collect]" ; \
+      echo "Usage: just e2e [test|reset|seed|migrate|status|run|ci|dev|clean] [for migrate: up|down|redo|status]" ; \
       exit 2 ;; \
   esac
 
@@ -366,27 +386,25 @@ tunnel:
 clean: css-clean
 
 [group("dev")]
-[doc("Dev commands (watch|bichat)")]
-dev cmd="help":
+[doc("Start dev: just dev = project processes only; just dev <applet> = with applet")]
+dev name="":
+  applet dev {{name}}
+
+[group("dev")]
+[doc("Applet commands. Requires applet CLI: go install github.com/iota-uz/applets/cmd/applet@latest")]
+applet cmd="help" name="":
   case "{{cmd}}" in \
-    watch) just _dev-watch ;; \
-    bichat) just _dev-bichat ;; \
+    dev) applet dev "{{name}}" ;; \
+    list) applet list ;; \
+    build) applet build "{{name}}" ;; \
+    check) applet check ;; \
+    rpc-gen) applet rpc gen --name "{{name}}" ;; \
+    rpc-check) applet rpc check --name "{{name}}" ;; \
+    deps-check) applet deps check ;; \
     *) \
-      echo "Usage: just dev [watch|bichat]" ; \
+      echo "Usage: just applet [dev <name>|list|build <name>|check|rpc-gen <name>|rpc-check <name>|deps-check]" ; \
       exit 2 ;; \
   esac
-
-[group("dev")]
-_dev-watch:
-  echo "Starting development watch mode (templ + tailwind)..."
-  trap 'kill %1 %2 2>/dev/null || true; exit' INT TERM
-  templ generate --watch &
-  pnpm exec tailwindcss --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --watch &
-  wait
-
-[group("dev")]
-_dev-bichat:
-  ./scripts/dev-bichat.sh
 
 [group("meta")]
 [doc("Full local setup")]

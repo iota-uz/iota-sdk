@@ -153,21 +153,25 @@ type Configuration struct {
 	Stripe        StripeOptions
 	RateLimit     RateLimitOptions
 
-	RedisURL         string        `env:"REDIS_URL" envDefault:"localhost:6379"`
-	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
-	ServerPort       int           `env:"PORT" envDefault:"3200"`
-	SessionDuration  time.Duration `env:"SESSION_DURATION" envDefault:"720h"`
-	GoAppEnvironment string        `env:"GO_APP_ENV" envDefault:"development"`
-	SocketAddress    string        `env:"-"`
-	OpenAIKey        string        `env:"OPENAI_KEY"`
-	UploadsPath      string        `env:"UPLOADS_PATH" envDefault:"static"`
-	Domain           string        `env:"DOMAIN" envDefault:"localhost"`
-	Origin           string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
-	PageSize         int           `env:"PAGE_SIZE" envDefault:"25"`
-	MaxPageSize      int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
-	MaxUploadSize    int64         `env:"MAX_UPLOAD_SIZE" envDefault:"33554432"`
-	MaxUploadMemory  int64         `env:"MAX_UPLOAD_MEMORY" envDefault:"33554432"`
-	LogLevel         string        `env:"LOG_LEVEL" envDefault:"error"`
+	RedisURL                string        `env:"REDIS_URL" envDefault:"localhost:6379"`
+	MigrationsDir           string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
+	ServerPort              int           `env:"PORT" envDefault:"3200"`
+	SessionDuration         time.Duration `env:"SESSION_DURATION" envDefault:"720h"`
+	GoAppEnvironment        string        `env:"GO_APP_ENV" envDefault:"development"`
+	SocketAddress           string        `env:"-"`
+	OpenAIKey               string        `env:"OPENAI_KEY"`
+	UploadsPath             string        `env:"UPLOADS_PATH" envDefault:"static"`
+	Domain                  string        `env:"DOMAIN" envDefault:"localhost"`
+	Origin                  string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
+	BiChatKnowledgeDir      string        `env:"BICHAT_KNOWLEDGE_DIR"`
+	BiChatKBIndexPath       string        `env:"BICHAT_KB_INDEX_PATH"`
+	BiChatSchemaMetadataDir string        `env:"BICHAT_SCHEMA_METADATA_DIR"`
+	BiChatKnowledgeAutoLoad bool          `env:"BICHAT_KNOWLEDGE_AUTO_LOAD" envDefault:"false"`
+	PageSize                int           `env:"PAGE_SIZE" envDefault:"25"`
+	MaxPageSize             int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
+	MaxUploadSize           int64         `env:"MAX_UPLOAD_SIZE" envDefault:"33554432"`
+	MaxUploadMemory         int64         `env:"MAX_UPLOAD_MEMORY" envDefault:"33554432"`
+	LogLevel                string        `env:"LOG_LEVEL" envDefault:"error"`
 	// SDK will look for this header in the request, if it's not present, it will generate a random uuidv4
 	RequestIDHeader string `env:"REQUEST_ID_HEADER" envDefault:"X-Request-ID"`
 	// SDK will look for this header in the request, if it's not present, it will use request.RemoteAddr
@@ -215,6 +219,12 @@ func (c *Configuration) Scheme() string {
 		return "https"
 	}
 	return "http"
+}
+
+// IsDev returns true when GoAppEnvironment is not "production".
+// GO_APP_ENV defaults to "development" when unset.
+func (c *Configuration) IsDev() bool {
+	return c.GoAppEnvironment != Production
 }
 
 func Use() *Configuration {

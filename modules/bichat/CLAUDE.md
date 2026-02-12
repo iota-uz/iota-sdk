@@ -29,13 +29,9 @@ modules/bichat/
 │   │   ├── embed.go             # Embedded React build (dist/)
 │   │   └── dist/                # React build output (created by pnpm build)
 │   ├── controllers/
-│   │   ├── chat_controller.go   # GraphQL/REST endpoints
+│   │   ├── chat_controller.go   # Legacy REST endpoints (not registered by default)
 │   │   ├── stream_controller.go # SSE streaming
 │   │   └── web_controller_test.go
-│   ├── graphql/
-│   │   ├── model/
-│   │   ├── generated/
-│   │   └── schema.graphql       # GraphQL schema
 │   └── locales/                 # i18n files
 └── agents/
     ├── default_agent.go         # Default BI agent
@@ -100,7 +96,7 @@ if (extensions.features.vision) {
 ```go
 // CRITICAL: Always use tenant isolation
 tenantID, err := composables.UseTenantID(ctx)
-query := "SELECT * FROM bichat_sessions WHERE tenant_id = $1 AND id = $2"
+query := "SELECT * FROM bichat.sessions WHERE tenant_id = $1 AND id = $2"
 ```
 
 ### SSE Streaming (Critical)
@@ -139,15 +135,59 @@ cfg := bichat.NewModuleConfig(
 )
 ```
 
+### Project Prompt Extension
+
+Use repository-scoped extensions to add domain instructions while keeping the SDK vendor prompt intact.
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithProjectPromptExtension(`
+You are operating in insurance BI domain.
+Prioritize policy lifecycle, claims fraud signals, reserve adequacy, and underwriting KPIs.
+`),
+)
+```
+
+Provider-based extension (resolved once during `BuildServices()`):
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithProjectPromptExtensionProvider(
+        prompts.ProjectPromptExtensionProviderFunc(func() (string, error) {
+            return loadProjectPromptFromStore(), nil
+        }),
+    ),
+)
+```
+
+Behavior:
+- Vendor/base system prompt is always preserved.
+- Extension is appended in parent agent flow (`AgentService.ProcessMessage`).
+- Provider output takes precedence over static extension when non-empty.
+
 ## Database Schema
 
 See: `infrastructure/persistence/schema/bichat-schema.sql`
 
 **Key Tables:**
-- `bichat_sessions` - Chat sessions (tenant_id, user_id, status, pinned)
-- `bichat_messages` - Messages (session_id, role, content, tool_calls, citations)
-- `bichat_attachments` - File attachments (message_id, file_name, storage_path)
-- `bichat_checkpoints` - HITL checkpoints (thread_id, expires_at)
+- `bichat.sessions` - Chat sessions (tenant_id, user_id, status, pinned)
+- `bichat.messages` - Messages (session_id, role, content, tool_calls, citations)
+- `bichat.attachments` - File attachments (message_id, file_name, storage_path)
+- `bichat.checkpoints` - HITL checkpoints (thread_id, expires_at)
+- `bichat.learnings` - Learned SQL gotchas and fixes
+- `bichat.validated_queries` - Reusable validated SQL patterns
 
 **Note**: `citations` column in `bichat_messages` stores JSONB array of web search citations with fields: Type, Title, URL, Excerpt, StartIndex, EndIndex.
 
@@ -158,28 +198,12 @@ See: `infrastructure/persistence/schema/bichat-schema.sql`
 
 ## API Endpoints
 
-```graphql
-type Query {
-  sessions(limit: Int, offset: Int): [Session!]!
-  session(id: ID!): Session
-  messages(sessionId: ID!, limit: Int, offset: Int): [Message!]!
-}
-
-type Mutation {
-  createSession(title: String): Session!
-  sendMessage(sessionId: ID!, content: String!, attachments: [Upload!]): SendMessageResponse!
-  resumeWithAnswer(sessionId: ID!, checkpointId: ID!, answers: JSON!): SendMessageResponse!
-}
-
-type Subscription {
-  messageStream(sessionId: ID!): MessageChunk!
-}
-```
+BiChat UI access is implemented via applet RPC + streaming.
 
 HTTP Routes:
-- `GET /bichat` - React chat app
-- `POST /bichat/stream` - SSE streaming
-- `POST /bichat/graphql` - GraphQL endpoint
+- `GET /bi-chat` - React chat applet
+- `POST /bi-chat/rpc` - Applet RPC (session CRUD, artifacts, etc.)
+- `POST /bi-chat/stream` - SSE streaming (assistant response chunks)
 
 ## Default BI Agent Tools
 
@@ -228,7 +252,7 @@ OPENAI_API_KEY=sk-...
 DATABASE_URL=postgres://...
 
 # Optional
-OPENAI_MODEL=gpt-4-turbo          # default: gpt-4
+OPENAI_MODEL=gpt-5.2-2025-12-11         # default: gpt-5.2-2025-12-11
 BICHAT_CONTEXT_WINDOW=180000      # default: 200k
 BICHAT_COMPLETION_RESERVE=8000    # default: 8k
 ```
@@ -425,7 +449,7 @@ app.RegisterModule(module) // No error check - failures logged but hidden
 **Problems**:
 - Attachments silently discarded (NoOp fallback)
 - Title generation fails silently
-- GraphQL becomes unavailable without indication
+- RPC becomes unavailable without indication
 - Token counting disabled (returns 0)
 
 ### New Code (Fail Fast)

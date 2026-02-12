@@ -45,7 +45,7 @@ func TestCheckpoint_JSONSerialization(t *testing.T) {
 		WithPendingTools([]types.ToolCall{
 			{ID: "call_2", Name: "execute", Arguments: `{"command": "test"}`},
 		}),
-		WithInterruptType("ask_user_question"),
+		WithInterruptType(string(types.InterruptTypeAskUserQuestion)),
 		WithInterruptData(interruptData),
 	)
 
@@ -63,7 +63,7 @@ func TestCheckpoint_JSONSerialization(t *testing.T) {
 	assert.Equal(t, checkpoint.ID, decoded.ID)
 	assert.Equal(t, checkpoint.ThreadID, decoded.ThreadID)
 	assert.Equal(t, checkpoint.AgentName, decoded.AgentName)
-	assert.Equal(t, "ask_user_question", decoded.InterruptType)
+	assert.Equal(t, "ASK_USER_QUESTION", decoded.InterruptType)
 	assert.JSONEq(t, string(interruptData), string(decoded.InterruptData))
 
 	// Verify messages

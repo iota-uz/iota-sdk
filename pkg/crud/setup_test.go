@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -232,9 +233,34 @@ type testFixtures struct {
 	publisher eventbus.EventBus
 }
 
-// setupTest creates all necessary dependencies for tests
+// skipUnlessDB skips the test when running with -short or when Postgres is not available (e.g. CI without service container).
+func skipUnlessDB(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping integration test: -short")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	config, err := pgxpool.ParseConfig(itf.DbOpts("postgres"))
+	if err != nil {
+		t.Skipf("skipping integration test: invalid db config: %v", err)
+	}
+	config.MaxConns = 1
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Skipf("skipping integration test: cannot connect to database: %v", err)
+	}
+	defer pool.Close()
+	if err := pool.Ping(ctx); err != nil {
+		t.Skipf("skipping integration test: database ping failed: %v", err)
+	}
+}
+
+// setupTest creates all necessary dependencies for tests.
+// Calls skipUnlessDB so tests that use setupTest skip when Postgres is unavailable (e.g. -short or no DB).
 func setupTest(t *testing.T) *testFixtures {
 	t.Helper()
+	skipUnlessDB(t)
 
 	// Use DatabaseManager for proper semaphore handling
 	dm := itf.NewDatabaseManager(t)

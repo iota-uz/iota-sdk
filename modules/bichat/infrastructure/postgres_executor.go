@@ -26,36 +26,27 @@ func NewPostgresQueryExecutor(pool *pgxpool.Pool) bichatsql.QueryExecutor {
 }
 
 // ExecuteQuery executes a read-only SQL query with tenant isolation and timeout enforcement.
-// It applies tenant_id filtering and enforces row limits.
-// SECURITY: All queries MUST include WHERE tenant_id = $1 to prevent cross-tenant data leakage.
-// Exception: Queries to system catalogs (pg_catalog, information_schema) are allowed without
-// tenant_id filtering for schema introspection. SQL security is enforced by PostgreSQL role
-// permissions (bichat_agent_role has SELECT only on analytics schema).
+// SECURITY: Multi-tenant isolation is enforced at the database layer using PostgreSQL session variables.
+// The analytics schema views automatically filter by current_setting('app.tenant_id', true)::UUID.
+// For non-system-catalog queries, only the analytics schema is allowed to prevent cross-tenant leakage
+// (e.g. if the pool had broader privileges, public.* would not be filtered by app.tenant_id).
+// System catalog queries (pg_catalog, information_schema) are allowed for schema introspection.
 func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 	const op serrors.Op = "PostgresQueryExecutor.ExecuteQuery"
 
-	// SECURITY: Enforce tenant isolation by validating query includes tenant_id filtering
-	// Exception: System catalog queries are allowed for schema introspection
-	if !e.containsTenantFilter(sql) && !e.isSystemCatalogQuery(sql) {
-		return nil, serrors.E(op, "query must include WHERE tenant_id = $1 for multi-tenant isolation")
-	}
-
-	// Prepare parameters based on query type
-	var wrappedParams []any
-	if e.isSystemCatalogQuery(sql) {
-		// System catalog queries don't use tenant_id parameter
-		wrappedParams = params
-	} else {
-		// Get tenant ID from context for multi-tenant isolation
-		tenantID, err := composables.UseTenantID(ctx)
+	// Get tenant ID from context for multi-tenant isolation
+	// Exception: System catalog queries don't need tenant context
+	var tenantID string
+	systemCatalog := e.isSystemCatalogQuery(sql)
+	if !systemCatalog {
+		tid, err := composables.UseTenantID(ctx)
 		if err != nil {
 			return nil, serrors.E(op, err, "tenant ID required for query execution")
 		}
-
-		// SECURITY: Inject tenant ID as first parameter for multi-tenant isolation
-		// The LLM agent writes queries with explicit tenant_id filtering (e.g., WHERE tenant_id = $1)
-		// We automatically provide the tenant ID value, shifting user params by 1
-		wrappedParams = append([]any{tenantID}, params...)
+		tenantID = tid.String()
+		if !e.referencesAnalyticsSchemaOnly(sql) {
+			return nil, serrors.E(op, nil, "query must reference only analytics schema for tenant isolation")
+		}
 	}
 
 	// Apply query timeout
@@ -65,8 +56,23 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 	// Record start time
 	start := time.Now()
 
-	// Execute query with tenant ID as first parameter
-	rows, err := e.pool.Query(queryCtx, sql, wrappedParams...)
+	// Begin transaction for session variable isolation
+	tx, err := e.pool.Begin(queryCtx)
+	if err != nil {
+		return nil, serrors.E(op, err, "failed to begin transaction")
+	}
+	defer tx.Rollback(queryCtx) //nolint:errcheck
+
+	// SECURITY: Set tenant_id via parameterized set_config to avoid string interpolation
+	if tenantID != "" {
+		_, err = tx.Exec(queryCtx, "SELECT set_config('app.tenant_id', $1, true)", tenantID)
+		if err != nil {
+			return nil, serrors.E(op, err, "failed to set tenant context")
+		}
+	}
+
+	// Execute query - views will automatically filter by tenant
+	rows, err := tx.Query(queryCtx, sql, params...)
 	if err != nil {
 		return nil, serrors.E(op, err, "query execution failed")
 	}
@@ -108,6 +114,14 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 		return nil, serrors.E(op, err, "error iterating rows")
 	}
 
+	// Close rows before committing transaction
+	rows.Close()
+
+	// Commit transaction (session variable automatically cleared on commit)
+	if err := tx.Commit(queryCtx); err != nil {
+		return nil, serrors.E(op, err, "failed to commit transaction")
+	}
+
 	return &bichatsql.QueryResult{
 		Columns:   columnNames,
 		Rows:      results,
@@ -134,20 +148,75 @@ func (e *PostgresQueryExecutor) formatValue(value interface{}) interface{} {
 	}
 }
 
-// containsTenantFilter checks if SQL query includes tenant_id filtering.
-// This is REQUIRED for multi-tenant isolation - all queries MUST filter by tenant_id.
-func (e *PostgresQueryExecutor) containsTenantFilter(sql string) bool {
-	normalized := strings.ToLower(sql)
-	// Check for "tenant_id" keyword in query
-	// LLM agents MUST write queries like: WHERE tenant_id = $1
-	return strings.Contains(normalized, "tenant_id")
-}
-
 // isSystemCatalogQuery checks if query accesses PostgreSQL system catalogs.
-// System catalog queries are allowed without tenant_id for schema introspection.
+// System catalog queries are allowed without tenant context for schema introspection.
+// Detects queries accessing system tables (pg_*, information_schema) for metadata operations.
 func (e *PostgresQueryExecutor) isSystemCatalogQuery(sql string) bool {
 	normalized := strings.ToLower(sql)
-	// Check if query accesses system catalogs
-	return strings.Contains(normalized, "pg_catalog.") ||
-		strings.Contains(normalized, "information_schema.")
+
+	// Explicit schema qualifiers
+	if strings.Contains(normalized, "pg_catalog.") || strings.Contains(normalized, "information_schema.") {
+		return true
+	}
+
+	// System table names (without schema prefix)
+	// Common patterns: FROM pg_class, JOIN pg_namespace, etc.
+	systemTables := []string{
+		"pg_class", "pg_namespace", "pg_attribute", "pg_type",
+		"pg_constraint", "pg_index", "pg_proc", "pg_description",
+		"pg_tables", "pg_views", "pg_indexes", "pg_stats",
+	}
+
+	for _, table := range systemTables {
+		// Match table name as a whole word (from/join pg_class, not my_pg_class_copy)
+		// Simple check: preceded by whitespace/comma/paren and followed by whitespace/comma/paren
+		if strings.Contains(normalized, " "+table+" ") ||
+			strings.Contains(normalized, " "+table+"\n") ||
+			strings.Contains(normalized, "\n"+table+" ") ||
+			strings.Contains(normalized, ","+table+" ") ||
+			strings.Contains(normalized, "("+table+" ") {
+			return true
+		}
+	}
+
+	// information_schema tables
+	if strings.Contains(normalized, "information_schema.columns") ||
+		strings.Contains(normalized, "information_schema.tables") ||
+		strings.Contains(normalized, "information_schema.views") {
+		return true
+	}
+
+	return false
+}
+
+// referencesAnalyticsSchemaOnly returns true if the query only references the analytics schema.
+// Rejects public.* and requires explicit analytics. to prevent cross-tenant data leakage.
+// Whitespace (newlines, tabs) is normalized to spaces so multi-line queries are accepted.
+func (e *PostgresQueryExecutor) referencesAnalyticsSchemaOnly(sql string) bool {
+	normalized := normalizeSQLForSchemaCheck(sql)
+	if strings.Contains(normalized, " from public.") || strings.Contains(normalized, " join public.") {
+		return false
+	}
+	return strings.Contains(normalized, " from analytics.") || strings.Contains(normalized, " join analytics.")
+}
+
+// normalizeSQLForSchemaCheck lowercases and collapses runs of whitespace to a single space.
+// This allows schema checks to match "FROM analytics.x" regardless of newlines/tabs before FROM.
+func normalizeSQLForSchemaCheck(sql string) string {
+	sql = strings.TrimSpace(sql)
+	var b strings.Builder
+	b.Grow(len(sql))
+	prevSpace := false
+	for _, r := range strings.ToLower(sql) {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			if !prevSpace {
+				b.WriteByte(' ')
+				prevSpace = true
+			}
+			continue
+		}
+		prevSpace = false
+		b.WriteRune(r)
+	}
+	return b.String()
 }

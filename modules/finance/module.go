@@ -27,6 +27,8 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	_ = migrationFiles
+
 	// Create upload repository for attachment functionality
 	uploadRepo := corepersistence.NewUploadRepository()
 
@@ -138,7 +140,6 @@ func (m *Module) Register(app application.Application) error {
 	)
 
 	app.RegisterLocaleFiles(&localeFiles)
-	app.Migrations().RegisterSchema(&migrationFiles)
 	return nil
 }
 

@@ -21,6 +21,7 @@ type SwitchProps struct {
 	Error        string
 	Checked      bool
 	Attrs        templ.Attributes
+	LabelAttrs   templ.Attributes
 	Size         SwitchSize
 }
 
@@ -43,6 +44,7 @@ templ (p *SwitchProps) render() {
 				p.LabelClasses.String(),
 			),
 		}
+		{ p.LabelAttrs... }
 	>
 		<input
 			id={ p.ID }

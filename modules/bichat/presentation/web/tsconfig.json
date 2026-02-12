@@ -17,7 +17,9 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@iota-uz/sdk": ["../../../../ui/src/index.ts"],
+      "@iota-uz/sdk/bichat": ["../../../../ui/src/bichat/index.ts"]
     }
   },
   "include": ["src"]

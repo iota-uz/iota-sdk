@@ -480,7 +480,7 @@ func BuildHasManySubqueries(mainTable, mainAlias string, relations []RelationDes
 		return nil
 	}
 
-	var subqueries []string //nolint:prealloc // Size unknown due to type filtering
+	subqueries := make([]string, 0, len(relations))
 
 	for _, rel := range relations {
 		if rel.GetType() != HasMany {

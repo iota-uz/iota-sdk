@@ -34,7 +34,7 @@ func TestEventBus_PublishSubscribe(t *testing.T) {
 	// Publish LLM request event
 	sessionID := uuid.New()
 	tenantID := uuid.New()
-	event := events.NewLLMRequestEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 10, 5, 1000)
+	event := events.NewLLMRequestEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 10, 5, 1000, "test user input")
 
 	err := bus.Publish(ctx, event)
 	if err != nil {
@@ -79,7 +79,7 @@ func TestEventBus_SubscribeAll(t *testing.T) {
 	sessionID := uuid.New()
 	tenantID := uuid.New()
 
-	if err := bus.Publish(ctx, events.NewLLMRequestEvent(sessionID, tenantID, "model", "provider", 1, 1, 100)); err != nil {
+	if err := bus.Publish(ctx, events.NewLLMRequestEvent(sessionID, tenantID, "model", "provider", 1, 1, 100, "test")); err != nil {
 		t.Fatalf("Failed to publish LLM request event: %v", err)
 	}
 	if err := bus.Publish(ctx, events.NewToolStartEvent(sessionID, tenantID, "tool", "args", "id1")); err != nil {
@@ -121,7 +121,7 @@ func TestEventBus_Unsubscribe(t *testing.T) {
 	// Publish event
 	sessionID := uuid.New()
 	tenantID := uuid.New()
-	if err := bus.Publish(ctx, events.NewLLMRequestEvent(sessionID, tenantID, "model", "provider", 1, 1, 100)); err != nil {
+	if err := bus.Publish(ctx, events.NewLLMRequestEvent(sessionID, tenantID, "model", "provider", 1, 1, 100, "test")); err != nil {
 		t.Fatalf("Failed to publish event: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func TestEventBus_MultipleSubscribers(t *testing.T) {
 	// Publish event
 	sessionID := uuid.New()
 	tenantID := uuid.New()
-	if err := bus.Publish(ctx, events.NewLLMRequestEvent(sessionID, tenantID, "model", "provider", 1, 1, 100)); err != nil {
+	if err := bus.Publish(ctx, events.NewLLMRequestEvent(sessionID, tenantID, "model", "provider", 1, 1, 100, "test")); err != nil {
 		t.Fatalf("Failed to publish event: %v", err)
 	}
 
@@ -209,7 +209,7 @@ func TestEventBus_TypeFiltering(t *testing.T) {
 	sessionID := uuid.New()
 	tenantID := uuid.New()
 
-	if err := bus.Publish(ctx, events.NewLLMRequestEvent(sessionID, tenantID, "model", "provider", 1, 1, 100)); err != nil {
+	if err := bus.Publish(ctx, events.NewLLMRequestEvent(sessionID, tenantID, "model", "provider", 1, 1, 100, "test")); err != nil {
 		t.Fatalf("Failed to publish LLM request event: %v", err)
 	}
 	if err := bus.Publish(ctx, events.NewToolStartEvent(sessionID, tenantID, "tool", "args", "id1")); err != nil {

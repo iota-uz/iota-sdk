@@ -7,44 +7,41 @@ type Fields interface {
 	Fields() []Field
 	Searchable() []Field
 	KeyField() Field
+	KeyFields() []Field
 	Field(name string) (Field, error)
 	FieldValues(values map[string]any) ([]FieldValue, error)
 }
 
 func NewFields(value []Field) Fields {
 	dict := make(map[string]Field, len(value))
-	keyIndex := -1
+	keyFields := make([]Field, 0)
 
-	for i, f := range value {
+	for _, f := range value {
 		name := f.Name()
 		if _, exists := dict[name]; exists {
 			panic(fmt.Sprintf("duplicate field name: %q", name))
 		}
 		if f.Key() {
-			if keyIndex == -1 {
-				keyIndex = i
-			} else {
-				panic("expected exactly one key field")
-			}
+			keyFields = append(keyFields, f)
 		}
 		dict[name] = f
 	}
 
-	if keyIndex == -1 {
+	if len(keyFields) == 0 {
 		panic("should have at least one key field")
 	}
 
 	return &fields{
-		dict:     dict,
-		fields:   value,
-		keyField: value[keyIndex],
+		dict:      dict,
+		fields:    value,
+		keyFields: keyFields,
 	}
 }
 
 type fields struct {
-	dict     map[string]Field
-	keyField Field
-	fields   []Field
+	dict      map[string]Field
+	keyFields []Field
+	fields    []Field
 }
 
 func (f *fields) Names() []string {
@@ -71,7 +68,11 @@ func (f *fields) Searchable() []Field {
 }
 
 func (f *fields) KeyField() Field {
-	return f.keyField
+	return f.keyFields[0]
+}
+
+func (f *fields) KeyFields() []Field {
+	return f.keyFields
 }
 
 func (f *fields) Field(name string) (Field, error) {

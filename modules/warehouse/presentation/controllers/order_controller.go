@@ -117,7 +117,6 @@ func (c *OrdersController) Register(r *mux.Router) {
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("/in", c.CreateInOrder).Methods(http.MethodPost)
 	setRouter.HandleFunc("/out", c.CreateOutOrder).Methods(http.MethodPost)
 	setRouter.HandleFunc("/items", c.OrderItems).Methods(http.MethodPost)
@@ -283,7 +282,10 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := c.orderService.Create(r.Context(), dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		return c.orderService.Create(txCtx, dto)
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -347,7 +349,10 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := c.orderService.Create(r.Context(), dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		return c.orderService.Create(txCtx, dto)
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -416,7 +421,11 @@ func (c *OrdersController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.orderService.Delete(r.Context(), id); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.orderService.Delete(txCtx, id)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

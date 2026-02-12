@@ -122,6 +122,8 @@ The script automatically detects your OS (macOS/Linux) and architecture, downloa
 
 **Prerequisites:** Go and Homebrew (macOS only) must be installed first.
 
+**Node/pnpm:** The repo pins `pnpm@9.15.0` via the `packageManager` field in `package.json`. Ensure [Corepack](https://nodejs.org/api/corepack.html) is enabled (`corepack enable`) in CI and contributor environments so the correct pnpm version is used; otherwise `npm` or `yarn` may run without warning.
+
 For full setup instructions, see the [Installation Guide](https://iota-uz.github.io/iota-sdk/getting-started/installation.html).
 
 ## 🔐 Super Admin

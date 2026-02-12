@@ -11,7 +11,6 @@ type ControllerOptions struct {
 	BasePath                string
 	RequireAccessPermission permission.Permission
 	ReadAllPermission       permission.Permission
-	GraphQLEndpointHint     string
 }
 
 type ControllerOption func(*ControllerOptions)
@@ -26,10 +25,6 @@ func WithRequireAccessPermission(p permission.Permission) ControllerOption {
 
 func WithReadAllPermission(p permission.Permission) ControllerOption {
 	return func(o *ControllerOptions) { o.ReadAllPermission = p }
-}
-
-func WithGraphQLEndpointHint(hint string) ControllerOption {
-	return func(o *ControllerOptions) { o.GraphQLEndpointHint = hint }
 }
 
 func defaultControllerOptions() ControllerOptions {
