@@ -3,20 +3,19 @@ package runtime
 import (
 	"testing"
 
+	appletsconfig "github.com/iota-uz/applets/config"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEnabledForApplet(t *testing.T) {
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "bun")
-	assert.True(t, EnabledForApplet("bichat"))
-
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "BUN")
-	assert.True(t, EnabledForApplet("bichat"))
-
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "go")
-	assert.False(t, EnabledForApplet("bichat"))
-
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "")
-	assert.False(t, EnabledForApplet("bichat"))
-	assert.False(t, EnabledForApplet(""))
+func TestEnabledForEngineConfig(t *testing.T) {
+	assert.True(t, EnabledForEngineConfig(appletsconfig.AppletEngineConfig{
+		Runtime: appletsconfig.EngineRuntimeBun,
+	}))
+	assert.True(t, EnabledForEngineConfig(appletsconfig.AppletEngineConfig{
+		Runtime: "BUN",
+	}))
+	assert.False(t, EnabledForEngineConfig(appletsconfig.AppletEngineConfig{
+		Runtime: appletsconfig.EngineRuntimeOff,
+	}))
+	assert.False(t, EnabledForEngineConfig(appletsconfig.AppletEngineConfig{}))
 }

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -121,7 +123,22 @@ func TestCreateAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
 }
 
 func TestCreateAppletControllers_GlobalRPCServesBiChatNamespacedMethod(t *testing.T) {
-	t.Parallel()
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
 
 	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
@@ -149,7 +166,22 @@ func TestCreateAppletControllers_GlobalRPCServesBiChatNamespacedMethod(t *testin
 }
 
 func TestCreateAppletControllers_AppletWSRouteMounted(t *testing.T) {
-	t.Parallel()
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
 
 	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
@@ -176,8 +208,22 @@ func TestCreateAppletControllers_AppletWSRouteMounted(t *testing.T) {
 }
 
 func TestCreateAppletControllers_BiChatRedisKVRequiresURL(t *testing.T) {
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_KV_BACKEND", "redis")
-	t.Setenv("IOTA_APPLET_ENGINE_REDIS_URL", "")
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "redis"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
 
 	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
@@ -189,11 +235,26 @@ func TestCreateAppletControllers_BiChatRedisKVRequiresURL(t *testing.T) {
 		nil,
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "configure redis kv store for bichat")
+	assert.Contains(t, err.Error(), "redis.url is required")
 }
 
 func TestCreateAppletControllers_BiChatPostgresDBRequiresPool(t *testing.T) {
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_DB_BACKEND", "postgres")
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "postgres"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
 
 	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
@@ -209,7 +270,22 @@ func TestCreateAppletControllers_BiChatPostgresDBRequiresPool(t *testing.T) {
 }
 
 func TestCreateAppletControllers_BiChatPostgresJobsRequiresPool(t *testing.T) {
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND", "postgres")
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "postgres"
+files = "local"
+secrets = "env"
+`)
 
 	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
@@ -225,8 +301,27 @@ func TestCreateAppletControllers_BiChatPostgresJobsRequiresPool(t *testing.T) {
 }
 
 func TestCreateAppletControllers_BiChatPostgresSecretsRequiresPool(t *testing.T) {
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_SECRETS_BACKEND", "postgres")
-	t.Setenv("IOTA_APPLET_ENGINE_SECRETS_MASTER_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
+	masterKeyFile := filepath.Join(t.TempDir(), "master.key")
+	require.NoError(t, os.WriteFile(masterKeyFile, []byte("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="), 0o600))
+	withAppletConfig(t, fmt.Sprintf(`
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "postgres"
+
+[applets.bichat.engine.secrets]
+master_key_file = %q
+`, masterKeyFile))
 
 	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
@@ -242,7 +337,22 @@ func TestCreateAppletControllers_BiChatPostgresSecretsRequiresPool(t *testing.T)
 }
 
 func TestCreateAppletControllers_BiChatPostgresFilesRequiresPool(t *testing.T) {
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_FILES_BACKEND", "postgres")
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "postgres"
+secrets = "env"
+`)
 
 	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
@@ -255,4 +365,18 @@ func TestCreateAppletControllers_BiChatPostgresFilesRequiresPool(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "configure postgres files store for bichat")
+}
+
+func withAppletConfig(t *testing.T, configContent string) {
+	t.Helper()
+	root := t.TempDir()
+	dir := filepath.Join(root, ".applets")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "config.toml"), []byte(configContent), 0o644))
+	oldWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(root))
+	t.Cleanup(func() {
+		_ = os.Chdir(oldWD)
+	})
 }

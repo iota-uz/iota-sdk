@@ -17,6 +17,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
+	appletsconfig "github.com/iota-uz/applets/config"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -385,6 +386,7 @@ func (app *application) CreateAppletControllers(
 	// Register in-memory server-only KV/DB methods for BiChat thin-slice runtime validation.
 	hasBiChat := false
 	var bichatFilesStore appletenginehandlers.FilesStore
+	var bichatEngine appletsconfig.AppletEngineConfig
 	for _, a := range allApplets {
 		if a.Name() == "bichat" {
 			hasBiChat = true
@@ -392,12 +394,17 @@ func (app *application) CreateAppletControllers(
 		}
 	}
 	if hasBiChat {
+		_, projectConfig, err := appletsconfig.LoadFromCWD()
+		if err != nil {
+			return nil, fmt.Errorf("load applet config from .applets/config.toml: %w", err)
+		}
+		bichatEngine = projectConfig.EffectiveEngineConfig("bichat")
+
 		wsBridge = appletenginewsbridge.New(logger)
 
 		kvStub := appletenginehandlers.NewKVStub()
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_KV_BACKEND")), "redis") {
-			redisURL := strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_REDIS_URL"))
-			redisKVStore, err := appletenginehandlers.NewRedisKVStore(redisURL)
+		if bichatEngine.Backends.KV == appletsconfig.KVBackendRedis {
+			redisKVStore, err := appletenginehandlers.NewRedisKVStore(bichatEngine.Redis.URL)
 			if err != nil {
 				return nil, fmt.Errorf("configure redis kv store for bichat: %w", err)
 			}
@@ -407,7 +414,7 @@ func (app *application) CreateAppletControllers(
 			return nil, err
 		}
 		dbStub := appletenginehandlers.NewDBStub()
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_DB_BACKEND")), "postgres") {
+		if bichatEngine.Backends.DB == appletsconfig.DBBackendPostgres {
 			postgresDBStore, err := appletenginehandlers.NewPostgresDBStore(app.DB())
 			if err != nil {
 				return nil, fmt.Errorf("configure postgres db store for bichat: %w", err)
@@ -418,7 +425,7 @@ func (app *application) CreateAppletControllers(
 			return nil, err
 		}
 		jobsStub := appletenginehandlers.NewJobsStub()
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND")), "postgres") {
+		if bichatEngine.Backends.Jobs == appletsconfig.JobsBackendPostgres {
 			postgresJobsStore, err := appletenginehandlers.NewPostgresJobsStore(app.DB())
 			if err != nil {
 				return nil, fmt.Errorf("configure postgres jobs store for bichat: %w", err)
@@ -429,11 +436,11 @@ func (app *application) CreateAppletControllers(
 			return nil, err
 		}
 
-		filesStore := appletenginehandlers.NewLocalFilesStore(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_FILES_DIR")))
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_FILES_BACKEND")), "postgres") {
+		filesStore := appletenginehandlers.NewLocalFilesStore(strings.TrimSpace(bichatEngine.Files.Dir))
+		if bichatEngine.Backends.Files == appletsconfig.FilesBackendPostgres {
 			postgresFilesStore, err := appletenginehandlers.NewPostgresFilesStore(
 				app.DB(),
-				strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_FILES_DIR")),
+				strings.TrimSpace(bichatEngine.Files.Dir),
 			)
 			if err != nil {
 				return nil, fmt.Errorf("configure postgres files store for bichat: %w", err)
@@ -447,10 +454,14 @@ func (app *application) CreateAppletControllers(
 		}
 
 		secretsStub := appletenginehandlers.NewSecretsStub()
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_SECRETS_BACKEND")), "postgres") {
+		if bichatEngine.Backends.Secrets == appletsconfig.SecretsBackendPostgres {
+			masterKeyPayload, readErr := os.ReadFile(strings.TrimSpace(bichatEngine.Secrets.MasterKeyFile))
+			if readErr != nil {
+				return nil, fmt.Errorf("read bichat secrets master key file: %w", readErr)
+			}
 			postgresSecretsStore, err := appletenginehandlers.NewPostgresSecretsStore(
 				app.DB(),
-				strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_SECRETS_MASTER_KEY")),
+				strings.TrimSpace(string(masterKeyPayload)),
 			)
 			if err != nil {
 				return nil, fmt.Errorf("configure postgres secrets store for bichat: %w", err)
@@ -471,8 +482,9 @@ func (app *application) CreateAppletControllers(
 		dispatcher := appletenginerpc.NewDispatcher(rpcRegistry, host, logger)
 
 		// Bun runtime process plumbing (BiChat only, feature-flagged).
-		if hasBiChat && appletengineruntime.EnabledForApplet("bichat") {
+		if hasBiChat && appletengineruntime.EnabledForEngineConfig(bichatEngine) {
 			runtimeManager := appletengineruntime.NewManager("", dispatcher, logger)
+			runtimeManager.SetBunBin(bichatEngine.BunBin)
 			entrypoint := resolveBiChatRuntimeEntrypoint()
 			runtimeManager.RegisterApplet("bichat", entrypoint)
 			if bichatFilesStore != nil {
@@ -485,7 +497,7 @@ func (app *application) CreateAppletControllers(
 				_, err := runtimeManager.EnsureStarted(ctx, "bichat", "")
 				return err
 			})
-			if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND")), "postgres") && app.DB() != nil {
+			if bichatEngine.Backends.Jobs == appletsconfig.JobsBackendPostgres && app.DB() != nil {
 				runner, err := appletenginejobs.NewRunner(app.DB(), runtimeManager, logger, 2*time.Second)
 				if err != nil {
 					return nil, fmt.Errorf("create applet jobs runner: %w", err)

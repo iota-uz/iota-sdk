@@ -31,7 +31,6 @@ func TestBiChatRuntimeProbe_WithKVDBStubs(t *testing.T) {
 		t.Skip("bichat runtime entrypoint or applets runtime sdk is not available in this checkout")
 	}
 
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "bun")
 	registry := appletenginerpc.NewRegistry()
 	require.NoError(t, appletenginehandlers.NewKVStub().Register(registry, "bichat"))
 	require.NoError(t, appletenginehandlers.NewDBStub().Register(registry, "bichat"))

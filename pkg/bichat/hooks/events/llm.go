@@ -33,17 +33,18 @@ func NewLLMRequestEvent(sessionID, tenantID uuid.UUID, model, provider string, m
 // Emitted after receiving a complete (non-streaming) response from the LLM.
 type LLMResponseEvent struct {
 	baseEvent
-	Model            string // Model identifier
-	Provider         string // Provider name
-	PromptTokens     int    // Input tokens consumed
-	CompletionTokens int    // Output tokens generated
-	TotalTokens      int    // Total tokens (prompt + completion + cache)
-	CacheWriteTokens int    // Cache write tokens (prompt caching)
-	CacheReadTokens  int    // Cache read tokens (prompt caching)
-	LatencyMs        int64  // Response latency in milliseconds
-	FinishReason     string // "stop", "tool_calls", "length", etc.
-	ToolCalls        int    // Number of tool calls in the response
-	ResponseText     string // Accumulated response text (for trace Output)
+	Model            string                 // Model identifier
+	Provider         string                 // Provider name
+	PromptTokens     int                    // Input tokens consumed
+	CompletionTokens int                    // Output tokens generated
+	TotalTokens      int                    // Total tokens (prompt + completion + cache)
+	CacheWriteTokens int                    // Cache write tokens (prompt caching)
+	CacheReadTokens  int                    // Cache read tokens (prompt caching)
+	LatencyMs        int64                  // Response latency in milliseconds
+	FinishReason     string                 // "stop", "tool_calls", "length", etc.
+	ToolCalls        int                    // Number of tool calls in the response
+	ResponseText     string                 // Accumulated response text (for trace Output)
+	ModelParameters  map[string]interface{} // Model parameters (temperature, max_tokens, store, etc.)
 }
 
 // NewLLMResponseEvent creates a new LLMResponseEvent.

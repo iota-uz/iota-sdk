@@ -204,7 +204,25 @@ The overlay shows:
 
 Slice 1 includes non-user-facing Bun runtime plumbing for BiChat.
 
-- Enable with `IOTA_APPLET_ENGINE_BICHAT=bun`
+- Configure in `.applets/config.toml`:
+
+```toml
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "bun"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+```
+
 - Runtime env vars passed to Bun:
   - `IOTA_APPLET_ID=bichat`
   - `IOTA_ENGINE_SOCKET=<engine uds>`
@@ -225,16 +243,28 @@ In slice 1, `kv`/`db` are in-memory server-only stubs used for runtime validatio
 
 An optional Redis backend is available for BiChat server-only `kv.*` methods.
 
-- `IOTA_APPLET_ENGINE_BICHAT_KV_BACKEND=redis`
-- `IOTA_APPLET_ENGINE_REDIS_URL=redis://localhost:6379`
+- `.applets/config.toml`:
 
-If Redis backend is enabled without `IOTA_APPLET_ENGINE_REDIS_URL`, app startup fails fast.
+```toml
+[applets.bichat.engine.backends]
+kv = "redis"
+
+[applets.bichat.engine.redis]
+url = "redis://localhost:6379"
+```
+
+If Redis backend is enabled without `applets.bichat.engine.redis.url`, app startup fails fast.
 
 ### Slice 2 kickoff: Postgres DB backend (BiChat)
 
 An optional PostgreSQL backend is available for BiChat server-only `db.*` methods.
 
-- `IOTA_APPLET_ENGINE_BICHAT_DB_BACKEND=postgres`
+- `.applets/config.toml`:
+
+```toml
+[applets.bichat.engine.backends]
+db = "postgres"
+```
 
 This backend stores applet records in `applet_engine_documents` (see migrations). If enabled without an initialized application DB pool, app startup fails fast.
 
@@ -249,7 +279,12 @@ Server-only jobs methods are available in BiChat namespace:
 
 Optional Postgres persistence:
 
-- `IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND=postgres`
+- `.applets/config.toml`:
+
+```toml
+[applets.bichat.engine.backends]
+jobs = "postgres"
+```
 
 This backend stores jobs in `applet_engine_jobs` (see migrations) and automatically enables the background poller that dispatches queued jobs and due scheduled jobs to Bun (`/__job`). If enabled without an initialized application DB pool, app startup fails fast.
 
@@ -273,8 +308,17 @@ Environment-backed secret contract:
 
 Optional PostgreSQL backend (encrypted at rest):
 
-- `IOTA_APPLET_ENGINE_BICHAT_SECRETS_BACKEND=postgres`
-- `IOTA_APPLET_ENGINE_SECRETS_MASTER_KEY=<base64-encoded 32-byte key>`
+- `.applets/config.toml`:
+
+```toml
+[applets.bichat.engine.backends]
+secrets = "postgres"
+
+[applets.bichat.engine.secrets]
+master_key_file = "/run/secrets/applet_engine_master_key"
+```
+
+`master_key_file` must point to a file containing a base64-encoded 32-byte key.
 
 With this backend, `bichat.secrets.get` reads encrypted values from `applet_engine_secrets`.
 
@@ -291,8 +335,15 @@ Runtime SDK now uses engine-socket binary endpoints (`/files/store`, `/files/get
 
 Optional Postgres metadata backend:
 
-- `IOTA_APPLET_ENGINE_BICHAT_FILES_BACKEND=postgres`
-- `IOTA_APPLET_ENGINE_FILES_DIR=/var/lib/iota/applet-files` (optional; defaults to temp dir)
+- `.applets/config.toml`:
+
+```toml
+[applets.bichat.engine.backends]
+files = "postgres"
+
+[applets.bichat.engine.files]
+dir = "/var/lib/iota/applet-files" # optional; defaults to temp dir
+```
 
 This backend persists metadata in `applet_engine_files` and stores file bytes on local disk.
 
@@ -312,6 +363,21 @@ Go forwards browser messages to Bun via `POST /__ws` and Bun runtime SDK exposes
 - `ws.onMessage(handler)`
 - `ws.onClose(handler)`
 - `ws.send(connectionId, data)`
+
+### Migration table (env -> config)
+
+| Removed env var | New key in `.applets/config.toml` |
+|---|---|
+| `IOTA_APPLET_ENGINE_BICHAT` | `applets.bichat.engine.runtime` |
+| `IOTA_APPLET_ENGINE_BUN_BIN` | `applets.bichat.engine.bun_bin` |
+| `IOTA_APPLET_ENGINE_BICHAT_KV_BACKEND` | `applets.bichat.engine.backends.kv` |
+| `IOTA_APPLET_ENGINE_REDIS_URL` | `applets.bichat.engine.redis.url` |
+| `IOTA_APPLET_ENGINE_BICHAT_DB_BACKEND` | `applets.bichat.engine.backends.db` |
+| `IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND` | `applets.bichat.engine.backends.jobs` |
+| `IOTA_APPLET_ENGINE_BICHAT_FILES_BACKEND` | `applets.bichat.engine.backends.files` |
+| `IOTA_APPLET_ENGINE_FILES_DIR` | `applets.bichat.engine.files.dir` |
+| `IOTA_APPLET_ENGINE_BICHAT_SECRETS_BACKEND` | `applets.bichat.engine.backends.secrets` |
+| `IOTA_APPLET_ENGINE_SECRETS_MASTER_KEY` | `applets.bichat.engine.secrets.master_key_file` |
 
 ## Translations
 

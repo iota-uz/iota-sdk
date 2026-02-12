@@ -88,7 +88,18 @@ sequenceDiagram
 
 ## Bun runtime pilot (Slice 1)
 
-- Per-applet flag: `IOTA_APPLET_ENGINE_BICHAT=bun`
+- Per-applet runtime mode is configured in `.applets/config.toml`:
+
+```toml
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "bun" # off|bun
+```
+
 - Browser-facing applet methods still execute in Go handlers.
 - Bun runtime is started lazily for BiChat and uses Unix sockets:
   - `IOTA_ENGINE_SOCKET` for Bun -> engine server-only RPC calls

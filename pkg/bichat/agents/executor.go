@@ -767,6 +767,11 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						responseText,
 					)
 				}
+				// Attach model parameters if the model reports them.
+				if reporter, ok := e.model.(ModelParameterReporter); ok {
+					responseEvent.ModelParameters = reporter.ModelParameters()
+				}
+
 				_ = e.eventBus.Publish(ctx, responseEvent)
 			}
 

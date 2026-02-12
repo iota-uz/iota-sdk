@@ -1,14 +1,11 @@
 package runtime
 
 import (
-	"os"
 	"strings"
+
+	appletsconfig "github.com/iota-uz/applets/config"
 )
 
-func EnabledForApplet(appletName string) bool {
-	if appletName == "" {
-		return false
-	}
-	key := "IOTA_APPLET_ENGINE_" + strings.ToUpper(strings.ReplaceAll(appletName, "-", "_"))
-	return strings.EqualFold(strings.TrimSpace(os.Getenv(key)), "bun")
+func EnabledForEngineConfig(engineCfg appletsconfig.AppletEngineConfig) bool {
+	return strings.EqualFold(strings.TrimSpace(engineCfg.Runtime), appletsconfig.EngineRuntimeBun)
 }

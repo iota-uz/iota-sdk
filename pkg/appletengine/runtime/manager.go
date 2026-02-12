@@ -44,6 +44,7 @@ type AppletProcess struct {
 type Manager struct {
 	mu              sync.Mutex
 	baseDir         string
+	bunBin          string
 	logger          *logrus.Logger
 	dispatcher      *appletenginerpc.Dispatcher
 	engineSocket    string
@@ -71,6 +72,7 @@ func NewManager(baseDir string, dispatcher *appletenginerpc.Dispatcher, logger *
 	}
 	return &Manager{
 		baseDir:         baseDir,
+		bunBin:          "bun",
 		dispatcher:      dispatcher,
 		logger:          logger,
 		processes:       make(map[string]*AppletProcess),
@@ -78,6 +80,17 @@ func NewManager(baseDir string, dispatcher *appletenginerpc.Dispatcher, logger *
 		entrypoints:     make(map[string]string),
 		fileStores:      make(map[string]FileStore),
 	}
+}
+
+func (m *Manager) SetBunBin(bin string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	bin = strings.TrimSpace(bin)
+	if bin == "" {
+		m.bunBin = "bun"
+		return
+	}
+	m.bunBin = bin
 }
 
 func (m *Manager) RegisterApplet(appletID, entryPoint string) {
@@ -96,9 +109,6 @@ func (m *Manager) RegisterFileStore(appletID string, store FileStore) {
 }
 
 func (m *Manager) EnsureStarted(ctx context.Context, appletID, entryPoint string) (*AppletProcess, error) {
-	if !EnabledForApplet(appletID) {
-		return nil, nil
-	}
 	if strings.TrimSpace(entryPoint) == "" {
 		m.mu.Lock()
 		entryPoint = m.entrypoints[appletID]
@@ -196,8 +206,10 @@ func (m *Manager) startProcess(ctx context.Context, appletID, entryPoint string)
 	appletSocket := m.resolveSocketPath(fmt.Sprintf("%s.sock", appletID))
 	_ = os.Remove(appletSocket)
 
-	bunBin := strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BUN_BIN"))
-	if bunBin == "" {
+	m.mu.Lock()
+	bunBin := m.bunBin
+	m.mu.Unlock()
+	if strings.TrimSpace(bunBin) == "" {
 		bunBin = "bun"
 	}
 

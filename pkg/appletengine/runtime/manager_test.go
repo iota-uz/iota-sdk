@@ -60,18 +60,16 @@ func requireBun(t *testing.T) {
 	}
 }
 
-func TestManager_DisabledFlagDoesNotSpawn(t *testing.T) {
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "")
+func TestManager_RequiresEntryPoint(t *testing.T) {
 	manager := NewManager(t.TempDir(), appletenginerpc.NewDispatcher(appletenginerpc.NewRegistry(), nil, logrus.New()), logrus.New())
 
-	proc, err := manager.EnsureStarted(context.Background(), "bichat", "modules/bichat/runtime/index.ts")
-	require.NoError(t, err)
+	proc, err := manager.EnsureStarted(context.Background(), "bichat", "")
+	require.Error(t, err)
 	assert.Nil(t, proc)
+	assert.Contains(t, err.Error(), "entry point is required")
 }
 
 func TestManager_EngineSocketUnavailablePath(t *testing.T) {
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "bun")
-
 	baseDir := t.TempDir()
 	blockedPath := filepath.Join(baseDir, "blocked")
 	require.NoError(t, os.WriteFile(blockedPath, []byte("x"), 0o644))
@@ -85,7 +83,6 @@ func TestManager_EngineSocketUnavailablePath(t *testing.T) {
 
 func TestManager_SpawnAndHealthSuccess(t *testing.T) {
 	requireBun(t)
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "bun")
 
 	manager := NewManager(t.TempDir(), appletenginerpc.NewDispatcher(appletenginerpc.NewRegistry(), nil, logrus.New()), logrus.New())
 	entrypoint := writeRuntimeEntry(t, t.TempDir())
@@ -109,7 +106,6 @@ func TestManager_SpawnAndHealthSuccess(t *testing.T) {
 
 func TestManager_CrashAndRestartBackoff(t *testing.T) {
 	requireBun(t)
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "bun")
 	t.Setenv("IOTA_TEST_CRASH_ONCE", "1")
 	crashMarker := filepath.Join(t.TempDir(), "crashed-once.marker")
 	t.Setenv("IOTA_TEST_CRASH_MARKER", crashMarker)
@@ -142,7 +138,6 @@ func TestManager_CrashAndRestartBackoff(t *testing.T) {
 
 func TestManager_DispatchJob(t *testing.T) {
 	requireBun(t)
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "bun")
 
 	manager := NewManager(t.TempDir(), appletenginerpc.NewDispatcher(appletenginerpc.NewRegistry(), nil, logrus.New()), logrus.New())
 	entrypoint := writeRuntimeEntry(t, t.TempDir())
@@ -163,7 +158,6 @@ func TestManager_DispatchJob(t *testing.T) {
 }
 
 func TestManager_EngineSocketFilesEndpoints(t *testing.T) {
-	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "bun")
 	manager := NewManager(t.TempDir(), appletenginerpc.NewDispatcher(appletenginerpc.NewRegistry(), nil, logrus.New()), logrus.New())
 	manager.RegisterFileStore("bichat", newTestFileStore())
 	require.NoError(t, manager.ensureEngineSocket())

@@ -2,9 +2,17 @@
 
 This runtime is a thin Bun pilot process for applet-engine slice 1.
 
-It is enabled only when:
+It is enabled when `.applets/config.toml` has:
 
-- `IOTA_APPLET_ENGINE_BICHAT=bun`
+```toml
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "bun"
+```
 
 The Go engine starts this process with:
 
