@@ -320,68 +320,70 @@ templ Table(config *TableConfig) {
 				</tbody>
 			}
 		}
-		@dialog.Drawer(dialog.DrawerProps{
-			Action:    "open-table-settings",
-			Direction: dialog.RTL,
-			Classes:   templ.Classes("max-w-96 ml-auto flex items-stretch"),
-		}) {
-			<div class="p-4 w-full">
-				<div class="flex flex-col h-full bg-white rounded-lg">
-					<div class="flex flex-col h-full">
-						<div class="flex justify-between px-4 py-3 border-b border-primary">
-							<h3 class="font-medium">
-								{ pageCtx.T("Scaffold.Table.TableSettings") }
-							</h3>
-							<button class="cursor-pointer" type="button" @click="toggle">
-								@icons.XCircle(icons.Props{Size: "20"})
-							</button>
-						</div>
-						<div class="flex-1 min-h-0 overflow-y-auto">
-							<div class="p-4">
-								<ul
-									class="flex flex-col gap-2"
-									x-sort.ghost
-									x-sort:config="{
+		if config.Configurable {
+			@dialog.Drawer(dialog.DrawerProps{
+				Action:    "open-table-settings",
+				Direction: dialog.RTL,
+				Classes:   templ.Classes("max-w-96 ml-auto flex items-stretch"),
+			}) {
+				<div class="p-4 w-full">
+					<div class="flex flex-col h-full bg-white rounded-lg">
+						<div class="flex flex-col h-full">
+							<div class="flex justify-between px-4 py-3 border-b border-primary">
+								<h3 class="font-medium">
+									{ pageCtx.T("Scaffold.Table.TableSettings") }
+								</h3>
+								<button class="cursor-pointer" type="button" @click="toggle">
+									@icons.XCircle(icons.Props{Size: "20"})
+								</button>
+							</div>
+							<div class="flex-1 min-h-0 overflow-y-auto">
+								<div class="p-4">
+									<ul
+										class="flex flex-col gap-2"
+										x-sort.ghost
+										x-sort:config="{
 										onEnd: (event) => {
 											moveColumn(event.oldIndex, event.newIndex);
 										},
 									}"
-								>
-									<template x-for="col in fixedColumns" :key="col.key">
-										<li
-											class="flex items-center justify-between gap-2"
-											:x-sort:item="col.key"
-										>
-											<div class="flex items-center gap-1">
-												<button x-sort:handle type="button">
-													@icons.DotsSixVertical(icons.Props{Size: "20"})
-												</button>
-												<label :for="`col-${col.key}`" class="text-sm font-medium" x-text="col.label"></label>
-											</div>
-											@input.Switch(&input.SwitchProps{
-												Size: input.SwitchSizeSM,
-												LabelAttrs: templ.Attributes{
-													":for": "`col-${col.key}`",
-												},
-												Attrs: templ.Attributes{
-													":id":      "`col-${col.key}`",
-													":value":   "col.key",
-													":checked": "col.visible",
-													"@change": `(e) => {
+									>
+										<template x-for="col in fixedColumns" :key="col.key">
+											<li
+												class="flex items-center justify-between gap-2"
+												:x-sort:item="col.key"
+											>
+												<div class="flex items-center gap-1">
+													<button x-sort:handle type="button">
+														@icons.DotsSixVertical(icons.Props{Size: "20"})
+													</button>
+													<label :for="`col-${col.key}`" class="text-sm font-medium" x-text="col.label"></label>
+												</div>
+												@input.Switch(&input.SwitchProps{
+													Size: input.SwitchSizeSM,
+													LabelAttrs: templ.Attributes{
+														":for": "`col-${col.key}`",
+													},
+													Attrs: templ.Attributes{
+														":id":      "`col-${col.key}`",
+														":value":   "col.key",
+														":checked": "col.visible",
+														"@change": `(e) => {
 														e.stopPropagation();
 														e.stopImmediatePropagation();
 														toggleColumn(e.target.value);
 													}`,
-												},
-											})
-										</li>
-									</template>
-								</ul>
+													},
+												})
+											</li>
+										</template>
+									</ul>
+								</div>
 							</div>
 						</div>
 					</div>
 				</div>
-			</div>
+			}
 		}
 	</div>
 }
