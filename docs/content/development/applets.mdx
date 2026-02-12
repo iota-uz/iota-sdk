@@ -222,6 +222,29 @@ An optional Redis backend is available for BiChat server-only `kv.*` methods.
 
 If Redis backend is enabled without `IOTA_APPLET_ENGINE_REDIS_URL`, app startup fails fast.
 
+### Slice 2 kickoff: Postgres DB backend (BiChat)
+
+An optional PostgreSQL backend is available for BiChat server-only `db.*` methods.
+
+- `IOTA_APPLET_ENGINE_BICHAT_DB_BACKEND=postgres`
+
+This backend stores applet records in `applet_engine_documents` (see migrations). If enabled without an initialized application DB pool, app startup fails fast.
+
+### Slice 2 kickoff: Jobs API + Postgres backend (BiChat)
+
+Server-only jobs methods are available in BiChat namespace:
+
+- `bichat.jobs.enqueue`
+- `bichat.jobs.schedule`
+- `bichat.jobs.list`
+- `bichat.jobs.cancel`
+
+Optional Postgres persistence:
+
+- `IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND=postgres`
+
+This backend stores jobs in `applet_engine_jobs` (see migrations). If enabled without an initialized application DB pool, app startup fails fast.
+
 ## Translations
 
 The backend injects translations into `ctx.locale.translations` (consumed via `useTranslation()`).

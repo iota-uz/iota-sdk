@@ -164,3 +164,35 @@ func TestCreateAppletControllers_BiChatRedisKVRequiresURL(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "configure redis kv store for bichat")
 }
+
+func TestCreateAppletControllers_BiChatPostgresDBRequiresPool(t *testing.T) {
+	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_DB_BACKEND", "postgres")
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure postgres db store for bichat")
+}
+
+func TestCreateAppletControllers_BiChatPostgresJobsRequiresPool(t *testing.T) {
+	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND", "postgres")
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure postgres jobs store for bichat")
+}

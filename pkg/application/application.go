@@ -400,7 +400,25 @@ func (app *application) CreateAppletControllers(
 			return nil, err
 		}
 		dbStub := appletenginehandlers.NewDBStub()
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_DB_BACKEND")), "postgres") {
+			postgresDBStore, err := appletenginehandlers.NewPostgresDBStore(app.DB())
+			if err != nil {
+				return nil, fmt.Errorf("configure postgres db store for bichat: %w", err)
+			}
+			dbStub = appletenginehandlers.NewDBStubWithStore(postgresDBStore)
+		}
 		if err := dbStub.Register(rpcRegistry, "bichat"); err != nil {
+			return nil, err
+		}
+		jobsStub := appletenginehandlers.NewJobsStub()
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND")), "postgres") {
+			postgresJobsStore, err := appletenginehandlers.NewPostgresJobsStore(app.DB())
+			if err != nil {
+				return nil, fmt.Errorf("configure postgres jobs store for bichat: %w", err)
+			}
+			jobsStub = appletenginehandlers.NewJobsStubWithStore(postgresJobsStore)
+		}
+		if err := jobsStub.Register(rpcRegistry, "bichat"); err != nil {
 			return nil, err
 		}
 	}

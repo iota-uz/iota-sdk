@@ -185,6 +185,11 @@ func (s *memoryKVStore) MGet(ctx context.Context, keys []string) ([]any, error) 
 }
 
 func scopeFromContext(ctx context.Context) string {
+	tenantID, appletID := tenantAndAppletFromContext(ctx)
+	return tenantID + "::" + appletID
+}
+
+func tenantAndAppletFromContext(ctx context.Context) (string, string) {
 	tenantID, ok := appletenginerpc.TenantIDFromContext(ctx)
 	if !ok {
 		tenantID = "default"
@@ -193,5 +198,5 @@ func scopeFromContext(ctx context.Context) string {
 	if !ok {
 		appletID = "unknown"
 	}
-	return tenantID + "::" + appletID
+	return tenantID, appletID
 }

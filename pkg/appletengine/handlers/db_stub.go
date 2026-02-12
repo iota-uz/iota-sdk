@@ -10,20 +10,44 @@ import (
 	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 )
 
+type DBStore interface {
+	Get(ctx context.Context, id string) (any, error)
+	Query(ctx context.Context, table string) ([]any, error)
+	Insert(ctx context.Context, table string, value any) (any, error)
+	Patch(ctx context.Context, id string, value any) (any, error)
+	Replace(ctx context.Context, id string, value any) (any, error)
+	Delete(ctx context.Context, id string) (bool, error)
+}
+
 type documentRecord struct {
 	ID    string
 	Table string
 	Value any
 }
 
-type DBStub struct {
+type memoryDBStore struct {
 	mu       sync.RWMutex
 	records  map[string]map[string]documentRecord
 	sequence int64
 }
 
+type DBStub struct {
+	store DBStore
+}
+
 func NewDBStub() *DBStub {
-	return &DBStub{
+	return &DBStub{store: newMemoryDBStore()}
+}
+
+func NewDBStubWithStore(store DBStore) *DBStub {
+	if store == nil {
+		store = newMemoryDBStore()
+	}
+	return &DBStub{store: store}
+}
+
+func newMemoryDBStore() *memoryDBStore {
+	return &memoryDBStore{
 		records: make(map[string]map[string]documentRecord),
 	}
 }
@@ -40,7 +64,7 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if id == "" {
 					return nil, fmt.Errorf("id is required: %w", applets.ErrInvalid)
 				}
-				return s.get(ctx, id), nil
+				return s.store.Get(ctx, id)
 			},
 		},
 		"query": {
@@ -53,7 +77,7 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if table == "" {
 					return nil, fmt.Errorf("table is required: %w", applets.ErrInvalid)
 				}
-				return s.query(ctx, table), nil
+				return s.store.Query(ctx, table)
 			},
 		},
 		"insert": {
@@ -67,7 +91,7 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 					return nil, fmt.Errorf("table is required: %w", applets.ErrInvalid)
 				}
 				value := p["value"]
-				return s.insert(ctx, table, value), nil
+				return s.store.Insert(ctx, table, value)
 			},
 		},
 		"patch": {
@@ -80,7 +104,7 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if id == "" {
 					return nil, fmt.Errorf("id is required: %w", applets.ErrInvalid)
 				}
-				return s.replace(ctx, id, p["value"], false)
+				return s.store.Patch(ctx, id, p["value"])
 			},
 		},
 		"replace": {
@@ -93,7 +117,7 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if id == "" {
 					return nil, fmt.Errorf("id is required: %w", applets.ErrInvalid)
 				}
-				return s.replace(ctx, id, p["value"], true)
+				return s.store.Replace(ctx, id, p["value"])
 			},
 		},
 		"delete": {
@@ -106,7 +130,7 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if id == "" {
 					return nil, fmt.Errorf("id is required: %w", applets.ErrInvalid)
 				}
-				return s.del(ctx, id), nil
+				return s.store.Delete(ctx, id)
 			},
 		},
 	}
@@ -125,48 +149,40 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 	return nil
 }
 
-func (s *DBStub) get(ctx context.Context, id string) any {
+func (s *memoryDBStore) Get(ctx context.Context, id string) (any, error) {
 	scope := scopeFromContext(ctx)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	scopeRecords := s.records[scope]
 	if scopeRecords == nil {
-		return nil
+		return nil, nil
 	}
 	record, ok := scopeRecords[id]
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return map[string]any{
-		"_id":   record.ID,
-		"table": record.Table,
-		"value": record.Value,
-	}
+	return dbRecordResponse(record), nil
 }
 
-func (s *DBStub) query(ctx context.Context, table string) []any {
+func (s *memoryDBStore) Query(ctx context.Context, table string) ([]any, error) {
 	scope := scopeFromContext(ctx)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	scopeRecords := s.records[scope]
 	if scopeRecords == nil {
-		return []any{}
+		return []any{}, nil
 	}
 	out := make([]any, 0)
 	for _, record := range scopeRecords {
 		if record.Table != table {
 			continue
 		}
-		out = append(out, map[string]any{
-			"_id":   record.ID,
-			"table": record.Table,
-			"value": record.Value,
-		})
+		out = append(out, dbRecordResponse(record))
 	}
-	return out
+	return out, nil
 }
 
-func (s *DBStub) insert(ctx context.Context, table string, value any) any {
+func (s *memoryDBStore) Insert(ctx context.Context, table string, value any) (any, error) {
 	scope := scopeFromContext(ctx)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -177,20 +193,20 @@ func (s *DBStub) insert(ctx context.Context, table string, value any) any {
 		scopeRecords = make(map[string]documentRecord)
 		s.records[scope] = scopeRecords
 	}
-	record := documentRecord{
-		ID:    id,
-		Table: table,
-		Value: value,
-	}
+	record := documentRecord{ID: id, Table: table, Value: value}
 	scopeRecords[id] = record
-	return map[string]any{
-		"_id":   record.ID,
-		"table": record.Table,
-		"value": record.Value,
-	}
+	return dbRecordResponse(record), nil
 }
 
-func (s *DBStub) replace(ctx context.Context, id string, value any, strict bool) (any, error) {
+func (s *memoryDBStore) Patch(ctx context.Context, id string, value any) (any, error) {
+	return s.update(ctx, id, value, false)
+}
+
+func (s *memoryDBStore) Replace(ctx context.Context, id string, value any) (any, error) {
+	return s.update(ctx, id, value, true)
+}
+
+func (s *memoryDBStore) update(ctx context.Context, id string, value any, strict bool) (any, error) {
 	scope := scopeFromContext(ctx)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -210,24 +226,28 @@ func (s *DBStub) replace(ctx context.Context, id string, value any, strict bool)
 	}
 	record.Value = value
 	scopeRecords[id] = record
-	return map[string]any{
-		"_id":   record.ID,
-		"table": record.Table,
-		"value": record.Value,
-	}, nil
+	return dbRecordResponse(record), nil
 }
 
-func (s *DBStub) del(ctx context.Context, id string) bool {
+func (s *memoryDBStore) Delete(ctx context.Context, id string) (bool, error) {
 	scope := scopeFromContext(ctx)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	scopeRecords := s.records[scope]
 	if scopeRecords == nil {
-		return false
+		return false, nil
 	}
 	if _, exists := scopeRecords[id]; !exists {
-		return false
+		return false, nil
 	}
 	delete(scopeRecords, id)
-	return true
+	return true, nil
+}
+
+func dbRecordResponse(record documentRecord) map[string]any {
+	return map[string]any{
+		"_id":   record.ID,
+		"table": record.Table,
+		"value": record.Value,
+	}
 }
