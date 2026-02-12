@@ -429,6 +429,16 @@ func (app *application) CreateAppletControllers(
 		}
 
 		filesStub := appletenginehandlers.NewFilesStub()
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_FILES_BACKEND")), "postgres") {
+			postgresFilesStore, err := appletenginehandlers.NewPostgresFilesStore(
+				app.DB(),
+				strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_FILES_DIR")),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("configure postgres files store for bichat: %w", err)
+			}
+			filesStub = appletenginehandlers.NewFilesStubWithStore(postgresFilesStore)
+		}
 		if err := filesStub.Register(rpcRegistry, "bichat"); err != nil {
 			return nil, err
 		}

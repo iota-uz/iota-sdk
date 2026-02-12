@@ -240,3 +240,19 @@ func TestCreateAppletControllers_BiChatPostgresSecretsRequiresPool(t *testing.T)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "configure postgres secrets store for bichat")
 }
+
+func TestCreateAppletControllers_BiChatPostgresFilesRequiresPool(t *testing.T) {
+	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_FILES_BACKEND", "postgres")
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure postgres files store for bichat")
+}

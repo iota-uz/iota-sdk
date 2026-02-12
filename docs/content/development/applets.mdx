@@ -288,6 +288,13 @@ Server-only methods are available in BiChat namespace:
 
 Current storage backend is local disk with tenant+applet scoping under the engine temp directory.
 
+Optional Postgres metadata backend:
+
+- `IOTA_APPLET_ENGINE_BICHAT_FILES_BACKEND=postgres`
+- `IOTA_APPLET_ENGINE_FILES_DIR=/var/lib/iota/applet-files` (optional; defaults to temp dir)
+
+This backend persists metadata in `applet_engine_files` and stores file bytes on local disk.
+
 ### Slice 2 kickoff: WebSocket bridge (BiChat)
 
 Browser WebSocket endpoint:
