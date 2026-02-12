@@ -440,7 +440,7 @@ func (app *application) CreateAppletControllers(
 				_, err := runtimeManager.EnsureStarted(ctx, "bichat", "")
 				return err
 			})
-			if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_JOBS_RUNNER")), "1") && app.DB() != nil {
+			if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_JOBS_BACKEND")), "postgres") && app.DB() != nil {
 				runner, err := appletenginejobs.NewRunner(app.DB(), runtimeManager, logger, 2*time.Second)
 				if err != nil {
 					return nil, fmt.Errorf("create applet jobs runner: %w", err)

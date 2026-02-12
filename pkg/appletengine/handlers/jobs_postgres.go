@@ -2,11 +2,14 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/applets"
+	appletenginejobs "github.com/iota-uz/iota-sdk/pkg/appletengine/jobs"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -23,17 +26,21 @@ func NewPostgresJobsStore(pool *pgxpool.Pool) (*PostgresJobsStore, error) {
 }
 
 func (s *PostgresJobsStore) Enqueue(ctx context.Context, method string, params any) (map[string]any, error) {
-	return s.insert(ctx, "one_off", "", method, params, "queued")
+	return s.insert(ctx, "one_off", "", method, params, "queued", nil)
 }
 
 func (s *PostgresJobsStore) Schedule(ctx context.Context, cronExpr string, method string, params any) (map[string]any, error) {
-	return s.insert(ctx, "scheduled", cronExpr, method, params, "scheduled")
+	nextRunAt, err := appletenginejobs.NextRun(cronExpr, time.Now().UTC())
+	if err != nil {
+		return nil, fmt.Errorf("invalid cron expression: %w", applets.ErrInvalid)
+	}
+	return s.insert(ctx, "scheduled", cronExpr, method, params, "scheduled", &nextRunAt)
 }
 
 func (s *PostgresJobsStore) List(ctx context.Context) ([]map[string]any, error) {
 	tenantID, appletID := tenantAndAppletFromContext(ctx)
 	rows, err := s.pool.Query(ctx, `
-		SELECT job_id, job_type, cron_expr, method_name, params, status, created_at, updated_at
+		SELECT job_id, job_type, cron_expr, method_name, params, status, next_run_at, last_run_at, last_status, last_error, created_at, updated_at
 		FROM applet_engine_jobs
 		WHERE tenant_id = $1 AND applet_id = $2
 		ORDER BY created_at DESC
@@ -61,7 +68,7 @@ func (s *PostgresJobsStore) Cancel(ctx context.Context, jobID string) (bool, err
 	tenantID, appletID := tenantAndAppletFromContext(ctx)
 	commandTag, err := s.pool.Exec(ctx, `
 		UPDATE applet_engine_jobs
-		SET status = 'canceled', updated_at = NOW()
+		SET status = 'canceled', next_run_at = NULL, last_status = 'canceled', last_error = '', updated_at = NOW()
 		WHERE tenant_id = $1 AND applet_id = $2 AND job_id = $3 AND status <> 'canceled'
 	`, tenantID, appletID, jobID)
 	if err != nil {
@@ -70,7 +77,7 @@ func (s *PostgresJobsStore) Cancel(ctx context.Context, jobID string) (bool, err
 	return commandTag.RowsAffected() > 0, nil
 }
 
-func (s *PostgresJobsStore) insert(ctx context.Context, jobType, cronExpr, method string, params any, status string) (map[string]any, error) {
+func (s *PostgresJobsStore) insert(ctx context.Context, jobType, cronExpr, method string, params any, status string, nextRunAt *time.Time) (map[string]any, error) {
 	tenantID, appletID := tenantAndAppletFromContext(ctx)
 	jobID := uuid.NewString()
 	encoded, err := json.Marshal(params)
@@ -87,11 +94,13 @@ func (s *PostgresJobsStore) insert(ctx context.Context, jobType, cronExpr, metho
 			cron_expr,
 			method_name,
 			params,
-			status
+			status,
+			next_run_at,
+			last_status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
-		RETURNING job_id, job_type, cron_expr, method_name, params, status, created_at, updated_at
-	`, tenantID, appletID, jobID, jobType, cronExpr, method, string(encoded), status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $8)
+		RETURNING job_id, job_type, cron_expr, method_name, params, status, next_run_at, last_run_at, last_status, last_error, created_at, updated_at
+	`, tenantID, appletID, jobID, jobType, cronExpr, method, string(encoded), status, nextRunAt)
 	return scanJobRow(row)
 }
 
@@ -101,16 +110,20 @@ type rowScanner interface {
 
 func scanJobRow(row rowScanner) (map[string]any, error) {
 	var (
-		jobID     string
-		jobType   string
-		cronExpr  string
-		method    string
-		rawParams []byte
-		status    string
-		createdAt time.Time
-		updatedAt time.Time
+		jobID      string
+		jobType    string
+		cronExpr   string
+		method     string
+		rawParams  []byte
+		status     string
+		nextRunAt  sql.NullTime
+		lastRunAt  sql.NullTime
+		lastStatus string
+		lastError  string
+		createdAt  time.Time
+		updatedAt  time.Time
 	)
-	if err := row.Scan(&jobID, &jobType, &cronExpr, &method, &rawParams, &status, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&jobID, &jobType, &cronExpr, &method, &rawParams, &status, &nextRunAt, &lastRunAt, &lastStatus, &lastError, &createdAt, &updatedAt); err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
 		}
@@ -121,14 +134,22 @@ func scanJobRow(row rowScanner) (map[string]any, error) {
 		return nil, err
 	}
 	result := map[string]any{
-		"id":        jobID,
-		"type":      jobType,
-		"cron":      cronExpr,
-		"method":    method,
-		"params":    params,
-		"status":    status,
-		"createdAt": createdAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
-		"updatedAt": updatedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+		"id":         jobID,
+		"type":       jobType,
+		"cron":       cronExpr,
+		"method":     method,
+		"params":     params,
+		"status":     status,
+		"lastStatus": lastStatus,
+		"lastError":  lastError,
+		"createdAt":  createdAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+		"updatedAt":  updatedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+	}
+	if nextRunAt.Valid {
+		result["nextRunAt"] = nextRunAt.Time.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
+	}
+	if lastRunAt.Valid {
+		result["lastRunAt"] = lastRunAt.Time.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
 	}
 	return result, nil
 }

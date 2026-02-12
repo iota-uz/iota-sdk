@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/applets"
+	appletenginejobs "github.com/iota-uz/iota-sdk/pkg/appletengine/jobs"
 	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 )
 
@@ -20,14 +21,18 @@ type JobsStore interface {
 }
 
 type jobRecord struct {
-	ID        string
-	Type      string
-	Cron      string
-	Method    string
-	Params    any
-	Status    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID         string
+	Type       string
+	Cron       string
+	Method     string
+	Params     any
+	Status     string
+	NextRunAt  *time.Time
+	LastRunAt  *time.Time
+	LastError  string
+	LastStatus string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type memoryJobsStore struct {
@@ -143,7 +148,12 @@ func (s *memoryJobsStore) Enqueue(ctx context.Context, method string, params any
 }
 
 func (s *memoryJobsStore) Schedule(ctx context.Context, cronExpr string, method string, params any) (map[string]any, error) {
+	nextRunAt, err := appletenginejobs.NextRun(cronExpr, time.Now().UTC())
+	if err != nil {
+		return nil, fmt.Errorf("invalid cron expression: %w", applets.ErrInvalid)
+	}
 	record := s.newRecord("scheduled", cronExpr, method, params, "scheduled")
+	record.NextRunAt = &nextRunAt
 	s.save(ctx, record)
 	return toJobResponse(record), nil
 }
@@ -176,6 +186,9 @@ func (s *memoryJobsStore) Cancel(ctx context.Context, jobID string) (bool, error
 		return false, nil
 	}
 	record.Status = "canceled"
+	record.LastStatus = "canceled"
+	record.LastError = ""
+	record.NextRunAt = nil
 	record.UpdatedAt = time.Now().UTC()
 	scopeJobs[jobID] = record
 	return true, nil
@@ -184,14 +197,15 @@ func (s *memoryJobsStore) Cancel(ctx context.Context, jobID string) (bool, error
 func (s *memoryJobsStore) newRecord(jobType, cronExpr, method string, params any, status string) jobRecord {
 	now := time.Now().UTC()
 	return jobRecord{
-		ID:        uuid.NewString(),
-		Type:      jobType,
-		Cron:      cronExpr,
-		Method:    method,
-		Params:    params,
-		Status:    status,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:         uuid.NewString(),
+		Type:       jobType,
+		Cron:       cronExpr,
+		Method:     method,
+		Params:     params,
+		Status:     status,
+		LastStatus: status,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 }
 
@@ -215,14 +229,23 @@ func toJobResponse(record jobRecord) map[string]any {
 			params = decoded
 		}
 	}
-	return map[string]any{
-		"id":        record.ID,
-		"type":      record.Type,
-		"cron":      record.Cron,
-		"method":    record.Method,
-		"params":    params,
-		"status":    record.Status,
-		"createdAt": record.CreatedAt.Format(time.RFC3339Nano),
-		"updatedAt": record.UpdatedAt.Format(time.RFC3339Nano),
+	result := map[string]any{
+		"id":         record.ID,
+		"type":       record.Type,
+		"cron":       record.Cron,
+		"method":     record.Method,
+		"params":     params,
+		"status":     record.Status,
+		"lastStatus": record.LastStatus,
+		"lastError":  record.LastError,
+		"createdAt":  record.CreatedAt.Format(time.RFC3339Nano),
+		"updatedAt":  record.UpdatedAt.Format(time.RFC3339Nano),
 	}
+	if record.NextRunAt != nil {
+		result["nextRunAt"] = record.NextRunAt.UTC().Format(time.RFC3339Nano)
+	}
+	if record.LastRunAt != nil {
+		result["lastRunAt"] = record.LastRunAt.UTC().Format(time.RFC3339Nano)
+	}
+	return result
 }

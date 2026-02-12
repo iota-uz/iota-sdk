@@ -37,6 +37,7 @@ func TestJobsStub_EnqueueScheduleListCancel(t *testing.T) {
 	scheduled := scheduleResp["result"].(map[string]any)
 	assert.Equal(t, "scheduled", scheduled["status"])
 	assert.Equal(t, "0 * * * *", scheduled["cron"])
+	assert.NotEmpty(t, scheduled["nextRunAt"])
 
 	listResp := callJobsRPC(t, dispatcher, "tenant-a", "bichat.jobs.list", map[string]any{})
 	jobs := listResp["result"].([]any)
@@ -47,6 +48,23 @@ func TestJobsStub_EnqueueScheduleListCancel(t *testing.T) {
 
 	cancelResp := callJobsRPC(t, dispatcher, "tenant-a", "bichat.jobs.cancel", map[string]any{"id": jobID})
 	assert.Equal(t, true, cancelResp["result"].(map[string]any)["ok"])
+}
+
+func TestJobsStub_ScheduleRejectsInvalidCron(t *testing.T) {
+	t.Parallel()
+
+	registry := appletenginerpc.NewRegistry()
+	stub := NewJobsStub()
+	require.NoError(t, stub.Register(registry, "bichat"))
+	dispatcher := appletenginerpc.NewDispatcher(registry, nil, logrus.New())
+
+	resp := callJobsRPC(t, dispatcher, "tenant-a", "bichat.jobs.schedule", map[string]any{
+		"cron":   "not-a-cron",
+		"method": "bichat.task.hourly",
+		"params": map[string]any{},
+	})
+	require.NotNil(t, resp["error"])
+	assert.Nil(t, resp["result"])
 }
 
 func callJobsRPC(t *testing.T, dispatcher *appletenginerpc.Dispatcher, tenantID, method string, params map[string]any) map[string]any {
