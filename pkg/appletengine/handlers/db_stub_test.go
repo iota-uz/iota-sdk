@@ -34,6 +34,26 @@ func TestDBStub_MethodShapeAndTenantIsolation(t *testing.T) {
 	records := queryResp["result"].([]any)
 	require.Len(t, records, 1)
 
+	filteredQuery := callServerRPC(t, dispatcher, "tenant-a", "bichat.db.query", map[string]any{
+		"table": "messages",
+		"query": map[string]any{
+			"filters": []any{
+				map[string]any{"field": "text", "op": "eq", "value": "hello"},
+			},
+		},
+	})
+	require.Len(t, filteredQuery["result"].([]any), 1)
+
+	noMatchQuery := callServerRPC(t, dispatcher, "tenant-a", "bichat.db.query", map[string]any{
+		"table": "messages",
+		"query": map[string]any{
+			"filters": []any{
+				map[string]any{"field": "text", "op": "eq", "value": "missing"},
+			},
+		},
+	})
+	require.Len(t, noMatchQuery["result"].([]any), 0)
+
 	otherTenantQuery := callServerRPC(t, dispatcher, "tenant-b", "bichat.db.query", map[string]any{"table": "messages"})
 	assert.Len(t, otherTenantQuery["result"].([]any), 0)
 

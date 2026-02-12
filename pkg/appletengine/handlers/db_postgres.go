@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/applets"
@@ -45,14 +46,49 @@ func (s *PostgresDBStore) Get(ctx context.Context, id string) (any, error) {
 	return map[string]any{"_id": id, "table": tableName, "value": value}, nil
 }
 
-func (s *PostgresDBStore) Query(ctx context.Context, table string) ([]any, error) {
+func (s *PostgresDBStore) Query(ctx context.Context, table string, options DBQueryOptions) ([]any, error) {
 	tenantID, appletID := tenantAndAppletFromContext(ctx)
-	rows, err := s.pool.Query(ctx, `
+	args := []any{tenantID, appletID, table}
+	conditions := []string{
+		"tenant_id = $1",
+		"applet_id = $2",
+		"table_name = $3",
+	}
+	argIndex := 4
+
+	appendConstraint := func(constraint DBConstraint) {
+		if strings.TrimSpace(constraint.Field) == "" || constraint.Op != "eq" {
+			return
+		}
+		pathArgIndex := argIndex
+		valArgIndex := argIndex + 1
+		argIndex += 2
+		args = append(args, strings.Split(constraint.Field, "."))
+		args = append(args, fmt.Sprintf("%v", constraint.Value))
+		conditions = append(conditions, fmt.Sprintf("value #>> $%d::text[] = $%d", pathArgIndex, valArgIndex))
+	}
+	if options.Index != nil {
+		appendConstraint(options.Index.DBConstraint)
+	}
+	for _, filter := range options.Filter {
+		appendConstraint(filter)
+	}
+
+	order := "DESC"
+	if strings.EqualFold(options.Order, "asc") {
+		order = "ASC"
+	}
+	query := fmt.Sprintf(`
 		SELECT document_id, table_name, value
 		FROM applet_engine_documents
-		WHERE tenant_id = $1 AND applet_id = $2 AND table_name = $3
-		ORDER BY updated_at DESC
-	`, tenantID, appletID, table)
+		WHERE %s
+		ORDER BY updated_at %s
+	`, strings.Join(conditions, " AND "), order)
+	if options.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", options.Limit)
+	}
+
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("postgres db.query: %w", err)
 	}

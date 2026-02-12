@@ -8,7 +8,30 @@ async function loadRuntimeSDK(): Promise<RuntimeSDK> {
   }
 }
 
-const { auth, db, defineApplet, kv } = await loadRuntimeSDK()
+const { auth, db, defineApplet, kv, ws } = await loadRuntimeSDK()
+
+ws.onConnection(async (connectionId) => {
+  await kv.set(`ws:connection:${connectionId}`, {
+    connectedAt: new Date().toISOString(),
+  })
+})
+
+ws.onMessage(async (connectionId, data) => {
+  const text = Buffer.from(data).toString('utf8')
+  await kv.set(`ws:last-message:${connectionId}`, {
+    text,
+    receivedAt: new Date().toISOString(),
+  })
+  try {
+    await ws.send(connectionId, { type: 'ack', receivedAt: new Date().toISOString() })
+  } catch {
+    // Ignore ack errors during early bring-up when connection may already be closed.
+  }
+})
+
+ws.onClose(async (connectionId) => {
+  await kv.del(`ws:connection:${connectionId}`)
+})
 
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {

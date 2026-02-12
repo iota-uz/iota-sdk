@@ -28,6 +28,7 @@ import (
 	appletenginejobs "github.com/iota-uz/iota-sdk/pkg/appletengine/jobs"
 	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
+	appletenginewsbridge "github.com/iota-uz/iota-sdk/pkg/appletengine/wsbridge"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -353,6 +354,7 @@ func (app *application) CreateAppletControllers(
 	registry := app.AppletRegistry()
 	allApplets := registry.All()
 	rpcRegistry := appletenginerpc.NewRegistry()
+	var wsBridge *appletenginewsbridge.Bridge
 
 	controllers := make([]Controller, 0, len(allApplets)+1)
 	for _, a := range allApplets {
@@ -389,6 +391,8 @@ func (app *application) CreateAppletControllers(
 		}
 	}
 	if hasBiChat {
+		wsBridge = appletenginewsbridge.New(logger)
+
 		kvStub := appletenginehandlers.NewKVStub()
 		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_KV_BACKEND")), "redis") {
 			redisURL := strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_REDIS_URL"))
@@ -430,7 +434,22 @@ func (app *application) CreateAppletControllers(
 		}
 
 		secretsStub := appletenginehandlers.NewSecretsStub()
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_SECRETS_BACKEND")), "postgres") {
+			postgresSecretsStore, err := appletenginehandlers.NewPostgresSecretsStore(
+				app.DB(),
+				strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_SECRETS_MASTER_KEY")),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("configure postgres secrets store for bichat: %w", err)
+			}
+			secretsStub = appletenginehandlers.NewSecretsStubWithStore(postgresSecretsStore)
+		}
 		if err := secretsStub.Register(rpcRegistry, "bichat"); err != nil {
+			return nil, err
+		}
+
+		wsStub := appletenginehandlers.NewWSStub(wsBridge)
+		if err := wsStub.Register(rpcRegistry, "bichat"); err != nil {
 			return nil, err
 		}
 	}
@@ -457,10 +476,16 @@ func (app *application) CreateAppletControllers(
 				}
 				go runner.Start(context.Background())
 			}
+			if wsBridge != nil {
+				wsBridge.SetRuntimeManager(runtimeManager)
+			}
 			app.appletRuntime = runtimeManager
 		}
 
 		controllers = append(controllers, appletenginecontrollers.NewRPCController(dispatcher))
+		if wsBridge != nil {
+			controllers = append(controllers, appletenginecontrollers.NewWSController(wsBridge, logger))
+		}
 	}
 
 	return controllers, nil

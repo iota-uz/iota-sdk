@@ -148,6 +148,33 @@ func TestCreateAppletControllers_GlobalRPCServesBiChatNamespacedMethod(t *testin
 	assert.Contains(t, res.Body.String(), `"ok":true`)
 }
 
+func TestCreateAppletControllers_AppletWSRouteMounted(t *testing.T) {
+	t.Parallel()
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/applets/bichat/ws", nil)
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	// Route is mounted; without websocket upgrade headers gorilla upgrader rejects the request.
+	assert.NotEqual(t, http.StatusNotFound, res.Code)
+}
+
 func TestCreateAppletControllers_BiChatRedisKVRequiresURL(t *testing.T) {
 	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_KV_BACKEND", "redis")
 	t.Setenv("IOTA_APPLET_ENGINE_REDIS_URL", "")
@@ -195,4 +222,21 @@ func TestCreateAppletControllers_BiChatPostgresJobsRequiresPool(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "configure postgres jobs store for bichat")
+}
+
+func TestCreateAppletControllers_BiChatPostgresSecretsRequiresPool(t *testing.T) {
+	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_SECRETS_BACKEND", "postgres")
+	t.Setenv("IOTA_APPLET_ENGINE_SECRETS_MASTER_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure postgres secrets store for bichat")
 }

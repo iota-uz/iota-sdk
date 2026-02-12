@@ -115,6 +115,9 @@ func TestManager_DispatchJob(t *testing.T) {
 	err = manager.DispatchJob(context.Background(), "bichat", "tenant-1", "job-1", "bichat.test", map[string]any{"x": 1})
 	require.NoError(t, err)
 
+	err = manager.DispatchWebsocketEvent(context.Background(), "bichat", "tenant-1", "conn-1", "message", []byte("hi"))
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		_ = manager.Shutdown(context.Background())
 	})
@@ -141,6 +144,9 @@ Bun.serve({
       return new Response("ok", { status: 200 })
     }
     if (pathname === "/__job" && request.method === "POST") {
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } })
+    }
+    if (pathname === "/__ws" && request.method === "POST") {
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } })
     }
     return new Response("not found", { status: 404 })

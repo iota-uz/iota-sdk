@@ -32,6 +32,11 @@ There is currently no scaffold generator. To create an applet:
 - Create a module under `modules/<name>/` and register an `applet.Applet`.
 - Add an applet entry to `.applets/config.toml` so `just dev <name>` can run embedded HMR.
 
+Slice-2 local tooling packages are now available in the applets repo:
+
+- `packages/create-applet` (`create-applet <name>`) for minimal scaffold bootstrap.
+- `packages/applet-dev` (`applet-dev`) for local JSON-RPC simulation + applet HTTP proxy.
+
 ## SDK dependency policy
 
 Applet web packages must pin `@iota-uz/sdk` to an exact npm version (for example `0.3.0`).
@@ -266,6 +271,13 @@ Environment-backed secret contract:
 - `IOTA_APPLET_SECRET_<APPLET>_<NAME>`
 - Example: `IOTA_APPLET_SECRET_BICHAT_OPENAI_API_KEY=...`
 
+Optional PostgreSQL backend (encrypted at rest):
+
+- `IOTA_APPLET_ENGINE_BICHAT_SECRETS_BACKEND=postgres`
+- `IOTA_APPLET_ENGINE_SECRETS_MASTER_KEY=<base64-encoded 32-byte key>`
+
+With this backend, `bichat.secrets.get` reads encrypted values from `applet_engine_secrets`.
+
 ### Slice 2 kickoff: Files API (BiChat)
 
 Server-only methods are available in BiChat namespace:
@@ -275,6 +287,23 @@ Server-only methods are available in BiChat namespace:
 - `bichat.files.delete`
 
 Current storage backend is local disk with tenant+applet scoping under the engine temp directory.
+
+### Slice 2 kickoff: WebSocket bridge (BiChat)
+
+Browser WebSocket endpoint:
+
+- `GET /applets/bichat/ws`
+
+Server-only RPC method:
+
+- `bichat.ws.send`
+
+Go forwards browser messages to Bun via `POST /__ws` and Bun runtime SDK exposes:
+
+- `ws.onConnection(handler)`
+- `ws.onMessage(handler)`
+- `ws.onClose(handler)`
+- `ws.send(connectionId, data)`
 
 ## Translations
 

@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,7 +14,7 @@ import (
 
 type DBStore interface {
 	Get(ctx context.Context, id string) (any, error)
-	Query(ctx context.Context, table string) ([]any, error)
+	Query(ctx context.Context, table string, options DBQueryOptions) ([]any, error)
 	Insert(ctx context.Context, table string, value any) (any, error)
 	Patch(ctx context.Context, id string, value any) (any, error)
 	Replace(ctx context.Context, id string, value any) (any, error)
@@ -20,9 +22,11 @@ type DBStore interface {
 }
 
 type documentRecord struct {
-	ID    string
-	Table string
-	Value any
+	ID        string
+	Table     string
+	Value     any
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type memoryDBStore struct {
@@ -77,7 +81,11 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if table == "" {
 					return nil, fmt.Errorf("table is required: %w", applets.ErrInvalid)
 				}
-				return s.store.Query(ctx, table)
+				options, err := parseDBQueryOptions(p["query"])
+				if err != nil {
+					return nil, fmt.Errorf("invalid query options: %w", applets.ErrInvalid)
+				}
+				return s.store.Query(ctx, table, options)
 			},
 		},
 		"insert": {
@@ -164,7 +172,7 @@ func (s *memoryDBStore) Get(ctx context.Context, id string) (any, error) {
 	return dbRecordResponse(record), nil
 }
 
-func (s *memoryDBStore) Query(ctx context.Context, table string) ([]any, error) {
+func (s *memoryDBStore) Query(ctx context.Context, table string, options DBQueryOptions) ([]any, error) {
 	scope := scopeFromContext(ctx)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -172,11 +180,27 @@ func (s *memoryDBStore) Query(ctx context.Context, table string) ([]any, error) 
 	if scopeRecords == nil {
 		return []any{}, nil
 	}
-	out := make([]any, 0)
+	filtered := make([]documentRecord, 0)
 	for _, record := range scopeRecords {
 		if record.Table != table {
 			continue
 		}
+		if !matchesQuery(record.Value, options) {
+			continue
+		}
+		filtered = append(filtered, record)
+	}
+	sort.Slice(filtered, func(i, j int) bool {
+		if options.Order == "asc" {
+			return filtered[i].UpdatedAt.Before(filtered[j].UpdatedAt)
+		}
+		return filtered[i].UpdatedAt.After(filtered[j].UpdatedAt)
+	})
+	if options.Limit > 0 && len(filtered) > options.Limit {
+		filtered = filtered[:options.Limit]
+	}
+	out := make([]any, 0, len(filtered))
+	for _, record := range filtered {
 		out = append(out, dbRecordResponse(record))
 	}
 	return out, nil
@@ -194,6 +218,9 @@ func (s *memoryDBStore) Insert(ctx context.Context, table string, value any) (an
 		s.records[scope] = scopeRecords
 	}
 	record := documentRecord{ID: id, Table: table, Value: value}
+	now := time.Now().UTC()
+	record.CreatedAt = now
+	record.UpdatedAt = now
 	scopeRecords[id] = record
 	return dbRecordResponse(record), nil
 }
@@ -225,6 +252,7 @@ func (s *memoryDBStore) update(ctx context.Context, id string, value any, strict
 		return nil, nil
 	}
 	record.Value = value
+	record.UpdatedAt = time.Now().UTC()
 	scopeRecords[id] = record
 	return dbRecordResponse(record), nil
 }
@@ -250,4 +278,45 @@ func dbRecordResponse(record documentRecord) map[string]any {
 		"table": record.Table,
 		"value": record.Value,
 	}
+}
+
+func matchesQuery(value any, options DBQueryOptions) bool {
+	if options.Index != nil {
+		if !constraintMatches(value, options.Index.DBConstraint) {
+			return false
+		}
+	}
+	for _, filter := range options.Filter {
+		if !constraintMatches(value, filter) {
+			return false
+		}
+	}
+	return true
+}
+
+func constraintMatches(value any, constraint DBConstraint) bool {
+	if constraint.Op != "eq" {
+		return false
+	}
+	actual, ok := nestedFieldValue(value, constraint.Field)
+	if !ok {
+		return false
+	}
+	return fmt.Sprintf("%v", actual) == fmt.Sprintf("%v", constraint.Value)
+}
+
+func nestedFieldValue(value any, fieldPath string) (any, bool) {
+	current := value
+	for _, segment := range strings.Split(strings.TrimSpace(fieldPath), ".") {
+		asMap, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		next, ok := asMap[segment]
+		if !ok {
+			return nil, false
+		}
+		current = next
+	}
+	return current, true
 }

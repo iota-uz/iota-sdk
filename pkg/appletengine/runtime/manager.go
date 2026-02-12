@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha1"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -318,6 +319,40 @@ func (m *Manager) DispatchJob(ctx context.Context, appletID, tenantID, jobID, me
 	return nil
 }
 
+func (m *Manager) DispatchWebsocketEvent(ctx context.Context, appletID, tenantID, connectionID, event string, data []byte) error {
+	process, err := m.EnsureStarted(ctx, appletID, "")
+	if err != nil {
+		return err
+	}
+	if process == nil {
+		return fmt.Errorf("applet runtime %q is disabled", appletID)
+	}
+	payload := map[string]any{
+		"appletId":     appletID,
+		"tenantId":     tenantID,
+		"connectionId": connectionID,
+		"event":        event,
+	}
+	if len(data) > 0 {
+		payload["dataBase64"] = encodeBase64(data)
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal websocket event payload: %w", err)
+	}
+	statusCode, err := m.postToAppletSocket(ctx, process.AppletSocket, "/__ws", body, map[string]string{
+		"X-Iota-Tenant-Id":  tenantID,
+		"X-Iota-Request-Id": fmt.Sprintf("ws-%s", connectionID),
+	})
+	if err != nil {
+		return err
+	}
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("applet websocket endpoint returned status %d", statusCode)
+	}
+	return nil
+}
+
 func (m *Manager) isShuttingDown() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -442,6 +477,10 @@ func (m *Manager) postToAppletSocket(ctx context.Context, socketPath, path strin
 	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return resp.StatusCode, nil
+}
+
+func encodeBase64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
 }
 
 func (m *Manager) resolveSocketPath(fileName string) string {
