@@ -111,7 +111,7 @@ const crashOnce = process.env.IOTA_TEST_CRASH_ONCE === "1"
 const markerPath = process.env.IOTA_TEST_CRASH_MARKER
 if (crashOnce && markerPath && !existsSync(markerPath)) {
   writeFileSync(markerPath, "1")
-  setTimeout(() => process.exit(1), 250)
+  setTimeout(() => process.exit(1), 2000)
 }
 
 Bun.serve({

@@ -9,31 +9,35 @@ import (
 	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 )
 
+type KVStore interface {
+	Get(ctx context.Context, key string) (any, error)
+	Set(ctx context.Context, key string, value any, ttlSeconds *int) error
+	Delete(ctx context.Context, key string) (bool, error)
+	MGet(ctx context.Context, keys []string) ([]any, error)
+}
+
 type KVStub struct {
+	store KVStore
+}
+
+type memoryKVStore struct {
 	mu    sync.RWMutex
 	store map[string]map[string]any
 }
 
-type kvGetParams struct {
-	Key string `json:"key"`
-}
-
-type kvSetParams struct {
-	Key        string `json:"key"`
-	Value      any    `json:"value"`
-	TTLSeconds *int   `json:"ttlSeconds,omitempty"`
-}
-
-type kvDelParams struct {
-	Key string `json:"key"`
-}
-
-type kvMGetParams struct {
-	Keys []string `json:"keys"`
-}
-
 func NewKVStub() *KVStub {
-	return &KVStub{
+	return &KVStub{store: newMemoryKVStore()}
+}
+
+func NewKVStubWithStore(store KVStore) *KVStub {
+	if store == nil {
+		store = newMemoryKVStore()
+	}
+	return &KVStub{store: store}
+}
+
+func newMemoryKVStore() *memoryKVStore {
+	return &memoryKVStore{
 		store: make(map[string]map[string]any),
 	}
 }
@@ -50,7 +54,7 @@ func (s *KVStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if key == "" {
 					return nil, fmt.Errorf("key is required: %w", applets.ErrInvalid)
 				}
-				return s.get(ctx, key), nil
+				return s.store.Get(ctx, key)
 			},
 		},
 		"set": {
@@ -63,7 +67,20 @@ func (s *KVStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if key == "" {
 					return nil, fmt.Errorf("key is required: %w", applets.ErrInvalid)
 				}
-				s.set(ctx, key, p["value"])
+				var ttlSeconds *int
+				if ttlRaw, ok := p["ttlSeconds"]; ok {
+					switch v := ttlRaw.(type) {
+					case float64:
+						ttl := int(v)
+						ttlSeconds = &ttl
+					case int:
+						ttl := v
+						ttlSeconds = &ttl
+					}
+				}
+				if err := s.store.Set(ctx, key, p["value"], ttlSeconds); err != nil {
+					return nil, err
+				}
 				return map[string]any{"ok": true}, nil
 			},
 		},
@@ -77,7 +94,7 @@ func (s *KVStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if key == "" {
 					return nil, fmt.Errorf("key is required: %w", applets.ErrInvalid)
 				}
-				return s.del(ctx, key), nil
+				return s.store.Delete(ctx, key)
 			},
 		},
 		"mget": {
@@ -93,7 +110,7 @@ func (s *KVStub) Register(registry *appletenginerpc.Registry, appletName string)
 						keys = append(keys, key)
 					}
 				}
-				return s.mget(ctx, keys), nil
+				return s.store.MGet(ctx, keys)
 			},
 		},
 	}
@@ -112,22 +129,22 @@ func (s *KVStub) Register(registry *appletenginerpc.Registry, appletName string)
 	return nil
 }
 
-func (s *KVStub) get(ctx context.Context, key string) any {
+func (s *memoryKVStore) Get(ctx context.Context, key string) (any, error) {
 	scope := scopeFromContext(ctx)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	bucket := s.store[scope]
 	if bucket == nil {
-		return nil
+		return nil, nil
 	}
 	value, ok := bucket[key]
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return value
+	return value, nil
 }
 
-func (s *KVStub) set(ctx context.Context, key string, value any) {
+func (s *memoryKVStore) Set(ctx context.Context, key string, value any, _ *int) error {
 	scope := scopeFromContext(ctx)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -137,29 +154,34 @@ func (s *KVStub) set(ctx context.Context, key string, value any) {
 		s.store[scope] = bucket
 	}
 	bucket[key] = value
+	return nil
 }
 
-func (s *KVStub) del(ctx context.Context, key string) bool {
+func (s *memoryKVStore) Delete(ctx context.Context, key string) (bool, error) {
 	scope := scopeFromContext(ctx)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bucket := s.store[scope]
 	if bucket == nil {
-		return false
+		return false, nil
 	}
 	if _, exists := bucket[key]; !exists {
-		return false
+		return false, nil
 	}
 	delete(bucket, key)
-	return true
+	return true, nil
 }
 
-func (s *KVStub) mget(ctx context.Context, keys []string) []any {
+func (s *memoryKVStore) MGet(ctx context.Context, keys []string) ([]any, error) {
 	values := make([]any, 0, len(keys))
 	for _, key := range keys {
-		values = append(values, s.get(ctx, key))
+		value, err := s.Get(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, value)
 	}
-	return values
+	return values, nil
 }
 
 func scopeFromContext(ctx context.Context) string {

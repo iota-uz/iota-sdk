@@ -213,6 +213,15 @@ Slice 1 includes non-user-facing Bun runtime plumbing for BiChat.
 
 In slice 1, `kv`/`db` are in-memory server-only stubs used for runtime validation.
 
+### Slice 2 kickoff: Redis KV backend (BiChat)
+
+An optional Redis backend is available for BiChat server-only `kv.*` methods.
+
+- `IOTA_APPLET_ENGINE_BICHAT_KV_BACKEND=redis`
+- `IOTA_APPLET_ENGINE_REDIS_URL=redis://localhost:6379`
+
+If Redis backend is enabled without `IOTA_APPLET_ENGINE_REDIS_URL`, app startup fails fast.
+
 ## Translations
 
 The backend injects translations into `ctx.locale.translations` (consumed via `useTranslation()`).

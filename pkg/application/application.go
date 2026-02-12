@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"reflect"
 	goruntime "runtime"
@@ -387,6 +388,14 @@ func (app *application) CreateAppletControllers(
 	}
 	if hasBiChat {
 		kvStub := appletenginehandlers.NewKVStub()
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_KV_BACKEND")), "redis") {
+			redisURL := strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_REDIS_URL"))
+			redisKVStore, err := appletenginehandlers.NewRedisKVStore(redisURL)
+			if err != nil {
+				return nil, fmt.Errorf("configure redis kv store for bichat: %w", err)
+			}
+			kvStub = appletenginehandlers.NewKVStubWithStore(redisKVStore)
+		}
 		if err := kvStub.Register(rpcRegistry, "bichat"); err != nil {
 			return nil, err
 		}

@@ -1,4 +1,14 @@
-import { auth, db, defineApplet, kv } from '../../../../applets/ui/src/applet-runtime/index.ts'
+type RuntimeSDK = typeof import('@iota-uz/sdk/applet-runtime')
+
+async function loadRuntimeSDK(): Promise<RuntimeSDK> {
+  try {
+    return await import('@iota-uz/sdk/applet-runtime')
+  } catch {
+    return await import('../../../../applets/ui/src/applet-runtime/index.ts')
+  }
+}
+
+const { auth, db, defineApplet, kv } = await loadRuntimeSDK()
 
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {

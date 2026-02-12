@@ -147,3 +147,20 @@ func TestCreateAppletControllers_GlobalRPCServesBiChatNamespacedMethod(t *testin
 	assert.Contains(t, res.Body.String(), `"jsonrpc":"2.0"`)
 	assert.Contains(t, res.Body.String(), `"ok":true`)
 }
+
+func TestCreateAppletControllers_BiChatRedisKVRequiresURL(t *testing.T) {
+	t.Setenv("IOTA_APPLET_ENGINE_BICHAT_KV_BACKEND", "redis")
+	t.Setenv("IOTA_APPLET_ENGINE_REDIS_URL", "")
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure redis kv store for bichat")
+}
