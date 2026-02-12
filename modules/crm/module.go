@@ -94,7 +94,6 @@ func (m *Module) Register(app application.Application) error {
 	}
 
 	app.RegisterLocaleFiles(&LocaleFiles)
-	app.Migrations().RegisterSchema(&MigrationFiles)
 	return nil
 }
 

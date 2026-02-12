@@ -1,0 +1,29 @@
+{
+  "id": "analytics_baseline_v1",
+  "description": "Deterministic finance-oriented dataset for BiChat analytics evals. Records are namespaced with EVAL_ANALYTICS_BASELINE_V1 marker.",
+  "tables": [
+    "counterparty",
+    "money_accounts",
+    "transactions",
+    "payments",
+    "expenses",
+    "expense_categories",
+    "payment_categories",
+    "inventory"
+  ],
+  "oracle_keys": [
+    "analytics_baseline_v1.acme_q1_total_minor",
+    "analytics_baseline_v1.acme_q1_tx_count",
+    "analytics_baseline_v1.q1_top_counterparty",
+    "analytics_baseline_v1.q1_top_amount_minor",
+    "analytics_baseline_v1.q1_second_place_tied_names",
+    "analytics_baseline_v1.q1_second_amount_minor",
+    "analytics_baseline_v1.q1_total_income_minor",
+    "analytics_baseline_v1.q2_total_income_minor",
+    "analytics_baseline_v1.q1_vs_q2_delta_minor",
+    "analytics_baseline_v1.q1_vs_q2_pct_change",
+    "analytics_baseline_v1.q1_total_expense_minor",
+    "analytics_baseline_v1.feb_total_expense_minor",
+    "analytics_baseline_v1.q1_net_cashflow_minor"
+  ]
+}

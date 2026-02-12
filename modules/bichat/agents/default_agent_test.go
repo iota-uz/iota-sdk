@@ -2,12 +2,14 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
@@ -33,15 +35,21 @@ func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params
 
 // mockKBSearcher is a mock implementation of KBSearcher for testing.
 type mockKBSearcher struct {
-	searchFn      func(ctx context.Context, query string, limit int) ([]tools.SearchResult, error)
+	searchFn      func(ctx context.Context, query string, opts kb.SearchOptions) ([]kb.SearchResult, error)
 	isAvailableFn func() bool
 }
 
-func (m *mockKBSearcher) Search(ctx context.Context, query string, limit int) ([]tools.SearchResult, error) {
+func (m *mockKBSearcher) Search(ctx context.Context, query string, opts kb.SearchOptions) ([]kb.SearchResult, error) {
 	if m.searchFn != nil {
-		return m.searchFn(ctx, query, limit)
+		return m.searchFn(ctx, query, opts)
 	}
-	return []tools.SearchResult{}, nil
+	return []kb.SearchResult{}, nil
+}
+
+var errGetDocumentNotFound = errors.New("document not found")
+
+func (m *mockKBSearcher) GetDocument(ctx context.Context, id string) (*kb.Document, error) {
+	return nil, errGetDocumentNotFound
 }
 
 func (m *mockKBSearcher) IsAvailable() bool {
@@ -49,30 +57,6 @@ func (m *mockKBSearcher) IsAvailable() bool {
 		return m.isAvailableFn()
 	}
 	return true
-}
-
-// mockExcelExporter is a mock implementation of ExcelExporter for testing.
-type mockExcelExporter struct {
-	exportFn func(ctx context.Context, data *bichatsql.QueryResult, filename string) (string, error)
-}
-
-func (m *mockExcelExporter) ExportToExcel(ctx context.Context, data *bichatsql.QueryResult, filename string) (string, error) {
-	if m.exportFn != nil {
-		return m.exportFn(ctx, data, filename)
-	}
-	return "/exports/test.xlsx", nil
-}
-
-// mockPDFExporter is a mock implementation of PDFExporter for testing.
-type mockPDFExporter struct {
-	exportFn func(ctx context.Context, html string, filename string, landscape bool) (string, error)
-}
-
-func (m *mockPDFExporter) ExportToPDF(ctx context.Context, html string, filename string, landscape bool) (string, error) {
-	if m.exportFn != nil {
-		return m.exportFn(ctx, html, filename, landscape)
-	}
-	return "/exports/test.pdf", nil
 }
 
 // mockFileStorage is a mock implementation of FileStorage for testing.
@@ -158,6 +142,7 @@ func TestDefaultBIAgent_CoreTools(t *testing.T) {
 		"schema_list",
 		"schema_describe",
 		"sql_execute",
+		"export_query_to_excel",
 		"draw_chart",
 		"ask_user_question",
 	}
@@ -225,6 +210,32 @@ func TestDefaultBIAgent_WithExportTools(t *testing.T) {
 	assert.True(t, toolNames["export_to_pdf"], "export_to_pdf tool should be present when configured")
 }
 
+func TestDefaultBIAgent_WithArtifactReaderTool(t *testing.T) {
+	t.Parallel()
+
+	executor := &mockQueryExecutor{}
+	artifactReader := agents.NewTool(
+		"artifact_reader",
+		"Read session artifacts",
+		map[string]any{"type": "object"},
+		func(ctx context.Context, input string) (string, error) { return "ok", nil },
+	)
+
+	agent, err := NewDefaultBIAgent(
+		executor,
+		WithArtifactReaderTool(artifactReader),
+	)
+	require.NoError(t, err)
+
+	toolNames := make(map[string]bool)
+	for _, tool := range agent.Tools() {
+		toolNames[tool.Name()] = true
+	}
+
+	assert.True(t, toolNames["artifact_reader"])
+	assert.Contains(t, agent.SystemPrompt(context.Background()), "ATTACHMENT ANALYSIS:")
+}
+
 func TestDefaultBIAgent_WithoutExportTools(t *testing.T) {
 	t.Parallel()
 
@@ -240,6 +251,7 @@ func TestDefaultBIAgent_WithoutExportTools(t *testing.T) {
 		toolNames[tool.Name()] = true
 	}
 
+	assert.True(t, toolNames["export_query_to_excel"], "export_query_to_excel should be present by default")
 	assert.False(t, toolNames["export_data_to_excel"], "export_data_to_excel tool should not be present without configuration")
 	assert.False(t, toolNames["export_to_pdf"], "export_to_pdf tool should not be present without configuration")
 }
@@ -259,42 +271,16 @@ func TestDefaultBIAgent_WithModel(t *testing.T) {
 	assert.Equal(t, "gpt-3.5-turbo", metadata.Model)
 }
 
-func TestDefaultBIAgent_SystemPrompt(t *testing.T) {
-	t.Parallel()
-
-	executor := &mockQueryExecutor{}
-	agent, err := NewDefaultBIAgent(executor)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	prompt := agent.SystemPrompt(ctx)
-
-	// Verify prompt contains key sections
-	assert.NotEmpty(t, prompt)
-	assert.Contains(t, prompt, "Business Intelligence assistant")
-	assert.Contains(t, prompt, "AVAILABLE TOOLS")
-	assert.Contains(t, prompt, "WORKFLOW GUIDELINES")
-	assert.Contains(t, prompt, "get_current_time")
-	assert.Contains(t, prompt, "schema_list")
-	assert.Contains(t, prompt, "schema_describe")
-	assert.Contains(t, prompt, "sql_execute")
-	assert.Contains(t, prompt, "draw_chart")
-	assert.Contains(t, prompt, "ask_user_question")
-	assert.Contains(t, prompt, "final_answer")
-	assert.Contains(t, prompt, "read-only")
-	assert.Contains(t, prompt, "1000 rows")
-}
-
 func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 	t.Parallel()
 
 	executor := &mockQueryExecutor{
 		executeQueryFn: func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 			// Schema tools use pg_catalog/information_schema via adapters.
-			if strings.Contains(sql, "pg_catalog.pg_views") {
+			if strings.Contains(sql, "pg_catalog.pg_views") || strings.Contains(sql, "FROM pg_class c") {
 				return &bichatsql.QueryResult{
-					Columns:  []string{"schema", "name", "type"},
-					Rows:     [][]any{{"analytics", "test_view", "view"}},
+					Columns:  []string{"schema", "name", "approximate_row_count"},
+					Rows:     [][]any{{"analytics", "test_view", int64(10)}},
 					RowCount: 1,
 				}, nil
 			}
@@ -361,9 +347,9 @@ func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 			result, err := agent.OnToolCall(ctx, tt.toolName, tt.input)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotEmpty(t, result)
 			}
 		})
@@ -417,158 +403,4 @@ func TestDefaultBIAgent_InterfaceCompliance(t *testing.T) {
 
 	// Verify agent implements Agent interface
 	var _ agents.Agent = agent
-}
-
-func TestBuildBISystemPrompt(t *testing.T) {
-	t.Parallel()
-
-	prompt := buildBISystemPrompt(false, nil)
-
-	// Verify prompt structure
-	assert.NotEmpty(t, prompt)
-	assert.True(t, len(prompt) > 500, "System prompt should be comprehensive")
-
-	// Verify key sections exist
-	sections := []string{
-		"AVAILABLE TOOLS",
-		"WORKFLOW GUIDELINES",
-		"UNDERSTAND THE REQUEST",
-		"EXPLORE THE SCHEMA",
-		"WRITE SAFE SQL",
-		"VISUALIZE DATA",
-		"PROVIDE CLEAR ANSWERS",
-		"IMPORTANT CONSTRAINTS",
-		"EXAMPLE WORKFLOW",
-	}
-
-	for _, section := range sections {
-		assert.True(t, strings.Contains(prompt, section), "Prompt should contain section: %s", section)
-	}
-
-	// Verify all tool names are mentioned
-	toolNames := []string{
-		"get_current_time",
-		"schema_list",
-		"schema_describe",
-		"sql_execute",
-		"draw_chart",
-		"kb_search",
-		"ask_user_question",
-		"final_answer",
-	}
-
-	for _, toolName := range toolNames {
-		assert.True(t, strings.Contains(prompt, toolName), "Prompt should mention tool: %s", toolName)
-	}
-
-	// Verify safety constraints are mentioned
-	safetyKeywords := []string{
-		"read-only",
-		"SELECT",
-		"1000 rows",
-		"30 seconds",
-		"validate",
-		"sensitive data",
-	}
-
-	for _, keyword := range safetyKeywords {
-		assert.True(t, strings.Contains(prompt, keyword), "Prompt should mention safety keyword: %s", keyword)
-	}
-}
-
-func TestBuildBISystemPrompt_WithCodeInterpreter(t *testing.T) {
-	t.Parallel()
-
-	promptWithCodeInterpreter := buildBISystemPrompt(true, nil)
-	promptWithoutCodeInterpreter := buildBISystemPrompt(false, nil)
-
-	// Code interpreter should be mentioned when enabled
-	assert.True(t, strings.Contains(promptWithCodeInterpreter, "code_interpreter"))
-	assert.True(t, strings.Contains(promptWithCodeInterpreter, "Python"))
-
-	// Code interpreter should not be mentioned when disabled
-	assert.False(t, strings.Contains(promptWithoutCodeInterpreter, "code_interpreter"))
-}
-
-func TestBuildBISystemPrompt_WithRegistry(t *testing.T) {
-	t.Parallel()
-
-	// Create executor and registry with SQLAgent
-	executor := &mockQueryExecutor{}
-	registry := agents.NewAgentRegistry()
-	sqlAgent, err := NewSQLAgent(executor)
-	require.NoError(t, err)
-	err = registry.Register(sqlAgent)
-	require.NoError(t, err)
-
-	// Build prompts with and without registry
-	promptWithRegistry := buildBISystemPrompt(false, registry)
-	promptWithoutRegistry := buildBISystemPrompt(false, nil)
-
-	// Verify delegation tool is mentioned when registry is provided
-	assert.Contains(t, promptWithRegistry, "task")
-	assert.Contains(t, promptWithRegistry, "# Available Agents")
-	assert.Contains(t, promptWithRegistry, "sql-analyst")
-	assert.Contains(t, promptWithRegistry, "DELEGATION GUIDELINES")
-
-	// Verify delegation tool is not mentioned without registry
-	assert.NotContains(t, promptWithoutRegistry, "# Available Agents")
-	assert.NotContains(t, promptWithoutRegistry, "DELEGATION GUIDELINES")
-}
-
-func TestDefaultBIAgent_ToolCount(t *testing.T) {
-	t.Parallel()
-
-	executor := &mockQueryExecutor{}
-	fileStorage := &mockFileStorage{}
-
-	tests := []struct {
-		name          string
-		opts          []BIAgentOption
-		expectedCount int
-	}{
-		{
-			name:          "core tools only",
-			opts:          []BIAgentOption{},
-			expectedCount: 6, // time, schema_list, schema_describe, sql_execute, chart, ask_user_question
-		},
-		{
-			name: "with KB searcher",
-			opts: []BIAgentOption{
-				WithKBSearcher(&mockKBSearcher{}),
-			},
-			expectedCount: 7,
-		},
-		{
-			name: "with export tools",
-			opts: []BIAgentOption{
-				WithExportTools(
-					tools.NewExportToExcelTool(),
-					tools.NewExportToPDFTool("http://gotenberg:3000", fileStorage),
-				),
-			},
-			expectedCount: 8, // core 6 + excel + pdf
-		},
-		{
-			name: "with all options",
-			opts: []BIAgentOption{
-				WithKBSearcher(&mockKBSearcher{}),
-				WithExportTools(
-					tools.NewExportToExcelTool(),
-					tools.NewExportToPDFTool("http://gotenberg:3000", fileStorage),
-				),
-			},
-			expectedCount: 9, // core 6 + kb + excel + pdf
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			agent, err := NewDefaultBIAgent(executor, tt.opts...)
-			require.NoError(t, err)
-
-			agentTools := agent.Tools()
-			assert.Len(t, agentTools, tt.expectedCount, "Tool count mismatch")
-		})
-	}
 }

@@ -152,11 +152,8 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 		return "", fmt.Errorf("agent %q not found; available agents: %v", args.SubagentType, availableAgents)
 	}
 
-	// Type assert to ExtendedAgent (required for delegation)
-	extendedAgent, ok := childAgent.(ExtendedAgent)
-	if !ok {
-		return "", fmt.Errorf("agent %q does not implement ExtendedAgent interface", args.SubagentType)
-	}
+	// Get returns ExtendedAgent; use directly.
+	extendedAgent := childAgent
 
 	// If no model is configured, just return agent metadata (useful for testing)
 	if t.model == nil {
@@ -179,7 +176,7 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 	// Prepare child messages
 	metadata := extendedAgent.Metadata()
 	taskMessage := types.UserMessage(args.Prompt)
-	childMessages := []types.Message{*taskMessage}
+	childMessages := []types.Message{taskMessage}
 
 	// Create child executor with filtered tools to prevent recursion
 	// CRITICAL: Remove delegation tool from child's tool list
@@ -212,7 +209,7 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 		switch event.Type {
 		case EventTypeDone:
 			if event.Result != nil {
-				finalContent = event.Result.Message.Content
+				finalContent = event.Result.Message.Content()
 				finalUsage = event.Result.Usage
 			}
 		case EventTypeError:
@@ -220,6 +217,8 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 		case EventTypeInterrupt:
 			// Child agent requested user interaction - not supported in delegation
 			return "", fmt.Errorf("child agent %q requested interrupt (not supported in delegation)", args.SubagentType)
+		case EventTypeChunk, EventTypeToolStart, EventTypeToolEnd:
+			// no-op (we only care about Done/Error/Interrupt)
 		}
 	}
 

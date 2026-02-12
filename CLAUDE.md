@@ -29,18 +29,20 @@ iota-sdk is a general purpose ERP building engine/solution. When designing anyth
 go vet ./...
 
 # After template/css changes  
-templ generate && make css
+templ generate && just css
 
 # Testing
-make test                          # All tests
+just test -v                       # All tests (verbose)
 go test -v ./path -run TestName    # Single test
 
 # Other
-make check tr                      # Validate translations
-make db migrate up                 # Apply migrations
+just check tr                      # Validate translations
+just db migrate up                 # Apply migrations
 ```
 
 **Never run `go build`** - use `go vet` instead.
+
+**NPM @iota-uz/sdk** is published from the applets repo (tag v0.x.x). Do not add a publish workflow in iota-sdk.
 
 ## Module Architecture (DDD)
 
@@ -68,7 +70,7 @@ modules/{module}/
 5. **Templates**: `templates/pages/{entity}/` - list.templ, edit.templ, new.templ
 6. **Localization**: Add keys to en/ru/uz.json
 7. **Registration**: Add to `module.go`, `links.go`
-8. **Verify**: `go vet ./...` and `templ generate && make css`
+8. **Verify**: `go vet ./...` and `templ generate && just css`
 
 ## Multi-Agent Orchestration
 
@@ -104,15 +106,14 @@ general-purpose && editor && auditor
 
 ## E2E Testing
 
-**ALWAYS use `e2e-tester` agent for:**
-- Writing Playwright tests
-- Debugging failing tests
-- Creating fixtures/page objects
+Use the `/e2e-testing` skill for setup, running, and debugging E2E tests locally.
+Always reproduce and fix locally before pushing to CI.
 
 ```bash
-make e2e run      # Interactive UI mode
-make e2e ci       # Headless CI mode
-cd e2e && npx playwright test tests/module/specific.spec.ts  # Single test
+just e2e dev      # Start E2E server (hot-reload)
+just e2e run      # Interactive Playwright UI
+just e2e ci       # Headless CI mode
+cd e2e && npx playwright test tests/module/specific.spec.ts:LINE  # Single test by line
 ```
 
 ## Technology Stack

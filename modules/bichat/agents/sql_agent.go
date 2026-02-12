@@ -2,8 +2,10 @@ package agents
 
 import (
 	_ "embed"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -34,8 +36,9 @@ var sqlAgentPrompt string
 //	registry.Register(sqlAgent)
 type SQLAgent struct {
 	*agents.BaseAgent
-	executor bichatsql.QueryExecutor
-	model    string
+	executor   bichatsql.QueryExecutor
+	model      string
+	viewAccess permissions.ViewAccessControl
 }
 
 // SQLAgentOption is a functional option for configuring SQLAgent.
@@ -45,6 +48,13 @@ type SQLAgentOption func(*SQLAgent)
 func WithSQLAgentModel(model string) SQLAgentOption {
 	return func(a *SQLAgent) {
 		a.model = model
+	}
+}
+
+// WithSQLAgentViewAccess enables permission-based view access control for SQL execution.
+func WithSQLAgentViewAccess(vac permissions.ViewAccessControl) SQLAgentOption {
+	return func(a *SQLAgent) {
+		a.viewAccess = vac
 	}
 }
 
@@ -72,14 +82,17 @@ func NewSQLAgent(
 	}
 
 	// Create schema adapters using the query executor
-	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor)
+	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor,
+		bichatsql.WithCountCacheTTL(10*time.Minute),
+		bichatsql.WithCacheKeyFunc(tenantCacheKey),
+	)
 	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor)
 
-	// Build core tools list (SQL-specific only)
+	// Build core tools list (SQL-specific only) with optional view access control
 	agentTools := []agents.Tool{
-		tools.NewSchemaListTool(schemaLister),
-		tools.NewSchemaDescribeTool(schemaDescriber),
-		tools.NewSQLExecuteTool(executor),
+		tools.NewSchemaListTool(schemaLister, tools.WithSchemaListViewAccess(agent.viewAccess)),
+		tools.NewSchemaDescribeTool(schemaDescriber, tools.WithSchemaDescribeViewAccess(agent.viewAccess)),
+		tools.NewSQLExecuteTool(executor, tools.WithViewAccessControl(agent.viewAccess)),
 	}
 
 	// Create base agent with configured model

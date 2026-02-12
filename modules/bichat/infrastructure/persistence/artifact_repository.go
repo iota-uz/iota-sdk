@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
@@ -39,6 +38,10 @@ const (
 		DELETE FROM bichat.artifacts
 		WHERE tenant_id = $1 AND id = $2
 	`
+	deleteSessionArtifactsQuery = `
+		DELETE FROM bichat.artifacts
+		WHERE tenant_id = $1 AND session_id = $2
+	`
 	updateArtifactQuery = `
 		UPDATE bichat.artifacts
 		SET name = $1, description = $2
@@ -49,7 +52,7 @@ const (
 var ErrArtifactNotFound = errors.New("artifact not found")
 
 // SaveArtifact persists an artifact with tenant isolation.
-func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact *domain.Artifact) error {
+func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
 	const op serrors.Op = "PostgresChatRepository.SaveArtifact"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -60,10 +63,6 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact *dom
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return serrors.E(op, err)
-	}
-
-	if artifact.CreatedAt.IsZero() {
-		artifact.CreatedAt = time.Now()
 	}
 
 	model, err := models.ArtifactModelFromDomain(artifact)
@@ -114,7 +113,7 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact *dom
 }
 
 // GetArtifact retrieves an artifact by ID.
-func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (*domain.Artifact, error) {
+func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
 	const op serrors.Op = "PostgresChatRepository.GetArtifact"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -153,7 +152,7 @@ func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) 
 }
 
 // GetSessionArtifacts returns artifacts for a session with pagination and optional type filter.
-func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Artifact, error) {
+func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
 	const op serrors.Op = "PostgresChatRepository.GetSessionArtifacts"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -201,7 +200,7 @@ func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessio
 	}
 	defer rows.Close()
 
-	var artifacts []*domain.Artifact
+	var artifacts []domain.Artifact
 	for rows.Next() {
 		var m models.ArtifactModel
 		err := rows.Scan(
@@ -257,6 +256,28 @@ func (r *PostgresChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUI
 	}
 
 	return nil
+}
+
+// DeleteSessionArtifacts removes all artifacts in a session and returns the number deleted.
+func (r *PostgresChatRepository) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
+	const op serrors.Op = "PostgresChatRepository.DeleteSessionArtifacts"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	result, err := tx.Exec(ctx, deleteSessionArtifactsQuery, tenantID, sessionID)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	return result.RowsAffected(), nil
 }
 
 // UpdateArtifact updates an artifact's name and description.

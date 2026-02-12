@@ -1,13 +1,17 @@
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+)
 
 // InterruptType identifies the type of interrupt.
 type InterruptType string
 
 const (
 	// InterruptTypeAskUserQuestion indicates a HITL interrupt waiting for user answers.
-	InterruptTypeAskUserQuestion InterruptType = "ask_user_question"
+	InterruptTypeAskUserQuestion InterruptType = "ASK_USER_QUESTION"
 )
 
 // AskUserQuestion represents a single question in a HITL interrupt.
@@ -34,7 +38,7 @@ type QuestionMetadata struct {
 // AskUserQuestionPayload represents the canonical HITL interrupt payload.
 // This is stored in InterruptEvent.Data and used for resume validation.
 type AskUserQuestionPayload struct {
-	Type      InterruptType     `json:"type"`               // "ask_user_question"
+	Type      InterruptType     `json:"type"`               // "ASK_USER_QUESTION"
 	Questions []AskUserQuestion `json:"questions"`          // The questions to ask (with stable IDs)
 	Metadata  *QuestionMetadata `json:"metadata,omitempty"` // Optional metadata
 }
@@ -67,12 +71,104 @@ func (a Answer) Strings() []string {
 
 // NewAnswer creates an Answer from a string (single-select).
 func NewAnswer(s string) Answer {
-	value, _ := json.Marshal(s)
+	value, err := json.Marshal(s)
+	if err != nil {
+		return Answer{Value: []byte("null")}
+	}
 	return Answer{Value: value}
 }
 
 // NewMultiAnswer creates an Answer from a string slice (multi-select).
 func NewMultiAnswer(ss []string) Answer {
-	value, _ := json.Marshal(ss)
+	value, err := json.Marshal(ss)
+	if err != nil {
+		return Answer{Value: []byte("null")}
+	}
 	return Answer{Value: value}
+}
+
+// QuestionStatus represents the lifecycle state of a HITL question.
+type QuestionStatus string
+
+const (
+	QuestionStatusPending  QuestionStatus = "PENDING"
+	QuestionStatusAnswered QuestionStatus = "ANSWERED"
+	QuestionStatusRejected QuestionStatus = "REJECTED"
+)
+
+var (
+	ErrInvalidQuestionTransition = errors.New("invalid question status transition")
+	ErrQuestionDataInvalid       = errors.New("invalid question data")
+)
+
+// QuestionData holds the HITL question state stored in a message's question_data JSONB column.
+// It is the single source of truth for whether a question is pending, answered, or rejected.
+type QuestionData struct {
+	CheckpointID string             `json:"checkpointId"`
+	Status       QuestionStatus     `json:"status"`
+	AgentName    string             `json:"agentName"`
+	Questions    []QuestionDataItem `json:"questions"`
+	Answers      map[string]string  `json:"answers,omitempty"`
+}
+
+// QuestionDataItem represents a single question in the HITL payload.
+type QuestionDataItem struct {
+	ID      string               `json:"id"`
+	Text    string               `json:"text"`
+	Type    string               `json:"type"` // "single_choice" or "multiple_choice"
+	Options []QuestionDataOption `json:"options"`
+}
+
+// QuestionDataOption represents a selectable option for a question.
+type QuestionDataOption struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// NewQuestionData constructs a QuestionData in pending state.
+// Returns error if invariants are violated.
+func NewQuestionData(checkpointID, agentName string, questions []QuestionDataItem) (*QuestionData, error) {
+	if checkpointID == "" {
+		return nil, fmt.Errorf("%w: checkpointID required", ErrQuestionDataInvalid)
+	}
+	if len(questions) == 0 {
+		return nil, fmt.Errorf("%w: at least one question required", ErrQuestionDataInvalid)
+	}
+	for _, q := range questions {
+		if len(q.Options) < 2 {
+			return nil, fmt.Errorf("%w: question %q must have at least 2 options", ErrQuestionDataInvalid, q.ID)
+		}
+	}
+	return &QuestionData{
+		CheckpointID: checkpointID,
+		Status:       QuestionStatusPending,
+		AgentName:    agentName,
+		Questions:    questions,
+	}, nil
+}
+
+// Answer transitions from pending to answered.
+func (qd *QuestionData) Answer(answers map[string]string) (*QuestionData, error) {
+	if qd.Status != QuestionStatusPending {
+		return nil, fmt.Errorf("%w: cannot answer from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	next := *qd
+	next.Status = QuestionStatusAnswered
+	next.Answers = answers
+	return &next, nil
+}
+
+// Reject transitions from pending to rejected.
+func (qd *QuestionData) Reject() (*QuestionData, error) {
+	if qd.Status != QuestionStatusPending {
+		return nil, fmt.Errorf("%w: cannot reject from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	next := *qd
+	next.Status = QuestionStatusRejected
+	return &next, nil
+}
+
+// IsPending returns true if the question is in pending state.
+func (qd *QuestionData) IsPending() bool {
+	return qd != nil && qd.Status == QuestionStatusPending
 }

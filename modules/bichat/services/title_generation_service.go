@@ -73,8 +73,7 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 		return serrors.E(op, err, "failed to get session")
 	}
 
-	// Skip if session already has a title
-	if session.Title != "" {
+	if session.Title() != "" {
 		return nil
 	}
 
@@ -95,11 +94,11 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 	// Extract first user message
 	var userMsg, assistantMsg string
 	for _, msg := range messages {
-		if msg.Role == types.RoleUser && userMsg == "" {
-			userMsg = msg.Content
+		if msg.Role() == types.RoleUser && userMsg == "" {
+			userMsg = msg.Content()
 		}
-		if msg.Role == types.RoleAssistant && assistantMsg == "" {
-			assistantMsg = msg.Content
+		if msg.Role() == types.RoleAssistant && assistantMsg == "" {
+			assistantMsg = msg.Content()
 		}
 	}
 
@@ -120,9 +119,8 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 		return nil // Give up, keep empty title
 	}
 
-	// Update session title
-	session.Title = title
-	if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
+	updated := session.UpdateTitle(title)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return serrors.E(op, err, "failed to update session title")
 	}
 
@@ -160,10 +158,7 @@ func (s *titleGenerationService) generateTitleWithLLM(ctx context.Context, userM
 	// Create request
 	req := agents.Request{
 		Messages: []types.Message{
-			{
-				Role:    types.RoleUser,
-				Content: prompt,
-			},
+			types.UserMessage(prompt),
 		},
 	}
 
@@ -173,7 +168,7 @@ func (s *titleGenerationService) generateTitleWithLLM(ctx context.Context, userM
 		return "", serrors.E(op, err, "LLM generation failed")
 	}
 
-	title := strings.TrimSpace(resp.Message.Content)
+	title := strings.TrimSpace(resp.Message.Content())
 	return title, nil
 }
 

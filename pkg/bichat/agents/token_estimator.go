@@ -90,17 +90,17 @@ func (e *TiktokenEstimator) EstimateMessages(ctx context.Context, messages []typ
 		totalTokens += 4 // Overhead per message
 
 		// Role tokens
-		roleTokens := tkm.Encode(string(msg.Role), nil, nil)
+		roleTokens := tkm.Encode(string(msg.Role()), nil, nil)
 		totalTokens += len(roleTokens)
 
 		// Content tokens
-		if msg.Content != "" {
-			contentTokens := tkm.Encode(msg.Content, nil, nil)
+		if msg.Content() != "" {
+			contentTokens := tkm.Encode(msg.Content(), nil, nil)
 			totalTokens += len(contentTokens)
 		}
 
 		// Tool calls tokens (if present)
-		for _, toolCall := range msg.ToolCalls {
+		for _, toolCall := range msg.ToolCalls() {
 			// Tool name
 			nameTokens := tkm.Encode(toolCall.Name, nil, nil)
 			totalTokens += len(nameTokens)
@@ -184,13 +184,13 @@ func (e *CharacterBasedEstimator) EstimateMessages(ctx context.Context, messages
 		totalTokens += 1
 
 		// Content tokens
-		if msg.Content != "" {
-			contentChars := len(strings.TrimSpace(msg.Content))
+		if msg.Content() != "" {
+			contentChars := len(strings.TrimSpace(msg.Content()))
 			totalTokens += int(float64(contentChars) / e.charsPerToken)
 		}
 
 		// Tool calls tokens
-		for _, toolCall := range msg.ToolCalls {
+		for _, toolCall := range msg.ToolCalls() {
 			// Tool name (~2-5 tokens)
 			nameChars := len(toolCall.Name)
 			totalTokens += int(float64(nameChars)/e.charsPerToken) + 1

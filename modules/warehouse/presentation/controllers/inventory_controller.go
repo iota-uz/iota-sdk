@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -69,7 +70,6 @@ func (c *InventoryController) Register(r *mux.Router) {
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
@@ -188,7 +188,11 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.inventoryService.Create(r.Context(), &dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.inventoryService.Create(txCtx, &dto)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -245,7 +249,11 @@ func (c *InventoryController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.inventoryService.Delete(r.Context(), id); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.inventoryService.Delete(txCtx, id)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -282,7 +290,10 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 		templ.Handler(inventory2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-	if err := c.inventoryService.Update(r.Context(), id, &dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		return c.inventoryService.Update(txCtx, id, &dto)
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

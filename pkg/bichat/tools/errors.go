@@ -3,6 +3,9 @@ package tools
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // ToolErrorCode represents a category of tool error for LLM self-correction.
@@ -32,6 +35,31 @@ const (
 	// ErrCodeServiceUnavailable indicates external service is down or unreachable.
 	// LLM should retry or use alternative approach.
 	ErrCodeServiceUnavailable ToolErrorCode = "SERVICE_UNAVAILABLE"
+
+	// ErrCodePermissionDenied indicates the user lacks permission to access the requested resource.
+	// LLM should inform the user to contact administrator for access.
+	ErrCodePermissionDenied ToolErrorCode = "PERMISSION_DENIED"
+
+	// SQL-specific error codes for structured diagnostics
+	// ErrCodeColumnNotFound indicates a referenced column does not exist in the table.
+	// LLM should use schema_describe to verify column names.
+	ErrCodeColumnNotFound ToolErrorCode = "COLUMN_NOT_FOUND"
+
+	// ErrCodeTableNotFound indicates a referenced table does not exist.
+	// LLM should use schema_list to find the correct table name.
+	ErrCodeTableNotFound ToolErrorCode = "TABLE_NOT_FOUND"
+
+	// ErrCodeTypeMismatch indicates column type does not match expected type.
+	// LLM should use schema_describe to check column types and cast appropriately.
+	ErrCodeTypeMismatch ToolErrorCode = "TYPE_MISMATCH"
+
+	// ErrCodeSyntaxError indicates invalid SQL syntax.
+	// LLM should review and fix the SQL syntax.
+	ErrCodeSyntaxError ToolErrorCode = "SYNTAX_ERROR"
+
+	// ErrCodeAmbiguousColumn indicates a column reference is ambiguous (exists in multiple tables).
+	// LLM should qualify the column with table alias.
+	ErrCodeAmbiguousColumn ToolErrorCode = "AMBIGUOUS_COLUMN"
 )
 
 // ToolError represents a structured error with hints for LLM self-correction.
@@ -71,22 +99,29 @@ func (e *ToolError) Error() string {
 //	  }
 //	}
 func FormatToolError(code ToolErrorCode, message string, hints ...string) string {
-	toolErr := ToolError{
-		Code:    code,
+	payload := types.ToolErrorPayload{
+		Code:    string(code),
 		Message: message,
 		Hints:   hints,
 	}
-
-	wrapper := map[string]interface{}{
-		"error": toolErr,
+	registry := formatters.DefaultFormatterRegistry()
+	if f := registry.Get(types.CodecToolError); f != nil {
+		s, err := f.Format(payload, types.DefaultFormatOptions())
+		if err == nil {
+			return s
+		}
 	}
-
-	data, err := json.MarshalIndent(wrapper, "", "  ")
+	// Fallback (should never happen — formatter is always registered)
+	data, err := json.MarshalIndent(map[string]interface{}{
+		"error": map[string]interface{}{
+			"code":    string(code),
+			"message": message,
+			"hints":   hints,
+		},
+	}, "", "  ")
 	if err != nil {
-		// Fallback to plain error message if JSON marshaling fails
 		return fmt.Sprintf(`{"error": {"code": "%s", "message": "%s"}}`, code, message)
 	}
-
 	return string(data)
 }
 
@@ -119,4 +154,14 @@ var (
 	HintCheckRequiredFields = "Ensure all required parameters are provided"
 	HintCheckFieldTypes     = "Verify parameter types match schema (string, integer, boolean)"
 	HintCheckFieldFormat    = "Check parameter format (e.g., hex colors, valid identifiers)"
+
+	// Permission hints
+	HintRequestAccess        = "Contact administrator to request access to this resource"
+	HintCheckAccessibleViews = "Use schema_list tool to see views you have permission to access"
+
+	// SQL-specific diagnostic hints
+	HintUseSchemaDescribe  = "Use schema_describe tool to verify column names and types for the table"
+	HintCheckColumnTypes   = "Column types may differ from expected - verify with schema_describe"
+	HintCheckColumnExists  = "Column may not exist in this table - use schema_describe to check available columns"
+	HintDisambiguateColumn = "Qualify ambiguous column with table alias (e.g., t.column_name)"
 )

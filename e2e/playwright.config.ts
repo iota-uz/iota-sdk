@@ -108,8 +108,8 @@ export default defineConfig({
 		// Video on failure
 		video: 'retain-on-failure',
 
-		// Timeout settings
-		actionTimeout: 15000, // defaultCommandTimeout
+		// Timeout settings (higher in CI to reduce flakiness on slower runners)
+		actionTimeout: process.env.CI ? 25000 : 15000,
 		navigationTimeout: 60000, // pageLoadTimeout
 	},
 

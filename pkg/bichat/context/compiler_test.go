@@ -31,9 +31,11 @@ func (r *mockRenderer) Render(block context.ContextBlock) (context.RenderedBlock
 			return context.RenderedBlock{}, errors.New("invalid system payload")
 		}
 		return context.RenderedBlock{
-			Messages: []types.Message{{Role: types.RoleSystem, Content: content}},
+			Messages: []types.Message{types.SystemMessage(content)},
 		}, nil
-
+	case context.KindReference, context.KindMemory, context.KindState,
+		context.KindToolOutput, context.KindHistory, context.KindTurn:
+		fallthrough
 	default:
 		// Other blocks produce user messages
 		content, ok := block.Payload.(string)
@@ -42,7 +44,7 @@ func (r *mockRenderer) Render(block context.ContextBlock) (context.RenderedBlock
 			content = "rendered content"
 		}
 		return context.RenderedBlock{
-			Messages: []types.Message{{Role: types.RoleUser, Content: content}},
+			Messages: []types.Message{types.UserMessage(content)},
 		}, nil
 	}
 }
@@ -193,7 +195,7 @@ func TestCompiler_Overflow_Truncate(t *testing.T) {
 	// System block should be preserved as system messages
 	hasSystemMessage := false
 	for _, msg := range compiled.Messages {
-		if msg.Role == types.RoleSystem {
+		if msg.Role() == types.RoleSystem {
 			hasSystemMessage = true
 			break
 		}
@@ -226,7 +228,7 @@ func TestCompiler_EmptyContext(t *testing.T) {
 	// Verify empty results
 	hasSystemMessage := false
 	for _, msg := range compiled.Messages {
-		if msg.Role == types.RoleSystem {
+		if msg.Role() == types.RoleSystem {
 			hasSystemMessage = true
 			break
 		}
@@ -311,8 +313,8 @@ func TestCompiler_SensitivityFiltering(t *testing.T) {
 			// Check system messages for expected text
 			systemContent := ""
 			for _, msg := range compiled.Messages {
-				if msg.Role == types.RoleSystem {
-					systemContent += msg.Content + " "
+				if msg.Role() == types.RoleSystem {
+					systemContent += msg.Content() + " "
 				}
 			}
 			if !strings.Contains(systemContent, tt.shouldContainText) {
@@ -453,8 +455,8 @@ func TestCompiler_MultipleSystemBlocks(t *testing.T) {
 	// All system blocks should be present as system messages
 	systemContent := ""
 	for _, msg := range compiled.Messages {
-		if msg.Role == types.RoleSystem {
-			systemContent += msg.Content + " "
+		if msg.Role() == types.RoleSystem {
+			systemContent += msg.Content() + " "
 		}
 	}
 	if !strings.Contains(systemContent, "Rule 1") {
@@ -502,7 +504,7 @@ func TestCompiler_BlockOrdering(t *testing.T) {
 	// System should come first (as system messages)
 	hasSystemMessage := false
 	for _, msg := range compiled.Messages {
-		if msg.Role == types.RoleSystem {
+		if msg.Role() == types.RoleSystem {
 			hasSystemMessage = true
 			break
 		}

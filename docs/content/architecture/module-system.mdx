@@ -11,11 +11,11 @@ IOTA SDK's module system enables modular, composable architecture. Each module i
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Registered: Load(: %v", err)
-    Registered --> Initialized: Register(: %v", err)
-    Initialized --> Running: Start(: %v", err)
+    [*] --> Registered: Load()
+    Registered --> Initialized: Register()
+    Initialized --> Running: Start()
     Running --> [*]: Shutdown
-    
+     
     Registered --> Unloaded: Error
     Initialized --> Unloaded: Error
 ```
@@ -32,7 +32,7 @@ sequenceDiagram
     participant Router as Router
     participant Migrations as Migration Manager
     
-    App->>Mod: Register(app: %v", err)
+    App->>Mod: Register(app)
     Mod->>Migrations: Register schema files
     Mod->>Registry: Register services
     Mod->>Router: Register controllers
@@ -112,12 +112,12 @@ classDiagram
     }
     
     class Application {
-        +RegisterServices(services...: %v", err)
-        +RegisterControllers(controllers...: %v", err)
-        +RegisterMiddleware(middleware...: %v", err)
+        +RegisterServices(services...)
+        +RegisterControllers(controllers...)
+        +RegisterMiddleware(middleware...)
         +Migrations() MigrationManager
         +EventPublisher() EventBus
-        +Service(service) interface{}
+        +Service(service) any
     }
     
     Module ..> Application : uses
@@ -130,7 +130,6 @@ classDiagram
 | `RegisterServices()` | Add business services | Services layer |
 | `RegisterControllers()` | Add HTTP handlers | Presentation layer |
 | `RegisterMiddleware()` | Add request middleware | Infrastructure |
-| `Migrations().RegisterSchema()` | Database changes | Infrastructure |
 | `RegisterLocaleFiles()` | Translations | Presentation |
 | `RegisterHashFsAssets()` | Static assets | Presentation |
 | `QuickLinks().Add()` | Spotlight search | Navigation |
@@ -161,15 +160,14 @@ sequenceDiagram
     participant Repo as Repository
     participant Service as Service
     participant App as Application
+    participant Controller as Controller
     
     Mod->>Repo: Create repository
-    Mod->>Service: Create service(repo, bus, validator: %v", err)
-    Mod->>App: RegisterServices(service: %v", err)
+    Mod->>Service: Create service(repo, bus, validator)
+    Mod->>App: RegisterServices(service)
     
-    Note over App: Later...
-    
-    participant Controller
-    Controller->>App: Service(UserService{}: %v", err)
+    Note over App,Controller: Later...
+    Controller->>App: Service(UserService{})
     App-->>Controller: Return service instance
 ```
 
@@ -229,8 +227,8 @@ graph TB
         D[UserRepository]
     end
     
-    B -->|app.Service()| C
-    A -.->|needs user info.-> C
+    B -->|"app.Service()"| C
+    A -.->|"needs user info"| C
 ```
 
 ### Event-Driven Communication

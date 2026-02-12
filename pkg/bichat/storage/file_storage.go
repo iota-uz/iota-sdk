@@ -37,7 +37,7 @@ type FileStorage interface {
 	// Returns:
 	//   - url: Public URL to access the file
 	//   - error: Any error during storage
-	Save(ctx context.Context, filename string, content io.Reader, metadata FileMetadata) (url string, error error)
+	Save(ctx context.Context, filename string, content io.Reader, metadata FileMetadata) (url string, err error)
 
 	// Get retrieves a file by its URL.
 	//
@@ -125,7 +125,7 @@ func (s *LocalFileStorage) Save(ctx context.Context, filename string, content io
 	if err != nil {
 		return "", fmt.Errorf("%s: failed to create file: %w", op, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Copy content to file
 	written, err := io.Copy(file, content)

@@ -3,12 +3,15 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,7 +105,7 @@ func TestExportQueryToExcelTool_Call_Success(t *testing.T) {
 	assert.Equal(t, "test_export.xlsx", output.Filename)
 	assert.Equal(t, 2, output.RowCount)
 	assert.Equal(t, "Test export file", output.Description)
-	assert.Greater(t, output.FileSizeKB, int64(0))
+	assert.Positive(t, output.FileSizeKB)
 
 	// Verify file exists
 	filePath := filepath.Join(tmpDir, "test_export.xlsx")
@@ -173,6 +176,35 @@ func TestExportQueryToExcelTool_Call_AutoAppendExtension(t *testing.T) {
 	assert.Equal(t, "report.xlsx", output.Filename)
 }
 
+func TestExportQueryToExcelTool_Call_BuildsAbsoluteURLFromRequestWhenBaseURLEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	executor := &mockQueryExecutor{
+		result: &bichatsql.QueryResult{
+			Columns:  []string{"col1"},
+			Rows:     [][]any{{"value1"}},
+			RowCount: 1,
+		},
+	}
+
+	tool := NewExportQueryToExcelTool(
+		executor,
+		WithQueryOutputDir(tmpDir),
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "http://internal/stream", nil)
+	req.Header.Set("X-Forwarded-Host", "bi.example.com")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	ctx := composables.WithParams(context.Background(), &composables.Params{Request: req})
+
+	result, err := tool.Call(ctx, `{"sql":"SELECT col1 FROM test","filename":"report.xlsx"}`)
+	require.NoError(t, err)
+
+	var output exportQueryOutput
+	require.NoError(t, json.Unmarshal([]byte(result), &output))
+	assert.Equal(t, "https://bi.example.com/report.xlsx", output.URL)
+}
+
 func TestExportQueryToExcelTool_Call_ValidationErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := &mockQueryExecutor{}
@@ -215,8 +247,9 @@ func TestExportQueryToExcelTool_Call_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := tool.Call(context.Background(), tt.input)
-			assert.Error(t, err, "Expected validation error for: %s", tt.name)
+			result, err := tool.Call(context.Background(), tt.input)
+			require.NoError(t, err, "Validation errors should return nil error for: %s", tt.name)
+			assert.Contains(t, result, "error", "Expected formatted error in result for: %s", tt.name)
 		})
 	}
 }
@@ -251,19 +284,55 @@ func TestApplyRowLimit(t *testing.T) {
 			name:     "no existing limit",
 			query:    "SELECT * FROM test",
 			maxRows:  1000,
-			expected: "SELECT * FROM test LIMIT 1000",
+			expected: "SELECT * FROM (SELECT * FROM test) AS _bichat_export LIMIT 1000",
 		},
 		{
-			name:     "existing limit",
+			name:     "existing limit preserved",
 			query:    "SELECT * FROM test LIMIT 500",
 			maxRows:  1000,
-			expected: "SELECT * FROM test LIMIT 500 LIMIT 1000",
+			expected: "SELECT * FROM test LIMIT 500",
+		},
+		{
+			name:     "existing limit with offset preserved",
+			query:    "SELECT * FROM test LIMIT 100 OFFSET 10",
+			maxRows:  1000,
+			expected: "SELECT * FROM test LIMIT 100 OFFSET 10",
+		},
+		{
+			name:     "CTE with existing limit preserved",
+			query:    "WITH cte AS (SELECT * FROM test) SELECT * FROM cte LIMIT 100",
+			maxRows:  50000,
+			expected: "WITH cte AS (SELECT * FROM test) SELECT * FROM cte LIMIT 100",
 		},
 		{
 			name:     "with where clause",
 			query:    "SELECT * FROM test WHERE id > 10",
 			maxRows:  50000,
-			expected: "SELECT * FROM test WHERE id > 10 LIMIT 50000",
+			expected: "SELECT * FROM (SELECT * FROM test WHERE id > 10) AS _bichat_export LIMIT 50000",
+		},
+		{
+			name:     "strips trailing semicolon",
+			query:    "SELECT * FROM test;",
+			maxRows:  1000,
+			expected: "SELECT * FROM (SELECT * FROM test) AS _bichat_export LIMIT 1000",
+		},
+		{
+			name:     "existing limit with semicolon preserved",
+			query:    "SELECT * FROM test LIMIT 500;",
+			maxRows:  1000,
+			expected: "SELECT * FROM test LIMIT 500",
+		},
+		{
+			name:     "CTE query without limit",
+			query:    "WITH cte AS (SELECT * FROM test) SELECT * FROM cte",
+			maxRows:  1000,
+			expected: "WITH cte AS (SELECT * FROM test) SELECT * FROM cte LIMIT 1000",
+		},
+		{
+			name:     "limit in subquery only still wraps",
+			query:    "SELECT * FROM (SELECT * FROM test LIMIT 10) sub",
+			maxRows:  1000,
+			expected: "SELECT * FROM (SELECT * FROM (SELECT * FROM test LIMIT 10) sub) AS _bichat_export LIMIT 1000",
 		},
 	}
 

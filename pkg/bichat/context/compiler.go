@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
@@ -50,6 +51,10 @@ type CompilationMetadata struct {
 
 	// Overflowed indicates if the context exceeded the token budget.
 	Overflowed bool
+
+	// OverBudgetKinds maps block kinds that exceeded their configured MaxTokens to their actual token count.
+	// This only tracks non-truncatable kinds since truncatable kinds are handled by overflow strategies.
+	OverBudgetKinds map[BlockKind]int
 }
 
 // Compile compiles the context using the given renderer and policy.
@@ -84,6 +89,18 @@ func (b *ContextBuilder) Compile(renderer Renderer, policy ContextPolicy) (*Comp
 	totalTokens := 0
 	for _, tokens := range blockTokens {
 		totalTokens += tokens
+	}
+
+	// Check for non-truncatable blocks exceeding their MaxTokens budget
+	priorityMap := make(map[BlockKind]KindPriority)
+	for _, p := range policy.KindPriorities {
+		priorityMap[p.Kind] = p
+	}
+	overBudgetKinds := make(map[BlockKind]int)
+	for kind, tokens := range tokensByKind {
+		if priority, ok := priorityMap[kind]; ok && !priority.Truncatable && tokens > priority.MaxTokens {
+			overBudgetKinds[kind] = tokens
+		}
 	}
 
 	// Handle overflow
@@ -137,6 +154,7 @@ func (b *ContextBuilder) Compile(renderer Renderer, policy ContextPolicy) (*Comp
 			CompletionReserve: policy.CompletionReserve,
 			AvailableTokens:   availableTokens,
 			Overflowed:        totalTokens > availableTokens,
+			OverBudgetKinds:   overBudgetKinds,
 		},
 	}, nil
 }
@@ -322,9 +340,9 @@ func compactBlocks(
 	// Generate summary using configured summarizer
 	summary, summaryTokens, err := policy.Summarizer.SummarizeMessages(ctx, historyMessages, targetSummaryTokens)
 	if err != nil {
-		// Summarization failed, fall back to truncation
+		// Summarization failed, fall back to truncation (success path; intentionally return nil)
 		finalBlocks, totalTokens, tokensByKind := truncateBlocks(blocks, blockTokens, availableTokens, policy.KindPriorities)
-		return finalBlocks, totalTokens, tokensByKind, nil
+		return finalBlocks, totalTokens, tokensByKind, nil //nolint:nilerr // truncation is the intended fallback success
 	}
 
 	// Create a new summarized history block to replace the original history blocks
@@ -405,33 +423,27 @@ func extractMessagesFromHistoryBlocks(historyBlocks []ContextBlock) []types.Mess
 
 		// Convert to types.Message
 		for _, msg := range payload.Messages {
-			message := types.Message{
-				Content: msg.Content,
-			}
-
-			// Map role string to types.Role
+			role := types.RoleUser // Default fallback
 			switch msg.Role {
 			case "user":
-				message.Role = types.RoleUser
+				role = types.RoleUser
 			case "assistant":
-				message.Role = types.RoleAssistant
+				role = types.RoleAssistant
 			case "system":
-				message.Role = types.RoleSystem
+				role = types.RoleSystem
 			case "tool":
-				message.Role = types.RoleTool
-			default:
-				message.Role = types.RoleUser // Default fallback
+				role = types.RoleTool
 			}
 
-			messages = append(messages, message)
+			messages = append(messages, types.NewMessage(
+				types.WithRole(role),
+				types.WithContent(msg.Content),
+			))
 		}
 
 		// If there's a summary already, include it as a system message
 		if payload.Summary != "" {
-			messages = append(messages, types.Message{
-				Role:    types.RoleSystem,
-				Content: fmt.Sprintf("Previous conversation summary: %s", payload.Summary),
-			})
+			messages = append(messages, types.SystemMessage(fmt.Sprintf("Previous conversation summary: %s", payload.Summary)))
 		}
 	}
 
@@ -465,7 +477,18 @@ func createSummaryBlock(summary string, summaryTokens int) ContextBlock {
 	canonicalized, err := SortedJSONBytes(payload)
 	if err != nil {
 		// Fallback: use regular JSON encoding
-		canonicalized, _ = json.Marshal(payload)
+		canonicalized, err = json.Marshal(payload)
+		if err != nil {
+			// CRITICAL: Include error details and UUID to maintain unique hash per failure
+			// This prevents different marshal failures from producing the same hash
+			// WARNING: This is an error path - investigate why marshaling failed
+			fallbackContent := fmt.Sprintf(`{"error":"marshal_failed","message":%q,"uuid":%q}`,
+				err.Error(),
+				uuid.New().String())
+			canonicalized = []byte(fallbackContent)
+			// Note: Logging omitted here as this is a foundational package with no logger dependency.
+			// Callers should monitor for error patterns in fallback content.
+		}
 	}
 
 	// Compute content-addressed hash

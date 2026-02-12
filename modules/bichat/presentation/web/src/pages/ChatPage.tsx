@@ -1,202 +1,29 @@
-import { useParams } from 'react-router-dom'
-import { useMemo } from 'react'
-import { ChatSession } from '@iotauz/bichat-ui'
-import type { ChatDataSource, Session, Message, StreamChunk, Attachment, QuestionAnswers } from '@iotauz/bichat-ui'
-import { useClient } from 'urql'
+import { useCallback, useMemo } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { ChatSession, RateLimiter } from '@iota-uz/sdk/bichat'
+import { useBiChatDataSource } from '../data/bichatDataSource'
 import { useIotaContext } from '../contexts/IotaContext'
-
-const SessionQuery = `
-  query Session($id: UUID!) {
-    session(id: $id) {
-      id
-      title
-      status
-      pinned
-      createdAt
-      updatedAt
-      messages {
-        id
-        sessionID
-        role
-        content
-        createdAt
-        toolCalls {
-          id
-          name
-          arguments
-        }
-        citations {
-          source
-          title
-          url
-          excerpt
-        }
-      }
-    }
-  }
-`
 
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>()
-  const client = useClient()
+  const navigate = useNavigate()
+  const location = useLocation()
   const context = useIotaContext()
 
-  const dataSource = useMemo<ChatDataSource>(() => ({
-    async createSession(): Promise<Session> {
-      const mutation = `
-        mutation CreateSession {
-          createSession {
-            id
-            title
-            status
-            pinned
-            createdAt
-            updatedAt
-          }
-        }
-      `
-      const result = await client.mutation(mutation, {}).toPromise()
-      if (result.error) throw new Error(result.error.message)
-      return result.data.createSession
-    },
+  const readOnly = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return params.get('readonly') === 'true'
+  }, [location.search])
 
-    async fetchSession(sessionId: string) {
-      const result = await client.query(SessionQuery, { id: sessionId }).toPromise()
-      if (result.error) throw new Error(result.error.message)
-      if (!result.data?.session) return null
-
-      const session = result.data.session
-      return {
-        session: {
-          id: session.id,
-          title: session.title,
-          status: session.status.toLowerCase() as 'active' | 'archived',
-          pinned: session.pinned,
-          createdAt: session.createdAt,
-          updatedAt: session.updatedAt,
-        },
-        messages: session.messages.map((msg: any) => ({
-          id: msg.id,
-          sessionId: msg.sessionID,
-          role: msg.role.toLowerCase(),
-          content: msg.content,
-          createdAt: msg.createdAt,
-          toolCalls: msg.toolCalls,
-          citations: msg.citations?.map((c: any, idx: number) => ({
-            id: `${msg.id}-citation-${idx}`,
-            source: c.source,
-            url: c.url,
-            excerpt: c.excerpt,
-          })),
-        })) as Message[],
-        pendingQuestion: null,
-      }
-    },
-
-    async *sendMessage(
-      sessionId: string,
-      content: string,
-      attachments?: Attachment[]
-    ): AsyncGenerator<StreamChunk> {
-      const response = await fetch(context.config.streamEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          sessionId,
-          content,
-          attachments: attachments || [],
-        }),
-      })
-
-      if (!response.ok) {
-        yield { type: 'error', error: `HTTP ${response.status}: ${response.statusText}` }
-        return
-      }
-
-      if (!response.body) {
-        yield { type: 'error', error: 'Response body is null' }
-        return
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (!line.trim() || line.startsWith(':')) continue
-
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
-              try {
-                const chunk = JSON.parse(data)
-                
-                // Map backend chunk types to frontend types
-                // Backend sends: "content", "citation", "done", "error" (lowercase)
-                // Frontend expects: "chunk", "error", "done", "user_message"
-                let chunkType: 'chunk' | 'error' | 'done' | 'user_message'
-                if (chunk.type === 'content' || chunk.type === 'citation') {
-                  chunkType = 'chunk'
-                } else if (chunk.type === 'done') {
-                  chunkType = 'done'
-                } else if (chunk.type === 'error') {
-                  chunkType = 'error'
-                } else {
-                  // Fallback: use lowercase version
-                  chunkType = chunk.type.toLowerCase() as 'chunk' | 'error' | 'done' | 'user_message'
-                }
-                
-                yield {
-                  type: chunkType,
-                  content: chunk.content,
-                  error: chunk.error,
-                }
-                if (chunk.type === 'done' || chunk.type === 'error') return
-              } catch (parseErr) {
-                console.error('Failed to parse SSE data:', parseErr)
-              }
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock()
-      }
-    },
-
-    async submitQuestionAnswers(
-      sessionId: string,
-      questionId: string,
-      answers: QuestionAnswers
-    ): Promise<{ success: boolean; error?: string }> {
-      const mutation = `
-        mutation ResumeWithAnswer($sessionId: UUID!, $checkpointId: String!, $answers: JSON!) {
-          resumeWithAnswer(sessionId: $sessionId, checkpointId: $checkpointId, answers: $answers) {
-            userMessage { id }
-          }
-        }
-      `
-      const result = await client.mutation(mutation, { sessionId, checkpointId: questionId, answers }).toPromise()
-      if (result.error) {
-        return { success: false, error: result.error.message }
-      }
-      return { success: true }
-    },
-
-    async cancelPendingQuestion(): Promise<{ success: boolean; error?: string }> {
-      return { success: true }
-    },
-  }), [client, context.config.streamEndpoint])
+  const onNavigateToSession = useCallback(
+    (sessionId: string) => navigate(`/session/${sessionId}`),
+    [navigate]
+  )
+  const dataSource = useBiChatDataSource(onNavigateToSession)
+  const rateLimiter = useMemo(
+    () => new RateLimiter({ maxRequests: 20, windowMs: 60_000 }),
+    []
+  )
 
   if (!id) {
     return (
@@ -206,5 +33,31 @@ export default function ChatPage() {
     )
   }
 
-  return <ChatSession dataSource={dataSource} sessionId={id} />
+  const isAPIKeyConfigured = context.extensions?.llm?.apiKeyConfigured ?? true
+  if (!isAPIKeyConfigured) {
+    return (
+      <div className="flex h-full min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <div className="w-full max-w-xl rounded-2xl border border-red-200 bg-red-50 p-6 text-center shadow-sm dark:border-red-900/70 dark:bg-red-950/30">
+          <h1 className="text-lg font-semibold text-red-900 dark:text-red-200">
+            API key is not configured
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-red-800 dark:text-red-300">
+            BiChat is unavailable until an LLM API key is configured on the server.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <ChatSession
+      dataSource={dataSource}
+      sessionId={id}
+      readOnly={readOnly}
+      rateLimiter={rateLimiter}
+      showArtifactsPanel
+      artifactsPanelDefaultExpanded={false}
+      artifactsPanelStorageKey="bichat.web.artifacts-panel.expanded"
+    />
+  )
 }

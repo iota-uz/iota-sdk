@@ -1,7 +1,6 @@
 package positionservice_test
 
 import (
-	"log"
 	"os"
 	"testing"
 
@@ -12,8 +11,7 @@ import (
 )
 
 var (
-	TestFilePath = "test.xlsx"
-	Data         = []map[string]interface{}{
+	Data = []map[string]interface{}{
 		{"A1": "Наименование", "B1": "Код в справочнике", "C1": "Ед. изм.", "D1": "Количество"},
 		{"A2": "Дрель Молоток N.C.V (900W)", "B2": "3241324132", "C2": "шт", "D2": 10},
 		{"A3": "Дрель Молоток N.C.V (900W)", "B3": "9230891234", "C3": "шт", "D3": 10},
@@ -27,17 +25,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	// Create the test file for position service tests
-	if err := createTestFile(TestFilePath); err != nil {
-		panic(err)
-	}
-
 	code := m.Run()
-
-	// Clean up the test file
-	if err := os.Remove(TestFilePath); err != nil {
-		log.Println("Failed to remove test file:", err)
-	}
 
 	os.Exit(code)
 }
@@ -54,9 +42,7 @@ func setupTest(t *testing.T) *itf.TestEnvironment {
 func createTestFile(path string) error {
 	f := excelize.NewFile()
 	defer func() {
-		if err := f.Close(); err != nil {
-			log.Println(err)
-		}
+		_ = f.Close()
 	}()
 	for _, v := range Data {
 		for k, val := range v {

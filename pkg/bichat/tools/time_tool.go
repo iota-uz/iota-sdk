@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // GetCurrentTimeTool returns the current date and time in a specified timezone.
@@ -14,7 +14,7 @@ import (
 type GetCurrentTimeTool struct{}
 
 // NewGetCurrentTimeTool creates a new get current time tool.
-func NewGetCurrentTimeTool() agents.Tool {
+func NewGetCurrentTimeTool() *GetCurrentTimeTool {
 	return &GetCurrentTimeTool{}
 }
 
@@ -31,21 +31,12 @@ func (t *GetCurrentTimeTool) Description() string {
 
 // Parameters returns the JSON Schema for tool parameters.
 func (t *GetCurrentTimeTool) Parameters() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"timezone": map[string]any{
-				"type":        "string",
-				"description": "Timezone name (e.g., 'Asia/Tashkent', 'UTC'). Default: 'UTC'",
-				"default":     "UTC",
-			},
-		},
-	}
+	return agents.ToolSchema[timeToolInput]()
 }
 
 // timeToolInput represents the parsed input parameters.
 type timeToolInput struct {
-	Timezone string `json:"timezone,omitempty"`
+	Timezone string `json:"timezone,omitempty" jsonschema:"description=Timezone name (e.g., 'Asia/Tashkent', 'UTC'). Default: 'UTC';default=UTC"`
 }
 
 // timeToolOutput represents the formatted output.
@@ -66,14 +57,10 @@ type timeToolOutput struct {
 	Quarter     int    `json:"quarter"`
 }
 
-// Call executes the get current time operation.
-func (t *GetCurrentTimeTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "GetCurrentTimeTool.Call"
-
-	// Parse input
+// CallStructured executes the get current time operation and returns a structured result.
+func (t *GetCurrentTimeTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
 	params, err := agents.ParseToolInput[timeToolInput](input)
 	if err != nil {
-		// Default to UTC if parsing fails
 		params = timeToolInput{Timezone: "UTC"}
 	}
 
@@ -82,20 +69,23 @@ func (t *GetCurrentTimeTool) Call(ctx context.Context, input string) (string, er
 		timezone = "UTC"
 	}
 
-	// Load timezone location
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("invalid timezone: %v", err),
-			"Use IANA timezone names (e.g., 'UTC', 'Asia/Tashkent', 'America/New_York')",
-			"Common timezones: UTC, Europe/London, Asia/Tokyo",
-		), serrors.E(op, err, "invalid timezone")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("invalid timezone: %v", err),
+				Hints: []string{
+					"Use IANA timezone names (e.g., 'UTC', 'Asia/Tashkent', 'America/New_York')",
+					"Common timezones: UTC, Europe/London, Asia/Tokyo",
+				},
+			},
+		}, nil
 	}
 
 	now := time.Now().In(loc)
 
-	// Build response
 	response := timeToolOutput{
 		Timezone:    timezone,
 		CurrentTime: now.Format(time.RFC3339),
@@ -113,7 +103,15 @@ func (t *GetCurrentTimeTool) Call(ctx context.Context, input string) (string, er
 		Quarter:     getQuarter(now),
 	}
 
-	return agents.FormatToolOutput(response)
+	return &types.ToolResult{
+		CodecID: types.CodecTime,
+		Payload: types.JSONPayload{Output: response},
+	}, nil
+}
+
+// Call executes the get current time operation.
+func (t *GetCurrentTimeTool) Call(ctx context.Context, input string) (string, error) {
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
 // getWeekOfYear returns the ISO week number.

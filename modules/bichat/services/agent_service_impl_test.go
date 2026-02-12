@@ -3,13 +3,17 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/codecs"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -66,26 +70,29 @@ type mockModel struct {
 	response *agents.Response
 	chunks   []agents.Chunk
 	err      error
+	requests []agents.Request
 }
 
 func newMockModel() *mockModel {
 	return &mockModel{
 		response: &agents.Response{
-			Message: *types.AssistantMessage("Test response"),
+			Message: types.AssistantMessage("Test response"),
 			Usage: types.TokenUsage{
 				PromptTokens:     10,
 				CompletionTokens: 20,
 				TotalTokens:      30,
 			},
-			FinishReason: "stop",
+			FinishReason:       "stop",
+			ProviderResponseID: "resp_mock_final",
 		},
 		chunks: []agents.Chunk{
 			{Delta: "Test ", Done: false},
 			{Delta: "response", Done: false},
 			{
-				Delta:        "",
-				FinishReason: "stop",
-				Done:         true,
+				Delta:              "",
+				FinishReason:       "stop",
+				Done:               true,
+				ProviderResponseID: "resp_mock_final",
 				Usage: &types.TokenUsage{
 					PromptTokens:     10,
 					CompletionTokens: 20,
@@ -97,6 +104,7 @@ func newMockModel() *mockModel {
 }
 
 func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
+	m.requests = append(m.requests, req)
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -104,6 +112,7 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 }
 
 func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
+	m.requests = append(m.requests, req)
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.Chunk) bool) error {
 		if m.err != nil {
 			return m.err
@@ -152,24 +161,81 @@ func (m *mockModel) Pricing() agents.ModelPricing {
 	}
 }
 
-// mockRenderer is a test implementation of bichatctx.Renderer
-type mockRenderer struct{}
-
-func (m *mockRenderer) Render(block bichatctx.ContextBlock) (bichatctx.RenderedBlock, error) {
-	return bichatctx.RenderedBlock{
-		Messages: []types.Message{
-			{Role: types.RoleSystem, Content: "test system content"},
-			{Role: types.RoleUser, Content: "test"},
-		},
-	}, nil
+// spyRenderer records blocks passed through compilation and renders canonical messages.
+// It allows tests to assert on block kinds/payloads without depending on internal compiler behavior.
+type spyRenderer struct {
+	mu              sync.Mutex
+	estimatedBlocks []bichatctx.ContextBlock
+	renderedBlocks  []bichatctx.ContextBlock
 }
 
-func (m *mockRenderer) EstimateTokens(block bichatctx.ContextBlock) (int, error) {
+func (s *spyRenderer) Render(block bichatctx.ContextBlock) (bichatctx.RenderedBlock, error) {
+	s.mu.Lock()
+	s.renderedBlocks = append(s.renderedBlocks, block)
+	s.mu.Unlock()
+
+	switch block.Meta.Kind {
+	case bichatctx.KindPinned:
+		if v, ok := block.Payload.(string); ok && v != "" {
+			return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage(v)}}, nil
+		}
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("system")}}, nil
+
+	case bichatctx.KindHistory:
+		if h, ok := block.Payload.(codecs.ConversationHistoryPayload); ok && len(h.Messages) > 0 {
+			msgs := make([]types.Message, 0, len(h.Messages))
+			for _, m := range h.Messages {
+				role := types.RoleUser
+				switch m.Role {
+				case "system":
+					role = types.RoleSystem
+				case "assistant":
+					role = types.RoleAssistant
+				case "tool":
+					role = types.RoleTool
+				case "user":
+					role = types.RoleUser
+				}
+				msgs = append(msgs, types.NewMessage(
+					types.WithRole(role),
+					types.WithContent(m.Content),
+				))
+			}
+			return bichatctx.RenderedBlock{Messages: msgs}, nil
+		}
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("history")}}, nil
+
+	case bichatctx.KindTurn:
+		if t, ok := block.Payload.(codecs.TurnPayload); ok {
+			return bichatctx.RenderedBlock{Messages: []types.Message{types.UserMessage(t.Content)}}, nil
+		}
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.UserMessage("turn")}}, nil
+
+	case bichatctx.KindReference:
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("reference")}}, nil
+
+	case bichatctx.KindMemory:
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("memory")}}, nil
+
+	case bichatctx.KindState:
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("state")}}, nil
+
+	case bichatctx.KindToolOutput:
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("tool_output")}}, nil
+	}
+
+	return bichatctx.RenderedBlock{}, nil
+}
+
+func (s *spyRenderer) EstimateTokens(block bichatctx.ContextBlock) (int, error) {
+	s.mu.Lock()
+	s.estimatedBlocks = append(s.estimatedBlocks, block)
+	s.mu.Unlock()
 	return 10, nil
 }
 
-func (m *mockRenderer) Provider() string {
-	return "mock"
+func (s *spyRenderer) Provider() string {
+	return "spy"
 }
 
 // mockCheckpointer is a test implementation of agents.Checkpointer
@@ -226,28 +292,27 @@ func (m *mockCheckpointer) LoadAndDelete(ctx context.Context, checkpointID strin
 
 // mockChatRepository is a test implementation of domain.ChatRepository
 type mockChatRepository struct {
-	sessions    map[uuid.UUID]*domain.Session
-	messages    map[uuid.UUID][]*types.Message
-	attachments map[uuid.UUID]*domain.Attachment
+	sessions    map[uuid.UUID]domain.Session
+	messages    map[uuid.UUID][]types.Message
+	attachments map[uuid.UUID]domain.Attachment
+	artifacts   map[uuid.UUID]domain.Artifact
 }
 
 func newMockChatRepository() *mockChatRepository {
 	return &mockChatRepository{
-		sessions:    make(map[uuid.UUID]*domain.Session),
-		messages:    make(map[uuid.UUID][]*types.Message),
-		attachments: make(map[uuid.UUID]*domain.Attachment),
+		sessions:    make(map[uuid.UUID]domain.Session),
+		messages:    make(map[uuid.UUID][]types.Message),
+		attachments: make(map[uuid.UUID]domain.Attachment),
+		artifacts:   make(map[uuid.UUID]domain.Artifact),
 	}
 }
 
-func (m *mockChatRepository) CreateSession(ctx context.Context, session *domain.Session) error {
-	if session.ID == uuid.Nil {
-		session.ID = uuid.New()
-	}
-	m.sessions[session.ID] = session
+func (m *mockChatRepository) CreateSession(ctx context.Context, session domain.Session) error {
+	m.sessions[session.ID()] = session
 	return nil
 }
 
-func (m *mockChatRepository) GetSession(ctx context.Context, id uuid.UUID) (*domain.Session, error) {
+func (m *mockChatRepository) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
 	session, exists := m.sessions[id]
 	if !exists {
 		return nil, errors.New("session not found")
@@ -255,17 +320,21 @@ func (m *mockChatRepository) GetSession(ctx context.Context, id uuid.UUID) (*dom
 	return session, nil
 }
 
-func (m *mockChatRepository) UpdateSession(ctx context.Context, session *domain.Session) error {
-	m.sessions[session.ID] = session
+func (m *mockChatRepository) UpdateSession(ctx context.Context, session domain.Session) error {
+	m.sessions[session.ID()] = session
 	return nil
 }
 
-func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]*domain.Session, error) {
-	var sessions []*domain.Session
+func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
+	sessions := make([]domain.Session, 0, len(m.sessions))
 	for _, session := range m.sessions {
 		sessions = append(sessions, session)
 	}
 	return sessions, nil
+}
+
+func (m *mockChatRepository) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	return len(m.sessions), nil
 }
 
 func (m *mockChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
@@ -274,18 +343,16 @@ func (m *mockChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) er
 	return nil
 }
 
-func (m *mockChatRepository) SaveMessage(ctx context.Context, msg *types.Message) error {
-	if msg.ID == uuid.Nil {
-		msg.ID = uuid.New()
-	}
-	m.messages[msg.SessionID] = append(m.messages[msg.SessionID], msg)
+func (m *mockChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
+	sessionID := msg.SessionID()
+	m.messages[sessionID] = append(m.messages[sessionID], msg)
 	return nil
 }
 
-func (m *mockChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (*types.Message, error) {
+func (m *mockChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error) {
 	for _, msgs := range m.messages {
 		for _, msg := range msgs {
-			if msg.ID == id {
+			if msg.ID() == id {
 				return msg, nil
 			}
 		}
@@ -293,27 +360,35 @@ func (m *mockChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (*typ
 	return nil, errors.New("message not found")
 }
 
-func (m *mockChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*types.Message, error) {
+func (m *mockChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
 	msgs, exists := m.messages[sessionID]
 	if !exists {
-		return []*types.Message{}, nil
+		return []types.Message{}, nil
 	}
 	return msgs, nil
 }
 
 func (m *mockChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
-	return 0, nil
+	messages := m.messages[sessionID]
+	filtered := make([]types.Message, 0, len(messages))
+	var deleted int64
+	for _, msg := range messages {
+		if msg.CreatedAt().Before(from) {
+			filtered = append(filtered, msg)
+			continue
+		}
+		deleted++
+	}
+	m.messages[sessionID] = filtered
+	return deleted, nil
 }
 
-func (m *mockChatRepository) SaveAttachment(ctx context.Context, attachment *domain.Attachment) error {
-	if attachment.ID == uuid.Nil {
-		attachment.ID = uuid.New()
-	}
-	m.attachments[attachment.ID] = attachment
+func (m *mockChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
+	m.attachments[attachment.ID()] = attachment
 	return nil
 }
 
-func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (*domain.Attachment, error) {
+func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (domain.Attachment, error) {
 	att, exists := m.attachments[id]
 	if !exists {
 		return nil, errors.New("attachment not found")
@@ -321,8 +396,8 @@ func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (*
 	return att, nil
 }
 
-func (m *mockChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]*domain.Attachment, error) {
-	var atts []*domain.Attachment
+func (m *mockChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]domain.Attachment, error) {
+	atts := make([]domain.Attachment, 0, len(m.attachments))
 	for _, att := range m.attachments {
 		atts = append(atts, att)
 	}
@@ -334,19 +409,42 @@ func (m *mockChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID)
 	return nil
 }
 
-func (m *mockChatRepository) SaveArtifact(ctx context.Context, artifact *domain.Artifact) error {
+func (m *mockChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
+	m.artifacts[artifact.ID()] = artifact
 	return nil
 }
 
-func (m *mockChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (*domain.Artifact, error) {
-	return nil, errors.New("artifact not found")
+func (m *mockChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
+	artifact, exists := m.artifacts[id]
+	if !exists {
+		return nil, errors.New("artifact not found")
+	}
+	return artifact, nil
 }
 
-func (m *mockChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Artifact, error) {
-	return nil, nil
+func (m *mockChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
+	result := make([]domain.Artifact, 0)
+	for _, artifact := range m.artifacts {
+		if artifact.SessionID() == sessionID {
+			result = append(result, artifact)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockChatRepository) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
+	var deleted int64
+	for id, artifact := range m.artifacts {
+		if artifact.SessionID() == sessionID {
+			delete(m.artifacts, id)
+			deleted++
+		}
+	}
+	return deleted, nil
 }
 
 func (m *mockChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
+	delete(m.artifacts, id)
 	return nil
 }
 
@@ -354,36 +452,34 @@ func (m *mockChatRepository) UpdateArtifact(ctx context.Context, id uuid.UUID, n
 	return nil
 }
 
-func TestNewAgentService(t *testing.T) {
-	t.Parallel()
-
-	agent := newMockAgent()
-	model := newMockModel()
-	renderer := &mockRenderer{}
-	checkpointer := newMockCheckpointer()
-	chatRepo := newMockChatRepository()
-
-	policy := bichatctx.ContextPolicy{
-		ContextWindow:     4096,
-		CompletionReserve: 1024,
-		MaxSensitivity:    bichatctx.SensitivityPublic,
-		OverflowStrategy:  bichatctx.OverflowTruncate,
+func (m *mockChatRepository) UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error {
+	msgs := m.messages
+	for sid, sessionMsgs := range msgs {
+		for i, msg := range sessionMsgs {
+			if msg.ID() == msgID {
+				updated := types.NewMessage(
+					types.WithMessageID(msg.ID()),
+					types.WithSessionID(msg.SessionID()),
+					types.WithRole(msg.Role()),
+					types.WithContent(msg.Content()),
+					types.WithQuestionData(qd),
+					types.WithCreatedAt(msg.CreatedAt()),
+				)
+				m.messages[sid][i] = updated
+				return nil
+			}
+		}
 	}
+	return errors.New("message not found")
+}
 
-	service := NewAgentService(AgentServiceConfig{
-		Agent:        agent,
-		Model:        model,
-		Policy:       policy,
-		Renderer:     renderer,
-		Checkpointer: checkpointer,
-		ChatRepo:     chatRepo,
-	})
-
-	assert.NotNil(t, service)
-	impl, ok := service.(*agentServiceImpl)
-	require.True(t, ok)
-	assert.Equal(t, agent, impl.agent)
-	assert.Equal(t, model, impl.model)
+func (m *mockChatRepository) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
+	for _, msg := range m.messages[sessionID] {
+		if msg.HasPendingQuestion() {
+			return msg, nil
+		}
+	}
+	return nil, errors.New("no pending question found")
 }
 
 func TestProcessMessage_Success(t *testing.T) {
@@ -392,7 +488,7 @@ func TestProcessMessage_Success(t *testing.T) {
 	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -409,6 +505,7 @@ func TestProcessMessage_Success(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -418,14 +515,66 @@ func TestProcessMessage_Success(t *testing.T) {
 	ctx = composables.WithTenantID(ctx, tenantID)
 
 	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
 	content := "Hello, test agent!"
-	var attachments []domain.Attachment
+	require.NoError(t, chatRepo.SaveMessage(ctx, types.UserMessage(
+		"previous",
+		types.WithSessionID(sessionID),
+		types.WithCreatedAt(time.Now().Add(-1*time.Minute)),
+	)))
+
+	attachments := []domain.Attachment{
+		domain.NewAttachment(
+			domain.WithAttachmentID(uuid.New()),
+			domain.WithAttachmentMessageID(uuid.New()),
+			domain.WithFileName("report.png"),
+			domain.WithMimeType("image/png"),
+			domain.WithSizeBytes(1234),
+			domain.WithFilePath("/uploads/report.png"),
+			domain.WithAttachmentCreatedAt(time.Now()),
+		),
+	}
 
 	// Execute
 	gen, err := service.ProcessMessage(ctx, sessionID, content, attachments)
 	require.NoError(t, err)
 	require.NotNil(t, gen)
 	defer gen.Close()
+
+	// Verify compilation contract: Pinned -> History -> Turn blocks with expected payloads.
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	require.Len(t, rendered, 3)
+	assert.Equal(t, bichatctx.KindPinned, rendered[0].Meta.Kind)
+	assert.Equal(t, bichatctx.KindHistory, rendered[1].Meta.Kind)
+	assert.Equal(t, bichatctx.KindTurn, rendered[2].Meta.Kind)
+
+	pinnedPayload, ok := rendered[0].Payload.(string)
+	require.True(t, ok)
+	assert.Equal(t, agent.systemPrompt, pinnedPayload)
+
+	historyPayload, ok := rendered[1].Payload.(codecs.ConversationHistoryPayload)
+	require.True(t, ok)
+	require.Len(t, historyPayload.Messages, 1)
+	assert.Equal(t, "user", historyPayload.Messages[0].Role)
+	assert.Equal(t, "previous", historyPayload.Messages[0].Content)
+
+	turnPayload, ok := rendered[2].Payload.(codecs.TurnPayload)
+	require.True(t, ok)
+	assert.Equal(t, content, turnPayload.Content)
+	require.Len(t, turnPayload.Attachments, 1)
+	assert.Equal(t, "report.png", turnPayload.Attachments[0].FileName)
+	assert.Equal(t, "image/png", turnPayload.Attachments[0].MimeType)
+	assert.Equal(t, int64(1234), turnPayload.Attachments[0].SizeBytes)
+	assert.Equal(t, "/uploads/report.png", turnPayload.Attachments[0].Reference)
 
 	// Collect all events
 	var events []services.Event
@@ -445,27 +594,153 @@ func TestProcessMessage_Success(t *testing.T) {
 
 	// Should have at least content chunks and a done event
 	hasContent := false
-	hasDone := false
+	var done *services.Event
 	for _, event := range events {
 		if event.Type == services.EventTypeContent {
 			hasContent = true
 		}
 		if event.Type == services.EventTypeDone {
-			hasDone = true
+			e := event
+			done = &e
 		}
 	}
 
 	assert.True(t, hasContent, "Expected content events")
-	assert.True(t, hasDone, "Expected done event")
+	require.NotNil(t, done, "Expected done event")
+	require.NotNil(t, done.Usage)
+	assert.Equal(t, 10, done.Usage.PromptTokens)
+	assert.Equal(t, 20, done.Usage.CompletionTokens)
+	assert.Equal(t, 30, done.Usage.TotalTokens)
+	assert.Equal(t, "resp_mock_final", done.ProviderResponseID)
 }
 
-func TestProcessMessage_MissingTenantID(t *testing.T) {
+func TestProcessMessage_AppendsProjectPromptExtension(t *testing.T) {
 	t.Parallel()
 
-	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	projectExtension := "You are operating in insurance BI domain."
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:                  agent,
+		Model:                  model,
+		Policy:                 policy,
+		Renderer:               renderer,
+		Checkpointer:           checkpointer,
+		EventBus:               hooks.NewEventBus(),
+		ChatRepo:               chatRepo,
+		ProjectPromptExtension: projectExtension,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "hello", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	require.NotEmpty(t, rendered)
+	pinnedPayload, ok := rendered[0].Payload.(string)
+	require.True(t, ok)
+	assert.Equal(t, agent.systemPrompt+"\n\nPROJECT DOMAIN EXTENSION:\n"+projectExtension, pinnedPayload)
+}
+
+func TestProcessMessage_AppendsDebugPromptAfterProjectPromptExtension(t *testing.T) {
+	t.Parallel()
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	projectExtension := "Insurance domain extension."
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:                  agent,
+		Model:                  model,
+		Policy:                 policy,
+		Renderer:               renderer,
+		Checkpointer:           checkpointer,
+		EventBus:               hooks.NewEventBus(),
+		ChatRepo:               chatRepo,
+		ProjectPromptExtension: projectExtension,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+	ctx = services.WithDebugMode(ctx, true)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "hello", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	require.NotEmpty(t, rendered)
+	pinnedPayload, ok := rendered[0].Payload.(string)
+	require.True(t, ok)
+	assert.Contains(t, pinnedPayload, "PROJECT DOMAIN EXTENSION:\n"+projectExtension)
+	assert.Contains(t, pinnedPayload, "DEBUG MODE ENABLED:")
+	assert.Less(
+		t,
+		strings.Index(pinnedPayload, "PROJECT DOMAIN EXTENSION:"),
+		strings.Index(pinnedPayload, "DEBUG MODE ENABLED:"),
+	)
+}
+
+func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {
+	t.Parallel()
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -482,6 +757,66 @@ func TestProcessMessage_MissingTenantID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
+		ChatRepo:     chatRepo,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("continuity"),
+		domain.WithLLMPreviousResponseID("resp_prev_42"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "continue", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	for {
+		_, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
+			break
+		}
+		require.NoError(t, err)
+	}
+
+	require.NotEmpty(t, model.requests)
+	require.NotNil(t, model.requests[0].PreviousResponseID)
+	assert.Equal(t, "resp_prev_42", *model.requests[0].PreviousResponseID)
+}
+
+func TestProcessMessage_MissingTenantID(t *testing.T) {
+	t.Parallel()
+
+	// Setup
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:        agent,
+		Model:        model,
+		Policy:       policy,
+		Renderer:     renderer,
+		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -495,7 +830,7 @@ func TestProcessMessage_MissingTenantID(t *testing.T) {
 	gen, err := service.ProcessMessage(ctx, sessionID, content, attachments)
 
 	// Should fail without tenant ID
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, gen)
 }
 
@@ -505,7 +840,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -522,6 +857,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -535,7 +871,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 		"test-thread",
 		"test_agent",
 		[]types.Message{
-			*types.UserMessage("What is 2+2?"),
+			types.UserMessage("What is 2+2?"),
 		},
 	)
 	checkpointID, err := checkpointer.Save(ctx, checkpoint)
@@ -571,6 +907,25 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 
 	// Verify we got events
 	assert.NotEmpty(t, events)
+
+	hasContent := false
+	var done *services.Event
+	for _, event := range events {
+		if event.Type == services.EventTypeContent {
+			hasContent = true
+		}
+		if event.Type == services.EventTypeDone {
+			e := event
+			done = &e
+		}
+	}
+
+	assert.True(t, hasContent, "Expected content events")
+	require.NotNil(t, done, "Expected done event")
+	require.NotNil(t, done.Usage)
+	assert.Equal(t, 10, done.Usage.PromptTokens)
+	assert.Equal(t, 20, done.Usage.CompletionTokens)
+	assert.Equal(t, 30, done.Usage.TotalTokens)
 }
 
 func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
@@ -579,7 +934,7 @@ func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
 	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -596,6 +951,7 @@ func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -611,7 +967,7 @@ func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
 	gen, err := service.ResumeWithAnswer(ctx, sessionID, "", answers)
 
 	// Should fail with validation error
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, gen)
 }
 
@@ -621,7 +977,7 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -638,6 +994,7 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
 		ChatRepo:     chatRepo,
 	})
 
@@ -651,7 +1008,7 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 	gen, err := service.ResumeWithAnswer(ctx, sessionID, checkpointID, answers)
 
 	// Should fail without tenant ID
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, gen)
 }
 
@@ -677,6 +1034,7 @@ func TestConvertExecutorEvent_ToolStart(t *testing.T) {
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeToolStart,
 		Tool: &agents.ToolEvent{
+			CallID:    "call_123",
 			Name:      "test_tool",
 			Arguments: `{"param": "value"}`,
 		},
@@ -686,8 +1044,9 @@ func TestConvertExecutorEvent_ToolStart(t *testing.T) {
 
 	assert.Equal(t, services.EventTypeToolStart, serviceEvent.Type)
 	require.NotNil(t, serviceEvent.Tool)
+	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
 	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
-	assert.Equal(t, `{"param": "value"}`, serviceEvent.Tool.Arguments)
+	assert.JSONEq(t, `{"param": "value"}`, serviceEvent.Tool.Arguments)
 }
 
 func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
@@ -696,10 +1055,12 @@ func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeToolEnd,
 		Tool: &agents.ToolEvent{
-			Name:      "test_tool",
-			Arguments: `{"param": "value"}`,
-			Result:    "tool result",
-			Error:     nil,
+			CallID:     "call_123",
+			Name:       "test_tool",
+			Arguments:  `{"param": "value"}`,
+			Result:     "tool result",
+			Error:      nil,
+			DurationMs: 98,
 		},
 	}
 
@@ -707,9 +1068,11 @@ func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
 
 	assert.Equal(t, services.EventTypeToolEnd, serviceEvent.Type)
 	require.NotNil(t, serviceEvent.Tool)
+	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
 	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
 	assert.Equal(t, "tool result", serviceEvent.Tool.Result)
-	assert.Nil(t, serviceEvent.Tool.Error)
+	assert.Equal(t, int64(98), serviceEvent.Tool.DurationMs)
+	assert.NoError(t, serviceEvent.Tool.Error)
 }
 
 func TestConvertExecutorEvent_Interrupt(t *testing.T) {
@@ -723,10 +1086,11 @@ func TestConvertExecutorEvent_Interrupt(t *testing.T) {
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeInterrupt,
 		Interrupt: &agents.InterruptEvent{
-			Type:         agents.ToolAskUserQuestion,
-			SessionID:    sessionID,
-			Data:         interruptData,
-			CheckpointID: checkpointID,
+			Type:               agents.ToolAskUserQuestion,
+			SessionID:          sessionID,
+			Data:               interruptData,
+			CheckpointID:       checkpointID,
+			ProviderResponseID: "resp_interrupt_1",
 		},
 	}
 
@@ -735,10 +1099,11 @@ func TestConvertExecutorEvent_Interrupt(t *testing.T) {
 	assert.Equal(t, services.EventTypeInterrupt, serviceEvent.Type)
 	require.NotNil(t, serviceEvent.Interrupt)
 	assert.NotEmpty(t, serviceEvent.Interrupt.CheckpointID)
+	assert.Equal(t, "resp_interrupt_1", serviceEvent.Interrupt.ProviderResponseID)
 	require.Len(t, serviceEvent.Interrupt.Questions, 1)
 	assert.Equal(t, "q1", serviceEvent.Interrupt.Questions[0].ID)
 	assert.Equal(t, "What is your name?", serviceEvent.Interrupt.Questions[0].Text)
-	assert.Equal(t, services.QuestionTypeText, serviceEvent.Interrupt.Questions[0].Type)
+	assert.Equal(t, services.QuestionTypeSingleChoice, serviceEvent.Interrupt.Questions[0].Type)
 }
 
 func TestConvertExecutorEvent_Done(t *testing.T) {
@@ -748,13 +1113,14 @@ func TestConvertExecutorEvent_Done(t *testing.T) {
 		Type: agents.EventTypeDone,
 		Done: true,
 		Result: &agents.Response{
-			Message: *types.AssistantMessage("Final response"),
+			Message: types.AssistantMessage("Final response"),
 			Usage: types.TokenUsage{
 				PromptTokens:     100,
 				CompletionTokens: 50,
 				TotalTokens:      150,
 			},
-			FinishReason: "stop",
+			FinishReason:       "stop",
+			ProviderResponseID: "resp_done_1",
 		},
 	}
 
@@ -766,6 +1132,7 @@ func TestConvertExecutorEvent_Done(t *testing.T) {
 	assert.Equal(t, 100, serviceEvent.Usage.PromptTokens)
 	assert.Equal(t, 50, serviceEvent.Usage.CompletionTokens)
 	assert.Equal(t, 150, serviceEvent.Usage.TotalTokens)
+	assert.Equal(t, "resp_done_1", serviceEvent.ProviderResponseID)
 }
 
 func TestConvertExecutorEvent_Error(t *testing.T) {
@@ -808,7 +1175,22 @@ func TestConvertExecutorGenerator_Close(t *testing.T) {
 	// Close the generator
 	serviceGen.Close()
 
-	// After close, Next should return ErrGeneratorDone
-	_, err := serviceGen.Next(ctx)
-	assert.Error(t, err) // Should get an error (either ErrGeneratorDone or closed error)
+	// Wait for the generator to terminate after cancellation.
+	select {
+	case <-serviceGen.Done():
+	case <-time.After(1 * time.Second):
+		t.Fatal("generator did not terminate after Close()")
+	}
+
+	// After termination, Next should eventually return ErrGeneratorDone.
+	for i := 0; i < 2; i++ {
+		_, err := serviceGen.Next(context.Background())
+		if errors.Is(err, types.ErrGeneratorDone) || errors.Is(err, context.Canceled) {
+			return
+		}
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	t.Fatal("expected generator to be done after Close()")
 }

@@ -1,5 +1,5 @@
 /**
- * Re-export IotaContext from @iotauz/bichat-ui
- * The base implementation handles window.__BICHAT_CONTEXT__ injection
+ * Re-export IotaContext from @iota-uz/sdk/bichat
+ * The base implementation handles window.__APPLET_CONTEXT__ injection
  */
-export { IotaContextProvider, useIotaContext } from '@iotauz/bichat-ui'
+export { IotaContextProvider, useIotaContext } from '@iota-uz/sdk/bichat'

@@ -6,6 +6,7 @@
     "dev": "next dev -p 4000 --webpack",
     "build": "next build --webpack && pagefind --site out --output-subdir _pagefind",
     "start": "next start -p 4000",
+    "check:mermaid": "node ./scripts/validate-mermaid.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -24,6 +25,8 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "glob": "^13.0.0",
+    "jsdom": "^26.1.0",
+    "mermaid": "11.12.2",
     "pagefind": "^1.4.0",
     "postcss": "^8.5.0",
     "tailwindcss": "^4.1.18",

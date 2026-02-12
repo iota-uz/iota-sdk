@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
@@ -14,18 +15,57 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-// Supported image MIME types
-var supportedImageTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/gif":  true,
-	"image/webp": true,
+var supportedAttachmentTypes = map[string]bool{
+	"image/jpeg":         true,
+	"image/jpg":          true,
+	"image/png":          true,
+	"image/gif":          true,
+	"image/webp":         true,
+	"application/pdf":    true,
+	"application/msword": true,
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
+	"application/vnd.ms-excel": true,
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true,
+	"text/csv":                  true,
+	"text/tab-separated-values": true,
+	"text/plain":                true,
+	"text/markdown":             true,
+	"application/json":          true,
+	"application/xml":           true,
+	"text/xml":                  true,
+	"application/yaml":          true,
+	"text/yaml":                 true,
+	"application/x-yaml":        true,
+	"text/x-yaml":               true,
+	"text/log":                  true,
 }
 
 const (
-	maxImageSize  = 20 * 1024 * 1024 // 20MB
-	maxImageCount = 10
+	maxAttachmentSize  = 20 * 1024 * 1024 // 20MB
+	maxAttachmentCount = 10
 )
+
+var extensionToMIME = map[string]string{
+	".png":  "image/png",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif":  "image/gif",
+	".webp": "image/webp",
+	".pdf":  "application/pdf",
+	".doc":  "application/msword",
+	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	".xls":  "application/vnd.ms-excel",
+	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	".csv":  "text/csv",
+	".tsv":  "text/tab-separated-values",
+	".txt":  "text/plain",
+	".md":   "text/markdown",
+	".json": "application/json",
+	".xml":  "application/xml",
+	".yaml": "application/yaml",
+	".yml":  "application/yaml",
+	".log":  "text/plain",
+}
 
 type attachmentService struct {
 	storage storage.FileStorage
@@ -38,7 +78,7 @@ func NewAttachmentService(storage storage.FileStorage) bichatservices.Attachment
 	}
 }
 
-// ValidateAndSave validates an image upload and saves it to storage
+// ValidateAndSave validates an attachment upload and saves it to storage.
 func (s *attachmentService) ValidateAndSave(
 	ctx context.Context,
 	filename string,
@@ -46,87 +86,103 @@ func (s *attachmentService) ValidateAndSave(
 	size int64,
 	reader io.Reader,
 	tenantID, userID uuid.UUID,
-) (*domain.Attachment, error) {
+) (domain.Attachment, error) {
 	const op serrors.Op = "AttachmentService.ValidateAndSave"
 
-	// Validate MIME type
-	if mimeType == "" {
-		// Try to detect from filename extension
-		ext := filepath.Ext(filename)
-		mimeType = mime.TypeByExtension(ext)
+	canonicalMime, err := normalizeAttachmentMimeType(filename, mimeType)
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
 
-	if !supportedImageTypes[mimeType] {
+	if size > maxAttachmentSize {
 		return nil, serrors.E(
 			op,
 			serrors.KindValidation,
-			fmt.Sprintf("unsupported image type: %s (supported: jpeg, png, gif, webp)", mimeType),
-		)
-	}
-
-	// Validate size
-	if size > maxImageSize {
-		return nil, serrors.E(
-			op,
-			serrors.KindValidation,
-			fmt.Sprintf("image too large: %d bytes (max: %d bytes / 20MB)", size, maxImageSize),
+			fmt.Sprintf("attachment too large: %d bytes (max: %d bytes / 20MB)", size, maxAttachmentSize),
 		)
 	}
 
 	// Save to storage
 	// Note: Tenant isolation should be handled by storage path structure
 	metadata := storage.FileMetadata{
-		ContentType: mimeType,
+		ContentType: canonicalMime,
 		Size:        size,
 	}
 
 	url, err := s.storage.Save(ctx, filename, reader, metadata)
 	if err != nil {
-		return nil, serrors.E(op, serrors.Internal, "failed to save image", err)
+		return nil, serrors.E(op, serrors.Internal, "failed to save attachment", err)
 	}
 
-	// Create attachment entity
-	attachment := &domain.Attachment{
-		FileName:  filename,
-		MimeType:  mimeType,
-		SizeBytes: size,
-		FilePath:  url, // FilePath stores the URL
-	}
+	attachment := domain.NewAttachment(
+		domain.WithFileName(filename),
+		domain.WithMimeType(canonicalMime),
+		domain.WithSizeBytes(size),
+		domain.WithFilePath(url),
+	)
 
 	return attachment, nil
 }
 
-// ValidateMultiple validates a batch of file uploads
+// ValidateMultiple validates a batch of uploads without saving.
 func (s *attachmentService) ValidateMultiple(files []bichatservices.FileUpload) error {
 	const op serrors.Op = "AttachmentService.ValidateMultiple"
 
-	if len(files) > maxImageCount {
+	if len(files) > maxAttachmentCount {
 		return serrors.E(
 			op,
 			serrors.KindValidation,
-			fmt.Sprintf("too many images: %d (max: %d)", len(files), maxImageCount),
+			fmt.Sprintf("too many attachments: %d (max: %d)", len(files), maxAttachmentCount),
 		)
 	}
 
 	for i, file := range files {
-		// Validate MIME type
-		if !supportedImageTypes[file.MimeType] {
-			return serrors.E(
-				op,
-				serrors.KindValidation,
-				fmt.Sprintf("image %d has unsupported type: %s", i+1, file.MimeType),
-			)
+		if _, err := normalizeAttachmentMimeType(file.Filename, file.MimeType); err != nil {
+			return serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachment %d: %v", i+1, err))
 		}
 
-		// Validate size
-		if file.Size > maxImageSize {
+		if file.Size > maxAttachmentSize {
 			return serrors.E(
 				op,
 				serrors.KindValidation,
-				fmt.Sprintf("image %d too large: %d bytes (max: 20MB)", i+1, file.Size),
+				fmt.Sprintf("attachment %d too large: %d bytes (max: 20MB)", i+1, file.Size),
 			)
 		}
 	}
 
 	return nil
+}
+
+// DeleteFiles removes the given storage paths (best effort).
+func (s *attachmentService) DeleteFiles(ctx context.Context, paths []string) {
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		_ = s.storage.Delete(ctx, path)
+	}
+}
+
+func normalizeAttachmentMimeType(filename string, mimeType string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(strings.Split(mimeType, ";")[0]))
+	ext := strings.ToLower(filepath.Ext(strings.TrimSpace(filename)))
+
+	if normalized != "" && supportedAttachmentTypes[normalized] {
+		return normalized, nil
+	}
+
+	if ext == "" {
+		return "", fmt.Errorf("unsupported attachment type: %s", mimeType)
+	}
+
+	if inferred, ok := extensionToMIME[ext]; ok {
+		return inferred, nil
+	}
+
+	inferred := strings.ToLower(strings.TrimSpace(strings.Split(mime.TypeByExtension(ext), ";")[0]))
+	if inferred != "" && supportedAttachmentTypes[inferred] {
+		return inferred, nil
+	}
+
+	return "", fmt.Errorf("unsupported attachment extension: %s", ext)
 }

@@ -10,6 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
+	"github.com/Oudwins/tailwind-merge-go/pkg/twmerge"
 	icons "github.com/iota-uz/icons/phosphor"
 )
 
@@ -81,12 +82,13 @@ func Drawer(props DrawerProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 = []any{
-			templ.Classes(
-				"dialog m-0 bg-transparent",
-				directions[props.Direction],
-				"w-full h-full max-w-full max-h-full",
-				props.Classes,
-			),
+			twmerge.Merge(
+				templ.Classes(
+					"dialog m-0 bg-transparent",
+					directions[props.Direction],
+					"w-full h-full max-w-full max-h-full",
+					props.Classes,
+				).String()),
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
@@ -202,7 +204,7 @@ func StdViewDrawer(props StdDrawerProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/dialog/drawer.templ`, Line: 93, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/dialog/drawer.templ`, Line: 95, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

@@ -76,7 +76,7 @@ func (r *AnthropicRenderer) EstimateTokens(block context.ContextBlock) (int, err
 	// Estimate tokens for all messages
 	totalTokens := 0
 	for _, msg := range rendered.Messages {
-		tokens, err := r.tokenizer.CountTokens(msg.Content)
+		tokens, err := r.tokenizer.CountTokens(msg.Content())
 		if err != nil {
 			return 0, err
 		}
@@ -93,7 +93,7 @@ func (r *AnthropicRenderer) renderPinned(block context.ContextBlock) (context.Re
 		return context.RenderedBlock{}, err
 	}
 	return context.RenderedBlock{
-		Messages: []types.Message{{Role: types.RoleSystem, Content: text}},
+		Messages: []types.Message{types.SystemMessage(text)},
 	}, nil
 }
 
@@ -104,7 +104,7 @@ func (r *AnthropicRenderer) renderReference(block context.ContextBlock) (context
 		return context.RenderedBlock{}, err
 	}
 	return context.RenderedBlock{
-		Messages: []types.Message{{Role: types.RoleSystem, Content: text}},
+		Messages: []types.Message{types.SystemMessage(text)},
 	}, nil
 }
 
@@ -115,7 +115,7 @@ func (r *AnthropicRenderer) renderMemory(block context.ContextBlock) (context.Re
 		return context.RenderedBlock{}, err
 	}
 	return context.RenderedBlock{
-		Messages: []types.Message{{Role: types.RoleSystem, Content: text}},
+		Messages: []types.Message{types.SystemMessage(text)},
 	}, nil
 }
 
@@ -126,7 +126,7 @@ func (r *AnthropicRenderer) renderState(block context.ContextBlock) (context.Ren
 		return context.RenderedBlock{}, err
 	}
 	return context.RenderedBlock{
-		Messages: []types.Message{{Role: types.RoleSystem, Content: text}},
+		Messages: []types.Message{types.SystemMessage(text)},
 	}, nil
 }
 
@@ -137,7 +137,7 @@ func (r *AnthropicRenderer) renderToolOutput(block context.ContextBlock) (contex
 		return context.RenderedBlock{}, err
 	}
 	return context.RenderedBlock{
-		Messages: []types.Message{{Role: types.RoleSystem, Content: fmt.Sprintf("Tool output: %s", text)}},
+		Messages: []types.Message{types.SystemMessage(fmt.Sprintf("Tool output: %s", text))},
 	}, nil
 }
 
@@ -167,7 +167,7 @@ func (r *AnthropicRenderer) renderHistory(block context.ContextBlock) (context.R
 			_ = json.Unmarshal(data, &historyPayload)
 		}
 	}
-	var messages []types.Message
+	messages := make([]types.Message, 0, len(historyPayload.Messages))
 	for _, msg := range historyPayload.Messages {
 		role := types.RoleUser
 		switch msg.Role {
@@ -180,12 +180,13 @@ func (r *AnthropicRenderer) renderHistory(block context.ContextBlock) (context.R
 		case "tool":
 			role = types.RoleTool
 		}
-		messages = append(messages, types.Message{Role: role, Content: msg.Content})
+		messages = append(messages, types.NewMessage(
+			types.WithRole(role),
+			types.WithContent(msg.Content),
+		))
 	}
 	if historyPayload.Summary != "" {
-		messages = append(messages, types.Message{
-			Role: types.RoleSystem, Content: fmt.Sprintf("Previous conversation summary: %s", historyPayload.Summary),
-		})
+		messages = append(messages, types.SystemMessage(fmt.Sprintf("Previous conversation summary: %s", historyPayload.Summary)))
 	}
 	return context.RenderedBlock{Messages: messages}, nil
 }
@@ -259,10 +260,11 @@ func (r *AnthropicRenderer) renderTurn(block context.ContextBlock) (context.Rend
 		})
 	}
 
-	msg := types.Message{Role: types.RoleUser, Content: turnPayload.Content}
+	opts := []types.MessageOption{types.WithRole(types.RoleUser), types.WithContent(turnPayload.Content)}
 	if len(attachments) > 0 {
-		msg.Attachments = attachments
+		opts = append(opts, types.WithAttachments(attachments...))
 	}
+	msg := types.NewMessage(opts...)
 	return context.RenderedBlock{Messages: []types.Message{msg}}, nil
 }
 

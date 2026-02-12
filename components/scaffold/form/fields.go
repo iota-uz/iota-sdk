@@ -521,7 +521,7 @@ type radioField struct {
 }
 
 func (f *radioField) Component() templ.Component {
-	children := []templ.Component{}
+	children := make([]templ.Component, 0, len(f.options))
 	selected := mapping.Or(f.value, f.defaultVal)
 	for _, opt := range f.options {
 		children = append(children, radio.CardItem(radio.CardItemProps{

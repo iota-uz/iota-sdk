@@ -20,8 +20,8 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	_ = migrationFiles
 	app.RegisterLocaleFiles(&localeFiles)
-	app.Migrations().RegisterSchema(&migrationFiles)
 	return nil
 }
 

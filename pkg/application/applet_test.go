@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/applets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,8 +22,8 @@ func (m *mockApplet) BasePath() string {
 	return m.basePath
 }
 
-func (m *mockApplet) Config() applet.Config {
-	return applet.Config{
+func (m *mockApplet) Config() applets.Config {
+	return applets.Config{
 		WindowGlobal: "__TEST_CONTEXT__",
 	}
 }
@@ -33,7 +33,7 @@ func TestAppletRegistry_Register(t *testing.T) {
 
 	t.Run("successfully registers applet", func(t *testing.T) {
 		t.Parallel()
-		registry := applet.NewRegistry()
+		registry := applets.NewRegistry()
 		applet := &mockApplet{name: "test-applet", basePath: "/test"}
 
 		err := registry.Register(applet)
@@ -45,7 +45,7 @@ func TestAppletRegistry_Register(t *testing.T) {
 
 	t.Run("returns error for duplicate applet name", func(t *testing.T) {
 		t.Parallel()
-		registry := applet.NewRegistry()
+		registry := applets.NewRegistry()
 		applet1 := &mockApplet{name: "duplicate", basePath: "/path1"}
 		applet2 := &mockApplet{name: "duplicate", basePath: "/path2"}
 
@@ -53,17 +53,17 @@ func TestAppletRegistry_Register(t *testing.T) {
 		require.NoError(t, err)
 
 		err = registry.Register(applet2)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "already registered")
 	})
 
 	t.Run("returns error for empty applet name", func(t *testing.T) {
 		t.Parallel()
-		registry := applet.NewRegistry()
+		registry := applets.NewRegistry()
 		applet := &mockApplet{name: "", basePath: "/test"}
 
 		err := registry.Register(applet)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be empty")
 	})
 }
@@ -73,7 +73,7 @@ func TestAppletRegistry_Get(t *testing.T) {
 
 	t.Run("returns applet by name", func(t *testing.T) {
 		t.Parallel()
-		registry := applet.NewRegistry()
+		registry := applets.NewRegistry()
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
 		_ = registry.Register(applet)
@@ -84,7 +84,7 @@ func TestAppletRegistry_Get(t *testing.T) {
 
 	t.Run("returns nil for non-existent applet", func(t *testing.T) {
 		t.Parallel()
-		registry := applet.NewRegistry()
+		registry := applets.NewRegistry()
 
 		result := registry.Get("non-existent")
 		assert.Nil(t, result)
@@ -96,7 +96,7 @@ func TestAppletRegistry_Has(t *testing.T) {
 
 	t.Run("returns true for registered applet", func(t *testing.T) {
 		t.Parallel()
-		registry := applet.NewRegistry()
+		registry := applets.NewRegistry()
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
 		_ = registry.Register(applet)
@@ -106,7 +106,7 @@ func TestAppletRegistry_Has(t *testing.T) {
 
 	t.Run("returns false for non-existent applet", func(t *testing.T) {
 		t.Parallel()
-		registry := applet.NewRegistry()
+		registry := applets.NewRegistry()
 
 		assert.False(t, registry.Has("non-existent"))
 	})
@@ -117,7 +117,7 @@ func TestAppletRegistry_All(t *testing.T) {
 
 	t.Run("returns all registered applets", func(t *testing.T) {
 		t.Parallel()
-		registry := applet.NewRegistry()
+		registry := applets.NewRegistry()
 		applet1 := &mockApplet{name: "applet1", basePath: "/path1"}
 		applet2 := &mockApplet{name: "applet2", basePath: "/path2"}
 
@@ -132,10 +132,10 @@ func TestAppletRegistry_All(t *testing.T) {
 
 	t.Run("returns empty slice for no applets", func(t *testing.T) {
 		t.Parallel()
-		registry := applet.NewRegistry()
+		registry := applets.NewRegistry()
 
 		all := registry.All()
-		assert.Len(t, all, 0)
+		assert.Empty(t, all)
 	})
 }
 
@@ -190,7 +190,7 @@ func TestApplication_AppletRegistry(t *testing.T) {
 
 		// Registry should be empty initially
 		all := registry.All()
-		assert.Len(t, all, 0)
+		assert.Empty(t, all)
 	})
 
 	t.Run("registry is shared across calls", func(t *testing.T) {
