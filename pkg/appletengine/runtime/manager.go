@@ -52,7 +52,14 @@ type Manager struct {
 	processes       map[string]*AppletProcess
 	restartAttempts map[string]int
 	entrypoints     map[string]string
+	fileStores      map[string]FileStore
 	shuttingDown    bool
+}
+
+type FileStore interface {
+	Store(ctx context.Context, name, contentType string, data []byte) (map[string]any, error)
+	Get(ctx context.Context, id string) (map[string]any, bool, error)
+	Delete(ctx context.Context, id string) (bool, error)
 }
 
 func NewManager(baseDir string, dispatcher *appletenginerpc.Dispatcher, logger *logrus.Logger) *Manager {
@@ -69,6 +76,7 @@ func NewManager(baseDir string, dispatcher *appletenginerpc.Dispatcher, logger *
 		processes:       make(map[string]*AppletProcess),
 		restartAttempts: make(map[string]int),
 		entrypoints:     make(map[string]string),
+		fileStores:      make(map[string]FileStore),
 	}
 }
 
@@ -76,6 +84,15 @@ func (m *Manager) RegisterApplet(appletID, entryPoint string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.entrypoints[appletID] = entryPoint
+}
+
+func (m *Manager) RegisterFileStore(appletID string, store FileStore) {
+	if store == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.fileStores[appletID] = store
 }
 
 func (m *Manager) EnsureStarted(ctx context.Context, appletID, entryPoint string) (*AppletProcess, error) {
@@ -231,6 +248,9 @@ func (m *Manager) ensureEngineSocket() error {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/rpc", m.dispatcher.HandleServerOnlyHTTP)
+	mux.HandleFunc("/files/store", m.handleFileStore)
+	mux.HandleFunc("/files/get", m.handleFileGet)
+	mux.HandleFunc("/files/delete", m.handleFileDelete)
 	server := &http.Server{Handler: mux}
 	go func() {
 		if serveErr := server.Serve(listener); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
@@ -481,6 +501,124 @@ func (m *Manager) postToAppletSocket(ctx context.Context, socketPath, path strin
 
 func encodeBase64(data []byte) string {
 	return base64.StdEncoding.EncodeToString(data)
+}
+
+func (m *Manager) fileStoreFromRequest(ctx context.Context, r *http.Request) (FileStore, context.Context, error) {
+	appletID := strings.TrimSpace(r.Header.Get("X-Iota-Applet-Id"))
+	if appletID == "" {
+		appletID = strings.TrimSpace(r.URL.Query().Get("applet"))
+	}
+	if appletID == "" {
+		return nil, ctx, fmt.Errorf("missing X-Iota-Applet-Id")
+	}
+	tenantID := strings.TrimSpace(r.Header.Get("X-Iota-Tenant-Id"))
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	m.mu.Lock()
+	store := m.fileStores[appletID]
+	m.mu.Unlock()
+	if store == nil {
+		return nil, ctx, fmt.Errorf("file store is not configured for applet %q", appletID)
+	}
+	ctx = appletenginerpc.WithAppletID(ctx, appletID)
+	ctx = appletenginerpc.WithTenantID(ctx, tenantID)
+	return store, ctx, nil
+}
+
+func (m *Manager) handleFileStore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+	store, ctx, err := m.fileStoreFromRequest(r.Context(), r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer func() { _ = r.Body.Close() }()
+	payload, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "failed to read payload", http.StatusBadRequest)
+		return
+	}
+	fileName := strings.TrimSpace(r.Header.Get("X-Iota-File-Name"))
+	if fileName == "" {
+		fileName = strings.TrimSpace(r.URL.Query().Get("name"))
+	}
+	contentType := strings.TrimSpace(r.Header.Get("X-Iota-Content-Type"))
+	if contentType == "" {
+		contentType = strings.TrimSpace(r.Header.Get("Content-Type"))
+	}
+	result, err := store.Store(ctx, fileName, contentType, payload)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSONResponse(w, http.StatusOK, result)
+}
+
+func (m *Manager) handleFileGet(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+	store, ctx, err := m.fileStoreFromRequest(r.Context(), r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	fileID := strings.TrimSpace(r.URL.Query().Get("id"))
+	if fileID == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+	result, found, err := store.Get(ctx, fileID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		writeJSONResponse(w, http.StatusOK, nil)
+		return
+	}
+	writeJSONResponse(w, http.StatusOK, result)
+}
+
+func (m *Manager) handleFileDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+	store, ctx, err := m.fileStoreFromRequest(r.Context(), r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	fileID := strings.TrimSpace(r.URL.Query().Get("id"))
+	if fileID == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+	ok, err := store.Delete(ctx, fileID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSONResponse(w, http.StatusOK, map[string]any{"ok": ok})
+}
+
+func writeJSONResponse(w http.ResponseWriter, status int, payload any) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(payload); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write(buf.Bytes())
 }
 
 func (m *Manager) resolveSocketPath(fileName string) string {

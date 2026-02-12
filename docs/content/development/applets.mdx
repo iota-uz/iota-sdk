@@ -287,6 +287,7 @@ Server-only methods are available in BiChat namespace:
 - `bichat.files.delete`
 
 Current storage backend is local disk with tenant+applet scoping under the engine temp directory.
+Runtime SDK now uses engine-socket binary endpoints (`/files/store`, `/files/get`, `/files/delete`) by default, with JSON-RPC fallback for compatibility.
 
 Optional Postgres metadata backend:
 

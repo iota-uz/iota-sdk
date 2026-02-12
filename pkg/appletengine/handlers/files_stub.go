@@ -41,17 +41,17 @@ type fileRecord struct {
 }
 
 func NewFilesStub() *FilesStub {
-	return &FilesStub{store: newLocalFilesStore("")}
+	return &FilesStub{store: NewLocalFilesStore("")}
 }
 
 func NewFilesStubWithStore(store FilesStore) *FilesStub {
 	if store == nil {
-		store = newLocalFilesStore("")
+		store = NewLocalFilesStore("")
 	}
 	return &FilesStub{store: store}
 }
 
-func newLocalFilesStore(baseDir string) *localFilesStore {
+func NewLocalFilesStore(baseDir string) FilesStore {
 	if strings.TrimSpace(baseDir) == "" {
 		baseDir = filepath.Join(os.TempDir(), "iota-applet-engine-files")
 	}

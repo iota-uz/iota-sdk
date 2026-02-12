@@ -1,7 +1,12 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +18,40 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type testFileStore struct {
+	files map[string]map[string]any
+}
+
+func newTestFileStore() *testFileStore {
+	return &testFileStore{files: make(map[string]map[string]any)}
+}
+
+func (s *testFileStore) Store(_ context.Context, name, contentType string, data []byte) (map[string]any, error) {
+	id := "f1"
+	record := map[string]any{
+		"id":          id,
+		"name":        name,
+		"contentType": contentType,
+		"size":        len(data),
+		"path":        "/tmp/" + name,
+	}
+	s.files[id] = record
+	return record, nil
+}
+
+func (s *testFileStore) Get(_ context.Context, id string) (map[string]any, bool, error) {
+	record, ok := s.files[id]
+	return record, ok, nil
+}
+
+func (s *testFileStore) Delete(_ context.Context, id string) (bool, error) {
+	_, ok := s.files[id]
+	if ok {
+		delete(s.files, id)
+	}
+	return ok, nil
+}
 
 func requireBun(t *testing.T) {
 	t.Helper()
@@ -123,6 +162,60 @@ func TestManager_DispatchJob(t *testing.T) {
 	})
 }
 
+func TestManager_EngineSocketFilesEndpoints(t *testing.T) {
+	t.Setenv("IOTA_APPLET_ENGINE_BICHAT", "bun")
+	manager := NewManager(t.TempDir(), appletenginerpc.NewDispatcher(appletenginerpc.NewRegistry(), nil, logrus.New()), logrus.New())
+	manager.RegisterFileStore("bichat", newTestFileStore())
+	require.NoError(t, manager.ensureEngineSocket())
+	require.NotEmpty(t, manager.EngineSocketPath())
+
+	storeReq, err := unixRequest(
+		manager.EngineSocketPath(),
+		http.MethodPost,
+		"/files/store",
+		[]byte("hello"),
+		map[string]string{
+			"X-Iota-Applet-Id":    "bichat",
+			"X-Iota-Tenant-Id":    "tenant-1",
+			"X-Iota-File-Name":    "greet.txt",
+			"X-Iota-Content-Type": "text/plain",
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, storeReq.StatusCode)
+	storeBody, err := io.ReadAll(storeReq.Body)
+	require.NoError(t, err)
+	_ = storeReq.Body.Close()
+
+	var stored map[string]any
+	require.NoError(t, json.Unmarshal(storeBody, &stored))
+	assert.Equal(t, "greet.txt", stored["name"])
+
+	getReq, err := unixRequest(
+		manager.EngineSocketPath(),
+		http.MethodGet,
+		"/files/get?id=f1&applet=bichat",
+		nil,
+		map[string]string{"X-Iota-Tenant-Id": "tenant-1"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, getReq.StatusCode)
+	_ = getReq.Body.Close()
+
+	deleteReq, err := unixRequest(
+		manager.EngineSocketPath(),
+		http.MethodDelete,
+		"/files/delete?id=f1&applet=bichat",
+		nil,
+		map[string]string{"X-Iota-Tenant-Id": "tenant-1"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, deleteReq.StatusCode)
+	_ = deleteReq.Body.Close()
+
+	require.NoError(t, manager.Shutdown(context.Background()))
+}
+
 func writeRuntimeEntry(t *testing.T, dir string) string {
 	t.Helper()
 	entry := filepath.Join(dir, "runtime.ts")
@@ -155,4 +248,26 @@ Bun.serve({
 `
 	require.NoError(t, os.WriteFile(entry, []byte(source), 0o644))
 	return entry
+}
+
+func unixRequest(socketPath, method, path string, body []byte, headers map[string]string) (*http.Response, error) {
+	dialer := &net.Dialer{}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return dialer.DialContext(ctx, "unix", socketPath)
+		},
+	}
+	client := &http.Client{Transport: transport}
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequest(method, "http://unix"+path, reader)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	return client.Do(req)
 }

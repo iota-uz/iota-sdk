@@ -384,6 +384,7 @@ func (app *application) CreateAppletControllers(
 
 	// Register in-memory server-only KV/DB methods for BiChat thin-slice runtime validation.
 	hasBiChat := false
+	var bichatFilesStore appletenginehandlers.FilesStore
 	for _, a := range allApplets {
 		if a.Name() == "bichat" {
 			hasBiChat = true
@@ -428,7 +429,7 @@ func (app *application) CreateAppletControllers(
 			return nil, err
 		}
 
-		filesStub := appletenginehandlers.NewFilesStub()
+		filesStore := appletenginehandlers.NewLocalFilesStore(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_FILES_DIR")))
 		if strings.EqualFold(strings.TrimSpace(os.Getenv("IOTA_APPLET_ENGINE_BICHAT_FILES_BACKEND")), "postgres") {
 			postgresFilesStore, err := appletenginehandlers.NewPostgresFilesStore(
 				app.DB(),
@@ -437,8 +438,10 @@ func (app *application) CreateAppletControllers(
 			if err != nil {
 				return nil, fmt.Errorf("configure postgres files store for bichat: %w", err)
 			}
-			filesStub = appletenginehandlers.NewFilesStubWithStore(postgresFilesStore)
+			filesStore = postgresFilesStore
 		}
+		bichatFilesStore = filesStore
+		filesStub := appletenginehandlers.NewFilesStubWithStore(filesStore)
 		if err := filesStub.Register(rpcRegistry, "bichat"); err != nil {
 			return nil, err
 		}
@@ -472,6 +475,9 @@ func (app *application) CreateAppletControllers(
 			runtimeManager := appletengineruntime.NewManager("", dispatcher, logger)
 			entrypoint := resolveBiChatRuntimeEntrypoint()
 			runtimeManager.RegisterApplet("bichat", entrypoint)
+			if bichatFilesStore != nil {
+				runtimeManager.RegisterFileStore("bichat", bichatFilesStore)
+			}
 			dispatcher.SetBeforeDispatch(func(ctx context.Context, appletName string) error {
 				if appletName != "bichat" {
 					return nil
