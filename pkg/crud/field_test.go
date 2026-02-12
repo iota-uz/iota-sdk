@@ -423,3 +423,59 @@ func TestValidationRules(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestCompositePrimaryKeys(t *testing.T) {
+	t.Run("single primary key", func(t *testing.T) {
+		fields := crud.NewFields([]crud.Field{
+			crud.NewIntField("id", crud.WithKey()),
+			crud.NewStringField("name"),
+		})
+
+		keyFields := fields.KeyFields()
+		assert.Len(t, keyFields, 1)
+		assert.Equal(t, "id", keyFields[0].Name())
+
+		// KeyField() should return first key for backward compatibility
+		assert.Equal(t, "id", fields.KeyField().Name())
+	})
+
+	t.Run("composite primary key with two fields", func(t *testing.T) {
+		fields := crud.NewFields([]crud.Field{
+			crud.NewIntField("organization_id", crud.WithKey()),
+			crud.NewIntField("user_id", crud.WithKey()),
+			crud.NewStringField("name"),
+		})
+
+		keyFields := fields.KeyFields()
+		assert.Len(t, keyFields, 2)
+		assert.Equal(t, "organization_id", keyFields[0].Name())
+		assert.Equal(t, "user_id", keyFields[1].Name())
+
+		// KeyField() should return first key for backward compatibility
+		assert.Equal(t, "organization_id", fields.KeyField().Name())
+	})
+
+	t.Run("composite primary key with three fields", func(t *testing.T) {
+		fields := crud.NewFields([]crud.Field{
+			crud.NewStringField("country_code", crud.WithKey()),
+			crud.NewStringField("state_code", crud.WithKey()),
+			crud.NewStringField("city_code", crud.WithKey()),
+			crud.NewStringField("city_name"),
+		})
+
+		keyFields := fields.KeyFields()
+		assert.Len(t, keyFields, 3)
+		assert.Equal(t, "country_code", keyFields[0].Name())
+		assert.Equal(t, "state_code", keyFields[1].Name())
+		assert.Equal(t, "city_code", keyFields[2].Name())
+	})
+
+	t.Run("panics when no primary key is defined", func(t *testing.T) {
+		require.Panics(t, func() {
+			crud.NewFields([]crud.Field{
+				crud.NewStringField("name"),
+				crud.NewIntField("age"),
+			})
+		})
+	})
+}

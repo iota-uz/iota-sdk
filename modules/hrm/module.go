@@ -24,7 +24,6 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	app.Migrations().RegisterSchema(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.RegisterServices(
 		services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher()),

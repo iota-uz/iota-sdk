@@ -3,9 +3,11 @@ package core
 import (
 	"embed"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 
 	icons "github.com/iota-uz/icons/phosphor"
 
@@ -27,7 +29,9 @@ var LocaleFiles embed.FS
 var MigrationFiles embed.FS
 
 type ModuleOptions struct {
-	PermissionSchema *rbac.PermissionSchema // For UI-only use in RolesController
+	PermissionSchema  *rbac.PermissionSchema // For UI-only use in RolesController
+	UploadsAuthorizer types.UploadsAuthorizer
+	DefaultTenantID   uuid.UUID // Fallback tenant ID for unauthenticated API uploads
 }
 
 func NewModule(opts *ModuleOptions) application.Module {
@@ -44,7 +48,6 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	app.Migrations().RegisterSchema(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	fsStorage, err := persistence.NewFSStorage()
 	if err != nil {
@@ -111,11 +114,20 @@ func (m *Module) Register(app application.Application) error {
 			PermissionSchema: m.options.PermissionSchema,
 		}),
 		controllers.NewGroupsController(app),
-		controllers.NewShowcaseController(app),
-		controllers.NewCrudShowcaseController(app),
 		controllers.NewWebSocketController(app),
 		controllers.NewSettingsController(app),
 	)
+	// Register Upload API controller if configured via module options
+	if m.options.UploadsAuthorizer != nil || m.options.DefaultTenantID != uuid.Nil {
+		app.RegisterControllers(
+			controllers.NewUploadAPIController(app, uploadAPIControllerOpts(m.options)...),
+		)
+	}
+	// Register showcase controllers with nil-checks (dev build tag)
+	if ctrl := controllers.NewShowcaseController(app); ctrl != nil {
+		app.RegisterControllers(ctrl)
+	}
+	app.RegisterControllers(controllers.NewCrudShowcaseController(app))
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
 		Value: graph.NewExecutableSchema(graph.Config{
@@ -139,4 +151,15 @@ func (m *Module) Register(app application.Application) error {
 
 func (m *Module) Name() string {
 	return "core"
+}
+
+func uploadAPIControllerOpts(opts *ModuleOptions) []controllers.UploadAPIControllerOption {
+	var result []controllers.UploadAPIControllerOption
+	if opts.UploadsAuthorizer != nil {
+		result = append(result, controllers.WithAPIUploadsAuthorizer(opts.UploadsAuthorizer))
+	}
+	if opts.DefaultTenantID != uuid.Nil {
+		result = append(result, controllers.WithDefaultTenantID(opts.DefaultTenantID))
+	}
+	return result
 }

@@ -22,23 +22,26 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	if !ok {
 		return nil, fmt.Errorf("request params not found")
 	}
+
 	authService := r.app.Service(services.AuthService{}).(*services.AuthService)
-	_, session, err := authService.Authenticate(ctx, email, password)
+
+	_, sess, err := authService.Authenticate(ctx, email, password)
 	if err != nil {
 		return nil, err
 	}
 	conf := configuration.Use()
+
 	cookie := &http.Cookie{
-		Path:     conf.SidCookieKey,
-		Value:    session.Token(),
-		Expires:  session.ExpiresAt(),
+		Name:     conf.SidCookieKey,
+		Value:    sess.Token(),
+		Expires:  sess.ExpiresAt(),
 		HttpOnly: false,
 		SameSite: http.SameSiteDefaultMode,
 		Secure:   false,
 		Domain:   conf.Domain,
 	}
 	http.SetCookie(writer, cookie)
-	return mappers.SessionToGraphModel(session), nil
+	return mappers.SessionToGraphModel(sess), nil
 }
 
 // GoogleAuthenticate is the resolver for the googleAuthenticate field.

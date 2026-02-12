@@ -33,6 +33,7 @@ type TableColumn interface {
 	SortDir() SortDirection
 	Editable() bool
 	EditableField() crud.Field
+	RendererRegistry() *crud.RendererRegistry
 	SortURL() string
 	StickyPos() StickyPosition
 	AddonBottom() *Addon
@@ -235,6 +236,15 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				currentValue = field.InitialValue(ctx)
 			}
 		}
+
+		if rendererType := field.RendererType(); rendererType != "" && col.RendererRegistry() != nil {
+			if renderer, exists := col.RendererRegistry().Get(rendererType); exists {
+				// Merge dynamic fieldAttrs into the field's attrs so the renderer can access them
+				maps.Copy(field.Attrs(), fieldAttrs)
+				return renderer.RenderFormControl(ctx, field, field.Value(currentValue))
+			}
+		}
+
 		maps.Copy(fieldAttrs, field.Attrs())
 		switch field.Type() {
 		case crud.StringFieldType:
@@ -625,30 +635,32 @@ type TableRow interface {
 // --- Private Implementations ---
 
 type tableColumnImpl struct {
-	key           string
-	label         string
-	class         string
-	width         string
-	sortable      bool
-	sortDir       SortDirection
-	sortURL       string
-	editable      bool
-	editableField crud.Field
-	stickyPos     StickyPosition
-	addonBottom   *Addon
+	key               string
+	label             string
+	class             string
+	width             string
+	sortable          bool
+	sortDir           SortDirection
+	sortURL           string
+	editable          bool
+	editableField     crud.Field
+	rendererRegistery *crud.RendererRegistry
+	stickyPos         StickyPosition
+	addonBottom       *Addon
 }
 
-func (c *tableColumnImpl) Key() string               { return c.key }
-func (c *tableColumnImpl) Label() string             { return c.label }
-func (c *tableColumnImpl) Class() string             { return c.class }
-func (c *tableColumnImpl) Width() string             { return c.width }
-func (c *tableColumnImpl) Sortable() bool            { return c.sortable }
-func (c *tableColumnImpl) SortDir() SortDirection    { return c.sortDir }
-func (c *tableColumnImpl) SortURL() string           { return c.sortURL }
-func (c *tableColumnImpl) Editable() bool            { return c.editable }
-func (c *tableColumnImpl) StickyPos() StickyPosition { return c.stickyPos }
-func (c *tableColumnImpl) AddonBottom() *Addon       { return c.addonBottom }
-func (c *tableColumnImpl) EditableField() crud.Field { return c.editableField }
+func (c *tableColumnImpl) Key() string                              { return c.key }
+func (c *tableColumnImpl) Label() string                            { return c.label }
+func (c *tableColumnImpl) Class() string                            { return c.class }
+func (c *tableColumnImpl) Width() string                            { return c.width }
+func (c *tableColumnImpl) Sortable() bool                           { return c.sortable }
+func (c *tableColumnImpl) SortDir() SortDirection                   { return c.sortDir }
+func (c *tableColumnImpl) SortURL() string                          { return c.sortURL }
+func (c *tableColumnImpl) Editable() bool                           { return c.editable }
+func (c *tableColumnImpl) StickyPos() StickyPosition                { return c.stickyPos }
+func (c *tableColumnImpl) AddonBottom() *Addon                      { return c.addonBottom }
+func (c *tableColumnImpl) EditableField() crud.Field                { return c.editableField }
+func (c *tableColumnImpl) RendererRegistry() *crud.RendererRegistry { return c.rendererRegistery }
 
 type tableRowImpl struct {
 	cells []TableCell
@@ -688,6 +700,12 @@ func WithRowAttrs(attrs templ.Attributes) RowOpt {
 }
 
 // --- Column Options ---
+
+func WithRendererRegistry(registry *crud.RendererRegistry) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.rendererRegistery = registry
+	}
+}
 
 func WithAddonBottom(addonBottom *Addon) ColumnOpt {
 	return func(c *tableColumnImpl) {
@@ -743,6 +761,18 @@ func WithEditableColumn(field crud.Field) ColumnOpt {
 
 type TableConfigOpt func(c *TableConfig)
 
+func WithID(id string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.ID = id
+	}
+}
+
+func WithConfigurable(configurable bool) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.Configurable = configurable
+	}
+}
+
 func WithoutSearch() TableConfigOpt {
 	return func(c *TableConfig) {
 		c.WithoutSearch = true
@@ -752,6 +782,18 @@ func WithoutSearch() TableConfigOpt {
 func WithEditable(config TableEditableConfig) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.Editable = config
+	}
+}
+
+func WithHead(config TableHeadConfig) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.Head = config
+	}
+}
+
+func WithScrollbarPosition(pos ScrollbarPosition) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.ScrollbarPosition = pos
 	}
 }
 
@@ -785,10 +827,13 @@ type TableEditableConfig struct {
 }
 
 type TableHeadConfig struct {
-	Attrs templ.Attributes
+	Sticky bool
+	Attrs  templ.Attributes
 }
 
 type TableConfig struct {
+	ID                string
+	Configurable      bool
 	Title             string
 	DataURL           string
 	Filters           []templ.Component
@@ -799,6 +844,7 @@ type TableConfig struct {
 	Infinite          *InfiniteScrollConfig
 	SideFilter        templ.Component
 	Editable          TableEditableConfig
+	ScrollbarPosition ScrollbarPosition
 	WithoutSearch     bool
 	SearchPlaceholder string // Custom placeholder for search input
 
@@ -812,13 +858,14 @@ type TableConfig struct {
 
 func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig {
 	t := &TableConfig{
-		Title:    title,
-		DataURL:  dataURL,
-		Infinite: &InfiniteScrollConfig{},
-		Columns:  []TableColumn{},
-		Filters:  []templ.Component{},
-		Actions:  []templ.Component{},
-		Rows:     []TableRow{},
+		Title:        title,
+		DataURL:      dataURL,
+		Infinite:     &InfiniteScrollConfig{},
+		Columns:      []TableColumn{},
+		Filters:      []templ.Component{},
+		Actions:      []templ.Component{},
+		Rows:         []TableRow{},
+		Configurable: true,
 	}
 	for _, o := range opts {
 		o(t)

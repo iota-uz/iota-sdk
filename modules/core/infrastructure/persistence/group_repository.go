@@ -242,13 +242,8 @@ func (g *PgGroupRepository) update(ctx context.Context, entity group.Group) (gro
 		"updated_at",
 	}
 
-	values := []interface{}{
-		dbGroup.Name,
-		dbGroup.Description,
-		dbGroup.UpdatedAt,
-	}
-
-	values = append(values, dbGroup.ID)
+	values := make([]interface{}, 0, 4)
+	values = append(values, dbGroup.Name, dbGroup.Description, dbGroup.UpdatedAt, dbGroup.ID)
 
 	_, err = tx.Exec(ctx, repo.Update("user_groups", fields, fmt.Sprintf("id = $%d", len(values))), values...)
 

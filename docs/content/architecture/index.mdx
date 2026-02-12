@@ -1,0 +1,248 @@
+---
+title: 'Architecture Overview'
+description: 'Understanding IOTA SDK system design'
+---
+
+# Architecture Overview
+
+IOTA SDK follows a layered, modular architecture built on Domain-Driven Design (DDD) principles.
+
+## System Architecture
+
+```mermaid
+graph TB
+    subgraph Client["Client Layer"]
+        Browser["Browser<br/>HTMX + Alpine.js"]
+        API["API Clients<br/>GraphQL / REST"]
+    end
+    
+    subgraph Application["Application Layer"]
+        Router["Router<br/>gorilla/mux"]
+        Middleware["Middleware<br/>Auth, Logging, Tenant"]
+        Controller["Controllers<br/>HTTP Handlers"]
+    end
+    
+    subgraph Domain["Domain Layer"]
+        Service["Services<br/>Business Logic"]
+        Entity["Entities<br/>Business Rules"]
+        Event["Domain Events"]
+    end
+    
+    subgraph Infrastructure["Infrastructure Layer"]
+        Repo["Repositories<br/>Data Access"]
+        DB["PostgreSQL<br/>Multi-tenant"]
+        EventBus["Event Bus<br/>pub/sub"]
+    end
+    
+    Browser --> Router
+    API --> Router
+    Router --> Middleware
+    Middleware --> Controller
+    Controller --> Service
+    Service --> Entity
+    Service --> Repo
+    Service --> Event
+    Repo --> DB
+    Event --> EventBus
+```
+
+## Design Principles
+
+### 1. Domain-Driven Design (DDD: %v", err)
+
+The codebase is organized around business domains rather than technical concerns. Each module represents a bounded context with its own:
+
+- **Ubiquitous Language** - Domain terms used consistently
+- **Aggregates** - Consistency boundaries
+- **Entities** - Objects with identity
+- **Value Objects** - Immutable concepts
+
+### 2. Layered Architecture
+
+Clear separation of concerns with four distinct layers:
+
+| Layer | Responsibility | Dependencies |
+|-------|---------------|--------------|
+| **Presentation** | Handle HTTP, render UI | Depends on Services |
+| **Application** | Coordinate use cases | Depends on Domain |
+| **Domain** | Business logic & rules | No external deps |
+| **Infrastructure** | Persistence, external APIs | Depends on Domain |
+
+### 3. Multi-Tenancy
+
+Single deployment serves multiple organizations (tenants) with complete data isolation:
+
+```mermaid
+graph LR
+    subgraph "IOTA SDK Platform"
+        subgraph "Tenant A"
+            DB1["Database<br/>tenant_a schema"]
+            Cache1["Cache<br/>tenant_a prefix"]
+        end
+        
+        subgraph "Tenant B"
+            DB2["Database<br/>tenant_b schema"]
+            Cache2["Cache<br/>tenant_b prefix"]
+        end
+        
+        subgraph "Tenant C"
+            DB3["Database<br/>tenant_c schema"]
+            Cache3["Cache<br/>tenant_c prefix"]
+        end
+    end
+    
+    User1["User A"] --> DB1
+    User2["User B"] --> DB2
+    User3["User C"] --> DB3
+```
+
+## Module System
+
+### Module Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Mod as Module
+    participant DB as Database
+    participant Web as Web Server
+    
+    App->>Mod: Register(: %v", err)
+    Mod->>DB: Register Migrations
+    Mod->>App: Register Services
+    Mod->>App: Register Controllers
+    Mod->>App: Register Middleware
+    Mod->>App: Register Navigation
+    App->>Web: Start Server
+```
+
+### Module Communication
+
+Modules communicate through:
+
+1. **Event Bus** - Loose coupling via domain events
+2. **Service Registry** - Direct service access via `app.Service()`
+3. **Shared Entities** - Core entities used across modules
+
+```mermaid
+graph LR
+    A[Core Module] -->|Events| EventBus[(Event Bus)]
+    B[Finance Module] -->|Events| EventBus
+    C[Warehouse Module] -->|Events| EventBus
+    
+    EventBus -->|Subscribe| A
+    EventBus -->|Subscribe| B
+    EventBus -->|Subscribe| C
+    
+    B -->|Service Call| A
+    C -->|Service Call| A
+```
+
+## Technology Stack
+
+### Backend
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Language | Go 1.23+ | Type-safe, performant |
+| Router | gorilla/mux | HTTP routing |
+| Database | PostgreSQL 13+ | ACID, JSON support |
+| ORM | sqlx | Structured queries |
+| GraphQL | gqlgen | API schema |
+| Validation | go-playground/validator | Input validation |
+| i18n | go-i18n | Localization |
+
+### Frontend
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Templating | Templ | Type-safe HTML |
+| Interactivity | HTMX | AJAX via HTML |
+| Reactivity | Alpine.js | Lightweight JS |
+| Styling | Tailwind CSS | Utility classes |
+| Icons | Lucide | SVG icons |
+
+### Infrastructure
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Sessions | Cookies + Redis | Stateful sessions |
+| Files | HashFS | Fingerprinted assets |
+| WebSocket | Custom Hub | Real-time updates |
+| Events | In-memory Bus | Pub/sub messaging |
+
+## Request Flow
+
+### HTTP Request Processing
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Router
+    participant Middleware
+    participant Controller
+    participant Service
+    participant Domain
+    participant Repo
+    participant DB
+    
+    Client->>Router: HTTP Request
+    Router->>Middleware: Apply middleware
+    Middleware->>Middleware: Auth check
+    Middleware->>Middleware: Tenant detection
+    Middleware->>Middleware: Logging
+    Middleware->>Controller: Route to handler
+    Controller->>Controller: Parse & validate DTO
+    Controller->>Service: Call service method
+    Service->>Domain: Create/modify entity
+    Domain->>Domain: Validate business rules
+    Service->>Repo: Save entity
+    Repo->>DB: Execute SQL
+    DB-->>Repo: Return data
+    Repo-->>Service: Return entity
+    Service-->>Controller: Return result
+    Service->>Service: Publish domain event
+    Controller-->>Client: HTTP Response
+```
+
+### HTMX Request
+
+For HTMX requests (AJAX), the flow is similar but:
+
+- Response is partial HTML (not full page: %v", err)
+- Triggers client-side updates via HTMX attributes
+- Supports out-of-band swaps for multiple elements
+
+## Data Flow
+
+### Write Operation
+
+```mermaid
+graph TD
+    A[User Action] --> B[Controller receives DTO]
+    B --> C[Service validates business rules]
+    C --> D[Domain Entity enforces invariants]
+    D --> E[Repository persists to DB]
+    E --> F[Domain Event published]
+    F --> G[Event Handlers react]
+```
+
+### Read Operation
+
+```mermaid
+graph TD
+    A[User Request] --> B[Controller receives params]
+    B --> C[Service fetches via Repository]
+    C --> D[Repository queries DB]
+    D --> E[Data mapped to ViewModel]
+    E --> F[Template renders HTML]
+```
+
+## Next Steps
+
+Learn more about specific architectural patterns:
+
+- **[Domain-Driven Design](/architecture/domain-driven-design)** - DDD patterns in depth
+- **[Module System](/architecture/module-system)** - Building and registering modules
+- **[Multi-Tenancy](/architecture/multi-tenancy)** - Tenant isolation strategies
+- **[Frontend Stack](/architecture/frontend-stack)** - HTMX and modern frontend patterns

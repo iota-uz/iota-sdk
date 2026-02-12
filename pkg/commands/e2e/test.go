@@ -14,7 +14,7 @@ import (
 )
 
 // Test runs the e2e test suite with complete database setup
-// The server must be started separately using `make e2e dev`
+// The server must be started separately using `just e2e dev`
 func Test() error {
 	conf := configuration.Use()
 	logger := conf.Logger()
@@ -42,14 +42,14 @@ func Test() error {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("e2e server is not running on %s. Please start the e2e development server first using: make e2e dev", baseURL)
+		return fmt.Errorf("e2e server is not running on %s. Please start the e2e development server first using: just e2e dev", baseURL)
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode >= 500 {
-		return fmt.Errorf("e2e server is not healthy (status %d). Please check the server logs or restart using: make e2e dev", resp.StatusCode)
+		return fmt.Errorf("e2e server is not healthy (status %d). Please check the server logs or restart using: just e2e dev", resp.StatusCode)
 	}
 
 	logger.Info("Server is running and healthy, proceeding with tests...")

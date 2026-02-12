@@ -1,0 +1,108 @@
+# MDX Component Examples
+
+This file demonstrates usage of all custom MDX components available in the documentation site.
+
+## InfoCard Example
+
+<InfoCard title="API Rate Limits" icon={<span>📋</span>}>
+  <InfoCard.Section title="Standard Tier">
+    Default limits for most API consumers.
+  </InfoCard.Section>
+
+  <InfoCard.Section title="Request Quotas" nested>
+    <InfoCard.Limit label="Per Hour">
+      Up to 1,000 requests
+    </InfoCard.Limit>
+    <InfoCard.Limit label="Per Day">
+      Up to 10,000 requests
+    </InfoCard.Limit>
+  </InfoCard.Section>
+
+  <InfoCard.Section title="Burst Limits">
+    <p>Maximum 100 concurrent requests allowed.</p>
+  </InfoCard.Section>
+</InfoCard>
+
+## BarChart Example
+
+<BarChart
+  title="Monthly Active Users by Plan"
+  data={[
+    { label: "Free", value: 1250 },
+    { label: "Starter", value: 850 },
+    { label: "Professional", value: 420 },
+    { label: "Enterprise", value: 95 }
+  ]}
+  maxValue={1500}
+/>
+
+## FormulaBox Example
+
+<FormulaBox title="Monthly Cost Calculation">
+  <FormulaBox.Equation>
+    Monthly Cost = Base Price + (Active Users × Price Per User) + Additional Services
+  </FormulaBox.Equation>
+
+  <FormulaBox.Variables>
+    <FormulaBox.Var name="Base Price" value="$99" />
+    <FormulaBox.Var name="Active Users" value="25" />
+    <FormulaBox.Var name="Price Per User" value="$5" />
+    <FormulaBox.Var name="Additional Services" value="$50" />
+  </FormulaBox.Variables>
+
+  <FormulaBox.Result label="Total Monthly Cost">
+    $274
+  </FormulaBox.Result>
+</FormulaBox>
+
+## ChecklistCard Example
+
+<ChecklistCard title="System Requirements">
+  <ChecklistCard.Required>
+    Valid API key
+    Node.js 18 or higher
+    PostgreSQL 13 or higher
+    2 GB RAM minimum
+  </ChecklistCard.Required>
+
+  <ChecklistCard.NotRequired>
+    Redis cache (optional but recommended)
+    Docker (for containerized deployment)
+    Load balancer (for single-instance setups)
+  </ChecklistCard.NotRequired>
+</ChecklistCard>
+
+## Combining Components
+
+You can also combine multiple components in sections:
+
+### Feature Overview
+
+<InfoCard title="Service Tier Comparison" icon={<span>🛡️</span>}>
+  <InfoCard.Section title="Storage Limits">
+    <BarChart
+      title="Storage by Plan"
+      data={[
+        { label: "Free", value: 5 },
+        { label: "Starter", value: 50 },
+        { label: "Pro", value: 250 },
+        { label: "Enterprise", value: 1000 }
+      ]}
+    />
+  </InfoCard.Section>
+
+  <InfoCard.Section title="Cost Breakdown" nested>
+    <FormulaBox>
+      <FormulaBox.Equation>
+        Total = Base + (Users × Rate) + (Storage × Rate)
+      </FormulaBox.Equation>
+      <FormulaBox.Result label="Pro Tier Example">
+        $99 + (25 × $5) + (250 × $0.20) = $274
+      </FormulaBox.Result>
+    </FormulaBox>
+  </InfoCard.Section>
+</InfoCard>
+
+---
+
+These components are optimized for Nextra with Next.js 16, Tailwind CSS v4, and full dark mode support. They replace plain text tables with professional, responsive visualizations.

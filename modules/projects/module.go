@@ -25,6 +25,8 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	_ = migrationFiles
+
 	// Register services
 	projectService := services.NewProjectService(
 		persistence.NewProjectRepository(),
@@ -65,7 +67,6 @@ func (m *Module) Register(app application.Application) error {
 	// Register locales and migrations
 	// Note: Permissions are now registered via defaults.AllPermissions()
 	app.RegisterLocaleFiles(&localeFiles)
-	app.Migrations().RegisterSchema(&migrationFiles)
 	return nil
 }
 

@@ -17,7 +17,7 @@ type Module struct {
 }
 
 //go:embed presentation/locales/*.json
-var localeFiles embed.FS
+var LocaleFiles embed.FS
 
 //go:embed infrastructure/persistence/schema/billing-schema.sql
 var migrationFiles embed.FS
@@ -37,6 +37,8 @@ func NewModule() application.Module {
 //		return nil // return nil for success, error for failure
 //	})
 func (m *Module) Register(app application.Application) error {
+	_ = migrationFiles
+
 	conf := configuration.Use()
 
 	logTransport := middleware.NewLogTransport(
@@ -125,8 +127,7 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
-	app.RegisterLocaleFiles(&localeFiles)
-	app.Migrations().RegisterSchema(&migrationFiles)
+	app.RegisterLocaleFiles(&LocaleFiles)
 
 	return nil
 }

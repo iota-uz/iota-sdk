@@ -314,6 +314,7 @@ func ToDBSession(s session.Session) *models.Session {
 		UserAgent: s.UserAgent(),
 		CreatedAt: s.CreatedAt(),
 		ExpiresAt: s.ExpiresAt(),
+		Audience:  string(s.Audience()),
 	}
 }
 
@@ -323,14 +324,22 @@ func ToDomainSession(dbSession *models.Session) session.Session {
 		tenantID = uuid.Nil
 	}
 
+	opts := []session.Option{
+		session.WithCreatedAt(dbSession.CreatedAt),
+		session.WithExpiresAt(dbSession.ExpiresAt),
+	}
+
+	if dbSession.Audience != "" {
+		opts = append(opts, session.WithAudience(session.SessionAudience(dbSession.Audience)))
+	}
+
 	return session.New(
 		dbSession.Token,
 		dbSession.UserID,
 		tenantID,
 		dbSession.IP,
 		dbSession.UserAgent,
-		session.WithCreatedAt(dbSession.CreatedAt),
-		session.WithExpiresAt(dbSession.ExpiresAt),
+		opts...,
 	)
 }
 

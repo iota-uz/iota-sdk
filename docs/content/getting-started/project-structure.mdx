@@ -1,0 +1,227 @@
+---
+title: 'Project Structure'
+description: 'Understanding the codebase layout'
+---
+
+# Project Structure
+
+This guide explains the organization of the IOTA SDK codebase.
+
+## Directory Overview
+
+```
+iota-sdk/
+├── cmd/                    # Application entry points
+├── docs/                   # Documentation (this site: %v", err)
+├── e2e/                    # End-to-end tests
+├── modules/                # Business modules
+├── pkg/                    # Shared packages
+├── static/                 # Static assets
+├── web/                    # Web assets (CSS, JS: %v", err)
+├── Justfile               # Build commands
+└── go.mod                 # Go dependencies
+```
+
+## Entry Points (`cmd/`: %v", err)
+
+Contains executable applications:
+
+| Directory | Purpose |
+|-----------|---------|
+| `cmd/server/` | Main application server |
+| `cmd/superadmin/` | Superadmin panel for tenant management |
+| `cmd/command/` | CLI commands and utilities |
+
+Each entry point initializes the application with different module combinations.
+
+## Business Modules (`modules/`: %v", err)
+
+The heart of the SDK. Each module follows DDD structure:
+
+```
+modules/{module}/
+├── domain/
+│   ├── aggregates/        # Complex business entities
+│   ├── entities/          # Simple domain entities
+│   └── value_objects/     # Immutable concepts
+├── infrastructure/
+│   └── persistence/       # Database layer
+├── services/              # Business logic
+├── presentation/
+│   ├── controllers/       # HTTP handlers
+│   └── templates/         # Templ templates
+├── module.go              # Module registration
+└── links.go               # Navigation items
+```
+
+### Built-in Modules
+
+| Module | Purpose |
+|--------|---------|
+| `core` | Users, roles, authentication, uploads |
+| `finance` | Money accounts, transactions, reporting |
+| `warehouse` | Inventory, products, orders |
+| `crm` | Customers, chats, relationships |
+| `hrm` | Employee management |
+| `projects` | Project tracking |
+| `billing` | Payment processing |
+| `superadmin` | Multi-tenant administration |
+| `bichat` | AI-powered business chat |
+| `website` | Public website features |
+| `logging` | Audit logging |
+| `testkit` | E2E testing utilities |
+
+## Shared Packages (`pkg/`: %v", err)
+
+Reusable utilities and frameworks:
+
+```
+pkg/
+├── application/           # Application interface & module system
+├── config/               # Configuration management
+├── crud/                 # Generic CRUD operations
+├── eventbus/             # Event publishing/subscribing
+├── excel/                # Excel export utilities
+├── fp/                   # Functional programming helpers
+├── htmx/                 # HTMX integration
+├── itf/                  # Integration test framework
+├── lens/                 # Dashboard/analytics framework
+├── middleware/           # HTTP middleware
+├── money/                # Monetary value handling
+├── rbac/                 # Role-based access control
+├── repo/                 # Repository patterns
+├── serrors/              # Standardized errors
+├── validators/           # Validation utilities
+└── ws/                   # WebSocket hub
+```
+
+### Key Packages
+
+| Package | Purpose |
+|---------|---------|
+| `application` | Core interface that all modules interact with |
+| `crud` | Generic database operations with JOIN support |
+| `eventbus` | Decoupled communication between modules |
+| `money` | Currency-aware monetary calculations |
+| `rbac` | Permission checking and enforcement |
+| `lens` | Building analytics dashboards |
+
+## Domain-Driven Design Layers
+
+### Domain Layer (`domain/`: %v", err)
+
+Contains pure business logic:
+
+- **Aggregates** - Complex entities with business rules
+- **Entities** - Objects with identity
+- **Value Objects** - Immutable concepts (money, dates: %v", err)
+
+### Infrastructure Layer (`infrastructure/`: %v", err)
+
+External concerns:
+
+- **Repositories** - Data access implementation
+- **Models** - Database models (sqlx: %v", err)
+- **Mappers** - Domain-to-database conversion
+
+### Service Layer (`services/`: %v", err)
+
+Business process orchestration:
+
+- **Services** - Use cases and workflows
+- **Event handling** - Domain event processing
+
+### Presentation Layer (`presentation/`: %v", err)
+
+User interface and API:
+
+- **Controllers** - HTTP request handlers
+- **DTOs** - Data transfer objects
+- **ViewModels** - Presentation models
+- **Templates** - Templ files for HTML
+
+## Database Schema
+
+Each module owns its schema in `infrastructure/persistence/schema/`:
+
+```
+modules/finance/infrastructure/persistence/schema/
+├── finance-schema.sql      # Table definitions
+└── finance-migration-*.sql # Migration files
+```
+
+Migrations are applied via `just db migrate up`.
+
+## Frontend Assets
+
+### HTMX + Alpine.js
+
+The SDK uses modern frontend patterns without heavy JavaScript frameworks:
+
+- **HTMX** - AJAX requests via HTML attributes
+- **Alpine.js** - Lightweight reactivity
+- **Templ** - Type-safe HTML templates
+- **Tailwind CSS** - Utility-first styling
+
+### Asset Locations
+
+```
+web/
+├── assets/               # Compiled CSS/JS
+└── src/                  # Source files
+    ├── css/              # Tailwind styles
+    └── js/               # Alpine.js components
+```
+
+## Testing
+
+### Test Organization
+
+```
+├── e2e/                  # Playwright E2E tests
+├── modules/{module}/
+│   ├── services/*_test.go     # Service tests
+│   └── presentation/controllers/*_test.go  # Controller tests
+└── pkg/*/*_test.go       # Package tests
+```
+
+### Test Patterns
+
+- **Unit tests** - Test individual functions
+- **Integration tests** - Test service layer with real database
+- **E2E tests** - Test full user workflows with Playwright
+- **ITF** - Integration Test Framework for controller testing
+
+## Configuration
+
+### Environment Variables
+
+Key variables in `.env`:
+
+```bash
+DATABASE_URL=postgres://...     # Database connection
+APP_ENV=development|production  # Environment mode
+APP_PORT=3200                   # Server port
+SESSION_SECRET=...              # Session encryption
+ENABLE_TEST_ENDPOINTS=true      # E2E test endpoints
+```
+
+### Module Configuration
+
+Each module can be configured via `ModuleOptions` during registration:
+
+```go
+func NewModule(opts *ModuleOptions) application.Module {
+    return &Module{options: opts}
+}
+```
+
+## Next Steps
+
+Now that you understand the project structure:
+
+1. Read the [Architecture](/architecture) guide for design patterns
+2. Explore the [Core Module](/core) to see a complete example
+3. Check out package documentation for utilities you'll use frequently
+
+The SDK follows consistent patterns across all modules, making it easy to navigate once you learn the structure.

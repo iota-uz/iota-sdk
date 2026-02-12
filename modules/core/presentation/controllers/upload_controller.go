@@ -48,7 +48,6 @@ func (c *UploadController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
 	router.Use(middleware.ProvideLocalizer(c.app))
-	router.Use(middleware.WithTransaction())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
 	workDir, err := os.Getwd()
@@ -136,7 +135,12 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		dtos = append(dtos, dto)
 	}
 
-	uploadEntities, err := c.uploadService.CreateMany(r.Context(), dtos)
+	var uploadEntities []upload.Upload
+	err := composables.InTx(r.Context(), func(txCtx context.Context) error {
+		var err error
+		uploadEntities, err = c.uploadService.CreateMany(txCtx, dtos)
+		return err
+	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

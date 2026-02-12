@@ -9,6 +9,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/builder"
@@ -347,21 +348,32 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 	// Execute dashboard queries if executor is available
 	var dashboardResult *executor.DashboardResult
 	if c.executor != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
+		err := composables.InTx(r.Context(), func(txCtx context.Context) error {
+			ctx, cancel := context.WithTimeout(txCtx, 30*time.Second)
+			defer cancel()
 
-		result, err := c.executor.ExecuteDashboard(ctx, dashboardConfig)
+			result, err := c.executor.ExecuteDashboard(ctx, dashboardConfig)
+			if err != nil {
+				log.Printf("Failed to execute dashboard queries: %v", err)
+				dashboardResult = &executor.DashboardResult{
+					PanelResults: make(map[string]*executor.ExecutionResult),
+					Duration:     0,
+					Errors:       []error{err},
+					ExecutedAt:   time.Now(),
+				}
+				return nil
+			}
+			dashboardResult = result
+			return nil
+		})
 		if err != nil {
-			log.Printf("Failed to execute dashboard queries: %v", err)
-			// Continue with empty result
+			log.Printf("Dashboard transaction failed: %v", err)
 			dashboardResult = &executor.DashboardResult{
 				PanelResults: make(map[string]*executor.ExecutionResult),
 				Duration:     0,
 				Errors:       []error{err},
 				ExecutedAt:   time.Now(),
 			}
-		} else {
-			dashboardResult = result
 		}
 	}
 

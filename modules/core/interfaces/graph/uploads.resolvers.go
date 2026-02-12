@@ -12,16 +12,19 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
-	"github.com/iota-uz/iota-sdk/modules/core/permissions"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // UploadFile is the resolver for the uploadFile field.
 func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload, opts *model.UploadFileOpts) (*model.Upload, error) {
+	// Check authorization using injected authorizer
+	if err := r.uploadsAuthorizer.CanUploadFile(ctx); err != nil {
+		return nil, err
+	}
+
 	// Get source from opts or context
 	source := composables.UseUploadSource(ctx)
 	if opts != nil && opts.Source != nil && *opts.Source != "" {
@@ -61,12 +64,8 @@ func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload,
 
 // UploadFileWithSlug is the resolver for the uploadFileWithSlug field.
 func (r *mutationResolver) UploadFileWithSlug(ctx context.Context, file *graphql.Upload, slug string, opts *model.UploadFileOpts) (*model.Upload, error) {
-	_, err := composables.UseUser(ctx)
-	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, err
-	}
-	if err := composables.CanUser(ctx, permissions.UploadCreate); err != nil {
+	// Check authorization using injected authorizer
+	if err := r.uploadsAuthorizer.CanUploadFileWithSlug(ctx); err != nil {
 		return nil, err
 	}
 
@@ -109,17 +108,12 @@ func (r *mutationResolver) UploadFileWithSlug(ctx context.Context, file *graphql
 
 // DeleteUpload is the resolver for the deleteUpload field.
 func (r *mutationResolver) DeleteUpload(ctx context.Context, id int64) (bool, error) {
-	_, err := composables.UseUser(ctx)
-	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+	// Check authorization using injected authorizer
+	if err := r.uploadsAuthorizer.CanDeleteUpload(ctx, id); err != nil {
 		return false, err
 	}
 
-	if err := composables.CanUser(ctx, permissions.UploadDelete); err != nil {
-		return false, err
-	}
-
-	_, err = r.uploadService.Delete(ctx, uint(id))
+	_, err := r.uploadService.Delete(ctx, uint(id))
 	if err != nil {
 		return false, fmt.Errorf("failed to delete upload: %w", err)
 	}
@@ -129,14 +123,11 @@ func (r *mutationResolver) DeleteUpload(ctx context.Context, id int64) (bool, er
 
 // Uploads is the resolver for the uploads field.
 func (r *queryResolver) Uploads(ctx context.Context, filter model.UploadFilter) ([]*model.Upload, error) {
-	_, err := composables.UseUser(ctx)
-	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+	// Check authorization using injected authorizer
+	if err := r.uploadsAuthorizer.CanQueryUploads(ctx); err != nil {
 		return nil, err
 	}
-	if err := composables.CanUser(ctx, permissions.UploadRead); err != nil {
-		return nil, err
-	}
+
 	params := &upload.FindParams{}
 	if filter.Type != nil {
 		params.Type = *filter.Type

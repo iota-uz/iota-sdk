@@ -1,0 +1,314 @@
+---
+title: 'Domain-Driven Design'
+description: 'DDD patterns used in IOTA SDK'
+---
+
+# Domain-Driven Design
+
+IOTA SDK implements Domain-Driven Design (DDD) patterns to model complex business domains effectively.
+
+## DDD Layers
+
+```mermaid
+graph TB
+    subgraph "Domain Layer<br/>Heart of the System"
+        A[Aggregates]
+        B[Entities]
+        C[Value Objects]
+        D[Domain Events]
+        E[Repository Interfaces]
+    end
+    
+    subgraph "Application Layer<br/>Orchestration"
+        F[Services]
+        G[DTOs]
+        H[Use Cases]
+    end
+    
+    subgraph "Presentation Layer<br/>User Interface"
+        I[Controllers]
+        J[ViewModels]
+        K[Templates]
+    end
+    
+    subgraph "Infrastructure Layer<br/>External Concerns"
+        L[Repository Implementations]
+        M[Database]
+        N[Event Bus]
+    end
+    
+    F --> A
+    F --> B
+    F --> D
+    I --> F
+    I --> G
+    F --> E
+    L -.implements.-> E
+    L --> M
+    F --> N
+```
+
+## Core Concepts
+
+### Aggregates
+
+An **Aggregate** is a cluster of associated objects treated as a single unit for data changes. Each aggregate has:
+
+- **Root Entity** - The main entity referenced externally
+- **Boundary** - Objects inside can reference each other
+- **Invariants** - Business rules maintained within the boundary
+
+```mermaid
+graph TB
+    subgraph "Order Aggregate"
+        Order["Order<br/>(Root)"]
+        Item1["OrderItem"]
+        Item2["OrderItem"]
+        Item3["OrderItem"]
+        
+        Order --> Item1
+        Order --> Item2
+        Order --> Item3
+    end
+    
+    subgraph "Product Aggregate"
+        Product["Product<br/>(Root)"]
+    end
+    
+    subgraph "Customer Aggregate"
+        Customer["Customer<br/>(Root)"]
+    end
+    
+    Item1 -.references.-> Product
+    Order -.references.-> Customer
+```
+
+**Example:** In the Finance module, a `Payment` aggregate includes the payment entity and its attachments. You cannot modify an attachment directly; you must go through the Payment aggregate root.
+
+### Entities
+
+**Entities** are objects with a distinct identity that persists over time. They:
+
+- Have a unique ID
+- Maintain continuity through state changes
+- Enforce business rules via methods
+
+**Identity Patterns:**
+
+| Pattern | Use Case | Example |
+|---------|----------|---------|
+| **Database ID** | Simple entities | `User` with auto-increment ID |
+| **UUID** | Distributed systems | `Upload` with UUID for file references |
+| **Natural Key** | Immutable identifiers | `Currency` using ISO code (USD, EUR) |
+
+### Value Objects
+
+**Value Objects** are immutable objects defined by their attributes, not identity:
+
+- No conceptual identity
+- Immutable (changes create new instances: %v", err)
+- Can be compared by value
+- Often used within entities
+
+**Examples in IOTA SDK:**
+
+| Value Object | Attributes | Usage |
+|--------------|-----------|-------|
+| **Money** | Amount + Currency | Financial transactions |
+| **Passport** | Series, Number, PIN | Employee/Client identification |
+| **Address** | Street, City, Country | Location data |
+| **DateRange** | Start, End | Project timelines |
+
+```mermaid
+graph LR
+    subgraph "Entity with Value Objects"
+        User["User Entity<br/>ID: 123"]
+        Money["Money VO<br/>$100.00"]
+        Passport["Passport VO<br/>Series: AB, No: 123456"]
+        
+        User --> Money
+        User -.has.-> Passport
+    end
+```
+
+### Domain Events
+
+**Domain Events** capture occurrences within the domain that are relevant to other parts of the system:
+
+- Named in past tense (UserCreated, PaymentProcessed: %v", err)
+- Contain relevant context data
+- Enable loose coupling between modules
+- Support eventual consistency
+
+```mermaid
+sequenceDiagram
+    participant Aggregate as Payment Aggregate
+    participant Event as PaymentCreated
+    participant Bus as Event Bus
+    participant Handler1 as Notification Handler
+    participant Handler2 as Analytics Handler
+    
+    Aggregate->>Event: Create event
+    Aggregate->>Aggregate: Record event
+    Aggregate->>Bus: Publish event
+    Bus->>Handler1: Notify user
+    Bus->>Handler2: Update metrics
+```
+
+## Repository Pattern
+
+### Definition
+
+A **Repository** mediates between the domain and data mapping layers:
+
+- Acts like an in-memory collection of aggregates
+- Hides database complexity
+- Enforces aggregate boundaries
+- Interface defined in domain, implemented in infrastructure
+
+### Structure
+
+```mermaid
+graph TB
+    subgraph "Domain Layer"
+        A[User Repository<br/>Interface]
+    end
+    
+    subgraph "Application Layer"
+        B[User Service]
+    end
+    
+    subgraph "Infrastructure Layer"
+        C[User Repository<br/>Implementation]
+        D[PostgreSQL]
+    end
+    
+    B --> A
+    C -.implements.-> A
+    C --> D
+```
+
+### Repository Methods
+
+Standard CRUD operations:
+
+- `GetByID(id)` - Fetch single aggregate
+- `List(params)` - Query with filters, pagination
+- `Save(aggregate)` - Insert or update
+- `Delete(id)` - Remove aggregate
+
+## Implementation Patterns
+
+### Immutable Entities
+
+Entities return new instances when modified, preserving the original:
+
+```mermaid
+graph LR
+    A["User v1<br/>Name: John"] -->|"SetName(Jane)"| B["User v2<br/>Name: Jane"]
+    A -.preserved.-> A
+```
+
+Benefits:
+- Thread safety
+- Audit trail capability
+- Predictable state changes
+
+### Options Pattern
+
+Flexible entity construction with optional parameters:
+
+```mermaid
+graph TD
+    A[NewUser] --> B[Required: FirstName]
+    A --> C[Required: LastName]
+    A --> D[Optional: Email]
+    A --> E[Optional: Phone]
+    A --> F[Optional: Roles]
+    
+    B --> G[User Instance]
+    C --> G
+    D --> G
+    E --> G
+    F --> G
+```
+
+### Specification Pattern
+
+Encapsulate query criteria as objects:
+
+```mermaid
+graph TB
+    A[User Query] --> B[Active Users Spec]
+    A --> C[By Role Spec]
+    A --> D[Created After Spec]
+    
+    B --> E[Combined Specification]
+    C --> E
+    D --> E
+    
+    E --> F[Repository Query]
+```
+
+## Bounded Contexts
+
+Each module represents a **Bounded Context** - a boundary within which a domain model applies:
+
+```mermaid
+graph TB
+    subgraph "Finance Context"
+        A[Payment]
+        B[Expense]
+        C[Account]
+    end
+    
+    subgraph "Warehouse Context"
+        D[Order]
+        E[Product]
+        F[Inventory]
+    end
+    
+    subgraph "CRM Context"
+        G[Client]
+        H[Chat]
+        I[Message]
+    end
+    
+    A -.anti-corruption.-> G
+    D -.anti-corruption.-> A
+```
+
+### Context Mapping
+
+Modules integrate through:
+
+- **Shared Kernel** - Common entities (User, Upload: %v", err)
+- **Customer-Supplier** - One module provides data to another
+- **Anti-Corruption Layer** - Translation between contexts
+
+## Domain Services
+
+**Domain Services** encapsulate business logic that doesn't fit in entities:
+
+- Cross-aggregate operations
+- Complex calculations
+- External integrations
+
+Examples:
+
+- **FinancialReportService** - Generate income statements across accounts
+- **ChatService** - Route messages to multiple channels
+- **BillingService** - Process payments through various providers
+
+## Best Practices
+
+1. **Keep Domain Pure** - No dependencies on infrastructure
+2. **Rich Entities** - Put business logic in entities, not services
+3. **Small Aggregates** - Prefer smaller boundaries for performance
+4. **Event Sourcing Ready** - Design with events in mind
+5. **Ubiquitous Language** - Use domain terms everywhere
+
+## Next Steps
+
+- **[Module System](/architecture/module-system)** - How modules implement DDD
+- **[Multi-Tenancy](/architecture/multi-tenancy)** - Tenant boundaries in DDD

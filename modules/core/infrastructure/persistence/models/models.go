@@ -131,6 +131,7 @@ type Session struct {
 	IP        string
 	UserAgent string
 	CreatedAt time.Time
+	Audience  string
 }
 
 type AuthenticationLog struct {

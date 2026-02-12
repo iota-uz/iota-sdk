@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"path/filepath"
 	"reflect"
+	"sort"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
@@ -17,8 +19,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -27,7 +31,7 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 	translated := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
 		translated = append(translated, types.NavigationItem{
-			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+			Name: intl.MustLocalize(localizer, &i18n.LocalizeConfig{
 				MessageID: item.Name,
 			}),
 			Href:        item.Href,
@@ -83,6 +87,9 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 	s.seedFuncs = append(s.seedFuncs, seedFuncs...)
 }
 
+// ---- Applet Registry implementation ----
+// Now uses pkg/applets.Registry directly for unified applet management
+
 // ---- Application implementation ----
 
 type ApplicationOptions struct {
@@ -101,6 +108,31 @@ func LoadBundle() *i18n.Bundle {
 	return bundle
 }
 
+// LoadBundleFromLocaleFiles creates a bundle and loads all message files from the given embed.FS slices.
+// Use this to build a bundle from locale files only (e.g. for tests without DB or config).
+func LoadBundleFromLocaleFiles(fs ...*embed.FS) *i18n.Bundle {
+	bundle := LoadBundle()
+	for _, localeFs := range fs {
+		loadLocaleFSIntoBundle(bundle, localeFs)
+	}
+	return bundle
+}
+
+// loadLocaleFSIntoBundle reads all files from the given embed.FS and parses them into the bundle.
+func loadLocaleFSIntoBundle(bundle *i18n.Bundle, localeFs *embed.FS) {
+	files, err := listFiles(localeFs, ".")
+	if err != nil {
+		panic(err)
+	}
+	for _, file := range files {
+		localeFile, err := localeFs.ReadFile(file)
+		if err != nil {
+			panic(err)
+		}
+		bundle.MustParseMessageFileBytes(localeFile, filepath.Base(file))
+	}
+}
+
 func New(opts *ApplicationOptions) Application {
 	sl := spotlight.New()
 	quickLinks := &spotlight.QuickLinks{}
@@ -117,6 +149,7 @@ func New(opts *ApplicationOptions) Application {
 		bundle:             opts.Bundle,
 		migrations:         NewMigrationManager(opts.Pool),
 		supportedLanguages: opts.SupportedLanguages,
+		appletRegistry:     applets.NewRegistry(),
 	}
 }
 
@@ -137,6 +170,7 @@ type application struct {
 	migrations         MigrationManager
 	navItems           []types.NavigationItem
 	supportedLanguages []string
+	appletRegistry     applets.Registry
 }
 
 func (app *application) Spotlight() spotlight.Spotlight {
@@ -176,6 +210,18 @@ func (app *application) Controllers() []Controller {
 	for _, c := range app.controllers {
 		controllers = append(controllers, c)
 	}
+	// Register applet controllers first so their asset routes (e.g. /admin/ali/chat/assets)
+	// are added before other controllers that might match /admin/... and return 404 for
+	// dev proxy requests (@vite/client, /src/*, etc.).
+	sort.Slice(controllers, func(i, j int) bool {
+		ki, kj := controllers[i].Key(), controllers[j].Key()
+		appletI := strings.HasPrefix(ki, "applet_")
+		appletJ := strings.HasPrefix(kj, "applet_")
+		if appletI != appletJ {
+			return appletI
+		}
+		return ki < kj
+	})
 	return controllers
 }
 
@@ -197,6 +243,9 @@ func (app *application) GraphSchemas() []GraphSchema {
 
 func (app *application) RegisterControllers(controllers ...Controller) {
 	for _, c := range controllers {
+		if c == nil {
+			continue
+		}
 		app.controllers[c.Key()] = c
 	}
 }
@@ -219,17 +268,7 @@ func (app *application) RegisterGraphSchema(schema GraphSchema) {
 
 func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
 	for _, localeFs := range fs {
-		files, err := listFiles(localeFs, ".")
-		if err != nil {
-			panic(err)
-		}
-		for _, file := range files {
-			localeFile, err := localeFs.ReadFile(file)
-			if err != nil {
-				panic(err)
-			}
-			app.bundle.MustParseMessageFileBytes(localeFile, filepath.Base(file))
-		}
+		loadLocaleFSIntoBundle(app.bundle, localeFs)
 	}
 }
 
@@ -261,4 +300,66 @@ func (app *application) Bundle() *i18n.Bundle {
 
 func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
+}
+
+func (app *application) RegisterApplet(a Applet) error {
+	return app.appletRegistry.Register(a)
+}
+
+func (app *application) AppletRegistry() AppletRegistry {
+	return app.appletRegistry
+}
+
+// CreateAppletControllers creates controllers for all registered applets.
+// This provides a single mounting point for all applets in the application.
+//
+// Parameters:
+//   - host: Host services for extracting user, tenant, pool, locale from request context
+//   - sessionConfig: Session configuration for context building
+//   - logger: Logger for applet operations
+//   - metrics: Metrics recorder (can be nil)
+//   - opts: Optional builder options (e.g., WithTenantNameResolver, WithErrorEnricher)
+//
+// Returns a slice of controllers that can be registered via RegisterControllers().
+//
+// Example usage:
+//
+//	controllers, err := app.CreateAppletControllers(
+//		hostServices,
+//		applets.DefaultSessionConfig,
+//		logger,
+//		metrics,
+//	)
+//	if err != nil {
+//		return err
+//	}
+//	app.RegisterControllers(controllers...)
+func (app *application) CreateAppletControllers(
+	host applets.HostServices,
+	sessionConfig applets.SessionConfig,
+	logger *logrus.Logger,
+	metrics applets.MetricsRecorder,
+	opts ...applets.BuilderOption,
+) ([]Controller, error) {
+	registry := app.AppletRegistry()
+	allApplets := registry.All()
+
+	controllers := make([]Controller, 0, len(allApplets))
+	for _, a := range allApplets {
+		controller, err := applets.NewAppletController(
+			a,
+			app.Bundle(),
+			sessionConfig,
+			logger,
+			metrics,
+			host,
+			opts...,
+		)
+		if err != nil {
+			return nil, err
+		}
+		controllers = append(controllers, controller)
+	}
+
+	return controllers, nil
 }

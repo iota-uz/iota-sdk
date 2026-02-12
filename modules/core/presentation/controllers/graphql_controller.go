@@ -1,24 +1,37 @@
 package controllers
 
 import (
-	"log"
 	"net/http"
 	"path"
 
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/99designs/gqlgen/graphql/executor"
-	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/graphql"
 )
 
+// registerPlaygroundHandler is a package-level variable that can be overridden by build tags.
+// In development builds, this will register the GraphQL playground handler.
+// In production builds, this will be a no-op.
+var registerPlaygroundHandler = func(r *mux.Router) {}
+
 type GraphQLController struct {
-	app application.Application
+	app             application.Application
+	resolverOptions []graph.ResolverOption
+}
+
+// GraphQLControllerOption is a functional option for configuring the GraphQLController.
+type GraphQLControllerOption func(*GraphQLController)
+
+// WithResolverOptions sets custom resolver options (e.g., authorizers).
+func WithResolverOptions(opts ...graph.ResolverOption) GraphQLControllerOption {
+	return func(c *GraphQLController) {
+		c.resolverOptions = append(c.resolverOptions, opts...)
+	}
 }
 
 func (g *GraphQLController) Key() string {
@@ -28,7 +41,7 @@ func (g *GraphQLController) Key() string {
 func (g *GraphQLController) Register(r *mux.Router) {
 	schema := graph.NewExecutableSchema(
 		graph.Config{
-			Resolvers: graph.NewResolver(g.app),
+			Resolvers: graph.NewResolver(g.app, g.resolverOptions...),
 		},
 	)
 	srv := graphql.NewBaseServer(schema)
@@ -47,7 +60,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	)
 
 	router.Handle("/query", srv)
-	router.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
+	registerPlaygroundHandler(router)
 	for _, schema := range g.app.GraphSchemas() {
 		exec := executor.New(schema.Value)
 		if schema.ExecutorCb != nil {
@@ -55,11 +68,25 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		}
 		router.Handle(path.Join("/query", schema.BasePath), graphql.NewHandler(exec))
 	}
-	log.Printf("See %s/playground for GraphQL playground", configuration.Use().Origin)
 }
 
-func NewGraphQLController(app application.Application) application.Controller {
-	return &GraphQLController{
+// NewGraphQLController creates a new GraphQL controller with optional configuration.
+// Use WithResolverOptions to provide custom authorizers.
+//
+// Example:
+//
+//	NewGraphQLController(app,
+//	    WithResolverOptions(
+//	        graph.WithUsersAuthorizer(customUsersAuthorizer),
+//	        graph.WithUploadsAuthorizer(customUploadsAuthorizer),
+//	    ),
+//	)
+func NewGraphQLController(app application.Application, opts ...GraphQLControllerOption) application.Controller {
+	c := &GraphQLController{
 		app: app,
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
