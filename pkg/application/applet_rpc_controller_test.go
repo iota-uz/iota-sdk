@@ -205,6 +205,46 @@ secrets = "env"
 	assert.NotEqual(t, http.StatusNotFound, res.Code)
 }
 
+func TestCreateAppletControllers_EngineWiringWorksForNonBiChatApplet(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.demo]
+base_path = "/demo"
+
+[applets.demo.engine]
+runtime = "off"
+
+[applets.demo.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/applets/demo/ws", nil)
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+	assert.NotEqual(t, http.StatusNotFound, res.Code)
+}
+
 func TestCreateAppletControllers_BiChatRedisKVRequiresURL(t *testing.T) {
 	withAppletConfig(t, `
 version = 2

@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -383,121 +384,159 @@ func (app *application) CreateAppletControllers(
 		controllers = append(controllers, controller)
 	}
 
-	// Register in-memory server-only KV/DB methods for BiChat thin-slice runtime validation.
-	hasBiChat := false
-	var bichatFilesStore appletenginehandlers.FilesStore
-	var bichatEngine appletsconfig.AppletEngineConfig
-	for _, a := range allApplets {
-		if a.Name() == "bichat" {
-			hasBiChat = true
-			break
+	// Register server-only engine methods for applets that explicitly declare an [applets.<name>.engine] section.
+	_, projectConfig, loadConfigErr := appletsconfig.LoadFromCWD()
+	if loadConfigErr != nil {
+		if errors.Is(loadConfigErr, appletsconfig.ErrConfigNotFound) {
+			if logger != nil {
+				logger.WithError(loadConfigErr).Warn("applet engine config not found; skipping server-only applet engine wiring")
+			}
+			projectConfig = nil
+		} else {
+			return nil, fmt.Errorf("load applet config from .applets/config.toml: %w", loadConfigErr)
 		}
 	}
-	if hasBiChat {
-		_, projectConfig, err := appletsconfig.LoadFromCWD()
-		if err != nil {
-			return nil, fmt.Errorf("load applet config from .applets/config.toml: %w", err)
-		}
-		bichatEngine = projectConfig.EffectiveEngineConfig("bichat")
 
+	engineByApplet := make(map[string]appletsconfig.AppletEngineConfig)
+	for _, a := range allApplets {
+		if projectConfig == nil {
+			continue
+		}
+		appletCfg, ok := projectConfig.Applets[a.Name()]
+		if !ok || appletCfg == nil || appletCfg.Engine == nil {
+			continue
+		}
+		engineByApplet[a.Name()] = projectConfig.EffectiveEngineConfig(a.Name())
+	}
+
+	fileStoreByApplet := make(map[string]appletenginehandlers.FilesStore)
+	if len(engineByApplet) > 0 {
 		wsBridge = appletenginewsbridge.New(logger)
-
-		kvStub := appletenginehandlers.NewKVStub()
-		if bichatEngine.Backends.KV == appletsconfig.KVBackendRedis {
-			redisKVStore, err := appletenginehandlers.NewRedisKVStore(bichatEngine.Redis.URL)
-			if err != nil {
-				return nil, fmt.Errorf("configure redis kv store for bichat: %w", err)
-			}
-			kvStub = appletenginehandlers.NewKVStubWithStore(redisKVStore)
-		}
-		if err := kvStub.Register(rpcRegistry, "bichat"); err != nil {
-			return nil, err
-		}
-		dbStub := appletenginehandlers.NewDBStub()
-		if bichatEngine.Backends.DB == appletsconfig.DBBackendPostgres {
-			postgresDBStore, err := appletenginehandlers.NewPostgresDBStore(app.DB())
-			if err != nil {
-				return nil, fmt.Errorf("configure postgres db store for bichat: %w", err)
-			}
-			dbStub = appletenginehandlers.NewDBStubWithStore(postgresDBStore)
-		}
-		if err := dbStub.Register(rpcRegistry, "bichat"); err != nil {
-			return nil, err
-		}
-		jobsStub := appletenginehandlers.NewJobsStub()
-		if bichatEngine.Backends.Jobs == appletsconfig.JobsBackendPostgres {
-			postgresJobsStore, err := appletenginehandlers.NewPostgresJobsStore(app.DB())
-			if err != nil {
-				return nil, fmt.Errorf("configure postgres jobs store for bichat: %w", err)
-			}
-			jobsStub = appletenginehandlers.NewJobsStubWithStore(postgresJobsStore)
-		}
-		if err := jobsStub.Register(rpcRegistry, "bichat"); err != nil {
-			return nil, err
-		}
-
-		filesStore := appletenginehandlers.NewLocalFilesStore(strings.TrimSpace(bichatEngine.Files.Dir))
-		if bichatEngine.Backends.Files == appletsconfig.FilesBackendPostgres {
-			postgresFilesStore, err := appletenginehandlers.NewPostgresFilesStore(
-				app.DB(),
-				strings.TrimSpace(bichatEngine.Files.Dir),
-			)
-			if err != nil {
-				return nil, fmt.Errorf("configure postgres files store for bichat: %w", err)
-			}
-			filesStore = postgresFilesStore
-		}
-		bichatFilesStore = filesStore
-		filesStub := appletenginehandlers.NewFilesStubWithStore(filesStore)
-		if err := filesStub.Register(rpcRegistry, "bichat"); err != nil {
-			return nil, err
-		}
-
-		secretsStub := appletenginehandlers.NewSecretsStub()
-		if bichatEngine.Backends.Secrets == appletsconfig.SecretsBackendPostgres {
-			masterKeyPayload, readErr := os.ReadFile(strings.TrimSpace(bichatEngine.Secrets.MasterKeyFile))
-			if readErr != nil {
-				return nil, fmt.Errorf("read bichat secrets master key file: %w", readErr)
-			}
-			postgresSecretsStore, err := appletenginehandlers.NewPostgresSecretsStore(
-				app.DB(),
-				strings.TrimSpace(string(masterKeyPayload)),
-			)
-			if err != nil {
-				return nil, fmt.Errorf("configure postgres secrets store for bichat: %w", err)
-			}
-			secretsStub = appletenginehandlers.NewSecretsStubWithStore(postgresSecretsStore)
-		}
-		if err := secretsStub.Register(rpcRegistry, "bichat"); err != nil {
-			return nil, err
-		}
-
 		wsStub := appletenginehandlers.NewWSStub(wsBridge)
-		if err := wsStub.Register(rpcRegistry, "bichat"); err != nil {
-			return nil, err
+		for appletName, engineCfg := range engineByApplet {
+			kvStub := appletenginehandlers.NewKVStub()
+			if engineCfg.Backends.KV == appletsconfig.KVBackendRedis {
+				redisKVStore, err := appletenginehandlers.NewRedisKVStore(engineCfg.Redis.URL)
+				if err != nil {
+					return nil, fmt.Errorf("configure redis kv store for %s: %w", appletName, err)
+				}
+				kvStub = appletenginehandlers.NewKVStubWithStore(redisKVStore)
+			}
+			if err := kvStub.Register(rpcRegistry, appletName); err != nil {
+				return nil, err
+			}
+
+			dbStub := appletenginehandlers.NewDBStub()
+			if engineCfg.Backends.DB == appletsconfig.DBBackendPostgres {
+				postgresDBStore, err := appletenginehandlers.NewPostgresDBStore(app.DB())
+				if err != nil {
+					return nil, fmt.Errorf("configure postgres db store for %s: %w", appletName, err)
+				}
+				dbStub = appletenginehandlers.NewDBStubWithStore(postgresDBStore)
+			}
+			if err := dbStub.Register(rpcRegistry, appletName); err != nil {
+				return nil, err
+			}
+
+			jobsStub := appletenginehandlers.NewJobsStub()
+			if engineCfg.Backends.Jobs == appletsconfig.JobsBackendPostgres {
+				postgresJobsStore, err := appletenginehandlers.NewPostgresJobsStore(app.DB())
+				if err != nil {
+					return nil, fmt.Errorf("configure postgres jobs store for %s: %w", appletName, err)
+				}
+				jobsStub = appletenginehandlers.NewJobsStubWithStore(postgresJobsStore)
+			}
+			if err := jobsStub.Register(rpcRegistry, appletName); err != nil {
+				return nil, err
+			}
+
+			filesStore := appletenginehandlers.NewLocalFilesStore(strings.TrimSpace(engineCfg.Files.Dir))
+			if engineCfg.Backends.Files == appletsconfig.FilesBackendPostgres {
+				postgresFilesStore, err := appletenginehandlers.NewPostgresFilesStore(
+					app.DB(),
+					strings.TrimSpace(engineCfg.Files.Dir),
+				)
+				if err != nil {
+					return nil, fmt.Errorf("configure postgres files store for %s: %w", appletName, err)
+				}
+				filesStore = postgresFilesStore
+			}
+			fileStoreByApplet[appletName] = filesStore
+			filesStub := appletenginehandlers.NewFilesStubWithStore(filesStore)
+			if err := filesStub.Register(rpcRegistry, appletName); err != nil {
+				return nil, err
+			}
+
+			secretsStub := appletenginehandlers.NewSecretsStub()
+			if engineCfg.Backends.Secrets == appletsconfig.SecretsBackendPostgres {
+				masterKeyPayload, readErr := os.ReadFile(strings.TrimSpace(engineCfg.Secrets.MasterKeyFile))
+				if readErr != nil {
+					return nil, fmt.Errorf("read %s secrets master key file: %w", appletName, readErr)
+				}
+				postgresSecretsStore, err := appletenginehandlers.NewPostgresSecretsStore(
+					app.DB(),
+					strings.TrimSpace(string(masterKeyPayload)),
+				)
+				if err != nil {
+					return nil, fmt.Errorf("configure postgres secrets store for %s: %w", appletName, err)
+				}
+				secretsStub = appletenginehandlers.NewSecretsStubWithStore(postgresSecretsStore)
+			}
+			if err := secretsStub.Register(rpcRegistry, appletName); err != nil {
+				return nil, err
+			}
+
+			if err := wsStub.Register(rpcRegistry, appletName); err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	if rpcRegistry.CountPublic() > 0 {
 		dispatcher := appletenginerpc.NewDispatcher(rpcRegistry, host, logger)
 
-		// Bun runtime process plumbing (BiChat only, feature-flagged).
-		if hasBiChat && appletengineruntime.EnabledForEngineConfig(bichatEngine) {
+		// Bun runtime process plumbing for applets with runtime=bun.
+		runtimeEnabledByApplet := make(map[string]appletsconfig.AppletEngineConfig)
+		for appletName, engineCfg := range engineByApplet {
+			if appletengineruntime.EnabledForEngineConfig(engineCfg) {
+				runtimeEnabledByApplet[appletName] = engineCfg
+			}
+		}
+		if len(runtimeEnabledByApplet) > 0 {
 			runtimeManager := appletengineruntime.NewManager("", dispatcher, logger)
-			runtimeManager.SetBunBin(bichatEngine.BunBin)
-			entrypoint := resolveBiChatRuntimeEntrypoint()
-			runtimeManager.RegisterApplet("bichat", entrypoint)
-			if bichatFilesStore != nil {
-				runtimeManager.RegisterFileStore("bichat", bichatFilesStore)
+			effectiveBunBin := ""
+			for _, engineCfg := range runtimeEnabledByApplet {
+				if effectiveBunBin == "" {
+					effectiveBunBin = engineCfg.BunBin
+				}
+				if strings.TrimSpace(engineCfg.BunBin) != "" && strings.TrimSpace(effectiveBunBin) != strings.TrimSpace(engineCfg.BunBin) {
+					return nil, fmt.Errorf("runtime bun_bin mismatch across enabled applets")
+				}
+			}
+			runtimeManager.SetBunBin(effectiveBunBin)
+
+			for appletName := range runtimeEnabledByApplet {
+				entrypoint := resolveAppletRuntimeEntrypoint(appletName)
+				runtimeManager.RegisterApplet(appletName, entrypoint)
+				if store, ok := fileStoreByApplet[appletName]; ok && store != nil {
+					runtimeManager.RegisterFileStore(appletName, store)
+				}
 			}
 			dispatcher.SetBeforeDispatch(func(ctx context.Context, appletName string) error {
-				if appletName != "bichat" {
+				if _, ok := runtimeEnabledByApplet[appletName]; !ok {
 					return nil
 				}
-				_, err := runtimeManager.EnsureStarted(ctx, "bichat", "")
+				_, err := runtimeManager.EnsureStarted(ctx, appletName, "")
 				return err
 			})
-			if bichatEngine.Backends.Jobs == appletsconfig.JobsBackendPostgres && app.DB() != nil {
+			hasPostgresJobs := false
+			for _, engineCfg := range runtimeEnabledByApplet {
+				if engineCfg.Backends.Jobs == appletsconfig.JobsBackendPostgres {
+					hasPostgresJobs = true
+					break
+				}
+			}
+			if hasPostgresJobs && app.DB() != nil {
 				runner, err := appletenginejobs.NewRunner(app.DB(), runtimeManager, logger, 2*time.Second)
 				if err != nil {
 					return nil, fmt.Errorf("create applet jobs runner: %w", err)
@@ -519,12 +558,12 @@ func (app *application) CreateAppletControllers(
 	return controllers, nil
 }
 
-func resolveBiChatRuntimeEntrypoint() string {
+func resolveAppletRuntimeEntrypoint(appletName string) string {
 	_, currentFile, _, ok := goruntime.Caller(0)
 	if !ok {
-		return "modules/bichat/runtime/index.ts"
+		return filepath.Join("modules", appletName, "runtime", "index.ts")
 	}
-	// pkg/application/application.go -> repo root -> modules/bichat/runtime/index.ts
+	// pkg/application/application.go -> repo root -> modules/<applet>/runtime/index.ts
 	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
-	return filepath.Join(root, "modules", "bichat", "runtime", "index.ts")
+	return filepath.Join(root, "modules", appletName, "runtime", "index.ts")
 }
