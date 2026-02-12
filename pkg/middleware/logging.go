@@ -269,9 +269,16 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 
 				wrappedWriter := wrapResponseWriter(w)
 
-				// Recover from panics, log them with full context, then re-panic
+				// Recover from panics, log them with full context, and return 500 error
 				defer func() {
 					if recovered := recover(); recovered != nil {
+						// http.ErrAbortHandler is a sentinel panic used to cleanly
+						// abort a request (e.g. reverse proxy client disconnect).
+						// Not a real error — stop processing silently.
+						if recovered == http.ErrAbortHandler {
+							return
+						}
+
 						duration := time.Since(start)
 
 						// Build comprehensive panic log fields
@@ -299,12 +306,10 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 						fieldsLogger.WithFields(panicFields).Error("panic recovered in request handler")
 
 						// Set 500 status code so client receives proper HTTP response
+						// Don't re-panic - instead write a proper error response
 						if !wrappedWriter.statusWritten {
-							wrappedWriter.WriteHeader(http.StatusInternalServerError)
+							http.Error(wrappedWriter, "Internal Server Error", http.StatusInternalServerError)
 						}
-
-						// Re-panic to propagate upstream to process-level recovery
-						panic(recovered)
 					}
 				}()
 

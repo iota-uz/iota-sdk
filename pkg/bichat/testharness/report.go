@@ -1,0 +1,57 @@
+package testharness
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+)
+
+func WriteJSONReport(path string, report RunReport) error {
+	b, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0o644)
+}
+
+func PrintConsoleSummary(w io.Writer, report RunReport) {
+	_, _ = fmt.Fprintf(w, "Tests: %d, Passed: %d, Failed: %d, Errors: %d\n",
+		report.Summary.Total, report.Summary.Passed, report.Summary.Failed, report.Summary.Errored)
+	_, _ = fmt.Fprintf(
+		w,
+		"Metrics: tools=%d, tokens(in/out/total)=%d/%d/%d, cost=%.6f\n",
+		report.Summary.ToolUseEfficiency,
+		report.Summary.InputTokens,
+		report.Summary.OutputTokens,
+		report.Summary.TotalTokens,
+		report.Summary.Cost,
+	)
+
+	if report.CacheKey != "" {
+		suffix := ""
+		if report.Cached {
+			suffix = " (cached)"
+		}
+		_, _ = fmt.Fprintf(w, "Cache key: %s%s\n", report.CacheKey, suffix)
+	}
+
+	failed := make([]string, 0)
+	errored := make([]string, 0)
+	for _, t := range report.Tests {
+		switch t.Status {
+		case TestStatusPassed:
+		case TestStatusFailed:
+			failed = append(failed, t.ID)
+		case TestStatusError:
+			errored = append(errored, t.ID)
+		}
+	}
+	if len(failed) > 0 {
+		_, _ = fmt.Fprintf(w, "Failed: %s\n", strings.Join(failed, ", "))
+	}
+	if len(errored) > 0 {
+		_, _ = fmt.Fprintf(w, "Errors: %s\n", strings.Join(errored, ", "))
+	}
+}

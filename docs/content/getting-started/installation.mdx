@@ -11,11 +11,11 @@ This guide walks you through setting up the IOTA SDK development environment.
 
 ### Required Software
 
-- **Go 1.23+** ([Download](https://go.dev/dl/))
-- **PostgreSQL 13+** ([Download](https://www.postgresql.org/download/))
-- **Node.js 18+** ([Download](https://nodejs.org/))
-- **Git** ([Download](https://git-scm.com/downloads))
-- **Make** (Usually pre-installed on macOS/Linux, [Windows instructions](https://gnuwin32.sourceforge.net/packages/make.htm))
+- **Go 1.23+** ([Download](https://go.dev/dl/): %v", err)
+- **PostgreSQL 13+** ([Download](https://www.postgresql.org/download/): %v", err)
+- **Node.js 18+** ([Download](https://nodejs.org/): %v", err)
+- **Git** ([Download](https://git-scm.com/downloads): %v", err)
+- **just** ([Download](https://github.com/casey/just): %v", err)
 
 ### Verify Installations
 
@@ -24,7 +24,7 @@ go version          # Should show 1.23 or later
 psql --version      # Should show 13.x or later
 node --version      # Should show 18.x or later
 git --version       # Any recent version
-make --version      # Any version
+just --version      # Any recent version
 ```
 
 ## Database Setup
@@ -40,7 +40,7 @@ psql -U postgres
 # Create database
 CREATE DATABASE iota_sdk_dev;
 
-# Create user (optional, can use postgres)
+# Create user (optional, can use postgres: %v", err)
 CREATE USER iota_user WITH PASSWORD 'your_password';
 GRANT ALL PRIVILEGES ON DATABASE iota_sdk_dev TO iota_user;
 ```
@@ -61,7 +61,7 @@ cd iota-sdk
 go mod download
 
 # Install Node.js dependencies for documentation
-cd docs && npm install && cd ..
+cd docs && pnpm install && cd ..
 ```
 
 ## Configuration
@@ -101,7 +101,7 @@ The SDK uses a configuration system located in `pkg/config/`. Key configuration 
 Apply database schema:
 
 ```bash
-make db migrate up
+just db migrate up
 ```
 
 ### Start the Server
@@ -110,8 +110,8 @@ make db migrate up
 # Standard server
 go run cmd/server/main.go
 
-# Or using make
-make run
+# Or using air (hot reload)
+air
 ```
 
 The server will start on `http://localhost:3200` by default.

@@ -1744,7 +1744,8 @@ func TestBuildRelations_FullSQLQuery(t *testing.T) {
 	joinClauses := BuildRelationJoinClauses(mainTable, relations)
 
 	// === Construct full SELECT clause ===
-	allSelectParts := []string{mainTable + ".*"}
+	allSelectParts := make([]string, 0, 1+len(selectCols))
+	allSelectParts = append(allSelectParts, mainTable+".*")
 	allSelectParts = append(allSelectParts, selectCols...)
 	selectClause := strings.Join(allSelectParts, ", ")
 
@@ -2042,7 +2043,8 @@ func TestBuildRelations_FullSQLQuery_Integration(t *testing.T) {
 
 	// Construct full SELECT clause
 	// When using table alias, must use alias.* not schema.table.*
-	allSelectParts := []string{mainAlias + ".*"}
+	allSelectParts := make([]string, 0, 1+len(selectCols))
+	allSelectParts = append(allSelectParts, mainAlias+".*")
 	allSelectParts = append(allSelectParts, selectCols...)
 	selectClause := strings.Join(allSelectParts, ", ")
 

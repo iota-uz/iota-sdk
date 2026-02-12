@@ -243,7 +243,7 @@ await populateTestData(financeData);
 Set environment variable in your e2e development server:
 
 ```bash
-ENABLE_TEST_ENDPOINTS=true make e2e dev
+ENABLE_TEST_ENDPOINTS=true just e2e dev
 ```
 
 ### CI/CD Integration

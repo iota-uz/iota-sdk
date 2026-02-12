@@ -50,13 +50,13 @@ templ Confirmation(p *Props) {
 					<menu class="flex gap-3">
 						@button.Secondary(button.Props{
 							Class: "flex-1 justify-center",
-							Attrs: templ.Attributes{"value": "cancel"},
+							Attrs: templ.Attributes{"value": "cancel", "data-test-id": "dialog-cancel-btn"},
 						}) {
 							{ p.CancelText }
 						}
 						@button.Primary(button.Props{
 							Class: "flex-1 justify-center",
-							Attrs: templ.Attributes{"value": "confirm"},
+							Attrs: templ.Attributes{"value": "confirm", "data-test-id": "dialog-confirm-btn"},
 						}) {
 							{ p.ConfirmText }
 						}

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -271,6 +273,41 @@ func CreateDB(name string) {
 	}
 }
 
+// DropDB drops a test database. Used for cleanup after tests to free disk space.
+func DropDB(name string) {
+	sanitizedName := sanitizeDBName(name)
+
+	c := configuration.Use()
+	adminConnStr := fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
+		c.Database.Host, c.Database.Port, c.Database.User, c.Database.Password,
+	)
+	db, err := sql.Open("postgres", adminConnStr)
+	if err != nil {
+		log.Printf("[WARNING] Failed to open connection for DropDB: %v", err)
+		return
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("[WARNING] Error closing DropDB connection: %v", err)
+		}
+	}()
+
+	// Terminate any remaining connections to the database
+	terminateSQL := fmt.Sprintf(`
+		SELECT pg_terminate_backend(pg_stat_activity.pid)
+		FROM pg_stat_activity
+		WHERE pg_stat_activity.datname = '%s'
+		AND pid <> pg_backend_pid()
+	`, sanitizedName)
+	_, _ = db.ExecContext(context.Background(), terminateSQL)
+
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
+	if err != nil {
+		log.Printf("[WARNING] Failed to drop database %s: %v", sanitizedName, err)
+	}
+}
+
 func DbOpts(name string) string {
 	sanitizedName := sanitizeDBName(name)
 
@@ -293,9 +330,19 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, err
 	}
-	if err := app.Migrations().Run(); err != nil {
-		return nil, err
+
+	// Only run migrations if migrations directory exists
+	// In CI, migrations are applied via `make db migrate up` before tests run,
+	// so we skip re-running them to avoid "no such file" errors when tests
+	// run from subdirectories where migrations/ path doesn't resolve.
+	if _, err := os.Stat(conf.MigrationsDir); err == nil {
+		if err := app.Migrations().Run(); err != nil {
+			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "failed to run migrations")
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "failed to stat migrations directory")
 	}
+
 	return app, nil
 }
 
@@ -312,11 +359,17 @@ func GetTestContext() *TestFixtures {
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
-	if err := app.Migrations().Rollback(); err != nil {
-		panic(err)
-	}
-	if err := app.Migrations().Run(); err != nil {
-		panic(err)
+
+	// Only run migrations if migrations directory exists
+	if _, err := os.Stat(conf.MigrationsDir); err == nil {
+		if err := app.Migrations().Rollback(); err != nil {
+			panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to rollback migrations"))
+		}
+		if err := app.Migrations().Run(); err != nil {
+			panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to run migrations"))
+		}
+	} else if !os.IsNotExist(err) {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to stat migrations directory"))
 	}
 
 	sqlDB := stdlib.OpenDB(*pool.Config().ConnConfig)

@@ -11,8 +11,7 @@ import {
   FormulaBoxResult,
   ChecklistCard,
   ChecklistCardRequired,
-  ChecklistCardNotRequired,
-  EnvLink
+  ChecklistCardNotRequired
 } from './components'
 
 const docsComponents = getDocsMDXComponents()
@@ -25,7 +24,6 @@ export function useMDXComponents(components) {
     BarChart,
     FormulaBox,
     ChecklistCard,
-    EnvLink,
     // Flat-named sub-components for MDX compatibility
     InfoCardSection,
     InfoCardLimit,

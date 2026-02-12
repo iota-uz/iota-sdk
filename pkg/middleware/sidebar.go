@@ -56,7 +56,9 @@ func getEnabledNavItems(items []types.NavigationItem) []types.NavigationItem {
 	return out
 }
 
-func NavItems() mux.MiddlewareFunc {
+// NavItemsWithInitialState provides navigation items and sidebar props.
+// initialState controls the server-side sidebar default (collapsed/expanded/auto).
+func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +85,7 @@ func NavItems() mux.MiddlewareFunc {
 					Header:       layouts.DefaultSidebarHeader(),
 					TabGroups:    tabGroups,
 					Footer:       layouts.DefaultSidebarFooter(),
-					InitialState: sidebar.SidebarAuto, // Default: respect localStorage
+					InitialState: initialState,
 				}
 
 				ctx := context.WithValue(r.Context(), constants.AllNavItemsKey, filtered)
@@ -93,4 +95,10 @@ func NavItems() mux.MiddlewareFunc {
 			},
 		)
 	}
+}
+
+// NavItems provides navigation items and sidebar props with the default behavior:
+// respect localStorage unless overridden elsewhere.
+func NavItems() mux.MiddlewareFunc {
+	return NavItemsWithInitialState(sidebar.SidebarAuto)
 }

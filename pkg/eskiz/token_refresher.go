@@ -7,6 +7,7 @@ import (
 	"time"
 
 	eskizapi "github.com/iota-uz/eskiz"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 const (
@@ -36,8 +37,10 @@ func (r *tokenRefresher) RefreshToken(ctx context.Context) (string, error) {
 }
 
 func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error) {
+	const op serrors.Op = "TokenRefresher.RefreshToken"
+
 	if ctx == nil {
-		return "", errors.New("context cannot be nil")
+		return "", serrors.E(op, serrors.KindValidation, "context cannot be nil")
 	}
 
 	var lastErr error
@@ -46,18 +49,18 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 			delay := time.Duration(attempt) * baseDelay
 			select {
 			case <-ctx.Done():
-				return "", ctx.Err()
+				return "", serrors.E(op, ctx.Err())
 			case <-time.After(delay):
 			}
 		}
 
 		// Check context before attempting client operations
 		if err := ctx.Err(); err != nil {
-			return "", err
+			return "", serrors.E(op, err)
 		}
 
 		if r.client == nil {
-			return "", errors.New("client is not initialized")
+			return "", serrors.E(op, serrors.KindValidation, errors.New("client is not initialized"))
 		}
 
 		resp, httpResp, err := r.client.DefaultApi.

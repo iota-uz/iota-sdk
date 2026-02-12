@@ -69,7 +69,6 @@ func (c *TwoFactorSetupController) Register(r *mux.Router) {
 	setupRouter.Use(
 		middleware.Authorize(),
 		middleware.ProvideLocalizer(c.app),
-		middleware.WithTransaction(),
 		middleware.WithPageContext(),
 	)
 

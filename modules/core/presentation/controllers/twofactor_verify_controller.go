@@ -66,7 +66,6 @@ func (c *TwoFactorVerifyController) Register(r *mux.Router) {
 	verifyRouter.Use(
 		middleware.Authorize(),
 		middleware.ProvideLocalizer(c.app),
-		middleware.WithTransaction(),
 		middleware.WithPageContext(),
 	)
 

@@ -106,7 +106,6 @@ func (c *LoginController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix("/login").Subrouter()
 	setRouter.Use(
 		middleware.ProvideLocalizer(c.app),
-		middleware.WithTransaction(),
 		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
 	)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
@@ -310,7 +309,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	// Authenticate user
 	u, sess, err := c.authService.Authenticate(r.Context(), dto.Email, dto.Password)
 	if err != nil {
-		logger.Error("Failed to authenticate user", "error", err)
+		logger.Error("POST /login: InTx failed", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
 		} else if errors.Is(err, persistence.ErrUserNotFound) {

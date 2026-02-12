@@ -64,9 +64,9 @@ sequenceDiagram
     participant Controller
     participant Templ
     
-    Browser->>HTMX: User action (hx-post)
+    Browser->>HTMX: User action (hx-post: %v", err)
     HTMX->>Controller: AJAX request + HX headers
-    Controller->>Controller: Check htmx.IsHxRequest()
+    Controller->>Controller: Check htmx.IsHxRequest(: %v", err)
     Controller->>Templ: Render partial template
     Templ-->>Controller: HTML fragment
     Controller-->>HTMX: HTML + HX-Trigger headers
@@ -238,7 +238,7 @@ graph LR
 
 Minimal state in Alpine.js:
 
-- UI state (open/closed, selected tab)
+- UI state (open/closed, selected tab: %v", err)
 - Form draft state
 - Temporary user preferences
 

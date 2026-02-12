@@ -1,11 +1,10 @@
-import { Footer, Layout, Navbar, LastUpdated } from 'nextra-theme-docs'
+import { Layout, Navbar, LastUpdated } from 'nextra-theme-docs'
 import { Head } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { Logo } from './Logo'
-import { EnvironmentProvider } from '../contexts/EnvironmentContext'
-import { EnvironmentSelector } from './EnvironmentSelector'
 import '../styles/globals.css'
 import 'nextra-theme-docs/style.css'
 
@@ -20,18 +19,21 @@ export const metadata: Metadata = {
 
 const navbar = (
   <Navbar logo={<Logo />}>
-    <div className="flex items-center gap-2">
-      <EnvironmentSelector />
-    </div>
+    <nav className="hidden md:flex items-center gap-5 text-sm">
+      <Link className="text-gray-300 hover:text-white transition-colors" href="/getting-started">
+        Getting Started
+      </Link>
+      <Link className="text-gray-300 hover:text-white transition-colors" href="/architecture">
+        Architecture
+      </Link>
+      <Link className="text-gray-300 hover:text-white transition-colors" href="/api">
+        API Reference
+      </Link>
+    </nav>
   </Navbar>
 )
 
-// Footer year is evaluated at build time (static export mode)
-const footer = (
-  <Footer>
-    © {new Date().getFullYear()} IOTA SDK. All rights reserved.
-  </Footer>
-)
+
 
 type LayoutProps = {
   children: ReactNode
@@ -44,19 +46,15 @@ export default async function RootLayout({ children }: LayoutProps) {
     <html lang="en" dir="ltr" suppressHydrationWarning>
       <Head />
       <body>
-        <EnvironmentProvider>
-          <Layout
-            navbar={navbar}
-            footer={footer}
-            sidebar={{ defaultMenuCollapseLevel: 1, toggleButton: true }}
-            toc={{ backToTop: true }}
-            pageMap={pageMap}
-            
-            lastUpdated={<LastUpdated>Last updated on</LastUpdated>}
-          >
-            {children}
-          </Layout>
-        </EnvironmentProvider>
+        <Layout
+          navbar={navbar}
+          sidebar={{ defaultMenuCollapseLevel: 1, toggleButton: true }}
+          toc={{ backToTop: true }}
+          pageMap={pageMap}
+          lastUpdated={<LastUpdated>Last updated on</LastUpdated>}
+        >
+          {children}
+        </Layout>
       </body>
     </html>
   )

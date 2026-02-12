@@ -566,8 +566,8 @@ func TestMoney_Split(t *testing.T) {
 
 	for _, tc := range tcs {
 		m := New(tc.amount, EUR)
-		var rs []int64
 		split, _ := m.Split(tc.split)
+		rs := make([]int64, 0, len(tc.expected))
 
 		for _, party := range split {
 			rs = append(rs, party.amount)
@@ -606,8 +606,8 @@ func TestMoney_Allocate(t *testing.T) {
 
 	for _, tc := range tcs {
 		m := New(tc.amount, EUR)
-		var rs []int64
 		split, _ := m.Allocate(tc.ratios...)
+		rs := make([]int64, 0, len(tc.expected))
 
 		for _, party := range split {
 			rs = append(rs, party.amount)

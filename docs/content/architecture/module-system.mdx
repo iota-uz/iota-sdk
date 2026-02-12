@@ -15,7 +15,7 @@ stateDiagram-v2
     Registered --> Initialized: Register()
     Initialized --> Running: Start()
     Running --> [*]: Shutdown
-    
+     
     Registered --> Unloaded: Error
     Initialized --> Unloaded: Error
 ```
@@ -117,7 +117,7 @@ classDiagram
         +RegisterMiddleware(middleware...)
         +Migrations() MigrationManager
         +EventPublisher() EventBus
-        +Service(service) interface{}
+        +Service(service) any
     }
     
     Module ..> Application : uses
@@ -130,7 +130,6 @@ classDiagram
 | `RegisterServices()` | Add business services | Services layer |
 | `RegisterControllers()` | Add HTTP handlers | Presentation layer |
 | `RegisterMiddleware()` | Add request middleware | Infrastructure |
-| `Migrations().RegisterSchema()` | Database changes | Infrastructure |
 | `RegisterLocaleFiles()` | Translations | Presentation |
 | `RegisterHashFsAssets()` | Static assets | Presentation |
 | `QuickLinks().Add()` | Spotlight search | Navigation |
@@ -161,14 +160,13 @@ sequenceDiagram
     participant Repo as Repository
     participant Service as Service
     participant App as Application
+    participant Controller as Controller
     
     Mod->>Repo: Create repository
     Mod->>Service: Create service(repo, bus, validator)
     Mod->>App: RegisterServices(service)
     
-    Note over App: Later...
-    
-    participant Controller
+    Note over App,Controller: Later...
     Controller->>App: Service(UserService{})
     App-->>Controller: Return service instance
 ```
@@ -229,8 +227,8 @@ graph TB
         D[UserRepository]
     end
     
-    B -->|app.Service()| C
-    A -.->|needs user info.-> C
+    B -->|"app.Service()"| C
+    A -.->|"needs user info"| C
 ```
 
 ### Event-Driven Communication

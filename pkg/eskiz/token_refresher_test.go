@@ -26,8 +26,7 @@ func TestTokenRefresher_RefreshToken_CanceledContext(t *testing.T) {
 
 	token, err := refresher.RefreshToken(ctx)
 
-	require.Error(t, err)
-	assert.Equal(t, context.Canceled, err)
+	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, token)
 }
 
@@ -35,14 +34,14 @@ func TestTokenRefresher_RefreshToken_TimeoutContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	time.Sleep(2 * time.Millisecond)
+	// Wait for context to definitely expire
+	<-ctx.Done()
 
 	refresher := &tokenRefresher{}
 
 	token, err := refresher.RefreshToken(ctx)
 
-	require.Error(t, err)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Empty(t, token)
 }
 
@@ -64,8 +63,7 @@ func TestTokenRefresher_RefreshTokenLocked_CanceledContext(t *testing.T) {
 
 	token, err := refresher.refreshTokenLocked(ctx)
 
-	require.Error(t, err)
-	assert.Equal(t, context.Canceled, err)
+	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, token)
 }
 
@@ -73,14 +71,14 @@ func TestTokenRefresher_RefreshTokenLocked_TimeoutContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	time.Sleep(2 * time.Millisecond)
+	// Wait for context to definitely expire
+	<-ctx.Done()
 
 	refresher := &tokenRefresher{}
 
 	token, err := refresher.refreshTokenLocked(ctx)
 
-	require.Error(t, err)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Empty(t, token)
 }
 
