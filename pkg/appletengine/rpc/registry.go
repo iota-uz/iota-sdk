@@ -78,8 +78,9 @@ func (r *Registry) register(method Method) error {
 	if appletName == "" {
 		return fmt.Errorf("rpc registry: applet name is required for method %q", name)
 	}
-	if !strings.HasPrefix(name, appletName+".") {
-		return fmt.Errorf("rpc registry: method %q must be namespaced with %q", name, appletName+".")
+	parts := strings.SplitN(name, ".", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return fmt.Errorf("rpc registry: method %q must be namespaced as <namespace>.<method>", name)
 	}
 	if method.Method.Handler == nil {
 		return fmt.Errorf("rpc registry: handler is required for method %q", name)

@@ -33,11 +33,19 @@ func TestRegistry_AcceptsNamespacedMethod(t *testing.T) {
 	assert.Equal(t, 1, registry.CountPublic())
 }
 
-func TestRegistry_RejectsMismatchedNamespace(t *testing.T) {
+func TestRegistry_AcceptsNamespaceDifferentFromAppletName(t *testing.T) {
 	t.Parallel()
 
 	registry := NewRegistry()
 	err := registry.RegisterPublic("bichat", "chat.ping", dummyMethod(), nil)
+	require.NoError(t, err)
+}
+
+func TestRegistry_RejectsNonNamespacedMethod(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry()
+	err := registry.RegisterPublic("bichat", "ping", dummyMethod(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be namespaced")
 }
