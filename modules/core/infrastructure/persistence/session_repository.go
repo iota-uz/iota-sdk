@@ -39,16 +39,15 @@ const (
             ip = $2,
             user_agent = $3
         WHERE token = $4 AND tenant_id = $5`
-	updateSessionStatusQuery = `
-        UPDATE sessions
-        SET status = $1
-        WHERE user_id = $2 AND tenant_id = $3`
-	deleteUserSessionQuery = `DELETE FROM sessions WHERE user_id = $1`
-	deleteSessionQuery     = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
+	updateSessionStatusQuery  = `UPDATE sessions SET status = $1 WHERE user_id = $2 AND tenant_id = $3`
+	deleteUserSessionQuery    = `DELETE FROM sessions WHERE user_id = $1 AND tenant_id = $2`
+	deleteSessionQuery        = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
+	deleteAllExceptTokenQuery = `DELETE FROM sessions WHERE user_id = $1 AND token != $2 AND tenant_id = $3`
 )
 
 type SessionRepository struct {
-	fieldMap map[session.Field]string
+	fieldMap        map[session.Field]string
+	aliasedFieldMap map[session.Field]string // for queries that use "s" as sessions alias
 }
 
 func NewSessionRepository() session.Repository {
@@ -56,6 +55,10 @@ func NewSessionRepository() session.Repository {
 		fieldMap: map[session.Field]string{
 			session.ExpiresAt: "sessions.expires_at",
 			session.CreatedAt: "sessions.created_at",
+		},
+		aliasedFieldMap: map[session.Field]string{
+			session.ExpiresAt: "s.expires_at",
+			session.CreatedAt: "s.created_at",
 		},
 	}
 }
@@ -66,18 +69,32 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 		return nil, err
 	}
 
-	var args []interface{}
-	where, args := []string{"tenant_id = $%d"}, []interface{}{tenantID}
+	args := []interface{}{tenantID}
+	where := []string{fmt.Sprintf("s.tenant_id = $%d", len(args))}
 
 	if params.Token != "" {
-		where = append(where, fmt.Sprintf("token = $%d", len(args)+1))
 		args = append(args, params.Token)
+		where = append(where, fmt.Sprintf("s.token = $%d", len(args)))
 	}
 
+	// Add search filter with JOIN if search query provided
+	var joinClause string
+	if params.Search != "" {
+		joinClause = "JOIN users u ON s.user_id = u.id"
+		searchPattern := "%" + params.Search + "%"
+		args = append(args, searchPattern)
+		pos := len(args)
+		where = append(where, fmt.Sprintf("(u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.email ILIKE $%d)", pos, pos, pos))
+	}
+
+	// Use table alias for select query (must match querySessions scan: 9 columns including status)
+	selectQuery := "SELECT s.token, s.user_id, s.expires_at, s.ip, s.user_agent, s.created_at, s.tenant_id, s.audience, s.status FROM sessions s"
+
 	query := repo.Join(
-		selectSessionQuery,
+		selectQuery,
+		joinClause,
 		repo.JoinWhere(where...),
-		params.SortBy.ToSQL(g.fieldMap),
+		params.SortBy.ToSQL(g.aliasedFieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 
@@ -98,6 +115,36 @@ func (g *SessionRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
 	if err := tx.QueryRow(ctx, countSessionQuery+" WHERE tenant_id = $1", tenantID).Scan(&count); err != nil {
 		return 0, err
+	}
+	return count, nil
+}
+
+func (g *SessionRepository) CountFiltered(ctx context.Context, search string) (int64, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+	if search != "" {
+		query := `
+			SELECT COUNT(*) as count 
+			FROM sessions s
+			JOIN users u ON s.user_id = u.id
+			WHERE s.tenant_id = $1 
+			AND (u.first_name ILIKE $2 OR u.last_name ILIKE $2 OR u.email ILIKE $2)
+		`
+		if err := tx.QueryRow(ctx, query, tenantID, "%"+search+"%").Scan(&count); err != nil {
+			return 0, err
+		}
+	} else {
+		// Fall back to regular count if no search
+		return g.Count(ctx)
 	}
 	return count, nil
 }
@@ -247,14 +294,19 @@ func (g *SessionRepository) UpdateStatus(ctx context.Context, id uint, status se
 }
 
 func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]session.Session, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	sql := repo.Join(
 		selectSessionQuery,
-		repo.JoinWhere("sessions.user_id = $1"),
+		repo.JoinWhere("sessions.user_id = $1", "sessions.tenant_id = $2"),
 	)
 	sessions, err := g.querySessions(
 		ctx,
 		sql,
 		userId,
+		tenantID,
 	)
 	if err != nil {
 		return nil, err
@@ -262,11 +314,44 @@ func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]
 	if len(sessions) == 0 {
 		return nil, nil
 	}
-	err = g.execQuery(ctx, deleteUserSessionQuery, userId)
+	err = g.execQuery(ctx, deleteUserSessionQuery, userId, tenantID)
 	if err != nil {
 		return nil, err
 	}
 	return sessions, nil
+}
+
+func (g *SessionRepository) GetByUserID(ctx context.Context, userID uint) ([]session.Session, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	query := repo.Join(
+		selectSessionQuery,
+		repo.JoinWhere("user_id = $1", "tenant_id = $2"),
+	)
+
+	return g.querySessions(ctx, query, userID, tenantID)
+}
+
+func (g *SessionRepository) DeleteAllExceptToken(ctx context.Context, userID uint, exceptToken string) (int, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	result, err := tx.Exec(ctx, deleteAllExceptTokenQuery, userID, exceptToken, tenantID)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(result.RowsAffected()), nil
 }
 
 func (g *SessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]session.Session, error) {

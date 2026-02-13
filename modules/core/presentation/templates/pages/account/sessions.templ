@@ -1,0 +1,186 @@
+package account
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type SessionsPageProps struct {
+	Sessions     []*viewmodels.Session
+	CurrentToken string
+	Errors       map[string]string
+}
+
+templ SessionRow(session *viewmodels.Session) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+	}}
+	<tr id={ fmt.Sprintf("session-row-%s", session.TokenID) } class="border-b border-gray-200 dark:border-gray-700">
+		<td class="px-6 py-4">
+			<div class="flex items-center gap-3">
+				<div class="flex-shrink-0">
+					if session.Icon == "device-mobile" {
+						@icons.DeviceMobile(icons.Props{Size: "24", Class: "text-gray-600 dark:text-gray-400"})
+					} else if session.Icon == "device-tablet" {
+						@icons.DeviceTablet(icons.Props{Size: "24", Class: "text-gray-600 dark:text-gray-400"})
+					} else {
+						@icons.Desktop(icons.Props{Size: "24", Class: "text-gray-600 dark:text-gray-400"})
+					}
+				</div>
+				<div>
+					<div class="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+						<span>{ session.Browser }</span>
+						if session.IsCurrent {
+							@badge.New(badge.Props{
+								Class:   templ.Classes("px-2"),
+								Variant: badge.VariantGreen,
+								Size:    badge.SizeNormal,
+							}) {
+								{ pageCtx.T("Account.Sessions.CurrentDevice") }
+							}
+						}
+					</div>
+					<div class="text-sm text-gray-500 dark:text-gray-400">
+						{ session.OS } • { session.Device }
+					</div>
+				</div>
+			</div>
+		</td>
+		<td class="px-6 py-4 text-gray-900 dark:text-white">
+			{ session.IPAddress }
+		</td>
+		<td class="px-6 py-4 text-gray-900 dark:text-white">
+			<div x-data="dateTimeFormat">
+				<span x-text={ fmt.Sprintf("format('%s')", session.CreatedAt) }></span>
+			</div>
+		</td>
+		<td class="px-6 py-4 text-right">
+			if !session.IsCurrent {
+				@button.Danger(button.Props{
+					Size:  button.SizeSM,
+					Class: templ.Classes("text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"),
+					Attrs: templ.Attributes{
+						"hx-delete":  templ.URL(fmt.Sprintf("/account/sessions/%s", session.TokenID)),
+						"hx-confirm": pageCtx.T("Account.Sessions.ConfirmRevoke"),
+						"hx-target":  fmt.Sprintf("#session-row-%s", session.TokenID),
+						"hx-swap":    "outerHTML swap:0.3s",
+					},
+				}) {
+					{ pageCtx.T("Account.Sessions.Revoke") }
+				}
+			}
+		</td>
+	</tr>
+}
+
+templ SessionsList(props *SessionsPageProps) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+	}}
+	<div class="overflow-x-auto">
+		@card.Card(card.Props{
+			Class: "p-0",
+		}) {
+			<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+				<thead class="bg-gray-50 dark:bg-gray-800">
+					<tr>
+						<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+							{ pageCtx.T("Account.Sessions.Device") }
+						</th>
+						<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+							{ pageCtx.T("Account.Sessions.IPAddress") }
+						</th>
+						<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+							{ pageCtx.T("Account.Sessions.CreatedAt") }
+						</th>
+						<th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+							{ pageCtx.T("Account.Sessions.Actions") }
+						</th>
+					</tr>
+				</thead>
+				<tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700" id="sessions-table-body">
+					for _, session := range props.Sessions {
+						@SessionRow(session)
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
+
+templ EmptyState() {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+	}}
+	@card.Card(card.Props{
+		Class: "flex flex-col items-center justify-center py-12",
+	}) {
+		<div class="flex flex-col items-center gap-4 text-center">
+			@icons.DeviceMobile(icons.Props{Size: "48", Class: "text-gray-400"})
+			<div>
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
+					{ pageCtx.T("Account.Sessions.EmptyState") }
+				</h3>
+				<p class="text-sm text-gray-500 dark:text-gray-400">
+					{ pageCtx.T("Account.Sessions.DescText") }
+				</p>
+			</div>
+		</div>
+	}
+}
+
+templ SessionsPage(props *SessionsPageProps) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		hasOtherSessions := false
+		for _, s := range props.Sessions {
+			if !s.IsCurrent {
+				hasOtherSessions = true
+				break
+			}
+		}
+	}}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Sessions.Title")},
+	}) {
+		<div class="flex flex-col h-full">
+			<div class="flex-1 overflow-y-auto p-6">
+				<div class="max-w-5xl mx-auto">
+					<div class="mb-6">
+						<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+							{ pageCtx.T("Account.Sessions.Title") }
+						</h1>
+						<p class="text-gray-600 dark:text-gray-400">
+							{ pageCtx.T("Account.Sessions.DescText") }
+						</p>
+					</div>
+					if hasOtherSessions {
+						<div class="mb-4 flex justify-end">
+							@button.Danger(button.Props{
+								Attrs: templ.Attributes{
+									"type":       "button",
+									"hx-delete":  "/account/sessions/others",
+									"hx-confirm": pageCtx.T("Account.Sessions.ConfirmRevokeAll"),
+								},
+							}) {
+								@icons.SignOut(icons.Props{Size: "20"})
+								<span>{ pageCtx.T("Account.Sessions.RevokeAll") }</span>
+							}
+						</div>
+					}
+					if len(props.Sessions) > 0 {
+						@SessionsList(props)
+					} else {
+						@EmptyState()
+					}
+				</div>
+			</div>
+		</div>
+	}
+}

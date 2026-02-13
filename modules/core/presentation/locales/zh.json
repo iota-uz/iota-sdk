@@ -49,6 +49,23 @@
       "PhonePlaceholder": "输入电话号码（例如 +1234567890）",
       "Email": "电子邮件地址",
       "EmailPlaceholder": "输入电子邮件地址"
+    },
+    "Sessions": {
+      "Title": "活动会话",
+      "DescText": "管理您在不同设备上的活动会话",
+      "CurrentDevice": "当前",
+      "Device": "设备",
+      "IPAddress": "IP 地址",
+      "CreatedAt": "登录时间",
+      "Actions": "操作",
+      "Revoke": "撤销",
+      "RevokeAll": "从所有其他设备注销",
+      "ConfirmRevoke": "您确定要撤销此会话吗？",
+      "ConfirmRevokeAll": "您确定要从所有其他设备注销吗？",
+      "RevokeSuccess": "会话已成功撤销",
+      "RevokeAllSuccess": "已撤销 %d 个会话",
+      "EmptyState": "您仅在此设备上登录",
+      "CannotRevokeCurrent": "无法撤销当前会话"
     }
   },
   "Actions": "操作",
@@ -522,6 +539,7 @@
     "Employees": "员工",
     "Navbar": {
       "Profile": "个人资料",
+      "Sessions": "会话",
       "Logout": "退出登录"
     }
   },
@@ -770,6 +788,10 @@
       "Decline": "拒绝管道",
       "RequestAdditionalInfo": "请求附加信息",
       "CompleteAssessment": "完成评估"
+    },
+    "Session": {
+      "Read": "查看会话",
+      "Delete": "删除会话"
     }
   },
   "Projects": {
@@ -806,7 +828,8 @@
     "upload": "上传",
     "payout_request": "支付请求",
     "pipeline": "管道",
-    "website": "网站"
+    "website": "网站",
+    "session": "会话"
   },
   "Roles": {
     "Meta": {
@@ -908,7 +931,8 @@
     },
     "Tabs": {
       "UserInfo": "用户信息",
-      "Permissions": "权限"
+      "Permissions": "权限",
+      "Sessions": "会话"
     },
     "Single": {
       "EditUser": "编辑用户",
@@ -959,6 +983,20 @@
     },
     "Delete": {
       "NotAllowed": "无法删除：您是此租户中的唯一用户"
+    },
+    "Sessions": {
+      "Title": "会话：",
+      "Device": "设备",
+      "Browser": "浏览器",
+      "OS": "操作系统",
+      "IP": "IP 地址",
+      "CreatedAt": "创建时间",
+      "Actions": "操作",
+      "Revoke": "撤销",
+      "RevokeConfirm": "您确定要撤销此会话吗？",
+      "NoSessions": "无活动会话",
+      "RevokeSuccess": "会话已成功撤销",
+      "RevokeFailed": "撤销会话失败"
     }
   },
   "ValidationErrors": {
@@ -1073,5 +1111,26 @@
     "remove_language": "移除此语言",
     "locale_placeholder": "zh",
     "text_placeholder": "在此语言中输入文本"
+  },
+  "Sessions": {
+    "Meta": {
+      "List": {
+        "Title": "活动会话"
+      }
+    },
+    "List": {
+      "Title": "活动会话",
+      "Search": "搜索用户...",
+      "User": "用户",
+      "Device": "设备",
+      "IP": "IP 地址",
+      "CreatedAt": "创建时间",
+      "Actions": "操作",
+      "Revoke": "撤销",
+      "ConfirmRevoke": "您确定要撤销此会话吗？",
+      "EmptyState": "无活动会话",
+      "CurrentSession": "当前"
+    },
+    "Revoked": "会话已撤销"
   }
 }

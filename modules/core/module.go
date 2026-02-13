@@ -200,6 +200,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewGroupsController(app),
 		controllers.NewWebSocketController(app),
 		controllers.NewSettingsController(app),
+		controllers.NewSessionController(app, "/settings/sessions"),
 	)
 	// Register Upload API controller if configured via module options
 	if m.options.UploadsAuthorizer != nil || m.options.DefaultTenantID != uuid.Nil {

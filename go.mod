@@ -48,6 +48,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/lithammer/fuzzysearch v1.1.8
+	github.com/mileusna/useragent v1.3.5
 	github.com/openai/openai-go v1.3.0
 	github.com/openai/openai-go/v3 v3.18.0
 	github.com/pkg/errors v0.9.1

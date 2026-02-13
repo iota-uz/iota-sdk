@@ -49,6 +49,23 @@
       "PhonePlaceholder": "Telefon raqamini kiriting (masalan +1234567890)",
       "Email": "Elektron pochta manzili",
       "EmailPlaceholder": "Elektron pochta manzilini kiriting"
+    },
+    "Sessions": {
+      "Title": "Faol sessiyalar",
+      "DescText": "Turli qurilmalardagi faol sessiyalarni boshqarish",
+      "CurrentDevice": "Joriy",
+      "Device": "Qurilma",
+      "IPAddress": "IP manzil",
+      "CreatedAt": "Kirish vaqti",
+      "Actions": "Harakatlar",
+      "Revoke": "Bekor qilish",
+      "RevokeAll": "Boshqa qurilmalardan chiqish",
+      "ConfirmRevoke": "Ushbu sessiyani bekor qilmoqchimisiz?",
+      "ConfirmRevokeAll": "Boshqa qurilmalardan chiqmoqchimisiz?",
+      "RevokeSuccess": "Sessiya muvaffaqiyatli bekor qilindi",
+      "RevokeAllSuccess": "%d sessiya bekor qilindi",
+      "EmptyState": "Siz faqat ushbu qurilmada kirgansiz",
+      "CannotRevokeCurrent": "Joriy sessiyani bekor qilish mumkin emas"
     }
   },
   "Actions": "Harakatlar",
@@ -518,6 +535,7 @@
     "Metrics": "Metrikalar",
     "Navbar": {
       "Profile": "Profil",
+      "Sessions": "Sessiyalar",
       "Logout": "Chiqish"
     }
   },
@@ -766,6 +784,10 @@
       "Decline": "Voronkalarni rad etish",
       "RequestAdditionalInfo": "Qo'shimcha ma'lumot so'rash",
       "CompleteAssessment": "Baholashni yakunlash"
+    },
+    "Session": {
+      "Read": "Seanslarni ko'rish",
+      "Delete": "Seanslarni o'chirish"
     }
   },
   "Projects": {
@@ -802,7 +824,8 @@
     "upload": "Yuklashlar",
     "payout_request": "To'lov so'rovi",
     "pipeline": "Quvur liniyasi",
-    "website": "Veb-sayt"
+    "website": "Veb-sayt",
+    "session": "Seanslar"
   },
   "Roles": {
     "Meta": {
@@ -904,7 +927,8 @@
     },
     "Tabs": {
       "UserInfo": "Ma'lumotlar",
-      "Permissions": "Ruxsatlar"
+      "Permissions": "Ruxsatlar",
+      "Sessions": "Sessiyalar"
     },
     "Single": {
       "EditUser": "Foydalanuvchini tahrirlash",
@@ -955,6 +979,20 @@
     },
     "Delete": {
       "NotAllowed": "O'chirib bo'lmaydi: Siz ushbu tenantdagi yagona foydalanuvchisiz"
+    },
+    "Sessions": {
+      "Title": "Sessiyalar:",
+      "Device": "Qurilma",
+      "Browser": "Brauzer",
+      "OS": "Operatsion tizim",
+      "IP": "IP manzil",
+      "CreatedAt": "Yaratilgan",
+      "Actions": "Harakatlar",
+      "Revoke": "Bekor qilish",
+      "RevokeConfirm": "Ushbu sessiyani bekor qilmoqchimisiz?",
+      "NoSessions": "Faol sessiyalar yo'q",
+      "RevokeSuccess": "Sessiya muvaffaqiyatli bekor qilindi",
+      "RevokeFailed": "Sessiyani bekor qilib bo'lmadi"
     }
   },
   "ValidationErrors": {
@@ -1069,5 +1107,26 @@
     "remove_language": "Bu tilni o'chirish",
     "locale_placeholder": "uz",
     "text_placeholder": "Bu tilda matn kiriting"
+  },
+  "Sessions": {
+    "Meta": {
+      "List": {
+        "Title": "Faol seanslar"
+      }
+    },
+    "List": {
+      "Title": "Faol seanslar",
+      "Search": "Foydalanuvchi nomi yoki email bo'yicha qidirish...",
+      "User": "Foydalanuvchi",
+      "Device": "Qurilma",
+      "IP": "IP manzil",
+      "CreatedAt": "Yaratilgan",
+      "Actions": "Amallar",
+      "Revoke": "Bekor qilish",
+      "ConfirmRevoke": "Ushbu seansni bekor qilishga ishonchingiz komilmi?",
+      "EmptyState": "Faol seanslar topilmadi",
+      "CurrentSession": "Joriy"
+    },
+    "Revoked": "Seans muvaffaqiyatli bekor qilindi"
   }
 }
