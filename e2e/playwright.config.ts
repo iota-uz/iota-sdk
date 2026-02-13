@@ -8,6 +8,13 @@ import { promisify } from 'util';
 
 const exec = promisify(execCallback);
 const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const parsedPWWorkers = Number.parseInt(process.env.PW_WORKERS ?? '', 10);
+const configuredWorkers =
+	Number.isFinite(parsedPWWorkers) && parsedPWWorkers > 0
+		? parsedPWWorkers
+		: isCI
+			? 1
+			: undefined;
 
 // Smart environment detection
 function loadEnvironmentConfig() {
@@ -87,9 +94,9 @@ export default defineConfig({
 
 	// Test execution settings
 	fullyParallel: !isCI,
-	forbidOnly: !!process.env.CI,
+	forbidOnly: isCI,
 	retries: isCI ? 2 : 0,
-	workers: process.env.PW_WORKERS ? parseInt(process.env.PW_WORKERS, 10) : isCI ? 1 : undefined,
+	workers: configuredWorkers,
 
 	// Reporter configuration
 	reporter: isCI ? 'blob' : 'html',

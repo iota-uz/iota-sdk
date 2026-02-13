@@ -21,28 +21,24 @@ env:
   GOPRIVATE: github.com/iota-uz/*
   GONOSUMDB: github.com/iota-uz/*
   E2E_SHARD_TOTAL: 6
+  CI_BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:sha-${{ vars.CI_BASE_IMAGE_SHA }}
   GOPATH: /go
   GOCACHE: /go/.cache/go-build
 
 jobs:
-  resolve-ci-image:
+  validate-ci-base-image:
     runs-on: ubuntu-latest
     outputs:
-      image: ${{ steps.resolve.outputs.image }}
+      image: ${{ steps.validate.outputs.image }}
     steps:
-      - name: Resolve CI container image
-        id: resolve
+      - name: Validate immutable CI base image reference
+        id: validate
         run: |
-          TARGET_IMAGE="ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest"
-          FALLBACK_IMAGE="mcr.microsoft.com/playwright:v1.48.2-jammy"
-
-          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1 || true
-
-          if docker manifest inspect "$TARGET_IMAGE" >/dev/null 2>&1; then
-            echo "image=$TARGET_IMAGE" >> "$GITHUB_OUTPUT"
-          else
-            echo "image=$FALLBACK_IMAGE" >> "$GITHUB_OUTPUT"
+          if [ -z "${{ vars.CI_BASE_IMAGE_SHA }}" ]; then
+            echo "::error::Repository variable CI_BASE_IMAGE_SHA is not set. Set it to a published iota-sdk-ci-base image SHA tag suffix."
+            exit 1
           fi
+          echo "image=${CI_BASE_IMAGE}" >> "$GITHUB_OUTPUT"
 
   prepare:
     if: github.event_name != 'schedule'
@@ -81,12 +77,12 @@ jobs:
     if: github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
     needs:
       - prepare
-      - resolve-ci-image
+      - validate-ci-base-image
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
     name: code-quality
     container:
-      image: ${{ needs.resolve-ci-image.outputs.image }}
+      image: ${{ needs.validate-ci-base-image.outputs.image }}
 
     steps:
       - name: Checkout repository
@@ -127,7 +123,7 @@ jobs:
       - name: Ensure golangci-lint is installed
         run: |
           if ! command -v golangci-lint >/dev/null 2>&1; then
-            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v2.1.6
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/v2.1.6/install.sh | sh -s -- -b /usr/local/bin v2.1.6
           fi
           golangci-lint version
 
@@ -144,12 +140,16 @@ jobs:
         with:
           path: /go/pkg/mod
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
 
       - name: Cache Go build cache
         uses: actions/cache@v4
         with:
           path: /go/.cache/go-build
           key: ${{ runner.os }}-gobuild-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gobuild-
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -160,6 +160,8 @@ jobs:
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml', 'e2e/pnpm-lock.yaml', 'docs/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
 
       - name: Download Go dependencies
         run: go mod download
@@ -236,11 +238,11 @@ jobs:
     if: github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
     needs:
       - prepare
-      - resolve-ci-image
+      - validate-ci-base-image
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: unit-tests
     container:
-      image: ${{ needs.resolve-ci-image.outputs.image }}
+      image: ${{ needs.validate-ci-base-image.outputs.image }}
 
     services:
       postgres:
@@ -313,12 +315,16 @@ jobs:
         with:
           path: /go/pkg/mod
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
 
       - name: Cache Go build cache
         uses: actions/cache@v4
         with:
           path: /go/.cache/go-build
           key: ${{ runner.os }}-gobuild-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gobuild-
 
       - name: Download Go dependencies
         run: go mod download
@@ -365,11 +371,11 @@ jobs:
     if: github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
     needs:
       - prepare
-      - resolve-ci-image
+      - validate-ci-base-image
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: e2e-shard-${{ matrix.shard }}
     container:
-      image: ${{ needs.resolve-ci-image.outputs.image }}
+      image: ${{ needs.validate-ci-base-image.outputs.image }}
 
     strategy:
       fail-fast: false
@@ -453,12 +459,16 @@ jobs:
         with:
           path: /go/pkg/mod
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
 
       - name: Cache Go build cache
         uses: actions/cache@v4
         with:
           path: /go/.cache/go-build
           key: ${{ runner.os }}-gobuild-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gobuild-
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -469,12 +479,16 @@ jobs:
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml', 'e2e/pnpm-lock.yaml', 'docs/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-pw-${{ hashFiles('e2e/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pw-
 
       - name: Install e2e dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
@@ -560,12 +574,12 @@ jobs:
     if: always() && github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
     needs:
       - prepare
-      - resolve-ci-image
+      - validate-ci-base-image
       - e2e-shards
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: e2e-merged-report
     container:
-      image: ${{ needs.resolve-ci-image.outputs.image }}
+      image: ${{ needs.validate-ci-base-image.outputs.image }}
 
     steps:
       - name: Checkout repository
@@ -590,6 +604,8 @@ jobs:
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml', 'e2e/pnpm-lock.yaml', 'docs/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
 
       - name: Install e2e dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
@@ -603,9 +619,7 @@ jobs:
 
       - name: Merge Playwright reports
         run: |
-          mkdir -p blob-report-merged
-          find blob-artifacts -type f -name '*.zip' -exec cp {} blob-report-merged/ \;
-          pnpm exec playwright merge-reports --reporter html ./blob-report-merged
+          pnpm exec playwright merge-reports --reporter html ./blob-artifacts
         working-directory: e2e
 
       - name: Upload Playwright Report
@@ -624,11 +638,11 @@ jobs:
 
   coverage-report:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
-    needs: resolve-ci-image
+    needs: validate-ci-base-image
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: coverage-report
     container:
-      image: ${{ needs.resolve-ci-image.outputs.image }}
+      image: ${{ needs.validate-ci-base-image.outputs.image }}
 
     services:
       postgres:
@@ -706,12 +720,16 @@ jobs:
         with:
           path: /go/pkg/mod
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
 
       - name: Cache Go build cache
         uses: actions/cache@v4
         with:
           path: /go/.cache/go-build
           key: ${{ runner.os }}-gobuild-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gobuild-
 
       - name: Download Go dependencies
         run: go mod download

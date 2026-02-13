@@ -38,7 +38,7 @@ tailwindcss --input ./src/tailwind.css --output ./public/assets/main.css --minif
 
 - [Documentation](https://iota-uz.github.io/iota-sdk/): Official documentation and guides
 - [Discord Community](https://discord.gg/zKeTEZAQqF): Join our community for support and Q&A
-- [Contribution Guide](docs/CONTRIBUTING.MD): Learn how to contribute to the project
+- [Contribution Guide](CONTRIBUTING.md): Learn how to contribute to the project
 - [Setup Demo](https://github.com/iota-uz/sdk-demo): Learn how to setup IOTA-SDK
 - [Demo stand](https://demo.iotaerp.com): Explore the SDK UI
 - [Docker hub](https://hub.docker.com/r/iotauz/sdk) - Official Docker images
@@ -114,7 +114,7 @@ This installs the following tools with correct versions:
 - **templ** v0.3.857 - Template engine
 - **air** v1.61.5 - Hot reload for Go applications
 - **goimports** - Go imports organizer
-- **golangci-lint** v1.64.8 - Go linter
+- **golangci-lint** v2.1.6 - Go linter
 - **TailwindCSS** v4 (via `pnpm` at repo root)
 - **cloudflared** - Cloudflare tunnel client
 
@@ -162,5 +162,5 @@ Updated at Dec 31, 2025
 
 <img width="250" style="display: block" src="https://cdn.prod.website-files.com/660549b5ac888804e6582845/6606afddd43da2d659209149_logo.svg">  
 
-We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](docs/CONTRIBUTING.MD) to get
+We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](CONTRIBUTING.md) to get
 started.
