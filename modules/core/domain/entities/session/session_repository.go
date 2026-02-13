@@ -34,6 +34,7 @@ type Repository interface {
 	GetByUserID(ctx context.Context, userID uint) ([]Session, error)
 	Create(ctx context.Context, user Session) error
 	Update(ctx context.Context, user Session) error
+	UpdateStatus(ctx context.Context, id uint, status SessionStatus) error
 	Delete(ctx context.Context, token string) error
 	DeleteByUserId(ctx context.Context, userId uint) ([]Session, error)
 	DeleteAllExceptToken(ctx context.Context, userID uint, exceptToken string) (int, error)

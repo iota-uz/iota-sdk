@@ -22,9 +22,9 @@ type ProfilePageProps struct {
 
 templ ProfileForm(props *ProfilePageProps) {
 	{{
-	pageCtx := composables.UsePageCtx(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 
-	isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
+		isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
 	}}
 	<form
 		class="flex flex-col justify-between h-full"

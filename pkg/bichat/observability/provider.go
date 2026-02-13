@@ -39,6 +39,7 @@ type GenerationObservation struct {
 	TenantID  uuid.UUID // Multi-tenant isolation
 	SessionID uuid.UUID // Chat session
 	UserID    string    // User who initiated the session (for trace enrichment)
+	UserEmail string    // User email (for trace metadata enrichment)
 	Timestamp time.Time // When generation started
 
 	// Model metadata
@@ -63,6 +64,13 @@ type GenerationObservation struct {
 	// Input/Output for trace visualization
 	Input  interface{} // Prompt messages or user input
 	Output interface{} // LLM response text
+
+	// Model parameters (temperature, max_tokens, store, etc.) for Langfuse modelParameters field.
+	ModelParameters map[string]interface{}
+
+	// Level is the observation severity: "debug", "info", "warning", "error".
+	// Empty defaults to provider-specific behavior (typically "default").
+	Level string
 
 	// Metadata
 	Attributes map[string]interface{} // Extensible metadata (tags, custom fields)
@@ -90,6 +98,10 @@ type SpanObservation struct {
 	ToolName string // Tool name (e.g., "search_database")
 	CallID   string // Tool call correlation ID
 
+	// Level is the observation severity: "debug", "info", "warning", "error".
+	// Empty defaults to provider-specific behavior (typically "default").
+	Level string
+
 	// Metadata
 	Attributes map[string]interface{} // Extensible metadata
 }
@@ -111,6 +123,20 @@ type EventObservation struct {
 
 	// Metadata
 	Attributes map[string]interface{} // Extensible metadata
+}
+
+// TraceNameUpdater is an optional interface that providers can implement
+// to support updating trace names after initial creation (e.g., when a
+// generated chat title becomes available asynchronously).
+type TraceNameUpdater interface {
+	UpdateTraceName(ctx context.Context, sessionID, name string) error
+}
+
+// TraceTagUpdater is an optional interface that providers can implement
+// to support updating trace tags after initial creation (e.g., to add
+// dynamic tags for tools used, errors encountered, or HITL interrupts).
+type TraceTagUpdater interface {
+	UpdateTraceTags(ctx context.Context, sessionID string, tags []string) error
 }
 
 // TraceObservation represents a complete trace (session-level hierarchy).

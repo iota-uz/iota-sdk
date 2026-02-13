@@ -23,9 +23,10 @@ type LanguageSelectProps struct {
 // If Languages is nil or empty, it defaults to all supported languages (backward compatible).
 templ LanguageSelect(props *LanguageSelectProps) {
 	{{ languages := props.Languages }}
-	{{if len(languages) == 0 {
-	languages = intl.SupportedLanguages
-}
+	{{
+		if len(languages) == 0 {
+			languages = intl.SupportedLanguages
+		}
 	}}
 	@base.Select(&base.SelectProps{
 		Label:       props.Label,

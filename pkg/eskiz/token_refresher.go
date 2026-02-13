@@ -54,9 +54,13 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 			}
 		}
 
-		// Check context cancellation before making API call
-		if ctx.Err() != nil {
-			return "", serrors.E(op, ctx.Err())
+		// Check context before attempting client operations
+		if err := ctx.Err(); err != nil {
+			return "", serrors.E(op, err)
+		}
+
+		if r.client == nil {
+			return "", serrors.E(op, serrors.KindValidation, errors.New("client is not initialized"))
 		}
 
 		resp, httpResp, err := r.client.DefaultApi.
