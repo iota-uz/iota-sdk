@@ -47,6 +47,7 @@ type Repository interface {
 	EmailExists(ctx context.Context, email string) (bool, error)
 	Create(ctx context.Context, user User) (User, error)
 	Update(ctx context.Context, user User) error
+	Update2FASettings(ctx context.Context, userID uint, dto Update2FADTO) error
 	UpdateLastAction(ctx context.Context, id uint) error
 	UpdateLastLogin(ctx context.Context, id uint) error
 	Delete(ctx context.Context, id uint) error

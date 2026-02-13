@@ -71,11 +71,30 @@ type GoogleOptions struct {
 	ClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
 }
 
+// IsConfigured returns true if Google OAuth is configured (both ClientID and ClientSecret are set).
+// This makes Google OAuth enablement implicit - no explicit flag needed.
+func (g *GoogleOptions) IsConfigured() bool {
+	return g.ClientID != "" && g.ClientSecret != ""
+}
+
 type TwilioOptions struct {
 	WebhookURL  string `env:"TWILIO_WEBHOOK_URL"`
 	AccountSID  string `env:"TWILIO_ACCOUNT_SID"`
 	AuthToken   string `env:"TWILIO_AUTH_TOKEN"`
 	PhoneNumber string `env:"TWILIO_PHONE_NUMBER"`
+}
+
+type SMTPOptions struct {
+	Host     string `env:"SMTP_HOST"`
+	Port     int    `env:"SMTP_PORT" envDefault:"587"`
+	Username string `env:"SMTP_USERNAME"`
+	Password string `env:"SMTP_PASSWORD"`
+	From     string `env:"SMTP_FROM"` // Sender email address
+}
+
+type OTPDeliveryOptions struct {
+	EnableEmail bool `env:"OTP_ENABLE_EMAIL" envDefault:"false"`
+	EnableSMS   bool `env:"OTP_ENABLE_SMS" envDefault:"false"`
 }
 
 type LokiOptions struct {
@@ -124,6 +143,50 @@ type RateLimitOptions struct {
 	RedisURL  string `env:"RATE_LIMIT_REDIS_URL"`
 }
 
+// TwoFactorAuthOptions contains configuration for two-factor authentication and OTP
+type TwoFactorAuthOptions struct {
+	// Two-Factor Authentication
+	Enabled    bool   `env:"ENABLE_2FA" envDefault:"false"`
+	TOTPIssuer string `env:"TOTP_ISSUER"` // No default - must be set by app if 2FA is enabled
+
+	// OTP Settings
+	OTPCodeLength  int `env:"OTP_CODE_LENGTH" envDefault:"6"`
+	OTPTTLSeconds  int `env:"OTP_TTL_SECONDS" envDefault:"300"`
+	OTPMaxAttempts int `env:"OTP_MAX_ATTEMPTS" envDefault:"3"`
+
+	// TOTP Secret Encryption
+	EncryptionKey string `env:"TOTP_ENCRYPTION_KEY"` // Required for production - used to encrypt TOTP secrets at rest
+}
+
+// Validate checks the two-factor auth configuration for errors
+func (t *TwoFactorAuthOptions) Validate() error {
+	if !t.Enabled {
+		return nil // Skip validation if 2FA is disabled
+	}
+
+	// TOTPIssuer is required when 2FA is enabled
+	if t.TOTPIssuer == "" {
+		return fmt.Errorf("TOTP_ISSUER is required when ENABLE_2FA is true")
+	}
+
+	// Validate OTP code length (4-10 digits)
+	if t.OTPCodeLength < 4 || t.OTPCodeLength > 10 {
+		return fmt.Errorf("OTPCodeLength must be between 4 and 10, got %d", t.OTPCodeLength)
+	}
+
+	// Validate OTP TTL (60-900 seconds = 1-15 minutes)
+	if t.OTPTTLSeconds < 60 || t.OTPTTLSeconds > 900 {
+		return fmt.Errorf("OTPTTLSeconds must be between 60 and 900, got %d", t.OTPTTLSeconds)
+	}
+
+	// Validate OTP max attempts (1-10)
+	if t.OTPMaxAttempts < 1 || t.OTPMaxAttempts > 10 {
+		return fmt.Errorf("OTPMaxAttempts must be between 1 and 10, got %d", t.OTPMaxAttempts)
+	}
+
+	return nil
+}
+
 // Validate checks the rate limit configuration for errors
 func (r *RateLimitOptions) Validate() error {
 	if r.GlobalRPS < 0 {
@@ -145,6 +208,8 @@ type Configuration struct {
 	Database      DatabaseOptions
 	Google        GoogleOptions
 	Twilio        TwilioOptions
+	SMTP          SMTPOptions
+	OTPDelivery   OTPDeliveryOptions
 	Loki          LokiOptions
 	OpenTelemetry OpenTelemetryOptions
 	Click         ClickOptions
@@ -152,6 +217,7 @@ type Configuration struct {
 	Octo          OctoOptions
 	Stripe        StripeOptions
 	RateLimit     RateLimitOptions
+	TwoFactorAuth TwoFactorAuthOptions
 
 	RedisURL                string        `env:"REDIS_URL" envDefault:"localhost:6379"`
 	MigrationsDir           string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
@@ -251,6 +317,12 @@ func (c *Configuration) load(envFiles []string) error {
 	if err := c.RateLimit.Validate(); err != nil {
 		return fmt.Errorf("rate limit configuration error: %w", err)
 	}
+
+	// Validate two-factor auth configuration
+	if err := c.TwoFactorAuth.Validate(); err != nil {
+		return fmt.Errorf("two-factor auth configuration error: %w", err)
+	}
+
 	f, logger, err := logging.FileLogger(c.LogrusLogLevel(), c.Loki.LogPath)
 	if err != nil {
 		return err

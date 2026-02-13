@@ -26,6 +26,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
 func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role, groupIDs []uuid.UUID, permissions []permission.Permission) (user.User, error) {
@@ -66,6 +67,18 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 		user.WithBlockedAt(dbUser.BlockedAt.Time),
 		user.WithBlockedBy(uint(dbUser.BlockedBy.Int64)),
 		user.WithBlockedByTenantID(blockedByTenantID),
+	}
+
+	// Add 2FA settings if available
+	if dbUser.TwoFactorMethod.Valid && dbUser.TwoFactorMethod.String != "" {
+		// twofactor.Method is imported at the top
+		options = append(options, user.WithTwoFactorMethod(twofactor.Method(dbUser.TwoFactorMethod.String)))
+	}
+	if dbUser.TOTPSecretEncrypted.Valid && dbUser.TOTPSecretEncrypted.String != "" {
+		options = append(options, user.WithTOTPSecretEncrypted(dbUser.TOTPSecretEncrypted.String))
+	}
+	if dbUser.TwoFactorEnabledAt.Valid {
+		options = append(options, user.WithTwoFactorEnabledAt(dbUser.TwoFactorEnabledAt.Time))
 	}
 
 	if permissions != nil {
@@ -112,27 +125,30 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 	}
 
 	return &models.User{
-		ID:                entity.ID(),
-		Type:              string(entity.Type()),
-		TenantID:          entity.TenantID().String(),
-		FirstName:         entity.FirstName(),
-		LastName:          entity.LastName(),
-		MiddleName:        mapping.ValueToSQLNullString(entity.MiddleName()),
-		Email:             entity.Email().Value(),
-		Phone:             phoneValue,
-		UILanguage:        string(entity.UILanguage()),
-		Password:          mapping.ValueToSQLNullString(entity.Password()),
-		AvatarID:          mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
-		LastIP:            mapping.ValueToSQLNullString(entity.LastIP()),
-		LastLogin:         mapping.ValueToSQLNullTime(entity.LastLogin()),
-		LastAction:        mapping.ValueToSQLNullTime(entity.LastAction()),
-		CreatedAt:         entity.CreatedAt(),
-		UpdatedAt:         entity.UpdatedAt(),
-		IsBlocked:         entity.IsBlocked(),
-		BlockReason:       mapping.ValueToSQLNullString(entity.BlockReason()),
-		BlockedAt:         mapping.ValueToSQLNullTime(entity.BlockedAt()),
-		BlockedBy:         mapping.ValueToSQLNullInt64(int64(entity.BlockedBy())),
-		BlockedByTenantID: blockedByTenantID,
+		ID:                  entity.ID(),
+		Type:                string(entity.Type()),
+		TenantID:            entity.TenantID().String(),
+		FirstName:           entity.FirstName(),
+		LastName:            entity.LastName(),
+		MiddleName:          mapping.ValueToSQLNullString(entity.MiddleName()),
+		Email:               entity.Email().Value(),
+		Phone:               phoneValue,
+		UILanguage:          string(entity.UILanguage()),
+		Password:            mapping.ValueToSQLNullString(entity.Password()),
+		AvatarID:            mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
+		LastIP:              mapping.ValueToSQLNullString(entity.LastIP()),
+		LastLogin:           mapping.ValueToSQLNullTime(entity.LastLogin()),
+		LastAction:          mapping.ValueToSQLNullTime(entity.LastAction()),
+		CreatedAt:           entity.CreatedAt(),
+		UpdatedAt:           entity.UpdatedAt(),
+		IsBlocked:           entity.IsBlocked(),
+		BlockReason:         mapping.ValueToSQLNullString(entity.BlockReason()),
+		BlockedAt:           mapping.ValueToSQLNullTime(entity.BlockedAt()),
+		BlockedBy:           mapping.ValueToSQLNullInt64(int64(entity.BlockedBy())),
+		BlockedByTenantID:   blockedByTenantID,
+		TwoFactorMethod:     mapping.ValueToSQLNullString(string(entity.TwoFactorMethod())),
+		TOTPSecretEncrypted: mapping.ValueToSQLNullString(entity.TOTPSecretEncrypted()),
+		TwoFactorEnabledAt:  mapping.ValueToSQLNullTime(entity.TwoFactorEnabledAt()),
 	}, roles
 }
 
@@ -313,6 +329,7 @@ func ToDBSession(s session.Session) *models.Session {
 		CreatedAt: s.CreatedAt(),
 		ExpiresAt: s.ExpiresAt(),
 		Audience:  string(s.Audience()),
+		Status:    string(s.Status()),
 	}
 }
 
@@ -329,6 +346,10 @@ func ToDomainSession(dbSession *models.Session) session.Session {
 
 	if dbSession.Audience != "" {
 		opts = append(opts, session.WithAudience(session.SessionAudience(dbSession.Audience)))
+	}
+
+	if dbSession.Status != "" {
+		opts = append(opts, session.WithStatus(session.SessionStatus(dbSession.Status)))
 	}
 
 	return session.New(

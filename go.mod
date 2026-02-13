@@ -48,6 +48,7 @@ require (
 	github.com/openai/openai-go/v3 v3.18.0
 	github.com/pkg/errors v0.9.1
 	github.com/pkoukk/tiktoken-go v0.1.8
+	github.com/pquerna/otp v1.5.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.0.4
 	github.com/rs/cors v1.11.1
@@ -61,13 +62,15 @@ require (
 	github.com/ulule/limiter/v3 v3.11.2
 	github.com/vektah/gqlparser/v2 v2.5.20
 	github.com/xuri/excelize/v2 v2.10.0
+	github.com/yeqown/go-qrcode/v2 v2.2.5
+	github.com/yeqown/go-qrcode/writer/standard v1.3.0
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0
 	go.opentelemetry.io/otel/sdk v1.35.0
 	go.opentelemetry.io/otel/trace v1.35.0
 	golang.org/x/crypto v0.43.0
 	golang.org/x/net v0.46.0
-	golang.org/x/oauth2 v0.30.0
+	golang.org/x/oauth2 v0.34.0
 	golang.org/x/sync v0.17.0
 	golang.org/x/text v0.30.0
 	google.golang.org/api v0.209.0
@@ -120,6 +123,7 @@ require (
 	github.com/blevesearch/zapx/v14 v14.4.2 // indirect
 	github.com/blevesearch/zapx/v15 v15.4.2 // indirect
 	github.com/blevesearch/zapx/v16 v16.2.8 // indirect
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
@@ -128,11 +132,13 @@ require (
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/extrame/ole2 v0.0.0-20160812065207-d69429661ad7 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/go-faster/jx v1.1.0 // indirect
 	github.com/go-faster/xor v1.0.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
@@ -177,6 +183,7 @@ require (
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
+	github.com/yeqown/reedsolomon v1.0.0 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
@@ -188,6 +195,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
+	golang.org/x/image v0.25.0 // indirect
 	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect

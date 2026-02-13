@@ -205,6 +205,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			toggleClasses := "bg-gray-200 after:border-gray-300"
+
 			if props.Set.Checked {
 				toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
 			}
@@ -220,7 +221,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("toggle-visual-%s", setId))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 101, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 102, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -263,7 +264,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(props.PageContext.T(props.Set.Description))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 117, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 118, Col: 87}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -365,7 +366,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(`createPermissionFormData(%t, %t, %s)`, allChecked, someChecked, toJSON(permissionIds)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 178, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 179, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -378,7 +379,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.PageContext.T(fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 184, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 185, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -389,6 +390,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		toggleClasses := "bg-gray-200 after:border-gray-300"
+
 		if allChecked {
 			toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
 		}
@@ -404,7 +406,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("toggle-visual-%d", props.GroupIndex))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 191, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 193, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
