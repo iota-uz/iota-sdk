@@ -20,24 +20,24 @@ var (
 const (
 	selectOTPQuery = `
         SELECT id, identifier, code_hash, channel, expires_at, used_at, attempts, created_at, tenant_id, user_id
-        FROM otps`
+        FROM two_factor_otps`
 
 	insertOTPQuery = `
-        INSERT INTO otps (identifier, code_hash, channel, expires_at, used_at, attempts, created_at, tenant_id, user_id)
+        INSERT INTO two_factor_otps (identifier, code_hash, channel, expires_at, used_at, attempts, created_at, tenant_id, user_id)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	incrementAttemptsQuery = `
-        UPDATE otps
+        UPDATE two_factor_otps
         SET attempts = attempts + 1
         WHERE id = $1 AND tenant_id = $2`
 
 	markOTPUsedQuery = `
-        UPDATE otps
+        UPDATE two_factor_otps
         SET used_at = NOW()
         WHERE id = $1 AND tenant_id = $2`
 
 	deleteExpiredQuery = `
-        DELETE FROM otps
+        DELETE FROM two_factor_otps
         WHERE expires_at < NOW() AND used_at IS NULL AND tenant_id = $1`
 )
 
@@ -48,9 +48,9 @@ type OTPRepository struct {
 func NewOTPRepository() twofactor.OTPRepository {
 	return &OTPRepository{
 		fieldMap: map[twofactor.OTPField]string{
-			twofactor.OTPFieldExpiresAt: "otps.expires_at",
-			twofactor.OTPFieldCreatedAt: "otps.created_at",
-			twofactor.OTPFieldAttempts:  "otps.attempts",
+			twofactor.OTPFieldExpiresAt: "two_factor_otps.expires_at",
+			twofactor.OTPFieldCreatedAt: "two_factor_otps.created_at",
+			twofactor.OTPFieldAttempts:  "two_factor_otps.attempts",
 		},
 	}
 }

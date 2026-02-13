@@ -28,8 +28,8 @@ COMMENT ON COLUMN recovery_codes.used_at IS 'Timestamp when code was used';
 CREATE INDEX IF NOT EXISTS idx_recovery_codes_user_tenant ON recovery_codes(user_id, tenant_id);
 CREATE INDEX IF NOT EXISTS idx_recovery_codes_unused ON recovery_codes(user_id, tenant_id) WHERE used_at IS NULL;
 
--- Create otps table for one-time passwords
-CREATE TABLE IF NOT EXISTS otps (
+-- Create two_factor_otps table for one-time passwords
+CREATE TABLE IF NOT EXISTS two_factor_otps (
     id BIGSERIAL PRIMARY KEY,
     identifier VARCHAR(255) NOT NULL,
     code_hash VARCHAR(255) NOT NULL,
@@ -42,17 +42,17 @@ CREATE TABLE IF NOT EXISTS otps (
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Add comments to otps columns
-COMMENT ON COLUMN otps.identifier IS 'Email or phone number for OTP delivery';
-COMMENT ON COLUMN otps.code_hash IS 'bcrypt hash of the OTP code';
-COMMENT ON COLUMN otps.channel IS 'Channel for delivery: sms or email';
-COMMENT ON COLUMN otps.expires_at IS 'When OTP expires';
-COMMENT ON COLUMN otps.used_at IS 'When OTP was used';
-COMMENT ON COLUMN otps.attempts IS 'Number of failed verification attempts';
+-- Add comments to two_factor_otps columns
+COMMENT ON COLUMN two_factor_otps.identifier IS 'Email or phone number for OTP delivery';
+COMMENT ON COLUMN two_factor_otps.code_hash IS 'bcrypt hash of the OTP code';
+COMMENT ON COLUMN two_factor_otps.channel IS 'Channel for delivery: sms or email';
+COMMENT ON COLUMN two_factor_otps.expires_at IS 'When OTP expires';
+COMMENT ON COLUMN two_factor_otps.used_at IS 'When OTP was used';
+COMMENT ON COLUMN two_factor_otps.attempts IS 'Number of failed verification attempts';
 
--- Create indexes on otps for efficient querying
-CREATE INDEX IF NOT EXISTS idx_otps_identifier_tenant ON otps(identifier, tenant_id);
-CREATE INDEX IF NOT EXISTS idx_otps_active ON otps(expires_at, tenant_id) WHERE used_at IS NULL;
+-- Create indexes on two_factor_otps for efficient querying
+CREATE INDEX IF NOT EXISTS idx_two_factor_otps_identifier_tenant ON two_factor_otps(identifier, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_two_factor_otps_active ON two_factor_otps(expires_at, tenant_id) WHERE used_at IS NULL;
 
 -- Add session status field to track session state
 ALTER TABLE sessions
@@ -70,9 +70,9 @@ DROP INDEX IF EXISTS idx_sessions_status_tenant;
 ALTER TABLE sessions DROP COLUMN IF EXISTS status;
 
 -- Drop OTPs table and related indexes
-DROP INDEX IF EXISTS idx_otps_active;
-DROP INDEX IF EXISTS idx_otps_identifier_tenant;
-DROP TABLE IF EXISTS otps;
+DROP INDEX IF EXISTS idx_two_factor_otps_active;
+DROP INDEX IF EXISTS idx_two_factor_otps_identifier_tenant;
+DROP TABLE IF EXISTS two_factor_otps;
 
 -- Drop recovery codes table and related indexes
 DROP INDEX IF EXISTS idx_recovery_codes_unused;
