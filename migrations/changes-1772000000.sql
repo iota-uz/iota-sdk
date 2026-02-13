@@ -1,7 +1,9 @@
 -- +migrate Up
 -- Applet engine slice-2 storage schema (squashed)
 
-CREATE TABLE IF NOT EXISTS applet_engine_documents (
+CREATE SCHEMA IF NOT EXISTS applets;
+
+CREATE TABLE IF NOT EXISTS applets.documents (
     tenant_id TEXT NOT NULL,
     applet_id TEXT NOT NULL,
     table_name TEXT NOT NULL,
@@ -12,10 +14,10 @@ CREATE TABLE IF NOT EXISTS applet_engine_documents (
     PRIMARY KEY (tenant_id, applet_id, document_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_applet_engine_documents_table
-    ON applet_engine_documents (tenant_id, applet_id, table_name, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_documents_table
+    ON applets.documents (tenant_id, applet_id, table_name, updated_at DESC);
 
-CREATE TABLE IF NOT EXISTS applet_engine_jobs (
+CREATE TABLE IF NOT EXISTS applets.jobs (
     tenant_id TEXT NOT NULL,
     applet_id TEXT NOT NULL,
     job_id TEXT NOT NULL,
@@ -33,14 +35,14 @@ CREATE TABLE IF NOT EXISTS applet_engine_jobs (
     PRIMARY KEY (tenant_id, applet_id, job_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_applet_engine_jobs_scope_created
-    ON applet_engine_jobs (tenant_id, applet_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_scope_created
+    ON applets.jobs (tenant_id, applet_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_applet_engine_jobs_due_runs
-    ON applet_engine_jobs (status, next_run_at)
+CREATE INDEX IF NOT EXISTS idx_jobs_due_runs
+    ON applets.jobs (status, next_run_at)
     WHERE job_type = 'scheduled' AND status = 'scheduled';
 
-CREATE TABLE IF NOT EXISTS applet_engine_secrets (
+CREATE TABLE IF NOT EXISTS applets.secrets (
     applet_id TEXT NOT NULL,
     secret_name TEXT NOT NULL,
     cipher_text TEXT NOT NULL,
@@ -49,7 +51,7 @@ CREATE TABLE IF NOT EXISTS applet_engine_secrets (
     PRIMARY KEY (applet_id, secret_name)
 );
 
-CREATE TABLE IF NOT EXISTS applet_engine_files (
+CREATE TABLE IF NOT EXISTS applets.files (
     tenant_id TEXT NOT NULL,
     applet_id TEXT NOT NULL,
     file_id TEXT NOT NULL,
@@ -62,18 +64,18 @@ CREATE TABLE IF NOT EXISTS applet_engine_files (
     PRIMARY KEY (tenant_id, applet_id, file_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_applet_engine_files_scope_created
-    ON applet_engine_files (tenant_id, applet_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_files_scope_created
+    ON applets.files (tenant_id, applet_id, created_at DESC);
 
 -- +migrate Down
-DROP INDEX IF EXISTS idx_applet_engine_files_scope_created;
-DROP TABLE IF EXISTS applet_engine_files;
+DROP INDEX IF EXISTS applets.idx_files_scope_created;
+DROP TABLE IF EXISTS applets.files;
 
-DROP TABLE IF EXISTS applet_engine_secrets;
+DROP TABLE IF EXISTS applets.secrets;
 
-DROP INDEX IF EXISTS idx_applet_engine_jobs_due_runs;
-DROP INDEX IF EXISTS idx_applet_engine_jobs_scope_created;
-DROP TABLE IF EXISTS applet_engine_jobs;
+DROP INDEX IF EXISTS applets.idx_jobs_due_runs;
+DROP INDEX IF EXISTS applets.idx_jobs_scope_created;
+DROP TABLE IF EXISTS applets.jobs;
 
-DROP INDEX IF EXISTS idx_applet_engine_documents_table;
-DROP TABLE IF EXISTS applet_engine_documents;
+DROP INDEX IF EXISTS applets.idx_documents_table;
+DROP TABLE IF EXISTS applets.documents;

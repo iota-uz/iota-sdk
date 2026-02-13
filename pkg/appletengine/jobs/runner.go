@@ -123,13 +123,13 @@ func (r *Runner) claimQueuedJobs(ctx context.Context, limit int) ([]queuedJob, e
 	rows, err := r.pool.Query(ctx, `
 		WITH next_jobs AS (
 			SELECT tenant_id, applet_id, job_id, job_type, cron_expr, method_name, params
-			FROM applet_engine_jobs
+			FROM applets.jobs
 			WHERE status = 'queued' AND job_type = 'one_off'
 			ORDER BY created_at
 			LIMIT $1
 			FOR UPDATE SKIP LOCKED
 		)
-		UPDATE applet_engine_jobs j
+		UPDATE applets.jobs j
 		SET status = 'running', updated_at = NOW(), last_status = 'running', last_error = ''
 		FROM next_jobs
 		WHERE j.tenant_id = next_jobs.tenant_id
@@ -166,7 +166,7 @@ func (r *Runner) claimDueScheduledJobs(ctx context.Context, limit int) ([]queued
 	rows, err := r.pool.Query(ctx, `
 		WITH next_jobs AS (
 			SELECT tenant_id, applet_id, job_id, job_type, cron_expr, method_name, params
-			FROM applet_engine_jobs
+			FROM applets.jobs
 			WHERE status = 'scheduled'
 			  AND job_type = 'scheduled'
 			  AND next_run_at IS NOT NULL
@@ -175,7 +175,7 @@ func (r *Runner) claimDueScheduledJobs(ctx context.Context, limit int) ([]queued
 			LIMIT $1
 			FOR UPDATE SKIP LOCKED
 		)
-		UPDATE applet_engine_jobs j
+		UPDATE applets.jobs j
 		SET status = 'running', updated_at = NOW(), last_status = 'running', last_error = ''
 		FROM next_jobs
 		WHERE j.tenant_id = next_jobs.tenant_id
@@ -210,7 +210,7 @@ func (r *Runner) claimDueScheduledJobs(ctx context.Context, limit int) ([]queued
 
 func (r *Runner) setOneOffStatus(ctx context.Context, job queuedJob, status string, lastError string) error {
 	_, err := r.pool.Exec(ctx, `
-		UPDATE applet_engine_jobs
+		UPDATE applets.jobs
 		SET status = $4, updated_at = NOW(), last_run_at = NOW(), last_status = $4, last_error = $5
 		WHERE tenant_id = $1 AND applet_id = $2 AND job_id = $3
 	`, job.TenantID, job.AppletID, job.JobID, status, lastError)
@@ -222,7 +222,7 @@ func (r *Runner) setOneOffStatus(ctx context.Context, job queuedJob, status stri
 
 func (r *Runner) setScheduledStatus(ctx context.Context, job queuedJob, lastStatus string, lastError string, nextRunAt time.Time) error {
 	_, err := r.pool.Exec(ctx, `
-		UPDATE applet_engine_jobs
+		UPDATE applets.jobs
 		SET status = 'scheduled',
 			next_run_at = $4,
 			last_run_at = NOW(),
@@ -239,7 +239,7 @@ func (r *Runner) setScheduledStatus(ctx context.Context, job queuedJob, lastStat
 
 func (r *Runner) failScheduledJob(ctx context.Context, job queuedJob, lastError string) error {
 	_, err := r.pool.Exec(ctx, `
-		UPDATE applet_engine_jobs
+		UPDATE applets.jobs
 		SET status = 'failed',
 			next_run_at = NULL,
 			last_run_at = NOW(),

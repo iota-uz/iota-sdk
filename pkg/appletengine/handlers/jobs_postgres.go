@@ -44,7 +44,7 @@ func (s *PostgresJobsStore) List(ctx context.Context) ([]map[string]any, error) 
 	}
 	rows, queryErr := s.pool.Query(ctx, `
 		SELECT job_id, job_type, cron_expr, method_name, params, status, next_run_at, last_run_at, last_status, last_error, created_at, updated_at
-		FROM applet_engine_jobs
+		FROM applets.jobs
 		WHERE tenant_id = $1 AND applet_id = $2
 		ORDER BY created_at DESC
 	`, tenantID, appletID)
@@ -73,7 +73,7 @@ func (s *PostgresJobsStore) Cancel(ctx context.Context, jobID string) (bool, err
 		return false, fmt.Errorf("postgres jobs.cancel: %w", err)
 	}
 	commandTag, execErr := s.pool.Exec(ctx, `
-		UPDATE applet_engine_jobs
+		UPDATE applets.jobs
 		SET status = 'canceled', next_run_at = NULL, last_status = 'canceled', last_error = '', updated_at = NOW()
 		WHERE tenant_id = $1 AND applet_id = $2 AND job_id = $3 AND status <> 'canceled'
 	`, tenantID, appletID, jobID)
@@ -95,7 +95,7 @@ func (s *PostgresJobsStore) insert(ctx context.Context, jobType, cronExpr, metho
 	}
 
 	row := s.pool.QueryRow(ctx, `
-		INSERT INTO applet_engine_jobs(
+		INSERT INTO applets.jobs(
 			tenant_id,
 			applet_id,
 			job_id,

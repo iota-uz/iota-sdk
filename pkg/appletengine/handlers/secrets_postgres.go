@@ -37,7 +37,7 @@ func NewPostgresSecretsStore(pool *pgxpool.Pool, masterKey string) (*PostgresSec
 func (s *PostgresSecretsStore) Get(ctx context.Context, appletName, name string) (string, bool, error) {
 	row := s.pool.QueryRow(ctx, `
 		SELECT cipher_text
-		FROM applet_engine_secrets
+		FROM applets.secrets
 		WHERE applet_id = $1 AND secret_name = $2
 	`, appletName, name)
 	var cipherText string
@@ -68,7 +68,7 @@ func (s *PostgresSecretsStore) Set(ctx context.Context, appletName, name, value 
 		return fmt.Errorf("encrypt secret: %w", err)
 	}
 	_, err = s.pool.Exec(ctx, `
-INSERT INTO applet_engine_secrets(applet_id, secret_name, cipher_text)
+INSERT INTO applets.secrets(applet_id, secret_name, cipher_text)
 VALUES ($1, $2, $3)
 ON CONFLICT (applet_id, secret_name)
 DO UPDATE SET cipher_text = EXCLUDED.cipher_text, updated_at = NOW()
@@ -86,7 +86,7 @@ func (s *PostgresSecretsStore) List(ctx context.Context, appletName string) ([]s
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT secret_name
-FROM applet_engine_secrets
+FROM applets.secrets
 WHERE applet_id = $1
 `, appletName)
 	if err != nil {
@@ -119,7 +119,7 @@ func (s *PostgresSecretsStore) Delete(ctx context.Context, appletName, name stri
 		return false, fmt.Errorf("secret name is required")
 	}
 	commandTag, err := s.pool.Exec(ctx, `
-DELETE FROM applet_engine_secrets
+DELETE FROM applets.secrets
 WHERE applet_id = $1 AND secret_name = $2
 `, appletName, name)
 	if err != nil {

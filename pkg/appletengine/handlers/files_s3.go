@@ -106,7 +106,7 @@ func (s *S3FilesStore) Store(ctx context.Context, name, contentType string, data
 	}
 
 	row := s.pool.QueryRow(ctx, `
-		INSERT INTO applet_engine_files(tenant_id, applet_id, file_id, file_name, content_type, size_bytes, storage_path)
+		INSERT INTO applets.files(tenant_id, applet_id, file_id, file_name, content_type, size_bytes, storage_path)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING created_at
 	`, tenantID, appletID, id, safeName, contentType, len(data), key)
@@ -136,7 +136,7 @@ func (s *S3FilesStore) Get(ctx context.Context, id string) (map[string]any, bool
 	}
 	row := s.pool.QueryRow(ctx, `
 		SELECT file_name, content_type, size_bytes, storage_path, created_at
-		FROM applet_engine_files
+		FROM applets.files
 		WHERE tenant_id = $1 AND applet_id = $2 AND file_id = $3
 	`, tenantID, appletID, id)
 	var (
@@ -169,7 +169,7 @@ func (s *S3FilesStore) Delete(ctx context.Context, id string) (bool, error) {
 	}
 	row := s.pool.QueryRow(ctx, `
 		SELECT storage_path
-		FROM applet_engine_files
+		FROM applets.files
 		WHERE tenant_id = $1 AND applet_id = $2 AND file_id = $3
 	`, tenantID, appletID, id)
 	var storagePath string
@@ -190,7 +190,7 @@ func (s *S3FilesStore) Delete(ctx context.Context, id string) (bool, error) {
 		}
 	}
 	commandTag, err := s.pool.Exec(ctx, `
-		DELETE FROM applet_engine_files
+		DELETE FROM applets.files
 		WHERE tenant_id = $1 AND applet_id = $2 AND file_id = $3
 	`, tenantID, appletID, id)
 	if err != nil {

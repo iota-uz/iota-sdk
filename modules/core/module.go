@@ -101,8 +101,8 @@ func (m *Module) Register(app application.Application) error {
 	// Create encryptor for TOTP secrets
 	var encryptor pkgtwofactor.SecretEncryptor
 
-	// In production, TOTP_ENCRYPTION_KEY is required to prevent plaintext storage
-	if conf.GoAppEnvironment == "production" && conf.TwoFactorAuth.EncryptionKey == "" {
+	// In production, require TOTP_ENCRYPTION_KEY only when 2FA is enabled.
+	if conf.GoAppEnvironment == "production" && conf.TwoFactorAuth.Enabled && conf.TwoFactorAuth.EncryptionKey == "" {
 		return serrors.E(op, serrors.Invalid, errors.New("TOTP encryption key is required in production"))
 	}
 

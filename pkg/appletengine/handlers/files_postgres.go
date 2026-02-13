@@ -51,7 +51,7 @@ func (s *PostgresFilesStore) Store(ctx context.Context, name, contentType string
 	}
 
 	row := s.pool.QueryRow(ctx, `
-		INSERT INTO applet_engine_files(tenant_id, applet_id, file_id, file_name, content_type, size_bytes, storage_path)
+		INSERT INTO applets.files(tenant_id, applet_id, file_id, file_name, content_type, size_bytes, storage_path)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING created_at
 	`, tenantID, appletID, id, safeName, strings.TrimSpace(contentType), len(data), filePath)
@@ -79,7 +79,7 @@ func (s *PostgresFilesStore) Get(ctx context.Context, id string) (map[string]any
 	}
 	row := s.pool.QueryRow(ctx, `
 		SELECT file_name, content_type, size_bytes, storage_path, created_at
-		FROM applet_engine_files
+		FROM applets.files
 		WHERE tenant_id = $1 AND applet_id = $2 AND file_id = $3
 	`, tenantID, appletID, id)
 	var (
@@ -111,7 +111,7 @@ func (s *PostgresFilesStore) Delete(ctx context.Context, id string) (bool, error
 		return false, fmt.Errorf("postgres files.delete: %w", err)
 	}
 	row := s.pool.QueryRow(ctx, `
-		DELETE FROM applet_engine_files
+		DELETE FROM applets.files
 		WHERE tenant_id = $1 AND applet_id = $2 AND file_id = $3
 		RETURNING storage_path
 	`, tenantID, appletID, id)

@@ -30,7 +30,7 @@ func (s *PostgresDBStore) Get(ctx context.Context, id string) (any, error) {
 	}
 	row := s.pool.QueryRow(ctx, `
 		SELECT table_name, value
-		FROM applet_engine_documents
+		FROM applets.documents
 		WHERE tenant_id = $1 AND applet_id = $2 AND document_id = $3
 	`, tenantID, appletID, id)
 
@@ -86,7 +86,7 @@ func (s *PostgresDBStore) Query(ctx context.Context, table string, options DBQue
 	}
 	query := fmt.Sprintf(`
 		SELECT document_id, table_name, value
-		FROM applet_engine_documents
+		FROM applets.documents
 		WHERE %s
 		ORDER BY updated_at %s
 	`, strings.Join(conditions, " AND "), order)
@@ -131,7 +131,7 @@ func (s *PostgresDBStore) Insert(ctx context.Context, table string, value any) (
 	}
 
 	if _, err := s.pool.Exec(ctx, `
-		INSERT INTO applet_engine_documents(tenant_id, applet_id, table_name, document_id, value)
+		INSERT INTO applets.documents(tenant_id, applet_id, table_name, document_id, value)
 		VALUES ($1, $2, $3, $4, $5::jsonb)
 	`, tenantID, appletID, table, documentID, string(encoded)); err != nil {
 		return nil, fmt.Errorf("postgres db.insert: %w", err)
@@ -158,7 +158,7 @@ func (s *PostgresDBStore) update(ctx context.Context, id string, value any) (any
 	}
 
 	row := s.pool.QueryRow(ctx, `
-		UPDATE applet_engine_documents
+		UPDATE applets.documents
 		SET value = $4::jsonb, updated_at = NOW()
 		WHERE tenant_id = $1 AND applet_id = $2 AND document_id = $3
 		RETURNING table_name
@@ -180,7 +180,7 @@ func (s *PostgresDBStore) Delete(ctx context.Context, id string) (bool, error) {
 		return false, fmt.Errorf("postgres db.delete: %w", err)
 	}
 	commandTag, execErr := s.pool.Exec(ctx, `
-		DELETE FROM applet_engine_documents
+		DELETE FROM applets.documents
 		WHERE tenant_id = $1 AND applet_id = $2 AND document_id = $3
 	`, tenantID, appletID, id)
 	if execErr != nil {

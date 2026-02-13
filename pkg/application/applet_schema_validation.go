@@ -42,7 +42,7 @@ func validateAppletSchemaArtifact(ctx context.Context, pool *pgxpool.Pool, apple
 
 	rows, err := pool.Query(ctx, `
 SELECT tenant_id, table_name, document_id, value
-FROM applet_engine_documents
+FROM applets.documents
 WHERE applet_id = $1
 `, appletName)
 	if err != nil {
