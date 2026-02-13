@@ -2,7 +2,6 @@ package bichat
 
 import (
 	"context"
-	"io/fs"
 	"net/http"
 	"os"
 	"strings"
@@ -19,17 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
-// distFS is a sub-filesystem of DistFS rooted at "dist/".
-// This allows the AppletController to access files directly (e.g., "main.js" instead of "dist/main.js").
-var distFS fs.FS
-
-func init() {
-	var err error
-	distFS, err = fs.Sub(assets.DistFS, "dist")
-	if err != nil {
-		panic("failed to create distFS sub-filesystem: " + err.Error())
-	}
-}
+var distFS = assets.AppletFS()
 
 // BiChatApplet implements the applets.Applet interface for BiChat.
 // This enables BiChat to integrate with the SDK's generic applet system,
