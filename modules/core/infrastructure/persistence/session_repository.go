@@ -87,8 +87,8 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 		where = append(where, fmt.Sprintf("(u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.email ILIKE $%d)", pos, pos, pos))
 	}
 
-	// Use table alias for select query
-	selectQuery := "SELECT s.token, s.user_id, s.expires_at, s.ip, s.user_agent, s.created_at, s.tenant_id, s.audience FROM sessions s"
+	// Use table alias for select query (must match querySessions scan: 9 columns including status)
+	selectQuery := "SELECT s.token, s.user_id, s.expires_at, s.ip, s.user_agent, s.created_at, s.tenant_id, s.audience, s.status FROM sessions s"
 
 	query := repo.Join(
 		selectQuery,
