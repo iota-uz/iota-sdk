@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -68,7 +69,11 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if id == "" {
 					return nil, fmt.Errorf("id is required: %w", applets.ErrInvalid)
 				}
-				return s.store.Get(ctx, id)
+				result, err := s.store.Get(ctx, id)
+				if errors.Is(err, applets.ErrNotFound) {
+					return nullResult(), nil
+				}
+				return result, err
 			},
 		},
 		"query": {
@@ -112,7 +117,11 @@ func (s *DBStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if id == "" {
 					return nil, fmt.Errorf("id is required: %w", applets.ErrInvalid)
 				}
-				return s.store.Patch(ctx, id, p["value"])
+				result, err := s.store.Patch(ctx, id, p["value"])
+				if errors.Is(err, applets.ErrNotFound) {
+					return nullResult(), nil
+				}
+				return result, err
 			},
 		},
 		"replace": {
@@ -166,11 +175,11 @@ func (s *memoryDBStore) Get(ctx context.Context, id string) (any, error) {
 	defer s.mu.RUnlock()
 	scopeRecords := s.records[scope]
 	if scopeRecords == nil {
-		return nil, nil
+		return nil, fmt.Errorf("document not found: %w", applets.ErrNotFound)
 	}
 	record, ok := scopeRecords[id]
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("document not found: %w", applets.ErrNotFound)
 	}
 	return dbRecordResponse(record), nil
 }
@@ -235,14 +244,14 @@ func (s *memoryDBStore) Insert(ctx context.Context, table string, value any) (an
 }
 
 func (s *memoryDBStore) Patch(ctx context.Context, id string, value any) (any, error) {
-	return s.update(ctx, id, value, false)
+	return s.update(ctx, id, value)
 }
 
 func (s *memoryDBStore) Replace(ctx context.Context, id string, value any) (any, error) {
-	return s.update(ctx, id, value, true)
+	return s.update(ctx, id, value)
 }
 
-func (s *memoryDBStore) update(ctx context.Context, id string, value any, strict bool) (any, error) {
+func (s *memoryDBStore) update(ctx context.Context, id string, value any) (any, error) {
 	scope, err := scopeFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -251,17 +260,11 @@ func (s *memoryDBStore) update(ctx context.Context, id string, value any, strict
 	defer s.mu.Unlock()
 	scopeRecords := s.records[scope]
 	if scopeRecords == nil {
-		if strict {
-			return nil, fmt.Errorf("document not found: %w", applets.ErrNotFound)
-		}
-		return nil, nil
+		return nil, fmt.Errorf("document not found: %w", applets.ErrNotFound)
 	}
 	record, ok := scopeRecords[id]
 	if !ok {
-		if strict {
-			return nil, fmt.Errorf("document not found: %w", applets.ErrNotFound)
-		}
-		return nil, nil
+		return nil, fmt.Errorf("document not found: %w", applets.ErrNotFound)
 	}
 	record.Value = value
 	record.UpdatedAt = time.Now().UTC()
@@ -334,4 +337,9 @@ func nestedFieldValue(value any, fieldPath string) (any, bool) {
 		current = next
 	}
 	return current, true
+}
+
+func nullResult() any {
+	var v *struct{}
+	return v
 }

@@ -134,7 +134,7 @@ func scanJobRow(row rowScanner) (map[string]any, error) {
 	)
 	if err := row.Scan(&jobID, &jobType, &cronExpr, &method, &rawParams, &status, &nextRunAt, &lastRunAt, &lastStatus, &lastError, &createdAt, &updatedAt); err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, nil
+			return nil, fmt.Errorf("job not found: %w", applets.ErrNotFound)
 		}
 		return nil, fmt.Errorf("scan job row: %w", err)
 	}

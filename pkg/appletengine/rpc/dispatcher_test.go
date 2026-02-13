@@ -58,8 +58,8 @@ func TestDispatcher_ValidBatchRequest(t *testing.T) {
 
 	assert.Equal(t, "1", decoded[0]["id"])
 	assert.Equal(t, "2", decoded[1]["id"])
-	assert.Equal(t, float64(1), decoded[0]["result"].(map[string]any)["x"])
-	assert.Equal(t, float64(2), decoded[1]["result"].(map[string]any)["x"])
+	assert.InDelta(t, 1.0, decoded[0]["result"].(map[string]any)["x"].(float64), 0.0)
+	assert.InDelta(t, 2.0, decoded[1]["result"].(map[string]any)["x"].(float64), 0.0)
 }
 
 func TestDispatcher_MethodNotFound(t *testing.T) {
@@ -71,7 +71,7 @@ func TestDispatcher_MethodNotFound(t *testing.T) {
 
 	decoded := decodeObject(t, resp.Body.Bytes())
 	errorObj := decoded["error"].(map[string]any)
-	assert.Equal(t, float64(-32601), errorObj["code"])
+	assert.InDelta(t, -32601.0, errorObj["code"].(float64), 0.0)
 	assert.Equal(t, "m1", decoded["id"])
 }
 
@@ -84,7 +84,7 @@ func TestDispatcher_InvalidRequestPayload(t *testing.T) {
 
 	decoded := decodeObject(t, resp.Body.Bytes())
 	errorObj := decoded["error"].(map[string]any)
-	assert.Equal(t, float64(-32600), errorObj["code"])
+	assert.InDelta(t, -32600.0, errorObj["code"].(float64), 0.0)
 }
 
 func TestDispatcher_InvalidRequestMethodAndRequestIDPassthrough(t *testing.T) {
@@ -96,8 +96,8 @@ func TestDispatcher_InvalidRequestMethodAndRequestIDPassthrough(t *testing.T) {
 
 	decoded := decodeObject(t, resp.Body.Bytes())
 	errorObj := decoded["error"].(map[string]any)
-	assert.Equal(t, float64(-32600), errorObj["code"])
-	assert.Equal(t, float64(42), decoded["id"])
+	assert.InDelta(t, -32600.0, errorObj["code"].(float64), 0.0)
+	assert.InDelta(t, 42.0, decoded["id"].(float64), 0.0)
 }
 
 type bunCallerStub struct {

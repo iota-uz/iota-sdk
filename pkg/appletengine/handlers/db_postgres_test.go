@@ -22,7 +22,7 @@ func TestTenantAndAppletFromContext_Defaults(t *testing.T) {
 	t.Parallel()
 
 	tenantID, appletID, err := tenantAndAppletFromContext(context.Background())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, tenantID)
 	assert.Empty(t, appletID)
 	assert.Contains(t, err.Error(), "tenant ID not found in context")

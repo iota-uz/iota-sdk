@@ -314,7 +314,7 @@ func unixRequest(socketPath, method, path string, body []byte, headers map[strin
 	if body != nil {
 		reader = bytes.NewReader(body)
 	}
-	req, err := http.NewRequest(method, "http://unix"+path, reader)
+	req, err := http.NewRequestWithContext(context.Background(), method, "http://unix"+path, reader)
 	if err != nil {
 		return nil, err
 	}

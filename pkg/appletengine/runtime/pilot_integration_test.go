@@ -93,7 +93,7 @@ func httpOverUnix(method, socketPath, path string, body io.Reader, headers map[s
 	defer transport.CloseIdleConnections()
 
 	client := &http.Client{Transport: transport}
-	req, err := http.NewRequest(method, "http://unix"+path, body)
+	req, err := http.NewRequestWithContext(context.Background(), method, "http://unix"+path, body)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}

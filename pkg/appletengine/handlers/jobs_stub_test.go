@@ -44,7 +44,7 @@ func TestJobsStub_EnqueueScheduleListCancel(t *testing.T) {
 	require.Len(t, jobs, 2)
 
 	otherTenant := callJobsRPC(t, dispatcher, "tenant-b", "bichat.jobs.list", map[string]any{})
-	assert.Len(t, otherTenant["result"].([]any), 0)
+	assert.Empty(t, otherTenant["result"].([]any))
 
 	cancelResp := callJobsRPC(t, dispatcher, "tenant-a", "bichat.jobs.cancel", map[string]any{"id": jobID})
 	assert.Equal(t, true, cancelResp["result"].(map[string]any)["ok"])

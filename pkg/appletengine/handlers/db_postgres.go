@@ -38,7 +38,7 @@ func (s *PostgresDBStore) Get(ctx context.Context, id string) (any, error) {
 	var rawValue []byte
 	if err := row.Scan(&tableName, &rawValue); err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, nil
+			return nil, fmt.Errorf("document not found: %w", applets.ErrNotFound)
 		}
 		return nil, fmt.Errorf("postgres db.get: %w", err)
 	}
@@ -140,14 +140,14 @@ func (s *PostgresDBStore) Insert(ctx context.Context, table string, value any) (
 }
 
 func (s *PostgresDBStore) Patch(ctx context.Context, id string, value any) (any, error) {
-	return s.update(ctx, id, value, false)
+	return s.update(ctx, id, value)
 }
 
 func (s *PostgresDBStore) Replace(ctx context.Context, id string, value any) (any, error) {
-	return s.update(ctx, id, value, true)
+	return s.update(ctx, id, value)
 }
 
-func (s *PostgresDBStore) update(ctx context.Context, id string, value any, strict bool) (any, error) {
+func (s *PostgresDBStore) update(ctx context.Context, id string, value any) (any, error) {
 	tenantID, appletID, err := tenantAndAppletFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("postgres db.update: %w", err)
@@ -167,10 +167,7 @@ func (s *PostgresDBStore) update(ctx context.Context, id string, value any, stri
 	var tableName string
 	if err := row.Scan(&tableName); err != nil {
 		if err == pgx.ErrNoRows {
-			if strict {
-				return nil, fmt.Errorf("document not found: %w", applets.ErrNotFound)
-			}
-			return nil, nil
+			return nil, fmt.Errorf("document not found: %w", applets.ErrNotFound)
 		}
 		return nil, fmt.Errorf("postgres db.update: %w", err)
 	}

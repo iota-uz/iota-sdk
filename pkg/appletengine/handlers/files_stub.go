@@ -102,7 +102,7 @@ func (s *FilesStub) Register(registry *appletenginerpc.Registry, appletName stri
 					return nil, err
 				}
 				if !found {
-					return nil, nil
+					return nullResult(), nil
 				}
 				return value, nil
 			},

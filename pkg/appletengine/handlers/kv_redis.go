@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iota-uz/applets"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -31,7 +32,7 @@ func NewRedisKVStore(redisURL string) (*RedisKVStore, error) {
 func (s *RedisKVStore) Get(ctx context.Context, key string) (any, error) {
 	result, err := s.client.Get(ctx, redisScopedKey(ctx, key)).Result()
 	if err == redis.Nil {
-		return nil, nil
+		return nil, fmt.Errorf("key not found: %w", applets.ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("redis get: %w", err)

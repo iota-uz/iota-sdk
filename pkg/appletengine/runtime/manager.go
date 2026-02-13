@@ -327,7 +327,7 @@ func (m *Manager) ensureEngineSocket() error {
 	socketPath := m.resolveSocketPath("engine.sock")
 	_ = os.Remove(socketPath)
 
-	listener, err := net.Listen("unix", socketPath)
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "unix", socketPath)
 	if err != nil {
 		return fmt.Errorf("listen engine socket: %w", err)
 	}

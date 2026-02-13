@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -54,7 +55,11 @@ func (s *KVStub) Register(registry *appletenginerpc.Registry, appletName string)
 				if key == "" {
 					return nil, fmt.Errorf("key is required: %w", applets.ErrInvalid)
 				}
-				return s.store.Get(ctx, key)
+				value, err := s.store.Get(ctx, key)
+				if errors.Is(err, applets.ErrNotFound) {
+					return nullResult(), nil
+				}
+				return value, err
 			},
 		},
 		"set": {
@@ -138,11 +143,11 @@ func (s *memoryKVStore) Get(ctx context.Context, key string) (any, error) {
 	defer s.mu.RUnlock()
 	bucket := s.store[scope]
 	if bucket == nil {
-		return nil, nil
+		return nil, fmt.Errorf("key not found: %w", applets.ErrNotFound)
 	}
 	value, ok := bucket[key]
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("key not found: %w", applets.ErrNotFound)
 	}
 	return value, nil
 }
@@ -186,6 +191,10 @@ func (s *memoryKVStore) MGet(ctx context.Context, keys []string) ([]any, error) 
 	for _, key := range keys {
 		value, err := s.Get(ctx, key)
 		if err != nil {
+			if errors.Is(err, applets.ErrNotFound) {
+				values = append(values, nullResult())
+				continue
+			}
 			return nil, err
 		}
 		values = append(values, value)
