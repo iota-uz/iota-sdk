@@ -989,10 +989,7 @@ func (c *UsersController) GetUserSessions(
 		return
 	}
 
-	// Parse user ID from URL
-	vars := mux.Vars(r)
-	userIDStr := vars["id"]
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	userID, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("invalid user ID")
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)
@@ -1000,7 +997,7 @@ func (c *UsersController) GetUserSessions(
 	}
 
 	// Fetch target user
-	targetUser, err := userService.GetByID(r.Context(), uint(userID))
+	targetUser, err := userService.GetByID(r.Context(), userID)
 	if err != nil {
 		logger.WithError(err).Error("failed to fetch user")
 		http.Error(w, "User not found", http.StatusNotFound)
@@ -1008,7 +1005,7 @@ func (c *UsersController) GetUserSessions(
 	}
 
 	// Fetch sessions for the user
-	sessions, err := sessionService.GetByUserID(r.Context(), uint(userID))
+	sessions, err := sessionService.GetByUserID(r.Context(), userID)
 	if err != nil {
 		logger.WithError(err).Error("failed to fetch sessions")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -1055,26 +1052,22 @@ func (c *UsersController) RevokeUserSession(
 		return
 	}
 
-	// Parse user ID and token hash from URL
-	vars := mux.Vars(r)
-	userIDStr := vars["id"]
-	tokenHash := vars["token"]
-
-	if tokenHash == "" {
-		logger.Error("token is required")
-		http.Error(w, "Token required", http.StatusBadRequest)
-		return
-	}
-
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	userID, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("invalid user ID")
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)
 		return
 	}
 
+	tokenHash := mux.Vars(r)["token"]
+	if tokenHash == "" {
+		logger.Error("token is required")
+		http.Error(w, "Token required", http.StatusBadRequest)
+		return
+	}
+
 	// Fetch all sessions for the target user
-	sessions, err := sessionService.GetByUserID(r.Context(), uint(userID))
+	sessions, err := sessionService.GetByUserID(r.Context(), userID)
 	if err != nil {
 		logger.WithError(err).Error("failed to fetch user sessions")
 		http.Error(w, "Failed to fetch sessions", http.StatusInternalServerError)
