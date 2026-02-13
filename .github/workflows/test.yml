@@ -1,55 +1,95 @@
 name: Test, lint & build
 
 on:
-  - push
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GOPRIVATE: github.com/iota-uz/*
+  GONOSUMDB: github.com/iota-uz/*
+  E2E_SHARD_TOTAL: 6
+  GOCACHE: /go/.cache/go-build
 
 jobs:
-  lint-and-format:
+  prepare:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.docs_only.outputs.value }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docs:
+              - 'docs/**'
+              - '.github/workflows/pages.yml'
+            non_docs:
+              - '**'
+              - '!docs/**'
+              - '!.github/workflows/pages.yml'
+
+      - name: Compute docs-only flag
+        id: docs_only
+        run: |
+          if [[ "${{ steps.filter.outputs.docs }}" == "true" && "${{ steps.filter.outputs.non_docs }}" != "true" ]]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  code-quality:
+    if: github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
+    needs: prepare
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
-    name: Code Quality & Formatting
-    env:
-      GOPRIVATE: github.com/iota-uz/*
-      GONOSUMDB: github.com/iota-uz/*
+    name: code-quality
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: useblacksmith/setup-go@v6
+      - name: Cache Go modules
+        uses: actions/cache@v4
         with:
-          go-version: "1.23.2"
+          path: /go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('go.sum') }}
 
-      - name: Install golangci-lint
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.1.6
-          golangci-lint version
-
-      - name: Install templ
-        run: |
-          go install github.com/a-h/templ/cmd/templ@v0.3.857
-          templ --help
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Cache Go build cache
+        uses: actions/cache@v4
         with:
-          node-version: "20"
+          path: /go/.cache/go-build
+          key: ${{ runner.os }}-gobuild-${{ hashFiles('go.sum') }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
         with:
-          version: 9.15.0
-
-      - name: Install pg_formatter for SQL formatting
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pgformatter
-
-      - name: Install just
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-          just --version
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml', 'e2e/pnpm-lock.yaml', 'docs/pnpm-lock.yaml') }}
 
       - name: Download Go dependencies
         run: go mod download
@@ -108,10 +148,10 @@ jobs:
         run: just applet rpc-check bichat
 
       - name: Install root dependencies (for Tailwind CSS)
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
 
       - name: Install BiChat applet dependencies
-        run: pnpm install --frozen-lockfile -C modules/bichat/presentation/web
+        run: pnpm install --frozen-lockfile --prefer-offline -C modules/bichat/presentation/web
 
       - name: Typecheck BiChat applet
         run: pnpm -C modules/bichat/presentation/web exec tsc --noEmit
@@ -122,12 +162,13 @@ jobs:
       - name: Run golangci-lint (unused variables/functions)
         run: just check lint
 
-  test-unit-integration:
+  unit-tests:
+    if: github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
+    needs: prepare
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    name: Unit & Integration Tests
-    env:
-      GOPRIVATE: github.com/iota-uz/*
-      GONOSUMDB: github.com/iota-uz/*
+    name: unit-tests
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
 
     services:
       postgres:
@@ -172,34 +213,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: useblacksmith/setup-go@v6
+      - name: Cache Go modules
+        uses: actions/cache@v4
         with:
-          go-version: "1.23.2"
+          path: /go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('go.sum') }}
 
-      - name: Install just
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-          just --version
-
-      - name: Install tools
-        run: |
-          # Install templ (needed for CSS generation)
-          go install github.com/a-h/templ/cmd/templ@v0.3.857
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: /go/.cache/go-build
+          key: ${{ runner.os }}-gobuild-${{ hashFiles('go.sum') }}
 
       - name: Download Go dependencies
         run: go mod download
 
       - name: Wait for PostgreSQL to be ready
         run: |
-          until pg_isready -h localhost -p 5432 -U postgres -d iota_erp; do
+          until pg_isready -h postgres -p 5432 -U postgres -d iota_erp; do
             echo "Waiting for postgres..."
             sleep 1
           done
 
       - name: Test just recipes
         env:
-          DB_HOST: localhost
+          DB_HOST: postgres
           DB_PORT: 5432
           DB_NAME: iota_erp
           DB_USER: postgres
@@ -210,48 +248,36 @@ jobs:
           just db seed
           just db seed
 
-      - name: Run tests with coverage
+      - name: Run tests
         env:
-          DB_HOST: localhost
+          DB_HOST: postgres
           DB_PORT: 5432
           DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
-        run: go test -tags dev -v ./... -coverprofile=coverage.out -covermode=atomic
-
-      - name: Generate coverage report
-        env:
-          COVERAGE_THRESHOLD: 10
-          COVERAGE_MAX_FILES_DISPLAY: 100
-          COVERAGE_IGNORE_PATTERNS: "cmd/,*_templ.go,viewmodels/"
-        run: node ./.github/scripts/coverage-report.cjs --file coverage.out --output github
-
-      - name: Generate HTML coverage report
-        run: go tool cover -html=coverage.out -o coverage.html
-
-      - name: Upload coverage to artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: code-coverage
-          path: |
-            coverage.out
-            coverage.html
+        run: go test -tags dev -v ./...
 
       - name: Test database migrate down
         env:
-          DB_HOST: localhost
+          DB_HOST: postgres
           DB_PORT: 5432
           DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
         run: just db migrate down
 
-  test-e2e:
+  e2e-shards:
+    if: github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
+    needs: prepare
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    name: E2E Tests
-    env:
-      GOPRIVATE: github.com/iota-uz/*
-      GONOSUMDB: github.com/iota-uz/*
+    name: e2e-shard-${{ matrix.shard }}
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
 
     services:
       postgres:
@@ -292,62 +318,70 @@ jobs:
         options: >-
           --tmpfs /data:rw,size=6g
 
+    env:
+      E2E_SHARD_INDEX: ${{ matrix.shard }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: useblacksmith/setup-go@v6
+      - name: Cache Go modules
+        uses: actions/cache@v4
         with:
-          go-version: "1.23.2"
+          path: /go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('go.sum') }}
 
-      - name: Install just
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: /go/.cache/go-build
+          key: ${{ runner.os }}-gobuild-${{ hashFiles('go.sum') }}
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml', 'e2e/pnpm-lock.yaml', 'docs/pnpm-lock.yaml') }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-pw-${{ hashFiles('e2e/pnpm-lock.yaml') }}
+
+      - name: Install e2e dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+        working-directory: e2e
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install chromium
+        working-directory: e2e
+
+      - name: Build Go binaries
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-          just --version
-
-      - name: Install tools
-        run: |
-          # Install templ (needed for CSS generation)
-          go install github.com/a-h/templ/cmd/templ@v0.3.857
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9.15.0
-
-      - name: Download Go dependencies
-        run: go mod download
-
-      - name: Install root dependencies (for Tailwind CSS)
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Generate CSS files
-        run: just css
+          mkdir -p ./bin
+          go build -tags dev -o ./bin/command ./cmd/command/main.go
+          go build -tags dev -o ./bin/server ./cmd/server/main.go
 
       - name: Setup E2E database
-        run: |
-          just e2e reset
-
-      - name: Install Node dependencies
-        run: pnpm install
-        working-directory: e2e
-
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
-        working-directory: e2e
+        env:
+          DB_HOST: postgres
+          DB_PORT: 5432
+          DB_NAME: iota_erp_e2e
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: ./bin/command e2e reset
 
       - name: Start Go Server
         env:
           SESSION_DURATION: 720h
           DOMAIN: localhost
           PORT: 3201
-          DB_HOST: localhost
+          DB_HOST: postgres
           DB_PORT: 5432
           DB_NAME: iota_erp_e2e
           DB_USER: postgres
@@ -357,29 +391,88 @@ jobs:
           ENABLE_TEST_ENDPOINTS: true
           TOTP_ENCRYPTION_KEY: e2e-test-encryption-key-32bytes!!
         run: |
-          go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
+          ./bin/server > /tmp/server.log 2>&1 &
           SERVER_PID=$!
-          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+          echo "SERVER_PID=$SERVER_PID" >> "$GITHUB_ENV"
 
-          # Wait for server to be ready (timeout: 60 seconds)
           timeout 60 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'
           echo "Server started successfully"
 
-      - name: Run Playwright Tests
+      - name: Run Playwright shard
         env:
           BASE_URL: http://localhost:3201
-        run: npx playwright test
+          DB_HOST: postgres
+          DB_PORT: 5432
+          DB_NAME: iota_erp_e2e
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: |
+          pnpm exec playwright test \
+            --workers="${PW_WORKERS:-1}" \
+            --shard="${E2E_SHARD_INDEX}/${E2E_SHARD_TOTAL}" \
+            --reporter=blob
         working-directory: e2e
 
       - name: Stop Go Server
         if: always()
-        run: kill ${{ env.SERVER_PID }} || true
+        run: kill "${{ env.SERVER_PID }}" || true
 
-      - name: Show Server Logs
+      - name: Upload Playwright Blob Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: e2e/blob-report/
+          retention-days: 14
+
+      - name: Upload Server Logs
         if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-shard-${{ matrix.shard }}
+          path: /tmp/server.log
+          retention-days: 7
+
+  e2e-merged-report:
+    if: always() && github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
+    needs:
+      - prepare
+      - e2e-shards
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    name: e2e-merged-report
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml', 'e2e/pnpm-lock.yaml', 'docs/pnpm-lock.yaml') }}
+
+      - name: Install e2e dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+        working-directory: e2e
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: blob-report-*
+          path: e2e/blob-artifacts
+
+      - name: Merge Playwright reports
         run: |
-          echo "=== Server Logs ==="
-          cat /tmp/server.log || echo "No server logs found"
+          mkdir -p blob-report-merged
+          find blob-artifacts -type f -name '*.zip' -exec cp {} blob-report-merged/ \;
+          pnpm exec playwright merge-reports --reporter html ./blob-report-merged
+        working-directory: e2e
 
       - name: Upload Playwright Report
         if: always()
@@ -389,59 +482,118 @@ jobs:
           path: e2e/playwright-report/
           retention-days: 30
 
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: e2e/test-results/
-          retention-days: 30
+      - name: Fail if any shard failed
+        if: needs.e2e-shards.result != 'success'
+        run: |
+          echo "At least one e2e shard failed."
+          exit 1
 
-      - name: Upload Server Logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: server-logs
-          path: /tmp/server.log
-          retention-days: 7
+  coverage-report:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    name: coverage-report
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
 
-  docs-build:
-    name: Documentation Build
-    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp
+          POSTGRES_INITDB_ARGS: "-c max_connections=1000 -c shared_buffers=2GB \
+                                 -c effective_cache_size=6GB -c maintenance_work_mem=512MB \
+                                 -c work_mem=32MB -c fsync=off -c synchronous_commit=off \
+                                 -c full_page_writes=off -c wal_buffers=64MB \
+                                 -c max_wal_size=4GB -c min_wal_size=1GB \
+                                 -c checkpoint_completion_target=0.9 -c wal_compression=on \
+                                 -c random_page_cost=1.0 -c seq_page_cost=1.0 \
+                                 -c cpu_tuple_cost=0.01 -c cpu_index_tuple_cost=0.001 \
+                                 -c cpu_operator_cost=0.0005 -c log_min_duration_statement=0 \
+                                 -c log_statement=none -c log_checkpoints=off \
+                                 -c log_connections=off -c log_disconnections=off \
+                                 -c autovacuum=off -c track_activities=off \
+                                 -c track_counts=off -c jit=off -c huge_pages=try \
+                                 -c temp_buffers=128MB -c max_prepared_transactions=0 \
+                                 -c bgwriter_delay=10000ms -c bgwriter_lru_maxpages=0 \
+                                 -c effective_io_concurrency=200 -c maintenance_io_concurrency=200 \
+                                 -c max_parallel_workers_per_gather=4 -c max_parallel_workers=8 \
+                                 -c max_parallel_maintenance_workers=4 -c default_statistics_target=10 \
+                                 -c enable_partitionwise_join=on -c enable_partitionwise_aggregate=on"
+        options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=6g,noatime
+          --health-cmd="pg_isready -U postgres -d iota_erp"
+          --health-interval=5s --health-timeout=5s --health-retries=5
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --tmpfs /data:rw,size=6g
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Cache Go modules
+        uses: actions/cache@v4
         with:
-          node-version: '20'
+          path: /go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('go.sum') }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+      - name: Cache Go build cache
+        uses: actions/cache@v4
         with:
-          version: 9.15.0
+          path: /go/.cache/go-build
+          key: ${{ runner.os }}-gobuild-${{ hashFiles('go.sum') }}
 
-      - name: Install documentation dependencies
-        working-directory: ./docs
-        run: pnpm install --frozen-lockfile
+      - name: Download Go dependencies
+        run: go mod download
 
-      - name: Validate Mermaid diagrams
-        working-directory: ./docs
-        run: pnpm run check:mermaid
-
-      - name: Build documentation
-        working-directory: ./docs
-        run: pnpm build
-
-      - name: Check documentation build artifacts
+      - name: Wait for PostgreSQL to be ready
         run: |
-          if [ ! -d "docs/out" ]; then
-            echo "Error: Documentation build output not found"
-            exit 1
-          fi
-          if [ ! -f "docs/out/index.html" ]; then
-            echo "Error: Documentation index.html not found"
-            exit 1
-          fi
-          echo "Documentation build successful"
+          until pg_isready -h postgres -p 5432 -U postgres -d iota_erp; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
+
+      - name: Prepare database
+        env:
+          DB_HOST: postgres
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: |
+          just db migrate up
+          just db seed
+
+      - name: Run tests with coverage
+        env:
+          DB_HOST: postgres
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: go test -tags dev -v ./... -coverprofile=coverage.out -covermode=atomic
+
+      - name: Generate coverage report
+        env:
+          COVERAGE_THRESHOLD: 10
+          COVERAGE_MAX_FILES_DISPLAY: 100
+          COVERAGE_IGNORE_PATTERNS: "cmd/,*_templ.go,viewmodels/"
+        run: node ./.github/scripts/coverage-report.cjs --file coverage.out --output github
+
+      - name: Generate HTML coverage report
+        run: go tool cover -html=coverage.out -o coverage.html
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage
+          path: |
+            coverage.out
+            coverage.html
