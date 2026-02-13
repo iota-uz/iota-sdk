@@ -34,11 +34,20 @@ jobs:
       - name: Validate immutable CI base image reference
         id: validate
         run: |
-          if [ -z "${{ vars.CI_BASE_IMAGE_SHA }}" ]; then
-            echo "::error::Repository variable CI_BASE_IMAGE_SHA is not set. Set it to a published iota-sdk-ci-base image SHA tag suffix."
-            exit 1
+          FALLBACK_IMAGE="mcr.microsoft.com/playwright:v1.48.2-jammy"
+          if [ -n "${{ vars.CI_BASE_IMAGE_SHA }}" ]; then
+            echo "image=${CI_BASE_IMAGE}" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          echo "image=${CI_BASE_IMAGE}" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "::warning::CI_BASE_IMAGE_SHA is not set. Using fallback image ${FALLBACK_IMAGE} for pull_request runs."
+            echo "image=${FALLBACK_IMAGE}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::error::Repository variable CI_BASE_IMAGE_SHA is not set. Set it to a published iota-sdk-ci-base image SHA tag suffix."
+          exit 1
 
   prepare:
     if: github.event_name != 'schedule'
@@ -571,7 +580,7 @@ jobs:
           retention-days: 7
 
   e2e-merged-report:
-    if: always() && github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
+    if: always() && github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true' && needs.validate-ci-base-image.result == 'success'
     needs:
       - prepare
       - validate-ci-base-image
