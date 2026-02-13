@@ -29,6 +29,11 @@ test.describe('2FA OTP Login Flow - Email Method', () => {
 		// Create test user with Email OTP enabled
 		await populateTestData(request, {
 			version: '1.0',
+			tenant: {
+				id: '00000000-0000-0000-0000-000000000001',
+				name: 'Test Tenant',
+				domain: 'test.localhost',
+			},
 			data: {
 				users: [
 					{
@@ -169,6 +174,11 @@ test.describe('2FA OTP Login Flow - SMS Method', () => {
 		// Create test user with SMS OTP enabled
 		await populateTestData(request, {
 			version: '1.0',
+			tenant: {
+				id: '00000000-0000-0000-0000-000000000001',
+				name: 'Test Tenant',
+				domain: 'test.localhost',
+			},
 			data: {
 				users: [
 					{

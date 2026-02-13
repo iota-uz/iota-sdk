@@ -30,6 +30,11 @@ test.describe('2FA TOTP Login Flow', () => {
 		// Create test user with TOTP enabled
 		await populateTestData(request, {
 			version: '1.0',
+			tenant: {
+				id: '00000000-0000-0000-0000-000000000001',
+				name: 'Test Tenant',
+				domain: 'test.localhost',
+			},
 			data: {
 				users: [
 					{

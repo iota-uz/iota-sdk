@@ -35,6 +35,11 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 			// Create user WITHOUT 2FA enabled
 			await populateTestData(request, {
 				version: '1.0',
+				tenant: {
+					id: '00000000-0000-0000-0000-000000000001',
+					name: 'Test Tenant',
+					domain: 'test.localhost',
+				},
 				data: {
 					users: [
 						{
@@ -101,6 +106,11 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 			// Create user with TOTP enabled
 			await populateTestData(request, {
 				version: '1.0',
+				tenant: {
+					id: '00000000-0000-0000-0000-000000000001',
+					name: 'Test Tenant',
+					domain: 'test.localhost',
+				},
 				data: {
 					users: [
 						{
@@ -170,6 +180,11 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 
 			await populateTestData(request, {
 				version: '1.0',
+				tenant: {
+					id: '00000000-0000-0000-0000-000000000001',
+					name: 'Test Tenant',
+					domain: 'test.localhost',
+				},
 				data: {
 					users: [
 						{
@@ -243,6 +258,11 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 
 			await populateTestData(request, {
 				version: '1.0',
+				tenant: {
+					id: '00000000-0000-0000-0000-000000000001',
+					name: 'Test Tenant',
+					domain: 'test.localhost',
+				},
 				data: {
 					users: [
 						{
@@ -287,6 +307,11 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 
 			await populateTestData(request, {
 				version: '1.0',
+				tenant: {
+					id: '00000000-0000-0000-0000-000000000001',
+					name: 'Test Tenant',
+					domain: 'test.localhost',
+				},
 				data: {
 					users: [
 						{
@@ -378,6 +403,11 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 
 			await populateTestData(request, {
 				version: '1.0',
+				tenant: {
+					id: '00000000-0000-0000-0000-000000000001',
+					name: 'Test Tenant',
+					domain: 'test.localhost',
+				},
 				data: {
 					users: [
 						{

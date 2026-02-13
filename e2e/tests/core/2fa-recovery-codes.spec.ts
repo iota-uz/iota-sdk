@@ -77,6 +77,11 @@ test.describe('2FA Recovery Codes', () => {
 		// For now, we'll test the recovery code flow assuming they exist
 		await populateTestData(request, {
 			version: '1.0',
+			tenant: {
+				id: '00000000-0000-0000-0000-000000000001',
+				name: 'Test Tenant',
+				domain: 'test.localhost',
+			},
 			data: {
 				users: [
 					{
@@ -106,6 +111,11 @@ test.describe('2FA Recovery Codes', () => {
 		// Create a fresh test user WITHOUT 2FA enabled for this setup test
 		await populateTestData(request, {
 			version: '1.0',
+			tenant: {
+				id: '00000000-0000-0000-0000-000000000001',
+				name: 'Test Tenant',
+				domain: 'test.localhost',
+			},
 			data: {
 				users: [
 					{
