@@ -15,14 +15,35 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
 
 env:
   GOPRIVATE: github.com/iota-uz/*
   GONOSUMDB: github.com/iota-uz/*
   E2E_SHARD_TOTAL: 6
+  GOPATH: /go
   GOCACHE: /go/.cache/go-build
 
 jobs:
+  resolve-ci-image:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
+    steps:
+      - name: Resolve CI container image
+        id: resolve
+        run: |
+          TARGET_IMAGE="ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest"
+          FALLBACK_IMAGE="mcr.microsoft.com/playwright:v1.48.2-jammy"
+
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1 || true
+
+          if docker manifest inspect "$TARGET_IMAGE" >/dev/null 2>&1; then
+            echo "image=$TARGET_IMAGE" >> "$GITHUB_OUTPUT"
+          else
+            echo "image=$FALLBACK_IMAGE" >> "$GITHUB_OUTPUT"
+          fi
+
   prepare:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
@@ -58,16 +79,65 @@ jobs:
 
   code-quality:
     if: github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
-    needs: prepare
+    needs:
+      - prepare
+      - resolve-ci-image
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
     name: code-quality
     container:
-      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
+      image: ${{ needs.resolve-ci-image.outputs.image }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.23.2"
+
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Ensure just is installed
+        run: |
+          if ! command -v just >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+          fi
+          just --version
+
+      - name: Ensure templ is installed
+        run: |
+          if ! command -v templ >/dev/null 2>&1; then
+            go install github.com/a-h/templ/cmd/templ@v0.3.857
+          fi
+          templ --help >/dev/null
+
+      - name: Ensure golangci-lint is installed
+        run: |
+          if ! command -v golangci-lint >/dev/null 2>&1; then
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v2.1.6
+          fi
+          golangci-lint version
+
+      - name: Ensure pg_format is installed
+        run: |
+          if ! command -v pg_format >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y --no-install-recommends pgformatter
+          fi
+          pg_format --version
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -164,11 +234,13 @@ jobs:
 
   unit-tests:
     if: github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
-    needs: prepare
+    needs:
+      - prepare
+      - resolve-ci-image
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: unit-tests
     container:
-      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
+      image: ${{ needs.resolve-ci-image.outputs.image }}
 
     services:
       postgres:
@@ -212,6 +284,29 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.23.2"
+
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Ensure just is installed
+        run: |
+          if ! command -v just >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+          fi
+          just --version
+
+      - name: Ensure pg_isready is installed
+        run: |
+          if ! command -v pg_isready >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y --no-install-recommends postgresql-client
+          fi
+          pg_isready --version
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -268,11 +363,13 @@ jobs:
 
   e2e-shards:
     if: github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
-    needs: prepare
+    needs:
+      - prepare
+      - resolve-ci-image
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: e2e-shard-${{ matrix.shard }}
     container:
-      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
+      image: ${{ needs.resolve-ci-image.outputs.image }}
 
     strategy:
       fail-fast: false
@@ -324,6 +421,32 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.23.2"
+
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Ensure pg_isready is installed
+        run: |
+          if ! command -v pg_isready >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y --no-install-recommends postgresql-client
+          fi
+          pg_isready --version
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -437,15 +560,26 @@ jobs:
     if: always() && github.event_name != 'schedule' && needs.prepare.outputs.docs_only != 'true'
     needs:
       - prepare
+      - resolve-ci-image
       - e2e-shards
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: e2e-merged-report
     container:
-      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
+      image: ${{ needs.resolve-ci-image.outputs.image }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -490,10 +624,11 @@ jobs:
 
   coverage-report:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
+    needs: resolve-ci-image
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: coverage-report
     container:
-      image: ghcr.io/${{ github.repository_owner }}/iota-sdk-ci-base:latest
+      image: ${{ needs.resolve-ci-image.outputs.image }}
 
     services:
       postgres:
@@ -537,6 +672,34 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.23.2"
+
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Ensure just is installed
+        run: |
+          if ! command -v just >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+          fi
+          just --version
+
+      - name: Ensure pg_isready is installed
+        run: |
+          if ! command -v pg_isready >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y --no-install-recommends postgresql-client
+          fi
+          pg_isready --version
 
       - name: Cache Go modules
         uses: actions/cache@v4
