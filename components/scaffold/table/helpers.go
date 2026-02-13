@@ -827,8 +827,9 @@ type TableEditableConfig struct {
 }
 
 type TableHeadConfig struct {
-	Sticky bool
-	Attrs  templ.Attributes
+	Sticky               bool
+	ScrollbarUnderHeader bool
+	Attrs                templ.Attributes
 }
 
 type TableConfig struct {

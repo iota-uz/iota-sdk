@@ -45,9 +45,10 @@ const (
 	EventContextOverflow EventType = "context.overflow"
 
 	// Session and message events
-	EventSessionCreate EventType = "session.create"
-	EventMessageSave   EventType = "message.save"
-	EventInterrupt     EventType = "interrupt"
+	EventSessionCreate       EventType = "session.create"
+	EventSessionTitleUpdated EventType = "session.title_updated"
+	EventMessageSave         EventType = "message.save"
+	EventInterrupt           EventType = "interrupt"
 )
 
 // BaseEvent provides common fields for all event types.

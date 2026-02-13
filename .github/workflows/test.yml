@@ -355,6 +355,7 @@ jobs:
           SID_COOKIE_KEY: sid
           GO_APP_ENV: production
           ENABLE_TEST_ENDPOINTS: true
+          TOTP_ENCRYPTION_KEY: e2e-test-encryption-key-32bytes!!
         run: |
           go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
           SERVER_PID=$!

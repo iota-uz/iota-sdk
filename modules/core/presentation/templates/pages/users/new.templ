@@ -22,10 +22,10 @@ type CreateFormProps struct {
 templ CreateForm(props *CreateFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{
-	language := string(composables.MustUseUser(ctx).UILanguage())
-	if props.User.Language != "" {
-		language = props.User.Language
-	}
+		language := string(composables.MustUseUser(ctx).UILanguage())
+		if props.User.Language != "" {
+			language = props.User.Language
+		}
 	}}
 	<form
 		class="flex flex-col justify-between h-full"
