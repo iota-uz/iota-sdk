@@ -1,25 +1,39 @@
 package assets
 
-import "embed"
+import (
+	"embed"
+	"io/fs"
+)
 
-// DistFS embeds the built React application from the dist/ directory.
-// This filesystem is served by the AppletController for static assets (JS, CSS, images).
+// embeddedFS contains both optional built assets (dist/) and an always-available
+// fallback asset bundle (fallback/). Dist assets are selected when they include
+// a Vite manifest; otherwise fallback assets are used.
 //
-// The React build process should output files to:
-//
-//	modules/bichat/presentation/assets/dist/
-//
-// Directory structure after build:
-//
-//	dist/
-//	├── main.js       # Bundled JavaScript
-//	├── main.css      # Bundled CSS
-//	└── assets/       # Images, fonts, etc.
-//
-// Usage:
-//   - Applet Config references this FS via Assets.FS
-//   - AppletController serves files via http.FileServer
-//   - URLs: /bichat/assets/main.js, /bichat/assets/main.css, etc.
-//
-//go:embed dist/*
-var DistFS embed.FS
+//go:embed all:dist all:fallback
+var embeddedFS embed.FS
+
+// AppletFS returns the filesystem that should be used for serving BiChat assets.
+// Preference order:
+// 1. Built assets from dist/ when a manifest exists
+// 2. Fallback assets from fallback/
+func AppletFS() fs.FS {
+	if dist, err := fs.Sub(embeddedFS, "dist"); err == nil {
+		if _, statErr := fs.Stat(dist, ".vite/manifest.json"); statErr == nil {
+			return dist
+		}
+	}
+
+	fallback, err := fs.Sub(embeddedFS, "fallback")
+	if err == nil {
+		return fallback
+	}
+
+	// This should be unreachable because fallback is embedded in-source.
+	return emptyFS{}
+}
+
+type emptyFS struct{}
+
+func (emptyFS) Open(string) (fs.File, error) {
+	return nil, fs.ErrNotExist
+}

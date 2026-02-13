@@ -1,3 +1,5 @@
+version = 2
+
 [[dev.processes]]
 name = "air"
 command = "air"
@@ -15,3 +17,13 @@ args = ["@tailwindcss/cli@4.1.18", "--input", "styles/tailwind/input.css", "--ou
 
 [applets.bichat]
 base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "bun"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -31,6 +32,14 @@ type BridgeOption func(*EventBridge)
 func WithUserIDFromContext(fn func(context.Context) string) BridgeOption {
 	return func(b *EventBridge) {
 		b.userIDFromCtx = fn
+	}
+}
+
+// WithUserEmailFromContext sets a function to extract user email from request context.
+// The returned string is stored in Langfuse trace metadata as "user_email".
+func WithUserEmailFromContext(fn func(context.Context) string) BridgeOption {
+	return func(b *EventBridge) {
+		b.userEmailFromCtx = fn
 	}
 }
 
@@ -69,14 +78,16 @@ type EventBridge struct {
 	handlers  []hooks.EventHandler
 
 	// Optional context extractors
-	userIDFromCtx func(context.Context) string
-	pricing       *modelPricing
+	userIDFromCtx    func(context.Context) string
+	userEmailFromCtx func(context.Context) string
+	pricing          *modelPricing
 
 	// Correlation state
 	mu                 sync.RWMutex
 	pendingGenerations map[string]*simplePendingGeneration
-	agentSpans         map[uuid.UUID]*agentSpanState // sessionID → agent span state
-	lastGenerationIDs  map[uuid.UUID]string          // sessionID → last generation span ID
+	agentSpans         map[uuid.UUID]*agentSpanState     // sessionID → agent span state
+	lastGenerationIDs  map[uuid.UUID]string              // sessionID → last generation span ID
+	sessionTags        map[uuid.UUID]map[string]struct{} // sessionID → accumulated dynamic tags
 	cleanupStop        chan struct{}
 	cleanupDone        chan struct{}
 }
@@ -109,6 +120,7 @@ func NewEventBridge(eventBus hooks.EventBus, providers []Provider, opts ...Bridg
 		pendingGenerations: make(map[string]*simplePendingGeneration),
 		agentSpans:         make(map[uuid.UUID]*agentSpanState),
 		lastGenerationIDs:  make(map[uuid.UUID]string),
+		sessionTags:        make(map[uuid.UUID]map[string]struct{}),
 		cleanupStop:        make(chan struct{}),
 		cleanupDone:        make(chan struct{}),
 	}
@@ -194,6 +206,16 @@ func (b *EventBridge) cleanupOrphans() {
 	}
 }
 
+// addSessionTag records a dynamic tag for a session (caller must NOT hold the lock).
+func (b *EventBridge) addSessionTag(sessionID uuid.UUID, tag string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.sessionTags[sessionID] == nil {
+		b.sessionTags[sessionID] = make(map[string]struct{})
+	}
+	b.sessionTags[sessionID][tag] = struct{}{}
+}
+
 // performCleanup removes orphaned pending observations.
 func (b *EventBridge) performCleanup() {
 	b.mu.Lock()
@@ -207,6 +229,13 @@ func (b *EventBridge) performCleanup() {
 		if now.Sub(pending.timestamp) > 5*time.Minute {
 			delete(b.pendingGenerations, key)
 			orphanedCount++
+		}
+	}
+
+	// Cleanup session tags for sessions without active agent spans (stale)
+	for sid := range b.sessionTags {
+		if _, hasSpan := b.agentSpans[sid]; !hasSpan {
+			delete(b.sessionTags, sid)
 		}
 	}
 }
@@ -291,6 +320,8 @@ func (h *providerHandler) Handle(ctx context.Context, event hooks.Event) error {
 		return h.handleContextCompile(ctx, e)
 	case *events.InterruptEvent:
 		return h.handleInterrupt(ctx, e)
+	case *events.SessionTitleUpdatedEvent:
+		return h.handleSessionTitleUpdated(ctx, e)
 	default:
 		// Convert generic events to EventObservation
 		return h.handleGenericEvent(ctx, event)
@@ -317,6 +348,9 @@ func (h *providerHandler) finalizeAgentSpan(
 	as := h.bridge.agentSpans[sessionID]
 	delete(h.bridge.agentSpans, sessionID)
 	delete(h.bridge.lastGenerationIDs, sessionID)
+	// Collect and remove accumulated session tags.
+	dynTags := h.bridge.sessionTags[sessionID]
+	delete(h.bridge.sessionTags, sessionID)
 	h.bridge.mu.Unlock()
 
 	spanID := ""
@@ -327,6 +361,12 @@ func (h *providerHandler) finalizeAgentSpan(
 	}
 	if spanID == "" {
 		spanID = uuid.New().String()
+	}
+
+	// Determine level from status.
+	level := "info"
+	if status == "error" {
+		level = "error"
 	}
 
 	obs := SpanObservation{
@@ -340,10 +380,26 @@ func (h *providerHandler) finalizeAgentSpan(
 		Duration:   time.Duration(durationMs) * time.Millisecond,
 		Status:     status,
 		Output:     output,
+		Level:      level,
 		Attributes: attrs,
 	}
 
-	return h.provider.RecordSpan(ctx, obs)
+	if err := h.provider.RecordSpan(ctx, obs); err != nil {
+		return err
+	}
+
+	// Update trace tags with accumulated dynamic tags.
+	// The provider implementation merges these with its own static config tags.
+	if tagUpdater, ok := h.provider.(TraceTagUpdater); ok && len(dynTags) > 0 {
+		tags := make([]string, 0, len(dynTags))
+		for t := range dynTags {
+			tags = append(tags, t)
+		}
+		slices.Sort(tags)
+		_ = tagUpdater.UpdateTraceTags(ctx, sessionID.String(), tags)
+	}
+
+	return nil
 }
 
 func (h *providerHandler) handleAgentComplete(ctx context.Context, e *events.AgentCompleteEvent) error {
@@ -355,6 +411,9 @@ func (h *providerHandler) handleAgentComplete(ctx context.Context, e *events.Age
 }
 
 func (h *providerHandler) handleAgentError(ctx context.Context, e *events.AgentErrorEvent) error {
+	// Accumulate dynamic tag for error.
+	h.bridge.addSessionTag(e.SessionID(), "error")
+
 	return h.finalizeAgentSpan(ctx, e.SessionID(), e.TenantID(), e.Timestamp(), e.DurationMs, "error", e.Error, map[string]interface{}{
 		"agent_name": e.AgentName,
 		"iterations": e.Iterations,
@@ -418,13 +477,24 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		}
 	}
 
-	// Resolve user ID from context for trace enrichment.
+	// Resolve user ID and email from context for trace enrichment.
 	var userID string
 	if h.bridge.userIDFromCtx != nil {
 		userID = h.bridge.userIDFromCtx(ctx)
 	}
+	var userEmail string
+	if h.bridge.userEmailFromCtx != nil {
+		userEmail = h.bridge.userEmailFromCtx(ctx)
+	}
 
 	genID := uuid.New().String()
+
+	// Determine log level based on finish reason.
+	level := "info"
+	switch e.FinishReason {
+	case "length", "content_filter":
+		level = "warning"
+	}
 
 	obs := GenerationObservation{
 		ID:               genID,
@@ -433,6 +503,7 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		TenantID:         e.TenantID(),
 		SessionID:        e.SessionID(),
 		UserID:           userID,
+		UserEmail:        userEmail,
 		Timestamp:        e.Timestamp(),
 		Model:            e.Model,
 		Provider:         e.Provider,
@@ -447,6 +518,8 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		Duration:         time.Duration(e.LatencyMs) * time.Millisecond,
 		Input:            userInput,
 		Output:           e.ResponseText,
+		ModelParameters:  e.ModelParameters,
+		Level:            level,
 		Attributes:       attrs,
 	}
 
@@ -465,6 +538,9 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 }
 
 func (h *providerHandler) handleToolComplete(ctx context.Context, e *events.ToolCompleteEvent) error {
+	// Accumulate dynamic tag for this tool.
+	h.bridge.addSessionTag(e.SessionID(), "tool:"+e.ToolName)
+
 	// Resolve parent (last generation span) for hierarchical nesting
 	h.bridge.mu.RLock()
 	parentID := h.bridge.lastGenerationIDs[e.SessionID()]
@@ -485,6 +561,7 @@ func (h *providerHandler) handleToolComplete(ctx context.Context, e *events.Tool
 		Status:    "success",
 		ToolName:  e.ToolName,
 		CallID:    e.CallID,
+		Level:     "info",
 		Attributes: map[string]interface{}{
 			"tool_name": e.ToolName,
 			"call_id":   e.CallID,
@@ -503,6 +580,10 @@ func (h *providerHandler) handleToolComplete(ctx context.Context, e *events.Tool
 }
 
 func (h *providerHandler) handleToolError(ctx context.Context, e *events.ToolErrorEvent) error {
+	// Accumulate dynamic tags for this tool and error.
+	h.bridge.addSessionTag(e.SessionID(), "tool:"+e.ToolName)
+	h.bridge.addSessionTag(e.SessionID(), "error")
+
 	// Resolve parent (last generation span) for hierarchical nesting
 	h.bridge.mu.RLock()
 	parentID := h.bridge.lastGenerationIDs[e.SessionID()]
@@ -523,6 +604,7 @@ func (h *providerHandler) handleToolError(ctx context.Context, e *events.ToolErr
 		Status:    "error",
 		ToolName:  e.ToolName,
 		CallID:    e.CallID,
+		Level:     "error",
 		Attributes: map[string]interface{}{
 			"tool_name": e.ToolName,
 			"call_id":   e.CallID,
@@ -562,6 +644,12 @@ func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.Co
 		outputJSON = []byte(`{"error":"marshal"}`)
 	}
 
+	// Determine log level: warning if context was truncated or compacted, debug otherwise.
+	contextLevel := "debug"
+	if e.Truncated || e.Compacted {
+		contextLevel = "warning"
+	}
+
 	obs := SpanObservation{
 		ID:        uuid.New().String(),
 		TraceID:   e.SessionID().String(),
@@ -574,6 +662,7 @@ func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.Co
 		Output:    string(outputJSON),
 		Duration:  0, // Context compilation is instantaneous
 		Status:    "success",
+		Level:     contextLevel,
 		Attributes: map[string]interface{}{
 			"provider":        e.Provider,
 			"total_tokens":    e.TotalTokens,
@@ -596,6 +685,9 @@ func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.Co
 }
 
 func (h *providerHandler) handleInterrupt(ctx context.Context, e *events.InterruptEvent) error {
+	// Accumulate dynamic tag for HITL interrupt.
+	h.bridge.addSessionTag(e.SessionID(), "hitl")
+
 	inputSummary := map[string]interface{}{
 		"interrupt_type": e.InterruptType,
 		"agent_name":     e.AgentName,
@@ -626,6 +718,7 @@ func (h *providerHandler) handleInterrupt(ctx context.Context, e *events.Interru
 		Output:    string(outputJSON),
 		Duration:  0,
 		Status:    "success",
+		Level:     "warning",
 		Attributes: map[string]interface{}{
 			"interrupt_type": e.InterruptType,
 			"agent_name":     e.AgentName,
@@ -638,6 +731,13 @@ func (h *providerHandler) handleInterrupt(ctx context.Context, e *events.Interru
 		obs.Attributes["otel.span_id"] = spanID
 	}
 	return h.provider.RecordSpan(ctx, obs)
+}
+
+func (h *providerHandler) handleSessionTitleUpdated(ctx context.Context, e *events.SessionTitleUpdatedEvent) error {
+	if updater, ok := h.provider.(TraceNameUpdater); ok {
+		return updater.UpdateTraceName(ctx, e.SessionID().String(), e.Title)
+	}
+	return nil
 }
 
 func (h *providerHandler) handleToolStart(_ context.Context, _ *events.ToolStartEvent) error {

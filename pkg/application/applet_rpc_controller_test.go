@@ -1,0 +1,568 @@
+package application
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+	"testing/fstest"
+
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/iota-uz/applets"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/text/language"
+)
+
+type rpcTestApplet struct {
+	name     string
+	basePath string
+	method   string
+}
+
+func (a *rpcTestApplet) Name() string     { return a.name }
+func (a *rpcTestApplet) BasePath() string { return a.basePath }
+func (a *rpcTestApplet) Config() applets.Config {
+	return applets.Config{
+		WindowGlobal: "__DEMO_CONTEXT__",
+		Shell:        applets.ShellConfig{Mode: applets.ShellModeStandalone, Title: "Demo"},
+		Assets: applets.AssetConfig{
+			FS: fstest.MapFS{
+				"manifest.json":  {Data: []byte(`{"index.html":{"file":"assets/main.js","isEntry":true}}`)},
+				"assets/main.js": {Data: []byte("console.log('demo')")},
+			},
+			BasePath:     "/assets",
+			ManifestPath: "manifest.json",
+			Entrypoint:   "index.html",
+		},
+		RPC: &applets.RPCConfig{
+			Path: "/rpc",
+			Methods: map[string]applets.RPCMethod{
+				a.method: {
+					Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
+						return map[string]any{"ok": true}, nil
+					},
+				},
+			},
+		},
+	}
+}
+
+type rpcTestUser struct{}
+
+func (u *rpcTestUser) ID() uint                    { return 1 }
+func (u *rpcTestUser) DisplayName() string         { return "Demo User" }
+func (u *rpcTestUser) HasPermission(_ string) bool { return true }
+func (u *rpcTestUser) PermissionNames() []string   { return []string{"Demo.Access"} }
+
+type rpcTestHostServices struct{}
+
+func (h *rpcTestHostServices) ExtractUser(context.Context) (applets.AppletUser, error) {
+	return &rpcTestUser{}, nil
+}
+
+func (h *rpcTestHostServices) ExtractTenantID(context.Context) (uuid.UUID, error) {
+	return uuid.MustParse("00000000-0000-0000-0000-000000000001"), nil
+}
+
+func (h *rpcTestHostServices) ExtractPool(context.Context) (*pgxpool.Pool, error) {
+	return nil, fmt.Errorf("no pool in tests")
+}
+
+func (h *rpcTestHostServices) ExtractPageLocale(context.Context) language.Tag {
+	return language.English
+}
+
+func TestCreateAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	hasAppletRPC := false
+	for _, c := range controllers {
+		if c.Key() == "applet_rpc" {
+			hasAppletRPC = true
+			break
+		}
+	}
+	assert.True(t, hasAppletRPC, "global /rpc controller should be auto-registered")
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	globalReq := httptest.NewRequest(http.MethodPost, "/rpc", bytes.NewBufferString(`{"id":"1","method":"demo.ping","params":{}}`))
+	globalRes := httptest.NewRecorder()
+	r.ServeHTTP(globalRes, globalReq)
+	require.Equal(t, http.StatusOK, globalRes.Code)
+	assert.Contains(t, globalRes.Body.String(), `"jsonrpc":"2.0"`)
+	assert.Contains(t, globalRes.Body.String(), `"ok":true`)
+
+	perAppletReq := httptest.NewRequest(http.MethodPost, "/demo/rpc", bytes.NewBufferString(`{"id":"1","method":"demo.ping","params":{}}`))
+	perAppletRes := httptest.NewRecorder()
+	r.ServeHTTP(perAppletRes, perAppletReq)
+	assert.Equal(t, http.StatusMethodNotAllowed, perAppletRes.Code)
+}
+
+func TestCreateAppletControllers_GlobalRPCServesBiChatNamespacedMethod(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/rpc", bytes.NewBufferString(`{"id":"1","method":"bichat.ping","params":{}}`))
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	require.Equal(t, http.StatusOK, res.Code)
+	assert.Contains(t, res.Body.String(), `"jsonrpc":"2.0"`)
+	assert.Contains(t, res.Body.String(), `"ok":true`)
+}
+
+func TestCreateAppletControllers_AppletWSRouteMounted(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/applets/bichat/ws", nil)
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	// Route is mounted; without websocket upgrade headers gorilla upgrader rejects the request.
+	assert.NotEqual(t, http.StatusNotFound, res.Code)
+}
+
+func TestCreateAppletControllers_EngineWiringWorksForNonBiChatApplet(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.demo]
+base_path = "/demo"
+
+[applets.demo.engine]
+runtime = "off"
+
+[applets.demo.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/applets/demo/ws", nil)
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+	assert.NotEqual(t, http.StatusNotFound, res.Code)
+}
+
+func TestCreateAppletControllers_BiChatRedisKVRequiresURL(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "redis"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "redis.url is required")
+}
+
+func TestCreateAppletControllers_BiChatPostgresDBRequiresPool(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "postgres"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure postgres db store for bichat")
+}
+
+func TestCreateAppletControllers_BiChatPostgresJobsRequiresPool(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "postgres"
+files = "local"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure postgres jobs store for bichat")
+}
+
+func TestCreateAppletControllers_BiChatPostgresSecretsRequiresPool(t *testing.T) {
+	masterKeyFile := filepath.Join(t.TempDir(), "master.key")
+	require.NoError(t, os.WriteFile(masterKeyFile, []byte("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="), 0o600))
+	withAppletConfig(t, fmt.Sprintf(`
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "postgres"
+
+[applets.bichat.engine.secrets]
+master_key_file = %q
+`, masterKeyFile))
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure postgres secrets store for bichat")
+}
+
+func TestCreateAppletControllers_BiChatPostgresFilesRequiresPool(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "postgres"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure postgres files store for bichat")
+}
+
+func TestCreateAppletControllers_RequiredSecretsValidation(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+
+[applets.bichat.engine.secrets]
+required = ["OPENAI_API_KEY"]
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "required secrets missing for bichat")
+}
+
+func TestCreateAppletControllers_S3FilesRequiresCredentials(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.bichat]
+base_path = "/bi-chat"
+
+[applets.bichat.engine]
+runtime = "off"
+
+[applets.bichat.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "s3"
+secrets = "env"
+
+[applets.bichat.engine.s3]
+bucket = "demo-bucket"
+region = "us-east-1"
+access_key_env = "APPLET_S3_ACCESS_KEY"
+secret_key_env = "APPLET_S3_SECRET_KEY"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+
+	_, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configure s3 files store for bichat")
+}
+
+func TestCreateAppletControllers_HostOverrideFromAppletsConfig(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.demo]
+base_path = "/demo"
+hosts = ["demo.example.com"]
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Host = "demo.example.com"
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	assert.NotEqual(t, http.StatusNotFound, res.Code)
+}
+
+func TestCreateAppletControllers_SSRRouteMounted(t *testing.T) {
+	withAppletConfig(t, `
+version = 2
+
+[applets.demo]
+base_path = "/demo"
+
+[applets.demo.frontend]
+type = "ssr"
+
+[applets.demo.engine]
+runtime = "bun"
+
+[applets.demo.engine.backends]
+kv = "memory"
+db = "memory"
+jobs = "memory"
+files = "local"
+secrets = "env"
+`)
+
+	app := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+
+	controllers, err := app.CreateAppletControllers(
+		&rpcTestHostServices{},
+		applets.DefaultSessionConfig,
+		logrus.New(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	r := mux.NewRouter()
+	for _, c := range controllers {
+		c.Register(r)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/demo", nil)
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	assert.NotEqual(t, http.StatusNotFound, res.Code)
+}
+
+func withAppletConfig(t *testing.T, configContent string) {
+	t.Helper()
+	root := t.TempDir()
+	dir := filepath.Join(root, ".applets")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "config.toml"), []byte(configContent), 0o644))
+	oldWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(root))
+	t.Cleanup(func() {
+		_ = os.Chdir(oldWD)
+	})
+}

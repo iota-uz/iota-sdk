@@ -20,7 +20,7 @@ export function injectMockContext(): void {
         streamEndpoint: '/bi-chat/stream',
         basePath: '',
         assetsBasePath: '/bi-chat/assets',
-        rpcUIEndpoint: '/bi-chat/rpc',
+        rpcUIEndpoint: '/rpc',
         shellMode: 'standalone',
       },
       route: {

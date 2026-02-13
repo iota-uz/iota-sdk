@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -32,10 +34,13 @@ type TitleGenerationService interface {
 type titleGenerationService struct {
 	model    agents.Model
 	chatRepo domain.ChatRepository
+	eventBus hooks.EventBus
 }
 
-// NewTitleGenerationService creates a new title generation service
-func NewTitleGenerationService(model agents.Model, chatRepo domain.ChatRepository) (TitleGenerationService, error) {
+// NewTitleGenerationService creates a new title generation service.
+// The eventBus parameter is optional (can be nil) — when provided,
+// a SessionTitleUpdatedEvent is published after successful title generation.
+func NewTitleGenerationService(model agents.Model, chatRepo domain.ChatRepository, eventBus hooks.EventBus) (TitleGenerationService, error) {
 	const op serrors.Op = "NewTitleGenerationService"
 
 	if model == nil {
@@ -48,6 +53,7 @@ func NewTitleGenerationService(model agents.Model, chatRepo domain.ChatRepositor
 	return &titleGenerationService{
 		model:    model,
 		chatRepo: chatRepo,
+		eventBus: eventBus,
 	}, nil
 }
 
@@ -122,6 +128,12 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 	updated := session.UpdateTitle(title)
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return serrors.E(op, err, "failed to update session title")
+	}
+
+	// Publish title event so observability providers can update trace names.
+	if s.eventBus != nil {
+		evt := events.NewSessionTitleUpdatedEvent(sessionID, session.TenantID(), title)
+		_ = s.eventBus.Publish(ctx, evt)
 	}
 
 	return nil
