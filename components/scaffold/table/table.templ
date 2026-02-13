@@ -341,7 +341,11 @@ templ Table(config *TableConfig) {
 								</button>
 							</div>
 							<div class="flex-1 min-h-0 overflow-y-auto">
-								<div class="p-4">
+								<div class="p-4 flex flex-col gap-4">
+									<div>
+										<h4 class="text-sm font-medium text-gray-900 mb-2">
+											{ pageCtx.T("Scaffold.Table.Columns") }
+										</h4>
 									<ul
 										class="flex flex-col gap-2"
 										x-sort.ghost
@@ -381,6 +385,54 @@ templ Table(config *TableConfig) {
 											</li>
 										</template>
 									</ul>
+									</div>
+									<div>
+										<h4 class="text-sm font-medium text-gray-900 mb-2">
+											{ pageCtx.T("Scaffold.Table.Grid") }
+										</h4>
+										<ul class="flex flex-col gap-2">
+											<li class="flex items-center justify-between gap-2">
+												<label for="grid-vertical" class="text-sm font-medium">
+													{ pageCtx.T("Scaffold.Table.GridVertical") }
+												</label>
+												@input.Switch(&input.SwitchProps{
+													Size: input.SwitchSizeSM,
+													LabelAttrs: templ.Attributes{
+														"for": "grid-vertical",
+													},
+													Attrs: templ.Attributes{
+														"id":       "grid-vertical",
+														":checked": "grid.verticalLines",
+														"@change": `(e) => {
+														e.stopPropagation();
+														e.stopImmediatePropagation();
+														toggleGridVertical();
+													}`,
+													},
+												})
+											</li>
+											<li class="flex items-center justify-between gap-2">
+												<label for="grid-horizontal" class="text-sm font-medium">
+													{ pageCtx.T("Scaffold.Table.GridHorizontal") }
+												</label>
+												@input.Switch(&input.SwitchProps{
+													Size: input.SwitchSizeSM,
+													LabelAttrs: templ.Attributes{
+														"for": "grid-horizontal",
+													},
+													Attrs: templ.Attributes{
+														"id":       "grid-horizontal",
+														":checked": "grid.horizontalLines",
+														"@change": `(e) => {
+														e.stopPropagation();
+														e.stopImmediatePropagation();
+														toggleGridHorizontal();
+													}`,
+													},
+												})
+											</li>
+										</ul>
+									</div>
 								</div>
 							</div>
 							<div class="px-4 py-3 border-t border-primary">

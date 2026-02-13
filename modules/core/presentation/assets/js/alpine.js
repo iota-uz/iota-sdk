@@ -1095,8 +1095,26 @@ let tableConfig = (id) => ({
   },
   columns: [],
   fixedColumns: [],
+  grid: { verticalLines: true, horizontalLines: true },
   table: null,
+  rootEl: null,
   observer: null,
+  toggleGridVertical() {
+    this.grid.verticalLines = !this.grid.verticalLines;
+    this.save();
+    this.applyGridClasses();
+  },
+  toggleGridHorizontal() {
+    this.grid.horizontalLines = !this.grid.horizontalLines;
+    this.save();
+    this.applyGridClasses();
+  },
+  applyGridClasses() {
+    let el = this.rootEl;
+    if (!el) return;
+    el.classList.toggle('table-grid-no-vertical', !this.grid.verticalLines);
+    el.classList.toggle('table-grid-no-horizontal', !this.grid.horizontalLines);
+  },
   toggleColumn(colKey) {
     let col = this.columns.find(c => c.key === colKey);
     if (!col) return;
@@ -1187,6 +1205,11 @@ let tableConfig = (id) => ({
       let savedColumnMap = new Map(savedColumns.map(c => [c.key, c]));
       let mergedColumns = [];
 
+      if (saved.grid) {
+        this.grid.verticalLines = saved.grid.verticalLines !== false;
+        this.grid.horizontalLines = saved.grid.horizontalLines !== false;
+      }
+
       savedColumns.forEach(savedCol => {
         let domCol = domColumns.find(c => c.key === savedCol.key);
         if (domCol) {
@@ -1241,12 +1264,13 @@ let tableConfig = (id) => ({
   },
 
   save() {
-    let config = JSON.stringify({key: this.key, columns: this.columns});
+    let config = JSON.stringify({key: this.key, columns: this.columns, grid: this.grid});
     window.localStorage.setItem(this.key, config);
     return config;
   },
 
   init() {
+    this.rootEl = this.$el;
     this.table = this.$el.querySelector("table");
     if (!this.table) return;
 
@@ -1260,6 +1284,7 @@ let tableConfig = (id) => ({
     this.columns = this.syncConfiguration(this.columns);
     this.fixedColumns = [...this.columns];
     this.applyConfiguration();
+    this.applyGridClasses();
 
     this.observer = new MutationObserver((mutations) => {
       for (let mutation of mutations) {
