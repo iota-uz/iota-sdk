@@ -43,7 +43,7 @@ type AgentServiceConfig struct {
 	Policy                 bichatctx.ContextPolicy
 	Renderer               bichatctx.Renderer
 	Checkpointer           agents.Checkpointer
-	EventBus               hooks.EventBus          // Optional
+	EventBus               hooks.EventBus          // Required
 	ChatRepo               domain.ChatRepository   // Repository for loading messages
 	AgentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	SchemaMetadata         schema.MetadataProvider // Optional for table metadata
@@ -67,13 +67,17 @@ type AgentServiceConfig struct {
 //	    SchemaMetadata: schemaProvider, // Optional for table metadata
 //	})
 func NewAgentService(cfg AgentServiceConfig) services.AgentService {
+	eventBus := cfg.EventBus
+	if eventBus == nil {
+		eventBus = hooks.NewEventBus()
+	}
 	return &agentServiceImpl{
 		agent:                  cfg.Agent,
 		model:                  cfg.Model,
 		policy:                 cfg.Policy,
 		renderer:               cfg.Renderer,
 		checkpointer:           cfg.Checkpointer,
-		eventBus:               cfg.EventBus,
+		eventBus:               eventBus,
 		chatRepo:               cfg.ChatRepo,
 		agentRegistry:          cfg.AgentRegistry,
 		schemaMetadata:         cfg.SchemaMetadata,
@@ -179,26 +183,24 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 	}
 
 	// Emit context.compile event
-	if s.eventBus != nil {
-		// Convert TokensByKind map keys from BlockKind to string
-		tokensByKindStr := make(map[string]int)
-		for kind, tokens := range compiled.TokensByKind {
-			tokensByKindStr[string(kind)] = tokens
-		}
-
-		event := events.NewContextCompileEvent(
-			sessionID,
-			tenantID,
-			s.renderer.Provider(),
-			compiled.TotalTokens,
-			tokensByKindStr,
-			len(compiled.Messages),
-			compiled.Compacted,
-			compiled.Truncated,
-			compiled.ExcludedBlocks,
-		)
-		_ = s.eventBus.Publish(ctx, event)
+	// Convert TokensByKind map keys from BlockKind to string
+	tokensByKindStr := make(map[string]int)
+	for kind, tokens := range compiled.TokensByKind {
+		tokensByKindStr[string(kind)] = tokens
 	}
+
+	event := events.NewContextCompileEvent(
+		sessionID,
+		tenantID,
+		s.renderer.Provider(),
+		compiled.TotalTokens,
+		tokensByKindStr,
+		len(compiled.Messages),
+		compiled.Compacted,
+		compiled.Truncated,
+		compiled.ExcludedBlocks,
+	)
+	_ = s.eventBus.Publish(ctx, event)
 
 	// Use compiled.Messages directly (now canonical []types.Message)
 	executorMessages := compiled.Messages
@@ -469,6 +471,12 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 func convertToHistoryPayload(messages []types.Message) codecs.ConversationHistoryPayload {
 	historyMessages := make([]codecs.ConversationMessage, 0, len(messages))
 	for _, msg := range messages {
+		// Skip messages with empty content (e.g., HITL question messages)
+		// These messages have question_data in the database but should not
+		// be included in the conversation history sent to the LLM
+		if msg.Content() == "" {
+			continue
+		}
 		historyMessages = append(historyMessages, codecs.ConversationMessage{
 			Role:    string(msg.Role()),
 			Content: msg.Content(),

@@ -44,7 +44,8 @@ const (
 )
 
 type SessionRepository struct {
-	fieldMap map[session.Field]string
+	fieldMap        map[session.Field]string
+	aliasedFieldMap map[session.Field]string // for queries that use "s" as sessions alias
 }
 
 func NewSessionRepository() session.Repository {
@@ -52,6 +53,10 @@ func NewSessionRepository() session.Repository {
 		fieldMap: map[session.Field]string{
 			session.ExpiresAt: "sessions.expires_at",
 			session.CreatedAt: "sessions.created_at",
+		},
+		aliasedFieldMap: map[session.Field]string{
+			session.ExpiresAt: "s.expires_at",
+			session.CreatedAt: "s.created_at",
 		},
 	}
 }
@@ -62,12 +67,12 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 		return nil, err
 	}
 
-	var args []interface{}
-	where, args := []string{"s.tenant_id = $%d"}, []interface{}{tenantID}
+	args := []interface{}{tenantID}
+	where := []string{fmt.Sprintf("s.tenant_id = $%d", len(args))}
 
 	if params.Token != "" {
-		where = append(where, fmt.Sprintf("s.token = $%d", len(args)+1))
 		args = append(args, params.Token)
+		where = append(where, fmt.Sprintf("s.token = $%d", len(args)))
 	}
 
 	// Add search filter with JOIN if search query provided
@@ -75,9 +80,9 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 	if params.Search != "" {
 		joinClause = "JOIN users u ON s.user_id = u.id"
 		searchPattern := "%" + params.Search + "%"
-		where = append(where, fmt.Sprintf("(u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.email ILIKE $%d)",
-			len(args)+1, len(args)+1, len(args)+1))
 		args = append(args, searchPattern)
+		pos := len(args)
+		where = append(where, fmt.Sprintf("(u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.email ILIKE $%d)", pos, pos, pos))
 	}
 
 	// Use table alias for select query
@@ -87,7 +92,7 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 		selectQuery,
 		joinClause,
 		repo.JoinWhere(where...),
-		params.SortBy.ToSQL(g.fieldMap),
+		params.SortBy.ToSQL(g.aliasedFieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 

@@ -13,11 +13,22 @@
     "MessagePlaceholder": "输入消息...",
     "SendMessage": "发送消息",
     "Loading": "加载中...",
-    "Error": "错误",
-    "Retry": "重试",
+    "Error": {
+      "Generic": "发生错误",
+      "Label": "错误",
+      "SomethingWentWrong": "出了点问题",
+      "UnexpectedError": "发生意外错误。请重试。"
+    },
+    "Retry": {
+      "Title": "重试",
+      "Subtitle": "出了点问题。您要再试一次吗？",
+      "Button": "再试一次",
+      "Label": "重试"
+    },
     "Cancel": "取消",
     "Submit": "提交",
     "Export": "导出",
+    "ExportTableToExcel": "将上面的表格导出到Excel",
     "History": {
       "Empty": "空历史记录",
       "HelpText": "按 \"新聊天\" 开始新聊天"
@@ -34,6 +45,320 @@
       "Compacting": "正在压缩历史",
       "CompactedSummary": "压缩摘要",
       "DebugTrace": "调试轨迹"
+    },
+    "InlineQuestion": {
+      "InputNeeded": "需要输入",
+      "Next": "下一步",
+      "Back": "返回",
+      "OtherOption": "其他",
+      "TypeYourAnswer": "输入您的答案...",
+      "SelectAllThatApply": "选择所有适用项",
+      "Dismiss": "关闭"
+    },
+    "Thinking": {
+      "Thinking": "思考中",
+      "Processing": "处理中",
+      "Analyzing": "分析中",
+      "Synthesizing": "合成中",
+      "Computing": "计算中",
+      "WorkingOnIt": "正在处理",
+      "AriaLabel": "AI正在{{verb}}"
+    },
+    "Search": {
+      "Clear": "清除搜索"
+    },
+    "EditableText": {
+      "AriaLabel": "编辑文本。按 Enter 保存，按 Escape 取消",
+      "DoubleClickToEdit": "双击编辑"
+    },
+    "ContextMenu": "上下文菜单",
+    "Archive": {
+      "Banner": "归档横幅",
+      "Archived": "此聊天会话已归档",
+      "Restore": "恢复",
+      "Restoring": "恢复中...",
+      "RestoreFailed": "恢复失败"
+    },
+    "Message": {
+      "CopiedToClipboard": "已复制到剪贴板",
+      "FailedToCopy": "复制消息失败",
+      "CopyMessage": "复制消息",
+      "Copying": "复制中...",
+      "Regenerate": "重新生成回复",
+      "Regenerating": "重新生成中...",
+      "EditMessage": "编辑消息",
+      "Copy": "复制",
+      "Copied": "已复制",
+      "Save": "保存",
+      "Cancel": "取消",
+      "CopyFailed": "失败"
+    },
+    "Attachment": {
+      "PreviewUnavailable": "预览不可用",
+      "Remove": "移除附件",
+      "InvalidFile": "无效文件",
+      "SelectFiles": "选择文件"
+    },
+    "Image": {
+      "Close": "关闭",
+      "FailedToLoad": "加载图片失败",
+      "Retry": "重新加载图片",
+      "Previous": "上一张图片",
+      "Next": "下一张图片"
+    },
+    "Sidebar": {
+      "ChatHistory": "聊天记录",
+      "CloseSidebar": "关闭侧边栏",
+      "ChatSessions": "聊天会话",
+      "SearchChats": "搜索聊天...",
+      "CreateNewChat": "创建新聊天",
+      "ArchivedChats": "已归档聊天",
+      "PinnedChats": "已置顶聊天",
+      "NoChatsYet": "暂无聊天",
+      "CreateOneToGetStarted": "创建一个开始吧！",
+      "FailedToLoadSessions": "加载会话失败",
+      "ChatRenamedSuccessfully": "聊天重命名成功",
+      "FailedToRenameChat": "重命名聊天失败",
+      "TitleRegenerated": "标题已重新生成",
+      "FailedToRegenerateTitle": "重新生成标题失败",
+      "ChatOptions": "聊天选项",
+      "PinChat": "置顶聊天",
+      "UnpinChat": "取消置顶",
+      "RenameChat": "重命名聊天",
+      "RegenerateTitle": "重新生成标题",
+      "ArchiveChat": "归档聊天",
+      "ArchiveChatSession": "归档聊天会话",
+      "ArchiveChatMessage": "归档此聊天？您可以稍后从已归档聊天中恢复。",
+      "ArchiveButton": "归档",
+      "MyChats": "我的聊天",
+      "AllChats": "所有聊天",
+      "ChatViewSelector": "聊天视图选择",
+      "DeleteChat": "删除聊天",
+      "FailedToArchiveChat": "归档聊天失败",
+      "FailedToTogglePin": "切换置顶失败",
+      "CollapseSidebar": "收起侧边栏",
+      "Collapse": "收起",
+      "ExpandSidebar": "展开侧边栏",
+      "Expand": "展开",
+      "NoChatsFound": "未找到\"{{query}}\"的结果",
+      "Settings": "设置",
+      "MissingPermission": "缺少BiChat权限"
+    },
+    "Welcome": {
+      "QuickStart": "快速入门",
+      "Disclaimer": "由AI驱动，可能存在错误。",
+      "Prompt1Category": "数据分析",
+      "Prompt1Text": "显示关键指标摘要",
+      "Prompt2Category": "报告",
+      "Prompt2Text": "生成当前期间的报告",
+      "Prompt3Category": "洞察",
+      "Prompt3Text": "您能在数据中识别哪些趋势？"
+    },
+    "Common": {
+      "Loading": "加载中...",
+      "Generating": "生成中...",
+      "Untitled": "无标题聊天",
+      "Clear": "清除搜索",
+      "Cancel": "取消",
+      "Back": "返回",
+      "Close": "关闭",
+      "Pinned": "已置顶",
+      "Creating": "创建中...",
+      "AITyping": "AI正在输入",
+      "Notifications": "通知",
+      "ScrollToBottom": "滚动到底部",
+      "Search": "搜索",
+      "Confirm": "确认",
+      "TryAgain": "重试",
+      "PleaseWait": "请稍候..."
+    },
+    "Chat": {
+      "NewChat": "新聊天",
+      "GoBack": "返回",
+      "Pinned": "已置顶",
+      "ReadOnly": "只读",
+      "Archived": "已归档",
+      "Retry": "重试",
+      "DismissNotification": "关闭通知"
+    },
+    "Archived": {
+      "RestoreButton": "恢复",
+      "ChatRestoredSuccessfully": "聊天恢复成功",
+      "FailedToRestoreChat": "恢复聊天失败",
+      "BackToChats": "返回聊天",
+      "Title": "已归档聊天",
+      "SearchArchivedChats": "搜索已归档聊天...",
+      "NoArchivedChats": "无已归档聊天",
+      "NoArchivedChatsDescription": "您还没有归档的聊天。当您从主列表归档聊天时，它将显示在这里。",
+      "NoResults": "无结果",
+      "NoResultsDescription": "请尝试其他搜索词",
+      "FailedToLoadChats": "加载归档聊天失败",
+      "RestoreChat": "恢复聊天",
+      "RestoreChatMessage": "将此已归档聊天恢复到主聊天列表？"
+    },
+    "AllChats": {
+      "AllUsers": "所有用户",
+      "LoadingUsers": "加载用户...",
+      "NoUsersFound": "未找到用户",
+      "FailedToLoad": "加载组织聊天失败",
+      "IncludeArchived": "包含已归档",
+      "OrganizationChats": "组织聊天",
+      "OrganizationChatSessions": "组织聊天会话",
+      "LoadMore": "加载更多",
+      "NoChatsFound": "未找到聊天",
+      "NoChatsInOrg": "此组织暂无聊天",
+      "NoActiveChatsInOrg": "此组织无活跃聊天"
+    },
+    "Artifacts": {
+      "Title": "工件",
+      "ToggleShow": "显示工件",
+      "ToggleHide": "隐藏工件",
+      "Resize": "调整面板大小",
+      "Loading": "加载工件...",
+      "Empty": "暂无工件",
+      "EmptySubtitle": "聊天过程中工件将显示在这里",
+      "Back": "返回",
+      "Refresh": "刷新",
+      "LoadMore": "加载更多",
+      "LoadingMore": "加载中...",
+      "FailedToLoad": "加载工件失败",
+      "Unsupported": "此数据源不支持工件面板。",
+      "Download": "下载",
+      "OpenInNewTab": "在新标签页打开",
+      "DownloadUnavailable": "下载URL不可用。",
+      "ImageUnavailable": "图片URL不可用。",
+      "ChartUnavailable": "图表元数据格式不可渲染。",
+      "PreviewLoading": "加载预览...",
+      "PreviewUnavailable": "预览不可用。",
+      "PreviewNotSupported": "此文件类型无法内联预览。",
+      "OfficePreviewUnavailable": "Office预览不可用。请打开或下载文件。",
+      "TextPreviewFailed": "加载文本预览失败。",
+      "TextPreviewTruncated": "预览已截断。打开文件查看完整内容。",
+      "Rename": "重命名工件",
+      "RenameFailed": "重命名失败",
+      "Delete": "删除工件",
+      "DeleteConfirm": "删除此上传的工件？此操作无法撤销。",
+      "DeleteFailed": "删除失败",
+      "GroupCharts": "图表",
+      "GroupCodeOutputs": "代码输出",
+      "GroupExports": "导出",
+      "GroupAttachments": "附件",
+      "GroupOther": "其他",
+      "EmptyHint": "将文件拖放到此处或使用附加按钮",
+      "AttachFiles": "附加文件"
+    },
+    "Input": {
+      "Placeholder": "输入您的消息...",
+      "AttachFiles": "附加文件",
+      "SendMessage": "发送消息",
+      "Processing": "处理中...",
+      "DropFiles": "将文件拖放到这里",
+      "FilesAdded": "文件已添加",
+      "DismissError": "关闭错误",
+      "ShiftEnterHint": "Shift+Enter换行",
+      "FileInput": "文件输入",
+      "MessageInput": "消息输入",
+      "MessagesQueued": "{{count}}条排队中",
+      "QueueFull": "队列已满（最多5条消息）",
+      "QueuedMessages": "{{count}}条排队中",
+      "EditQueueItem": "编辑排队消息",
+      "RemoveQueueItem": "从队列中移除"
+    },
+    "Assistant": {
+      "Explanation": "解释"
+    },
+    "CodeOutput": {
+      "Title": "代码输出",
+      "CodeOutput": "代码输出"
+    },
+    "System": {
+      "ConversationSummary": "对话摘要",
+      "LoadingSummary": "加载摘要...",
+      "ShowMore": "显示更多",
+      "ShowLess": "显示更少"
+    },
+    "Question": {
+      "SelectMulti": "选择多个选项",
+      "SpecifyOther": "指定其他",
+      "OtherOption": "其他"
+    },
+    "QuestionForm": {
+      "Title": "问题",
+      "Back": "返回",
+      "Next": "下一步",
+      "Confirm": "确认",
+      "Submitting": "提交中...",
+      "ReviewTitle": "检查您的答案",
+      "ReviewDescription": "提交前请检查您的答案",
+      "Skip": "跳过"
+    },
+    "StreamError": {
+      "Retry": "重试",
+      "Regenerate": "重新生成"
+    },
+    "Chart": {
+      "NoData": "无可用数据",
+      "Download": "下载图表",
+      "DownloadPNG": "下载PNG",
+      "Exporting": "导出中..."
+    },
+    "Alert": {
+      "Retry": "重试"
+    },
+    "Layout": {
+      "OpenSidebar": "打开侧边栏"
+    },
+    "SkipLink": {
+      "Label": "跳转到内容"
+    },
+    "Slash": {
+      "CommandsList": "命令",
+      "ClearDescription": "清除对话",
+      "DebugDescription": "切换调试面板",
+      "CompactDescription": "压缩对话",
+      "NoMatches": "无匹配命令",
+      "DebugBadge": "调试",
+      "CompactingTitle": "正在压缩对话...",
+      "CompactingSubtitle": "这可能需要一些时间",
+      "DebugPanelTitle": "调试面板",
+      "DebugGeneration": "生成",
+      "DebugTokensPerSecond": "令牌/秒",
+      "DebugUnavailable": "调试信息不可用",
+      "DebugToolCalls": "工具调用",
+      "DebugArguments": "参数",
+      "DebugResult": "结果",
+      "DebugCopyTrace": "复制跟踪",
+      "DebugCopied": "已复制！",
+      "DebugError": "错误",
+      "DebugCachedTokens": "缓存令牌",
+      "DebugPromptTokens": "提示令牌",
+      "DebugCompletionTokens": "完成令牌",
+      "DebugTotalTokens": "总令牌",
+      "DebugContextUsage": "上下文使用",
+      "DebugContextWindow": "上下文窗口",
+      "DebugPolicyMaxContextWindow": "策略最大上下文",
+      "DebugModelMaxContextWindow": "模型最大上下文",
+      "DebugEffectiveContextWindow": "有效上下文",
+      "DebugSessionUsageUnavailable": "会话使用情况不可用",
+      "ErrorNoArguments": "命令不接受参数",
+      "ErrorSessionRequired": "此命令需要活跃的聊天会话",
+      "ErrorClearFailed": "清除对话失败",
+      "ErrorCompactFailed": "压缩对话失败",
+      "ErrorUnknownCommand": "未知命令",
+      "ErrorNoAttachments": "命令不支持附件"
+    },
+    "DateGroup": {
+      "Today": "今天",
+      "Yesterday": "昨天",
+      "Last7Days": "最近7天",
+      "Last30Days": "最近30天",
+      "Older": "更早"
+    },
+    "RelativeTime": {
+      "JustNow": "刚刚",
+      "MinutesAgo": "{{count}}分钟前",
+      "HoursAgo": "{{count}}小时前",
+      "DaysAgo": "{{count}}天前"
     }
   }
 }

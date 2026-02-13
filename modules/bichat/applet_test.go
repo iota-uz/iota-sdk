@@ -47,7 +47,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 	config := bichatApplet.Config()
 
 	t.Run("WindowGlobal", func(t *testing.T) {
-		assert.Equal(t, "__BICHAT_CONTEXT__", config.WindowGlobal)
+		assert.Equal(t, "__APPLET_CONTEXT__", config.WindowGlobal)
 	})
 
 	t.Run("Endpoints", func(t *testing.T) {
@@ -61,7 +61,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 		assert.Equal(t, "index.html", config.Assets.Entrypoint)
 
 		require.NotNil(t, config.Assets.Dev)
-		assert.False(t, config.Assets.Dev.Enabled)
+		assert.True(t, config.Assets.Dev.Enabled) // isDev() returns true when GO_APP_ENV is unset
 		assert.Equal(t, "http://localhost:5173", config.Assets.Dev.TargetURL)
 		assert.Equal(t, "/src/main.tsx", config.Assets.Dev.EntryModule)
 		assert.Equal(t, "/@vite/client", config.Assets.Dev.ClientModule)

@@ -77,8 +77,8 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 		return nil
 	}
 
-	// Ensure trace exists first
-	if err := p.ensureTrace(ctx, obs.SessionID.String(), obs.TenantID.String()); err != nil {
+	// Ensure trace exists first (generation is typically the first observation per session).
+	if err := p.ensureTrace(ctx, obs.SessionID.String(), obs.TenantID.String(), obs.UserID); err != nil {
 		p.log.Errorf("langfuse: failed to ensure trace: %v", err)
 		return nil // Non-blocking
 	}
@@ -131,8 +131,19 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 		Output:              obs.Output,
 	}
 
+	// Resolve parent span ID for hierarchical nesting
+	var parentObsID *string
+	if obs.ParentID != "" {
+		if resolvedID := p.state.getSpanID(obs.ParentID); resolvedID != "" {
+			parentObsID = &resolvedID
+		} else {
+			// ParentID may be the direct span ID (not yet mapped)
+			parentObsID = &obs.ParentID
+		}
+	}
+
 	// Create generation in Langfuse
-	if _, err := p.client.Generation(generation, nil); err != nil {
+	if _, err := p.client.Generation(generation, parentObsID); err != nil {
 		p.log.Errorf("langfuse: failed to create generation: %v", err)
 		return nil // Non-blocking
 	}
@@ -140,14 +151,22 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 	// Store generation ID mapping
 	p.state.setGenerationID(obs.ID, obs.ID)
 
-	// Update trace with Input/Output (only if this is the first generation)
-	// This ensures the trace shows the initial user input and final response
+	// Update trace with Input/Output and dynamic name from first user input
 	if obs.Input != nil || obs.Output != nil {
 		trace := &model.Trace{
 			ID:     obs.SessionID.String(),
 			Input:  obs.Input,
 			Output: obs.Output,
 		}
+
+		// Set trace name from first user input (atomic check-and-set).
+		sessionKey := obs.SessionID.String()
+		if inputStr, ok := obs.Input.(string); ok && inputStr != "" {
+			if p.state.setTraceNamedIfUnset(sessionKey) {
+				trace.Name = truncateForTraceName(inputStr, 100)
+			}
+		}
+
 		if _, err := p.client.Trace(trace); err != nil {
 			p.log.Errorf("langfuse: failed to update trace with Input/Output: %v", err)
 			// Non-blocking - continue with generation
@@ -181,7 +200,7 @@ func (p *LangfuseProvider) RecordSpan(ctx context.Context, obs observability.Spa
 	}
 
 	// Ensure trace exists first
-	if err := p.ensureTrace(ctx, obs.SessionID.String(), obs.TenantID.String()); err != nil {
+	if err := p.ensureTrace(ctx, obs.SessionID.String(), obs.TenantID.String(), ""); err != nil {
 		p.log.Errorf("langfuse: failed to ensure trace: %v", err)
 		return nil // Non-blocking
 	}
@@ -245,7 +264,7 @@ func (p *LangfuseProvider) RecordEvent(ctx context.Context, obs observability.Ev
 	}
 
 	// Ensure trace exists first
-	if err := p.ensureTrace(ctx, obs.SessionID.String(), obs.TenantID.String()); err != nil {
+	if err := p.ensureTrace(ctx, obs.SessionID.String(), obs.TenantID.String(), ""); err != nil {
 		p.log.Errorf("langfuse: failed to ensure trace: %v", err)
 		return nil // Non-blocking
 	}
@@ -359,10 +378,17 @@ func (p *LangfuseProvider) Shutdown(ctx context.Context) error {
 
 // ensureTrace creates a trace if it doesn't exist yet.
 // This is necessary because Langfuse requires a trace before creating observations.
-func (p *LangfuseProvider) ensureTrace(ctx context.Context, sessionID, tenantID string) error {
+func (p *LangfuseProvider) ensureTrace(ctx context.Context, sessionID, tenantID, userID string) error {
 	// Check if trace already exists in state
 	if traceID := p.state.getTraceID(sessionID); traceID != "" {
 		return nil
+	}
+
+	metadata := map[string]interface{}{
+		"tenant_id": tenantID,
+	}
+	if p.config.Environment != "" {
+		metadata["environment"] = p.config.Environment
 	}
 
 	// Create trace
@@ -370,9 +396,9 @@ func (p *LangfuseProvider) ensureTrace(ctx context.Context, sessionID, tenantID 
 		ID:        sessionID,
 		Name:      "BiChat Session",
 		SessionID: sessionID,
-		Metadata: map[string]interface{}{
-			"tenant_id": tenantID,
-		},
+		UserID:    userID,
+		Metadata:  metadata,
+		Tags:      p.config.Tags,
 	}
 
 	if _, err := p.client.Trace(trace); err != nil {
@@ -406,7 +432,7 @@ func (p *LangfuseProvider) calculateCost(obs observability.GenerationObservation
 		}
 	}
 
-	// Check if pricing is available in metadata
+	// Check if pricing is available in attributes
 	if obs.Attributes == nil {
 		return 0
 	}
@@ -418,11 +444,23 @@ func (p *LangfuseProvider) calculateCost(obs observability.GenerationObservation
 		return 0
 	}
 
-	// Calculate cost
+	// Calculate cost including cache tokens
 	inputCost := (float64(obs.PromptTokens) / 1_000_000) * inputPer1M
 	outputCost := (float64(obs.CompletionTokens) / 1_000_000) * outputPer1M
 
-	return inputCost + outputCost
+	var cacheCost float64
+	if cacheWrite, ok := obs.Attributes["cache_write_tokens"].(int); ok && cacheWrite > 0 {
+		if cacheWritePer1M, ok := obs.Attributes["cache_write_price_per_1m"].(float64); ok {
+			cacheCost += (float64(cacheWrite) / 1_000_000) * cacheWritePer1M
+		}
+	}
+	if cacheRead, ok := obs.Attributes["cache_read_tokens"].(int); ok && cacheRead > 0 {
+		if cacheReadPer1M, ok := obs.Attributes["cache_read_price_per_1m"].(float64); ok {
+			cacheCost += (float64(cacheRead) / 1_000_000) * cacheReadPer1M
+		}
+	}
+
+	return inputCost + outputCost + cacheCost
 }
 
 // mapLevelToLangfuseModel maps BiChat event levels to Langfuse model.ObservationLevel.
@@ -442,6 +480,30 @@ func mapLevelToLangfuseModel(level string) model.ObservationLevel {
 }
 
 // Helper functions
+
+// truncateForTraceName truncates a string to maxLen runes, breaking at word boundary and appending "...".
+func truncateForTraceName(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	// Find last space before maxLen-3 (room for "...")
+	cutoff := maxLen - 3
+	if cutoff <= 0 {
+		return string(runes[:maxLen])
+	}
+	lastSpace := -1
+	for i := cutoff; i >= 0; i-- {
+		if runes[i] == ' ' {
+			lastSpace = i
+			break
+		}
+	}
+	if lastSpace > 0 {
+		return string(runes[:lastSpace]) + "..."
+	}
+	return string(runes[:cutoff]) + "..."
+}
 
 // timePtr returns a pointer to the given time.
 func timePtr(t time.Time) *time.Time {

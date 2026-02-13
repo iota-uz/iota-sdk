@@ -18,8 +18,10 @@ import (
 // ACCOUNT SESSION CONTROLLER TESTS
 // These tests validate session management from the user's account perspective
 
-// Helper function to persist the test user to database
-// The ITF creates an in-memory user, but session FK constraints require it to exist in DB
+// persistTestUser writes the test user to the database so session FK constraints are satisfied.
+// The ITF creates an in-memory user only; sessions reference users by ID. Raw SQL is used here
+// for test setup; using UserService/UserRepository would be more maintainable if they expose
+// a suitable create-or-use API for tests.
 func persistTestUser(t *testing.T, env *itf.TestEnvironment) {
 	t.Helper()
 

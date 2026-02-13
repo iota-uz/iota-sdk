@@ -15,6 +15,7 @@ import (
 	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -70,8 +71,8 @@ func (a *BiChatApplet) BasePath() string {
 func (a *BiChatApplet) Config() applets.Config {
 	return applets.Config{
 		// WindowGlobal specifies the JavaScript global variable for context injection
-		// Creates: window.__BICHAT_CONTEXT__ = { user, tenant, locale, config, ... }
-		WindowGlobal: "__BICHAT_CONTEXT__",
+		// Creates: window.__APPLET_CONTEXT__ = { user, tenant, locale, config, ... }
+		WindowGlobal: "__APPLET_CONTEXT__",
 
 		// Endpoints configures API endpoint paths
 		Endpoints: applets.EndpointConfig{
@@ -127,13 +128,19 @@ func (a *BiChatApplet) Config() applets.Config {
 			if chatSvc == nil || artifactSvc == nil {
 				return nil
 			}
-			return bichatrpc.Router(chatSvc, artifactSvc).Config()
+			cfg := bichatrpc.Router(chatSvc, artifactSvc).Config()
+			// Expose internal error details in development mode.
+			if configuration.Use().IsDev() {
+				t := true
+				cfg.ExposeInternalErrors = &t
+			}
+			return cfg
 		}(),
 	}
 }
 
 func bichatDevAssets() *applets.DevAssetConfig {
-	enabled := envBool("IOTA_APPLET_DEV_BICHAT")
+	enabled := configuration.Use().IsDev()
 	target := strings.TrimSpace(os.Getenv("IOTA_APPLET_VITE_URL_BICHAT"))
 	if target == "" {
 		target = "http://localhost:5173"
@@ -152,19 +159,6 @@ func bichatDevAssets() *applets.DevAssetConfig {
 		TargetURL:    target,
 		EntryModule:  entry,
 		ClientModule: client,
-	}
-}
-
-func envBool(key string) bool {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" {
-		return false
-	}
-	switch strings.ToLower(v) {
-	case "1", "true", "yes", "y", "on":
-		return true
-	default:
-		return false
 	}
 }
 
@@ -196,7 +190,11 @@ func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
 			// Get app from context (added by global middleware)
 			app, err := application.UseApp(r.Context())
 			if err != nil {
-				panic("app not found in context - ensure middleware.Provide(constants.AppKey, app) runs first")
+				configuration.Use().Logger().
+					WithError(err).
+					Error("BiChat applet localizer middleware missing app in request context")
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
 			}
 
 			// Create the ProvideLocalizer middleware dynamically

@@ -863,7 +863,8 @@
       "NoDataTitle": "No data available",
       "NoDataDescription": "There is no data available for this table.",
       "NothingFound": "Nothing found",
-      "TableSettings": "Table settings"
+      "TableSettings": "Table settings",
+      "ResetSettings": "Reset settings"
     },
     "Filters": {
       "Title": "Filters",

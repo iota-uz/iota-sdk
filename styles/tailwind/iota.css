@@ -679,7 +679,7 @@
     padding: 0;
     position: fixed;
     inset: 0;
-    overflow: hidden;
+    overflow: clip;
     transition: opacity 500ms var(--ease-3);
   }
 
@@ -971,6 +971,34 @@
 
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  .hide-scrollbar-h::-webkit-scrollbar:horizontal {
+    height: 0;
+    display: none;
+  }
+
+  .proxy-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #c1c1c1 #f1f1f1;
+  }
+
+  .proxy-scrollbar::-webkit-scrollbar {
+    height: 10px;
+  }
+
+  .proxy-scrollbar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 5px;
+  }
+
+  .proxy-scrollbar::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 5px;
+  }
+
+  .proxy-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
   }
 
   .no-transition {

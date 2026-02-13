@@ -1,6 +1,6 @@
 export function injectMockContext(): void {
-  if (import.meta.env.DEV && !(window as any).__BICHAT_CONTEXT__) {
-    ;(window as any).__BICHAT_CONTEXT__ = {
+  if (import.meta.env.DEV && !(window as any).__APPLET_CONTEXT__) {
+    ;(window as any).__APPLET_CONTEXT__ = {
       user: {
         id: 1,
         email: 'dev@example.com',

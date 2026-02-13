@@ -71,7 +71,8 @@ func hashToken(token string) string {
 // AdminSessionViewModel represents a session with enriched user information
 // for admin global sessions page.
 //
-// SECURITY: Contains RawToken; only use in admin-gated UI (SessionDelete permission).
+// SECURITY NOTE: This struct contains the RawToken which should only be
+// exposed in admin-gated UI contexts (requires SessionDelete permission).
 type AdminSessionViewModel struct {
 	*Session        // Embed existing Session viewmodel
 	User     *User  // User who owns this session

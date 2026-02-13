@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/google/uuid"
@@ -13,6 +14,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
+
+const maxDecodedAttachmentBytes int64 = 20 * 1024 * 1024 // Keep in sync with attachment service limit.
 
 // AttachmentUploadDTO is the transport shape accepted by stream/chat endpoints.
 // It supports both:
@@ -62,7 +65,12 @@ func convertAttachmentDTOs(
 
 		base64Payload := strings.TrimSpace(upload.Base64Data)
 		if base64Payload != "" {
-			data, err := base64.StdEncoding.DecodeString(base64Payload)
+			expectedDecodedSize := int64(base64.StdEncoding.DecodedLen(len(base64Payload)))
+			if expectedDecodedSize > maxDecodedAttachmentBytes {
+				return nil, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d] exceeds max allowed size", i))
+			}
+
+			data, err := decodeBase64Bounded(base64Payload, maxDecodedAttachmentBytes)
 			if err != nil {
 				return nil, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].base64Data is invalid", i))
 			}
@@ -112,4 +120,16 @@ func convertAttachmentDTOs(
 	}
 
 	return result, nil
+}
+
+func decodeBase64Bounded(payload string, maxBytes int64) ([]byte, error) {
+	decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(payload))
+	data, err := io.ReadAll(io.LimitReader(decoder, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("decoded payload exceeds %d bytes", maxBytes)
+	}
+	return data, nil
 }

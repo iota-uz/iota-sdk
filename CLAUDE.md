@@ -106,15 +106,14 @@ general-purpose && editor && auditor
 
 ## E2E Testing
 
-**ALWAYS use `e2e-tester` agent for:**
-- Writing Playwright tests
-- Debugging failing tests
-- Creating fixtures/page objects
+Use the `/e2e-testing` skill for setup, running, and debugging E2E tests locally.
+Always reproduce and fix locally before pushing to CI.
 
 ```bash
-just e2e run      # Interactive UI mode
+just e2e dev      # Start E2E server (hot-reload)
+just e2e run      # Interactive Playwright UI
 just e2e ci       # Headless CI mode
-cd e2e && npx playwright test tests/module/specific.spec.ts  # Single test
+cd e2e && npx playwright test tests/module/specific.spec.ts:LINE  # Single test by line
 ```
 
 ## Technology Stack

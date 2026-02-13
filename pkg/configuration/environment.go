@@ -221,6 +221,12 @@ func (c *Configuration) Scheme() string {
 	return "http"
 }
 
+// IsDev returns true when GoAppEnvironment is not "production".
+// GO_APP_ENV defaults to "development" when unset.
+func (c *Configuration) IsDev() bool {
+	return c.GoAppEnvironment != Production
+}
+
 func Use() *Configuration {
 	return singleton()
 }

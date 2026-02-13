@@ -248,11 +248,11 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Find the session to revoke by comparing hashed tokens
+	// Find the session to revoke by comparing token hash (TokenID) from URL
 	var sessionToRevoke string
 	for _, s := range sessions {
 		sessionVM := viewmodels.SessionToViewModel(s, currentToken)
-		if sessionVM.FullToken == tokenHash {
+		if sessionVM.TokenID == tokenHash {
 			sessionToRevoke = s.Token()
 			break
 		}

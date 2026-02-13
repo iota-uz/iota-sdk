@@ -1,6 +1,7 @@
 package formatters
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -57,6 +58,12 @@ func (f *QueryResultFormatter) Format(payload any, opts types.FormatOptions) (st
 	}
 	if len(p.Rows) == 0 {
 		b.WriteString("No rows returned.\n")
+		if len(p.Hints) > 0 {
+			b.WriteString("\n**Hints:**\n")
+			for _, hint := range p.Hints {
+				b.WriteString(fmt.Sprintf("- %s\n", hint))
+			}
+		}
 		b.WriteString("\nExecuted SQL:\n\n```sql\n")
 		b.WriteString(p.ExecutedSQL)
 		b.WriteString("\n```\n")
@@ -160,5 +167,21 @@ func formatPreviewValue(v any) string {
 	if v == nil {
 		return "NULL"
 	}
+
+	// Check if value implements json.Marshaler (e.g., pgtype.Numeric)
+	if m, ok := v.(json.Marshaler); ok {
+		if raw, err := m.MarshalJSON(); err == nil {
+			s := string(raw)
+			// Strip surrounding quotes for simple values
+			if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+				return s[1 : len(s)-1]
+			}
+			if s != "null" {
+				return s
+			}
+			return "NULL"
+		}
+	}
+
 	return fmt.Sprint(v)
 }

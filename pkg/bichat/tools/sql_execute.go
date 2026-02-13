@@ -66,6 +66,7 @@ func (t *SQLExecuteTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *SQLExecuteTool) Description() string {
 	return "Execute a read-only SQL query against the analytics database (SELECT or WITH...SELECT only). " +
+		"Always use schema-qualified table names (e.g., analytics.policies_with_details, NOT just policies_with_details). " +
 		"Use small limits for previews (default 25, max 1000). " +
 		"Supports positional parameters for $1..$n via params array. " +
 		"Set explain_plan=true to return an EXPLAIN plan instead of rows. " +
@@ -301,6 +302,11 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*typ
 
 	previewRows := minInt(len(rows), previewMaxRows)
 
+	var hints []string
+	if len(rows) == 0 {
+		hints = emptyResultHints(normalizedQuery)
+	}
+
 	return &types.ToolResult{
 		CodecID: types.CodecQueryResult,
 		Payload: types.QueryResultFormatPayload{
@@ -313,6 +319,7 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*typ
 			Limit:           effectiveLimit,
 			Truncated:       truncated,
 			TruncatedReason: truncatedReason,
+			Hints:           hints,
 		},
 	}, nil
 }
@@ -585,6 +592,31 @@ func extractExplainLines(result *bichatsql.QueryResult, maxLines int) []string {
 	return lines
 }
 
+// emptyResultHints returns contextual hints when a query returns zero rows,
+// nudging the LLM to retry with broader matching before telling the user "not found".
+func emptyResultHints(query string) []string {
+	upper := strings.ToUpper(query)
+	if !strings.Contains(upper, "WHERE") {
+		// No WHERE clause — nothing to broaden.
+		return nil
+	}
+
+	hints := []string{
+		"Query returned 0 rows. If you filtered by a user-provided name, identifier, or keyword, " +
+			"it may contain typos or formatting differences. Try a broader search: " +
+			"use ILIKE '%partial%' instead of exact =, or split the name into parts. " +
+			"If you find close but not exact matches, use ask_user_question to confirm with the user.",
+	}
+
+	// If the query uses exact equality on string-like columns, suggest ILIKE specifically.
+	if strings.Contains(upper, "= '") && !strings.Contains(upper, "ILIKE") && !strings.Contains(upper, "LIKE") {
+		hints = append(hints,
+			"Your query uses exact string matching (= '...'). Consider replacing with ILIKE '%...%' for fuzzy matching.")
+	}
+
+	return hints
+}
+
 func minInt(a, b int) int {
 	if a < b {
 		return a
@@ -728,7 +760,7 @@ func formatNumeric(v pgtype.Numeric) any {
 
 	raw, err := v.MarshalJSON()
 	if err != nil {
-		return fmt.Sprint(v)
+		return numericToString(v)
 	}
 
 	if string(raw) == "null" {
@@ -748,4 +780,69 @@ func formatNumeric(v pgtype.Numeric) any {
 	}
 
 	return strings.Trim(string(raw), "\"")
+}
+
+// numericToString converts a pgtype.Numeric to a decimal string representation.
+// This is a fallback for when MarshalJSON fails.
+func numericToString(v pgtype.Numeric) string {
+	if !v.Valid {
+		return "NULL"
+	}
+
+	// Handle special cases
+	if v.NaN {
+		return "NaN"
+	}
+	if v.InfinityModifier == pgtype.Infinity {
+		return "Infinity"
+	}
+	if v.InfinityModifier == pgtype.NegativeInfinity {
+		return "-Infinity"
+	}
+
+	// Handle nil Int (shouldn't happen for valid numerics, but be safe)
+	if v.Int == nil {
+		return "0"
+	}
+
+	// Convert Int to string
+	intStr := v.Int.String()
+
+	// Handle zero exponent (integer)
+	if v.Exp == 0 {
+		return intStr
+	}
+
+	// Handle positive exponent (multiply by 10^exp)
+	if v.Exp > 0 {
+		return intStr + strings.Repeat("0", int(v.Exp))
+	}
+
+	// Handle negative exponent (insert decimal point)
+	absExp := int(-v.Exp)
+
+	// Handle negative numbers
+	negative := false
+	if len(intStr) > 0 && intStr[0] == '-' {
+		negative = true
+		intStr = intStr[1:]
+	}
+
+	// If exponent magnitude >= length, we need leading zeros
+	if absExp >= len(intStr) {
+		zeros := strings.Repeat("0", absExp-len(intStr))
+		result := "0." + zeros + intStr
+		if negative {
+			return "-" + result
+		}
+		return result
+	}
+
+	// Insert decimal point
+	decimalPos := len(intStr) - absExp
+	result := intStr[:decimalPos] + "." + intStr[decimalPos:]
+	if negative {
+		return "-" + result
+	}
+	return result
 }

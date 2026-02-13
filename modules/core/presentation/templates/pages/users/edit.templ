@@ -212,12 +212,14 @@ templ EditForm(props *EditFormProps) {
 					}
 				</div>
 				if composables.CanUser(ctx, permissions.SessionRead) == nil {
-					<div
-						x-show="selectedTab === 'sessions'"
-						hx-get={ fmt.Sprintf("/users/%s/sessions", props.User.ID) }
-						hx-trigger="intersect once"
-						hx-swap="innerHTML"
-					>
+					{{
+						sessionTabAttrs := templ.Attributes{
+							"hx-get":     templ.URL(fmt.Sprintf("/users/%s/sessions", props.User.ID)),
+							"hx-trigger": "intersect once",
+							"hx-swap":    "innerHTML",
+						}
+					}}
+					<div x-show="selectedTab === 'sessions'" { sessionTabAttrs... }>
 						<div class="flex items-center justify-center p-8">
 							<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
 						</div>

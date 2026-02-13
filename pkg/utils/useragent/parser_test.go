@@ -72,7 +72,9 @@ func TestParse(t *testing.T) {
 			wantIcon:     "device-tablet",
 		},
 		{
-			// mileusna/useragent detects Android tablets as Mobile; test documents this limitation.
+			// The mileusna/useragent library does not distinguish Android tablets from phones
+			// by user-agent; Android tablets (e.g. SM-X900) are reported as Mobile. This is
+			// expected library behavior and is documented here rather than expected as "Tablet".
 			name:         "Chrome on Android Tablet (detected as Mobile)",
 			userAgent:    "Mozilla/5.0 (Linux; Android 13; SM-X900) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Safari/537.36",
 			wantBrowser:  "Chrome",

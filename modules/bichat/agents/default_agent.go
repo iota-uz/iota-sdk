@@ -1,7 +1,8 @@
 package agents
 
 import (
-	"fmt"
+	"context"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
@@ -9,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -118,7 +120,8 @@ func WithInsightPrompting(depth string) BIAgentOption {
 			"detailed": true,
 		}
 		if !validDepths[depth] {
-			panic(fmt.Sprintf("invalid insight depth: %s (must be one of: \"\", \"brief\", \"standard\", \"detailed\")", depth))
+			a.insightDepth = ""
+			return
 		}
 		a.insightDepth = depth
 	}
@@ -149,7 +152,10 @@ func NewDefaultBIAgent(
 	}
 
 	// Create schema adapters using the query executor
-	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor)
+	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor,
+		bichatsql.WithCountCacheTTL(10*time.Minute),
+		bichatsql.WithCacheKeyFunc(tenantCacheKey),
+	)
 	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor)
 
 	// Build core tools list with optional view access control
@@ -259,13 +265,41 @@ WORKFLOW GUIDELINES:
    - Highlight key insights and trends
    - Use charts to make data more understandable
    - Call final_answer with your complete response
+   - Use plain English business terms only — NEVER expose technical names (table names, column slugs, schema prefixes, internal IDs) to the user
+   - Format monetary values with appropriate units and separators
+
+SEARCHING BY USER-PROVIDED DATA:
+Users often provide approximate or misspelled names, IDs, or keywords.
+Match strategy depends on the identifier type:
+
+Structured identifiers (UUIDs, order IDs, ISO codes, enum values, and other canonical IDs):
+- ALWAYS use exact equality (=). These are machine-generated and must match precisely.
+
+Soft human-facing identifiers (names, addresses, policy numbers, license plates, nicknames):
+- Use ILIKE with wildcards: WHERE name ILIKE '%ali%'
+- For names, search by parts: WHERE last_name ILIKE '%alibaev%' (ignore first name typos)
+- For codes/numbers (policy numbers, license plates), use ILIKE or LIKE with wildcards for partial matches
+- similarity() requires the pg_trgm extension; only use it if the database supports it.
+  Example: WHERE similarity(name, 'input') > 0.3 ORDER BY similarity DESC
+
+General rules:
+- When a query returns 0 rows but the user clearly expects results, try a broader search
+- If you find close but not exact matches, use ask_user_question to confirm: "Did you mean X?"
+- NEVER tell the user "no results found" without first trying at least one broader/fuzzy search
+
+RESOLVE-THEN-QUERY PATTERN:
+When a user refers to an entity by name or partial identifier, first resolve it to a concrete ID:
+1. Search broadly (ILIKE/wildcards) to find matching records with their IDs
+2. If multiple matches, use ask_user_question to let the user pick
+3. Once resolved, use the concrete ID (exact equality) for all subsequent queries in the conversation
+This avoids repeated fuzzy matching and ensures consistency across follow-up questions.
 
 IMPORTANT CONSTRAINTS:
 - All SQL queries MUST be read-only (SELECT or WITH...SELECT)
 - Results are limited to 1000 rows maximum
 - Query timeout is 30 seconds
 - Always validate table/column names using schema tools first
-- Never expose sensitive data or credentials
+- Never expose sensitive data, credentials, or internal technical identifiers to users
 - Ask questions when uncertain rather than making assumptions
 
 ERROR RECOVERY:
@@ -461,6 +495,15 @@ SUGGESTED ANALYSIS:
 	default:
 		return ""
 	}
+}
+
+// tenantCacheKey extracts the tenant ID from context as a cache key string.
+func tenantCacheKey(ctx context.Context) (string, error) {
+	tid, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return "", err
+	}
+	return tid.String(), nil
 }
 
 // DefaultBISystemPromptOpts configures which optional sections are included in the default BI system prompt.

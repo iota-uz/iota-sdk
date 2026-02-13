@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
+	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/jackc/pgx/v5"
@@ -66,36 +66,56 @@ func (p *PostgresCheckpointer) Save(ctx context.Context, checkpoint *agents.Chec
 		return "", err
 	}
 
-	// Marshal JSON fields
-	messagesJSON, err := json.Marshal(checkpoint.Messages)
+	m, err := models.CheckpointModelFromDomain(checkpoint, user.ID())
 	if err != nil {
 		return "", err
 	}
-
-	pendingToolsJSON, err := json.Marshal(checkpoint.PendingTools)
-	if err != nil {
-		return "", err
-	}
+	m.TenantID = tenantID
 
 	_, err = tx.Exec(ctx, checkpointInsertQuery,
-		checkpoint.ID,
-		checkpoint.ThreadID,
-		tenantID,
-		user.ID(),
-		checkpoint.AgentName,
-		messagesJSON,
-		pendingToolsJSON,
-		checkpoint.InterruptType,
-		checkpoint.InterruptData,
-		checkpoint.SessionID,
-		checkpoint.PreviousResponseID,
-		checkpoint.CreatedAt,
+		m.ID,
+		m.ThreadID,
+		m.TenantID,
+		m.UserID,
+		m.AgentName,
+		m.Messages,
+		m.PendingTools,
+		m.InterruptType,
+		m.InterruptData,
+		m.SessionID,
+		m.PreviousResponseID,
+		m.CreatedAt,
 	)
 	if err != nil {
 		return "", err
 	}
 
 	return checkpoint.ID, nil
+}
+
+// scanCheckpoint scans a row into a CheckpointModel.
+func scanCheckpoint(row pgx.Row) (*models.CheckpointModel, error) {
+	var m models.CheckpointModel
+	err := row.Scan(
+		&m.ID,
+		&m.TenantID,
+		&m.SessionID,
+		&m.ThreadID,
+		&m.AgentName,
+		&m.Messages,
+		&m.PendingTools,
+		&m.InterruptType,
+		&m.InterruptData,
+		&m.PreviousResponseID,
+		&m.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, agents.ErrCheckpointNotFound
+		}
+		return nil, err
+	}
+	return &m, nil
 }
 
 // Load retrieves a checkpoint by ID from PostgreSQL.
@@ -110,46 +130,11 @@ func (p *PostgresCheckpointer) Load(ctx context.Context, id string) (*agents.Che
 		return nil, err
 	}
 
-	var checkpoint agents.Checkpoint
-	var messagesJSON, pendingToolsJSON []byte
-	var interruptData *[]byte
-	var previousResponseID *string
-
-	err = tx.QueryRow(ctx, checkpointSelectQuery, id, tenantID).Scan(
-		&checkpoint.ID,
-		&checkpoint.TenantID,
-		&checkpoint.SessionID,
-		&checkpoint.ThreadID,
-		&checkpoint.AgentName,
-		&messagesJSON,
-		&pendingToolsJSON,
-		&checkpoint.InterruptType,
-		&interruptData,
-		&previousResponseID,
-		&checkpoint.CreatedAt,
-	)
+	m, err := scanCheckpoint(tx.QueryRow(ctx, checkpointSelectQuery, id, tenantID))
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, agents.ErrCheckpointNotFound
-		}
 		return nil, err
 	}
-
-	// Unmarshal JSON fields
-	if err := json.Unmarshal(messagesJSON, &checkpoint.Messages); err != nil {
-		return nil, err
-	}
-
-	if err := json.Unmarshal(pendingToolsJSON, &checkpoint.PendingTools); err != nil {
-		return nil, err
-	}
-
-	if interruptData != nil {
-		checkpoint.InterruptData = *interruptData
-	}
-	checkpoint.PreviousResponseID = previousResponseID
-
-	return &checkpoint, nil
+	return m.ToDomain()
 }
 
 // LoadByThreadID retrieves the latest checkpoint for a thread.
@@ -164,46 +149,11 @@ func (p *PostgresCheckpointer) LoadByThreadID(ctx context.Context, threadID stri
 		return nil, err
 	}
 
-	var checkpoint agents.Checkpoint
-	var messagesJSON, pendingToolsJSON []byte
-	var interruptData *[]byte
-	var previousResponseID *string
-
-	err = tx.QueryRow(ctx, checkpointSelectByThreadQuery, threadID, tenantID).Scan(
-		&checkpoint.ID,
-		&checkpoint.TenantID,
-		&checkpoint.SessionID,
-		&checkpoint.ThreadID,
-		&checkpoint.AgentName,
-		&messagesJSON,
-		&pendingToolsJSON,
-		&checkpoint.InterruptType,
-		&interruptData,
-		&previousResponseID,
-		&checkpoint.CreatedAt,
-	)
+	m, err := scanCheckpoint(tx.QueryRow(ctx, checkpointSelectByThreadQuery, threadID, tenantID))
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, agents.ErrCheckpointNotFound
-		}
 		return nil, err
 	}
-
-	// Unmarshal JSON fields
-	if err := json.Unmarshal(messagesJSON, &checkpoint.Messages); err != nil {
-		return nil, err
-	}
-
-	if err := json.Unmarshal(pendingToolsJSON, &checkpoint.PendingTools); err != nil {
-		return nil, err
-	}
-
-	if interruptData != nil {
-		checkpoint.InterruptData = *interruptData
-	}
-	checkpoint.PreviousResponseID = previousResponseID
-
-	return &checkpoint, nil
+	return m.ToDomain()
 }
 
 // Delete removes a checkpoint by ID.
@@ -232,7 +182,6 @@ func (p *PostgresCheckpointer) Delete(ctx context.Context, id string) error {
 
 // LoadAndDelete atomically retrieves and removes a checkpoint by ID.
 func (p *PostgresCheckpointer) LoadAndDelete(ctx context.Context, id string) (*agents.Checkpoint, error) {
-	// Use transaction to ensure atomicity
 	var checkpoint *agents.Checkpoint
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
 		var err error
@@ -240,13 +189,10 @@ func (p *PostgresCheckpointer) LoadAndDelete(ctx context.Context, id string) (*a
 		if err != nil {
 			return err
 		}
-
 		return p.Delete(txCtx, id)
 	})
-
 	if err != nil {
 		return nil, err
 	}
-
 	return checkpoint, nil
 }

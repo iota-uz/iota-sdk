@@ -13,8 +13,11 @@ import (
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
+
+const streamPersistenceTimeout = 10 * time.Second
 
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
@@ -185,26 +188,34 @@ func (s *chatServiceImpl) DeleteSession(ctx context.Context, sessionID uuid.UUID
 func (s *chatServiceImpl) ClearSessionHistory(ctx context.Context, sessionID uuid.UUID) (bichatservices.ClearSessionHistoryResponse, error) {
 	const op serrors.Op = "chatServiceImpl.ClearSessionHistory"
 
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
-	}
+	var deletedMessages int64
+	var deletedArtifacts int64
+	err := s.withinTx(ctx, func(txCtx context.Context) error {
+		session, err := s.chatRepo.GetSession(txCtx, sessionID)
+		if err != nil {
+			return serrors.E(op, err)
+		}
 
-	deletedMessages, err := s.chatRepo.TruncateMessagesFrom(ctx, sessionID, time.Unix(0, 0))
-	if err != nil {
-		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
-	}
+		deletedMessages, err = s.chatRepo.TruncateMessagesFrom(txCtx, sessionID, time.Unix(0, 0))
+		if err != nil {
+			return serrors.E(op, err)
+		}
 
-	deletedArtifacts, err := s.chatRepo.DeleteSessionArtifacts(ctx, sessionID)
-	if err != nil {
-		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
-	}
+		deletedArtifacts, err = s.chatRepo.DeleteSessionArtifacts(txCtx, sessionID)
+		if err != nil {
+			return serrors.E(op, err)
+		}
 
-	updated := session.
-		UpdateLLMPreviousResponseID(nil).
-		UpdateUpdatedAt(time.Now())
-	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
+		updated := session.
+			UpdateLLMPreviousResponseID(nil).
+			UpdateUpdatedAt(time.Now())
+		if err := s.chatRepo.UpdateSession(txCtx, updated); err != nil {
+			return serrors.E(op, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return bichatservices.ClearSessionHistoryResponse{}, err
 	}
 
 	return bichatservices.ClearSessionHistoryResponse{
@@ -217,11 +228,6 @@ func (s *chatServiceImpl) ClearSessionHistory(ctx context.Context, sessionID uui
 // CompactSessionHistory replaces full session history with a compacted summary turn.
 func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID uuid.UUID) (bichatservices.CompactSessionHistoryResponse, error) {
 	const op serrors.Op = "chatServiceImpl.CompactSessionHistory"
-
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
-	}
 
 	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, domain.ListOptions{
 		Limit:  5000,
@@ -236,26 +242,39 @@ func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID u
 		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
 	}
 
-	deletedMessages, err := s.chatRepo.TruncateMessagesFrom(ctx, sessionID, time.Unix(0, 0))
+	var deletedMessages int64
+	var deletedArtifacts int64
+	err = s.withinTx(ctx, func(txCtx context.Context) error {
+		session, err := s.chatRepo.GetSession(txCtx, sessionID)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+
+		deletedMessages, err = s.chatRepo.TruncateMessagesFrom(txCtx, sessionID, time.Unix(0, 0))
+		if err != nil {
+			return serrors.E(op, err)
+		}
+
+		deletedArtifacts, err = s.chatRepo.DeleteSessionArtifacts(txCtx, sessionID)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+
+		systemMsg := types.SystemMessage(summary, types.WithSessionID(sessionID))
+		if err := s.chatRepo.SaveMessage(txCtx, systemMsg); err != nil {
+			return serrors.E(op, err)
+		}
+
+		updated := session.
+			UpdateLLMPreviousResponseID(nil).
+			UpdateUpdatedAt(time.Now())
+		if err := s.chatRepo.UpdateSession(txCtx, updated); err != nil {
+			return serrors.E(op, err)
+		}
+		return nil
+	})
 	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
-	}
-
-	deletedArtifacts, err := s.chatRepo.DeleteSessionArtifacts(ctx, sessionID)
-	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
-	}
-
-	systemMsg := types.SystemMessage(summary, types.WithSessionID(sessionID))
-	if err := s.chatRepo.SaveMessage(ctx, systemMsg); err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
-	}
-
-	updated := session.
-		UpdateLLMPreviousResponseID(nil).
-		UpdateUpdatedAt(time.Now())
-	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+		return bichatservices.CompactSessionHistoryResponse{}, err
 	}
 
 	return bichatservices.CompactSessionHistoryResponse{
@@ -271,24 +290,11 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	const op serrors.Op = "chatServiceImpl.SendMessage"
 	startedAt := time.Now()
 
-	// Get session
-	session, err := s.chatRepo.GetSession(ctx, req.SessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	session, err = s.maybeReplaceHistoryFromMessage(ctx, session, req.ReplaceFromMessageID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
+	var session domain.Session
+	var err error
 
 	// Create user message
 	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
-
-	// Save user message
-	err = s.chatRepo.SaveMessage(ctx, userMsg)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
 
 	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
 
@@ -304,24 +310,44 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 		)
 	}
 
-	for _, att := range domainAttachments {
-		if err := s.chatRepo.SaveAttachment(ctx, att); err != nil {
-			return nil, serrors.E(op, err)
+	err = s.withinTx(ctx, func(txCtx context.Context) error {
+		session, err = s.chatRepo.GetSession(txCtx, req.SessionID)
+		if err != nil {
+			return serrors.E(op, err)
 		}
-		msgID := userMsg.ID()
-		artifact := domain.NewArtifact(
-			domain.WithArtifactTenantID(session.TenantID()),
-			domain.WithArtifactSessionID(session.ID()),
-			domain.WithArtifactMessageID(&msgID),
-			domain.WithArtifactType(domain.ArtifactTypeAttachment),
-			domain.WithArtifactName(att.FileName()),
-			domain.WithArtifactMimeType(att.MimeType()),
-			domain.WithArtifactURL(att.FilePath()),
-			domain.WithArtifactSizeBytes(att.SizeBytes()),
-		)
-		if err := s.chatRepo.SaveArtifact(ctx, artifact); err != nil {
-			return nil, serrors.E(op, err)
+
+		session, err = s.maybeReplaceHistoryFromMessage(txCtx, session, req.ReplaceFromMessageID)
+		if err != nil {
+			return serrors.E(op, err)
 		}
+
+		if err := s.chatRepo.SaveMessage(txCtx, userMsg); err != nil {
+			return serrors.E(op, err)
+		}
+
+		for _, att := range domainAttachments {
+			if err := s.chatRepo.SaveAttachment(txCtx, att); err != nil {
+				return serrors.E(op, err)
+			}
+			msgID := userMsg.ID()
+			artifact := domain.NewArtifact(
+				domain.WithArtifactTenantID(session.TenantID()),
+				domain.WithArtifactSessionID(session.ID()),
+				domain.WithArtifactMessageID(&msgID),
+				domain.WithArtifactType(domain.ArtifactTypeAttachment),
+				domain.WithArtifactName(att.FileName()),
+				domain.WithArtifactMimeType(att.MimeType()),
+				domain.WithArtifactURL(att.FilePath()),
+				domain.WithArtifactSizeBytes(att.SizeBytes()),
+			)
+			if err := s.chatRepo.SaveArtifact(txCtx, artifact); err != nil {
+				return serrors.E(op, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Process message with agent
@@ -337,7 +363,11 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 		return nil, serrors.E(op, err)
 	}
 
-	assistantMsg, session, err := s.saveAgentResult(ctx, op, session, req.SessionID, result, startedAt)
+	var assistantMsg types.Message
+	err = s.withinTx(ctx, func(txCtx context.Context) error {
+		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -359,24 +389,11 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	const op serrors.Op = "chatServiceImpl.SendMessageStream"
 	startedAt := time.Now()
 
-	// Get session
-	session, err := s.chatRepo.GetSession(ctx, req.SessionID)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-	session, err = s.maybeReplaceHistoryFromMessage(ctx, session, req.ReplaceFromMessageID)
-	if err != nil {
-		return serrors.E(op, err)
-	}
+	var session domain.Session
+	var err error
 
 	// Create user message
 	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
-
-	// Save user message
-	err = s.chatRepo.SaveMessage(ctx, userMsg)
-	if err != nil {
-		return serrors.E(op, err)
-	}
 
 	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
 
@@ -392,24 +409,44 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		)
 	}
 
-	for _, att := range domainAttachments {
-		if err := s.chatRepo.SaveAttachment(ctx, att); err != nil {
+	err = s.withinTx(ctx, func(txCtx context.Context) error {
+		session, err = s.chatRepo.GetSession(txCtx, req.SessionID)
+		if err != nil {
 			return serrors.E(op, err)
 		}
-		msgID := userMsg.ID()
-		artifact := domain.NewArtifact(
-			domain.WithArtifactTenantID(session.TenantID()),
-			domain.WithArtifactSessionID(session.ID()),
-			domain.WithArtifactMessageID(&msgID),
-			domain.WithArtifactType(domain.ArtifactTypeAttachment),
-			domain.WithArtifactName(att.FileName()),
-			domain.WithArtifactMimeType(att.MimeType()),
-			domain.WithArtifactURL(att.FilePath()),
-			domain.WithArtifactSizeBytes(att.SizeBytes()),
-		)
-		if err := s.chatRepo.SaveArtifact(ctx, artifact); err != nil {
+
+		session, err = s.maybeReplaceHistoryFromMessage(txCtx, session, req.ReplaceFromMessageID)
+		if err != nil {
 			return serrors.E(op, err)
 		}
+
+		if err := s.chatRepo.SaveMessage(txCtx, userMsg); err != nil {
+			return serrors.E(op, err)
+		}
+
+		for _, att := range domainAttachments {
+			if err := s.chatRepo.SaveAttachment(txCtx, att); err != nil {
+				return serrors.E(op, err)
+			}
+			msgID := userMsg.ID()
+			artifact := domain.NewArtifact(
+				domain.WithArtifactTenantID(session.TenantID()),
+				domain.WithArtifactSessionID(session.ID()),
+				domain.WithArtifactMessageID(&msgID),
+				domain.WithArtifactType(domain.ArtifactTypeAttachment),
+				domain.WithArtifactName(att.FileName()),
+				domain.WithArtifactMimeType(att.MimeType()),
+				domain.WithArtifactURL(att.FilePath()),
+				domain.WithArtifactSizeBytes(att.SizeBytes()),
+			)
+			if err := s.chatRepo.SaveArtifact(txCtx, artifact); err != nil {
+				return serrors.E(op, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Process message with agent
@@ -536,6 +573,8 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Use a non-cancelable context so DB writes succeed even when the
 	// original HTTP context is already canceled.
 	persistCtx := context.WithoutCancel(ctx)
+	persistCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+	defer persistCancel()
 
 	// Build assistant message options
 	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
@@ -560,17 +599,22 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 	// Always save assistant message (partial or complete)
 	assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
-	err = s.chatRepo.SaveMessage(persistCtx, assistantMsg)
-	if err != nil {
-		return serrors.E(op, err)
-	}
+	err = s.withinTx(persistCtx, func(txCtx context.Context) error {
+		if err := s.chatRepo.SaveMessage(txCtx, assistantMsg); err != nil {
+			return serrors.E(op, err)
+		}
 
-	// Update session
-	session = session.
-		UpdateLLMPreviousResponseID(providerResponseID).
-		UpdateUpdatedAt(time.Now())
-	if err := s.chatRepo.UpdateSession(persistCtx, session); err != nil {
-		return serrors.E(op, err)
+		// Update session
+		session = session.
+			UpdateLLMPreviousResponseID(providerResponseID).
+			UpdateUpdatedAt(time.Now())
+		if err := s.chatRepo.UpdateSession(txCtx, session); err != nil {
+			return serrors.E(op, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	if streamErr != nil {
@@ -625,6 +669,13 @@ func recordToolEvent(toolCalls map[string]types.ToolCall, toolOrder *[]string, t
 	}
 
 	toolCalls[key] = call
+}
+
+func (s *chatServiceImpl) withinTx(ctx context.Context, fn func(context.Context) error) error {
+	if _, err := composables.UsePool(ctx); errors.Is(err, composables.ErrNoPool) {
+		return fn(ctx)
+	}
+	return composables.InTx(ctx, fn)
 }
 
 func (s *chatServiceImpl) maybeReplaceHistoryFromMessage(
@@ -913,13 +964,17 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		return nil, serrors.E(op, err)
 	}
 
-	// Mark question as answered only after resume succeeds — prevents irreversible
-	// state drift if the provider returns a transient error, timeout, or bad checkpoint.
-	if err := s.chatRepo.UpdateMessageQuestionData(ctx, pendingMsg.ID(), answeredQD); err != nil {
-		return nil, serrors.E(op, err)
-	}
+	var assistantMsg types.Message
+	err = s.withinTx(ctx, func(txCtx context.Context) error {
+		// Mark question as answered only after resume succeeds — prevents irreversible
+		// state drift if the provider returns a transient error, timeout, or bad checkpoint.
+		if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), answeredQD); err != nil {
+			return serrors.E(op, err)
+		}
 
-	assistantMsg, session, err := s.saveAgentResult(ctx, op, session, req.SessionID, result, startedAt)
+		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -984,13 +1039,17 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 		return nil, serrors.E(op, err)
 	}
 
-	// Mark question as rejected only after resume succeeds — prevents irreversible
-	// state drift if the provider returns a transient error, timeout, or bad checkpoint.
-	if err := s.chatRepo.UpdateMessageQuestionData(ctx, pendingMsg.ID(), rejectedQD); err != nil {
-		return nil, serrors.E(op, err)
-	}
+	var assistantMsg types.Message
+	err = s.withinTx(ctx, func(txCtx context.Context) error {
+		// Mark question as rejected only after resume succeeds — prevents irreversible
+		// state drift if the provider returns a transient error, timeout, or bad checkpoint.
+		if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), rejectedQD); err != nil {
+			return serrors.E(op, err)
+		}
 
-	assistantMsg, session, err := s.saveAgentResult(ctx, op, session, sessionID, result, startedAt)
+		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, sessionID, result, startedAt)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1013,8 +1072,8 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 		return serrors.E(op, err)
 	}
 
-	// Get first user message
-	opts := domain.ListOptions{Limit: 1, Offset: 0}
+	// Get first user message (skip system/tool messages that may exist after compaction)
+	opts := domain.ListOptions{Limit: 10, Offset: 0}
 	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
 	if err != nil {
 		return serrors.E(op, err)
@@ -1024,9 +1083,15 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 		return serrors.E(op, serrors.KindValidation, "no messages found for session")
 	}
 
-	firstMessage := messages[0]
-	if firstMessage.Role() != types.RoleUser {
-		return serrors.E(op, serrors.KindValidation, "first message is not a user message")
+	var firstMessage types.Message
+	for _, msg := range messages {
+		if msg.Role() == types.RoleUser {
+			firstMessage = msg
+			break
+		}
+	}
+	if firstMessage == nil {
+		return serrors.E(op, serrors.KindValidation, "no user message found for session")
 	}
 
 	// Generate title using LLM
@@ -1129,10 +1194,10 @@ func (s *chatServiceImpl) maybeGenerateTitleAsync(ctx context.Context, sessionID
 
 		// GenerateSessionTitle has built-in logic to skip if title already exists
 		if err := s.titleService.GenerateSessionTitle(titleCtx, sessionID); err != nil {
-			// Just log - don't fail the request
-			// If logger is available in context, use it
-			// For now, silently ignore errors
-			_ = err
+			configuration.Use().Logger().
+				WithError(err).
+				WithField("session_id", sessionID.String()).
+				Warn("failed to auto-generate session title")
 		}
 	}()
 }
