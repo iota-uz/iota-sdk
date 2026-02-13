@@ -841,7 +841,11 @@
       "NoDataDescription": "Для этой таблицы нет доступных данных.",
       "NothingFound": "Ничего не найдено",
       "TableSettings": "Настройки таблицы",
-      "ResetSettings": "Сбросить настройки"
+      "ResetSettings": "Сбросить настройки",
+      "Columns": "Колонки",
+      "Grid": "Сетка",
+      "GridVertical": "Вертикальные линии",
+      "GridHorizontal": "Горизонтальные линии"
     },
     "Filters": {
       "Title": "Фильтры",

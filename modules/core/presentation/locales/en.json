@@ -841,7 +841,11 @@
       "NoDataDescription": "There is no data available for this table.",
       "NothingFound": "Nothing found",
       "TableSettings": "Table settings",
-      "ResetSettings": "Reset settings"
+      "ResetSettings": "Reset settings",
+      "Columns": "Columns",
+      "Grid": "Grid",
+      "GridVertical": "Vertical lines",
+      "GridHorizontal": "Horizontal lines"
     },
     "Filters": {
       "Title": "Filters",
