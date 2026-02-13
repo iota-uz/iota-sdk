@@ -54,7 +54,7 @@ templ SuperAdminAuthenticated(props SuperAdminAuthenticatedProps) {
 				@sidebar.Sidebar(sidebarProps)
 			</div>
 			<div class="flex-1 flex flex-col h-screen overflow-hidden">
-				@corelayouts.Navbar(pageCtx)
+				@corelayouts.Navbar(pageCtx, nil)
 				<div class="flex-1 overflow-y-auto content">
 					{ children... }
 				</div>

@@ -5,6 +5,8 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 )
 
+var tableOnce = templ.NewOnceHandle()
+
 type StickyPosition string
 
 const (
@@ -130,128 +132,319 @@ type TableHead struct {
 }
 
 type TableProps struct {
-	Columns           []*TableColumn
-	Configurable      bool
-	Classes           templ.CSSClasses
-	WrapperClasses    templ.CSSClasses
-	Attrs             templ.Attributes
-	TBodyClasses      templ.CSSClasses
-	TBodyAttrs        templ.Attributes
-	THead             TableHead
-	NoTBody           bool
-	ScrollbarPosition ScrollbarPosition
+	Columns              []*TableColumn
+	Configurable         bool
+	Classes              templ.CSSClasses
+	WrapperClasses       templ.CSSClasses
+	Attrs                templ.Attributes
+	TBodyClasses         templ.CSSClasses
+	TBodyAttrs           templ.Attributes
+	THead                TableHead
+	NoTBody              bool
+	ScrollbarPosition    ScrollbarPosition
+	ScrollbarUnderHeader bool
 }
 
 templ Table(props TableProps) {
-	<div class={ twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String()) }>
-		<table
-			class={
-				twmerge.Merge(
-					templ.Classes(
-						"min-w-full rounded-b-lg table bg-surface-600 text-sm",
-						templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
-						props.Classes.String(),
-					).String(),
-				),
+	@tableOnce.Once() {
+		<style>
+			th:has(+ .sticky),
+			td:has(+ .sticky) {
+				border-right-color: transparent !important;
 			}
-			{ props.Attrs... }
+		</style>
+	}
+	if props.ScrollbarUnderHeader {
+		<div
+			class="relative"
+			x-data="{
+				syncing: false,
+				proxyW: 0,
+				headH: 0,
+				sbGap: 0,
+				stickyR: 0,
+				init() {
+					this.$nextTick(() => this.measure());
+					new ResizeObserver(() => this.measure()).observe(this.$refs.sc);
+					new MutationObserver(() => requestAnimationFrame(() => this.measure())).observe(
+						this.$refs.sc.querySelector('tbody') || this.$refs.sc,
+						{ childList: true, subtree: true }
+					);
+					this.$refs.sc.addEventListener('wheel', (e) => {
+						if (e.deltaX !== 0) { this.$refs.sc.scrollLeft += e.deltaX; }
+					}, { passive: true });
+				},
+				measure() {
+					const sc = this.$refs.sc;
+					this.proxyW = sc.scrollWidth;
+					this.headH = sc.querySelector('thead')?.offsetHeight || 0;
+					this.sbGap = sc.offsetWidth - sc.clientWidth;
+					let sr = 0;
+					sc.querySelectorAll('thead th').forEach(th => {
+						const s = getComputedStyle(th);
+						if (s.position === 'sticky' && s.right !== 'auto') sr += th.offsetWidth;
+					});
+					this.stickyR = sr;
+				},
+				onScroll() { if(!this.syncing){this.syncing=true; this.$refs.proxy.scrollLeft=this.$refs.sc.scrollLeft; this.$nextTick(()=>this.syncing=false)} },
+				onProxy() { if(!this.syncing){this.syncing=true; this.$refs.sc.scrollLeft=this.$refs.proxy.scrollLeft; this.$nextTick(()=>this.syncing=false)} }
+			}"
 		>
-			<thead class={ props.THead.Classes } { props.THead.Attrs... }>
-				<tr
-					class="bg-surface-500 text-200"
-					if props.Configurable {
-						x-sort.ghost
-						x-sort:config="{
-							onEnd: (event) => {
-								moveColumn(event.oldIndex, event.newIndex, true);
-							},
-						}"
+			<div
+				x-ref="sc"
+				class={ twmerge.Merge(templ.Classes("overflow-y-auto overflow-x-hidden relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String()) }
+				@scroll="onScroll"
+			>
+				<table
+					class={
+						twmerge.Merge(
+							templ.Classes(
+								"min-w-full rounded-b-lg table bg-surface-600 text-sm",
+								templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
+								props.Classes.String(),
+							).String(),
+						),
 					}
+					{ props.Attrs... }
 				>
-					for _, col := range props.Columns {
-						if col.Sortable {
-							<th
-								class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class }
-								if col.Configurable {
-									data-col={ col.Key }
-									data-col-sticky?={ !col.Sticky }
-									x-sort:item
-								}
-							>
-								<div class="flex flex-col gap-1">
-									<div
-										class="flex items-center gap-2"
-										hx-get={ col.SortURL }
-										hx-target="#sortable-table-container"
-										hx-swap="outerHTML"
-										hx-include="closest form"
+					<thead class={ props.THead.Classes } { props.THead.Attrs... }>
+						<tr
+							class="bg-surface-500 text-200"
+							if props.Configurable {
+								x-sort.ghost
+								x-sort:config="{
+									handle: '[x-sort\\:handle]',
+									filter: '[data-col-sticky]',
+									onEnd: (event) => {
+										moveColumn(event.oldIndex, event.newIndex, true);
+									},
+								}"
+							}
+						>
+							for _, col := range props.Columns {
+								if col.Sortable {
+									<th
+										class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class }
+										if props.Configurable {
+											data-col={ col.Key }
+											data-col-sticky?={ col.Sticky }
+										}
+										if col.Configurable {
+											x-sort:item
+										}
 									>
-										if col.Configurable {
-											<button x-sort:handle type="button" class="-ml-1.5">
-												@icons.DotsSixVertical(icons.Props{Size: "20"})
-											</button>
-										}
-										<span>{ col.Label }</span>
-										<span class="sort-indicator">
-											if col.SortDir.IsAsc() {
-												@icons.CaretDown(icons.Props{Size: "16"})
-											} else if col.SortDir.IsDesc() {
-												@icons.CaretUp(icons.Props{Size: "16"})
-											} else {
-												@icons.CaretUpDown(icons.Props{Size: "16", Class: "opacity-30"})
+										<div class="flex flex-col gap-1">
+											<div
+												class="flex items-center gap-2"
+												hx-get={ col.SortURL }
+												hx-target="#sortable-table-container"
+												hx-swap="outerHTML"
+												hx-include="closest form"
+											>
+												if col.Configurable {
+													<button x-sort:handle type="button" class="-ml-1.5">
+														@icons.DotsSixVertical(icons.Props{Size: "20"})
+													</button>
+												}
+												<span>{ col.Label }</span>
+												<span class="sort-indicator">
+													if col.SortDir.IsAsc() {
+														@icons.CaretDown(icons.Props{Size: "16"})
+													} else if col.SortDir.IsDesc() {
+														@icons.CaretUp(icons.Props{Size: "16"})
+													} else {
+														@icons.CaretUpDown(icons.Props{Size: "16", Class: "opacity-30"})
+													}
+												</span>
+											</div>
+											if col.AddonBottom != nil {
+												if col.AddonBottom.Render != nil {
+													@col.AddonBottom.Render(col)
+												} else if col.AddonBottom.Component != nil {
+													@col.AddonBottom.Component
+												}
 											}
-										</span>
-									</div>
-									if col.AddonBottom != nil {
-										if col.AddonBottom.Render != nil {
-											@col.AddonBottom.Render(col)
-										} else if col.AddonBottom.Component != nil {
-											@col.AddonBottom.Component
+										</div>
+									</th>
+								} else {
+									<th
+										class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", col.Class }
+										if props.Configurable {
+											data-col={ col.Key }
+											data-col-sticky?={ col.Sticky }
 										}
-									}
-								</div>
-							</th>
-						} else {
-							<th
-								class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", col.Class }
-								if col.Configurable {
-									data-col={ col.Key }
-									data-col-sticky?={ col.Sticky }
-									x-sort:item
-								}
-							>
-								<div class="flex flex-col gap-1">
-									<div class="flex items-center gap-2">
 										if col.Configurable {
-											<button x-sort:handle type="button" class="-ml-1.5">
-												@icons.DotsSixVertical(icons.Props{Size: "20"})
-											</button>
+											x-sort:item
 										}
-										{ col.Label }
-									</div>
-									if col.AddonBottom != nil {
-										if col.AddonBottom.Render != nil {
-											@col.AddonBottom.Render(col)
-										} else if col.AddonBottom.Component != nil {
-											@col.AddonBottom.Component
-										}
-									}
-								</div>
-							</th>
-						}
+									>
+										<div class="flex flex-col gap-1">
+											<div class="flex items-center gap-2">
+												if col.Configurable {
+													<button x-sort:handle type="button" class="-ml-1.5">
+														@icons.DotsSixVertical(icons.Props{Size: "20"})
+													</button>
+												}
+												{ col.Label }
+											</div>
+											if col.AddonBottom != nil {
+												if col.AddonBottom.Render != nil {
+													@col.AddonBottom.Render(col)
+												} else if col.AddonBottom.Component != nil {
+													@col.AddonBottom.Component
+												}
+											}
+										</div>
+									</th>
+								}
+							}
+						</tr>
+					</thead>
+					if props.NoTBody {
+						{ children... }
+					} else {
+						<tbody
+							class={ props.TBodyClasses }
+							{ props.TBodyAttrs... }
+						>
+							{ children... }
+						</tbody>
 					}
-				</tr>
-			</thead>
-			if props.NoTBody {
-				{ children... }
-			} else {
-				<tbody
-					class={ props.TBodyClasses }
-					{ props.TBodyAttrs... }
-				>
+				</table>
+			</div>
+			<div
+				class="absolute left-0 z-[9] overflow-x-scroll overflow-y-hidden proxy-scrollbar bg-surface-600"
+				x-ref="proxy"
+				:style="'top:'+headH+'px;right:'+(sbGap+stickyR)+'px'"
+				style="height: 12px;"
+				@scroll.self="onProxy"
+			>
+				<div :style="'width:'+(proxyW-stickyR)+'px;height:1px'"></div>
+			</div>
+			<!-- Cover vertical scrollbar track in the header area -->
+			<div
+				class="absolute right-0 top-0 z-[11] bg-surface-500 pointer-events-none"
+				x-show="sbGap > 0"
+				:style="'width:'+sbGap+'px;height:'+headH+'px'"
+			></div>
+		</div>
+	} else {
+		<div class={ twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String()) }>
+			<table
+				class={
+					twmerge.Merge(
+						templ.Classes(
+							"min-w-full rounded-b-lg table bg-surface-600 text-sm",
+							templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
+							props.Classes.String(),
+						).String(),
+					),
+				}
+				{ props.Attrs... }
+			>
+				<thead class={ props.THead.Classes } { props.THead.Attrs... }>
+					<tr
+						class="bg-surface-500 text-200"
+						if props.Configurable {
+							x-sort.ghost
+							x-sort:config="{
+								draggable: '[data-sortable]',
+								onEnd: (event) => {
+									moveColumn(event.oldIndex, event.newIndex, true);
+								},
+							}"
+						}
+					>
+						for _, col := range props.Columns {
+							if col.Sortable {
+								<th
+									class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class }
+									if props.Configurable {
+										data-col={ col.Key }
+										data-col-sticky?={ col.Sticky }
+									}
+									if col.Configurable {
+										data-sortable
+										x-sort:item
+									}
+								>
+									<div class="flex flex-col gap-1">
+										<div
+											class="flex items-center gap-2"
+											hx-get={ col.SortURL }
+											hx-target="#sortable-table-container"
+											hx-swap="outerHTML"
+											hx-include="closest form"
+										>
+											if col.Configurable {
+												<button x-sort:handle type="button" class="-ml-1.5">
+													@icons.DotsSixVertical(icons.Props{Size: "20"})
+												</button>
+											}
+											<span>{ col.Label }</span>
+											<span class="sort-indicator">
+												if col.SortDir.IsAsc() {
+													@icons.CaretDown(icons.Props{Size: "16"})
+												} else if col.SortDir.IsDesc() {
+													@icons.CaretUp(icons.Props{Size: "16"})
+												} else {
+													@icons.CaretUpDown(icons.Props{Size: "16", Class: "opacity-30"})
+												}
+											</span>
+										</div>
+										if col.AddonBottom != nil {
+											if col.AddonBottom.Render != nil {
+												@col.AddonBottom.Render(col)
+											} else if col.AddonBottom.Component != nil {
+												@col.AddonBottom.Component
+											}
+										}
+									</div>
+								</th>
+							} else {
+								<th
+									class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", col.Class }
+									if props.Configurable {
+										data-col={ col.Key }
+										data-col-sticky?={ col.Sticky }
+									}
+									if col.Configurable {
+										data-sortable
+										x-sort:item
+									}
+								>
+									<div class="flex flex-col gap-1">
+										<div class="flex items-center gap-2">
+											if col.Configurable {
+												<button x-sort:handle type="button" class="-ml-1.5">
+													@icons.DotsSixVertical(icons.Props{Size: "20"})
+												</button>
+											}
+											{ col.Label }
+										</div>
+										if col.AddonBottom != nil {
+											if col.AddonBottom.Render != nil {
+												@col.AddonBottom.Render(col)
+											} else if col.AddonBottom.Component != nil {
+												@col.AddonBottom.Component
+											}
+										}
+									</div>
+								</th>
+							}
+						}
+					</tr>
+				</thead>
+				if props.NoTBody {
 					{ children... }
-				</tbody>
-			}
-		</table>
-	</div>
+				} else {
+					<tbody
+						class={ props.TBodyClasses }
+						{ props.TBodyAttrs... }
+					>
+						{ children... }
+					</tbody>
+				}
+			</table>
+		</div>
+	}
 }

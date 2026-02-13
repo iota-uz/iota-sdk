@@ -1235,6 +1235,11 @@ let tableConfig = (id) => ({
   },
 
 
+  resetConfiguration() {
+    window.localStorage.removeItem(this.key);
+    window.location.reload();
+  },
+
   save() {
     let config = JSON.stringify({key: this.key, columns: this.columns});
     window.localStorage.setItem(this.key, config);
