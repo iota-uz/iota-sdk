@@ -170,7 +170,7 @@ jobs:
       - name: Test generated files are up to date
         run: |
           just generate
-          git diff --exit-code
+          git -C "$GITHUB_WORKSPACE" diff --exit-code
 
       - name: Check translation files
         run: just check tr
@@ -181,9 +181,9 @@ jobs:
       - name: Check templ files formatting
         run: |
           templ fmt .
-          if [ -n "$(git diff --name-only)" ]; then
+          if [ -n "$(git -C "$GITHUB_WORKSPACE" diff --name-only)" ]; then
             echo "Error: Some templ files are not properly formatted"
-            git diff
+            git -C "$GITHUB_WORKSPACE" diff
             exit 1
           fi
           echo "All templ files are properly formatted"
@@ -191,9 +191,9 @@ jobs:
       - name: Check Go files formatting
         run: |
           go fmt ./...
-          if [ -n "$(git diff --name-only)" ]; then
+          if [ -n "$(git -C "$GITHUB_WORKSPACE" diff --name-only)" ]; then
             echo "Error: Some Go files are not properly formatted"
-            git diff
+            git -C "$GITHUB_WORKSPACE" diff
             exit 1
           fi
           echo "All Go files are properly formatted"

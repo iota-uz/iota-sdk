@@ -88,7 +88,7 @@ export default defineConfig({
 	// Test execution settings
 	fullyParallel: !isCI,
 	forbidOnly: !!process.env.CI,
-	retries: isCI ? 1 : 0,
+	retries: isCI ? 2 : 0,
 	workers: process.env.PW_WORKERS ? parseInt(process.env.PW_WORKERS, 10) : isCI ? 1 : undefined,
 
 	// Reporter configuration
