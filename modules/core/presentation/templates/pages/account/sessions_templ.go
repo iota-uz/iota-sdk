@@ -215,7 +215,7 @@ func SessionRow(session *viewmodels.Session) templ.Component {
 				Size:  button.SizeSM,
 				Class: templ.Classes("text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"),
 				Attrs: templ.Attributes{
-					"hx-delete":  templ.URL(fmt.Sprintf("/account/sessions/%s", session.FullToken)),
+					"hx-delete":  templ.URL(fmt.Sprintf("/account/sessions/%s", session.TokenID)),
 					"hx-confirm": pageCtx.T("Account.Sessions.ConfirmRevoke"),
 					"hx-target":  fmt.Sprintf("#session-row-%s", session.TokenID),
 					"hx-swap":    "outerHTML swap:0.3s",
