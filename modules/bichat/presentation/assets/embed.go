@@ -8,6 +8,7 @@ import (
 // embeddedFS contains both optional built assets (dist/) and an always-available
 // fallback asset bundle (fallback/). Dist assets are selected when they include
 // a Vite manifest; otherwise fallback assets are used.
+//
 //go:embed all:dist all:fallback
 var embeddedFS embed.FS
 
