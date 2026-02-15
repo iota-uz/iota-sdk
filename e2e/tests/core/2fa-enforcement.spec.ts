@@ -70,7 +70,7 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 			await expect(page).not.toHaveURL(/\/login\/2fa/);
 
 			// Verify redirected to dashboard/home
-			await expect(page).toHaveURL((url) => url.pathname.startsWith('/'));
+			await expect(page).not.toHaveURL(/\/login(?:\/|$)/);
 
 			// Verify can access protected routes
 			await page.goto('/users');

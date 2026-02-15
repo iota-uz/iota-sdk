@@ -21,13 +21,6 @@ export function extractSecretFromOTPAuthURL(otpauthURL: string): string {
 }
 
 /**
- * Extract secret from data URL containing QR code.
- */
-export function extractSecretFromDataURL(dataURL: string): string {
-	throw new Error('Not implemented - use attribute extraction instead');
-}
-
-/**
  * Generate a valid 6-digit TOTP code (RFC 6238 / SHA1 / 30s period).
  */
 export function generateTOTPCode(secret: string): string {
@@ -42,8 +35,19 @@ export function generateTOTPCode(secret: string): string {
 /**
  * Generate an invalid TOTP code (for error testing).
  */
-export function generateInvalidTOTPCode(): string {
-	return '000000';
+export function generateInvalidTOTPCode(secret: string): string {
+	const validCode = generateTOTPCode(secret);
+
+	for (let i = validCode.length - 1; i >= 0; i--) {
+		const digit = Number.parseInt(validCode[i], 10);
+		const nextDigit = ((digit + 1) % 10).toString();
+		const candidate = `${validCode.slice(0, i)}${nextDigit}${validCode.slice(i + 1)}`;
+		if (!verifyTOTPCode(secret, candidate)) {
+			return candidate;
+		}
+	}
+
+	throw new Error('failed to generate invalid TOTP code');
 }
 
 /**
