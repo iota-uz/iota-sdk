@@ -20,11 +20,11 @@ const (
 			response_type, code_challenge, code_challenge_method,
 			user_id, tenant_id, auth_time, created_at, expires_at,
 			code, code_used_at
-		FROM oidc_auth_requests
+		FROM oidc.auth_requests
 	`
 
 	insertAuthRequestQuery = `
-		INSERT INTO oidc_auth_requests (
+		INSERT INTO oidc.auth_requests (
 			id, client_id, redirect_uri, scopes, state, nonce,
 			response_type, code_challenge, code_challenge_method,
 			user_id, tenant_id, auth_time, created_at, expires_at,
@@ -33,7 +33,7 @@ const (
 	`
 
 	updateAuthRequestQuery = `
-		UPDATE oidc_auth_requests
+		UPDATE oidc.auth_requests
 		SET client_id = $1, redirect_uri = $2, scopes = $3, state = $4, nonce = $5,
 			response_type = $6, code_challenge = $7, code_challenge_method = $8,
 			user_id = $9, tenant_id = $10, auth_time = $11, expires_at = $12
@@ -41,21 +41,21 @@ const (
 	`
 
 	saveAuthCodeQuery = `
-		UPDATE oidc_auth_requests
+		UPDATE oidc.auth_requests
 		SET code = $1
 		WHERE id = $2
 	`
 
 	markCodeUsedQuery = `
-		UPDATE oidc_auth_requests
+		UPDATE oidc.auth_requests
 		SET code_used_at = NOW()
 		WHERE code = $1 AND code_used_at IS NULL
 		RETURNING id
 	`
 
-	deleteAuthRequestQuery = `DELETE FROM oidc_auth_requests WHERE id = $1`
+	deleteAuthRequestQuery = `DELETE FROM oidc.auth_requests WHERE id = $1`
 
-	deleteExpiredAuthRequestsQuery = `DELETE FROM oidc_auth_requests WHERE expires_at < NOW()`
+	deleteExpiredAuthRequestsQuery = `DELETE FROM oidc.auth_requests WHERE expires_at < NOW()`
 )
 
 // AuthRequestRepository implements authrequest.Repository

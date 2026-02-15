@@ -20,13 +20,13 @@ const (
 			redirect_uris, grant_types, response_types, scopes, auth_method,
 			access_token_lifetime, id_token_lifetime, refresh_token_lifetime,
 			require_pkce, is_active, created_at, updated_at
-		FROM oidc_clients
+		FROM oidc.clients
 	`
 
-	countClientQuery = `SELECT COUNT(*) FROM oidc_clients`
+	countClientQuery = `SELECT COUNT(*) FROM oidc.clients`
 
 	insertClientQuery = `
-		INSERT INTO oidc_clients (
+		INSERT INTO oidc.clients (
 			id, client_id, client_secret_hash, name, application_type,
 			redirect_uris, grant_types, response_types, scopes, auth_method,
 			access_token_lifetime, id_token_lifetime, refresh_token_lifetime,
@@ -39,7 +39,7 @@ const (
 	`
 
 	updateClientQuery = `
-		UPDATE oidc_clients
+		UPDATE oidc.clients
 		SET client_secret_hash = $1, name = $2, application_type = $3,
 			redirect_uris = $4, grant_types = $5, response_types = $6,
 			scopes = $7, auth_method = $8, access_token_lifetime = $9,
@@ -48,9 +48,9 @@ const (
 		WHERE id = $15
 	`
 
-	deleteClientQuery = `DELETE FROM oidc_clients WHERE id = $1`
+	deleteClientQuery = `DELETE FROM oidc.clients WHERE id = $1`
 
-	clientIDExistsQuery = `SELECT EXISTS(SELECT 1 FROM oidc_clients WHERE client_id = $1)`
+	clientIDExistsQuery = `SELECT EXISTS(SELECT 1 FROM oidc.clients WHERE client_id = $1)`
 )
 
 type ClientRepository struct {
@@ -60,12 +60,12 @@ type ClientRepository struct {
 func NewClientRepository() client.Repository {
 	return &ClientRepository{
 		fieldMap: map[client.Field]string{
-			client.ClientIDField:        "oidc_clients.client_id",
-			client.NameField:            "oidc_clients.name",
-			client.ApplicationTypeField: "oidc_clients.application_type",
-			client.IsActiveField:        "oidc_clients.is_active",
-			client.CreatedAtField:       "oidc_clients.created_at",
-			client.UpdatedAtField:       "oidc_clients.updated_at",
+			client.ClientIDField:        "oidc.clients.client_id",
+			client.NameField:            "oidc.clients.name",
+			client.ApplicationTypeField: "oidc.clients.application_type",
+			client.IsActiveField:        "oidc.clients.is_active",
+			client.CreatedAtField:       "oidc.clients.created_at",
+			client.UpdatedAtField:       "oidc.clients.updated_at",
 		},
 	}
 }

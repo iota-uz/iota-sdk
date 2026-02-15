@@ -25,7 +25,7 @@ func TestBootstrapKeys(t *testing.T) {
 
 		// Verify keys were created
 		var count int
-		err = env.Pool.QueryRow(env.Ctx, "SELECT COUNT(*) FROM oidc_signing_keys WHERE is_active = true").Scan(&count)
+		err = env.Pool.QueryRow(env.Ctx, "SELECT COUNT(*) FROM oidc.signing_keys WHERE is_active = true").Scan(&count)
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
 
@@ -59,7 +59,7 @@ func TestBootstrapKeys(t *testing.T) {
 
 		// Verify only one active key exists
 		var count int
-		err = env.Pool.QueryRow(env.Ctx, "SELECT COUNT(*) FROM oidc_signing_keys WHERE is_active = true").Scan(&count)
+		err = env.Pool.QueryRow(env.Ctx, "SELECT COUNT(*) FROM oidc.signing_keys WHERE is_active = true").Scan(&count)
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
 	})
@@ -239,7 +239,7 @@ func TestKeyStorage(t *testing.T) {
 		var algorithm string
 		err = env.Pool.QueryRow(
 			env.Ctx,
-			"SELECT algorithm FROM oidc_signing_keys WHERE is_active = true LIMIT 1",
+			"SELECT algorithm FROM oidc.signing_keys WHERE is_active = true LIMIT 1",
 		).Scan(&algorithm)
 		require.NoError(t, err)
 		assert.Equal(t, "RS256", algorithm)
@@ -255,7 +255,7 @@ func TestKeyStorage(t *testing.T) {
 		var encryptedKey []byte
 		err = env.Pool.QueryRow(
 			env.Ctx,
-			"SELECT private_key FROM oidc_signing_keys WHERE is_active = true LIMIT 1",
+			"SELECT private_key FROM oidc.signing_keys WHERE is_active = true LIMIT 1",
 		).Scan(&encryptedKey)
 		require.NoError(t, err)
 
@@ -277,7 +277,7 @@ func TestKeyStorage(t *testing.T) {
 		var publicKeyPEM []byte
 		err = env.Pool.QueryRow(
 			env.Ctx,
-			"SELECT public_key FROM oidc_signing_keys WHERE is_active = true LIMIT 1",
+			"SELECT public_key FROM oidc.signing_keys WHERE is_active = true LIMIT 1",
 		).Scan(&publicKeyPEM)
 		require.NoError(t, err)
 

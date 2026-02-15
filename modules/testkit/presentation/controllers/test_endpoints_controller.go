@@ -164,9 +164,7 @@ func (c *TestEndpointsController) handleReset(w http.ResponseWriter, r *http.Req
 
 	logger.Warn("Resetting test database")
 
-	c.mutationMu.Lock()
 	err := c.testService.ResetDatabase(ctx, req.ReseedMinimal)
-	c.mutationMu.Unlock()
 	if err != nil {
 		logger.WithError(err).Error("Failed to reset database")
 		http.Error(w, "Failed to reset database: "+err.Error(), http.StatusInternalServerError)
@@ -206,9 +204,7 @@ func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.
 
 	logger.WithField("version", req.Version).Info("Populating test data")
 
-	c.mutationMu.Lock()
 	result, err := c.testService.PopulateData(ctx, req)
-	c.mutationMu.Unlock()
 	if err != nil {
 		logger.WithError(err).Error("Failed to populate data")
 		response := schemas.PopulateResponse{
@@ -263,9 +259,7 @@ func (c *TestEndpointsController) handleSeed(w http.ResponseWriter, r *http.Requ
 
 	logger.WithField("scenario", req.Scenario).Info("Seeding test data")
 
-	c.mutationMu.Lock()
 	err = c.testService.SeedScenario(ctx, req.Scenario)
-	c.mutationMu.Unlock()
 	if err != nil {
 		logger.WithError(err).Error("Failed to seed scenario")
 		http.Error(w, "Failed to seed scenario: "+err.Error(), http.StatusInternalServerError)

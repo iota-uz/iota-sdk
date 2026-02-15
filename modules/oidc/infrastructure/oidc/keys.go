@@ -23,24 +23,24 @@ const (
 	aesKeySize = 32 // AES-256
 
 	// SQL queries for key management
-	checkActiveKeysQuery  = `SELECT COUNT(*) FROM oidc_signing_keys WHERE is_active = true`
+	checkActiveKeysQuery  = `SELECT COUNT(*) FROM oidc.signing_keys WHERE is_active = true`
 	insertSigningKeyQuery = `
-		INSERT INTO oidc_signing_keys (key_id, algorithm, private_key, public_key, is_active)
+		INSERT INTO oidc.signing_keys (key_id, algorithm, private_key, public_key, is_active)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (key_id) DO NOTHING`
-	getActiveSigningKeyQuery = `SELECT key_id, private_key FROM oidc_signing_keys
+	getActiveSigningKeyQuery = `SELECT key_id, private_key FROM oidc.signing_keys
 		WHERE is_active = true
 		ORDER BY created_at DESC
 		LIMIT 1`
-	getPublicKeysQuery = `SELECT public_key FROM oidc_signing_keys
+	getPublicKeysQuery = `SELECT public_key FROM oidc.signing_keys
 		WHERE is_active = true
 		ORDER BY created_at DESC`
-	getPublicKeysWithIDQuery = `SELECT key_id, public_key FROM oidc_signing_keys
+	getPublicKeysWithIDQuery = `SELECT key_id, public_key FROM oidc.signing_keys
 		WHERE is_active = true
 		ORDER BY created_at DESC`
 )
 
-// BootstrapKeys generates RS256 keypair if oidc_signing_keys is empty.
+// BootstrapKeys generates RS256 keypair if oidc.signing_keys is empty.
 // Uses advisory lock to prevent race conditions when multiple processes start simultaneously.
 func BootstrapKeys(ctx context.Context, db *pgxpool.Pool, cryptoKey string) error {
 	const op serrors.Op = "oidc.BootstrapKeys"

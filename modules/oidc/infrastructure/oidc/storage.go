@@ -889,7 +889,7 @@ func (c *oidcClient) GrantTypes() []oidc.GrantType {
 
 func (c *oidcClient) LoginURL(id string) string {
 	// Note: Returns login URL with auth request ID for OIDC callback flow
-	return fmt.Sprintf("/auth/login?auth_request=%s", id)
+	return fmt.Sprintf("/login?auth_request=%s", id)
 }
 
 func (c *oidcClient) AccessTokenType() op.AccessTokenType {

@@ -8,8 +8,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/zitadel/oidc/v3/pkg/op"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/oidc"
-	"github.com/iota-uz/iota-sdk/modules/oidc/services"
+	oidcservices "github.com/iota-uz/iota-sdk/modules/oidc/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -24,7 +26,7 @@ type OIDCController struct {
 	app         application.Application
 	storage     *oidc.Storage
 	config      *configuration.OIDCOptions
-	oidcService *services.OIDCService
+	oidcService *oidcservices.OIDCService
 	provider    op.OpenIDProvider
 }
 
@@ -32,7 +34,7 @@ func NewOIDCController(
 	app application.Application,
 	storage *oidc.Storage,
 	config *configuration.OIDCOptions,
-	oidcService *services.OIDCService,
+	oidcService *oidcservices.OIDCService,
 ) *OIDCController {
 	return &OIDCController{
 		app:         app,
@@ -143,11 +145,35 @@ func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Check if auth request is authenticated
+	// Complete auth request from active session if not already authenticated.
+	// This ensures users finish 2FA before OIDC authorization can proceed.
 	if !authReq.IsAuthenticated() {
-		logger.Error("Auth request not authenticated")
-		http.Error(w, "Auth request not authenticated", http.StatusUnauthorized)
-		return
+		sessionCookie, err := r.Cookie(configuration.Use().SidCookieKey)
+		if err != nil {
+			logger.WithError(err).Error("Missing session cookie for OIDC callback")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		sessionService := c.app.Service(coreservices.SessionService{}).(*coreservices.SessionService)
+		sess, err := sessionService.GetByToken(r.Context(), sessionCookie.Value)
+		if err != nil {
+			logger.WithError(err).Error("Failed to load session for OIDC callback")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if sess.Status() != session.StatusActive {
+			logger.Error("Session not active for OIDC callback", "status", sess.Status())
+			http.Error(w, "Auth request not authenticated", http.StatusUnauthorized)
+			return
+		}
+
+		if err := c.oidcService.CompleteAuthRequest(r.Context(), query.ID, int(sess.UserID()), sess.TenantID()); err != nil {
+			logger.WithError(err).Error("Failed to complete auth request from session")
+			http.Error(w, "Invalid auth request", http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Redirect back to the OIDC authorize endpoint to complete the flow

@@ -18,20 +18,20 @@ const (
 		SELECT
 			id, token_hash, client_id, user_id, tenant_id,
 			scopes, audience, auth_time, amr, expires_at, created_at
-		FROM oidc_refresh_tokens
+		FROM oidc.refresh_tokens
 	`
 
 	insertRefreshTokenQuery = `
-		INSERT INTO oidc_refresh_tokens (
+		INSERT INTO oidc.refresh_tokens (
 			id, token_hash, client_id, user_id, tenant_id,
 			scopes, audience, auth_time, amr, expires_at, created_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
-	deleteRefreshTokenQuery                = `DELETE FROM oidc_refresh_tokens WHERE id = $1`
-	deleteRefreshTokenByHashQuery          = `DELETE FROM oidc_refresh_tokens WHERE token_hash = $1`
-	deleteRefreshTokenByUserAndClientQuery = `DELETE FROM oidc_refresh_tokens WHERE user_id = $1 AND client_id = $2`
-	deleteExpiredRefreshTokensQuery        = `DELETE FROM oidc_refresh_tokens WHERE expires_at < NOW()`
+	deleteRefreshTokenQuery                = `DELETE FROM oidc.refresh_tokens WHERE id = $1`
+	deleteRefreshTokenByHashQuery          = `DELETE FROM oidc.refresh_tokens WHERE token_hash = $1`
+	deleteRefreshTokenByUserAndClientQuery = `DELETE FROM oidc.refresh_tokens WHERE user_id = $1 AND client_id = $2`
+	deleteExpiredRefreshTokensQuery        = `DELETE FROM oidc.refresh_tokens WHERE expires_at < NOW()`
 )
 
 type TokenRepository struct{}
