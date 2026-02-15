@@ -56,6 +56,11 @@ type ACLEvaluator interface {
 	CanRead(ctx context.Context, req SearchRequest, hit SearchHit) bool
 }
 
+type BatchACLEvaluator interface {
+	ACLEvaluator
+	FilterAuthorized(ctx context.Context, req SearchRequest, hits []SearchHit) []SearchHit
+}
+
 type StrictACLEvaluator struct {
 	resolver PrincipalResolver
 }
@@ -84,7 +89,55 @@ func (e *StrictACLEvaluator) CanRead(ctx context.Context, req SearchRequest, hit
 			"user_id":   req.UserID,
 			"doc_id":    hit.Document.ID,
 		}).Warn("spotlight principal resolver failed")
+		return false
 	}
+	return canReadPolicy(policy, principal)
+}
+
+func (e *StrictACLEvaluator) FilterAuthorized(ctx context.Context, req SearchRequest, hits []SearchHit) []SearchHit {
+	const op serrors.Op = "spotlight.StrictACLEvaluator.FilterAuthorized"
+
+	if len(hits) == 0 {
+		return []SearchHit{}
+	}
+	filtered := make([]SearchHit, 0, len(hits))
+	var principal Principal
+	principalResolved := false
+	resolveFailed := false
+
+	for _, hit := range hits {
+		if hit.Document.TenantID != req.TenantID {
+			continue
+		}
+		policy := hit.Document.Access
+		if policy.Visibility == VisibilityPublic {
+			filtered = append(filtered, hit)
+			continue
+		}
+		if !principalResolved && !resolveFailed {
+			resolved, err := e.resolver.Resolve(ctx, req)
+			if err != nil {
+				resolveFailed = true
+				logrus.WithError(serrors.E(op, err)).WithFields(logrus.Fields{
+					"tenant_id": req.TenantID.String(),
+					"user_id":   req.UserID,
+				}).Warn("spotlight principal resolver failed")
+				continue
+			}
+			principal = resolved
+			principalResolved = true
+		}
+		if !principalResolved {
+			continue
+		}
+		if canReadPolicy(policy, principal) {
+			filtered = append(filtered, hit)
+		}
+	}
+	return filtered
+}
+
+func canReadPolicy(policy AccessPolicy, principal Principal) bool {
 	if policy.Visibility == VisibilityOwner {
 		return principal.UserID != "" && policy.OwnerID != "" && policy.OwnerID == principal.UserID
 	}

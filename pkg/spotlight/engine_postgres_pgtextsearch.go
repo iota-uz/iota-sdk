@@ -108,12 +108,19 @@ func (e *PostgresPGTextSearchEngine) Delete(ctx context.Context, refs []Document
 }
 
 func (e *PostgresPGTextSearchEngine) Search(ctx context.Context, req SearchRequest) ([]SearchHit, error) {
-	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.Search"
-
 	if req.TenantID == uuid.Nil {
 		return nil, nil
 	}
 	limit := req.normalizedTopK()
+	query := strings.TrimSpace(req.Query)
+	if len(req.QueryEmbedding) == 0 {
+		return e.searchLexicalOnly(ctx, req.TenantID, query, limit)
+	}
+	return e.searchHybrid(ctx, req.TenantID, query, req.QueryEmbedding, limit)
+}
+
+func (e *PostgresPGTextSearchEngine) searchHybrid(ctx context.Context, tenantID uuid.UUID, query string, embedding []float32, limit int) ([]SearchHit, error) {
+	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.searchHybrid"
 
 	rows, err := e.pool.Query(ctx, `
 WITH lexical AS (
@@ -163,13 +170,13 @@ FROM lexical l
 JOIN vector_ranked v ON v.id = l.id
 ORDER BY final_score DESC
 LIMIT $3
-`, req.TenantID, strings.TrimSpace(req.Query), limit, toVectorLiteral(req.QueryEmbedding), DefaultLexicalWeight, DefaultVectorWeight)
+`, tenantID, query, limit, toVectorLiteral(embedding), DefaultLexicalWeight, DefaultVectorWeight)
 	if err != nil {
 		e.logger.WithError(err).WithFields(logrus.Fields{
-			"tenant_id": req.TenantID.String(),
-			"query":     strings.TrimSpace(req.Query),
+			"tenant_id": tenantID.String(),
+			"query":     query,
 		}).Warn("spotlight primary search query failed, using fallback")
-		return e.searchFallback(ctx, req, limit)
+		return e.searchFallback(ctx, SearchRequest{TenantID: tenantID, Query: query}, limit)
 	}
 	defer rows.Close()
 
@@ -216,6 +223,84 @@ LIMIT $3
 			VectorScore:  vectorScore,
 			FinalScore:   finalScore,
 			WhyMatched:   "lexical+vector",
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return out, nil
+}
+
+func (e *PostgresPGTextSearchEngine) searchLexicalOnly(ctx context.Context, tenantID uuid.UUID, query string, limit int) ([]SearchHit, error) {
+	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.searchLexicalOnly"
+
+	rows, err := e.pool.Query(ctx, `
+SELECT
+    id,
+    tenant_id,
+    provider,
+    entity_type,
+    title,
+    body,
+    url,
+    language,
+    metadata,
+    access_policy,
+    updated_at,
+    1.0 / (1.0 + bm25_score(sd.id)) AS lexical_score
+FROM spotlight_documents sd
+WHERE sd.tenant_id = $1
+  AND ($2 = '' OR sd.id @@@ $2)
+ORDER BY lexical_score DESC, updated_at DESC
+LIMIT $3
+`, tenantID, query, limit)
+	if err != nil {
+		e.logger.WithError(err).WithFields(logrus.Fields{
+			"tenant_id": tenantID.String(),
+			"query":     query,
+		}).Warn("spotlight lexical search query failed, using fallback")
+		return e.searchFallback(ctx, SearchRequest{TenantID: tenantID, Query: query}, limit)
+	}
+	defer rows.Close()
+
+	out := make([]SearchHit, 0, limit)
+	for rows.Next() {
+		var doc SearchDocument
+		var metadataRaw []byte
+		var accessPolicyRaw []byte
+		var lexicalScore float64
+		if err := rows.Scan(
+			&doc.ID,
+			&doc.TenantID,
+			&doc.Provider,
+			&doc.EntityType,
+			&doc.Title,
+			&doc.Body,
+			&doc.URL,
+			&doc.Language,
+			&metadataRaw,
+			&accessPolicyRaw,
+			&doc.UpdatedAt,
+			&lexicalScore,
+		); err != nil {
+			return nil, serrors.E(op, err)
+		}
+		if len(metadataRaw) > 0 {
+			doc.Metadata = map[string]string{}
+			if err := json.Unmarshal(metadataRaw, &doc.Metadata); err != nil {
+				return nil, serrors.E(op, err)
+			}
+		}
+		if len(accessPolicyRaw) > 0 {
+			if err := json.Unmarshal(accessPolicyRaw, &doc.Access); err != nil {
+				return nil, serrors.E(op, err)
+			}
+		}
+		out = append(out, SearchHit{
+			Document:     doc,
+			LexicalScore: lexicalScore,
+			FinalScore:   lexicalScore,
+			WhyMatched:   "lexical",
 		})
 	}
 	if err := rows.Err(); err != nil {

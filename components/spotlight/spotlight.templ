@@ -51,7 +51,7 @@ templ Spotlight() {
 					class="w-full border-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:outline-none bg-surface-100 text-100"
 					placeholder={ intl.MustT(ctx, "Spotlight.Placeholder") }
 					hx-get="/spotlight/search"
-					hx-trigger="input changed delay:250ms, search"
+					hx-trigger="input changed delay:120ms, search"
 					hx-sync="this:replace"
 					name="q"
 					:hx-target="'#' + $id('spotlight')"

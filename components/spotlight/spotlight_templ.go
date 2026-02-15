@@ -69,7 +69,7 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" hx-get=\"/spotlight/search\" hx-trigger=\"input changed delay:250ms, search\" hx-sync=\"this:replace\" name=\"q\" :hx-target=\"&#39;#&#39; + $id(&#39;spotlight&#39;)\" :hx-indicator=\"&#39;#&#39; + $id(&#39;spinner&#39;)\" autocomplete=\"off\" x-ref=\"input\"><div class=\"flex-1 min-h-0 mt-4 overflow-y-auto\"><!-- Search Results --><ul class=\"space-y-2\" :id=\"$id(&#39;spotlight&#39;)\"></ul><!-- Spinner Loader --><div class=\"hidden\" :id=\"$id(&#39;spinner&#39;)\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" hx-get=\"/spotlight/search\" hx-trigger=\"input changed delay:120ms, search\" hx-sync=\"this:replace\" name=\"q\" :hx-target=\"&#39;#&#39; + $id(&#39;spotlight&#39;)\" :hx-indicator=\"&#39;#&#39; + $id(&#39;spinner&#39;)\" autocomplete=\"off\" x-ref=\"input\"><div class=\"flex-1 min-h-0 mt-4 overflow-y-auto\"><!-- Search Results --><ul class=\"space-y-2\" :id=\"$id(&#39;spotlight&#39;)\"></ul><!-- Spinner Loader --><div class=\"hidden\" :id=\"$id(&#39;spinner&#39;)\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
