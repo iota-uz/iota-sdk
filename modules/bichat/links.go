@@ -10,6 +10,7 @@ var BiChatLink = types.NavigationItem{
 	Icon:     icons.ChatCircle(icons.Props{Size: "20"}),
 	Href:     "/bi-chat",
 	Children: nil,
+	IsBeta:   true,
 }
 
 var NavItems = []types.NavigationItem{

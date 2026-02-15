@@ -98,12 +98,18 @@ templ SidebarNav(props Props) {
 }
 
 templ AccordionGroup(group Group) {
+	{{
+		tooltipText := group.Text()
+		if group.IsBeta() {
+			tooltipText = tooltipText + " (Beta)"
+		}
+	}}
 	<div>
 		<!-- Collapsed view: only icon -->
 		<div
 			x-show="isCollapsed"
 			@click.stop="toggle(); $dispatch('sidebar-toggle')"
-			x-tooltip.placement.right.raw={ group.Text() }
+			x-tooltip.placement.right.raw={ tooltipText }
 			class="accordion-group-collapsed w-full cursor-pointer"
 		>
 			if group.Icon() != nil {
@@ -117,6 +123,9 @@ templ AccordionGroup(group Group) {
 					@group.Icon()
 				}
 				{ group.Text() }
+				if group.IsBeta() {
+					@SidebarBetaBadge("")
+				}
 				@icons.CaretDown(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
 			</summary>
 			<ul class="ml-4 mt-2 flex flex-col gap-2">
@@ -138,10 +147,14 @@ templ AccordionLink(link Link) {
 		if link.IsActive(ctx) {
 			className = className + " active"
 		}
+		tooltipText := link.Text()
+		if link.IsBeta() {
+			tooltipText = tooltipText + " (Beta)"
+		}
 	}}
 	<li>
 		<!-- Collapsed view: icon only -->
-		<div x-show="isCollapsed" x-tooltip.placement.right.raw={ link.Text() }>
+		<div x-show="isCollapsed" x-tooltip.placement.right.raw={ tooltipText }>
 			@button.Sidebar(button.Props{
 				Size:  button.SizeMD,
 				Href:  link.Href(),
@@ -165,7 +178,16 @@ templ AccordionLink(link Link) {
 					@link.Icon()
 				}
 				{ link.Text() }
+				if link.IsBeta() {
+					@SidebarBetaBadge("ml-auto")
+				}
 			}
 		</div>
 	</li>
+}
+
+templ SidebarBetaBadge(className string) {
+	<span class={ "text-[10px] px-2 py-0.5 rounded-full bg-surface-300 text-200 leading-none", className }>
+		Beta
+	</span>
 }
