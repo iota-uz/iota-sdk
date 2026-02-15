@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -223,4 +224,18 @@ func TestSession_UpdateLLMPreviousResponseID(t *testing.T) {
 
 	cleared := updated.UpdateLLMPreviousResponseID(nil)
 	assert.Nil(t, cleared.LLMPreviousResponseID())
+}
+
+func TestSession_UpdatePinned_PreservesUpdatedAt(t *testing.T) {
+	t.Parallel()
+
+	updatedAt := time.Date(2025, time.January, 2, 3, 4, 5, 0, time.UTC)
+	session := domain.NewSession(
+		domain.WithPinned(true),
+		domain.WithUpdatedAt(updatedAt),
+	)
+
+	updated := session.UpdatePinned(false)
+	assert.False(t, updated.Pinned())
+	assert.Equal(t, updatedAt, updated.UpdatedAt())
 }

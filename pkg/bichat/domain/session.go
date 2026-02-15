@@ -149,7 +149,6 @@ func (s *session) UpdateTitle(title string) Session {
 func (s *session) UpdatePinned(pinned bool) Session {
 	c := *s
 	c.pinned = pinned
-	c.updatedAt = time.Now()
 	return &c
 }
 
