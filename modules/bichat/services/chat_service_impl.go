@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -1207,6 +1208,9 @@ func buildTitleGenerationContext(ctx context.Context) context.Context {
 
 	if tenantID, err := composables.UseTenantID(ctx); err == nil {
 		titleCtx = composables.WithTenantID(titleCtx, tenantID)
+	}
+	if tx := ctx.Value(constants.TxKey); tx != nil {
+		titleCtx = context.WithValue(titleCtx, constants.TxKey, tx)
 	}
 	if pool, err := composables.UsePool(ctx); err == nil {
 		titleCtx = composables.WithPool(titleCtx, pool)
