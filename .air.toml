@@ -17,6 +17,7 @@ exclude_dir = [
   "e2e",
   "node_modules",
   "dist",
+  "docs",
   "ui/applet-core/node_modules",
   "ui/bichat/node_modules",
   "ui/tailwind-preset/node_modules",
