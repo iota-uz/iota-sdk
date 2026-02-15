@@ -692,7 +692,9 @@ func (s *Storage) SetUserinfoFromToken(
 	// Set standard claims
 	userinfo.Subject = subject
 	userinfo.Email = u.Email().Value()
-	userinfo.EmailVerified = oidc.Bool(true)
+	// SECURITY: Set to false until proper email verification is implemented
+	// Do not use this claim for authorization decisions in Phase 1
+	userinfo.EmailVerified = oidc.Bool(false)
 	userinfo.GivenName = u.FirstName()
 	userinfo.FamilyName = u.LastName()
 	if u.MiddleName() != "" {
@@ -700,7 +702,9 @@ func (s *Storage) SetUserinfoFromToken(
 	}
 	if u.Phone() != nil {
 		userinfo.PhoneNumber = u.Phone().Value()
-		userinfo.PhoneNumberVerified = oidc.Bool(true)
+		// SECURITY: Set to false until proper phone verification is implemented
+		// Do not use this claim for authorization decisions in Phase 1
+		userinfo.PhoneNumberVerified = oidc.Bool(false)
 	}
 
 	return nil

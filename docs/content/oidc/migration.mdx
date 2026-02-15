@@ -177,9 +177,15 @@ Test the complete OIDC authorization code flow:
 
 1. **Start Authorization Flow:**
 
+Generate PKCE values:
+```bash
+CODE_VERIFIER=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=' | cut -c1-43)
+CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | shasum -a 256 | awk '{print $1}' | xxd -r -p | base64 | tr '+/' '-_' | tr -d '=' | tr -d "\n")
+```
+
 Visit in your browser:
 ```
-http://localhost:8080/oidc/authorize?client_id=my-first-client&redirect_uri=http://localhost:3000/callback&response_type=code&scope=openid%20profile%20email&state=random-state-123
+http://localhost:8080/oidc/authorize?client_id=my-first-client&redirect_uri=http://localhost:3000/callback&response_type=code&scope=openid%20profile%20email&state=random-state-123&code_challenge=CODE_CHALLENGE&code_challenge_method=S256
 ```
 
 2. **Login as User:**
@@ -201,7 +207,8 @@ curl -X POST http://localhost:8080/oidc/token \
   -d "grant_type=authorization_code" \
   -d "client_id=my-first-client" \
   -d "code=AUTH_CODE_HERE" \
-  -d "redirect_uri=http://localhost:3000/callback"
+  -d "redirect_uri=http://localhost:3000/callback" \
+  -d "code_verifier=$CODE_VERIFIER"
 ```
 
 Expected response:
@@ -240,11 +247,18 @@ bash modules/oidc/examples/curl_flow.sh
 ```javascript
 // Authorization
 const authorizeUrl = new URL('http://localhost:8080/oidc/authorize');
+const codeVerifier = generateCodeVerifier();
+const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+sessionStorage.setItem('pkce_verifier', codeVerifier);
+
 authorizeUrl.searchParams.set('client_id', 'my-first-client');
 authorizeUrl.searchParams.set('redirect_uri', 'http://localhost:3000/callback');
 authorizeUrl.searchParams.set('response_type', 'code');
 authorizeUrl.searchParams.set('scope', 'openid profile email');
 authorizeUrl.searchParams.set('state', generateRandomState());
+authorizeUrl.searchParams.set('code_challenge', codeChallenge);
+authorizeUrl.searchParams.set('code_challenge_method', 'S256');
 
 window.location.href = authorizeUrl.toString();
 
@@ -252,6 +266,7 @@ window.location.href = authorizeUrl.toString();
 const urlParams = new URLSearchParams(window.location.search);
 const code = urlParams.get('code');
 const state = urlParams.get('state');
+const storedCodeVerifier = sessionStorage.getItem('pkce_verifier');
 
 // Exchange code for tokens (should be done server-side)
 fetch('http://localhost:8080/oidc/token', {
@@ -261,7 +276,8 @@ fetch('http://localhost:8080/oidc/token', {
         grant_type: 'authorization_code',
         client_id: 'my-first-client',
         code: code,
-        redirect_uri: 'http://localhost:3000/callback'
+        redirect_uri: 'http://localhost:3000/callback',
+        code_verifier: storedCodeVerifier
     })
 });
 ```
