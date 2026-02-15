@@ -114,7 +114,7 @@ test.describe('2FA TOTP Login Flow', () => {
 		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
 
 		// Enter invalid code
-		const invalidCode = generateInvalidTOTPCode();
+		const invalidCode = generateInvalidTOTPCode(testUser.totpSecret);
 		await verifyPage.enterVerificationCode(invalidCode);
 
 		// Verify error message is displayed
@@ -135,7 +135,7 @@ test.describe('2FA TOTP Login Flow', () => {
 		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
 
 		// First attempt: invalid code
-		await verifyPage.enterVerificationCode(generateInvalidTOTPCode());
+		await verifyPage.enterVerificationCode(generateInvalidTOTPCode(testUser.totpSecret));
 		await verifyPage.expectErrorMessage();
 
 		// Second attempt: another invalid code

@@ -139,8 +139,6 @@ func (c *TestEndpointsController) testEndpointsMiddleware(next http.Handler) htt
 func (c *TestEndpointsController) handleReset(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
-	c.mutationMu.Lock()
-	defer c.mutationMu.Unlock()
 
 	type resetRequest struct {
 		ReseedMinimal bool `json:"reseedMinimal,omitempty"`
@@ -164,7 +162,10 @@ func (c *TestEndpointsController) handleReset(w http.ResponseWriter, r *http.Req
 
 	logger.Warn("Resetting test database")
 
-	if err := c.testService.ResetDatabase(ctx, req.ReseedMinimal); err != nil {
+	c.mutationMu.Lock()
+	err := c.testService.ResetDatabase(ctx, req.ReseedMinimal)
+	c.mutationMu.Unlock()
+	if err != nil {
 		logger.WithError(err).Error("Failed to reset database")
 		http.Error(w, "Failed to reset database: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -185,8 +186,6 @@ func (c *TestEndpointsController) handleReset(w http.ResponseWriter, r *http.Req
 func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
-	c.mutationMu.Lock()
-	defer c.mutationMu.Unlock()
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -203,7 +202,9 @@ func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.
 
 	logger.WithField("version", req.Version).Info("Populating test data")
 
+	c.mutationMu.Lock()
 	result, err := c.testService.PopulateData(ctx, req)
+	c.mutationMu.Unlock()
 	if err != nil {
 		logger.WithError(err).Error("Failed to populate data")
 		response := schemas.PopulateResponse{
@@ -233,8 +234,6 @@ func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.
 func (c *TestEndpointsController) handleSeed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
-	c.mutationMu.Lock()
-	defer c.mutationMu.Unlock()
 
 	type seedRequest struct {
 		Scenario string `json:"scenario"`
@@ -258,7 +257,10 @@ func (c *TestEndpointsController) handleSeed(w http.ResponseWriter, r *http.Requ
 
 	logger.WithField("scenario", req.Scenario).Info("Seeding test data")
 
-	if err := c.testService.SeedScenario(ctx, req.Scenario); err != nil {
+	c.mutationMu.Lock()
+	err = c.testService.SeedScenario(ctx, req.Scenario)
+	c.mutationMu.Unlock()
+	if err != nil {
 		logger.WithError(err).Error("Failed to seed scenario")
 		http.Error(w, "Failed to seed scenario: "+err.Error(), http.StatusInternalServerError)
 		return
