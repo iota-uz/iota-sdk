@@ -4,6 +4,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/navtabs"
+	"strconv"
 )
 
 // SidebarState represents the initial state of the sidebar
@@ -22,13 +23,39 @@ type Props struct {
 	InitialState SidebarState // Server-side initial state hint
 }
 
+type SidebarRenderMode string
+
+const (
+	SidebarRenderModeMain   SidebarRenderMode = "main"
+	SidebarRenderModeFlyout SidebarRenderMode = "flyout"
+)
+
+func sidebarTooltipText(text string, isBeta bool) string {
+	if !isBeta {
+		return text
+	}
+	return text + " (Beta)"
+}
+
+func sidebarButtonClass(active bool) string {
+	className := "gap-2 w-full"
+	if active {
+		className += " active"
+	}
+	return className
+}
+
+func depthAttr(depth int) string {
+	return strconv.Itoa(depth)
+}
+
 templ Sidebar(props Props) {
 	<div
-		x-data="sidebar()"
+		x-data="sidebarShell()"
 		x-cloak
 		@click="handleSidebarClick($event)"
 		:class="{ 'sidebar-collapsed': isCollapsed, 'sidebar-expanded': !isCollapsed, 'sidebar-expand-cursor': isCollapsed, 'sidebar-collapse-cursor': !isCollapsed }"
-		x-init="initSidebar()"
+		x-init="initSidebarShell()"
 		class="flex flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
 	>
 		{{
@@ -71,7 +98,6 @@ templ Sidebar(props Props) {
 			</div>
 			@SidebarNav(props)
 		}
-		<!-- Footer is outside navtabs.Root so it's in sidebar's x-data scope -->
 		if props.Footer != nil {
 			<div :class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }" class="mt-auto transition-all duration-300">
 				@props.Footer
@@ -81,20 +107,17 @@ templ Sidebar(props Props) {
 }
 
 templ SidebarNav(props Props) {
-	<nav class="py-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar">
-		for _, tabGroup := range props.TabGroups.Groups {
-			@navtabs.Content(tabGroup.Value) {
+	{{ tabs := BuildSidebarNavTabs(ctx, props.TabGroups) }}
+	<nav x-data="sidebarNavigation()" x-init="initSidebarNavigation()" class="py-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar">
+		for _, tab := range tabs {
+			@navtabs.Content(tab.Value) {
 				<ul
 					id="sidebar-navigation"
 					:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
 					class="flex flex-col gap-2 transition-all duration-300"
 				>
-					for _, item := range tabGroup.Items {
-						if item.IsLink() {
-							@AccordionLink(asLink(item))
-						} else {
-							@AccordionGroup(asGroup(item))
-						}
+					for _, node := range tab.Nodes {
+						@SidebarNode(node, SidebarRenderModeMain, 0)
 					}
 				</ul>
 			}
@@ -102,99 +125,161 @@ templ SidebarNav(props Props) {
 	</nav>
 }
 
-templ AccordionGroup(group Group) {
-	{{
-		tooltipText := group.Text()
-		if group.IsBeta() {
-			tooltipText = tooltipText + " (Beta)"
-		}
-	}}
-	<div>
-		<!-- Collapsed view: only icon -->
-		<div
-			x-show="isCollapsed"
-			@click.stop="toggle(); $dispatch('sidebar-toggle')"
-			x-tooltip.placement.right.raw={ tooltipText }
-			class="accordion-group-collapsed w-full cursor-pointer"
-		>
-			if group.Icon() != nil {
-				@group.Icon()
-			}
-		</div>
-		<!-- Expanded view: full accordion -->
-		{{
-			caretClass := "ml-auto duration-200 group-open:rotate-180"
-			if group.IsBeta() {
-				caretClass = "duration-200 group-open:rotate-180"
-			}
-		}}
-		<details x-show="!isCollapsed" class="group" open?={ group.IsActive(ctx) }>
-			<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
-				if group.Icon() != nil {
-					@group.Icon()
-				}
-				{ group.Text() }
-				if group.IsBeta() {
-					@SidebarBetaBadge("ml-auto", group.IsActive(ctx))
-				}
-				@icons.CaretDown(icons.Props{Size: "16", Class: caretClass})
-			</summary>
-			<ul class="ml-4 mt-2 flex flex-col gap-2">
-				for _, child := range group.Children() {
-					if child.IsLink() {
-						@AccordionLink(asLink(child))
-					} else {
-						@AccordionGroup(asGroup(child))
-					}
-				}
-			</ul>
-		</details>
-	</div>
+templ SidebarNode(node NavNode, mode SidebarRenderMode, depth int) {
+	if node.Kind == NavNodeKindLeaf {
+		@SidebarLinkNode(node, mode)
+	} else {
+		@SidebarGroupNode(node, mode, depth)
+	}
 }
 
-templ AccordionLink(link Link) {
+templ SidebarLinkNode(node NavNode, mode SidebarRenderMode) {
 	{{
-		className := "gap-2 w-full"
-		if link.IsActive(ctx) {
-			className = className + " active"
-		}
-		tooltipText := link.Text()
-		if link.IsBeta() {
-			tooltipText = tooltipText + " (Beta)"
-		}
+		tooltipText := sidebarTooltipText(node.Text, node.IsBeta)
+		className := sidebarButtonClass(node.IsActive)
 	}}
-	<li>
-		<!-- Collapsed view: icon only -->
-		<div x-show="isCollapsed" x-tooltip.placement.right.raw={ tooltipText }>
-			@button.Sidebar(button.Props{
-				Size:  button.SizeMD,
-				Href:  link.Href(),
-				Class: "p-2 w-auto flex justify-center",
-			}) {
-				if link.Icon() != nil {
-					<div class="w-6 h-6 flex items-center justify-center">
-						@link.Icon()
-					</div>
+	if mode == SidebarRenderModeMain {
+		<li>
+			<div x-show="isCollapsed" x-tooltip.placement.right.raw={ tooltipText }>
+				@button.Sidebar(button.Props{
+					Size:  button.SizeMD,
+					Href:  node.Href,
+					Class: "p-2 w-auto flex justify-center",
+				}) {
+					if node.Icon != nil {
+						<div class="w-6 h-6 flex items-center justify-center">
+							@node.Icon
+						</div>
+					}
 				}
-			}
-		</div>
-		<!-- Expanded view: icon + text -->
-		<div x-show="!isCollapsed">
+			</div>
+			<div x-show="!isCollapsed">
+				@button.Sidebar(button.Props{
+					Size:  button.SizeMD,
+					Href:  node.Href,
+					Class: className,
+				}) {
+					if node.Icon != nil {
+						@node.Icon
+					}
+					{ node.Text }
+					if node.IsBeta {
+						@SidebarBetaBadge("ml-auto", false)
+					}
+				}
+			</div>
+		</li>
+	} else {
+		<li>
 			@button.Sidebar(button.Props{
 				Size:  button.SizeMD,
-				Href:  link.Href(),
+				Href:  node.Href,
 				Class: className,
+				Attrs: templ.Attributes{
+					"@click": "closeCollapsedMenus()",
+				},
 			}) {
-				if link.Icon() != nil {
-					@link.Icon()
+				if node.Icon != nil {
+					@node.Icon
 				}
-				{ link.Text() }
-				if link.IsBeta() {
+				{ node.Text }
+				if node.IsBeta {
 					@SidebarBetaBadge("ml-auto", false)
 				}
 			}
+		</li>
+	}
+}
+
+templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int) {
+	{{
+		tooltipText := sidebarTooltipText(node.Text, node.IsBeta)
+		buttonClass := "btn btn-sidebar btn-md gap-2 w-full cursor-pointer"
+		if node.IsActive {
+			buttonClass += " active"
+		}
+		caretClass := "ml-auto duration-200 group-open:rotate-180"
+		if node.IsBeta {
+			caretClass = "duration-200 group-open:rotate-180"
+		}
+	}}
+	if mode == SidebarRenderModeMain {
+		<div>
+			<div
+				x-show="isCollapsed"
+				@click.stop="onCollapsedGroupTrigger($event)"
+				x-tooltip.placement.right.raw={ tooltipText }
+				data-sidebar-collapsed-group-trigger="true"
+				data-group-id={ node.ID }
+				data-depth={ depthAttr(depth) }
+				class="accordion-group-collapsed w-full cursor-pointer"
+			>
+				if node.Icon != nil {
+					@node.Icon
+				}
+			</div>
+			<details x-show="!isCollapsed" class="group" open?={ node.IsActive }>
+				<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
+					if node.Icon != nil {
+						@node.Icon
+					}
+					{ node.Text }
+					if node.IsBeta {
+						@SidebarBetaBadge("ml-auto", node.IsActive)
+					}
+					@icons.CaretDown(icons.Props{Size: "16", Class: caretClass})
+				</summary>
+				<ul class="ml-4 mt-2 flex flex-col gap-2">
+					for _, child := range node.Children {
+						@SidebarNode(child, SidebarRenderModeMain, depth+1)
+					}
+				</ul>
+			</details>
+			@CollapsedGroupFlyout(node, depth)
 		</div>
-	</li>
+	} else {
+		<li>
+			<button
+				type="button"
+				@click.stop="onCollapsedGroupTrigger($event)"
+				data-sidebar-collapsed-group-trigger="true"
+				data-group-id={ node.ID }
+				data-depth={ depthAttr(depth) }
+				class={ buttonClass }
+			>
+				if node.Icon != nil {
+					@node.Icon
+				}
+				<span class="truncate">{ node.Text }</span>
+				if node.IsBeta {
+					@SidebarBetaBadge("ml-auto", node.IsActive)
+				}
+				@icons.CaretRight(icons.Props{Size: "16"})
+			</button>
+		</li>
+		@CollapsedGroupFlyout(node, depth)
+	}
+}
+
+templ CollapsedGroupFlyout(node NavNode, depth int) {
+	<template x-teleport="body">
+		<div
+			x-cloak
+			x-show="isCollapsedMenuOpenFor($el)"
+			:style="collapsedMenuStyleFor($el)"
+			data-sidebar-collapsed-menu="true"
+			data-group-id={ node.ID }
+			data-depth={ depthAttr(depth) }
+			x-transition
+			class="fixed z-[70] w-64 rounded-lg border border-primary bg-surface-300 p-1.5 shadow-lg"
+		>
+			<ul class="flex flex-col gap-1">
+				for _, child := range node.Children {
+					@SidebarNode(child, SidebarRenderModeFlyout, depth+1)
+				}
+			</ul>
+		</div>
+	</template>
 }
 
 templ SidebarBetaBadge(className string, active bool) {

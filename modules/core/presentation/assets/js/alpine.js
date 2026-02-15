@@ -624,7 +624,18 @@ window.initSidebarCollapsed = function() {
   return false;
 }
 
-let sidebar = () => ({
+let createAnchoredOverlayPositioner = ({gap = 8, minTop = 8} = {}) => ({
+  rightStart(anchorEl) {
+    if (!anchorEl) return null;
+    const rect = anchorEl.getBoundingClientRect();
+    return {
+      left: rect.right + gap,
+      top: Math.max(minTop, rect.top),
+    };
+  },
+});
+
+let sidebarShell = () => ({
   isCollapsed: initSidebarCollapsed(),
   storedTab: localStorage.getItem('sidebar-active-tab') || null,
 
@@ -652,7 +663,7 @@ let sidebar = () => ({
     return this.storedTab;
   },
 
-  initSidebar() {
+  initSidebarShell() {
     // Apply initial state class to prevent flash
     this.$nextTick(() => {
       if (this.isCollapsed) {
@@ -667,7 +678,120 @@ let sidebar = () => ({
         }, 100);
       }
     });
-  }
+  },
+})
+
+let sidebarNavigation = () => ({
+  collapsedMenus: [],
+  outsideClickHandler: null,
+  escapeHandler: null,
+  overlayPositioner: createAnchoredOverlayPositioner({gap: 8, minTop: 8}),
+
+  onCollapsedGroupTrigger(event) {
+    const trigger = event.currentTarget;
+    if (!trigger) return;
+
+    const groupId = trigger.dataset.groupId;
+    const depth = Number(trigger.dataset.depth || 0);
+    if (!groupId || Number.isNaN(depth)) return;
+
+    this.openCollapsedMenu(trigger, groupId, depth);
+  },
+
+  openCollapsedMenu(anchorEl, groupId, depth) {
+    if (!this.isCollapsed) return;
+
+    const current = this.collapsedMenus[depth];
+    if (current && current.id === groupId) {
+      this.collapsedMenus = this.collapsedMenus.slice(0, depth);
+      return;
+    }
+
+    const position = this.overlayPositioner.rightStart(anchorEl);
+    if (!position) return;
+
+    this.collapsedMenus = this.collapsedMenus.slice(0, depth);
+    this.collapsedMenus[depth] = {
+      id: groupId,
+      left: position.left,
+      top: position.top,
+    };
+  },
+
+  closeCollapsedMenus() {
+    this.collapsedMenus = [];
+  },
+
+  isCollapsedMenuOpen(groupId, depth) {
+    return this.isCollapsed && this.collapsedMenus[depth]?.id === groupId;
+  },
+
+  isCollapsedMenuOpenFor(el) {
+    if (!el) return false;
+    const groupId = el.dataset.groupId;
+    const depth = Number(el.dataset.depth || 0);
+    if (!groupId || Number.isNaN(depth)) return false;
+    return this.isCollapsedMenuOpen(groupId, depth);
+  },
+
+  collapsedMenuStyleFor(el) {
+    if (!el) return {};
+    const groupId = el.dataset.groupId;
+    const depth = Number(el.dataset.depth || 0);
+    if (!groupId || Number.isNaN(depth)) return {};
+    if (!this.isCollapsedMenuOpen(groupId, depth)) {
+      return {};
+    }
+    const menu = this.collapsedMenus[depth];
+    return {
+      left: `${menu.left}px`,
+      top: `${menu.top}px`,
+    };
+  },
+
+  handleCollapsedMenuOutsideClick(event) {
+    if (!this.isCollapsed || this.collapsedMenus.length === 0) return;
+
+    const target = event.target;
+    if (
+      target.closest('[data-sidebar-collapsed-menu="true"]') ||
+      target.closest('[data-sidebar-collapsed-group-trigger="true"]')
+    ) {
+      return;
+    }
+
+    this.closeCollapsedMenus();
+  },
+
+  handleCollapsedMenuEscape(event) {
+    if (event.key === 'Escape') {
+      this.closeCollapsedMenus();
+    }
+  },
+
+  initSidebarNavigation() {
+    this.outsideClickHandler = this.handleCollapsedMenuOutsideClick.bind(this);
+    this.escapeHandler = this.handleCollapsedMenuEscape.bind(this);
+    document.addEventListener('click', this.outsideClickHandler);
+    document.addEventListener('keydown', this.escapeHandler);
+    this.$watch('isCollapsed', () => {
+      this.closeCollapsedMenus();
+    });
+    this.$watch('storedTab', () => {
+      this.closeCollapsedMenus();
+    });
+  },
+
+  destroy() {
+    if (this.outsideClickHandler) {
+      document.removeEventListener('click', this.outsideClickHandler);
+      this.outsideClickHandler = null;
+    }
+    if (this.escapeHandler) {
+      document.removeEventListener('keydown', this.escapeHandler);
+      this.escapeHandler = null;
+    }
+  },
 })
 
 let disableFormElementsWhen = (query) => ({
@@ -1320,7 +1444,8 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("dateFns", dateFns);
   Alpine.data("datePicker", datePicker);
   Alpine.data("navTabs", navTabs);
-  Alpine.data("sidebar", sidebar);
+  Alpine.data("sidebarShell", sidebarShell);
+  Alpine.data("sidebarNavigation", sidebarNavigation);
   Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
   Alpine.data("editableTableRows", editableTableRows);
   Alpine.data("kanban", kanban);
