@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 # Cleanup on error
 trap 'echo -e "\n${RED}Installation failed. Please check the error messages above.${NC}"; exit 1' ERR
@@ -35,7 +35,7 @@ download_file() {
 # Tool versions (from go.mod and installation.md)
 TEMPL_VERSION="v0.3.857"
 AIR_VERSION="v1.61.5"
-GOLANGCI_LINT_VERSION="v1.64.8"
+GOLANGCI_LINT_VERSION="v2.1.6"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}IOTA SDK - Development Tools Installer${NC}"
@@ -142,7 +142,7 @@ echo -e "${GREEN}✓${NC}"
 
 # Install golangci-lint
 echo -n "Installing golangci-lint $GOLANGCI_LINT_VERSION... "
-if curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$GOPATH/bin" $GOLANGCI_LINT_VERSION > /dev/null 2>&1; then
+if curl -sSfL "https://raw.githubusercontent.com/golangci/golangci-lint/${GOLANGCI_LINT_VERSION}/install.sh" | sh -s -- -b "$GOPATH/bin" "$GOLANGCI_LINT_VERSION" > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC}"
 else
     echo -e "${RED}✗ Failed${NC}"

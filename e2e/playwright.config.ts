@@ -7,6 +7,14 @@ import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 
 const exec = promisify(execCallback);
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const parsedPWWorkers = Number.parseInt(process.env.PW_WORKERS ?? '', 10);
+const configuredWorkers =
+	Number.isFinite(parsedPWWorkers) && parsedPWWorkers > 0
+		? parsedPWWorkers
+		: isCI
+			? 1
+			: undefined;
 
 // Smart environment detection
 function loadEnvironmentConfig() {
@@ -18,7 +26,6 @@ function loadEnvironmentConfig() {
 	}
 
 	// Extract configuration with smart defaults based on environment
-	const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
 	const defaultPort = isCI ? 5432 : 5438; // CI uses standard port, local uses custom port
 
 	return {
@@ -62,7 +69,7 @@ export function getEnvironmentInfo() {
 	const envConfig = loadEnvironmentConfig();
 	return {
 		env: process.env.NODE_ENV || 'development',
-		isCI: process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true',
+		isCI,
 		dbConfig: {
 			host: envConfig.DB_HOST,
 			port: envConfig.DB_PORT,
@@ -86,13 +93,13 @@ export default defineConfig({
 	timeout: 60 * 1000,
 
 	// Test execution settings
-	fullyParallel: true,
-	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 0,
-	workers: process.env.CI ? 4 : undefined,
+	fullyParallel: !isCI,
+	forbidOnly: isCI,
+	retries: isCI ? 2 : 0,
+	workers: configuredWorkers,
 
 	// Reporter configuration
-	reporter: 'html',
+	reporter: isCI ? 'blob' : 'html',
 
 	// Shared settings for all projects
 	use: {

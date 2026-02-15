@@ -18,6 +18,10 @@ class CoverageReporter {
     this.coverageFile = getEnvValue('COVERAGE_FILE', options.coverageFile, 'coverage.out');
     this.threshold = getEnvInt('COVERAGE_THRESHOLD', options.threshold, 70);
     this.outputFormat = getEnvValue('COVERAGE_OUTPUT', options.outputFormat, 'github');
+    const maxBufferMBValue = process.env.COVERAGE_MAX_BUFFER_MB ?? options.maxBufferMB ?? 64;
+    const parsedMaxBufferMB = Number.parseInt(maxBufferMBValue, 10);
+    this.maxBufferMB = Number.isFinite(parsedMaxBufferMB) && parsedMaxBufferMB > 0 ? parsedMaxBufferMB : 64;
+    this.maxBufferBytes = this.maxBufferMB * 1024 * 1024;
 
     // Display limits
     this.maxLowCoverageDisplay = getEnvInt('COVERAGE_MAX_LOW_COVERAGE_DISPLAY', null, 20);
@@ -159,7 +163,10 @@ class CoverageReporter {
    */
   getCoverageData() {
     try {
-      const output = execSync(`go tool cover -func="${this.coverageFile}"`, { encoding: 'utf8' });
+      const output = execSync(`go tool cover -func="${this.coverageFile}"`, {
+        encoding: 'utf8',
+        maxBuffer: this.maxBufferBytes
+      });
       const lines = output.trim().split('\n');
 
       // Parse coverage data
