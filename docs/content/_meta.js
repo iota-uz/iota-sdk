@@ -2,6 +2,11 @@ export default {
   index: 'Overview',
   'getting-started': 'Getting Started',
   architecture: 'Architecture',
+  '-- Authentication': {
+    type: 'separator',
+    title: 'Authentication'
+  },
+  oidc: 'OpenID Connect (OIDC)',
   core: { display: 'hidden' },
   finance: { display: 'hidden' },
   warehouse: { display: 'hidden' },

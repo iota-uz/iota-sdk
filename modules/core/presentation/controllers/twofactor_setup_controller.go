@@ -67,7 +67,7 @@ func (c *TwoFactorSetupController) Key() string {
 func (c *TwoFactorSetupController) Register(r *mux.Router) {
 	setupRouter := r.PathPrefix("/login/2fa/setup").Subrouter()
 	setupRouter.Use(
-		middleware.Authorize(),
+		middleware.AuthorizeAnySession(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.WithPageContext(),
 	)

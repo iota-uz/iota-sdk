@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var errStubQueryNotImplemented = errors.New("stub query not implemented")
 
 func TestChatService_UnarchiveSession(t *testing.T) {
 	t.Parallel()
@@ -371,7 +374,7 @@ func (stubRepoTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, erro
 }
 
 func (stubRepoTx) Query(context.Context, string, ...any) (pgx.Rows, error) {
-	return nil, nil
+	return nil, errStubQueryNotImplemented
 }
 
 func (stubRepoTx) QueryRow(context.Context, string, ...any) pgx.Row {

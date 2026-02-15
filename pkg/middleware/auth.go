@@ -76,6 +76,44 @@ func Authorize() mux.MiddlewareFunc {
 	}
 }
 
+// AuthorizeAnySession attaches the session context when the token is valid,
+// regardless of the session status (active, pending 2FA, etc.).
+func AuthorizeAnySession() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				token, err := getToken(r)
+				if err != nil {
+					next.ServeHTTP(w, r)
+					return
+				}
+				ctx := r.Context()
+				app, err := application.UseApp(ctx)
+				if err != nil {
+					panic(err)
+				}
+				authService := app.Service(services.AuthService{}).(*services.AuthService)
+				sess, err := authService.Authorize(ctx, token)
+				if err != nil {
+					next.ServeHTTP(w, r)
+					return
+				}
+
+				if _, err := composables.UseTenantID(ctx); err != nil {
+					ctx = composables.WithTenantID(ctx, sess.TenantID())
+				}
+
+				params, ok := composables.UseParams(ctx)
+				if !ok {
+					panic("params not found. Add RequestParams middleware up the chain")
+				}
+				params.Authenticated = true
+				next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, constants.SessionKey, sess)))
+			},
+		)
+	}
+}
+
 func ProvideUser() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(

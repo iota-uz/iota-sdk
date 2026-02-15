@@ -1,0 +1,12 @@
+# OIDC Module - English Translations
+
+[OIDC]
+Title = "OIDC"
+
+[OIDC.Errors]
+InvalidAuthRequest = "Invalid authorization request"
+AuthRequestExpired = "Authorization request has expired"
+AuthRequestNotAuthenticated = "Authorization request not authenticated"
+MissingAuthRequestID = "Missing authorization request ID"
+InvalidClient = "Invalid client"
+UnauthorizedClient = "Unauthorized client"

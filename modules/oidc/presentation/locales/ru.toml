@@ -1,0 +1,12 @@
+# OIDC Module - Russian Translations
+
+[OIDC]
+Title = "OIDC"
+
+[OIDC.Errors]
+InvalidAuthRequest = "Недействительный запрос авторизации"
+AuthRequestExpired = "Срок действия запроса авторизации истек"
+AuthRequestNotAuthenticated = "Запрос авторизации не аутентифицирован"
+MissingAuthRequestID = "Отсутствует идентификатор запроса авторизации"
+InvalidClient = "Недействительный клиент"
+UnauthorizedClient = "Неавторизованный клиент"

@@ -136,6 +136,15 @@ type StripeOptions struct {
 	SigningSecret string `env:"STRIPE_SIGNING_SECRET"`
 }
 
+type OIDCOptions struct {
+	Enabled              bool          `env:"OIDC_ENABLED" envDefault:"false"`
+	IssuerURL            string        `env:"OIDC_ISSUER_URL"`
+	CryptoKey            string        `env:"OIDC_CRYPTO_KEY"` // 32-byte base64
+	AccessTokenLifetime  time.Duration `env:"OIDC_ACCESS_TOKEN_LIFETIME" envDefault:"1h"`
+	RefreshTokenLifetime time.Duration `env:"OIDC_REFRESH_TOKEN_LIFETIME" envDefault:"720h"`
+	IDTokenLifetime      time.Duration `env:"OIDC_ID_TOKEN_LIFETIME" envDefault:"1h"`
+}
+
 type RateLimitOptions struct {
 	Enabled   bool   `env:"RATE_LIMIT_ENABLED" envDefault:"true"`
 	GlobalRPS int    `env:"RATE_LIMIT_GLOBAL_RPS" envDefault:"1000"`
@@ -216,6 +225,7 @@ type Configuration struct {
 	Payme         PaymeOptions
 	Octo          OctoOptions
 	Stripe        StripeOptions
+	OIDC          OIDCOptions
 	RateLimit     RateLimitOptions
 	TwoFactorAuth TwoFactorAuthOptions
 
