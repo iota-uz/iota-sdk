@@ -82,6 +82,7 @@ type TestEndpointsController struct {
 	app         application.Application
 	testService *services.TestDataService
 	otpCache    *OTPCache
+	mutationMu  sync.Mutex
 }
 
 func NewTestEndpointsController(app application.Application) application.Controller {
@@ -138,6 +139,8 @@ func (c *TestEndpointsController) testEndpointsMiddleware(next http.Handler) htt
 func (c *TestEndpointsController) handleReset(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
+	c.mutationMu.Lock()
+	defer c.mutationMu.Unlock()
 
 	type resetRequest struct {
 		ReseedMinimal bool `json:"reseedMinimal,omitempty"`
@@ -182,6 +185,8 @@ func (c *TestEndpointsController) handleReset(w http.ResponseWriter, r *http.Req
 func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
+	c.mutationMu.Lock()
+	defer c.mutationMu.Unlock()
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -228,6 +233,8 @@ func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.
 func (c *TestEndpointsController) handleSeed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
+	c.mutationMu.Lock()
+	defer c.mutationMu.Unlock()
 
 	type seedRequest struct {
 		Scenario string `json:"scenario"`
