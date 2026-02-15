@@ -87,7 +87,7 @@ func TestSpotlightService_Search_UsesBatchACLAndCache(t *testing.T) {
 		},
 	}
 	acl := &testBatchACL{}
-	svc := NewService(engine, nil, WithACLEvaluator(acl))
+	svc := NewService(engine, nil, DefaultServiceConfig(), WithACLEvaluator(acl))
 
 	req := SearchRequest{
 		Query:    "roles",

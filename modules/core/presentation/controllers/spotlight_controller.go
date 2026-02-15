@@ -76,8 +76,16 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := ""
+	roles := make([]string, 0, 8)
+	permissions := make([]string, 0, 32)
 	if user, userErr := composables.UseUser(r.Context()); userErr == nil {
 		userID = fmt.Sprintf("%d", user.ID())
+		for _, role := range user.Roles() {
+			roles = append(roles, role.Name())
+		}
+		for _, permission := range user.Permissions() {
+			permissions = append(permissions, permission.Name())
+		}
 	}
 
 	intent := spotlight.SearchIntentMixed
@@ -86,11 +94,13 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := c.app.Spotlight().Search(r.Context(), spotlight.SearchRequest{
-		Query:    q,
-		TenantID: tenantID,
-		UserID:   userID,
-		TopK:     30,
-		Intent:   intent,
+		Query:       q,
+		TenantID:    tenantID,
+		UserID:      userID,
+		Roles:       roles,
+		Permissions: permissions,
+		TopK:        30,
+		Intent:      intent,
 	})
 	if err != nil {
 		logger.WithError(err).WithField("query", q).Error("spotlight search failed")

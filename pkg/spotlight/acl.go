@@ -82,6 +82,10 @@ func (e *StrictACLEvaluator) CanRead(ctx context.Context, req SearchRequest, hit
 	if policy.Visibility == VisibilityPublic {
 		return true
 	}
+
+	if principal, ok := principalFromRequest(req); ok {
+		return canReadPolicy(policy, principal)
+	}
 	principal, err := e.resolver.Resolve(ctx, req)
 	if err != nil {
 		logrus.WithError(serrors.E(op, err)).WithFields(logrus.Fields{
@@ -101,8 +105,7 @@ func (e *StrictACLEvaluator) FilterAuthorized(ctx context.Context, req SearchReq
 		return []SearchHit{}
 	}
 	filtered := make([]SearchHit, 0, len(hits))
-	var principal Principal
-	principalResolved := false
+	principal, principalResolved := principalFromRequest(req)
 	resolveFailed := false
 
 	for _, hit := range hits {
@@ -135,6 +138,17 @@ func (e *StrictACLEvaluator) FilterAuthorized(ctx context.Context, req SearchReq
 		}
 	}
 	return filtered
+}
+
+func principalFromRequest(req SearchRequest) (Principal, bool) {
+	if req.UserID == "" && len(req.Roles) == 0 && len(req.Permissions) == 0 {
+		return Principal{}, false
+	}
+	return Principal{
+		UserID:      req.UserID,
+		Roles:       req.Roles,
+		Permissions: req.Permissions,
+	}, true
 }
 
 func canReadPolicy(policy AccessPolicy, principal Principal) bool {

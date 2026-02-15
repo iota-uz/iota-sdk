@@ -113,13 +113,16 @@ func (e *PostgresPGTextSearchEngine) Search(ctx context.Context, req SearchReque
 	}
 	limit := req.normalizedTopK()
 	query := strings.TrimSpace(req.Query)
+	userID := strings.TrimSpace(req.UserID)
+	roles := dedupeAndSort(req.Roles)
+	permissions := dedupeAndSort(req.Permissions)
 	if len(req.QueryEmbedding) == 0 {
-		return e.searchLexicalOnly(ctx, req.TenantID, query, limit)
+		return e.searchLexicalOnly(ctx, req.TenantID, query, userID, roles, permissions, limit)
 	}
-	return e.searchHybrid(ctx, req.TenantID, query, req.QueryEmbedding, limit)
+	return e.searchHybrid(ctx, req.TenantID, query, req.QueryEmbedding, userID, roles, permissions, limit)
 }
 
-func (e *PostgresPGTextSearchEngine) searchHybrid(ctx context.Context, tenantID uuid.UUID, query string, embedding []float32, limit int) ([]SearchHit, error) {
+func (e *PostgresPGTextSearchEngine) searchHybrid(ctx context.Context, tenantID uuid.UUID, query string, embedding []float32, userID string, roles []string, permissions []string, limit int) ([]SearchHit, error) {
 	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.searchHybrid"
 
 	rows, err := e.pool.Query(ctx, `
@@ -141,6 +144,22 @@ WITH lexical AS (
     FROM spotlight_documents sd
     WHERE sd.tenant_id = $1
       AND ($2 = '' OR sd.id @@@ $2)
+      AND (
+        (sd.access_policy->>'visibility') = 'public'
+        OR (
+            $7 <> ''
+            AND (sd.access_policy->>'visibility') = 'owner'
+            AND (sd.access_policy->>'owner_id') = $7
+        )
+        OR (
+            (sd.access_policy->>'visibility') = 'restricted'
+            AND (
+                ($7 <> '' AND COALESCE(sd.access_policy->'allowed_users', '[]'::jsonb) ? $7)
+                OR (COALESCE(cardinality($8::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_roles', '[]'::jsonb) ?| $8::text[])
+                OR (COALESCE(cardinality($9::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_permissions', '[]'::jsonb) ?| $9::text[])
+            )
+        )
+      )
     ORDER BY lexical_score DESC
     LIMIT $3
 ), vector_ranked AS (
@@ -170,13 +189,19 @@ FROM lexical l
 JOIN vector_ranked v ON v.id = l.id
 ORDER BY final_score DESC
 LIMIT $3
-`, tenantID, query, limit, toVectorLiteral(embedding), DefaultLexicalWeight, DefaultVectorWeight)
+`, tenantID, query, limit, toVectorLiteral(embedding), DefaultLexicalWeight, DefaultVectorWeight, userID, roles, permissions)
 	if err != nil {
 		e.logger.WithError(err).WithFields(logrus.Fields{
 			"tenant_id": tenantID.String(),
 			"query":     query,
 		}).Warn("spotlight primary search query failed, using fallback")
-		return e.searchFallback(ctx, SearchRequest{TenantID: tenantID, Query: query}, limit)
+		return e.searchFallback(ctx, SearchRequest{
+			TenantID:    tenantID,
+			Query:       query,
+			UserID:      userID,
+			Roles:       roles,
+			Permissions: permissions,
+		}, limit)
 	}
 	defer rows.Close()
 
@@ -231,7 +256,7 @@ LIMIT $3
 	return out, nil
 }
 
-func (e *PostgresPGTextSearchEngine) searchLexicalOnly(ctx context.Context, tenantID uuid.UUID, query string, limit int) ([]SearchHit, error) {
+func (e *PostgresPGTextSearchEngine) searchLexicalOnly(ctx context.Context, tenantID uuid.UUID, query string, userID string, roles []string, permissions []string, limit int) ([]SearchHit, error) {
 	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.searchLexicalOnly"
 
 	rows, err := e.pool.Query(ctx, `
@@ -251,15 +276,37 @@ SELECT
 FROM spotlight_documents sd
 WHERE sd.tenant_id = $1
   AND ($2 = '' OR sd.id @@@ $2)
+  AND (
+    (sd.access_policy->>'visibility') = 'public'
+    OR (
+        $4 <> ''
+        AND (sd.access_policy->>'visibility') = 'owner'
+        AND (sd.access_policy->>'owner_id') = $4
+    )
+    OR (
+        (sd.access_policy->>'visibility') = 'restricted'
+        AND (
+            ($4 <> '' AND COALESCE(sd.access_policy->'allowed_users', '[]'::jsonb) ? $4)
+            OR (COALESCE(cardinality($5::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_roles', '[]'::jsonb) ?| $5::text[])
+            OR (COALESCE(cardinality($6::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_permissions', '[]'::jsonb) ?| $6::text[])
+        )
+    )
+  )
 ORDER BY lexical_score DESC, updated_at DESC
 LIMIT $3
-`, tenantID, query, limit)
+`, tenantID, query, limit, userID, roles, permissions)
 	if err != nil {
 		e.logger.WithError(err).WithFields(logrus.Fields{
 			"tenant_id": tenantID.String(),
 			"query":     query,
 		}).Warn("spotlight lexical search query failed, using fallback")
-		return e.searchFallback(ctx, SearchRequest{TenantID: tenantID, Query: query}, limit)
+		return e.searchFallback(ctx, SearchRequest{
+			TenantID:    tenantID,
+			Query:       query,
+			UserID:      userID,
+			Roles:       roles,
+			Permissions: permissions,
+		}, limit)
 	}
 	defer rows.Close()
 
@@ -312,6 +359,10 @@ LIMIT $3
 func (e *PostgresPGTextSearchEngine) searchFallback(ctx context.Context, req SearchRequest, limit int) ([]SearchHit, error) {
 	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.searchFallback"
 
+	userID := strings.TrimSpace(req.UserID)
+	roles := dedupeAndSort(req.Roles)
+	permissions := dedupeAndSort(req.Permissions)
+
 	rows, err := e.pool.Query(ctx, `
 SELECT
     id,
@@ -325,13 +376,29 @@ SELECT
     metadata,
     access_policy,
     updated_at,
-    ts_rank(to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(body,'')), plainto_tsquery('simple', $2)) AS lexical_score
-FROM spotlight_documents
-WHERE tenant_id = $1
-  AND ($2 = '' OR to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(body,'')) @@ plainto_tsquery('simple', $2))
+    ts_rank(to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')), plainto_tsquery('simple', $2)) AS lexical_score
+	FROM spotlight_documents sd
+WHERE sd.tenant_id = $1
+  AND ($2 = '' OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
+  AND (
+    (sd.access_policy->>'visibility') = 'public'
+    OR (
+        $4 <> ''
+        AND (sd.access_policy->>'visibility') = 'owner'
+        AND (sd.access_policy->>'owner_id') = $4
+    )
+    OR (
+        (sd.access_policy->>'visibility') = 'restricted'
+        AND (
+            ($4 <> '' AND COALESCE(sd.access_policy->'allowed_users', '[]'::jsonb) ? $4)
+            OR (COALESCE(cardinality($5::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_roles', '[]'::jsonb) ?| $5::text[])
+            OR (COALESCE(cardinality($6::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_permissions', '[]'::jsonb) ?| $6::text[])
+        )
+    )
+  )
 ORDER BY lexical_score DESC, updated_at DESC
 LIMIT $3
-`, req.TenantID, strings.TrimSpace(req.Query), limit)
+	`, req.TenantID, strings.TrimSpace(req.Query), limit, userID, roles, permissions)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}

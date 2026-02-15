@@ -171,6 +171,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 	spotlightService := spotlight.NewService(
 		engine,
 		spotlight.NewHeuristicAgent(),
+		spotlight.DefaultServiceConfig(),
 		serviceOpts...,
 	)
 	if err := spotlightService.Start(initCtx); err != nil {

@@ -18,11 +18,58 @@ type Agent interface {
 }
 
 const (
-	defaultSearchTimeout  = 250 * time.Millisecond
-	defaultAgentTimeout   = 100 * time.Millisecond
-	defaultSearchCacheTTL = 2 * time.Second
-	maxSearchCacheEntries = 512
+	defaultSearchTimeout       = 220 * time.Millisecond
+	defaultAgentTimeout        = 80 * time.Millisecond
+	defaultSearchCacheTTL      = 2 * time.Second
+	defaultSearchCacheEntries  = 512
+	defaultSearchLatencyBudget = 280 * time.Millisecond
+	defaultBackgroundTick      = 5 * time.Second
 )
+
+type ServiceConfig struct {
+	SearchTimeout            time.Duration
+	AgentTimeout             time.Duration
+	SearchCacheTTL           time.Duration
+	SearchCacheMaxEntries    int
+	SearchLatencyBudget      time.Duration
+	AllowStaleCacheOnTimeout bool
+	BackgroundIndexerTick    time.Duration
+}
+
+func DefaultServiceConfig() ServiceConfig {
+	return ServiceConfig{
+		SearchTimeout:            defaultSearchTimeout,
+		AgentTimeout:             defaultAgentTimeout,
+		SearchCacheTTL:           defaultSearchCacheTTL,
+		SearchCacheMaxEntries:    defaultSearchCacheEntries,
+		SearchLatencyBudget:      defaultSearchLatencyBudget,
+		AllowStaleCacheOnTimeout: true,
+		BackgroundIndexerTick:    defaultBackgroundTick,
+	}
+}
+
+func (c ServiceConfig) normalized() ServiceConfig {
+	cfg := c
+	if cfg.SearchTimeout <= 0 {
+		cfg.SearchTimeout = defaultSearchTimeout
+	}
+	if cfg.AgentTimeout <= 0 {
+		cfg.AgentTimeout = defaultAgentTimeout
+	}
+	if cfg.SearchCacheTTL <= 0 {
+		cfg.SearchCacheTTL = defaultSearchCacheTTL
+	}
+	if cfg.SearchCacheMaxEntries <= 0 {
+		cfg.SearchCacheMaxEntries = defaultSearchCacheEntries
+	}
+	if cfg.SearchLatencyBudget <= 0 {
+		cfg.SearchLatencyBudget = defaultSearchLatencyBudget
+	}
+	if cfg.BackgroundIndexerTick <= 0 {
+		cfg.BackgroundIndexerTick = defaultBackgroundTick
+	}
+	return cfg
+}
 
 type Service interface {
 	Start(ctx context.Context) error
@@ -89,6 +136,7 @@ func WithLogger(logger *logrus.Logger) ServiceOption {
 }
 
 type SpotlightService struct {
+	cfg      ServiceConfig
 	registry *ProviderRegistry
 	scope    ScopeStore
 	acl      ACLEvaluator
@@ -128,12 +176,14 @@ type cachedSearchResponse struct {
 	storedAt  time.Time
 }
 
-func NewService(engine IndexEngine, agent Agent, opts ...ServiceOption) *SpotlightService {
+func NewService(engine IndexEngine, agent Agent, cfg ServiceConfig, opts ...ServiceOption) *SpotlightService {
 	registry := NewProviderRegistry()
 	scope := NewInMemoryScopeStore()
 	acl := NewStrictACLEvaluator(NewComposablesPrincipalResolver())
+	normalizedCfg := cfg.normalized()
 
 	svc := &SpotlightService{
+		cfg:         normalizedCfg,
 		registry:    registry,
 		scope:       scope,
 		acl:         acl,
@@ -164,7 +214,7 @@ func (s *SpotlightService) Start(_ context.Context) error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		s.runBackgroundIndexer(s.bgCtx, 5*time.Second)
+		s.runBackgroundIndexer(s.bgCtx, s.cfg.BackgroundIndexerTick)
 	}()
 	return nil
 }
@@ -229,15 +279,22 @@ func (s *SpotlightService) Readiness(ctx context.Context) error {
 }
 
 func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (SearchResponse, error) {
+	startedAt := time.Now()
+	telemetry := SearchTelemetry{
+		Budget: s.cfg.SearchLatencyBudget,
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if !s.isStarted() {
 		if err := s.Start(ctx); err != nil {
+			telemetry.Err = err
+			telemetry.TotalTook = time.Since(startedAt)
+			telemetry.OverBudget = telemetry.TotalTook > telemetry.Budget
+			s.metrics.OnSearch(req, telemetry)
 			return SearchResponse{}, fmt.Errorf("service not started: %w", err)
 		}
 	}
-	startedAt := time.Now()
 	if req.TopK <= 0 {
 		req.TopK = 20
 	}
@@ -245,39 +302,63 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 		req.Intent = SearchIntentMixed
 	}
 	req.Query = strings.TrimSpace(req.Query)
+	req.Roles = dedupeAndSort(req.Roles)
+	req.Permissions = dedupeAndSort(req.Permissions)
 
 	if cached, ok := s.getCachedSearch(req, false); ok {
-		s.metrics.OnSearch(req, 0, 0, time.Since(startedAt), nil)
+		telemetry.CacheHit = true
+		telemetry.TotalTook = time.Since(startedAt)
+		telemetry.OverBudget = telemetry.TotalTook > telemetry.Budget
+		s.metrics.OnSearch(req, telemetry)
 		return cached, nil
 	}
 
 	s.scheduleIndexRefresh(req.TenantID, req.Language)
 	s.ensureProviderWatchers(req.TenantID, req.Language)
 
-	searchCtx, cancelSearch := withTimeoutRespectingDeadline(ctx, defaultSearchTimeout)
+	searchCtx, cancelSearch := withTimeoutRespectingDeadline(ctx, s.cfg.SearchTimeout)
+	engineStarted := time.Now()
 	hits, err := s.engine.Search(searchCtx, req)
+	telemetry.EngineTook = time.Since(engineStarted)
 	searchCtxErr := searchCtx.Err()
 	cancelSearch()
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(searchCtxErr, context.DeadlineExceeded) {
+		if s.cfg.AllowStaleCacheOnTimeout && (errors.Is(err, context.DeadlineExceeded) || errors.Is(searchCtxErr, context.DeadlineExceeded)) {
 			if stale, ok := s.getCachedSearch(req, true); ok {
-				s.metrics.OnSearch(req, 0, 0, time.Since(startedAt), nil)
+				telemetry.CacheHit = true
+				telemetry.CacheStale = true
+				telemetry.TotalTook = time.Since(startedAt)
+				telemetry.OverBudget = telemetry.TotalTook > telemetry.Budget
+				s.metrics.OnSearch(req, telemetry)
 				return stale, nil
 			}
 		}
-		s.metrics.OnSearch(req, 0, 0, time.Since(startedAt), err)
+		telemetry.Err = err
+		telemetry.TotalTook = time.Since(startedAt)
+		telemetry.OverBudget = telemetry.TotalTook > telemetry.Budget
+		s.metrics.OnSearch(req, telemetry)
 		return SearchResponse{}, err
 	}
+	telemetry.TotalHits = len(hits)
 
+	aclStarted := time.Now()
 	filtered := s.filterAuthorized(ctx, req, hits)
+	telemetry.ACLTook = time.Since(aclStarted)
+	telemetry.AuthorizedHits = len(filtered)
+	rankStarted := time.Now()
 	ranked := s.ranker.Rank(ctx, req, filtered)
+	telemetry.RankTook = time.Since(rankStarted)
+	groupStarted := time.Now()
 	resp := s.grouper.Group(ctx, req, ranked)
+	telemetry.GroupTook = time.Since(groupStarted)
 	s.mu.RLock()
 	agent := s.agent
 	s.mu.RUnlock()
 	if agent != nil {
-		agentCtx, cancelAgent := withTimeoutRespectingDeadline(ctx, defaultAgentTimeout)
+		agentCtx, cancelAgent := withTimeoutRespectingDeadline(ctx, s.cfg.AgentTimeout)
+		agentStarted := time.Now()
 		agentAnswer, agentErr := agent.Answer(agentCtx, req, ranked)
+		telemetry.AgentTook = time.Since(agentStarted)
 		cancelAgent()
 		if agentErr == nil {
 			resp.Agent = agentAnswer
@@ -290,7 +371,25 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 		}
 	}
 	s.setCachedSearch(req, resp)
-	s.metrics.OnSearch(req, len(hits), len(filtered), time.Since(startedAt), nil)
+	telemetry.TotalTook = time.Since(startedAt)
+	telemetry.OverBudget = telemetry.TotalTook > telemetry.Budget
+	if telemetry.OverBudget {
+		s.logger.WithFields(logrus.Fields{
+			"tenant_id":       req.TenantID.String(),
+			"query":           req.Query,
+			"budget_ms":       telemetry.Budget.Milliseconds(),
+			"total_ms":        telemetry.TotalTook.Milliseconds(),
+			"engine_ms":       telemetry.EngineTook.Milliseconds(),
+			"acl_ms":          telemetry.ACLTook.Milliseconds(),
+			"rank_ms":         telemetry.RankTook.Milliseconds(),
+			"group_ms":        telemetry.GroupTook.Milliseconds(),
+			"agent_ms":        telemetry.AgentTook.Milliseconds(),
+			"cache_hit":       telemetry.CacheHit,
+			"total_hits":      telemetry.TotalHits,
+			"authorized_hits": telemetry.AuthorizedHits,
+		}).Warn("spotlight search exceeded latency budget")
+	}
+	s.metrics.OnSearch(req, telemetry)
 	return resp, nil
 }
 
@@ -488,7 +587,31 @@ func withTimeoutRespectingDeadline(ctx context.Context, timeout time.Duration) (
 	return context.WithTimeout(ctx, timeout)
 }
 
+func dedupeAndSort(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func (s *SpotlightService) getCachedSearch(req SearchRequest, allowStale bool) (SearchResponse, bool) {
+	if s.cfg.SearchCacheTTL <= 0 || s.cfg.SearchCacheMaxEntries <= 0 {
+		return SearchResponse{}, false
+	}
 	key := searchCacheKey(req)
 	now := time.Now()
 	s.cacheMu.RLock()
@@ -504,18 +627,21 @@ func (s *SpotlightService) getCachedSearch(req SearchRequest, allowStale bool) (
 }
 
 func (s *SpotlightService) setCachedSearch(req SearchRequest, resp SearchResponse) {
+	if s.cfg.SearchCacheTTL <= 0 || s.cfg.SearchCacheMaxEntries <= 0 {
+		return
+	}
 	key := searchCacheKey(req)
 	now := time.Now()
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
-	if len(s.searchCache) >= maxSearchCacheEntries {
+	if len(s.searchCache) >= s.cfg.SearchCacheMaxEntries {
 		for cacheKey, entry := range s.searchCache {
 			if now.After(entry.expiresAt) {
 				delete(s.searchCache, cacheKey)
 			}
 		}
 	}
-	if len(s.searchCache) >= maxSearchCacheEntries {
+	if len(s.searchCache) >= s.cfg.SearchCacheMaxEntries {
 		var oldestKey string
 		var oldestAt time.Time
 		first := true
@@ -532,7 +658,7 @@ func (s *SpotlightService) setCachedSearch(req SearchRequest, resp SearchRespons
 	}
 	s.searchCache[key] = cachedSearchResponse{
 		response:  resp,
-		expiresAt: now.Add(defaultSearchCacheTTL),
+		expiresAt: now.Add(s.cfg.SearchCacheTTL),
 		storedAt:  now,
 	}
 }
@@ -561,6 +687,12 @@ func searchCacheKey(req SearchRequest) string {
 		string(req.Intent),
 		fmt.Sprintf("topk=%d", req.normalizedTopK()),
 	)
+	if len(req.Roles) > 0 {
+		parts = append(parts, "roles="+strings.Join(dedupeAndSort(req.Roles), ","))
+	}
+	if len(req.Permissions) > 0 {
+		parts = append(parts, "permissions="+strings.Join(dedupeAndSort(req.Permissions), ","))
+	}
 	if len(req.Filters) > 0 {
 		keys := make([]string, 0, len(req.Filters))
 		for key := range req.Filters {

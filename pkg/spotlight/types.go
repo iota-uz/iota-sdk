@@ -40,10 +40,10 @@ const (
 )
 
 type AccessPolicy struct {
-	Visibility   Visibility
-	OwnerID      string
-	AllowedUsers []string
-	AllowedRoles []string
+	Visibility         Visibility
+	OwnerID            string
+	AllowedUsers       []string
+	AllowedRoles       []string
 	AllowedPermissions []string
 }
 
@@ -73,6 +73,8 @@ type SearchRequest struct {
 	Query          string
 	TenantID       uuid.UUID
 	UserID         string
+	Roles          []string
+	Permissions    []string
 	TopK           int
 	Intent         SearchIntent
 	Language       string
