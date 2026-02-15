@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -408,10 +407,8 @@ func TestBuildTitleGenerationContext_PreservesDatabaseExecutionContext(t *testin
 
 	tenantID := uuid.New()
 	tx := stubRepoTx{}
-	var pool *pgxpool.Pool
 
 	reqCtx := composables.WithTenantID(context.Background(), tenantID)
-	reqCtx = composables.WithPool(reqCtx, pool)
 	reqCtx = context.WithValue(reqCtx, constants.TxKey, tx)
 
 	titleCtx := buildTitleGenerationContext(reqCtx)
@@ -424,7 +421,6 @@ func TestBuildTitleGenerationContext_PreservesDatabaseExecutionContext(t *testin
 	require.NoError(t, err)
 	assert.Equal(t, tx, gotTx)
 
-	gotPool, err := composables.UsePool(titleCtx)
-	require.NoError(t, err)
-	assert.Nil(t, gotPool)
+	_, err = composables.UsePool(titleCtx)
+	require.ErrorIs(t, err, composables.ErrNoPool)
 }
