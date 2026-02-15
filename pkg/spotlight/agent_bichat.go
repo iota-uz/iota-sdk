@@ -4,7 +4,10 @@ import (
 	"context"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type BIChatAgent struct {
@@ -16,6 +19,8 @@ func NewBIChatAgent(searcher kb.KBSearcher) *BIChatAgent {
 }
 
 func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []SearchHit) (*AgentAnswer, error) {
+	const op serrors.Op = "spotlight.BIChatAgent.Answer"
+
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
 		return nil, nil
@@ -35,24 +40,36 @@ func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []Sear
 	}
 
 	if a.searcher != nil && a.searcher.IsAvailable() {
-		results, err := a.searcher.Search(ctx, query, kb.SearchOptions{TopK: 2})
-		if err == nil {
-			for _, result := range results {
-				citations = append(citations, SearchDocument{
-					ID:         result.Document.ID,
-					Provider:   "bichat.kb",
-					EntityType: "knowledge",
-					Title:      result.Document.Title,
-					Body:       result.Excerpt,
-					URL:        result.Document.Path,
-					Language:   "",
-					Metadata: map[string]string{
-						"source": "bichat.kb",
-					},
-					Access:    AccessPolicy{Visibility: VisibilityPublic},
-					UpdatedAt: result.Document.UpdatedAt,
-				})
+		tenantID := req.TenantID
+		if tenantID == uuid.Nil {
+			if resolvedTenantID, tenantErr := composables.UseTenantID(ctx); tenantErr == nil {
+				tenantID = resolvedTenantID
 			}
+		}
+		results, err := a.searcher.Search(ctx, query, kb.SearchOptions{TopK: 2})
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+		for _, result := range results {
+			access := AccessPolicy{Visibility: VisibilityRestricted}
+			if req.UserID != "" {
+				access.AllowedUsers = []string{req.UserID}
+			}
+			citations = append(citations, SearchDocument{
+				ID:         result.Document.ID,
+				TenantID:   tenantID,
+				Provider:   "bichat.kb",
+				EntityType: "knowledge",
+				Title:      result.Document.Title,
+				Body:       result.Excerpt,
+				URL:        result.Document.Path,
+				Language:   "",
+				Metadata: map[string]string{
+					"source": "bichat.kb",
+				},
+				Access:    access,
+				UpdatedAt: result.Document.UpdatedAt,
+			})
 		}
 	}
 
@@ -61,7 +78,7 @@ func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []Sear
 	}
 
 	summary := "Best matches found for your request"
-	if req.Intent == SearchIntentHelp || strings.Contains(strings.ToLower(query), "how") {
+	if req.Intent == SearchIntentHelp || IsHowQuery(query) {
 		summary = "Here are the best matching pages and knowledge entries"
 	}
 

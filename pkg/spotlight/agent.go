@@ -19,7 +19,7 @@ func (a *HeuristicAgent) Answer(_ context.Context, req SearchRequest, hits []Sea
 
 	top := hits[0]
 	summary := "Best match found"
-	if strings.Contains(strings.ToLower(query), "how") || req.Intent == SearchIntentHelp {
+	if IsHowQuery(query) || req.Intent == SearchIntentHelp {
 		summary = "Here is the best matching page for your request"
 	}
 

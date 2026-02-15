@@ -4,6 +4,8 @@ import "context"
 
 type NoopEngine struct{}
 
+var _ IndexEngine = (*NoopEngine)(nil)
+
 func NewNoopEngine() *NoopEngine {
 	return &NoopEngine{}
 }

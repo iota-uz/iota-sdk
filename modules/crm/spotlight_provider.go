@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5"
 )
@@ -33,14 +34,17 @@ func (p *spotlightProvider) Capabilities() spotlight.ProviderCapabilities {
 }
 
 func (p *spotlightProvider) ListDocuments(ctx context.Context, scope spotlight.ProviderScope) ([]spotlight.SearchDocument, error) {
+	const op serrors.Op = "crm.spotlightProvider.ListDocuments"
+
 	rows, err := p.db.Query(ctx, `
-SELECT id, first_name, last_name, middle_name, phone_number, email, updated_at
+SELECT id, first_name, last_name, middle_name, updated_at
 FROM clients
 WHERE tenant_id = $1
+ORDER BY id ASC
 LIMIT 1000
 `, scope.TenantID)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -50,11 +54,9 @@ LIMIT 1000
 		var firstName string
 		var lastName *string
 		var middleName *string
-		var phone *string
-		var email *string
 		var updatedAt time.Time
-		if err := rows.Scan(&id, &firstName, &lastName, &middleName, &phone, &email, &updatedAt); err != nil {
-			return nil, err
+		if err := rows.Scan(&id, &firstName, &lastName, &middleName, &updatedAt); err != nil {
+			return nil, serrors.E(op, err)
 		}
 		nameParts := []string{firstName}
 		if middleName != nil {
@@ -67,18 +69,11 @@ LIMIT 1000
 		if title == "" {
 			title = fmt.Sprintf("Client %d", id)
 		}
-		bodyParts := []string{}
-		if phone != nil {
-			bodyParts = append(bodyParts, *phone)
-		}
-		if email != nil {
-			bodyParts = append(bodyParts, *email)
-		}
 		out = append(out, spotlight.SearchDocument{
 			ID:         fmt.Sprintf("crm:client:%d", id),
 			EntityType: "client",
 			Title:      title,
-			Body:       strings.TrimSpace(strings.Join(bodyParts, " ")),
+			Body:       title,
 			URL:        fmt.Sprintf("/crm/clients?tab=profile&view=%d", id),
 			Language:   scope.Language,
 			Metadata: map[string]string{
@@ -89,7 +84,7 @@ LIMIT 1000
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	return out, nil
 }

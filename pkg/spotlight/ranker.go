@@ -5,6 +5,11 @@ import (
 	"sort"
 )
 
+const (
+	DefaultLexicalWeight = 0.75
+	DefaultVectorWeight  = 0.25
+)
+
 type Ranker interface {
 	Rank(ctx context.Context, req SearchRequest, hits []SearchHit) []SearchHit
 }
@@ -23,7 +28,7 @@ func (r *DefaultRanker) Rank(_ context.Context, _ SearchRequest, hits []SearchHi
 	for _, hit := range hits {
 		scored := hit
 		if scored.FinalScore == 0 {
-			scored.FinalScore = scored.LexicalScore*0.75 + scored.VectorScore*0.25
+			scored.FinalScore = scored.LexicalScore*DefaultLexicalWeight + scored.VectorScore*DefaultVectorWeight
 		}
 		out = append(out, scored)
 	}

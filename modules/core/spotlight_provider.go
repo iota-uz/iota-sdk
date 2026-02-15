@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5"
 )
@@ -29,18 +30,21 @@ func (p *spotlightProvider) ProviderID() string {
 }
 
 func (p *spotlightProvider) Capabilities() spotlight.ProviderCapabilities {
-	return spotlight.ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"user", "group", "role"}}
+	return spotlight.ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"user"}}
 }
 
 func (p *spotlightProvider) ListDocuments(ctx context.Context, scope spotlight.ProviderScope) ([]spotlight.SearchDocument, error) {
+	const op serrors.Op = "core.spotlightProvider.ListDocuments"
+
 	rows, err := p.db.Query(ctx, `
-SELECT id, first_name, last_name, email, phone, updated_at
+SELECT id, first_name, last_name, updated_at
 FROM users
 WHERE tenant_id = $1
+ORDER BY id ASC
 LIMIT 1000
 `, scope.TenantID)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -49,11 +53,9 @@ LIMIT 1000
 		var id int64
 		var firstName string
 		var lastName string
-		var email string
-		var phone *string
 		var updatedAt time.Time
-		if err := rows.Scan(&id, &firstName, &lastName, &email, &phone, &updatedAt); err != nil {
-			return nil, err
+		if err := rows.Scan(&id, &firstName, &lastName, &updatedAt); err != nil {
+			return nil, serrors.E(op, err)
 		}
 		title := strings.TrimSpace(firstName + " " + lastName)
 		if title == "" {
@@ -63,7 +65,7 @@ LIMIT 1000
 			ID:         fmt.Sprintf("core:user:%d", id),
 			EntityType: "user",
 			Title:      title,
-			Body:       strings.TrimSpace(email + " " + strings.Join(optional(phone), " ")),
+			Body:       title,
 			URL:        fmt.Sprintf("/users/%d", id),
 			Language:   scope.Language,
 			Metadata: map[string]string{
@@ -74,20 +76,9 @@ LIMIT 1000
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	return out, nil
-}
-
-func optional(values ...*string) []string {
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		if value == nil {
-			continue
-		}
-		out = append(out, strings.TrimSpace(*value))
-	}
-	return out
 }
 
 func (p *spotlightProvider) Watch(_ context.Context, _ spotlight.ProviderScope) (<-chan spotlight.DocumentEvent, error) {

@@ -4,23 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 type PostgresPGTextSearchEngine struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	logger *logrus.Logger
 }
 
 func NewPostgresPGTextSearchEngine(pool *pgxpool.Pool) *PostgresPGTextSearchEngine {
-	return &PostgresPGTextSearchEngine{pool: pool}
+	return &PostgresPGTextSearchEngine{
+		pool:   pool,
+		logger: logrus.StandardLogger(),
+	}
 }
 
 func (e *PostgresPGTextSearchEngine) Upsert(ctx context.Context, docs []SearchDocument) error {
+	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.Upsert"
+
 	if len(docs) == 0 {
 		return nil
 	}
@@ -29,11 +38,11 @@ func (e *PostgresPGTextSearchEngine) Upsert(ctx context.Context, docs []SearchDo
 	for _, doc := range docs {
 		meta, err := json.Marshal(doc.Metadata)
 		if err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 		accessPolicy, err := json.Marshal(doc.Access)
 		if err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 		batch.Queue(`
 INSERT INTO spotlight_documents(
@@ -72,13 +81,15 @@ ON CONFLICT (tenant_id, id) DO UPDATE SET
 
 	for range docs {
 		if _, err := res.Exec(); err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 	}
 	return nil
 }
 
 func (e *PostgresPGTextSearchEngine) Delete(ctx context.Context, refs []DocumentRef) error {
+	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.Delete"
+
 	if len(refs) == 0 {
 		return nil
 	}
@@ -90,13 +101,15 @@ func (e *PostgresPGTextSearchEngine) Delete(ctx context.Context, refs []Document
 	defer res.Close()
 	for range refs {
 		if _, err := res.Exec(); err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 	}
 	return nil
 }
 
 func (e *PostgresPGTextSearchEngine) Search(ctx context.Context, req SearchRequest) ([]SearchHit, error) {
+	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.Search"
+
 	if req.TenantID == uuid.Nil {
 		return nil, nil
 	}
@@ -145,13 +158,17 @@ SELECT
     l.updated_at,
     l.lexical_score,
     v.vector_score,
-    (l.lexical_score * 0.75 + v.vector_score * 0.25) AS final_score
+    (l.lexical_score * $5::float8 + v.vector_score * $6::float8) AS final_score
 FROM lexical l
 JOIN vector_ranked v ON v.id = l.id
 ORDER BY final_score DESC
 LIMIT $3
-`, req.TenantID, strings.TrimSpace(req.Query), limit, toVectorLiteral(req.QueryEmbedding))
+`, req.TenantID, strings.TrimSpace(req.Query), limit, toVectorLiteral(req.QueryEmbedding), DefaultLexicalWeight, DefaultVectorWeight)
 	if err != nil {
+		e.logger.WithError(err).WithFields(logrus.Fields{
+			"tenant_id": req.TenantID.String(),
+			"query":     strings.TrimSpace(req.Query),
+		}).Warn("spotlight primary search query failed, using fallback")
 		return e.searchFallback(ctx, req, limit)
 	}
 	defer rows.Close()
@@ -180,14 +197,18 @@ LIMIT $3
 			&vectorScore,
 			&finalScore,
 		); err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		if len(metadataRaw) > 0 {
 			doc.Metadata = map[string]string{}
-			_ = json.Unmarshal(metadataRaw, &doc.Metadata)
+			if err := json.Unmarshal(metadataRaw, &doc.Metadata); err != nil {
+				return nil, serrors.E(op, err)
+			}
 		}
 		if len(accessPolicyRaw) > 0 {
-			_ = json.Unmarshal(accessPolicyRaw, &doc.Access)
+			if err := json.Unmarshal(accessPolicyRaw, &doc.Access); err != nil {
+				return nil, serrors.E(op, err)
+			}
 		}
 		out = append(out, SearchHit{
 			Document:     doc,
@@ -197,10 +218,15 @@ LIMIT $3
 			WhyMatched:   "lexical+vector",
 		})
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return out, nil
 }
 
 func (e *PostgresPGTextSearchEngine) searchFallback(ctx context.Context, req SearchRequest, limit int) ([]SearchHit, error) {
+	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.searchFallback"
+
 	rows, err := e.pool.Query(ctx, `
 SELECT
     id,
@@ -222,7 +248,7 @@ ORDER BY lexical_score DESC, updated_at DESC
 LIMIT $3
 `, req.TenantID, strings.TrimSpace(req.Query), limit)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -246,14 +272,18 @@ LIMIT $3
 			&doc.UpdatedAt,
 			&lexicalScore,
 		); err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		if len(metadataRaw) > 0 {
 			doc.Metadata = map[string]string{}
-			_ = json.Unmarshal(metadataRaw, &doc.Metadata)
+			if err := json.Unmarshal(metadataRaw, &doc.Metadata); err != nil {
+				return nil, serrors.E(op, err)
+			}
 		}
 		if len(accessPolicyRaw) > 0 {
-			_ = json.Unmarshal(accessPolicyRaw, &doc.Access)
+			if err := json.Unmarshal(accessPolicyRaw, &doc.Access); err != nil {
+				return nil, serrors.E(op, err)
+			}
 		}
 		out = append(out, SearchHit{
 			Document:     doc,
@@ -262,18 +292,23 @@ LIMIT $3
 			WhyMatched:   "lexical-fallback",
 		})
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return out, nil
 }
 
 func (e *PostgresPGTextSearchEngine) Health(ctx context.Context) error {
+	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.Health"
+
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	var n int
 	if err := e.pool.QueryRow(ctx, `SELECT 1`).Scan(&n); err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	if n != 1 {
-		return fmt.Errorf("unexpected health check value: %d", n)
+		return serrors.E(op, fmt.Errorf("unexpected health check value: %d", n))
 	}
 	return nil
 }
@@ -284,7 +319,7 @@ func toVectorLiteral(v []float32) any {
 	}
 	parts := make([]string, 0, len(v))
 	for _, n := range v {
-		parts = append(parts, fmt.Sprintf("%f", n))
+		parts = append(parts, strconv.FormatFloat(float64(n), 'f', -1, 32))
 	}
 	return "[" + strings.Join(parts, ",") + "]"
 }

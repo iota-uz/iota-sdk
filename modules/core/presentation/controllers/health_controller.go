@@ -89,7 +89,9 @@ func (c *HealthController) Get(w http.ResponseWriter, r *http.Request) {
 			httpStatus = http.StatusServiceUnavailable
 			logger.Warnf("Health check failed: %v", err)
 		}
-		if err := c.app.Spotlight().Readiness(ctx); err != nil {
+		spotlightCtx, spotlightCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer spotlightCancel()
+		if err := c.app.Spotlight().Readiness(spotlightCtx); err != nil {
 			status = "unhealthy"
 			httpStatus = http.StatusServiceUnavailable
 			logger.Warnf("Spotlight health check failed: %v", err)
@@ -242,8 +244,7 @@ func (c *HealthController) checkDatabase(ctx context.Context) ComponentHealth {
 	}
 }
 
-func (c *HealthController) checkSystem(ctx context.Context) ComponentHealth {
-	_ = ctx
+func (c *HealthController) checkSystem(_ context.Context) ComponentHealth {
 	start := time.Now()
 
 	var m runtime.MemStats

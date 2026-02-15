@@ -2,11 +2,12 @@ package spotlight
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 type Agent interface {
@@ -69,6 +70,14 @@ func WithMetrics(metrics Metrics) ServiceOption {
 	}
 }
 
+func WithLogger(logger *logrus.Logger) ServiceOption {
+	return func(s *SpotlightService) {
+		if logger != nil {
+			s.logger = logger
+		}
+	}
+}
+
 type SpotlightService struct {
 	registry *ProviderRegistry
 	scope    ScopeStore
@@ -78,6 +87,7 @@ type SpotlightService struct {
 	ranker   Ranker
 	grouper  Grouper
 	metrics  Metrics
+	logger   *logrus.Logger
 
 	mu    sync.RWMutex
 	agent Agent
@@ -113,6 +123,7 @@ func NewService(engine IndexEngine, agent Agent, opts ...ServiceOption) *Spotlig
 		ranker:     NewDefaultRanker(),
 		grouper:    NewDefaultGrouper(),
 		metrics:    NewNoopMetrics(),
+		logger:     logrus.StandardLogger(),
 		agent:      agent,
 		indexQueue: make(chan indexTask, 256),
 	}
@@ -201,7 +212,9 @@ func (s *SpotlightService) Readiness(ctx context.Context) error {
 }
 
 func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (SearchResponse, error) {
-	_ = s.Start(context.Background())
+	if err := s.Start(context.Background()); err != nil {
+		return SearchResponse{}, fmt.Errorf("service not started: %w", err)
+	}
 	startedAt := time.Now()
 	if req.TopK <= 0 {
 		req.TopK = 20
@@ -235,6 +248,12 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 		agentAnswer, agentErr := agent.Answer(ctx, req, ranked)
 		if agentErr == nil {
 			resp.Agent = agentAnswer
+		} else {
+			s.logger.WithError(agentErr).WithFields(logrus.Fields{
+				"tenant_id": req.TenantID.String(),
+				"user_id":   req.UserID,
+				"query":     req.Query,
+			}).Warn("spotlight agent answer failed")
 		}
 	}
 	s.metrics.OnSearch(req, len(hits), len(filtered), time.Since(startedAt), nil)
@@ -263,6 +282,12 @@ func (s *SpotlightService) ensureProviderWatchers(tenantID uuid.UUID, language s
 	if tenantID == uuid.Nil {
 		return
 	}
+	s.lifecycleMu.Lock()
+	bgCtx := s.bgCtx
+	s.lifecycleMu.Unlock()
+	if bgCtx == nil {
+		return
+	}
 	for _, provider := range s.registry.All() {
 		if !provider.Capabilities().SupportsWatch {
 			continue
@@ -271,14 +296,11 @@ func (s *SpotlightService) ensureProviderWatchers(tenantID uuid.UUID, language s
 		if _, loaded := s.watchStarted.LoadOrStore(watchKey, struct{}{}); loaded {
 			continue
 		}
-		if s.bgCtx == nil {
-			continue
-		}
 		s.wg.Add(1)
-		go func(p SearchProvider, t uuid.UUID, l, wk string) {
+		go func(ctx context.Context, p SearchProvider, t uuid.UUID, l, wk string) {
 			defer s.wg.Done()
-			s.runProviderWatch(s.bgCtx, p, t, l, wk)
-		}(provider, tenantID, language, watchKey)
+			s.runProviderWatch(ctx, p, t, l, wk)
+		}(bgCtx, provider, tenantID, language, watchKey)
 	}
 }
 
@@ -287,7 +309,10 @@ func (s *SpotlightService) runProviderWatch(ctx context.Context, provider Search
 	changes, err := provider.Watch(ctx, ProviderScope{TenantID: tenantID, Language: language, TopK: 0})
 	if err != nil {
 		s.metrics.OnWatch(provider.ProviderID(), tenantID, "watch_start", err)
-		log.Printf("spotlight watch failed provider=%s tenant=%s err=%v", provider.ProviderID(), tenantID, err)
+		s.logger.WithError(err).WithFields(logrus.Fields{
+			"provider":  provider.ProviderID(),
+			"tenant_id": tenantID.String(),
+		}).Error("spotlight provider watch failed")
 		return
 	}
 	s.metrics.OnWatch(provider.ProviderID(), tenantID, "watch_start", nil)
@@ -319,7 +344,11 @@ func (s *SpotlightService) applyDocumentEvent(ctx context.Context, tenantID uuid
 			return
 		}
 		if err := s.engine.Delete(ctx, []DocumentRef{{TenantID: tenantID, ID: id}}); err != nil {
-			log.Printf("spotlight delete event failed provider=%s tenant=%s id=%s err=%v", providerID, tenantID, id, err)
+			s.logger.WithError(err).WithFields(logrus.Fields{
+				"provider":  providerID,
+				"tenant_id": tenantID.String(),
+				"doc_id":    id,
+			}).Error("spotlight delete event failed")
 		}
 	default:
 		if change.Document == nil {
@@ -333,10 +362,14 @@ func (s *SpotlightService) applyDocumentEvent(ctx context.Context, tenantID uuid
 			doc.Provider = providerID
 		}
 		if doc.Access.Visibility == "" {
-			doc.Access.Visibility = VisibilityPublic
+			doc.Access.Visibility = VisibilityRestricted
 		}
 		if err := s.engine.Upsert(ctx, []SearchDocument{doc}); err != nil {
-			log.Printf("spotlight upsert event failed provider=%s tenant=%s id=%s err=%v", providerID, tenantID, doc.ID, err)
+			s.logger.WithError(err).WithFields(logrus.Fields{
+				"provider":  providerID,
+				"tenant_id": tenantID.String(),
+				"doc_id":    doc.ID,
+			}).Error("spotlight upsert event failed")
 		}
 	}
 }
@@ -356,7 +389,7 @@ func (s *SpotlightService) runBackgroundIndexer(ctx context.Context, tick time.D
 				started := time.Now()
 				if err := s.outbox.PollAndProcess(ctx); err != nil {
 					s.metrics.OnOutboxPoll(time.Since(started), err)
-					log.Printf("spotlight outbox poll failed: %v", err)
+					s.logger.WithError(err).Error("spotlight outbox poll failed")
 				} else {
 					s.metrics.OnOutboxPoll(time.Since(started), nil)
 				}
@@ -373,7 +406,10 @@ func (s *SpotlightService) reindexTask(ctx context.Context, task indexTask) {
 	started := time.Now()
 	if err := s.ReindexTenant(ctx, task.tenantID, task.language); err != nil {
 		s.metrics.OnReindex(task.tenantID, task.language, time.Since(started), err)
-		log.Printf("spotlight indexing failed tenant=%s: %v", task.tenantID, err)
+		s.logger.WithError(err).WithFields(logrus.Fields{
+			"tenant_id": task.tenantID.String(),
+			"language":  task.language,
+		}).Error("spotlight indexing failed")
 		return
 	}
 	s.metrics.OnReindex(task.tenantID, task.language, time.Since(started), nil)

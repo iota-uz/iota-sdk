@@ -3,7 +3,6 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -55,6 +54,7 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 
 	q := r.URL.Query().Get("q")
+	logger := composables.UseLogger(r.Context())
 	if q == "" {
 		templ.Handler(
 			spotlightui.NotFound(),
@@ -80,7 +80,7 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	intent := spotlight.SearchIntentMixed
-	if strings.Contains(strings.ToLower(q), "how") {
+	if spotlight.IsHowQuery(q) {
 		intent = spotlight.SearchIntentHelp
 	}
 
@@ -92,6 +92,7 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 		Intent:   intent,
 	})
 	if err != nil {
+		logger.WithError(err).WithField("query", q).Error("spotlight search failed")
 		http.Error(w, "Failed to search Spotlight", http.StatusInternalServerError)
 		return
 	}

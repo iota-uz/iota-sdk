@@ -139,7 +139,7 @@ func main() {
 		panic(err)
 	}
 	bundle := application.LoadBundle()
-	app := application.New(&application.ApplicationOptions{
+	app, err := application.New(&application.ApplicationOptions{
 		Pool:     pool,
 		Bundle:   bundle,
 		EventBus: eventbus.NewEventPublisher(logger),
@@ -154,8 +154,15 @@ func main() {
 			},
 		}),
 	})
+	if err != nil {
+		log.Fatalf("failed to initialize application: %v", err)
+	}
 	defer func() {
-		_ = app.Spotlight().Stop(context.Background())
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+		if stopErr := app.Spotlight().Stop(shutdownCtx); stopErr != nil {
+			logger.WithError(stopErr).Warn("failed to stop spotlight service during shutdown")
+		}
 	}()
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		log.Fatalf("failed to load modules: %v", err)

@@ -144,13 +144,22 @@ func loadLocaleFSIntoBundle(bundle *i18n.Bundle, localeFs *embed.FS) {
 	}
 }
 
-func New(opts *ApplicationOptions) Application {
+func New(opts *ApplicationOptions) (Application, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("application options are required")
+	}
+
 	var engine spotlight.IndexEngine
 	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
+	if opts.Logger != nil {
+		serviceOpts = append(serviceOpts, spotlight.WithLogger(opts.Logger))
+	}
 	if opts.Pool == nil {
 		engine = spotlight.NewNoopEngine()
 	} else {
-		spotlight.MustPreflight(context.Background(), opts.Pool)
+		if err := spotlight.PreflightCheck(context.Background(), opts.Pool); err != nil {
+			return nil, err
+		}
 		pgEngine := spotlight.NewPostgresPGTextSearchEngine(opts.Pool)
 		engine = pgEngine
 		serviceOpts = append(serviceOpts, spotlight.WithOutboxProcessor(
@@ -163,7 +172,7 @@ func New(opts *ApplicationOptions) Application {
 		serviceOpts...,
 	)
 	if err := spotlightService.Start(context.Background()); err != nil {
-		panic(err)
+		return nil, err
 	}
 	quickLinks := spotlight.NewQuickLinks()
 	spotlightService.RegisterProvider(quickLinks)
@@ -180,7 +189,7 @@ func New(opts *ApplicationOptions) Application {
 		migrations:         NewMigrationManager(opts.Pool),
 		supportedLanguages: opts.SupportedLanguages,
 		appletRegistry:     applets.NewRegistry(),
-	}
+	}, nil
 }
 
 // application with a dynamically extendable service registry

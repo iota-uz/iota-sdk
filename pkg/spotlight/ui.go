@@ -27,7 +27,7 @@ func ActionToComponent(action AgentAction) templ.Component {
 	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
 		escapedURL := html.EscapeString(action.TargetURL)
 		escapedLabel := html.EscapeString(action.Label)
-		_, err := io.WriteString(w, `<button type="button" class="text-left text-sm text-primary-700 hover:underline" onclick="spotlightConfirmAndGo('`+escapedURL+`')">`+escapedLabel+`</button>`)
+		_, err := io.WriteString(w, `<button type="button" class="js-spotlight-confirm text-left text-sm text-primary-700 hover:underline" data-spotlight-url="`+escapedURL+`">`+escapedLabel+`</button>`)
 		return err
 	})
 }

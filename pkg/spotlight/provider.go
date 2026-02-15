@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 type ProviderCapabilities struct {
@@ -41,6 +42,10 @@ func (r *ProviderRegistry) Register(provider SearchProvider) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, exists := r.providers[provider.ProviderID()]; exists {
+		logrus.WithField("provider_id", provider.ProviderID()).Warn("spotlight provider already registered, ignoring duplicate registration")
+		return
+	}
 	r.providers[provider.ProviderID()] = provider
 }
 

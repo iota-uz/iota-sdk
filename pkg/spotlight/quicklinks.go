@@ -2,6 +2,7 @@ package spotlight
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
@@ -10,13 +11,14 @@ import (
 )
 
 type QuickLink struct {
-	trKey string
-	icon  templ.Component
-	link  string
+	trKey     string
+	icon      templ.Component
+	link      string
+	createdAt time.Time
 }
 
 func NewQuickLink(icon templ.Component, trKey, link string) *QuickLink {
-	return &QuickLink{trKey: trKey, icon: icon, link: link}
+	return &QuickLink{trKey: trKey, icon: icon, link: link, createdAt: time.Now().UTC()}
 }
 
 type QuickLinks struct {
@@ -50,7 +52,7 @@ func (ql *QuickLinks) ListDocuments(ctx context.Context, scope ProviderScope) ([
 	for idx, item := range ql.items {
 		label := intl.MustT(ctx, item.trKey)
 		out = append(out, SearchDocument{
-			ID:         item.trKey + ":" + item.link + ":" + string(rune(idx)),
+			ID:         item.trKey + ":" + item.link + ":" + strconv.Itoa(idx),
 			EntityType: "quick_link",
 			Title:      label,
 			Body:       label,
@@ -61,7 +63,7 @@ func (ql *QuickLinks) ListDocuments(ctx context.Context, scope ProviderScope) ([
 				"source": "quick_links",
 			},
 			Access:    AccessPolicy{Visibility: VisibilityPublic},
-			UpdatedAt: time.Now().UTC(),
+			UpdatedAt: item.createdAt,
 		})
 	}
 	return out, nil

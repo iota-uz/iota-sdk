@@ -404,13 +404,27 @@ let spotlight = () => ({
   isOpen: false,
   highlightedIndex: 0,
   init() {
-    if (!window.spotlightConfirmAndGo) {
-      window.spotlightConfirmAndGo = function (url) {
-        if (window.confirm('Open this result?')) {
-          window.location.href = url;
-        }
-      }
+    if (window.__spotlightConfirmBound) {
+      return;
     }
+    window.__spotlightConfirmBound = true;
+
+    const confirmationMessages = {
+      ru: 'Открыть этот результат?',
+      uz: 'Ushbu natijani ochish?',
+      en: 'Open this result?',
+    };
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest('.js-spotlight-confirm[data-spotlight-url]');
+      if (!button) return;
+      const url = button.dataset.spotlightUrl || '';
+      if (!url) return;
+      const lang = (document.documentElement.lang || 'en').slice(0, 2).toLowerCase();
+      const message = confirmationMessages[lang] || confirmationMessages.en;
+      if (window.confirm(message)) {
+        window.location.href = url;
+      }
+    });
   },
 
   handleShortcut(event) {

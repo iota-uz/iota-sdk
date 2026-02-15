@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 type Principal struct {
@@ -59,14 +61,23 @@ func NewStrictACLEvaluator(resolver PrincipalResolver) *StrictACLEvaluator {
 }
 
 func (e *StrictACLEvaluator) CanRead(ctx context.Context, req SearchRequest, hit SearchHit) bool {
+	const op serrors.Op = "spotlight.StrictACLEvaluator.CanRead"
+
 	if hit.Document.TenantID != req.TenantID {
 		return false
 	}
 	policy := hit.Document.Access
-	if policy.Visibility == "" || policy.Visibility == VisibilityPublic {
+	if policy.Visibility == VisibilityPublic {
 		return true
 	}
-	principal, _ := e.resolver.Resolve(ctx, req)
+	principal, err := e.resolver.Resolve(ctx, req)
+	if err != nil {
+		logrus.WithError(serrors.E(op, err)).WithFields(logrus.Fields{
+			"tenant_id": req.TenantID.String(),
+			"user_id":   req.UserID,
+			"doc_id":    hit.Document.ID,
+		}).Warn("spotlight principal resolver failed")
+	}
 	if policy.Visibility == VisibilityOwner {
 		return principal.UserID != "" && policy.OwnerID != "" && policy.OwnerID == principal.UserID
 	}

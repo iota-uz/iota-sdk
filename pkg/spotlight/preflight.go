@@ -3,6 +3,7 @@ package spotlight
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,9 +14,13 @@ func PreflightCheck(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("spotlight preflight: database pool is nil")
 	}
 
-	var versionNum int
-	if err := pool.QueryRow(ctx, `SHOW server_version_num`).Scan(&versionNum); err != nil {
+	var versionStr string
+	if err := pool.QueryRow(ctx, `SHOW server_version_num`).Scan(&versionStr); err != nil {
 		return fmt.Errorf("spotlight preflight: failed to read PostgreSQL version: %w", err)
+	}
+	versionNum, err := strconv.Atoi(strings.TrimSpace(versionStr))
+	if err != nil {
+		return fmt.Errorf("spotlight preflight: invalid PostgreSQL version number %q: %w", versionStr, err)
 	}
 	if versionNum < 170000 {
 		return fmt.Errorf("spotlight preflight: PostgreSQL 17+ is required, got server_version_num=%d", versionNum)

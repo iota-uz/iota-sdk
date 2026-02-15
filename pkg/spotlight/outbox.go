@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -41,18 +42,21 @@ type outboxRow struct {
 }
 
 func (p *PostgresOutboxProcessor) PollAndProcess(ctx context.Context) error {
+	const op serrors.Op = "spotlight.PostgresOutboxProcessor.PollAndProcess"
+
 	if p == nil || p.pool == nil || p.engine == nil {
 		return nil
 	}
 
 	tx, err := p.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
 	}()
 
+	// spotlight_outbox is a shared system queue; tenant isolation is enforced per row during processing using tenant_id.
 	rows, err := tx.Query(ctx, `
 SELECT id, tenant_id, provider, event_type, document_id, payload
 FROM spotlight_outbox
@@ -62,7 +66,7 @@ FOR UPDATE SKIP LOCKED
 LIMIT $1
 `, p.limit)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -77,21 +81,24 @@ LIMIT $1
 			&row.DocumentID,
 			&row.Payload,
 		); scanErr != nil {
-			return scanErr
+			return serrors.E(op, scanErr)
 		}
 		batch = append(batch, row)
 	}
 	if err := rows.Err(); err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	if len(batch) == 0 {
-		return tx.Commit(ctx)
+		if err := tx.Commit(ctx); err != nil {
+			return serrors.E(op, err)
+		}
+		return nil
 	}
 
 	processedIDs := make([]int64, 0, len(batch))
 	for _, row := range batch {
 		if err := p.processEvent(ctx, row); err != nil {
-			return fmt.Errorf("process outbox id=%d: %w", row.ID, err)
+			return serrors.E(op, fmt.Errorf("process outbox id=%d: %w", row.ID, err))
 		}
 		processedIDs = append(processedIDs, row.ID)
 	}
@@ -101,13 +108,18 @@ UPDATE spotlight_outbox
 SET processed_at = NOW()
 WHERE id = ANY($1::bigint[])
 `, processedIDs); err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func (p *PostgresOutboxProcessor) processEvent(ctx context.Context, row outboxRow) error {
+	const op serrors.Op = "spotlight.PostgresOutboxProcessor.processEvent"
+
 	eventType := strings.ToLower(strings.TrimSpace(row.EventType))
 	switch eventType {
 	case "delete":
@@ -121,7 +133,7 @@ func (p *PostgresOutboxProcessor) processEvent(ctx context.Context, row outboxRo
 	case "create", "update", "":
 		doc, err := parseOutboxDocument(row)
 		if err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 		if doc == nil {
 			return nil
@@ -133,6 +145,8 @@ func (p *PostgresOutboxProcessor) processEvent(ctx context.Context, row outboxRo
 }
 
 func parseOutboxDocument(row outboxRow) (*SearchDocument, error) {
+	const op serrors.Op = "spotlight.parseOutboxDocument"
+
 	payload := strings.TrimSpace(string(row.Payload))
 	if payload == "" || payload == "{}" || payload == "null" {
 		return nil, nil
@@ -147,7 +161,7 @@ func parseOutboxDocument(row outboxRow) (*SearchDocument, error) {
 
 	var doc SearchDocument
 	if err := json.Unmarshal(row.Payload, &doc); err != nil {
-		return nil, errors.New("unable to parse spotlight outbox payload as document event or document")
+		return nil, serrors.E(op, errors.New("unable to parse spotlight outbox payload as document event or document"))
 	}
 	normalizeOutboxDocument(&doc, row)
 	return &doc, nil
@@ -170,6 +184,6 @@ func normalizeOutboxDocument(doc *SearchDocument, row outboxRow) {
 		doc.UpdatedAt = time.Now().UTC()
 	}
 	if doc.Access.Visibility == "" {
-		doc.Access.Visibility = VisibilityPublic
+		doc.Access.Visibility = VisibilityRestricted
 	}
 }

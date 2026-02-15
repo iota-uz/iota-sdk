@@ -14,6 +14,8 @@ type IndexerPipeline struct {
 	engine   IndexEngine
 }
 
+const pipelineUpsertBatchSize = 500
+
 func NewIndexerPipeline(registry *ProviderRegistry, engine IndexEngine) *IndexerPipeline {
 	return &IndexerPipeline{registry: registry, engine: engine}
 }
@@ -49,5 +51,14 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 		all = append(all, docs...)
 	}
 
-	return p.engine.Upsert(ctx, all)
+	for start := 0; start < len(all); start += pipelineUpsertBatchSize {
+		end := start + pipelineUpsertBatchSize
+		if end > len(all) {
+			end = len(all)
+		}
+		if err := p.engine.Upsert(ctx, all[start:end]); err != nil {
+			return err
+		}
+	}
+	return nil
 }

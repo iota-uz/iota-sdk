@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pg_textsearch;
 
 CREATE TABLE IF NOT EXISTS spotlight_documents (
     id TEXT NOT NULL,
-    tenant_id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     provider TEXT NOT NULL,
     entity_type TEXT NOT NULL,
     title TEXT NOT NULL,
@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_spotlight_documents_embedding
     USING hnsw (embedding vector_cosine_ops);
 
 CREATE TABLE IF NOT EXISTS spotlight_document_acl (
-    tenant_id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     document_id TEXT NOT NULL,
     principal_type TEXT NOT NULL,
     principal_id TEXT NOT NULL,
@@ -49,7 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_spotlight_document_acl_lookup
     ON spotlight_document_acl (tenant_id, principal_type, principal_id);
 
 CREATE TABLE IF NOT EXISTS spotlight_provider_state (
-    tenant_id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     provider TEXT NOT NULL,
     watermark TEXT NOT NULL DEFAULT '',
     last_indexed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS spotlight_provider_state (
 
 CREATE TABLE IF NOT EXISTS spotlight_outbox (
     id BIGSERIAL PRIMARY KEY,
-    tenant_id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     provider TEXT NOT NULL,
     event_type TEXT NOT NULL,
     document_id TEXT NOT NULL,
@@ -71,8 +71,11 @@ CREATE INDEX IF NOT EXISTS idx_spotlight_outbox_pending
     ON spotlight_outbox (processed_at, created_at)
     WHERE processed_at IS NULL;
 
+CREATE INDEX IF NOT EXISTS idx_spotlight_outbox_tenant_created
+    ON spotlight_outbox (tenant_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS spotlight_scope_config (
-    tenant_id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     provider TEXT NOT NULL,
     entity_type TEXT NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -83,6 +86,7 @@ CREATE TABLE IF NOT EXISTS spotlight_scope_config (
 
 -- +migrate Down
 DROP TABLE IF EXISTS spotlight_scope_config;
+DROP INDEX IF EXISTS idx_spotlight_outbox_tenant_created;
 DROP INDEX IF EXISTS idx_spotlight_outbox_pending;
 DROP TABLE IF EXISTS spotlight_outbox;
 DROP TABLE IF EXISTS spotlight_provider_state;

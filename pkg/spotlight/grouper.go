@@ -3,6 +3,8 @@ package spotlight
 import (
 	"context"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Grouper interface {
@@ -15,6 +17,8 @@ func NewDefaultGrouper() *DefaultGrouper {
 	return &DefaultGrouper{}
 }
 
+// Expected entity types: route, page, navigation, quick_link, knowledge, kb, doc, docs,
+// user, group, role, client, project, order, report.
 func (g *DefaultGrouper) Group(_ context.Context, _ SearchRequest, hits []SearchHit) SearchResponse {
 	resp := SearchResponse{
 		Navigate:  make([]SearchHit, 0),
@@ -32,6 +36,10 @@ func (g *DefaultGrouper) Group(_ context.Context, _ SearchRequest, hits []Search
 		case "user", "group", "role", "client", "project", "order", "report":
 			resp.Data = append(resp.Data, hit)
 		default:
+			logrus.WithFields(logrus.Fields{
+				"entity_type": t,
+				"document_id": hit.Document.ID,
+			}).Debug("spotlight unknown entity type grouped as other")
 			resp.Other = append(resp.Other, hit)
 		}
 	}
