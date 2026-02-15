@@ -96,9 +96,9 @@ templ Rows(cfg *TableConfig) {
 						for i, cell := range row.Cells() {
 							@base.TableCell(base.TableCellProps{
 								Classes: templ.Classes(
-									templ.KV("sticky bg-surface-600 shadow-lg", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
-									templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
-									templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+									templ.KV("sticky bg-surface-600", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
+									templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-primary))]", cfg.Columns[i].StickyPos() == StickyPositionRight),
+									templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-primary))]", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 									cell.Classes(),
 								),
 								Attrs: cell.Attrs(),
@@ -130,18 +130,18 @@ templ Rows(cfg *TableConfig) {
 		} else {
 			for i, row := range cfg.Rows {
 				{{
-				isLastRow := i == len(cfg.Rows)-1
-				rowAttrs := templ.Attributes{}
-				for k, v := range row.Attrs() {
-					rowAttrs[k] = v
-				}
-				if isLastRow && cfg.Infinite.HasMore {
-					rowAttrs["hx-get"] = nextChunkURL(cfg.DataURL, cfg.Infinite.Page, cfg.Infinite.PerPage, currentParams)
-					rowAttrs["hx-indicator"] = "#infinite-scroll-spinner"
-					rowAttrs["hx-trigger"] = "intersect once"
-					rowAttrs["hx-swap"] = "afterend"
-					rowAttrs["hx-target"] = "this"
-				}
+					isLastRow := i == len(cfg.Rows)-1
+					rowAttrs := templ.Attributes{}
+					for k, v := range row.Attrs() {
+						rowAttrs[k] = v
+					}
+					if isLastRow && cfg.Infinite.HasMore {
+						rowAttrs["hx-get"] = nextChunkURL(cfg.DataURL, cfg.Infinite.Page, cfg.Infinite.PerPage, currentParams)
+						rowAttrs["hx-indicator"] = "#infinite-scroll-spinner"
+						rowAttrs["hx-trigger"] = "intersect once"
+						rowAttrs["hx-swap"] = "afterend"
+						rowAttrs["hx-target"] = "this"
+					}
 				}}
 				@base.TableRow(base.TableRowProps{
 					Attrs: rowAttrs,
@@ -161,6 +161,8 @@ templ Rows(cfg *TableConfig) {
 								templ.KV("sticky bg-surface-600 shadow-lg", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
 								templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
 								templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+								templ.KV("border-l border-primary", cfg.Columns[i].StickyPos() == StickyPositionRight),
+								templ.KV("border-r border-primary", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 								cell.Classes(),
 							),
 							Attrs: cellAttrs,
@@ -271,10 +273,11 @@ templ Table(config *TableConfig) {
 			maps.Copy(headAttrs, config.Head.Attrs)
 		}}
 		@base.Table(base.TableProps{
-			Configurable:      config.Configurable,
-			ScrollbarPosition: config.ScrollbarPosition,
-			WrapperClasses:    templ.Classes(templ.KV("max-h-[100svh]", config.Head.Sticky)),
-			Columns:           toBaseTableColumns(config, pageCtx),
+			Configurable:         config.Configurable,
+			ScrollbarPosition:    config.ScrollbarPosition,
+			ScrollbarUnderHeader: config.Head.Sticky && config.Head.ScrollbarUnderHeader,
+			WrapperClasses:       templ.Classes(templ.KV("h-full", config.Head.Sticky)),
+			Columns:              toBaseTableColumns(config, pageCtx),
 			TBodyAttrs: templ.Attributes{
 				"id":          "table-body",
 				"hx-push-url": "false",
@@ -338,7 +341,11 @@ templ Table(config *TableConfig) {
 								</button>
 							</div>
 							<div class="flex-1 min-h-0 overflow-y-auto">
-								<div class="p-4">
+								<div class="p-4 flex flex-col gap-4">
+									<div>
+										<h4 class="text-sm font-medium text-gray-900 mb-2">
+											{ pageCtx.T("Scaffold.Table.Columns") }
+										</h4>
 									<ul
 										class="flex flex-col gap-2"
 										x-sort.ghost
@@ -348,7 +355,7 @@ templ Table(config *TableConfig) {
 										},
 									}"
 									>
-										<template x-for="col in fixedColumns" :key="col.key">
+										<template x-for="col in fixedColumns.filter(c => !c.sticky)" :key="col.key">
 											<li
 												class="flex items-center justify-between gap-2"
 												:x-sort:item="col.key"
@@ -378,7 +385,64 @@ templ Table(config *TableConfig) {
 											</li>
 										</template>
 									</ul>
+									</div>
+									<div>
+										<h4 class="text-sm font-medium text-gray-900 mb-2">
+											{ pageCtx.T("Scaffold.Table.Grid") }
+										</h4>
+										<ul class="flex flex-col gap-2">
+											<li class="flex items-center justify-between gap-2">
+												<label for="grid-vertical" class="text-sm font-medium">
+													{ pageCtx.T("Scaffold.Table.GridVertical") }
+												</label>
+												@input.Switch(&input.SwitchProps{
+													Size: input.SwitchSizeSM,
+													LabelAttrs: templ.Attributes{
+														"for": "grid-vertical",
+													},
+													Attrs: templ.Attributes{
+														"id":       "grid-vertical",
+														":checked": "grid.verticalLines",
+														"@change": `(e) => {
+														e.stopPropagation();
+														e.stopImmediatePropagation();
+														toggleGridVertical();
+													}`,
+													},
+												})
+											</li>
+											<li class="flex items-center justify-between gap-2">
+												<label for="grid-horizontal" class="text-sm font-medium">
+													{ pageCtx.T("Scaffold.Table.GridHorizontal") }
+												</label>
+												@input.Switch(&input.SwitchProps{
+													Size: input.SwitchSizeSM,
+													LabelAttrs: templ.Attributes{
+														"for": "grid-horizontal",
+													},
+													Attrs: templ.Attributes{
+														"id":       "grid-horizontal",
+														":checked": "grid.horizontalLines",
+														"@change": `(e) => {
+														e.stopPropagation();
+														e.stopImmediatePropagation();
+														toggleGridHorizontal();
+													}`,
+													},
+												})
+											</li>
+										</ul>
+									</div>
 								</div>
+							</div>
+							<div class="px-4 py-3 border-t border-primary">
+								<button
+									type="button"
+									class="w-full text-sm text-center py-2 px-3 rounded-md border border-primary hover:bg-surface-400 transition-colors cursor-pointer"
+									@click="resetConfiguration()"
+								>
+									{ pageCtx.T("Scaffold.Table.ResetSettings") }
+								</button>
 							</div>
 						</div>
 					</div>
@@ -534,15 +598,14 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContextProvider) 
 			Label: col.Label(),
 			Class: templ.Classes(
 				templ.KV("bg-surface-500 sticky", col.StickyPos().Right() || col.StickyPos().Left()),
-				templ.KV("right-0", col.StickyPos().Right()),
-				templ.KV("left-0", col.StickyPos().Left()),
-				templ.KV("shadow-lg", (col.StickyPos().Right() || col.StickyPos().Left()) && !config.Head.Sticky),
+				templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-primary))]", col.StickyPos().Right()),
+				templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-primary))]", col.StickyPos().Left()),
 				col.Class(),
 			).String(),
 			Sortable:     col.Sortable(),
 			SortDir:      col.SortDir(),
 			SortURL:      col.SortURL(),
-			Configurable: config.Configurable,
+			Configurable: config.Configurable && !col.StickyPos().Left() && !col.StickyPos().Right(),
 			Sticky:       !col.StickyPos().Unknown(),
 			AddonBottom:  col.AddonBottom(),
 		}

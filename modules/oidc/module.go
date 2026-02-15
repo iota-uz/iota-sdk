@@ -18,9 +18,6 @@ import (
 //go:embed presentation/locales/*.toml
 var LocaleFiles embed.FS
 
-//go:embed infrastructure/persistence/schema/oidc-schema.sql
-var MigrationFiles embed.FS
-
 type ModuleOptions struct{}
 
 func NewModule(opts *ModuleOptions) application.Module {
@@ -41,8 +38,7 @@ func (m *Module) Name() string {
 }
 
 func (m *Module) Register(app application.Application) error {
-	// Register migrations and locales
-	app.Migrations().RegisterSchema(&MigrationFiles)
+	// Register locales
 	app.RegisterLocaleFiles(&LocaleFiles)
 
 	// Get configuration

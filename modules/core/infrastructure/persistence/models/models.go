@@ -6,6 +6,8 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Tenant struct {
@@ -82,27 +84,30 @@ type Role struct {
 }
 
 type User struct {
-	ID                uint
-	TenantID          string // UUID stored as string
-	Type              string
-	FirstName         string
-	LastName          string
-	MiddleName        sql.NullString
-	Email             string
-	Phone             sql.NullString
-	Password          sql.NullString
-	AvatarID          sql.NullInt32
-	LastLogin         sql.NullTime
-	LastIP            sql.NullString
-	UILanguage        string
-	LastAction        sql.NullTime
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	IsBlocked         bool
-	BlockReason       sql.NullString
-	BlockedAt         sql.NullTime
-	BlockedBy         sql.NullInt64
-	BlockedByTenantID sql.NullString
+	ID                  uint
+	TenantID            string // UUID stored as string
+	Type                string
+	FirstName           string
+	LastName            string
+	MiddleName          sql.NullString
+	Email               string
+	Phone               sql.NullString
+	Password            sql.NullString
+	AvatarID            sql.NullInt32
+	LastLogin           sql.NullTime
+	LastIP              sql.NullString
+	UILanguage          string
+	LastAction          sql.NullTime
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	IsBlocked           bool
+	BlockReason         sql.NullString
+	BlockedAt           sql.NullTime
+	BlockedBy           sql.NullInt64
+	BlockedByTenantID   sql.NullString
+	TwoFactorMethod     sql.NullString
+	TOTPSecretEncrypted sql.NullString
+	TwoFactorEnabledAt  sql.NullTime
 }
 
 type UserRole struct {
@@ -131,6 +136,7 @@ type Session struct {
 	UserAgent string
 	CreatedAt time.Time
 	Audience  string
+	Status    string
 }
 
 type AuthenticationLog struct {
@@ -220,4 +226,44 @@ func (p *Point) Scan(val any) error {
 
 func (p *Point) String() string {
 	return fmt.Sprintf("(%v, %v)", p.X, p.Y)
+}
+
+type RecoveryCode struct {
+	ID        uint
+	UserID    uint
+	CodeHash  string
+	UsedAt    *time.Time
+	CreatedAt time.Time
+	TenantID  string // UUID stored as string
+}
+
+// ParsedTenantID parses the TenantID string to a UUID
+func (rc *RecoveryCode) ParsedTenantID() uuid.UUID {
+	tenantID, err := uuid.Parse(rc.TenantID)
+	if err != nil {
+		tenantID = uuid.Nil
+	}
+	return tenantID
+}
+
+type OTP struct {
+	ID         uint
+	Identifier string
+	CodeHash   string
+	Channel    string // OTPChannel stored as string
+	ExpiresAt  time.Time
+	UsedAt     *time.Time
+	Attempts   int
+	CreatedAt  time.Time
+	TenantID   string // UUID stored as string
+	UserID     uint
+}
+
+// ParsedTenantID parses the TenantID string to a UUID
+func (o *OTP) ParsedTenantID() uuid.UUID {
+	tenantID, err := uuid.Parse(o.TenantID)
+	if err != nil {
+		tenantID = uuid.Nil
+	}
+	return tenantID
 }

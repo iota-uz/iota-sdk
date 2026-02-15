@@ -132,6 +132,13 @@ const (
 	CapabilityJSONSchema Capability = "json_schema"
 )
 
+// ModelParameterReporter is an optional interface that Model implementations can satisfy
+// to report the parameters used for API calls (temperature, max_tokens, store, etc.).
+// This is used for observability — the returned map is sent as modelParameters in Langfuse.
+type ModelParameterReporter interface {
+	ModelParameters() map[string]interface{}
+}
+
 // ModelPricing contains pricing information for LLM tokens.
 // All prices are per 1 million tokens in the specified currency.
 type ModelPricing struct {

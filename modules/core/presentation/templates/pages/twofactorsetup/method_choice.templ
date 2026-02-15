@@ -1,0 +1,95 @@
+package twofactorsetup
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type MethodChoiceProps struct {
+	NextURL string
+}
+
+templ MethodChoice(p *MethodChoiceProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Base(&layouts.BaseProps{Title: pageCtx.T("TwoFactor.Setup.Meta.Title")}) {
+		<div class="flex flex-col h-screen overflow-y-auto">
+			<div class="flex-1 flex items-center justify-center">
+				<div class="mx-4 max-w-md w-full p-6 md:p-11 flex flex-col gap-6">
+					<div class="text-center">
+						<h1 class="text-2xl text-100 mb-2">
+							{ pageCtx.T("TwoFactor.Setup.SetupTwoFactor") }
+						</h1>
+						<p class="text-200">{ pageCtx.T("TwoFactor.Setup.ChooseMethod") }</p>
+					</div>
+					<form method="post" class="flex flex-col gap-4">
+						@composables.CSRFTokenField(ctx)
+						<input type="hidden" name="NextURL" value={ p.NextURL }/>
+						<!-- TOTP Option -->
+						<label class="cursor-pointer">
+							<input type="radio" name="Method" value="totp" class="sr-only peer" checked/>
+							@card.Card(card.Props{
+								Class: "peer-checked:border-primary peer-checked:bg-primary/5 transition-all hover:border-primary/50 cursor-pointer",
+							}) {
+								<div class="flex items-start gap-4">
+									<div class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
+										@icons.QrCode(icons.Props{Size: "24", Class: "text-primary"})
+									</div>
+									<div class="flex-1">
+										<h2 class="font-semibold text-100">{ pageCtx.T("TwoFactor.Setup.TOTPMethod") }</h2>
+										<p class="text-sm text-200 mt-1">{ pageCtx.T("TwoFactor.Setup.TOTPDescription") }</p>
+									</div>
+								</div>
+							}
+						</label>
+						<!-- SMS Option -->
+						<label class="cursor-pointer">
+							<input type="radio" name="Method" value="sms" class="sr-only peer"/>
+							@card.Card(card.Props{
+								Class: "peer-checked:border-primary peer-checked:bg-primary/5 transition-all hover:border-primary/50 cursor-pointer",
+							}) {
+								<div class="flex items-start gap-4">
+									<div class="flex items-center justify-center w-10 h-10 rounded-lg bg-green-100">
+										@icons.Phone(icons.Props{Size: "24", Class: "text-green-600"})
+									</div>
+									<div class="flex-1">
+										<h2 class="font-semibold text-100">{ pageCtx.T("TwoFactor.Setup.SMSMethod") }</h2>
+										<p class="text-sm text-200 mt-1">{ pageCtx.T("TwoFactor.Setup.SMSDescription") }</p>
+									</div>
+								</div>
+							}
+						</label>
+						<!-- Email Option -->
+						<label class="cursor-pointer">
+							<input type="radio" name="Method" value="email" class="sr-only peer"/>
+							@card.Card(card.Props{
+								Class: "peer-checked:border-primary peer-checked:bg-primary/5 transition-all hover:border-primary/50 cursor-pointer",
+							}) {
+								<div class="flex items-start gap-4">
+									<div class="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100">
+										@icons.Envelope(icons.Props{Size: "24", Class: "text-blue-600"})
+									</div>
+									<div class="flex-1">
+										<h2 class="font-semibold text-100">{ pageCtx.T("TwoFactor.Setup.EmailMethod") }</h2>
+										<p class="text-sm text-200 mt-1">{ pageCtx.T("TwoFactor.Setup.EmailDescription") }</p>
+									</div>
+								</div>
+							}
+						</label>
+						@button.Primary(button.Props{
+							Size:  button.SizeNormal,
+							Class: "justify-center mt-4",
+							Attrs: templ.Attributes{
+								"type": "submit",
+							},
+						}) {
+							{ pageCtx.T("TwoFactor.Setup.Continue") }
+						}
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+}

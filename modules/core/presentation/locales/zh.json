@@ -49,6 +49,23 @@
       "PhonePlaceholder": "输入电话号码（例如 +1234567890）",
       "Email": "电子邮件地址",
       "EmailPlaceholder": "输入电子邮件地址"
+    },
+    "Sessions": {
+      "Title": "活动会话",
+      "DescText": "管理您在不同设备上的活动会话",
+      "CurrentDevice": "当前",
+      "Device": "设备",
+      "IPAddress": "IP 地址",
+      "CreatedAt": "登录时间",
+      "Actions": "操作",
+      "Revoke": "撤销",
+      "RevokeAll": "从所有其他设备注销",
+      "ConfirmRevoke": "您确定要撤销此会话吗？",
+      "ConfirmRevokeAll": "您确定要从所有其他设备注销吗？",
+      "RevokeSuccess": "会话已成功撤销",
+      "RevokeAllSuccess": "已撤销 %d 个会话",
+      "EmptyState": "您仅在此设备上登录",
+      "CannotRevokeCurrent": "无法撤销当前会话"
     }
   },
   "Actions": "操作",
@@ -522,6 +539,7 @@
     "Employees": "员工",
     "Navbar": {
       "Profile": "个人资料",
+      "Sessions": "会话",
       "Logout": "退出登录"
     }
   },
@@ -770,6 +788,10 @@
       "Decline": "拒绝管道",
       "RequestAdditionalInfo": "请求附加信息",
       "CompleteAssessment": "完成评估"
+    },
+    "Session": {
+      "Read": "查看会话",
+      "Delete": "删除会话"
     }
   },
   "Projects": {
@@ -806,7 +828,8 @@
     "upload": "上传",
     "payout_request": "支付请求",
     "pipeline": "管道",
-    "website": "网站"
+    "website": "网站",
+    "session": "会话"
   },
   "Roles": {
     "Meta": {
@@ -844,7 +867,12 @@
       "NoDataTitle": "无可用数据",
       "NoDataDescription": "此表没有可用数据。",
       "NothingFound": "未找到任何内容",
-      "TableSettings": "表格设置"
+      "TableSettings": "表格设置",
+      "ResetSettings": "重置设置",
+      "Columns": "列",
+      "Grid": "网格",
+      "GridVertical": "垂直线",
+      "GridHorizontal": "水平线"
     },
     "Filters": {
       "Title": "筛选器",
@@ -903,7 +931,8 @@
     },
     "Tabs": {
       "UserInfo": "用户信息",
-      "Permissions": "权限"
+      "Permissions": "权限",
+      "Sessions": "会话"
     },
     "Single": {
       "EditUser": "编辑用户",
@@ -954,6 +983,20 @@
     },
     "Delete": {
       "NotAllowed": "无法删除：您是此租户中的唯一用户"
+    },
+    "Sessions": {
+      "Title": "会话：",
+      "Device": "设备",
+      "Browser": "浏览器",
+      "OS": "操作系统",
+      "IP": "IP 地址",
+      "CreatedAt": "创建时间",
+      "Actions": "操作",
+      "Revoke": "撤销",
+      "RevokeConfirm": "您确定要撤销此会话吗？",
+      "NoSessions": "无活动会话",
+      "RevokeSuccess": "会话已成功撤销",
+      "RevokeFailed": "撤销会话失败"
     }
   },
   "ValidationErrors": {
@@ -976,6 +1019,91 @@
     "invalidPIN": "无效的 PIN 格式：{{.Details}}"
   },
   "Yes": "是",
+  "TwoFactor": {
+    "Setup": {
+      "Meta": {
+        "Title": "设置两步验证",
+        "TOTP": "身份验证器应用",
+        "OTP": "验证码",
+        "Complete": "设置完成"
+      },
+      "SetupTwoFactor": "设置两步验证",
+      "ChooseMethod": "选择如何保护你的账户",
+      "Continue": "继续",
+      "TOTPMethod": "身份验证器应用",
+      "TOTPDescription": "使用 Google Authenticator、Microsoft Authenticator 或 Authy 等身份验证器应用",
+      "SMSMethod": "短信",
+      "SMSDescription": "通过短信接收验证码到你的手机",
+      "EmailMethod": "电子邮件",
+      "EmailDescription": "通过电子邮件接收验证码",
+      "SetupAuthenticator": "设置身份验证器应用",
+      "ScanQRCode": "使用身份验证器应用扫描此二维码",
+      "ScanWithAuthenticator": "使用身份验证器应用扫描此二维码，或手动输入设置密钥",
+      "EnterCode": "输入来自你的身份验证器的6位代码",
+      "EnterVerificationCode": "输入验证码",
+      "DigitCode": "6位代码",
+      "Verify": "验证并继续",
+      "VerifyPhone": "验证你的电话号码",
+      "VerifyEmail": "验证你的电子邮件",
+      "CodeSentToPhone": "我们已将验证码发送到你的手机",
+      "CodeSentToEmail": "我们已将验证码发送到你的电子邮件",
+      "CodeSent": "代码发送成功",
+      "SMSSent": "验证码已发送到你的手机",
+      "EmailSent": "验证码已发送到你的电子邮件",
+      "ResendCode": "重新发送代码",
+      "TOTPHelp": "如果你失去对身份验证器应用的访问权限，你将无法登录。请将恢复代码保存在安全的地方。",
+      "SMSHelp": "代码有效期为10分钟。如果你没有收到，请尝试请求新代码。",
+      "EmailHelp": "检查你的电子邮件以获取验证码。它有效期为10分钟。",
+      "Success": "两步验证已启用",
+      "SetupComplete": "你的账户现在受到两步验证的保护",
+      "SaveRecoveryCodes": "保存恢复代码",
+      "RecoveryCodesWarning": "这些恢复代码是在失去对身份验证器应用或手机的访问权限时访问你账户的唯一方式。将它们存储在安全的地方。",
+      "BackupCodesTip": "每个代码只能使用一次。将它们保存在安全的地方，例如密码管理器中。",
+      "BackupCodesTipOTP": "每个代码只能使用一次。如果你需要新的恢复代码，你可以在账户设置中重新生成它们。",
+      "PrintCodes": "打印代码",
+      "CopyCodes": "复制代码",
+      "RecoveryCodesInfo": "如果你失去对身份验证器设备的访问权限，你可以使用恢复代码。每个代码只能使用一次。",
+      "InvalidCode": "你输入的代码无效或已过期。请重试。",
+      "InvalidMethod": "选择的验证方法无效。请重试。",
+      "ResendFailed": "无法重新发送验证码。请重试。",
+      "Error": "无法设置两步验证。请重试。"
+    },
+    "Verify": {
+      "Meta": {
+        "Title": "验证你的身份",
+        "Recovery": "使用恢复代码"
+      },
+      "EnterCode": "输入验证码",
+      "EnterAuthenticatorCode": "输入你的身份验证器应用中的代码",
+      "VerifyPhone": "验证你的电话号码",
+      "VerifyEmail": "验证你的电子邮件",
+      "CodeSentToPhone": "我们已将验证码发送到你的手机",
+      "CodeSentToEmail": "我们已将验证码发送到你的电子邮件",
+      "EnterVerificationCode": "输入验证码",
+      "DigitCode": "6位代码",
+      "Verify": "验证",
+      "ResendCode": "重新发送代码",
+      "CodeSent": "代码发送成功",
+      "SMSCodeSent": "验证码已发送到你的手机",
+      "EmailCodeSent": "验证码已发送到你的电子邮件",
+      "ResendError": "无法发送代码。请重试。",
+      "InvalidCode": "你输入的代码无效或已过期。请重试。",
+      "InvalidRecoveryCode": "你输入的恢复代码无效。请重试。",
+      "Error": "无法验证你的身份。请重试。",
+      "Success": "身份验证成功",
+      "LostAccess": "无法访问你的身份验证器或手机？",
+      "UseRecoveryCode": "改用恢复代码",
+      "RecoveryCodeLabel": "输入恢复代码",
+      "RecoveryCodeFormat": "格式：XXXX-XXXX-XXXX（12个字符）",
+      "EnterRecoveryCode": "输入保存的恢复代码之一",
+      "VerifyRecoveryCode": "验证恢复代码",
+      "BackToVerification": "可以访问你的身份验证器或手机吗？",
+      "TOTPHelp": "如果你失去对身份验证器应用的访问权限，你将无法登录。请改用恢复代码。",
+      "SMSHelp": "代码有效期为10分钟。如果你没有收到，请尝试请求新代码或使用恢复代码。",
+      "EmailHelp": "检查你的电子邮件以获取验证码。它有效期为10分钟，或者使用恢复代码。",
+      "RecoveryCodeHelp": "每个恢复代码只能使用一次。如果恢复代码用尽，你可以在账户设置中生成新的。"
+    }
+  },
   "multilang": {
     "empty": "—",
     "no_translations": "无可用翻译",
@@ -983,5 +1111,26 @@
     "remove_language": "移除此语言",
     "locale_placeholder": "zh",
     "text_placeholder": "在此语言中输入文本"
+  },
+  "Sessions": {
+    "Meta": {
+      "List": {
+        "Title": "活动会话"
+      }
+    },
+    "List": {
+      "Title": "活动会话",
+      "Search": "搜索用户...",
+      "User": "用户",
+      "Device": "设备",
+      "IP": "IP 地址",
+      "CreatedAt": "创建时间",
+      "Actions": "操作",
+      "Revoke": "撤销",
+      "ConfirmRevoke": "您确定要撤销此会话吗？",
+      "EmptyState": "无活动会话",
+      "CurrentSession": "当前"
+    },
+    "Revoked": "会话已撤销"
   }
 }

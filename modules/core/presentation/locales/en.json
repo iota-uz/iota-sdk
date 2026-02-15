@@ -49,6 +49,23 @@
       "PhonePlaceholder": "Enter phone number (e.g. +1234567890)",
       "Email": "Email Address",
       "EmailPlaceholder": "Enter email address"
+    },
+    "Sessions": {
+      "Title": "Active Sessions",
+      "DescText": "Manage your active sessions across devices",
+      "CurrentDevice": "Current",
+      "Device": "Device",
+      "IPAddress": "IP Address",
+      "CreatedAt": "Signed In",
+      "Actions": "Actions",
+      "Revoke": "Revoke",
+      "RevokeAll": "Sign out all other devices",
+      "ConfirmRevoke": "Are you sure you want to revoke this session?",
+      "ConfirmRevokeAll": "Are you sure you want to sign out from all other devices?",
+      "RevokeSuccess": "Session revoked successfully",
+      "RevokeAllSuccess": "%d sessions revoked",
+      "EmptyState": "You are only signed in on this device",
+      "CannotRevokeCurrent": "Cannot revoke current session"
     }
   },
   "Actions": "Actions",
@@ -518,6 +535,7 @@
     "Metrics": "Metrics",
     "Navbar": {
       "Profile": "Profile",
+      "Sessions": "Sessions",
       "Logout": "Logout"
     }
   },
@@ -766,6 +784,10 @@
       "Decline": "Decline pipelines",
       "RequestAdditionalInfo": "Request additional information",
       "CompleteAssessment": "Complete assessment"
+    },
+    "Session": {
+      "Read": "View sessions",
+      "Delete": "Delete sessions"
     }
   },
   "Projects": {
@@ -802,7 +824,8 @@
     "upload": "Uploads",
     "payout_request": "Payout Request",
     "pipeline": "Pipeline",
-    "website": "Website"
+    "website": "Website",
+    "session": "Sessions"
   },
   "Roles": {
     "Meta": {
@@ -840,7 +863,12 @@
       "NoDataTitle": "No data available",
       "NoDataDescription": "There is no data available for this table.",
       "NothingFound": "Nothing found",
-      "TableSettings": "Table settings"
+      "TableSettings": "Table settings",
+      "ResetSettings": "Reset settings",
+      "Columns": "Columns",
+      "Grid": "Grid",
+      "GridVertical": "Vertical lines",
+      "GridHorizontal": "Horizontal lines"
     },
     "Filters": {
       "Title": "Filters",
@@ -899,7 +927,8 @@
     },
     "Tabs": {
       "UserInfo": "User Info",
-      "Permissions": "Permissions"
+      "Permissions": "Permissions",
+      "Sessions": "Sessions"
     },
     "Single": {
       "EditUser": "Edit user",
@@ -950,6 +979,20 @@
     },
     "Delete": {
       "NotAllowed": "Cannot delete: You are the only user in this tenant"
+    },
+    "Sessions": {
+      "Title": "Sessions for:",
+      "Device": "Device",
+      "Browser": "Browser",
+      "OS": "Operating System",
+      "IP": "IP Address",
+      "CreatedAt": "Created At",
+      "Actions": "Actions",
+      "Revoke": "Revoke",
+      "RevokeConfirm": "Are you sure you want to revoke this session?",
+      "NoSessions": "No active sessions",
+      "RevokeSuccess": "Session revoked successfully",
+      "RevokeFailed": "Failed to revoke session"
     }
   },
   "ValidationErrors": {
@@ -972,6 +1015,91 @@
     "invalidPIN": "Invalid PIN format: {{.Details}}"
   },
   "Yes": "Yes",
+  "TwoFactor": {
+    "Setup": {
+      "Meta": {
+        "Title": "Set up two-factor authentication",
+        "TOTP": "Authenticator App",
+        "OTP": "Verification Code",
+        "Complete": "Setup Complete"
+      },
+      "SetupTwoFactor": "Set Up Two-Factor Authentication",
+      "ChooseMethod": "Choose how you want to secure your account",
+      "Continue": "Continue",
+      "TOTPMethod": "Authenticator App",
+      "TOTPDescription": "Use an authenticator app like Google Authenticator, Microsoft Authenticator, or Authy",
+      "SMSMethod": "SMS Text Message",
+      "SMSDescription": "Receive verification codes via text message to your phone",
+      "EmailMethod": "Email",
+      "EmailDescription": "Receive verification codes via email",
+      "SetupAuthenticator": "Set Up Your Authenticator App",
+      "ScanQRCode": "Scan this QR code with your authenticator app",
+      "ScanWithAuthenticator": "Use an authenticator app to scan this QR code, or enter the setup key manually",
+      "EnterCode": "Enter the 6-digit code from your authenticator",
+      "EnterVerificationCode": "Enter the verification code",
+      "DigitCode": "6-digit code",
+      "Verify": "Verify and Continue",
+      "VerifyPhone": "Verify Your Phone Number",
+      "VerifyEmail": "Verify Your Email",
+      "CodeSentToPhone": "We've sent a verification code to your phone",
+      "CodeSentToEmail": "We've sent a verification code to your email",
+      "CodeSent": "Code sent successfully",
+      "SMSSent": "Verification code sent to your phone",
+      "EmailSent": "Verification code sent to your email",
+      "ResendCode": "Resend Code",
+      "TOTPHelp": "If you lose access to your authenticator app, you won't be able to log in. Save your recovery codes in a safe place.",
+      "SMSHelp": "The code will be valid for 10 minutes. If you don't receive it, check your spam folder.",
+      "EmailHelp": "Check your email for the verification code. It will be valid for 10 minutes.",
+      "Success": "Two-Factor Authentication Enabled",
+      "SetupComplete": "Your account is now protected with two-factor authentication",
+      "SaveRecoveryCodes": "Save Your Recovery Codes",
+      "RecoveryCodesWarning": "These recovery codes are the only way to access your account if you lose access to your authenticator app or phone. Store them in a secure location.",
+      "BackupCodesTip": "Each code can only be used once. Save them in a safe place like a password manager.",
+      "BackupCodesTipOTP": "Each code can only be used once. If you need new recovery codes, you can regenerate them in account settings.",
+      "PrintCodes": "Print Codes",
+      "CopyCodes": "Copy Codes",
+      "RecoveryCodesInfo": "You can use a recovery code instead of your authenticator device if you lose access to it. Each code can only be used once.",
+      "InvalidCode": "The code you entered is invalid or has expired. Please try again.",
+      "InvalidMethod": "Invalid verification method selected. Please try again.",
+      "ResendFailed": "Failed to resend the verification code. Please try again.",
+      "Error": "Failed to set up two-factor authentication. Please try again."
+    },
+    "Verify": {
+      "Meta": {
+        "Title": "Verify Your Identity",
+        "Recovery": "Use Recovery Code"
+      },
+      "EnterCode": "Enter Verification Code",
+      "EnterAuthenticatorCode": "Enter the code from your authenticator app",
+      "VerifyPhone": "Verify Your Phone Number",
+      "VerifyEmail": "Verify Your Email",
+      "CodeSentToPhone": "We've sent a verification code to your phone",
+      "CodeSentToEmail": "We've sent a verification code to your email",
+      "EnterVerificationCode": "Enter the verification code",
+      "DigitCode": "6-digit code",
+      "Verify": "Verify",
+      "ResendCode": "Resend Code",
+      "CodeSent": "Code sent successfully",
+      "SMSCodeSent": "Verification code sent to your phone",
+      "EmailCodeSent": "Verification code sent to your email",
+      "ResendError": "Failed to resend the code. Please try again.",
+      "InvalidCode": "The code you entered is invalid or has expired. Please try again.",
+      "InvalidRecoveryCode": "The recovery code you entered is invalid. Please try again.",
+      "Error": "Failed to verify your identity. Please try again.",
+      "Success": "Identity verified successfully",
+      "LostAccess": "Don't have access to your authenticator or phone?",
+      "UseRecoveryCode": "Use a recovery code instead",
+      "RecoveryCodeLabel": "Enter Recovery Code",
+      "RecoveryCodeFormat": "Format: XXXX-XXXX-XXXX (12 characters)",
+      "EnterRecoveryCode": "Enter one of your saved recovery codes",
+      "VerifyRecoveryCode": "Verify Recovery Code",
+      "BackToVerification": "Have your authenticator or phone?",
+      "TOTPHelp": "If you lose access to your authenticator app, you won't be able to log in. Use a recovery code instead.",
+      "SMSHelp": "The code will be valid for 10 minutes. If you don't receive it, check your spam folder or use a recovery code.",
+      "EmailHelp": "Check your email for the verification code. It will be valid for 10 minutes, or use a recovery code.",
+      "RecoveryCodeHelp": "Each recovery code can only be used once. If you run out of recovery codes, you can generate new ones in your account settings."
+    }
+  },
   "multilang": {
     "empty": "—",
     "no_translations": "No translations available",
@@ -979,5 +1107,26 @@
     "remove_language": "Remove this language",
     "locale_placeholder": "en",
     "text_placeholder": "Enter text in this language"
+  },
+  "Sessions": {
+    "Meta": {
+      "List": {
+        "Title": "Active Sessions"
+      }
+    },
+    "List": {
+      "Title": "Active Sessions",
+      "Search": "Search by user name or email...",
+      "User": "User",
+      "Device": "Device",
+      "IP": "IP Address",
+      "CreatedAt": "Created",
+      "Actions": "Actions",
+      "Revoke": "Revoke",
+      "ConfirmRevoke": "Are you sure you want to revoke this session?",
+      "EmptyState": "No active sessions found",
+      "CurrentSession": "Current"
+    },
+    "Revoked": "Session revoked successfully"
   }
 }

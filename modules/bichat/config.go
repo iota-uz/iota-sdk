@@ -688,7 +688,7 @@ func (c *ModuleConfig) BuildServices() error {
 	// Build TitleGenerationService (required unless disabled)
 	var titleService services.TitleGenerationService
 	if !c.DisableTitleGeneration {
-		titleSvc, err := services.NewTitleGenerationService(c.Model, c.ChatRepo)
+		titleSvc, err := services.NewTitleGenerationService(c.Model, c.ChatRepo, c.EventBus)
 		if err != nil {
 			return serrors.E(op, err, "failed to create title generation service")
 		}

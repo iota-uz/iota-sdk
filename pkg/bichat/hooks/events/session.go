@@ -42,6 +42,21 @@ func NewMessageSaveEvent(sessionID, tenantID, messageID uuid.UUID, role string, 
 	}
 }
 
+// SessionTitleUpdatedEvent indicates a session title was generated or updated.
+// Emitted after TitleGenerationService successfully updates a session title.
+type SessionTitleUpdatedEvent struct {
+	baseEvent
+	Title string // Generated session title
+}
+
+// NewSessionTitleUpdatedEvent creates a new SessionTitleUpdatedEvent.
+func NewSessionTitleUpdatedEvent(sessionID, tenantID uuid.UUID, title string) *SessionTitleUpdatedEvent {
+	return &SessionTitleUpdatedEvent{
+		baseEvent: newBaseEvent("session.title_updated", sessionID, tenantID),
+		Title:     title,
+	}
+}
+
 // InterruptEvent indicates agent execution was interrupted for human input.
 // Emitted when HITL (human-in-the-loop) interrupts execution.
 type InterruptEvent struct {

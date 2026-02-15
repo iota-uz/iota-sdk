@@ -1,6 +1,7 @@
 package user
 
 import (
+	"database/sql"
 	"strings"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+	"github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/iota-uz/utils/sequence"
 
 	"golang.org/x/crypto/bcrypt"
@@ -156,6 +158,24 @@ func WithBlockedByTenantID(tenantID uuid.UUID) Option {
 	}
 }
 
+func WithTwoFactorMethod(method twofactor.Method) Option {
+	return func(u *user) {
+		u.twoFactorMethod = method
+	}
+}
+
+func WithTwoFactorEnabledAt(t time.Time) Option {
+	return func(u *user) {
+		u.twoFactorEnabledAt = t
+	}
+}
+
+func WithTOTPSecretEncrypted(secret string) Option {
+	return func(u *user) {
+		u.totpSecretEncrypted = secret
+	}
+}
+
 // ---- Interfaces ----
 
 type User interface {
@@ -179,6 +199,9 @@ type User interface {
 	LastAction() time.Time
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+	TwoFactorMethod() twofactor.Method
+	TwoFactorEnabledAt() time.Time
+	TOTPSecretEncrypted() string
 
 	Events() []interface{}
 
@@ -187,6 +210,7 @@ type User interface {
 	CanDelete() bool
 
 	CheckPassword(password string) bool
+	Has2FAEnabled() bool
 
 	AddRole(r role.Role) User
 	RemoveRole(r role.Role) User
@@ -253,32 +277,35 @@ func New(
 }
 
 type user struct {
-	id                uint
-	tenantID          uuid.UUID
-	type_             Type
-	firstName         string
-	lastName          string
-	middleName        string
-	password          string
-	email             internet.Email
-	phone             phone.Phone
-	avatarID          uint
-	avatar            upload.Upload
-	lastIP            string
-	uiLanguage        UILanguage
-	roles             []role.Role
-	groupIDs          []uuid.UUID
-	permissions       []permission.Permission
-	lastLogin         time.Time
-	lastAction        time.Time
-	createdAt         time.Time
-	updatedAt         time.Time
-	isBlocked         bool
-	blockReason       string
-	blockedAt         time.Time
-	blockedBy         uint
-	blockedByTenantID uuid.UUID
-	events            []interface{}
+	id                  uint
+	tenantID            uuid.UUID
+	type_               Type
+	firstName           string
+	lastName            string
+	middleName          string
+	password            string
+	email               internet.Email
+	phone               phone.Phone
+	avatarID            uint
+	avatar              upload.Upload
+	lastIP              string
+	uiLanguage          UILanguage
+	roles               []role.Role
+	groupIDs            []uuid.UUID
+	permissions         []permission.Permission
+	lastLogin           time.Time
+	lastAction          time.Time
+	createdAt           time.Time
+	updatedAt           time.Time
+	isBlocked           bool
+	blockReason         string
+	blockedAt           time.Time
+	blockedBy           uint
+	blockedByTenantID   uuid.UUID
+	twoFactorMethod     twofactor.Method
+	twoFactorEnabledAt  time.Time
+	totpSecretEncrypted string
+	events              []interface{}
 }
 
 func (u *user) ID() uint {
@@ -611,4 +638,29 @@ func (u *user) Unblock() User {
 	result.blockedByTenantID = uuid.Nil
 	result.updatedAt = time.Now()
 	return &result
+}
+
+func (u *user) TwoFactorMethod() twofactor.Method {
+	return u.twoFactorMethod
+}
+
+func (u *user) TwoFactorEnabledAt() time.Time {
+	return u.twoFactorEnabledAt
+}
+
+func (u *user) TOTPSecretEncrypted() string {
+	return u.totpSecretEncrypted
+}
+
+func (u *user) Has2FAEnabled() bool {
+	return u.twoFactorMethod != "" && !u.twoFactorEnabledAt.IsZero()
+}
+
+// --- DTOs ---
+
+// Update2FADTO represents the data transfer object for updating user 2FA configuration
+type Update2FADTO struct {
+	Method              twofactor.Method
+	TOTPSecretEncrypted string
+	EnabledAt           sql.NullTime
 }

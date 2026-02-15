@@ -130,8 +130,11 @@ templ SidebarTrigger(class string) {
 	</button>
 }
 
-templ Navbar(pageCtx types.PageContextProvider) {
+templ Navbar(pageCtx types.PageContextProvider, navbarLeft templ.Component) {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-8 bg-surface-300 border-b-primary">
+		if navbarLeft != nil {
+			@navbarLeft
+		}
 		<div class="ml-auto flex items-center gap-8">
 			<div class="hidden lg:block">
 				@spotlight.Spotlight()
@@ -143,6 +146,9 @@ templ Navbar(pageCtx types.PageContextProvider) {
 			}) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
+				}
+				@base.DropdownItem(base.DropdownItemProps{Href: "/account/sessions"}) {
+					{ pageCtx.T("NavigationLinks.Navbar.Sessions") }
 				}
 				@base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
@@ -194,6 +200,7 @@ templ DefaultSidebarHeader() {
 
 type AuthenticatedProps struct {
 	BaseProps
+	NavbarLeft templ.Component
 }
 
 templ Authenticated(props AuthenticatedProps) {
@@ -229,7 +236,7 @@ templ Authenticated(props AuthenticatedProps) {
 				@sidebar.Sidebar(sidebarProps)
 			</div>
 			<div class="flex-1 flex flex-col h-screen overflow-hidden">
-				@Navbar(pageCtx)
+				@Navbar(pageCtx, props.NavbarLeft)
 				<div class="flex-1 overflow-y-auto content">
 					{ children... }
 				</div>
