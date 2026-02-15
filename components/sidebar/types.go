@@ -206,9 +206,10 @@ func (l *link) Href() string {
 
 // TabGroup represents a group of sidebar items organized under a tab
 type TabGroup struct {
-	Label string
-	Value string
-	Items []Item
+	Label  string
+	Value  string
+	Items  []Item
+	IsBeta bool
 }
 
 // TabGroupCollection holds multiple tab groups for the sidebar

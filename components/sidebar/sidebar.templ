@@ -56,7 +56,12 @@ templ Sidebar(props Props) {
 							@navtabs.List("w-full") {
 								for _, group := range props.TabGroups.Groups {
 									@navtabs.Button(group.Value) {
-										{ group.Label }
+										<span class="relative inline-block">
+											<span>{ group.Label }</span>
+											if group.IsBeta {
+												@SidebarBetaBadge("absolute -top-2.5 -right-7 z-10 pointer-events-none text-[9px] px-1.5", true)
+											}
+										</span>
 									}
 								}
 							}
@@ -117,6 +122,12 @@ templ AccordionGroup(group Group) {
 			}
 		</div>
 		<!-- Expanded view: full accordion -->
+		{{
+			caretClass := "ml-auto duration-200 group-open:rotate-180"
+			if group.IsBeta() {
+				caretClass = "duration-200 group-open:rotate-180"
+			}
+		}}
 		<details x-show="!isCollapsed" class="group" open?={ group.IsActive(ctx) }>
 			<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
 				if group.Icon() != nil {
@@ -124,9 +135,9 @@ templ AccordionGroup(group Group) {
 				}
 				{ group.Text() }
 				if group.IsBeta() {
-					@SidebarBetaBadge("")
+					@SidebarBetaBadge("ml-auto", group.IsActive(ctx))
 				}
-				@icons.CaretDown(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
+				@icons.CaretDown(icons.Props{Size: "16", Class: caretClass})
 			</summary>
 			<ul class="ml-4 mt-2 flex flex-col gap-2">
 				for _, child := range group.Children() {
@@ -179,15 +190,21 @@ templ AccordionLink(link Link) {
 				}
 				{ link.Text() }
 				if link.IsBeta() {
-					@SidebarBetaBadge("ml-auto")
+					@SidebarBetaBadge("ml-auto", false)
 				}
 			}
 		</div>
 	</li>
 }
 
-templ SidebarBetaBadge(className string) {
-	<span class={ "text-[10px] px-2 py-0.5 rounded-full bg-surface-300 text-200 leading-none", className }>
-		Beta
-	</span>
+templ SidebarBetaBadge(className string, active bool) {
+	if active {
+		<span class={ "text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 leading-none", className }>
+			Beta
+		</span>
+	} else {
+		<span class={ "text-[10px] px-2 py-0.5 rounded-full bg-surface-300 text-200 leading-none", className }>
+			Beta
+		</span>
+	}
 }
