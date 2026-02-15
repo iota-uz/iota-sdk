@@ -180,8 +180,10 @@ jobs:
 
       - name: Test generated files are up to date
         run: |
+          REPO_ROOT="$(git rev-parse --show-toplevel)"
+          cd "$REPO_ROOT"
           just generate
-          git -C "$GITHUB_WORKSPACE" diff --exit-code
+          git diff --exit-code
 
       - name: Check translation files
         run: just check tr
@@ -191,20 +193,24 @@ jobs:
 
       - name: Check templ files formatting
         run: |
+          REPO_ROOT="$(git rev-parse --show-toplevel)"
+          cd "$REPO_ROOT"
           templ fmt .
-          if [ -n "$(git -C "$GITHUB_WORKSPACE" diff --name-only)" ]; then
+          if [ -n "$(git diff --name-only)" ]; then
             echo "Error: Some templ files are not properly formatted"
-            git -C "$GITHUB_WORKSPACE" diff
+            git diff
             exit 1
           fi
           echo "All templ files are properly formatted"
 
       - name: Check Go files formatting
         run: |
+          REPO_ROOT="$(git rev-parse --show-toplevel)"
+          cd "$REPO_ROOT"
           go fmt ./...
-          if [ -n "$(git -C "$GITHUB_WORKSPACE" diff --name-only)" ]; then
+          if [ -n "$(git diff --name-only)" ]; then
             echo "Error: Some Go files are not properly formatted"
-            git -C "$GITHUB_WORKSPACE" diff
+            git diff
             exit 1
           fi
           echo "All Go files are properly formatted"
@@ -624,6 +630,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: blob-report-*
+          merge-multiple: true
           path: e2e/blob-artifacts
 
       - name: Merge Playwright reports
