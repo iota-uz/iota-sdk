@@ -55,11 +55,11 @@ func (p *PostgresOutboxProcessor) PollAndProcess(ctx context.Context) error {
 		_ = tx.Rollback(ctx)
 	}()
 
-	// spotlight_outbox is a shared system queue; tenant isolation is enforced per row during processing using tenant_id.
+	// spotlight.outbox is a shared system queue; tenant isolation is enforced per row during processing using tenant_id.
 	rows, err := tx.Query(ctx, `
-SELECT id, tenant_id, provider, event_type, document_id, payload
-FROM spotlight_outbox
-WHERE processed_at IS NULL
+	SELECT id, tenant_id, provider, event_type, document_id, payload
+	FROM spotlight.outbox
+	WHERE processed_at IS NULL
 ORDER BY created_at
 FOR UPDATE SKIP LOCKED
 LIMIT $1
@@ -103,8 +103,8 @@ LIMIT $1
 	}
 
 	if _, err := tx.Exec(ctx, `
-UPDATE spotlight_outbox
-SET processed_at = NOW()
+	UPDATE spotlight.outbox
+	SET processed_at = NOW()
 WHERE id = ANY($1::bigint[])
 `, processedIDs); err != nil {
 		return serrors.E(op, err)

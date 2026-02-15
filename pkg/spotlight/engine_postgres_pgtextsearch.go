@@ -45,7 +45,7 @@ func (e *PostgresPGTextSearchEngine) Upsert(ctx context.Context, docs []SearchDo
 			return serrors.E(op, err)
 		}
 		batch.Queue(`
-INSERT INTO spotlight_documents(
+		INSERT INTO spotlight.documents(
     id, tenant_id, provider, entity_type, title, body, url, language, metadata, access_policy, updated_at, embedding
 ) VALUES (
     $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12::vector
@@ -95,7 +95,7 @@ func (e *PostgresPGTextSearchEngine) Delete(ctx context.Context, refs []Document
 	}
 	batch := &pgx.Batch{}
 	for _, ref := range refs {
-		batch.Queue(`DELETE FROM spotlight_documents WHERE tenant_id = $1 AND id = $2`, ref.TenantID, ref.ID)
+		batch.Queue(`DELETE FROM spotlight.documents WHERE tenant_id = $1 AND id = $2`, ref.TenantID, ref.ID)
 	}
 	res := e.pool.SendBatch(ctx, batch)
 	defer res.Close()
@@ -141,7 +141,7 @@ WITH lexical AS (
         updated_at,
         embedding,
         1.0 / (1.0 + bm25_score(sd.id)) AS lexical_score
-    FROM spotlight_documents sd
+    FROM spotlight.documents sd
     WHERE sd.tenant_id = $1
       AND ($2 = '' OR sd.id @@@ $2)
       AND (
@@ -273,7 +273,7 @@ SELECT
     access_policy,
     updated_at,
     1.0 / (1.0 + bm25_score(sd.id)) AS lexical_score
-FROM spotlight_documents sd
+FROM spotlight.documents sd
 WHERE sd.tenant_id = $1
   AND ($2 = '' OR sd.id @@@ $2)
   AND (
@@ -377,7 +377,7 @@ SELECT
     access_policy,
     updated_at,
     ts_rank(to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')), plainto_tsquery('simple', $2)) AS lexical_score
-	FROM spotlight_documents sd
+	FROM spotlight.documents sd
 WHERE sd.tenant_id = $1
   AND ($2 = '' OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
   AND (
