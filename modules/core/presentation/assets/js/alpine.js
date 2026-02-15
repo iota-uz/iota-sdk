@@ -403,6 +403,15 @@ let checkboxes = () => ({
 let spotlight = () => ({
   isOpen: false,
   highlightedIndex: 0,
+  init() {
+    if (!window.spotlightConfirmAndGo) {
+      window.spotlightConfirmAndGo = function (url) {
+        if (window.confirm('Open this result?')) {
+          window.location.href = url;
+        }
+      }
+    }
+  },
 
   handleShortcut(event) {
     if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
@@ -428,7 +437,9 @@ let spotlight = () => ({
 
   highlightNext() {
     const list = document.getElementById(this.$id('spotlight'));
+    if (!list) return;
     const count = list.childElementCount;
+    if (count === 0) return;
     this.highlightedIndex = (this.highlightedIndex + 1) % count;
 
     this.$nextTick(() => {
@@ -441,7 +452,9 @@ let spotlight = () => ({
 
   highlightPrevious() {
     const list = document.getElementById(this.$id('spotlight'));
+    if (!list) return;
     const count = list.childElementCount;
+    if (count === 0) return;
     this.highlightedIndex = (this.highlightedIndex - 1 + count) % count;
 
     this.$nextTick(() => {
@@ -452,7 +465,9 @@ let spotlight = () => ({
     });
   },
   goToLink() {
-    const item = document.getElementById(this.$id('spotlight')).children[this.highlightedIndex];
+    const list = document.getElementById(this.$id('spotlight'));
+    if (!list || list.childElementCount === 0) return;
+    const item = list.children[this.highlightedIndex];
     if (item) {
       item.children[0].click();
     }

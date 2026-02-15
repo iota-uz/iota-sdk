@@ -145,9 +145,28 @@ func loadLocaleFSIntoBundle(bundle *i18n.Bundle, localeFs *embed.FS) {
 }
 
 func New(opts *ApplicationOptions) Application {
-	sl := spotlight.New()
-	quickLinks := &spotlight.QuickLinks{}
-	sl.Register(quickLinks)
+	var engine spotlight.IndexEngine
+	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
+	if opts.Pool == nil {
+		engine = spotlight.NewNoopEngine()
+	} else {
+		spotlight.MustPreflight(context.Background(), opts.Pool)
+		pgEngine := spotlight.NewPostgresPGTextSearchEngine(opts.Pool)
+		engine = pgEngine
+		serviceOpts = append(serviceOpts, spotlight.WithOutboxProcessor(
+			spotlight.NewPostgresOutboxProcessor(opts.Pool, pgEngine),
+		))
+	}
+	spotlightService := spotlight.NewService(
+		engine,
+		spotlight.NewHeuristicAgent(),
+		serviceOpts...,
+	)
+	if err := spotlightService.Start(context.Background()); err != nil {
+		panic(err)
+	}
+	quickLinks := spotlight.NewQuickLinks()
+	spotlightService.RegisterProvider(quickLinks)
 
 	return &application{
 		pool:               opts.Pool,
@@ -156,7 +175,7 @@ func New(opts *ApplicationOptions) Application {
 		controllers:        make(map[string]Controller),
 		services:           make(map[reflect.Type]interface{}),
 		quickLinks:         quickLinks,
-		spotlight:          sl,
+		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
 		migrations:         NewMigrationManager(opts.Pool),
 		supportedLanguages: opts.SupportedLanguages,
@@ -176,7 +195,7 @@ type application struct {
 	assets             []*embed.FS
 	graphSchemas       []GraphSchema
 	bundle             *i18n.Bundle
-	spotlight          spotlight.Spotlight
+	spotlight          spotlight.Service
 	quickLinks         *spotlight.QuickLinks
 	migrations         MigrationManager
 	navItems           []types.NavigationItem
@@ -185,7 +204,7 @@ type application struct {
 	appletRuntime      *appletengineruntime.Manager
 }
 
-func (app *application) Spotlight() spotlight.Spotlight {
+func (app *application) Spotlight() spotlight.Service {
 	return app.spotlight
 }
 

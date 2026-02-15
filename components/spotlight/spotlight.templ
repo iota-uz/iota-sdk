@@ -117,3 +117,24 @@ templ SpotlightItems(items []templ.Component, startIdx int) {
 		}
 	}
 }
+
+templ SpotlightGroup(title string) {
+	<li class="pt-2 pb-1 px-1 text-xs font-semibold uppercase tracking-wide text-200">
+		{ title }
+	</li>
+	{ children... }
+}
+
+templ AIAnswer(summary string, actions []templ.Component) {
+	<li class="border border-primary rounded-md p-3 bg-primary-50">
+		<div class="text-xs uppercase tracking-wide font-semibold text-primary-700">AI</div>
+		<div class="text-sm mt-1 text-100">{ summary }</div>
+		if len(actions) > 0 {
+			<div class="mt-2 flex flex-col gap-1">
+				for _, action := range actions {
+					@action
+				}
+			</div>
+		}
+	</li>
+}

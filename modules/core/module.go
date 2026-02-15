@@ -220,7 +220,7 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
-	app.Spotlight().Register(&dataSource{})
+	app.Spotlight().RegisterProvider(newSpotlightProvider(app.DB()))
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(DashboardLink.Icon, DashboardLink.Name, DashboardLink.Href),
 		spotlight.NewQuickLink(UsersLink.Icon, UsersLink.Name, UsersLink.Href),

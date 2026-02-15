@@ -154,6 +154,9 @@ func main() {
 			},
 		}),
 	})
+	defer func() {
+		_ = app.Spotlight().Stop(context.Background())
+	}()
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		log.Fatalf("failed to load modules: %v", err)
 	}
