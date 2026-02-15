@@ -10,6 +10,9 @@ import (
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -324,6 +327,8 @@ type captureTitleContextService struct {
 	called chan context.Context
 }
 
+type stubRepoTx struct{}
+
 type stubAgentService struct {
 	resumeEvents []bichatservices.Event
 }
@@ -352,6 +357,27 @@ func (s *captureTitleContextService) GenerateSessionTitle(ctx context.Context, _
 	return nil
 }
 
+func (stubRepoTx) CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error) {
+	return 0, nil
+}
+
+func (stubRepoTx) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults {
+	return nil
+}
+
+func (stubRepoTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	var tag pgconn.CommandTag
+	return tag, nil
+}
+
+func (stubRepoTx) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (stubRepoTx) QueryRow(context.Context, string, ...any) pgx.Row {
+	return nil
+}
+
 func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T) {
 	t.Parallel()
 
@@ -374,4 +400,27 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 	case <-time.After(2 * time.Second):
 		t.Fatal("expected async title generation to be invoked")
 	}
+}
+
+func TestBuildTitleGenerationContext_PreservesDatabaseExecutionContext(t *testing.T) {
+	t.Parallel()
+
+	tenantID := uuid.New()
+	tx := stubRepoTx{}
+
+	reqCtx := composables.WithTenantID(context.Background(), tenantID)
+	reqCtx = context.WithValue(reqCtx, constants.TxKey, tx)
+
+	titleCtx := buildTitleGenerationContext(reqCtx)
+
+	gotTenantID, err := composables.UseTenantID(titleCtx)
+	require.NoError(t, err)
+	assert.Equal(t, tenantID, gotTenantID)
+
+	gotTx, err := composables.UseTx(titleCtx)
+	require.NoError(t, err)
+	assert.Equal(t, tx, gotTx)
+
+	_, err = composables.UsePool(titleCtx)
+	require.ErrorIs(t, err, composables.ErrNoPool)
 }
