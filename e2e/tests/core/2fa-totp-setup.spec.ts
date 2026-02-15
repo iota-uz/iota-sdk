@@ -104,7 +104,8 @@ test.describe('2FA TOTP Setup Flow', () => {
 		await setupPage.selectMethod('totp');
 
 		// Enter invalid code
-		const invalidCode = generateInvalidTOTPCode();
+		const secret = await setupPage.extractTOTPSecret();
+		const invalidCode = generateInvalidTOTPCode(secret);
 		await setupPage.enterTOTPCode(invalidCode);
 
 		// Verify error message is displayed
@@ -125,12 +126,12 @@ test.describe('2FA TOTP Setup Flow', () => {
 		await setupPage.selectMethod('totp');
 
 		// First attempt: invalid code
-		const invalidCode = generateInvalidTOTPCode();
+		const secret = await setupPage.extractTOTPSecret();
+		const invalidCode = generateInvalidTOTPCode(secret);
 		await setupPage.enterTOTPCode(invalidCode);
 		await setupPage.expectErrorMessage();
 
 		// Second attempt: valid code
-		const secret = await setupPage.extractTOTPSecret();
 		const validCode = generateTOTPCode(secret);
 		await setupPage.enterTOTPCode(validCode);
 
