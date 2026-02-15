@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS spotlight_documents (
     url TEXT NOT NULL,
     language TEXT NOT NULL DEFAULT 'en',
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    access_policy JSONB NOT NULL DEFAULT '{"visibility":"public","owner_id":"","allowed_users":[],"allowed_roles":[]}'::jsonb,
+    access_policy JSONB NOT NULL DEFAULT '{"visibility":"restricted","owner_id":"","allowed_users":[],"allowed_roles":[],"allowed_permissions":[]}'::jsonb,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     embedding VECTOR(1536),
     PRIMARY KEY (tenant_id, id)
@@ -86,14 +86,9 @@ CREATE TABLE IF NOT EXISTS spotlight_scope_config (
 
 -- +migrate Down
 DROP TABLE IF EXISTS spotlight_scope_config;
-DROP INDEX IF EXISTS idx_spotlight_outbox_tenant_created;
-DROP INDEX IF EXISTS idx_spotlight_outbox_pending;
 DROP TABLE IF EXISTS spotlight_outbox;
 DROP TABLE IF EXISTS spotlight_provider_state;
-DROP INDEX IF EXISTS idx_spotlight_document_acl_lookup;
 DROP TABLE IF EXISTS spotlight_document_acl;
-DROP INDEX IF EXISTS idx_spotlight_documents_embedding;
-DROP INDEX IF EXISTS idx_spotlight_documents_bm25;
-DROP INDEX IF EXISTS idx_spotlight_documents_metadata;
-DROP INDEX IF EXISTS idx_spotlight_documents_scope;
 DROP TABLE IF EXISTS spotlight_documents;
+DROP EXTENSION IF EXISTS pg_textsearch;
+DROP EXTENSION IF EXISTS vector;

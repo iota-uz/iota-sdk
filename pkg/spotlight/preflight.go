@@ -2,48 +2,44 @@ package spotlight
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func PreflightCheck(ctx context.Context, pool *pgxpool.Pool) error {
+	const op serrors.Op = "spotlight.PreflightCheck"
+
 	if pool == nil {
-		return fmt.Errorf("spotlight preflight: database pool is nil")
+		return serrors.E(op, "database pool is nil")
 	}
 
 	var versionStr string
 	if err := pool.QueryRow(ctx, `SHOW server_version_num`).Scan(&versionStr); err != nil {
-		return fmt.Errorf("spotlight preflight: failed to read PostgreSQL version: %w", err)
+		return serrors.E(op, "failed to read PostgreSQL version", err)
 	}
 	versionNum, err := strconv.Atoi(strings.TrimSpace(versionStr))
 	if err != nil {
-		return fmt.Errorf("spotlight preflight: invalid PostgreSQL version number %q: %w", versionStr, err)
+		return serrors.E(op, "invalid PostgreSQL version number "+versionStr, err)
 	}
 	if versionNum < 170000 {
-		return fmt.Errorf("spotlight preflight: PostgreSQL 17+ is required, got server_version_num=%d", versionNum)
+		return serrors.E(op, "PostgreSQL 17+ is required, got server_version_num="+strconv.Itoa(versionNum))
 	}
 
 	requiredExtensions := []string{"pg_textsearch", "vector"}
 	for _, extension := range requiredExtensions {
 		var exists bool
 		if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = $1)`, extension).Scan(&exists); err != nil {
-			return fmt.Errorf("spotlight preflight: failed to check extension %s: %w", extension, err)
+			return serrors.E(op, "failed to check extension "+extension, err)
 		}
 		if !exists {
-			return fmt.Errorf("spotlight preflight: required extension %s is not installed", extension)
+			return serrors.E(op, "required extension "+extension+" is not installed")
 		}
 	}
 
 	return nil
-}
-
-func MustPreflight(ctx context.Context, pool *pgxpool.Pool) {
-	if err := PreflightCheck(ctx, pool); err != nil {
-		panic(err)
-	}
 }
 
 func ReadinessErrorDetails(err error) string {

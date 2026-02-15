@@ -3,7 +3,6 @@ package spotlight
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -153,7 +152,8 @@ func parseOutboxDocument(row outboxRow) (*SearchDocument, error) {
 	}
 
 	var event DocumentEvent
-	if err := json.Unmarshal(row.Payload, &event); err == nil && event.Document != nil {
+	eventParseErr := json.Unmarshal(row.Payload, &event)
+	if eventParseErr == nil && event.Document != nil {
 		doc := *event.Document
 		normalizeOutboxDocument(&doc, row)
 		return &doc, nil
@@ -161,7 +161,11 @@ func parseOutboxDocument(row outboxRow) (*SearchDocument, error) {
 
 	var doc SearchDocument
 	if err := json.Unmarshal(row.Payload, &doc); err != nil {
-		return nil, serrors.E(op, errors.New("unable to parse spotlight outbox payload as document event or document"))
+		return nil, serrors.E(op, fmt.Errorf(
+			"unable to parse spotlight outbox payload as document event or document: event_parse_err=%v document_parse_err=%w",
+			eventParseErr,
+			err,
+		))
 	}
 	normalizeOutboxDocument(&doc, row)
 	return &doc, nil

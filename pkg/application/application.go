@@ -148,6 +148,8 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("application options are required")
 	}
+	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer initCancel()
 
 	var engine spotlight.IndexEngine
 	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
@@ -157,7 +159,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts.Pool == nil {
 		engine = spotlight.NewNoopEngine()
 	} else {
-		if err := spotlight.PreflightCheck(context.Background(), opts.Pool); err != nil {
+		if err := spotlight.PreflightCheck(initCtx, opts.Pool); err != nil {
 			return nil, err
 		}
 		pgEngine := spotlight.NewPostgresPGTextSearchEngine(opts.Pool)
@@ -171,7 +173,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight.NewHeuristicAgent(),
 		serviceOpts...,
 	)
-	if err := spotlightService.Start(context.Background()); err != nil {
+	if err := spotlightService.Start(initCtx); err != nil {
 		return nil, err
 	}
 	quickLinks := spotlight.NewQuickLinks()

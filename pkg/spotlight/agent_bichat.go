@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 type BIChatAgent struct {
@@ -19,8 +19,6 @@ func NewBIChatAgent(searcher kb.KBSearcher) *BIChatAgent {
 }
 
 func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []SearchHit) (*AgentAnswer, error) {
-	const op serrors.Op = "spotlight.BIChatAgent.Answer"
-
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
 		return nil, nil
@@ -48,28 +46,32 @@ func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []Sear
 		}
 		results, err := a.searcher.Search(ctx, query, kb.SearchOptions{TopK: 2})
 		if err != nil {
-			return nil, serrors.E(op, err)
-		}
-		for _, result := range results {
-			access := AccessPolicy{Visibility: VisibilityRestricted}
-			if req.UserID != "" {
-				access.AllowedUsers = []string{req.UserID}
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"tenant_id": tenantID.String(),
+				"query":     query,
+			}).Warn("spotlight KB search failed, continuing without KB citations")
+		} else {
+			for _, result := range results {
+				access := AccessPolicy{Visibility: VisibilityRestricted}
+				if req.UserID != "" {
+					access.AllowedUsers = []string{req.UserID}
+				}
+				citations = append(citations, SearchDocument{
+					ID:         result.Document.ID,
+					TenantID:   tenantID,
+					Provider:   "bichat.kb",
+					EntityType: "knowledge",
+					Title:      result.Document.Title,
+					Body:       result.Excerpt,
+					URL:        result.Document.Path,
+					Language:   "",
+					Metadata: map[string]string{
+						"source": "bichat.kb",
+					},
+					Access:    access,
+					UpdatedAt: result.Document.UpdatedAt,
+				})
 			}
-			citations = append(citations, SearchDocument{
-				ID:         result.Document.ID,
-				TenantID:   tenantID,
-				Provider:   "bichat.kb",
-				EntityType: "knowledge",
-				Title:      result.Document.Title,
-				Body:       result.Excerpt,
-				URL:        result.Document.Path,
-				Language:   "",
-				Metadata: map[string]string{
-					"source": "bichat.kb",
-				},
-				Access:    access,
-				UpdatedAt: result.Document.UpdatedAt,
-			})
 		}
 	}
 

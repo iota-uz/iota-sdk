@@ -2,6 +2,7 @@ package spotlight
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/google/uuid"
@@ -59,9 +60,14 @@ func (r *ProviderRegistry) Get(id string) (SearchProvider, bool) {
 func (r *ProviderRegistry) All() []SearchProvider {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out := make([]SearchProvider, 0, len(r.providers))
-	for _, provider := range r.providers {
-		out = append(out, provider)
+	ids := make([]string, 0, len(r.providers))
+	for id := range r.providers {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	out := make([]SearchProvider, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, r.providers[id])
 	}
 	return out
 }

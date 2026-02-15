@@ -2,7 +2,6 @@ package spotlight
 
 import (
 	"context"
-	"strconv"
 	"sync"
 	"time"
 
@@ -48,11 +47,14 @@ func (ql *QuickLinks) ListDocuments(ctx context.Context, scope ProviderScope) ([
 	ql.mu.RLock()
 	defer ql.mu.RUnlock()
 
+	providerID := ql.ProviderID()
 	out := make([]SearchDocument, 0, len(ql.items))
-	for idx, item := range ql.items {
+	for _, item := range ql.items {
 		label := intl.MustT(ctx, item.trKey)
 		out = append(out, SearchDocument{
-			ID:         item.trKey + ":" + item.link + ":" + strconv.Itoa(idx),
+			ID:         providerID + ":" + item.trKey + ":" + item.link,
+			TenantID:   scope.TenantID,
+			Provider:   providerID,
 			EntityType: "quick_link",
 			Title:      label,
 			Body:       label,

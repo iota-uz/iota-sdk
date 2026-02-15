@@ -133,16 +133,13 @@ func NewService(engine IndexEngine, agent Agent, opts ...ServiceOption) *Spotlig
 	return svc
 }
 
-func (s *SpotlightService) Start(ctx context.Context) error {
+func (s *SpotlightService) Start(_ context.Context) error {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
 	if s.started {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	s.bgCtx, s.bgCancel = context.WithCancel(ctx)
+	s.bgCtx, s.bgCancel = context.WithCancel(context.Background())
 	s.started = true
 	s.wg.Add(1)
 	go func() {
@@ -212,8 +209,14 @@ func (s *SpotlightService) Readiness(ctx context.Context) error {
 }
 
 func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (SearchResponse, error) {
-	if err := s.Start(context.Background()); err != nil {
-		return SearchResponse{}, fmt.Errorf("service not started: %w", err)
+	if !s.isStarted() {
+		startCtx := ctx
+		if startCtx == nil {
+			startCtx = context.Background()
+		}
+		if err := s.Start(startCtx); err != nil {
+			return SearchResponse{}, fmt.Errorf("service not started: %w", err)
+		}
 	}
 	startedAt := time.Now()
 	if req.TopK <= 0 {
@@ -382,20 +385,40 @@ func (s *SpotlightService) runBackgroundIndexer(ctx context.Context, tick time.D
 		select {
 		case <-ctx.Done():
 			return
+		case <-ticker.C:
+			s.pollOutbox(ctx)
+			continue
+		default:
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.pollOutbox(ctx)
 		case task := <-s.indexQueue:
 			s.reindexTask(ctx, task)
-		case <-ticker.C:
-			if s.outbox != nil {
-				started := time.Now()
-				if err := s.outbox.PollAndProcess(ctx); err != nil {
-					s.metrics.OnOutboxPoll(time.Since(started), err)
-					s.logger.WithError(err).Error("spotlight outbox poll failed")
-				} else {
-					s.metrics.OnOutboxPoll(time.Since(started), nil)
-				}
-			}
 		}
 	}
+}
+
+func (s *SpotlightService) pollOutbox(ctx context.Context) {
+	if s.outbox == nil {
+		return
+	}
+	started := time.Now()
+	if err := s.outbox.PollAndProcess(ctx); err != nil {
+		s.metrics.OnOutboxPoll(time.Since(started), err)
+		s.logger.WithError(err).Error("spotlight outbox poll failed")
+		return
+	}
+	s.metrics.OnOutboxPoll(time.Since(started), nil)
+}
+
+func (s *SpotlightService) isStarted() bool {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	return s.started
 }
 
 func (s *SpotlightService) reindexTask(ctx context.Context, task indexTask) {

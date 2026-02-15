@@ -2,11 +2,11 @@ package spotlight
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type IndexerPipeline struct {
@@ -21,6 +21,8 @@ func NewIndexerPipeline(registry *ProviderRegistry, engine IndexEngine) *Indexer
 }
 
 func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language, query string, topK int, scope ScopeConfig) error {
+	const op serrors.Op = "spotlight.IndexerPipeline.Sync"
+
 	providers := p.registry.All()
 	sort.Slice(providers, func(i, j int) bool {
 		return providers[i].ProviderID() < providers[j].ProviderID()
@@ -39,7 +41,7 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 			TopK:     topK,
 		})
 		if err != nil {
-			return fmt.Errorf("provider %s failed: %w", provider.ProviderID(), err)
+			return serrors.E(op, "provider "+provider.ProviderID()+" failed", err)
 		}
 		for i := range docs {
 			docs[i].TenantID = tenantID
@@ -57,7 +59,7 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 			end = len(all)
 		}
 		if err := p.engine.Upsert(ctx, all[start:end]); err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 	}
 	return nil

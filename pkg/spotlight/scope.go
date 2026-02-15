@@ -31,14 +31,17 @@ func NewInMemoryScopeStore() *InMemoryScopeStore {
 func (s *InMemoryScopeStore) Resolve(_ context.Context, req SearchRequest) (ScopeConfig, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	cfg := s.defaultCfg
-	if tenantCfg, ok := s.tenantCfg[req.TenantID]; ok {
-		cfg = tenantCfg
-	}
-	enabled := make(map[string]bool, len(cfg.EnabledProviders))
-	for key, value := range cfg.EnabledProviders {
+
+	enabled := make(map[string]bool, len(s.defaultCfg.EnabledProviders))
+	for key, value := range s.defaultCfg.EnabledProviders {
 		enabled[key] = value
 	}
+	if tenantCfg, ok := s.tenantCfg[req.TenantID]; ok {
+		for key, value := range tenantCfg.EnabledProviders {
+			enabled[key] = value
+		}
+	}
+
 	return ScopeConfig{EnabledProviders: enabled}, nil
 }
 

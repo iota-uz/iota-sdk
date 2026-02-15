@@ -2,6 +2,7 @@ package spotlight
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -26,16 +27,22 @@ func NewComposablesPrincipalResolver() *ComposablesPrincipalResolver {
 }
 
 func (r *ComposablesPrincipalResolver) Resolve(ctx context.Context, req SearchRequest) (Principal, error) {
-	principal := Principal{
-		UserID: req.UserID,
-	}
 	u, err := composables.UseUser(ctx)
-	if err != nil || u == nil {
-		return principal, err
+	if err != nil {
+		return Principal{}, err
 	}
-	if principal.UserID == "" {
-		principal.UserID = fmt.Sprintf("%d", u.ID())
+	if u == nil {
+		return Principal{}, errors.New("spotlight principal resolver: missing authenticated user in context")
 	}
+
+	principal := Principal{UserID: fmt.Sprintf("%d", u.ID())}
+	if req.UserID != "" && req.UserID != principal.UserID {
+		logrus.WithFields(logrus.Fields{
+			"request_user_id":       req.UserID,
+			"authenticated_user_id": principal.UserID,
+		}).Warn("spotlight request user id mismatch")
+	}
+
 	for _, role := range u.Roles() {
 		principal.Roles = append(principal.Roles, role.Name())
 	}

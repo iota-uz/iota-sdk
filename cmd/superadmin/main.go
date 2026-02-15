@@ -79,6 +79,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to initialize application: %v", err)
 	}
+	defer func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stopCancel()
+		if stopErr := app.Spotlight().Stop(stopCtx); stopErr != nil {
+			logger.WithError(stopErr).Warn("failed to stop spotlight service")
+		}
+	}()
 
 	// Manually register only necessary parts from core module (without its controllers)
 	// This avoids exposing core module's admin pages (/users, /roles, etc.) in superadmin

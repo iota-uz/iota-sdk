@@ -66,6 +66,7 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 
 	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
+		logger.WithError(err).WithField("query", q).Warn("spotlight tenant resolution failed")
 		templ.Handler(
 			spotlightui.NotFound(),
 			templ.WithStreaming(),
@@ -126,10 +127,18 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(items) == 0 {
-		templ.Handler(spotlightui.NotFound()).ServeHTTP(w, r)
+		templ.Handler(
+			spotlightui.NotFound(),
+			templ.WithStreaming(),
+			templ.WithErrorHandler(errorHandler),
+		).ServeHTTP(w, r)
 		return
 	}
 
-	templ.Handler(spotlightui.SpotlightItems(items, 0)).ServeHTTP(w, r)
+	templ.Handler(
+		spotlightui.SpotlightItems(items, 0),
+		templ.WithStreaming(),
+		templ.WithErrorHandler(errorHandler),
+	).ServeHTTP(w, r)
 
 }

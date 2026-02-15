@@ -9,10 +9,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5"
+	"github.com/sirupsen/logrus"
 )
 
 type spotlightProvider struct {
-	db queryer
+	db           queryer
+	maxDocuments int
 }
 
 type queryer interface {
@@ -21,8 +23,13 @@ type queryer interface {
 
 var _ spotlight.SearchProvider = &spotlightProvider{}
 
+const defaultSpotlightProviderLimit = 1000
+
 func newSpotlightProvider(db queryer) *spotlightProvider {
-	return &spotlightProvider{db: db}
+	return &spotlightProvider{
+		db:           db,
+		maxDocuments: defaultSpotlightProviderLimit,
+	}
 }
 
 func (p *spotlightProvider) ProviderID() string {
@@ -35,14 +42,18 @@ func (p *spotlightProvider) Capabilities() spotlight.ProviderCapabilities {
 
 func (p *spotlightProvider) ListDocuments(ctx context.Context, scope spotlight.ProviderScope) ([]spotlight.SearchDocument, error) {
 	const op serrors.Op = "crm.spotlightProvider.ListDocuments"
+	limit := p.maxDocuments
+	if limit <= 0 {
+		limit = defaultSpotlightProviderLimit
+	}
 
 	rows, err := p.db.Query(ctx, `
 SELECT id, first_name, last_name, middle_name, updated_at
 FROM clients
 WHERE tenant_id = $1
 ORDER BY id ASC
-LIMIT 1000
-`, scope.TenantID)
+LIMIT $2
+`, scope.TenantID, limit)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -85,6 +96,12 @@ LIMIT 1000
 	}
 	if err := rows.Err(); err != nil {
 		return nil, serrors.E(op, err)
+	}
+	if len(out) == limit {
+		logrus.WithFields(logrus.Fields{
+			"tenant_id": scope.TenantID.String(),
+			"limit":     limit,
+		}).Warn("crm spotlight provider reached document cap, results may be truncated")
 	}
 	return out, nil
 }
