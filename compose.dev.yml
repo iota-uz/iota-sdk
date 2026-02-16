@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:15.1
+    image: postgres:17
     restart: always
     command: [ "postgres", "-c", "log_statement=all", "-c", "log_destination=stderr", "-c", "logging_collector=off", "-c", "max_connections=500" ]
     environment:

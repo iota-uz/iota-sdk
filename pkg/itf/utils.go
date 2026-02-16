@@ -321,12 +321,15 @@ func DbOpts(name string) string {
 func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
-	app := application.New(&application.ApplicationOptions{
+	app, err := application.New(&application.ApplicationOptions{
 		Pool:     pool,
 		Bundle:   bundle,
 		EventBus: eventbus.NewEventPublisher(conf.Logger()),
 		Logger:   conf.Logger(),
 	})
+	if err != nil {
+		return nil, err
+	}
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, err
 	}
@@ -350,12 +353,15 @@ func GetTestContext() *TestFixtures {
 	conf := configuration.Use()
 	pool := NewPool(conf.Database.Opts)
 	bundle := application.LoadBundle()
-	app := application.New(&application.ApplicationOptions{
+	app, err := application.New(&application.ApplicationOptions{
 		Pool:     pool,
 		Bundle:   bundle,
 		EventBus: eventbus.NewEventPublisher(conf.Logger()),
 		Logger:   conf.Logger(),
 	})
+	if err != nil {
+		panic(err)
+	}
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}

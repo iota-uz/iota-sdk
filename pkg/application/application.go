@@ -145,10 +145,41 @@ func loadLocaleFSIntoBundle(bundle *i18n.Bundle, localeFs *embed.FS) {
 	}
 }
 
-func New(opts *ApplicationOptions) Application {
-	sl := spotlight.New()
-	quickLinks := &spotlight.QuickLinks{}
-	sl.Register(quickLinks)
+func New(opts *ApplicationOptions) (Application, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("application options are required")
+	}
+	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer initCancel()
+
+	var engine spotlight.IndexEngine
+	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
+	if opts.Logger != nil {
+		serviceOpts = append(serviceOpts, spotlight.WithLogger(opts.Logger))
+	}
+	if opts.Pool == nil {
+		engine = spotlight.NewNoopEngine()
+	} else {
+		if err := spotlight.PreflightCheck(initCtx, opts.Pool); err != nil {
+			return nil, err
+		}
+		pgEngine := spotlight.NewPostgresPGTextSearchEngine(opts.Pool)
+		engine = pgEngine
+		serviceOpts = append(serviceOpts, spotlight.WithOutboxProcessor(
+			spotlight.NewPostgresOutboxProcessor(opts.Pool, pgEngine),
+		))
+	}
+	spotlightService := spotlight.NewService(
+		engine,
+		spotlight.NewHeuristicAgent(),
+		spotlight.DefaultServiceConfig(),
+		serviceOpts...,
+	)
+	if err := spotlightService.Start(initCtx); err != nil {
+		return nil, err
+	}
+	quickLinks := spotlight.NewQuickLinks()
+	spotlightService.RegisterProvider(quickLinks)
 
 	return &application{
 		pool:               opts.Pool,
@@ -157,12 +188,12 @@ func New(opts *ApplicationOptions) Application {
 		controllers:        make(map[string]Controller),
 		services:           make(map[reflect.Type]interface{}),
 		quickLinks:         quickLinks,
-		spotlight:          sl,
+		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
 		migrations:         NewMigrationManager(opts.Pool),
 		supportedLanguages: opts.SupportedLanguages,
 		appletRegistry:     applets.NewRegistry(),
-	}
+	}, nil
 }
 
 // application with a dynamically extendable service registry
@@ -177,7 +208,7 @@ type application struct {
 	assets             []*embed.FS
 	graphSchemas       []GraphSchema
 	bundle             *i18n.Bundle
-	spotlight          spotlight.Spotlight
+	spotlight          spotlight.Service
 	quickLinks         *spotlight.QuickLinks
 	migrations         MigrationManager
 	navItems           []types.NavigationItem
@@ -186,7 +217,7 @@ type application struct {
 	appletRuntime      *appletengineruntime.Manager
 }
 
-func (app *application) Spotlight() spotlight.Spotlight {
+func (app *application) Spotlight() spotlight.Service {
 	return app.spotlight
 }
 

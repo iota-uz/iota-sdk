@@ -26,7 +26,7 @@ services:
       - app
 
   erp_db:
-    image: postgres:15.1
+    image: postgres:17
     restart: always
     hostname: erp_db
     environment:

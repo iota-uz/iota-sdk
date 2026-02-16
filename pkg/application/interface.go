@@ -34,7 +34,7 @@ type Application interface {
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
 	Websocket() Huber
-	Spotlight() spotlight.Spotlight
+	Spotlight() spotlight.Service
 	QuickLinks() *spotlight.QuickLinks
 	Migrations() MigrationManager
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
