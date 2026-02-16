@@ -157,25 +157,24 @@ func New(opts *ApplicationOptions) (Application, error) {
 	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer initCancel()
 
-	skipSpotlightPreflight := shouldSkipSpotlightPreflight()
 	var engine spotlight.IndexEngine
 	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
 	if opts.Logger != nil {
 		serviceOpts = append(serviceOpts, spotlight.WithLogger(opts.Logger))
 	}
-	if opts.Pool == nil {
+	cfg := configuration.Use()
+	if cfg.MeiliURL == "" {
+		if opts.Logger != nil {
+			opts.Logger.Warn("MEILI_URL not set — spotlight search is disabled (using noop engine)")
+		}
 		engine = spotlight.NewNoopEngine()
 	} else {
-		if !skipSpotlightPreflight {
-			if err := spotlight.PreflightCheck(initCtx, opts.Pool); err != nil {
+		engine = spotlight.NewMeilisearchEngine(cfg.MeiliURL, cfg.MeiliAPIKey)
+		if !shouldSkipSpotlightPreflight() {
+			if err := engine.Health(initCtx); err != nil {
 				return nil, fmt.Errorf("spotlight preflight check: %w", err)
 			}
 		}
-		pgEngine := spotlight.NewPostgresPGTextSearchEngine(opts.Pool)
-		engine = pgEngine
-		serviceOpts = append(serviceOpts, spotlight.WithOutboxProcessor(
-			spotlight.NewPostgresOutboxProcessor(opts.Pool, pgEngine),
-		))
 	}
 	spotlightService := spotlight.NewService(
 		engine,
