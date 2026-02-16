@@ -67,7 +67,7 @@ func (m *Module) Register(app application.Application) error {
 	)
 
 	app.QuickLinks().Add(
-		spotlight.NewQuickLink(ClientsLink.Icon, ClientsLink.Name, ClientsLink.Href),
+		spotlight.NewQuickLink(ClientsLink.Name, ClientsLink.Href),
 	)
 	app.Spotlight().RegisterProvider(newSpotlightProvider(app.DB()))
 

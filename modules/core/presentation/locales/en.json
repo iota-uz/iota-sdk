@@ -892,6 +892,7 @@
       "Help": "Here are the best matching pages and knowledge entries"
     },
     "Actions": {
+      "Open": "Open",
       "AddUser": "Add user",
       "AddAccount": "Add account"
     }

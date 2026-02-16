@@ -3,7 +3,6 @@ package warehouse
 import (
 	"embed"
 
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/assets"
@@ -72,29 +71,21 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterAssets(&assets.FS)
 	app.QuickLinks().Add(
-		spotlight.NewQuickLink(nil, ProductsItem.Name, ProductsItem.Href),
-		spotlight.NewQuickLink(nil, PositionsItem.Name, PositionsItem.Href),
-		spotlight.NewQuickLink(nil, OrdersItem.Name, OrdersItem.Href),
-		spotlight.NewQuickLink(nil, UnitsItem.Name, UnitsItem.Href),
-		spotlight.NewQuickLink(nil, InventoryItem.Name, InventoryItem.Href),
-		spotlight.NewQuickLink(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"WarehousePositions.List.New",
+		spotlight.NewQuickLink(ProductsItem.Name, ProductsItem.Href),
+		spotlight.NewQuickLink(PositionsItem.Name, PositionsItem.Href),
+		spotlight.NewQuickLink(OrdersItem.Name, OrdersItem.Href),
+		spotlight.NewQuickLink(UnitsItem.Name, UnitsItem.Href),
+		spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
+		spotlight.NewQuickLink("WarehousePositions.List.New",
 			"/warehouse/positions/new",
 		),
-		spotlight.NewQuickLink(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"Products.List.New",
+		spotlight.NewQuickLink("Products.List.New",
 			"/warehouse/products/new",
 		),
-		spotlight.NewQuickLink(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"WarehouseOrders.List.New",
+		spotlight.NewQuickLink("WarehouseOrders.List.New",
 			"/warehouse/orders/new",
 		),
-		spotlight.NewQuickLink(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"WarehouseUnits.List.New",
+		spotlight.NewQuickLink("WarehouseUnits.List.New",
 			"/warehouse/units/new",
 		),
 	)

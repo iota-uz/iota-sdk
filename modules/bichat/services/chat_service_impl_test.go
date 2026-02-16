@@ -371,7 +371,7 @@ func (stubRepoTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, erro
 }
 
 func (stubRepoTx) Query(context.Context, string, ...any) (pgx.Rows, error) {
-	return nil, nil
+	return nil, assert.AnError
 }
 
 func (stubRepoTx) QueryRow(context.Context, string, ...any) pgx.Row {

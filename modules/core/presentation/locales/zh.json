@@ -896,6 +896,7 @@
       "Help": "以下是最匹配的页面和知识条目"
     },
     "Actions": {
+      "Open": "打开",
       "AddUser": "添加用户",
       "AddAccount": "添加账户"
     }

@@ -40,33 +40,33 @@ const (
 )
 
 type AccessPolicy struct {
-	Visibility         Visibility
-	OwnerID            string
-	AllowedUsers       []string
-	AllowedRoles       []string
-	AllowedPermissions []string
+	Visibility         Visibility `json:"visibility"`
+	OwnerID            string     `json:"owner_id"`
+	AllowedUsers       []string   `json:"allowed_users"`
+	AllowedRoles       []string   `json:"allowed_roles"`
+	AllowedPermissions []string   `json:"allowed_permissions"`
 }
 
 type SearchDocument struct {
-	ID         string
-	TenantID   uuid.UUID
-	Provider   string
-	EntityType string
-	Title      string
-	Body       string
-	URL        string
-	Language   string
-	Metadata   map[string]string
-	Access     AccessPolicy
-	UpdatedAt  time.Time
-	Embedding  []float32
+	ID         string            `json:"id"`
+	TenantID   uuid.UUID         `json:"tenant_id"`
+	Provider   string            `json:"provider"`
+	EntityType string            `json:"entity_type"`
+	Title      string            `json:"title"`
+	Body       string            `json:"body"`
+	URL        string            `json:"url"`
+	Language   string            `json:"language"`
+	Metadata   map[string]string `json:"metadata"`
+	Access     AccessPolicy      `json:"access_policy"`
+	UpdatedAt  time.Time         `json:"updated_at"`
+	Embedding  []float32         `json:"embedding,omitempty"`
 }
 
 type DocumentEvent struct {
-	Type       DocumentEventType
-	Document   *SearchDocument
-	DocumentID string
-	OccurredAt time.Time
+	Type       DocumentEventType `json:"type"`
+	Document   *SearchDocument   `json:"document,omitempty"`
+	DocumentID string            `json:"document_id,omitempty"`
+	OccurredAt time.Time         `json:"occurred_at,omitempty"`
 }
 
 type SearchRequest struct {

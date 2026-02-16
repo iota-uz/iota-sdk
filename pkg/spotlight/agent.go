@@ -2,8 +2,11 @@ package spotlight
 
 import (
 	"context"
+	"errors"
 	"strings"
 )
+
+var ErrNoAgentAnswer = errors.New("spotlight: no agent answer")
 
 type HeuristicAgent struct{}
 
@@ -14,7 +17,7 @@ func NewHeuristicAgent() *HeuristicAgent {
 func (a *HeuristicAgent) Answer(_ context.Context, req SearchRequest, hits []SearchHit) (*AgentAnswer, error) {
 	query := strings.TrimSpace(req.Query)
 	if query == "" || len(hits) == 0 {
-		return nil, nil
+		return nil, ErrNoAgentAnswer
 	}
 
 	top := hits[0]

@@ -23,7 +23,7 @@ func NewBIChatAgent(searcher kb.KBSearcher) *BIChatAgent {
 func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []SearchHit) (*AgentAnswer, error) {
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
-		return nil, nil
+		return nil, ErrNoAgentAnswer
 	}
 
 	citations := make([]SearchDocument, 0, 4)
@@ -33,7 +33,7 @@ func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []Sear
 		citations = append(citations, hits[i].Document)
 		actions = append(actions, AgentAction{
 			Type:              ActionTypeNavigate,
-			Label:             "Open " + hits[i].Document.Title,
+			Label:             localizeSpotlightMessage(ctx, "Spotlight.Actions.Open", "Open") + " " + hits[i].Document.Title,
 			TargetURL:         hits[i].Document.URL,
 			NeedsConfirmation: true,
 		})
@@ -66,7 +66,7 @@ func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []Sear
 					Title:      result.Document.Title,
 					Body:       result.Excerpt,
 					URL:        result.Document.Path,
-					Language:   "",
+					Language:   req.Language,
 					Metadata: map[string]string{
 						"source": "bichat.kb",
 					},
@@ -78,7 +78,7 @@ func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []Sear
 	}
 
 	if len(actions) == 0 && len(citations) == 0 {
-		return nil, nil
+		return nil, ErrNoAgentAnswer
 	}
 
 	summary := localizeSpotlightMessage(ctx, "Spotlight.Summary.Default", "Best matches found for your request")

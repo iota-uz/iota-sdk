@@ -158,6 +158,7 @@ func canReadPolicy(policy AccessPolicy, principal Principal) bool {
 	case VisibilityOwner:
 		return principal.UserID != "" && policy.OwnerID != "" && policy.OwnerID == principal.UserID
 	case VisibilityRestricted:
+		// Evaluate allow-lists below.
 	default:
 		return false
 	}

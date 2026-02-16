@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -95,6 +96,9 @@ func WithOutboxProcessor(processor OutboxProcessor) ServiceOption {
 
 func WithPrincipalResolver(resolver PrincipalResolver) ServiceOption {
 	return func(s *SpotlightService) {
+		if resolver == nil {
+			return
+		}
 		s.acl = NewStrictACLEvaluator(resolver)
 	}
 }
@@ -270,15 +274,20 @@ func (s *SpotlightService) SetAgent(agent Agent) {
 }
 
 func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID, language string) error {
+	const op serrors.Op = "spotlight.SpotlightService.ReindexTenant"
+
 	scope, err := s.scope.Resolve(ctx, SearchRequest{
 		TenantID: tenantID,
 		Language: language,
 		Intent:   SearchIntentMixed,
 	})
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
-	return s.pipeline.Sync(ctx, tenantID, language, "", 0, scope)
+	if err := s.pipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func (s *SpotlightService) Readiness(ctx context.Context) error {
@@ -369,6 +378,8 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 		cancelAgent()
 		if agentErr == nil {
 			resp.Agent = agentAnswer
+		} else if errors.Is(agentErr, ErrNoAgentAnswer) {
+			// No-op: agent intentionally had no answer for this query.
 		} else {
 			s.logger.WithError(agentErr).WithFields(logrus.Fields{
 				"tenant_id": req.TenantID.String(),
@@ -492,7 +503,7 @@ func (s *SpotlightService) applyDocumentEvent(ctx context.Context, tenantID uuid
 			return
 		}
 		s.invalidateSearchCacheForTenant(tenantID)
-	default:
+	case DocumentEventCreate, DocumentEventUpdate:
 		if change.Document == nil {
 			return
 		}
@@ -515,6 +526,12 @@ func (s *SpotlightService) applyDocumentEvent(ctx context.Context, tenantID uuid
 			return
 		}
 		s.invalidateSearchCacheForTenant(tenantID)
+	default:
+		s.logger.WithFields(logrus.Fields{
+			"provider":   providerID,
+			"tenant_id":  tenantID.String(),
+			"event_type": change.Type,
+		}).Warn("spotlight unsupported document event type")
 	}
 }
 
@@ -673,7 +690,7 @@ func (s *SpotlightService) invalidateSearchCacheForTenant(tenantID uuid.UUID) {
 	if tenantID == uuid.Nil {
 		return
 	}
-	prefix := tenantID.String() + "|"
+	prefix := tenantID.String() + searchCacheSeparator
 	// O(n) tenant-key scan is bounded by SearchCacheMaxEntries (default: 512).
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
@@ -710,8 +727,10 @@ func searchCacheKey(req SearchRequest) string {
 			parts = append(parts, key+"="+req.Filters[key])
 		}
 	}
-	return strings.Join(parts, "|")
+	return strings.Join(parts, searchCacheSeparator)
 }
+
+const searchCacheSeparator = "\x00"
 
 func (s *SpotlightService) reindexTask(ctx context.Context, task indexTask) {
 	defer s.enqueueOnce.Delete(task.tenantID.String() + ":" + task.language)

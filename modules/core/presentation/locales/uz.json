@@ -892,6 +892,7 @@
       "Help": "Bu yerda eng mos sahifalar va bilim bazasi yozuvlari keltirilgan"
     },
     "Actions": {
+      "Open": "Ochish",
       "AddUser": "Foydalanuvchi qo'shish",
       "AddAccount": "Hisob qo'shish"
     }

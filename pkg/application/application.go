@@ -163,11 +163,13 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts.Logger != nil {
 		serviceOpts = append(serviceOpts, spotlight.WithLogger(opts.Logger))
 	}
-	if opts.Pool == nil || skipSpotlightPreflight {
+	if opts.Pool == nil {
 		engine = spotlight.NewNoopEngine()
 	} else {
-		if err := spotlight.PreflightCheck(initCtx, opts.Pool); err != nil {
-			return nil, fmt.Errorf("spotlight preflight check: %w", err)
+		if !skipSpotlightPreflight {
+			if err := spotlight.PreflightCheck(initCtx, opts.Pool); err != nil {
+				return nil, fmt.Errorf("spotlight preflight check: %w", err)
+			}
 		}
 		pgEngine := spotlight.NewPostgresPGTextSearchEngine(opts.Pool)
 		engine = pgEngine

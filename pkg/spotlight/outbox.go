@@ -1,8 +1,10 @@
 package spotlight
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -17,6 +19,8 @@ import (
 type OutboxProcessor interface {
 	PollAndProcess(ctx context.Context) error
 }
+
+var ErrNoOutboxDocument = errors.New("spotlight: no outbox document")
 
 type PostgresOutboxProcessor struct {
 	pool   *pgxpool.Pool
@@ -148,10 +152,10 @@ func (p *PostgresOutboxProcessor) processEvent(ctx context.Context, row outboxRo
 	case "create", "update", "":
 		doc, err := parseOutboxDocument(row)
 		if err != nil {
+			if errors.Is(err, ErrNoOutboxDocument) {
+				return nil
+			}
 			return serrors.E(op, err)
-		}
-		if doc == nil {
-			return nil
 		}
 		return p.engine.Upsert(ctx, []SearchDocument{*doc})
 	default:
@@ -167,13 +171,13 @@ func (p *PostgresOutboxProcessor) processEvent(ctx context.Context, row outboxRo
 func parseOutboxDocument(row outboxRow) (*SearchDocument, error) {
 	const op serrors.Op = "spotlight.parseOutboxDocument"
 
-	payload := strings.TrimSpace(string(row.Payload))
-	if payload == "" || payload == "{}" || payload == "null" {
-		return nil, nil
+	payload := bytes.TrimSpace(row.Payload)
+	if len(payload) == 0 || bytes.Equal(payload, []byte("{}")) || bytes.Equal(payload, []byte("null")) {
+		return nil, ErrNoOutboxDocument
 	}
 
 	var event DocumentEvent
-	eventParseErr := json.Unmarshal(row.Payload, &event)
+	eventParseErr := json.Unmarshal(payload, &event)
 	if eventParseErr == nil && event.Document != nil {
 		doc := *event.Document
 		normalizeOutboxDocument(&doc, row)
@@ -181,7 +185,7 @@ func parseOutboxDocument(row outboxRow) (*SearchDocument, error) {
 	}
 
 	var doc SearchDocument
-	if err := json.Unmarshal(row.Payload, &doc); err != nil {
+	if err := json.Unmarshal(payload, &doc); err != nil {
 		return nil, serrors.E(op, fmt.Errorf(
 			"unable to parse spotlight outbox payload as document event or document: event_parse_err=%v document_parse_err=%w",
 			eventParseErr,

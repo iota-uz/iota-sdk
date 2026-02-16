@@ -55,7 +55,6 @@ func TestStrictACLEvaluator_FilterAuthorized_SkipsResolveForPublicOnly(t *testin
 	evaluator := NewStrictACLEvaluator(resolver)
 	req := SearchRequest{
 		TenantID: tenantID,
-		UserID:   "42",
 	}
 	hits := []SearchHit{
 		{Document: SearchDocument{TenantID: tenantID, Access: AccessPolicy{Visibility: VisibilityPublic}}},

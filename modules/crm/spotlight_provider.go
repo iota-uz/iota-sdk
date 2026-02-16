@@ -77,6 +77,8 @@ LIMIT $2
 		}
 		out = append(out, spotlight.SearchDocument{
 			ID:         fmt.Sprintf("crm:client:%d", id),
+			TenantID:   scope.TenantID,
+			Provider:   p.ProviderID(),
 			EntityType: "client",
 			Title:      title,
 			Body:       title,
@@ -102,5 +104,7 @@ LIMIT $2
 }
 
 func (p *spotlightProvider) Watch(_ context.Context, _ spotlight.ProviderScope) (<-chan spotlight.DocumentEvent, error) {
-	return nil, nil
+	changes := make(chan spotlight.DocumentEvent)
+	close(changes)
+	return changes, nil
 }

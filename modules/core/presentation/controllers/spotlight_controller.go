@@ -150,5 +150,4 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 		templ.WithStreaming(),
 		templ.WithErrorHandler(errorHandler),
 	).ServeHTTP(w, r)
-
 }

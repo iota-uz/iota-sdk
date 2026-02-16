@@ -1,19 +1,23 @@
 -- +migrate Up
 CREATE SCHEMA IF NOT EXISTS spotlight;
 
+-- +migrate StatementBegin
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') THEN
         CREATE EXTENSION IF NOT EXISTS vector;
     END IF;
 END $$;
+-- +migrate StatementEnd
 
+-- +migrate StatementBegin
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_textsearch') THEN
         CREATE EXTENSION IF NOT EXISTS pg_textsearch;
     END IF;
 END $$;
+-- +migrate StatementEnd
 
 CREATE TABLE IF NOT EXISTS spotlight.documents (
     id TEXT NOT NULL,
@@ -31,6 +35,7 @@ CREATE TABLE IF NOT EXISTS spotlight.documents (
     PRIMARY KEY (tenant_id, id)
 );
 
+-- +migrate StatementBegin
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
@@ -42,6 +47,7 @@ BEGIN
             END;
     END IF;
 END $$;
+-- +migrate StatementEnd
 
 CREATE INDEX IF NOT EXISTS idx_spotlight_documents_scope
     ON spotlight.documents (tenant_id, provider, entity_type, updated_at DESC);
@@ -49,6 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_spotlight_documents_scope
 CREATE INDEX IF NOT EXISTS idx_spotlight_documents_metadata
     ON spotlight.documents USING GIN (metadata);
 
+-- +migrate StatementBegin
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_textsearch') THEN
@@ -62,7 +69,9 @@ BEGIN
             USING GIN (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(body, '')));
     END IF;
 END $$;
+-- +migrate StatementEnd
 
+-- +migrate StatementBegin
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
@@ -71,6 +80,7 @@ BEGIN
             USING hnsw (embedding vector_cosine_ops);
     END IF;
 END $$;
+-- +migrate StatementEnd
 
 CREATE TABLE IF NOT EXISTS spotlight.document_acl (
     tenant_id UUID NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,

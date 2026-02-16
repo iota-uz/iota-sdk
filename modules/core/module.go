@@ -13,8 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 
-	icons "github.com/iota-uz/icons/phosphor"
-
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
@@ -222,12 +220,10 @@ func (m *Module) Register(app application.Application) error {
 	})
 	app.Spotlight().RegisterProvider(newSpotlightProvider(app.DB()))
 	app.QuickLinks().Add(
-		spotlight.NewQuickLink(DashboardLink.Icon, DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewQuickLink(UsersLink.Icon, UsersLink.Name, UsersLink.Href),
-		spotlight.NewQuickLink(GroupsLink.Icon, GroupsLink.Name, GroupsLink.Href),
-		spotlight.NewQuickLink(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"Users.List.New",
+		spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
+		spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
+		spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
+		spotlight.NewQuickLink("Users.List.New",
 			"/users/new",
 		),
 	)

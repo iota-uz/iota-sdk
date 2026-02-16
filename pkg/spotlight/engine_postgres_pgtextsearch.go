@@ -77,7 +77,7 @@ ON CONFLICT (tenant_id, id) DO UPDATE SET
 		)
 	}
 	res := e.pool.SendBatch(ctx, batch)
-	defer res.Close()
+	defer func() { _ = res.Close() }()
 
 	for range docs {
 		if _, err := res.Exec(); err != nil {
@@ -98,7 +98,7 @@ func (e *PostgresPGTextSearchEngine) Delete(ctx context.Context, refs []Document
 		batch.Queue(`DELETE FROM spotlight.documents WHERE tenant_id = $1 AND id = $2`, ref.TenantID, ref.ID)
 	}
 	res := e.pool.SendBatch(ctx, batch)
-	defer res.Close()
+	defer func() { _ = res.Close() }()
 	for range refs {
 		if _, err := res.Exec(); err != nil {
 			return serrors.E(op, err)
@@ -142,10 +142,10 @@ WITH lexical AS (
         updated_at,
         embedding,
         bm25_score(sd.id) AS lexical_score
-    FROM spotlight.documents sd
-    WHERE sd.tenant_id = $1
-      AND ($2 = '' OR sd.id @@@ $2 OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
-      AND %s
+	    FROM spotlight.documents sd
+	    WHERE sd.tenant_id = $1
+	      AND ($2 = '' OR sd.id @@@ $2 OR sd.title @@@ $2 OR sd.body @@@ $2 OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
+	      AND %s
     ORDER BY lexical_score DESC
     LIMIT $3
 ), vector_ranked AS (
@@ -262,8 +262,8 @@ SELECT
     bm25_score(sd.id) AS lexical_score
 FROM spotlight.documents sd
 WHERE sd.tenant_id = $1
-  AND ($2 = '' OR sd.id @@@ $2 OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
-  AND %s
+	  AND ($2 = '' OR sd.id @@@ $2 OR sd.title @@@ $2 OR sd.body @@@ $2 OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
+	  AND %s
 ORDER BY lexical_score DESC, updated_at DESC
 LIMIT $3
 	`, aclFilter), tenantID, query, limit, userID, roles, permissions)
@@ -350,10 +350,10 @@ SELECT
     access_policy,
     updated_at,
     ts_rank(to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')), plainto_tsquery('simple', $2)) AS lexical_score
-		FROM spotlight.documents sd
+FROM spotlight.documents sd
 WHERE sd.tenant_id = $1
-  AND ($2 = '' OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
-  AND %s
+	  AND ($2 = '' OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
+	  AND %s
 ORDER BY lexical_score DESC, updated_at DESC
 LIMIT $3
 		`, aclFilter), req.TenantID, strings.TrimSpace(req.Query), limit, userID, roles, permissions)

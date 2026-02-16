@@ -417,6 +417,7 @@ let spotlight = () => ({
     document.addEventListener('click', (event) => {
       const button = event.target.closest('.js-spotlight-confirm[data-spotlight-url]');
       if (!button) return;
+      event.preventDefault();
       const url = button.dataset.spotlightUrl || '';
       if (!url) return;
       const lang = (document.documentElement.lang || 'en').slice(0, 2).toLowerCase();

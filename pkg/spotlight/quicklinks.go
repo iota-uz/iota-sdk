@@ -15,7 +15,7 @@ type QuickLink struct {
 	createdAt time.Time
 }
 
-func NewQuickLink(_ any, trKey, link string) *QuickLink {
+func NewQuickLink(trKey, link string) *QuickLink {
 	return &QuickLink{trKey: trKey, link: link, createdAt: time.Now().UTC()}
 }
 
@@ -82,5 +82,7 @@ func (ql *QuickLinks) ListDocuments(ctx context.Context, scope ProviderScope) ([
 }
 
 func (ql *QuickLinks) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {
-	return nil, nil
+	changes := make(chan DocumentEvent)
+	close(changes)
+	return changes, nil
 }
