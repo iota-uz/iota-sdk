@@ -69,20 +69,15 @@ templ Rows(cfg *TableConfig) {
 		</tr>
 	}
 	if len(cfg.Rows) == 0 && !cfg.Editable.Enabled {
-		@base.TableRow(base.TableRowProps{
-			Attrs: templ.Attributes{
-				"class": "hide-on-load",
-			},
-		}) {
-			@base.TableCell(base.TableCellProps{
-				Classes: templ.Classes("text-center"),
-				Attrs: templ.Attributes{
-					"colspan": fmt.Sprintf("%d", len(cfg.Columns)),
-				},
-			}) {
-				{ pageCtx.T("Scaffold.Table.NothingFound") }
-			}
-		}
+		<tr class="hide-on-load h-full">
+			<td colspan={ fmt.Sprintf("%d", len(cfg.Columns)) } class="!p-0 !border-0 h-full">
+				@base.TableEmptyState(base.TableEmptyStateProps{
+					Title:       pageCtx.T("Scaffold.Table.NoDataTitle"),
+					Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
+					Class:       "h-full",
+				})
+			</td>
+		</tr>
 	} else {
 		if cfg.Editable.Enabled {
 			<template x-for="(row, index) in rows" :key="row.id">
@@ -277,6 +272,7 @@ templ Table(config *TableConfig) {
 			ScrollbarPosition:    config.ScrollbarPosition,
 			ScrollbarUnderHeader: config.Head.Sticky && config.Head.ScrollbarUnderHeader,
 			WrapperClasses:       templ.Classes(templ.KV("h-full", config.Head.Sticky)),
+			Classes:              templ.Classes(templ.KV("h-full", config.Head.Sticky)),
 			Columns:              toBaseTableColumns(config, pageCtx),
 			TBodyAttrs: templ.Attributes{
 				"id":          "table-body",
@@ -291,11 +287,12 @@ templ Table(config *TableConfig) {
 			NoTBody: config.Editable.Enabled,
 		}) {
 			if len(config.Rows) == 0 && !config.Editable.Enabled {
-				<tr>
-					<td colspan="100%">
+				<tr class="h-full">
+					<td colspan="100%" class="!p-0 !border-0 h-full">
 						@base.TableEmptyState(base.TableEmptyStateProps{
 							Title:       pageCtx.T("Scaffold.Table.NoDataTitle"),
 							Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
+							Class:       "h-full",
 						})
 					</td>
 				</tr>

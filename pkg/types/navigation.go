@@ -12,6 +12,7 @@ type NavigationItem struct {
 	Children    []NavigationItem
 	Icon        templ.Component
 	Permissions []permission.Permission
+	IsBeta      bool
 }
 
 func (n NavigationItem) HasPermission(user user.User) bool {

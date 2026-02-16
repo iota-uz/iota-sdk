@@ -49,6 +49,7 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 			Children:    translate(localizer, item.Children),
 			Icon:        item.Icon,
 			Permissions: item.Permissions,
+			IsBeta:      item.IsBeta,
 		})
 	}
 	return translated
