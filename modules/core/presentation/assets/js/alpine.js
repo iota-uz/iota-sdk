@@ -377,6 +377,13 @@ let filtersDropdown = () => ({
     this.$nextTick(() => {
       this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
     });
+  },
+  clearAll() {
+    this.selected = [];
+    this.$el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+    this.$nextTick(() => {
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
+    });
   }
 });
 

@@ -25,17 +25,14 @@ templ Dropdown(props DropdownProps) {
 			<!-- Clear Button -->
 			<button
 				x-show="selected.length"
+				@click="clearAll()"
+				type="button"
 				class={
 					"flex items-center justify-center cursor-pointer",
 					"border border-gray-300 rounded-md rounded-r-none px-2",
 				}
 			>
-				@icons.X(icons.Props{
-					Size: "16",
-					Attributes: templ.Attributes{
-						"@click": "selected = []",
-					},
-				})
+				@icons.X(icons.Props{Size: "16"})
 			</button>
 			<!-- Dropdown Button -->
 			<button

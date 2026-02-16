@@ -164,18 +164,27 @@ templ Table(props TableProps) {
 				sbGap: 0,
 				stickyR: 0,
 				init() {
+					const sc = this.$refs.sc;
+					if (!sc) return;
 					this.$nextTick(() => this.measure());
-					new ResizeObserver(() => this.measure()).observe(this.$refs.sc);
-					new MutationObserver(() => requestAnimationFrame(() => this.measure())).observe(
-						this.$refs.sc.querySelector('tbody') || this.$refs.sc,
+					this._ro = new ResizeObserver(() => this.measure());
+					this._ro.observe(sc);
+					this._mo = new MutationObserver(() => requestAnimationFrame(() => this.measure()));
+					this._mo.observe(
+						sc.querySelector('tbody') || sc,
 						{ childList: true, subtree: true }
 					);
-					this.$refs.sc.addEventListener('wheel', (e) => {
-						if (e.deltaX !== 0) { this.$refs.sc.scrollLeft += e.deltaX; }
+					sc.addEventListener('wheel', (e) => {
+						if (e.deltaX !== 0) { sc.scrollLeft += e.deltaX; }
 					}, { passive: true });
+				},
+				destroy() {
+					if (this._ro) this._ro.disconnect();
+					if (this._mo) this._mo.disconnect();
 				},
 				measure() {
 					const sc = this.$refs.sc;
+					if (!sc || !sc.isConnected) return;
 					this.proxyW = sc.scrollWidth;
 					this.headH = sc.querySelector('thead')?.offsetHeight || 0;
 					this.sbGap = sc.offsetWidth - sc.clientWidth;
