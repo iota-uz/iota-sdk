@@ -1,7 +1,19 @@
 -- +migrate Up
 CREATE SCHEMA IF NOT EXISTS spotlight;
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS pg_textsearch;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') THEN
+        CREATE EXTENSION IF NOT EXISTS vector;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_textsearch') THEN
+        CREATE EXTENSION IF NOT EXISTS pg_textsearch;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS spotlight.documents (
     id TEXT NOT NULL,
@@ -15,9 +27,21 @@ CREATE TABLE IF NOT EXISTS spotlight.documents (
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     access_policy JSONB NOT NULL DEFAULT '{"visibility":"restricted","owner_id":"","allowed_users":[],"allowed_roles":[],"allowed_permissions":[]}'::jsonb,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    embedding VECTOR(1536),
+    embedding DOUBLE PRECISION[],
     PRIMARY KEY (tenant_id, id)
 );
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+        ALTER TABLE spotlight.documents
+            ALTER COLUMN embedding TYPE VECTOR(1536)
+            USING CASE
+                WHEN embedding IS NULL THEN NULL::vector
+                ELSE ('[' || array_to_string(embedding, ',') || ']')::vector
+            END;
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_spotlight_documents_scope
     ON spotlight.documents (tenant_id, provider, entity_type, updated_at DESC);
@@ -25,14 +49,28 @@ CREATE INDEX IF NOT EXISTS idx_spotlight_documents_scope
 CREATE INDEX IF NOT EXISTS idx_spotlight_documents_metadata
     ON spotlight.documents USING GIN (metadata);
 
-CREATE INDEX IF NOT EXISTS idx_spotlight_documents_bm25
-    ON spotlight.documents
-    USING bm25 (id, title, body)
-    WITH (key_field = 'id');
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_textsearch') THEN
+        CREATE INDEX IF NOT EXISTS idx_spotlight_documents_bm25
+            ON spotlight.documents
+            USING bm25 (id, title, body)
+            WITH (key_field = 'id');
+    ELSE
+        CREATE INDEX IF NOT EXISTS idx_spotlight_documents_fts
+            ON spotlight.documents
+            USING GIN (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(body, '')));
+    END IF;
+END $$;
 
-CREATE INDEX IF NOT EXISTS idx_spotlight_documents_embedding
-    ON spotlight.documents
-    USING hnsw (embedding vector_cosine_ops);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+        CREATE INDEX IF NOT EXISTS idx_spotlight_documents_embedding
+            ON spotlight.documents
+            USING hnsw (embedding vector_cosine_ops);
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS spotlight.document_acl (
     tenant_id UUID NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
