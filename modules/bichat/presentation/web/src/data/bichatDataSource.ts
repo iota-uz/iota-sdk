@@ -15,6 +15,7 @@ export function useBiChatDataSource(
       baseUrl: '',
       rpcEndpoint: ctx.config.rpcUIEndpoint,
       streamEndpoint: ctx.config.streamEndpoint,
+      timeout: 120000,
     })
 
     if (onNavigateToSession) {
