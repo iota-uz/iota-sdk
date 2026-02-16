@@ -219,13 +219,14 @@ func (s *SpotlightService) Start(_ context.Context) error {
 		return nil
 	}
 	s.bgCtx, s.bgCancel = context.WithCancel(context.Background())
+	bgCtx := s.bgCtx
 	s.started = true
 	s.startedAtomic.Store(true)
 	s.wg.Add(1)
-	go func() {
+	go func(ctx context.Context) {
 		defer s.wg.Done()
-		s.runBackgroundIndexer(s.bgCtx, s.cfg.BackgroundIndexerTick)
-	}()
+		s.runBackgroundIndexer(ctx, s.cfg.BackgroundIndexerTick)
+	}(bgCtx)
 	return nil
 }
 
@@ -536,6 +537,9 @@ func (s *SpotlightService) applyDocumentEvent(ctx context.Context, tenantID uuid
 }
 
 func (s *SpotlightService) runBackgroundIndexer(ctx context.Context, tick time.Duration) {
+	if ctx == nil {
+		return
+	}
 	ticker := time.NewTicker(tick)
 	defer ticker.Stop()
 
