@@ -105,7 +105,7 @@ func (m *Module) Register(app application.Application) error {
 		spotlight.NewQuickLink("Expenses.List.New",
 			"/finance/overview?tab=expenses",
 		),
-		spotlight.NewQuickLink("Accounts.List.New",
+		spotlight.NewQuickLink("MoneyAccounts.List.New",
 			"/finance/accounts/new",
 		),
 		spotlight.NewQuickLink("Payments.List.New",
