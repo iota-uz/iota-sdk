@@ -8,24 +8,19 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/jackc/pgx/v5"
 	"github.com/sirupsen/logrus"
 )
 
 type spotlightProvider struct {
-	db           queryer
+	db           spotlight.Queryer
 	maxDocuments int
-}
-
-type queryer interface {
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
 var _ spotlight.SearchProvider = &spotlightProvider{}
 
 const defaultSpotlightProviderLimit = 1000
 
-func newSpotlightProvider(db queryer) *spotlightProvider {
+func newSpotlightProvider(db spotlight.Queryer) *spotlightProvider {
 	return &spotlightProvider{
 		db:           db,
 		maxDocuments: defaultSpotlightProviderLimit,
@@ -59,7 +54,7 @@ LIMIT $2
 	}
 	defer rows.Close()
 
-	out := make([]spotlight.SearchDocument, 0, 256)
+	out := make([]spotlight.SearchDocument, 0, limit)
 	for rows.Next() {
 		var id int64
 		var firstName string

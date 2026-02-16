@@ -70,8 +70,6 @@ func (a *testBatchACL) stats() (int, int) {
 }
 
 func TestSpotlightService_Search_UsesBatchACLAndCache(t *testing.T) {
-	t.Helper()
-
 	tenantID := uuid.New()
 	engine := &testEngine{
 		searchHits: []SearchHit{

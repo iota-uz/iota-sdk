@@ -2,6 +2,7 @@ package spotlight
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -59,7 +60,7 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 			end = len(all)
 		}
 		if err := p.engine.Upsert(ctx, all[start:end]); err != nil {
-			return serrors.E(op, err)
+			return serrors.E(op, fmt.Sprintf("upsert batch [%d:%d] failed", start, end), err)
 		}
 	}
 	return nil

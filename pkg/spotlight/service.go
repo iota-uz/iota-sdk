@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,7 +23,7 @@ const (
 	defaultAgentTimeout        = 80 * time.Millisecond
 	defaultSearchCacheTTL      = 2 * time.Second
 	defaultSearchCacheEntries  = 512
-	defaultSearchLatencyBudget = 280 * time.Millisecond
+	defaultSearchLatencyBudget = 350 * time.Millisecond
 	defaultBackgroundTick      = 5 * time.Second
 )
 
@@ -85,6 +86,9 @@ type ServiceOption func(*SpotlightService)
 
 func WithOutboxProcessor(processor OutboxProcessor) ServiceOption {
 	return func(s *SpotlightService) {
+		if processor == nil {
+			return
+		}
 		s.outbox = processor
 	}
 }
@@ -155,14 +159,15 @@ type SpotlightService struct {
 	cacheMu     sync.RWMutex
 	searchCache map[string]cachedSearchResponse
 
-	indexQueue   chan indexTask
-	enqueueOnce  sync.Map
-	watchStarted sync.Map
-	lifecycleMu  sync.Mutex
-	started      bool
-	bgCtx        context.Context
-	bgCancel     context.CancelFunc
-	wg           sync.WaitGroup
+	indexQueue    chan indexTask
+	enqueueOnce   sync.Map
+	watchStarted  sync.Map
+	lifecycleMu   sync.Mutex
+	started       bool
+	startedAtomic atomic.Bool
+	bgCtx         context.Context
+	bgCancel      context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 type indexTask struct {
@@ -211,6 +216,7 @@ func (s *SpotlightService) Start(_ context.Context) error {
 	}
 	s.bgCtx, s.bgCancel = context.WithCancel(context.Background())
 	s.started = true
+	s.startedAtomic.Store(true)
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -227,6 +233,7 @@ func (s *SpotlightService) Stop(ctx context.Context) error {
 	}
 	cancel := s.bgCancel
 	s.started = false
+	s.startedAtomic.Store(false)
 	s.bgCancel = nil
 	s.bgCtx = nil
 	s.lifecycleMu.Unlock()
@@ -550,9 +557,7 @@ func (s *SpotlightService) pollOutbox(ctx context.Context) {
 }
 
 func (s *SpotlightService) isStarted() bool {
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
-	return s.started
+	return s.startedAtomic.Load()
 }
 
 func (s *SpotlightService) filterAuthorized(ctx context.Context, req SearchRequest, hits []SearchHit) []SearchHit {
@@ -632,6 +637,7 @@ func (s *SpotlightService) setCachedSearch(req SearchRequest, resp SearchRespons
 	}
 	key := searchCacheKey(req)
 	now := time.Now()
+	// O(n) eviction is intentional and bounded by SearchCacheMaxEntries (default: 512).
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
 	if len(s.searchCache) >= s.cfg.SearchCacheMaxEntries {
@@ -668,6 +674,7 @@ func (s *SpotlightService) invalidateSearchCacheForTenant(tenantID uuid.UUID) {
 		return
 	}
 	prefix := tenantID.String() + "|"
+	// O(n) tenant-key scan is bounded by SearchCacheMaxEntries (default: 512).
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
 	for key := range s.searchCache {

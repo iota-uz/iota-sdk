@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS spotlight.outbox (
 );
 
 CREATE INDEX IF NOT EXISTS idx_spotlight_outbox_pending
-    ON spotlight.outbox (processed_at, created_at)
+    ON spotlight.outbox (tenant_id, created_at)
     WHERE processed_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_spotlight_outbox_tenant_created

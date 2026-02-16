@@ -152,8 +152,14 @@ func principalFromRequest(req SearchRequest) (Principal, bool) {
 }
 
 func canReadPolicy(policy AccessPolicy, principal Principal) bool {
-	if policy.Visibility == VisibilityOwner {
+	switch policy.Visibility {
+	case VisibilityPublic:
+		return true
+	case VisibilityOwner:
 		return principal.UserID != "" && policy.OwnerID != "" && policy.OwnerID == principal.UserID
+	case VisibilityRestricted:
+	default:
+		return false
 	}
 
 	for _, userID := range policy.AllowedUsers {

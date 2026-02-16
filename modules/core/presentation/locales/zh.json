@@ -891,6 +891,10 @@
   "Spotlight": {
     "Placeholder": "搜索...",
     "NothingFound": "未找到任何内容",
+    "Summary": {
+      "Default": "已为您的请求找到最佳匹配结果",
+      "Help": "以下是最匹配的页面和知识条目"
+    },
     "Actions": {
       "AddUser": "添加用户",
       "AddAccount": "添加账户"

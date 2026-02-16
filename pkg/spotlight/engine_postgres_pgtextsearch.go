@@ -125,7 +125,8 @@ func (e *PostgresPGTextSearchEngine) Search(ctx context.Context, req SearchReque
 func (e *PostgresPGTextSearchEngine) searchHybrid(ctx context.Context, tenantID uuid.UUID, query string, embedding []float32, userID string, roles []string, permissions []string, limit int) ([]SearchHit, error) {
 	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.searchHybrid"
 
-	rows, err := e.pool.Query(ctx, `
+	aclFilter := aclFilterSQL(7, 8, 9)
+	rows, err := e.pool.Query(ctx, fmt.Sprintf(`
 WITH lexical AS (
     SELECT
         id,
@@ -140,26 +141,11 @@ WITH lexical AS (
         access_policy,
         updated_at,
         embedding,
-        1.0 / (1.0 + bm25_score(sd.id)) AS lexical_score
+        bm25_score(sd.id) AS lexical_score
     FROM spotlight.documents sd
     WHERE sd.tenant_id = $1
-      AND ($2 = '' OR sd.id @@@ $2)
-      AND (
-        (sd.access_policy->>'visibility') = 'public'
-        OR (
-            $7 <> ''
-            AND (sd.access_policy->>'visibility') = 'owner'
-            AND (sd.access_policy->>'owner_id') = $7
-        )
-        OR (
-            (sd.access_policy->>'visibility') = 'restricted'
-            AND (
-                ($7 <> '' AND COALESCE(sd.access_policy->'allowed_users', '[]'::jsonb) ? $7)
-                OR (COALESCE(cardinality($8::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_roles', '[]'::jsonb) ?| $8::text[])
-                OR (COALESCE(cardinality($9::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_permissions', '[]'::jsonb) ?| $9::text[])
-            )
-        )
-      )
+      AND ($2 = '' OR sd.id @@@ $2 OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
+      AND %s
     ORDER BY lexical_score DESC
     LIMIT $3
 ), vector_ranked AS (
@@ -189,7 +175,7 @@ FROM lexical l
 JOIN vector_ranked v ON v.id = l.id
 ORDER BY final_score DESC
 LIMIT $3
-`, tenantID, query, limit, toVectorLiteral(embedding), DefaultLexicalWeight, DefaultVectorWeight, userID, roles, permissions)
+	`, aclFilter), tenantID, query, limit, toVectorLiteral(embedding), DefaultLexicalWeight, DefaultVectorWeight, userID, roles, permissions)
 	if err != nil {
 		e.logger.WithError(err).WithFields(logrus.Fields{
 			"tenant_id": tenantID.String(),
@@ -259,7 +245,8 @@ LIMIT $3
 func (e *PostgresPGTextSearchEngine) searchLexicalOnly(ctx context.Context, tenantID uuid.UUID, query string, userID string, roles []string, permissions []string, limit int) ([]SearchHit, error) {
 	const op serrors.Op = "spotlight.PostgresPGTextSearchEngine.searchLexicalOnly"
 
-	rows, err := e.pool.Query(ctx, `
+	aclFilter := aclFilterSQL(4, 5, 6)
+	rows, err := e.pool.Query(ctx, fmt.Sprintf(`
 SELECT
     id,
     tenant_id,
@@ -272,29 +259,14 @@ SELECT
     metadata,
     access_policy,
     updated_at,
-    1.0 / (1.0 + bm25_score(sd.id)) AS lexical_score
+    bm25_score(sd.id) AS lexical_score
 FROM spotlight.documents sd
 WHERE sd.tenant_id = $1
-  AND ($2 = '' OR sd.id @@@ $2)
-  AND (
-    (sd.access_policy->>'visibility') = 'public'
-    OR (
-        $4 <> ''
-        AND (sd.access_policy->>'visibility') = 'owner'
-        AND (sd.access_policy->>'owner_id') = $4
-    )
-    OR (
-        (sd.access_policy->>'visibility') = 'restricted'
-        AND (
-            ($4 <> '' AND COALESCE(sd.access_policy->'allowed_users', '[]'::jsonb) ? $4)
-            OR (COALESCE(cardinality($5::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_roles', '[]'::jsonb) ?| $5::text[])
-            OR (COALESCE(cardinality($6::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_permissions', '[]'::jsonb) ?| $6::text[])
-        )
-    )
-  )
+  AND ($2 = '' OR sd.id @@@ $2 OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
+  AND %s
 ORDER BY lexical_score DESC, updated_at DESC
 LIMIT $3
-`, tenantID, query, limit, userID, roles, permissions)
+	`, aclFilter), tenantID, query, limit, userID, roles, permissions)
 	if err != nil {
 		e.logger.WithError(err).WithFields(logrus.Fields{
 			"tenant_id": tenantID.String(),
@@ -362,8 +334,9 @@ func (e *PostgresPGTextSearchEngine) searchFallback(ctx context.Context, req Sea
 	userID := strings.TrimSpace(req.UserID)
 	roles := dedupeAndSort(req.Roles)
 	permissions := dedupeAndSort(req.Permissions)
+	aclFilter := aclFilterSQL(4, 5, 6)
 
-	rows, err := e.pool.Query(ctx, `
+	rows, err := e.pool.Query(ctx, fmt.Sprintf(`
 SELECT
     id,
     tenant_id,
@@ -377,28 +350,13 @@ SELECT
     access_policy,
     updated_at,
     ts_rank(to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')), plainto_tsquery('simple', $2)) AS lexical_score
-	FROM spotlight.documents sd
+		FROM spotlight.documents sd
 WHERE sd.tenant_id = $1
   AND ($2 = '' OR to_tsvector('simple', coalesce(sd.title,'') || ' ' || coalesce(sd.body,'')) @@ plainto_tsquery('simple', $2))
-  AND (
-    (sd.access_policy->>'visibility') = 'public'
-    OR (
-        $4 <> ''
-        AND (sd.access_policy->>'visibility') = 'owner'
-        AND (sd.access_policy->>'owner_id') = $4
-    )
-    OR (
-        (sd.access_policy->>'visibility') = 'restricted'
-        AND (
-            ($4 <> '' AND COALESCE(sd.access_policy->'allowed_users', '[]'::jsonb) ? $4)
-            OR (COALESCE(cardinality($5::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_roles', '[]'::jsonb) ?| $5::text[])
-            OR (COALESCE(cardinality($6::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_permissions', '[]'::jsonb) ?| $6::text[])
-        )
-    )
-  )
+  AND %s
 ORDER BY lexical_score DESC, updated_at DESC
 LIMIT $3
-	`, req.TenantID, strings.TrimSpace(req.Query), limit, userID, roles, permissions)
+		`, aclFilter), req.TenantID, strings.TrimSpace(req.Query), limit, userID, roles, permissions)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -448,6 +406,25 @@ LIMIT $3
 		return nil, serrors.E(op, err)
 	}
 	return out, nil
+}
+
+func aclFilterSQL(userIdx, rolesIdx, permissionsIdx int) string {
+	return fmt.Sprintf(`(
+    (sd.access_policy->>'visibility') = 'public'
+    OR (
+        $%d <> ''
+        AND (sd.access_policy->>'visibility') = 'owner'
+        AND (sd.access_policy->>'owner_id') = $%d
+    )
+    OR (
+        (sd.access_policy->>'visibility') = 'restricted'
+        AND (
+            ($%d <> '' AND COALESCE(sd.access_policy->'allowed_users', '[]'::jsonb) ? $%d)
+            OR (COALESCE(cardinality($%d::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_roles', '[]'::jsonb) ?| $%d::text[])
+            OR (COALESCE(cardinality($%d::text[]), 0) > 0 AND COALESCE(sd.access_policy->'allowed_permissions', '[]'::jsonb) ?| $%d::text[])
+        )
+    )
+)`, userIdx, userIdx, userIdx, userIdx, rolesIdx, rolesIdx, permissionsIdx, permissionsIdx)
 }
 
 func (e *PostgresPGTextSearchEngine) Health(ctx context.Context) error {

@@ -168,7 +168,7 @@ fix cmd="help":
 check cmd="help":
   case "{{cmd}}" in \
     lint) golangci-lint run --build-tags {{GO_TEST_TAG}} ./... ;; \
-    tr) go run cmd/command/main.go check_tr_keys ;; \
+    tr) IOTA_SKIP_SPOTLIGHT_PREFLIGHT=1 go run cmd/command/main.go check_tr_keys ;; \
     *) \
       echo "Usage: just check [lint|tr]" ; \
       exit 2 ;; \

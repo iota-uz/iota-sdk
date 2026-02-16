@@ -130,6 +130,11 @@ func LoadBundleFromLocaleFiles(fs ...*embed.FS) *i18n.Bundle {
 	return bundle
 }
 
+func shouldSkipSpotlightPreflight() bool {
+	value := strings.TrimSpace(os.Getenv("IOTA_SKIP_SPOTLIGHT_PREFLIGHT"))
+	return value == "1" || strings.EqualFold(value, "true")
+}
+
 // loadLocaleFSIntoBundle reads all files from the given embed.FS and parses them into the bundle.
 func loadLocaleFSIntoBundle(bundle *i18n.Bundle, localeFs *embed.FS) {
 	files, err := listFiles(localeFs, ".")
@@ -152,16 +157,17 @@ func New(opts *ApplicationOptions) (Application, error) {
 	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer initCancel()
 
+	skipSpotlightPreflight := shouldSkipSpotlightPreflight()
 	var engine spotlight.IndexEngine
 	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
 	if opts.Logger != nil {
 		serviceOpts = append(serviceOpts, spotlight.WithLogger(opts.Logger))
 	}
-	if opts.Pool == nil {
+	if opts.Pool == nil || skipSpotlightPreflight {
 		engine = spotlight.NewNoopEngine()
 	} else {
 		if err := spotlight.PreflightCheck(initCtx, opts.Pool); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("spotlight preflight check: %w", err)
 		}
 		pgEngine := spotlight.NewPostgresPGTextSearchEngine(opts.Pool)
 		engine = pgEngine
@@ -176,7 +182,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 		serviceOpts...,
 	)
 	if err := spotlightService.Start(initCtx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("start spotlight service: %w", err)
 	}
 	quickLinks := spotlight.NewQuickLinks()
 	spotlightService.RegisterProvider(quickLinks)

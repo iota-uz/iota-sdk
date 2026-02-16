@@ -887,6 +887,10 @@
   "Spotlight": {
     "Placeholder": "Search...",
     "NothingFound": "Nothing found",
+    "Summary": {
+      "Default": "Best matches found for your request",
+      "Help": "Here are the best matching pages and knowledge entries"
+    },
     "Actions": {
       "AddUser": "Add user",
       "AddAccount": "Add account"

@@ -2,6 +2,7 @@ package spotlight
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -20,8 +21,6 @@ func (r *countingPrincipalResolver) Resolve(_ context.Context, _ SearchRequest) 
 }
 
 func TestStrictACLEvaluator_FilterAuthorized_ResolvesPrincipalOnce(t *testing.T) {
-	t.Helper()
-
 	tenantID := uuid.New()
 	resolver := &countingPrincipalResolver{
 		principal: Principal{
@@ -49,8 +48,6 @@ func TestStrictACLEvaluator_FilterAuthorized_ResolvesPrincipalOnce(t *testing.T)
 }
 
 func TestStrictACLEvaluator_FilterAuthorized_SkipsResolveForPublicOnly(t *testing.T) {
-	t.Helper()
-
 	tenantID := uuid.New()
 	resolver := &countingPrincipalResolver{
 		principal: Principal{UserID: "42"},
@@ -69,4 +66,25 @@ func TestStrictACLEvaluator_FilterAuthorized_SkipsResolveForPublicOnly(t *testin
 
 	require.Len(t, filtered, 2)
 	require.Equal(t, 0, resolver.calls)
+}
+
+func TestStrictACLEvaluator_FilterAuthorized_ResolverErrorFailClosed(t *testing.T) {
+	tenantID := uuid.New()
+	resolver := &countingPrincipalResolver{
+		err: errors.New("resolver unavailable"),
+	}
+	evaluator := NewStrictACLEvaluator(resolver)
+	req := SearchRequest{
+		TenantID: tenantID,
+	}
+	hits := []SearchHit{
+		{Document: SearchDocument{TenantID: tenantID, Access: AccessPolicy{Visibility: VisibilityPublic}}},
+		{Document: SearchDocument{TenantID: tenantID, Access: AccessPolicy{Visibility: VisibilityRestricted, AllowedRoles: []string{"admin"}}}},
+	}
+
+	filtered := evaluator.FilterAuthorized(context.Background(), req, hits)
+
+	require.Len(t, filtered, 1)
+	require.Equal(t, VisibilityPublic, filtered[0].Document.Access.Visibility)
+	require.Equal(t, 1, resolver.calls)
 }

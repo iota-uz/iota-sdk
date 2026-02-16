@@ -5,19 +5,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/a-h/templ"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type QuickLink struct {
 	trKey     string
-	icon      templ.Component
 	link      string
 	createdAt time.Time
 }
 
-func NewQuickLink(icon templ.Component, trKey, link string) *QuickLink {
-	return &QuickLink{trKey: trKey, icon: icon, link: link, createdAt: time.Now().UTC()}
+func NewQuickLink(_ any, trKey, link string) *QuickLink {
+	return &QuickLink{trKey: trKey, link: link, createdAt: time.Now().UTC()}
 }
 
 type QuickLinks struct {
@@ -50,7 +49,18 @@ func (ql *QuickLinks) ListDocuments(ctx context.Context, scope ProviderScope) ([
 	providerID := ql.ProviderID()
 	out := make([]SearchDocument, 0, len(ql.items))
 	for _, item := range ql.items {
-		label := intl.MustT(ctx, item.trKey)
+		label := item.trKey
+		if localizer, ok := intl.UseLocalizer(ctx); ok {
+			if translated, err := localizer.Localize(&i18n.LocalizeConfig{
+				MessageID: item.trKey,
+				DefaultMessage: &i18n.Message{
+					ID:    item.trKey,
+					Other: item.trKey,
+				},
+			}); err == nil {
+				label = translated
+			}
+		}
 		out = append(out, SearchDocument{
 			ID:         providerID + ":" + item.trKey + ":" + item.link,
 			TenantID:   scope.TenantID,

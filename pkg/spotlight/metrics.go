@@ -32,6 +32,8 @@ type Metrics interface {
 
 type NoopMetrics struct{}
 
+var _ Metrics = (*NoopMetrics)(nil)
+
 func NewNoopMetrics() *NoopMetrics {
 	return &NoopMetrics{}
 }

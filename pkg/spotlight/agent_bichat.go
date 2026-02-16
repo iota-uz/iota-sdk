@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/sirupsen/logrus"
 )
 
@@ -79,10 +81,28 @@ func (a *BIChatAgent) Answer(ctx context.Context, req SearchRequest, hits []Sear
 		return nil, nil
 	}
 
-	summary := "Best matches found for your request"
+	summary := localizeSpotlightMessage(ctx, "Spotlight.Summary.Default", "Best matches found for your request")
 	if req.Intent == SearchIntentHelp || IsHowQuery(query) {
-		summary = "Here are the best matching pages and knowledge entries"
+		summary = localizeSpotlightMessage(ctx, "Spotlight.Summary.Help", "Here are the best matching pages and knowledge entries")
 	}
 
 	return &AgentAnswer{Summary: summary, Citations: citations, Actions: actions}, nil
+}
+
+func localizeSpotlightMessage(ctx context.Context, key, fallback string) string {
+	localizer, ok := intl.UseLocalizer(ctx)
+	if !ok {
+		return fallback
+	}
+	translated, err := localizer.Localize(&i18n.LocalizeConfig{
+		MessageID: key,
+		DefaultMessage: &i18n.Message{
+			ID:    key,
+			Other: fallback,
+		},
+	})
+	if err != nil {
+		return fallback
+	}
+	return translated
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 type OutboxProcessor interface {
@@ -95,23 +96,38 @@ LIMIT $1
 	}
 
 	processedIDs := make([]int64, 0, len(batch))
+	failedCount := 0
 	for _, row := range batch {
 		if err := p.processEvent(ctx, row); err != nil {
-			return serrors.E(op, fmt.Errorf("process outbox id=%d: %w", row.ID, err))
+			failedCount++
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"outbox_id":    row.ID,
+				"tenant_id":    row.TenantID.String(),
+				"provider":     row.Provider,
+				"event_type":   row.EventType,
+				"document_id":  row.DocumentID,
+				"failed_count": failedCount,
+			}).Warn("spotlight outbox row processing failed")
+			continue
 		}
 		processedIDs = append(processedIDs, row.ID)
 	}
 
-	if _, err := tx.Exec(ctx, `
-	UPDATE spotlight.outbox
-	SET processed_at = NOW()
-WHERE id = ANY($1::bigint[])
-`, processedIDs); err != nil {
-		return serrors.E(op, err)
+	if len(processedIDs) > 0 {
+		if _, err := tx.Exec(ctx, `
+		UPDATE spotlight.outbox
+		SET processed_at = NOW()
+	WHERE id = ANY($1::bigint[])
+	`, processedIDs); err != nil {
+			return serrors.E(op, err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return serrors.E(op, err)
+	}
+	if failedCount > 0 {
+		return serrors.E(op, fmt.Errorf("processed %d/%d spotlight outbox events", len(processedIDs), len(batch)))
 	}
 	return nil
 }
@@ -139,6 +155,11 @@ func (p *PostgresOutboxProcessor) processEvent(ctx context.Context, row outboxRo
 		}
 		return p.engine.Upsert(ctx, []SearchDocument{*doc})
 	default:
+		logrus.WithFields(logrus.Fields{
+			"event_type":  eventType,
+			"document_id": row.DocumentID,
+			"outbox_id":   row.ID,
+		}).Debug("ignoring unknown spotlight outbox event type")
 		return nil
 	}
 }

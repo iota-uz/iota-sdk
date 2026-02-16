@@ -8,20 +8,15 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/jackc/pgx/v5"
 )
 
 type spotlightProvider struct {
-	db queryer
-}
-
-type queryer interface {
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	db spotlight.Queryer
 }
 
 var _ spotlight.SearchProvider = &spotlightProvider{}
 
-func newSpotlightProvider(db queryer) *spotlightProvider {
+func newSpotlightProvider(db spotlight.Queryer) *spotlightProvider {
 	return &spotlightProvider{db: db}
 }
 
