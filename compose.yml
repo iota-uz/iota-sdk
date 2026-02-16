@@ -16,6 +16,8 @@ services:
       SESSION_DURATION: 720h
       INITIAL_USER_EMAIL: diyor_khaydarov@apollos.studio
       INITIAL_USER_PASSWORD: gSgnIInjB430
+      MEILI_URL: http://meilisearch:7700
+      MEILI_API_KEY: ${MEILI_MASTER_KEY}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.erp.rule=Host(`erp.iota.uz`)"
@@ -26,7 +28,7 @@ services:
       - app
 
   erp_db:
-    image: postgres:17
+    image: postgres:15.1
     restart: always
     hostname: erp_db
     environment:
@@ -35,6 +37,19 @@ services:
       POSTGRES_DB: iota_erp
     volumes:
       - ~/volumes/erp/postgres/data:/var/lib/postgresql/data
+    networks:
+      - app
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    restart: always
+    hostname: meilisearch
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - ~/volumes/erp/meilisearch/data:/meili_data
     networks:
       - app
 

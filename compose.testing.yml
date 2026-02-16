@@ -12,11 +12,13 @@ services:
       DB_PASSWORD: postgres
       DOMAIN: iota.uz
       SESSION_DURATION: 720h
+      MEILI_URL: http://meilisearch:7700
     depends_on:
       - erp_db
+      - meilisearch
 
   erp_db:
-    image: postgres:17
+    image: postgres:15.1
     restart: always
     hostname: erp_db
     environment:
@@ -27,3 +29,11 @@ services:
   redis:
     image: redis:latest
     restart: always
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    restart: always
+    hostname: meilisearch
+    environment:
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: "true"
