@@ -829,7 +829,7 @@ func CollapsedGroupFlyout(node NavNode, depth int) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "\" x-transition class=\"fixed z-[70] w-64 rounded-lg border border-primary bg-surface-300 p-1.5 shadow-lg\"><ul class=\"flex flex-col gap-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "\" x-transition class=\"sidebar-flyout fixed z-[70] w-64 rounded-lg p-1.5\"><ul class=\"flex flex-col gap-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

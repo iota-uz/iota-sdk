@@ -271,7 +271,7 @@ templ CollapsedGroupFlyout(node NavNode, depth int) {
 			data-group-id={ node.ID }
 			data-depth={ depthAttr(depth) }
 			x-transition
-			class="fixed z-[70] w-64 rounded-lg border border-primary bg-surface-300 p-1.5 shadow-lg"
+			class="sidebar-flyout fixed z-[70] w-64 rounded-lg p-1.5"
 		>
 			<ul class="flex flex-col gap-1">
 				for _, child := range node.Children {
