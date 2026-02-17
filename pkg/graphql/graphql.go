@@ -227,7 +227,14 @@ func NewHandler(rootExecutor *executor.Executor) *Handler {
 }
 
 func (s *Handler) AddExecutor(execs ...*executor.Executor) {
-	s.execs = append(s.execs, execs...)
+	for _, exec := range execs {
+		if exec == nil {
+			continue
+		}
+
+		s.execs = append(s.execs, exec)
+		registerIntrospection(s, exec)
+	}
 }
 
 func (s *Handler) AddTransport(transport graphql.Transport) {
