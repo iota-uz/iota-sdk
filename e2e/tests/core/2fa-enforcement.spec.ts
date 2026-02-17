@@ -1,6 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, populateTestData } from '../../fixtures/test-data';
+import { generateTOTPCode } from '../../helpers/totp';
 
 /**
  * 2FA Enforcement and Edge Cases E2E Tests
@@ -142,12 +143,10 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 			await expect(page).toHaveURL(/\/login\/2fa\/verify|\/login/);
 
 			// Verify cannot access users page
-			await expect(page).not.toHaveURL(/\/users/);
+			expect(new URL(page.url()).pathname).not.toBe('/users');
 		});
 
 		test('should allow access after completing 2FA verification', async ({ page }) => {
-			const { generateTOTPCode } = await import('../../helpers/totp');
-
 			// Login and complete 2FA
 			await page.goto('/login');
 			await page.fill('[type=email]', totpUser.email);
@@ -170,7 +169,7 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 	});
 
 	test.describe('Redirect URL validation (security)', () => {
-		const testUser = {
+		const setupUser = {
 			email: 'redirect-test@example.com',
 			password: 'TestPass123!',
 		};
@@ -185,30 +184,38 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 					name: 'Test Tenant',
 					domain: 'test.localhost',
 				},
-				data: {
-					users: [
-						{
-							email: testUser.email,
-							password: testUser.password,
-							firstName: 'Redirect',
-							lastName: 'Test',
-							language: 'en',
-							twoFactorMethod: 'totp',
-							totpSecretEncrypted: 'JBSWY3DPEHPK3PXP',
-							twoFactorEnabledAt: new Date().toISOString(),
-						},
-					],
-				},
+					data: {
+						users: [
+							{
+								email: setupUser.email,
+								password: setupUser.password,
+								firstName: 'Redirect',
+								lastName: 'Test',
+								language: 'en',
+							},
+						],
+					},
+				});
 			});
-		});
 
-		test('should accept valid internal nextURL', async ({ page }) => {
-			const validNextURL = '/users';
+			const openSetup = async (page: Page, nextURL: string) => {
+				await page.goto('/login');
+				await page.fill('[type=email]', setupUser.email);
+				await page.fill('[type=password]', setupUser.password);
+				await Promise.all([
+					page.waitForURL((url) => !url.pathname.includes('/login')),
+					page.click('[type=submit]'),
+				]);
+				await page.goto(`/login/2fa/setup?next=${encodeURIComponent(nextURL)}`);
+			};
 
-			await page.goto(`/login/2fa/setup?next=${encodeURIComponent(validNextURL)}`);
+			test('should accept valid internal nextURL', async ({ page }) => {
+				const validNextURL = '/users';
 
-			// Verify nextURL is preserved in hidden input
-			const hiddenInput = page.locator('input[name="NextURL"]');
+				await openSetup(page, validNextURL);
+
+				// Verify nextURL is preserved in hidden input
+				const hiddenInput = page.locator('input[name="NextURL"]');
 			const value = await hiddenInput.inputValue();
 			expect(value).toBe(validNextURL);
 		});
@@ -219,13 +226,13 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 				'//evil.com',
 				'javascript:alert(1)',
 				'data:text/html,<script>alert(1)</script>',
-			];
+				];
 
-			for (const maliciousURL of maliciousURLs) {
-				await page.goto(`/login/2fa/setup?next=${encodeURIComponent(maliciousURL)}`);
+				for (const maliciousURL of maliciousURLs) {
+					await openSetup(page, maliciousURL);
 
-				// Verify nextURL is sanitized or rejected
-				const hiddenInput = page.locator('input[name="NextURL"]');
+					// Verify nextURL is sanitized or rejected
+					const hiddenInput = page.locator('input[name="NextURL"]');
 				const value = await hiddenInput.inputValue();
 
 				// Should NOT contain the malicious URL
@@ -234,10 +241,10 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 				// Should be safe internal path (like / or empty)
 				expect(value).toMatch(/^(\/|)$/);
 			}
-		});
+			});
 
-		test('should default to home when nextURL is invalid', async ({ page }) => {
-			await page.goto('/login/2fa/setup?next=https://evil.com');
+			test('should default to home when nextURL is invalid', async ({ page }) => {
+				await openSetup(page, 'https://evil.com');
 
 			const hiddenInput = page.locator('input[name="NextURL"]');
 			const value = await hiddenInput.inputValue();
@@ -330,8 +337,6 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 		});
 
 		test('should prevent setup when 2FA is already enabled', async ({ page }) => {
-			const { generateTOTPCode } = await import('../../helpers/totp');
-
 			// Login with 2FA verification
 			await page.goto('/login');
 			await page.fill('[type=email]', totpEnabledUser.email);
@@ -356,8 +361,36 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 	});
 
 	test.describe('Input validation and security', () => {
+		const xssUser = {
+			email: 'xss-test@example.com',
+			password: 'TestPass123!',
+			totpSecret: 'JBSWY3DPEHPK3PXP',
+		};
+
 		test.beforeAll(async ({ request }) => {
-			await resetTestDatabase(request, { reseedMinimal: false });
+			await resetTestDatabase(request, { reseedMinimal: true });
+			await populateTestData(request, {
+				version: '1.0',
+				tenant: {
+					id: '00000000-0000-0000-0000-000000000001',
+					name: 'Test Tenant',
+					domain: 'test.localhost',
+				},
+				data: {
+					users: [
+						{
+							email: xssUser.email,
+							password: xssUser.password,
+							firstName: 'Xss',
+							lastName: 'User',
+							language: 'en',
+							twoFactorMethod: 'totp',
+							totpSecretEncrypted: xssUser.totpSecret,
+							twoFactorEnabledAt: new Date().toISOString(),
+						},
+					],
+				},
+			});
 		});
 
 		test('should have CSRF protection on 2FA forms', async ({ page }) => {
@@ -377,10 +410,14 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 		});
 
 		test('should sanitize code inputs (XSS prevention)', async ({ page }) => {
-			await page.goto('/login/2fa/setup');
+			await page.goto('/login');
+			await page.fill('[type=email]', xssUser.email);
+			await page.fill('[type=password]', xssUser.password);
+			await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
 
 			// Try to inject script in code input
 			const codeInput = page.locator('input[name="Code"]');
+			await expect(codeInput).toBeVisible();
 			await codeInput.fill('<script>alert(1)</script>');
 
 			// Input should be sanitized or have type constraints that prevent script execution
@@ -426,8 +463,6 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 		});
 
 		test('should handle browser back button gracefully during 2FA flow', async ({ page }) => {
-			const { generateTOTPCode } = await import('../../helpers/totp');
-
 			// Login to get to verification page
 			await page.goto('/login');
 			await page.fill('[type=email]', testUser.email);
@@ -442,7 +477,7 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 			await page.goBack();
 
 			// Should be back on verification page
-			await expect(page).toHaveURL(/\/login\/2fa\/verify$/);
+			await expect(page).toHaveURL(/\/login\/2fa\/verify(\?.*)?$/);
 
 			// Should still be able to verify
 			const code = generateTOTPCode('JBSWY3DPEHPK3PXP');

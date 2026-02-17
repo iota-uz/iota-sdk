@@ -211,7 +211,7 @@ test.describe('2FA TOTP Login Flow', () => {
 		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
 
 		// Verify TOTP-specific text is present
-		await expect(page.locator('text=/authenticator/i')).toBeVisible();
+		await expect(page.getByText(/authenticator/i).first()).toBeVisible();
 
 		// Verify heading mentions entering code
 		await expect(page.locator('h1, h2')).toContainText(/code/i);

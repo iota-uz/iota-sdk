@@ -5,5 +5,6 @@ import "context"
 // CSRFTokenField renders a hidden input field containing the CSRF token
 // for form submission protection. This should be included in all POST forms.
 templ CSRFTokenField(ctx context.Context) {
-	<input type="hidden" name="gorilla.csrf.Token" value={ ctx.Value("gorilla.csrf.Token").(string) }/>
+	{{ csrfToken, _ := ctx.Value("gorilla.csrf.Token").(string) }}
+	<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
 }

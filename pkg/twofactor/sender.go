@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
+	"time"
 )
 
 // OTPChannel represents the delivery channel for OTP codes.
@@ -64,6 +66,88 @@ type CompositeSender struct {
 	senders map[OTPChannel]OTPSender
 }
 
+type testOTPEntry struct {
+	code      string
+	expiresAt time.Time
+}
+
+var testOTPCache = struct {
+	mu    sync.RWMutex
+	codes map[string]testOTPEntry
+}{
+	codes: make(map[string]testOTPEntry),
+}
+
+// StoreTestOTPCode stores a plaintext OTP for test retrieval.
+func StoreTestOTPCode(key, code string, ttl time.Duration) {
+	if key == "" || code == "" {
+		return
+	}
+	if ttl <= 0 {
+		ttl = 10 * time.Minute
+	}
+	testOTPCache.mu.Lock()
+	expiresAt := time.Now().Add(ttl)
+	for _, candidateKey := range otpCacheKeys(key) {
+		testOTPCache.codes[candidateKey] = testOTPEntry{
+			code:      code,
+			expiresAt: expiresAt,
+		}
+	}
+	testOTPCache.mu.Unlock()
+}
+
+// GetTestOTPCode returns the latest plaintext OTP for a key if not expired.
+func GetTestOTPCode(key string) (string, bool) {
+	if key == "" {
+		return "", false
+	}
+	for _, candidateKey := range otpCacheKeys(key) {
+		testOTPCache.mu.RLock()
+		entry, ok := testOTPCache.codes[candidateKey]
+		testOTPCache.mu.RUnlock()
+		if ok && time.Now().Before(entry.expiresAt) {
+			return entry.code, true
+		}
+	}
+	return "", false
+}
+
+func otpCacheKeys(key string) []string {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	add := func(v string) {
+		if v == "" {
+			return
+		}
+		seen[v] = struct{}{}
+	}
+
+	add(trimmed)
+	add(strings.TrimPrefix(trimmed, "+"))
+
+	digitsOnly := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, trimmed)
+	add(digitsOnly)
+	if digitsOnly != "" {
+		add("+" + digitsOnly)
+	}
+
+	keys := make([]string, 0, len(seen))
+	for candidate := range seen {
+		keys = append(keys, candidate)
+	}
+	return keys
+}
+
 // NewCompositeSender creates a new CompositeSender with the given channel-to-sender mappings.
 func NewCompositeSender(senders map[OTPChannel]OTPSender) *CompositeSender {
 	if senders == nil {
@@ -117,6 +201,11 @@ func NewNoopSender() *NoopSender {
 
 // Send logs the OTP code to stdout instead of sending it.
 func (n *NoopSender) Send(_ context.Context, req SendRequest) error {
+	StoreTestOTPCode(req.Recipient, req.Code, 10*time.Minute)
+	if userID, ok := req.Metadata["user_id"]; ok {
+		StoreTestOTPCode(userID, req.Code, 10*time.Minute)
+	}
+
 	// In development, log the OTP code for manual testing
 	// TODO: Replace with proper structured logging in production
 	fmt.Fprintf(os.Stderr, "[NoopSender] OTP Code: %s | Channel: %s | Recipient: %s\n", req.Code, req.Channel, req.Recipient)

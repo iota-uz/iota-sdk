@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -10,12 +11,14 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	phonevo "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/testkit/domain/schemas"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
 type PopulateService struct {
@@ -239,13 +242,45 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 		}
 
 		// 3. Create user aggregate with password
+		userOptions := []user.Option{
+			user.WithTenantID(tenantID),
+			user.WithType(user.TypeUser),
+		}
+
+		if userSpec.TwoFactorMethod != "" {
+			method, err := parseTwoFactorMethod(userSpec.TwoFactorMethod)
+			if err != nil {
+				return fmt.Errorf("invalid two factor method for user %s: %w", userSpec.Email, err)
+			}
+			userOptions = append(userOptions, user.WithTwoFactorMethod(method))
+		}
+
+		if userSpec.TwoFactorEnabledAt != "" {
+			enabledAt, err := time.Parse(time.RFC3339, userSpec.TwoFactorEnabledAt)
+			if err != nil {
+				return fmt.Errorf("invalid twoFactorEnabledAt for user %s: %w", userSpec.Email, err)
+			}
+			userOptions = append(userOptions, user.WithTwoFactorEnabledAt(enabledAt))
+		}
+
+		if userSpec.TOTPSecretEncrypted != "" {
+			userOptions = append(userOptions, user.WithTOTPSecretEncrypted(userSpec.TOTPSecretEncrypted))
+		}
+
+		if userSpec.Phone != "" {
+			parsedPhone, err := phonevo.NewFromE164(userSpec.Phone)
+			if err != nil {
+				return fmt.Errorf("invalid phone for user %s: %w", userSpec.Email, err)
+			}
+			userOptions = append(userOptions, user.WithPhone(parsedPhone))
+		}
+
 		newUser := user.New(
 			userSpec.FirstName,
 			userSpec.LastName,
 			email,
 			uiLanguage,
-			user.WithTenantID(tenantID),
-			user.WithType(user.TypeUser),
+			userOptions...,
 		)
 
 		// 4. Set password (hashed)
@@ -293,6 +328,16 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 	}
 
 	return nil
+}
+
+func parseTwoFactorMethod(raw string) (pkgtwofactor.Method, error) {
+	method := pkgtwofactor.Method(raw)
+	switch method {
+	case pkgtwofactor.MethodTOTP, pkgtwofactor.MethodSMS, pkgtwofactor.MethodEmail, pkgtwofactor.MethodBackupCodes:
+		return method, nil
+	default:
+		return "", fmt.Errorf("unsupported method %q", raw)
+	}
 }
 
 func (s *PopulateService) createFinanceData(ctx context.Context, finance *schemas.FinanceSpec) error {

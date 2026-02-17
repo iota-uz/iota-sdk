@@ -154,37 +154,40 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Evaluate 2FA policy for OAuth authentication
-	if c.twoFactorPolicy != nil && c.twoFactorService != nil {
+	// Evaluate 2FA requirement for OAuth authentication.
+	// By default, users with 2FA enabled must complete verification.
+	{
 		logger := composables.UseLogger(r.Context())
+		requires2FA := u.Has2FAEnabled()
 
-		// Build auth attempt for 2FA policy evaluation with OAuth method
-		ip, _ := composables.UseIP(r.Context())
-		userAgent, _ := composables.UseUserAgent(r.Context())
+		if c.twoFactorPolicy != nil {
+			// Build auth attempt for 2FA policy evaluation with OAuth method
+			ip, _ := composables.UseIP(r.Context())
+			userAgent, _ := composables.UseUserAgent(r.Context())
 
-		// Convert user ID to UUID using tenant as namespace
-		// This creates a deterministic UUID from tenant ID + user ID
-		userIDData := make([]byte, 8)
-		for i := 0; i < 8; i++ {
-			userIDData[i] = byte((u.ID() >> (i * 8)) & 0xFF)
-		}
-		userUUID := uuid.NewSHA1(u.TenantID(), userIDData)
+			// Convert user ID to UUID using tenant as namespace.
+			userIDData := make([]byte, 8)
+			for i := 0; i < 8; i++ {
+				userIDData[i] = byte((u.ID() >> (i * 8)) & 0xFF)
+			}
+			userUUID := uuid.NewSHA1(u.TenantID(), userIDData)
 
-		attempt := pkgtwofactor.AuthAttempt{
-			UserID:    userUUID,
-			Method:    pkgtwofactor.AuthMethodOAuth,
-			IPAddress: ip,
-			UserAgent: userAgent,
-			Timestamp: time.Now(),
-		}
+			attempt := pkgtwofactor.AuthAttempt{
+				UserID:    userUUID,
+				Method:    pkgtwofactor.AuthMethodOAuth,
+				IPAddress: ip,
+				UserAgent: userAgent,
+				Timestamp: time.Now(),
+			}
 
-		// Check if 2FA is required for this OAuth authentication attempt
-		requires2FA, err := c.twoFactorPolicy.Requires(r.Context(), attempt)
-		if err != nil {
-			logger.Error("Failed to evaluate 2FA policy for OAuth", "error", err)
-			queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
-			http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
-			return
+			// Policy can tighten/relax default requirement.
+			requires2FA, err = c.twoFactorPolicy.Requires(r.Context(), attempt)
+			if err != nil {
+				logger.Error("Failed to evaluate 2FA policy for OAuth", "error", err)
+				queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
+				http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+				return
+			}
 		}
 
 		if requires2FA {
@@ -321,35 +324,39 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if 2FA policy requires 2FA for this attempt
-	if c.twoFactorPolicy != nil && c.twoFactorService != nil {
+	// Evaluate 2FA requirement for password authentication.
+	// By default, users with 2FA enabled must complete verification.
+	{
+		requires2FA := u.Has2FAEnabled()
+
 		// Build auth attempt for 2FA policy evaluation
-		ip, _ := composables.UseIP(r.Context())
-		userAgent, _ := composables.UseUserAgent(r.Context())
+		if c.twoFactorPolicy != nil {
+			ip, _ := composables.UseIP(r.Context())
+			userAgent, _ := composables.UseUserAgent(r.Context())
 
-		// Convert user ID to UUID using tenant as namespace
-		// This creates a deterministic UUID from tenant ID + user ID
-		userIDData := make([]byte, 8)
-		for i := 0; i < 8; i++ {
-			userIDData[i] = byte((u.ID() >> (i * 8)) & 0xFF)
-		}
-		userUUID := uuid.NewSHA1(u.TenantID(), userIDData)
+			// Convert user ID to UUID using tenant as namespace.
+			userIDData := make([]byte, 8)
+			for i := 0; i < 8; i++ {
+				userIDData[i] = byte((u.ID() >> (i * 8)) & 0xFF)
+			}
+			userUUID := uuid.NewSHA1(u.TenantID(), userIDData)
 
-		attempt := pkgtwofactor.AuthAttempt{
-			UserID:    userUUID,
-			Method:    pkgtwofactor.AuthMethodPassword,
-			IPAddress: ip,
-			UserAgent: userAgent,
-			Timestamp: time.Now(),
-		}
+			attempt := pkgtwofactor.AuthAttempt{
+				UserID:    userUUID,
+				Method:    pkgtwofactor.AuthMethodPassword,
+				IPAddress: ip,
+				UserAgent: userAgent,
+				Timestamp: time.Now(),
+			}
 
-		// Check if 2FA is required for this authentication attempt
-		requires2FA, err := c.twoFactorPolicy.Requires(r.Context(), attempt)
-		if err != nil {
-			logger.Error("Failed to evaluate 2FA policy", "error", err)
-			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
-			http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
-			return
+			// Policy can tighten/relax default requirement.
+			requires2FA, err = c.twoFactorPolicy.Requires(r.Context(), attempt)
+			if err != nil {
+				logger.Error("Failed to evaluate 2FA policy", "error", err)
+				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
+				http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+				return
+			}
 		}
 
 		if requires2FA {

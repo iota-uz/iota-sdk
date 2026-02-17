@@ -90,8 +90,32 @@ func (c *TwoFactorSetupController) Register(r *mux.Router) {
 // Shows available options: TOTP (authenticator app), SMS, or Email.
 // GET /login/2fa/setup?next=/redirect/path
 func (c *TwoFactorSetupController) GetMethodChoice(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+
 	// Validate the redirect URL early to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+
+	sess, err := composables.UseSession(r.Context())
+	if err != nil {
+		logger.Error("failed to get session", "error", err)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	u, err := c.userService.GetByID(r.Context(), sess.UserID())
+	if err != nil {
+		logger.Error("failed to get user", "error", err)
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+	if u.Has2FAEnabled() {
+		if sess.Status() == session.StatusPending2FA {
+			http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, nextURL, http.StatusFound)
+		return
+	}
 
 	if err := twofactorsetup.MethodChoice(&twofactorsetup.MethodChoiceProps{
 		NextURL: nextURL,

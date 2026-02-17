@@ -233,6 +233,7 @@ func (s *AuthService) newSessionToken() (string, error) {
 func (s *AuthService) authenticate(ctx context.Context, u user.User, audience session.SessionAudience) (session.Session, error) {
 	logger := configuration.Use().Logger()
 	logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
+	ctx = composables.WithTenantID(ctx, u.TenantID())
 
 	// Get IP and user agent
 	ip, ok := composables.UseIP(ctx)
