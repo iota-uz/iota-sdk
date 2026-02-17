@@ -19,7 +19,7 @@ jobs:
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
-          go-version: "1.23.2"
+          go-version: "1.24.10"
 
       - name: Install golangci-lint
         run: |
@@ -175,7 +175,7 @@ jobs:
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
-          go-version: "1.23.2"
+          go-version: "1.24.10"
 
       - name: Install just
         run: |
@@ -299,7 +299,7 @@ jobs:
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
-          go-version: "1.23.2"
+          go-version: "1.24.10"
 
       - name: Install just
         run: |
