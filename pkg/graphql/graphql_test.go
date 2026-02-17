@@ -33,25 +33,62 @@ func (fakeExecutableSchema) Exec(context.Context) gqlgraphql.ResponseHandler {
 	}
 }
 
-func TestHandlerAddExecutorRegistersIntrospectionForEachExecutor(t *testing.T) {
+func TestAddExecutor_RegistersIntrospectionForEachExecutor(t *testing.T) {
 	originalRegisterIntrospection := registerIntrospection
 	defer func() {
 		registerIntrospection = originalRegisterIntrospection
 	}()
 
-	calledWith := make([]*executor.Executor, 0)
-	registerIntrospection = func(server *Handler, exec *executor.Executor) {
-		calledWith = append(calledWith, exec)
-	}
-
-	handler := &Handler{}
 	first := executor.New(fakeExecutableSchema{})
 	second := executor.New(fakeExecutableSchema{})
+	third := executor.New(fakeExecutableSchema{})
 
-	handler.AddExecutor(first, nil, second)
+	testCases := []struct {
+		name               string
+		input              []*executor.Executor
+		expectedExecutors  []*executor.Executor
+		expectedRegistered []*executor.Executor
+	}{
+		{
+			name:               "no executors",
+			input:              nil,
+			expectedExecutors:  nil,
+			expectedRegistered: nil,
+		},
+		{
+			name:               "single executor",
+			input:              []*executor.Executor{first},
+			expectedExecutors:  []*executor.Executor{first},
+			expectedRegistered: []*executor.Executor{first},
+		},
+		{
+			name:               "multiple executors",
+			input:              []*executor.Executor{first, second, third},
+			expectedExecutors:  []*executor.Executor{first, second, third},
+			expectedRegistered: []*executor.Executor{first, second, third},
+		},
+		{
+			name:               "nil entries are skipped",
+			input:              []*executor.Executor{first, nil, second, nil},
+			expectedExecutors:  []*executor.Executor{first, second},
+			expectedRegistered: []*executor.Executor{first, second},
+		},
+	}
 
-	require.Equal(t, []*executor.Executor{first, second}, handler.execs)
-	require.Equal(t, []*executor.Executor{first, second}, calledWith)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			calledWith := make([]*executor.Executor, 0)
+			registerIntrospection = func(server *Handler, exec *executor.Executor) {
+				calledWith = append(calledWith, exec)
+			}
+
+			handler := &Handler{}
+			handler.AddExecutor(tc.input...)
+
+			require.Equal(t, tc.expectedExecutors, handler.execs)
+			require.Equal(t, tc.expectedRegistered, calledWith)
+		})
+	}
 }
 
 func TestMergedIntrospectionIncludesTypesFromAllExecutors(t *testing.T) {
