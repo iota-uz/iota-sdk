@@ -35,6 +35,19 @@ templ DateTime(ts time.Time) {
 	</div>
 }
 
+// SearchClearButton renders a clear button for search inputs
+templ SearchClearButton() {
+	<button
+		type="button"
+		x-show="searchVal.length > 0"
+		x-transition.opacity
+		@click="searchVal = ''; $nextTick(() => { $el.closest('form')?.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true})); })"
+		class="w-4.5 h-4.5 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-gray-400 transition-all duration-150 cursor-pointer"
+	>
+		@icons.X(icons.Props{Size: "10"})
+	</button>
+}
+
 func nextChunkURL(dataURL string, page, perPage int, currentParams url.Values) string {
 	// Clone the current parameters to preserve existing filters/search/etc
 	params := url.Values{}
@@ -246,9 +259,36 @@ func setupAlpineData(ctx context.Context, config *TableConfig) templ.Attributes 
 	}
 }
 
+// FillerRowsWrapper wraps the table content with filler rows functionality
+templ FillerRowsWrapper(config *TableConfig) {
+	<div
+		class={
+			templ.Classes(
+				"table-filler-rows",
+				templ.KV("table-filler-container", config.Head.Sticky),
+				templ.KV("table-nowrap", config.NoWrap),
+			),
+		}
+		x-data={ fmt.Sprintf("fillerRows(%d)", config.FillerRowHeight) }
+	>
+		{ children... }
+	</div>
+}
+
 // Table renders a dynamic table based on configuration and data
 templ Table(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if config.FillerRows {
+		@FillerRowsWrapper(config) {
+			@tableInner(config, pageCtx)
+		}
+	} else {
+		@tableInner(config, pageCtx)
+	}
+}
+
+// tableInner renders the core table content
+templ tableInner(config *TableConfig, pageCtx types.PageContextProvider) {
 	<div
 		id="sortable-table-container"
 		hx-disinherit="*"
@@ -271,6 +311,7 @@ templ Table(config *TableConfig) {
 			Configurable:         config.Configurable,
 			ScrollbarPosition:    config.ScrollbarPosition,
 			ScrollbarUnderHeader: config.Head.Sticky && config.Head.ScrollbarUnderHeader,
+			ScrollbarGutter:      config.ScrollbarGutter,
 			WrapperClasses:       templ.Classes(templ.KV("h-full", config.Head.Sticky)),
 			Classes:              templ.Classes(templ.KV("h-full", config.Head.Sticky)),
 			Columns:              toBaseTableColumns(config, pageCtx),
@@ -449,18 +490,118 @@ templ Table(config *TableConfig) {
 	</div>
 }
 
+// TableContent renders the inner content card (search, filters, table) without the form wrapper
+templ TableContent(config *TableConfig) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class={
+		templ.Classes(
+			"bg-surface-600 border border-primary rounded-lg",
+			templ.KV("flex flex-col h-full min-h-0 overflow-hidden", config.FullHeight),
+		),
+	}>
+		<div class={
+			templ.Classes(
+				"p-4 flex flex-row md:items-center gap-3",
+				templ.KV("shrink-0", config.FullHeight),
+			),
+		}>
+			if !config.WithoutSearch {
+				if config.SearchClearable {
+					<div class="flex-1" x-data={ fmt.Sprintf("{ searchVal: '%s' }", config.SearchValue) }>
+						{{
+							placeholder := pageCtx.T("Search")
+							if config.SearchPlaceholder != "" {
+								placeholder = config.SearchPlaceholder
+							}
+						}}
+						@input.Text(&input.Props{
+							AddonLeft: &input.Addon{
+								Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+							},
+							AddonRight: &input.Addon{
+								Component: SearchClearButton(),
+							},
+							Placeholder: placeholder,
+							Attrs: templ.Attributes{
+								"name":    "Search",
+								"value":   config.SearchValue,
+								"x-model": "searchVal",
+							},
+						})
+					</div>
+				} else {
+					<div class="flex-1">
+						{{
+							placeholder := pageCtx.T("Search")
+							if config.SearchPlaceholder != "" {
+								placeholder = config.SearchPlaceholder
+							}
+						}}
+						@input.Text(&input.Props{
+							AddonLeft: &input.Addon{
+								Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+							},
+							Placeholder: placeholder,
+							Attrs: templ.Attributes{
+								"name":  "Search",
+								"value": config.SearchValue,
+							},
+						})
+					</div>
+				}
+			}
+			if len(config.Filters) > 0 || len(config.Actions) > 0 {
+				<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
+					for _, filter := range config.Filters {
+						@filter
+					}
+					if len(config.Actions) > 0 {
+						<div class="flex gap-3 ml-auto">
+							for _, action := range config.Actions {
+								@action
+							}
+						</div>
+					}
+				</div>
+			}
+			@TableSettingsTrigger()
+		</div>
+		if config.FullHeight {
+			<div class="flex-1 min-h-0">
+				@Table(config)
+			</div>
+		} else {
+			<div class="overflow-x-auto">
+				@Table(config)
+			</div>
+		}
+	</div>
+}
+
 // TableSection combines filters and table into one form to enable unified HTMX update
 templ TableSection(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		hxTrigger := "keyup changed delay:300ms from:input, change from:input delay:500ms, change from:select, change from:input[type='checkbox']"
+		if config.HxTrigger != "" {
+			hxTrigger = config.HxTrigger
+		}
+	}}
 	<form
 		hx-get={ config.DataURL }
 		hx-push-url="true"
-		hx-trigger="keyup changed delay:300ms from:input, change from:input delay:500ms, change from:select, change from:input[type='checkbox']"
-		hx-target="#table-body"
-		hx-swap="innerHTML"
-		hx-indicator="#table-body"
+		hx-trigger={ hxTrigger }
+		hx-target={ config.ResolvedHxTarget() }
+		hx-swap={ config.ResolvedHxSwap() }
+		hx-indicator={ config.ResolvedHxIndicator() }
+		class={ templ.KV("flex-1 min-h-0", config.FullHeight) }
 	>
-		<div class="flex gap-5">
+		<div class={
+			templ.Classes(
+				"flex gap-5",
+				templ.KV("h-full", config.FullHeight),
+			),
+		}>
 			<!-- Left sidebar with filters -->
 			if config.SideFilter != nil {
 				<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:block w-64 flex-shrink-0">
@@ -468,50 +609,20 @@ templ TableSection(config *TableConfig) {
 				</div>
 			}
 			<!-- Main content area with search, filters, and table -->
-			<div class="flex-1 max-w-full">
-				<div class="bg-surface-600 border border-primary rounded-lg">
-					<div class="p-4 flex flex-row md:items-center gap-3">
-						if !config.WithoutSearch {
-							<div class="flex-1">
-								{{
-									placeholder := pageCtx.T("Search")
-									if config.SearchPlaceholder != "" {
-										placeholder = config.SearchPlaceholder
-									}
-								}}
-								@input.Text(&input.Props{
-									AddonLeft: &input.Addon{
-										Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-									},
-									Placeholder: placeholder,
-									Attrs: templ.Attributes{
-										"name":  "Search",
-										"value": "",
-									},
-								})
-							</div>
-						}
-						if len(config.Filters) > 0 || len(config.Actions) > 0 {
-							<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
-								for _, filter := range config.Filters {
-									@filter
-								}
-								if len(config.Actions) > 0 {
-									<div class="flex gap-3 ml-auto">
-										for _, action := range config.Actions {
-											@action
-										}
-									</div>
-								}
-							</div>
-						}
-						@TableSettingsTrigger()
-					</div>
-					<div class="overflow-x-auto">
-						@Table(config)
-					</div>
+			if config.ContentID != "" {
+				<div id={ config.ContentID } class={
+					templ.Classes(
+						"flex-1 max-w-full",
+						templ.KV("h-full min-h-0", config.FullHeight),
+					),
+				}>
+					@TableContent(config)
 				</div>
-			</div>
+			} else {
+				<div class="flex-1 max-w-full">
+					@TableContent(config)
+				</div>
+			}
 		</div>
 		@filters.Drawer(filters.DrawerProps{
 			Heading: pageCtx.T("Scaffold.Filters.Title"),

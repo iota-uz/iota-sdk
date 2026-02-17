@@ -1,0 +1,48 @@
+package base
+
+import icons "github.com/iota-uz/icons/phosphor"
+
+templ DateRangeClearButton() {
+	<button
+		type="button"
+		class="absolute right-2 top-1/2 -translate-y-1/2 w-4.5 h-4.5 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-gray-400 transition-all duration-150 cursor-pointer"
+		x-data="{
+			hasValue: false,
+			init() {
+				const container = this.$el.closest('[class*=relative]');
+				const self = this;
+				function check() {
+					const fp = container?.querySelector('.flatpickr-input');
+					if (!fp) return;
+					self.hasValue = fp.value.trim() !== '';
+					fp.addEventListener('change', () => { self.hasValue = fp.value.trim() !== ''; });
+					const fpInstance = fp._flatpickr;
+					if (fpInstance) {
+						fpInstance.config.onChange.push(() => { self.hasValue = fp.value.trim() !== ''; });
+					}
+				}
+				setTimeout(check, 100);
+			},
+			clearDates() {
+				const container = this.$el.closest('[class*=relative]');
+				const fp = container?.querySelector('.flatpickr-input');
+				if (fp && fp._flatpickr) {
+					fp._flatpickr.clear();
+				}
+				const dpEl = fp?.closest('[x-data]');
+				if (dpEl && dpEl._x_dataStack) {
+					dpEl._x_dataStack[0].selected = [];
+				}
+				this.hasValue = false;
+				if (fp) {
+					fp.dispatchEvent(new Event('change', { bubbles: true }));
+				}
+			}
+		}"
+		x-show="hasValue"
+		x-transition.opacity
+		@click="clearDates()"
+	>
+		@icons.X(icons.Props{Size: "10"})
+	</button>
+}

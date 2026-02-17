@@ -143,6 +143,7 @@ type TableProps struct {
 	NoTBody              bool
 	ScrollbarPosition    ScrollbarPosition
 	ScrollbarUnderHeader bool
+	ScrollbarGutter      bool
 }
 
 templ Table(props TableProps) {
@@ -152,6 +153,41 @@ templ Table(props TableProps) {
 			td:has(+ .sticky) {
 				border-right-color: transparent !important;
 			}
+			/* Nowrap utility */
+			.table-nowrap td, .table-nowrap th { white-space: nowrap; }
+
+			/* Filler rows */
+			.table-filler-rows tbody td { border-bottom: 1px solid oklch(var(--clr-border-primary)); }
+			.table-filler-rows .grid-filler td {
+				padding: 0;
+				border-right: 1px solid oklch(var(--clr-border-primary));
+				border-bottom: 1px solid oklch(var(--clr-border-primary));
+			}
+			.table-filler-rows .grid-filler td:last-child { border-right: 0; }
+			.table-filler-rows .grid-filler td.grid-sticky-right {
+				position: sticky;
+				right: 0;
+				background-color: oklch(var(--clr-surface-600));
+				border-left: 1px solid oklch(var(--clr-border-primary));
+				border-right: 0;
+			}
+			.table-filler-rows .grid-filler td:has(+ td.grid-sticky-right) { border-right: 0; }
+
+			/* Grid toggle */
+			.table-grid-no-vertical td,
+			.table-grid-no-vertical th { border-right-color: transparent !important; }
+			.table-grid-no-vertical .grid-sticky-right { border-left-color: transparent !important; }
+			.table-grid-no-horizontal tbody td { border-bottom-color: transparent !important; }
+
+			/* Container height (filler rows need 100% height through the full chain) */
+			.table-filler-container,
+			.table-filler-container > #sortable-table-container,
+			.table-filler-container > #sortable-table-container > div { height: 100%; }
+
+			/* Scrollbar gutter */
+			.table-scrollbar-gutter { scrollbar-gutter: stable; }
+			.table-scrollbar-gutter > table { height: auto; }
+			.table-scrollbar-gutter ~ [class*="z-[11]"] { display: none; }
 		</style>
 	}
 	if props.ScrollbarUnderHeader {
@@ -201,7 +237,7 @@ templ Table(props TableProps) {
 		>
 			<div
 				x-ref="sc"
-				class={ twmerge.Merge(templ.Classes("overflow-y-auto overflow-x-hidden relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String()) }
+				class={ twmerge.Merge(templ.Classes("overflow-y-auto overflow-x-hidden relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), templ.KV("table-scrollbar-gutter", props.ScrollbarGutter), props.WrapperClasses.String()).String()) }
 				@scroll="onScroll"
 			>
 				<table
@@ -337,7 +373,7 @@ templ Table(props TableProps) {
 			></div>
 		</div>
 	} else {
-		<div class={ twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String()) }>
+		<div class={ twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), templ.KV("table-scrollbar-gutter", props.ScrollbarGutter), props.WrapperClasses.String()).String()) }>
 			<table
 				class={
 					twmerge.Merge(
