@@ -294,6 +294,16 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the redirect URL early to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+	authRequestID := r.URL.Query().Get("auth_request")
+	if authRequestID == "" {
+		// Backward compatibility for older OIDC login links.
+		authRequestID = r.URL.Query().Get("oidc_auth_id")
+	}
+
+	postLoginRedirectURL := nextURL
+	if authRequestID != "" {
+		postLoginRedirectURL = fmt.Sprintf("/oidc/authorize/callback?id=%s", url.QueryEscape(authRequestID))
+	}
 
 	dto, err := composables.UseForm(&LoginDTO{}, r)
 	if err != nil {
@@ -391,13 +401,13 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 			http.SetCookie(w, sessionCookie)
 
 			// Redirect to 2FA verification or setup based on user's 2FA status
-			// nextURL already validated at the beginning of the function
+			// Redirect destination is validated and may point to OIDC callback flow.
 			if u.Has2FAEnabled() {
 				// User has 2FA enabled, redirect to verification
-				http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+				http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(postLoginRedirectURL)), http.StatusFound)
 			} else {
 				// User hasn't set up 2FA, redirect to setup
-				http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+				http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(postLoginRedirectURL)), http.StatusFound)
 			}
 			return
 		}
@@ -417,6 +427,5 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, cookie)
-	// Use the validated redirect URL from the beginning of the function
-	http.Redirect(w, r, nextURL, http.StatusFound)
+	http.Redirect(w, r, postLoginRedirectURL, http.StatusFound)
 }

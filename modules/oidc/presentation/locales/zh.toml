@@ -1,0 +1,12 @@
+# OIDC Module - Chinese Translations
+
+[OIDC]
+Title = "OIDC"
+
+[OIDC.Errors]
+InvalidAuthRequest = "无效的授权请求"
+AuthRequestExpired = "授权请求已过期"
+AuthRequestNotAuthenticated = "授权请求未经身份验证"
+MissingAuthRequestID = "缺少授权请求ID"
+InvalidClient = "无效的客户端"
+UnauthorizedClient = "未授权的客户端"

@@ -64,7 +64,7 @@ func (c *TwoFactorVerifyController) Key() string {
 func (c *TwoFactorVerifyController) Register(r *mux.Router) {
 	verifyRouter := r.PathPrefix("/login/2fa/verify").Subrouter()
 	verifyRouter.Use(
-		middleware.Authorize(),
+		middleware.AuthorizeAnySession(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.WithPageContext(),
 	)

@@ -152,6 +152,48 @@ For detailed documentation, deployment guides, and authentication flow, see [Sup
 
 ---
 
+## 🔐 OpenID Connect Provider
+
+IOTA SDK can act as an OpenID Connect (OIDC) provider, enabling Single Sign-On (SSO) integration for external applications.
+
+**Key Features:**
+- Full OIDC compliance with discovery endpoint
+- RS256 signing with automatic key generation
+- Authorization Code Flow with PKCE support
+- Encrypted private key storage (AES-256-GCM)
+- Multi-tenant client management
+
+**Configuration:**
+
+Enable OIDC provider by setting environment variables:
+
+```env
+OIDC_ENABLED=true
+OIDC_ISSUER_URL=https://auth.example.com
+OIDC_CRYPTO_KEY=your-32-byte-base64-encoded-key-here
+OIDC_ACCESS_TOKEN_LIFETIME=1h
+OIDC_REFRESH_TOKEN_LIFETIME=720h
+OIDC_ID_TOKEN_LIFETIME=1h
+```
+
+**Endpoints:**
+
+- Discovery: `/.well-known/openid-configuration`
+- Authorization: `/oidc/authorize`
+- Token: `/oidc/token`
+- UserInfo: `/oidc/userinfo`
+- JWKS: `/oidc/keys`
+- Revocation: `/oidc/revoke`
+- End Session: `/oidc/end_session`
+
+**Client Management:**
+
+OIDC clients are managed by Super Admin users via the admin interface at `/superadmin/oidc/clients`.
+
+For detailed integration guides and examples, see the [OIDC documentation](https://iota-uz.github.io/iota-sdk/oidc/).
+
+---
+
 ## 📄 Licence
 
 Apache 2.0 
