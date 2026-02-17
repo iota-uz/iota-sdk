@@ -41,7 +41,7 @@ templ CreateForm(props *CreatePageProps) {
 				@tab.Content("personal") {
 					<!-- Personal Information Card -->
 					@card.Card(card.Props{
-						Class:        "grid grid-cols-3 gap-4",
+						Class:        "grid grid-cols-1 md:grid-cols-3 gap-4",
 						Header:       card.DefaultHeader(pageCtx.T("Clients.Single.PersonalInfo")),
 						WrapperClass: "mt-5",
 					}) {
@@ -104,7 +104,7 @@ templ CreateForm(props *CreatePageProps) {
 							Label:        pageCtx.T("Clients.Single.Address.Label"),
 							Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
 							Value:        props.Client.Address,
-							WrapperClass: "col-span-3",
+							WrapperClass: "md:col-span-3",
 							Attrs: templ.Attributes{
 								"name": "Address",
 								"rows": "3",
@@ -116,7 +116,7 @@ templ CreateForm(props *CreatePageProps) {
 				@tab.Content("documents") {
 					<!-- Passport Information Card -->
 					@card.Card(card.Props{
-						Class:        "grid grid-cols-2 gap-4",
+						Class:        "grid grid-cols-1 md:grid-cols-2 gap-4",
 						Header:       card.DefaultHeader(pageCtx.T("Clients.Single.PassportInfo")),
 						WrapperClass: "mt-5",
 					}) {
@@ -141,7 +141,7 @@ templ CreateForm(props *CreatePageProps) {
 					}
 					<!-- Tax Information Card -->
 					@card.Card(card.Props{
-						Class:        "grid grid-cols-2 gap-4",
+						Class:        "grid grid-cols-1 md:grid-cols-2 gap-4",
 						Header:       card.DefaultHeader(pageCtx.T("Clients.Single.TaxInfo")),
 						WrapperClass: "mt-5",
 					}) {
@@ -165,7 +165,7 @@ templ CreateForm(props *CreatePageProps) {
 				}
 			}
 		</div>
-		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Size: button.SizeMD,
 				Attrs: templ.Attributes{
@@ -189,7 +189,7 @@ templ PersonalInfoEditForm(props *PersonalInfoEditProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div>
 		<input type="hidden" name="section" value="personal"/>
-		<div class="p-4 grid grid-cols-2 gap-4">
+		<div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
 			@input.Text(&input.Props{
 				Label:       pageCtx.T("Clients.Single.FirstName.Label"),
 				Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
@@ -255,7 +255,7 @@ templ PersonalInfoEditForm(props *PersonalInfoEditProps) {
 				Label:        pageCtx.T("Clients.Single.Address.Label"),
 				Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
 				Value:        props.Client.Address,
-				WrapperClass: "col-span-2",
+				WrapperClass: "md:col-span-2",
 				Attrs: templ.Attributes{
 					"name": "Address",
 					"rows": "3",
@@ -278,7 +278,7 @@ templ PassportInfoEditForm(props *PassportInfoEditProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div>
 		<input type="hidden" name="section" value="passport"/>
-		<div class="p-4 grid grid-cols-2 gap-4">
+		<div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
 			@input.Text(&input.Props{
 				Label:       pageCtx.T("Clients.Single.PassportSeries.Label"),
 				Placeholder: pageCtx.T("Clients.Single.PassportSeries.Placeholder"),
@@ -314,7 +314,7 @@ templ TaxInfoEditForm(props *TaxInfoEditProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div>
 		<input type="hidden" name="section" value="tax"/>
-		<div class="p-4 grid grid-cols-2 gap-4">
+		<div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
 			@input.Text(&input.Props{
 				Label:       pageCtx.T("Clients.Single.Pin.Label"),
 				Placeholder: pageCtx.T("Clients.Single.Pin.Placeholder"),

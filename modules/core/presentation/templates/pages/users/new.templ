@@ -33,10 +33,10 @@ templ CreateForm(props *CreateFormProps) {
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
-		<div class="flex gap-5 p-6">
+		<div class="flex flex-col md:flex-row gap-5 p-4 md:p-6">
 			<div class="flex-1 space-y-5">
 				@card.Card(card.Props{
-					Class: "grid grid-cols-2 gap-4",
+					Class: "grid grid-cols-1 md:grid-cols-2 gap-4",
 				}) {
 					@input.Text(&input.Props{
 						Label: pageCtx.T("Users.Single.FirstName"),
@@ -81,7 +81,7 @@ templ CreateForm(props *CreateFormProps) {
 				}
 				@card.Card(card.Props{
 					Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),
-					Class:  "grid grid-cols-3 gap-4",
+					Class:  "grid grid-cols-1 md:grid-cols-3 gap-4",
 				}) {
 					@RoleSelect(&RoleSelectProps{
 						Roles:    props.Roles,
@@ -118,13 +118,13 @@ templ CreateForm(props *CreateFormProps) {
 					Label:       pageCtx.T("Users.Single.ChooseAvatar"),
 					Placeholder: "PNG, JPG",
 					Name:        "AvatarID",
-					Class:       "col-span-3",
+					Class:       "md:col-span-3",
 					Accept:      "image/*",
 					Error:       props.Errors["AvatarID"],
 				})
 			}
 		</div>
-		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Size: button.SizeMD,
 				Attrs: templ.Attributes{

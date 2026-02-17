@@ -507,7 +507,7 @@ func PersonalInfoCard(client *viewmodels.Client) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<div x-show=\"isEditing\" id=\"personal-info-edit\"></div><div x-show=\"!isEditing\" class=\"grid grid-cols-2 gap-4\"><div><div class=\"text-sm text-base-600\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<div x-show=\"isEditing\" id=\"personal-info-edit\"></div><div x-show=\"!isEditing\" class=\"grid grid-cols-1 md:grid-cols-2 gap-4\"><div><div class=\"text-sm text-base-600\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -663,7 +663,7 @@ func PersonalInfoCard(client *viewmodels.Client) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div></div><div class=\"col-span-2\"><div class=\"text-sm text-base-600\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div></div><div class=\"md:col-span-2\"><div class=\"text-sm text-base-600\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -843,7 +843,7 @@ func TaxInfoCard(client *viewmodels.Client) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<div x-show=\"!isEditing\" class=\"grid grid-cols-2 gap-4\"><div><div class=\"text-sm text-base-600\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<div x-show=\"!isEditing\" class=\"grid grid-cols-1 md:grid-cols-2 gap-4\"><div><div class=\"text-sm text-base-600\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1122,7 +1122,7 @@ func NotesInfoCard(client *viewmodels.Client) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "<div x-show=\"!isEditing\" class=\"grid grid-cols-2 gap-4\"><div><div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "<div x-show=\"!isEditing\" class=\"grid grid-cols-1 md:grid-cols-2 gap-4\"><div><div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -286,7 +286,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 						Label:        pageCtx.T("Clients.Single.Address.Label"),
 						Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
 						Value:        props.Client.Address,
-						WrapperClass: "col-span-3",
+						WrapperClass: "md:col-span-3",
 						Attrs: templ.Attributes{
 							"name": "Address",
 							"rows": "3",
@@ -299,7 +299,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = card.Card(card.Props{
-					Class:        "grid grid-cols-3 gap-4",
+					Class:        "grid grid-cols-1 md:grid-cols-3 gap-4",
 					Header:       card.DefaultHeader(pageCtx.T("Clients.Single.PersonalInfo")),
 					WrapperClass: "mt-5",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
@@ -375,7 +375,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = card.Card(card.Props{
-					Class:        "grid grid-cols-2 gap-4",
+					Class:        "grid grid-cols-1 md:grid-cols-2 gap-4",
 					Header:       card.DefaultHeader(pageCtx.T("Clients.Single.PassportInfo")),
 					WrapperClass: "mt-5",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
@@ -427,7 +427,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = card.Card(card.Props{
-					Class:        "grid grid-cols-2 gap-4",
+					Class:        "grid grid-cols-1 md:grid-cols-2 gap-4",
 					Header:       card.DefaultHeader(pageCtx.T("Clients.Single.TaxInfo")),
 					WrapperClass: "mt-5",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
@@ -448,7 +448,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div class=\"h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div class=\"h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -521,7 +521,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div><input type=\"hidden\" name=\"section\" value=\"personal\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div><input type=\"hidden\" name=\"section\" value=\"personal\"><div class=\"p-4 grid grid-cols-1 md:grid-cols-2 gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -608,7 +608,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 			Label:        pageCtx.T("Clients.Single.Address.Label"),
 			Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
 			Value:        props.Client.Address,
-			WrapperClass: "col-span-2",
+			WrapperClass: "md:col-span-2",
 			Attrs: templ.Attributes{
 				"name": "Address",
 				"rows": "3",
@@ -656,7 +656,7 @@ func PassportInfoEditForm(props *PassportInfoEditProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div><input type=\"hidden\" name=\"section\" value=\"passport\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div><input type=\"hidden\" name=\"section\" value=\"passport\"><div class=\"p-4 grid grid-cols-1 md:grid-cols-2 gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -723,7 +723,7 @@ func TaxInfoEditForm(props *TaxInfoEditProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div><input type=\"hidden\" name=\"section\" value=\"tax\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div><input type=\"hidden\" name=\"section\" value=\"tax\"><div class=\"p-4 grid grid-cols-1 md:grid-cols-2 gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

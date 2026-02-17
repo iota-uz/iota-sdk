@@ -27,16 +27,16 @@ templ Form(cfg *FormConfig) {
 			hx-swap="outerHTML"
 			class="flex flex-col flex-1"
 		>
-			<div class="flex-1 overflow-y-auto p-6">
+			<div class="flex-1 overflow-y-auto p-4 md:p-6">
 				@card.Card(card.Props{
-					Class: "grid grid-cols-2 gap-4",
+					Class: "grid grid-cols-1 md:grid-cols-2 gap-4",
 				}) {
 					@FormFields(cfg)
 				}
 			</div>
 			<div
 				x-data
-				class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+				class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 			>
 				<form
 					id="delete-form"
@@ -88,16 +88,16 @@ templ FormContent(cfg *FormConfig) {
 		hx-swap="outerHTML"
 		class="flex flex-col flex-1"
 	>
-		<div class="flex-1 overflow-y-auto p-6">
+		<div class="flex-1 overflow-y-auto p-4 md:p-6">
 			@card.Card(card.Props{
-				Class: "grid grid-cols-2 gap-4",
+				Class: "grid grid-cols-1 md:grid-cols-2 gap-4",
 			}) {
 				@FormFields(cfg)
 			}
 		</div>
 		<div
 			x-data
-			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+			class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
 			<form
 				id="delete-form"
@@ -152,16 +152,16 @@ templ FormWithErrors(cfg *FormConfig, fieldErrors map[string]string) {
 			hx-swap="outerHTML"
 			class="flex flex-col flex-1"
 		>
-			<div class="flex-1 overflow-y-auto p-6">
+			<div class="flex-1 overflow-y-auto p-4 md:p-6">
 				@card.Card(card.Props{
-					Class: "grid grid-cols-2 gap-4",
+					Class: "grid grid-cols-1 md:grid-cols-2 gap-4",
 				}) {
 					@FormFields(cfg)
 				}
 			</div>
 			<div
 				x-data
-				class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+				class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 			>
 				<form
 					id="delete-form"

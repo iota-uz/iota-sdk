@@ -182,7 +182,7 @@ templ PersonalInfoCard(client *viewmodels.Client) {
 				></div>
 				<div
 					x-show="!isEditing"
-					class="grid grid-cols-2 gap-4"
+					class="grid grid-cols-1 md:grid-cols-2 gap-4"
 				>
 					<div>
 						<div class="text-sm text-base-600">
@@ -220,7 +220,7 @@ templ PersonalInfoCard(client *viewmodels.Client) {
 						</div>
 						<div>{ formatData(client.DateOfBirth) }</div>
 					</div>
-					<div class="col-span-2">
+					<div class="md:col-span-2">
 						<div class="text-sm text-base-600">
 							{ pageCtx.T("Clients.Single.Address.Label") }
 						</div>
@@ -275,7 +275,7 @@ templ TaxInfoCard(client *viewmodels.Client) {
 			}) {
 				<div
 					x-show="!isEditing"
-					class="grid grid-cols-2 gap-4"
+					class="grid grid-cols-1 md:grid-cols-2 gap-4"
 				>
 					<div>
 						<div class="text-sm text-base-600">
@@ -376,7 +376,7 @@ templ NotesInfoCard(client *viewmodels.Client) {
 			}) {
 				<div
 					x-show="!isEditing"
-					class="grid grid-cols-2 gap-4"
+					class="grid grid-cols-1 md:grid-cols-2 gap-4"
 				>
 					<div>
 						<div>{ formatNotes(client.Comments, pageCtx.T("Clients.Notes.NoNotes")) }</div>
