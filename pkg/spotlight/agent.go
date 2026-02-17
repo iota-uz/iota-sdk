@@ -26,13 +26,15 @@ func (a *HeuristicAgent) Answer(_ context.Context, req SearchRequest, hits []Sea
 		summary = "Here is the best matching page for your request"
 	}
 
+	labelTrKey := top.Document.Metadata["tr_key"]
 	answer := &AgentAnswer{
 		Summary:   summary,
 		Citations: []SearchDocument{top.Document},
 		Actions: []AgentAction{
 			{
 				Type:              ActionTypeNavigate,
-				Label:             "Open " + top.Document.Title,
+				Label:             top.Document.Title,
+				LabelTrKey:        labelTrKey,
 				TargetURL:         top.Document.URL,
 				NeedsConfirmation: true,
 			},

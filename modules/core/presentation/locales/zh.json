@@ -899,6 +899,12 @@
       "Open": "打开",
       "AddUser": "添加用户",
       "AddAccount": "添加账户"
+    },
+    "Group": {
+      "Navigate": "导航",
+      "Data": "数据",
+      "Knowledge": "知识",
+      "_Other": "其他"
     }
   },
   "Unknown": "未知",

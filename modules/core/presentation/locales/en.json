@@ -895,6 +895,12 @@
       "Open": "Open",
       "AddUser": "Add user",
       "AddAccount": "Add account"
+    },
+    "Group": {
+      "Navigate": "Navigate",
+      "Data": "Data",
+      "Knowledge": "Knowledge",
+      "_Other": "Other"
     }
   },
   "Unknown": "Unknown",

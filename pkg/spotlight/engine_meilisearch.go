@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -59,7 +60,7 @@ func (e *MeilisearchEngine) ensureIndex() error {
 		return serrors.E(op, err)
 	}
 
-	task, err := e.client.WaitForTask(taskInfo.TaskUID, 30*time.Second)
+	task, err := e.client.WaitForTask(taskInfo.TaskUID, 100*time.Millisecond)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -77,7 +78,7 @@ func (e *MeilisearchEngine) ensureIndex() error {
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := e.client.WaitForTask(filterTask.TaskUID, 30*time.Second); err != nil {
+	if _, err := e.client.WaitForTask(filterTask.TaskUID, 100*time.Millisecond); err != nil {
 		return serrors.E(op, err)
 	}
 
@@ -86,7 +87,7 @@ func (e *MeilisearchEngine) ensureIndex() error {
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := e.client.WaitForTask(searchTask.TaskUID, 30*time.Second); err != nil {
+	if _, err := e.client.WaitForTask(searchTask.TaskUID, 100*time.Millisecond); err != nil {
 		return serrors.E(op, err)
 	}
 
@@ -95,7 +96,7 @@ func (e *MeilisearchEngine) ensureIndex() error {
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := e.client.WaitForTask(sortTask.TaskUID, 30*time.Second); err != nil {
+	if _, err := e.client.WaitForTask(sortTask.TaskUID, 100*time.Millisecond); err != nil {
 		return serrors.E(op, err)
 	}
 
@@ -118,7 +119,7 @@ func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) e
 	records := make([]map[string]interface{}, 0, len(docs))
 	for _, doc := range docs {
 		record := map[string]interface{}{
-			"pk":          fmt.Sprintf("%s:%s", doc.TenantID.String(), doc.ID),
+			"pk":          meiliPK(doc.TenantID.String(), doc.ID),
 			"id":          doc.ID,
 			"tenant_id":   doc.TenantID.String(),
 			"provider":    doc.Provider,
@@ -171,7 +172,7 @@ func (e *MeilisearchEngine) Delete(ctx context.Context, refs []DocumentRef) erro
 	index := e.client.Index(e.indexName)
 	pks := make([]string, 0, len(refs))
 	for _, ref := range refs {
-		pks = append(pks, fmt.Sprintf("%s:%s", ref.TenantID.String(), ref.ID))
+		pks = append(pks, meiliPK(ref.TenantID.String(), ref.ID))
 	}
 	_, err := index.DeleteDocuments(pks, nil)
 	if err != nil {
@@ -250,6 +251,23 @@ func (e *MeilisearchEngine) Health(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// meiliPK builds a Meilisearch-safe primary key from tenant ID and document ID.
+// Meilisearch only allows alphanumeric characters (a-z A-Z 0-9), hyphens (-),
+// and underscores (_) in document identifiers.
+func meiliPK(tenantID, docID string) string {
+	raw := tenantID + "_" + docID
+	var b strings.Builder
+	b.Grow(len(raw))
+	for _, c := range raw {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' {
+			b.WriteRune(c)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	return b.String()
 }
 
 // parseMeiliHit extracts a SearchHit from a Meilisearch hit.

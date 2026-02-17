@@ -93,6 +93,7 @@ type SearchHit struct {
 type AgentAction struct {
 	Type              ActionType
 	Label             string
+	LabelTrKey        string // if set, label is localized at render time
 	TargetURL         string
 	NeedsConfirmation bool
 }

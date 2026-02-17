@@ -3,16 +3,16 @@ package spotlight
 func ToViewResponse(resp SearchResponse) ViewResponse {
 	groups := make([]ViewGroup, 0, 4)
 	if len(resp.Navigate) > 0 {
-		groups = append(groups, ViewGroup{Key: "navigate", Title: "Navigate", Hits: resp.Navigate})
+		groups = append(groups, ViewGroup{Key: "navigate", Title: "Spotlight.Group.Navigate", Hits: resp.Navigate})
 	}
 	if len(resp.Data) > 0 {
-		groups = append(groups, ViewGroup{Key: "data", Title: "Data", Hits: resp.Data})
+		groups = append(groups, ViewGroup{Key: "data", Title: "Spotlight.Group.Data", Hits: resp.Data})
 	}
 	if len(resp.Knowledge) > 0 {
-		groups = append(groups, ViewGroup{Key: "knowledge", Title: "Knowledge", Hits: resp.Knowledge})
+		groups = append(groups, ViewGroup{Key: "knowledge", Title: "Spotlight.Group.Knowledge", Hits: resp.Knowledge})
 	}
 	if len(resp.Other) > 0 {
-		groups = append(groups, ViewGroup{Key: "other", Title: "Other", Hits: resp.Other})
+		groups = append(groups, ViewGroup{Key: "other", Title: "Spotlight.Group._Other", Hits: resp.Other})
 	}
 
 	view := ViewResponse{Groups: groups}
