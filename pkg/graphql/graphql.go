@@ -9,18 +9,19 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"reflect"
 	"sync"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/99designs/gqlgen/graphql/executor"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
+	"github.com/gorilla/websocket"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
-
-	"github.com/99designs/gqlgen/graphql"
-	"github.com/99designs/gqlgen/graphql/handler/transport"
-	"github.com/gorilla/websocket"
+	"github.com/vektah/gqlparser/v2/parser"
 )
 
 // This file will not be regenerated automatically.
@@ -89,6 +90,13 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 	}
 
 	execsLen := len(execs)
+	if shouldMergeIntrospection(params, execsLen) {
+		if mergedResp, ok := mergeIntrospectionResponses(ctx, execs, params); ok {
+			writeJson(w, mergedResp)
+			return
+		}
+	}
+
 	var lastErr gqlerror.List
 	for i, ex := range execs {
 		rc, opErr := ex.CreateOperationContext(ctx, params)
@@ -121,6 +129,268 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 	gqlErr := gqlerror.Errorf("no executable schema matched the operation")
 	resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
 	writeJson(w, resp)
+}
+
+func shouldMergeIntrospection(params *graphql.RawParams, execsLen int) bool {
+	if params == nil || execsLen <= 1 {
+		return false
+	}
+
+	return isIntrospectionOnlyOperation(params.Query, params.OperationName)
+}
+
+func isIntrospectionOnlyOperation(query, operationName string) bool {
+	doc, err := parser.ParseQuery(&ast.Source{Input: query})
+	if err != nil {
+		return false
+	}
+
+	op := doc.Operations.ForName(operationName)
+	if op == nil {
+		if len(doc.Operations) == 0 {
+			return false
+		}
+		op = doc.Operations[0]
+	}
+
+	visitedFragments := make(map[string]struct{})
+	fieldNames := collectRootFieldNames(op.SelectionSet, doc, visitedFragments)
+	if len(fieldNames) == 0 {
+		return false
+	}
+
+	for _, name := range fieldNames {
+		if name != "__schema" && name != "__type" {
+			return false
+		}
+	}
+
+	return true
+}
+
+func collectRootFieldNames(
+	selectionSet ast.SelectionSet,
+	doc *ast.QueryDocument,
+	visitedFragments map[string]struct{},
+) []string {
+	fields := make([]string, 0, len(selectionSet))
+
+	for _, selection := range selectionSet {
+		switch s := selection.(type) {
+		case *ast.Field:
+			fields = append(fields, s.Name)
+		case *ast.FragmentSpread:
+			if _, visited := visitedFragments[s.Name]; visited {
+				continue
+			}
+			visitedFragments[s.Name] = struct{}{}
+
+			fragment := doc.Fragments.ForName(s.Name)
+			if fragment == nil {
+				continue
+			}
+
+			fields = append(fields, collectRootFieldNames(fragment.SelectionSet, doc, visitedFragments)...)
+		case *ast.InlineFragment:
+			fields = append(fields, collectRootFieldNames(s.SelectionSet, doc, visitedFragments)...)
+		}
+	}
+
+	return fields
+}
+
+func mergeIntrospectionResponses(
+	ctx context.Context,
+	execs []*executor.Executor,
+	params *graphql.RawParams,
+) (*graphql.Response, bool) {
+	mergedData := map[string]any{}
+	hasMergedData := false
+	var lastErr gqlerror.List
+
+	for _, ex := range execs {
+		if ex == nil {
+			continue
+		}
+
+		rc, opErr := ex.CreateOperationContext(ctx, params)
+		if opErr != nil {
+			if rc == nil || rc.Operation == nil {
+				lastErr = opErr
+				continue
+			}
+
+			return ex.DispatchError(graphql.WithOperationContext(ctx, rc), opErr), true
+		}
+
+		responses, operationCtx := ex.DispatchOperation(ctx, rc)
+		resp := responses(operationCtx)
+		if resp == nil {
+			continue
+		}
+		if len(resp.Errors) > 0 && len(resp.Data) == 0 {
+			lastErr = resp.Errors
+			continue
+		}
+		if len(resp.Data) == 0 {
+			continue
+		}
+
+		data := map[string]any{}
+		if err := json.Unmarshal(resp.Data, &data); err != nil {
+			continue
+		}
+		if len(data) == 0 {
+			continue
+		}
+
+		hasMergedData = true
+		mergedData = mergeAnyMap(mergedData, data)
+	}
+
+	if !hasMergedData {
+		if lastErr != nil {
+			return &graphql.Response{Errors: lastErr}, true
+		}
+		return nil, false
+	}
+
+	payload, err := json.Marshal(mergedData)
+	if err != nil {
+		return &graphql.Response{
+			Errors: gqlerror.List{gqlerror.Errorf("failed to marshal merged introspection response: %v", err)},
+		}, true
+	}
+
+	return &graphql.Response{Data: payload}, true
+}
+
+func mergeAnyMap(existing, incoming map[string]any) map[string]any {
+	for key, value := range incoming {
+		current, hasCurrent := existing[key]
+		if !hasCurrent {
+			existing[key] = value
+			continue
+		}
+
+		existing[key] = mergeAnyValue(current, value)
+	}
+
+	return existing
+}
+
+func mergeAnyValue(current, incoming any) any {
+	if current == nil {
+		return incoming
+	}
+	if incoming == nil {
+		return current
+	}
+
+	currentMap, currentIsMap := current.(map[string]any)
+	incomingMap, incomingIsMap := incoming.(map[string]any)
+	if currentIsMap && incomingIsMap {
+		return mergeAnyMap(currentMap, incomingMap)
+	}
+
+	currentSlice, currentIsSlice := current.([]any)
+	incomingSlice, incomingIsSlice := incoming.([]any)
+	if currentIsSlice && incomingIsSlice {
+		return mergeAnySlice(currentSlice, incomingSlice)
+	}
+
+	return current
+}
+
+func mergeAnySlice(current, incoming []any) []any {
+	if len(incoming) == 0 {
+		return current
+	}
+	if len(current) == 0 {
+		return incoming
+	}
+
+	if sliceHasNamedObjects(current) || sliceHasNamedObjects(incoming) {
+		return mergeNamedObjectSlices(current, incoming)
+	}
+
+	for _, item := range incoming {
+		exists := false
+		for _, existingItem := range current {
+			if reflect.DeepEqual(existingItem, item) {
+				exists = true
+				break
+			}
+		}
+
+		if !exists {
+			current = append(current, item)
+		}
+	}
+
+	return current
+}
+
+func sliceHasNamedObjects(values []any) bool {
+	for _, value := range values {
+		obj, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if name, ok := obj["name"].(string); ok && name != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func mergeNamedObjectSlices(current, incoming []any) []any {
+	nameToIndex := make(map[string]int, len(current))
+	for i, value := range current {
+		obj, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		name, ok := obj["name"].(string)
+		if !ok || name == "" {
+			continue
+		}
+		nameToIndex[name] = i
+	}
+
+	for _, value := range incoming {
+		obj, ok := value.(map[string]any)
+		if !ok {
+			current = append(current, value)
+			continue
+		}
+
+		name, ok := obj["name"].(string)
+		if !ok || name == "" {
+			current = append(current, obj)
+			continue
+		}
+
+		index, exists := nameToIndex[name]
+		if !exists {
+			nameToIndex[name] = len(current)
+			current = append(current, obj)
+			continue
+		}
+
+		existingObj, ok := current[index].(map[string]any)
+		if !ok {
+			current[index] = obj
+			continue
+		}
+
+		current[index] = mergeAnyMap(existingObj, obj)
+	}
+
+	return current
 }
 
 type MyPOST struct {
