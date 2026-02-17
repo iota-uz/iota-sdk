@@ -103,7 +103,10 @@ func (m *Module) Register(app application.Application) error {
 			)
 		}
 
-		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Icon, BiChatLink.Name, BiChatLink.Href))
+		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
+		if m.config.KBSearcher != nil {
+			app.Spotlight().SetAgent(spotlight.NewBIChatAgent(m.config.KBSearcher))
+		}
 
 		// Create and register controllers.
 		// Applet request/response APIs should go through applet RPC.

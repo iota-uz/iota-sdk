@@ -144,13 +144,14 @@ func TestApplication_RegisterApplet(t *testing.T) {
 
 	t.Run("successfully registers applet via application", func(t *testing.T) {
 		t.Parallel()
-		app := New(&ApplicationOptions{
+		app, err := New(&ApplicationOptions{
 			Bundle:             LoadBundle(),
 			SupportedLanguages: []string{"en"},
 		})
+		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
-		err := app.RegisterApplet(applet)
+		err = app.RegisterApplet(applet)
 		require.NoError(t, err)
 
 		registry := app.AppletRegistry()
@@ -160,14 +161,15 @@ func TestApplication_RegisterApplet(t *testing.T) {
 
 	t.Run("returns error for duplicate applet", func(t *testing.T) {
 		t.Parallel()
-		app := New(&ApplicationOptions{
+		app, err := New(&ApplicationOptions{
 			Bundle:             LoadBundle(),
 			SupportedLanguages: []string{"en"},
 		})
+		require.NoError(t, err)
 		applet1 := &mockApplet{name: "dup", basePath: "/path1"}
 		applet2 := &mockApplet{name: "dup", basePath: "/path2"}
 
-		err := app.RegisterApplet(applet1)
+		err = app.RegisterApplet(applet1)
 		require.NoError(t, err)
 
 		err = app.RegisterApplet(applet2)
@@ -180,10 +182,11 @@ func TestApplication_AppletRegistry(t *testing.T) {
 
 	t.Run("returns applet registry", func(t *testing.T) {
 		t.Parallel()
-		app := New(&ApplicationOptions{
+		app, err := New(&ApplicationOptions{
 			Bundle:             LoadBundle(),
 			SupportedLanguages: []string{"en"},
 		})
+		require.NoError(t, err)
 
 		registry := app.AppletRegistry()
 		require.NotNil(t, registry)
@@ -195,13 +198,14 @@ func TestApplication_AppletRegistry(t *testing.T) {
 
 	t.Run("registry is shared across calls", func(t *testing.T) {
 		t.Parallel()
-		app := New(&ApplicationOptions{
+		app, err := New(&ApplicationOptions{
 			Bundle:             LoadBundle(),
 			SupportedLanguages: []string{"en"},
 		})
+		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
-		err := app.RegisterApplet(applet)
+		err = app.RegisterApplet(applet)
 		require.NoError(t, err)
 
 		registry1 := app.AppletRegistry()

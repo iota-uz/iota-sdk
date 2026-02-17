@@ -887,9 +887,20 @@
   "Spotlight": {
     "Placeholder": "Qidirish...",
     "NothingFound": "Hech narsa topilmadi",
+    "Summary": {
+      "Default": "So'rovingiz uchun eng mos natijalar topildi",
+      "Help": "Bu yerda eng mos sahifalar va bilim bazasi yozuvlari keltirilgan"
+    },
     "Actions": {
+      "Open": "Ochish",
       "AddUser": "Foydalanuvchi qo'shish",
       "AddAccount": "Hisob qo'shish"
+    },
+    "Group": {
+      "Navigate": "Navigatsiya",
+      "Data": "Ma'lumotlar",
+      "Knowledge": "Ma'lumot",
+      "_Other": "Boshqa"
     }
   },
   "Unknown": "Noma'lum",

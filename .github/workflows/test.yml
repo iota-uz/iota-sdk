@@ -11,6 +11,7 @@ jobs:
     env:
       GOPRIVATE: github.com/iota-uz/*
       GONOSUMDB: github.com/iota-uz/*
+      IOTA_SKIP_SPOTLIGHT_PREFLIGHT: "1"
 
     steps:
       - name: Checkout repository
@@ -47,9 +48,7 @@ jobs:
           sudo apt-get install -y pgformatter
 
       - name: Install just
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-          just --version
+        uses: taiki-e/install-action@just
 
       - name: Download Go dependencies
         run: go mod download
@@ -128,10 +127,11 @@ jobs:
     env:
       GOPRIVATE: github.com/iota-uz/*
       GONOSUMDB: github.com/iota-uz/*
+      MEILI_URL: http://localhost:7700
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:15.1
         ports:
           - 5432:5432
         env:
@@ -167,6 +167,13 @@ jobs:
           - 6379:6379
         options: >-
           --tmpfs /data:rw,size=6g
+      meilisearch:
+        image: getmeili/meilisearch:v1.12
+        ports:
+          - 7700:7700
+        env:
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: "true"
 
     steps:
       - name: Checkout repository
@@ -178,9 +185,7 @@ jobs:
           go-version: "1.23.2"
 
       - name: Install just
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-          just --version
+        uses: taiki-e/install-action@just
 
       - name: Install tools
         run: |
@@ -252,10 +257,11 @@ jobs:
     env:
       GOPRIVATE: github.com/iota-uz/*
       GONOSUMDB: github.com/iota-uz/*
+      MEILI_URL: http://localhost:7700
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:15.1
         ports:
           - 5432:5432
         env:
@@ -291,6 +297,13 @@ jobs:
           - 6379:6379
         options: >-
           --tmpfs /data:rw,size=6g
+      meilisearch:
+        image: getmeili/meilisearch:v1.12
+        ports:
+          - 7700:7700
+        env:
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: "true"
 
     steps:
       - name: Checkout repository
@@ -302,9 +315,7 @@ jobs:
           go-version: "1.23.2"
 
       - name: Install just
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-          just --version
+        uses: taiki-e/install-action@just
 
       - name: Install tools
         run: |
@@ -356,6 +367,7 @@ jobs:
           GO_APP_ENV: production
           ENABLE_TEST_ENDPOINTS: true
           TOTP_ENCRYPTION_KEY: e2e-test-encryption-key-32bytes!!
+          MEILI_URL: http://localhost:7700
         run: |
           go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
           SERVER_PID=$!

@@ -410,6 +410,30 @@ let checkboxes = () => ({
 let spotlight = () => ({
   isOpen: false,
   highlightedIndex: 0,
+  init() {
+    if (window.__spotlightConfirmBound) {
+      return;
+    }
+    window.__spotlightConfirmBound = true;
+
+    const confirmationMessages = {
+      ru: 'Открыть этот результат?',
+      uz: 'Ushbu natijani ochish?',
+      en: 'Open this result?',
+    };
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest('.js-spotlight-confirm[data-spotlight-url]');
+      if (!button) return;
+      event.preventDefault();
+      const url = button.dataset.spotlightUrl || '';
+      if (!url) return;
+      const lang = (document.documentElement.lang || 'en').slice(0, 2).toLowerCase();
+      const message = confirmationMessages[lang] || confirmationMessages.en;
+      if (window.confirm(message)) {
+        window.location.href = url;
+      }
+    });
+  },
 
   handleShortcut(event) {
     if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
@@ -433,13 +457,19 @@ let spotlight = () => ({
     this.highlightedIndex = 0;
   },
 
-  highlightNext() {
+  _items() {
     const list = document.getElementById(this.$id('spotlight'));
-    const count = list.childElementCount;
-    this.highlightedIndex = (this.highlightedIndex + 1) % count;
+    if (!list) return [];
+    return list.querySelectorAll('[data-spotlight-item]');
+  },
+
+  highlightNext() {
+    const items = this._items();
+    if (items.length === 0) return;
+    this.highlightedIndex = (this.highlightedIndex + 1) % items.length;
 
     this.$nextTick(() => {
-      const item = list.children[this.highlightedIndex];
+      const item = items[this.highlightedIndex];
       if (item) {
         item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
       }
@@ -447,21 +477,25 @@ let spotlight = () => ({
   },
 
   highlightPrevious() {
-    const list = document.getElementById(this.$id('spotlight'));
-    const count = list.childElementCount;
-    this.highlightedIndex = (this.highlightedIndex - 1 + count) % count;
+    const items = this._items();
+    if (items.length === 0) return;
+    this.highlightedIndex = (this.highlightedIndex - 1 + items.length) % items.length;
 
     this.$nextTick(() => {
-      const item = list.children[this.highlightedIndex];
+      const item = items[this.highlightedIndex];
       if (item) {
         item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
       }
     });
   },
+
   goToLink() {
-    const item = document.getElementById(this.$id('spotlight')).children[this.highlightedIndex];
+    const items = this._items();
+    if (items.length === 0) return;
+    const item = items[this.highlightedIndex];
     if (item) {
-      item.children[0].click();
+      const clickable = item.querySelector('a, button');
+      if (clickable) clickable.click();
     }
   }
 });

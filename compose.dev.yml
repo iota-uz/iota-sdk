@@ -20,9 +20,21 @@ services:
     volumes:
       - sdk-redis:/data
 
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    restart: always
+    environment:
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+    volumes:
+      - sdk-meili:/meili_data
+
 volumes:
   sdk-data:
     name: sdk-data
   sdk-redis:
     name: sdk-redis
-
+  sdk-meili:
+    name: sdk-meili

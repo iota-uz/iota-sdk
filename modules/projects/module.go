@@ -3,7 +3,6 @@ package projects
 import (
 	"embed"
 
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
@@ -50,16 +49,12 @@ func (m *Module) Register(app application.Application) error {
 
 	// Register quick links
 	app.QuickLinks().Add(
-		spotlight.NewQuickLink(nil, ProjectsItem.Name, ProjectsItem.Href),
-		spotlight.NewQuickLink(nil, ProjectStagesItem.Name, ProjectStagesItem.Href),
-		spotlight.NewQuickLink(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"Projects.List.New",
+		spotlight.NewQuickLink(ProjectsItem.Name, ProjectsItem.Href),
+		spotlight.NewQuickLink(ProjectStagesItem.Name, ProjectStagesItem.Href),
+		spotlight.NewQuickLink("Projects.List.New",
 			"/projects/new",
 		),
-		spotlight.NewQuickLink(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"ProjectStages.List.New",
+		spotlight.NewQuickLink("ProjectStages.List.New",
 			"/project-stages/new",
 		),
 	)

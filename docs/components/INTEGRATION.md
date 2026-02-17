@@ -105,7 +105,7 @@ Total: $224
 Required:
 - Valid API key
 - Node.js 18+
-- PostgreSQL 13+
+- PostgreSQL 15.1+
 
 Optional:
 - Redis cache
@@ -118,7 +118,7 @@ Optional:
   <ChecklistCard.Required>
     Valid API key
     Node.js 18+
-    PostgreSQL 13+
+    PostgreSQL 15.1+
   </ChecklistCard.Required>
 
   <ChecklistCard.NotRequired>

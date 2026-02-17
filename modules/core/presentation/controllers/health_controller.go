@@ -89,6 +89,13 @@ func (c *HealthController) Get(w http.ResponseWriter, r *http.Request) {
 			httpStatus = http.StatusServiceUnavailable
 			logger.Warnf("Health check failed: %v", err)
 		}
+		spotlightCtx, spotlightCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer spotlightCancel()
+		if err := c.app.Spotlight().Readiness(spotlightCtx); err != nil {
+			status = "unhealthy"
+			httpStatus = http.StatusServiceUnavailable
+			logger.Warnf("Spotlight health check failed: %v", err)
+		}
 
 		w.WriteHeader(httpStatus)
 		if err := json.NewEncoder(w).Encode(map[string]string{"status": status}); err != nil {
@@ -139,7 +146,7 @@ func (c *HealthController) performHealthChecks(ctx context.Context) *HealthRespo
 
 	overallStatus := HealthStatusHealthy
 
-	wg.Add(2)
+	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
@@ -162,6 +169,19 @@ func (c *HealthController) performHealthChecks(ctx context.Context) *HealthRespo
 		if systemHealth.Status == HealthStatusDown {
 			overallStatus = HealthStatusDown
 		} else if systemHealth.Status == HealthStatusDegraded && overallStatus == HealthStatusHealthy {
+			overallStatus = HealthStatusDegraded
+		}
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		spotlightHealth := c.checkSpotlight(ctx)
+		mu.Lock()
+		checks["spotlight"] = spotlightHealth
+		if spotlightHealth.Status == HealthStatusDown {
+			overallStatus = HealthStatusDown
+		} else if spotlightHealth.Status == HealthStatusDegraded && overallStatus == HealthStatusHealthy {
 			overallStatus = HealthStatusDegraded
 		}
 		mu.Unlock()
@@ -224,7 +244,7 @@ func (c *HealthController) checkDatabase(ctx context.Context) ComponentHealth {
 	}
 }
 
-func (c *HealthController) checkSystem(ctx context.Context) ComponentHealth {
+func (c *HealthController) checkSystem(_ context.Context) ComponentHealth {
 	start := time.Now()
 
 	var m runtime.MemStats
@@ -248,5 +268,24 @@ func (c *HealthController) checkSystem(ctx context.Context) ComponentHealth {
 		Status:       status,
 		ResponseTime: time.Since(start).String(),
 		Details:      map[string]any{"metrics": details},
+	}
+}
+
+func (c *HealthController) checkSpotlight(ctx context.Context) ComponentHealth {
+	start := time.Now()
+	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	if err := c.app.Spotlight().Readiness(timeoutCtx); err != nil {
+		return ComponentHealth{
+			Status:       HealthStatusDown,
+			ResponseTime: time.Since(start).String(),
+			Error:        err.Error(),
+		}
+	}
+
+	return ComponentHealth{
+		Status:       HealthStatusHealthy,
+		ResponseTime: time.Since(start).String(),
 	}
 }
