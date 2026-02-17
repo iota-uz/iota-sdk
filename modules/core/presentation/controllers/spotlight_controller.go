@@ -9,6 +9,7 @@ import (
 	spotlightui "github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
@@ -125,7 +126,8 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, group := range view.Groups {
-		appendGroup(group.Title, group.Hits)
+		localizedTitle := intl.MustT(r.Context(), group.Title)
+		appendGroup(localizedTitle, group.Hits)
 	}
 
 	if view.Agent != nil {
@@ -146,7 +148,7 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templ.Handler(
-		spotlightui.SpotlightItems(items, 0),
+		spotlightui.SpotlightResults(items),
 		templ.WithStreaming(),
 		templ.WithErrorHandler(errorHandler),
 	).ServeHTTP(w, r)

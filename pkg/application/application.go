@@ -185,7 +185,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if err := spotlightService.Start(initCtx); err != nil {
 		return nil, fmt.Errorf("start spotlight service: %w", err)
 	}
-	quickLinks := spotlight.NewQuickLinks()
+	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)
 
 	return &application{

@@ -2,11 +2,11 @@ package spotlight
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type QuickLink struct {
@@ -20,12 +20,18 @@ func NewQuickLink(trKey, link string) *QuickLink {
 }
 
 type QuickLinks struct {
-	mu    sync.RWMutex
-	items []*QuickLink
+	mu        sync.RWMutex
+	items     []*QuickLink
+	bundle    *i18n.Bundle
+	languages []string
 }
 
-func NewQuickLinks() *QuickLinks {
-	return &QuickLinks{items: make([]*QuickLink, 0, 16)}
+func NewQuickLinks(bundle *i18n.Bundle, languages []string) *QuickLinks {
+	return &QuickLinks{
+		items:     make([]*QuickLink, 0, 16),
+		bundle:    bundle,
+		languages: languages,
+	}
 }
 
 func (ql *QuickLinks) Add(links ...*QuickLink) {
@@ -42,32 +48,61 @@ func (ql *QuickLinks) Capabilities() ProviderCapabilities {
 	return ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"quick_link", "route"}}
 }
 
-func (ql *QuickLinks) ListDocuments(ctx context.Context, scope ProviderScope) ([]SearchDocument, error) {
+// resolveAllTranslations resolves the translation key into a title (English)
+// and a body containing all unique translations joined by " | " for multi-language search.
+func (ql *QuickLinks) resolveAllTranslations(trKey string) (title, body string) {
+	if ql.bundle == nil || len(ql.languages) == 0 {
+		return trKey, trKey
+	}
+
+	seen := make(map[string]struct{}, len(ql.languages))
+	translations := make([]string, 0, len(ql.languages))
+
+	for _, lang := range ql.languages {
+		localizer := i18n.NewLocalizer(ql.bundle, lang)
+		translated, err := localizer.Localize(&i18n.LocalizeConfig{
+			MessageID: trKey,
+			DefaultMessage: &i18n.Message{
+				ID:    trKey,
+				Other: trKey,
+			},
+		})
+		if err != nil || translated == trKey {
+			continue
+		}
+		if title == "" {
+			title = translated
+		}
+		if _, exists := seen[translated]; !exists {
+			seen[translated] = struct{}{}
+			translations = append(translations, translated)
+		}
+	}
+
+	if title == "" {
+		title = trKey
+	}
+	if len(translations) == 0 {
+		return title, title
+	}
+	return title, strings.Join(translations, " | ")
+}
+
+func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]SearchDocument, error) {
 	ql.mu.RLock()
 	defer ql.mu.RUnlock()
 
 	providerID := ql.ProviderID()
 	out := make([]SearchDocument, 0, len(ql.items))
 	for _, item := range ql.items {
-		label := item.trKey
-		if localizer, ok := intl.UseLocalizer(ctx); ok {
-			if translated, err := localizer.Localize(&i18n.LocalizeConfig{
-				MessageID: item.trKey,
-				DefaultMessage: &i18n.Message{
-					ID:    item.trKey,
-					Other: item.trKey,
-				},
-			}); err == nil {
-				label = translated
-			}
-		}
+		title, body := ql.resolveAllTranslations(item.trKey)
 		out = append(out, SearchDocument{
 			ID:         providerID + ":" + item.trKey + ":" + item.link,
 			TenantID:   scope.TenantID,
 			Provider:   providerID,
 			EntityType: "quick_link",
-			Title:      label,
-			Body:       label,
+			Title:      title,
+			Body:       body,
 			URL:        item.link,
 			Language:   scope.Language,
 			Metadata: map[string]string{

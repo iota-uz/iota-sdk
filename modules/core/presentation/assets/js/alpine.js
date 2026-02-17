@@ -450,15 +450,19 @@ let spotlight = () => ({
     this.highlightedIndex = 0;
   },
 
-  highlightNext() {
+  _items() {
     const list = document.getElementById(this.$id('spotlight'));
-    if (!list) return;
-    const count = list.childElementCount;
-    if (count === 0) return;
-    this.highlightedIndex = (this.highlightedIndex + 1) % count;
+    if (!list) return [];
+    return list.querySelectorAll('[data-spotlight-item]');
+  },
+
+  highlightNext() {
+    const items = this._items();
+    if (items.length === 0) return;
+    this.highlightedIndex = (this.highlightedIndex + 1) % items.length;
 
     this.$nextTick(() => {
-      const item = list.children[this.highlightedIndex];
+      const item = items[this.highlightedIndex];
       if (item) {
         item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
       }
@@ -466,25 +470,25 @@ let spotlight = () => ({
   },
 
   highlightPrevious() {
-    const list = document.getElementById(this.$id('spotlight'));
-    if (!list) return;
-    const count = list.childElementCount;
-    if (count === 0) return;
-    this.highlightedIndex = (this.highlightedIndex - 1 + count) % count;
+    const items = this._items();
+    if (items.length === 0) return;
+    this.highlightedIndex = (this.highlightedIndex - 1 + items.length) % items.length;
 
     this.$nextTick(() => {
-      const item = list.children[this.highlightedIndex];
+      const item = items[this.highlightedIndex];
       if (item) {
         item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
       }
     });
   },
+
   goToLink() {
-    const list = document.getElementById(this.$id('spotlight'));
-    if (!list || list.childElementCount === 0) return;
-    const item = list.children[this.highlightedIndex];
+    const items = this._items();
+    if (items.length === 0) return;
+    const item = items[this.highlightedIndex];
     if (item) {
-      item.children[0].click();
+      const clickable = item.querySelector('a, button');
+      if (clickable) clickable.click();
     }
   }
 });
