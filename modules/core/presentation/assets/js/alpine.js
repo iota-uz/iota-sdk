@@ -1220,6 +1220,76 @@ function createPermissionFormData(allChecked, someChecked, permissionIds) {
   };
 }
 
+let fillerRows = (rowHeight = 49) => ({
+  _resizeHandler: null,
+  _settleHandler: null,
+  init() {
+    this.$nextTick(() => this.fillGrid());
+    this._resizeHandler = this._debounce(() => this.fillGrid(), 150);
+    window.addEventListener('resize', this._resizeHandler);
+    this._settleHandler = () => {
+      this.$nextTick(() => this.fillGrid());
+    };
+    document.addEventListener('htmx:afterSettle', this._settleHandler);
+  },
+  destroy() {
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+    if (this._settleHandler) document.removeEventListener('htmx:afterSettle', this._settleHandler);
+  },
+  fillGrid() {
+    const wrapper = this.$el;
+    const tbody = wrapper.querySelector('tbody#table-body');
+    const thead = wrapper.querySelector('thead');
+    if (!tbody || !thead) return;
+    tbody.querySelectorAll('.grid-filler').forEach(r => r.remove());
+    const scEl = wrapper.querySelector('[x-ref=sc]');
+    if (tbody.querySelector('tr:not(.hidden) > td[colspan]')) {
+      if (scEl) scEl.style.overflowY = 'hidden';
+      return;
+    }
+    if (scEl) scEl.style.overflowY = '';
+    const ths = thead.querySelector('tr').children;
+    const colCount = ths.length;
+    const stickyInfo = [];
+    for (let i = 0; i < colCount; i++) {
+      const cs = getComputedStyle(ths[i]);
+      stickyInfo.push({
+        isSticky: cs.position === 'sticky',
+        right: cs.right !== 'auto' && cs.right !== '' ? cs.right : null,
+        left: cs.left !== 'auto' && cs.left !== '' ? cs.left : null
+      });
+    }
+    const wrapperH = scEl ? scEl.clientHeight : wrapper.offsetHeight;
+    const theadH = thead.offsetHeight;
+    let dataH = 0;
+    for (const row of tbody.children) {
+      if (!row.classList.contains('grid-filler') && !row.classList.contains('hidden')) {
+        dataH += row.offsetHeight;
+      }
+    }
+    const emptySpace = wrapperH - theadH - dataH;
+    const count = Math.max(0, Math.floor(emptySpace / rowHeight));
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < count; i++) {
+      const tr = document.createElement('tr');
+      tr.className = 'grid-filler';
+      for (let j = 0; j < colCount; j++) {
+        const td = document.createElement('td');
+        if (stickyInfo[j].isSticky && stickyInfo[j].right !== null) {
+          td.className = 'grid-sticky-right';
+        }
+        tr.appendChild(td);
+      }
+      frag.appendChild(tr);
+    }
+    tbody.appendChild(frag);
+  },
+  _debounce(fn, ms) {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
+  }
+});
+
 let tableConfig = (id) => ({
   get key() {
     return "iota-table-config-" + (id || (window.location.origin + window.location.pathname))
@@ -1460,6 +1530,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("dateRangeButtons", dateRangeButtons);
   Alpine.data("createPermissionFormData", createPermissionFormData);
   Alpine.data("createPermissionSetData", createPermissionSetData);
+  Alpine.data("fillerRows", fillerRows);
   Alpine.data("tableConfig", tableConfig);
   Sortable(Alpine);
 });

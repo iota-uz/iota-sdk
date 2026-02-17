@@ -811,6 +811,99 @@ func WithSearchPlaceholder(placeholder string) TableConfigOpt {
 	}
 }
 
+func WithFillerRows(enabled bool, rowHeight ...int) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.FillerRows = enabled
+		if len(rowHeight) > 0 {
+			c.FillerRowHeight = rowHeight[0]
+		}
+	}
+}
+
+func WithNoWrap(nowrap bool) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.NoWrap = nowrap
+	}
+}
+
+func WithScrollbarGutter(enabled bool) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.ScrollbarGutter = enabled
+	}
+}
+
+func WithSearchClearable(clearable bool) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.SearchClearable = clearable
+	}
+}
+
+func WithHxTrigger(trigger string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.HxTrigger = trigger
+	}
+}
+
+func WithFullHeight(enabled bool) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.FullHeight = enabled
+	}
+}
+
+func WithContentID(id string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.ContentID = id
+	}
+}
+
+func WithHxTarget(target string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.HxTarget = target
+	}
+}
+
+func WithHxSwap(swap string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.HxSwap = swap
+	}
+}
+
+func WithHxIndicator(indicator string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.HxIndicator = indicator
+	}
+}
+
+func WithSearchValue(value string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.SearchValue = value
+	}
+}
+
+func (c *TableConfig) ResolvedHxTarget() string {
+	if c.HxTarget != "" {
+		return c.HxTarget
+	}
+	if c.ContentID != "" {
+		return "#" + c.ContentID
+	}
+	return "#table-body"
+}
+
+func (c *TableConfig) ResolvedHxSwap() string {
+	if c.HxSwap != "" {
+		return c.HxSwap
+	}
+	return "innerHTML"
+}
+
+func (c *TableConfig) ResolvedHxIndicator() string {
+	if c.HxIndicator != "" {
+		return c.HxIndicator
+	}
+	return "#table-body"
+}
+
 type InfiniteScrollConfig struct {
 	HasMore bool
 	Page    int
@@ -853,20 +946,35 @@ type TableConfig struct {
 	CurrentSort      string // Current sort field
 	CurrentSortOrder string // Current sort order (asc/desc)
 
+	// Table display customizations
+	FillerRows      bool   // Enable filler rows to fill vertical space
+	FillerRowHeight int    // Filler row height in px (default: 49)
+	NoWrap          bool   // white-space: nowrap on all td/th
+	ScrollbarGutter bool   // scrollbar-gutter: stable + hide SDK cover div
+	SearchClearable bool   // Show clear (X) button on search input
+	HxTrigger       string // Custom hx-trigger (overrides default)
+	FullHeight      bool   // Full-height flex layout (h-full min-h-0 overflow-hidden)
+	ContentID       string // ID for content wrapper div (HTMX swap target)
+	HxTarget        string // Custom hx-target; defaults to "#"+ContentID if set, else "#table-body"
+	HxSwap          string // Custom hx-swap; defaults to "innerHTML"
+	HxIndicator     string // Custom hx-indicator; defaults to "#table-body"
+	SearchValue     string // Current search input value (for HTMX re-render)
+
 	// Optional: reference to definition for advanced usage
 	definition *TableDefinition
 }
 
 func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig {
 	t := &TableConfig{
-		Title:        title,
-		DataURL:      dataURL,
-		Infinite:     &InfiniteScrollConfig{},
-		Columns:      []TableColumn{},
-		Filters:      []templ.Component{},
-		Actions:      []templ.Component{},
-		Rows:         []TableRow{},
-		Configurable: true,
+		Title:           title,
+		DataURL:         dataURL,
+		Infinite:        &InfiniteScrollConfig{},
+		Columns:         []TableColumn{},
+		Filters:         []templ.Component{},
+		Actions:         []templ.Component{},
+		Rows:            []TableRow{},
+		Configurable:    true,
+		FillerRowHeight: 49, // Default filler row height
 	}
 	for _, o := range opts {
 		o(t)
