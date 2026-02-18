@@ -46,14 +46,14 @@ templ Verify(p *VerifyProps) {
 								{ p.ErrorMessage }
 							}
 						</div>
-						}
-						if p.SuccessMessage != "" {
-							<div data-flash="success">
-								@alert.Success() {
-									{ p.SuccessMessage }
-								}
-							</div>
-						}
+					}
+					if p.SuccessMessage != "" {
+						<div data-flash="success">
+							@alert.Success() {
+								{ p.SuccessMessage }
+							}
+						</div>
+					}
 					<!-- Verification Code Form -->
 					<form method="post" action="/login/2fa/verify" class="flex flex-col gap-4">
 						@composables.CSRFTokenField(ctx)
