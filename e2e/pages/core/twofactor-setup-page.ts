@@ -149,9 +149,7 @@ export class TwoFactorSetupPage {
 	 * @returns Array of recovery codes
 	 */
 	async getRecoveryCodes(): Promise<string[]> {
-		const recoveryCodeItems = this.page.locator(
-			'.select-all, [data-recovery-code], .recovery-code, code, pre'
-		);
+		const recoveryCodeItems = this.page.locator('.select-all, [data-recovery-code], .recovery-code');
 
 		const count = await recoveryCodeItems.count();
 		if (count === 0) {

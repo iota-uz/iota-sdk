@@ -80,9 +80,17 @@ test.describe('2FA Recovery Codes', () => {
 		const setupPage = new TwoFactorSetupPage(page);
 		await setupPage.selectMethod('totp');
 		const secret = await setupPage.extractTOTPSecret();
-		await setupPage.enterTOTPCode(generateTOTPCode(secret));
+		let recoveryCodes: string[] = [];
+		for (let attempt = 0; attempt < 3; attempt++) {
+			await setupPage.enterTOTPCode(generateTOTPCode(secret));
+			recoveryCodes = await setupPage.getRecoveryCodes();
+			if (recoveryCodes.length > 1) {
+				break;
+			}
+			await expect(page).toHaveURL(/\/login\/2fa\/setup\/totp/);
+			await page.waitForTimeout(11000);
+		}
 
-		const recoveryCodes = await setupPage.getRecoveryCodes();
 		expect(recoveryCodes.length).toBeGreaterThan(1);
 		await logout(page);
 		return recoveryCodes;
@@ -94,6 +102,7 @@ test.describe('2FA Recovery Codes', () => {
 			await page.goto('/login/2fa/verify');
 		}
 		await expect(page).toHaveURL(/\/login\/2fa\/verify/);
+		await expect(page.locator('input[name="Code"]')).toBeVisible();
 	}
 
 	test.beforeEach(async ({ page, request }) => {
