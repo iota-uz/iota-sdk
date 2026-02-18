@@ -13,11 +13,14 @@ import * as bcrypt from 'bcryptjs';
  * Database configuration for E2E tests
  */
 function getDBConfig() {
+	const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+	const defaultPort = isCI ? 5432 : 5438;
+
 	return {
 		user: process.env.DB_USER || 'postgres',
 		password: process.env.DB_PASSWORD || 'postgres',
 		host: process.env.DB_HOST || 'localhost',
-		port: parseInt(process.env.DB_PORT || '5438'),
+		port: parseInt(process.env.DB_PORT || String(defaultPort)),
 		database: process.env.DB_NAME || 'iota_erp_e2e',
 	};
 }

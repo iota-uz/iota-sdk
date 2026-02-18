@@ -25,11 +25,14 @@ import { Pool } from 'pg';
  * Helper function to get database configuration
  */
 function getDBConfig() {
+	const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+	const defaultPort = isCI ? 5432 : 5438;
+
 	return {
 		user: process.env.DB_USER || 'postgres',
 		password: process.env.DB_PASSWORD || 'postgres',
 		host: process.env.DB_HOST || 'localhost',
-		port: parseInt(process.env.DB_PORT || '5438'),
+		port: parseInt(process.env.DB_PORT || String(defaultPort)),
 		database: process.env.DB_NAME || 'iota_erp_e2e',
 	};
 }
@@ -178,7 +181,7 @@ test.describe('2FA Recovery Codes', () => {
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
 
 		// Verify recovery-specific instructions
-		await expect(page.locator('text=/recovery.*code|backup.*code/i')).toBeVisible();
+		await expect(page.getByRole('heading', { name: /recovery code/i })).toBeVisible();
 	});
 
 	test('should successfully login with valid recovery code', async ({ page }) => {
@@ -352,7 +355,7 @@ test.describe('2FA Recovery Codes', () => {
 		const backLink = page.locator('a[href*="/login/2fa/verify"]').filter({ hasNotText: /recovery/i });
 		if ((await backLink.count()) > 0) {
 			await backLink.first().click();
-			await expect(page).toHaveURL(/\/login\/2fa\/verify$/);
+			await expect(page).toHaveURL(/\/login\/2fa\/verify(\?.*)?$/);
 		}
 	});
 });

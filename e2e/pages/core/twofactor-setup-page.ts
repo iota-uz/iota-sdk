@@ -25,8 +25,8 @@ export class TwoFactorSetupPage {
 	 * @param method - The 2FA method ('totp', 'sms', or 'email')
 	 */
 	async selectMethod(method: 'totp' | 'sms' | 'email') {
-		// Click the radio button for the selected method
-		await this.page.click(`input[name="Method"][value="${method}"]`);
+		// The radios are intentionally visually hidden (sr-only), so force check is required.
+		await this.page.locator(`input[name="Method"][value="${method}"]`).check({ force: true });
 
 		// Submit the form
 		await this.page.click('button[type="submit"]');
