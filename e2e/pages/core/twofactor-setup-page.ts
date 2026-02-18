@@ -185,13 +185,19 @@ export class TwoFactorSetupPage {
 	 * @param expectedError - Expected error message text (partial match)
 	 */
 	async expectErrorMessage(expectedError?: string) {
-		const errorLocator = this.page.locator(
-			'[data-flash="error"], .error-message, .bg-red-100, .text-red-500, .text-red-600, text=/invalid|error|failed|verification code/i'
+		const styledError = this.page.locator(
+			'[data-flash="error"], .error-message, .bg-red-100, .text-red-500, .text-red-600'
 		);
-		await expect(errorLocator.first()).toBeVisible({ timeout: 5000 });
+		if ((await styledError.count()) > 0) {
+			await expect(styledError.first()).toBeVisible({ timeout: 5000 });
+		} else {
+			await expect(this.page.getByText(/invalid|error|failed|verification code/i).first()).toBeVisible({
+				timeout: 5000,
+			});
+		}
 
 		if (expectedError) {
-			await expect(errorLocator.first()).toContainText(expectedError);
+			await expect(styledError.first()).toContainText(expectedError);
 		}
 	}
 
