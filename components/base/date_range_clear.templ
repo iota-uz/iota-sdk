@@ -36,14 +36,24 @@ templ DateRangeClearButton(props ...DateRangeClearButtonProps) {
 				}
 				this.hasValue = false;
 				const formId = this.$el.dataset.formId;
-				const form = formId ? document.getElementById(formId) : this.$el.closest('form');
-				if (container) {
-					container.querySelectorAll('input[type=hidden]').forEach(function(el) {
-						if (!formId || el.getAttribute('form') === formId) el.remove();
-					});
-				}
-				if (form && typeof htmx !== 'undefined') {
-					htmx.trigger(form, 'dateRangeChange');
+				if (formId) {
+					if (container) {
+						container.querySelectorAll('input[type=hidden]').forEach(function(el) {
+							if (el.getAttribute('form') === formId) el.remove();
+						});
+					}
+					const form = document.getElementById(formId);
+					if (form && typeof htmx !== 'undefined') {
+						htmx.trigger(form, 'dateRangeChange');
+					}
+				} else {
+					const dpEl = fp?.closest('[x-data]');
+					if (dpEl && dpEl._x_dataStack) {
+						dpEl._x_dataStack[0].selected = [];
+					}
+					if (fp) {
+						fp.dispatchEvent(new Event('change', { bubbles: true }));
+					}
 				}
 			}
 		}"
