@@ -210,7 +210,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await setupPage.selectMethod('email');
 
 		// Verify nextURL is preserved in form
-		const hiddenNextURL = await page.locator('input[name="NextURL"]').inputValue();
+		const hiddenNextURL = await page.locator('input[name="NextURL"]').first().inputValue();
 		expect(hiddenNextURL).toBe(nextURL);
 
 		// Complete setup

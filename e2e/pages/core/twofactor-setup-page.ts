@@ -63,6 +63,14 @@ export class TwoFactorSetupPage {
 	 * @returns The TOTP secret
 	 */
 	async extractTOTPSecret(): Promise<string> {
+		const otpAuthInput = this.page.locator('input[name="OTPAuthURL"]');
+		if (await otpAuthInput.count()) {
+			const otpAuthURL = await otpAuthInput.first().inputValue();
+			if (otpAuthURL) {
+				return extractSecretFromOTPAuthURL(otpAuthURL);
+			}
+		}
+
 		// Get the QR code data URL
 		const qrCodeURL = await this.getQRCodeURL();
 

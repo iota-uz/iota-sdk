@@ -193,6 +193,11 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 	case pkgtwofactor.MethodTOTP:
 		redirectURL = fmt.Sprintf("/login/2fa/setup/totp?challengeId=%s&next=%s", challenge.ChallengeID, url.QueryEscape(nextURL))
 	case pkgtwofactor.MethodSMS, pkgtwofactor.MethodEmail:
+		if methodType == pkgtwofactor.MethodSMS {
+			shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.SMSSent")))
+		} else {
+			shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.EmailSent")))
+		}
 		redirectURL = fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, challenge.ChallengeID, url.QueryEscape(nextURL))
 	case pkgtwofactor.MethodBackupCodes:
 		// Backup codes are not set up directly, return error
@@ -235,11 +240,17 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 
 	// Convert base64 PNG to data URL
 	qrImageURL := fmt.Sprintf("data:image/png;base64,%s", challenge.QRCodePNG)
+	errorMessage, err := composables.UseFlash(w, r, "error")
+	if err != nil {
+		logger.Error("failed to read error flash", "error", err)
+	}
 
 	if err := twofactorsetup.TOTPSetup(&twofactorsetup.TOTPSetupProps{
-		ChallengeID: challengeID,
-		NextURL:     nextURL,
-		QRImageURL:  qrImageURL,
+		ChallengeID:  challengeID,
+		NextURL:      nextURL,
+		QRImageURL:   qrImageURL,
+		OTPAuthURL:   challenge.QRCodeURL,
+		ErrorMessage: string(errorMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render TOTP setup template", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -288,12 +299,22 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
 		return
 	}
+	errorMessage, err := composables.UseFlash(w, r, "error")
+	if err != nil {
+		logger.Error("failed to read error flash", "error", err)
+	}
+	successMessage, err := composables.UseFlash(w, r, "success")
+	if err != nil {
+		logger.Error("failed to read success flash", "error", err)
+	}
 
 	if err := twofactorsetup.OTPSetup(&twofactorsetup.OTPSetupProps{
-		Method:      method,
-		ChallengeID: challengeID,
-		NextURL:     nextURL,
-		Destination: challenge.Destination,
+		Method:         method,
+		ChallengeID:    challengeID,
+		NextURL:        nextURL,
+		Destination:    challenge.Destination,
+		ErrorMessage:   string(errorMessage),
+		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render OTP setup template", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
