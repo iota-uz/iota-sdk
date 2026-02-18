@@ -2,7 +2,13 @@ package base
 
 import icons "github.com/iota-uz/icons/phosphor"
 
-templ DateRangeClearButton(formID string) {
+type DateRangeClearButtonProps struct {
+	FormID string
+}
+
+templ DateRangeClearButton(props ...DateRangeClearButtonProps) {
+	{{ formID := "" }}
+	{{ if len(props) > 0 { formID = props[0].FormID } }}
 	<button
 		type="button"
 		class="absolute right-2 top-1/2 -translate-y-1/2 w-4.5 h-4.5 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-gray-400 transition-all duration-150 cursor-pointer"
@@ -31,14 +37,24 @@ templ DateRangeClearButton(formID string) {
 				}
 				this.hasValue = false;
 				const formId = this.$el.dataset.formId;
-				if (container) {
-					container.querySelectorAll('input[type=hidden]').forEach(function(el) {
-						if (el.getAttribute('form') === formId) el.remove();
-					});
-				}
-				const form = document.getElementById(formId);
-				if (form && typeof htmx !== 'undefined') {
-					htmx.trigger(form, 'dateRangeChange');
+				if (formId) {
+					if (container) {
+						container.querySelectorAll('input[type=hidden]').forEach(function(el) {
+							if (el.getAttribute('form') === formId) el.remove();
+						});
+					}
+					const form = document.getElementById(formId);
+					if (form && typeof htmx !== 'undefined') {
+						htmx.trigger(form, 'dateRangeChange');
+					}
+				} else {
+					const dpEl = fp?.closest('[x-data]');
+					if (dpEl && dpEl._x_dataStack) {
+						dpEl._x_dataStack[0].selected = [];
+					}
+					if (fp) {
+						fp.dispatchEvent(new Event('change', { bubbles: true }));
+					}
 				}
 			}
 		}"
