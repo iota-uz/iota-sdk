@@ -8,7 +8,10 @@ type DateRangeClearButtonProps struct {
 
 templ DateRangeClearButton(props ...DateRangeClearButtonProps) {
 	{{ formID := "" }}
-	{{ if len(props) > 0 { formID = props[0].FormID } }}
+	{{if len(props) > 0 {
+	formID = props[0].FormID
+}
+	}}
 	<button
 		type="button"
 		class="absolute right-2 top-1/2 -translate-y-1/2 w-4.5 h-4.5 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-gray-400 transition-all duration-150 cursor-pointer"
