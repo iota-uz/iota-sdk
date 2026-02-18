@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -54,11 +55,13 @@ func Authorize() mux.MiddlewareFunc {
 					return
 				}
 
-				// Security: Validate session is active (not pending 2FA or expired)
+				// Security: pending 2FA sessions are only allowed on 2FA routes.
+				// Other inactive sessions (expired, invalid status) are not authenticated.
 				if !sess.IsActive() {
-					// Inactive sessions (pending 2FA, expired, etc.) should not be authenticated
-					next.ServeHTTP(w, r)
-					return
+					if !sess.IsPending() || !strings.HasPrefix(r.URL.Path, "/login/2fa/") {
+						next.ServeHTTP(w, r)
+						return
+					}
 				}
 
 				if _, err := composables.UseTenantID(ctx); err != nil {

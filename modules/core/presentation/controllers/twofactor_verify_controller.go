@@ -123,12 +123,23 @@ func (c *TwoFactorVerifyController) GetVerify(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	errorMessage, err := composables.UseFlash(w, r, "error")
+	if err != nil {
+		logger.Error("failed to read error flash", "error", err)
+	}
+	successMessage, err := composables.UseFlash(w, r, "success")
+	if err != nil {
+		logger.Error("failed to read success flash", "error", err)
+	}
+
 	// Render verification form
 	method := u.TwoFactorMethod()
 	if err := twofactorverify.Verify(&twofactorverify.VerifyProps{
-		Method:      string(method),
-		NextURL:     nextURL,
-		Destination: challenge.Destination,
+		Method:         string(method),
+		NextURL:        nextURL,
+		Destination:    challenge.Destination,
+		ErrorMessage:   string(errorMessage),
+		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render verify template", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -250,9 +261,20 @@ func (c *TwoFactorVerifyController) GetRecovery(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	errorMessage, err := composables.UseFlash(w, r, "error")
+	if err != nil {
+		logger.Error("failed to read error flash", "error", err)
+	}
+	successMessage, err := composables.UseFlash(w, r, "success")
+	if err != nil {
+		logger.Error("failed to read success flash", "error", err)
+	}
+
 	// Render recovery code form
 	if err := twofactorverify.Recovery(&twofactorverify.RecoveryProps{
-		NextURL: nextURL,
+		NextURL:        nextURL,
+		ErrorMessage:   string(errorMessage),
+		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render recovery template", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

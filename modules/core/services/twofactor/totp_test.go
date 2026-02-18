@@ -3,9 +3,12 @@ package twofactor
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtf "github.com/iota-uz/iota-sdk/pkg/twofactor"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -242,6 +245,19 @@ func TestValidateWithSkew(t *testing.T) {
 	svc, err := NewTOTPService(encryptor, "IOTA", 1, 256)
 	require.NoError(t, err)
 
+	secret := "JBSWY3DPEHPK3PXP"
+	validCode, err := totp.GenerateCodeCustom(secret, time.Now(), totp.ValidateOpts{
+		Period:    30,
+		Skew:      1,
+		Digits:    otp.DigitsSix,
+		Algorithm: otp.AlgorithmSHA1,
+	})
+	require.NoError(t, err)
+
+	valid, err := svc.ValidateWithSkew(secret, validCode, 1)
+	require.NoError(t, err)
+	assert.True(t, valid)
+
 	tests := []struct {
 		name    string
 		secret  string
@@ -256,13 +272,13 @@ func TestValidateWithSkew(t *testing.T) {
 		},
 		{
 			name:    "Empty code",
-			secret:  "JBSWY3DPEHPK3PXP",
+			secret:  secret,
 			code:    "",
 			wantErr: true,
 		},
 		{
 			name:    "Invalid code format",
-			secret:  "JBSWY3DPEHPK3PXP",
+			secret:  secret,
 			code:    "invalid",
 			wantErr: true,
 		},

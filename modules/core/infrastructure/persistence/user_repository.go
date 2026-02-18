@@ -59,6 +59,22 @@ const (
 
 	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1 AND tenant_id = $2`
 
+	userUpdateLastLoginWithoutCtxTenantQuery = `
+			UPDATE users
+			SET last_login = NOW()
+			WHERE id = $1
+			  -- Keep tenant scoping explicit even without tenant in context.
+			  AND tenant_id = (SELECT tenant_id FROM users WHERE id = $1)
+		`
+
+	userUpdateLastActionWithoutCtxTenantQuery = `
+			UPDATE users
+			SET last_action = NOW()
+			WHERE id = $1
+			  -- Keep tenant scoping explicit even without tenant in context.
+			  AND tenant_id = (SELECT tenant_id FROM users WHERE id = $1)
+		`
+
 	userDeleteQuery     = `DELETE FROM users WHERE id = $1 AND tenant_id = $2`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
 	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES`
@@ -381,6 +397,9 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		"blocked_at",
 		"blocked_by",
 		"blocked_by_tenant_id",
+		"two_factor_method",
+		"totp_secret_encrypted",
+		"two_factor_enabled_at",
 	}
 
 	values := []interface{}{
@@ -401,6 +420,9 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		dbUser.BlockedAt,
 		dbUser.BlockedBy,
 		dbUser.BlockedByTenantID,
+		dbUser.TwoFactorMethod,
+		dbUser.TOTPSecretEncrypted,
+		dbUser.TwoFactorEnabledAt,
 	}
 
 	if efs, ok := data.(repo.ExtendedFieldSet); ok {
@@ -526,19 +548,8 @@ func (g *PgUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
 		return nil
 	}
 
-	// If no tenant in context, get the user's tenant from DB and use that
-	tx, txErr := composables.UseTx(ctx)
-	if txErr != nil {
-		return errors.Wrap(txErr, "failed to get transaction")
-	}
-
-	var tenantIDStr string
-	err = tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1", id).Scan(&tenantIDStr)
-	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to get tenant ID for user ID: %d", id))
-	}
-
-	if err := g.execQuery(ctx, userUpdateLastLoginQuery, id, tenantIDStr); err != nil {
+	// If no tenant exists in context, update using tenant derived from the same user row.
+	if err := g.execQuery(ctx, userUpdateLastLoginWithoutCtxTenantQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update last login for user ID: %d", id))
 	}
 	return nil
@@ -556,19 +567,8 @@ func (g *PgUserRepository) UpdateLastAction(ctx context.Context, id uint) error 
 		return nil
 	}
 
-	// If no tenant in context, get the user's tenant from DB and use that
-	tx, txErr := composables.UseTx(ctx)
-	if txErr != nil {
-		return errors.Wrap(txErr, "failed to get transaction")
-	}
-
-	var tenantIDStr string
-	err = tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1", id).Scan(&tenantIDStr)
-	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to get tenant ID for user ID: %d", id))
-	}
-
-	if err := g.execQuery(ctx, userUpdateLastActionQuery, id, tenantIDStr); err != nil {
+	// If no tenant exists in context, update using tenant derived from the same user row.
+	if err := g.execQuery(ctx, userUpdateLastActionWithoutCtxTenantQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update last action for user ID: %d", id))
 	}
 	return nil

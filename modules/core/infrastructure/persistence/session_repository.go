@@ -37,8 +37,10 @@ const (
         UPDATE sessions
         SET expires_at = $1,
             ip = $2,
-            user_agent = $3
-        WHERE token = $4 AND tenant_id = $5`
+            user_agent = $3,
+            audience = $4,
+            status = $5
+        WHERE token = $6 AND tenant_id = $7`
 	updateSessionStatusQuery  = `UPDATE sessions SET status = $1 WHERE user_id = $2 AND tenant_id = $3`
 	deleteUserSessionQuery    = `DELETE FROM sessions WHERE user_id = $1 AND tenant_id = $2`
 	deleteSessionQuery        = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
@@ -271,6 +273,8 @@ func (g *SessionRepository) Update(ctx context.Context, data session.Session) er
 		dbSession.ExpiresAt,
 		dbSession.IP,
 		dbSession.UserAgent,
+		dbSession.Audience,
+		dbSession.Status,
 		dbSession.Token,
 		dbSession.TenantID,
 	)

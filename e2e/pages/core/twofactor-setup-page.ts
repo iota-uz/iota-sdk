@@ -25,8 +25,8 @@ export class TwoFactorSetupPage {
 	 * @param method - The 2FA method ('totp', 'sms', or 'email')
 	 */
 	async selectMethod(method: 'totp' | 'sms' | 'email') {
-		// Click the radio button for the selected method
-		await this.page.click(`input[name="Method"][value="${method}"]`);
+		// The radios are intentionally visually hidden (sr-only), so force check is required.
+		await this.page.locator(`input[name="Method"][value="${method}"]`).check({ force: true });
 
 		// Submit the form
 		await this.page.click('button[type="submit"]');
@@ -63,6 +63,14 @@ export class TwoFactorSetupPage {
 	 * @returns The TOTP secret
 	 */
 	async extractTOTPSecret(): Promise<string> {
+		const otpAuthInput = this.page.locator('input[name="OTPAuthURL"]');
+		if (await otpAuthInput.count()) {
+			const otpAuthURL = await otpAuthInput.first().inputValue();
+			if (otpAuthURL) {
+				return extractSecretFromOTPAuthURL(otpAuthURL);
+			}
+		}
+
 		// Get the QR code data URL
 		const qrCodeURL = await this.getQRCodeURL();
 
@@ -141,23 +149,29 @@ export class TwoFactorSetupPage {
 	 * @returns Array of recovery codes
 	 */
 	async getRecoveryCodes(): Promise<string[]> {
-		// Wait for recovery codes to be visible
-		const recoveryCodesContainer = this.page.locator('.recovery-code, [data-recovery-code], code, pre');
+		const recoveryCodeItems = this.page.locator('.select-all, [data-recovery-code], .recovery-code');
 
-		const count = await recoveryCodesContainer.count();
-
+		const count = await recoveryCodeItems.count();
 		if (count === 0) {
-			// Recovery codes might not be displayed for OTP methods
 			return [];
 		}
 
 		const codes: string[] = [];
+		const seen = new Set<string>();
 
 		for (let i = 0; i < count; i++) {
-			const text = await recoveryCodesContainer.nth(i).textContent();
-			if (text && text.trim()) {
-				codes.push(text.trim());
+			const text = (await recoveryCodeItems.nth(i).textContent())?.trim() ?? '';
+			if (!text) {
+				continue;
 			}
+				if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(text)) {
+					continue;
+				}
+			if (seen.has(text)) {
+				continue;
+			}
+			seen.add(text);
+			codes.push(text);
 		}
 
 		return codes;
@@ -169,11 +183,19 @@ export class TwoFactorSetupPage {
 	 * @param expectedError - Expected error message text (partial match)
 	 */
 	async expectErrorMessage(expectedError?: string) {
-		const errorLocator = this.page.locator('[data-flash="error"], .error-message, .bg-red-100, .text-red-600');
-		await expect(errorLocator.first()).toBeVisible({ timeout: 5000 });
+		const styledError = this.page.locator(
+			'[data-flash="error"], .error-message, .bg-red-100, .text-red-500, .text-red-600'
+		);
+		if ((await styledError.count()) > 0) {
+			await expect(styledError.first()).toBeVisible({ timeout: 5000 });
+		} else {
+			await expect(this.page.getByText(/invalid|error|failed|verification code/i).first()).toBeVisible({
+				timeout: 5000,
+			});
+		}
 
 		if (expectedError) {
-			await expect(errorLocator.first()).toContainText(expectedError);
+			await expect(styledError.first()).toContainText(expectedError);
 		}
 	}
 

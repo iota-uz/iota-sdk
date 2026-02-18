@@ -190,7 +190,7 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 	case pkgtf.MethodSMS:
 		// Get user's phone number
 		phone := u.Phone()
-		if phone.Value() == "" {
+		if phone == nil || phone.Value() == "" {
 			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
 		}
 
@@ -455,7 +455,11 @@ func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (
 
 	case pkgtf.MethodSMS:
 		// Get user's phone number
-		phone := u.Phone().Value()
+		phoneVO := u.Phone()
+		if phoneVO == nil {
+			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
+		}
+		phone := phoneVO.Value()
 		if phone == "" {
 			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
 		}
@@ -548,7 +552,14 @@ func (s *TwoFactorService) Verify(ctx context.Context, userID uint, code string)
 
 	case pkgtf.MethodSMS:
 		// Validate SMS OTP
-		phone := u.Phone().Value()
+		phoneVO := u.Phone()
+		if phoneVO == nil {
+			return serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
+		}
+		phone := phoneVO.Value()
+		if phone == "" {
+			return serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
+		}
 		if err := s.otpService.Validate(ctx, phone, code); err != nil {
 			return serrors.E(op, err)
 		}

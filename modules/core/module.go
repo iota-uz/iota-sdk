@@ -3,6 +3,7 @@ package core
 import (
 	"embed"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -102,11 +103,24 @@ func (m *Module) Register(app application.Application) error {
 	var encryptor pkgtwofactor.SecretEncryptor
 
 	// In production, require TOTP_ENCRYPTION_KEY only when 2FA is enabled.
-	if conf.GoAppEnvironment == "production" && conf.TwoFactorAuth.Enabled && conf.TwoFactorAuth.EncryptionKey == "" {
+	if conf.GoAppEnvironment == "production" &&
+		conf.EnableTestEndpoints &&
+		os.Getenv("CI") != "true" &&
+		os.Getenv("GITHUB_ACTIONS") != "true" {
+		return serrors.E(op, serrors.Invalid, errors.New("test endpoints cannot be enabled in production"))
+	}
+
+	// In production, require TOTP_ENCRYPTION_KEY only when 2FA is enabled.
+	if !conf.EnableTestEndpoints &&
+		conf.GoAppEnvironment == "production" &&
+		conf.TwoFactorAuth.Enabled &&
+		conf.TwoFactorAuth.EncryptionKey == "" {
 		return serrors.E(op, serrors.Invalid, errors.New("TOTP encryption key is required in production"))
 	}
 
-	if conf.TwoFactorAuth.EncryptionKey != "" {
+	if conf.EnableTestEndpoints {
+		encryptor = pkgtwofactor.NewNoopEncryptor()
+	} else if conf.TwoFactorAuth.EncryptionKey != "" {
 		// Production: Use AES-256-GCM encryption
 		encryptor = pkgtwofactor.NewAESEncryptor(conf.TwoFactorAuth.EncryptionKey)
 	} else {
@@ -118,7 +132,10 @@ func (m *Module) Register(app application.Application) error {
 	// Create OTP sender based on configuration and environment
 	var otpSender pkgtwofactor.OTPSender
 
-	if conf.GoAppEnvironment == "production" || conf.GoAppEnvironment == "staging" {
+	if conf.EnableTestEndpoints {
+		// E2E/test environments need deterministic OTP delivery without external providers.
+		otpSender = pkgtwofactor.NewNoopSender()
+	} else if conf.GoAppEnvironment == "production" || conf.GoAppEnvironment == "staging" {
 		// Production/Staging: Use composite sender with real implementations
 		composite := pkgtwofactor.NewCompositeSender(nil)
 
