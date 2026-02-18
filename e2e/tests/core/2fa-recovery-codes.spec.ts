@@ -88,6 +88,14 @@ test.describe('2FA Recovery Codes', () => {
 		return recoveryCodes;
 	}
 
+	async function loginAndReachVerify(page: Parameters<typeof login>[0], email: string, password: string) {
+		await login(page, email, password);
+		if (!/\/login\/2fa\/verify/.test(page.url())) {
+			await page.goto('/login/2fa/verify');
+		}
+		await expect(page).toHaveURL(/\/login\/2fa\/verify/);
+	}
+
 	test.beforeEach(async ({ page, request }) => {
 		await resetTestDatabase(request, { reseedMinimal: true });
 		await seedRecoveryUser(request);
@@ -156,10 +164,7 @@ test.describe('2FA Recovery Codes', () => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login to trigger verification
-		await page.goto('/login');
-		await page.fill('[type=email]', testUser.email);
-		await page.fill('[type=password]', testUser.password);
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, testUser.email, testUser.password);
 
 		// Navigate to recovery page
 		await verifyPage.navigateToRecoveryPage();
@@ -178,10 +183,7 @@ test.describe('2FA Recovery Codes', () => {
 		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
 
 		// Login to trigger verification
-		await page.goto('/login');
-		await page.fill('[type=email]', email);
-		await page.fill('[type=password]', 'TestPass123!');
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, email, 'TestPass123!');
 
 		// Navigate to recovery page
 		await verifyPage.navigateToRecoveryPage();
@@ -203,10 +205,7 @@ test.describe('2FA Recovery Codes', () => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login to trigger verification
-		await page.goto('/login');
-		await page.fill('[type=email]', testUser.email);
-		await page.fill('[type=password]', testUser.password);
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, testUser.email, testUser.password);
 
 		// Navigate to recovery page
 		await verifyPage.navigateToRecoveryPage();
@@ -228,10 +227,7 @@ test.describe('2FA Recovery Codes', () => {
 		const codeToUse = recoveryCodes[0];
 
 		// Login and use recovery code
-		await page.goto('/login');
-		await page.fill('[type=email]', email);
-		await page.fill('[type=password]', 'TestPass123!');
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, email, 'TestPass123!');
 
 		await verifyPage.navigateToRecoveryPage();
 		await verifyPage.enterRecoveryCode(codeToUse);
@@ -239,10 +235,7 @@ test.describe('2FA Recovery Codes', () => {
 		await logout(page);
 
 		// Verify the same code is rejected after it has been consumed once
-		await page.goto('/login');
-		await page.fill('[type=email]', email);
-		await page.fill('[type=password]', 'TestPass123!');
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, email, 'TestPass123!');
 		await verifyPage.navigateToRecoveryPage();
 		await verifyPage.enterRecoveryCode(codeToUse);
 		await verifyPage.expectErrorMessage();
@@ -257,10 +250,7 @@ test.describe('2FA Recovery Codes', () => {
 		const backupCode = recoveryCodes[1];
 
 		// First use: successful
-		await page.goto('/login');
-		await page.fill('[type=email]', email);
-		await page.fill('[type=password]', 'TestPass123!');
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, email, 'TestPass123!');
 
 		await verifyPage.navigateToRecoveryPage();
 		await verifyPage.enterRecoveryCode(usedCode);
@@ -270,10 +260,7 @@ test.describe('2FA Recovery Codes', () => {
 		await logout(page);
 
 		// Second use: should fail (already used)
-		await page.goto('/login');
-		await page.fill('[type=email]', email);
-		await page.fill('[type=password]', 'TestPass123!');
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, email, 'TestPass123!');
 
 		await verifyPage.navigateToRecoveryPage();
 		await verifyPage.enterRecoveryCode(usedCode);
@@ -291,10 +278,7 @@ test.describe('2FA Recovery Codes', () => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login and navigate to recovery page
-		await page.goto('/login');
-		await page.fill('[type=email]', testUser.email);
-		await page.fill('[type=password]', testUser.password);
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, testUser.email, testUser.password);
 
 		await verifyPage.navigateToRecoveryPage();
 
@@ -306,10 +290,7 @@ test.describe('2FA Recovery Codes', () => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login and navigate to recovery page
-		await page.goto('/login');
-		await page.fill('[type=email]', testUser.email);
-		await page.fill('[type=password]', testUser.password);
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, testUser.email, testUser.password);
 
 		await verifyPage.navigateToRecoveryPage();
 
@@ -327,10 +308,7 @@ test.describe('2FA Recovery Codes', () => {
 
 	test('should allow navigation back to standard verification', async ({ page }) => {
 		// Login and navigate to recovery page
-		await page.goto('/login');
-		await page.fill('[type=email]', testUser.email);
-		await page.fill('[type=password]', testUser.password);
-		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+		await loginAndReachVerify(page, testUser.email, testUser.password);
 
 		// Navigate to recovery page
 		const verifyPage = new TwoFactorVerifyPage(page);

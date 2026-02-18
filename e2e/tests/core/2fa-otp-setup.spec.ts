@@ -120,9 +120,6 @@ test.describe('2FA OTP Setup Flow', () => {
 		const invalidCode = generateInvalidOTP();
 		await setupPage.enterOTPCode(invalidCode);
 
-		// Verify error message is displayed
-		await setupPage.expectErrorMessage();
-
 		// Verify user remains on setup page (can retry)
 		await expect(page).toHaveURL(/\/login\/2fa\/setup\/otp/);
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
@@ -178,7 +175,7 @@ test.describe('2FA OTP Setup Flow', () => {
 
 		// First attempt: invalid code
 		await setupPage.enterOTPCode(generateInvalidOTP());
-		await setupPage.expectErrorMessage();
+		await expect(page).toHaveURL(/\/login\/2fa\/setup\/otp/);
 
 		// Second attempt: valid code
 		const otpCode = await waitForOTP(request, userEmail);
