@@ -3,7 +3,7 @@ import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, populateTestData } from '../../fixtures/test-data';
 import { TwoFactorVerifyPage } from '../../pages/core/twofactor-verify-page';
 import { TwoFactorSetupPage } from '../../pages/core/twofactor-setup-page';
-import { generateTOTPCode } from '../../helpers/totp';
+import { generateTOTPCode, generateTOTPCodeWithOffset } from '../../helpers/totp';
 
 /**
  * Recovery Codes E2E Tests
@@ -79,16 +79,26 @@ test.describe('2FA Recovery Codes', () => {
 		await page.goto('/login/2fa/setup');
 		const setupPage = new TwoFactorSetupPage(page);
 		await setupPage.selectMethod('totp');
-		const secret = await setupPage.extractTOTPSecret();
 		let recoveryCodes: string[] = [];
 		for (let attempt = 0; attempt < 3; attempt++) {
-			await setupPage.enterTOTPCode(generateTOTPCode(secret));
-			recoveryCodes = await setupPage.getRecoveryCodes();
+			const secret = await setupPage.extractTOTPSecret();
+			const candidateCodes = [
+				generateTOTPCodeWithOffset(secret, 0),
+				generateTOTPCodeWithOffset(secret, -1),
+				generateTOTPCodeWithOffset(secret, 1),
+			];
+			for (const code of candidateCodes) {
+				await setupPage.enterTOTPCode(code);
+				recoveryCodes = await setupPage.getRecoveryCodes();
+				if (recoveryCodes.length > 1) {
+					break;
+				}
+				await expect(page).toHaveURL(/\/login\/2fa\/setup\/totp/);
+			}
 			if (recoveryCodes.length > 1) {
 				break;
 			}
-			await expect(page).toHaveURL(/\/login\/2fa\/setup\/totp/);
-			await page.waitForTimeout(11000);
+			await page.waitForTimeout(1000);
 		}
 
 		expect(recoveryCodes.length).toBeGreaterThan(1);
