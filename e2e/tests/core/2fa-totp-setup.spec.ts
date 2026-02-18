@@ -197,6 +197,6 @@ test.describe('2FA TOTP Setup Flow', () => {
 		await expect(page.locator('text=/scan|qr/i').first()).toBeVisible();
 
 		// Verify there's a code input instruction
-		await expect(page.locator('text=/enter.*code|verification.*code|6.*digit/i')).toBeVisible();
+		await expect(page.locator('text=/enter.*code|verification.*code|6.*digit/i').first()).toBeVisible();
 	});
 });

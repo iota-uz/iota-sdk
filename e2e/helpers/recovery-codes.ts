@@ -19,7 +19,7 @@ function getDBConfig() {
 	return {
 		user: process.env.DB_USER || 'postgres',
 		password: process.env.DB_PASSWORD || 'postgres',
-		host: process.env.DB_HOST || 'localhost',
+		host: process.env.DB_HOST || (isCI ? 'postgres' : 'localhost'),
 		port: parseInt(process.env.DB_PORT || String(defaultPort)),
 		database: process.env.DB_NAME || 'iota_erp_e2e',
 	};

@@ -31,7 +31,7 @@ function getDBConfig() {
 	return {
 		user: process.env.DB_USER || 'postgres',
 		password: process.env.DB_PASSWORD || 'postgres',
-		host: process.env.DB_HOST || 'localhost',
+		host: process.env.DB_HOST || (isCI ? 'postgres' : 'localhost'),
 		port: parseInt(process.env.DB_PORT || String(defaultPort)),
 		database: process.env.DB_NAME || 'iota_erp_e2e',
 	};
@@ -157,7 +157,7 @@ test.describe('2FA Recovery Codes', () => {
 		});
 
 		// Verify instructions to save codes
-		await expect(page.locator('text=/save|store|keep.*safe|write.*down/i')).toBeVisible();
+		await expect(page.locator('text=/save|store|keep.*safe|write.*down/i').first()).toBeVisible();
 	});
 
 	test('should navigate to recovery code page from verification page', async ({ page }) => {

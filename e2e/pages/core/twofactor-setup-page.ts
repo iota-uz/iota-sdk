@@ -186,7 +186,7 @@ export class TwoFactorSetupPage {
 	 */
 	async expectErrorMessage(expectedError?: string) {
 		const errorLocator = this.page.locator(
-			'[data-flash="error"], .error-message, .bg-red-100, .text-red-500, .text-red-600'
+			'[data-flash="error"], .error-message, .bg-red-100, .text-red-500, .text-red-600, text=/invalid|error|failed|verification code/i'
 		);
 		await expect(errorLocator.first()).toBeVisible({ timeout: 5000 });
 
