@@ -19,7 +19,7 @@ export async function login(page: Page, email: string, password: string, timeout
 	// Wait for navigation BEFORE clicking submit (Playwright best practice)
 	// This prevents race conditions where navigation completes before waitForURL is called
 	await Promise.all([
-		page.waitForURL(url => !url.pathname.includes('/login'), { timeout }),
+		page.waitForURL(url => url.pathname !== '/login', { timeout }),
 		page.click('[type=submit]')
 	]);
 }
