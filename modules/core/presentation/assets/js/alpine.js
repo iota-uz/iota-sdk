@@ -533,6 +533,12 @@ let datePicker = ({
         let formattedDates = selected.map((s) => flatpickr.formatDate(s, dateFormat));
         if (!formattedDates.length) {
           self.selected = [];
+          self.$nextTick(() => {
+            self.$el.dispatchEvent(new CustomEvent('date-selected', {
+              bubbles: true,
+              detail: {selected: self.selected}
+            }));
+          });
           return;
         }
         if (mode === 'single') {
