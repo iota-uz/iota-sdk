@@ -353,8 +353,7 @@ func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t
 		Content:   "first user message",
 	}, func(_ bichatservices.StreamChunk) {})
 
-	require.Error(t, err)
-	assert.ErrorContains(t, err, assert.AnError.Error())
+	require.ErrorContains(t, err, assert.AnError.Error())
 
 	messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 	require.NoError(t, msgErr)
