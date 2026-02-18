@@ -149,23 +149,31 @@ export class TwoFactorSetupPage {
 	 * @returns Array of recovery codes
 	 */
 	async getRecoveryCodes(): Promise<string[]> {
-		// Wait for recovery codes to be visible
-		const recoveryCodesContainer = this.page.locator('.recovery-code, [data-recovery-code], code, pre');
+		const recoveryCodeItems = this.page.locator(
+			'.select-all, [data-recovery-code], .recovery-code, code, pre'
+		);
 
-		const count = await recoveryCodesContainer.count();
-
+		const count = await recoveryCodeItems.count();
 		if (count === 0) {
-			// Recovery codes might not be displayed for OTP methods
 			return [];
 		}
 
 		const codes: string[] = [];
+		const seen = new Set<string>();
 
 		for (let i = 0; i < count; i++) {
-			const text = await recoveryCodesContainer.nth(i).textContent();
-			if (text && text.trim()) {
-				codes.push(text.trim());
+			const text = (await recoveryCodeItems.nth(i).textContent())?.trim() ?? '';
+			if (!text) {
+				continue;
 			}
+			if (!/^[A-Z0-9-]{6,}$/i.test(text)) {
+				continue;
+			}
+			if (seen.has(text)) {
+				continue;
+			}
+			seen.add(text);
+			codes.push(text);
 		}
 
 		return codes;
@@ -177,7 +185,9 @@ export class TwoFactorSetupPage {
 	 * @param expectedError - Expected error message text (partial match)
 	 */
 	async expectErrorMessage(expectedError?: string) {
-		const errorLocator = this.page.locator('[data-flash="error"], .error-message, .bg-red-100, .text-red-600');
+		const errorLocator = this.page.locator(
+			'[data-flash="error"], .error-message, .bg-red-100, .text-red-500, .text-red-600'
+		);
 		await expect(errorLocator.first()).toBeVisible({ timeout: 5000 });
 
 		if (expectedError) {

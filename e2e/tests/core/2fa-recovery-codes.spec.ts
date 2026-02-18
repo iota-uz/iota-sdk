@@ -71,13 +71,7 @@ test.describe('2FA Recovery Codes', () => {
 		recoveryCodes: ['RECOVERY-CODE-1', 'RECOVERY-CODE-2', 'RECOVERY-CODE-3'],
 	};
 
-	test.beforeAll(async ({ request }) => {
-		// Reset database
-		await resetTestDatabase(request, { reseedMinimal: true });
-
-		// Create test user with TOTP and recovery codes
-		// Note: This requires populating recovery codes via database or seed script
-		// For now, we'll test the recovery code flow assuming they exist
+	async function seedRecoveryUser(request: Parameters<typeof populateTestData>[0]) {
 		await populateTestData(request, {
 			version: '1.0',
 			tenant: {
@@ -100,9 +94,11 @@ test.describe('2FA Recovery Codes', () => {
 				],
 			},
 		});
-	});
+	}
 
-	test.beforeEach(async ({ page }) => {
+	test.beforeEach(async ({ page, request }) => {
+		await resetTestDatabase(request, { reseedMinimal: true });
+		await seedRecoveryUser(request);
 		await page.setViewportSize({ width: 1280, height: 720 });
 	});
 
