@@ -26,13 +26,17 @@ type DataSpec struct {
 }
 
 type UserSpec struct {
-	Email       string   `json:"email"`
-	Password    string   `json:"password"`
-	FirstName   string   `json:"firstName"`
-	LastName    string   `json:"lastName"`
-	Permissions []string `json:"permissions,omitempty"`
-	Language    string   `json:"language,omitempty"`
-	Ref         string   `json:"_ref,omitempty"`
+	Email               string   `json:"email"`
+	Password            string   `json:"password"`
+	FirstName           string   `json:"firstName"`
+	LastName            string   `json:"lastName"`
+	Permissions         []string `json:"permissions,omitempty"`
+	Language            string   `json:"language,omitempty"`
+	Phone               string   `json:"phone,omitempty"`
+	TwoFactorMethod     string   `json:"twoFactorMethod,omitempty"`
+	TOTPSecretEncrypted string   `json:"totpSecretEncrypted,omitempty"`
+	TwoFactorEnabledAt  string   `json:"twoFactorEnabledAt,omitempty"`
+	Ref                 string   `json:"_ref,omitempty"`
 }
 
 type FinanceSpec struct {

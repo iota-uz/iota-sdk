@@ -12,8 +12,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@iota-uz/sdk':
-        specifier: 0.4.11
-        version: 0.4.11(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: 0.4.16
+        version: 0.4.16(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -328,8 +328,8 @@ packages:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
 
-  '@iota-uz/sdk@0.4.11':
-    resolution: {integrity: sha512-f1b11/SGUhxF6aFHwoD/O1TKDBM3KRFa9L5U4mlQP9d7TjkTBq0FTqmd7hHVnSMz+oErYLcWVOeYWaElmjRvwA==}
+  '@iota-uz/sdk@0.4.16':
+    resolution: {integrity: sha512-ADbSXevflF9cfv4aoV4yWhAeRUSq9arxUoHt/o0v2aUtad8UnzHe2lMaNvzmfkJ/JOEGXfGBWIkBF2MhRAj0TA==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -1674,6 +1674,9 @@ packages:
   yargs@13.3.2:
     resolution: {integrity: sha512-AX3Zw5iPruN5ie6xGRIDgqkT+ZhnRlZMLMHAs8tg7nRruy2Nb+i5o9bwghAogtM08q1dpr2LVoS8KSTMYpWXUw==}
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
@@ -1897,7 +1900,7 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       use-sync-external-store: 1.6.0(react@18.3.1)
 
-  '@iota-uz/sdk@0.4.11(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@iota-uz/sdk@0.4.16(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@headlessui/react': 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@phosphor-icons/react': 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1911,6 +1914,7 @@ snapshots:
       react-syntax-highlighter: 15.6.6(react@18.3.1)
       rehype-sanitize: 6.0.0
       remark-gfm: 4.0.1
+      zod: 3.25.76
     transitivePeerDependencies:
       - '@emotion/is-prop-valid'
       - '@types/react'
@@ -3429,5 +3433,7 @@ snapshots:
       which-module: 2.0.1
       y18n: 4.0.3
       yargs-parser: 13.1.2
+
+  zod@3.25.76: {}
 
   zwitch@2.0.4: {}
