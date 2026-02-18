@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import icons "github.com/iota-uz/icons/phosphor"
 
-func DateRangeClearButton() templ.Component {
+func DateRangeClearButton(formID string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -31,7 +31,20 @@ func DateRangeClearButton() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<button type=\"button\" class=\"absolute right-2 top-1/2 -translate-y-1/2 w-4.5 h-4.5 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-gray-400 transition-all duration-150 cursor-pointer\" x-data=\"{\n\t\t\thasValue: false,\n\t\t\tinit() {\n\t\t\t\tconst container = this.$el.closest(&#39;[class*=relative]&#39;);\n\t\t\t\tconst self = this;\n\t\t\t\tfunction check() {\n\t\t\t\t\tconst fp = container?.querySelector(&#39;.flatpickr-input&#39;);\n\t\t\t\t\tif (!fp) return;\n\t\t\t\t\tself.hasValue = fp.value.trim() !== &#39;&#39;;\n\t\t\t\t\tfp.addEventListener(&#39;change&#39;, () =&gt; { self.hasValue = fp.value.trim() !== &#39;&#39;; });\n\t\t\t\t\tconst fpInstance = fp._flatpickr;\n\t\t\t\t\tif (fpInstance) {\n\t\t\t\t\t\tfpInstance.config.onChange.push(() =&gt; { self.hasValue = fp.value.trim() !== &#39;&#39;; });\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tsetTimeout(check, 100);\n\t\t\t},\n\t\t\tclearDates() {\n\t\t\t\tconst container = this.$el.closest(&#39;[class*=relative]&#39;);\n\t\t\t\tconst fp = container?.querySelector(&#39;.flatpickr-input&#39;);\n\t\t\t\tif (fp &amp;&amp; fp._flatpickr) {\n\t\t\t\t\tfp._flatpickr.clear();\n\t\t\t\t}\n\t\t\t\tconst dpEl = fp?.closest(&#39;[x-data]&#39;);\n\t\t\t\tif (dpEl &amp;&amp; dpEl._x_dataStack) {\n\t\t\t\t\tdpEl._x_dataStack[0].selected = [];\n\t\t\t\t}\n\t\t\t\tthis.hasValue = false;\n\t\t\t\tif (fp) {\n\t\t\t\t\tfp.dispatchEvent(new Event(&#39;change&#39;, { bubbles: true }));\n\t\t\t\t}\n\t\t\t}\n\t\t}\" x-show=\"hasValue\" x-transition.opacity @click=\"clearDates()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<button type=\"button\" class=\"absolute right-2 top-1/2 -translate-y-1/2 w-4.5 h-4.5 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-gray-400 transition-all duration-150 cursor-pointer\" x-data=\"{\n\t\t\thasValue: false,\n\t\t\tinit() {\n\t\t\t\tconst container = this.$el.closest(&#39;[class*=relative]&#39;);\n\t\t\t\tconst self = this;\n\t\t\t\tfunction check() {\n\t\t\t\t\tconst fp = container?.querySelector(&#39;.flatpickr-input&#39;);\n\t\t\t\t\tif (!fp) return;\n\t\t\t\t\tself.hasValue = fp.value.trim() !== &#39;&#39;;\n\t\t\t\t\tfp.addEventListener(&#39;change&#39;, () =&gt; { self.hasValue = fp.value.trim() !== &#39;&#39;; });\n\t\t\t\t\tconst fpInstance = fp._flatpickr;\n\t\t\t\t\tif (fpInstance) {\n\t\t\t\t\t\tfpInstance.config.onChange.push(() =&gt; { self.hasValue = fp.value.trim() !== &#39;&#39;; });\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tsetTimeout(check, 100);\n\t\t\t},\n\t\t\tclearDates() {\n\t\t\t\tconst container = this.$el.closest(&#39;[class*=relative]&#39;);\n\t\t\t\tconst fp = container?.querySelector(&#39;.flatpickr-input&#39;);\n\t\t\t\tif (fp &amp;&amp; fp._flatpickr) {\n\t\t\t\t\tfp._flatpickr.clear();\n\t\t\t\t}\n\t\t\t\tthis.hasValue = false;\n\t\t\t\tconst formId = this.$el.dataset.formId;\n\t\t\t\tcontainer?.querySelectorAll(&#39;input[type=hidden][form=&#39; + formId + &#39;]&#39;).forEach(el =&gt; el.remove());\n\t\t\t\tconst form = document.getElementById(formId);\n\t\t\t\tif (form) {\n\t\t\t\t\thtmx.trigger(form, &#39;dateRangeChange&#39;);\n\t\t\t\t}\n\t\t\t}\n\t\t}\" data-form-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var2 string
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(formID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/date_range_clear.templ`, Line: 41, Col: 23}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" x-show=\"hasValue\" x-transition.opacity @click=\"clearDates()\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -39,7 +52,7 @@ func DateRangeClearButton() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -2,7 +2,7 @@ package base
 
 import icons "github.com/iota-uz/icons/phosphor"
 
-templ DateRangeClearButton() {
+templ DateRangeClearButton(formID string) {
 	<button
 		type="button"
 		class="absolute right-2 top-1/2 -translate-y-1/2 w-4.5 h-4.5 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-gray-400 transition-all duration-150 cursor-pointer"
@@ -29,16 +29,16 @@ templ DateRangeClearButton() {
 				if (fp && fp._flatpickr) {
 					fp._flatpickr.clear();
 				}
-				const dpEl = fp?.closest('[x-data]');
-				if (dpEl && dpEl._x_dataStack) {
-					dpEl._x_dataStack[0].selected = [];
-				}
 				this.hasValue = false;
-				if (fp) {
-					fp.dispatchEvent(new Event('change', { bubbles: true }));
+				const formId = this.$el.dataset.formId;
+				container?.querySelectorAll('input[type=hidden][form=' + formId + ']').forEach(el => el.remove());
+				const form = document.getElementById(formId);
+				if (form) {
+					htmx.trigger(form, 'dateRangeChange');
 				}
 			}
 		}"
+		data-form-id={ formID }
 		x-show="hasValue"
 		x-transition.opacity
 		@click="clearDates()"

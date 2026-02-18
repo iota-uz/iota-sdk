@@ -531,7 +531,10 @@ let datePicker = ({
       plugins,
       onChange(selected = []) {
         let formattedDates = selected.map((s) => flatpickr.formatDate(s, dateFormat));
-        if (!formattedDates.length) return;
+        if (!formattedDates.length) {
+          self.selected = [];
+          return;
+        }
         if (mode === 'single') {
           self.selected = [formattedDates[0]];
         } else if (mode === 'range') {
