@@ -324,7 +324,7 @@ test.describe('2FA Recovery Codes', () => {
 		// Verify no maxlength constraint or higher limit
 		const maxLength = await codeInput.getAttribute('maxlength');
 		if (maxLength) {
-			expect(parseInt(maxLength)).toBeGreaterThan(6);
+			expect(parseInt(maxLength, 10)).toBeGreaterThan(6);
 		}
 	});
 

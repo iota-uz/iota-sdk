@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/twofactorsetup"
@@ -45,6 +47,21 @@ type TwoFactorSetupController struct {
 	twoFactorService *twofactor.TwoFactorService
 	sessionService   *services.SessionService
 	userService      *services.UserService
+}
+
+func requireTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r *http.Request) (session.Session, bool) {
+	sess, err := composables.UseSession(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("failed to get session")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return nil, false
+	}
+	if !sess.IsPending() && !sess.IsActive() {
+		logger.WithField("status", sess.Status()).Error("session not in allowed status for 2FA setup")
+		http.Error(w, "invalid session state", http.StatusBadRequest)
+		return nil, false
+	}
+	return sess, true
 }
 
 // Key returns the base route path for this controller.
@@ -95,16 +112,14 @@ func (c *TwoFactorSetupController) GetMethodChoice(w http.ResponseWriter, r *htt
 	// Validate the redirect URL early to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
 
-	sess, err := composables.UseSession(r.Context())
-	if err != nil {
-		logger.Error("failed to get session", "error", err)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	sess, ok := requireTwoFactorSetupSession(w, logger, r)
+	if !ok {
 		return
 	}
 
 	u, err := c.userService.GetByID(r.Context(), sess.UserID())
 	if err != nil {
-		logger.Error("failed to get user", "error", err)
+		logger.WithError(err).Error("failed to get user")
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -155,24 +170,15 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 	}
 
 	// Get session
-	sess, err := composables.UseSession(r.Context())
-	if err != nil {
-		logger.Error("failed to get session", "error", err)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Allow setup for both pending 2FA sessions and active authenticated sessions.
-	if !sess.IsPending() && !sess.IsActive() {
-		logger.Error("session not in allowed status for 2FA setup", "status", sess.Status())
-		http.Error(w, "invalid session state", http.StatusBadRequest)
+	sess, ok := requireTwoFactorSetupSession(w, logger, r)
+	if !ok {
 		return
 	}
 
 	// Get user
 	u, err := c.userService.GetByID(r.Context(), sess.UserID())
 	if err != nil {
-		logger.Error("failed to get user", "error", err)
+		logger.WithError(err).Error("failed to get user")
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -181,7 +187,7 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 	methodType := pkgtwofactor.Method(method)
 	challenge, err := c.twoFactorService.BeginSetup(r.Context(), u.ID(), methodType)
 	if err != nil {
-		logger.Error("failed to begin 2FA setup", "error", err, "method", method)
+		logger.WithError(err).WithField("method", method).Error("failed to begin 2FA setup")
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.Error")))
 		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
 		return
@@ -201,12 +207,12 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 		redirectURL = fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, challenge.ChallengeID, url.QueryEscape(nextURL))
 	case pkgtwofactor.MethodBackupCodes:
 		// Backup codes are not set up directly, return error
-		logger.Error("backup codes cannot be set up directly", "method", method)
+		logger.WithField("method", method).Error("backup codes cannot be set up directly")
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.InvalidMethod")))
 		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
 		return
 	default:
-		logger.Error("unknown 2FA method", "method", method)
+		logger.WithField("method", method).Error("unknown 2FA method")
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.InvalidMethod")))
 		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
 		return
@@ -223,6 +229,9 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 	challengeID := r.URL.Query().Get("challengeId")
 	// Validate the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
+		return
+	}
 
 	if challengeID == "" {
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
@@ -232,7 +241,7 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 	// Retrieve challenge data to get QR code
 	challenge, err := c.twoFactorService.GetSetupChallenge(challengeID)
 	if err != nil {
-		logger.Error("failed to get setup challenge", "error", err)
+		logger.WithError(err).Error("failed to get setup challenge")
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.Error")))
 		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
 		return
@@ -242,17 +251,16 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 	qrImageURL := fmt.Sprintf("data:image/png;base64,%s", challenge.QRCodePNG)
 	errorMessage, err := composables.UseFlash(w, r, "error")
 	if err != nil {
-		logger.Error("failed to read error flash", "error", err)
+		logger.WithError(err).Error("failed to read error flash")
 	}
 
 	if err := twofactorsetup.TOTPSetup(&twofactorsetup.TOTPSetupProps{
 		ChallengeID:  challengeID,
 		NextURL:      nextURL,
 		QRImageURL:   qrImageURL,
-		OTPAuthURL:   challenge.QRCodeURL,
 		ErrorMessage: string(errorMessage),
 	}).Render(r.Context(), w); err != nil {
-		logger.Error("failed to render TOTP setup template", "error", err)
+		logger.WithError(err).Error("failed to render TOTP setup template")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -266,6 +274,9 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 	challengeID := r.URL.Query().Get("challengeId")
 	// Validate the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
+		return
+	}
 
 	if challengeID == "" {
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
@@ -294,18 +305,18 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 	// Retrieve challenge data to get destination (phone/email)
 	challenge, err := c.twoFactorService.GetSetupChallenge(challengeID)
 	if err != nil {
-		logger.Error("failed to get setup challenge", "error", err)
+		logger.WithError(err).Error("failed to get setup challenge")
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.Error")))
 		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
 		return
 	}
 	errorMessage, err := composables.UseFlash(w, r, "error")
 	if err != nil {
-		logger.Error("failed to read error flash", "error", err)
+		logger.WithError(err).Error("failed to read error flash")
 	}
 	successMessage, err := composables.UseFlash(w, r, "success")
 	if err != nil {
-		logger.Error("failed to read success flash", "error", err)
+		logger.WithError(err).Error("failed to read success flash")
 	}
 
 	if err := twofactorsetup.OTPSetup(&twofactorsetup.OTPSetupProps{
@@ -316,7 +327,7 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 		ErrorMessage:   string(errorMessage),
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
-		logger.Error("failed to render OTP setup template", "error", err)
+		logger.WithError(err).Error("failed to render OTP setup template")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -344,17 +355,15 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 	}
 
 	// Get session
-	sess, err := composables.UseSession(r.Context())
-	if err != nil {
-		logger.Error("failed to get session", "error", err)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	sess, ok := requireTwoFactorSetupSession(w, logger, r)
+	if !ok {
 		return
 	}
 
 	// Confirm setup
 	result, err := c.twoFactorService.ConfirmSetup(r.Context(), sess.UserID(), challengeID, code)
 	if err != nil {
-		logger.Error("failed to confirm 2FA setup", "error", err)
+		logger.WithError(err).Error("failed to confirm 2FA setup")
 		var errorMsg string
 		if errors.Is(err, pkgtwofactor.ErrInvalidCode) {
 			errorMsg = "TwoFactor.Setup.InvalidCode"
@@ -382,7 +391,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 	)
 
 	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
-		logger.Error("failed to update session to active", "error", err)
+		logger.WithError(err).Error("failed to update session to active")
 		http.Error(w, "failed to activate session", http.StatusInternalServerError)
 		return
 	}
@@ -406,7 +415,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 		RecoveryCodes: result.RecoveryCodes,
 		NextURL:       nextURL,
 	}).Render(r.Context(), w); err != nil {
-		logger.Error("failed to render setup complete template", "error", err)
+		logger.WithError(err).Error("failed to render setup complete template")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -432,6 +441,9 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
 		return
 	}
+	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
+		return
+	}
 
 	// Resend OTP for SMS/Email methods
 	methodType := pkgtwofactor.Method(method)
@@ -442,7 +454,7 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 		// Call the resend service
 		_, err := c.twoFactorService.ResendSetupOTP(r.Context(), challengeID)
 		if err != nil {
-			logger.Error("failed to resend OTP", "error", err, "method", method, "challengeID", challengeID)
+			logger.WithError(err).WithField("method", method).WithField("challengeID", challengeID).Error("failed to resend OTP")
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.ResendFailed")))
 			http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
 			return
@@ -457,14 +469,14 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 
 	case pkgtwofactor.MethodTOTP, pkgtwofactor.MethodBackupCodes:
 		// TOTP and backup codes don't use OTP send
-		logger.Warn("invalid method for OTP send", "method", method)
+		logger.WithField("method", method).Warn("invalid method for OTP send")
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.InvalidMethod")))
 		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
 		return
 
 	default:
 		// Unknown method
-		logger.Warn("unknown method for OTP send", "method", method)
+		logger.WithField("method", method).Warn("unknown method for OTP send")
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.InvalidMethod")))
 		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
 		return
@@ -498,17 +510,15 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 	}
 
 	// Get session
-	sess, err := composables.UseSession(r.Context())
-	if err != nil {
-		logger.Error("failed to get session", "error", err)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	sess, ok := requireTwoFactorSetupSession(w, logger, r)
+	if !ok {
 		return
 	}
 
 	// Confirm setup
-	_, err = c.twoFactorService.ConfirmSetup(r.Context(), sess.UserID(), challengeID, code)
+	_, err := c.twoFactorService.ConfirmSetup(r.Context(), sess.UserID(), challengeID, code)
 	if err != nil {
-		logger.Error("failed to confirm 2FA setup", "error", err)
+		logger.WithError(err).Error("failed to confirm 2FA setup")
 		var errorMsg string
 		if errors.Is(err, pkgtwofactor.ErrInvalidCode) {
 			errorMsg = "TwoFactor.Setup.InvalidCode"
@@ -536,7 +546,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 	)
 
 	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
-		logger.Error("failed to update session to active", "error", err)
+		logger.WithError(err).Error("failed to update session to active")
 		http.Error(w, "failed to activate session", http.StatusInternalServerError)
 		return
 	}

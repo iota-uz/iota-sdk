@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/http"
@@ -165,15 +166,8 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 			ip, _ := composables.UseIP(r.Context())
 			userAgent, _ := composables.UseUserAgent(r.Context())
 
-			// Convert user ID to UUID using tenant as namespace.
-			userIDData := make([]byte, 8)
-			for i := 0; i < 8; i++ {
-				userIDData[i] = byte((u.ID() >> (i * 8)) & 0xFF)
-			}
-			userUUID := uuid.NewSHA1(u.TenantID(), userIDData)
-
 			attempt := pkgtwofactor.AuthAttempt{
-				UserID:    userUUID,
+				UserID:    userIDToNamespacedUUID(u.TenantID(), u.ID()),
 				Method:    pkgtwofactor.AuthMethodOAuth,
 				IPAddress: ip,
 				UserAgent: userAgent,
@@ -334,15 +328,8 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 			ip, _ := composables.UseIP(r.Context())
 			userAgent, _ := composables.UseUserAgent(r.Context())
 
-			// Convert user ID to UUID using tenant as namespace.
-			userIDData := make([]byte, 8)
-			for i := 0; i < 8; i++ {
-				userIDData[i] = byte((u.ID() >> (i * 8)) & 0xFF)
-			}
-			userUUID := uuid.NewSHA1(u.TenantID(), userIDData)
-
 			attempt := pkgtwofactor.AuthAttempt{
-				UserID:    userUUID,
+				UserID:    userIDToNamespacedUUID(u.TenantID(), u.ID()),
 				Method:    pkgtwofactor.AuthMethodPassword,
 				IPAddress: ip,
 				UserAgent: userAgent,
@@ -426,4 +413,10 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, cookie)
 	// Use the validated redirect URL from the beginning of the function
 	http.Redirect(w, r, nextURL, http.StatusFound)
+}
+
+func userIDToNamespacedUUID(tenantID uuid.UUID, userID uint) uuid.UUID {
+	var userIDData [8]byte
+	binary.LittleEndian.PutUint64(userIDData[:], uint64(userID))
+	return uuid.NewSHA1(tenantID, userIDData[:])
 }

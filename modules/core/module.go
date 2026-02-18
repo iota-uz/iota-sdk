@@ -102,6 +102,11 @@ func (m *Module) Register(app application.Application) error {
 	var encryptor pkgtwofactor.SecretEncryptor
 
 	// In production, require TOTP_ENCRYPTION_KEY only when 2FA is enabled.
+	if conf.GoAppEnvironment == "production" && conf.EnableTestEndpoints {
+		return serrors.E(op, serrors.Invalid, errors.New("test endpoints cannot be enabled in production"))
+	}
+
+	// In production, require TOTP_ENCRYPTION_KEY only when 2FA is enabled.
 	if !conf.EnableTestEndpoints &&
 		conf.GoAppEnvironment == "production" &&
 		conf.TwoFactorAuth.Enabled &&

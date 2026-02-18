@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // OTPChannel represents the delivery channel for OTP codes.
@@ -87,6 +89,7 @@ func StoreTestOTPCode(key, code string, ttl time.Duration) {
 		ttl = 10 * time.Minute
 	}
 	testOTPCache.mu.Lock()
+	cleanupExpiredLocked(time.Now())
 	expiresAt := time.Now().Add(ttl)
 	for _, candidateKey := range otpCacheKeys(key) {
 		testOTPCache.codes[candidateKey] = testOTPEntry{
@@ -102,12 +105,20 @@ func GetTestOTPCode(key string) (string, bool) {
 	if key == "" {
 		return "", false
 	}
+	now := time.Now()
 	for _, candidateKey := range otpCacheKeys(key) {
 		testOTPCache.mu.RLock()
 		entry, ok := testOTPCache.codes[candidateKey]
 		testOTPCache.mu.RUnlock()
-		if ok && time.Now().Before(entry.expiresAt) {
+		if ok && now.Before(entry.expiresAt) {
 			return entry.code, true
+		}
+		if ok {
+			testOTPCache.mu.Lock()
+			if current, exists := testOTPCache.codes[candidateKey]; exists && !now.Before(current.expiresAt) {
+				delete(testOTPCache.codes, candidateKey)
+			}
+			testOTPCache.mu.Unlock()
 		}
 	}
 	return "", false
@@ -119,15 +130,24 @@ func otpCacheKeys(key string) []string {
 		return nil
 	}
 
-	seen := map[string]struct{}{}
+	keys := make([]string, 0, 4)
+	seen := make(map[string]struct{}, 4)
 	add := func(v string) {
 		if v == "" {
 			return
 		}
+		if _, exists := seen[v]; exists {
+			return
+		}
 		seen[v] = struct{}{}
+		keys = append(keys, v)
 	}
 
 	add(trimmed)
+	if !isPhoneLikeOTPKey(trimmed) {
+		return keys
+	}
+
 	add(strings.TrimPrefix(trimmed, "+"))
 
 	digitsOnly := strings.Map(func(r rune) rune {
@@ -141,10 +161,48 @@ func otpCacheKeys(key string) []string {
 		add("+" + digitsOnly)
 	}
 
-	keys := make([]string, 0, len(seen))
-	for candidate := range seen {
-		keys = append(keys, candidate)
+	return keys
+}
+
+func cleanupExpiredLocked(now time.Time) {
+	for key, entry := range testOTPCache.codes {
+		if !now.Before(entry.expiresAt) {
+			delete(testOTPCache.codes, key)
+		}
 	}
+}
+
+func isPhoneLikeOTPKey(key string) bool {
+	if strings.Contains(key, "@") {
+		return false
+	}
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return false
+	}
+	for _, r := range trimmed {
+		if unicode.IsDigit(r) {
+			continue
+		}
+		switch r {
+		case '+', '-', '(', ')', '.', ' ':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func sortedOTPTestCacheKeys() []string {
+	testOTPCache.mu.RLock()
+	defer testOTPCache.mu.RUnlock()
+
+	keys := make([]string, 0, len(testOTPCache.codes))
+	for key := range testOTPCache.codes {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
 	return keys
 }
 

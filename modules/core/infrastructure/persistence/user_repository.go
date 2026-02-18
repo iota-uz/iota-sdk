@@ -60,18 +60,20 @@ const (
 	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1 AND tenant_id = $2`
 
 	userUpdateLastLoginWithoutCtxTenantQuery = `
-		UPDATE users
-		SET last_login = NOW()
-		WHERE id = $1
-		  AND tenant_id = (SELECT tenant_id FROM users WHERE id = $1)
-	`
+			UPDATE users
+			SET last_login = NOW()
+			WHERE id = $1
+			  -- Keep tenant scoping explicit even without tenant in context.
+			  AND tenant_id = (SELECT tenant_id FROM users WHERE id = $1)
+		`
 
 	userUpdateLastActionWithoutCtxTenantQuery = `
-		UPDATE users
-		SET last_action = NOW()
-		WHERE id = $1
-		  AND tenant_id = (SELECT tenant_id FROM users WHERE id = $1)
-	`
+			UPDATE users
+			SET last_action = NOW()
+			WHERE id = $1
+			  -- Keep tenant scoping explicit even without tenant in context.
+			  AND tenant_id = (SELECT tenant_id FROM users WHERE id = $1)
+		`
 
 	userDeleteQuery     = `DELETE FROM users WHERE id = $1 AND tenant_id = $2`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`

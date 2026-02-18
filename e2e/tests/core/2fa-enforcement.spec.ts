@@ -184,38 +184,38 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 					name: 'Test Tenant',
 					domain: 'test.localhost',
 				},
-					data: {
-						users: [
-							{
-								email: setupUser.email,
-								password: setupUser.password,
-								firstName: 'Redirect',
-								lastName: 'Test',
-								language: 'en',
-							},
-						],
-					},
-				});
+				data: {
+					users: [
+						{
+							email: setupUser.email,
+							password: setupUser.password,
+							firstName: 'Redirect',
+							lastName: 'Test',
+							language: 'en',
+						},
+					],
+				},
 			});
+		});
 
-			const openSetup = async (page: Page, nextURL: string) => {
-				await page.goto('/login');
-				await page.fill('[type=email]', setupUser.email);
-				await page.fill('[type=password]', setupUser.password);
-				await Promise.all([
-					page.waitForURL((url) => !url.pathname.includes('/login')),
-					page.click('[type=submit]'),
-				]);
-				await page.goto(`/login/2fa/setup?next=${encodeURIComponent(nextURL)}`);
-			};
+		const openSetup = async (page: Page, nextURL: string) => {
+			await page.goto('/login');
+			await page.fill('[type=email]', setupUser.email);
+			await page.fill('[type=password]', setupUser.password);
+			await Promise.all([
+				page.waitForURL((url) => !url.pathname.includes('/login')),
+				page.click('[type=submit]'),
+			]);
+			await page.goto(`/login/2fa/setup?next=${encodeURIComponent(nextURL)}`);
+		};
 
-			test('should accept valid internal nextURL', async ({ page }) => {
-				const validNextURL = '/users';
+		test('should accept valid internal nextURL', async ({ page }) => {
+			const validNextURL = '/users';
 
-				await openSetup(page, validNextURL);
+			await openSetup(page, validNextURL);
 
-				// Verify nextURL is preserved in hidden input
-				const hiddenInput = page.locator('input[name="NextURL"]');
+			// Verify nextURL is preserved in hidden input
+			const hiddenInput = page.locator('input[name="NextURL"]');
 			const value = await hiddenInput.inputValue();
 			expect(value).toBe(validNextURL);
 		});
@@ -226,13 +226,13 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 				'//evil.com',
 				'javascript:alert(1)',
 				'data:text/html,<script>alert(1)</script>',
-				];
+			];
 
-				for (const maliciousURL of maliciousURLs) {
-					await openSetup(page, maliciousURL);
+			for (const maliciousURL of maliciousURLs) {
+				await openSetup(page, maliciousURL);
 
-					// Verify nextURL is sanitized or rejected
-					const hiddenInput = page.locator('input[name="NextURL"]');
+				// Verify nextURL is sanitized or rejected
+				const hiddenInput = page.locator('input[name="NextURL"]');
 				const value = await hiddenInput.inputValue();
 
 				// Should NOT contain the malicious URL
@@ -241,10 +241,10 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 				// Should be safe internal path (like / or empty)
 				expect(value).toMatch(/^(\/|)$/);
 			}
-			});
+		});
 
-			test('should default to home when nextURL is invalid', async ({ page }) => {
-				await openSetup(page, 'https://evil.com');
+		test('should default to home when nextURL is invalid', async ({ page }) => {
+			await openSetup(page, 'https://evil.com');
 
 			const hiddenInput = page.locator('input[name="NextURL"]');
 			const value = await hiddenInput.inputValue();
