@@ -164,9 +164,9 @@ export class TwoFactorSetupPage {
 			if (!text) {
 				continue;
 			}
-			if (!/^[A-Z0-9-]{6,}$/i.test(text)) {
-				continue;
-			}
+				if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(text)) {
+					continue;
+				}
 			if (seen.has(text)) {
 				continue;
 			}
