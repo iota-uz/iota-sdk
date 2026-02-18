@@ -41,15 +41,21 @@ func ProvideDynamicLogo(app application.Application) mux.MiddlewareFunc {
 			logoProps := assets.LogoProps{}
 
 			if tenant.LogoID() != nil {
-				if upload, err := uploadService.GetByID(ctx, uint(*tenant.LogoID())); err == nil {
+				if upload, err := uploadService.GetByID(ctx, uint(*tenant.LogoID())); err == nil && uploadService.IsAccessible(ctx, upload) {
 					logoProps.LogoUpload = mappers.UploadToViewModel(upload)
 				}
 			}
 
 			if tenant.LogoCompactID() != nil {
-				if upload, err := uploadService.GetByID(ctx, uint(*tenant.LogoCompactID())); err == nil {
+				if upload, err := uploadService.GetByID(ctx, uint(*tenant.LogoCompactID())); err == nil && uploadService.IsAccessible(ctx, upload) {
 					logoProps.LogoCompactUpload = mappers.UploadToViewModel(upload)
 				}
+			}
+
+			// Keep app-level default logo provider when tenant logo files are stale or inaccessible.
+			if logoProps.LogoUpload == nil && logoProps.LogoCompactUpload == nil {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
 			}
 
 			// Provide dynamic logo component

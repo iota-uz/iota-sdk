@@ -504,7 +504,7 @@ templ TableContent(config *TableConfig) {
 		<div
 			class={
 				templ.Classes(
-					"p-4 flex flex-row md:items-center gap-3",
+					"p-4 flex flex-col md:flex-row md:items-center gap-3",
 					templ.KV("shrink-0", config.FullHeight),
 				),
 			}
@@ -527,7 +527,7 @@ templ TableContent(config *TableConfig) {
 							},
 							Placeholder: placeholder,
 							Attrs: templ.Attributes{
-								"name":    "Search",
+								"name":    config.SearchParamName,
 								"value":   config.SearchValue,
 								"x-model": "searchVal",
 							},
@@ -547,7 +547,7 @@ templ TableContent(config *TableConfig) {
 							},
 							Placeholder: placeholder,
 							Attrs: templ.Attributes{
-								"name":  "Search",
+								"name":  config.SearchParamName,
 								"value": config.SearchValue,
 							},
 						})
@@ -653,10 +653,14 @@ templ TableSettingsTrigger() {
 	@button.Secondary(button.Props{
 		Icon: icons.Gear(icons.Props{Size: "20"}),
 		Attrs: templ.Attributes{
-			"type":   "button",
-			"@click": "$dispatch('open-table-settings')",
+			"type":       "button",
+			"@click":     "$dispatch('open-table-settings')",
+			"aria-label": "Open table settings",
+			"title":      "Table settings",
 		},
-	})
+	}) {
+		<span class="sr-only">Table settings</span>
+	}
 }
 
 // EmbeddedContent renders the table content without margins for embedded view
@@ -674,7 +678,7 @@ templ Content(config *TableConfig) {
 			<h1 class="text-2xl font-medium">
 				{ config.Title }
 			</h1>
-			<div class="flex md:hidden gap-2">
+			<div class="flex md:hidden flex-wrap justify-end gap-2">
 				@button.Secondary(button.Props{
 					Size:  button.SizeNormal,
 					Class: "bg-transparent",
@@ -687,7 +691,9 @@ templ Content(config *TableConfig) {
 					{ pageCtx.T("Scaffold.Filters.Title") }
 				}
 				for _, action := range config.Actions {
-					@action
+					<div class="shrink-0">
+						@action
+					</div>
 				}
 			</div>
 		</div>

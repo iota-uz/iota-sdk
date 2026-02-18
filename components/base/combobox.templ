@@ -2,6 +2,7 @@ package base
 
 import (
 	"fmt"
+	"strings"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 )
@@ -60,7 +61,7 @@ templ DropdownIndicator() {
 
 templ SelectedValues() {
 	<ul class="contents">
-		<template x-for="item in Array.from(selectedValues.values())">
+		<template x-for="item in Array.from(selectedValues.values())" :key="item.value">
 			<li class="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100 whitespace-nowrap">
 				<span class="whitespace-nowrap" x-text="item.label"></span>
 				<button
@@ -83,6 +84,7 @@ func isDisabled(props ComboboxProps) bool {
 }
 
 templ Combobox(props ComboboxProps) {
+	{{ hasEndpoint := strings.TrimSpace(props.Endpoint) != "" }}
 	<div
 		x-data={ fmt.Sprintf("combobox(%t, %t)", props.Searchable, props.CanCreateNew) }
 		class={ "w-full flex flex-col", props.Class }
@@ -90,7 +92,7 @@ templ Combobox(props ComboboxProps) {
 		x-id="['combobox']"
 	>
 		if len(props.Label) > 0 {
-			<label class="form-control-label mb-2">{ props.Label }</label>
+			<label class="form-control-label mb-2" :for="$id('combobox')">{ props.Label }</label>
 		}
 		<select
 			x-bind="select"
@@ -115,19 +117,24 @@ templ Combobox(props ComboboxProps) {
 				if props.Trigger.Component != nil {
 					@props.Trigger.Component
 				} else if props.Trigger.Render != nil {
-					@props.Trigger.Render(&TriggerProps{
-						InputAttrs: templ.Attributes{
-							"hx-get":                     props.Endpoint,
-							"hx-trigger":                 "input changed delay:250ms, search",
-							"hx-sync":                    "this:replace",
-							"name":                       "q",
-							":hx-target":                 "'#' + $id('combobox')",
-							"hx-swap":                    "innerHTML",
+					{{
+						triggerInputAttrs := templ.Attributes{
 							"@input.debounce":            "onInput",
 							"x-on:keydown.enter.prevent": "setValue(activeValue)",
 							"autocomplete":               "off",
 							"x-ref":                      "trigger",
-						},
+						}
+						if hasEndpoint {
+							triggerInputAttrs["hx-get"] = props.Endpoint
+							triggerInputAttrs["hx-trigger"] = "input changed delay:250ms, search"
+							triggerInputAttrs["hx-sync"] = "this:replace"
+							triggerInputAttrs["name"] = "q"
+							triggerInputAttrs[":hx-target"] = "'#' + $id('combobox')"
+							triggerInputAttrs["hx-swap"] = "innerHTML"
+						}
+					}}
+					@props.Trigger.Render(&TriggerProps{
+						InputAttrs: triggerInputAttrs,
 						ButtonAttrs: templ.Attributes{
 							"x-on:click":                 "open = !open",
 							"x-on:keydown.down.prevent":  "openedWithKeyboard = true",
@@ -139,6 +146,23 @@ templ Combobox(props ComboboxProps) {
 					})
 				}
 			} else if props.Searchable {
+				{{
+					searchInputAttrs := templ.Attributes{
+						"@input.debounce":            "onInput",
+						"x-on:keydown.enter.prevent": "setValue(activeValue)",
+						"autocomplete":               "off",
+						"x-ref":                      "input",
+						"disabled":                   isDisabled(props),
+					}
+					if hasEndpoint {
+						searchInputAttrs["hx-get"] = props.Endpoint
+						searchInputAttrs["hx-trigger"] = "input changed delay:250ms, search"
+						searchInputAttrs["hx-sync"] = "this:replace"
+						searchInputAttrs["name"] = "q"
+						searchInputAttrs[":hx-target"] = "'#' + $id('combobox')"
+						searchInputAttrs["hx-swap"] = "innerHTML"
+					}
+				}}
 				@input.Text(&input.Props{
 					Placeholder: props.Placeholder,
 					WrapperProps: templ.Attributes{
@@ -150,19 +174,7 @@ templ Combobox(props ComboboxProps) {
 							"x-show": "selectedValues.size > 0",
 						},
 					},
-					Attrs: templ.Attributes{
-						"hx-get":                     props.Endpoint,
-						"hx-trigger":                 "input changed delay:250ms, search",
-						"hx-sync":                    "this:replace",
-						"name":                       "q",
-						":hx-target":                 "'#' + $id('combobox')",
-						"hx-swap":                    "innerHTML",
-						"@input.debounce":            "onInput",
-						"x-on:keydown.enter.prevent": "setValue(activeValue)",
-						"autocomplete":               "off",
-						"x-ref":                      "input",
-						"disabled":                   isDisabled(props),
-					},
+					Attrs: searchInputAttrs,
 					AddonRight: &input.Addon{
 						Component: DropdownIndicator(),
 					},
@@ -216,13 +228,13 @@ templ Combobox(props ComboboxProps) {
 				x-trap="openedWithKeyboard"
 				x-anchor="$refs.trigger"
 			>
-				<template x-for="(item, index) in options" x-bind:key="index">
+				<template x-for="(item, index) in options" x-bind:key="item.value + ':' + index">
 					<li
 						class="combobox-option inline-flex cursor-pointer justify-between gap-6 px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none"
 						:class="activeValue == item.value ? 'bg-surface-400' : ''"
 						x-on:click="setValue(item.value)"
 						x-on:keydown.enter="setValue(item.value)"
-						x-bind:id="'option-' + index"
+						x-bind:id="$id('combobox') + '-option-' + index"
 						tabindex="0"
 					>
 						<span class="whitespace-nowrap" x-text="item.textContent"></span>
