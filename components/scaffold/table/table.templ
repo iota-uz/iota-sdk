@@ -493,18 +493,22 @@ templ tableInner(config *TableConfig, pageCtx types.PageContextProvider) {
 // TableContent renders the inner content card (search, filters, table) without the form wrapper
 templ TableContent(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class={
-		templ.Classes(
-			"bg-surface-600 border border-primary rounded-lg",
-			templ.KV("flex flex-col h-full min-h-0 overflow-hidden", config.FullHeight),
-		),
-	}>
-		<div class={
+	<div
+		class={
 			templ.Classes(
-				"p-4 flex flex-row md:items-center gap-3",
-				templ.KV("shrink-0", config.FullHeight),
+				"bg-surface-600 border border-primary rounded-lg",
+				templ.KV("flex flex-col h-full min-h-0 overflow-hidden", config.FullHeight),
 			),
-		}>
+		}
+	>
+		<div
+			class={
+				templ.Classes(
+					"p-4 flex flex-row md:items-center gap-3",
+					templ.KV("shrink-0", config.FullHeight),
+				),
+			}
+		>
 			if !config.WithoutSearch {
 				if config.SearchClearable {
 					<div class="flex-1" x-data={ fmt.Sprintf("{ searchVal: '%s' }", config.SearchValue) }>
@@ -596,12 +600,14 @@ templ TableSection(config *TableConfig) {
 		hx-indicator={ config.ResolvedHxIndicator() }
 		class={ templ.KV("flex-1 min-h-0", config.FullHeight) }
 	>
-		<div class={
-			templ.Classes(
-				"flex gap-5",
-				templ.KV("h-full", config.FullHeight),
-			),
-		}>
+		<div
+			class={
+				templ.Classes(
+					"flex gap-5",
+					templ.KV("h-full", config.FullHeight),
+				),
+			}
+		>
 			<!-- Left sidebar with filters -->
 			if config.SideFilter != nil {
 				<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:block w-64 flex-shrink-0">
@@ -610,12 +616,15 @@ templ TableSection(config *TableConfig) {
 			}
 			<!-- Main content area with search, filters, and table -->
 			if config.ContentID != "" {
-				<div id={ config.ContentID } class={
-					templ.Classes(
-						"flex-1 max-w-full",
-						templ.KV("h-full min-h-0", config.FullHeight),
-					),
-				}>
+				<div
+					id={ config.ContentID }
+					class={
+						templ.Classes(
+							"flex-1 max-w-full",
+							templ.KV("h-full min-h-0", config.FullHeight),
+						),
+					}
+				>
 					@TableContent(config)
 				</div>
 			} else {
