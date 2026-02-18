@@ -31,9 +31,9 @@ templ DateRangeClearButton(formID string) {
 				}
 				this.hasValue = false;
 				const formId = this.$el.dataset.formId;
-				container?.querySelectorAll('input[type=hidden][form=' + formId + ']').forEach(el => el.remove());
+				container?.querySelectorAll('input[type=hidden][form="' + formId + '"]').forEach(el => el.remove());
 				const form = document.getElementById(formId);
-				if (form) {
+				if (form && typeof htmx !== 'undefined') {
 					htmx.trigger(form, 'dateRangeChange');
 				}
 			}
