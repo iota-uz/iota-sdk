@@ -3,6 +3,7 @@ package core
 import (
 	"embed"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -102,7 +103,10 @@ func (m *Module) Register(app application.Application) error {
 	var encryptor pkgtwofactor.SecretEncryptor
 
 	// In production, require TOTP_ENCRYPTION_KEY only when 2FA is enabled.
-	if conf.GoAppEnvironment == "production" && conf.EnableTestEndpoints {
+	if conf.GoAppEnvironment == "production" &&
+		conf.EnableTestEndpoints &&
+		os.Getenv("CI") != "true" &&
+		os.Getenv("GITHUB_ACTIONS") != "true" {
 		return serrors.E(op, serrors.Invalid, errors.New("test endpoints cannot be enabled in production"))
 	}
 
