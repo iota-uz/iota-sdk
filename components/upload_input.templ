@@ -56,13 +56,13 @@ templ UploadTarget(p *UploadInputProps) {
 						@icons.X(icons.Props{Size: "14"})
 					</button>
 				</div>
-					if upload.URL != "" && strings.HasPrefix(strings.ToLower(strings.TrimSpace(upload.Mimetype)), "image/") {
-						<img class="mt-2 h-16 w-16 rounded-md object-contain" src={ upload.URL } alt={ uploadDisplayName(upload) }/>
-					}
-					<input type="hidden" name={ p.Name } value={ upload.ID } form={ p.Form }/>
-				</div>
-			}
-		</div>
+				if upload.URL != "" && strings.HasPrefix(strings.ToLower(strings.TrimSpace(upload.Mimetype)), "image/") {
+					<img class="mt-2 h-16 w-16 rounded-md object-contain" src={ upload.URL } alt={ uploadDisplayName(upload) }/>
+				}
+				<input type="hidden" name={ p.Name } value={ upload.ID } form={ p.Form }/>
+			</div>
+		}
+	</div>
 }
 
 templ (p *UploadInputProps) render() {

@@ -38,7 +38,7 @@ templ InstantMessagesDialog(props InstantMessagesDialogProps) {
 				<article
 					class={
 						"py-3 px-4 min-h-36 min-w-96",
-						templ.KV("grid grid-cols-3 items-center justify-center gap-2", len(props.Templates) > 0),
+						templ.KV("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 items-center justify-center gap-2", len(props.Templates) > 0),
 						templ.KV("flex flex-col items-center justify-center gap-2", len(props.Templates) == 0),
 					}
 				>

@@ -172,7 +172,7 @@ func StdViewDrawer(props StdDrawerProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"bg-white dark:bg-gray-900 w-3/4 md:w-2/3 ml-auto\"><div class=\"flex flex-col h-full\"><form method=\"dialog\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"bg-white dark:bg-gray-900 w-full sm:w-3/4 md:w-2/3 ml-auto\"><div class=\"flex flex-col h-full\"><form method=\"dialog\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

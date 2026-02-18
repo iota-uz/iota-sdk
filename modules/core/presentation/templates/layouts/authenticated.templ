@@ -131,11 +131,11 @@ templ SidebarTrigger(class string) {
 }
 
 templ Navbar(pageCtx types.PageContextProvider, navbarLeft templ.Component) {
-	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-8 bg-surface-300 border-b-primary">
+	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-4 md:px-8 bg-surface-300 border-b-primary">
 		if navbarLeft != nil {
 			@navbarLeft
 		}
-		<div class="ml-auto flex items-center gap-8">
+		<div class="ml-auto flex items-center gap-4 md:gap-8">
 			<div class="hidden lg:block">
 				@spotlight.Spotlight()
 			</div>
@@ -184,7 +184,7 @@ templ MobileSidebar(props sidebar.Props) {
 		Direction: dialog.LTR,
 		Action:    "open-sidebar",
 	}) {
-		<div class="w-2/3">
+		<div class="w-3/4 sm:w-2/3">
 			@sidebar.Sidebar(props)
 		</div>
 	}

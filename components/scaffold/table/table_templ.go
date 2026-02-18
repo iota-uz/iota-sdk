@@ -1222,7 +1222,7 @@ func TableContent(config *TableConfig) templ.Component {
 		}
 		var templ_7745c5c3_Var44 = []any{
 			templ.Classes(
-				"p-4 flex flex-col md:flex-row md:items-center gap-3",
+				"p-4 flex flex-col md:flex-row items-center gap-3",
 				templ.KV("shrink-0", config.FullHeight),
 			),
 		}

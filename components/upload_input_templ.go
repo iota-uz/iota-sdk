@@ -147,7 +147,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(upload.URL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 60, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 60, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -160,7 +160,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(uploadDisplayName(upload))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 60, Col: 110}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 60, Col: 109}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -178,7 +178,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 62, Col: 39}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 62, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -191,7 +191,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(upload.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 62, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 62, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -204,7 +204,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(p.Form)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 62, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 62, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
