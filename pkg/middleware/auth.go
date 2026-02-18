@@ -57,12 +57,12 @@ func Authorize() mux.MiddlewareFunc {
 
 				// Security: pending 2FA sessions are only allowed on 2FA routes.
 				// Other inactive sessions (expired, invalid status) are not authenticated.
-					if !sess.IsActive() {
-						if !sess.IsPending() || !strings.HasPrefix(r.URL.Path, "/login/2fa/") {
-							next.ServeHTTP(w, r)
-							return
-						}
+				if !sess.IsActive() {
+					if !sess.IsPending() || !strings.HasPrefix(r.URL.Path, "/login/2fa/") {
+						next.ServeHTTP(w, r)
+						return
 					}
+				}
 
 				if _, err := composables.UseTenantID(ctx); err != nil {
 					ctx = composables.WithTenantID(ctx, sess.TenantID())
