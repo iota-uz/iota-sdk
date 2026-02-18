@@ -43,12 +43,12 @@ templ TOTPSetup(p *TOTPSetupProps) {
 						</p>
 					</div>
 					<!-- Verification Code Form -->
-						<form method="post" action="/login/2fa/setup/totp/confirm" class="flex flex-col gap-4">
-							@composables.CSRFTokenField(ctx)
-							<input type="hidden" name="ChallengeID" value={ p.ChallengeID }/>
-							<input type="hidden" name="NextURL" value={ p.NextURL }/>
-							<input type="hidden" name="OTPAuthURL" value={ p.OTPAuthURL }/>
-							<div class="flex flex-col gap-4">
+					<form method="post" action="/login/2fa/setup/totp/confirm" class="flex flex-col gap-4">
+						@composables.CSRFTokenField(ctx)
+						<input type="hidden" name="ChallengeID" value={ p.ChallengeID }/>
+						<input type="hidden" name="NextURL" value={ p.NextURL }/>
+						<input type="hidden" name="OTPAuthURL" value={ p.OTPAuthURL }/>
+						<div class="flex flex-col gap-4">
 							<label class="block">
 								<span class="text-sm font-medium text-100 block mb-2">
 									{ pageCtx.T("TwoFactor.Setup.EnterCode") }
