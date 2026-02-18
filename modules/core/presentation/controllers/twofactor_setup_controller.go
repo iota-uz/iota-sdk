@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -49,6 +50,30 @@ type TwoFactorSetupController struct {
 	userService      *services.UserService
 }
 
+type methodChoiceDTO struct {
+	Method  string
+	NextURL string
+}
+
+type totpConfirmDTO struct {
+	ChallengeID string
+	Code        string
+	NextURL     string
+}
+
+type otpSendDTO struct {
+	Method      string
+	ChallengeID string
+	NextURL     string
+}
+
+type otpConfirmDTO struct {
+	ChallengeID string
+	Code        string
+	Method      string
+	NextURL     string
+}
+
 func requireTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r *http.Request) (session.Session, bool) {
 	sess, err := composables.UseSession(r.Context())
 	if err != nil {
@@ -62,6 +87,53 @@ func requireTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r
 		return nil, false
 	}
 	return sess, true
+}
+
+func requirePendingTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r *http.Request) (session.Session, bool) {
+	sess, err := composables.UseSession(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("failed to get session")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return nil, false
+	}
+	if !sess.IsPending() {
+		logger.WithField("status", sess.Status()).Error("session not in pending status for 2FA setup")
+		http.Error(w, "invalid session state", http.StatusBadRequest)
+		return nil, false
+	}
+	return sess, true
+}
+
+func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.ResponseWriter, sess session.Session) (session.Session, error) {
+	conf := configuration.Use()
+	updatedSession := session.New(
+		sess.Token(),
+		sess.UserID(),
+		sess.TenantID(),
+		sess.IP(),
+		sess.UserAgent(),
+		session.WithStatus(session.StatusActive),
+		session.WithAudience(sess.Audience()),
+		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
+		session.WithCreatedAt(sess.CreatedAt()),
+	)
+
+	if err := c.sessionService.Update(ctx, updatedSession); err != nil {
+		return nil, err
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     conf.SidCookieKey,
+		Value:    updatedSession.Token(),
+		Expires:  updatedSession.ExpiresAt(),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   conf.GoAppEnvironment == configuration.Production,
+		Domain:   conf.Domain,
+		Path:     "/",
+	})
+
+	return updatedSession, nil
 }
 
 // Key returns the base route path for this controller.
@@ -145,15 +217,15 @@ func (c *TwoFactorSetupController) GetMethodChoice(w http.ResponseWriter, r *htt
 func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
-	// Parse form
-	if err := r.ParseForm(); err != nil {
+	dto, err := composables.UseForm(&methodChoiceDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	method := r.FormValue("Method")
+	method := dto.Method
 	// Validate the redirect URL to prevent open redirect attacks
-	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
+	nextURL := security.GetValidatedRedirect(dto.NextURL)
 
 	// Validate method
 	validMethods := []string{string(pkgtwofactor.MethodTOTP), string(pkgtwofactor.MethodSMS), string(pkgtwofactor.MethodEmail)}
@@ -229,7 +301,7 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 	challengeID := r.URL.Query().Get("challengeId")
 	// Validate the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
-	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
+	if _, ok := requirePendingTwoFactorSetupSession(w, logger, r); !ok {
 		return
 	}
 
@@ -274,7 +346,7 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 	challengeID := r.URL.Query().Get("challengeId")
 	// Validate the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
-	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
+	if _, ok := requirePendingTwoFactorSetupSession(w, logger, r); !ok {
 		return
 	}
 
@@ -338,16 +410,16 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
-	// Parse form
-	if err := r.ParseForm(); err != nil {
+	dto, err := composables.UseForm(&totpConfirmDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	challengeID := r.FormValue("ChallengeID")
-	code := r.FormValue("Code")
+	challengeID := dto.ChallengeID
+	code := dto.Code
 	// Validate the redirect URL to prevent open redirect attacks
-	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
+	nextURL := security.GetValidatedRedirect(dto.NextURL)
 
 	if challengeID == "" {
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
@@ -355,7 +427,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 	}
 
 	// Get session
-	sess, ok := requireTwoFactorSetupSession(w, logger, r)
+	sess, ok := requirePendingTwoFactorSetupSession(w, logger, r)
 	if !ok {
 		return
 	}
@@ -375,39 +447,11 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Update session to Active status with full session duration
-	// Pending sessions have 10-minute TTL, active sessions get full duration
-	conf := configuration.Use()
-	updatedSession := session.New(
-		sess.Token(),
-		sess.UserID(),
-		sess.TenantID(),
-		sess.IP(),
-		sess.UserAgent(),
-		session.WithStatus(session.StatusActive),
-		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
-		session.WithCreatedAt(sess.CreatedAt()),
-	)
-
-	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
+	if _, err := c.activateSession(r.Context(), w, sess); err != nil {
 		logger.WithError(err).Error("failed to update session to active")
 		http.Error(w, "failed to activate session", http.StatusInternalServerError)
 		return
 	}
-
-	// Update the session cookie with new expiry to match the extended DB session
-	sessionCookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
-		Value:    updatedSession.Token(),
-		Expires:  updatedSession.ExpiresAt(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
-		Path:     "/",
-	}
-	http.SetCookie(w, sessionCookie)
 
 	// Show recovery codes
 	if err := twofactorsetup.SetupComplete(&twofactorsetup.SetupCompleteProps{
@@ -426,22 +470,22 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
-	// Parse form
-	if err := r.ParseForm(); err != nil {
+	dto, err := composables.UseForm(&otpSendDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	method := r.FormValue("Method")
-	challengeID := r.FormValue("ChallengeID")
+	method := dto.Method
+	challengeID := dto.ChallengeID
 	// Validate the redirect URL to prevent open redirect attacks
-	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
+	nextURL := security.GetValidatedRedirect(dto.NextURL)
 
 	if challengeID == "" {
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
 		return
 	}
-	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
+	if _, ok := requirePendingTwoFactorSetupSession(w, logger, r); !ok {
 		return
 	}
 
@@ -492,17 +536,17 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
-	// Parse form
-	if err := r.ParseForm(); err != nil {
+	dto, err := composables.UseForm(&otpConfirmDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	challengeID := r.FormValue("ChallengeID")
-	code := r.FormValue("Code")
-	method := r.FormValue("Method")
+	challengeID := dto.ChallengeID
+	code := dto.Code
+	method := dto.Method
 	// Validate the redirect URL to prevent open redirect attacks
-	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
+	nextURL := security.GetValidatedRedirect(dto.NextURL)
 
 	if challengeID == "" {
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
@@ -510,13 +554,13 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 	}
 
 	// Get session
-	sess, ok := requireTwoFactorSetupSession(w, logger, r)
+	sess, ok := requirePendingTwoFactorSetupSession(w, logger, r)
 	if !ok {
 		return
 	}
 
 	// Confirm setup
-	_, err := c.twoFactorService.ConfirmSetup(r.Context(), sess.UserID(), challengeID, code)
+	_, err = c.twoFactorService.ConfirmSetup(r.Context(), sess.UserID(), challengeID, code)
 	if err != nil {
 		logger.WithError(err).Error("failed to confirm 2FA setup")
 		var errorMsg string
@@ -530,39 +574,11 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 		return
 	}
 
-	// Update session to Active status with full session duration
-	// Pending sessions have 10-minute TTL, active sessions get full duration
-	conf := configuration.Use()
-	updatedSession := session.New(
-		sess.Token(),
-		sess.UserID(),
-		sess.TenantID(),
-		sess.IP(),
-		sess.UserAgent(),
-		session.WithStatus(session.StatusActive),
-		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
-		session.WithCreatedAt(sess.CreatedAt()),
-	)
-
-	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
+	if _, err := c.activateSession(r.Context(), w, sess); err != nil {
 		logger.WithError(err).Error("failed to update session to active")
 		http.Error(w, "failed to activate session", http.StatusInternalServerError)
 		return
 	}
-
-	// Update the session cookie with new expiry to match the extended DB session
-	sessionCookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
-		Value:    updatedSession.Token(),
-		Expires:  updatedSession.ExpiresAt(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
-		Path:     "/",
-	}
-	http.SetCookie(w, sessionCookie)
 
 	// For OTP methods, show success and redirect (nextURL already validated earlier)
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.Success")))

@@ -187,7 +187,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await setupPage.enterOTPCode(otpCode);
 
 		// Verify successful setup
-		await expect(page).toHaveURL(/^(?!.*\/login\/2fa\/setup)/);
+		await expect(page).not.toHaveURL(/\/login\/2fa\/setup/);
 	});
 
 	test.skip('should display error if user tries SMS without phone number', async ({ page, request }) => {

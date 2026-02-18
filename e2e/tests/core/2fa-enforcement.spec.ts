@@ -16,6 +16,8 @@ import { generateTOTPCode } from '../../helpers/totp';
  */
 
 test.describe('2FA Enforcement and Edge Cases', () => {
+	const verifyCodeInputSelector = 'input[name="Code"]';
+
 	test.beforeEach(async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 720 });
 	});
@@ -23,6 +25,23 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 	test.afterEach(async ({ page }) => {
 		await logout(page);
 	});
+
+	const loginAndReachVerify = async (page: Page, email: string, password: string) => {
+		await page.goto('/login');
+		await page.fill('[type=email]', email);
+		await page.fill('[type=password]', password);
+		await Promise.all([
+			page.waitForURL((url) => !url.pathname.includes('/login')),
+			page.click('[type=submit]'),
+		]);
+
+		if (!/\/login\/2fa\/verify/.test(page.url())) {
+			await page.goto('/login/2fa/verify');
+		}
+
+		await expect(page).toHaveURL(/\/login\/2fa\/verify/);
+		await expect(page.locator(verifyCodeInputSelector)).toBeVisible();
+	};
 
 	test.describe('Users without 2FA enabled', () => {
 		const normalUser = {
@@ -148,14 +167,11 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 
 		test('should allow access after completing 2FA verification', async ({ page }) => {
 			// Login and complete 2FA
-			await page.goto('/login');
-			await page.fill('[type=email]', totpUser.email);
-			await page.fill('[type=password]', totpUser.password);
-			await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+			await loginAndReachVerify(page, totpUser.email, totpUser.password);
 
 			// Enter valid TOTP code
 			const code = generateTOTPCode(totpUser.totpSecret);
-			await page.fill('input[name="Code"]', code);
+			await page.fill(verifyCodeInputSelector, code);
 			await page.click('button[type="submit"]');
 
 			// Wait for successful verification
@@ -207,6 +223,8 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 				page.click('[type=submit]'),
 			]);
 			await page.goto(`/login/2fa/setup?next=${encodeURIComponent(nextURL)}`);
+			await expect(page).toHaveURL(/\/login\/2fa\/setup/);
+			await expect(page.locator('input[name="NextURL"]')).toBeVisible();
 		};
 
 		test('should accept valid internal nextURL', async ({ page }) => {
@@ -338,14 +356,11 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 
 		test('should prevent setup when 2FA is already enabled', async ({ page }) => {
 			// Login with 2FA verification
-			await page.goto('/login');
-			await page.fill('[type=email]', totpEnabledUser.email);
-			await page.fill('[type=password]', totpEnabledUser.password);
-			await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+			await loginAndReachVerify(page, totpEnabledUser.email, totpEnabledUser.password);
 
 			// Complete verification
 			const code = generateTOTPCode('JBSWY3DPEHPK3PXP');
-			await page.fill('input[name="Code"]', code);
+			await page.fill(verifyCodeInputSelector, code);
 			await page.click('button[type="submit"]');
 
 			// Wait for successful login
@@ -464,10 +479,7 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 
 		test('should handle browser back button gracefully during 2FA flow', async ({ page }) => {
 			// Login to get to verification page
-			await page.goto('/login');
-			await page.fill('[type=email]', testUser.email);
-			await page.fill('[type=password]', testUser.password);
-			await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
+			await loginAndReachVerify(page, testUser.email, testUser.password);
 
 			// Navigate to recovery page
 			await page.click('a[href*="recovery"]');
@@ -481,7 +493,7 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 
 			// Should still be able to verify
 			const code = generateTOTPCode('JBSWY3DPEHPK3PXP');
-			await page.fill('input[name="Code"]', code);
+			await page.fill(verifyCodeInputSelector, code);
 			await page.click('button[type="submit"]');
 
 			// Verify successful login

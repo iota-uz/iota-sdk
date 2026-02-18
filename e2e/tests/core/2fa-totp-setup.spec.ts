@@ -174,6 +174,17 @@ test.describe('2FA TOTP Setup Flow', () => {
 		// Try to enter non-numeric characters
 		const codeInput = page.locator('input[name="Code"]');
 		await expect(codeInput).toHaveAttribute('pattern', '[0-9]{6}');
+		await codeInput.fill('abc123');
+		const isValidBeforeSubmit = await codeInput.evaluate(
+			(node) => (node as HTMLInputElement).validity.valid,
+		);
+		expect(isValidBeforeSubmit).toBe(false);
+		await page.click('button[type="submit"]');
+		await expect(page).toHaveURL(/\/login\/2fa\/setup\/totp/);
+		const isValidAfterSubmit = await codeInput.evaluate(
+			(node) => (node as HTMLInputElement).validity.valid,
+		);
+		expect(isValidAfterSubmit).toBe(false);
 
 		// Try to enter more than 6 digits
 		await codeInput.fill('1234567890');
