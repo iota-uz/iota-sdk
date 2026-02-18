@@ -374,13 +374,8 @@ templ NotesInfoCard(client *viewmodels.Client) {
 					Target:  "#notes-info-edit",
 				}),
 			}) {
-				<div
-					x-show="!isEditing"
-					class="grid grid-cols-1 md:grid-cols-2 gap-4"
-				>
-					<div>
-						<div>{ formatNotes(client.Comments, pageCtx.T("Clients.Notes.NoNotes")) }</div>
-					</div>
+				<div x-show="!isEditing">
+					<div>{ formatNotes(client.Comments, pageCtx.T("Clients.Notes.NoNotes")) }</div>
 				</div>
 				<div
 					x-show="isEditing"
