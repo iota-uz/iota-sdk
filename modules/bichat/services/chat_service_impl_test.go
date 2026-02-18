@@ -323,6 +323,53 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 	assert.Len(t, messages, 2)
 }
 
+func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("Generating..."),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	agentSvc := &stubAgentService{
+		processEvents: []bichatservices.Event{
+			{
+				Type:    bichatservices.EventTypeContent,
+				Content: "partial assistant response",
+			},
+		},
+		processStreamErr: assert.AnError,
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, titleService)
+	err := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+		SessionID: session.ID(),
+		Content:   "first user message",
+	}, func(_ bichatservices.StreamChunk) {})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, assert.AnError.Error())
+
+	messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, msgErr)
+	require.Len(t, messages, 2)
+	assert.Equal(t, types.RoleUser, messages[0].Role())
+	assert.Equal(t, types.RoleAssistant, messages[1].Role())
+	assert.Equal(t, "partial assistant response", messages[1].Content())
+
+	select {
+	case <-titleService.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected async title generation to be invoked")
+	}
+}
+
 type captureTitleContextService struct {
 	called chan context.Context
 }
@@ -330,11 +377,30 @@ type captureTitleContextService struct {
 type stubRepoTx struct{}
 
 type stubAgentService struct {
-	resumeEvents []bichatservices.Event
+	processEvents    []bichatservices.Event
+	processErr       error
+	processStreamErr error
+	resumeEvents     []bichatservices.Event
 }
 
 func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UUID, content string, attachments []domain.Attachment) (types.Generator[bichatservices.Event], error) {
-	return nil, assert.AnError
+	if s.processErr != nil {
+		return nil, s.processErr
+	}
+	if len(s.processEvents) == 0 && s.processStreamErr == nil {
+		return nil, assert.AnError
+	}
+
+	events := append([]bichatservices.Event{}, s.processEvents...)
+	streamErr := s.processStreamErr
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(bichatservices.Event) bool) error {
+		for _, ev := range events {
+			if !yield(ev) {
+				return nil
+			}
+		}
+		return streamErr
+	}), nil
 }
 
 func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.UUID, checkpointID string, answers map[string]types.Answer) (types.Generator[bichatservices.Event], error) {
@@ -371,7 +437,7 @@ func (stubRepoTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, erro
 }
 
 func (stubRepoTx) Query(context.Context, string, ...any) (pgx.Rows, error) {
-	return nil, nil
+	return nil, pgx.ErrNoRows
 }
 
 func (stubRepoTx) QueryRow(context.Context, string, ...any) pgx.Row {

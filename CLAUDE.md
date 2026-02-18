@@ -118,7 +118,7 @@ cd e2e && npx playwright test tests/module/specific.spec.ts:LINE  # Single test 
 
 ## Technology Stack
 
-- **Backend**: Go 1.23.2, IOTA SDK framework, GraphQL
+- **Backend**: Go 1.24.10, IOTA SDK framework, GraphQL
 - **Database**: PostgreSQL 13+ (multi-tenant with tenant_id)
 - **Frontend**: HTMX + Alpine.js + Templ + Tailwind CSS
 - **Auth**: Cookie-based sessions with RBAC

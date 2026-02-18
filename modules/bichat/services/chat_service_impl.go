@@ -618,13 +618,13 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		return err
 	}
 
-	if streamErr != nil {
-		return serrors.E(op, streamErr)
-	}
-
 	// Generate title if not interrupted
 	if interrupt == nil {
 		s.maybeGenerateTitleAsync(ctx, req.SessionID)
+	}
+
+	if streamErr != nil {
+		return serrors.E(op, streamErr)
 	}
 
 	return nil
