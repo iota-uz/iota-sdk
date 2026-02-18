@@ -24,6 +24,7 @@ test.describe('2FA TOTP Setup Flow', () => {
 
 	test.beforeEach(async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 720 });
+		await login(page, 'test@gmail.com', 'TestPass123!');
 	});
 
 	test.afterEach(async ({ page }) => {

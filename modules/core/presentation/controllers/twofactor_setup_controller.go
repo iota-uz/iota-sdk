@@ -162,9 +162,9 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Validate session status
-	if sess.Status() != session.StatusPending2FA {
-		logger.Error("session not in pending 2FA status", "status", sess.Status())
+	// Allow setup for both pending 2FA sessions and active authenticated sessions.
+	if !sess.IsPending() && !sess.IsActive() {
+		logger.Error("session not in allowed status for 2FA setup", "status", sess.Status())
 		http.Error(w, "invalid session state", http.StatusBadRequest)
 		return
 	}

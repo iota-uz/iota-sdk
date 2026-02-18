@@ -131,13 +131,9 @@ test.describe('2FA Recovery Codes', () => {
 			},
 		});
 
-		// Login with the fresh user
-		await page.goto('/login');
-		await page.fill('[type=email]', 'setup-test@example.com');
-		await page.fill('[type=password]', 'TestPass123!');
-		await page.click('[type=submit]');
-
-		// Should redirect to 2FA setup
+		// Login with the fresh user and navigate to setup.
+		await login(page, 'setup-test@example.com', 'TestPass123!');
+		await page.goto('/login/2fa/setup');
 		await expect(page).toHaveURL(/\/login\/2fa\/setup/);
 
 		const setupPage = new TwoFactorSetupPage(page);
