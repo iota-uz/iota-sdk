@@ -35,6 +35,15 @@ func (s *UploadService) Exists(ctx context.Context, id uint) (bool, error) {
 	return s.repo.Exists(ctx, id)
 }
 
+// IsAccessible checks if upload metadata exists in DB and backing storage content can be opened.
+func (s *UploadService) IsAccessible(ctx context.Context, entity upload.Upload) bool {
+	if entity == nil {
+		return false
+	}
+	_, err := s.storage.Open(ctx, entity.Path())
+	return err == nil
+}
+
 func (s *UploadService) GetByHash(ctx context.Context, hash string) (upload.Upload, error) {
 	return s.repo.GetByHash(ctx, hash)
 }

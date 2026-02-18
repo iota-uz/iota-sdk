@@ -252,7 +252,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     this.open = false;
     this.openedWithKeyboard = false;
     this.searchQuery = '';
-    this.options = this.allOptions;
+    this.options = [...this.allOptions];
     if (this.selectedValues.size === 0) {
       this.$refs.select.value = "";
     }
@@ -289,7 +289,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   onSearch(e) {
     if (!this.open) this.open = true
     let searchValue = e.target.value.trim();
-    this.options = Array.from(this.allOptions).filter((o) => {
+    this.options = this.allOptions.filter((o) => {
       return o.textContent.toLowerCase().includes(searchValue.toLowerCase());
     });
     if (this.options.length > 0) {
@@ -326,8 +326,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   },
   select: {
     ["x-init"]() {
-      this.options = this.$el.querySelectorAll("option");
-      this.allOptions = this.options;
+      this.options = Array.from(this.$el.querySelectorAll("option"));
+      this.allOptions = [...this.options];
       this.multiple = this.$el.multiple;
       for (let i = 0, len = this.options.length; i < len; i++) {
         let option = this.options[i];
@@ -342,7 +342,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
         }
       }
       this.observer = new MutationObserver(() => {
-        this.options = this.$el.querySelectorAll("option");
+        this.options = Array.from(this.$el.querySelectorAll("option"));
+        this.allOptions = [...this.options];
         if (this.$refs.input) {
           this.setActiveIndex(this.$refs.input.value);
           this.setActiveValue(this.$refs.input.value);
@@ -813,24 +814,36 @@ let sidebarNavigation = () => ({
 let disableFormElementsWhen = (query) => ({
   matches: window.matchMedia(query).matches,
   media: null,
+  observer: null,
+  changeHandler: null,
   onChange() {
     this.matches = window.matchMedia(query).matches;
     this.disableAllFormElements();
   },
   disableAllFormElements() {
-    let elements = this.$el.querySelectorAll('input,select,textarea');
+    let elements = this.$el.querySelectorAll('input,select,textarea,button');
     for (let element of elements) {
       element.disabled = this.matches;
     }
   },
   init() {
     this.media = window.matchMedia(query);
-    this.media.addEventListener('change', this.onChange.bind(this));
+    this.changeHandler = this.onChange.bind(this);
+    this.media.addEventListener('change', this.changeHandler);
+    this.observer = new MutationObserver(() => this.disableAllFormElements());
+    this.observer.observe(this.$el, { childList: true, subtree: true });
     this.disableAllFormElements();
   },
   destroy() {
     if (this.media == null) return;
-    this.media.removeEventListener('change', this.onChange.bind(this));
+    if (this.changeHandler) {
+      this.media.removeEventListener('change', this.changeHandler);
+      this.changeHandler = null;
+    }
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
     this.media = null;
   }
 })

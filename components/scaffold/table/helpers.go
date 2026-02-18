@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -880,6 +881,12 @@ func WithSearchValue(value string) TableConfigOpt {
 	}
 }
 
+func WithSearchParamName(name string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.SearchParamName = strings.TrimSpace(name)
+	}
+}
+
 func (c *TableConfig) ResolvedHxTarget() string {
 	if c.HxTarget != "" {
 		return c.HxTarget
@@ -959,6 +966,7 @@ type TableConfig struct {
 	HxSwap          string // Custom hx-swap; defaults to "innerHTML"
 	HxIndicator     string // Custom hx-indicator; defaults to "#table-body"
 	SearchValue     string // Current search input value (for HTMX re-render)
+	SearchParamName string // Query/form field name used for the search value
 
 	// Optional: reference to definition for advanced usage
 	definition *TableDefinition
@@ -975,9 +983,13 @@ func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig 
 		Rows:            []TableRow{},
 		Configurable:    true,
 		FillerRowHeight: 49, // Default filler row height
+		SearchParamName: QueryParamSearch,
 	}
 	for _, o := range opts {
 		o(t)
+	}
+	if strings.TrimSpace(t.SearchParamName) == "" {
+		t.SearchParamName = QueryParamSearch
 	}
 	return t
 }

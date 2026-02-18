@@ -209,14 +209,14 @@ func (c *SettingsController) logoProps(r *http.Request, errors map[string]string
 
 	if tenant.LogoID() != nil {
 		upload, err := c.uploadService.GetByID(r.Context(), uint(*tenant.LogoID()))
-		if err == nil {
+		if err == nil && c.uploadService.IsAccessible(r.Context(), upload) {
 			logoUpload = mappers.UploadToViewModel(upload)
 		}
 	}
 
 	if tenant.LogoCompactID() != nil {
 		upload, err := c.uploadService.GetByID(r.Context(), uint(*tenant.LogoCompactID()))
-		if err == nil {
+		if err == nil && c.uploadService.IsAccessible(r.Context(), upload) {
 			logoCompactUpload = mappers.UploadToViewModel(upload)
 		}
 	}

@@ -1,6 +1,8 @@
 package layouts
 
 import (
+	"strings"
+
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -56,6 +58,15 @@ type BaseProps struct {
 }
 
 templ Base(props *BaseProps) {
+	{{
+		bodyAttrs := templ.Attributes{
+			"class": "antialiased overflow-y-hidden",
+		}
+		if strings.TrimSpace(props.WebsocketURL) != "" {
+			bodyAttrs["hx-ext"] = "ws"
+			bodyAttrs["ws-connect"] = props.WebsocketURL
+		}
+	}}
 	<!DOCTYPE html>
 	<html
 		lang={ composables.UsePageCtx(ctx).GetLocale().String() }
@@ -67,11 +78,7 @@ templ Base(props *BaseProps) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			@MustUseHead(ctx)
 		</head>
-		<body
-			class="antialiased overflow-y-hidden"
-			hx-ext="ws"
-			ws-connect={ props.WebsocketURL }
-		>
+		<body { bodyAttrs... }>
 			{ children... }
 		</body>
 	</html>
