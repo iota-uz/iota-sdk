@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
-    "@iota-uz/sdk": "0.4.17",
+    "@iota-uz/sdk": "0.4.16",
     "@phosphor-icons/react": "^2.1.10",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.0.0",
