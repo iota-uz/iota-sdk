@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,7 +84,7 @@ Body
 
 	_, err := LoadCatalog(root)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse frontmatter")
+	assert.Contains(t, err.Error(), "front matter")
 }
 
 func TestLoadCatalog_EmptyBody(t *testing.T) {
@@ -103,7 +104,7 @@ tags:
 
 	_, err := LoadCatalog(root)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "skill body cannot be empty")
+	assert.Contains(t, err.Error(), "markdown body is required")
 }
 
 func TestLoadCatalog_DeterministicSlugGeneration(t *testing.T) {
@@ -125,6 +126,28 @@ Do month-end checks.
 	require.NoError(t, err)
 	require.Len(t, catalog.Skills, 1)
 	assert.Equal(t, "finance/month-end", catalog.Skills[0].Slug)
+}
+
+func TestLoadCatalogFS_ValidTree(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		"skills/finance/month-end/SKILL.md": &fstest.MapFile{Data: []byte(`---
+name: Month End
+description: Close month books
+when_to_use:
+  - month close
+tags:
+  - finance
+---
+Run close checklist.`)},
+	}
+
+	catalog, err := LoadCatalogFS(fsys, "skills")
+	require.NoError(t, err)
+	require.Len(t, catalog.Skills, 1)
+	assert.Equal(t, "finance/month-end", catalog.Skills[0].Slug)
+	assert.Equal(t, "skills/finance/month-end/SKILL.md", catalog.Skills[0].Path)
 }
 
 func writeSkillFile(t *testing.T, root, relDir, content string) {

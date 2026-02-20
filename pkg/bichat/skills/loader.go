@@ -2,12 +2,14 @@ package skills
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/definition"
 )
 
 const skillFileName = "SKILL.md"
@@ -34,6 +36,31 @@ func LoadCatalog(root string) (*Catalog, error) {
 		return nil, fmt.Errorf("skills root must be a directory")
 	}
 
+	catalog, err := LoadCatalogFS(os.DirFS(root), ".")
+	if err != nil {
+		return nil, err
+	}
+	catalog.Root = root
+
+	bySlug := make(map[string]Skill, len(catalog.Skills))
+	for i := range catalog.Skills {
+		skill := catalog.Skills[i]
+		skill.Path = filepath.Join(root, filepath.FromSlash(skill.Path))
+		catalog.Skills[i] = skill
+		bySlug[skill.Slug] = skill
+	}
+	catalog.BySlug = bySlug
+	return catalog, nil
+}
+
+// LoadCatalogFS recursively scans root within the provided filesystem and loads
+// all SKILL.md files.
+func LoadCatalogFS(source fs.FS, root string) (*Catalog, error) {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		root = "."
+	}
+
 	catalog := &Catalog{
 		Root:     root,
 		Skills:   make([]Skill, 0),
@@ -41,28 +68,28 @@ func LoadCatalog(root string) (*Catalog, error) {
 		Children: make(map[string][]string),
 	}
 
-	walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() || d.Name() != skillFileName {
-			return nil
-		}
+	files, err := definition.LoadFiles(source, definition.LoadFilesOptions{
+		Root:      root,
+		Recursive: true,
+		Match: func(_ string, entry fs.DirEntry) bool {
+			return entry.Name() == skillFileName
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
 
-		skill, err := loadSkill(root, path)
+	for _, file := range files {
+		skill, err := loadSkill(root, file)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if _, exists := catalog.BySlug[skill.Slug]; exists {
-			return fmt.Errorf("duplicate skill slug %q", skill.Slug)
+			return nil, fmt.Errorf("duplicate skill slug %q", skill.Slug)
 		}
 		catalog.BySlug[skill.Slug] = skill
 		catalog.Skills = append(catalog.Skills, skill)
-		return nil
-	})
-	if walkErr != nil {
-		return nil, walkErr
 	}
 
 	sort.Slice(catalog.Skills, func(i, j int) bool {
@@ -80,40 +107,37 @@ func LoadCatalog(root string) (*Catalog, error) {
 	return catalog, nil
 }
 
-func loadSkill(root, path string) (Skill, error) {
-	raw, err := os.ReadFile(path)
+func loadSkill(root string, source definition.SourceFile) (Skill, error) {
+	parsed, err := definition.ParseDocument[skillFrontmatter](
+		source.Content,
+		source.Path,
+		definition.ParseDocumentOptions{
+			KnownFields: true,
+			RequireBody: true,
+		},
+	)
 	if err != nil {
-		return Skill{}, fmt.Errorf("failed to read %q: %w", path, err)
-	}
-
-	frontmatterText, body, err := splitFrontmatter(string(raw))
-	if err != nil {
-		return Skill{}, fmt.Errorf("%s: %w", path, err)
-	}
-
-	var fm skillFrontmatter
-	if err := yaml.Unmarshal([]byte(frontmatterText), &fm); err != nil {
-		return Skill{}, fmt.Errorf("%s: failed to parse frontmatter: %w", path, err)
+		return Skill{}, err
 	}
 
 	metadata := normalizeMetadata(SkillMetadata{
-		Name:        fm.Name,
-		Description: fm.Description,
-		WhenToUse:   fm.WhenToUse,
-		Tags:        fm.Tags,
+		Name:        parsed.FrontMatter.Name,
+		Description: parsed.FrontMatter.Description,
+		WhenToUse:   parsed.FrontMatter.WhenToUse,
+		Tags:        parsed.FrontMatter.Tags,
 	})
 	if err := validateMetadata(metadata); err != nil {
-		return Skill{}, fmt.Errorf("%s: %w", path, err)
+		return Skill{}, fmt.Errorf("%s: %w", parsed.Path, err)
 	}
 
-	body = strings.TrimSpace(body)
-	if body == "" {
-		return Skill{}, fmt.Errorf("%s: skill body cannot be empty", path)
-	}
-
-	relDir, err := filepath.Rel(root, filepath.Dir(path))
-	if err != nil {
-		return Skill{}, fmt.Errorf("failed to resolve relative path for %q: %w", path, err)
+	dirPath := path.Dir(source.Path)
+	relDir := dirPath
+	if root != "." {
+		relNative, relErr := filepath.Rel(filepath.FromSlash(root), filepath.FromSlash(dirPath))
+		if relErr != nil {
+			return Skill{}, fmt.Errorf("failed to resolve relative path for %q: %w", source.Path, relErr)
+		}
+		relDir = filepath.ToSlash(relNative)
 	}
 
 	slug := buildSlug(relDir)
@@ -121,42 +145,19 @@ func loadSkill(root, path string) (Skill, error) {
 
 	return Skill{
 		Slug:       slug,
-		Path:       path,
+		Path:       source.Path,
 		ParentSlug: parentSlug,
 		Metadata:   metadata,
-		Body:       body,
+		Body:       parsed.Body,
 	}, nil
 }
 
-func splitFrontmatter(raw string) (string, string, error) {
-	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
-	lines := strings.Split(normalized, "\n")
-	if len(lines) < 3 || strings.TrimSpace(lines[0]) != "---" {
-		return "", "", fmt.Errorf("missing YAML frontmatter block")
-	}
-
-	closing := -1
-	for i := 1; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == "---" {
-			closing = i
-			break
-		}
-	}
-	if closing == -1 {
-		return "", "", fmt.Errorf("unterminated YAML frontmatter block")
-	}
-
-	frontmatter := strings.Join(lines[1:closing], "\n")
-	body := strings.Join(lines[closing+1:], "\n")
-	return frontmatter, body, nil
-}
-
 func buildSlug(relDir string) string {
-	slug := filepath.ToSlash(relDir)
-	slug = strings.TrimSpace(slug)
+	slug := strings.TrimSpace(relDir)
 	if slug == "." || slug == "" {
 		return "root"
 	}
+	slug = path.Clean(slug)
 	return strings.ToLower(strings.Trim(slug, "/"))
 }
 
@@ -164,7 +165,7 @@ func parentSlugFromSlug(slug string) string {
 	if slug == "" || slug == "root" {
 		return ""
 	}
-	parent := filepath.ToSlash(filepath.Dir(slug))
+	parent := path.Dir(slug)
 	if parent == "." || parent == "" {
 		return ""
 	}

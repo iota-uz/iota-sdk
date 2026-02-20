@@ -6,9 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/google/uuid"
+	bichatmoduleagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
@@ -378,6 +380,144 @@ Body
 	err := cfg.BuildServices()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load skills catalog")
+}
+
+func TestModuleConfig_BuildServices_LoadsMarkdownSubAgents(t *testing.T) {
+	t.Parallel()
+
+	definitionFS := fstest.MapFS{
+		"defs/sql.md": &fstest.MapFile{Data: []byte(`---
+name: sql-analyst
+description: SQL specialist
+model: gpt-from-file
+tools:
+  - schema_list
+  - schema_describe
+  - sql_execute
+---
+SQL prompt`)},
+		"defs/excel.md": &fstest.MapFile{Data: []byte(`---
+name: excel-analyst
+description: Spreadsheet specialist
+model: gpt-from-file
+tools:
+  - artifact_reader
+  - ask_user_question
+---
+Excel prompt`)},
+	}
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+		WithSubAgentDefinitionsSource(definitionFS, "defs"),
+	)
+
+	err := cfg.BuildServices()
+	require.NoError(t, err)
+	require.NotNil(t, cfg.AgentRegistry)
+
+	sqlAgent, exists := cfg.AgentRegistry.Get("sql-analyst")
+	require.True(t, exists)
+	assert.Equal(t, "gpt-test", sqlAgent.Metadata().Model, "runtime model should override front matter model")
+
+	excelAgent, exists := cfg.AgentRegistry.Get("excel-analyst")
+	require.True(t, exists)
+	assert.Equal(t, "gpt-test", excelAgent.Metadata().Model)
+}
+
+func TestModuleConfig_BuildServices_InvalidSubAgentDefinitionFails(t *testing.T) {
+	t.Parallel()
+
+	definitionFS := fstest.MapFS{
+		"defs/sql.md": &fstest.MapFile{Data: []byte(`---
+name: sql-analyst
+description: SQL specialist
+model: gpt-from-file
+when_to_use: should-fail
+tools:
+  - schema_list
+---
+SQL prompt`)},
+	}
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+		WithSubAgentDefinitionsSource(definitionFS, "defs"),
+	)
+
+	err := cfg.BuildServices()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to setup configured sub-agents")
+}
+
+func TestModuleConfig_BuildServices_UnresolvedSubAgentToolFails(t *testing.T) {
+	t.Parallel()
+
+	definitionFS := fstest.MapFS{
+		"defs/sql.md": &fstest.MapFile{Data: []byte(`---
+name: sql-analyst
+description: SQL specialist
+model: gpt-from-file
+tools:
+  - made_up_tool
+---
+SQL prompt`)},
+	}
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+		WithSubAgentDefinitionsSource(definitionFS, "defs"),
+	)
+
+	err := cfg.BuildServices()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown tool "made_up_tool"`)
+}
+
+func TestModuleConfig_BuildServices_DuplicateCustomSubAgentFails(t *testing.T) {
+	t.Parallel()
+
+	definitionFS := fstest.MapFS{
+		"defs/sql.md": &fstest.MapFile{Data: []byte(`---
+name: sql-analyst
+description: SQL specialist
+model: gpt-from-file
+tools:
+  - schema_list
+  - schema_describe
+  - sql_execute
+---
+SQL prompt`)},
+	}
+
+	custom := agents.NewBaseAgent(
+		agents.WithName("sql-analyst"),
+		agents.WithDescription("custom"),
+		agents.WithWhenToUse("custom"),
+		agents.WithModel("gpt-custom"),
+		agents.WithSystemPrompt("custom prompt"),
+		agents.WithTerminationTools(agents.ToolFinalAnswer),
+	)
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+		WithSubAgentDefinitionsSource(definitionFS, "defs"),
+		WithSubAgents(custom),
+	)
+
+	err := cfg.BuildServices()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already registered")
+}
+
+func TestModuleConfig_WithSubAgentDefinitionsSource_UsesDefaultWhenNotSet(t *testing.T) {
+	t.Parallel()
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+	)
+	require.NotNil(t, cfg.SubAgentDefinitionsFS)
+	assert.Equal(t, bichatmoduleagents.DefaultSubAgentDefinitionsBasePath, cfg.SubAgentDefinitionsBasePath)
 }
 
 func writeTestSkillFile(t *testing.T, root, relDir, content string) {

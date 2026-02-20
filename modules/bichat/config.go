@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 	"time"
 
@@ -129,6 +130,9 @@ type ModuleConfig struct {
 	// Optional: Parent agent (if nil, BuildParentAgent can construct default from QueryExecutor)
 	ParentAgent Agent
 	SubAgents   []Agent
+	// Optional: markdown definitions source for built-in sub-agents.
+	SubAgentDefinitionsFS       fs.FS
+	SubAgentDefinitionsBasePath string
 
 	// Optional: Project-scoped prompt extension appended to parent agent system prompt.
 	ProjectPromptExtension         string
@@ -217,6 +221,7 @@ type ModuleConfig struct {
 	resolvedProjectPromptExtension string
 	projectPromptExtensionResolved bool
 	capabilitiesConfigured         bool
+	subAgentsInitialized           bool
 	titleGenerationService         services.TitleGenerationService
 	titleJobQueue                  *services.RedisTitleJobQueue
 	skillsCatalog                  *bichatskills.Catalog
@@ -360,6 +365,15 @@ func WithCheckpointer(checkpointer Checkpointer) ConfigOption {
 func WithSubAgents(subAgents ...Agent) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.SubAgents = append(c.SubAgents, subAgents...)
+	}
+}
+
+// WithSubAgentDefinitionsSource overrides markdown definitions source used to
+// build built-in multi-agent sub-agents.
+func WithSubAgentDefinitionsSource(source fs.FS, basePath string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.SubAgentDefinitionsFS = source
+		c.SubAgentDefinitionsBasePath = strings.TrimSpace(basePath)
 	}
 }
 
@@ -538,32 +552,34 @@ func NewModuleConfig(
 	opts ...ConfigOption,
 ) *ModuleConfig {
 	cfg := &ModuleConfig{
-		TenantID:                 tenantID,
-		UserID:                   userID,
-		ChatRepo:                 chatRepo,
-		Model:                    model,
-		ContextPolicy:            policy,
-		ParentAgent:              parentAgent,
-		SubAgents:                []Agent{},
-		Logger:                   logrus.New(),
-		Profile:                  FeatureProfileMinimal,
-		AttachmentStorageMode:    AttachmentStorageModeLocal,
-		TitleGenerationMode:      TitleGenerationModeEnabled,
-		TitleQueueStream:         defaultTitleQueueStream,
-		TitleQueueGroup:          defaultTitleQueueGroup,
-		TitleQueuePollInterval:   defaultTitleQueuePollInterval,
-		TitleQueueReadBlock:      defaultTitleQueueReadBlock,
-		TitleQueueBatchSize:      defaultTitleQueueBatchSize,
-		TitleQueueMaxRetries:     defaultTitleQueueMaxRetries,
-		TitleQueueRetryBaseDelay: defaultTitleQueueRetryBaseDelay,
-		TitleQueueRetryMaxDelay:  defaultTitleQueueRetryMaxDelay,
-		TitleQueuePendingIdle:    defaultTitleQueuePendingIdle,
-		TitleQueueReconcileEvery: defaultTitleQueueReconcileEvery,
-		TitleQueueReconcileBatch: defaultTitleQueueReconcileBatch,
-		TitleQueueDedupeTTL:      defaultTitleQueueDedupeTTL,
-		TitleQueueJobTimeout:     defaultTitleQueueJobTimeout,
-		SkillsSelectionLimit:     defaultSkillsSelectionLimit,
-		SkillsMaxChars:           defaultSkillsMaxChars,
+		TenantID:                    tenantID,
+		UserID:                      userID,
+		ChatRepo:                    chatRepo,
+		Model:                       model,
+		ContextPolicy:               policy,
+		ParentAgent:                 parentAgent,
+		SubAgents:                   []Agent{},
+		SubAgentDefinitionsFS:       bichatagents.DefaultSubAgentDefinitionsFS(),
+		SubAgentDefinitionsBasePath: bichatagents.DefaultSubAgentDefinitionsBasePath,
+		Logger:                      logrus.New(),
+		Profile:                     FeatureProfileMinimal,
+		AttachmentStorageMode:       AttachmentStorageModeLocal,
+		TitleGenerationMode:         TitleGenerationModeEnabled,
+		TitleQueueStream:            defaultTitleQueueStream,
+		TitleQueueGroup:             defaultTitleQueueGroup,
+		TitleQueuePollInterval:      defaultTitleQueuePollInterval,
+		TitleQueueReadBlock:         defaultTitleQueueReadBlock,
+		TitleQueueBatchSize:         defaultTitleQueueBatchSize,
+		TitleQueueMaxRetries:        defaultTitleQueueMaxRetries,
+		TitleQueueRetryBaseDelay:    defaultTitleQueueRetryBaseDelay,
+		TitleQueueRetryMaxDelay:     defaultTitleQueueRetryMaxDelay,
+		TitleQueuePendingIdle:       defaultTitleQueuePendingIdle,
+		TitleQueueReconcileEvery:    defaultTitleQueueReconcileEvery,
+		TitleQueueReconcileBatch:    defaultTitleQueueReconcileBatch,
+		TitleQueueDedupeTTL:         defaultTitleQueueDedupeTTL,
+		TitleQueueJobTimeout:        defaultTitleQueueJobTimeout,
+		SkillsSelectionLimit:        defaultSkillsSelectionLimit,
+		SkillsMaxChars:              defaultSkillsMaxChars,
 	}
 
 	// Apply options
@@ -613,8 +629,8 @@ func NewModuleConfig(
 		cfg.Capabilities = capabilitiesFromProfile
 	}
 
-	// Setup multi-agent system if enabled
-	if cfg.Capabilities.MultiAgent && cfg.QueryExecutor != nil {
+	// Setup multi-agent system if enabled.
+	if cfg.Capabilities.MultiAgent {
 		if err := cfg.setupMultiAgentSystem(); err != nil {
 			cfg.Logger.WithError(err).Warn("Failed to setup multi-agent system, continuing without delegation")
 		}
@@ -623,91 +639,70 @@ func NewModuleConfig(
 	return cfg
 }
 
-// setupMultiAgentSystem creates and configures the agent registry with sub-agents.
-// This is called automatically during NewModuleConfig if multi-agent capability is enabled.
-//
-// The registry is stored in ModuleConfig and can be accessed at execution time
-// to create delegation tools with runtime session/tenant IDs.
-//
-// If the ParentAgent is a DefaultBIAgent, it will be updated with the registry
-// so it can include available agents in its system prompt.
+// setupMultiAgentSystem initializes shared multi-agent registry state.
+// Concrete sub-agent definitions are loaded during BuildServices.
 func (c *ModuleConfig) setupMultiAgentSystem() error {
-	const op serrors.Op = "ModuleConfig.setupMultiAgentSystem"
+	if c.AgentRegistry == nil {
+		c.AgentRegistry = agents.NewAgentRegistry()
+	}
+	return nil
+}
 
-	// Create agent registry if not already created
+func (c *ModuleConfig) setupConfiguredSubAgents(fileStorage storage.FileStorage) error {
+	const op serrors.Op = "ModuleConfig.setupConfiguredSubAgents"
+
+	if !c.Capabilities.MultiAgent {
+		return nil
+	}
+	if c.subAgentsInitialized {
+		return nil
+	}
 	if c.AgentRegistry == nil {
 		c.AgentRegistry = agents.NewAgentRegistry()
 	}
 
-	// Create and register SQL agent if query executor is available
-	if c.QueryExecutor != nil {
-		sqlAgent, err := bichatagents.NewSQLAgent(c.QueryExecutor)
-		if err != nil {
-			return serrors.E(op, err, "failed to create SQL agent")
-		}
-
-		// Register SQL agent in registry
-		if err := c.AgentRegistry.Register(sqlAgent); err != nil {
-			return serrors.E(op, err, "failed to register SQL agent")
-		}
-
-		// Add to SubAgents list for tracking
-		c.SubAgents = append(c.SubAgents, sqlAgent)
-
-		c.Logger.Info("Multi-agent system initialized with SQL analyst agent")
+	definitions, err := bichatagents.LoadSubAgentDefinitions(
+		c.SubAgentDefinitionsFS,
+		c.SubAgentDefinitionsBasePath,
+	)
+	if err != nil {
+		return serrors.E(op, err, "failed to load sub-agent definitions")
 	}
 
-	// If parent agent is a DefaultBIAgent, update it with registry for system prompt
-	// Note: We don't recreate the agent here because the agent options (tools, KB searcher)
-	// may have already been configured. Instead, we rely on the agent being created
-	// with WithAgentRegistry option in the module setup code.
-	// The registry is available via c.AgentRegistry for service layer to use.
-
-	return nil
-}
-
-// setupExcelSubAgent registers an Excel-focused sub-agent in the existing registry.
-// It requires repository and storage dependencies to inspect uploaded spreadsheet attachments.
-// This is called from BuildServices after file storage is initialized.
-func (c *ModuleConfig) setupExcelSubAgent(fileStorage storage.FileStorage) error {
-	const op serrors.Op = "ModuleConfig.setupExcelSubAgent"
-
-	if c.AgentRegistry == nil {
-		return nil
-	}
-
-	if c.ChatRepo == nil {
-		return serrors.E(op, serrors.KindValidation, "ChatRepository is required for excel sub-agent")
-	}
-
-	if fileStorage == nil {
-		c.Logger.Info("Skipping Excel sub-agent setup: file storage is not available")
-		return nil
-	}
-
-	if _, exists := c.AgentRegistry.Get("excel-analyst"); exists {
-		return nil
-	}
-
-	opts := make([]bichatagents.ExcelAgentOption, 0, 2)
+	buildOpts := make([]bichatagents.SubAgentBuildOption, 0, 1)
 	if c.Model != nil {
 		if modelName := strings.TrimSpace(c.Model.Info().Name); modelName != "" {
-			opts = append(opts, bichatagents.WithExcelAgentModel(modelName))
+			buildOpts = append(buildOpts, bichatagents.WithSubAgentModel(modelName))
 		}
 	}
 
-	excelAgent, err := bichatagents.NewExcelAgent(c.ChatRepo, fileStorage, opts...)
-	if err != nil {
-		return serrors.E(op, err, "failed to create Excel agent")
+	deps := bichatagents.SubAgentDependencies{
+		QueryExecutor:  c.QueryExecutor,
+		ChatRepository: c.ChatRepo,
+		FileStorage:    fileStorage,
 	}
 
-	if err := c.AgentRegistry.Register(excelAgent); err != nil {
-		return serrors.E(op, err, "failed to register Excel agent")
+	for _, def := range definitions {
+		subAgent, err := bichatagents.BuildSubAgent(def, deps, buildOpts...)
+		if err != nil {
+			return serrors.E(op, err, fmt.Sprintf("failed to build sub-agent %q", def.Name))
+		}
+		if err := c.AgentRegistry.Register(subAgent); err != nil {
+			return serrors.E(op, err, fmt.Sprintf("failed to register sub-agent %q", def.Name))
+		}
 	}
 
-	c.SubAgents = append(c.SubAgents, excelAgent)
-	c.Logger.Info("Multi-agent system initialized with Excel analyst agent")
+	for _, subAgent := range c.SubAgents {
+		if subAgent == nil {
+			return serrors.E(op, serrors.KindValidation, "custom sub-agent cannot be nil")
+		}
+		if err := c.AgentRegistry.Register(subAgent); err != nil {
+			return serrors.E(op, err, fmt.Sprintf("failed to register custom sub-agent %q", subAgent.Name()))
+		}
+	}
 
+	c.subAgentsInitialized = true
+	c.Logger.WithField("count", len(c.AgentRegistry.All())).Info("Multi-agent system initialized from markdown definitions")
 	return nil
 }
 
@@ -989,7 +984,7 @@ func (c *ModuleConfig) BuildServices() error {
 
 	// Create file storage once for attachment/artifact services and artifact_reader tool wiring.
 	var fileStorage storage.FileStorage
-	needsFileStorage := c.ParentAgent == nil || c.attachmentService == nil || c.artifactService == nil || c.Capabilities.CodeInterpreter
+	needsFileStorage := c.ParentAgent == nil || c.attachmentService == nil || c.artifactService == nil || c.Capabilities.CodeInterpreter || c.Capabilities.MultiAgent
 	if needsFileStorage {
 		fs, err := c.createFileStorage()
 		if err != nil {
@@ -1013,11 +1008,10 @@ func (c *ModuleConfig) BuildServices() error {
 		}
 	}
 
-	// Register Excel sub-agent before building default parent so delegation descriptions include it.
-	if c.Capabilities.MultiAgent {
-		if err := c.setupExcelSubAgent(fileStorage); err != nil {
-			return serrors.E(op, err, "failed to setup Excel sub-agent")
-		}
+	// Register markdown-defined and custom sub-agents before building default parent
+	// so delegation descriptions include all available agents.
+	if err := c.setupConfiguredSubAgents(fileStorage); err != nil {
+		return serrors.E(op, err, "failed to setup configured sub-agents")
 	}
 
 	// Build default parent agent from config when caller did not provide one.
