@@ -143,7 +143,7 @@ func NewDefaultBIAgent(
 
 	agent := &DefaultBIAgent{
 		executor: executor,
-		model:    "gpt-4", // Default model
+		model:    "gpt-5.2-2025-12-11", // Default model
 	}
 
 	// Apply options first to configure dependencies

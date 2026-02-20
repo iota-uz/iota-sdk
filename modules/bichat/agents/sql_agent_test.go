@@ -43,7 +43,7 @@ func TestNewSQLAgent(t *testing.T) {
 	assert.Equal(t, "sql-analyst", metadata.Name)
 	assert.Equal(t, "Specialized agent for SQL query generation and database analysis", metadata.Description)
 	assert.Contains(t, metadata.WhenToUse, "SQL queries")
-	assert.Equal(t, "gpt-4", metadata.Model)
+	assert.Equal(t, "gpt-5.2-2025-12-11", metadata.Model)
 	assert.Equal(t, []string{agents.ToolFinalAnswer}, metadata.TerminationTools)
 }
 

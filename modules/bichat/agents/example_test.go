@@ -33,7 +33,7 @@ func ExampleNewDefaultBIAgent() {
 
 	// Output:
 	// Agent name: bi_agent
-	// Agent model: gpt-4
+	// Agent model: gpt-5.2-2025-12-11
 	// Number of tools: 7
 }
 

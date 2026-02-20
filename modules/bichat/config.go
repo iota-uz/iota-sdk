@@ -623,7 +623,7 @@ func (c *ModuleConfig) setupMultiAgentSystem() error {
 		// Add to SubAgents list for tracking
 		c.SubAgents = append(c.SubAgents, sqlAgent)
 
-		c.Logger.Info("Multi-agent system initialized with SQL analyst agent")
+	c.Logger.Info("Multi-agent system initialized with SQL analyst agent")
 	}
 
 	// If parent agent is a DefaultBIAgent, update it with registry for system prompt
@@ -631,6 +631,51 @@ func (c *ModuleConfig) setupMultiAgentSystem() error {
 	// may have already been configured. Instead, we rely on the agent being created
 	// with WithAgentRegistry option in the module setup code.
 	// The registry is available via c.AgentRegistry for service layer to use.
+
+	return nil
+}
+
+// setupExcelSubAgent registers an Excel-focused sub-agent in the existing registry.
+// It requires repository and storage dependencies to inspect uploaded spreadsheet attachments.
+// This is called from BuildServices after file storage is initialized.
+func (c *ModuleConfig) setupExcelSubAgent(fileStorage storage.FileStorage) error {
+	const op serrors.Op = "ModuleConfig.setupExcelSubAgent"
+
+	if c.AgentRegistry == nil {
+		return nil
+	}
+
+	if c.ChatRepo == nil {
+		return serrors.E(op, serrors.KindValidation, "ChatRepository is required for excel sub-agent")
+	}
+
+	if fileStorage == nil {
+		c.Logger.Info("Skipping Excel sub-agent setup: file storage is not available")
+		return nil
+	}
+
+	if _, exists := c.AgentRegistry.Get("excel-analyst"); exists {
+		return nil
+	}
+
+	opts := make([]bichatagents.ExcelAgentOption, 0, 2)
+	if c.Model != nil {
+		if modelName := strings.TrimSpace(c.Model.Info().Name); modelName != "" {
+			opts = append(opts, bichatagents.WithExcelAgentModel(modelName))
+		}
+	}
+
+	excelAgent, err := bichatagents.NewExcelAgent(c.ChatRepo, fileStorage, opts...)
+	if err != nil {
+		return serrors.E(op, err, "failed to create Excel agent")
+	}
+
+	if err := c.AgentRegistry.Register(excelAgent); err != nil {
+		return serrors.E(op, err, "failed to register Excel agent")
+	}
+
+	c.SubAgents = append(c.SubAgents, excelAgent)
+	c.Logger.Info("Multi-agent system initialized with Excel analyst agent")
 
 	return nil
 }
@@ -898,6 +943,13 @@ func (c *ModuleConfig) BuildServices() error {
 					return serrors.E(op, err)
 				}
 			}
+		}
+	}
+
+	// Register Excel sub-agent before building default parent so delegation descriptions include it.
+	if c.Capabilities.MultiAgent {
+		if err := c.setupExcelSubAgent(fileStorage); err != nil {
+			return serrors.E(op, err, "failed to setup Excel sub-agent")
 		}
 	}
 
