@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -143,7 +144,12 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 
 	domainAttachments, err := convertAttachmentDTOs(r.Context(), req.Attachments)
 	if err != nil {
-		http.Error(w, "Invalid attachments", http.StatusBadRequest)
+		message := "Invalid attachments"
+		errorText := err.Error()
+		if strings.Contains(errorText, "uploadId is required") || strings.Contains(errorText, "uploadId not found") {
+			message = fmt.Sprintf("Invalid attachments: %s; upload artifacts first", errorText)
+		}
+		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
 

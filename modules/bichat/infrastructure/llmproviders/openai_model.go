@@ -1,8 +1,11 @@
 package llmproviders
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -12,6 +15,7 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
@@ -375,7 +379,7 @@ func (m *OpenAIModel) buildResponseParams(ctx context.Context, req agents.Reques
 	}
 
 	// Build input items from messages
-	inputItems := m.buildInputItems(req.Messages)
+	inputItems := m.buildInputItemsWithContext(ctx, req.Messages)
 	params.Input = responses.ResponseNewParamsInputUnion{
 		OfInputItemList: inputItems,
 	}
@@ -532,8 +536,13 @@ func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []strin
 
 // buildInputItems converts types.Message slice to Responses API input items.
 func (m *OpenAIModel) buildInputItems(messages []types.Message) responses.ResponseInputParam {
+	return m.buildInputItemsWithContext(context.Background(), messages)
+}
+
+func (m *OpenAIModel) buildInputItemsWithContext(ctx context.Context, messages []types.Message) responses.ResponseInputParam {
 	items := make(responses.ResponseInputParam, 0, len(messages))
 	skippedToolCallIDs := make(map[string]struct{})
+	imageUploadFileIDs := make(map[int64]string)
 
 	for _, msg := range messages {
 		switch msg.Role() {
@@ -553,7 +562,50 @@ func (m *OpenAIModel) buildInputItems(messages []types.Message) responses.Respon
 				}
 				nonImageNotes := make([]string, 0, len(msg.Attachments()))
 				for _, attachment := range msg.Attachments() {
-					if strings.HasPrefix(strings.ToLower(strings.TrimSpace(attachment.MimeType)), "image/") && strings.TrimSpace(attachment.FilePath) != "" {
+					if strings.HasPrefix(strings.ToLower(strings.TrimSpace(attachment.MimeType)), "image/") {
+						if attachment.UploadID != nil && *attachment.UploadID > 0 {
+							uploadID := *attachment.UploadID
+							fileID := imageUploadFileIDs[uploadID]
+							if fileID == "" {
+								fileID = m.resolveImageUploadFileID(ctx, uploadID, attachment.FileName, attachment.MimeType)
+								if fileID != "" {
+									imageUploadFileIDs[uploadID] = fileID
+								}
+							}
+							if fileID != "" {
+								parts = append(parts, responses.ResponseInputContentUnionParam{
+									OfInputImage: &responses.ResponseInputImageParam{
+										FileID: openai.String(fileID),
+										Detail: responses.ResponseInputImageDetailLow,
+									},
+								})
+								continue
+							}
+
+							// Do not fallback to image_url for upload-backed images when file_id
+							// resolution fails, because URLs are often private/internal.
+							nonImageNotes = append(nonImageNotes, fmt.Sprintf(
+								"- %s (%s, %d bytes) [uploadId=%d; image embedding unavailable, use artifact_reader]",
+								attachment.FileName,
+								attachment.MimeType,
+								attachment.SizeBytes,
+								uploadID,
+							))
+							continue
+						}
+						if strings.TrimSpace(attachment.FilePath) == "" {
+							nonImageNotes = append(nonImageNotes, fmt.Sprintf("- %s (%s, %d bytes)", attachment.FileName, attachment.MimeType, attachment.SizeBytes))
+							continue
+						}
+						if isLikelyInaccessibleImageURL(attachment.FilePath) {
+							nonImageNotes = append(nonImageNotes, fmt.Sprintf(
+								"- %s (%s, %d bytes) [image URL inaccessible from provider, use artifact_reader]",
+								attachment.FileName,
+								attachment.MimeType,
+								attachment.SizeBytes,
+							))
+							continue
+						}
 						parts = append(parts, responses.ResponseInputContentUnionParam{
 							OfInputImage: &responses.ResponseInputImageParam{
 								ImageURL: openai.String(attachment.FilePath),
@@ -631,6 +683,100 @@ func (m *OpenAIModel) buildInputItems(messages []types.Message) responses.Respon
 	}
 
 	return items
+}
+
+func (m *OpenAIModel) resolveImageUploadFileID(
+	ctx context.Context,
+	uploadID int64,
+	fallbackName string,
+	fallbackMimeType string,
+) string {
+	if m == nil || m.client == nil || uploadID <= 0 {
+		return ""
+	}
+
+	uploadRepo := corepersistence.NewUploadRepository()
+	found, err := uploadRepo.GetByIDs(ctx, []uint{uint(uploadID)})
+	if err != nil {
+		m.logger.Warn(ctx, "failed to resolve image upload for OpenAI input_file", map[string]any{
+			"upload_id": uploadID,
+			"error":     err.Error(),
+		})
+		return ""
+	}
+	if len(found) == 0 {
+		m.logger.Warn(ctx, "image upload id not found for OpenAI input_file", map[string]any{
+			"upload_id": uploadID,
+		})
+		return ""
+	}
+
+	entity := found[0]
+	filename := strings.TrimSpace(entity.Name())
+	if filename == "" {
+		filename = strings.TrimSpace(fallbackName)
+	}
+	if filename == "" {
+		filename = "image"
+	}
+
+	mimeType := strings.TrimSpace(fallbackMimeType)
+	if entity.Mimetype() != nil {
+		mimeType = strings.TrimSpace(entity.Mimetype().String())
+	}
+
+	data, readErr := os.ReadFile(entity.Path())
+	if readErr != nil {
+		m.logger.Warn(ctx, "failed to read upload-backed image for OpenAI input_file", map[string]any{
+			"upload_id": uploadID,
+			"path":      entity.Path(),
+			"error":     readErr.Error(),
+		})
+		return ""
+	}
+	if len(data) == 0 {
+		return ""
+	}
+
+	uploaded, uploadErr := m.client.Files.New(ctx, openai.FileNewParams{
+		File:    openai.File(bytes.NewReader(data), filename, mimeType),
+		Purpose: openai.FilePurposeVision,
+	})
+	if uploadErr != nil {
+		m.logger.Warn(ctx, "failed to upload image to OpenAI files for input_image.file_id", map[string]any{
+			"upload_id": uploadID,
+			"filename":  filename,
+			"mime_type": mimeType,
+			"error":     uploadErr.Error(),
+		})
+		return ""
+	}
+
+	return strings.TrimSpace(uploaded.ID)
+}
+
+func isLikelyInaccessibleImageURL(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed == nil {
+		return false
+	}
+
+	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	if host == "" {
+		return false
+	}
+
+	switch host {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
 }
 
 // mapResponse converts a Responses API Response to agents.Response.

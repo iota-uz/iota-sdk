@@ -520,6 +520,7 @@ func convertToTypeAttachments(domainAttachments []domain.Attachment) []types.Att
 		result[i] = types.Attachment{
 			ID:        a.ID(),
 			MessageID: a.MessageID(),
+			UploadID:  a.UploadID(),
 			FileName:  a.FileName(),
 			MimeType:  a.MimeType(),
 			SizeBytes: a.SizeBytes(),
