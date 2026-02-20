@@ -183,11 +183,9 @@ CREATE INDEX IF NOT EXISTS idx_artifacts_message ON bichat.artifacts (message_id
 WHERE
     message_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_artifact_provider_files_provider
-    ON bichat.artifact_provider_files (tenant_id, provider, synced_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artifact_provider_files_provider ON bichat.artifact_provider_files (tenant_id, provider, synced_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_artifact_provider_files_file_id
-    ON bichat.artifact_provider_files (provider_file_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_provider_files_file_id ON bichat.artifact_provider_files (provider_file_id);
 
 CREATE INDEX IF NOT EXISTS idx_bichat_learnings_tenant ON bichat.learnings (tenant_id);
 
@@ -224,3 +222,4 @@ COMMENT ON TABLE bichat.artifact_provider_files IS 'Sync map between local artif
 COMMENT ON TABLE bichat.learnings IS 'Agent-captured learnings from SQL errors and user corrections';
 
 COMMENT ON TABLE bichat.validated_queries IS 'Proven SQL query patterns that answered prior questions';
+
