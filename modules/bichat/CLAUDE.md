@@ -177,6 +177,78 @@ Behavior:
 - Extension is appended in parent agent flow (`AgentService.ProcessMessage`).
 - Provider output takes precedence over static extension when non-empty.
 
+## Skills Tree (Codex/Claude-Style)
+
+BiChat supports a startup-loaded skills tree from markdown files. Skills are injected as a
+`KindReference` context block per turn (not merged into the base system prompt).
+
+### Directory Structure
+
+- Configure a global skills root directory.
+- Each skill must be a directory containing `SKILL.md`.
+- Skill slug is the directory path relative to root.
+
+Example:
+
+```text
+/opt/bichat/skills/
+  analytics/
+    sql-debug/
+      SKILL.md
+  finance/
+    month-end/
+      SKILL.md
+```
+
+### SKILL.md Frontmatter Schema
+
+```md
+---
+name: SQL Debugging
+description: Recover quickly from SQL errors in BI workflows.
+when_to_use:
+  - query error
+  - wrong column
+tags:
+  - sql
+  - debugging
+---
+
+# Optional heading
+
+Skill instructions body...
+```
+
+Required fields:
+- `name`
+- `description`
+- `when_to_use`
+- `tags`
+
+### Runtime Behavior
+
+- Skills are loaded and validated once during `BuildServices()`.
+- On each turn, BiChat auto-selects relevant skills by lexical overlap.
+- Users can force a skill with mention syntax: `@skill-slug` (example: `@finance/month-end`).
+- Default budget: top 3 skills and max 8000 rendered characters.
+- If skills loading fails, startup fails fast.
+
+### Configuration
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithSkillsDir("/opt/bichat/skills"),
+    bichat.WithSkillsSelectionLimit(3),
+    bichat.WithSkillsMaxChars(8000),
+)
+```
+
 ## Database Schema
 
 See: `infrastructure/persistence/schema/bichat-schema.sql`

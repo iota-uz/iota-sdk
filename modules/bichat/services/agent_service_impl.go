@@ -14,9 +14,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 // agentServiceImpl is the production implementation of AgentService.
@@ -33,6 +35,8 @@ type agentServiceImpl struct {
 	agentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	schemaMetadata         schema.MetadataProvider // Optional for table metadata
 	projectPromptExtension string
+	skillsSelector         bichatskills.Selector
+	logger                 *logrus.Logger
 	formatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
 
@@ -48,6 +52,8 @@ type AgentServiceConfig struct {
 	AgentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	SchemaMetadata         schema.MetadataProvider // Optional for table metadata
 	ProjectPromptExtension string
+	SkillsSelector         bichatskills.Selector
+	Logger                 *logrus.Logger
 	FormatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
 
@@ -71,6 +77,10 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 	if eventBus == nil {
 		eventBus = hooks.NewEventBus()
 	}
+	logger := cfg.Logger
+	if logger == nil {
+		logger = logrus.New()
+	}
 	return &agentServiceImpl{
 		agent:                  cfg.Agent,
 		model:                  cfg.Model,
@@ -82,6 +92,8 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 		agentRegistry:          cfg.AgentRegistry,
 		schemaMetadata:         cfg.SchemaMetadata,
 		projectPromptExtension: strings.TrimSpace(cfg.ProjectPromptExtension),
+		skillsSelector:         cfg.SkillsSelector,
+		logger:                 logger,
 		formatterRegistry:      cfg.FormatterRegistry,
 	}
 }
@@ -155,6 +167,16 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 		if err == nil && len(metadata) > 0 {
 			metadataCodec := codecs.NewSchemaMetadataCodec()
 			builder.Reference(metadataCodec, codecs.SchemaMetadataPayload{Tables: metadata})
+		}
+	}
+	if s.skillsSelector != nil {
+		selection, err := s.skillsSelector.Select(ctx, bichatskills.SelectionRequest{
+			Message: content,
+		})
+		if err != nil {
+			s.logger.WithError(err).Warn("failed to select skills context; continuing without skills")
+		} else if selection.Reference != "" {
+			builder.Reference(codecs.NewSystemRulesCodec(), selection.Reference)
 		}
 	}
 

@@ -3,6 +3,8 @@ package bichat
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -330,4 +332,57 @@ func TestModuleConfig_Validate_InvalidCodeInterpreterMemoryLimit(t *testing.T) {
 	err := cfg.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "CodeInterpreterMemoryLimit")
+}
+
+func TestModuleConfig_BuildServices_LoadsSkillsCatalog(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestSkillFile(t, root, "analytics/sql-debug", `---
+name: SQL Debugging
+description: Recover from SQL errors
+when_to_use:
+  - sql error
+tags:
+  - sql
+---
+Use schema tools before retrying.
+`)
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithSkillsDir(root),
+	)
+
+	err := cfg.BuildServices()
+	require.NoError(t, err)
+	require.NotNil(t, cfg.skillsCatalog)
+	assert.Len(t, cfg.skillsCatalog.Skills, 1)
+	require.NotNil(t, cfg.skillsSelector)
+}
+
+func TestModuleConfig_BuildServices_InvalidSkillsCatalogFails(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestSkillFile(t, root, "analytics/sql-debug", `---
+name: Broken
+description: Missing required fields
+---
+Body
+`)
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithSkillsDir(root),
+	)
+
+	err := cfg.BuildServices()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load skills catalog")
+}
+
+func writeTestSkillFile(t *testing.T, root, relDir, content string) {
+	t.Helper()
+	dir := filepath.Join(root, relDir)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 }

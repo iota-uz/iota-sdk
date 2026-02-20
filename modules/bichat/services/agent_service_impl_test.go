@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/stretchr/testify/assert"
@@ -735,6 +738,258 @@ func TestProcessMessage_AppendsDebugPromptAfterProjectPromptExtension(t *testing
 	)
 }
 
+func TestProcessMessage_IncludesSelectedSkillsReference(t *testing.T) {
+	t.Parallel()
+
+	skillsRoot := t.TempDir()
+	writeServiceTestSkillFile(t, skillsRoot, "analytics/sql-debug", `---
+name: SQL Debugging
+description: Recover quickly from SQL failures
+when_to_use:
+  - sql error
+  - missing column
+tags:
+  - sql
+---
+Inspect schema and retry safely.
+`)
+
+	catalog, err := bichatskills.LoadCatalog(skillsRoot)
+	require.NoError(t, err)
+	selector := bichatskills.NewSelector(catalog)
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:          agent,
+		Model:          model,
+		Policy:         policy,
+		Renderer:       renderer,
+		Checkpointer:   checkpointer,
+		EventBus:       hooks.NewEventBus(),
+		ChatRepo:       chatRepo,
+		SkillsSelector: selector,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "I have sql error in my query", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	var hasSkillsReference bool
+	for _, block := range rendered {
+		if block.Meta.Kind != bichatctx.KindReference {
+			continue
+		}
+		payload, ok := block.Payload.(string)
+		if !ok {
+			continue
+		}
+		if strings.Contains(payload, "@analytics/sql-debug") {
+			hasSkillsReference = true
+			break
+		}
+	}
+	assert.True(t, hasSkillsReference, "expected skills reference block with selected skill")
+}
+
+func TestProcessMessage_NoSkillsMatchDoesNotInjectReference(t *testing.T) {
+	t.Parallel()
+
+	skillsRoot := t.TempDir()
+	writeServiceTestSkillFile(t, skillsRoot, "analytics/sql-debug", `---
+name: SQL Debugging
+description: Recover quickly from SQL failures
+when_to_use:
+  - sql error
+tags:
+  - sql
+---
+Inspect schema and retry safely.
+`)
+
+	catalog, err := bichatskills.LoadCatalog(skillsRoot)
+	require.NoError(t, err)
+	selector := bichatskills.NewSelector(catalog)
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:          agent,
+		Model:          model,
+		Policy:         policy,
+		Renderer:       renderer,
+		Checkpointer:   checkpointer,
+		EventBus:       hooks.NewEventBus(),
+		ChatRepo:       chatRepo,
+		SkillsSelector: selector,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "hello there", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	for _, block := range rendered {
+		if block.Meta.Kind != bichatctx.KindReference {
+			continue
+		}
+		payload, ok := block.Payload.(string)
+		if !ok {
+			continue
+		}
+		assert.NotContains(t, payload, "SKILLS CONTEXT:")
+	}
+}
+
+func TestProcessMessage_MentionSelectsSkill(t *testing.T) {
+	t.Parallel()
+
+	skillsRoot := t.TempDir()
+	writeServiceTestSkillFile(t, skillsRoot, "finance/month-end", `---
+name: Month End
+description: Close month books and verify reconciliations
+when_to_use:
+  - month close
+tags:
+  - finance
+---
+Run period checks before closing.
+`)
+	writeServiceTestSkillFile(t, skillsRoot, "analytics/sql-debug", `---
+name: SQL Debugging
+description: Recover quickly from SQL failures
+when_to_use:
+  - sql error
+tags:
+  - sql
+---
+Inspect schema and retry safely.
+`)
+
+	catalog, err := bichatskills.LoadCatalog(skillsRoot)
+	require.NoError(t, err)
+	selector := bichatskills.NewSelector(catalog)
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:          agent,
+		Model:          model,
+		Policy:         policy,
+		Renderer:       renderer,
+		Checkpointer:   checkpointer,
+		EventBus:       hooks.NewEventBus(),
+		ChatRepo:       chatRepo,
+		SkillsSelector: selector,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "please use @finance/month-end checklist", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	var found bool
+	for _, block := range rendered {
+		if block.Meta.Kind != bichatctx.KindReference {
+			continue
+		}
+		payload, ok := block.Payload.(string)
+		if !ok {
+			continue
+		}
+		if strings.Contains(payload, "@finance/month-end") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected mention-selected skill in reference block")
+}
+
 func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {
 	t.Parallel()
 
@@ -791,6 +1046,13 @@ func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {
 	require.NotEmpty(t, model.requests)
 	require.NotNil(t, model.requests[0].PreviousResponseID)
 	assert.Equal(t, "resp_prev_42", *model.requests[0].PreviousResponseID)
+}
+
+func writeServiceTestSkillFile(t *testing.T, root, relDir, content string) {
+	t.Helper()
+	dir := filepath.Join(root, relDir)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 }
 
 func TestProcessMessage_MissingTenantID(t *testing.T) {

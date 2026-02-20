@@ -25,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	bichattools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
@@ -104,6 +105,8 @@ const (
 	defaultTitleQueueReconcileBatch = 200
 	defaultTitleQueueDedupeTTL      = 30 * time.Minute
 	defaultTitleQueueJobTimeout     = 20 * time.Second
+	defaultSkillsSelectionLimit     = 3
+	defaultSkillsMaxChars           = 8000
 )
 
 // ModuleConfig holds configuration for the bichat module.
@@ -130,6 +133,9 @@ type ModuleConfig struct {
 	// Optional: Project-scoped prompt extension appended to parent agent system prompt.
 	ProjectPromptExtension         string
 	ProjectPromptExtensionProvider prompts.ProjectPromptExtensionProvider
+	SkillsDir                      string
+	SkillsSelectionLimit           int
+	SkillsMaxChars                 int
 
 	// Optional: Agent Registry for multi-agent orchestration
 	AgentRegistry *agents.AgentRegistry
@@ -213,6 +219,8 @@ type ModuleConfig struct {
 	capabilitiesConfigured         bool
 	titleGenerationService         services.TitleGenerationService
 	titleJobQueue                  *services.RedisTitleJobQueue
+	skillsCatalog                  *bichatskills.Catalog
+	skillsSelector                 bichatskills.Selector
 }
 
 // ConfigOption is a functional option for ModuleConfig
@@ -303,6 +311,27 @@ func WithProjectPromptExtension(text string) ConfigOption {
 func WithProjectPromptExtensionProvider(provider prompts.ProjectPromptExtensionProvider) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.ProjectPromptExtensionProvider = provider
+	}
+}
+
+// WithSkillsDir sets the root directory containing SKILL.md files.
+func WithSkillsDir(dir string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.SkillsDir = strings.TrimSpace(dir)
+	}
+}
+
+// WithSkillsSelectionLimit sets the maximum number of skills to inject per turn.
+func WithSkillsSelectionLimit(limit int) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.SkillsSelectionLimit = limit
+	}
+}
+
+// WithSkillsMaxChars sets the maximum character budget for rendered skills context.
+func WithSkillsMaxChars(maxChars int) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.SkillsMaxChars = maxChars
 	}
 }
 
@@ -533,6 +562,8 @@ func NewModuleConfig(
 		TitleQueueReconcileBatch: defaultTitleQueueReconcileBatch,
 		TitleQueueDedupeTTL:      defaultTitleQueueDedupeTTL,
 		TitleQueueJobTimeout:     defaultTitleQueueJobTimeout,
+		SkillsSelectionLimit:     defaultSkillsSelectionLimit,
+		SkillsMaxChars:           defaultSkillsMaxChars,
 	}
 
 	// Apply options
@@ -623,7 +654,7 @@ func (c *ModuleConfig) setupMultiAgentSystem() error {
 		// Add to SubAgents list for tracking
 		c.SubAgents = append(c.SubAgents, sqlAgent)
 
-	c.Logger.Info("Multi-agent system initialized with SQL analyst agent")
+		c.Logger.Info("Multi-agent system initialized with SQL analyst agent")
 	}
 
 	// If parent agent is a DefaultBIAgent, update it with registry for system prompt
@@ -799,6 +830,15 @@ func (c *ModuleConfig) Validate() error {
 		}
 	}
 
+	if strings.TrimSpace(c.SkillsDir) != "" {
+		if c.SkillsSelectionLimit <= 0 {
+			return errors.New("SkillsSelectionLimit must be > 0 when SkillsDir is set")
+		}
+		if c.SkillsMaxChars <= 0 {
+			return errors.New("SkillsMaxChars must be > 0 when SkillsDir is set")
+		}
+	}
+
 	return nil
 }
 
@@ -889,6 +929,30 @@ func (c *ModuleConfig) resolveProjectPromptExtension() error {
 	return nil
 }
 
+func (c *ModuleConfig) resolveSkillsSelector() error {
+	if c.skillsSelector != nil {
+		return nil
+	}
+
+	skillsDir := strings.TrimSpace(c.SkillsDir)
+	if skillsDir == "" {
+		return nil
+	}
+
+	catalog, err := bichatskills.LoadCatalog(skillsDir)
+	if err != nil {
+		return err
+	}
+
+	c.skillsCatalog = catalog
+	c.skillsSelector = bichatskills.NewSelector(
+		catalog,
+		bichatskills.WithSelectionLimit(c.SkillsSelectionLimit),
+		bichatskills.WithMaxChars(c.SkillsMaxChars),
+	)
+	return nil
+}
+
 func (c *ModuleConfig) createFileStorage() (storage.FileStorage, error) {
 	switch c.AttachmentStorageMode {
 	case AttachmentStorageModeNoOp:
@@ -918,6 +982,9 @@ func (c *ModuleConfig) BuildServices() error {
 
 	if err := c.resolveProjectPromptExtension(); err != nil {
 		return serrors.E(op, err, "failed to resolve project prompt extension")
+	}
+	if err := c.resolveSkillsSelector(); err != nil {
+		return serrors.E(op, err, "failed to load skills catalog")
 	}
 
 	// Create file storage once for attachment/artifact services and artifact_reader tool wiring.
@@ -971,6 +1038,8 @@ func (c *ModuleConfig) BuildServices() error {
 			AgentRegistry:          c.AgentRegistry,
 			SchemaMetadata:         c.SchemaMetadataProvider,
 			ProjectPromptExtension: c.resolvedProjectPromptExtension,
+			SkillsSelector:         c.skillsSelector,
+			Logger:                 c.Logger,
 			FormatterRegistry:      formatters.DefaultFormatterRegistry(),
 		})
 	}
