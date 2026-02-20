@@ -221,7 +221,62 @@ COMMENT ON TABLE bichat.artifacts IS 'Generic artifact storage for session outpu
 COMMENT ON COLUMN bichat.artifacts.type IS 'Artifact type (code_output, chart, export, etc.) - extensible';
 COMMENT ON COLUMN bichat.artifacts.metadata IS 'Type-specific data as JSONB (chart spec, row counts, etc.)';
 
+CREATE TABLE IF NOT EXISTS bichat.artifact_provider_files (
+    tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
+    artifact_id uuid NOT NULL REFERENCES bichat.artifacts (id) ON DELETE CASCADE,
+    provider varchar(50) NOT NULL,
+    provider_file_id varchar(255) NOT NULL,
+    source_url text NOT NULL,
+    source_size_bytes bigint NOT NULL DEFAULT 0,
+    synced_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    updated_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, artifact_id, provider)
+);
+
+CREATE INDEX IF NOT EXISTS idx_artifact_provider_files_provider
+    ON bichat.artifact_provider_files (tenant_id, provider, synced_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_artifact_provider_files_file_id
+    ON bichat.artifact_provider_files (provider_file_id);
+
+-- Move attachments to core upload linkage for artifacts.
+DELETE FROM bichat.artifacts;
+
+ALTER TABLE IF EXISTS bichat.artifacts
+    ADD COLUMN IF NOT EXISTS upload_id bigint REFERENCES public.uploads (id) ON DELETE RESTRICT;
+
+ALTER TABLE IF EXISTS bichat.artifacts
+    DROP CONSTRAINT IF EXISTS artifacts_attachment_requires_upload;
+
+ALTER TABLE IF EXISTS bichat.artifacts
+    DROP CONSTRAINT IF EXISTS artifacts_attachment_requires_upload_chk;
+
+ALTER TABLE IF EXISTS bichat.artifacts
+    ADD CONSTRAINT artifacts_attachment_requires_upload
+    CHECK (type <> 'attachment' OR upload_id IS NOT NULL);
+
+CREATE INDEX IF NOT EXISTS idx_artifacts_upload ON bichat.artifacts (upload_id)
+    WHERE upload_id IS NOT NULL;
+
+DROP TABLE IF EXISTS bichat.attachments;
+
 -- +migrate Down
+DROP INDEX IF EXISTS bichat.idx_artifacts_upload;
+
+ALTER TABLE IF EXISTS bichat.artifacts
+    DROP CONSTRAINT IF EXISTS artifacts_attachment_requires_upload;
+
+ALTER TABLE IF EXISTS bichat.artifacts
+    DROP CONSTRAINT IF EXISTS artifacts_attachment_requires_upload_chk;
+
+ALTER TABLE IF EXISTS bichat.artifacts
+    DROP COLUMN IF EXISTS upload_id;
+
+DROP INDEX IF EXISTS bichat.idx_artifact_provider_files_file_id;
+DROP INDEX IF EXISTS bichat.idx_artifact_provider_files_provider;
+DROP TABLE IF EXISTS bichat.artifact_provider_files;
+
 DROP TABLE IF EXISTS bichat.artifacts;
 -- Drop bichat schema (cascades to all tables and indexes)
 DROP SCHEMA IF EXISTS bichat CASCADE;
