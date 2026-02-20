@@ -192,6 +192,23 @@ END $$;
 COMMENT ON SCHEMA analytics IS 'Denormalized views for BiChat query executor with automatic tenant isolation using current_setting(''app.tenant_id'', true)::UUID pattern.';
 
 -- +migrate StatementEnd
+-- Code interpreter outputs table
+CREATE TABLE IF NOT EXISTS bichat.code_interpreter_outputs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    message_id uuid NOT NULL REFERENCES bichat.messages (id) ON DELETE CASCADE,
+    name varchar(255) NOT NULL,
+    mime_type varchar(100) NOT NULL,
+    url text NOT NULL,
+    size_bytes bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT NOW()
+);
+
+-- Index for fast lookup by message
+CREATE INDEX idx_code_outputs_message ON bichat.code_interpreter_outputs (message_id);
+
+-- Index for created_at ordering
+CREATE INDEX idx_code_outputs_created_at ON bichat.code_interpreter_outputs (created_at);
+
 -- Generic artifacts table for extensible artifact storage
 CREATE TABLE IF NOT EXISTS bichat.artifacts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -205,17 +222,13 @@ CREATE TABLE IF NOT EXISTS bichat.artifacts (
     url text,
     size_bytes bigint DEFAULT 0,
     metadata jsonb DEFAULT '{}',
-    status varchar(32) NOT NULL DEFAULT 'available',
-    idempotency_key varchar(255),
-    created_at timestamp with time zone NOT NULL DEFAULT NOW(),
-    CONSTRAINT artifacts_status_check CHECK (status IN ('pending_upload', 'available', 'failed', 'deleted'))
+    created_at timestamp with time zone NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_artifacts_session ON bichat.artifacts(session_id, created_at DESC);
 CREATE INDEX idx_artifacts_tenant ON bichat.artifacts(tenant_id);
 CREATE INDEX idx_artifacts_type ON bichat.artifacts(type);
 CREATE INDEX idx_artifacts_message ON bichat.artifacts(message_id) WHERE message_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_artifacts_idempotency ON bichat.artifacts(tenant_id, session_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 COMMENT ON TABLE bichat.artifacts IS 'Generic artifact storage for session outputs (charts, exports, code outputs, etc.)';
 COMMENT ON COLUMN bichat.artifacts.type IS 'Artifact type (code_output, chart, export, etc.) - extensible';
