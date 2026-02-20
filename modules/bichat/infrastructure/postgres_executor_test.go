@@ -389,6 +389,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_NoGlobalRowLimit(t *testing.T) {
 
 	// Executor should not apply a global 1000-row cap.
 	assert.Equal(t, 1500, result.RowCount)
+	assert.Len(t, result.Rows, 1500)
 	assert.False(t, result.Truncated)
 }
 

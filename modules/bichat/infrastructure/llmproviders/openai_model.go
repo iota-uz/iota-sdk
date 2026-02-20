@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	openai "github.com/openai/openai-go/v3"
@@ -26,6 +27,7 @@ import (
 // It provides both blocking and streaming modes with native tool support
 // including web_search and code_interpreter (handled by the API).
 type OpenAIModel struct {
+	mu                           sync.RWMutex
 	client                       *openai.Client
 	modelName                    string
 	logger                       logging.Logger
@@ -42,6 +44,7 @@ const (
 	defaultCodeInterpreterMemoryLimit = "4g"
 	defaultCodeInterpreterFileLimit   = 20
 	codeInterpreterProviderOpenAI     = "openai"
+	maxOpenAIFileUploadBytes          = 512 << 20 // 512MB
 )
 
 type artifactProviderFileSyncRepository interface {
@@ -61,8 +64,15 @@ func WithLogger(logger logging.Logger) OpenAIModelOption {
 func WithCodeInterpreterMemoryLimit(limit string) OpenAIModelOption {
 	return func(m *OpenAIModel) {
 		if normalized, ok := normalizeCodeInterpreterMemoryLimit(limit); ok {
+			m.mu.Lock()
 			m.codeInterpreterMemoryLimit = normalized
+			m.mu.Unlock()
+			return
 		}
+		m.logger.Warn(context.Background(), "invalid code_interpreter memory limit option ignored", map[string]any{
+			"provided_limit": limit,
+			"allowed_values": []string{"1g", "4g", "16g", "64g"},
+		})
 	}
 }
 
@@ -70,8 +80,10 @@ func WithCodeInterpreterMemoryLimit(limit string) OpenAIModelOption {
 // uploaded session artifacts can be passed to code_interpreter as file_ids.
 func WithCodeInterpreterArtifactSource(repo domain.ChatRepository, fileStorage storage.FileStorage) OpenAIModelOption {
 	return func(m *OpenAIModel) {
+		m.mu.Lock()
 		m.chatRepo = repo
 		m.fileStorage = fileStorage
+		m.mu.Unlock()
 	}
 }
 
@@ -80,7 +92,9 @@ func WithCodeInterpreterArtifactSource(repo domain.ChatRepository, fileStorage s
 func WithCodeInterpreterArtifactLimit(limit int) OpenAIModelOption {
 	return func(m *OpenAIModel) {
 		if limit > 0 {
+			m.mu.Lock()
 			m.codeInterpreterArtifactLimit = limit
+			m.mu.Unlock()
 		}
 	}
 }
@@ -429,7 +443,7 @@ func (m *OpenAIModel) buildResponseParams(ctx context.Context, req agents.Reques
 		case "code_interpreter":
 			tools = append(tools, responses.ToolParamOfCodeInterpreter(
 				responses.ToolCodeInterpreterContainerCodeInterpreterContainerAutoParam{
-					MemoryLimit: m.codeInterpreterMemoryLimit,
+					MemoryLimit: m.getCodeInterpreterMemoryLimit(),
 					FileIDs:     codeInterpreterFileIDs,
 				},
 			))
@@ -469,28 +483,46 @@ func (m *OpenAIModel) SetCodeInterpreterMemoryLimit(limit string) error {
 	if !ok {
 		return serrors.E(op, serrors.KindValidation, "invalid code interpreter memory limit: must be one of 1g, 4g, 16g, 64g")
 	}
+	m.mu.Lock()
 	m.codeInterpreterMemoryLimit = normalized
+	m.mu.Unlock()
 	return nil
 }
 
 // SetCodeInterpreterArtifactSource configures the session artifact source and storage
 // used to upload attachments to OpenAI Files for code_interpreter.
 func (m *OpenAIModel) SetCodeInterpreterArtifactSource(repo domain.ChatRepository, fileStorage storage.FileStorage) {
+	m.mu.Lock()
 	m.chatRepo = repo
 	m.fileStorage = fileStorage
+	m.mu.Unlock()
 }
 
 func normalizeCodeInterpreterMemoryLimit(limit string) (string, bool) {
-	switch strings.ToLower(strings.TrimSpace(limit)) {
+	normalized := strings.ToLower(strings.TrimSpace(limit))
+	switch normalized {
 	case "1g", "4g", "16g", "64g":
-		return strings.ToLower(strings.TrimSpace(limit)), true
+		return normalized, true
 	default:
 		return "", false
 	}
 }
 
+func (m *OpenAIModel) getCodeInterpreterMemoryLimit() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.codeInterpreterMemoryLimit
+}
+
 func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []string {
-	if m.chatRepo == nil || m.fileStorage == nil || m.client == nil {
+	m.mu.RLock()
+	chatRepo := m.chatRepo
+	fileStorage := m.fileStorage
+	client := m.client
+	limit := m.codeInterpreterArtifactLimit
+	m.mu.RUnlock()
+
+	if chatRepo == nil || fileStorage == nil || client == nil {
 		return nil
 	}
 
@@ -499,12 +531,11 @@ func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []strin
 		return nil
 	}
 
-	limit := m.codeInterpreterArtifactLimit
 	if limit <= 0 {
 		limit = defaultCodeInterpreterFileLimit
 	}
 
-	artifacts, err := m.chatRepo.GetSessionArtifacts(ctx, sessionID, domain.ListOptions{
+	artifacts, err := chatRepo.GetSessionArtifacts(ctx, sessionID, domain.ListOptions{
 		Limit:  limit,
 		Offset: 0,
 		Types:  []domain.ArtifactType{domain.ArtifactTypeAttachment},
@@ -520,7 +551,7 @@ func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []strin
 	fileIDs := make([]string, 0, len(artifacts))
 	seenURLs := make(map[string]struct{}, len(artifacts))
 	var syncRepo artifactProviderFileSyncRepository
-	if repo, ok := m.chatRepo.(artifactProviderFileSyncRepository); ok {
+	if repo, ok := chatRepo.(artifactProviderFileSyncRepository); ok {
 		syncRepo = repo
 	}
 	for _, artifact := range artifacts {
@@ -548,7 +579,7 @@ func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []strin
 			}
 		}
 
-		rc, err := m.fileStorage.Get(ctx, fileURL)
+		rc, err := fileStorage.Get(ctx, fileURL)
 		if err != nil {
 			m.logger.Warn(ctx, "failed to open artifact content for code_interpreter upload", map[string]any{
 				"session_id":  sessionID.String(),
@@ -559,7 +590,7 @@ func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []strin
 			continue
 		}
 
-		data, readErr := io.ReadAll(rc)
+		data, readErr := io.ReadAll(io.LimitReader(rc, maxOpenAIFileUploadBytes+1))
 		_ = rc.Close()
 		if readErr != nil {
 			m.logger.Warn(ctx, "failed to read artifact content for code_interpreter upload", map[string]any{
@@ -567,6 +598,16 @@ func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []strin
 				"artifact_id": artifact.ID().String(),
 				"url":         fileURL,
 				"error":       readErr.Error(),
+			})
+			continue
+		}
+		if int64(len(data)) > maxOpenAIFileUploadBytes {
+			m.logger.Warn(ctx, "artifact exceeds OpenAI file upload size limit", map[string]any{
+				"session_id":        sessionID.String(),
+				"artifact_id":       artifact.ID().String(),
+				"url":               fileURL,
+				"size_bytes":        artifact.SizeBytes(),
+				"max_allowed_bytes": maxOpenAIFileUploadBytes,
 			})
 			continue
 		}
@@ -580,7 +621,7 @@ func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []strin
 		}
 		contentType := strings.TrimSpace(artifact.MimeType())
 
-		uploaded, uploadErr := m.client.Files.New(ctx, openai.FileNewParams{
+		uploaded, uploadErr := client.Files.New(ctx, openai.FileNewParams{
 			File:    openai.File(bytes.NewReader(data), filename, contentType),
 			Purpose: openai.FilePurposeAssistants,
 		})

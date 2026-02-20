@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -343,6 +344,49 @@ func TestSQLExecuteTool_EnforcesLimitAndWrapsQuery(t *testing.T) {
 	}
 	if !strings.Contains(outStr, "```sql") || !strings.Contains(outStr, "AS _bichat_q LIMIT 6") {
 		t.Fatalf("expected executed SQL block, got: %s", outStr)
+	}
+}
+
+func TestSQLExecuteTool_EnforcesLimitAndWrapsQuery_CTE(t *testing.T) {
+	t.Parallel()
+
+	var gotSQL string
+	executor := &mockSQLExecutorForValidation{
+		result: &bichatsql.QueryResult{
+			Columns:  []string{"id"},
+			Rows:     [][]any{{1}, {2}, {3}},
+			RowCount: 3,
+		},
+	}
+
+	tool := NewSQLExecuteTool(&struct {
+		*mockSQLExecutorForValidation
+	}{
+		mockSQLExecutorForValidation: executor,
+	})
+
+	tool.executor = &mockSQLExecutorCapture{
+		fn: func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
+			gotSQL = sql
+			return executor.ExecuteQuery(ctx, sql, params, timeout)
+		},
+	}
+
+	query := "WITH recent AS (SELECT id FROM orders) SELECT * FROM recent"
+	outStr, err := tool.Call(context.Background(), fmt.Sprintf(`{"query":%q,"limit":2}`, query))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedSQL := "SELECT * FROM (WITH recent AS (SELECT id FROM orders) SELECT * FROM recent) AS _bichat_q LIMIT 3"
+	if gotSQL != expectedSQL {
+		t.Fatalf("expected wrapped CTE SQL %q, got %q", expectedSQL, gotSQL)
+	}
+	if !strings.Contains(outStr, "Returned: 2 row(s)") {
+		t.Fatalf("expected returned rows in output, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, "Truncated: yes") {
+		t.Fatalf("expected truncated=yes in output, got: %s", outStr)
 	}
 }
 

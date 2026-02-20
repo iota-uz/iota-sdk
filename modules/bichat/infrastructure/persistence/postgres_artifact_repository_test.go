@@ -249,7 +249,8 @@ func TestPostgresChatRepository_UpsertAndGetArtifactProviderFile(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
 
-	repo := &persistence.PostgresChatRepository{}
+	repo, ok := persistence.NewPostgresChatRepository().(*persistence.PostgresChatRepository)
+	require.True(t, ok)
 
 	session := domain.NewSession(
 		domain.WithTenantID(env.Tenant.ID),
@@ -302,9 +303,13 @@ func TestPostgresChatRepository_UpsertAndGetArtifactProviderFile(t *testing.T) {
 func TestPostgresChatRepository_GetArtifactProviderFile_NotFound(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
-	repo := &persistence.PostgresChatRepository{}
+	repo, ok := persistence.NewPostgresChatRepository().(*persistence.PostgresChatRepository)
+	require.True(t, ok)
 
-	_, _, _, err := repo.GetArtifactProviderFile(env.Ctx, uuid.New(), "openai")
+	fileID, sourceURL, sourceSize, err := repo.GetArtifactProviderFile(env.Ctx, uuid.New(), "openai")
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistence.ErrArtifactProviderFileNotFound)
+	assert.Empty(t, fileID)
+	assert.Empty(t, sourceURL)
+	assert.Zero(t, sourceSize)
 }

@@ -39,7 +39,7 @@ func (r *PostgresChatRepository) GetArtifactProviderFile(
 	ctx context.Context,
 	artifactID uuid.UUID,
 	provider string,
-) (providerFileID string, sourceURL string, sourceSizeBytes int64, err error) {
+) (string, string, int64, error) {
 	const op serrors.Op = "PostgresChatRepository.GetArtifactProviderFile"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -56,6 +56,12 @@ func (r *PostgresChatRepository) GetArtifactProviderFile(
 	if normalizedProvider == "" {
 		return "", "", 0, serrors.E(op, serrors.KindValidation, "provider is required")
 	}
+
+	var (
+		providerFileID  string
+		sourceURL       string
+		sourceSizeBytes int64
+	)
 
 	err = tx.QueryRow(ctx, selectArtifactProviderFileQuery, tenantID, artifactID, normalizedProvider).
 		Scan(&providerFileID, &sourceURL, &sourceSizeBytes)

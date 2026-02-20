@@ -290,6 +290,9 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*typ
 		truncatedReason = "limit"
 		rows = rows[:effectiveLimit]
 	}
+	// Bundled executors (PostgresQueryExecutor and DefaultQueryExecutor) always
+	// return Truncated=false. This branch supports custom QueryExecutor
+	// implementations that enforce a lower system cap than the tool-level limit.
 	if result.Truncated {
 		truncated = true
 		if truncatedReason == "" {
