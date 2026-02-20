@@ -795,6 +795,109 @@ func TestPostgresChatRepository_TruncateMessagesFrom_NoMatch(t *testing.T) {
 	assert.Equal(t, int64(0), deleted)
 }
 
+func TestPostgresChatRepository_GetPendingQuestionMessage_ReturnsNewestActivePending(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle("Pending question ordering"),
+	)
+	err := repo.CreateSession(env.Ctx, session)
+	require.NoError(t, err)
+
+	baseTime := time.Now().Add(-1 * time.Minute)
+
+	firstPending := &types.QuestionData{
+		CheckpointID: "checkpoint-old",
+		Status:       types.QuestionStatusPending,
+		AgentName:    "analyst",
+		Questions: []types.QuestionDataItem{
+			{
+				ID:   "q-old",
+				Text: "Old pending question",
+				Type: "SINGLE_CHOICE",
+				Options: []types.QuestionDataOption{
+					{ID: "opt-1", Label: "One"},
+					{ID: "opt-2", Label: "Two"},
+				},
+			},
+		},
+	}
+
+	secondPending := &types.QuestionData{
+		CheckpointID: "checkpoint-new",
+		Status:       types.QuestionStatusPending,
+		AgentName:    "analyst",
+		Questions: []types.QuestionDataItem{
+			{
+				ID:   "q-new",
+				Text: "Newest pending question",
+				Type: "SINGLE_CHOICE",
+				Options: []types.QuestionDataOption{
+					{ID: "opt-a", Label: "A"},
+					{ID: "opt-b", Label: "B"},
+				},
+			},
+		},
+	}
+
+	oldPendingMsg := types.AssistantMessage(
+		"Please answer old question",
+		types.WithSessionID(session.ID()),
+		types.WithQuestionData(firstPending),
+		types.WithCreatedAt(baseTime),
+	)
+	require.NoError(t, repo.SaveMessage(env.Ctx, oldPendingMsg))
+
+	answeredOld, err := firstPending.Answer(map[string]string{"q-old": "One"})
+	require.NoError(t, err)
+	require.NoError(t, repo.UpdateMessageQuestionData(env.Ctx, oldPendingMsg.ID(), answeredOld))
+
+	newPendingMsg := types.AssistantMessage(
+		"Please answer newest question",
+		types.WithSessionID(session.ID()),
+		types.WithQuestionData(secondPending),
+		types.WithCreatedAt(baseTime.Add(10*time.Millisecond)),
+	)
+	require.NoError(t, repo.SaveMessage(env.Ctx, newPendingMsg))
+
+	pending, err := repo.GetPendingQuestionMessage(env.Ctx, session.ID())
+	require.NoError(t, err)
+	require.NotNil(t, pending)
+	assert.Equal(t, newPendingMsg.ID(), pending.ID())
+	require.NotNil(t, pending.QuestionData())
+	assert.Equal(t, "checkpoint-new", pending.QuestionData().CheckpointID)
+}
+
+func TestPostgresChatRepository_GetPendingQuestionMessage_NoPending(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle("No pending question"),
+	)
+	require.NoError(t, repo.CreateSession(env.Ctx, session))
+
+	msg := types.AssistantMessage(
+		"No pending HITL question",
+		types.WithSessionID(session.ID()),
+		types.WithCreatedAt(time.Now()),
+	)
+	require.NoError(t, repo.SaveMessage(env.Ctx, msg))
+
+	_, err := repo.GetPendingQuestionMessage(env.Ctx, session.ID())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrNoPendingQuestion)
+}
+
 // Attachment Operations Tests
 
 func TestPostgresChatRepository_SaveAttachment(t *testing.T) {

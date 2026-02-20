@@ -95,6 +95,7 @@ const (
 		JOIN bichat.sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
 		  AND m.question_data->>'status' = 'PENDING'
+		ORDER BY m.created_at DESC, m.id DESC
 		LIMIT 1
 	`
 

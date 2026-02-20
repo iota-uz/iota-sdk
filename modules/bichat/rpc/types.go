@@ -540,11 +540,14 @@ func parseUUID(s string) (uuid.UUID, error) {
 // pendingQuestionFromMessages scans messages for pending question data
 // and builds the DTO with turn ID inference.
 func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
-	// Find the message with pending question data
+	// Find the latest message with pending question data.
 	var pendingMsg types.Message
-	for _, m := range msgs {
+	pendingIndex := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
 		if m != nil && m.HasPendingQuestion() {
 			pendingMsg = m
+			pendingIndex = i
 			break
 		}
 	}
@@ -555,7 +558,7 @@ func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
 
 	// Find the turn ID: look backward for the nearest user message
 	turnID := pendingMsg.ID().String()
-	for i := len(msgs) - 1; i >= 0; i-- {
+	for i := pendingIndex - 1; i >= 0; i-- {
 		if msgs[i] != nil && msgs[i].Role() == types.RoleUser && msgs[i].CreatedAt().Before(pendingMsg.CreatedAt()) {
 			turnID = msgs[i].ID().String()
 			break
