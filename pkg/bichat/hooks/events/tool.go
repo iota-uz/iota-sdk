@@ -2,6 +2,7 @@ package events
 
 import (
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // ToolStartEvent indicates a tool execution has started.
@@ -31,17 +32,19 @@ type ToolCompleteEvent struct {
 	Arguments  string // JSON-encoded arguments
 	CallID     string // Unique identifier for this tool call
 	Result     string // Tool execution result (as returned to LLM)
-	DurationMs int64  // Execution duration in milliseconds
+	Artifacts  []types.ToolArtifact
+	DurationMs int64 // Execution duration in milliseconds
 }
 
 // NewToolCompleteEvent creates a new ToolCompleteEvent.
-func NewToolCompleteEvent(sessionID, tenantID uuid.UUID, toolName, arguments, callID, result string, durationMs int64) *ToolCompleteEvent {
+func NewToolCompleteEvent(sessionID, tenantID uuid.UUID, toolName, arguments, callID, result string, artifacts []types.ToolArtifact, durationMs int64) *ToolCompleteEvent {
 	return &ToolCompleteEvent{
 		baseEvent:  newBaseEvent("tool.complete", sessionID, tenantID),
 		ToolName:   toolName,
 		Arguments:  arguments,
 		CallID:     callID,
 		Result:     result,
+		Artifacts:  artifacts,
 		DurationMs: durationMs,
 	}
 }

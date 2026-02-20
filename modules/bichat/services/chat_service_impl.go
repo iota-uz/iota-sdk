@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -305,13 +308,17 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
 	for i, att := range req.Attachments {
-		domainAttachments[i] = domain.NewAttachment(
+		attachmentOpts := []domain.AttachmentOption{
 			domain.WithAttachmentMessageID(userMsg.ID()),
 			domain.WithFileName(att.FileName()),
 			domain.WithMimeType(att.MimeType()),
 			domain.WithSizeBytes(att.SizeBytes()),
 			domain.WithFilePath(att.FilePath()),
-		)
+		}
+		if att.UploadID() != nil {
+			attachmentOpts = append(attachmentOpts, domain.WithUploadID(*att.UploadID()))
+		}
+		domainAttachments[i] = domain.NewAttachment(attachmentOpts...)
 	}
 
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
@@ -330,11 +337,8 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 		}
 
 		for _, att := range domainAttachments {
-			if err := s.chatRepo.SaveAttachment(txCtx, att); err != nil {
-				return serrors.E(op, err)
-			}
 			msgID := userMsg.ID()
-			artifact := domain.NewArtifact(
+			artifactOpts := []domain.ArtifactOption{
 				domain.WithArtifactTenantID(session.TenantID()),
 				domain.WithArtifactSessionID(session.ID()),
 				domain.WithArtifactMessageID(&msgID),
@@ -343,7 +347,11 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 				domain.WithArtifactMimeType(att.MimeType()),
 				domain.WithArtifactURL(att.FilePath()),
 				domain.WithArtifactSizeBytes(att.SizeBytes()),
-			)
+			}
+			if att.UploadID() != nil {
+				artifactOpts = append(artifactOpts, domain.WithArtifactUploadID(*att.UploadID()))
+			}
+			artifact := domain.NewArtifact(artifactOpts...)
 			if err := s.chatRepo.SaveArtifact(txCtx, artifact); err != nil {
 				return serrors.E(op, err)
 			}
@@ -404,13 +412,17 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
 	for i, att := range req.Attachments {
-		domainAttachments[i] = domain.NewAttachment(
+		attachmentOpts := []domain.AttachmentOption{
 			domain.WithAttachmentMessageID(userMsg.ID()),
 			domain.WithFileName(att.FileName()),
 			domain.WithMimeType(att.MimeType()),
 			domain.WithSizeBytes(att.SizeBytes()),
 			domain.WithFilePath(att.FilePath()),
-		)
+		}
+		if att.UploadID() != nil {
+			attachmentOpts = append(attachmentOpts, domain.WithUploadID(*att.UploadID()))
+		}
+		domainAttachments[i] = domain.NewAttachment(attachmentOpts...)
 	}
 
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
@@ -429,11 +441,8 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 
 		for _, att := range domainAttachments {
-			if err := s.chatRepo.SaveAttachment(txCtx, att); err != nil {
-				return serrors.E(op, err)
-			}
 			msgID := userMsg.ID()
-			artifact := domain.NewArtifact(
+			artifactOpts := []domain.ArtifactOption{
 				domain.WithArtifactTenantID(session.TenantID()),
 				domain.WithArtifactSessionID(session.ID()),
 				domain.WithArtifactMessageID(&msgID),
@@ -442,7 +451,11 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				domain.WithArtifactMimeType(att.MimeType()),
 				domain.WithArtifactURL(att.FilePath()),
 				domain.WithArtifactSizeBytes(att.SizeBytes()),
-			)
+			}
+			if att.UploadID() != nil {
+				artifactOpts = append(artifactOpts, domain.WithArtifactUploadID(*att.UploadID()))
+			}
+			artifact := domain.NewArtifact(artifactOpts...)
 			if err := s.chatRepo.SaveArtifact(txCtx, artifact); err != nil {
 				return serrors.E(op, err)
 			}
@@ -466,6 +479,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var interruptAgentName string
 	toolCalls := make(map[string]types.ToolCall)
 	toolOrder := make([]string, 0)
+	artifactMap := make(map[string]types.ToolArtifact)
 	var providerResponseID *string
 	var finalUsage *types.DebugUsage
 	var generationMs int64
@@ -498,6 +512,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		case bichatservices.EventTypeToolStart:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
+			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
+				recordToolArtifacts(artifactMap, event.Tool.Artifacts)
+			}
 			if event.Tool != nil {
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeToolStart,
@@ -508,6 +525,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		case bichatservices.EventTypeToolEnd:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
+			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
+				recordToolArtifacts(artifactMap, event.Tool.Artifacts)
+			}
 			if event.Tool != nil {
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeToolEnd,
@@ -547,6 +567,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		case bichatservices.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
+			recordToolArtifacts(artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
 			if event.Usage != nil {
 				finalUsage = event.Usage
 				onChunk(bichatservices.StreamChunk{
@@ -605,6 +626,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
 	err = s.withinTx(persistCtx, func(txCtx context.Context) error {
 		if err := s.chatRepo.SaveMessage(txCtx, assistantMsg); err != nil {
+			return serrors.E(op, err)
+		}
+		if err := s.persistGeneratedArtifacts(txCtx, session, assistantMsg.ID(), mapsValues(artifactMap)); err != nil {
 			return serrors.E(op, err)
 		}
 
@@ -673,6 +697,108 @@ func recordToolEvent(toolCalls map[string]types.ToolCall, toolOrder *[]string, t
 	}
 
 	toolCalls[key] = call
+}
+
+func recordToolArtifacts(artifactMap map[string]types.ToolArtifact, artifacts []types.ToolArtifact) {
+	for _, artifact := range artifacts {
+		key := toolArtifactDedupeKey(artifact)
+		if key == "" {
+			continue
+		}
+		artifactMap[key] = artifact
+	}
+}
+
+func collectCodeInterpreterArtifacts(
+	executions []types.CodeInterpreterResult,
+	annotations []types.FileAnnotation,
+) []types.ToolArtifact {
+	artifacts := make([]types.ToolArtifact, 0)
+	for _, execution := range executions {
+		for idx, output := range execution.Outputs {
+			if output.Type != "image" || strings.TrimSpace(output.URL) == "" {
+				continue
+			}
+			name := inferNameFromURL(output.URL)
+			if name == "" {
+				name = fmt.Sprintf("code-output-%d.png", idx+1)
+			}
+			artifacts = append(artifacts, types.ToolArtifact{
+				Type:     string(domain.ArtifactTypeCodeOutput),
+				Name:     name,
+				MimeType: inferMimeTypeFromName(name),
+				URL:      output.URL,
+				Metadata: map[string]any{
+					"container_id": execution.ContainerID,
+					"execution_id": execution.ID,
+				},
+			})
+		}
+	}
+	for _, annotation := range annotations {
+		name := strings.TrimSpace(annotation.Filename)
+		if name == "" {
+			name = "code-output"
+		}
+		artifacts = append(artifacts, types.ToolArtifact{
+			Type:     string(domain.ArtifactTypeCodeOutput),
+			Name:     name,
+			MimeType: inferMimeTypeFromName(name),
+			Metadata: map[string]any{
+				"annotation_type": annotation.Type,
+				"container_id":    annotation.ContainerID,
+				"file_id":         annotation.FileID,
+			},
+		})
+	}
+	return artifacts
+}
+
+func toolArtifactDedupeKey(artifact types.ToolArtifact) string {
+	parts := []string{
+		strings.TrimSpace(artifact.Type),
+		strings.TrimSpace(artifact.Name),
+		strings.TrimSpace(artifact.URL),
+	}
+	if len(parts[0]) == 0 && len(parts[1]) == 0 && len(parts[2]) == 0 {
+		return ""
+	}
+	return strings.Join(parts, "|")
+}
+
+func inferNameFromURL(rawURL string) string {
+	trimmed := strings.TrimSpace(rawURL)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return ""
+	}
+	base := path.Base(strings.TrimSpace(parsed.Path))
+	if base == "." || base == "/" {
+		return ""
+	}
+	return base
+}
+
+func inferMimeTypeFromName(name string) string {
+	ext := strings.ToLower(path.Ext(strings.TrimSpace(name)))
+	if ext == "" {
+		return ""
+	}
+	return mime.TypeByExtension(ext)
+}
+
+func mapsValues(in map[string]types.ToolArtifact) []types.ToolArtifact {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]types.ToolArtifact, 0, len(in))
+	for _, value := range in {
+		out = append(out, value)
+	}
+	return out
 }
 
 func (s *chatServiceImpl) withinTx(ctx context.Context, fn func(context.Context) error) error {
@@ -772,6 +898,7 @@ func optionalStringPtr(value string) *string {
 type agentResult struct {
 	content            string
 	toolCalls          []types.ToolCall
+	artifacts          []types.ToolArtifact
 	interrupt          *bichatservices.Interrupt
 	interruptAgentName string
 	providerResponseID *string
@@ -785,6 +912,7 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[bichatservices.
 	var content strings.Builder
 	toolCalls := make(map[string]types.ToolCall)
 	toolOrder := make([]string, 0)
+	artifactMap := make(map[string]types.ToolArtifact)
 	var interrupt *bichatservices.Interrupt
 	var interruptAgentName string
 	var providerResponseID *string
@@ -805,6 +933,9 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[bichatservices.
 			content.WriteString(event.Content)
 		case bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
+			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
+				recordToolArtifacts(artifactMap, event.Tool.Artifacts)
+			}
 		case bichatservices.EventTypeInterrupt:
 			if event.Interrupt != nil {
 				interrupt = &bichatservices.Interrupt{
@@ -822,6 +953,7 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[bichatservices.
 			if event.Usage != nil {
 				finalUsage = event.Usage
 			}
+			recordToolArtifacts(artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
 		case bichatservices.EventTypeUsage:
 			if event.Usage != nil {
 				finalUsage = event.Usage
@@ -849,6 +981,7 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[bichatservices.
 	result := &agentResult{
 		content:            content.String(),
 		toolCalls:          orderedToolCalls(toolCalls, toolOrder),
+		artifacts:          mapsValues(artifactMap),
 		interrupt:          interrupt,
 		interruptAgentName: interruptAgentName,
 		providerResponseID: providerResponseID,
@@ -892,6 +1025,9 @@ func (s *chatServiceImpl) saveAgentResult(
 	if err := s.chatRepo.SaveMessage(ctx, assistantMsg); err != nil {
 		return nil, nil, serrors.E(op, err)
 	}
+	if err := s.persistGeneratedArtifacts(ctx, session, assistantMsg.ID(), result.artifacts); err != nil {
+		return nil, nil, serrors.E(op, err)
+	}
 
 	session = session.
 		UpdateLLMPreviousResponseID(result.providerResponseID).
@@ -901,6 +1037,57 @@ func (s *chatServiceImpl) saveAgentResult(
 	}
 
 	return assistantMsg, session, nil
+}
+
+func (s *chatServiceImpl) persistGeneratedArtifacts(
+	ctx context.Context,
+	session domain.Session,
+	messageID uuid.UUID,
+	artifacts []types.ToolArtifact,
+) error {
+	const op serrors.Op = "chatServiceImpl.persistGeneratedArtifacts"
+	if len(artifacts) == 0 {
+		return nil
+	}
+
+	for idx, artifact := range artifacts {
+		artifactType := strings.TrimSpace(artifact.Type)
+		if artifactType == "" {
+			artifactType = string(domain.ArtifactTypeCodeOutput)
+		}
+		name := strings.TrimSpace(artifact.Name)
+		if name == "" {
+			name = fmt.Sprintf("artifact-%d", idx+1)
+		}
+		mimeType := strings.TrimSpace(artifact.MimeType)
+		if mimeType == "" {
+			mimeType = inferMimeTypeFromName(name)
+		}
+		url := strings.TrimSpace(artifact.URL)
+
+		msgID := messageID
+		opts := []domain.ArtifactOption{
+			domain.WithArtifactTenantID(session.TenantID()),
+			domain.WithArtifactSessionID(session.ID()),
+			domain.WithArtifactMessageID(&msgID),
+			domain.WithArtifactType(domain.ArtifactType(artifactType)),
+			domain.WithArtifactName(name),
+			domain.WithArtifactDescription(strings.TrimSpace(artifact.Description)),
+			domain.WithArtifactMimeType(mimeType),
+			domain.WithArtifactURL(url),
+			domain.WithArtifactSizeBytes(artifact.SizeBytes),
+			domain.WithArtifactStatus(domain.ArtifactStatusAvailable),
+			domain.WithArtifactIdempotencyKey(fmt.Sprintf("assistant:%s:%s:%d", messageID.String(), artifactType, idx)),
+		}
+		if len(artifact.Metadata) > 0 {
+			opts = append(opts, domain.WithArtifactMetadata(artifact.Metadata))
+		}
+		if err := s.chatRepo.SaveArtifact(ctx, domain.NewArtifact(opts...)); err != nil {
+			return serrors.E(op, err)
+		}
+	}
+
+	return nil
 }
 
 // GetSessionMessages retrieves all messages for a session.

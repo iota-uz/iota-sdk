@@ -215,7 +215,7 @@ func TestEventBus_TypeFiltering(t *testing.T) {
 	if err := bus.Publish(ctx, events.NewToolStartEvent(sessionID, tenantID, "tool", "args", "id1")); err != nil {
 		t.Fatalf("Failed to publish tool start event: %v", err)
 	}
-	if err := bus.Publish(ctx, events.NewToolCompleteEvent(sessionID, tenantID, "tool", "args", "id1", "result", 100)); err != nil {
+	if err := bus.Publish(ctx, events.NewToolCompleteEvent(sessionID, tenantID, "tool", "args", "id1", "result", nil, 100)); err != nil {
 		t.Fatalf("Failed to publish tool complete event: %v", err)
 	}
 	if err := bus.Publish(ctx, events.NewSessionCreateEvent(sessionID, tenantID, 123, "title")); err != nil {

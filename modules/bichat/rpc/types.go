@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -59,12 +58,12 @@ type SessionGetParams struct {
 }
 
 type Attachment struct {
-	ID         string `json:"id"`
-	Filename   string `json:"filename"`
-	MimeType   string `json:"mimeType"`
-	SizeBytes  int64  `json:"sizeBytes"`
-	Base64Data string `json:"base64Data,omitempty"`
-	URL        string `json:"url,omitempty"`
+	ID        string `json:"id"`
+	UploadID  *int64 `json:"uploadId,omitempty"`
+	Filename  string `json:"filename"`
+	MimeType  string `json:"mimeType"`
+	SizeBytes int64  `json:"sizeBytes"`
+	URL       string `json:"url,omitempty"`
 }
 
 type Citation struct {
@@ -206,6 +205,7 @@ type Artifact struct {
 	ID          string         `json:"id"`
 	SessionID   string         `json:"sessionId"`
 	MessageID   string         `json:"messageId,omitempty"`
+	UploadID    *int64         `json:"uploadId,omitempty"`
 	Type        string         `json:"type"`
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
@@ -390,12 +390,10 @@ func mapAttachments(in []types.Attachment) []Attachment {
 	for _, a := range in {
 		dto := Attachment{
 			ID:        a.ID.String(),
+			UploadID:  a.UploadID,
 			Filename:  a.FileName,
 			MimeType:  a.MimeType,
 			SizeBytes: a.SizeBytes,
-		}
-		if len(a.Data) > 0 {
-			dto.Base64Data = base64.StdEncoding.EncodeToString(a.Data)
 		}
 		if a.FilePath != "" {
 			dto.URL = a.FilePath
@@ -499,6 +497,7 @@ func toArtifactDTO(a domain.Artifact) Artifact {
 	out := Artifact{
 		ID:          a.ID().String(),
 		SessionID:   a.SessionID().String(),
+		UploadID:    a.UploadID(),
 		Type:        string(a.Type()),
 		Name:        a.Name(),
 		Description: a.Description(),

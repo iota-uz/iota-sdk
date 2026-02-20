@@ -387,6 +387,7 @@ func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
 				CallID:    execEvent.Tool.CallID,
 				Name:      execEvent.Tool.Name,
 				Arguments: execEvent.Tool.Arguments,
+				Artifacts: execEvent.Tool.Artifacts,
 			}
 		}
 
@@ -400,6 +401,7 @@ func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
 				Result:     execEvent.Tool.Result,
 				Error:      execEvent.Tool.Error,
 				DurationMs: execEvent.Tool.DurationMs,
+				Artifacts:  execEvent.Tool.Artifacts,
 			}
 		}
 
@@ -415,6 +417,8 @@ func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
 		// Extract usage from result if available
 		if execEvent.Result != nil {
 			event.ProviderResponseID = execEvent.Result.ProviderResponseID
+			event.CodeInterpreter = execEvent.Result.CodeInterpreterResults
+			event.FileAnnotations = execEvent.Result.FileAnnotations
 			usage := execEvent.Result.Usage
 			if usage.PromptTokens > 0 || usage.CompletionTokens > 0 || usage.TotalTokens > 0 || usage.CachedTokens > 0 || usage.CacheReadTokens > 0 || usage.CacheWriteTokens > 0 {
 				cachedTokens := usage.CachedTokens

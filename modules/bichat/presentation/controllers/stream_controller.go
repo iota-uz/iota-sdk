@@ -141,19 +141,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	tenantID, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		http.Error(w, "Invalid tenant context", http.StatusBadRequest)
-		return
-	}
-
-	domainAttachments, err := convertAttachmentDTOs(
-		r.Context(),
-		c.attachmentService,
-		req.Attachments,
-		tenantID,
-		uuid.Nil,
-	)
+	domainAttachments, err := convertAttachmentDTOs(r.Context(), req.Attachments)
 	if err != nil {
 		http.Error(w, "Invalid attachments", http.StatusBadRequest)
 		return

@@ -30,8 +30,10 @@ type Event struct {
 	Tool               *ToolEvent        // For tool execution events
 	Interrupt          *InterruptEvent   // For HITL interrupts
 	ProviderResponseID string            // Provider continuity token (on done events)
-	Error              error             // For error events
-	Done               bool              // True when execution complete
+	CodeInterpreter    []types.CodeInterpreterResult
+	FileAnnotations    []types.FileAnnotation
+	Error              error // For error events
+	Done               bool  // True when execution complete
 }
 
 // EventType identifies the kind of event
@@ -56,6 +58,7 @@ type ToolEvent struct {
 	Result     string
 	Error      error
 	DurationMs int64
+	Artifacts  []types.ToolArtifact
 }
 
 // InterruptEvent represents a HITL interrupt

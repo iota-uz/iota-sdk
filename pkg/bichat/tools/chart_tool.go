@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // DrawChartTool creates chart visualizations for data analysis.
@@ -110,72 +111,97 @@ type chartToolInput struct {
 	Height    int           `json:"height,omitempty"`
 }
 
-// Call executes the chart creation and returns a chart specification.
-func (t *DrawChartTool) Call(ctx context.Context, input string) (string, error) {
-	// Parse input
+// CallStructured executes the chart creation and returns a structured result.
+func (t *DrawChartTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
 	params, err := agents.ParseToolInput[chartToolInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-			HintCheckFieldTypes,
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields, HintCheckFieldTypes},
+			},
+		}, nil
 	}
 
-	// Validate required fields
 	if params.ChartType == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"chartType parameter is required",
-			HintCheckRequiredFields,
-			"Valid chart types: line, bar, pie, area, donut",
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "chartType parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Valid chart types: line, bar, pie, area, donut"},
+			},
+		}, nil
 	}
 	if params.Title == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"title parameter is required",
-			HintCheckRequiredFields,
-			"Provide a descriptive title for the chart",
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "title parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide a descriptive title for the chart"},
+			},
+		}, nil
 	}
 	if len(params.Series) == 0 {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"series parameter is required and must not be empty",
-			HintCheckRequiredFields,
-			"Provide at least one data series with name and data array",
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "series parameter is required and must not be empty",
+				Hints:   []string{HintCheckRequiredFields, "Provide at least one data series with name and data array"},
+			},
+		}, nil
 	}
 
-	// Set defaults
 	if params.Height == 0 {
 		params.Height = 350
 	}
 
-	// Validate chart type
 	if err := t.validateChartType(params.ChartType); err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			err.Error(),
-			"Valid chart types: line, bar, pie, area, donut",
-			HintCheckFieldFormat,
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: err.Error(),
+				Hints:   []string{"Valid chart types: line, bar, pie, area, donut", HintCheckFieldFormat},
+			},
+		}, nil
 	}
 
-	// Validate inputs
 	if err := t.validate(params.ChartType, params.Series, params.Labels, params.Colors, params.Height); err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			err.Error(),
-			HintCheckFieldFormat,
-			"Verify data arrays, labels, and color codes",
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: err.Error(),
+				Hints:   []string{HintCheckFieldFormat, "Verify data arrays, labels, and color codes"},
+			},
+		}, nil
 	}
 
-	// Return chart specification as JSON
-	return agents.FormatToolOutput(params)
+	return &types.ToolResult{
+		CodecID: types.CodecJSON,
+		Payload: types.JSONPayload{Output: params},
+		Artifacts: []types.ToolArtifact{
+			{
+				Type:        "chart",
+				Name:        params.Title,
+				Description: fmt.Sprintf("%s chart", params.ChartType),
+				MimeType:    "application/json",
+				Metadata: map[string]any{
+					"spec": params,
+				},
+			},
+		},
+	}, nil
+}
+
+// Call executes the chart creation and returns a chart specification.
+func (t *DrawChartTool) Call(ctx context.Context, input string) (string, error) {
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
 // validateChartType validates the chart type is supported.

@@ -113,6 +113,36 @@ func TestExportQueryToExcelTool_Call_Success(t *testing.T) {
 	assert.NoError(t, err, "Excel file should exist")
 }
 
+func TestExportQueryToExcelTool_CallStructured_EmitsArtifact(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := &mockQueryExecutor{
+		result: &bichatsql.QueryResult{
+			Columns:  []string{"id"},
+			Rows:     [][]any{{int64(1)}},
+			RowCount: 1,
+		},
+	}
+
+	tool := NewExportQueryToExcelTool(
+		executor,
+		WithQueryOutputDir(tmpDir),
+		WithQueryBaseURL("http://test.com/exports"),
+	)
+
+	result, err := tool.CallStructured(context.Background(), `{"sql":"SELECT id FROM test","filename":"artifact.xlsx"}`)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.Artifacts, 1)
+
+	artifact := result.Artifacts[0]
+	assert.Equal(t, "export", artifact.Type)
+	assert.Equal(t, "artifact.xlsx", artifact.Name)
+	assert.Equal(t, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", artifact.MimeType)
+	assert.Equal(t, "http://test.com/exports/artifact.xlsx", artifact.URL)
+	assert.Equal(t, 1, artifact.Metadata["row_count"])
+	assert.Positive(t, artifact.SizeBytes)
+}
+
 func TestExportQueryToExcelTool_Call_DefaultFilename(t *testing.T) {
 	tmpDir := t.TempDir()
 

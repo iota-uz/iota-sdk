@@ -226,6 +226,20 @@ func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input strin
 	return &types.ToolResult{
 		CodecID: types.CodecJSON,
 		Payload: types.JSONPayload{Output: response},
+		Artifacts: []types.ToolArtifact{
+			{
+				Type:        "export",
+				Name:        filename,
+				Description: params.Description,
+				MimeType:    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+				URL:         url,
+				SizeBytes:   int64(len(bytes)),
+				Metadata: map[string]any{
+					"row_count":    result.RowCount,
+					"file_size_kb": fileSizeKB,
+				},
+			},
+		},
 	}, nil
 }
 

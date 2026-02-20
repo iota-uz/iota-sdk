@@ -1,17 +1,53 @@
 package persistence_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
+	coreupload "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
+
+func mustCreateUploadForAttachment(
+	t *testing.T,
+	ctx context.Context,
+	fileName string,
+	mimeType string,
+	sizeBytes int,
+) int64 {
+	t.Helper()
+
+	mime := mimetype.Lookup(mimeType)
+	if mime == nil {
+		mime = mimetype.Lookup("application/octet-stream")
+	}
+
+	uploadRepo := corepersistence.NewUploadRepository()
+	seed := uuid.NewString()[:8]
+	created, err := uploadRepo.Create(
+		ctx,
+		coreupload.New(
+			"bichat-attachment-hash-"+seed,
+			"uploads/bichat-"+seed,
+			fileName,
+			"bichat-"+seed,
+			sizeBytes,
+			mime,
+		),
+	)
+	require.NoError(t, err)
+
+	return int64(created.ID())
+}
 
 // Session Operations Tests
 
@@ -924,6 +960,7 @@ func TestPostgresChatRepository_SaveAttachment(t *testing.T) {
 	// Create and save attachment
 	attachment := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "test.pdf", "application/pdf", 1024)),
 		domain.WithFileName("test.pdf"),
 		domain.WithMimeType("application/pdf"),
 		domain.WithSizeBytes(1024),
@@ -967,6 +1004,7 @@ func TestPostgresChatRepository_SaveAttachment_SpecialCharacters(t *testing.T) {
 	// Create attachment with special characters in filename
 	attachment := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "файл-тест (копия) #1.pdf", "application/pdf", 2048)),
 		domain.WithFileName("файл-тест (копия) #1.pdf"),
 		domain.WithMimeType("application/pdf"),
 		domain.WithSizeBytes(2048),
@@ -1004,6 +1042,7 @@ func TestPostgresChatRepository_GetAttachment(t *testing.T) {
 
 	attachment := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "image.png", "image/png", 512)),
 		domain.WithFileName("image.png"),
 		domain.WithMimeType("image/png"),
 		domain.WithSizeBytes(512),
@@ -1057,6 +1096,7 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 
 	att1 := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "doc1.pdf", "application/pdf", 1024)),
 		domain.WithFileName("doc1.pdf"),
 		domain.WithMimeType("application/pdf"),
 		domain.WithSizeBytes(1024),
@@ -1068,6 +1108,7 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 
 	att2 := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "image.jpg", "image/jpeg", 2048)),
 		domain.WithFileName("image.jpg"),
 		domain.WithMimeType("image/jpeg"),
 		domain.WithSizeBytes(2048),
@@ -1079,6 +1120,7 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 
 	att3 := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "data.csv", "text/csv", 512)),
 		domain.WithFileName("data.csv"),
 		domain.WithMimeType("text/csv"),
 		domain.WithSizeBytes(512),
@@ -1149,6 +1191,7 @@ func TestPostgresChatRepository_DeleteAttachment(t *testing.T) {
 
 	attachment := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "to_delete.pdf", "application/pdf", 1024)),
 		domain.WithFileName("to_delete.pdf"),
 		domain.WithMimeType("application/pdf"),
 		domain.WithSizeBytes(1024),
@@ -1278,6 +1321,7 @@ func TestPostgresChatRepository_TenantIsolation_Attachments(t *testing.T) {
 
 	attachmentA := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msgA.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, envA.Ctx, "tenant_a.pdf", "application/pdf", 1024)),
 		domain.WithFileName("tenant_a.pdf"),
 		domain.WithMimeType("application/pdf"),
 		domain.WithSizeBytes(1024),
@@ -1418,6 +1462,7 @@ func TestPostgresChatRepository_LargeAttachment(t *testing.T) {
 	// Create large attachment (100MB)
 	attachment := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "large_file.zip", "application/zip", 100*1024*1024)),
 		domain.WithFileName("large_file.zip"),
 		domain.WithMimeType("application/zip"),
 		domain.WithSizeBytes(100*1024*1024), // 100MB
@@ -1590,6 +1635,7 @@ func TestPostgresChatRepository_GetMessage_HydratesAttachments(t *testing.T) {
 
 	attachment := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msg.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "report.txt", "text/plain", 128)),
 		domain.WithFileName("report.txt"),
 		domain.WithMimeType("text/plain"),
 		domain.WithSizeBytes(128),
@@ -1628,6 +1674,7 @@ func TestPostgresChatRepository_GetSessionMessages_HydratesAttachments(t *testin
 
 	attachment := domain.NewAttachment(
 		domain.WithAttachmentMessageID(msgWithAttachment.ID()),
+		domain.WithUploadID(mustCreateUploadForAttachment(t, env.Ctx, "table.csv", "text/csv", 256)),
 		domain.WithFileName("table.csv"),
 		domain.WithMimeType("text/csv"),
 		domain.WithSizeBytes(256),

@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
@@ -284,28 +286,7 @@ func (t *ArtifactReaderTool) readArtifactStructured(
 		return t.readChartArtifactStructured(artifact, mode)
 	}
 
-	if t.fileStorage == nil {
-		return &types.ToolResult{
-			CodecID: types.CodecToolError,
-			Payload: types.ToolErrorPayload{
-				Code:    string(ErrCodeServiceUnavailable),
-				Message: "File storage is not configured.",
-				Hints:   []string{HintCheckConnection},
-			},
-		}, nil
-	}
-	if strings.TrimSpace(artifact.URL()) == "" {
-		return &types.ToolResult{
-			CodecID: types.CodecToolError,
-			Payload: types.ToolErrorPayload{
-				Code:    string(ErrCodeNoData),
-				Message: "Artifact has no file URL to read.",
-				Hints:   []string{"This artifact may not have associated file content"},
-			},
-		}, nil
-	}
-
-	rc, err := t.fileStorage.Get(ctx, artifact.URL())
+	data, err := t.readArtifactData(ctx, artifact)
 	if err != nil {
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,
@@ -313,19 +294,6 @@ func (t *ArtifactReaderTool) readArtifactStructured(
 				Code:    string(ErrCodeServiceUnavailable),
 				Message: fmt.Sprintf("Failed to open artifact content: %v", err),
 				Hints:   []string{HintCheckConnection, HintRetryLater},
-			},
-		}, err
-	}
-	defer func() { _ = rc.Close() }()
-
-	data, err := io.ReadAll(rc)
-	if err != nil {
-		return &types.ToolResult{
-			CodecID: types.CodecToolError,
-			Payload: types.ToolErrorPayload{
-				Code:    string(ErrCodeServiceUnavailable),
-				Message: fmt.Sprintf("Failed to read artifact content: %v", err),
-				Hints:   []string{HintRetryLater},
 			},
 		}, err
 	}
@@ -424,6 +392,34 @@ func (t *ArtifactReaderTool) resolveArtifact(
 	}
 
 	return matches[0], nil
+}
+
+func (t *ArtifactReaderTool) readArtifactData(ctx context.Context, artifact domain.Artifact) ([]byte, error) {
+	if artifact.UploadID() != nil {
+		uploadRepo := corepersistence.NewUploadRepository()
+		found, err := uploadRepo.GetByIDs(ctx, []uint{uint(*artifact.UploadID())})
+		if err != nil {
+			return nil, err
+		}
+		if len(found) == 0 {
+			return nil, fmt.Errorf("upload not found")
+		}
+		return os.ReadFile(found[0].Path())
+	}
+
+	if t.fileStorage == nil {
+		return nil, fmt.Errorf("file storage is not configured")
+	}
+	if strings.TrimSpace(artifact.URL()) == "" {
+		return nil, fmt.Errorf("artifact has no file URL")
+	}
+
+	rc, err := t.fileStorage.Get(ctx, artifact.URL())
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rc.Close() }()
+	return io.ReadAll(rc)
 }
 
 func (t *ArtifactReaderTool) readChartArtifactStructured(artifact domain.Artifact, mode string) (*types.ToolResult, error) {

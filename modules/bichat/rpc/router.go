@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -324,29 +323,13 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("too many attachments: max %d", maxAttachments))
 			}
 
-			const maxFileSizeBytes = 20 << 20
 			uploads := make([]services.ArtifactUpload, 0, len(p.Attachments))
 			for i, attachment := range p.Attachments {
-				filename := strings.TrimSpace(attachment.Filename)
-				if filename == "" {
-					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].filename is required", i))
-				}
-				encoded := strings.TrimSpace(attachment.Base64Data)
-				if encoded == "" {
-					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].base64Data is required", i))
-				}
-				decoded, err := base64.StdEncoding.DecodeString(encoded)
-				if err != nil {
-					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].base64Data is invalid", i))
-				}
-				if len(decoded) > maxFileSizeBytes {
-					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d] exceeds max size", i))
+				if attachment.UploadID == nil || *attachment.UploadID <= 0 {
+					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].uploadId is required", i))
 				}
 				uploads = append(uploads, services.ArtifactUpload{
-					Filename:  filename,
-					MimeType:  strings.TrimSpace(attachment.MimeType),
-					SizeBytes: int64(len(decoded)),
-					Data:      decoded,
+					UploadID: *attachment.UploadID,
 				})
 			}
 

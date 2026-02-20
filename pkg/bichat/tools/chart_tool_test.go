@@ -494,3 +494,26 @@ func TestDrawChartTool_Call(t *testing.T) {
 		})
 	}
 }
+
+func TestDrawChartTool_CallStructured_EmitsArtifact(t *testing.T) {
+	t.Parallel()
+
+	tool := NewDrawChartTool().(*DrawChartTool)
+	result, err := tool.CallStructured(context.Background(), `{"chartType":"line","title":"Monthly Sales","series":[{"name":"Q1","data":[1,2,3]}]}`)
+	if err != nil {
+		t.Fatalf("CallStructured() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("CallStructured() returned nil result")
+	}
+	if len(result.Artifacts) != 1 {
+		t.Fatalf("expected 1 artifact, got %d", len(result.Artifacts))
+	}
+	artifact := result.Artifacts[0]
+	if artifact.Type != "chart" {
+		t.Fatalf("artifact.Type = %q, want %q", artifact.Type, "chart")
+	}
+	if artifact.Name != "Monthly Sales" {
+		t.Fatalf("artifact.Name = %q, want %q", artifact.Name, "Monthly Sales")
+	}
+}

@@ -99,50 +99,38 @@ const (
 		LIMIT 1
 	`
 
-	// Attachment queries
-	insertAttachmentQuery = `
-		INSERT INTO bichat.attachments (
-			id, message_id, file_name, mime_type, size_bytes, storage_path, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+	// Attachment compatibility queries (backed by bichat.artifacts type='attachment')
+	selectMessageSessionQuery = `
+		SELECT m.session_id
+		FROM bichat.messages m
+		JOIN bichat.sessions s ON m.session_id = s.id
+		WHERE s.tenant_id = $1 AND m.id = $2
 	`
 	selectAttachmentQuery = `
-		SELECT a.id, a.message_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.created_at
-		FROM bichat.attachments a
-		JOIN bichat.messages m ON a.message_id = m.id
-		JOIN bichat.sessions s ON m.session_id = s.id
-		WHERE s.tenant_id = $1 AND a.id = $2
+		SELECT a.id, a.message_id, a.upload_id, a.name, a.mime_type, a.size_bytes, a.url, a.created_at
+		FROM bichat.artifacts a
+		WHERE a.tenant_id = $1
+		  AND a.id = $2
+		  AND a.type = 'attachment'
+		  AND a.message_id IS NOT NULL
 	`
 	selectMessageAttachmentsQuery = `
-		SELECT a.id, a.message_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.created_at
-		FROM bichat.attachments a
-		JOIN bichat.messages m ON a.message_id = m.id
-		JOIN bichat.sessions s ON m.session_id = s.id
-		WHERE s.tenant_id = $1 AND a.message_id = $2
+		SELECT a.id, a.message_id, a.upload_id, a.name, a.mime_type, a.size_bytes, a.url, a.created_at
+		FROM bichat.artifacts a
+		WHERE a.tenant_id = $1
+		  AND a.message_id = $2
+		  AND a.type = 'attachment'
 		ORDER BY a.created_at ASC
 	`
-	deleteAttachmentQuery = `
-		DELETE FROM bichat.attachments a
-		USING bichat.messages m, bichat.sessions s
-		WHERE a.message_id = m.id
-		  AND m.session_id = s.id
-		  AND s.tenant_id = $1
-		  AND a.id = $2
-	`
 
-	// Code interpreter output queries
-	insertCodeOutputQuery = `
-		INSERT INTO bichat.code_interpreter_outputs (
-			id, message_id, name, mime_type, url, size_bytes, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`
-	selectMessageCodeOutputsQuery = `
-		SELECT o.id, o.message_id, o.name, o.mime_type, o.url, o.size_bytes, o.created_at
-		FROM bichat.code_interpreter_outputs o
-		JOIN bichat.messages m ON o.message_id = m.id
-		JOIN bichat.sessions s ON m.session_id = s.id
-		WHERE s.tenant_id = $1 AND o.message_id = $2
-		ORDER BY o.created_at ASC
-	`
+	selectMessageCodeOutputArtifactsQuery = `
+			SELECT a.id, a.message_id, a.name, COALESCE(a.mime_type, ''), COALESCE(a.url, ''), COALESCE(a.size_bytes, 0), a.created_at
+			FROM bichat.artifacts a
+			WHERE a.tenant_id = $1
+			  AND a.message_id = $2
+			  AND a.type = 'code_output'
+			ORDER BY a.created_at ASC
+		`
 )
 
 var (
@@ -417,6 +405,11 @@ func (r *PostgresChatRepository) DeleteSession(ctx context.Context, id uuid.UUID
 func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
 	const op serrors.Op = "PostgresChatRepository.SaveMessage"
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return serrors.E(op, err)
@@ -464,24 +457,30 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		return serrors.E(op, err)
 	}
 
-	// Save code interpreter outputs if present
-	for _, output := range msg.CodeOutputs() {
-		outputCreatedAt := output.CreatedAt
-		if outputCreatedAt.IsZero() {
-			outputCreatedAt = time.Now()
-		}
+	if len(msg.CodeOutputs()) > 0 {
+		msgID := msg.ID()
+		for _, output := range msg.CodeOutputs() {
+			outputCreatedAt := output.CreatedAt
+			if outputCreatedAt.IsZero() {
+				outputCreatedAt = createdAt
+			}
 
-		_, err = tx.Exec(ctx, insertCodeOutputQuery,
-			output.ID,
-			output.MessageID,
-			output.Name,
-			output.MimeType,
-			output.URL,
-			output.Size,
-			outputCreatedAt,
-		)
-		if err != nil {
-			return serrors.E(op, err)
+			codeOutputArtifact := domain.NewArtifact(
+				domain.WithArtifactID(output.ID),
+				domain.WithArtifactTenantID(tenantID),
+				domain.WithArtifactSessionID(msg.SessionID()),
+				domain.WithArtifactMessageID(&msgID),
+				domain.WithArtifactType(domain.ArtifactTypeCodeOutput),
+				domain.WithArtifactName(output.Name),
+				domain.WithArtifactMimeType(output.MimeType),
+				domain.WithArtifactURL(output.URL),
+				domain.WithArtifactSizeBytes(output.Size),
+				domain.WithArtifactCreatedAt(outputCreatedAt),
+			)
+
+			if err := r.SaveArtifact(ctx, codeOutputArtifact); err != nil {
+				return serrors.E(op, err)
+			}
 		}
 	}
 
@@ -948,8 +947,21 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
 	const op serrors.Op = "PostgresChatRepository.SaveAttachment"
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	var sessionID uuid.UUID
+	if err := tx.QueryRow(ctx, selectMessageSessionQuery, tenantID, attachment.MessageID()).Scan(&sessionID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return serrors.E(op, ErrMessageNotFound)
+		}
 		return serrors.E(op, err)
 	}
 
@@ -957,16 +969,25 @@ func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment 
 	if createdAt.IsZero() {
 		createdAt = time.Now()
 	}
+	msgID := attachment.MessageID()
 
-	_, err = tx.Exec(ctx, insertAttachmentQuery,
-		attachment.ID(),
-		attachment.MessageID(),
-		attachment.FileName(),
-		attachment.MimeType(),
-		attachment.SizeBytes(),
-		attachment.FilePath(),
-		createdAt,
-	)
+	artifactOpts := []domain.ArtifactOption{
+		domain.WithArtifactID(attachment.ID()),
+		domain.WithArtifactTenantID(tenantID),
+		domain.WithArtifactSessionID(sessionID),
+		domain.WithArtifactMessageID(&msgID),
+		domain.WithArtifactType(domain.ArtifactTypeAttachment),
+		domain.WithArtifactName(attachment.FileName()),
+		domain.WithArtifactMimeType(attachment.MimeType()),
+		domain.WithArtifactURL(attachment.FilePath()),
+		domain.WithArtifactSizeBytes(attachment.SizeBytes()),
+		domain.WithArtifactCreatedAt(createdAt),
+	}
+	if attachment.UploadID() != nil {
+		artifactOpts = append(artifactOpts, domain.WithArtifactUploadID(*attachment.UploadID()))
+	}
+
+	err = r.SaveArtifact(ctx, domain.NewArtifact(artifactOpts...))
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -990,16 +1011,18 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 
 	var (
 		aid       uuid.UUID
-		messageID uuid.UUID
+		messageID *uuid.UUID
+		uploadID  *int64
 		fileName  string
-		mimeType  string
+		mimeType  *string
 		sizeBytes int64
-		filePath  string
+		filePath  *string
 		createdAt time.Time
 	)
 	err = tx.QueryRow(ctx, selectAttachmentQuery, tenantID, id).Scan(
 		&aid,
 		&messageID,
+		&uploadID,
 		&fileName,
 		&mimeType,
 		&sizeBytes,
@@ -1012,16 +1035,24 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 		}
 		return nil, serrors.E(op, err)
 	}
+	if messageID == nil {
+		return nil, serrors.E(op, ErrAttachmentNotFound)
+	}
 
-	return domain.NewAttachment(
+	opts := []domain.AttachmentOption{
 		domain.WithAttachmentID(aid),
-		domain.WithAttachmentMessageID(messageID),
+		domain.WithAttachmentMessageID(*messageID),
 		domain.WithFileName(fileName),
-		domain.WithMimeType(mimeType),
+		domain.WithMimeType(derefString(mimeType)),
 		domain.WithSizeBytes(sizeBytes),
-		domain.WithFilePath(filePath),
+		domain.WithFilePath(derefString(filePath)),
 		domain.WithAttachmentCreatedAt(createdAt),
-	), nil
+	}
+	if uploadID != nil {
+		opts = append(opts, domain.WithUploadID(*uploadID))
+	}
+
+	return domain.NewAttachment(opts...), nil
 }
 
 // GetMessageAttachments retrieves all attachments for a message.
@@ -1048,16 +1079,18 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 	for rows.Next() {
 		var (
 			aid       uuid.UUID
-			msgID     uuid.UUID
+			msgID     *uuid.UUID
+			uploadID  *int64
 			fileName  string
-			mimeType  string
+			mimeType  *string
 			sizeBytes int64
-			filePath  string
+			filePath  *string
 			createdAt time.Time
 		)
 		err := rows.Scan(
 			&aid,
 			&msgID,
+			&uploadID,
 			&fileName,
 			&mimeType,
 			&sizeBytes,
@@ -1067,15 +1100,22 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
-		attachments = append(attachments, domain.NewAttachment(
+		if msgID == nil {
+			continue
+		}
+		opts := []domain.AttachmentOption{
 			domain.WithAttachmentID(aid),
-			domain.WithAttachmentMessageID(msgID),
+			domain.WithAttachmentMessageID(*msgID),
 			domain.WithFileName(fileName),
-			domain.WithMimeType(mimeType),
+			domain.WithMimeType(derefString(mimeType)),
 			domain.WithSizeBytes(sizeBytes),
-			domain.WithFilePath(filePath),
+			domain.WithFilePath(derefString(filePath)),
 			domain.WithAttachmentCreatedAt(createdAt),
-		))
+		}
+		if uploadID != nil {
+			opts = append(opts, domain.WithUploadID(*uploadID))
+		}
+		attachments = append(attachments, domain.NewAttachment(opts...))
 	}
 
 	if err := rows.Err(); err != nil {
@@ -1087,34 +1127,18 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 
 // DeleteAttachment deletes an attachment.
 func (r *PostgresChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
-	const op serrors.Op = "PostgresChatRepository.DeleteAttachment"
-
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return serrors.E(op, err)
+	if err := r.DeleteArtifact(ctx, id); err != nil {
+		if errors.Is(err, ErrArtifactNotFound) {
+			return serrors.E("PostgresChatRepository.DeleteAttachment", ErrAttachmentNotFound)
+		}
+		return err
 	}
-
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-
-	result, err := tx.Exec(ctx, deleteAttachmentQuery, tenantID, id)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-
-	rowsAffected := result.RowsAffected()
-	if rowsAffected == 0 {
-		return serrors.E(op, ErrAttachmentNotFound)
-	}
-
 	return nil
 }
 
 // Helper methods
 
-// loadCodeOutputsForMessage loads code interpreter outputs for a specific message.
+// loadCodeOutputsForMessage loads code output artifacts for a specific message.
 func (r *PostgresChatRepository) loadCodeOutputsForMessage(ctx context.Context, tenantID uuid.UUID, messageID uuid.UUID) ([]types.CodeInterpreterOutput, error) {
 	const op serrors.Op = "PostgresChatRepository.loadCodeOutputsForMessage"
 
@@ -1123,7 +1147,7 @@ func (r *PostgresChatRepository) loadCodeOutputsForMessage(ctx context.Context, 
 		return nil, serrors.E(op, err)
 	}
 
-	rows, err := tx.Query(ctx, selectMessageCodeOutputsQuery, tenantID, messageID)
+	rows, err := tx.Query(ctx, selectMessageCodeOutputArtifactsQuery, tenantID, messageID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -1164,6 +1188,7 @@ func convertDomainAttachmentsToTypes(in []domain.Attachment) []types.Attachment 
 		out = append(out, types.Attachment{
 			ID:        a.ID(),
 			MessageID: a.MessageID(),
+			UploadID:  a.UploadID(),
 			FileName:  a.FileName(),
 			MimeType:  a.MimeType(),
 			SizeBytes: a.SizeBytes(),
@@ -1173,4 +1198,11 @@ func convertDomainAttachmentsToTypes(in []domain.Attachment) []types.Attachment 
 	}
 
 	return out
+}
+
+func derefString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
 }

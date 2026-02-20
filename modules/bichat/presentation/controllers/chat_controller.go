@@ -270,19 +270,7 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
-		return
-	}
-
-	domainAttachments, err := convertAttachmentDTOs(
-		r.Context(),
-		c.attachmentService,
-		req.Attachments,
-		tenantID,
-		uuid.Nil,
-	)
+	domainAttachments, err := convertAttachmentDTOs(r.Context(), req.Attachments)
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return

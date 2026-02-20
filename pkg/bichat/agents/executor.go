@@ -103,6 +103,14 @@ type ToolEvent struct {
 
 	// DurationMs is the execution time in milliseconds (only present in EventTypeToolEnd).
 	DurationMs int64
+
+	// Artifacts are generated outputs returned by the tool execution.
+	Artifacts []types.ToolArtifact
+}
+
+type toolExecutionResult struct {
+	output    string
+	artifacts []types.ToolArtifact
 }
 
 // Executor executes the ReAct (Reason + Act) loop for an agent.
@@ -275,24 +283,28 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 // Accepts a tool directly to avoid O(n) lookup. If tool is nil or has nil handler,
 // falls back to agent.OnToolCall for backward compatibility.
 // After invoking StructuredTool.CallStructured we always return and never fall through to Tool.Call() to avoid double execution.
-func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (string, error) {
+func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (toolExecutionResult, error) {
 	if e.formatterRegistry != nil && tool != nil {
 		if st, ok := tool.(StructuredTool); ok {
 			result, err := st.CallStructured(ctx, arguments)
 			if err != nil && result == nil {
-				return "", err
+				return toolExecutionResult{}, err
 			}
 			if result == nil {
-				return "", nil
+				return toolExecutionResult{}, nil
+			}
+			execResult := toolExecutionResult{
+				artifacts: result.Artifacts,
 			}
 			// result != nil: format or fallback, then return (never fall through to tool.Call())
 			if f := e.formatterRegistry.Get(result.CodecID); f != nil {
 				formatted, fmtErr := f.Format(result.Payload, types.DefaultFormatOptions())
 				if fmtErr == nil {
+					execResult.output = formatted
 					if err != nil && errors.Is(err, ErrStructuredToolOutput) {
-						return formatted, nil
+						return execResult, nil
 					}
-					return formatted, err
+					return execResult, err
 				}
 			}
 			// Formatter missing or format failed: return raw payload stringified
@@ -300,21 +312,25 @@ func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments 
 			if fallback == "" {
 				fallback = fmt.Sprintf("%v", result.Payload)
 			}
+			execResult.output = fallback
 			if err != nil && errors.Is(err, ErrStructuredToolOutput) {
-				return fallback, nil
+				return execResult, nil
 			}
-			return fallback, err
+			return execResult, err
 		}
 	}
 
 	// Non-StructuredTool path: ToolFunc nil-handler fallback and agent.OnToolCall
 	if tool != nil {
 		if tf, ok := tool.(*ToolFunc); ok && tf.Fn == nil {
-			return e.agent.OnToolCall(ctx, toolName, arguments)
+			output, err := e.agent.OnToolCall(ctx, toolName, arguments)
+			return toolExecutionResult{output: output}, err
 		}
-		return tool.Call(ctx, arguments)
+		output, err := tool.Call(ctx, arguments)
+		return toolExecutionResult{output: output}, err
 	}
-	return e.agent.OnToolCall(ctx, toolName, arguments)
+	output, err := e.agent.OnToolCall(ctx, toolName, arguments)
+	return toolExecutionResult{output: output}, err
 }
 
 // Execute runs the ReAct loop and returns a Generator that yields ExecutorEvent objects.
@@ -440,7 +456,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Speculative tool execution state (best-effort).
 			type specToolResult struct {
 				call       types.ToolCall
-				result     string
+				result     toolExecutionResult
 				err        error
 				durationMs int64
 			}
@@ -485,7 +501,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					return true
 				}
 
-				toolOutput := tr.result
+				toolOutput := tr.result.output
 				if tr.err != nil {
 					toolOutput = fmt.Sprintf("Error: %v", tr.err)
 				}
@@ -509,6 +525,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						tr.call.Arguments,
 						tr.call.ID,
 						toolOutput,
+						tr.result.artifacts,
 						tr.durationMs,
 					))
 				}
@@ -523,6 +540,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						Result:     toolOutput,
 						Error:      tr.err,
 						DurationMs: tr.durationMs,
+						Artifacts:  tr.result.artifacts,
 					},
 				}) {
 					specCancel()
@@ -1171,7 +1189,7 @@ func (e *Executor) executeToolCalls(
 	type toolResult struct {
 		idx        int
 		call       types.ToolCall
-		result     string
+		result     toolExecutionResult
 		err        error
 		durationMs int64
 	}
@@ -1266,7 +1284,7 @@ func (e *Executor) executeToolCalls(
 
 		received++
 
-		toolOutput := tr.result
+		toolOutput := tr.result.output
 		if tr.err != nil {
 			toolOutput = fmt.Sprintf("Error: %v", tr.err)
 		}
@@ -1290,6 +1308,7 @@ func (e *Executor) executeToolCalls(
 				tr.call.Arguments,
 				tr.call.ID,
 				toolOutput,
+				tr.result.artifacts,
 				tr.durationMs,
 			))
 		}
@@ -1304,6 +1323,7 @@ func (e *Executor) executeToolCalls(
 				Result:     toolOutput,
 				Error:      tr.err,
 				DurationMs: tr.durationMs,
+				Artifacts:  tr.result.artifacts,
 			},
 		}) {
 			cancel()

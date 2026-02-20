@@ -11,8 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/handlers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
@@ -62,7 +60,6 @@ type Module struct {
 	config                 *ModuleConfig
 	observabilityProviders []observability.Provider
 	eventBridge            *observability.EventBridge
-	artifactUnsubscribe    func()
 	titleWorker            *services.TitleJobWorker
 	titleWorkerCancel      context.CancelFunc
 	titleWorkerDone        chan struct{}
@@ -99,14 +96,6 @@ func (m *Module) Register(app application.Application) error {
 		attachmentService := m.config.AttachmentService()
 		artifactService := m.config.ArtifactService()
 		app.RegisterServices(chatService, agentService, attachmentService, artifactService)
-
-		if m.artifactUnsubscribe == nil && m.config.EventBus != nil && m.config.ChatRepo != nil {
-			artifactHandler := handlers.NewArtifactHandler(m.config.ChatRepo)
-			m.artifactUnsubscribe = m.config.EventBus.Subscribe(
-				artifactHandler,
-				string(hooks.EventToolComplete),
-			)
-		}
 
 		if m.titleWorker == nil {
 			worker, err := m.config.NewTitleJobWorker(app.DB())
@@ -182,11 +171,6 @@ func (m *Module) Name() string {
 //	defer module.Shutdown(context.Background())
 func (m *Module) Shutdown(ctx context.Context) error {
 	var shutdownErr error
-
-	if m.artifactUnsubscribe != nil {
-		m.artifactUnsubscribe()
-		m.artifactUnsubscribe = nil
-	}
 
 	if m.titleWorkerCancel != nil {
 		m.titleWorkerCancel()

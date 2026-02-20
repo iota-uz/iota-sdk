@@ -516,7 +516,7 @@ func TestEventBridge_HierarchicalNesting(t *testing.T) {
 
 	// 3. tool.complete (tool should be parented under generation)
 	require.NoError(t, bus.Publish(context.Background(),
-		events.NewToolCompleteEvent(sessionID, tenantID, "sql_execute", `{"query":"SELECT 1"}`, "call-1", "result", 200),
+		events.NewToolCompleteEvent(sessionID, tenantID, "sql_execute", `{"query":"SELECT 1"}`, "call-1", "result", nil, 200),
 	))
 	time.Sleep(50 * time.Millisecond)
 

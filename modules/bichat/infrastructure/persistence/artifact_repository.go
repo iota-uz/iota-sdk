@@ -16,19 +16,22 @@ import (
 const (
 	insertArtifactQuery = `
 		INSERT INTO bichat.artifacts (
-			id, tenant_id, session_id, message_id, type, name, description,
-			mime_type, url, size_bytes, metadata, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			id, tenant_id, session_id, message_id, upload_id, type, name, description,
+			mime_type, url, size_bytes, metadata, status, idempotency_key, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		ON CONFLICT (tenant_id, session_id, idempotency_key)
+		WHERE idempotency_key IS NOT NULL
+		DO NOTHING
 	`
 	selectArtifactQuery = `
-		SELECT id, tenant_id, session_id, message_id, type, name, description,
-			mime_type, url, size_bytes, metadata, created_at
+		SELECT id, tenant_id, session_id, message_id, upload_id, type, name, description,
+			mime_type, url, size_bytes, metadata, status, idempotency_key, created_at
 		FROM bichat.artifacts
 		WHERE tenant_id = $1 AND id = $2
 	`
 	selectSessionArtifactsQuery = `
-		SELECT id, tenant_id, session_id, message_id, type, name, description,
-			mime_type, url, size_bytes, metadata, created_at
+		SELECT id, tenant_id, session_id, message_id, upload_id, type, name, description,
+			mime_type, url, size_bytes, metadata, status, idempotency_key, created_at
 		FROM bichat.artifacts
 		WHERE tenant_id = $1 AND session_id = $2
 		ORDER BY created_at DESC
@@ -71,11 +74,18 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact doma
 	}
 	var messageID, description, mimeType, url any
 	messageID = nil
+	var uploadID any
+	uploadID = nil
+	var idempotencyKey any
+	idempotencyKey = nil
 	description = nil
 	mimeType = nil
 	url = nil
 	if model.MessageID != nil {
 		messageID = *model.MessageID
+	}
+	if model.UploadID != nil {
+		uploadID = *model.UploadID
 	}
 	if model.Description != nil {
 		description = *model.Description
@@ -85,6 +95,13 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact doma
 	}
 	if model.URL != nil {
 		url = *model.URL
+	}
+	if model.Idempotency != nil && *model.Idempotency != "" {
+		idempotencyKey = *model.Idempotency
+	}
+	status := model.Status
+	if status == "" {
+		status = string(domain.ArtifactStatusAvailable)
 	}
 	metadata := model.Metadata
 	if metadata == nil {
@@ -96,6 +113,7 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact doma
 		tenantID,
 		model.SessionID,
 		messageID,
+		uploadID,
 		model.Type,
 		model.Name,
 		description,
@@ -103,6 +121,8 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact doma
 		url,
 		model.SizeBytes,
 		metadata,
+		status,
+		idempotencyKey,
 		model.CreatedAt,
 	)
 	if err != nil {
@@ -132,6 +152,7 @@ func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) 
 		&m.TenantID,
 		&m.SessionID,
 		&m.MessageID,
+		&m.UploadID,
 		&m.Type,
 		&m.Name,
 		&m.Description,
@@ -139,6 +160,8 @@ func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) 
 		&m.URL,
 		&m.SizeBytes,
 		&m.Metadata,
+		&m.Status,
+		&m.Idempotency,
 		&m.CreatedAt,
 	)
 	if err != nil {
@@ -184,11 +207,11 @@ func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessio
 			typeStrings[i] = string(t)
 		}
 		query = `
-		SELECT id, tenant_id, session_id, message_id, type, name, description,
-			mime_type, url, size_bytes, metadata, created_at
-		FROM bichat.artifacts
-		WHERE tenant_id = $1 AND session_id = $2 AND type = ANY($3)
-		ORDER BY created_at DESC
+			SELECT id, tenant_id, session_id, message_id, upload_id, type, name, description,
+				mime_type, url, size_bytes, metadata, status, idempotency_key, created_at
+			FROM bichat.artifacts
+			WHERE tenant_id = $1 AND session_id = $2 AND type = ANY($3)
+			ORDER BY created_at DESC
 		LIMIT $4 OFFSET $5
 		`
 		args = []any{tenantID, sessionID, typeStrings, limit, offset}
@@ -208,6 +231,7 @@ func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessio
 			&m.TenantID,
 			&m.SessionID,
 			&m.MessageID,
+			&m.UploadID,
 			&m.Type,
 			&m.Name,
 			&m.Description,
@@ -215,6 +239,8 @@ func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessio
 			&m.URL,
 			&m.SizeBytes,
 			&m.Metadata,
+			&m.Status,
+			&m.Idempotency,
 			&m.CreatedAt,
 		)
 		if err != nil {

@@ -262,6 +262,7 @@ func TestPostgresChatRepository_UpsertAndGetArtifactProviderFile(t *testing.T) {
 	artifact := domain.NewArtifact(
 		domain.WithArtifactTenantID(env.Tenant.ID),
 		domain.WithArtifactSessionID(session.ID()),
+		domain.WithArtifactUploadID(mustCreateUploadForAttachment(t, env.Ctx, "sales.csv", "text/csv", 2048)),
 		domain.WithArtifactType(domain.ArtifactTypeAttachment),
 		domain.WithArtifactName("sales.csv"),
 		domain.WithArtifactURL("https://example.com/uploads/sales.csv"),

@@ -3,18 +3,20 @@ package controllers
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	bichatpersistence "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	modservices "github.com/iota-uz/iota-sdk/modules/bichat/services"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	coreupload "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	bichatagents "github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
@@ -168,6 +170,30 @@ func mustCreateSession(t *testing.T, ctx context.Context, deps controllerDeps, t
 	require.NoError(t, err)
 	require.NotNil(t, s)
 	return s
+}
+
+func mustCreateControllerUpload(t *testing.T, ctx context.Context, fileName, mimeType string, size int) int64 {
+	t.Helper()
+
+	mime := mimetype.Lookup(mimeType)
+	if mime == nil {
+		mime = mimetype.Lookup("application/octet-stream")
+	}
+
+	uploadRepo := corepersistence.NewUploadRepository()
+	seed := uuid.NewString()[:8]
+	entity := coreupload.New(
+		"bichat-controller-hash-"+seed,
+		"uploads/bichat-controller-"+seed,
+		fileName,
+		"bichat-controller-"+seed,
+		size,
+		mime,
+	)
+
+	created, err := uploadRepo.Create(ctx, entity)
+	require.NoError(t, err)
+	return int64(created.ID())
 }
 
 func TestControllers_BasePathRouting_Integration(t *testing.T) {
@@ -396,16 +422,13 @@ func TestStreamController_AttachmentUpload_PersistsOnUserMessage_Integration(t *
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
-	attachmentData := []byte("hello,artifact-reader")
+	uploadID := mustCreateControllerUpload(t, env.Ctx, "notes.txt", "text/plain", len("hello,artifact-reader"))
 	body := map[string]any{
 		"sessionId": session.ID().String(),
 		"content":   "Analyze this file",
 		"attachments": []map[string]any{
 			{
-				"filename":   "notes.txt",
-				"mimeType":   "text/plain",
-				"sizeBytes":  len(attachmentData),
-				"base64Data": base64.StdEncoding.EncodeToString(attachmentData),
+				"uploadId": uploadID,
 			},
 		},
 	}

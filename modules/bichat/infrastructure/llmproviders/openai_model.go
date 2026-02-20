@@ -1,15 +1,12 @@
 package llmproviders
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"sync"
 
-	"github.com/google/uuid"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
@@ -18,7 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -33,8 +29,7 @@ type OpenAIModel struct {
 	logger                       logging.Logger
 	codeInterpreterMemoryLimit   string
 	codeInterpreterArtifactLimit int
-	chatRepo                     domain.ChatRepository
-	fileStorage                  storage.FileStorage
+	artifactResolver             CodeInterpreterArtifactResolver
 }
 
 // OpenAIModelOption configures an OpenAIModel.
@@ -43,14 +38,7 @@ type OpenAIModelOption func(*OpenAIModel)
 const (
 	defaultCodeInterpreterMemoryLimit = "4g"
 	defaultCodeInterpreterFileLimit   = 20
-	codeInterpreterProviderOpenAI     = "openai"
-	maxOpenAIFileUploadBytes          = 512 << 20 // 512MB
 )
-
-type artifactProviderFileSyncRepository interface {
-	GetArtifactProviderFile(ctx context.Context, artifactID uuid.UUID, provider string) (providerFileID, sourceURL string, sourceSizeBytes int64, err error)
-	UpsertArtifactProviderFile(ctx context.Context, artifactID uuid.UUID, provider, providerFileID, sourceURL string, sourceSizeBytes int64) error
-}
 
 // WithLogger sets the logger for the OpenAI model.
 func WithLogger(logger logging.Logger) OpenAIModelOption {
@@ -78,11 +66,14 @@ func WithCodeInterpreterMemoryLimit(limit string) OpenAIModelOption {
 
 // WithCodeInterpreterArtifactSource configures artifact lookup and file storage so
 // uploaded session artifacts can be passed to code_interpreter as file_ids.
-func WithCodeInterpreterArtifactSource(repo domain.ChatRepository, fileStorage storage.FileStorage) OpenAIModelOption {
+func WithCodeInterpreterArtifactSource(repo domain.ChatRepository, fileStorage CodeInterpreterArtifactStorage) OpenAIModelOption {
 	return func(m *OpenAIModel) {
 		m.mu.Lock()
-		m.chatRepo = repo
-		m.fileStorage = fileStorage
+		if m.client != nil && repo != nil && fileStorage != nil {
+			m.artifactResolver = NewOpenAICodeInterpreterArtifactResolver(m.client, repo, fileStorage, m.logger)
+		} else {
+			m.artifactResolver = nil
+		}
 		m.mu.Unlock()
 	}
 }
@@ -491,10 +482,13 @@ func (m *OpenAIModel) SetCodeInterpreterMemoryLimit(limit string) error {
 
 // SetCodeInterpreterArtifactSource configures the session artifact source and storage
 // used to upload attachments to OpenAI Files for code_interpreter.
-func (m *OpenAIModel) SetCodeInterpreterArtifactSource(repo domain.ChatRepository, fileStorage storage.FileStorage) {
+func (m *OpenAIModel) SetCodeInterpreterArtifactSource(repo domain.ChatRepository, fileStorage CodeInterpreterArtifactStorage) {
 	m.mu.Lock()
-	m.chatRepo = repo
-	m.fileStorage = fileStorage
+	if m.client != nil && repo != nil && fileStorage != nil {
+		m.artifactResolver = NewOpenAICodeInterpreterArtifactResolver(m.client, repo, fileStorage, m.logger)
+	} else {
+		m.artifactResolver = nil
+	}
 	m.mu.Unlock()
 }
 
@@ -516,13 +510,11 @@ func (m *OpenAIModel) getCodeInterpreterMemoryLimit() string {
 
 func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []string {
 	m.mu.RLock()
-	chatRepo := m.chatRepo
-	fileStorage := m.fileStorage
-	client := m.client
+	resolver := m.artifactResolver
 	limit := m.codeInterpreterArtifactLimit
 	m.mu.RUnlock()
 
-	if chatRepo == nil || fileStorage == nil || client == nil {
+	if resolver == nil {
 		return nil
 	}
 
@@ -535,136 +527,7 @@ func (m *OpenAIModel) resolveCodeInterpreterFileIDs(ctx context.Context) []strin
 		limit = defaultCodeInterpreterFileLimit
 	}
 
-	artifacts, err := chatRepo.GetSessionArtifacts(ctx, sessionID, domain.ListOptions{
-		Limit:  limit,
-		Offset: 0,
-		Types:  []domain.ArtifactType{domain.ArtifactTypeAttachment},
-	})
-	if err != nil {
-		m.logger.Warn(ctx, "failed to list session artifacts for code_interpreter files", map[string]any{
-			"session_id": sessionID.String(),
-			"error":      err.Error(),
-		})
-		return nil
-	}
-
-	fileIDs := make([]string, 0, len(artifacts))
-	seenURLs := make(map[string]struct{}, len(artifacts))
-	var syncRepo artifactProviderFileSyncRepository
-	if repo, ok := chatRepo.(artifactProviderFileSyncRepository); ok {
-		syncRepo = repo
-	}
-	for _, artifact := range artifacts {
-		fileURL := strings.TrimSpace(artifact.URL())
-		if fileURL == "" {
-			continue
-		}
-		if _, exists := seenURLs[fileURL]; exists {
-			continue
-		}
-		seenURLs[fileURL] = struct{}{}
-
-		if syncRepo != nil {
-			providerFileID, sourceURL, sourceSizeBytes, mapErr := syncRepo.GetArtifactProviderFile(ctx, artifact.ID(), codeInterpreterProviderOpenAI)
-			if mapErr == nil {
-				if strings.TrimSpace(providerFileID) != "" &&
-					sourceURL == fileURL &&
-					sourceSizeBytes == artifact.SizeBytes() {
-					fileIDs = append(fileIDs, providerFileID)
-					if len(fileIDs) >= limit {
-						break
-					}
-					continue
-				}
-			}
-		}
-
-		rc, err := fileStorage.Get(ctx, fileURL)
-		if err != nil {
-			m.logger.Warn(ctx, "failed to open artifact content for code_interpreter upload", map[string]any{
-				"session_id":  sessionID.String(),
-				"artifact_id": artifact.ID().String(),
-				"url":         fileURL,
-				"error":       err.Error(),
-			})
-			continue
-		}
-
-		data, readErr := io.ReadAll(io.LimitReader(rc, maxOpenAIFileUploadBytes+1))
-		_ = rc.Close()
-		if readErr != nil {
-			m.logger.Warn(ctx, "failed to read artifact content for code_interpreter upload", map[string]any{
-				"session_id":  sessionID.String(),
-				"artifact_id": artifact.ID().String(),
-				"url":         fileURL,
-				"error":       readErr.Error(),
-			})
-			continue
-		}
-		if int64(len(data)) > maxOpenAIFileUploadBytes {
-			m.logger.Warn(ctx, "artifact exceeds OpenAI file upload size limit", map[string]any{
-				"session_id":        sessionID.String(),
-				"artifact_id":       artifact.ID().String(),
-				"url":               fileURL,
-				"size_bytes":        artifact.SizeBytes(),
-				"max_allowed_bytes": maxOpenAIFileUploadBytes,
-			})
-			continue
-		}
-		if len(data) == 0 {
-			continue
-		}
-
-		filename := strings.TrimSpace(artifact.Name())
-		if filename == "" {
-			filename = "artifact.bin"
-		}
-		contentType := strings.TrimSpace(artifact.MimeType())
-
-		uploaded, uploadErr := client.Files.New(ctx, openai.FileNewParams{
-			File:    openai.File(bytes.NewReader(data), filename, contentType),
-			Purpose: openai.FilePurposeAssistants,
-		})
-		if uploadErr != nil {
-			m.logger.Warn(ctx, "failed to upload artifact to OpenAI for code_interpreter", map[string]any{
-				"session_id":  sessionID.String(),
-				"artifact_id": artifact.ID().String(),
-				"filename":    filename,
-				"mime_type":   contentType,
-				"error":       uploadErr.Error(),
-			})
-			continue
-		}
-		if strings.TrimSpace(uploaded.ID) == "" {
-			continue
-		}
-
-		if syncRepo != nil {
-			if err := syncRepo.UpsertArtifactProviderFile(
-				ctx,
-				artifact.ID(),
-				codeInterpreterProviderOpenAI,
-				uploaded.ID,
-				fileURL,
-				artifact.SizeBytes(),
-			); err != nil {
-				m.logger.Warn(ctx, "failed to persist artifact/provider file mapping", map[string]any{
-					"session_id":  sessionID.String(),
-					"artifact_id": artifact.ID().String(),
-					"provider":    codeInterpreterProviderOpenAI,
-					"file_id":     uploaded.ID,
-					"error":       err.Error(),
-				})
-			}
-		}
-
-		fileIDs = append(fileIDs, uploaded.ID)
-		if len(fileIDs) >= limit {
-			break
-		}
-	}
-
-	return fileIDs
+	return resolver.ResolveCodeInterpreterFileIDs(ctx, sessionID, limit)
 }
 
 // buildInputItems converts types.Message slice to Responses API input items.
@@ -825,8 +688,20 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 				Status:      item.Status,
 			}
 			for _, out := range item.Outputs {
-				if out.Type == "logs" {
+				switch out.Type {
+				case "logs":
 					result.Logs = out.Logs
+					result.Outputs = append(result.Outputs, types.CodeInterpreterGeneratedOutput{
+						Type: "logs",
+						Logs: out.Logs,
+					})
+				case "image":
+					if strings.TrimSpace(out.URL) != "" {
+						result.Outputs = append(result.Outputs, types.CodeInterpreterGeneratedOutput{
+							Type: "image",
+							URL:  out.URL,
+						})
+					}
 				}
 			}
 			codeResults = append(codeResults, result)

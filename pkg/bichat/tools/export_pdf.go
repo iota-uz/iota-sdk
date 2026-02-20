@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -110,49 +111,50 @@ type pdfExportOutput struct {
 	Size     int64  `json:"size,omitempty"`
 }
 
-// Call executes the PDF export operation.
-func (t *ExportToPDFTool) Call(ctx context.Context, input string) (string, error) {
+// CallStructured executes the PDF export operation and returns a structured result.
+func (t *ExportToPDFTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
 	const op serrors.Op = "ExportToPDFTool.Call"
 
-	// Parse input
 	params, err := agents.ParseToolInput[pdfExportInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-			"Provide html parameter with content to convert",
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields, "Provide html parameter with content to convert"},
+			},
+		}, nil
 	}
 
 	if params.HTML == "" {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"html parameter is required",
-			HintCheckRequiredFields,
-			"Provide HTML content to convert to PDF",
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "html parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide HTML content to convert to PDF"},
+			},
+		}, nil
 	}
 
-	// Set defaults
 	filename := params.Filename
 	if filename == "" {
 		filename = "export.pdf"
 	}
 
-	// Convert HTML to PDF using Gotenberg
 	pdfData, err := t.convertHTMLToPDF(ctx, params.HTML, params.Landscape)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			fmt.Sprintf("PDF conversion failed: %v", err),
-			HintServiceMayBeDown,
-			"Verify Gotenberg service is running",
-			HintRetryLater,
-		), serrors.E(op, err, "PDF conversion failed")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("PDF conversion failed: %v", err),
+				Hints:   []string{HintServiceMayBeDown, "Verify Gotenberg service is running", HintRetryLater},
+			},
+		}, serrors.E(op, err, "PDF conversion failed")
 	}
 
-	// Save PDF file to storage
 	url := fmt.Sprintf("/exports/%s", filename) // Fallback URL
 	if t.storage != nil {
 		metadata := storage.FileMetadata{
@@ -161,25 +163,43 @@ func (t *ExportToPDFTool) Call(ctx context.Context, input string) (string, error
 		}
 		savedURL, err := t.storage.Save(ctx, filename, bytes.NewReader(pdfData), metadata)
 		if err != nil {
-			return FormatToolError(
-				ErrCodeServiceUnavailable,
-				fmt.Sprintf("failed to save PDF file: %v", err),
-				"File system may be full or permissions issue",
-				HintRetryLater,
-			), serrors.E(op, err, "failed to save PDF file")
+			return &types.ToolResult{
+				CodecID: types.CodecToolError,
+				Payload: types.ToolErrorPayload{
+					Code:    string(ErrCodeServiceUnavailable),
+					Message: fmt.Sprintf("failed to save PDF file: %v", err),
+					Hints:   []string{"File system may be full or permissions issue", HintRetryLater},
+				},
+			}, serrors.E(op, err, "failed to save PDF file")
 		}
 		url = savedURL
 	}
 	url = resolveDownloadURL(ctx, url)
 
-	// Build response
 	response := pdfExportOutput{
 		URL:      url,
 		Filename: filename,
 		Size:     int64(len(pdfData)),
 	}
 
-	return agents.FormatToolOutput(response)
+	return &types.ToolResult{
+		CodecID: types.CodecJSON,
+		Payload: types.JSONPayload{Output: response},
+		Artifacts: []types.ToolArtifact{
+			{
+				Type:      "export",
+				Name:      filename,
+				MimeType:  "application/pdf",
+				URL:       url,
+				SizeBytes: int64(len(pdfData)),
+			},
+		},
+	}, nil
+}
+
+// Call executes the PDF export operation.
+func (t *ExportToPDFTool) Call(ctx context.Context, input string) (string, error) {
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
 // convertHTMLToPDF converts HTML content to PDF using Gotenberg.

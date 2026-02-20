@@ -8,6 +8,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -112,84 +113,102 @@ type excelExportOutput struct {
 	RowCount int    `json:"row_count"`
 }
 
-// Call executes the Excel export operation.
-func (t *ExportToExcelTool) Call(ctx context.Context, input string) (string, error) {
+// CallStructured executes the Excel export operation and returns a structured result.
+func (t *ExportToExcelTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
 	const op serrors.Op = "ExportToExcelTool.Call"
 
-	// Parse input
 	params, err := agents.ParseToolInput[excelExportInput](input)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			fmt.Sprintf("failed to parse input: %v", err),
-			HintCheckRequiredFields,
-			"Provide data parameter with query results",
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: fmt.Sprintf("failed to parse input: %v", err),
+				Hints:   []string{HintCheckRequiredFields, "Provide data parameter with query results"},
+			},
+		}, nil
 	}
 
 	if params.Data == nil {
-		return FormatToolError(
-			ErrCodeInvalidRequest,
-			"data parameter is required",
-			HintCheckRequiredFields,
-			"Provide query result data to export",
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeInvalidRequest),
+				Message: "data parameter is required",
+				Hints:   []string{HintCheckRequiredFields, "Provide query result data to export"},
+			},
+		}, nil
 	}
 
-	// Check if data is too large
 	if params.Data.RowCount > 100000 {
-		return FormatToolError(
-			ErrCodeDataTooLarge,
-			fmt.Sprintf("data too large for Excel export: %d rows (max: 100000)", params.Data.RowCount),
-			HintAddLimitClause,
-			HintFilterWithWhere,
-			"Consider exporting filtered subsets instead",
-		), nil
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeDataTooLarge),
+				Message: fmt.Sprintf("data too large for Excel export: %d rows (max: 100000)", params.Data.RowCount),
+				Hints:   []string{HintAddLimitClause, HintFilterWithWhere, "Consider exporting filtered subsets instead"},
+			},
+		}, nil
 	}
 
-	// Set defaults
 	filename := params.Filename
 	if filename == "" {
 		filename = "export.xlsx"
 	}
 
-	// Create datasource adapter
 	datasource := NewQueryResultDataSource(params.Data)
-
-	// Use SDK exporter with configured options
 	exporter := excel.NewExcelExporter(t.exportOpts, t.styleOpts)
 
-	// Export to bytes
 	bytes, err := exporter.Export(ctx, datasource)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeQueryError,
-			fmt.Sprintf("failed to export Excel: %v", err),
-			"Verify data format is valid",
-			"Check for special characters in data",
-		), serrors.E(op, err, "failed to export Excel")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeQueryError),
+				Message: fmt.Sprintf("failed to export Excel: %v", err),
+				Hints:   []string{"Verify data format is valid", "Check for special characters in data"},
+			},
+		}, serrors.E(op, err, "failed to export Excel")
 	}
 
-	// Save to file
 	filePath := filepath.Join(t.outputDir, filename)
 	if err := os.WriteFile(filePath, bytes, 0644); err != nil {
-		return FormatToolError(
-			ErrCodeServiceUnavailable,
-			fmt.Sprintf("failed to save Excel file: %v", err),
-			"File system may be full or permissions issue",
-			HintRetryLater,
-		), serrors.E(op, err, "failed to save Excel file")
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code:    string(ErrCodeServiceUnavailable),
+				Message: fmt.Sprintf("failed to save Excel file: %v", err),
+				Hints:   []string{"File system may be full or permissions issue", HintRetryLater},
+			},
+		}, serrors.E(op, err, "failed to save Excel file")
 	}
 
-	// Return download URL
 	url := buildDownloadURL(ctx, t.baseURL, filename)
-
-	// Build response
 	response := excelExportOutput{
 		URL:      url,
 		Filename: filename,
 		RowCount: params.Data.RowCount,
 	}
 
-	return agents.FormatToolOutput(response)
+	return &types.ToolResult{
+		CodecID: types.CodecJSON,
+		Payload: types.JSONPayload{Output: response},
+		Artifacts: []types.ToolArtifact{
+			{
+				Type:      "export",
+				Name:      filename,
+				MimeType:  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+				URL:       url,
+				SizeBytes: int64(len(bytes)),
+				Metadata: map[string]any{
+					"row_count": params.Data.RowCount,
+				},
+			},
+		},
+	}, nil
+}
+
+// Call executes the Excel export operation.
+func (t *ExportToExcelTool) Call(ctx context.Context, input string) (string, error) {
+	return FormatStructuredResult(t.CallStructured(ctx, input))
 }
