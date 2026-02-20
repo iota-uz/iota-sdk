@@ -3,11 +3,13 @@ package bichat
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"time"
 
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/handlers"
@@ -61,6 +63,9 @@ type Module struct {
 	observabilityProviders []observability.Provider
 	eventBridge            *observability.EventBridge
 	artifactUnsubscribe    func()
+	titleWorker            *services.TitleJobWorker
+	titleWorkerCancel      context.CancelFunc
+	titleWorkerDone        chan struct{}
 }
 
 func (m *Module) Register(app application.Application) error {
@@ -101,6 +106,25 @@ func (m *Module) Register(app application.Application) error {
 				artifactHandler,
 				string(hooks.EventToolComplete),
 			)
+		}
+
+		if m.titleWorker == nil {
+			worker, err := m.config.NewTitleJobWorker(app.DB())
+			if err != nil && !errors.Is(err, ErrTitleJobWorkerDisabled) {
+				return fmt.Errorf("failed to create title job worker: %w", err)
+			}
+			if err == nil && worker != nil {
+				workerCtx, workerCancel := context.WithCancel(context.Background())
+				m.titleWorker = worker
+				m.titleWorkerCancel = workerCancel
+				m.titleWorkerDone = make(chan struct{})
+				go func() {
+					defer close(m.titleWorkerDone)
+					if startErr := worker.Start(workerCtx); startErr != nil && m.config.Logger != nil {
+						m.config.Logger.WithError(startErr).Warn("bichat title job worker stopped with error")
+					}
+				}()
+			}
 		}
 
 		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Icon, BiChatLink.Name, BiChatLink.Href))
@@ -157,18 +181,44 @@ func (m *Module) Name() string {
 //	module := bichat.NewModuleWithConfig(cfg)
 //	defer module.Shutdown(context.Background())
 func (m *Module) Shutdown(ctx context.Context) error {
+	var shutdownErr error
+
 	if m.artifactUnsubscribe != nil {
 		m.artifactUnsubscribe()
 		m.artifactUnsubscribe = nil
 	}
 
+	if m.titleWorkerCancel != nil {
+		m.titleWorkerCancel()
+		m.titleWorkerCancel = nil
+	}
+	if m.titleWorkerDone != nil {
+		select {
+		case <-m.titleWorkerDone:
+		case <-ctx.Done():
+			shutdownErr = errors.Join(shutdownErr, ctx.Err())
+		}
+		m.titleWorkerDone = nil
+	}
+	m.titleWorker = nil
+
+	if m.config != nil {
+		if err := m.config.CloseTitleQueue(); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
+	}
+
 	if m.eventBridge == nil {
-		return nil // No observability configured
+		return shutdownErr
 	}
 
 	// Create timeout context for shutdown (30 seconds)
 	shutdownCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return m.eventBridge.Shutdown(shutdownCtx)
+	if err := m.eventBridge.Shutdown(shutdownCtx); err != nil {
+		shutdownErr = errors.Join(shutdownErr, err)
+	}
+
+	return shutdownErr
 }

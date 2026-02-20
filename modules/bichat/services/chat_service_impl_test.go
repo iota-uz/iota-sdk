@@ -11,8 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +19,7 @@ func TestChatService_UnarchiveSession(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -47,7 +45,7 @@ func TestChatService_ClearSessionHistory(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -101,7 +99,7 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 	chatRepo := newMockChatRepository()
 	model := newMockModel()
 	model.response.Message = types.AssistantMessage("## Conversation Summary\nCompacted response")
-	svc := NewChatService(chatRepo, nil, model, nil)
+	svc := NewChatService(chatRepo, nil, model, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -144,7 +142,7 @@ func TestChatService_CompactSessionHistory_EmptyHistory(t *testing.T) {
 
 	chatRepo := newMockChatRepository()
 	model := newMockModel()
-	svc := NewChatService(chatRepo, nil, model, nil)
+	svc := NewChatService(chatRepo, nil, model, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -171,7 +169,7 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -224,7 +222,7 @@ func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *tes
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -298,7 +296,7 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil)
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
 	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-prev",
@@ -347,7 +345,7 @@ func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t
 		processStreamErr: assert.AnError,
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, titleService)
+	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
 	err := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
 		SessionID: session.ID(),
 		Content:   "first user message",
@@ -373,7 +371,12 @@ type captureTitleContextService struct {
 	called chan context.Context
 }
 
-type stubRepoTx struct{}
+type stubTitleJobQueue struct {
+	err       error
+	callCount int
+	tenantID  uuid.UUID
+	sessionID uuid.UUID
+}
 
 type stubAgentService struct {
 	processEvents    []bichatservices.Event
@@ -422,25 +425,11 @@ func (s *captureTitleContextService) GenerateSessionTitle(ctx context.Context, _
 	return nil
 }
 
-func (stubRepoTx) CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error) {
-	return 0, nil
-}
-
-func (stubRepoTx) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults {
-	return nil
-}
-
-func (stubRepoTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
-	var tag pgconn.CommandTag
-	return tag, nil
-}
-
-func (stubRepoTx) Query(context.Context, string, ...any) (pgx.Rows, error) {
-	return nil, pgx.ErrNoRows
-}
-
-func (stubRepoTx) QueryRow(context.Context, string, ...any) pgx.Row {
-	return nil
+func (s *stubTitleJobQueue) Enqueue(_ context.Context, tenantID uuid.UUID, sessionID uuid.UUID) error {
+	s.callCount++
+	s.tenantID = tenantID
+	s.sessionID = sessionID
+	return s.err
 }
 
 func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T) {
@@ -450,11 +439,43 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 	titleService := &captureTitleContextService{
 		called: make(chan context.Context, 1),
 	}
+	queue := &stubTitleJobQueue{}
 	svc := &chatServiceImpl{
 		titleService: titleService,
+		titleQueue:   queue,
+	}
+
+	sessionID := uuid.New()
+	reqCtx := composables.WithTenantID(context.Background(), tenantID)
+	reqCtx = context.WithValue(reqCtx, constants.TxKey, "should-not-leak")
+	svc.maybeGenerateTitleAsync(reqCtx, sessionID)
+
+	require.Equal(t, 1, queue.callCount)
+	assert.Equal(t, tenantID, queue.tenantID)
+	assert.Equal(t, sessionID, queue.sessionID)
+
+	select {
+	case <-titleService.called:
+		t.Fatal("title service should not be called when queue enqueue succeeds")
+	default:
+	}
+}
+
+func TestChatService_MaybeGenerateTitleAsync_FallbackWhenQueueEnqueueFails(t *testing.T) {
+	t.Parallel()
+
+	tenantID := uuid.New()
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	queue := &stubTitleJobQueue{err: assert.AnError}
+	svc := &chatServiceImpl{
+		titleService: titleService,
+		titleQueue:   queue,
 	}
 
 	reqCtx := composables.WithTenantID(context.Background(), tenantID)
+	reqCtx = context.WithValue(reqCtx, constants.TxKey, "should-not-leak")
 	svc.maybeGenerateTitleAsync(reqCtx, uuid.New())
 
 	select {
@@ -463,18 +484,17 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 		require.NoError(t, err)
 		assert.Equal(t, tenantID, gotTenantID)
 	case <-time.After(2 * time.Second):
-		t.Fatal("expected async title generation to be invoked")
+		t.Fatal("expected sync fallback title generation to be invoked")
 	}
 }
 
-func TestBuildTitleGenerationContext_PreservesDatabaseExecutionContext(t *testing.T) {
+func TestBuildTitleGenerationContext_DoesNotCarryTx(t *testing.T) {
 	t.Parallel()
 
 	tenantID := uuid.New()
-	tx := stubRepoTx{}
 
 	reqCtx := composables.WithTenantID(context.Background(), tenantID)
-	reqCtx = context.WithValue(reqCtx, constants.TxKey, tx)
+	reqCtx = context.WithValue(reqCtx, constants.TxKey, "should-not-leak")
 
 	titleCtx := buildTitleGenerationContext(reqCtx)
 
@@ -482,10 +502,6 @@ func TestBuildTitleGenerationContext_PreservesDatabaseExecutionContext(t *testin
 	require.NoError(t, err)
 	assert.Equal(t, tenantID, gotTenantID)
 
-	gotTx, err := composables.UseTx(titleCtx)
-	require.NoError(t, err)
-	assert.Equal(t, tx, gotTx)
-
-	_, err = composables.UsePool(titleCtx)
+	_, err = composables.UseTx(titleCtx)
 	require.ErrorIs(t, err, composables.ErrNoPool)
 }

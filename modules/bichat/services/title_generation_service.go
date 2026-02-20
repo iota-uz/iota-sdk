@@ -79,7 +79,7 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 		return serrors.E(op, err, "failed to get session")
 	}
 
-	if session.Title() != "" {
+	if strings.TrimSpace(session.Title()) != "" {
 		return nil
 	}
 
@@ -94,7 +94,7 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 
 	// Need at least 1 message (user message) to generate title
 	if len(messages) == 0 {
-		return nil // No messages yet, skip
+		return s.persistTitle(ctx, session, "Untitled Chat")
 	}
 
 	// Extract first user message
@@ -108,8 +108,8 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 		}
 	}
 
-	if userMsg == "" {
-		return nil // No user message, skip
+	if strings.TrimSpace(userMsg) == "" {
+		return s.persistTitle(ctx, session, "Untitled Chat")
 	}
 
 	// Try LLM generation with retry
@@ -122,17 +122,33 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 	// Validate and clean title
 	title = s.cleanTitle(title)
 	if title == "" {
-		return nil // Give up, keep empty title
+		title = s.cleanTitle(s.extractTitleFromMessage(userMsg))
+	}
+	if title == "" {
+		title = "Untitled Chat"
+	}
+
+	if err := s.persistTitle(ctx, session, title); err != nil {
+		return serrors.E(op, err, "failed to persist generated title")
+	}
+
+	return nil
+}
+
+func (s *titleGenerationService) persistTitle(ctx context.Context, session domain.Session, title string) error {
+	title = s.cleanTitle(title)
+	if title == "" {
+		title = "Untitled Chat"
 	}
 
 	updated := session.UpdateTitle(title)
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return serrors.E(op, err, "failed to update session title")
+		return err
 	}
 
 	// Publish title event so observability providers can update trace names.
 	if s.eventBus != nil {
-		evt := events.NewSessionTitleUpdatedEvent(sessionID, session.TenantID(), title)
+		evt := events.NewSessionTitleUpdatedEvent(session.ID(), session.TenantID(), title)
 		_ = s.eventBus.Publish(ctx, evt)
 	}
 

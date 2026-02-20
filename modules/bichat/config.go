@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
@@ -89,6 +90,22 @@ const (
 	TitleGenerationModeDisabled TitleGenerationMode = "disabled"
 )
 
+const (
+	defaultTitleQueueStream         = "bichat:title:jobs"
+	defaultTitleQueueGroup          = "bichat-title-workers"
+	defaultTitleQueuePollInterval   = 300 * time.Millisecond
+	defaultTitleQueueReadBlock      = 2 * time.Second
+	defaultTitleQueueBatchSize      = 16
+	defaultTitleQueueMaxRetries     = 3
+	defaultTitleQueueRetryBaseDelay = 5 * time.Second
+	defaultTitleQueueRetryMaxDelay  = 2 * time.Minute
+	defaultTitleQueuePendingIdle    = 30 * time.Second
+	defaultTitleQueueReconcileEvery = 1 * time.Minute
+	defaultTitleQueueReconcileBatch = 200
+	defaultTitleQueueDedupeTTL      = 30 * time.Minute
+	defaultTitleQueueJobTimeout     = 20 * time.Second
+)
+
 // ModuleConfig holds configuration for the bichat module.
 // It uses functional options pattern for optional dependencies.
 type ModuleConfig struct {
@@ -158,6 +175,23 @@ type ModuleConfig struct {
 
 	TitleGenerationMode TitleGenerationMode
 
+	// Optional: Redis-backed title generation queue settings
+	TitleQueueRedisURL       string
+	TitleQueueStream         string
+	TitleQueueGroup          string
+	TitleQueueConsumer       string
+	TitleQueuePollInterval   time.Duration
+	TitleQueueReadBlock      time.Duration
+	TitleQueueBatchSize      int
+	TitleQueueMaxRetries     int
+	TitleQueueRetryBaseDelay time.Duration
+	TitleQueueRetryMaxDelay  time.Duration
+	TitleQueuePendingIdle    time.Duration
+	TitleQueueReconcileEvery time.Duration
+	TitleQueueReconcileBatch int
+	TitleQueueDedupeTTL      time.Duration
+	TitleQueueJobTimeout     time.Duration
+
 	// Optional: ViewManager manages analytics view definitions and syncs them to DB.
 	// When configured, views are synced on startup and used for permission-based access control.
 	ViewManager *analytics.ViewManager
@@ -177,10 +211,14 @@ type ModuleConfig struct {
 	resolvedProjectPromptExtension string
 	projectPromptExtensionResolved bool
 	capabilitiesConfigured         bool
+	titleGenerationService         services.TitleGenerationService
+	titleJobQueue                  *services.RedisTitleJobQueue
 }
 
 // ConfigOption is a functional option for ModuleConfig
 type ConfigOption func(*ModuleConfig)
+
+var ErrTitleJobWorkerDisabled = errors.New("title job worker is disabled")
 
 // WithModelRegistry sets the model registry for multi-model support
 func WithModelRegistry(registry ModelRegistry) ConfigOption {
@@ -376,6 +414,59 @@ func WithTitleGenerationMode(mode TitleGenerationMode) ConfigOption {
 	}
 }
 
+// WithTitleQueueRedis enables Redis-backed durable title generation queue.
+func WithTitleQueueRedis(redisURL string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.TitleQueueRedisURL = strings.TrimSpace(redisURL)
+	}
+}
+
+// WithTitleQueueStream overrides the Redis stream name for title jobs.
+func WithTitleQueueStream(stream string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.TitleQueueStream = strings.TrimSpace(stream)
+	}
+}
+
+// WithTitleQueueConsumerGroup overrides the Redis consumer group for title jobs.
+func WithTitleQueueConsumerGroup(group string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.TitleQueueGroup = strings.TrimSpace(group)
+	}
+}
+
+// WithTitleQueueConsumer overrides the consumer name used by title job worker.
+func WithTitleQueueConsumer(consumer string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.TitleQueueConsumer = strings.TrimSpace(consumer)
+	}
+}
+
+// WithTitleQueuePolling configures queue polling cadence and read block timeout.
+func WithTitleQueuePolling(pollInterval, readBlock time.Duration) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.TitleQueuePollInterval = pollInterval
+		c.TitleQueueReadBlock = readBlock
+	}
+}
+
+// WithTitleQueueRetry configures retry attempts and backoff windows.
+func WithTitleQueueRetry(maxRetries int, baseDelay, maxDelay time.Duration) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.TitleQueueMaxRetries = maxRetries
+		c.TitleQueueRetryBaseDelay = baseDelay
+		c.TitleQueueRetryMaxDelay = maxDelay
+	}
+}
+
+// WithTitleQueueReconciliation configures periodic DB reconciliation for missing titles.
+func WithTitleQueueReconciliation(interval time.Duration, batchSize int) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.TitleQueueReconcileEvery = interval
+		c.TitleQueueReconcileBatch = batchSize
+	}
+}
+
 // WithAnalyticsViews sets the ViewManager for analytics view sync and access control.
 // The ViewManager defines view SQL + permissions in Go and syncs them to the database
 // on every app start via CREATE OR REPLACE VIEW.
@@ -418,17 +509,30 @@ func NewModuleConfig(
 	opts ...ConfigOption,
 ) *ModuleConfig {
 	cfg := &ModuleConfig{
-		TenantID:              tenantID,
-		UserID:                userID,
-		ChatRepo:              chatRepo,
-		Model:                 model,
-		ContextPolicy:         policy,
-		ParentAgent:           parentAgent,
-		SubAgents:             []Agent{},
-		Logger:                logrus.New(),
-		Profile:               FeatureProfileMinimal,
-		AttachmentStorageMode: AttachmentStorageModeLocal,
-		TitleGenerationMode:   TitleGenerationModeEnabled,
+		TenantID:                 tenantID,
+		UserID:                   userID,
+		ChatRepo:                 chatRepo,
+		Model:                    model,
+		ContextPolicy:            policy,
+		ParentAgent:              parentAgent,
+		SubAgents:                []Agent{},
+		Logger:                   logrus.New(),
+		Profile:                  FeatureProfileMinimal,
+		AttachmentStorageMode:    AttachmentStorageModeLocal,
+		TitleGenerationMode:      TitleGenerationModeEnabled,
+		TitleQueueStream:         defaultTitleQueueStream,
+		TitleQueueGroup:          defaultTitleQueueGroup,
+		TitleQueuePollInterval:   defaultTitleQueuePollInterval,
+		TitleQueueReadBlock:      defaultTitleQueueReadBlock,
+		TitleQueueBatchSize:      defaultTitleQueueBatchSize,
+		TitleQueueMaxRetries:     defaultTitleQueueMaxRetries,
+		TitleQueueRetryBaseDelay: defaultTitleQueueRetryBaseDelay,
+		TitleQueueRetryMaxDelay:  defaultTitleQueueRetryMaxDelay,
+		TitleQueuePendingIdle:    defaultTitleQueuePendingIdle,
+		TitleQueueReconcileEvery: defaultTitleQueueReconcileEvery,
+		TitleQueueReconcileBatch: defaultTitleQueueReconcileBatch,
+		TitleQueueDedupeTTL:      defaultTitleQueueDedupeTTL,
+		TitleQueueJobTimeout:     defaultTitleQueueJobTimeout,
 	}
 
 	// Apply options
@@ -601,6 +705,45 @@ func (c *ModuleConfig) Validate() error {
 	case TitleGenerationModeEnabled, TitleGenerationModeDisabled:
 	default:
 		return errors.New("TitleGenerationMode must be one of: enabled, disabled")
+	}
+
+	if strings.TrimSpace(c.TitleQueueRedisURL) != "" {
+		if strings.TrimSpace(c.TitleQueueStream) == "" {
+			return errors.New("TitleQueueStream is required when TitleQueueRedisURL is set")
+		}
+		if strings.TrimSpace(c.TitleQueueGroup) == "" {
+			return errors.New("TitleQueueGroup is required when TitleQueueRedisURL is set")
+		}
+		if c.TitleQueueBatchSize <= 0 {
+			return errors.New("TitleQueueBatchSize must be > 0")
+		}
+		if c.TitleQueuePollInterval <= 0 {
+			return errors.New("TitleQueuePollInterval must be > 0")
+		}
+		if c.TitleQueueReadBlock <= 0 {
+			return errors.New("TitleQueueReadBlock must be > 0")
+		}
+		if c.TitleQueueMaxRetries <= 0 {
+			return errors.New("TitleQueueMaxRetries must be > 0")
+		}
+		if c.TitleQueueRetryBaseDelay <= 0 {
+			return errors.New("TitleQueueRetryBaseDelay must be > 0")
+		}
+		if c.TitleQueueRetryMaxDelay <= 0 {
+			return errors.New("TitleQueueRetryMaxDelay must be > 0")
+		}
+		if c.TitleQueueReconcileBatch <= 0 {
+			return errors.New("TitleQueueReconcileBatch must be > 0")
+		}
+		if c.TitleQueueReconcileEvery <= 0 {
+			return errors.New("TitleQueueReconcileEvery must be > 0")
+		}
+		if c.TitleQueueDedupeTTL <= 0 {
+			return errors.New("TitleQueueDedupeTTL must be > 0")
+		}
+		if c.TitleQueueJobTimeout <= 0 {
+			return errors.New("TitleQueueJobTimeout must be > 0")
+		}
 	}
 
 	if c.CodeInterpreterMemoryLimit != "" {
@@ -788,6 +931,21 @@ func (c *ModuleConfig) BuildServices() error {
 			return serrors.E(op, err, "failed to create title generation service")
 		}
 		titleService = titleSvc
+		c.titleGenerationService = titleSvc
+	} else {
+		c.titleGenerationService = nil
+	}
+
+	if titleService != nil && strings.TrimSpace(c.TitleQueueRedisURL) != "" && c.titleJobQueue == nil {
+		queue, err := services.NewRedisTitleJobQueue(services.RedisTitleJobQueueConfig{
+			RedisURL:  c.TitleQueueRedisURL,
+			Stream:    c.TitleQueueStream,
+			DedupeTTL: c.TitleQueueDedupeTTL,
+		})
+		if err != nil {
+			return serrors.E(op, err, "failed to create redis title job queue")
+		}
+		c.titleJobQueue = queue
 	}
 
 	// Build ChatService
@@ -797,6 +955,7 @@ func (c *ModuleConfig) BuildServices() error {
 			c.agentService,
 			c.Model,
 			titleService, // Can be nil if disabled
+			c.titleJobQueue,
 		)
 	}
 
@@ -889,6 +1048,46 @@ func (c *ModuleConfig) AttachmentService() bichatservices.AttachmentService {
 // Returns nil if BuildServices hasn't been called yet.
 func (c *ModuleConfig) ArtifactService() bichatservices.ArtifactService {
 	return c.artifactService
+}
+
+// NewTitleJobWorker builds a Redis-backed title generation worker when queueing is enabled.
+// Returns ErrTitleJobWorkerDisabled when queueing is not configured.
+func (c *ModuleConfig) NewTitleJobWorker(pool *pgxpool.Pool) (*services.TitleJobWorker, error) {
+	if c.titleJobQueue == nil || c.titleGenerationService == nil {
+		return nil, ErrTitleJobWorkerDisabled
+	}
+	if pool == nil {
+		return nil, errors.New("database pool is required for title job worker")
+	}
+
+	return services.NewTitleJobWorker(services.TitleJobWorkerConfig{
+		Queue:          c.titleJobQueue,
+		TitleService:   c.titleGenerationService,
+		Pool:           pool,
+		Logger:         c.Logger,
+		Group:          c.TitleQueueGroup,
+		Consumer:       c.TitleQueueConsumer,
+		BatchSize:      c.TitleQueueBatchSize,
+		PollInterval:   c.TitleQueuePollInterval,
+		ReadBlock:      c.TitleQueueReadBlock,
+		MaxRetries:     c.TitleQueueMaxRetries,
+		RetryBaseDelay: c.TitleQueueRetryBaseDelay,
+		RetryMaxDelay:  c.TitleQueueRetryMaxDelay,
+		PendingIdle:    c.TitleQueuePendingIdle,
+		ReconcileEvery: c.TitleQueueReconcileEvery,
+		ReconcileBatch: c.TitleQueueReconcileBatch,
+		JobTimeout:     c.TitleQueueJobTimeout,
+	})
+}
+
+// CloseTitleQueue releases queue resources when Redis queueing is configured.
+func (c *ModuleConfig) CloseTitleQueue() error {
+	if c.titleJobQueue == nil {
+		return nil
+	}
+	err := c.titleJobQueue.Close()
+	c.titleJobQueue = nil
+	return err
 }
 
 // String provides a human-readable representation of the configuration

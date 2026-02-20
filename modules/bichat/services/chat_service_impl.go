@@ -14,11 +14,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 const streamPersistenceTimeout = 10 * time.Second
+const titleGenerationFallbackTimeout = 15 * time.Second
 
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
@@ -27,24 +27,27 @@ type chatServiceImpl struct {
 	agentService bichatservices.AgentService
 	model        agents.Model
 	titleService TitleGenerationService
+	titleQueue   TitleJobQueue
 }
 
 // NewChatService creates a production implementation of ChatService.
 //
 // Example:
 //
-//	service := NewChatService(chatRepo, agentService, model, titleService)
+//	service := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
 func NewChatService(
 	chatRepo domain.ChatRepository,
 	agentService bichatservices.AgentService,
 	model agents.Model,
 	titleService TitleGenerationService,
+	titleQueue TitleJobQueue,
 ) bichatservices.ChatService {
 	return &chatServiceImpl{
 		chatRepo:     chatRepo,
 		agentService: agentService,
 		model:        model,
 		titleService: titleService,
+		titleQueue:   titleQueue,
 	}
 }
 
@@ -1067,6 +1070,14 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error {
 	const op serrors.Op = "chatServiceImpl.GenerateSessionTitle"
 
+	if s.titleService != nil {
+		return s.titleService.GenerateSessionTitle(ctx, sessionID)
+	}
+
+	if s.model == nil {
+		return serrors.E(op, serrors.KindValidation, "title generation model is not configured")
+	}
+
 	// Get session
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
@@ -1175,32 +1186,44 @@ CHAT TRANSCRIPT:
 	return summary, nil
 }
 
-// maybeGenerateTitleAsync triggers async title generation if this is the first message in the session.
-// Runs in background goroutine with timeout to avoid blocking the response.
+// maybeGenerateTitleAsync enqueues durable title generation work.
+// If Redis enqueue fails, it falls back to immediate direct generation.
 func (s *chatServiceImpl) maybeGenerateTitleAsync(ctx context.Context, sessionID uuid.UUID) {
 	// Skip if no title service configured
 	if s.titleService == nil {
 		return
 	}
 
-	// Launch async title generation (don't block response)
-	go func() {
-		// Create detached context and copy required request-scoped values.
-		// Background title generation needs tenant/pool context, but must not reuse request cancellation.
-		titleCtx := buildTitleGenerationContext(ctx)
-
-		// Set timeout (15s allows for 3 retries)
-		titleCtx, cancel := context.WithTimeout(titleCtx, 15*time.Second)
-		defer cancel()
-
-		// GenerateSessionTitle has built-in logic to skip if title already exists
-		if err := s.titleService.GenerateSessionTitle(titleCtx, sessionID); err != nil {
+	if s.titleQueue != nil {
+		tenantID, tenantErr := composables.UseTenantID(ctx)
+		if tenantErr == nil {
+			enqueueCtx := context.WithoutCancel(ctx)
+			enqueueErr := s.titleQueue.Enqueue(enqueueCtx, tenantID, sessionID)
+			if enqueueErr == nil {
+				return
+			}
 			configuration.Use().Logger().
-				WithError(err).
+				WithError(enqueueErr).
 				WithField("session_id", sessionID.String()).
-				Warn("failed to auto-generate session title")
+				Warn("failed to enqueue title generation job, using sync fallback")
+		} else {
+			configuration.Use().Logger().
+				WithError(tenantErr).
+				WithField("session_id", sessionID.String()).
+				Warn("missing tenant context for title job enqueue, using sync fallback")
 		}
-	}()
+	}
+
+	titleCtx := buildTitleGenerationContext(ctx)
+	titleCtx, cancel := context.WithTimeout(titleCtx, titleGenerationFallbackTimeout)
+	defer cancel()
+
+	if err := s.titleService.GenerateSessionTitle(titleCtx, sessionID); err != nil {
+		configuration.Use().Logger().
+			WithError(err).
+			WithField("session_id", sessionID.String()).
+			Warn("failed to auto-generate session title via sync fallback")
+	}
 }
 
 func buildTitleGenerationContext(ctx context.Context) context.Context {
@@ -1208,9 +1231,6 @@ func buildTitleGenerationContext(ctx context.Context) context.Context {
 
 	if tenantID, err := composables.UseTenantID(ctx); err == nil {
 		titleCtx = composables.WithTenantID(titleCtx, tenantID)
-	}
-	if tx := ctx.Value(constants.TxKey); tx != nil {
-		titleCtx = context.WithValue(titleCtx, constants.TxKey, tx)
 	}
 	if pool, err := composables.UsePool(ctx); err == nil {
 		titleCtx = composables.WithPool(titleCtx, pool)
