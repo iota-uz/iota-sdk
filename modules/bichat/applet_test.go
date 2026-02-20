@@ -106,7 +106,7 @@ func TestBiChatApplet_Config_BasePathDerivedValues(t *testing.T) {
 		},
 		{
 			name:               "config with features derives base path correctly",
-			moduleConfig:       &ModuleConfig{EnableVision: true},
+			moduleConfig:       &ModuleConfig{Capabilities: Capabilities{Vision: true}},
 			expectedBasePath:   "/bi-chat",
 			expectedStreamPath: "/bi-chat/stream",
 		},
@@ -165,10 +165,12 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 
 	// Create config with some features enabled
 	config := &ModuleConfig{
-		EnableVision:          true,
-		EnableWebSearch:       false,
-		EnableCodeInterpreter: true,
-		EnableMultiAgent:      false,
+		Capabilities: Capabilities{
+			Vision:          true,
+			WebSearch:       false,
+			CodeInterpreter: true,
+			MultiAgent:      false,
+		},
 		ContextPolicy: bichatcontext.ContextPolicy{
 			ContextWindow:     180000,
 			CompletionReserve: 8000,
@@ -216,11 +218,11 @@ func TestBiChatApplet_SetConfig(t *testing.T) {
 
 	// Set config
 	config := &ModuleConfig{
-		EnableVision: true,
+		Capabilities: Capabilities{Vision: true},
 	}
 	bichatApplet.SetConfig(config)
 	assert.NotNil(t, bichatApplet.config)
-	assert.True(t, bichatApplet.config.EnableVision)
+	assert.True(t, bichatApplet.config.Capabilities.Vision)
 
 	// Verify custom context reflects new config
 	ctx := context.Background()
@@ -254,27 +256,32 @@ func TestBiChatApplet_buildCustomContext_UsesEffectiveContextWindow(t *testing.T
 	assert.Equal(t, 272000, limits["modelMaxTokens"])
 }
 
-func TestModuleConfig_FeatureFlagOptions(t *testing.T) {
+func TestModuleConfig_CapabilityAndModeOptions(t *testing.T) {
 	t.Parallel()
 
 	// Create base config (no options would normally be used with NewModuleConfig, but this tests the options)
 	config := &ModuleConfig{}
 
-	// Apply feature flag options
+	// Apply capability/mode options
 	opts := []ConfigOption{
-		WithVision(true),
-		WithWebSearch(true),
-		WithCodeInterpreter(false),
-		WithMultiAgent(true),
+		WithCapabilities(Capabilities{
+			Vision:    true,
+			WebSearch: true,
+		}),
+		WithCodeInterpreterMemoryLimit("16g"),
+		WithAttachmentStorageMode(AttachmentStorageModeNoOp),
+		WithTitleGenerationMode(TitleGenerationModeDisabled),
 	}
 
 	for _, opt := range opts {
 		opt(config)
 	}
 
-	// Verify flags are set correctly
-	assert.True(t, config.EnableVision)
-	assert.True(t, config.EnableWebSearch)
-	assert.False(t, config.EnableCodeInterpreter)
-	assert.True(t, config.EnableMultiAgent)
+	// Verify options are set correctly
+	assert.True(t, config.Capabilities.Vision)
+	assert.True(t, config.Capabilities.WebSearch)
+	assert.False(t, config.Capabilities.CodeInterpreter)
+	assert.Equal(t, "16g", config.CodeInterpreterMemoryLimit)
+	assert.Equal(t, AttachmentStorageModeNoOp, config.AttachmentStorageMode)
+	assert.Equal(t, TitleGenerationModeDisabled, config.TitleGenerationMode)
 }

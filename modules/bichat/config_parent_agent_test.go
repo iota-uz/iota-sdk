@@ -214,7 +214,7 @@ func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T
 		WithKBSearcher(&configTestKBSearcher{}),
 		WithLearningStore(&configTestLearningStore{}),
 		WithValidatedQueryStore(&configTestValidatedStore{}),
-		WithCodeInterpreter(true),
+		WithCapabilities(Capabilities{CodeInterpreter: true}),
 	)
 
 	err := cfg.BuildParentAgent()
@@ -239,8 +239,8 @@ func newConfigWithProjectPromptOpts(opts ...ConfigOption) *ModuleConfig {
 	baseOpts := make([]ConfigOption, 0, 3+len(opts))
 	baseOpts = append(baseOpts,
 		WithQueryExecutor(&configTestExecutor{}),
-		WithNoOpAttachmentStorage(),
-		WithTitleGenerationDisabled(),
+		WithAttachmentStorageMode(AttachmentStorageModeNoOp),
+		WithTitleGenerationMode(TitleGenerationModeDisabled),
 	)
 	baseOpts = append(baseOpts, opts...)
 
@@ -310,4 +310,24 @@ func TestModuleConfig_BuildServices_EmptyProviderFallsBackToStaticPrompt(t *test
 	err := cfg.BuildServices()
 	require.NoError(t, err)
 	assert.Equal(t, "static extension", cfg.resolvedProjectPromptExtension)
+}
+
+func TestModuleConfig_Validate_InvalidCodeInterpreterMemoryLimit(t *testing.T) {
+	t.Parallel()
+
+	cfg := NewModuleConfig(
+		func(ctx context.Context) uuid.UUID { return uuid.New() },
+		func(ctx context.Context) int64 { return 42 },
+		&configTestChatRepository{},
+		&configTestModel{},
+		DefaultContextPolicy(),
+		nil,
+		WithAttachmentStorageMode(AttachmentStorageModeNoOp),
+		WithQueryExecutor(&configTestExecutor{}),
+		WithCodeInterpreterMemoryLimit("2g"),
+	)
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CodeInterpreterMemoryLimit")
 }

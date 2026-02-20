@@ -40,6 +40,55 @@ type (
 	Checkpointer  = agents.Checkpointer
 )
 
+type FeatureProfile string
+
+const (
+	FeatureProfileMinimal FeatureProfile = "minimal"
+	FeatureProfileDataOps FeatureProfile = "data_ops"
+	FeatureProfileFull    FeatureProfile = "full"
+)
+
+type Capabilities struct {
+	Vision          bool
+	WebSearch       bool
+	CodeInterpreter bool
+	MultiAgent      bool
+}
+
+func CapabilitiesForProfile(profile FeatureProfile) (Capabilities, bool) {
+	switch profile {
+	case FeatureProfileMinimal:
+		return Capabilities{}, true
+	case FeatureProfileDataOps:
+		return Capabilities{
+			CodeInterpreter: true,
+		}, true
+	case FeatureProfileFull:
+		return Capabilities{
+			Vision:          true,
+			WebSearch:       true,
+			CodeInterpreter: true,
+			MultiAgent:      true,
+		}, true
+	default:
+		return Capabilities{}, false
+	}
+}
+
+type AttachmentStorageMode string
+
+const (
+	AttachmentStorageModeLocal AttachmentStorageMode = "local"
+	AttachmentStorageModeNoOp  AttachmentStorageMode = "noop"
+)
+
+type TitleGenerationMode string
+
+const (
+	TitleGenerationModeEnabled  TitleGenerationMode = "enabled"
+	TitleGenerationModeDisabled TitleGenerationMode = "disabled"
+)
+
 // ModuleConfig holds configuration for the bichat module.
 // It uses functional options pattern for optional dependencies.
 type ModuleConfig struct {
@@ -92,12 +141,12 @@ type ModuleConfig struct {
 	// Optional: Checkpointer for HITL (defaults to in-memory)
 	Checkpointer Checkpointer
 
-	// Feature Flags (code-based configuration)
-	// These flags are passed to the React frontend via applet context
-	EnableVision          bool // Enable vision/image analysis capabilities
-	EnableWebSearch       bool // Enable web search tool
-	EnableCodeInterpreter bool // Enable code execution capabilities
-	EnableMultiAgent      bool // Enable multi-agent orchestration
+	// Capabilities controls frontend and orchestration behavior in a single place.
+	Capabilities Capabilities
+	Profile      FeatureProfile
+	// CodeInterpreterMemoryLimit configures OpenAI code_interpreter container memory.
+	// Allowed values: "1g", "4g", "16g", "64g".
+	CodeInterpreterMemoryLimit string
 
 	// Renderer for context block formatting (required, defaults to AnthropicRenderer)
 	Renderer bichatcontext.Renderer
@@ -105,10 +154,9 @@ type ModuleConfig struct {
 	// Attachment storage configuration
 	AttachmentStorageBasePath string // e.g., "/var/lib/bichat/attachments"
 	AttachmentStorageBaseURL  string // e.g., "https://example.com/bichat/attachments"
-	DisableAttachmentStorage  bool   // Explicit disable (testing only)
+	AttachmentStorageMode     AttachmentStorageMode
 
-	// Feature toggles
-	DisableTitleGeneration bool // Disable auto-title generation
+	TitleGenerationMode TitleGenerationMode
 
 	// Optional: ViewManager manages analytics view definitions and syncs them to DB.
 	// When configured, views are synced on startup and used for permission-based access control.
@@ -128,6 +176,7 @@ type ModuleConfig struct {
 	// Internal: Resolved once during BuildServices.
 	resolvedProjectPromptExtension string
 	projectPromptExtensionResolved bool
+	capabilitiesConfigured         bool
 }
 
 // ConfigOption is a functional option for ModuleConfig
@@ -247,31 +296,33 @@ func WithSubAgents(subAgents ...Agent) ConfigOption {
 	}
 }
 
-// WithVision enables vision/image analysis capabilities
-func WithVision(enabled bool) ConfigOption {
+// WithFeatureProfile applies a preset capability profile.
+func WithFeatureProfile(profile FeatureProfile) ConfigOption {
 	return func(c *ModuleConfig) {
-		c.EnableVision = enabled
+		c.Profile = profile
 	}
 }
 
-// WithWebSearch enables web search tool
-func WithWebSearch(enabled bool) ConfigOption {
+// WithCapabilities sets explicit capabilities.
+func WithCapabilities(capabilities Capabilities) ConfigOption {
 	return func(c *ModuleConfig) {
-		c.EnableWebSearch = enabled
+		c.Capabilities = capabilities
+		c.capabilitiesConfigured = true
 	}
 }
 
-// WithCodeInterpreter enables code execution capabilities
-func WithCodeInterpreter(enabled bool) ConfigOption {
+// WithCodeInterpreterMemoryLimit sets code interpreter container memory for providers that support it.
+// Allowed values: "1g", "4g", "16g", "64g".
+func WithCodeInterpreterMemoryLimit(limit string) ConfigOption {
 	return func(c *ModuleConfig) {
-		c.EnableCodeInterpreter = enabled
+		c.CodeInterpreterMemoryLimit = strings.ToLower(strings.TrimSpace(limit))
 	}
 }
 
-// WithMultiAgent enables multi-agent orchestration
-func WithMultiAgent(enabled bool) ConfigOption {
+// WithAttachmentStorageMode sets attachment storage mode.
+func WithAttachmentStorageMode(mode AttachmentStorageMode) ConfigOption {
 	return func(c *ModuleConfig) {
-		c.EnableMultiAgent = enabled
+		c.AttachmentStorageMode = mode
 	}
 }
 
@@ -318,19 +369,10 @@ func WithAttachmentStorage(basePath, baseURL string) ConfigOption {
 	}
 }
 
-// WithNoOpAttachmentStorage disables attachment storage (testing only).
-// Use this explicitly in tests to bypass attachment storage requirements.
-func WithNoOpAttachmentStorage() ConfigOption {
+// WithTitleGenerationMode sets title generation mode.
+func WithTitleGenerationMode(mode TitleGenerationMode) ConfigOption {
 	return func(c *ModuleConfig) {
-		c.DisableAttachmentStorage = true
-	}
-}
-
-// WithTitleGenerationDisabled disables automatic session title generation.
-// When disabled, users must manually provide session titles.
-func WithTitleGenerationDisabled() ConfigOption {
-	return func(c *ModuleConfig) {
-		c.DisableTitleGeneration = true
+		c.TitleGenerationMode = mode
 	}
 }
 
@@ -376,14 +418,17 @@ func NewModuleConfig(
 	opts ...ConfigOption,
 ) *ModuleConfig {
 	cfg := &ModuleConfig{
-		TenantID:      tenantID,
-		UserID:        userID,
-		ChatRepo:      chatRepo,
-		Model:         model,
-		ContextPolicy: policy,
-		ParentAgent:   parentAgent,
-		SubAgents:     []Agent{},
-		Logger:        logrus.New(),
+		TenantID:              tenantID,
+		UserID:                userID,
+		ChatRepo:              chatRepo,
+		Model:                 model,
+		ContextPolicy:         policy,
+		ParentAgent:           parentAgent,
+		SubAgents:             []Agent{},
+		Logger:                logrus.New(),
+		Profile:               FeatureProfileMinimal,
+		AttachmentStorageMode: AttachmentStorageModeLocal,
+		TitleGenerationMode:   TitleGenerationModeEnabled,
 	}
 
 	// Apply options
@@ -423,8 +468,18 @@ func NewModuleConfig(
 		}
 	}
 
+	capabilitiesFromProfile, ok := CapabilitiesForProfile(cfg.Profile)
+	if !ok {
+		cfg.Logger.WithField("profile", cfg.Profile).Warn("Unknown feature profile, defaulting to minimal")
+		cfg.Profile = FeatureProfileMinimal
+		capabilitiesFromProfile = Capabilities{}
+	}
+	if !cfg.capabilitiesConfigured {
+		cfg.Capabilities = capabilitiesFromProfile
+	}
+
 	// Setup multi-agent system if enabled
-	if cfg.EnableMultiAgent && cfg.QueryExecutor != nil {
+	if cfg.Capabilities.MultiAgent && cfg.QueryExecutor != nil {
 		if err := cfg.setupMultiAgentSystem(); err != nil {
 			cfg.Logger.WithError(err).Warn("Failed to setup multi-agent system, continuing without delegation")
 		}
@@ -434,7 +489,7 @@ func NewModuleConfig(
 }
 
 // setupMultiAgentSystem creates and configures the agent registry with sub-agents.
-// This is called automatically during NewModuleConfig if EnableMultiAgent is true.
+// This is called automatically during NewModuleConfig if multi-agent capability is enabled.
 //
 // The registry is stored in ModuleConfig and can be accessed at execution time
 // to create delegation tools with runtime session/tenant IDs.
@@ -529,13 +584,30 @@ func (c *ModuleConfig) Validate() error {
 		}
 	}
 
-	// Validate attachment storage if enabled
-	if !c.DisableAttachmentStorage {
+	switch c.AttachmentStorageMode {
+	case AttachmentStorageModeLocal:
 		if c.AttachmentStorageBasePath == "" {
-			return errors.New("AttachmentStorageBasePath required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()")
+			return errors.New("AttachmentStorageBasePath required for local attachment storage")
 		}
 		if c.AttachmentStorageBaseURL == "" {
-			return errors.New("AttachmentStorageBaseURL required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()")
+			return errors.New("AttachmentStorageBaseURL required for local attachment storage")
+		}
+	case AttachmentStorageModeNoOp:
+	default:
+		return errors.New("AttachmentStorageMode must be one of: local, noop")
+	}
+
+	switch c.TitleGenerationMode {
+	case TitleGenerationModeEnabled, TitleGenerationModeDisabled:
+	default:
+		return errors.New("TitleGenerationMode must be one of: enabled, disabled")
+	}
+
+	if c.CodeInterpreterMemoryLimit != "" {
+		switch c.CodeInterpreterMemoryLimit {
+		case "1g", "4g", "16g", "64g":
+		default:
+			return errors.New("CodeInterpreterMemoryLimit must be one of: 1g, 4g, 16g, 64g")
 		}
 	}
 
@@ -629,6 +701,20 @@ func (c *ModuleConfig) resolveProjectPromptExtension() error {
 	return nil
 }
 
+func (c *ModuleConfig) createFileStorage() (storage.FileStorage, error) {
+	switch c.AttachmentStorageMode {
+	case AttachmentStorageModeNoOp:
+		return storage.NewNoOpFileStorage(), nil
+	case AttachmentStorageModeLocal:
+		return storage.NewLocalFileStorage(
+			c.AttachmentStorageBasePath,
+			c.AttachmentStorageBaseURL,
+		)
+	default:
+		return nil, errors.New("invalid attachment storage mode")
+	}
+}
+
 // BuildServices creates and initializes all BiChat services from the configuration.
 // This should be called after NewModuleConfig and before registering the module.
 // Services are cached in the config and reused on subsequent calls.
@@ -648,18 +734,27 @@ func (c *ModuleConfig) BuildServices() error {
 
 	// Create file storage once for attachment/artifact services and artifact_reader tool wiring.
 	var fileStorage storage.FileStorage
-	if c.ParentAgent == nil || c.attachmentService == nil || c.artifactService == nil {
-		if c.DisableAttachmentStorage {
-			fileStorage = storage.NewNoOpFileStorage()
-		} else {
-			fs, err := storage.NewLocalFileStorage(
-				c.AttachmentStorageBasePath,
-				c.AttachmentStorageBaseURL,
-			)
-			if err != nil {
-				return serrors.E(op, err, "failed to create file storage")
+	needsFileStorage := c.ParentAgent == nil || c.attachmentService == nil || c.artifactService == nil || c.Capabilities.CodeInterpreter
+	if needsFileStorage {
+		fs, err := c.createFileStorage()
+		if err != nil {
+			return serrors.E(op, err, "failed to create file storage")
+		}
+		fileStorage = fs
+	}
+
+	if c.Capabilities.CodeInterpreter {
+		if configurable, ok := c.Model.(interface {
+			SetCodeInterpreterArtifactSource(domain.ChatRepository, storage.FileStorage)
+		}); ok {
+			configurable.SetCodeInterpreterArtifactSource(c.ChatRepo, fileStorage)
+		}
+		if c.CodeInterpreterMemoryLimit != "" {
+			if configurable, ok := c.Model.(interface{ SetCodeInterpreterMemoryLimit(string) error }); ok {
+				if err := configurable.SetCodeInterpreterMemoryLimit(c.CodeInterpreterMemoryLimit); err != nil {
+					return serrors.E(op, err)
+				}
 			}
-			fileStorage = fs
 		}
 	}
 
@@ -687,7 +782,7 @@ func (c *ModuleConfig) BuildServices() error {
 
 	// Build TitleGenerationService (required unless disabled)
 	var titleService services.TitleGenerationService
-	if !c.DisableTitleGeneration {
+	if c.TitleGenerationMode == TitleGenerationModeEnabled {
 		titleSvc, err := services.NewTitleGenerationService(c.Model, c.ChatRepo, c.EventBus)
 		if err != nil {
 			return serrors.E(op, err, "failed to create title generation service")
@@ -748,7 +843,7 @@ func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
 	if c.AgentRegistry != nil {
 		opts = append(opts, bichatagents.WithAgentRegistry(c.AgentRegistry))
 	}
-	if c.EnableCodeInterpreter {
+	if c.Capabilities.CodeInterpreter {
 		opts = append(opts, bichatagents.WithCodeInterpreter(true))
 	}
 	if c.Model != nil {

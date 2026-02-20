@@ -162,7 +162,7 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 		JSONMode:    true,
 	}
 
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Verify model
 	assert.Equal(t, "gpt-5.2-2025-12-11", params.Model)
@@ -219,7 +219,7 @@ func TestOpenAIModel_BuildResponseParams_NativeWebSearch(t *testing.T) {
 	}
 
 	config := agents.GenerateConfig{}
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// web_search should be added as native WebSearchToolParam
 	require.Len(t, params.Tools, 1)
@@ -255,14 +255,45 @@ func TestOpenAIModel_BuildResponseParams_NativeCodeInterpreter(t *testing.T) {
 	}
 
 	config := agents.GenerateConfig{}
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// code_interpreter should be added as native ToolCodeInterpreterParam
 	require.Len(t, params.Tools, 1)
 	assert.NotNil(t, params.Tools[0].OfCodeInterpreter, "code_interpreter should be a native ToolCodeInterpreterParam")
+	assert.Equal(t, "4g", params.Tools[0].OfCodeInterpreter.Container.OfCodeInterpreterToolAuto.MemoryLimit)
 
 	// Should request outputs in include
 	assert.Contains(t, params.Include, responses.ResponseIncludableCodeInterpreterCallOutputs)
+}
+
+func TestOpenAIModel_BuildResponseParams_CodeInterpreterMemoryLimitOverride(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel(WithCodeInterpreterMemoryLimit("16g"))
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	req := agents.Request{
+		Messages: []types.Message{
+			types.UserMessage("Run code"),
+		},
+		Tools: []agents.Tool{
+			agents.NewTool(
+				"code_interpreter",
+				"Execute code",
+				map[string]any{"type": "object"},
+				func(ctx context.Context, input string) (string, error) {
+					return "", nil
+				},
+			),
+		},
+	}
+
+	params := oaiModel.buildResponseParams(context.Background(), req, agents.GenerateConfig{})
+	require.Len(t, params.Tools, 1)
+	require.NotNil(t, params.Tools[0].OfCodeInterpreter)
+	assert.Equal(t, "16g", params.Tools[0].OfCodeInterpreter.Container.OfCodeInterpreterToolAuto.MemoryLimit)
 }
 
 func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
@@ -289,7 +320,7 @@ func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
 	}
 
 	config := agents.GenerateConfig{}
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Should have 4 tools: 2 function + 1 web_search + 1 code_interpreter
 	require.Len(t, params.Tools, 4)

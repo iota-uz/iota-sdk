@@ -244,3 +244,67 @@ func TestPostgresChatRepository_DeleteSessionArtifacts(t *testing.T) {
 	assert.Len(t, artifactsB, 1)
 	assert.Equal(t, b1.ID(), artifactsB[0].ID())
 }
+
+func TestPostgresChatRepository_UpsertAndGetArtifactProviderFile(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := &persistence.PostgresChatRepository{}
+
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle("Provider File Sync"),
+	)
+	require.NoError(t, repo.CreateSession(env.Ctx, session))
+
+	artifact := domain.NewArtifact(
+		domain.WithArtifactTenantID(env.Tenant.ID),
+		domain.WithArtifactSessionID(session.ID()),
+		domain.WithArtifactType(domain.ArtifactTypeAttachment),
+		domain.WithArtifactName("sales.csv"),
+		domain.WithArtifactURL("https://example.com/uploads/sales.csv"),
+		domain.WithArtifactSizeBytes(2048),
+	)
+	require.NoError(t, repo.SaveArtifact(env.Ctx, artifact))
+
+	require.NoError(t, repo.UpsertArtifactProviderFile(
+		env.Ctx,
+		artifact.ID(),
+		"openai",
+		"file_abc123",
+		artifact.URL(),
+		artifact.SizeBytes(),
+	))
+
+	fileID, sourceURL, sourceSize, err := repo.GetArtifactProviderFile(env.Ctx, artifact.ID(), "openai")
+	require.NoError(t, err)
+	assert.Equal(t, "file_abc123", fileID)
+	assert.Equal(t, artifact.URL(), sourceURL)
+	assert.Equal(t, artifact.SizeBytes(), sourceSize)
+
+	// Upsert should update existing mapping.
+	require.NoError(t, repo.UpsertArtifactProviderFile(
+		env.Ctx,
+		artifact.ID(),
+		"openai",
+		"file_new999",
+		artifact.URL(),
+		artifact.SizeBytes(),
+	))
+	fileID, sourceURL, sourceSize, err = repo.GetArtifactProviderFile(env.Ctx, artifact.ID(), "openai")
+	require.NoError(t, err)
+	assert.Equal(t, "file_new999", fileID)
+	assert.Equal(t, artifact.URL(), sourceURL)
+	assert.Equal(t, artifact.SizeBytes(), sourceSize)
+}
+
+func TestPostgresChatRepository_GetArtifactProviderFile_NotFound(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+	repo := &persistence.PostgresChatRepository{}
+
+	_, _, _, err := repo.GetArtifactProviderFile(env.Ctx, uuid.New(), "openai")
+	require.Error(t, err)
+	require.ErrorIs(t, err, persistence.ErrArtifactProviderFileNotFound)
+}

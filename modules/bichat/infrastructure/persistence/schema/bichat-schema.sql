@@ -81,6 +81,19 @@ CREATE TABLE IF NOT EXISTS bichat.artifacts (
     created_at timestamptz NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS bichat.artifact_provider_files (
+    tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
+    artifact_id uuid NOT NULL REFERENCES bichat.artifacts (id) ON DELETE CASCADE,
+    provider varchar(50) NOT NULL,
+    provider_file_id varchar(255) NOT NULL,
+    source_url text NOT NULL,
+    source_size_bytes bigint NOT NULL DEFAULT 0,
+    synced_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    updated_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, artifact_id, provider)
+);
+
 CREATE TABLE IF NOT EXISTS bichat.learnings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
@@ -170,6 +183,12 @@ CREATE INDEX IF NOT EXISTS idx_artifacts_message ON bichat.artifacts (message_id
 WHERE
     message_id IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_artifact_provider_files_provider
+    ON bichat.artifact_provider_files (tenant_id, provider, synced_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_artifact_provider_files_file_id
+    ON bichat.artifact_provider_files (provider_file_id);
+
 CREATE INDEX IF NOT EXISTS idx_bichat_learnings_tenant ON bichat.learnings (tenant_id);
 
 CREATE INDEX IF NOT EXISTS idx_bichat_learnings_table ON bichat.learnings (tenant_id, table_name);
@@ -200,7 +219,8 @@ COMMENT ON TABLE bichat.code_interpreter_outputs IS 'Output artifacts generated 
 
 COMMENT ON TABLE bichat.artifacts IS 'Generic artifact storage for session outputs';
 
+COMMENT ON TABLE bichat.artifact_provider_files IS 'Sync map between local artifacts and provider file IDs for tool runtimes';
+
 COMMENT ON TABLE bichat.learnings IS 'Agent-captured learnings from SQL errors and user corrections';
 
 COMMENT ON TABLE bichat.validated_queries IS 'Proven SQL query patterns that answered prior questions';
-
