@@ -85,17 +85,12 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 		columnNames[i] = fd.Name
 	}
 
-	// Collect rows (canonical format: [][]any)
+	// Collect rows (canonical format: [][]any).
+	// Do not enforce a global executor cap here: tool-level limits (e.g. sql_execute,
+	// export_query_to_excel) must control row count semantics.
 	var results [][]any
-	maxRows := 1000
-	hitLimit := false
 
 	for rows.Next() {
-		if len(results) >= maxRows {
-			hitLimit = true
-			break
-		}
-
 		values, err := rows.Values()
 		if err != nil {
 			return nil, serrors.E(op, err, "failed to scan row")
@@ -126,7 +121,7 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 		Columns:   columnNames,
 		Rows:      results,
 		RowCount:  len(results),
-		Truncated: hitLimit,
+		Truncated: false,
 		Duration:  time.Since(start),
 		SQL:       sql,
 	}, nil

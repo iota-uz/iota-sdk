@@ -259,10 +259,7 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*typ
 
 	// Execute with tool-level limit enforced at SQL layer
 	effectiveLimit := params.Limit
-	fetchLimit := effectiveLimit
-	if effectiveLimit < maxSQLExecuteLimit {
-		fetchLimit = effectiveLimit + 1
-	}
+	fetchLimit := effectiveLimit + 1
 
 	executedSQL := wrapQueryWithLimit(normalizedQuery, fetchLimit)
 
@@ -288,7 +285,7 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*typ
 	truncatedReason := ""
 
 	rows := result.Rows
-	if effectiveLimit < maxSQLExecuteLimit && len(rows) > effectiveLimit {
+	if len(rows) > effectiveLimit {
 		truncated = true
 		truncatedReason = "limit"
 		rows = rows[:effectiveLimit]
@@ -661,17 +658,11 @@ func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, p
 		columnNames[i] = fd.Name
 	}
 
-	// Collect rows (canonical format: [][]any)
+	// Collect rows (canonical format: [][]any).
+	// Tool-level callers are responsible for explicit row limits.
 	var results [][]any
-	maxRows := 1000
-	hitLimit := false
 
 	for rows.Next() {
-		if len(results) >= maxRows {
-			hitLimit = true
-			break
-		}
-
 		values, err := rows.Values()
 		if err != nil {
 			return nil, serrors.E(op, err, "failed to scan row")
@@ -696,7 +687,7 @@ func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, p
 		Columns:   columnNames,
 		Rows:      results,
 		RowCount:  len(results),
-		Truncated: hitLimit,
+		Truncated: false,
 		Duration:  duration,
 		SQL:       query,
 	}, nil
