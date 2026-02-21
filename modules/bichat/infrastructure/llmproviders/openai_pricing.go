@@ -1,46 +1,17 @@
 package llmproviders
 
 import (
-	"strings"
-
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 )
 
-const providerOpenAI = "openai"
-
-// resolveOpenAIModelKey maps a requested model name to a catalog key for lookup.
-// Exact matches are used as-is; versioned names (e.g. gpt-5.2-2025-12-11) are resolved
-// by prefix to the canonical catalog key so they share the same spec.
-func resolveOpenAIModelKey(modelName string) string {
-	n := strings.ToLower(strings.TrimSpace(modelName))
-	if n == "" {
-		return n
-	}
-	switch {
-	case strings.HasPrefix(n, "gpt-5.2"):
-		return "gpt-5.2"
-	case strings.HasPrefix(n, "gpt-5-mini"):
-		return "gpt-5-mini"
-	case strings.HasPrefix(n, "gpt-5-nano"):
-		return "gpt-5-nano"
-	default:
-		return n
-	}
-}
-
 // openAISpec returns the ModelSpec for this OpenAI model (catalog lookup with fallback to default).
 func (m *OpenAIModel) openAISpec() agents.ModelSpec {
-	key := resolveOpenAIModelKey(m.modelName)
-	if spec, ok := agents.LookupModelSpec(providerOpenAI, key); ok {
+	if spec, ok := agents.LookupModelSpec(agents.ProviderOpenAI, m.modelName); ok {
 		return spec
 	}
-	// Unknown model: use provider default spec if available
-	if defaultName, ok := agents.DefaultModelForProvider(providerOpenAI); ok {
-		if spec, ok := agents.LookupModelSpec(providerOpenAI, defaultName); ok {
-			return spec
-		}
+	if spec, ok := agents.DefaultModelSpecForProvider(agents.ProviderOpenAI); ok {
+		return spec
 	}
-	// Last resort: return GPT-5.2 spec so callers get valid info/pricing
 	return agents.SpecGPT52
 }
 
