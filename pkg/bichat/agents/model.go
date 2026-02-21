@@ -316,8 +316,11 @@ type Chunk struct {
 	Delta string
 
 	// Thinking is the reasoning/thinking content delta.
-	// Only populated when using models with CapabilityThinking and WithReasoningEffort.
-	// Thinking content is ephemeral — shown during generation but not persisted.
+	// Populated by providers that support extended reasoning (e.g., OpenAI o-series
+	// models via the Responses API with ReasoningEffort set). To add thinking support
+	// for a new provider, yield Chunk{Thinking: delta} in the provider's Stream()
+	// method for each reasoning token. The executor will emit EventTypeThinking events
+	// automatically. Models should advertise CapabilityThinking via HasCapability().
 	Thinking string
 
 	// ToolCalls contains tool call deltas (accumulated incrementally).

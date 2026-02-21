@@ -43,15 +43,14 @@ type EventEmitter = func(ExecutorEvent) bool
 
 type eventEmitterKey struct{}
 
-// WithEventEmitter stores an EventEmitter in the context.
-// The executor calls this before invoking each tool so that streaming tools
-// (like the delegation tool) can forward child events to the parent stream.
+// Deprecated: WithEventEmitter stores an EventEmitter in the context.
+// Prefer implementing the StreamingTool interface instead.
 func WithEventEmitter(ctx context.Context, emitter EventEmitter) context.Context {
 	return context.WithValue(ctx, eventEmitterKey{}, emitter)
 }
 
-// EventEmitterFromContext retrieves the EventEmitter from the context.
-// Returns the emitter and true if present, nil and false otherwise.
+// Deprecated: EventEmitterFromContext retrieves the EventEmitter from the context.
+// Prefer implementing the StreamingTool interface instead.
 func EventEmitterFromContext(ctx context.Context) (EventEmitter, bool) {
 	emitter, ok := ctx.Value(eventEmitterKey{}).(EventEmitter)
 	return emitter, ok
@@ -1298,10 +1297,6 @@ func (e *Executor) executeToolCalls(
 	toolCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Inject the event emitter so streaming tools (e.g., delegation) can
-	// forward child events to the parent's yield stream.
-	toolCtx = WithEventEmitter(toolCtx, yield)
-
 	resultsCh := make(chan toolResult, len(toolCalls))
 
 	// Concurrency-keyed locks (serialize tools sharing the same key).
@@ -1350,7 +1345,7 @@ func (e *Executor) executeToolCalls(
 			}
 		}
 
-		go func(idx int, call types.ToolCall, concurrencyKey string, t Tool) {
+		go func(idx int, call types.ToolCall, concurrencyKey string, t Tool, emitFn EventEmitter) {
 			startTime := time.Now()
 
 			if concurrencyKey != "" {
@@ -1359,7 +1354,20 @@ func (e *Executor) executeToolCalls(
 				defer lock.Unlock()
 			}
 
-			res, err := e.callTool(toolCtx, t, call.Name, call.Arguments)
+			var res toolExecutionResult
+			var err error
+
+			// Prefer StreamingTool for event-emitting tools (e.g., delegation).
+			if st, ok := t.(StreamingTool); ok {
+				var result string
+				result, err = st.CallStreaming(toolCtx, call.Arguments, emitFn)
+				if err == nil {
+					res = toolExecutionResult{output: result}
+				}
+			} else {
+				res, err = e.callTool(toolCtx, t, call.Name, call.Arguments)
+			}
+
 			durationMs := time.Since(startTime).Milliseconds()
 
 			select {
@@ -1373,7 +1381,7 @@ func (e *Executor) executeToolCalls(
 			case <-toolCtx.Done():
 				return
 			}
-		}(i, tc, key, toolByName[tc.Name])
+		}(i, tc, key, toolByName[tc.Name], yield)
 	}
 
 	ordered := make([]types.Message, len(toolCalls))
