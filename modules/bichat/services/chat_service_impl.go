@@ -933,6 +933,8 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 		switch event.Type {
 		case agents.EventTypeContent:
 			content.WriteString(event.Content)
+		case agents.EventTypeThinking:
+			// Reasoning/thinking content from LLM; not appended to user-visible content
 		case agents.EventTypeToolStart, agents.EventTypeToolEnd:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
