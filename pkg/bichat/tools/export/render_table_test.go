@@ -58,7 +58,7 @@ func TestRenderTableTool_Call_SuccessWithExport(t *testing.T) {
 	tool := NewRenderTableTool(
 		executor,
 		WithRenderTableOutputDir(tmpDir),
-		WithRenderTableBaseURL("http://localhost:8080/ali/uploads/exports"),
+		WithRenderTableBaseURL("http://localhost:8080/static/exports"),
 	)
 
 	raw, err := tool.Call(context.Background(), `{
@@ -80,7 +80,7 @@ func TestRenderTableTool_Call_SuccessWithExport(t *testing.T) {
 	require.NotNil(t, out.Export)
 	assert.Contains(t, out.Export.Filename, "render_table_")
 	assert.Equal(t, 2, out.Export.RowCount)
-	assert.Contains(t, out.Export.URL, "http://localhost:8080/ali/uploads/exports/render_table_")
+	assert.Contains(t, out.Export.URL, "http://localhost:8080/static/exports/render_table_")
 	assert.NotEmpty(t, out.ExportPrompt)
 
 	_, statErr := os.Stat(filepath.Join(tmpDir, out.Export.Filename))
