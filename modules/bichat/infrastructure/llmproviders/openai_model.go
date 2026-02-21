@@ -108,7 +108,11 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 
 	modelName := os.Getenv("OPENAI_MODEL")
 	if modelName == "" {
-		modelName = "gpt-5.2"
+		if defaultName, ok := agents.DefaultModelForProvider("openai"); ok {
+			modelName = defaultName
+		} else {
+			modelName = "gpt-5.2"
+		}
 	}
 
 	client := openai.NewClient(option.WithAPIKey(apiKey))

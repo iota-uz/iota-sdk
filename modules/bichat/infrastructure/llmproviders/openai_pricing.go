@@ -6,49 +6,48 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 )
 
-// Model context windows and pricing are kept in sync with official docs:
-// - OpenAI: platform.openai.com/docs/models (GPT-5.2: 400K ctx, $1.75/$14, cache read $0.175; mini/nano from model pages).
-// - Claude: docs.anthropic.com (200K standard, 1M with beta; pricing in cost tests: Sonnet 4.6 $3/$15, Opus 4.6 $5/$25, Haiku 4.5 $1/$5).
+const providerOpenAI = "openai"
 
-// Info returns model metadata including capabilities.
-func (m *OpenAIModel) Info() agents.ModelInfo {
-	return agents.ModelInfo{
-		Name:          m.modelName,
-		Provider:      "openai",
-		ContextWindow: contextWindowForModel(m.modelName),
-		Capabilities: []agents.Capability{
-			agents.CapabilityStreaming,
-			agents.CapabilityTools,
-			agents.CapabilityJSONMode,
-		},
+// resolveOpenAIModelKey maps a requested model name to a catalog key for lookup.
+// Exact matches are used as-is; versioned names (e.g. gpt-5.2-2025-12-11) are resolved
+// by prefix to the canonical catalog key so they share the same spec.
+func resolveOpenAIModelKey(modelName string) string {
+	n := strings.ToLower(strings.TrimSpace(modelName))
+	if n == "" {
+		return n
+	}
+	switch {
+	case strings.HasPrefix(n, "gpt-5.2"):
+		return "gpt-5.2"
+	case strings.HasPrefix(n, "gpt-5-mini"):
+		return "gpt-5-mini"
+	case strings.HasPrefix(n, "gpt-5-nano"):
+		return "gpt-5-nano"
+	default:
+		return n
 	}
 }
 
-// contextWindowForModel returns context window size per official docs (OpenAI: platform.openai.com/docs/models).
-// GPT-5.2: 400K; GPT-5 mini/nano: 400K.
-func contextWindowForModel(modelName string) int {
-	normalizedModelName := strings.ToLower(strings.TrimSpace(modelName))
+// openAISpec returns the ModelSpec for this OpenAI model (catalog lookup with fallback to default).
+func (m *OpenAIModel) openAISpec() agents.ModelSpec {
+	key := resolveOpenAIModelKey(m.modelName)
+	if spec, ok := agents.LookupModelSpec(providerOpenAI, key); ok {
+		return spec
+	}
+	// Unknown model: use provider default spec if available
+	if defaultName, ok := agents.DefaultModelForProvider(providerOpenAI); ok {
+		if spec, ok := agents.LookupModelSpec(providerOpenAI, defaultName); ok {
+			return spec
+		}
+	}
+	// Last resort: return GPT-5.2 spec so callers get valid info/pricing
+	return agents.SpecGPT52
+}
 
-	if strings.HasPrefix(normalizedModelName, "gpt-5.2") {
-		return 400000
-	}
-	if strings.HasPrefix(normalizedModelName, "gpt-5-mini") {
-		return 400000
-	}
-	if strings.HasPrefix(normalizedModelName, "gpt-5-nano") {
-		return 400000
-	}
-
-	modelContextWindows := map[string]int{
-		"gpt-5-mini": 400000,
-		"gpt-5-nano": 400000,
-	}
-
-	if contextWindow, ok := modelContextWindows[normalizedModelName]; ok {
-		return contextWindow
-	}
-
-	return 0
+// Info returns model metadata including capabilities from the shared catalog.
+func (m *OpenAIModel) Info() agents.ModelInfo {
+	spec := m.openAISpec()
+	return spec.ToModelInfo(m.modelName)
 }
 
 // HasCapability checks if this model supports a specific capability.
@@ -64,50 +63,7 @@ func (m *OpenAIModel) ModelParameters() map[string]interface{} {
 	}
 }
 
-// Pricing returns pricing information for this OpenAI model.
-// Rates per 1M tokens from platform.openai.com (GPT-5.2); mini/nano from official model pages.
-// Cache: GPT-5.2 cached input = 0.175 (90% discount); mini/nano cached rates applied where documented.
+// Pricing returns pricing information for this OpenAI model from the shared catalog.
 func (m *OpenAIModel) Pricing() agents.ModelPricing {
-	pricing := map[string]agents.ModelPricing{
-		"gpt-5.2": {
-			Currency:        "USD",
-			InputPer1M:      1.75,
-			OutputPer1M:     14.00,
-			CacheWritePer1M: 0,
-			CacheReadPer1M:  0.175,
-		},
-		"gpt-5.2-2025-12-11": {
-			Currency:        "USD",
-			InputPer1M:      1.75,
-			OutputPer1M:     14.00,
-			CacheWritePer1M: 0,
-			CacheReadPer1M:  0.175,
-		},
-		"gpt-5-mini": {
-			Currency:        "USD",
-			InputPer1M:      0.25,
-			OutputPer1M:     2.00,
-			CacheWritePer1M: 0,
-			CacheReadPer1M:  0.025,
-		},
-		"gpt-5-nano": {
-			Currency:        "USD",
-			InputPer1M:      0.05,
-			OutputPer1M:     0.40,
-			CacheWritePer1M: 0,
-			CacheReadPer1M:  0.005,
-		},
-	}
-
-	if p, exists := pricing[m.modelName]; exists {
-		return p
-	}
-
-	return agents.ModelPricing{
-		Currency:        "USD",
-		InputPer1M:      1.75,
-		OutputPer1M:     14.00,
-		CacheWritePer1M: 0,
-		CacheReadPer1M:  0.175,
-	}
+	return m.openAISpec().Pricing
 }
