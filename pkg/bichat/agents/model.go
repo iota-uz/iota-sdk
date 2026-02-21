@@ -315,6 +315,11 @@ type Chunk struct {
 	// Delta is the text content delta (partial content).
 	Delta string
 
+	// Thinking is the reasoning/thinking content delta.
+	// Only populated when using models with CapabilityThinking and WithReasoningEffort.
+	// Thinking content is ephemeral — shown during generation but not persisted.
+	Thinking string
+
 	// ToolCalls contains tool call deltas (accumulated incrementally).
 	// Tool calls are built up across multiple chunks.
 	ToolCalls []types.ToolCall

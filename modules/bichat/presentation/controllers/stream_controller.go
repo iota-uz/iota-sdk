@@ -201,6 +201,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 			toolPayload := &httpdto.ToolEventPayload{
 				CallID:     chunk.Tool.CallID,
 				Name:       chunk.Tool.Name,
+				AgentName:  chunk.Tool.AgentName,
 				Arguments:  chunk.Tool.Arguments,
 				Result:     chunk.Tool.Result,
 				DurationMs: chunk.Tool.DurationMs,

@@ -64,6 +64,24 @@
       "WorkingOnIt": "Работаю над этим",
       "AriaLabel": "ИИ: {{verb}}"
     },
+    "Tools": {
+      "sql_execute": "Выполняю запрос к базе данных",
+      "schema_list": "Получаю список таблиц",
+      "schema_describe": "Анализирую структуру таблицы",
+      "draw_chart": "Создаю график",
+      "draw_table": "Строю таблицу",
+      "kb_search": "Ищу в базе знаний",
+      "web_search": "Ищу в интернете",
+      "code_interpreter": "Выполняю код",
+      "export_data_to_excel": "Экспортирую в Excel",
+      "export_query_to_excel": "Экспортирую запрос в Excel",
+      "export_to_pdf": "Экспортирую в PDF",
+      "artifact_reader": "Читаю загруженный файл",
+      "ask_user_question": "Задаю вопрос",
+      "final_answer": "Формирую ответ",
+      "task": "Делегирую — {{agent}}",
+      "time": "Проверяю текущее время"
+    },
     "Search": {
       "Clear": "Очистить поиск"
     },

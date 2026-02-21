@@ -36,6 +36,27 @@ type askUserQuestionArgsOption struct {
 	Description string `json:"description"`
 }
 
+// EventEmitter is a callback that pushes an ExecutorEvent into the parent
+// generator's yield stream. It returns false if the consumer has stopped.
+// Used by streaming tools (e.g., delegation) to propagate child events.
+type EventEmitter = func(ExecutorEvent) bool
+
+type eventEmitterKey struct{}
+
+// WithEventEmitter stores an EventEmitter in the context.
+// The executor calls this before invoking each tool so that streaming tools
+// (like the delegation tool) can forward child events to the parent stream.
+func WithEventEmitter(ctx context.Context, emitter EventEmitter) context.Context {
+	return context.WithValue(ctx, eventEmitterKey{}, emitter)
+}
+
+// EventEmitterFromContext retrieves the EventEmitter from the context.
+// Returns the emitter and true if present, nil and false otherwise.
+func EventEmitterFromContext(ctx context.Context) (EventEmitter, bool) {
+	emitter, ok := ctx.Value(eventEmitterKey{}).(EventEmitter)
+	return emitter, ok
+}
+
 // ExecutorEventType identifies different types of executor events.
 type ExecutorEventType string
 
@@ -62,6 +83,11 @@ const (
 
 	// EventTypeError is emitted when an error occurs during execution.
 	EventTypeError ExecutorEventType = "error"
+
+	// EventTypeThinking is emitted for reasoning/thinking content from the LLM.
+	// Thinking content is ephemeral — it is shown to the user during generation
+	// but is not persisted as part of the final assistant message.
+	EventTypeThinking ExecutorEventType = "thinking"
 )
 
 // Question represents a structured HITL question carried in ExecutorEvent.
@@ -156,6 +182,11 @@ type ToolEvent struct {
 
 	// Name is the tool being executed.
 	Name string
+
+	// AgentName identifies which agent this tool call belongs to.
+	// Empty for the primary agent; set to the sub-agent's name when
+	// tool events are forwarded from a child executor via delegation.
+	AgentName string
 
 	// Arguments is the JSON-encoded input.
 	Arguments string
@@ -734,6 +765,17 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					return serrors.E(op, err)
 				}
 
+				// Yield thinking event (ephemeral reasoning content)
+				if chunk.Thinking != "" {
+					if !yield(ExecutorEvent{
+						Type:    EventTypeThinking,
+						Content: chunk.Thinking,
+					}) {
+						gen.Close()
+						return nil // Consumer stopped
+					}
+				}
+
 				// Yield chunk event
 				if chunk.Delta != "" {
 					chunks = append(chunks, chunk.Delta)
@@ -1255,6 +1297,10 @@ func (e *Executor) executeToolCalls(
 
 	toolCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// Inject the event emitter so streaming tools (e.g., delegation) can
+	// forward child events to the parent's yield stream.
+	toolCtx = WithEventEmitter(toolCtx, yield)
 
 	resultsCh := make(chan toolResult, len(toolCalls))
 

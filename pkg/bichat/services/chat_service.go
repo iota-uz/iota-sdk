@@ -123,12 +123,14 @@ const (
 	ChunkTypeUsage     ChunkType = "usage"
 	ChunkTypeDone      ChunkType = "done"
 	ChunkTypeError     ChunkType = "error"
+	ChunkTypeThinking  ChunkType = "thinking"
 )
 
 // ToolEvent represents a tool execution event in a streaming chunk.
 type ToolEvent struct {
 	CallID     string
 	Name       string
+	AgentName  string
 	Arguments  string
 	Result     string
 	Error      error

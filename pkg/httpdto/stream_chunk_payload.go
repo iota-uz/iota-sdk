@@ -7,6 +7,7 @@ import (
 type ToolEventPayload struct {
 	CallID     string `json:"callId,omitempty"`
 	Name       string `json:"name,omitempty"`
+	AgentName  string `json:"agentName,omitempty"`
 	Arguments  string `json:"arguments,omitempty"`
 	Result     string `json:"result,omitempty"`
 	Error      string `json:"error,omitempty"`

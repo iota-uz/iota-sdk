@@ -64,6 +64,24 @@
       "WorkingOnIt": "Ustida ishlamoqda",
       "AriaLabel": "SI: {{verb}}"
     },
+    "Tools": {
+      "sql_execute": "Ma'lumotlar bazasiga so'rov yuborilmoqda",
+      "schema_list": "Jadvallar ro'yxati olinmoqda",
+      "schema_describe": "Jadval tuzilishi tahlil qilinmoqda",
+      "draw_chart": "Grafik yaratilmoqda",
+      "draw_table": "Jadval qurilmoqda",
+      "kb_search": "Bilimlar bazasida qidirilmoqda",
+      "web_search": "Internetda qidirilmoqda",
+      "code_interpreter": "Kod bajarilmoqda",
+      "export_data_to_excel": "Excelga eksport qilinmoqda",
+      "export_query_to_excel": "So'rov Excelga eksport qilinmoqda",
+      "export_to_pdf": "PDFga eksport qilinmoqda",
+      "artifact_reader": "Yuklangan fayl o'qilmoqda",
+      "ask_user_question": "Savol berilmoqda",
+      "final_answer": "Javob tayyorlanmoqda",
+      "task": "Delegatsiya — {{agent}}",
+      "time": "Joriy vaqt tekshirilmoqda"
+    },
     "Search": {
       "Clear": "Qidiruvni tozalash"
     },

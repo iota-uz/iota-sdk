@@ -64,6 +64,24 @@
       "WorkingOnIt": "Working on it",
       "AriaLabel": "AI is {{verb}}"
     },
+    "Tools": {
+      "sql_execute": "Querying database",
+      "schema_list": "Listing available tables",
+      "schema_describe": "Analyzing table structure",
+      "draw_chart": "Creating chart",
+      "draw_table": "Building table",
+      "kb_search": "Searching knowledge base",
+      "web_search": "Searching the web",
+      "code_interpreter": "Running code",
+      "export_data_to_excel": "Exporting to Excel",
+      "export_query_to_excel": "Exporting query to Excel",
+      "export_to_pdf": "Exporting to PDF",
+      "artifact_reader": "Reading uploaded file",
+      "ask_user_question": "Asking for your input",
+      "final_answer": "Composing answer",
+      "task": "Delegating to {{agent}}",
+      "time": "Checking current time"
+    },
     "Search": {
       "Clear": "Clear search"
     },

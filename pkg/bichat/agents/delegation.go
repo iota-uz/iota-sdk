@@ -193,7 +193,11 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 	})
 	defer gen.Close()
 
-	// Collect final result from generator
+	// Retrieve the parent's event emitter (if available) so we can forward
+	// child tool and thinking events to the parent's stream.
+	emitter, hasEmitter := EventEmitterFromContext(ctx)
+
+	// Collect final result from generator, forwarding child events to parent.
 	var finalContent string
 	var finalUsage types.TokenUsage
 	for {
@@ -217,8 +221,30 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 		case EventTypeInterrupt:
 			// Child agent requested user interaction - not supported in delegation
 			return "", fmt.Errorf("child agent %q requested interrupt (not supported in delegation)", args.SubagentType)
-		case EventTypeChunk, EventTypeToolStart, EventTypeToolEnd:
-			// no-op (we only care about Done/Error/Interrupt)
+		case EventTypeToolStart, EventTypeToolEnd:
+			// Forward child tool events to parent stream with agent identity.
+			if hasEmitter && event.Tool != nil {
+				forwarded := event
+				forwarded.Tool = &ToolEvent{
+					CallID:     event.Tool.CallID,
+					Name:       event.Tool.Name,
+					AgentName:  metadata.Name,
+					Arguments:  event.Tool.Arguments,
+					Result:     event.Tool.Result,
+					Error:      event.Tool.Error,
+					DurationMs: event.Tool.DurationMs,
+					Artifacts:  event.Tool.Artifacts,
+				}
+				emitter(forwarded)
+			}
+		case EventTypeThinking:
+			// Forward child thinking events to parent stream.
+			if hasEmitter {
+				emitter(event)
+			}
+		case EventTypeChunk:
+			// Content events from child are not forwarded — only the final
+			// result matters to the parent agent.
 		}
 	}
 
