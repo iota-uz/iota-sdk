@@ -1,9 +1,9 @@
 package sql
 
 import (
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"errors"
 	"fmt"
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"regexp"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -12,11 +12,11 @@ import (
 // SQLErrorDiagnosis represents a structured diagnosis of a SQL error.
 type SQLErrorDiagnosis struct {
 	Code       tools.ToolErrorCode `json:"code"`
-	Message    string        `json:"message"`
-	Table      string        `json:"table,omitempty"`
-	Column     string        `json:"column,omitempty"`
-	Suggestion string        `json:"suggestion"`
-	Hints      []string      `json:"hints"`
+	Message    string              `json:"message"`
+	Table      string              `json:"table,omitempty"`
+	Column     string              `json:"column,omitempty"`
+	Suggestion string              `json:"suggestion"`
+	Hints      []string            `json:"hints"`
 }
 
 // ClassifySQLError analyzes a SQL error and returns a structured diagnosis.

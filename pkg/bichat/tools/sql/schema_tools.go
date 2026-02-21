@@ -1,9 +1,9 @@
 package sql
 
 import (
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"context"
 	"fmt"
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"regexp"
 	"strings"
 

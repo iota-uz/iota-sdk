@@ -1,10 +1,10 @@
 package artifacts
 
 import (
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"context"
 	"encoding/json"
 	"fmt"
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"io"
 	"os"
 	"strings"

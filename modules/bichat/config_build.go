@@ -8,11 +8,11 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	bichatartifacts "github.com/iota-uz/iota-sdk/pkg/bichat/tools/artifacts"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -241,4 +241,3 @@ func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
 
 	return nil
 }
-

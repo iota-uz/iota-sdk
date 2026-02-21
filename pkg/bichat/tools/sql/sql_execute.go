@@ -1,12 +1,12 @@
 package sql
 
 import (
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"context"
 	stdlibsql "database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"regexp"
 	"strconv"
 	"strings"

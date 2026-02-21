@@ -42,4 +42,3 @@ func FormatStructuredResult(result *types.ToolResult, err error) (string, error)
 	}
 	return f.Format(result.Payload, types.DefaultFormatOptions())
 }
-

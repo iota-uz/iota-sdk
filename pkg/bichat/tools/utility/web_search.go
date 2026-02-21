@@ -1,8 +1,8 @@
 package utility
 
 import (
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"context"
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 )

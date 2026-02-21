@@ -1,10 +1,10 @@
 package kb
 
 import (
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"context"
 	"errors"
 	"fmt"
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"

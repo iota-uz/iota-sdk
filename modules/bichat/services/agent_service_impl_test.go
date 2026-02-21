@@ -1294,4 +1294,3 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, gen)
 }
-

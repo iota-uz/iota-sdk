@@ -1,9 +1,9 @@
 package learning
 
 import (
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"context"
 	"errors"
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"strings"
 	"testing"
 

@@ -1,8 +1,8 @@
 package sql
 
 import (
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"errors"
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"strings"
 	"testing"
 
