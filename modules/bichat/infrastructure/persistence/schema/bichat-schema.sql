@@ -203,3 +203,4 @@ COMMENT ON TABLE bichat.artifact_provider_files IS 'Sync map between local artif
 COMMENT ON TABLE bichat.learnings IS 'Agent-captured learnings from SQL errors and user corrections';
 
 COMMENT ON TABLE bichat.validated_queries IS 'Proven SQL query patterns that answered prior questions';
+
