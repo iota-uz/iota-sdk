@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/google/uuid"
@@ -109,7 +108,7 @@ func (s *agentServiceImpl) ProcessMessage(
 	sessionID uuid.UUID,
 	content string,
 	attachments []domain.Attachment,
-) (types.Generator[services.Event], error) {
+) (types.Generator[agents.ExecutorEvent], error) {
 	const op serrors.Op = "agentServiceImpl.ProcessMessage"
 	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
@@ -270,10 +269,8 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 		PreviousResponseID: session.LLMPreviousResponseID(),
 	}
 
-	execGen := executor.Execute(ctx, input)
-
-	// Convert executor generator to service event generator
-	return s.convertExecutorGenerator(ctx, execGen), nil
+	// Return executor generator directly — no conversion needed.
+	return executor.Execute(ctx, input), nil
 }
 
 // ResumeWithAnswer resumes agent execution after user answers questions (HITL).
@@ -287,7 +284,7 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 	sessionID uuid.UUID,
 	checkpointID string,
 	answers map[string]types.Answer,
-) (types.Generator[services.Event], error) {
+) (types.Generator[agents.ExecutorEvent], error) {
 	const op serrors.Op = "agentServiceImpl.ResumeWithAnswer"
 	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
@@ -337,160 +334,8 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 	// Create executor (same configuration as ProcessMessage)
 	executor := agents.NewExecutor(s.agent, s.model, executorOpts...)
 
-	// Resume execution from checkpoint with user answers
-	execGen := executor.Resume(ctx, checkpointID, answers)
-
-	// Convert executor generator to service event generator
-	return s.convertExecutorGenerator(ctx, execGen), nil
-}
-
-// convertExecutorGenerator converts an executor event generator to a service event generator.
-// This converts agents.ExecutorEvent to services.Event for the service layer.
-func (s *agentServiceImpl) convertExecutorGenerator(
-	ctx context.Context,
-	execGen types.Generator[agents.ExecutorEvent],
-) types.Generator[services.Event] {
-	return types.NewGenerator(ctx, func(ctx context.Context, yield func(services.Event) bool) error {
-		for {
-			execEvent, err := execGen.Next(ctx)
-			if err != nil {
-				if err == types.ErrGeneratorDone {
-					return nil // Normal completion
-				}
-				return err
-			}
-
-			// Convert executor event to service event
-			serviceEvent := convertExecutorEvent(execEvent)
-			if !yield(serviceEvent) {
-				return nil // Consumer stopped
-			}
-		}
-	})
-}
-
-// convertExecutorEvent converts an agents.ExecutorEvent to a services.Event.
-func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
-	event := services.Event{}
-
-	switch execEvent.Type {
-	case agents.EventTypeChunk:
-		event.Type = services.EventTypeContent
-		if execEvent.Chunk != nil {
-			event.Content = execEvent.Chunk.Delta
-		}
-
-	case agents.EventTypeToolStart:
-		event.Type = services.EventTypeToolStart
-		if execEvent.Tool != nil {
-			event.Tool = &services.ToolEvent{
-				CallID:    execEvent.Tool.CallID,
-				Name:      execEvent.Tool.Name,
-				Arguments: execEvent.Tool.Arguments,
-				Artifacts: execEvent.Tool.Artifacts,
-			}
-		}
-
-	case agents.EventTypeToolEnd:
-		event.Type = services.EventTypeToolEnd
-		if execEvent.Tool != nil {
-			event.Tool = &services.ToolEvent{
-				CallID:     execEvent.Tool.CallID,
-				Name:       execEvent.Tool.Name,
-				Arguments:  execEvent.Tool.Arguments,
-				Result:     execEvent.Tool.Result,
-				Error:      execEvent.Tool.Error,
-				DurationMs: execEvent.Tool.DurationMs,
-				Artifacts:  execEvent.Tool.Artifacts,
-			}
-		}
-
-	case agents.EventTypeInterrupt:
-		event.Type = services.EventTypeInterrupt
-		if execEvent.Interrupt != nil {
-			event.Interrupt = convertInterruptEvent(execEvent.Interrupt)
-		}
-
-	case agents.EventTypeDone:
-		event.Type = services.EventTypeDone
-		event.Done = true
-		// Extract usage from result if available
-		if execEvent.Result != nil {
-			event.ProviderResponseID = execEvent.Result.ProviderResponseID
-			event.CodeInterpreter = execEvent.Result.CodeInterpreterResults
-			event.FileAnnotations = execEvent.Result.FileAnnotations
-			usage := execEvent.Result.Usage
-			if usage.PromptTokens > 0 || usage.CompletionTokens > 0 || usage.TotalTokens > 0 || usage.CachedTokens > 0 || usage.CacheReadTokens > 0 || usage.CacheWriteTokens > 0 {
-				cachedTokens := usage.CachedTokens
-				if cachedTokens == 0 {
-					cachedTokens = usage.CacheReadTokens
-				}
-				event.Usage = &types.DebugUsage{
-					PromptTokens:     usage.PromptTokens,
-					CompletionTokens: usage.CompletionTokens,
-					TotalTokens:      usage.TotalTokens,
-					CachedTokens:     cachedTokens,
-				}
-			}
-		}
-
-	case agents.EventTypeError:
-		event.Type = services.EventTypeError
-		event.Error = execEvent.Error
-	}
-
-	return event
-}
-
-// convertInterruptEvent converts an agents.InterruptEvent to a services.InterruptEvent.
-func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.InterruptEvent {
-	if agentInterrupt == nil {
-		return nil
-	}
-
-	// Parse the canonical interrupt payload
-	var questions []services.Question
-	if len(agentInterrupt.Data) > 0 {
-		var payload types.AskUserQuestionPayload
-		if err := json.Unmarshal(agentInterrupt.Data, &payload); err == nil {
-			questions = make([]services.Question, 0, len(payload.Questions))
-			for _, q := range payload.Questions {
-				// Convert options
-				options := make([]services.QuestionOption, 0, len(q.Options))
-				for _, opt := range q.Options {
-					options = append(options, services.QuestionOption{
-						ID:    opt.ID,
-						Label: opt.Label,
-					})
-				}
-
-				// Determine question type.
-				// Questions are always single_choice or multiple_choice (no standalone free-text type).
-				questionType := services.QuestionTypeSingleChoice
-				if q.MultiSelect {
-					questionType = services.QuestionTypeMultipleChoice
-				}
-
-				questions = append(questions, services.Question{
-					ID:      q.ID,
-					Text:    q.Question,
-					Type:    questionType,
-					Options: options,
-				})
-			}
-		}
-	}
-
-	// Use the real checkpoint ID and agent name from the interrupt event
-	checkpointID := agentInterrupt.CheckpointID
-	agentName := agentInterrupt.AgentName
-
-	return &services.InterruptEvent{
-		CheckpointID:       checkpointID,
-		AgentName:          agentName,
-		ProviderResponseID: agentInterrupt.ProviderResponseID,
-		Questions:          questions,
-	}
+	// Return resume generator directly — no conversion needed.
+	return executor.Resume(ctx, checkpointID, answers), nil
 }
 
 // convertToHistoryPayload converts types.Message slice to ConversationHistoryPayload

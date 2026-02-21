@@ -3,7 +3,6 @@ package llmproviders
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -11,6 +10,7 @@ import (
 
 	coreupload "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	openai "github.com/openai/openai-go/v3"
 )
 
@@ -40,7 +40,7 @@ func newCoreOpenAIImageUploadLookup() OpenAIImageUploadLookup {
 
 func (l *coreOpenAIImageUploadLookup) FindImageUpload(ctx context.Context, uploadID int64) (*OpenAIImageUploadRecord, error) {
 	if uploadID <= 0 {
-		return nil, fmt.Errorf("upload id must be positive")
+		return nil, serrors.E(serrors.Op("coreOpenAIImageUploadLookup.FindImageUpload"), serrors.KindValidation, "upload id must be positive")
 	}
 	uploads, err := l.repo.GetByIDs(ctx, []uint{uint(uploadID)})
 	if err != nil {

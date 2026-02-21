@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
@@ -273,19 +274,19 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
 
 	agentSvc := &stubAgentService{
-		resumeEvents: []bichatservices.Event{
+		resumeEvents: []agents.ExecutorEvent{
 			{
-				Type: bichatservices.EventTypeInterrupt,
-				Interrupt: &bichatservices.InterruptEvent{
+				Type: agents.EventTypeInterrupt,
+				ParsedInterrupt: &agents.ParsedInterrupt{
 					CheckpointID:       "cp-next",
 					AgentName:          "bi_agent",
 					ProviderResponseID: "resp-next",
-					Questions: []bichatservices.Question{
+					Questions: []agents.Question{
 						{
 							ID:   "metric",
 							Text: "Choose metric",
-							Type: bichatservices.QuestionTypeSingleChoice,
-							Options: []bichatservices.QuestionOption{
+							Type: agents.QuestionTypeSingleChoice,
+							Options: []agents.QuestionOption{
 								{ID: "rev", Label: "Revenue"},
 								{ID: "exp", Label: "Expense"},
 							},
@@ -336,9 +337,9 @@ func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t
 		called: make(chan context.Context, 1),
 	}
 	agentSvc := &stubAgentService{
-		processEvents: []bichatservices.Event{
+		processEvents: []agents.ExecutorEvent{
 			{
-				Type:    bichatservices.EventTypeContent,
+				Type:    agents.EventTypeContent,
 				Content: "partial assistant response",
 			},
 		},
@@ -380,13 +381,13 @@ type stubTitleJobQueue struct {
 }
 
 type stubAgentService struct {
-	processEvents    []bichatservices.Event
+	processEvents    []agents.ExecutorEvent
 	processErr       error
 	processStreamErr error
-	resumeEvents     []bichatservices.Event
+	resumeEvents     []agents.ExecutorEvent
 }
 
-func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UUID, content string, attachments []domain.Attachment) (types.Generator[bichatservices.Event], error) {
+func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UUID, content string, attachments []domain.Attachment) (types.Generator[agents.ExecutorEvent], error) {
 	if s.processErr != nil {
 		return nil, s.processErr
 	}
@@ -394,10 +395,10 @@ func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UU
 		return nil, assert.AnError
 	}
 
-	events := append([]bichatservices.Event{}, s.processEvents...)
+	evs := append([]agents.ExecutorEvent{}, s.processEvents...)
 	streamErr := s.processStreamErr
-	return types.NewGenerator(ctx, func(ctx context.Context, yield func(bichatservices.Event) bool) error {
-		for _, ev := range events {
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
+		for _, ev := range evs {
 			if !yield(ev) {
 				return nil
 			}
@@ -406,10 +407,10 @@ func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UU
 	}), nil
 }
 
-func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.UUID, checkpointID string, answers map[string]types.Answer) (types.Generator[bichatservices.Event], error) {
-	events := append([]bichatservices.Event{}, s.resumeEvents...)
-	return types.NewGenerator(ctx, func(ctx context.Context, yield func(bichatservices.Event) bool) error {
-		for _, ev := range events {
+func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.UUID, checkpointID string, answers map[string]types.Answer) (types.Generator[agents.ExecutorEvent], error) {
+	evs := append([]agents.ExecutorEvent{}, s.resumeEvents...)
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
+		for _, ev := range evs {
 			if !yield(ev) {
 				return nil
 			}

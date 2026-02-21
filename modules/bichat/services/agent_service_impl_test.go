@@ -601,7 +601,7 @@ func TestProcessMessage_Success(t *testing.T) {
 	assert.Equal(t, "/uploads/report.png", turnPayload.Attachments[0].Reference)
 
 	// Collect all events
-	var events []services.Event
+	var events []agents.ExecutorEvent
 	for {
 		event, err := gen.Next(ctx)
 		if errors.Is(err, types.ErrGeneratorDone) {
@@ -618,12 +618,12 @@ func TestProcessMessage_Success(t *testing.T) {
 
 	// Should have at least content chunks and a done event
 	hasContent := false
-	var done *services.Event
+	var done *agents.ExecutorEvent
 	for _, event := range events {
-		if event.Type == services.EventTypeContent {
+		if event.Type == agents.EventTypeContent {
 			hasContent = true
 		}
-		if event.Type == services.EventTypeDone {
+		if event.Type == agents.EventTypeDone {
 			e := event
 			done = &e
 		}
@@ -1176,7 +1176,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	defer gen.Close()
 
 	// Collect all events
-	var events []services.Event
+	var events []agents.ExecutorEvent
 	for {
 		event, err := gen.Next(ctx)
 		if errors.Is(err, types.ErrGeneratorDone) {
@@ -1192,12 +1192,12 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	assert.NotEmpty(t, events)
 
 	hasContent := false
-	var done *services.Event
+	var done *agents.ExecutorEvent
 	for _, event := range events {
-		if event.Type == services.EventTypeContent {
+		if event.Type == agents.EventTypeContent {
 			hasContent = true
 		}
-		if event.Type == services.EventTypeDone {
+		if event.Type == agents.EventTypeDone {
 			e := event
 			done = &e
 		}
@@ -1295,185 +1295,3 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 	assert.Nil(t, gen)
 }
 
-func TestConvertExecutorEvent_Chunk(t *testing.T) {
-	t.Parallel()
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeChunk,
-		Chunk: &agents.Chunk{
-			Delta: "Hello world",
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeContent, serviceEvent.Type)
-	assert.Equal(t, "Hello world", serviceEvent.Content)
-}
-
-func TestConvertExecutorEvent_ToolStart(t *testing.T) {
-	t.Parallel()
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeToolStart,
-		Tool: &agents.ToolEvent{
-			CallID:    "call_123",
-			Name:      "test_tool",
-			Arguments: `{"param": "value"}`,
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeToolStart, serviceEvent.Type)
-	require.NotNil(t, serviceEvent.Tool)
-	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
-	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
-	assert.JSONEq(t, `{"param": "value"}`, serviceEvent.Tool.Arguments)
-}
-
-func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
-	t.Parallel()
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeToolEnd,
-		Tool: &agents.ToolEvent{
-			CallID:     "call_123",
-			Name:       "test_tool",
-			Arguments:  `{"param": "value"}`,
-			Result:     "tool result",
-			Error:      nil,
-			DurationMs: 98,
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeToolEnd, serviceEvent.Type)
-	require.NotNil(t, serviceEvent.Tool)
-	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
-	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
-	assert.Equal(t, "tool result", serviceEvent.Tool.Result)
-	assert.Equal(t, int64(98), serviceEvent.Tool.DurationMs)
-	assert.NoError(t, serviceEvent.Tool.Error)
-}
-
-func TestConvertExecutorEvent_Interrupt(t *testing.T) {
-	t.Parallel()
-
-	sessionID := uuid.New()
-	checkpointID := "checkpoint_" + sessionID.String()
-	// Use new array format: {questions: [...]}
-	interruptData := []byte(`{"questions": [{"id": "q1", "question": "What is your name?"}]}`)
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeInterrupt,
-		Interrupt: &agents.InterruptEvent{
-			Type:               agents.ToolAskUserQuestion,
-			SessionID:          sessionID,
-			Data:               interruptData,
-			CheckpointID:       checkpointID,
-			ProviderResponseID: "resp_interrupt_1",
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeInterrupt, serviceEvent.Type)
-	require.NotNil(t, serviceEvent.Interrupt)
-	assert.NotEmpty(t, serviceEvent.Interrupt.CheckpointID)
-	assert.Equal(t, "resp_interrupt_1", serviceEvent.Interrupt.ProviderResponseID)
-	require.Len(t, serviceEvent.Interrupt.Questions, 1)
-	assert.Equal(t, "q1", serviceEvent.Interrupt.Questions[0].ID)
-	assert.Equal(t, "What is your name?", serviceEvent.Interrupt.Questions[0].Text)
-	assert.Equal(t, services.QuestionTypeSingleChoice, serviceEvent.Interrupt.Questions[0].Type)
-}
-
-func TestConvertExecutorEvent_Done(t *testing.T) {
-	t.Parallel()
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeDone,
-		Done: true,
-		Result: &agents.Response{
-			Message: types.AssistantMessage("Final response"),
-			Usage: types.TokenUsage{
-				PromptTokens:     100,
-				CompletionTokens: 50,
-				TotalTokens:      150,
-			},
-			FinishReason:       "stop",
-			ProviderResponseID: "resp_done_1",
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeDone, serviceEvent.Type)
-	assert.True(t, serviceEvent.Done)
-	require.NotNil(t, serviceEvent.Usage)
-	assert.Equal(t, 100, serviceEvent.Usage.PromptTokens)
-	assert.Equal(t, 50, serviceEvent.Usage.CompletionTokens)
-	assert.Equal(t, 150, serviceEvent.Usage.TotalTokens)
-	assert.Equal(t, "resp_done_1", serviceEvent.ProviderResponseID)
-}
-
-func TestConvertExecutorEvent_Error(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("test error")
-	execEvent := agents.ExecutorEvent{
-		Type:  agents.EventTypeError,
-		Error: testErr,
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeError, serviceEvent.Type)
-	assert.Equal(t, testErr, serviceEvent.Error)
-}
-
-func TestConvertExecutorGenerator_Close(t *testing.T) {
-	t.Parallel()
-
-	// Create a simple executor event generator for testing
-	ctx := context.Background()
-	execGen := types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-		yield(agents.ExecutorEvent{
-			Type:  agents.EventTypeChunk,
-			Chunk: &agents.Chunk{Delta: "test"},
-		})
-		return nil
-	})
-
-	// Create a service implementation to access the conversion function
-	service := &agentServiceImpl{}
-	serviceGen := service.convertExecutorGenerator(ctx, execGen)
-
-	// Close the generator
-	serviceGen.Close()
-
-	// Wait for the generator to terminate after cancellation.
-	select {
-	case <-serviceGen.Done():
-	case <-time.After(1 * time.Second):
-		t.Fatal("generator did not terminate after Close()")
-	}
-
-	// After termination, Next should eventually return ErrGeneratorDone.
-	for i := 0; i < 2; i++ {
-		_, err := serviceGen.Next(context.Background())
-		if errors.Is(err, types.ErrGeneratorDone) || errors.Is(err, context.Canceled) {
-			return
-		}
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	}
-	t.Fatal("expected generator to be done after Close()")
-}

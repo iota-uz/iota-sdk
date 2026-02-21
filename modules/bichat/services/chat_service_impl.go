@@ -502,7 +502,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 
 		switch event.Type {
-		case bichatservices.EventTypeContent:
+		case agents.EventTypeContent:
 			assistantContent.WriteString(event.Content)
 			onChunk(bichatservices.StreamChunk{
 				Type:      bichatservices.ChunkTypeContent,
@@ -510,7 +510,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				Timestamp: time.Now(),
 			})
 
-		case bichatservices.EventTypeToolStart:
+		case agents.EventTypeToolStart:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
 				recordToolArtifacts(artifactMap, event.Tool.Artifacts)
@@ -518,12 +518,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			if event.Tool != nil {
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeToolStart,
-					Tool:      event.Tool,
+					Tool:      agentToolToServiceTool(event.Tool),
 					Timestamp: time.Now(),
 				})
 			}
 
-		case bichatservices.EventTypeToolEnd:
+		case agents.EventTypeToolEnd:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
 				recordToolArtifacts(artifactMap, event.Tool.Artifacts)
@@ -531,41 +531,38 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			if event.Tool != nil {
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeToolEnd,
-					Tool:      event.Tool,
+					Tool:      agentToolToServiceTool(event.Tool),
 					Timestamp: time.Now(),
 				})
 			}
 
-		case bichatservices.EventTypeInterrupt:
-			if event.Interrupt == nil {
+		case agents.EventTypeInterrupt:
+			if event.ParsedInterrupt == nil {
 				continue
 			}
+			pi := event.ParsedInterrupt
+			questions := agentQuestionsToServiceQuestions(pi.Questions)
 			interrupt = &bichatservices.Interrupt{
-				CheckpointID: event.Interrupt.CheckpointID,
-				Questions:    event.Interrupt.Questions,
+				CheckpointID: pi.CheckpointID,
+				Questions:    questions,
 			}
-			interruptAgentName = event.Interrupt.AgentName
+			interruptAgentName = pi.AgentName
 			if interruptAgentName == "" {
 				interruptAgentName = "default-agent"
 			}
-			providerResponseID = optionalStringPtr(event.Interrupt.ProviderResponseID)
+			providerResponseID = optionalStringPtr(pi.ProviderResponseID)
 			onChunk(bichatservices.StreamChunk{
-				Type:      bichatservices.ChunkTypeInterrupt,
-				Interrupt: event.Interrupt,
+				Type: bichatservices.ChunkTypeInterrupt,
+				Interrupt: &bichatservices.InterruptEvent{
+					CheckpointID:       pi.CheckpointID,
+					AgentName:          pi.AgentName,
+					ProviderResponseID: pi.ProviderResponseID,
+					Questions:          questions,
+				},
 				Timestamp: time.Now(),
 			})
 
-		case bichatservices.EventTypeUsage:
-			if event.Usage != nil {
-				finalUsage = event.Usage
-				onChunk(bichatservices.StreamChunk{
-					Type:      bichatservices.ChunkTypeUsage,
-					Usage:     event.Usage,
-					Timestamp: time.Now(),
-				})
-			}
-
-		case bichatservices.EventTypeDone:
+		case agents.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
 			recordToolArtifacts(artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
 			if event.Usage != nil {
@@ -583,14 +580,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				GenerationMs: generationMs,
 				Timestamp:    time.Now(),
 			})
-		case bichatservices.EventTypeError:
+		case agents.EventTypeError:
 			onChunk(bichatservices.StreamChunk{
 				Type:      bichatservices.ChunkTypeError,
 				Error:     event.Error,
 				Timestamp: time.Now(),
 			})
-		case bichatservices.EventTypeCitation:
-			// no-op in stream handler
 		}
 	}
 
@@ -657,7 +652,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	return nil
 }
 
-func recordToolEvent(toolCalls map[string]types.ToolCall, toolOrder *[]string, tool *bichatservices.ToolEvent) {
+func recordToolEvent(toolCalls map[string]types.ToolCall, toolOrder *[]string, tool *agents.ToolEvent) {
 	if tool == nil {
 		return
 	}
@@ -908,7 +903,7 @@ type agentResult struct {
 
 // consumeAgentEvents drains the generator and collects the result.
 // This is used by non-streaming callers (SendMessage, ResumeWithAnswer, RejectPendingQuestion).
-func consumeAgentEvents(ctx context.Context, gen types.Generator[bichatservices.Event]) (*agentResult, error) {
+func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.ExecutorEvent]) (*agentResult, error) {
 	var content strings.Builder
 	toolCalls := make(map[string]types.ToolCall)
 	toolOrder := make([]string, 0)
@@ -929,38 +924,33 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[bichatservices.
 		}
 
 		switch event.Type {
-		case bichatservices.EventTypeContent:
+		case agents.EventTypeContent:
 			content.WriteString(event.Content)
-		case bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd:
+		case agents.EventTypeToolStart, agents.EventTypeToolEnd:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
 				recordToolArtifacts(artifactMap, event.Tool.Artifacts)
 			}
-		case bichatservices.EventTypeInterrupt:
-			if event.Interrupt != nil {
+		case agents.EventTypeInterrupt:
+			if event.ParsedInterrupt != nil {
+				pi := event.ParsedInterrupt
 				interrupt = &bichatservices.Interrupt{
-					CheckpointID: event.Interrupt.CheckpointID,
-					Questions:    event.Interrupt.Questions,
+					CheckpointID: pi.CheckpointID,
+					Questions:    agentQuestionsToServiceQuestions(pi.Questions),
 				}
-				interruptAgentName = event.Interrupt.AgentName
+				interruptAgentName = pi.AgentName
 				if interruptAgentName == "" {
 					interruptAgentName = "default-agent"
 				}
-				providerResponseID = optionalStringPtr(event.Interrupt.ProviderResponseID)
+				providerResponseID = optionalStringPtr(pi.ProviderResponseID)
 			}
-		case bichatservices.EventTypeDone:
+		case agents.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
 			if event.Usage != nil {
 				finalUsage = event.Usage
 			}
 			recordToolArtifacts(artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
-		case bichatservices.EventTypeUsage:
-			if event.Usage != nil {
-				finalUsage = event.Usage
-			}
-		case bichatservices.EventTypeCitation:
-			// no-op
-		case bichatservices.EventTypeError:
+		case agents.EventTypeError:
 			var errDetail error
 			if event.Error != nil {
 				errDetail = event.Error
@@ -1384,7 +1374,7 @@ func buildTitleGenerationContext(ctx context.Context) context.Context {
 	return titleCtx
 }
 
-// buildQuestionData converts service-level interrupt questions to QuestionData
+// buildQuestionData converts agent interrupt questions to QuestionData for persistence.
 func buildQuestionData(checkpointID, agentName string, questions []bichatservices.Question) (*types.QuestionData, error) {
 	items := make([]types.QuestionDataItem, len(questions))
 	for i, q := range questions {
@@ -1408,4 +1398,46 @@ func buildQuestionData(checkpointID, agentName string, questions []bichatservice
 		return nil, err
 	}
 	return qd, nil
+}
+
+// agentToolToServiceTool converts agents.ToolEvent to bichatservices.ToolEvent
+// for use in StreamChunk payloads.
+func agentToolToServiceTool(t *agents.ToolEvent) *bichatservices.ToolEvent {
+	if t == nil {
+		return nil
+	}
+	return &bichatservices.ToolEvent{
+		CallID:     t.CallID,
+		Name:       t.Name,
+		Arguments:  t.Arguments,
+		Result:     t.Result,
+		Error:      t.Error,
+		DurationMs: t.DurationMs,
+		Artifacts:  t.Artifacts,
+	}
+}
+
+// agentQuestionsToServiceQuestions converts agents.Question slice to bichatservices.Question slice.
+func agentQuestionsToServiceQuestions(qs []agents.Question) []bichatservices.Question {
+	if len(qs) == 0 {
+		return nil
+	}
+	out := make([]bichatservices.Question, len(qs))
+	for i, q := range qs {
+		opts := make([]bichatservices.QuestionOption, len(q.Options))
+		for j, o := range q.Options {
+			opts[j] = bichatservices.QuestionOption{ID: o.ID, Label: o.Label}
+		}
+		qt := bichatservices.QuestionTypeSingleChoice
+		if q.Type == agents.QuestionTypeMultipleChoice {
+			qt = bichatservices.QuestionTypeMultipleChoice
+		}
+		out[i] = bichatservices.Question{
+			ID:      q.ID,
+			Text:    q.Text,
+			Type:    qt,
+			Options: opts,
+		}
+	}
+	return out
 }

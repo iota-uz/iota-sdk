@@ -463,6 +463,42 @@ User: "Find top 10 customers by total sales and generate a chart"
 
 The delegation tool is automatically filtered from child agent tool lists to prevent infinite delegation chains. SQLAgent never receives the `task` tool.
 
+## Error Handling Convention
+
+`modules/bichat` is an **application module** with a full iota-sdk dependency. All operational
+error wrapping must use `serrors.E(op, err)` from `github.com/iota-uz/iota-sdk/pkg/serrors`.
+
+**Pattern:**
+
+```go
+// Service / repository / handler — use serrors.E
+func (s *chatService) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
+    const op serrors.Op = "chatService.GetSession"
+    session, err := s.repo.GetByID(ctx, id)
+    if err != nil {
+        return nil, serrors.E(op, err)
+    }
+    return session, nil
+}
+
+// Validation errors — use serrors.KindValidation
+func (s *chatService) CreateSession(ctx context.Context, title string) error {
+    const op serrors.Op = "chatService.CreateSession"
+    if strings.TrimSpace(title) == "" {
+        return serrors.E(op, serrors.KindValidation, "title is required")
+    }
+    // ...
+}
+```
+
+**Exceptions where `fmt.Errorf` is acceptable:**
+- Module-level wiring in `module.go` (infrastructure bootstrapping)
+- Private utility helpers whose callers immediately wrap with `serrors.E`
+- Redis/stream infrastructure in `title_job_worker.go`
+- Config validation in `agents/sub_agent_definitions.go` (no op context needed)
+
+**Sentinel errors** (`var ErrFoo = errors.New(...)`) are fine everywhere — do not convert these.
+
 ## Common Gotchas
 
 1. **Generator Pattern**: Always defer `gen.Close()`. Check `hasMore` before processing events.
