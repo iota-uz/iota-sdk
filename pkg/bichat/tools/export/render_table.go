@@ -17,13 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-const (
-	renderTableDefaultPageSize = 25
-	renderTableMaxPageSize     = 200
-	renderTableDefaultMaxRows  = 2000
-	renderTableHardMaxRows     = 50000
-)
-
 // RenderTableTool executes read-only SQL and returns a frontend-renderable table payload.
 //
 // It is intended for BI chat UIs that can render interactive/paginated tables and provide
@@ -90,9 +83,8 @@ func (t *RenderTableTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *RenderTableTool) Description() string {
 	return "Run a read-only SQL query and render an interactive table card in chat. " +
-		"Accepts custom column header names, returns rows for client-side pagination, and includes an Export to Excel action. " +
-		"Users see a scrollable table with page controls plus an Export to Excel button. " +
-		"Query must be SELECT/WITH-only and results are capped by max_rows (default 2000, max 50000)."
+		"Accepts custom column header names and returns rows for frontend/backend pagination, " +
+		"with an Export to Excel action."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -109,36 +101,11 @@ func (t *RenderTableTool) Parameters() map[string]any {
 				"description": "Optional title displayed above the rendered table.",
 			},
 			"headers": map[string]any{
-				"type":        "object",
-				"description": "Optional map of source column name to display header (e.g. {\"policy_id\":\"Policy ID\"}).",
-				"additionalProperties": map[string]any{
-					"type": "string",
-				},
-			},
-			"headerNames": map[string]any{
 				"type":        "array",
 				"description": "Optional ordered display headers aligned with selected columns.",
 				"items": map[string]any{
 					"type": "string",
 				},
-			},
-			"page_size": map[string]any{
-				"type":        "integer",
-				"description": "Rows per page in the table UI (default 25, max 200).",
-				"default":     renderTableDefaultPageSize,
-				"minimum":     1,
-				"maximum":     renderTableMaxPageSize,
-			},
-			"max_rows": map[string]any{
-				"type":        "integer",
-				"description": "Maximum rows fetched for rendering and export (default 2000, max 50000).",
-				"default":     renderTableDefaultMaxRows,
-				"minimum":     1,
-				"maximum":     renderTableHardMaxRows,
-			},
-			"filename": map[string]any{
-				"type":        "string",
-				"description": "Optional Excel filename for the Export to Excel button.",
 			},
 		},
 		"required": []string{"sql"},
@@ -146,13 +113,9 @@ func (t *RenderTableTool) Parameters() map[string]any {
 }
 
 type renderTableInput struct {
-	SQL         string            `json:"sql"`
-	Title       string            `json:"title,omitempty"`
-	Headers     map[string]string `json:"headers,omitempty"`
-	HeaderNames []string          `json:"headerNames,omitempty"`
-	PageSize    int               `json:"page_size,omitempty"`
-	MaxRows     int               `json:"max_rows,omitempty"`
-	Filename    string            `json:"filename,omitempty"`
+	SQL     string   `json:"sql"`
+	Title   string   `json:"title,omitempty"`
+	Headers []string `json:"headers,omitempty"`
 }
 
 type renderTableExport struct {
@@ -169,7 +132,6 @@ type renderTableOutput struct {
 	Headers         []string           `json:"headers"`
 	Rows            [][]any            `json:"rows"`
 	TotalRows       int                `json:"total_rows"`
-	PageSize        int                `json:"page_size"`
 	Truncated       bool               `json:"truncated"`
 	TruncatedReason string             `json:"truncated_reason,omitempty"`
 	Export          *renderTableExport `json:"export,omitempty"`
@@ -215,38 +177,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 		}, nil
 	}
 
-	pageSize := params.PageSize
-	if pageSize == 0 {
-		pageSize = renderTableDefaultPageSize
-	}
-	if pageSize < 1 || pageSize > renderTableMaxPageSize {
-		return &types.ToolResult{
-			CodecID: types.CodecToolError,
-			Payload: types.ToolErrorPayload{
-				Code:    string(tools.ErrCodeInvalidRequest),
-				Message: fmt.Sprintf("page_size must be between 1 and %d", renderTableMaxPageSize),
-				Hints:   []string{tools.HintCheckFieldTypes},
-			},
-		}, nil
-	}
-
-	maxRows := params.MaxRows
-	if maxRows == 0 {
-		maxRows = renderTableDefaultMaxRows
-	}
-	if maxRows < 1 || maxRows > renderTableHardMaxRows {
-		return &types.ToolResult{
-			CodecID: types.CodecToolError,
-			Payload: types.ToolErrorPayload{
-				Code:    string(tools.ErrCodeInvalidRequest),
-				Message: fmt.Sprintf("max_rows must be between 1 and %d", renderTableHardMaxRows),
-				Hints:   []string{tools.HintCheckFieldTypes, tools.HintAddLimitClause},
-			},
-		}, nil
-	}
-
-	fetchLimit := maxRows + 1
-	executedSQL := toolsql.WrapQueryWithLimit(normalizedQuery, fetchLimit)
+	executedSQL := normalizedQuery
 
 	result, err := t.executor.ExecuteQuery(ctx, executedSQL, nil, 45*time.Second)
 	if err != nil {
@@ -263,16 +194,12 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 	rows := result.Rows
 	truncated := false
 	truncatedReason := ""
-	if len(rows) > maxRows {
-		rows = rows[:maxRows]
-		truncated = true
-		truncatedReason = "max_rows"
-	} else if result.Truncated {
+	if result.Truncated {
 		truncated = true
 		truncatedReason = "executor_cap"
 	}
 
-	headers := resolveRenderTableHeaders(result.Columns, params.Headers, params.HeaderNames)
+	headers := resolveRenderTableHeaders(result.Columns, params.Headers)
 
 	output := renderTableOutput{
 		Title:           strings.TrimSpace(params.Title),
@@ -281,7 +208,6 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 		Headers:         headers,
 		Rows:            rows,
 		TotalRows:       len(rows),
-		PageSize:        pageSize,
 		Truncated:       truncated,
 		TruncatedReason: truncatedReason,
 		ExportPrompt:    fmt.Sprintf("Export this SQL query to Excel and share the file: %s", normalizedQuery),
@@ -307,7 +233,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 			}, serrors.E(op, exportErr)
 		}
 
-		filename := buildRenderTableFilename(params.Filename)
+		filename := buildRenderTableFilename()
 		if err := os.MkdirAll(t.outputDir, 0o755); err != nil {
 			return &types.ToolResult{
 				CodecID: types.CodecToolError,
@@ -350,27 +276,12 @@ func (t *RenderTableTool) Call(ctx context.Context, input string) (string, error
 	return tools.FormatStructuredResult(t.CallStructured(ctx, input))
 }
 
-func resolveRenderTableHeaders(columns []string, headers map[string]string, headerNames []string) []string {
+func resolveRenderTableHeaders(columns []string, headers []string) []string {
 	out := make([]string, len(columns))
-	lower := make(map[string]string, len(headers))
-	for key, value := range headers {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		lower[strings.ToLower(strings.TrimSpace(key))] = trimmed
-	}
-
 	for i, column := range columns {
 		label := ""
-		if raw, ok := headers[column]; ok {
-			label = strings.TrimSpace(raw)
-		}
-		if label == "" {
-			label = lower[strings.ToLower(column)]
-		}
-		if label == "" && i < len(headerNames) {
-			label = strings.TrimSpace(headerNames[i])
+		if i < len(headers) {
+			label = strings.TrimSpace(headers[i])
 		}
 		if label == "" {
 			label = column
@@ -381,17 +292,6 @@ func resolveRenderTableHeaders(columns []string, headers map[string]string, head
 	return out
 }
 
-func buildRenderTableFilename(raw string) string {
-	filename := strings.TrimSpace(raw)
-	if filename == "" {
-		filename = fmt.Sprintf("render_table_%s.xlsx", time.Now().UTC().Format("20060102_150405"))
-	}
-	filename = filepath.Base(filename)
-	if filename == "." || filename == "/" || filename == "" {
-		filename = fmt.Sprintf("render_table_%s.xlsx", time.Now().UTC().Format("20060102_150405"))
-	}
-	if !strings.HasSuffix(strings.ToLower(filename), ".xlsx") {
-		filename += ".xlsx"
-	}
-	return filename
+func buildRenderTableFilename() string {
+	return fmt.Sprintf("render_table_%s.xlsx", time.Now().UTC().Format("20060102_150405.000000000"))
 }

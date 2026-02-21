@@ -64,10 +64,7 @@ func TestRenderTableTool_Call_SuccessWithExport(t *testing.T) {
 	raw, err := tool.Call(context.Background(), `{
 		"sql":"SELECT policy_id, premium_amount FROM analytics.policies_with_details",
 		"title":"Policy Premiums",
-		"headers":{"policy_id":"Policy ID"},
-		"headerNames":["Policy Identifier", "Premium (UZS)"],
-		"page_size":50,
-		"filename":"premiums"
+		"headers":["Policy ID", "Premium (UZS)"]
 	}`)
 	require.NoError(t, err)
 
@@ -79,16 +76,14 @@ func TestRenderTableTool_Call_SuccessWithExport(t *testing.T) {
 	assert.Equal(t, []string{"policy_id", "premium_amount"}, out.Columns)
 	assert.Equal(t, []string{"Policy ID", "Premium (UZS)"}, out.Headers)
 	require.Len(t, out.Rows, 2)
-	assert.Equal(t, 50, out.PageSize)
 	assert.False(t, out.Truncated)
 	require.NotNil(t, out.Export)
-	assert.Equal(t, "premiums.xlsx", out.Export.Filename)
+	assert.Contains(t, out.Export.Filename, "render_table_")
 	assert.Equal(t, 2, out.Export.RowCount)
-	assert.Equal(t, "http://localhost:8080/ali/uploads/exports/premiums.xlsx", out.Export.URL)
+	assert.Contains(t, out.Export.URL, "http://localhost:8080/ali/uploads/exports/render_table_")
 	assert.NotEmpty(t, out.ExportPrompt)
 
-	assert.Contains(t, executor.executedSQL, "LIMIT 2001")
-	_, statErr := os.Stat(filepath.Join(tmpDir, "premiums.xlsx"))
+	_, statErr := os.Stat(filepath.Join(tmpDir, out.Export.Filename))
 	assert.NoError(t, statErr)
 }
 
@@ -108,19 +103,28 @@ func TestRenderTableTool_CallStructured_PolicyViolation(t *testing.T) {
 	assert.Contains(t, strings.ToUpper(payload.Message), "SELECT")
 }
 
-func TestRenderTableTool_CallStructured_InvalidPageSize(t *testing.T) {
+func TestRenderTableTool_CallStructured_TruncatedByExecutor(t *testing.T) {
 	t.Parallel()
 
-	tool := NewRenderTableTool(&mockRenderTableExecutor{}).(*RenderTableTool)
+	executor := &mockRenderTableExecutor{
+		result: &bichatsql.QueryResult{
+			Columns: []string{"id"},
+			Rows:    [][]any{{int64(1)}},
+			// executor indicates truncation via metadata flag
+			Truncated: true,
+		},
+	}
+	tool := NewRenderTableTool(executor).(*RenderTableTool)
 
-	result, err := tool.CallStructured(context.Background(), `{"sql":"SELECT 1","page_size":999}`)
+	result, err := tool.CallStructured(context.Background(), `{"sql":"SELECT 1"}`)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, types.CodecToolError, result.CodecID)
+	assert.Equal(t, types.CodecJSON, result.CodecID)
 
-	payload, ok := result.Payload.(types.ToolErrorPayload)
-	require.True(t, ok)
-	assert.Equal(t, string(tools.ErrCodeInvalidRequest), payload.Code)
+	var out renderTableOutput
+	require.NoError(t, json.Unmarshal([]byte(result.Payload.(types.JSONPayload).Output.(string)), &out))
+	assert.True(t, out.Truncated)
+	assert.Equal(t, "executor_cap", out.TruncatedReason)
 }
 
 func TestRenderTableTool_Call_NoOutputDirStillReturnsPrompt(t *testing.T) {
@@ -143,5 +147,4 @@ func TestRenderTableTool_Call_NoOutputDirStillReturnsPrompt(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(raw), &out))
 	require.Nil(t, out.Export)
 	assert.NotEmpty(t, out.ExportPrompt)
-	assert.Equal(t, renderTableDefaultPageSize, out.PageSize)
 }
