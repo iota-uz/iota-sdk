@@ -198,6 +198,54 @@ func TestPostgresChatRepository_UpdateSession_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
 }
 
+func TestPostgresChatRepository_UpdateSessionTitleIfEmpty(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle(""),
+	)
+	require.NoError(t, repo.CreateSession(env.Ctx, session))
+
+	updated, err := repo.UpdateSessionTitleIfEmpty(env.Ctx, session.ID(), "Generated title")
+	require.NoError(t, err)
+	assert.True(t, updated)
+
+	stored, err := repo.GetSession(env.Ctx, session.ID())
+	require.NoError(t, err)
+	assert.Equal(t, "Generated title", stored.Title())
+
+	updated, err = repo.UpdateSessionTitleIfEmpty(env.Ctx, session.ID(), "Another title")
+	require.NoError(t, err)
+	assert.False(t, updated)
+
+	stored, err = repo.GetSession(env.Ctx, session.ID())
+	require.NoError(t, err)
+	assert.Equal(t, "Generated title", stored.Title())
+}
+
+func TestPostgresChatRepository_UpdateSessionTitle(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle("Original"),
+	)
+	require.NoError(t, repo.CreateSession(env.Ctx, session))
+
+	require.NoError(t, repo.UpdateSessionTitle(env.Ctx, session.ID(), "Renamed"))
+
+	stored, err := repo.GetSession(env.Ctx, session.ID())
+	require.NoError(t, err)
+	assert.Equal(t, "Renamed", stored.Title())
+}
+
 func TestPostgresChatRepository_SessionLLMPreviousResponseID(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
@@ -1250,6 +1298,29 @@ func TestPostgresChatRepository_TenantIsolation_Sessions(t *testing.T) {
 	retrieved, err := repo.GetSession(envA.Ctx, sessionA.ID())
 	require.NoError(t, err)
 	assert.Equal(t, sessionA.ID(), retrieved.ID())
+}
+
+func TestPostgresChatRepository_TenantIsolation_UpdateSessionTitleIfEmpty(t *testing.T) {
+	t.Parallel()
+	envA := setupTest(t)
+	envB := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	sessionA := domain.NewSession(
+		domain.WithTenantID(envA.Tenant.ID),
+		domain.WithUserID(int64(envA.User.ID())),
+		domain.WithTitle(""),
+	)
+	require.NoError(t, repo.CreateSession(envA.Ctx, sessionA))
+
+	updated, err := repo.UpdateSessionTitleIfEmpty(envB.Ctx, sessionA.ID(), "Cross-tenant title")
+	require.NoError(t, err)
+	assert.False(t, updated)
+
+	stored, err := repo.GetSession(envA.Ctx, sessionA.ID())
+	require.NoError(t, err)
+	assert.Equal(t, "", stored.Title())
 }
 
 func TestPostgresChatRepository_TenantIsolation_Messages(t *testing.T) {

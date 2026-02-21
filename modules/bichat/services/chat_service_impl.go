@@ -1253,64 +1253,19 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 	}, nil
 }
 
-// GenerateSessionTitle generates a title for a session based on first message.
+// GenerateSessionTitle regenerates a session title explicitly.
 func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error {
 	const op serrors.Op = "chatServiceImpl.GenerateSessionTitle"
 
-	if s.titleService != nil {
-		return s.titleService.GenerateSessionTitle(ctx, sessionID)
+	if s.titleService == nil {
+		return serrors.E(op, serrors.KindValidation, "title generation service is not configured")
 	}
 
-	if s.model == nil {
-		return serrors.E(op, serrors.KindValidation, "title generation model is not configured")
+	if regenerator, ok := s.titleService.(SessionTitleRegenerationService); ok {
+		return regenerator.RegenerateSessionTitle(ctx, sessionID)
 	}
 
-	// Get session
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-
-	// Get first user message (skip system/tool messages that may exist after compaction)
-	opts := domain.ListOptions{Limit: 10, Offset: 0}
-	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-
-	if len(messages) == 0 {
-		return serrors.E(op, serrors.KindValidation, "no messages found for session")
-	}
-
-	var firstMessage types.Message
-	for _, msg := range messages {
-		if msg.Role() == types.RoleUser {
-			firstMessage = msg
-			break
-		}
-	}
-	if firstMessage == nil {
-		return serrors.E(op, serrors.KindValidation, "no user message found for session")
-	}
-
-	// Generate title using LLM
-	prompt := fmt.Sprintf("Generate a short, concise title (max 5 words) for a chat conversation that starts with this user message: \"%s\"\n\nProvide only the title, no quotes or extra text.", firstMessage.Content())
-
-	titleMsg := types.SystemMessage(prompt)
-	resp, err := s.model.Generate(ctx, agents.Request{
-		Messages: []types.Message{titleMsg},
-	}, agents.WithMaxTokens(20))
-	if err != nil {
-		return serrors.E(op, err)
-	}
-
-	title := strings.TrimSpace(resp.Message.Content())
-	title = strings.Trim(title, "\"'")
-	updated := session.UpdateTitle(title)
-	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return serrors.E(op, err)
-	}
-	return nil
+	return s.titleService.GenerateSessionTitle(ctx, sessionID)
 }
 
 func (s *chatServiceImpl) generateCompactionSummary(ctx context.Context, messages []types.Message) (string, error) {

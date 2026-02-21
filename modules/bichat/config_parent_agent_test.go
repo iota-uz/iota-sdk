@@ -128,6 +128,14 @@ func (m *configTestChatRepository) UpdateSession(ctx context.Context, session do
 	return nil
 }
 
+func (m *configTestChatRepository) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
+	return nil
+}
+
+func (m *configTestChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
+	return true, nil
+}
+
 func (m *configTestChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	return []domain.Session{}, nil
 }
@@ -244,7 +252,6 @@ func newConfigWithProjectPromptOpts(opts ...ConfigOption) *ModuleConfig {
 	baseOpts = append(baseOpts,
 		WithQueryExecutor(&configTestExecutor{}),
 		WithAttachmentStorageMode(AttachmentStorageModeNoOp),
-		WithTitleGenerationMode(TitleGenerationModeDisabled),
 	)
 	baseOpts = append(baseOpts, opts...)
 

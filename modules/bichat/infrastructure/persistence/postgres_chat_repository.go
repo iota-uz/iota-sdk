@@ -30,11 +30,21 @@ const (
 			WHERE tenant_id = $1 AND id = $2
 		`
 	updateSessionQuery = `
-			UPDATE bichat.sessions
-			SET title = $1, status = $2, pinned = $3,
-				parent_session_id = $4, llm_previous_response_id = $5, updated_at = $6
-			WHERE tenant_id = $7 AND id = $8
-		`
+				UPDATE bichat.sessions
+				SET title = $1, status = $2, pinned = $3,
+					parent_session_id = $4, llm_previous_response_id = $5, updated_at = $6
+				WHERE tenant_id = $7 AND id = $8
+			`
+	updateSessionTitleQuery = `
+		UPDATE bichat.sessions
+		SET title = $1, updated_at = $2
+		WHERE tenant_id = $3 AND id = $4
+	`
+	updateSessionTitleIfEmptyQuery = `
+		UPDATE bichat.sessions
+		SET title = $1, updated_at = $2
+		WHERE tenant_id = $3 AND id = $4 AND btrim(title) = ''
+	`
 	listUserSessionsQuery = `
 			SELECT id, tenant_id, user_id, title, status, pinned,
 				   parent_session_id, llm_previous_response_id, created_at, updated_at
@@ -281,6 +291,53 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session doma
 	}
 
 	return nil
+}
+
+// UpdateSessionTitle updates a session title.
+func (r *PostgresChatRepository) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
+	const op serrors.Op = "PostgresChatRepository.UpdateSessionTitle"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	result, err := tx.Exec(ctx, updateSessionTitleQuery, title, time.Now(), tenantID, id)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if result.RowsAffected() == 0 {
+		return serrors.E(op, ErrSessionNotFound)
+	}
+
+	return nil
+}
+
+// UpdateSessionTitleIfEmpty updates a session title only when it is currently blank.
+func (r *PostgresChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
+	const op serrors.Op = "PostgresChatRepository.UpdateSessionTitleIfEmpty"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	result, err := tx.Exec(ctx, updateSessionTitleIfEmptyQuery, title, time.Now(), tenantID, id)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	return result.RowsAffected() > 0, nil
 }
 
 // ListUserSessions lists all sessions for a user with pagination.

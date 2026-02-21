@@ -328,6 +328,27 @@ func (m *mockChatRepository) UpdateSession(ctx context.Context, session domain.S
 	return nil
 }
 
+func (m *mockChatRepository) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
+	session, exists := m.sessions[id]
+	if !exists {
+		return errors.New("session not found")
+	}
+	m.sessions[id] = session.UpdateTitle(title)
+	return nil
+}
+
+func (m *mockChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
+	session, exists := m.sessions[id]
+	if !exists {
+		return false, errors.New("session not found")
+	}
+	if strings.TrimSpace(session.Title()) != "" {
+		return false, nil
+	}
+	m.sessions[id] = session.UpdateTitle(title)
+	return true, nil
+}
+
 func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	sessions := make([]domain.Session, 0, len(m.sessions))
 	for _, session := range m.sessions {

@@ -368,7 +368,8 @@ func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t
 }
 
 type captureTitleContextService struct {
-	called chan context.Context
+	called      chan context.Context
+	regenerated chan context.Context
 }
 
 type stubTitleJobQueue struct {
@@ -425,6 +426,17 @@ func (s *captureTitleContextService) GenerateSessionTitle(ctx context.Context, _
 	return nil
 }
 
+func (s *captureTitleContextService) RegenerateSessionTitle(ctx context.Context, _ uuid.UUID) error {
+	if s.regenerated == nil {
+		return s.GenerateSessionTitle(ctx, uuid.Nil)
+	}
+	select {
+	case s.regenerated <- ctx:
+	default:
+	}
+	return nil
+}
+
 func (s *stubTitleJobQueue) Enqueue(_ context.Context, tenantID uuid.UUID, sessionID uuid.UUID) error {
 	s.callCount++
 	s.tenantID = tenantID
@@ -457,6 +469,32 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 	select {
 	case <-titleService.called:
 		t.Fatal("title service should not be called when queue enqueue succeeds")
+	default:
+	}
+}
+
+func TestChatService_GenerateSessionTitle_UsesRegenerationService(t *testing.T) {
+	t.Parallel()
+
+	titleService := &captureTitleContextService{
+		called:      make(chan context.Context, 1),
+		regenerated: make(chan context.Context, 1),
+	}
+	svc := &chatServiceImpl{
+		titleService: titleService,
+	}
+
+	err := svc.GenerateSessionTitle(context.Background(), uuid.New())
+	require.NoError(t, err)
+
+	select {
+	case <-titleService.regenerated:
+	default:
+		t.Fatal("expected regenerate method to be called")
+	}
+	select {
+	case <-titleService.called:
+		t.Fatal("expected auto-generation method not to be called")
 	default:
 	}
 }

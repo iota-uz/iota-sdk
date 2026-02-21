@@ -85,13 +85,6 @@ const (
 	AttachmentStorageModeNoOp  AttachmentStorageMode = "noop"
 )
 
-type TitleGenerationMode string
-
-const (
-	TitleGenerationModeEnabled  TitleGenerationMode = "enabled"
-	TitleGenerationModeDisabled TitleGenerationMode = "disabled"
-)
-
 const (
 	defaultTitleQueueStream         = "bichat:title:jobs"
 	defaultTitleQueueGroup          = "bichat-title-workers"
@@ -182,8 +175,6 @@ type ModuleConfig struct {
 	AttachmentStorageBasePath string // e.g., "/var/lib/bichat/attachments"
 	AttachmentStorageBaseURL  string // e.g., "https://example.com/bichat/attachments"
 	AttachmentStorageMode     AttachmentStorageMode
-
-	TitleGenerationMode TitleGenerationMode
 
 	// Optional: Redis-backed title generation queue settings
 	TitleQueueRedisURL       string
@@ -450,13 +441,6 @@ func WithAttachmentStorage(basePath, baseURL string) ConfigOption {
 	}
 }
 
-// WithTitleGenerationMode sets title generation mode.
-func WithTitleGenerationMode(mode TitleGenerationMode) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.TitleGenerationMode = mode
-	}
-}
-
 // WithTitleQueueRedis enables Redis-backed durable title generation queue.
 func WithTitleQueueRedis(redisURL string) ConfigOption {
 	return func(c *ModuleConfig) {
@@ -564,7 +548,6 @@ func NewModuleConfig(
 		Logger:                      logrus.New(),
 		Profile:                     FeatureProfileMinimal,
 		AttachmentStorageMode:       AttachmentStorageModeLocal,
-		TitleGenerationMode:         TitleGenerationModeEnabled,
 		TitleQueueStream:            defaultTitleQueueStream,
 		TitleQueueGroup:             defaultTitleQueueGroup,
 		TitleQueuePollInterval:      defaultTitleQueuePollInterval,
@@ -770,12 +753,6 @@ func (c *ModuleConfig) Validate() error {
 	case AttachmentStorageModeNoOp:
 	default:
 		return errors.New("AttachmentStorageMode must be one of: local, noop")
-	}
-
-	switch c.TitleGenerationMode {
-	case TitleGenerationModeEnabled, TitleGenerationModeDisabled:
-	default:
-		return errors.New("TitleGenerationMode must be one of: enabled, disabled")
 	}
 
 	if strings.TrimSpace(c.TitleQueueRedisURL) != "" {
@@ -1038,20 +1015,13 @@ func (c *ModuleConfig) BuildServices() error {
 		})
 	}
 
-	// Build TitleGenerationService (required unless disabled)
-	var titleService services.TitleGenerationService
-	if c.TitleGenerationMode == TitleGenerationModeEnabled {
-		titleSvc, err := services.NewTitleGenerationService(c.Model, c.ChatRepo, c.EventBus)
-		if err != nil {
-			return serrors.E(op, err, "failed to create title generation service")
-		}
-		titleService = titleSvc
-		c.titleGenerationService = titleSvc
-	} else {
-		c.titleGenerationService = nil
+	titleService, err := services.NewTitleGenerationService(c.Model, c.ChatRepo, c.EventBus)
+	if err != nil {
+		return serrors.E(op, err, "failed to create title generation service")
 	}
+	c.titleGenerationService = titleService
 
-	if titleService != nil && strings.TrimSpace(c.TitleQueueRedisURL) != "" && c.titleJobQueue == nil {
+	if strings.TrimSpace(c.TitleQueueRedisURL) != "" && c.titleJobQueue == nil {
 		queue, err := services.NewRedisTitleJobQueue(services.RedisTitleJobQueueConfig{
 			RedisURL:  c.TitleQueueRedisURL,
 			Stream:    c.TitleQueueStream,
@@ -1069,7 +1039,7 @@ func (c *ModuleConfig) BuildServices() error {
 			c.ChatRepo,
 			c.agentService,
 			c.Model,
-			titleService, // Can be nil if disabled
+			titleService,
 			c.titleJobQueue,
 		)
 	}

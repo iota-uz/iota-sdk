@@ -26,6 +26,8 @@ type SessionRepository interface {
 	CreateSession(ctx context.Context, session Session) error
 	GetSession(ctx context.Context, id uuid.UUID) (Session, error)
 	UpdateSession(ctx context.Context, session Session) error
+	UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error
+	UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error)
 	ListUserSessions(ctx context.Context, userID int64, opts ListOptions) ([]Session, error)
 	CountUserSessions(ctx context.Context, userID int64, opts ListOptions) (int, error)
 	DeleteSession(ctx context.Context, id uuid.UUID) error

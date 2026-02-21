@@ -270,7 +270,6 @@ func TestModuleConfig_CapabilityAndModeOptions(t *testing.T) {
 		}),
 		WithCodeInterpreterMemoryLimit("16g"),
 		WithAttachmentStorageMode(AttachmentStorageModeNoOp),
-		WithTitleGenerationMode(TitleGenerationModeDisabled),
 	}
 
 	for _, opt := range opts {
@@ -283,5 +282,4 @@ func TestModuleConfig_CapabilityAndModeOptions(t *testing.T) {
 	assert.False(t, config.Capabilities.CodeInterpreter)
 	assert.Equal(t, "16g", config.CodeInterpreterMemoryLimit)
 	assert.Equal(t, AttachmentStorageModeNoOp, config.AttachmentStorageMode)
-	assert.Equal(t, TitleGenerationModeDisabled, config.TitleGenerationMode)
 }

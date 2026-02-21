@@ -557,13 +557,8 @@ cfg := bichat.NewModuleConfig(
 )
 ```
 
-**Disable Auto-Titles**:
-```go
-cfg := bichat.NewModuleConfig(
-    ...,
-    bichat.WithTitleGenerationDisabled(), // Users must provide titles manually
-)
-```
+**Auto-Titles**:
+Session title generation is always enabled and runs automatically after assistant responses.
 
 **Custom Renderer**:
 ```go

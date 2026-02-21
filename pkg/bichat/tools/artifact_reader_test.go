@@ -36,6 +36,14 @@ func (s *artifactReaderRepoStub) UpdateSession(ctx context.Context, session doma
 	return nil
 }
 
+func (s *artifactReaderRepoStub) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
+	return nil
+}
+
+func (s *artifactReaderRepoStub) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
+	return true, nil
+}
+
 func (s *artifactReaderRepoStub) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	return nil, nil
 }
