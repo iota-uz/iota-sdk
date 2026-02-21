@@ -152,7 +152,12 @@
       "StatsAvg": "O'rtacha",
       "StatsMin": "Min",
       "StatsMax": "Maks",
-      "Visualize": "Vizualizatsiya"
+      "Visualize": "Vizualizatsiya",
+      "Prompt": {
+        "VisualizeChart": "Ushbu ma'lumotlardan grafik vizualizatsiya yarating",
+        "SummarizeColumn": "So'rov natijalaridagi \"{{column}}\" ustunini umumlashtiring",
+        "UniqueValues": "So'rov natijalaridagi \"{{column}}\" ustunidagi noyob qiymatlarni ro'yxatlang"
+      }
     },
     "Sidebar": {
       "ChatHistory": "Chat tarixi",

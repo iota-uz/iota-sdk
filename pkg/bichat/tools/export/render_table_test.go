@@ -119,10 +119,12 @@ func TestRenderTableTool_CallStructured_TruncatedByExecutor(t *testing.T) {
 	result, err := tool.CallStructured(context.Background(), `{"sql":"SELECT 1"}`)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, types.CodecJSON, result.CodecID)
+	require.Equal(t, types.CodecJSON, result.CodecID)
 
-	out, ok := result.Payload.(types.JSONPayload).Output.(renderTableOutput)
-	require.True(t, ok, "Output should be renderTableOutput, got %T", result.Payload.(types.JSONPayload).Output)
+	jsonPayload, ok := result.Payload.(types.JSONPayload)
+	require.True(t, ok, "Payload should be types.JSONPayload, got %T", result.Payload)
+	out, ok := jsonPayload.Output.(renderTableOutput)
+	require.True(t, ok, "Output should be renderTableOutput, got %T", jsonPayload.Output)
 	assert.True(t, out.Truncated)
 	assert.Equal(t, "executor_cap", out.TruncatedReason)
 }

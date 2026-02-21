@@ -661,7 +661,7 @@ func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, p
 	columnTypes := make([]string, len(fieldDescriptions))
 	for i, fd := range fieldDescriptions {
 		columnNames[i] = fd.Name
-		columnTypes[i] = pgOIDToColumnType(fd.DataTypeOID)
+		columnTypes[i] = bichatsql.PgOIDToColumnType(fd.DataTypeOID)
 	}
 
 	// Collect rows (canonical format: [][]any).
@@ -698,21 +698,6 @@ func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, p
 		Duration:    duration,
 		SQL:         query,
 	}, nil
-}
-
-// pgOIDToColumnType maps PostgreSQL type OIDs to frontend column type strings.
-// Mirrors the pattern in pkg/lens/datasource/postgres/postgres.go:pgTypeToDataType.
-func pgOIDToColumnType(oid uint32) string {
-	switch oid {
-	case 21, 23, 20, 700, 701, 1700: // int2, int4, int8, float4, float8, numeric
-		return "number"
-	case 16: // bool
-		return "boolean"
-	case 1114, 1184, 1082, 1083: // timestamp, timestamptz, date, time
-		return "date"
-	default: // text, varchar, json, etc.
-		return "string"
-	}
 }
 
 // formatValue formats a database value for JSON serialization.

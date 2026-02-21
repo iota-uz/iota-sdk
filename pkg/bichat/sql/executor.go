@@ -71,3 +71,18 @@ func (r *QueryResult) AllMaps() []map[string]any {
 	}
 	return result
 }
+
+// PgOIDToColumnType maps a PostgreSQL type OID to a frontend column type string.
+// Valid return values: "string", "number", "boolean", "date".
+func PgOIDToColumnType(oid uint32) string {
+	switch oid {
+	case 21, 23, 20, 700, 701, 1700: // int2, int4, int8, float4, float8, numeric
+		return "number"
+	case 16: // bool
+		return "boolean"
+	case 1114, 1184, 1082, 1083: // timestamp, timestamptz, date, time
+		return "date"
+	default:
+		return "string"
+	}
+}

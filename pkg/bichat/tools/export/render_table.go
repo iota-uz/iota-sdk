@@ -206,7 +206,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 		Title:           strings.TrimSpace(params.Title),
 		Query:           normalizedQuery,
 		Columns:         append([]string(nil), result.Columns...),
-		ColumnTypes:     result.ColumnTypes,
+		ColumnTypes:     append([]string(nil), result.ColumnTypes...),
 		Headers:         headers,
 		Rows:            rows,
 		TotalRows:       len(rows),
