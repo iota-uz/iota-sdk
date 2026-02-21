@@ -62,19 +62,9 @@ CREATE TABLE IF NOT EXISTS bichat.artifacts (
     status varchar(32) NOT NULL DEFAULT 'available',
     idempotency_key varchar(255),
     created_at timestamptz NOT NULL DEFAULT NOW(),
-    CONSTRAINT artifacts_status_check CHECK (status IN ('pending_upload', 'available', 'failed', 'deleted'))
+    CONSTRAINT artifacts_status_check CHECK (status IN ('pending_upload', 'available', 'failed', 'deleted')),
+    CONSTRAINT artifacts_attachment_requires_upload CHECK (type <> 'attachment' OR upload_id IS NOT NULL)
 );
-
-ALTER TABLE IF EXISTS bichat.artifacts
-    ADD COLUMN IF NOT EXISTS upload_id bigint REFERENCES public.uploads (id) ON DELETE RESTRICT;
-
-DROP TABLE IF EXISTS bichat.attachments;
-
-ALTER TABLE bichat.artifacts
-    DROP CONSTRAINT IF EXISTS artifacts_attachment_requires_upload;
-ALTER TABLE bichat.artifacts
-    ADD CONSTRAINT artifacts_attachment_requires_upload
-    CHECK (type <> 'attachment' OR upload_id IS NOT NULL);
 
 CREATE TABLE IF NOT EXISTS bichat.artifact_provider_files (
     tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
@@ -174,9 +164,9 @@ CREATE INDEX IF NOT EXISTS idx_artifacts_upload ON bichat.artifacts (upload_id)
 WHERE
     upload_id IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_artifacts_idempotency
-    ON bichat.artifacts (tenant_id, session_id, idempotency_key)
-    WHERE idempotency_key IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_artifacts_idempotency ON bichat.artifacts (tenant_id, session_id, idempotency_key)
+WHERE
+    idempotency_key IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_artifact_provider_files_provider ON bichat.artifact_provider_files (tenant_id, provider, synced_at DESC);
 
