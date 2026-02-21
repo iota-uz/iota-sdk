@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -134,28 +134,14 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if req.DebugMode {
-		if err := composables.CanUser(r.Context(), bichatperm.BiChatExport); err != nil {
-			http.Error(w, "Access denied", http.StatusForbidden)
-			return
+	domainAttachments, err := convertAttachmentDTOs(r.Context(), req.Attachments)
+	if err != nil {
+		message := "Invalid attachments"
+		errorText := err.Error()
+		if strings.Contains(errorText, "uploadId is required") || strings.Contains(errorText, "uploadId not found") {
+			message = fmt.Sprintf("Invalid attachments: %s; upload artifacts first", errorText)
 		}
-	}
-
-	tenantID, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		http.Error(w, "Invalid tenant context", http.StatusBadRequest)
-		return
-	}
-
-	domainAttachments, err := convertAttachmentDTOs(
-		r.Context(),
-		c.attachmentService,
-		req.Attachments,
-		tenantID,
-		uuid.Nil,
-	)
-	if err != nil {
-		http.Error(w, "Invalid attachments", http.StatusBadRequest)
+		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
 

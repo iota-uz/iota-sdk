@@ -49,7 +49,7 @@ func buildCompleteObservation() observability.GenerationObservation {
 		TenantID:         uuid.New(),
 		SessionID:        uuid.New(),
 		Timestamp:        time.Now(),
-		Model:            "claude-3-5-sonnet-20241022",
+		Model:            "claude-sonnet-4-6",
 		Provider:         "anthropic",
 		PromptMessages:   3,
 		PromptTokens:     1500,

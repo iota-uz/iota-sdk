@@ -12,8 +12,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@iota-uz/sdk':
-        specifier: 0.4.17
-        version: 0.4.17(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: 0.4.20
+        version: 0.4.20(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -328,8 +328,8 @@ packages:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
 
-  '@iota-uz/sdk@0.4.17':
-    resolution: {integrity: sha512-axsi1gL3ItpI52PmBp34iYSMOkgqDe38+yvdhQ/nkcrg5F7FMT+EeMM/QsZD7eocO5fZ2p7bnOc9tpi9qsulGw==}
+  '@iota-uz/sdk@0.4.20':
+    resolution: {integrity: sha512-N30mj5vKzDNFIn/wjaRycvk3VoAAbR+bIoSitY6Ye/eVF40OBJ2m+kpIQG2r5wbWAWr3Qqs+75ISANeFglIczg==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -1900,7 +1900,7 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       use-sync-external-store: 1.6.0(react@18.3.1)
 
-  '@iota-uz/sdk@0.4.17(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@iota-uz/sdk@0.4.20(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@headlessui/react': 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@phosphor-icons/react': 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

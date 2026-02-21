@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/stretchr/testify/assert"
@@ -325,6 +328,27 @@ func (m *mockChatRepository) UpdateSession(ctx context.Context, session domain.S
 	return nil
 }
 
+func (m *mockChatRepository) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
+	session, exists := m.sessions[id]
+	if !exists {
+		return errors.New("session not found")
+	}
+	m.sessions[id] = session.UpdateTitle(title)
+	return nil
+}
+
+func (m *mockChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
+	session, exists := m.sessions[id]
+	if !exists {
+		return false, errors.New("session not found")
+	}
+	if strings.TrimSpace(session.Title()) != "" {
+		return false, nil
+	}
+	m.sessions[id] = session.UpdateTitle(title)
+	return true, nil
+}
+
 func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	sessions := make([]domain.Session, 0, len(m.sessions))
 	for _, session := range m.sessions {
@@ -577,7 +601,7 @@ func TestProcessMessage_Success(t *testing.T) {
 	assert.Equal(t, "/uploads/report.png", turnPayload.Attachments[0].Reference)
 
 	// Collect all events
-	var events []services.Event
+	var events []agents.ExecutorEvent
 	for {
 		event, err := gen.Next(ctx)
 		if errors.Is(err, types.ErrGeneratorDone) {
@@ -594,12 +618,12 @@ func TestProcessMessage_Success(t *testing.T) {
 
 	// Should have at least content chunks and a done event
 	hasContent := false
-	var done *services.Event
+	var done *agents.ExecutorEvent
 	for _, event := range events {
-		if event.Type == services.EventTypeContent {
+		if event.Type == agents.EventTypeContent {
 			hasContent = true
 		}
-		if event.Type == services.EventTypeDone {
+		if event.Type == agents.EventTypeDone {
 			e := event
 			done = &e
 		}
@@ -735,6 +759,258 @@ func TestProcessMessage_AppendsDebugPromptAfterProjectPromptExtension(t *testing
 	)
 }
 
+func TestProcessMessage_IncludesSelectedSkillsReference(t *testing.T) {
+	t.Parallel()
+
+	skillsRoot := t.TempDir()
+	writeServiceTestSkillFile(t, skillsRoot, "analytics/sql-debug", `---
+name: SQL Debugging
+description: Recover quickly from SQL failures
+when_to_use:
+  - sql error
+  - missing column
+tags:
+  - sql
+---
+Inspect schema and retry safely.
+`)
+
+	catalog, err := bichatskills.LoadCatalog(skillsRoot)
+	require.NoError(t, err)
+	selector := bichatskills.NewSelector(catalog)
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:          agent,
+		Model:          model,
+		Policy:         policy,
+		Renderer:       renderer,
+		Checkpointer:   checkpointer,
+		EventBus:       hooks.NewEventBus(),
+		ChatRepo:       chatRepo,
+		SkillsSelector: selector,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "I have sql error in my query", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	var hasSkillsReference bool
+	for _, block := range rendered {
+		if block.Meta.Kind != bichatctx.KindReference {
+			continue
+		}
+		payload, ok := block.Payload.(string)
+		if !ok {
+			continue
+		}
+		if strings.Contains(payload, "@analytics/sql-debug") {
+			hasSkillsReference = true
+			break
+		}
+	}
+	assert.True(t, hasSkillsReference, "expected skills reference block with selected skill")
+}
+
+func TestProcessMessage_NoSkillsMatchDoesNotInjectReference(t *testing.T) {
+	t.Parallel()
+
+	skillsRoot := t.TempDir()
+	writeServiceTestSkillFile(t, skillsRoot, "analytics/sql-debug", `---
+name: SQL Debugging
+description: Recover quickly from SQL failures
+when_to_use:
+  - sql error
+tags:
+  - sql
+---
+Inspect schema and retry safely.
+`)
+
+	catalog, err := bichatskills.LoadCatalog(skillsRoot)
+	require.NoError(t, err)
+	selector := bichatskills.NewSelector(catalog)
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:          agent,
+		Model:          model,
+		Policy:         policy,
+		Renderer:       renderer,
+		Checkpointer:   checkpointer,
+		EventBus:       hooks.NewEventBus(),
+		ChatRepo:       chatRepo,
+		SkillsSelector: selector,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "hello there", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	for _, block := range rendered {
+		if block.Meta.Kind != bichatctx.KindReference {
+			continue
+		}
+		payload, ok := block.Payload.(string)
+		if !ok {
+			continue
+		}
+		assert.NotContains(t, payload, "SKILLS CONTEXT:")
+	}
+}
+
+func TestProcessMessage_MentionSelectsSkill(t *testing.T) {
+	t.Parallel()
+
+	skillsRoot := t.TempDir()
+	writeServiceTestSkillFile(t, skillsRoot, "finance/month-end", `---
+name: Month End
+description: Close month books and verify reconciliations
+when_to_use:
+  - month close
+tags:
+  - finance
+---
+Run period checks before closing.
+`)
+	writeServiceTestSkillFile(t, skillsRoot, "analytics/sql-debug", `---
+name: SQL Debugging
+description: Recover quickly from SQL failures
+when_to_use:
+  - sql error
+tags:
+  - sql
+---
+Inspect schema and retry safely.
+`)
+
+	catalog, err := bichatskills.LoadCatalog(skillsRoot)
+	require.NoError(t, err)
+	selector := bichatskills.NewSelector(catalog)
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
+
+	policy := bichatctx.ContextPolicy{
+		ContextWindow:     4096,
+		CompletionReserve: 1024,
+		MaxSensitivity:    bichatctx.SensitivityPublic,
+		OverflowStrategy:  bichatctx.OverflowTruncate,
+	}
+
+	service := NewAgentService(AgentServiceConfig{
+		Agent:          agent,
+		Model:          model,
+		Policy:         policy,
+		Renderer:       renderer,
+		Checkpointer:   checkpointer,
+		EventBus:       hooks.NewEventBus(),
+		ChatRepo:       chatRepo,
+		SkillsSelector: selector,
+	})
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = composables.WithTenantID(ctx, tenantID)
+
+	sessionID := uuid.New()
+	session := domain.NewSession(
+		domain.WithID(sessionID),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(1),
+		domain.WithTitle("test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(ctx, session))
+
+	gen, err := service.ProcessMessage(ctx, sessionID, "please use @finance/month-end checklist", nil)
+	require.NoError(t, err)
+	require.NotNil(t, gen)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	var found bool
+	for _, block := range rendered {
+		if block.Meta.Kind != bichatctx.KindReference {
+			continue
+		}
+		payload, ok := block.Payload.(string)
+		if !ok {
+			continue
+		}
+		if strings.Contains(payload, "@finance/month-end") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected mention-selected skill in reference block")
+}
+
 func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {
 	t.Parallel()
 
@@ -791,6 +1067,13 @@ func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {
 	require.NotEmpty(t, model.requests)
 	require.NotNil(t, model.requests[0].PreviousResponseID)
 	assert.Equal(t, "resp_prev_42", *model.requests[0].PreviousResponseID)
+}
+
+func writeServiceTestSkillFile(t *testing.T, root, relDir, content string) {
+	t.Helper()
+	dir := filepath.Join(root, relDir)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 }
 
 func TestProcessMessage_MissingTenantID(t *testing.T) {
@@ -893,7 +1176,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	defer gen.Close()
 
 	// Collect all events
-	var events []services.Event
+	var events []agents.ExecutorEvent
 	for {
 		event, err := gen.Next(ctx)
 		if errors.Is(err, types.ErrGeneratorDone) {
@@ -909,12 +1192,12 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	assert.NotEmpty(t, events)
 
 	hasContent := false
-	var done *services.Event
+	var done *agents.ExecutorEvent
 	for _, event := range events {
-		if event.Type == services.EventTypeContent {
+		if event.Type == agents.EventTypeContent {
 			hasContent = true
 		}
-		if event.Type == services.EventTypeDone {
+		if event.Type == agents.EventTypeDone {
 			e := event
 			done = &e
 		}
@@ -1010,187 +1293,4 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 	// Should fail without tenant ID
 	require.Error(t, err)
 	assert.Nil(t, gen)
-}
-
-func TestConvertExecutorEvent_Chunk(t *testing.T) {
-	t.Parallel()
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeChunk,
-		Chunk: &agents.Chunk{
-			Delta: "Hello world",
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeContent, serviceEvent.Type)
-	assert.Equal(t, "Hello world", serviceEvent.Content)
-}
-
-func TestConvertExecutorEvent_ToolStart(t *testing.T) {
-	t.Parallel()
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeToolStart,
-		Tool: &agents.ToolEvent{
-			CallID:    "call_123",
-			Name:      "test_tool",
-			Arguments: `{"param": "value"}`,
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeToolStart, serviceEvent.Type)
-	require.NotNil(t, serviceEvent.Tool)
-	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
-	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
-	assert.JSONEq(t, `{"param": "value"}`, serviceEvent.Tool.Arguments)
-}
-
-func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
-	t.Parallel()
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeToolEnd,
-		Tool: &agents.ToolEvent{
-			CallID:     "call_123",
-			Name:       "test_tool",
-			Arguments:  `{"param": "value"}`,
-			Result:     "tool result",
-			Error:      nil,
-			DurationMs: 98,
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeToolEnd, serviceEvent.Type)
-	require.NotNil(t, serviceEvent.Tool)
-	assert.Equal(t, "call_123", serviceEvent.Tool.CallID)
-	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
-	assert.Equal(t, "tool result", serviceEvent.Tool.Result)
-	assert.Equal(t, int64(98), serviceEvent.Tool.DurationMs)
-	assert.NoError(t, serviceEvent.Tool.Error)
-}
-
-func TestConvertExecutorEvent_Interrupt(t *testing.T) {
-	t.Parallel()
-
-	sessionID := uuid.New()
-	checkpointID := "checkpoint_" + sessionID.String()
-	// Use new array format: {questions: [...]}
-	interruptData := []byte(`{"questions": [{"id": "q1", "question": "What is your name?"}]}`)
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeInterrupt,
-		Interrupt: &agents.InterruptEvent{
-			Type:               agents.ToolAskUserQuestion,
-			SessionID:          sessionID,
-			Data:               interruptData,
-			CheckpointID:       checkpointID,
-			ProviderResponseID: "resp_interrupt_1",
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeInterrupt, serviceEvent.Type)
-	require.NotNil(t, serviceEvent.Interrupt)
-	assert.NotEmpty(t, serviceEvent.Interrupt.CheckpointID)
-	assert.Equal(t, "resp_interrupt_1", serviceEvent.Interrupt.ProviderResponseID)
-	require.Len(t, serviceEvent.Interrupt.Questions, 1)
-	assert.Equal(t, "q1", serviceEvent.Interrupt.Questions[0].ID)
-	assert.Equal(t, "What is your name?", serviceEvent.Interrupt.Questions[0].Text)
-	assert.Equal(t, services.QuestionTypeSingleChoice, serviceEvent.Interrupt.Questions[0].Type)
-}
-
-func TestConvertExecutorEvent_Done(t *testing.T) {
-	t.Parallel()
-
-	execEvent := agents.ExecutorEvent{
-		Type: agents.EventTypeDone,
-		Done: true,
-		Result: &agents.Response{
-			Message: types.AssistantMessage("Final response"),
-			Usage: types.TokenUsage{
-				PromptTokens:     100,
-				CompletionTokens: 50,
-				TotalTokens:      150,
-			},
-			FinishReason:       "stop",
-			ProviderResponseID: "resp_done_1",
-		},
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeDone, serviceEvent.Type)
-	assert.True(t, serviceEvent.Done)
-	require.NotNil(t, serviceEvent.Usage)
-	assert.Equal(t, 100, serviceEvent.Usage.PromptTokens)
-	assert.Equal(t, 50, serviceEvent.Usage.CompletionTokens)
-	assert.Equal(t, 150, serviceEvent.Usage.TotalTokens)
-	assert.Equal(t, "resp_done_1", serviceEvent.ProviderResponseID)
-}
-
-func TestConvertExecutorEvent_Error(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("test error")
-	execEvent := agents.ExecutorEvent{
-		Type:  agents.EventTypeError,
-		Error: testErr,
-	}
-
-	serviceEvent := convertExecutorEvent(execEvent)
-
-	assert.Equal(t, services.EventTypeError, serviceEvent.Type)
-	assert.Equal(t, testErr, serviceEvent.Error)
-}
-
-func TestConvertExecutorGenerator_Close(t *testing.T) {
-	t.Parallel()
-
-	// Create a simple executor event generator for testing
-	ctx := context.Background()
-	execGen := types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-		yield(agents.ExecutorEvent{
-			Type:  agents.EventTypeChunk,
-			Chunk: &agents.Chunk{Delta: "test"},
-		})
-		return nil
-	})
-
-	// Create a service implementation to access the conversion function
-	service := &agentServiceImpl{}
-	serviceGen := service.convertExecutorGenerator(ctx, execGen)
-
-	// Close the generator
-	serviceGen.Close()
-
-	// Wait for the generator to terminate after cancellation.
-	select {
-	case <-serviceGen.Done():
-	case <-time.After(1 * time.Second):
-		t.Fatal("generator did not terminate after Close()")
-	}
-
-	// After termination, Next should eventually return ErrGeneratorDone.
-	for i := 0; i < 2; i++ {
-		_, err := serviceGen.Next(context.Background())
-		if errors.Is(err, types.ErrGeneratorDone) || errors.Is(err, context.Canceled) {
-			return
-		}
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	}
-	t.Fatal("expected generator to be done after Close()")
 }

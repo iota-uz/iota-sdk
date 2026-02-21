@@ -43,7 +43,7 @@ func NewMessageSaveEvent(sessionID, tenantID, messageID uuid.UUID, role string, 
 }
 
 // SessionTitleUpdatedEvent indicates a session title was generated or updated.
-// Emitted after TitleGenerationService successfully updates a session title.
+// Emitted after TitleService successfully updates a session title.
 type SessionTitleUpdatedEvent struct {
 	baseEvent
 	Title string // Generated session title

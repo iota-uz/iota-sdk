@@ -9,7 +9,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/export"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/hitl"
+	toolkb "github.com/iota-uz/iota-sdk/pkg/bichat/tools/kb"
+	toollearning "github.com/iota-uz/iota-sdk/pkg/bichat/tools/learning"
+	toolsql "github.com/iota-uz/iota-sdk/pkg/bichat/tools/sql"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/utility"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -143,7 +149,7 @@ func NewDefaultBIAgent(
 
 	agent := &DefaultBIAgent{
 		executor: executor,
-		model:    "gpt-4", // Default model
+		model:    "gpt-5.2", // Default model (SOTA)
 	}
 
 	// Apply options first to configure dependencies
@@ -160,36 +166,37 @@ func NewDefaultBIAgent(
 
 	// Build core tools list with optional view access control
 	agentTools := []agents.Tool{
-		tools.NewGetCurrentTimeTool(),
-		tools.NewSchemaListTool(schemaLister, tools.WithSchemaListViewAccess(agent.viewAccess)),
-		tools.NewSchemaDescribeTool(schemaDescriber, tools.WithSchemaDescribeViewAccess(agent.viewAccess)),
-		tools.NewSQLExecuteTool(executor, tools.WithViewAccessControl(agent.viewAccess)),
-		tools.NewExportQueryToExcelTool(executor),
-		tools.NewDrawChartTool(),
-		tools.NewAskUserQuestionTool(),
+		utility.NewGetCurrentTimeTool(),
+		toolsql.NewSchemaListTool(schemaLister, toolsql.WithSchemaListViewAccess(agent.viewAccess)),
+		toolsql.NewSchemaDescribeTool(schemaDescriber, toolsql.WithSchemaDescribeViewAccess(agent.viewAccess)),
+		toolsql.NewSQLExecuteTool(executor, toolsql.WithViewAccessControl(agent.viewAccess)),
+		export.NewRenderTableTool(executor),
+		export.NewExportQueryToExcelTool(executor),
+		chart.NewDrawChartTool(),
+		hitl.NewAskUserQuestionTool(),
 	}
 
 	// Add optional tools based on configuration
 	if agent.kbSearcher != nil {
-		agentTools = append(agentTools, tools.NewKBSearchTool(tools.NewKBSearcherAdapter(agent.kbSearcher)))
+		agentTools = append(agentTools, toolkb.NewKBSearchTool(toolkb.NewKBSearcherAdapter(agent.kbSearcher)))
 	}
 
 	if agent.learningStore != nil {
 		agentTools = append(agentTools,
-			tools.NewSearchLearningsTool(agent.learningStore),
-			tools.NewSaveLearningTool(agent.learningStore),
+			toollearning.NewSearchLearningsTool(agent.learningStore),
+			toollearning.NewSaveLearningTool(agent.learningStore),
 		)
 	}
 
 	if agent.validatedQueryStore != nil {
 		agentTools = append(agentTools,
-			tools.NewSearchValidatedQueriesTool(agent.validatedQueryStore),
-			tools.NewSaveValidatedQueryTool(agent.validatedQueryStore),
+			toollearning.NewSearchValidatedQueriesTool(agent.validatedQueryStore),
+			toollearning.NewSaveValidatedQueryTool(agent.validatedQueryStore),
 		)
 	}
 
 	if agent.enableCodeInterpreter {
-		agentTools = append(agentTools, tools.NewCodeInterpreterTool())
+		agentTools = append(agentTools, utility.NewCodeInterpreterTool())
 	}
 	if agent.artifactReaderTool != nil {
 		agentTools = append(agentTools, agent.artifactReaderTool)
@@ -255,6 +262,7 @@ WORKFLOW GUIDELINES:
    - Use indexes for WHERE and JOIN conditions when available
 
 4. VISUALIZE DATA
+   - Use render_table when users need an interactive, paginated table in chat
    - Use draw_chart for data visualization when appropriate
    - Choose chart type based on data: line (trends), bar (comparisons), pie (proportions)
    - Pie and donut charts require exactly one series

@@ -12,7 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/export"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -109,7 +109,7 @@ func TestNewDefaultBIAgent(t *testing.T) {
 	assert.Equal(t, "bi_agent", metadata.Name)
 	assert.Equal(t, "Business Intelligence assistant with SQL and KB access", metadata.Description)
 	assert.Equal(t, "Use for data analysis, reporting, and BI queries", metadata.WhenToUse)
-	assert.Equal(t, "gpt-4", metadata.Model)
+	assert.Equal(t, "gpt-5.2", metadata.Model)
 	assert.Equal(t, []string{agents.ToolFinalAnswer}, metadata.TerminationTools)
 }
 
@@ -142,6 +142,7 @@ func TestDefaultBIAgent_CoreTools(t *testing.T) {
 		"schema_list",
 		"schema_describe",
 		"sql_execute",
+		"render_table",
 		"export_query_to_excel",
 		"draw_chart",
 		"ask_user_question",
@@ -186,11 +187,11 @@ func TestDefaultBIAgent_WithExportTools(t *testing.T) {
 	fileStorage := &mockFileStorage{}
 
 	// Create export tools
-	excelTool := tools.NewExportToExcelTool(
-		tools.WithOutputDir("/tmp/exports"),
-		tools.WithBaseURL("http://localhost/exports"),
+	excelTool := export.NewExportToExcelTool(
+		export.WithOutputDir("/tmp/exports"),
+		export.WithBaseURL("http://localhost/exports"),
 	)
-	pdfTool := tools.NewExportToPDFTool("http://gotenberg:3000", fileStorage)
+	pdfTool := export.NewExportToPDFTool("http://gotenberg:3000", fileStorage)
 
 	// Create agent with export tools
 	agent, err := NewDefaultBIAgent(
@@ -263,12 +264,12 @@ func TestDefaultBIAgent_WithModel(t *testing.T) {
 
 	agent, err := NewDefaultBIAgent(
 		executor,
-		WithModel("gpt-3.5-turbo"),
+		WithModel("gpt-5-mini"),
 	)
 	require.NoError(t, err)
 
 	metadata := agent.Metadata()
-	assert.Equal(t, "gpt-3.5-turbo", metadata.Model)
+	assert.Equal(t, "gpt-5-mini", metadata.Model)
 }
 
 func TestDefaultBIAgent_ToolRouting(t *testing.T) {
@@ -335,6 +336,12 @@ func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "render_table tool",
+			toolName:    "render_table",
+			input:       `{"sql":"SELECT id, name FROM users","headerNames":["ID","Name"]}`,
+			expectError: false,
+		},
+		{
 			name:        "unknown tool",
 			toolName:    "unknown_tool",
 			input:       `{}`,
@@ -366,10 +373,10 @@ func TestDefaultBIAgent_AllOptions(t *testing.T) {
 	agent, err := NewDefaultBIAgent(
 		executor,
 		WithKBSearcher(kbSearcher),
-		WithModel("claude-3-opus"),
+		WithModel("claude-opus-4-6"),
 		WithExportTools(
-			tools.NewExportToExcelTool(),
-			tools.NewExportToPDFTool("http://gotenberg:3000", fileStorage),
+			export.NewExportToExcelTool(),
+			export.NewExportToPDFTool("http://gotenberg:3000", fileStorage),
 		),
 	)
 	require.NoError(t, err)
@@ -377,7 +384,7 @@ func TestDefaultBIAgent_AllOptions(t *testing.T) {
 	// Verify metadata
 	metadata := agent.Metadata()
 	assert.Equal(t, "bi_agent", metadata.Name)
-	assert.Equal(t, "claude-3-opus", metadata.Model)
+	assert.Equal(t, "claude-opus-4-6", metadata.Model)
 
 	// Verify optional tools are registered
 	agentTools := agent.Tools()

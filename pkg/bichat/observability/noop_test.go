@@ -21,7 +21,7 @@ func TestNoOpProvider(t *testing.T) {
 		TenantID:         uuid.New(),
 		SessionID:        uuid.New(),
 		Timestamp:        time.Now(),
-		Model:            "gpt-4",
+		Model:            "gpt-5.2",
 		Provider:         "openai",
 		PromptTokens:     100,
 		CompletionTokens: 50,

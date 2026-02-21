@@ -25,7 +25,7 @@ func TestAgent_Metadata(t *testing.T) {
 			},
 			expected: AgentMetadata{
 				Name:             "test_agent",
-				Model:            "gpt-4",
+				Model:            "gpt-5.2",
 				TerminationTools: []string{ToolFinalAnswer},
 			},
 		},
@@ -35,14 +35,14 @@ func TestAgent_Metadata(t *testing.T) {
 				WithName("sql_agent"),
 				WithDescription("Executes SQL queries"),
 				WithWhenToUse("Use when querying databases"),
-				WithModel("gpt-3.5-turbo"),
+				WithModel("gpt-5-mini"),
 				WithTerminationTools("final_answer", "submit_result"),
 			},
 			expected: AgentMetadata{
 				Name:             "sql_agent",
 				Description:      "Executes SQL queries",
 				WhenToUse:        "Use when querying databases",
-				Model:            "gpt-3.5-turbo",
+				Model:            "gpt-5-mini",
 				TerminationTools: []string{"final_answer", "submit_result"},
 			},
 		},
@@ -359,11 +359,11 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 			name: "WithModel",
 			options: []AgentOption{
 				WithName("agent"),
-				WithModel("claude-3-opus"),
+				WithModel("claude-opus-4-6"),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
 				t.Helper()
-				assert.Equal(t, "claude-3-opus", agent.Metadata().Model)
+				assert.Equal(t, "claude-opus-4-6", agent.Metadata().Model)
 			},
 		},
 		{
@@ -394,7 +394,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithName("full_agent"),
 				WithDescription("Fully configured agent"),
 				WithWhenToUse("Use for everything"),
-				WithModel("gpt-4-turbo"),
+				WithModel("gpt-5.2"),
 				WithTools(tool1, tool2),
 				WithSystemPrompt("You are an expert"),
 				WithTerminationTools("done", "finish"),
@@ -504,7 +504,7 @@ func TestBaseAgent_EmptyConfiguration(t *testing.T) {
 
 	metadata := agent.Metadata()
 	assert.Empty(t, metadata.Name)
-	assert.Equal(t, "gpt-4", metadata.Model)
+	assert.Equal(t, "gpt-5.2", metadata.Model)
 	assert.Equal(t, []string{ToolFinalAnswer}, metadata.TerminationTools)
 	assert.Empty(t, agent.Tools())
 	assert.Empty(t, agent.SystemPrompt(context.Background()))

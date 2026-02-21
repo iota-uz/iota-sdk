@@ -166,7 +166,7 @@ if err := app.RegisterModule(module); err != nil {
 }
 ```
 
-To disable attachments (e.g. testing only): use `bichat.WithNoOpAttachmentStorage()`. To disable auto-generated session titles: `bichat.WithTitleGenerationDisabled()`.
+To disable attachments (e.g. testing only): use `bichat.WithNoOpAttachmentStorage()`. Session title generation is always enabled.
 
 ### StreamController permission overrides
 

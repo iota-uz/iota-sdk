@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
@@ -14,7 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/analytics"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
@@ -24,10 +26,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
-	bichattools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -39,6 +39,138 @@ type (
 	ModelRegistry = *agents.ModelRegistry // Pointer type to avoid copying mutex
 	Checkpointer  = agents.Checkpointer
 )
+
+type FeatureProfile string
+
+const (
+	FeatureProfileMinimal FeatureProfile = "minimal"
+	FeatureProfileDataOps FeatureProfile = "data_ops"
+	FeatureProfileFull    FeatureProfile = "full"
+)
+
+type Capabilities struct {
+	Vision          bool
+	WebSearch       bool
+	CodeInterpreter bool
+	MultiAgent      bool
+}
+
+func CapabilitiesForProfile(profile FeatureProfile) (Capabilities, bool) {
+	switch profile {
+	case FeatureProfileMinimal:
+		return Capabilities{}, true
+	case FeatureProfileDataOps:
+		return Capabilities{
+			CodeInterpreter: true,
+		}, true
+	case FeatureProfileFull:
+		return Capabilities{
+			Vision:          true,
+			WebSearch:       true,
+			CodeInterpreter: true,
+			MultiAgent:      true,
+		}, true
+	default:
+		return Capabilities{}, false
+	}
+}
+
+type AttachmentStorageMode string
+
+const (
+	AttachmentStorageModeLocal AttachmentStorageMode = "local"
+	AttachmentStorageModeNoOp  AttachmentStorageMode = "noop"
+)
+
+const (
+	defaultSkillsSelectionLimit = 3
+	defaultSkillsMaxChars       = 8000
+)
+
+// TitleQueueConfig holds Redis-backed async title generation queue settings.
+// A nil *TitleQueueConfig means title queueing is disabled (titles are generated synchronously).
+type TitleQueueConfig struct {
+	RedisURL       string
+	Stream         string
+	Group          string
+	Consumer       string
+	PollInterval   time.Duration
+	ReadBlock      time.Duration
+	BatchSize      int
+	MaxRetries     int
+	RetryBaseDelay time.Duration
+	RetryMaxDelay  time.Duration
+	PendingIdle    time.Duration
+	ReconcileEvery time.Duration
+	ReconcileBatch int
+	DedupeTTL      time.Duration
+	JobTimeout     time.Duration
+}
+
+// DefaultTitleQueueConfig returns a TitleQueueConfig with sensible defaults for the given Redis URL.
+func DefaultTitleQueueConfig(redisURL string) *TitleQueueConfig {
+	return &TitleQueueConfig{
+		RedisURL:       strings.TrimSpace(redisURL),
+		Stream:         "bichat:title:jobs",
+		Group:          "bichat-title-workers",
+		Consumer:       defaultTitleQueueConsumer(),
+		PollInterval:   300 * time.Millisecond,
+		ReadBlock:      2 * time.Second,
+		BatchSize:      16,
+		MaxRetries:     3,
+		RetryBaseDelay: 5 * time.Second,
+		RetryMaxDelay:  2 * time.Minute,
+		PendingIdle:    30 * time.Second,
+		ReconcileEvery: 1 * time.Minute,
+		ReconcileBatch: 200,
+		DedupeTTL:      30 * time.Minute,
+		JobTimeout:     20 * time.Second,
+	}
+}
+
+// Validate checks that all TitleQueueConfig fields are valid.
+func (tq *TitleQueueConfig) Validate() error {
+	if strings.TrimSpace(tq.RedisURL) == "" {
+		return errors.New("TitleQueueConfig.RedisURL is required")
+	}
+	if strings.TrimSpace(tq.Stream) == "" {
+		return errors.New("TitleQueueConfig.Stream is required")
+	}
+	if strings.TrimSpace(tq.Group) == "" {
+		return errors.New("TitleQueueConfig.Group is required")
+	}
+	if tq.BatchSize <= 0 {
+		return errors.New("TitleQueueConfig.BatchSize must be > 0")
+	}
+	if tq.PollInterval <= 0 {
+		return errors.New("TitleQueueConfig.PollInterval must be > 0")
+	}
+	if tq.ReadBlock <= 0 {
+		return errors.New("TitleQueueConfig.ReadBlock must be > 0")
+	}
+	if tq.MaxRetries <= 0 {
+		return errors.New("TitleQueueConfig.MaxRetries must be > 0")
+	}
+	if tq.RetryBaseDelay <= 0 {
+		return errors.New("TitleQueueConfig.RetryBaseDelay must be > 0")
+	}
+	if tq.RetryMaxDelay <= 0 {
+		return errors.New("TitleQueueConfig.RetryMaxDelay must be > 0")
+	}
+	if tq.ReconcileBatch <= 0 {
+		return errors.New("TitleQueueConfig.ReconcileBatch must be > 0")
+	}
+	if tq.ReconcileEvery <= 0 {
+		return errors.New("TitleQueueConfig.ReconcileEvery must be > 0")
+	}
+	if tq.DedupeTTL <= 0 {
+		return errors.New("TitleQueueConfig.DedupeTTL must be > 0")
+	}
+	if tq.JobTimeout <= 0 {
+		return errors.New("TitleQueueConfig.JobTimeout must be > 0")
+	}
+	return nil
+}
 
 // ModuleConfig holds configuration for the bichat module.
 // It uses functional options pattern for optional dependencies.
@@ -60,10 +192,16 @@ type ModuleConfig struct {
 	// Optional: Parent agent (if nil, BuildParentAgent can construct default from QueryExecutor)
 	ParentAgent Agent
 	SubAgents   []Agent
+	// Optional: markdown definitions source for built-in sub-agents.
+	SubAgentDefinitionsFS       fs.FS
+	SubAgentDefinitionsBasePath string
 
 	// Optional: Project-scoped prompt extension appended to parent agent system prompt.
 	ProjectPromptExtension         string
 	ProjectPromptExtensionProvider prompts.ProjectPromptExtensionProvider
+	SkillsDir                      string
+	SkillsSelectionLimit           int
+	SkillsMaxChars                 int
 
 	// Optional: Agent Registry for multi-agent orchestration
 	AgentRegistry *agents.AgentRegistry
@@ -92,12 +230,12 @@ type ModuleConfig struct {
 	// Optional: Checkpointer for HITL (defaults to in-memory)
 	Checkpointer Checkpointer
 
-	// Feature Flags (code-based configuration)
-	// These flags are passed to the React frontend via applet context
-	EnableVision          bool // Enable vision/image analysis capabilities
-	EnableWebSearch       bool // Enable web search tool
-	EnableCodeInterpreter bool // Enable code execution capabilities
-	EnableMultiAgent      bool // Enable multi-agent orchestration
+	// Capabilities controls frontend and orchestration behavior in a single place.
+	Capabilities Capabilities
+	Profile      FeatureProfile
+	// CodeInterpreterMemoryLimit configures OpenAI code_interpreter container memory.
+	// Allowed values: "1g", "4g", "16g", "64g".
+	CodeInterpreterMemoryLimit string
 
 	// Renderer for context block formatting (required, defaults to AnthropicRenderer)
 	Renderer bichatcontext.Renderer
@@ -105,10 +243,12 @@ type ModuleConfig struct {
 	// Attachment storage configuration
 	AttachmentStorageBasePath string // e.g., "/var/lib/bichat/attachments"
 	AttachmentStorageBaseURL  string // e.g., "https://example.com/bichat/attachments"
-	DisableAttachmentStorage  bool   // Explicit disable (testing only)
+	AttachmentStorageMode     AttachmentStorageMode
 
-	// Feature toggles
-	DisableTitleGeneration bool // Disable auto-title generation
+	// Optional: Redis-backed title generation queue.
+	// nil means title queueing is disabled (titles generated synchronously).
+	// Use WithTitleQueueRedis(url) or set directly.
+	TitleQueue *TitleQueueConfig
 
 	// Optional: ViewManager manages analytics view definitions and syncs them to DB.
 	// When configured, views are synced on startup and used for permission-based access control.
@@ -119,250 +259,89 @@ type ModuleConfig struct {
 	StreamRequireAccessPermission permission.Permission
 	StreamReadAllPermission       permission.Permission
 
-	// Internal: Created services (initialized during BuildServices)
+	// Internal: Build-time state (resolved once during BuildServices).
+	resolvedProjectPromptExtension string
+	projectPromptExtensionResolved bool
+	capabilitiesConfigured         bool
+	subAgentsInitialized           bool
+	skillsCatalog                  *bichatskills.Catalog
+	skillsSelector                 bichatskills.Selector
+}
+
+// ServiceContainer holds built services created by ModuleConfig.BuildServices().
+// Use accessor methods to retrieve individual services.
+type ServiceContainer struct {
 	chatService       bichatservices.ChatService
 	agentService      bichatservices.AgentService
 	attachmentService bichatservices.AttachmentService
 	artifactService   bichatservices.ArtifactService
+	titleService      services.TitleService
+	titleJobQueue     *services.RedisTitleJobQueue
+	titleQueueConfig  *TitleQueueConfig
+	logger            *logrus.Logger
+}
 
-	// Internal: Resolved once during BuildServices.
-	resolvedProjectPromptExtension string
-	projectPromptExtensionResolved bool
+// ChatService returns the ChatService.
+func (sc *ServiceContainer) ChatService() bichatservices.ChatService { return sc.chatService }
+
+// AgentService returns the AgentService.
+func (sc *ServiceContainer) AgentService() bichatservices.AgentService { return sc.agentService }
+
+// AttachmentService returns the AttachmentService.
+func (sc *ServiceContainer) AttachmentService() bichatservices.AttachmentService {
+	return sc.attachmentService
+}
+
+// ArtifactService returns the ArtifactService.
+func (sc *ServiceContainer) ArtifactService() bichatservices.ArtifactService {
+	return sc.artifactService
+}
+
+// NewTitleJobWorker builds a Redis-backed title generation worker when queueing is enabled.
+// Returns ErrTitleJobWorkerDisabled when queueing is not configured.
+func (sc *ServiceContainer) NewTitleJobWorker(pool *pgxpool.Pool) (*services.TitleJobWorker, error) {
+	if sc.titleJobQueue == nil || sc.titleService == nil {
+		return nil, ErrTitleJobWorkerDisabled
+	}
+	if pool == nil {
+		return nil, errors.New("database pool is required for title job worker")
+	}
+
+	tq := sc.titleQueueConfig
+	return services.NewTitleJobWorker(services.TitleJobWorkerConfig{
+		Queue:          sc.titleJobQueue,
+		TitleService:   sc.titleService,
+		Pool:           pool,
+		Logger:         sc.logger,
+		Group:          tq.Group,
+		Consumer:       tq.Consumer,
+		BatchSize:      tq.BatchSize,
+		PollInterval:   tq.PollInterval,
+		ReadBlock:      tq.ReadBlock,
+		MaxRetries:     tq.MaxRetries,
+		RetryBaseDelay: tq.RetryBaseDelay,
+		RetryMaxDelay:  tq.RetryMaxDelay,
+		PendingIdle:    tq.PendingIdle,
+		ReconcileEvery: tq.ReconcileEvery,
+		ReconcileBatch: tq.ReconcileBatch,
+		JobTimeout:     tq.JobTimeout,
+	})
+}
+
+// CloseTitleQueue releases queue resources when Redis queueing is configured.
+func (sc *ServiceContainer) CloseTitleQueue() error {
+	if sc.titleJobQueue == nil {
+		return nil
+	}
+	err := sc.titleJobQueue.Close()
+	sc.titleJobQueue = nil
+	return err
 }
 
 // ConfigOption is a functional option for ModuleConfig
 type ConfigOption func(*ModuleConfig)
 
-// WithModelRegistry sets the model registry for multi-model support
-func WithModelRegistry(registry ModelRegistry) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.ModelRegistry = registry
-	}
-}
-
-// WithQueryExecutor sets the SQL query executor service
-func WithQueryExecutor(executor bichatsql.QueryExecutor) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.QueryExecutor = executor
-	}
-}
-
-// WithKBSearcher sets the knowledge base searcher
-func WithKBSearcher(searcher kb.KBSearcher) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.KBSearcher = searcher
-	}
-}
-
-// WithTenantService sets the tenant service for tenant name lookups
-func WithTenantService(svc *coreservices.TenantService) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.TenantService = svc
-	}
-}
-
-// WithSchemaMetadata sets the schema metadata provider for table documentation.
-// When configured, table metadata (descriptions, use cases, metrics) will be
-// injected into agent context as KindReference blocks.
-//
-// Example:
-//
-//	provider, _ := schema.NewFileMetadataProvider("/var/lib/bichat/metadata")
-//	cfg := bichat.NewModuleConfig(..., bichat.WithSchemaMetadata(provider))
-func WithSchemaMetadata(provider schema.MetadataProvider) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.SchemaMetadataProvider = provider
-	}
-}
-
-// WithLearningStore sets the learning store for dynamic agent learnings.
-// When configured, the agent can save and retrieve learnings from SQL errors,
-// type mismatches, and user corrections to avoid repeating mistakes.
-//
-// Example:
-//
-//	learningStore := persistence.NewLearningRepository(dbPool)
-//	cfg := bichat.NewModuleConfig(..., bichat.WithLearningStore(learningStore))
-func WithLearningStore(store learning.LearningStore) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.LearningStore = store
-	}
-}
-
-// WithValidatedQueryStore sets the validated query store for query pattern library.
-// When configured, the agent can search and save validated SQL query patterns
-// to reuse proven solutions for similar questions.
-//
-// Example:
-//
-//	validatedQueryStore := persistence.NewValidatedQueryRepository(dbPool)
-//	cfg := bichat.NewModuleConfig(..., bichat.WithValidatedQueryStore(validatedQueryStore))
-func WithValidatedQueryStore(store learning.ValidatedQueryStore) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.ValidatedQueryStore = store
-	}
-}
-
-// WithProjectPromptExtension sets a project-scoped prompt extension that is appended
-// to the vendor system prompt in the parent agent execution flow.
-func WithProjectPromptExtension(text string) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.ProjectPromptExtension = text
-	}
-}
-
-// WithProjectPromptExtensionProvider sets a provider for loading project-scoped prompt extension text.
-// Provider output takes precedence over WithProjectPromptExtension when non-empty.
-func WithProjectPromptExtensionProvider(provider prompts.ProjectPromptExtensionProvider) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.ProjectPromptExtensionProvider = provider
-	}
-}
-
-// WithLogger sets the logger for observability
-func WithLogger(logger *logrus.Logger) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.Logger = logger
-	}
-}
-
-// WithEventBus sets the event bus for observability
-func WithEventBus(bus hooks.EventBus) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.EventBus = bus
-	}
-}
-
-// WithCheckpointer sets the checkpointer for HITL state persistence
-func WithCheckpointer(checkpointer Checkpointer) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.Checkpointer = checkpointer
-	}
-}
-
-// WithSubAgents sets additional sub-agents for delegation
-func WithSubAgents(subAgents ...Agent) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.SubAgents = append(c.SubAgents, subAgents...)
-	}
-}
-
-// WithVision enables vision/image analysis capabilities
-func WithVision(enabled bool) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.EnableVision = enabled
-	}
-}
-
-// WithWebSearch enables web search tool
-func WithWebSearch(enabled bool) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.EnableWebSearch = enabled
-	}
-}
-
-// WithCodeInterpreter enables code execution capabilities
-func WithCodeInterpreter(enabled bool) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.EnableCodeInterpreter = enabled
-	}
-}
-
-// WithMultiAgent enables multi-agent orchestration
-func WithMultiAgent(enabled bool) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.EnableMultiAgent = enabled
-	}
-}
-
-// WithTokenEstimator sets the token estimator for cost tracking and budget management.
-// If not provided, a no-op estimator will be used.
-//
-// Example:
-//
-//	estimator := agents.NewTiktokenEstimator("cl100k_base")
-//	cfg := bichat.NewModuleConfig(..., bichat.WithTokenEstimator(estimator))
-func WithTokenEstimator(estimator agents.TokenEstimator) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.TokenEstimator = estimator
-	}
-}
-
-// WithObservability adds an observability provider for tracing, metrics, and cost tracking.
-// Providers are wrapped in AsyncHandler to prevent blocking the main execution path.
-// Multiple providers can be registered by calling this option multiple times.
-func WithObservability(provider observability.Provider) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.ObservabilityProviders = append(c.ObservabilityProviders, provider)
-	}
-}
-
-// WithRenderer sets a custom renderer for context block formatting.
-// If not provided, defaults to AnthropicRenderer.
-func WithRenderer(renderer bichatcontext.Renderer) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.Renderer = renderer
-	}
-}
-
-// WithAttachmentStorage configures file storage for attachments.
-// Both basePath and baseURL are required for attachment support.
-//
-// Example:
-//
-//	bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments")
-func WithAttachmentStorage(basePath, baseURL string) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.AttachmentStorageBasePath = basePath
-		c.AttachmentStorageBaseURL = baseURL
-	}
-}
-
-// WithNoOpAttachmentStorage disables attachment storage (testing only).
-// Use this explicitly in tests to bypass attachment storage requirements.
-func WithNoOpAttachmentStorage() ConfigOption {
-	return func(c *ModuleConfig) {
-		c.DisableAttachmentStorage = true
-	}
-}
-
-// WithTitleGenerationDisabled disables automatic session title generation.
-// When disabled, users must manually provide session titles.
-func WithTitleGenerationDisabled() ConfigOption {
-	return func(c *ModuleConfig) {
-		c.DisableTitleGeneration = true
-	}
-}
-
-// WithAnalyticsViews sets the ViewManager for analytics view sync and access control.
-// The ViewManager defines view SQL + permissions in Go and syncs them to the database
-// on every app start via CREATE OR REPLACE VIEW.
-//
-// Example:
-//
-//	vm := analytics.NewViewManager()
-//	vm.Register(analytics.DefaultTenantViews()...)
-//	vm.Register(analytics.CustomView("custom_report", sql, analytics.RequireAny(perm)))
-//	cfg := bichat.NewModuleConfig(..., bichat.WithAnalyticsViews(vm))
-func WithAnalyticsViews(vm *analytics.ViewManager) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.ViewManager = vm
-	}
-}
-
-// WithStreamRequireAccessPermission overrides the permission required to access StreamController.
-func WithStreamRequireAccessPermission(p permission.Permission) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.StreamRequireAccessPermission = p
-	}
-}
-
-// WithStreamReadAllPermission overrides the permission required to read other users' sessions via StreamController.
-func WithStreamReadAllPermission(p permission.Permission) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.StreamReadAllPermission = p
-	}
-}
+var ErrTitleJobWorkerDisabled = errors.New("title job worker is disabled")
 
 // NewModuleConfig creates a new module configuration.
 // Use ConfigOption functions to set optional dependencies.
@@ -376,14 +355,20 @@ func NewModuleConfig(
 	opts ...ConfigOption,
 ) *ModuleConfig {
 	cfg := &ModuleConfig{
-		TenantID:      tenantID,
-		UserID:        userID,
-		ChatRepo:      chatRepo,
-		Model:         model,
-		ContextPolicy: policy,
-		ParentAgent:   parentAgent,
-		SubAgents:     []Agent{},
-		Logger:        logrus.New(),
+		TenantID:                    tenantID,
+		UserID:                      userID,
+		ChatRepo:                    chatRepo,
+		Model:                       model,
+		ContextPolicy:               policy,
+		ParentAgent:                 parentAgent,
+		SubAgents:                   []Agent{},
+		SubAgentDefinitionsFS:       bichatagents.DefaultSubAgentDefinitionsFS(),
+		SubAgentDefinitionsBasePath: bichatagents.DefaultSubAgentDefinitionsBasePath,
+		Logger:                      logrus.New(),
+		Profile:                     FeatureProfileMinimal,
+		AttachmentStorageMode:       AttachmentStorageModeLocal,
+		SkillsSelectionLimit:        defaultSkillsSelectionLimit,
+		SkillsMaxChars:              defaultSkillsMaxChars,
 	}
 
 	// Apply options
@@ -423,8 +408,18 @@ func NewModuleConfig(
 		}
 	}
 
-	// Setup multi-agent system if enabled
-	if cfg.EnableMultiAgent && cfg.QueryExecutor != nil {
+	capabilitiesFromProfile, ok := CapabilitiesForProfile(cfg.Profile)
+	if !ok {
+		cfg.Logger.WithField("profile", cfg.Profile).Warn("Unknown feature profile, defaulting to minimal")
+		cfg.Profile = FeatureProfileMinimal
+		capabilitiesFromProfile = Capabilities{}
+	}
+	if !cfg.capabilitiesConfigured {
+		cfg.Capabilities = capabilitiesFromProfile
+	}
+
+	// Setup multi-agent system if enabled.
+	if cfg.Capabilities.MultiAgent {
 		if err := cfg.setupMultiAgentSystem(); err != nil {
 			cfg.Logger.WithError(err).Warn("Failed to setup multi-agent system, continuing without delegation")
 		}
@@ -433,47 +428,15 @@ func NewModuleConfig(
 	return cfg
 }
 
-// setupMultiAgentSystem creates and configures the agent registry with sub-agents.
-// This is called automatically during NewModuleConfig if EnableMultiAgent is true.
-//
-// The registry is stored in ModuleConfig and can be accessed at execution time
-// to create delegation tools with runtime session/tenant IDs.
-//
-// If the ParentAgent is a DefaultBIAgent, it will be updated with the registry
-// so it can include available agents in its system prompt.
-func (c *ModuleConfig) setupMultiAgentSystem() error {
-	const op serrors.Op = "ModuleConfig.setupMultiAgentSystem"
-
-	// Create agent registry if not already created
-	if c.AgentRegistry == nil {
-		c.AgentRegistry = agents.NewAgentRegistry()
-	}
-
-	// Create and register SQL agent if query executor is available
-	if c.QueryExecutor != nil {
-		sqlAgent, err := bichatagents.NewSQLAgent(c.QueryExecutor)
-		if err != nil {
-			return serrors.E(op, err, "failed to create SQL agent")
+func defaultTitleQueueConsumer() string {
+	host, err := os.Hostname()
+	if err == nil {
+		host = strings.TrimSpace(host)
+		if host != "" {
+			return host
 		}
-
-		// Register SQL agent in registry
-		if err := c.AgentRegistry.Register(sqlAgent); err != nil {
-			return serrors.E(op, err, "failed to register SQL agent")
-		}
-
-		// Add to SubAgents list for tracking
-		c.SubAgents = append(c.SubAgents, sqlAgent)
-
-		c.Logger.Info("Multi-agent system initialized with SQL analyst agent")
 	}
-
-	// If parent agent is a DefaultBIAgent, update it with registry for system prompt
-	// Note: We don't recreate the agent here because the agent options (tools, KB searcher)
-	// may have already been configured. Instead, we rely on the agent being created
-	// with WithAgentRegistry option in the module setup code.
-	// The registry is available via c.AgentRegistry for service layer to use.
-
-	return nil
+	return fmt.Sprintf("consumer-%d", os.Getpid())
 }
 
 // Validate checks that all required configuration is present
@@ -529,13 +492,39 @@ func (c *ModuleConfig) Validate() error {
 		}
 	}
 
-	// Validate attachment storage if enabled
-	if !c.DisableAttachmentStorage {
+	switch c.AttachmentStorageMode {
+	case AttachmentStorageModeLocal:
 		if c.AttachmentStorageBasePath == "" {
-			return errors.New("AttachmentStorageBasePath required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()")
+			return errors.New("AttachmentStorageBasePath required for local attachment storage")
 		}
 		if c.AttachmentStorageBaseURL == "" {
-			return errors.New("AttachmentStorageBaseURL required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()")
+			return errors.New("AttachmentStorageBaseURL required for local attachment storage")
+		}
+	case AttachmentStorageModeNoOp:
+	default:
+		return errors.New("AttachmentStorageMode must be one of: local, noop")
+	}
+
+	if c.TitleQueue != nil {
+		if err := c.TitleQueue.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if c.CodeInterpreterMemoryLimit != "" {
+		switch c.CodeInterpreterMemoryLimit {
+		case "1g", "4g", "16g", "64g":
+		default:
+			return errors.New("CodeInterpreterMemoryLimit must be one of: 1g, 4g, 16g, 64g")
+		}
+	}
+
+	if strings.TrimSpace(c.SkillsDir) != "" {
+		if c.SkillsSelectionLimit <= 0 {
+			return errors.New("SkillsSelectionLimit must be > 0 when SkillsDir is set")
+		}
+		if c.SkillsMaxChars <= 0 {
+			return errors.New("SkillsMaxChars must be > 0 when SkillsDir is set")
 		}
 	}
 
@@ -554,12 +543,12 @@ func defaultKindPriorities() []bichatcontext.KindPriority {
 	}
 }
 
-// DefaultContextPolicy returns a sensible default context policy for Claude 3.5 Sonnet.
+// DefaultContextPolicy returns a sensible default context policy for modern models (e.g. claude-sonnet-4-6, gpt-5.2).
 // Uses OverflowTruncate strategy - history is truncated when token budget is exceeded.
 // For intelligent summarization, use DefaultContextPolicyWithCompaction.
 func DefaultContextPolicy() bichatcontext.ContextPolicy {
 	return bichatcontext.ContextPolicy{
-		ContextWindow:     180000, // Claude 3.5 context window
+		ContextWindow:     200000, // SOTA context window
 		CompletionReserve: 8000,   // Reserve for completion
 		OverflowStrategy:  bichatcontext.OverflowTruncate,
 		KindPriorities:    defaultKindPriorities(),
@@ -587,7 +576,7 @@ func DefaultContextPolicy() bichatcontext.ContextPolicy {
 //	)
 func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 	return bichatcontext.ContextPolicy{
-		ContextWindow:     180000,                        // Claude 3.5 context window
+		ContextWindow:     200000,                        // SOTA context window
 		CompletionReserve: 8000,                          // Reserve for completion
 		OverflowStrategy:  bichatcontext.OverflowCompact, // Intelligent compaction
 		KindPriorities:    defaultKindPriorities(),
@@ -602,198 +591,6 @@ func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 		RedactRestricted: true,
 		// Summarizer will be set automatically by NewModuleConfig
 	}
-}
-
-func (c *ModuleConfig) resolveProjectPromptExtension() error {
-	if c.projectPromptExtensionResolved {
-		return nil
-	}
-
-	staticExtension := prompts.NormalizeProjectPromptExtension(c.ProjectPromptExtension)
-	resolved := staticExtension
-
-	if c.ProjectPromptExtensionProvider != nil {
-		providerExtension, err := c.ProjectPromptExtensionProvider.ProjectPromptExtension()
-		if err != nil {
-			return err
-		}
-		providerExtension = prompts.NormalizeProjectPromptExtension(providerExtension)
-		if providerExtension != "" {
-			resolved = providerExtension
-		}
-	}
-
-	c.resolvedProjectPromptExtension = resolved
-	c.projectPromptExtensionResolved = true
-
-	return nil
-}
-
-// BuildServices creates and initializes all BiChat services from the configuration.
-// This should be called after NewModuleConfig and before registering the module.
-// Services are cached in the config and reused on subsequent calls.
-//
-// This method fails fast - any error in service creation returns immediately.
-func (c *ModuleConfig) BuildServices() error {
-	const op serrors.Op = "ModuleConfig.BuildServices"
-
-	// Validate configuration first
-	if err := c.Validate(); err != nil {
-		return serrors.E(op, err)
-	}
-
-	if err := c.resolveProjectPromptExtension(); err != nil {
-		return serrors.E(op, err, "failed to resolve project prompt extension")
-	}
-
-	// Create file storage once for attachment/artifact services and artifact_reader tool wiring.
-	var fileStorage storage.FileStorage
-	if c.ParentAgent == nil || c.attachmentService == nil || c.artifactService == nil {
-		if c.DisableAttachmentStorage {
-			fileStorage = storage.NewNoOpFileStorage()
-		} else {
-			fs, err := storage.NewLocalFileStorage(
-				c.AttachmentStorageBasePath,
-				c.AttachmentStorageBaseURL,
-			)
-			if err != nil {
-				return serrors.E(op, err, "failed to create file storage")
-			}
-			fileStorage = fs
-		}
-	}
-
-	// Build default parent agent from config when caller did not provide one.
-	if err := c.buildParentAgent(fileStorage); err != nil {
-		return serrors.E(op, err)
-	}
-
-	// Build AgentService first (ChatService depends on it)
-	if c.agentService == nil {
-		c.agentService = services.NewAgentService(services.AgentServiceConfig{
-			Agent:                  c.ParentAgent,
-			Model:                  c.Model,
-			Policy:                 c.ContextPolicy,
-			Renderer:               c.Renderer, // Use configured renderer
-			Checkpointer:           c.Checkpointer,
-			EventBus:               c.EventBus,
-			ChatRepo:               c.ChatRepo,
-			AgentRegistry:          c.AgentRegistry,
-			SchemaMetadata:         c.SchemaMetadataProvider,
-			ProjectPromptExtension: c.resolvedProjectPromptExtension,
-			FormatterRegistry:      formatters.DefaultFormatterRegistry(),
-		})
-	}
-
-	// Build TitleGenerationService (required unless disabled)
-	var titleService services.TitleGenerationService
-	if !c.DisableTitleGeneration {
-		titleSvc, err := services.NewTitleGenerationService(c.Model, c.ChatRepo, c.EventBus)
-		if err != nil {
-			return serrors.E(op, err, "failed to create title generation service")
-		}
-		titleService = titleSvc
-	}
-
-	// Build ChatService
-	if c.chatService == nil {
-		c.chatService = services.NewChatService(
-			c.ChatRepo,
-			c.agentService,
-			c.Model,
-			titleService, // Can be nil if disabled
-		)
-	}
-
-	// Build AttachmentService
-	if c.attachmentService == nil {
-		c.attachmentService = services.NewAttachmentService(fileStorage)
-	}
-
-	// Build ArtifactService
-	if c.artifactService == nil {
-		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage, c.attachmentService)
-	}
-
-	return nil
-}
-
-// BuildParentAgent creates the default BI parent agent when ParentAgent is nil.
-// It applies KB, learning, validated query, and code interpreter options from ModuleConfig.
-func (c *ModuleConfig) BuildParentAgent() error {
-	return c.buildParentAgent(nil)
-}
-
-func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
-	const op serrors.Op = "ModuleConfig.BuildParentAgent"
-
-	if c.ParentAgent != nil {
-		return nil
-	}
-
-	if c.QueryExecutor == nil {
-		return serrors.E(op, serrors.KindValidation, "ParentAgent or QueryExecutor is required")
-	}
-
-	opts := make([]bichatagents.BIAgentOption, 0, 6)
-	if c.KBSearcher != nil {
-		opts = append(opts, bichatagents.WithKBSearcher(c.KBSearcher))
-	}
-	if c.LearningStore != nil {
-		opts = append(opts, bichatagents.WithLearningStore(c.LearningStore))
-	}
-	if c.ValidatedQueryStore != nil {
-		opts = append(opts, bichatagents.WithValidatedQueryStore(c.ValidatedQueryStore))
-	}
-	if c.AgentRegistry != nil {
-		opts = append(opts, bichatagents.WithAgentRegistry(c.AgentRegistry))
-	}
-	if c.EnableCodeInterpreter {
-		opts = append(opts, bichatagents.WithCodeInterpreter(true))
-	}
-	if c.Model != nil {
-		modelName := strings.TrimSpace(c.Model.Info().Name)
-		if modelName != "" {
-			opts = append(opts, bichatagents.WithModel(modelName))
-		}
-	}
-	if c.ChatRepo != nil && fileStorage != nil {
-		opts = append(opts, bichatagents.WithArtifactReaderTool(
-			bichattools.NewArtifactReaderTool(c.ChatRepo, fileStorage),
-		))
-	}
-
-	parentAgent, err := bichatagents.NewDefaultBIAgent(c.QueryExecutor, opts...)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-	c.ParentAgent = parentAgent
-
-	return nil
-}
-
-// ChatService returns the cached ChatService instance.
-// Returns nil if BuildServices hasn't been called yet.
-func (c *ModuleConfig) ChatService() bichatservices.ChatService {
-	return c.chatService
-}
-
-// AgentService returns the cached AgentService instance.
-// Returns nil if BuildServices hasn't been called yet.
-func (c *ModuleConfig) AgentService() bichatservices.AgentService {
-	return c.agentService
-}
-
-// AttachmentService returns the cached AttachmentService instance.
-// Returns nil if BuildServices hasn't been called yet.
-func (c *ModuleConfig) AttachmentService() bichatservices.AttachmentService {
-	return c.attachmentService
-}
-
-// ArtifactService returns the cached ArtifactService instance.
-// Returns nil if BuildServices hasn't been called yet.
-func (c *ModuleConfig) ArtifactService() bichatservices.ArtifactService {
-	return c.artifactService
 }
 
 // String provides a human-readable representation of the configuration

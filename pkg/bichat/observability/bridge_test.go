@@ -77,7 +77,7 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 	// Emit LLM request
 	requestEvent := events.NewLLMRequestEvent(
 		sessionID, tenantID,
-		"claude-3-5-sonnet-20241022", "anthropic",
+		"claude-sonnet-4-6", "anthropic",
 		3,                 // messages
 		5,                 // tools
 		1000,              // estimatedTokens
@@ -92,7 +92,7 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	responseEvent := events.NewLLMResponseEvent(
 		sessionID, tenantID,
-		"claude-3-5-sonnet-20241022", "anthropic",
+		"claude-sonnet-4-6", "anthropic",
 		950, 120, 1070, // tokens
 		1234, // latencyMs
 		"stop",
@@ -136,7 +136,7 @@ func TestEventBridge_MissingRequest(t *testing.T) {
 	// Emit LLM response WITHOUT prior request
 	responseEvent := events.NewLLMResponseEvent(
 		sessionID, tenantID,
-		"claude-3-5-sonnet-20241022", "anthropic",
+		"claude-sonnet-4-6", "anthropic",
 		950, 120, 1070,
 		1234,
 		"stop",
@@ -211,7 +211,7 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 			sessionID := uuid.New()
 			requestEvent := events.NewLLMRequestEvent(
 				sessionID, tenantID,
-				"claude-3-5-sonnet-20241022", "anthropic",
+				"claude-sonnet-4-6", "anthropic",
 				3, 5, 1000,
 				"test user input",
 			)
@@ -227,7 +227,7 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 			sessionID := uuid.New()
 			responseEvent := events.NewLLMResponseEvent(
 				sessionID, tenantID,
-				"claude-3-5-sonnet-20241022", "anthropic",
+				"claude-sonnet-4-6", "anthropic",
 				950, 120, 1070, 1234, "stop", 2,
 				"test response text",
 			)
@@ -264,7 +264,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 	// Emit request and response
 	requestEvent := events.NewLLMRequestEvent(
 		sessionID, tenantID,
-		"claude-3-5-sonnet-20241022", "anthropic",
+		"claude-sonnet-4-6", "anthropic",
 		3, 5, 1000,
 		"test user input",
 	)
@@ -273,7 +273,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 
 	responseEvent := events.NewLLMResponseEvent(
 		sessionID, tenantID,
-		"claude-3-5-sonnet-20241022", "anthropic",
+		"claude-sonnet-4-6", "anthropic",
 		950, 120, 1070, 1234, "stop", 2,
 		"test response text",
 	)
@@ -394,7 +394,7 @@ func TestEventBridge_LLMRequestIsNoOp(t *testing.T) {
 	defer func() { _ = bridge.Shutdown(context.Background()) }()
 	sessionID := uuid.New()
 	tenantID := uuid.New()
-	event := events.NewLLMRequestEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 5, 3, 1000, "Show me sales")
+	event := events.NewLLMRequestEvent(sessionID, tenantID, "claude-sonnet-4-6", "anthropic", 5, 3, 1000, "Show me sales")
 	require.NoError(t, bus.Publish(context.Background(), event))
 	time.Sleep(100 * time.Millisecond)
 	// llm.request is a no-op; only llm.response creates the proper GenerationObservation.
@@ -505,18 +505,18 @@ func TestEventBridge_HierarchicalNesting(t *testing.T) {
 
 	// 2. LLM request + response (generation should be parented under agent span)
 	require.NoError(t, bus.Publish(context.Background(),
-		events.NewLLMRequestEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 3, 5, 1000, "Show sales for Q1"),
+		events.NewLLMRequestEvent(sessionID, tenantID, "claude-sonnet-4-6", "anthropic", 3, 5, 1000, "Show sales for Q1"),
 	))
 	time.Sleep(50 * time.Millisecond)
 
 	require.NoError(t, bus.Publish(context.Background(),
-		events.NewLLMResponseEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 900, 100, 1000, 500, "tool_calls", 1, "Let me query..."),
+		events.NewLLMResponseEvent(sessionID, tenantID, "claude-sonnet-4-6", "anthropic", 900, 100, 1000, 500, "tool_calls", 1, "Let me query..."),
 	))
 	time.Sleep(50 * time.Millisecond)
 
 	// 3. tool.complete (tool should be parented under generation)
 	require.NoError(t, bus.Publish(context.Background(),
-		events.NewToolCompleteEvent(sessionID, tenantID, "sql_execute", `{"query":"SELECT 1"}`, "call-1", "result", 200),
+		events.NewToolCompleteEvent(sessionID, tenantID, "sql_execute", `{"query":"SELECT 1"}`, "call-1", "result", nil, 200),
 	))
 	time.Sleep(50 * time.Millisecond)
 
@@ -562,12 +562,12 @@ func TestEventBridge_ToolErrorParenting(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	require.NoError(t, bus.Publish(context.Background(),
-		events.NewLLMRequestEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 3, 5, 1000, "query"),
+		events.NewLLMRequestEvent(sessionID, tenantID, "claude-sonnet-4-6", "anthropic", 3, 5, 1000, "query"),
 	))
 	time.Sleep(50 * time.Millisecond)
 
 	require.NoError(t, bus.Publish(context.Background(),
-		events.NewLLMResponseEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 900, 100, 1000, 500, "tool_calls", 1, "querying..."),
+		events.NewLLMResponseEvent(sessionID, tenantID, "claude-sonnet-4-6", "anthropic", 900, 100, 1000, 500, "tool_calls", 1, "querying..."),
 	))
 	time.Sleep(50 * time.Millisecond)
 

@@ -3,10 +3,14 @@ package bichat
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/google/uuid"
+	bichatmoduleagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
@@ -124,6 +128,14 @@ func (m *configTestChatRepository) UpdateSession(ctx context.Context, session do
 	return nil
 }
 
+func (m *configTestChatRepository) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
+	return nil
+}
+
+func (m *configTestChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
+	return true, nil
+}
+
 func (m *configTestChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	return []domain.Session{}, nil
 }
@@ -214,7 +226,7 @@ func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T
 		WithKBSearcher(&configTestKBSearcher{}),
 		WithLearningStore(&configTestLearningStore{}),
 		WithValidatedQueryStore(&configTestValidatedStore{}),
-		WithCodeInterpreter(true),
+		WithCapabilities(Capabilities{CodeInterpreter: true}),
 	)
 
 	err := cfg.BuildParentAgent()
@@ -239,8 +251,7 @@ func newConfigWithProjectPromptOpts(opts ...ConfigOption) *ModuleConfig {
 	baseOpts := make([]ConfigOption, 0, 3+len(opts))
 	baseOpts = append(baseOpts,
 		WithQueryExecutor(&configTestExecutor{}),
-		WithNoOpAttachmentStorage(),
-		WithTitleGenerationDisabled(),
+		WithAttachmentStorageMode(AttachmentStorageModeNoOp),
 	)
 	baseOpts = append(baseOpts, opts...)
 
@@ -262,7 +273,7 @@ func TestModuleConfig_BuildServices_ResolvesStaticProjectPromptExtension(t *test
 		WithProjectPromptExtension("  insurance bi domain  "),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.NoError(t, err)
 	assert.Equal(t, "insurance bi domain", cfg.resolvedProjectPromptExtension)
 }
@@ -277,7 +288,7 @@ func TestModuleConfig_BuildServices_ResolvesProviderProjectPromptExtension(t *te
 		})),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.NoError(t, err)
 	assert.Equal(t, "provider extension", cfg.resolvedProjectPromptExtension)
 }
@@ -292,7 +303,7 @@ func TestModuleConfig_BuildServices_ProjectPromptProviderErrorFails(t *testing.T
 		})),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve project prompt extension")
 }
@@ -307,7 +318,218 @@ func TestModuleConfig_BuildServices_EmptyProviderFallsBackToStaticPrompt(t *test
 		})),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.NoError(t, err)
 	assert.Equal(t, "static extension", cfg.resolvedProjectPromptExtension)
+}
+
+func TestModuleConfig_Validate_InvalidCodeInterpreterMemoryLimit(t *testing.T) {
+	t.Parallel()
+
+	cfg := NewModuleConfig(
+		func(ctx context.Context) uuid.UUID { return uuid.New() },
+		func(ctx context.Context) int64 { return 42 },
+		&configTestChatRepository{},
+		&configTestModel{},
+		DefaultContextPolicy(),
+		nil,
+		WithAttachmentStorageMode(AttachmentStorageModeNoOp),
+		WithQueryExecutor(&configTestExecutor{}),
+		WithCodeInterpreterMemoryLimit("2g"),
+	)
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CodeInterpreterMemoryLimit")
+}
+
+func TestModuleConfig_BuildServices_LoadsSkillsCatalog(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestSkillFile(t, root, "analytics/sql-debug", `---
+name: SQL Debugging
+description: Recover from SQL errors
+when_to_use:
+  - sql error
+tags:
+  - sql
+---
+Use schema tools before retrying.
+`)
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithSkillsDir(root),
+	)
+
+	_, err := cfg.BuildServices()
+	require.NoError(t, err)
+	require.NotNil(t, cfg.skillsCatalog)
+	assert.Len(t, cfg.skillsCatalog.Skills, 1)
+	require.NotNil(t, cfg.skillsSelector)
+}
+
+func TestModuleConfig_BuildServices_InvalidSkillsCatalogFails(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestSkillFile(t, root, "analytics/sql-debug", `---
+name: Broken
+description: Missing required fields
+---
+Body
+`)
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithSkillsDir(root),
+	)
+
+	_, err := cfg.BuildServices()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load skills catalog")
+}
+
+func TestModuleConfig_BuildServices_LoadsMarkdownSubAgents(t *testing.T) {
+	t.Parallel()
+
+	definitionFS := fstest.MapFS{
+		"defs/sql.md": &fstest.MapFile{Data: []byte(`---
+name: sql-analyst
+description: SQL specialist
+model: gpt-from-file
+tools:
+  - schema_list
+  - schema_describe
+  - sql_execute
+---
+SQL prompt`)},
+		"defs/excel.md": &fstest.MapFile{Data: []byte(`---
+name: excel-analyst
+description: Spreadsheet specialist
+model: gpt-from-file
+tools:
+  - artifact_reader
+  - ask_user_question
+---
+Excel prompt`)},
+	}
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+		WithSubAgentDefinitionsSource(definitionFS, "defs"),
+	)
+
+	_, err := cfg.BuildServices()
+	require.NoError(t, err)
+	require.NotNil(t, cfg.AgentRegistry)
+
+	sqlAgent, exists := cfg.AgentRegistry.Get("sql-analyst")
+	require.True(t, exists)
+	assert.Equal(t, "gpt-test", sqlAgent.Metadata().Model, "runtime model should override front matter model")
+
+	excelAgent, exists := cfg.AgentRegistry.Get("excel-analyst")
+	require.True(t, exists)
+	assert.Equal(t, "gpt-test", excelAgent.Metadata().Model)
+}
+
+func TestModuleConfig_BuildServices_InvalidSubAgentDefinitionFails(t *testing.T) {
+	t.Parallel()
+
+	definitionFS := fstest.MapFS{
+		"defs/sql.md": &fstest.MapFile{Data: []byte(`---
+name: sql-analyst
+description: SQL specialist
+model: gpt-from-file
+when_to_use: should-fail
+tools:
+  - schema_list
+---
+SQL prompt`)},
+	}
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+		WithSubAgentDefinitionsSource(definitionFS, "defs"),
+	)
+
+	_, err := cfg.BuildServices()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to setup configured sub-agents")
+}
+
+func TestModuleConfig_BuildServices_UnresolvedSubAgentToolFails(t *testing.T) {
+	t.Parallel()
+
+	definitionFS := fstest.MapFS{
+		"defs/sql.md": &fstest.MapFile{Data: []byte(`---
+name: sql-analyst
+description: SQL specialist
+model: gpt-from-file
+tools:
+  - made_up_tool
+---
+SQL prompt`)},
+	}
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+		WithSubAgentDefinitionsSource(definitionFS, "defs"),
+	)
+
+	_, err := cfg.BuildServices()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown tool "made_up_tool"`)
+}
+
+func TestModuleConfig_BuildServices_DuplicateCustomSubAgentFails(t *testing.T) {
+	t.Parallel()
+
+	definitionFS := fstest.MapFS{
+		"defs/sql.md": &fstest.MapFile{Data: []byte(`---
+name: sql-analyst
+description: SQL specialist
+model: gpt-from-file
+tools:
+  - schema_list
+  - schema_describe
+  - sql_execute
+---
+SQL prompt`)},
+	}
+
+	custom := agents.NewBaseAgent(
+		agents.WithName("sql-analyst"),
+		agents.WithDescription("custom"),
+		agents.WithWhenToUse("custom"),
+		agents.WithModel("gpt-custom"),
+		agents.WithSystemPrompt("custom prompt"),
+		agents.WithTerminationTools(agents.ToolFinalAnswer),
+	)
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+		WithSubAgentDefinitionsSource(definitionFS, "defs"),
+		WithSubAgents(custom),
+	)
+
+	_, err := cfg.BuildServices()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already registered")
+}
+
+func TestModuleConfig_WithSubAgentDefinitionsSource_UsesDefaultWhenNotSet(t *testing.T) {
+	t.Parallel()
+
+	cfg := newConfigWithProjectPromptOpts(
+		WithCapabilities(Capabilities{MultiAgent: true}),
+	)
+	require.NotNil(t, cfg.SubAgentDefinitionsFS)
+	assert.Equal(t, bichatmoduleagents.DefaultSubAgentDefinitionsBasePath, cfg.SubAgentDefinitionsBasePath)
+}
+
+func writeTestSkillFile(t *testing.T, root, relDir, content string) {
+	t.Helper()
+	dir := filepath.Join(root, relDir)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 }

@@ -20,6 +20,7 @@ type ArtifactModel struct {
 	TenantID    string
 	SessionID   string
 	MessageID   *string
+	UploadID    *int64
 	Type        string
 	Name        string
 	Description *string
@@ -27,6 +28,8 @@ type ArtifactModel struct {
 	URL         *string
 	SizeBytes   int64
 	Metadata    []byte
+	Status      string
+	Idempotency *string
 	CreatedAt   time.Time
 }
 
@@ -69,10 +72,17 @@ func (m *ArtifactModel) ToDomain() (domain.Artifact, error) {
 		domain.WithArtifactName(m.Name),
 		domain.WithArtifactMetadata(metadata),
 		domain.WithArtifactSizeBytes(m.SizeBytes),
+		domain.WithArtifactStatus(domain.ArtifactStatus(m.Status)),
 		domain.WithArtifactCreatedAt(m.CreatedAt),
+	}
+	if m.Idempotency != nil {
+		opts = append(opts, domain.WithArtifactIdempotencyKey(*m.Idempotency))
 	}
 	if messageID != nil {
 		opts = append(opts, domain.WithArtifactMessageID(messageID))
+	}
+	if m.UploadID != nil {
+		opts = append(opts, domain.WithArtifactUploadID(*m.UploadID))
 	}
 	if m.Description != nil {
 		opts = append(opts, domain.WithArtifactDescription(*m.Description))
@@ -98,11 +108,19 @@ func ArtifactModelFromDomain(a domain.Artifact) (*ArtifactModel, error) {
 		Type:      string(a.Type()),
 		Name:      a.Name(),
 		SizeBytes: a.SizeBytes(),
+		Status:    string(a.Status()),
 		CreatedAt: a.CreatedAt(),
+	}
+	if key := a.IdempotencyKey(); key != "" {
+		m.Idempotency = &key
 	}
 	if a.MessageID() != nil {
 		s := a.MessageID().String()
 		m.MessageID = &s
+	}
+	if a.UploadID() != nil {
+		uploadID := *a.UploadID()
+		m.UploadID = &uploadID
 	}
 	if a.Description() != "" {
 		desc := a.Description()

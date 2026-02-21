@@ -40,8 +40,13 @@ type askUserQuestionArgsOption struct {
 type ExecutorEventType string
 
 const (
-	// EventTypeChunk is emitted for streaming text chunks from the LLM.
-	EventTypeChunk ExecutorEventType = "chunk"
+	// EventTypeContent is emitted for streaming text chunks from the LLM.
+	// Content is available in both Chunk.Delta (raw) and Content (convenience field).
+	EventTypeContent ExecutorEventType = "content"
+
+	// EventTypeChunk is an alias for EventTypeContent for backward compatibility.
+	// Prefer EventTypeContent in new code.
+	EventTypeChunk ExecutorEventType = "content"
 
 	// EventTypeToolStart is emitted when a tool execution begins.
 	EventTypeToolStart ExecutorEventType = "tool_start"
@@ -59,20 +64,64 @@ const (
 	EventTypeError ExecutorEventType = "error"
 )
 
+// Question represents a structured HITL question carried in ExecutorEvent.
+// It is populated from the raw JSON interrupt payload so that consumers
+// do not need to parse AskUserQuestionPayload themselves.
+type Question struct {
+	ID      string
+	Text    string
+	Type    QuestionType
+	Options []QuestionOption
+}
+
+// QuestionType indicates whether a question is single- or multiple-choice.
+type QuestionType string
+
+const (
+	QuestionTypeSingleChoice   QuestionType = "single_choice"
+	QuestionTypeMultipleChoice QuestionType = "multiple_choice"
+)
+
+// QuestionOption is one selectable choice within a Question.
+type QuestionOption struct {
+	ID    string
+	Label string
+}
+
+// ParsedInterrupt holds the structured representation of an interrupt event.
+// It is derived from InterruptEvent.Data so that consumers do not need to
+// unmarshal the raw JSON themselves.
+type ParsedInterrupt struct {
+	CheckpointID       string
+	AgentName          string
+	ProviderResponseID string
+	Questions          []Question
+}
+
 // ExecutorEvent represents a single event during ReAct loop execution.
 // Events are yielded as the executor progresses through reasoning and action steps.
 type ExecutorEvent struct {
 	// Type identifies what kind of event this is.
 	Type ExecutorEventType
 
-	// Chunk contains streaming text data (for EventTypeChunk).
+	// Content holds the text delta for EventTypeContent events.
+	// It is identical to Chunk.Delta and provided as a convenience so that
+	// callers do not need to nil-check Chunk.
+	Content string
+
+	// Chunk contains streaming text data (for EventTypeContent).
 	Chunk *Chunk
 
 	// Tool contains tool execution data (for EventTypeToolStart/EventTypeToolEnd).
 	Tool *ToolEvent
 
 	// Interrupt contains HITL interrupt data (for EventTypeInterrupt).
+	// Use ParsedInterrupt for the structured representation.
 	Interrupt *InterruptEvent
+
+	// ParsedInterrupt holds the structured representation of Interrupt.
+	// It is always populated when Type == EventTypeInterrupt.
+	ParsedInterrupt *ParsedInterrupt
 
 	// Error contains error information (for EventTypeError).
 	Error error
@@ -82,6 +131,22 @@ type ExecutorEvent struct {
 
 	// Result contains the final response (for EventTypeDone).
 	Result *Response
+
+	// Usage holds token-consumption metrics extracted from Result.Usage.
+	// It is populated when Type == EventTypeDone and token usage is available.
+	Usage *types.DebugUsage
+
+	// ProviderResponseID is the provider continuity token, extracted from Result.
+	// It is populated when Type == EventTypeDone.
+	ProviderResponseID string
+
+	// CodeInterpreter holds code interpreter results extracted from Result.
+	// It is populated when Type == EventTypeDone and code interpreter was used.
+	CodeInterpreter []types.CodeInterpreterResult
+
+	// FileAnnotations holds file references extracted from Result.
+	// It is populated when Type == EventTypeDone and files were generated.
+	FileAnnotations []types.FileAnnotation
 }
 
 // ToolEvent represents a tool execution event.
@@ -103,6 +168,14 @@ type ToolEvent struct {
 
 	// DurationMs is the execution time in milliseconds (only present in EventTypeToolEnd).
 	DurationMs int64
+
+	// Artifacts are generated outputs returned by the tool execution.
+	Artifacts []types.ToolArtifact
+}
+
+type toolExecutionResult struct {
+	output    string
+	artifacts []types.ToolArtifact
 }
 
 // Executor executes the ReAct (Reason + Act) loop for an agent.
@@ -275,24 +348,28 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 // Accepts a tool directly to avoid O(n) lookup. If tool is nil or has nil handler,
 // falls back to agent.OnToolCall for backward compatibility.
 // After invoking StructuredTool.CallStructured we always return and never fall through to Tool.Call() to avoid double execution.
-func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (string, error) {
+func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (toolExecutionResult, error) {
 	if e.formatterRegistry != nil && tool != nil {
 		if st, ok := tool.(StructuredTool); ok {
 			result, err := st.CallStructured(ctx, arguments)
 			if err != nil && result == nil {
-				return "", err
+				return toolExecutionResult{}, err
 			}
 			if result == nil {
-				return "", nil
+				return toolExecutionResult{}, nil
+			}
+			execResult := toolExecutionResult{
+				artifacts: result.Artifacts,
 			}
 			// result != nil: format or fallback, then return (never fall through to tool.Call())
 			if f := e.formatterRegistry.Get(result.CodecID); f != nil {
 				formatted, fmtErr := f.Format(result.Payload, types.DefaultFormatOptions())
 				if fmtErr == nil {
+					execResult.output = formatted
 					if err != nil && errors.Is(err, ErrStructuredToolOutput) {
-						return formatted, nil
+						return execResult, nil
 					}
-					return formatted, err
+					return execResult, err
 				}
 			}
 			// Formatter missing or format failed: return raw payload stringified
@@ -300,21 +377,25 @@ func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments 
 			if fallback == "" {
 				fallback = fmt.Sprintf("%v", result.Payload)
 			}
+			execResult.output = fallback
 			if err != nil && errors.Is(err, ErrStructuredToolOutput) {
-				return fallback, nil
+				return execResult, nil
 			}
-			return fallback, err
+			return execResult, err
 		}
 	}
 
 	// Non-StructuredTool path: ToolFunc nil-handler fallback and agent.OnToolCall
 	if tool != nil {
 		if tf, ok := tool.(*ToolFunc); ok && tf.Fn == nil {
-			return e.agent.OnToolCall(ctx, toolName, arguments)
+			output, err := e.agent.OnToolCall(ctx, toolName, arguments)
+			return toolExecutionResult{output: output}, err
 		}
-		return tool.Call(ctx, arguments)
+		output, err := tool.Call(ctx, arguments)
+		return toolExecutionResult{output: output}, err
 	}
-	return e.agent.OnToolCall(ctx, toolName, arguments)
+	output, err := e.agent.OnToolCall(ctx, toolName, arguments)
+	return toolExecutionResult{output: output}, err
 }
 
 // Execute runs the ReAct loop and returns a Generator that yields ExecutorEvent objects.
@@ -440,7 +521,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Speculative tool execution state (best-effort).
 			type specToolResult struct {
 				call       types.ToolCall
-				result     string
+				result     toolExecutionResult
 				err        error
 				durationMs int64
 			}
@@ -485,7 +566,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					return true
 				}
 
-				toolOutput := tr.result
+				toolOutput := tr.result.output
 				if tr.err != nil {
 					toolOutput = fmt.Sprintf("Error: %v", tr.err)
 				}
@@ -509,6 +590,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						tr.call.Arguments,
 						tr.call.ID,
 						toolOutput,
+						tr.result.artifacts,
 						tr.durationMs,
 					))
 				}
@@ -523,6 +605,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						Result:     toolOutput,
 						Error:      tr.err,
 						DurationMs: tr.durationMs,
+						Artifacts:  tr.result.artifacts,
 					},
 				}) {
 					specCancel()
@@ -655,8 +738,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				if chunk.Delta != "" {
 					chunks = append(chunks, chunk.Delta)
 					if !yield(ExecutorEvent{
-						Type:  EventTypeChunk,
-						Chunk: &chunk,
+						Type:    EventTypeContent,
+						Content: chunk.Delta,
+						Chunk:   &chunk,
 					}) {
 						gen.Close()
 						return nil // Consumer stopped
@@ -794,11 +878,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					result.Usage = *usage
 				}
 
-				if !yield(ExecutorEvent{
-					Type:   EventTypeDone,
-					Done:   true,
-					Result: result,
-				}) {
+				if !yield(buildDoneEvent(result)) {
 					return nil
 				}
 				return nil
@@ -905,8 +985,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				// Yield interrupt event to generator consumer
 				if !yield(ExecutorEvent{
-					Type:      EventTypeInterrupt,
-					Interrupt: interrupt,
+					Type:            EventTypeInterrupt,
+					Interrupt:       interrupt,
+					ParsedInterrupt: parseInterruptEvent(interrupt),
 				}) {
 					return nil
 				}
@@ -949,11 +1030,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 							result.Usage = *usage
 						}
 
-						if !yield(ExecutorEvent{
-							Type:   EventTypeDone,
-							Done:   true,
-							Result: result,
-						}) {
+						if !yield(buildDoneEvent(result)) {
 							return nil
 						}
 						return nil
@@ -1171,7 +1248,7 @@ func (e *Executor) executeToolCalls(
 	type toolResult struct {
 		idx        int
 		call       types.ToolCall
-		result     string
+		result     toolExecutionResult
 		err        error
 		durationMs int64
 	}
@@ -1266,7 +1343,7 @@ func (e *Executor) executeToolCalls(
 
 		received++
 
-		toolOutput := tr.result
+		toolOutput := tr.result.output
 		if tr.err != nil {
 			toolOutput = fmt.Sprintf("Error: %v", tr.err)
 		}
@@ -1290,6 +1367,7 @@ func (e *Executor) executeToolCalls(
 				tr.call.Arguments,
 				tr.call.ID,
 				toolOutput,
+				tr.result.artifacts,
 				tr.durationMs,
 			))
 		}
@@ -1304,6 +1382,7 @@ func (e *Executor) executeToolCalls(
 				Result:     toolOutput,
 				Error:      tr.err,
 				DurationMs: tr.durationMs,
+				Artifacts:  tr.result.artifacts,
 			},
 		}) {
 			cancel()
@@ -1444,6 +1523,83 @@ func (e *Executor) saveCheckpoint(
 	}
 
 	return checkpointID, nil
+}
+
+// parseInterruptEvent converts an InterruptEvent's raw JSON payload into a
+// ParsedInterrupt that callers can consume without parsing JSON themselves.
+// The function is best-effort: if parsing fails, Questions is left nil.
+func parseInterruptEvent(interrupt *InterruptEvent) *ParsedInterrupt {
+	if interrupt == nil {
+		return nil
+	}
+
+	parsed := &ParsedInterrupt{
+		CheckpointID:       interrupt.CheckpointID,
+		AgentName:          interrupt.AgentName,
+		ProviderResponseID: interrupt.ProviderResponseID,
+	}
+
+	if len(interrupt.Data) > 0 {
+		var payload types.AskUserQuestionPayload
+		if err := json.Unmarshal(interrupt.Data, &payload); err == nil {
+			questions := make([]Question, 0, len(payload.Questions))
+			for _, q := range payload.Questions {
+				options := make([]QuestionOption, 0, len(q.Options))
+				for _, opt := range q.Options {
+					options = append(options, QuestionOption{
+						ID:    opt.ID,
+						Label: opt.Label,
+					})
+				}
+				qt := QuestionTypeSingleChoice
+				if q.MultiSelect {
+					qt = QuestionTypeMultipleChoice
+				}
+				questions = append(questions, Question{
+					ID:      q.ID,
+					Text:    q.Question,
+					Type:    qt,
+					Options: options,
+				})
+			}
+			parsed.Questions = questions
+		}
+	}
+
+	return parsed
+}
+
+// buildDoneEvent constructs an ExecutorEvent for EventTypeDone, populating
+// convenience fields (Usage, ProviderResponseID, CodeInterpreter, FileAnnotations)
+// from the Response so that callers do not need to inspect Result directly.
+func buildDoneEvent(result *Response) ExecutorEvent {
+	ev := ExecutorEvent{
+		Type:   EventTypeDone,
+		Done:   true,
+		Result: result,
+	}
+	if result == nil {
+		return ev
+	}
+	ev.ProviderResponseID = result.ProviderResponseID
+	ev.CodeInterpreter = result.CodeInterpreterResults
+	ev.FileAnnotations = result.FileAnnotations
+
+	u := result.Usage
+	if u.PromptTokens > 0 || u.CompletionTokens > 0 || u.TotalTokens > 0 ||
+		u.CachedTokens > 0 || u.CacheReadTokens > 0 || u.CacheWriteTokens > 0 {
+		cachedTokens := u.CachedTokens
+		if cachedTokens == 0 {
+			cachedTokens = u.CacheReadTokens
+		}
+		ev.Usage = &types.DebugUsage{
+			PromptTokens:     u.PromptTokens,
+			CompletionTokens: u.CompletionTokens,
+			TotalTokens:      u.TotalTokens,
+			CachedTokens:     cachedTokens,
+		}
+	}
+	return ev
 }
 
 // joinStrings concatenates a slice of strings.

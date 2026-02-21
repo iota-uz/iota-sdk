@@ -15,7 +15,7 @@ type MetricsRecorder interface {
 	// Example:
 	//
 	//	metrics.IncrementCounter("bichat.llm.requests", 1, map[string]string{
-	//	    "model": "gpt-4",
+	//	    "model": "gpt-5.2",
 	//	    "status": "success",
 	//	})
 	IncrementCounter(name string, value int64, labels map[string]string)
@@ -46,7 +46,7 @@ type MetricsRecorder interface {
 	// Example:
 	//
 	//	metrics.RecordHistogram("bichat.llm.latency", 1.23, map[string]string{
-	//	    "model": "gpt-4",
+	//	    "model": "gpt-5.2",
 	//	})
 	RecordHistogram(name string, value float64, labels map[string]string)
 }

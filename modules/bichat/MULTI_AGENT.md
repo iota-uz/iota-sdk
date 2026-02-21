@@ -32,15 +32,17 @@ The multi-agent system enables the parent BI agent to delegate complex tasks to 
    - Isolated from parent (no HITL, no charting, no KB search)
    - System prompt optimized for SQL workflows
 
-4. **QueryExecutorAdapter** (`modules/bichat/agents/query_executor_adapter.go`) **NEW**
-   - Bridges `bichatservices.QueryExecutorService` to `tools.QueryExecutorService`
-   - Converts between different QueryResult formats
-   - Enables SQL agent to work with module-level services
+4. **ExcelAgent** (`modules/bichat/agents/excel_agent.go`) **NEW**
+   - Specialized spreadsheet attachment analyst for large files
+   - Tools: `artifact_reader`, `ask_user_question`
+   - Isolated from parent context and SQL tools
+   - Prompts for paginated reads and data-quality checks
 
 5. **Module Configuration** (`modules/bichat/config.go`)
-   - `EnableMultiAgent` flag controls multi-agent orchestration
+   - `Capabilities.MultiAgent` controls multi-agent orchestration
    - `AgentRegistry` field stores registered sub-agents
    - `setupMultiAgentSystem()` automatically creates and registers SQLAgent
+   - `setupExcelSubAgent()` registers ExcelAgent in `BuildServices` when storage is available
 
 ## Implementation
 
@@ -65,15 +67,16 @@ Features:
 ```go
 cfg := bichat.NewModuleConfig(
     ...,
-    bichat.WithMultiAgent(true),  // Enable multi-agent
+    bichat.WithCapabilities(bichat.Capabilities{MultiAgent: true}), // Enable multi-agent
 )
 ```
 
-When `EnableMultiAgent` is true:
+When `Capabilities.MultiAgent` is true:
 1. Creates `AgentRegistry`
 2. Creates `SQLAgent` if `QueryExecutor` is available
 3. Registers SQLAgent in registry
-4. Registry available at `cfg.AgentRegistry`
+4. Registers ExcelAgent in `BuildServices` when attachment storage is available
+5. Registry available at `cfg.AgentRegistry`
 
 ### 3. Runtime Delegation
 
@@ -106,21 +109,34 @@ executor := agents.NewExecutor(
    - Uses functional options pattern
    - Supports custom model configuration
 
-2. **`modules/bichat/agents/sql_agent.prompt`**
+2. **`modules/bichat/agents/excel_agent.go`**
+   - ExcelAgent implementation
+   - Uses functional options pattern
+   - Uses artifact_reader for attachment-driven workflows
+
+3. **`modules/bichat/agents/sql_agent.prompt`**
    - System prompt for SQL analyst agent
    - Focused on SQL workflow (EXPLORE → WRITE → EXECUTE → RETURN)
    - Emphasizes safety and best practices
 
-3. **`modules/bichat/agents/sql_agent_test.go`**
+4. **`modules/bichat/agents/excel_agent.prompt`**
+   - System prompt for spreadsheet analysis workflows
+   - Focused on large attachment processing
+
+5. **`modules/bichat/agents/sql_agent_test.go`**
    - Unit tests for SQLAgent
    - Mock implementation of `bichatservices.QueryExecutorService`
    - Tests agent creation, tools, system prompt, and tool routing
 
-4. **`modules/bichat/agents/query_executor_adapter.go`**
+6. **`modules/bichat/agents/excel_agent_test.go`**
+   - Unit tests for ExcelAgent
+   - Verifies required dependencies, default tools, and options
+
+7. **`modules/bichat/agents/sql_agent_test.go`**
    - Adapter between service and tool interfaces
    - Converts `bichatservices.QueryResult` (Rows [][]any) to `tools.QueryResult` (Rows []map[string]interface{})
 
-5. **`modules/bichat/agents/multi_agent_example_test.go`**
+8. **`modules/bichat/agents/multi_agent_example_test.go`**
    - Complete multi-agent workflow examples
    - Demonstrates registry creation, agent registration, delegation tool creation
    - Example function showing end-to-end setup

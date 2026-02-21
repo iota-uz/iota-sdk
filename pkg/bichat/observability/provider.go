@@ -43,7 +43,7 @@ type GenerationObservation struct {
 	Timestamp time.Time // When generation started
 
 	// Model metadata
-	Model    string // Model identifier (e.g., "claude-3-5-sonnet-20241022")
+	Model    string // Model identifier (e.g., "claude-sonnet-4-6", "gpt-5.2")
 	Provider string // Provider name (e.g., "anthropic", "openai")
 
 	// Request details

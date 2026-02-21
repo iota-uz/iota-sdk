@@ -40,33 +40,33 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-5.2-2025-12-11", oaiModel.modelName)
+	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
 }
 
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4-turbo"))
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5.2"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-4-turbo", oaiModel.modelName)
+	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
 }
 
 func TestOpenAIModel_Info(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4o"))
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5-mini"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-4o", info.Name)
+	assert.Equal(t, "gpt-5-mini", info.Name)
 	assert.Equal(t, "openai", info.Provider)
-	assert.Equal(t, 128000, info.ContextWindow)
+	assert.Equal(t, 400000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
@@ -81,28 +81,40 @@ func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-5.2-2025-12-11", info.Name)
-	assert.Equal(t, 272000, info.ContextWindow)
+	assert.Equal(t, "gpt-5.2", info.Name)
+	assert.Equal(t, 400000, info.ContextWindow)
 }
 
-func TestContextWindowForModel_GPT52Variants(t *testing.T) {
-	t.Parallel()
+func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	tests := []struct {
-		name      string
-		modelName string
-		expected  int
+		name       string
+		modelEnv   string
+		expectCtx  int
+		expectName string
 	}{
-		{name: "canonical", modelName: "gpt-5.2-2025-12-11", expected: 272000},
-		{name: "family alias", modelName: "gpt-5.2", expected: 272000},
-		{name: "uppercase with spaces", modelName: " GPT-5.2-2025-12-11 ", expected: 272000},
-		{name: "gpt4o uppercase", modelName: " GPT-4O ", expected: 128000},
-		{name: "unknown", modelName: "unknown-model", expected: 0},
+		{name: "canonical gpt-5.2", modelEnv: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
+		{name: "versioned alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
+		{name: "normalized alias", modelEnv: " GPT-5.2-2025-12-11 ", expectCtx: 400000, expectName: " GPT-5.2-2025-12-11 "},
+		{name: "gpt-5-mini", modelEnv: "gpt-5-mini", expectCtx: 400000, expectName: "gpt-5-mini"},
+		{name: "gpt-5-nano", modelEnv: "gpt-5-nano", expectCtx: 400000, expectName: "gpt-5-nano"},
+		{name: "unknown falls back to default spec", modelEnv: "unknown-model", expectCtx: 400000, expectName: "unknown-model"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, contextWindowForModel(tt.modelName))
+			require.NoError(t, os.Setenv("OPENAI_MODEL", tt.modelEnv))
+			defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
+
+			model, err := NewOpenAIModel()
+			require.NoError(t, err)
+
+			info := model.Info()
+			assert.Equal(t, tt.expectName, info.Name)
+			assert.Equal(t, "openai", info.Provider)
+			assert.Equal(t, tt.expectCtx, info.ContextWindow)
 		})
 	}
 }
@@ -162,10 +174,10 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 		JSONMode:    true,
 	}
 
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Verify model
-	assert.Equal(t, "gpt-5.2-2025-12-11", params.Model)
+	assert.Equal(t, "gpt-5.2", params.Model)
 
 	// Verify input items
 	assert.NotNil(t, params.Input.OfInputItemList)
@@ -219,7 +231,7 @@ func TestOpenAIModel_BuildResponseParams_NativeWebSearch(t *testing.T) {
 	}
 
 	config := agents.GenerateConfig{}
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// web_search should be added as native WebSearchToolParam
 	require.Len(t, params.Tools, 1)
@@ -255,14 +267,45 @@ func TestOpenAIModel_BuildResponseParams_NativeCodeInterpreter(t *testing.T) {
 	}
 
 	config := agents.GenerateConfig{}
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// code_interpreter should be added as native ToolCodeInterpreterParam
 	require.Len(t, params.Tools, 1)
 	assert.NotNil(t, params.Tools[0].OfCodeInterpreter, "code_interpreter should be a native ToolCodeInterpreterParam")
+	assert.Equal(t, "4g", params.Tools[0].OfCodeInterpreter.Container.OfCodeInterpreterToolAuto.MemoryLimit)
 
 	// Should request outputs in include
 	assert.Contains(t, params.Include, responses.ResponseIncludableCodeInterpreterCallOutputs)
+}
+
+func TestOpenAIModel_BuildResponseParams_CodeInterpreterMemoryLimitOverride(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel(WithCodeInterpreterMemoryLimit("16g"))
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	req := agents.Request{
+		Messages: []types.Message{
+			types.UserMessage("Run code"),
+		},
+		Tools: []agents.Tool{
+			agents.NewTool(
+				"code_interpreter",
+				"Execute code",
+				map[string]any{"type": "object"},
+				func(ctx context.Context, input string) (string, error) {
+					return "", nil
+				},
+			),
+		},
+	}
+
+	params := oaiModel.buildResponseParams(context.Background(), req, agents.GenerateConfig{})
+	require.Len(t, params.Tools, 1)
+	require.NotNil(t, params.Tools[0].OfCodeInterpreter)
+	assert.Equal(t, "16g", params.Tools[0].OfCodeInterpreter.Container.OfCodeInterpreterToolAuto.MemoryLimit)
 }
 
 func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
@@ -289,7 +332,7 @@ func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
 	}
 
 	config := agents.GenerateConfig{}
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Should have 4 tools: 2 function + 1 web_search + 1 code_interpreter
 	require.Len(t, params.Tools, 4)
@@ -694,42 +737,19 @@ func TestOpenAIModel_Pricing(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
-	t.Run("KnownModel", func(t *testing.T) {
-		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4o"))
-		defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
+	// Pricing() comes from catalog; exact numbers are catalog data. Only assert behavior:
+	// unknown model falls back to default spec and returns valid pricing usable for cost calculation.
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-99-future"))
+	defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
 
-		model, err := NewOpenAIModel()
-		require.NoError(t, err)
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
 
-		pricing := model.Pricing()
-		assert.Equal(t, "USD", pricing.Currency)
-		assert.InEpsilon(t, 2.50, pricing.InputPer1M, 1e-9)
-		assert.InEpsilon(t, 10.00, pricing.OutputPer1M, 1e-9)
-	})
-
-	t.Run("DefaultModel_GPT52", func(t *testing.T) {
-		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5.2-2025-12-11"))
-		defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
-
-		model, err := NewOpenAIModel()
-		require.NoError(t, err)
-
-		pricing := model.Pricing()
-		assert.Equal(t, "USD", pricing.Currency)
-		assert.InEpsilon(t, 1.75, pricing.InputPer1M, 1e-9)
-		assert.InEpsilon(t, 14.00, pricing.OutputPer1M, 1e-9)
-		assert.InEpsilon(t, 0.18, pricing.CacheReadPer1M, 1e-9)
-	})
-
-	t.Run("UnknownModel_FallsBackToGPT52", func(t *testing.T) {
-		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-99-future"))
-		defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
-
-		model, err := NewOpenAIModel()
-		require.NoError(t, err)
-
-		pricing := model.Pricing()
-		assert.Equal(t, "USD", pricing.Currency)
-		assert.InEpsilon(t, 1.75, pricing.InputPer1M, 1e-9)
-	})
+	pricing := model.Pricing()
+	assert.Equal(t, "USD", pricing.Currency)
+	assert.Greater(t, pricing.InputPer1M, 0.)
+	assert.Greater(t, pricing.OutputPer1M, 0.)
+	// Smoke-check: CalculateCost doesn't panic and returns non-negative for typical usage
+	cost := pricing.CalculateCost(types.TokenUsage{PromptTokens: 1000, CompletionTokens: 500})
+	assert.GreaterOrEqual(t, cost, 0.)
 }

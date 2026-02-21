@@ -67,7 +67,7 @@
 // The ContextPolicy configures token limits and overflow handling:
 //
 //	policy := context.ContextPolicy{
-//	    ContextWindow:     180000, // Claude 3.5 Sonnet
+//	    ContextWindow:     200000, // Claude standard (docs.anthropic.com)
 //	    CompletionReserve: 8000,
 //	    OverflowStrategy:  context.OverflowTruncate,
 //	    KindPriorities:    context.DefaultKindPriorities(),

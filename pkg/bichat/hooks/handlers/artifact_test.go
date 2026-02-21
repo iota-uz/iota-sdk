@@ -48,6 +48,7 @@ func TestArtifactHandler_SubscribedToolCompleteEvent_PersistsArtifact(t *testing
 		`{"query":"SELECT * FROM users"}`,
 		"call-1",
 		`{"url":"https://example.com/report.xlsx","filename":"report.xlsx","row_count":42,"size":2048}`,
+		nil,
 		187,
 	))
 	require.NoError(t, err)

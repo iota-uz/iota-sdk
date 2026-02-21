@@ -104,7 +104,33 @@
       "FailedToLoad": "加载图片失败",
       "Retry": "重新加载图片",
       "Previous": "上一张图片",
-      "Next": "下一张图片"
+      "Next": "下一张图片",
+      "ZoomOut": "缩小",
+      "ZoomIn": "放大",
+      "ResetZoom": "重置缩放"
+    },
+    "Sources": {
+      "Source": "来源",
+      "Sources": "来源",
+      "Title": "来源",
+      "Close": "关闭",
+      "SourceN": "来源 {{n}}"
+    },
+    "Table": {
+      "QueryResults": "查询结果",
+      "OneRowLoaded": "已加载 1 行",
+      "RowsLoaded": "已加载 {{count}} 行",
+      "TruncatedSuffix": "（已截断）",
+      "ExportToExcel": "导出到 Excel",
+      "PleaseWait": "请稍候",
+      "ExportUnavailable": "无法导出",
+      "NoRows": "没有可显示的行。",
+      "Showing": "显示 {{from}}–{{to}}，共 {{total}} 条",
+      "RowsLabel": "行",
+      "Prev": "上一页",
+      "Next": "下一页",
+      "PageOf": "第 {{page}} 页，共 {{total}} 页",
+      "TruncatedNotice": "此表因工具响应限制而被截断。请优化 SQL 查询或导出以获取完整数据集。"
     },
     "Sidebar": {
       "ChatHistory": "聊天记录",

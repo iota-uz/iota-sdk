@@ -101,7 +101,7 @@ type ResumeRequest struct {
 type StreamChunk struct {
 	Type         ChunkType
 	Content      string
-	Citation     *domain.Citation
+	Citation     *types.Citation
 	Usage        *types.DebugUsage
 	Tool         *ToolEvent
 	Interrupt    *InterruptEvent
@@ -124,6 +124,25 @@ const (
 	ChunkTypeDone      ChunkType = "done"
 	ChunkTypeError     ChunkType = "error"
 )
+
+// ToolEvent represents a tool execution event in a streaming chunk.
+type ToolEvent struct {
+	CallID     string
+	Name       string
+	Arguments  string
+	Result     string
+	Error      error
+	DurationMs int64
+	Artifacts  []types.ToolArtifact
+}
+
+// InterruptEvent represents a HITL interrupt in a streaming chunk.
+type InterruptEvent struct {
+	CheckpointID       string
+	AgentName          string // Name of the agent that triggered this interrupt
+	ProviderResponseID string
+	Questions          []Question
+}
 
 type ClearSessionHistoryResponse struct {
 	Success          bool

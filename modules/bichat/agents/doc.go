@@ -8,7 +8,7 @@
 //
 // Basic usage with only SQL capabilities:
 //
-//	executor := tools.NewDefaultQueryExecutor(dbPool)
+//	executor := toolsql.NewDefaultQueryExecutor(dbPool)
 //	agent, err := NewDefaultBIAgent(executor)
 //	if err != nil {
 //	    // handle error
@@ -25,20 +25,20 @@
 // With export tools:
 //
 //	import "github.com/iota-uz/iota-sdk/pkg/bichat/storage"
-//	import "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+//	import "github.com/iota-uz/iota-sdk/pkg/bichat/tools/export"
 //
 //	fileStorage, _ := storage.NewLocalFileStorage("/var/lib/bichat/exports", "https://example.com/exports")
-//	excelTool := tools.NewExportToExcelTool(
-//	    tools.WithOutputDir("/var/lib/bichat/exports"),
-//	    tools.WithBaseURL("https://example.com/exports"),
+//	excelTool := export.NewExportToExcelTool(
+//	    export.WithOutputDir("/var/lib/bichat/exports"),
+//	    export.WithBaseURL("https://example.com/exports"),
 //	)
-//	pdfTool := tools.NewExportToPDFTool("http://gotenberg:3000", fileStorage)
+//	pdfTool := export.NewExportToPDFTool("http://gotenberg:3000", fileStorage)
 //
 //	agent, err := NewDefaultBIAgent(
 //	    executor,
 //	    WithKBSearcher(kbSearcher),
 //	    WithExportTools(excelTool, pdfTool),
-//	    WithModel("gpt-3.5-turbo"),
+//	    WithModel("gpt-5-mini"),
 //	    WithCodeInterpreter(true),
 //	    WithAgentRegistry(registry),
 //	)
@@ -65,7 +65,7 @@
 //
 // The agent is configured with:
 //   - Name: "bi_agent"
-//   - Model: "gpt-4" (default, customizable via WithModel)
+//   - Model: "gpt-5.2" (default, customizable via WithModel)
 //   - Isolation: Isolated (no access to parent context)
 //   - Termination: final_answer tool
 //

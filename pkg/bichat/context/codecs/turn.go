@@ -21,6 +21,7 @@ type TurnAttachment struct {
 	MimeType  string `json:"mimeType"`  // MIME type (e.g., "image/png", "application/pdf")
 	SizeBytes int64  `json:"sizeBytes"` // File size in bytes
 	Reference string `json:"reference"` // URL or path reference (safe for LLM context)
+	UploadID  *int64 `json:"uploadId,omitempty"`
 }
 
 // TurnCodec handles user turn blocks with content and attachments.
@@ -81,6 +82,7 @@ func (c *TurnCodec) Canonicalize(payload any) ([]byte, error) {
 						MimeType:  getString(attMap, "mimeType"),
 						SizeBytes: getInt64(attMap, "sizeBytes"),
 						Reference: getString(attMap, "reference"),
+						UploadID:  getInt64Pointer(attMap, "uploadId"),
 					})
 				}
 			}
@@ -117,6 +119,14 @@ func getInt64(m map[string]any, key string) int64 {
 	return 0
 }
 
+func getInt64Pointer(m map[string]any, key string) *int64 {
+	value := getInt64(m, key)
+	if value <= 0 {
+		return nil
+	}
+	return &value
+}
+
 // ConvertAttachmentsToTurnAttachments converts types.Attachment slice to TurnAttachment slice.
 func ConvertAttachmentsToTurnAttachments(attachments []types.Attachment) []TurnAttachment {
 	result := make([]TurnAttachment, 0, len(attachments))
@@ -132,6 +142,7 @@ func ConvertAttachmentsToTurnAttachments(attachments []types.Attachment) []TurnA
 			MimeType:  att.MimeType,
 			SizeBytes: att.SizeBytes,
 			Reference: reference,
+			UploadID:  att.UploadID,
 		})
 	}
 	return result

@@ -33,8 +33,8 @@ func ExampleNewDefaultBIAgent() {
 
 	// Output:
 	// Agent name: bi_agent
-	// Agent model: gpt-4
-	// Number of tools: 7
+	// Agent model: gpt-5.2
+	// Number of tools: 8
 }
 
 // ExampleNewDefaultBIAgent_withOptions demonstrates using optional tools.
@@ -46,7 +46,7 @@ func ExampleNewDefaultBIAgent_withOptions() {
 	agent, err := bichatagents.NewDefaultBIAgent(
 		executor,
 		bichatagents.WithKBSearcher(kbSearcher),
-		bichatagents.WithModel("gpt-3.5-turbo"),
+		bichatagents.WithModel("gpt-5-mini"),
 	)
 	if err != nil {
 		panic(err)
@@ -59,8 +59,8 @@ func ExampleNewDefaultBIAgent_withOptions() {
 	fmt.Printf("Tools count: %d\n", len(agentTools))
 
 	// Output:
-	// Model: gpt-3.5-turbo
-	// Tools count: 8
+	// Model: gpt-5-mini
+	// Tools count: 9
 }
 
 // ExampleNewDefaultBIAgent_withInsightPrompting demonstrates insight-focused response prompting.
@@ -73,7 +73,7 @@ func ExampleNewDefaultBIAgent_withInsightPrompting() {
 	agent, err := bichatagents.NewDefaultBIAgent(
 		executor,
 		bichatagents.WithInsightPrompting("standard"),
-		bichatagents.WithModel("gpt-4"),
+		bichatagents.WithModel("gpt-5.2"),
 	)
 	if err != nil {
 		panic(err)
@@ -90,7 +90,7 @@ func ExampleNewDefaultBIAgent_withInsightPrompting() {
 	// - COMPARISONS: How results compare to baselines, targets, or prior periods
 
 	// Output:
-	// Model: gpt-4
+	// Model: gpt-5.2
 	// Agent configured for insight-focused responses
 }
 

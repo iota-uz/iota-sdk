@@ -177,6 +177,78 @@ Behavior:
 - Extension is appended in parent agent flow (`AgentService.ProcessMessage`).
 - Provider output takes precedence over static extension when non-empty.
 
+## Skills Tree (Codex/Claude-Style)
+
+BiChat supports a startup-loaded skills tree from markdown files. Skills are injected as a
+`KindReference` context block per turn (not merged into the base system prompt).
+
+### Directory Structure
+
+- Configure a global skills root directory.
+- Each skill must be a directory containing `SKILL.md`.
+- Skill slug is the directory path relative to root.
+
+Example:
+
+```text
+/opt/bichat/skills/
+  analytics/
+    sql-debug/
+      SKILL.md
+  finance/
+    month-end/
+      SKILL.md
+```
+
+### SKILL.md Frontmatter Schema
+
+```md
+---
+name: SQL Debugging
+description: Recover quickly from SQL errors in BI workflows.
+when_to_use:
+  - query error
+  - wrong column
+tags:
+  - sql
+  - debugging
+---
+
+# Optional heading
+
+Skill instructions body...
+```
+
+Required fields:
+- `name`
+- `description`
+- `when_to_use`
+- `tags`
+
+### Runtime Behavior
+
+- Skills are loaded and validated once during `BuildServices()`.
+- On each turn, BiChat auto-selects relevant skills by lexical overlap.
+- Users can force a skill with mention syntax: `@skill-slug` (example: `@finance/month-end`).
+- Default budget: top 3 skills and max 8000 rendered characters.
+- If skills loading fails, startup fails fast.
+
+### Configuration
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithSkillsDir("/opt/bichat/skills"),
+    bichat.WithSkillsSelectionLimit(3),
+    bichat.WithSkillsMaxChars(8000),
+)
+```
+
 ## Database Schema
 
 See: `infrastructure/persistence/schema/bichat-schema.sql`
@@ -252,7 +324,7 @@ OPENAI_API_KEY=sk-...
 DATABASE_URL=postgres://...
 
 # Optional
-OPENAI_MODEL=gpt-5.2-2025-12-11         # default: gpt-5.2-2025-12-11
+OPENAI_MODEL=gpt-5.2                   # default: gpt-5.2
 BICHAT_CONTEXT_WINDOW=180000      # default: 200k
 BICHAT_COMPLETION_RESERVE=8000    # default: 8k
 ```
@@ -391,6 +463,42 @@ User: "Find top 10 customers by total sales and generate a chart"
 
 The delegation tool is automatically filtered from child agent tool lists to prevent infinite delegation chains. SQLAgent never receives the `task` tool.
 
+## Error Handling Convention
+
+`modules/bichat` is an **application module** with a full iota-sdk dependency. All operational
+error wrapping must use `serrors.E(op, err)` from `github.com/iota-uz/iota-sdk/pkg/serrors`.
+
+**Pattern:**
+
+```go
+// Service / repository / handler — use serrors.E
+func (s *chatService) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
+    const op serrors.Op = "chatService.GetSession"
+    session, err := s.repo.GetByID(ctx, id)
+    if err != nil {
+        return nil, serrors.E(op, err)
+    }
+    return session, nil
+}
+
+// Validation errors — use serrors.KindValidation
+func (s *chatService) CreateSession(ctx context.Context, title string) error {
+    const op serrors.Op = "chatService.CreateSession"
+    if strings.TrimSpace(title) == "" {
+        return serrors.E(op, serrors.KindValidation, "title is required")
+    }
+    // ...
+}
+```
+
+**Exceptions where `fmt.Errorf` is acceptable:**
+- Module-level wiring in `module.go` (infrastructure bootstrapping)
+- Private utility helpers whose callers immediately wrap with `serrors.E`
+- Redis/stream infrastructure in `title_job_worker.go`
+- Config validation in `agents/sub_agent_definitions.go` (no op context needed)
+
+**Sentinel errors** (`var ErrFoo = errors.New(...)`) are fine everywhere — do not convert these.
+
 ## Common Gotchas
 
 1. **Generator Pattern**: Always defer `gen.Close()`. Check `hasMore` before processing events.
@@ -485,13 +593,8 @@ cfg := bichat.NewModuleConfig(
 )
 ```
 
-**Disable Auto-Titles**:
-```go
-cfg := bichat.NewModuleConfig(
-    ...,
-    bichat.WithTitleGenerationDisabled(), // Users must provide titles manually
-)
-```
+**Auto-Titles**:
+Session title generation is always enabled and runs automatically after assistant responses.
 
 **Custom Renderer**:
 ```go

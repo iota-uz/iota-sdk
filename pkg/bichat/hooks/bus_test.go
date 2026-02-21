@@ -34,7 +34,7 @@ func TestEventBus_PublishSubscribe(t *testing.T) {
 	// Publish LLM request event
 	sessionID := uuid.New()
 	tenantID := uuid.New()
-	event := events.NewLLMRequestEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 10, 5, 1000, "test user input")
+	event := events.NewLLMRequestEvent(sessionID, tenantID, "claude-sonnet-4-6", "anthropic", 10, 5, 1000, "test user input")
 
 	err := bus.Publish(ctx, event)
 	if err != nil {
@@ -49,8 +49,8 @@ func TestEventBus_PublishSubscribe(t *testing.T) {
 	}
 
 	receivedEvent := receivedEvents[0].(*events.LLMRequestEvent)
-	if receivedEvent.Model != "claude-3-5-sonnet" {
-		t.Errorf("Expected model 'claude-3-5-sonnet', got '%s'", receivedEvent.Model)
+	if receivedEvent.Model != "claude-sonnet-4-6" {
+		t.Errorf("Expected model 'claude-sonnet-4-6', got '%s'", receivedEvent.Model)
 	}
 }
 
@@ -215,7 +215,7 @@ func TestEventBus_TypeFiltering(t *testing.T) {
 	if err := bus.Publish(ctx, events.NewToolStartEvent(sessionID, tenantID, "tool", "args", "id1")); err != nil {
 		t.Fatalf("Failed to publish tool start event: %v", err)
 	}
-	if err := bus.Publish(ctx, events.NewToolCompleteEvent(sessionID, tenantID, "tool", "args", "id1", "result", 100)); err != nil {
+	if err := bus.Publish(ctx, events.NewToolCompleteEvent(sessionID, tenantID, "tool", "args", "id1", "result", nil, 100)); err != nil {
 		t.Fatalf("Failed to publish tool complete event: %v", err)
 	}
 	if err := bus.Publish(ctx, events.NewSessionCreateEvent(sessionID, tenantID, 123, "title")); err != nil {

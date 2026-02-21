@@ -52,9 +52,35 @@ func TestPostgresChatRepository_SaveMessage_WithCodeOutputs_RoundTrip(t *testing
 		types.WithMessageID(msgID),
 		types.WithSessionID(session.ID()),
 		types.WithCreatedAt(base),
-		types.WithCodeOutputs(out1, out2),
 	)
 	require.NoError(t, repo.SaveMessage(env.Ctx, msg))
+
+	artifact1 := domain.NewArtifact(
+		domain.WithArtifactID(out1.ID),
+		domain.WithArtifactTenantID(env.Tenant.ID),
+		domain.WithArtifactSessionID(session.ID()),
+		domain.WithArtifactMessageID(&msgID),
+		domain.WithArtifactType(domain.ArtifactTypeCodeOutput),
+		domain.WithArtifactName(out1.Name),
+		domain.WithArtifactMimeType(out1.MimeType),
+		domain.WithArtifactURL(out1.URL),
+		domain.WithArtifactSizeBytes(out1.Size),
+		domain.WithArtifactCreatedAt(out1.CreatedAt),
+	)
+	artifact2 := domain.NewArtifact(
+		domain.WithArtifactID(out2.ID),
+		domain.WithArtifactTenantID(env.Tenant.ID),
+		domain.WithArtifactSessionID(session.ID()),
+		domain.WithArtifactMessageID(&msgID),
+		domain.WithArtifactType(domain.ArtifactTypeCodeOutput),
+		domain.WithArtifactName(out2.Name),
+		domain.WithArtifactMimeType(out2.MimeType),
+		domain.WithArtifactURL(out2.URL),
+		domain.WithArtifactSizeBytes(out2.Size),
+		domain.WithArtifactCreatedAt(out2.CreatedAt),
+	)
+	require.NoError(t, repo.SaveArtifact(env.Ctx, artifact1))
+	require.NoError(t, repo.SaveArtifact(env.Ctx, artifact2))
 
 	got, err := repo.GetMessage(env.Ctx, msgID)
 	require.NoError(t, err)

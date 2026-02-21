@@ -104,7 +104,33 @@
       "FailedToLoad": "Failed to load image",
       "Retry": "Retry loading image",
       "Previous": "Previous image",
-      "Next": "Next image"
+      "Next": "Next image",
+      "ZoomOut": "Zoom out",
+      "ZoomIn": "Zoom in",
+      "ResetZoom": "Reset zoom"
+    },
+    "Sources": {
+      "Source": "source",
+      "Sources": "sources",
+      "Title": "Sources",
+      "Close": "Close",
+      "SourceN": "Source {{n}}"
+    },
+    "Table": {
+      "QueryResults": "Query Results",
+      "OneRowLoaded": "1 row loaded",
+      "RowsLoaded": "{{count}} rows loaded",
+      "TruncatedSuffix": "(truncated)",
+      "ExportToExcel": "Export to Excel",
+      "PleaseWait": "Please wait",
+      "ExportUnavailable": "Export is unavailable",
+      "NoRows": "No rows to display.",
+      "Showing": "Showing {{from}}-{{to}} of {{total}}",
+      "RowsLabel": "Rows",
+      "Prev": "Prev",
+      "Next": "Next",
+      "PageOf": "Page {{page}} / {{total}}",
+      "TruncatedNotice": "This table is truncated by the tool response limit. Refine the SQL query or export for a fuller dataset."
     },
     "Sidebar": {
       "ChatHistory": "Chat history",

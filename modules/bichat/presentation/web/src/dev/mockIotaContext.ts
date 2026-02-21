@@ -42,7 +42,7 @@ export function injectMockContext(): void {
         debug: {
           limits: {
             policyMaxTokens: 180000,
-            modelMaxTokens: 272000,
+            modelMaxTokens: 400000,
             effectiveMaxTokens: 180000,
             completionReserveTokens: 8000,
           },

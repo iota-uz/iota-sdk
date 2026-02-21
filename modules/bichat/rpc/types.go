@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -59,12 +58,12 @@ type SessionGetParams struct {
 }
 
 type Attachment struct {
-	ID         string `json:"id"`
-	Filename   string `json:"filename"`
-	MimeType   string `json:"mimeType"`
-	SizeBytes  int64  `json:"sizeBytes"`
-	Base64Data string `json:"base64Data,omitempty"`
-	URL        string `json:"url,omitempty"`
+	ID        string `json:"id"`
+	UploadID  *int64 `json:"uploadId,omitempty"`
+	Filename  string `json:"filename"`
+	MimeType  string `json:"mimeType"`
+	SizeBytes int64  `json:"sizeBytes"`
+	URL       string `json:"url,omitempty"`
 }
 
 type Citation struct {
@@ -206,6 +205,7 @@ type Artifact struct {
 	ID          string         `json:"id"`
 	SessionID   string         `json:"sessionId"`
 	MessageID   string         `json:"messageId,omitempty"`
+	UploadID    *int64         `json:"uploadId,omitempty"`
 	Type        string         `json:"type"`
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
@@ -390,12 +390,10 @@ func mapAttachments(in []types.Attachment) []Attachment {
 	for _, a := range in {
 		dto := Attachment{
 			ID:        a.ID.String(),
+			UploadID:  a.UploadID,
 			Filename:  a.FileName,
 			MimeType:  a.MimeType,
 			SizeBytes: a.SizeBytes,
-		}
-		if len(a.Data) > 0 {
-			dto.Base64Data = base64.StdEncoding.EncodeToString(a.Data)
 		}
 		if a.FilePath != "" {
 			dto.URL = a.FilePath
@@ -499,6 +497,7 @@ func toArtifactDTO(a domain.Artifact) Artifact {
 	out := Artifact{
 		ID:          a.ID().String(),
 		SessionID:   a.SessionID().String(),
+		UploadID:    a.UploadID(),
 		Type:        string(a.Type()),
 		Name:        a.Name(),
 		Description: a.Description(),
@@ -540,11 +539,14 @@ func parseUUID(s string) (uuid.UUID, error) {
 // pendingQuestionFromMessages scans messages for pending question data
 // and builds the DTO with turn ID inference.
 func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
-	// Find the message with pending question data
+	// Find the latest message with pending question data.
 	var pendingMsg types.Message
-	for _, m := range msgs {
+	pendingIndex := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
 		if m != nil && m.HasPendingQuestion() {
 			pendingMsg = m
+			pendingIndex = i
 			break
 		}
 	}
@@ -555,7 +557,7 @@ func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
 
 	// Find the turn ID: look backward for the nearest user message
 	turnID := pendingMsg.ID().String()
-	for i := len(msgs) - 1; i >= 0; i-- {
+	for i := pendingIndex - 1; i >= 0; i-- {
 		if msgs[i] != nil && msgs[i].Role() == types.RoleUser && msgs[i].CreatedAt().Before(pendingMsg.CreatedAt()) {
 			turnID = msgs[i].ID().String()
 			break
