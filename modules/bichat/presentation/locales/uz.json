@@ -104,7 +104,33 @@
       "FailedToLoad": "Rasmni yuklab bo'lmadi",
       "Retry": "Qayta yuklash",
       "Previous": "Oldingi rasm",
-      "Next": "Keyingi rasm"
+      "Next": "Keyingi rasm",
+      "ZoomOut": "Kichiklashtirish",
+      "ZoomIn": "Kattalashtirish",
+      "ResetZoom": "Masshtabni qaytarish"
+    },
+    "Sources": {
+      "Source": "manba",
+      "Sources": "manba",
+      "Title": "Manbalar",
+      "Close": "Yopish",
+      "SourceN": "Manba {{n}}"
+    },
+    "Table": {
+      "QueryResults": "So'rov natijalari",
+      "OneRowLoaded": "1 qator yuklandi",
+      "RowsLoaded": "{{count}} qator yuklandi",
+      "TruncatedSuffix": "(qisqartirilgan)",
+      "ExportToExcel": "Excelga eksport qilish",
+      "PleaseWait": "Iltimos kuting",
+      "ExportUnavailable": "Eksport mavjud emas",
+      "NoRows": "Ko'rsatiladigan qatorlar yo'q.",
+      "Showing": "{{from}}–{{to}} / {{total}}",
+      "RowsLabel": "Qatorlar",
+      "Prev": "Oldingi",
+      "Next": "Keyingi",
+      "PageOf": "Sahifa {{page}} / {{total}}",
+      "TruncatedNotice": "Jadval asbob javobi limiti tufayli qisqartirilgan. To'liq ma'lumot uchun SQL so'rovini aniqlang yoki eksport qiling."
     },
     "Sidebar": {
       "ChatHistory": "Chat tarixi",
