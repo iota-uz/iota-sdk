@@ -25,6 +25,7 @@
 // Utility Tools:
 //   - GetCurrentTimeTool: Get current time in various formats
 //   - DrawChartTool: Generate chart specifications
+//   - RenderTableTool: Render interactive table payloads from SQL
 //
 // Knowledge Base:
 //   - KBSearchTool: Search knowledge base for documents

@@ -101,7 +101,7 @@ type ResumeRequest struct {
 type StreamChunk struct {
 	Type         ChunkType
 	Content      string
-	Citation     *domain.Citation
+	Citation     *types.Citation
 	Usage        *types.DebugUsage
 	Tool         *ToolEvent
 	Interrupt    *InterruptEvent

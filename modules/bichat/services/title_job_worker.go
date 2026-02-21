@@ -444,6 +444,7 @@ func (w *TitleJobWorker) retryDelay(attempt int) time.Duration {
 
 func defaultMissingSessionsFetcher(pool *pgxpool.Pool) MissingSessionsFetcher {
 	return func(ctx context.Context, limit int) ([]titleJobPayload, error) {
+		// Intentionally scans all tenants: reconciliation is a global background sweep.
 		rows, err := pool.Query(ctx, `
 			SELECT tenant_id, id
 			FROM bichat.sessions

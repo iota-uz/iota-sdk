@@ -142,6 +142,7 @@ func TestDefaultBIAgent_CoreTools(t *testing.T) {
 		"schema_list",
 		"schema_describe",
 		"sql_execute",
+		"renderTable",
 		"export_query_to_excel",
 		"draw_chart",
 		"ask_user_question",
@@ -332,6 +333,12 @@ func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 			name:        "draw_chart tool",
 			toolName:    "draw_chart",
 			input:       `{"chartType":"line","title":"Test Chart","series":[{"name":"Series 1","data":[1,2,3]}]}`,
+			expectError: false,
+		},
+		{
+			name:        "renderTable tool",
+			toolName:    "renderTable",
+			input:       `{"sql":"SELECT id, name FROM users","headerNames":["ID","Name"]}`,
 			expectError: false,
 		},
 		{

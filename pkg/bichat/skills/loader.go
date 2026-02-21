@@ -14,13 +14,6 @@ import (
 
 const skillFileName = "SKILL.md"
 
-type skillFrontmatter struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	WhenToUse   []string `yaml:"when_to_use"`
-	Tags        []string `yaml:"tags"`
-}
-
 // LoadCatalog recursively scans the root directory and loads all SKILL.md files.
 func LoadCatalog(root string) (*Catalog, error) {
 	root = strings.TrimSpace(root)
@@ -108,7 +101,7 @@ func LoadCatalogFS(source fs.FS, root string) (*Catalog, error) {
 }
 
 func loadSkill(root string, source definition.SourceFile) (Skill, error) {
-	parsed, err := definition.ParseDocument[skillFrontmatter](
+	parsed, err := definition.ParseDocument[SkillMetadata](
 		source.Content,
 		source.Path,
 		definition.ParseDocumentOptions{
@@ -120,12 +113,7 @@ func loadSkill(root string, source definition.SourceFile) (Skill, error) {
 		return Skill{}, err
 	}
 
-	metadata := normalizeMetadata(SkillMetadata{
-		Name:        parsed.FrontMatter.Name,
-		Description: parsed.FrontMatter.Description,
-		WhenToUse:   parsed.FrontMatter.WhenToUse,
-		Tags:        parsed.FrontMatter.Tags,
-	})
+	metadata := normalizeMetadata(parsed.FrontMatter)
 	if err := validateMetadata(metadata); err != nil {
 		return Skill{}, fmt.Errorf("%s: %w", parsed.Path, err)
 	}

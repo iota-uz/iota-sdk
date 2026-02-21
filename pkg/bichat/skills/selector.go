@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	mentionRegex = regexp.MustCompile(`@([a-z0-9][a-z0-9_/-]*)`)
+	mentionRegex = regexp.MustCompile(`(^|[\s[:punct:]])@([a-z0-9][a-z0-9_/-]*)`)
 	tokenRegex   = regexp.MustCompile(`[a-z0-9]+`)
 )
 
@@ -145,10 +145,10 @@ func parseMentionedSlugs(message string) []string {
 
 	result := make([]string, 0, len(matches))
 	for _, match := range matches {
-		if len(match) < 2 {
+		if len(match) < 3 {
 			continue
 		}
-		slug := strings.Trim(strings.ToLower(match[1]), "/")
+		slug := strings.Trim(strings.ToLower(match[2]), "/")
 		if slug == "" {
 			continue
 		}

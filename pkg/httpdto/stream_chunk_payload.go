@@ -1,7 +1,6 @@
 package httpdto
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
@@ -37,7 +36,7 @@ type InterruptEventPayload struct {
 type StreamChunkPayload struct {
 	Type         string                 `json:"type"`
 	Content      string                 `json:"content,omitempty"`
-	Citation     *domain.Citation       `json:"citation,omitempty"`
+	Citation     *types.Citation        `json:"citation,omitempty"`
 	Usage        *types.DebugUsage      `json:"usage,omitempty"`
 	Tool         *ToolEventPayload      `json:"tool,omitempty"`
 	Interrupt    *InterruptEventPayload `json:"interrupt,omitempty"`

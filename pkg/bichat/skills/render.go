@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 func RenderReference(selected []SelectedSkill, maxChars int) string {
@@ -22,23 +23,23 @@ func RenderReference(selected []SelectedSkill, maxChars int) string {
 	var b strings.Builder
 	header := "SKILLS CONTEXT:\nUse these project skills when relevant.\n\n"
 	b.WriteString(header)
+	runeCount := utf8.RuneCountInString(header)
 
 	included := 0
 	for _, item := range sorted {
 		section := renderSkillSection(item)
-		if maxChars > 0 && b.Len()+len(section) > maxChars {
+		sectionRunes := utf8.RuneCountInString(section)
+		if maxChars > 0 && runeCount+sectionRunes > maxChars {
 			continue
 		}
 		b.WriteString(section)
+		runeCount += sectionRunes
 		included++
 	}
 
 	if included == 0 {
-		if maxChars > 0 {
-			fallback := strings.TrimSpace(header + renderSkillSection(sorted[0]))
-			return trimToChars(fallback, maxChars)
-		}
-		return ""
+		fallback := strings.TrimSpace(header + renderSkillSection(sorted[0]))
+		return trimToChars(fallback, maxChars)
 	}
 
 	return strings.TrimSpace(b.String())

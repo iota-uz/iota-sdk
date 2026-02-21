@@ -274,12 +274,12 @@ func TestChatController_OwnershipVsReadAllPermission_Integration(t *testing.T) {
 	require.Contains(t, w2.Body.String(), session.ID().String())
 }
 
-func TestStreamController_DebugMode_ForbiddenWithoutExportPermission_Integration(t *testing.T) {
+func TestStreamController_DebugMode_AllowedWithoutExtraPermission_Integration(t *testing.T) {
 	t.Parallel()
 
 	env := setupControllerTest(t)
 	u := createCoreUser(t, env, "bichat-controllers-debug-noexport@example.com").
-		AddPermission(bichatperm.BiChatAccess) // no BiChatExport
+		AddPermission(bichatperm.BiChatAccess)
 
 	deps := newControllerDeps(t)
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "s")
@@ -302,7 +302,9 @@ func TestStreamController_DebugMode_ForbiddenWithoutExportPermission_Integration
 	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewReader(data))
 	r.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
+	require.Contains(t, w.Body.String(), `"type":"done"`)
 }
 
 func TestStreamController_DebugMode_AllowedWithExportPermission_Integration(t *testing.T) {

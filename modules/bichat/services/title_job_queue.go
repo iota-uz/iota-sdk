@@ -8,12 +8,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 const (
 	defaultTitleQueueStream       = "bichat:title:jobs"
 	defaultTitleQueueDedupePrefix = "bichat:title:dedupe"
 	defaultTitleQueueDedupeTTL    = 30 * time.Minute
+	defaultTitleQueueMaxLen       = 10_000
 )
 
 // TitleJobQueue enqueues async title generation work.
@@ -72,24 +74,28 @@ func NewRedisTitleJobQueue(cfg RedisTitleJobQueueConfig) (*RedisTitleJobQueue, e
 }
 
 func (q *RedisTitleJobQueue) Enqueue(ctx context.Context, tenantID uuid.UUID, sessionID uuid.UUID) error {
+	const op serrors.Op = "RedisTitleJobQueue.Enqueue"
 	if tenantID == uuid.Nil {
-		return fmt.Errorf("tenant id is required")
+		return serrors.E(op, serrors.KindValidation, "tenant id is required")
 	}
 	if sessionID == uuid.Nil {
-		return fmt.Errorf("session id is required")
+		return serrors.E(op, serrors.KindValidation, "session id is required")
 	}
 
 	dedupeKey := q.dedupeKey(tenantID, sessionID)
-	queued, err := q.client.SetNX(ctx, dedupeKey, "1", q.dedupeTTL).Result()
+	enqueueCtx := context.WithoutCancel(ctx)
+	queued, err := q.client.SetNX(enqueueCtx, dedupeKey, "1", q.dedupeTTL).Result()
 	if err != nil {
-		return fmt.Errorf("set title queue dedupe key: %w", err)
+		return serrors.E(op, "set title queue dedupe key", err)
 	}
 	if !queued {
 		return nil
 	}
 
-	_, err = q.client.XAdd(ctx, &redis.XAddArgs{
+	_, err = q.client.XAdd(enqueueCtx, &redis.XAddArgs{
 		Stream: q.stream,
+		MaxLen: defaultTitleQueueMaxLen,
+		Approx: true,
 		Values: map[string]any{
 			"tenant_id":   tenantID.String(),
 			"session_id":  sessionID.String(),
@@ -98,9 +104,11 @@ func (q *RedisTitleJobQueue) Enqueue(ctx context.Context, tenantID uuid.UUID, se
 		},
 	}).Result()
 	if err != nil {
-		_, _ = q.client.Del(ctx, dedupeKey).Result()
-		return fmt.Errorf("enqueue title job: %w", err)
+		cleanupCtx := context.WithoutCancel(ctx)
+		_, _ = q.client.Del(cleanupCtx, dedupeKey).Result()
+		return serrors.E(op, "enqueue title job", err)
 	}
+	_, _ = q.client.XTrimMaxLenApprox(enqueueCtx, q.stream, defaultTitleQueueMaxLen, 1).Result()
 
 	return nil
 }
@@ -114,9 +122,10 @@ func (q *RedisTitleJobQueue) dedupeKey(tenantID uuid.UUID, sessionID uuid.UUID) 
 }
 
 func newRedisClient(redisURL string) (*redis.Client, error) {
+	const op serrors.Op = "RedisTitleJobQueue.newRedisClient"
 	redisURL = strings.TrimSpace(redisURL)
 	if redisURL == "" {
-		return nil, fmt.Errorf("redis url is required")
+		return nil, serrors.E(op, serrors.KindValidation, "redis url is required")
 	}
 
 	var opts *redis.Options
@@ -124,7 +133,7 @@ func newRedisClient(redisURL string) (*redis.Client, error) {
 	if strings.Contains(redisURL, "://") {
 		opts, err = redis.ParseURL(redisURL)
 		if err != nil {
-			return nil, fmt.Errorf("parse redis url: %w", err)
+			return nil, serrors.E(op, "parse redis url", err)
 		}
 	} else {
 		opts = &redis.Options{Addr: redisURL}
@@ -133,7 +142,7 @@ func newRedisClient(redisURL string) (*redis.Client, error) {
 	client := redis.NewClient(opts)
 	if pingErr := client.Ping(context.Background()).Err(); pingErr != nil {
 		_ = client.Close()
-		return nil, fmt.Errorf("ping redis: %w", pingErr)
+		return nil, serrors.E(op, "ping redis", pingErr)
 	}
 
 	return client, nil

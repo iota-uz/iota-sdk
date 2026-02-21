@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -133,13 +132,6 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
-	}
-
-	if req.DebugMode {
-		if err := composables.CanUser(r.Context(), bichatperm.BiChatExport); err != nil {
-			http.Error(w, "Access denied", http.StatusForbidden)
-			return
-		}
 	}
 
 	domainAttachments, err := convertAttachmentDTOs(r.Context(), req.Attachments)

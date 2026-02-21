@@ -52,6 +52,7 @@ var (
 	_ agents.StructuredTool = (*GetCurrentTimeTool)(nil)
 	_ agents.StructuredTool = (*ArtifactReaderTool)(nil)
 	_ agents.StructuredTool = (*DrawChartTool)(nil)
+	_ agents.StructuredTool = (*RenderTableTool)(nil)
 	_ agents.StructuredTool = (*ExportToExcelTool)(nil)
 	_ agents.StructuredTool = (*ExportToPDFTool)(nil)
 	_ agents.StructuredTool = (*ExportQueryToExcelTool)(nil)
