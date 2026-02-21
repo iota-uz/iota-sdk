@@ -2,10 +2,12 @@ package llmproviders
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -24,6 +26,8 @@ type userContentPart struct {
 	kind  int
 	value string
 }
+
+const webFetchToolName = "web_fetch"
 
 // resolveImageUploadsForMessages resolves all image upload IDs in the message list up front.
 // Returns uploadID -> provider fileID. Resolution failures are omitted (and will be treated as unavailable in content normalization).
@@ -49,10 +53,10 @@ func (m *OpenAIModel) resolveImageUploadsForMessages(ctx context.Context, messag
 	return out
 }
 
-// validToolCallIDsFromMessages returns the set of tool call IDs that have both non-empty ID and name.
+// validToolCallIDsFromMessages returns tool call IDs mapped to tool name for valid calls.
 // Invalid tool calls are logged; their outputs will be skipped when mapping.
-func (m *OpenAIModel) validToolCallIDsFromMessages(messages []types.Message) map[string]struct{} {
-	valid := make(map[string]struct{})
+func (m *OpenAIModel) validToolCallIDsFromMessages(messages []types.Message) map[string]string {
+	valid := make(map[string]string)
 	for _, msg := range messages {
 		if msg.Role() != types.RoleAssistant {
 			continue
@@ -61,7 +65,7 @@ func (m *OpenAIModel) validToolCallIDsFromMessages(messages []types.Message) map
 			callID := strings.TrimSpace(tc.ID)
 			callName := strings.TrimSpace(tc.Name)
 			if callID != "" && callName != "" {
-				valid[callID] = struct{}{}
+				valid[callID] = callName
 				continue
 			}
 			m.logger.Warn(context.Background(), "skipping tool call with empty name or ID in buildInputItems", map[string]any{
@@ -188,7 +192,7 @@ func (m *OpenAIModel) buildInputItems(messages []types.Message) responses.Respon
 
 func (m *OpenAIModel) buildInputItemsWithContext(ctx context.Context, messages []types.Message) responses.ResponseInputParam {
 	resolved := m.resolveImageUploadsForMessages(ctx, messages)
-	validToolCallIDs := m.validToolCallIDsFromMessages(messages)
+	validToolCalls := m.validToolCallIDsFromMessages(messages)
 
 	items := make(responses.ResponseInputParam, 0, len(messages))
 
@@ -247,8 +251,18 @@ func (m *OpenAIModel) buildInputItemsWithContext(ctx context.Context, messages [
 			if callID == "" {
 				continue
 			}
-			if _, ok := validToolCallIDs[callID]; !ok {
+			toolName, ok := validToolCalls[callID]
+			if !ok {
 				continue
+			}
+			if toolName == webFetchToolName {
+				if richOutput, ok := buildWebFetchFunctionCallOutput(msg.Content()); ok {
+					items = append(items, responses.ResponseInputItemParamOfFunctionCallOutput(
+						callID,
+						richOutput,
+					))
+					continue
+				}
 			}
 			items = append(items, responses.ResponseInputItemParamOfFunctionCallOutput(
 				callID,
@@ -258,4 +272,81 @@ func (m *OpenAIModel) buildInputItemsWithContext(ctx context.Context, messages [
 	}
 
 	return items
+}
+
+type webFetchToolOutput struct {
+	SourceURL     string `json:"source_url"`
+	ContentType   string `json:"content_type"`
+	SizeBytes     int64  `json:"size_bytes"`
+	Injectable    bool   `json:"injectable"`
+	InjectionType string `json:"injection_type"`
+	InjectionURL  string `json:"injection_url"`
+	Saved         bool   `json:"saved"`
+	SavedURL      string `json:"saved_url"`
+	Filename      string `json:"filename"`
+}
+
+func buildWebFetchFunctionCallOutput(raw string) (responses.ResponseFunctionCallOutputItemListParam, bool) {
+	var payload webFetchToolOutput
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return nil, false
+	}
+
+	if strings.TrimSpace(payload.SourceURL) == "" &&
+		strings.TrimSpace(payload.ContentType) == "" &&
+		strings.TrimSpace(payload.InjectionURL) == "" {
+		return nil, false
+	}
+
+	items := make(responses.ResponseFunctionCallOutputItemListParam, 0, 2)
+	items = append(items, responses.ResponseFunctionCallOutputItemParamOfInputText(webFetchSummary(payload)))
+
+	injectionURL := strings.TrimSpace(payload.InjectionURL)
+	if payload.Injectable && injectionURL != "" {
+		switch strings.TrimSpace(payload.InjectionType) {
+		case "input_image":
+			items = append(items, responses.ResponseFunctionCallOutputItemUnionParam{
+				OfInputImage: &responses.ResponseInputImageContentParam{
+					ImageURL: param.NewOpt(injectionURL),
+					Detail:   responses.ResponseInputImageContentDetailLow,
+				},
+			})
+		case "input_file":
+			file := &responses.ResponseInputFileContentParam{
+				FileURL: param.NewOpt(injectionURL),
+			}
+			if filename := strings.TrimSpace(payload.Filename); filename != "" {
+				file.Filename = param.NewOpt(filename)
+			}
+			items = append(items, responses.ResponseFunctionCallOutputItemUnionParam{
+				OfInputFile: file,
+			})
+		}
+	}
+
+	return items, true
+}
+
+func webFetchSummary(payload webFetchToolOutput) string {
+	sourceURL := strings.TrimSpace(payload.SourceURL)
+	if sourceURL == "" {
+		sourceURL = "unknown source"
+	}
+
+	contentType := strings.TrimSpace(payload.ContentType)
+	if contentType == "" {
+		contentType = "unknown content"
+	}
+
+	summary := fmt.Sprintf("web_fetch retrieved %s from %s", contentType, sourceURL)
+	if payload.SizeBytes > 0 {
+		summary += fmt.Sprintf(" (%d bytes)", payload.SizeBytes)
+	}
+	summary += "."
+
+	if payload.Saved && strings.TrimSpace(payload.SavedURL) != "" {
+		summary += " Saved to artifacts."
+	}
+
+	return summary
 }

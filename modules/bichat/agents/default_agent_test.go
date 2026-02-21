@@ -139,6 +139,7 @@ func TestDefaultBIAgent_CoreTools(t *testing.T) {
 	// Core tools that should always be present
 	coreTools := []string{
 		"get_current_time",
+		"web_fetch",
 		"schema_list",
 		"schema_describe",
 		"sql_execute",

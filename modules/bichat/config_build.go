@@ -233,6 +233,9 @@ func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
 			bichatartifacts.NewArtifactReaderTool(c.ChatRepo, fileStorage),
 		))
 	}
+	if fileStorage != nil {
+		opts = append(opts, bichatagents.WithWebFetchStorage(fileStorage))
+	}
 
 	parentAgent, err := bichatagents.NewDefaultBIAgent(c.QueryExecutor, opts...)
 	if err != nil {

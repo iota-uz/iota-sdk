@@ -620,6 +620,114 @@ func TestOpenAIModel_BuildInputItems_SkipsInvalidToolCalls(t *testing.T) {
 	assert.Len(t, items, 3)
 }
 
+func TestOpenAIModel_BuildInputItems_WebFetchImageRichOutput(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	messages := []types.Message{
+		types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+			ID:        "call_web_1",
+			Name:      "web_fetch",
+			Arguments: `{"url":"https://example.com/chart.png"}`,
+		})),
+		types.ToolResponse("call_web_1", `{"source_url":"https://example.com/chart.png","content_type":"image/png","size_bytes":1234,"injectable":true,"injection_type":"input_image","injection_url":"https://example.com/chart.png","saved":false,"filename":"chart.png"}`),
+	}
+
+	items := oaiModel.buildInputItems(messages)
+	serialized, err := json.Marshal(items)
+	require.NoError(t, err)
+
+	payload := string(serialized)
+	assert.Contains(t, payload, `"input_text"`)
+	assert.Contains(t, payload, `"input_image"`)
+	assert.Contains(t, payload, "https://example.com/chart.png")
+}
+
+func TestOpenAIModel_BuildInputItems_WebFetchPDFRichOutput(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	messages := []types.Message{
+		types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+			ID:        "call_web_2",
+			Name:      "web_fetch",
+			Arguments: `{"url":"https://example.com/report.pdf"}`,
+		})),
+		types.ToolResponse("call_web_2", `{"source_url":"https://example.com/report.pdf","content_type":"application/pdf","size_bytes":2222,"injectable":true,"injection_type":"input_file","injection_url":"https://example.com/report.pdf","saved":false,"filename":"report.pdf"}`),
+	}
+
+	items := oaiModel.buildInputItems(messages)
+	serialized, err := json.Marshal(items)
+	require.NoError(t, err)
+
+	payload := string(serialized)
+	assert.Contains(t, payload, `"input_text"`)
+	assert.Contains(t, payload, `"input_file"`)
+	assert.Contains(t, payload, `"report.pdf"`)
+}
+
+func TestOpenAIModel_BuildInputItems_NonWebFetchToolOutputUnchanged(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	messages := []types.Message{
+		types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+			ID:        "call_sql_1",
+			Name:      "sql_execute",
+			Arguments: `{"query":"SELECT 1"}`,
+		})),
+		types.ToolResponse("call_sql_1", `{"rows":[[1]]}`),
+	}
+
+	items := oaiModel.buildInputItems(messages)
+	serialized, err := json.Marshal(items)
+	require.NoError(t, err)
+
+	payload := string(serialized)
+	assert.NotContains(t, payload, `"input_image"`)
+	assert.NotContains(t, payload, `"input_file"`)
+	assert.Contains(t, payload, `{\"rows\":[[1]]}`)
+}
+
+func TestOpenAIModel_BuildInputItems_WebFetchInvalidJSONFallsBackToStringOutput(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	messages := []types.Message{
+		types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+			ID:        "call_web_3",
+			Name:      "web_fetch",
+			Arguments: `{"url":"https://example.com/file"}`,
+		})),
+		types.ToolResponse("call_web_3", `not-json`),
+	}
+
+	items := oaiModel.buildInputItems(messages)
+	serialized, err := json.Marshal(items)
+	require.NoError(t, err)
+
+	payload := string(serialized)
+	assert.NotContains(t, payload, `"input_image"`)
+	assert.NotContains(t, payload, `"input_file"`)
+	assert.Contains(t, payload, "not-json")
+}
+
 func TestOpenAIModel_BuildInputItems_OnlyImagesBecomeInputImage(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()

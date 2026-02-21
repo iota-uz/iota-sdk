@@ -244,6 +244,7 @@ func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T
 	assert.True(t, toolNames["search_validated_queries"])
 	assert.True(t, toolNames["save_validated_query"])
 	assert.True(t, toolNames["code_interpreter"])
+	assert.True(t, toolNames["web_fetch"])
 	assert.Equal(t, "gpt-test", cfg.ParentAgent.Metadata().Model)
 }
 
