@@ -3,6 +3,7 @@ package llmproviders
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
 	"net/url"
 	"os"
@@ -13,6 +14,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	openai "github.com/openai/openai-go/v3"
 )
+
+// ErrUploadNotFound is returned by FindImageUpload when the requested upload record does not exist.
+var ErrUploadNotFound = errors.New("upload not found")
 
 // OpenAIImageUploadRecord contains upload metadata needed by input mapper.
 type OpenAIImageUploadRecord struct {
@@ -47,7 +51,7 @@ func (l *coreOpenAIImageUploadLookup) FindImageUpload(ctx context.Context, uploa
 		return nil, err
 	}
 	if len(uploads) == 0 {
-		return nil, nil
+		return nil, ErrUploadNotFound
 	}
 
 	entity := uploads[0]
@@ -80,16 +84,16 @@ func (m *OpenAIModel) resolveImageUploadFileID(
 	}
 
 	record, err := lookup.FindImageUpload(ctx, uploadID)
+	if errors.Is(err, ErrUploadNotFound) {
+		m.logger.Warn(ctx, "image upload id not found for OpenAI input_file", map[string]any{
+			"upload_id": uploadID,
+		})
+		return ""
+	}
 	if err != nil {
 		m.logger.Warn(ctx, "failed to resolve image upload for OpenAI input_file", map[string]any{
 			"upload_id": uploadID,
 			"error":     err.Error(),
-		})
-		return ""
-	}
-	if record == nil {
-		m.logger.Warn(ctx, "image upload id not found for OpenAI input_file", map[string]any{
-			"upload_id": uploadID,
 		})
 		return ""
 	}

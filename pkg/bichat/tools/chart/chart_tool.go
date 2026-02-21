@@ -162,7 +162,7 @@ func (t *DrawChartTool) CallStructured(ctx context.Context, input string) (*type
 	}
 
 	if err := t.validateChartType(params.ChartType); err != nil {
-		return &types.ToolResult{
+		return &types.ToolResult{ //nolint:nilerr // validation error is surfaced as a structured ToolResult; callers receive CodecToolError payload instead of a Go error
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(tools.ErrCodeInvalidRequest),
@@ -173,7 +173,7 @@ func (t *DrawChartTool) CallStructured(ctx context.Context, input string) (*type
 	}
 
 	if err := t.validate(params.ChartType, params.Series, params.Labels, params.Colors, params.Height); err != nil {
-		return &types.ToolResult{
+		return &types.ToolResult{ //nolint:nilerr // validation error is surfaced as a structured ToolResult; callers receive CodecToolError payload instead of a Go error
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(tools.ErrCodeInvalidRequest),

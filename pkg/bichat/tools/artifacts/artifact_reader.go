@@ -273,7 +273,7 @@ func (t *ArtifactReaderTool) readArtifactStructured(
 ) (*types.ToolResult, error) {
 	artifact, err := t.resolveArtifact(ctx, sessionID, artifactID, artifactName)
 	if err != nil {
-		return &types.ToolResult{
+		return &types.ToolResult{ //nolint:nilerr // resolution error is surfaced as a structured ToolResult; callers receive CodecToolError payload instead of a Go error
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(tools.ErrCodeInvalidRequest),

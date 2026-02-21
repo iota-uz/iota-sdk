@@ -105,7 +105,7 @@ func TestRenderTableTool_CallStructured_PolicyViolation(t *testing.T) {
 	payload, ok := result.Payload.(types.ToolErrorPayload)
 	require.True(t, ok)
 	assert.Equal(t, string(tools.ErrCodePolicyViolation), payload.Code)
-	assert.True(t, strings.Contains(strings.ToUpper(payload.Message), "SELECT"))
+	assert.Contains(t, strings.ToUpper(payload.Message), "SELECT")
 }
 
 func TestRenderTableTool_CallStructured_InvalidPageSize(t *testing.T) {

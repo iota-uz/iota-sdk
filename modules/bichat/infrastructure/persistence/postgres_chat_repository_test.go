@@ -1320,7 +1320,7 @@ func TestPostgresChatRepository_TenantIsolation_UpdateSessionTitleIfEmpty(t *tes
 
 	stored, err := repo.GetSession(envA.Ctx, sessionA.ID())
 	require.NoError(t, err)
-	assert.Equal(t, "", stored.Title())
+	assert.Empty(t, stored.Title())
 }
 
 func TestPostgresChatRepository_TenantIsolation_Messages(t *testing.T) {

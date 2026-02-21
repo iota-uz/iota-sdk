@@ -94,7 +94,7 @@ func (r *OpenAICodeInterpreterArtifactResolver) ResolveCodeInterpreterFileIDs(
 		filename := strings.TrimSpace(artifact.Name())
 		contentType := strings.TrimSpace(artifact.MimeType())
 
-		sourceKey := ""
+		var sourceKey string
 		var data []byte
 		if artifact.UploadID() != nil && *artifact.UploadID() > 0 {
 			uploadID := uint(*artifact.UploadID())

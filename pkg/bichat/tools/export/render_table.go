@@ -205,7 +205,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 	}
 
 	if err := toolsql.ValidateReadOnlyQuery(normalizedQuery); err != nil {
-		return &types.ToolResult{
+		return &types.ToolResult{ //nolint:nilerr // validation error is surfaced as a structured ToolResult; callers receive CodecToolError payload instead of a Go error
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(tools.ErrCodePolicyViolation),
