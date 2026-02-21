@@ -89,7 +89,7 @@ func normalizeUserContent(msg types.Message, resolved map[int64]string) []userCo
 		parts = append(parts, userContentPart{kind: userPartText, value: msg.Content()})
 	}
 
-	var noteLines []string
+	noteLines := make([]string, 0, len(attachments))
 	for _, att := range attachments {
 		mime := strings.ToLower(strings.TrimSpace(att.MimeType))
 		isImage := strings.HasPrefix(mime, "image/")
