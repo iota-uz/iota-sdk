@@ -11,7 +11,7 @@ import (
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
-	bichattools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	bichatartifacts "github.com/iota-uz/iota-sdk/pkg/bichat/tools/artifacts"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -229,7 +229,7 @@ func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
 	}
 	if c.ChatRepo != nil && fileStorage != nil {
 		opts = append(opts, bichatagents.WithArtifactReaderTool(
-			bichattools.NewArtifactReaderTool(c.ChatRepo, fileStorage),
+			bichatartifacts.NewArtifactReaderTool(c.ChatRepo, fileStorage),
 		))
 	}
 

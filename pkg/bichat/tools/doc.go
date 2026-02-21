@@ -42,17 +42,17 @@
 // Tools accept dependencies via constructors, allowing consumers to provide
 // custom implementations:
 //
-//	// SQL executor service
-//	executor := tools.NewDefaultQueryExecutor(pool)
-//	sqlTool := tools.NewSQLExecuteTool(executor)
+//	// SQL executor service (tools/sql sub-package)
+//	executor := toolsql.NewDefaultQueryExecutor(pool)
+//	sqlTool := toolsql.NewSQLExecuteTool(executor)
 //
-//	// Knowledge base searcher
+//	// Knowledge base searcher (tools/kb sub-package)
 //	searcher := kb.NewBleveSearcher(indexPath)
-//	kbTool := tools.NewKBSearchTool(searcher)
+//	kbTool := toolkb.NewKBSearchTool(searcher)
 //
-//	// Excel exporter
-//	exporter := tools.NewDefaultExcelExporter("/exports", "https://example.com/exports")
-//	excelTool := tools.NewExportToExcelTool(exporter)
+//	// Excel exporter (tools/export sub-package)
+//	exporter := export.NewDefaultExcelExporter("/exports", "https://example.com/exports")
+//	excelTool := export.NewExportToExcelTool(exporter)
 //
 // # Custom Implementations
 //
@@ -67,7 +67,7 @@
 //	}
 //
 //	executor := &CustomQueryExecutor{db: db}
-//	sqlTool := tools.NewSQLExecuteTool(executor)
+//	sqlTool := toolsql.NewSQLExecuteTool(executor)
 //
 // # HITL Interrupts
 //

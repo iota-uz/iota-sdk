@@ -11,7 +11,7 @@ Pre-configured BI agent with SQL, schema, visualization, and HITL tools.
 ```go
 import bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 
-executor := tools.NewDefaultQueryExecutor(dbPool)
+executor := toolsql.NewDefaultQueryExecutor(dbPool)
 agent, err := bichatagents.NewDefaultBIAgent(executor)
 ```
 
@@ -21,18 +21,18 @@ agent, err := bichatagents.NewDefaultBIAgent(executor)
 import (
     bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
     "github.com/iota-uz/iota-sdk/pkg/bichat/storage"
-    "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+    "github.com/iota-uz/iota-sdk/pkg/bichat/tools/export"
 )
 
 // Create file storage for exports
 fileStorage, _ := storage.NewLocalFileStorage("/var/lib/bichat/exports", "https://example.com/exports")
 
 // Create export tools
-excelTool := tools.NewExportToExcelTool(
-    tools.WithOutputDir("/var/lib/bichat/exports"),
-    tools.WithBaseURL("https://example.com/exports"),
+excelTool := export.NewExportToExcelTool(
+    export.WithOutputDir("/var/lib/bichat/exports"),
+    export.WithBaseURL("https://example.com/exports"),
 )
-pdfTool := tools.NewExportToPDFTool("http://gotenberg:3000", fileStorage)
+pdfTool := export.NewExportToPDFTool("http://gotenberg:3000", fileStorage)
 
 // Create agent with optional features
 agent, _ := bichatagents.NewDefaultBIAgent(

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTitleGenerationService_NoMessagesUsesDeterministicFallback(t *testing.T) {
+func TestSessionTitleService_NoMessagesUsesDeterministicFallback(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
@@ -34,7 +34,7 @@ func TestTitleGenerationService_NoMessagesUsesDeterministicFallback(t *testing.T
 	assert.Equal(t, "Untitled Chat", updated.Title())
 }
 
-func TestTitleGenerationService_ModelFailureFallsBackToExtractedTitle(t *testing.T) {
+func TestSessionTitleService_ModelFailureFallsBackToExtractedTitle(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
@@ -60,7 +60,7 @@ func TestTitleGenerationService_ModelFailureFallsBackToExtractedTitle(t *testing
 	assert.NotEqual(t, "Untitled Chat", updated.Title())
 }
 
-func TestTitleGenerationService_NoUserMessageFallsBackToUntitled(t *testing.T) {
+func TestSessionTitleService_NoUserMessageFallsBackToUntitled(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()

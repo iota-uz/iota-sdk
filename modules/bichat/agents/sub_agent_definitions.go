@@ -13,7 +13,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/artifacts"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/hitl"
+	toolsql "github.com/iota-uz/iota-sdk/pkg/bichat/tools/sql"
 )
 
 const DefaultSubAgentDefinitionsBasePath = "definitions"
@@ -224,7 +226,7 @@ func resolveSubAgentTools(toolKeys []string, deps SubAgentDependencies) ([]corea
 					bichatsql.WithCacheKeyFunc(tenantCacheKey),
 				)
 			}
-			resolved = append(resolved, tools.NewSchemaListTool(schemaLister, tools.WithSchemaListViewAccess(deps.ViewAccess)))
+			resolved = append(resolved, toolsql.NewSchemaListTool(schemaLister, toolsql.WithSchemaListViewAccess(deps.ViewAccess)))
 		case "schema_describe":
 			if deps.QueryExecutor == nil {
 				return nil, fmt.Errorf("tool %q requires query executor", name)
@@ -232,12 +234,12 @@ func resolveSubAgentTools(toolKeys []string, deps SubAgentDependencies) ([]corea
 			if schemaDescriber == nil {
 				schemaDescriber = bichatsql.NewQueryExecutorSchemaDescriber(deps.QueryExecutor)
 			}
-			resolved = append(resolved, tools.NewSchemaDescribeTool(schemaDescriber, tools.WithSchemaDescribeViewAccess(deps.ViewAccess)))
+			resolved = append(resolved, toolsql.NewSchemaDescribeTool(schemaDescriber, toolsql.WithSchemaDescribeViewAccess(deps.ViewAccess)))
 		case "sql_execute":
 			if deps.QueryExecutor == nil {
 				return nil, fmt.Errorf("tool %q requires query executor", name)
 			}
-			resolved = append(resolved, tools.NewSQLExecuteTool(deps.QueryExecutor, tools.WithViewAccessControl(deps.ViewAccess)))
+			resolved = append(resolved, toolsql.NewSQLExecuteTool(deps.QueryExecutor, toolsql.WithViewAccessControl(deps.ViewAccess)))
 		case "artifact_reader":
 			if deps.ArtifactReaderTool != nil {
 				resolved = append(resolved, deps.ArtifactReaderTool)
@@ -249,9 +251,9 @@ func resolveSubAgentTools(toolKeys []string, deps SubAgentDependencies) ([]corea
 			if deps.FileStorage == nil {
 				return nil, fmt.Errorf("tool %q requires file storage", name)
 			}
-			resolved = append(resolved, tools.NewArtifactReaderTool(deps.ChatRepository, deps.FileStorage))
+			resolved = append(resolved, artifacts.NewArtifactReaderTool(deps.ChatRepository, deps.FileStorage))
 		case "ask_user_question":
-			resolved = append(resolved, tools.NewAskUserQuestionTool())
+			resolved = append(resolved, hitl.NewAskUserQuestionTool())
 		default:
 			return nil, fmt.Errorf("unknown tool %q", name)
 		}

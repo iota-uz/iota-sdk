@@ -12,7 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/export"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -187,11 +187,11 @@ func TestDefaultBIAgent_WithExportTools(t *testing.T) {
 	fileStorage := &mockFileStorage{}
 
 	// Create export tools
-	excelTool := tools.NewExportToExcelTool(
-		tools.WithOutputDir("/tmp/exports"),
-		tools.WithBaseURL("http://localhost/exports"),
+	excelTool := export.NewExportToExcelTool(
+		export.WithOutputDir("/tmp/exports"),
+		export.WithBaseURL("http://localhost/exports"),
 	)
-	pdfTool := tools.NewExportToPDFTool("http://gotenberg:3000", fileStorage)
+	pdfTool := export.NewExportToPDFTool("http://gotenberg:3000", fileStorage)
 
 	// Create agent with export tools
 	agent, err := NewDefaultBIAgent(
@@ -375,8 +375,8 @@ func TestDefaultBIAgent_AllOptions(t *testing.T) {
 		WithKBSearcher(kbSearcher),
 		WithModel("claude-opus-4-6"),
 		WithExportTools(
-			tools.NewExportToExcelTool(),
-			tools.NewExportToPDFTool("http://gotenberg:3000", fileStorage),
+			export.NewExportToExcelTool(),
+			export.NewExportToPDFTool("http://gotenberg:3000", fileStorage),
 		),
 	)
 	require.NoError(t, err)

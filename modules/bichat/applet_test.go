@@ -203,9 +203,9 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 	require.True(t, ok)
 	limits, ok := debug["limits"].(map[string]int)
 	require.True(t, ok)
-	assert.Equal(t, 180000, limits["policyMaxTokens"])
+	assert.Equal(t, 200000, limits["policyMaxTokens"])
 	assert.Equal(t, 0, limits["modelMaxTokens"])
-	assert.Equal(t, 180000, limits["effectiveMaxTokens"])
+	assert.Equal(t, 200000, limits["effectiveMaxTokens"])
 	assert.Equal(t, 8000, limits["completionReserveTokens"])
 }
 

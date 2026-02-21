@@ -40,7 +40,7 @@ type sessionTitleService struct {
 }
 
 // NewSessionTitleService creates a session title service.
-func NewSessionTitleService(model agents.Model, chatRepo domain.ChatRepository, eventBus hooks.EventBus) (*sessionTitleService, error) {
+func NewSessionTitleService(model agents.Model, chatRepo domain.ChatRepository, eventBus hooks.EventBus) (TitleService, error) {
 	const op serrors.Op = "NewSessionTitleService"
 
 	if model == nil {
