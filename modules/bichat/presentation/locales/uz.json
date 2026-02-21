@@ -255,6 +255,9 @@
       "TryAgain": "Qayta urinish",
       "PleaseWait": "Kutib turing..."
     },
+    "ScrollToBottom": {
+      "NewMessages": "Yangi xabarlar"
+    },
     "Chat": {
       "NewChat": "Yangi chat",
       "GoBack": "Orqaga",

@@ -255,6 +255,9 @@
       "TryAgain": "Попробовать снова",
       "PleaseWait": "Подождите..."
     },
+    "ScrollToBottom": {
+      "NewMessages": "Новые сообщения"
+    },
     "Chat": {
       "NewChat": "Новый чат",
       "GoBack": "Назад",

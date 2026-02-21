@@ -255,6 +255,9 @@
       "TryAgain": "Try Again",
       "PleaseWait": "Please wait..."
     },
+    "ScrollToBottom": {
+      "NewMessages": "New messages"
+    },
     "Chat": {
       "NewChat": "New Chat",
       "GoBack": "Go back",

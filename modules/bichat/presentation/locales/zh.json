@@ -255,6 +255,9 @@
       "TryAgain": "重试",
       "PleaseWait": "请稍候..."
     },
+    "ScrollToBottom": {
+      "NewMessages": "新消息"
+    },
     "Chat": {
       "NewChat": "新聊天",
       "GoBack": "返回",

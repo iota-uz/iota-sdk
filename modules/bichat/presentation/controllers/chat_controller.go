@@ -175,7 +175,9 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Title string `json:"title"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return
 	}
@@ -265,7 +267,9 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		Content     string                `json:"content"`
 		Attachments []AttachmentUploadDTO `json:"attachments"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return
 	}
@@ -329,7 +333,9 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		CheckpointID string            `json:"checkpointId"`
 		Answers      map[string]string `json:"answers"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return
 	}
