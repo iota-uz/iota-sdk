@@ -1,7 +1,7 @@
 ---
 name: excel-analyst
 description: Specialized agent for spreadsheet attachments and large attachment-driven analysis
-model: gpt-5.2-2025-12-11
+model: gpt-5.2
 tools:
   - artifact_reader
   - ask_user_question

@@ -58,6 +58,7 @@ func NewModuleWithConfig(cfg *ModuleConfig) *Module {
 
 type Module struct {
 	config                 *ModuleConfig
+	container              *ServiceContainer
 	observabilityProviders []observability.Provider
 	eventBridge            *observability.EventBridge
 	titleWorker            *services.TitleJobWorker
@@ -68,12 +69,6 @@ type Module struct {
 func (m *Module) Register(app application.Application) error {
 	// Register translation files
 	app.RegisterLocaleFiles(&LocaleFiles)
-
-	// Register BiChat applet (unified applet system)
-	bichatApplet := NewBiChatApplet(m.config)
-	if err := app.RegisterApplet(bichatApplet); err != nil {
-		return fmt.Errorf("failed to register BiChat applet: %w", err)
-	}
 
 	controllersToRegister := []application.Controller{}
 
@@ -87,18 +82,20 @@ func (m *Module) Register(app application.Application) error {
 		}
 
 		// Build services (fail fast - no try/continue)
-		if err := m.config.BuildServices(); err != nil {
+		container, err := m.config.BuildServices()
+		if err != nil {
 			return fmt.Errorf("failed to build BiChat services: %w", err)
 		}
+		m.container = container
 
-		chatService := m.config.ChatService()
-		agentService := m.config.AgentService()
-		attachmentService := m.config.AttachmentService()
-		artifactService := m.config.ArtifactService()
+		chatService := container.ChatService()
+		agentService := container.AgentService()
+		attachmentService := container.AttachmentService()
+		artifactService := container.ArtifactService()
 		app.RegisterServices(chatService, agentService, attachmentService, artifactService)
 
 		if m.titleWorker == nil {
-			worker, err := m.config.NewTitleJobWorker(app.DB())
+			worker, err := container.NewTitleJobWorker(app.DB())
 			if err != nil && !errors.Is(err, ErrTitleJobWorkerDisabled) {
 				return fmt.Errorf("failed to create title job worker: %w", err)
 			}
@@ -148,6 +145,12 @@ func (m *Module) Register(app application.Application) error {
 		}
 	}
 
+	// Register BiChat applet (after services are built so RPC can access them)
+	bichatApplet := NewBiChatApplet(m.config, m.container)
+	if err := app.RegisterApplet(bichatApplet); err != nil {
+		return fmt.Errorf("failed to register BiChat applet: %w", err)
+	}
+
 	app.RegisterControllers(controllersToRegister...)
 
 	return nil
@@ -186,8 +189,8 @@ func (m *Module) Shutdown(ctx context.Context) error {
 	}
 	m.titleWorker = nil
 
-	if m.config != nil {
-		if err := m.config.CloseTitleQueue(); err != nil {
+	if m.container != nil {
+		if err := m.container.CloseTitleQueue(); err != nil {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}

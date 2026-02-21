@@ -244,7 +244,7 @@ func TestBuildSubAgent_SQLDefinition(t *testing.T) {
 	assert.Equal(t, "sql-analyst", metadata.Name)
 	assert.Equal(t, sqlDef.Description, metadata.Description)
 	assert.Equal(t, sqlDef.Description, metadata.WhenToUse)
-	assert.Equal(t, "gpt-5.2-2025-12-11", metadata.Model)
+	assert.Equal(t, "gpt-5.2", metadata.Model)
 	assert.Equal(t, []string{coreagents.ToolFinalAnswer}, metadata.TerminationTools)
 
 	toolNames := make(map[string]bool)
@@ -265,9 +265,9 @@ func TestBuildSubAgent_SQLDefinitionWithModelOverride(t *testing.T) {
 	require.NoError(t, err)
 	sqlDef := findDefinitionByName(t, defs, "sql-analyst")
 
-	agent, err := BuildSubAgent(sqlDef, SubAgentDependencies{QueryExecutor: executor}, WithSubAgentModel("gpt-4.1"))
+	agent, err := BuildSubAgent(sqlDef, SubAgentDependencies{QueryExecutor: executor}, WithSubAgentModel("gpt-5.2"))
 	require.NoError(t, err)
-	assert.Equal(t, "gpt-4.1", agent.Metadata().Model)
+	assert.Equal(t, "gpt-5.2", agent.Metadata().Model)
 }
 
 func TestBuildSubAgent_ExcelDefinition(t *testing.T) {

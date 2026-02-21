@@ -273,7 +273,7 @@ func TestModuleConfig_BuildServices_ResolvesStaticProjectPromptExtension(t *test
 		WithProjectPromptExtension("  insurance bi domain  "),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.NoError(t, err)
 	assert.Equal(t, "insurance bi domain", cfg.resolvedProjectPromptExtension)
 }
@@ -288,7 +288,7 @@ func TestModuleConfig_BuildServices_ResolvesProviderProjectPromptExtension(t *te
 		})),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.NoError(t, err)
 	assert.Equal(t, "provider extension", cfg.resolvedProjectPromptExtension)
 }
@@ -303,7 +303,7 @@ func TestModuleConfig_BuildServices_ProjectPromptProviderErrorFails(t *testing.T
 		})),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve project prompt extension")
 }
@@ -318,7 +318,7 @@ func TestModuleConfig_BuildServices_EmptyProviderFallsBackToStaticPrompt(t *test
 		})),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.NoError(t, err)
 	assert.Equal(t, "static extension", cfg.resolvedProjectPromptExtension)
 }
@@ -362,7 +362,7 @@ Use schema tools before retrying.
 		WithSkillsDir(root),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.NoError(t, err)
 	require.NotNil(t, cfg.skillsCatalog)
 	assert.Len(t, cfg.skillsCatalog.Skills, 1)
@@ -384,7 +384,7 @@ Body
 		WithSkillsDir(root),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load skills catalog")
 }
@@ -419,7 +419,7 @@ Excel prompt`)},
 		WithSubAgentDefinitionsSource(definitionFS, "defs"),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.NoError(t, err)
 	require.NotNil(t, cfg.AgentRegistry)
 
@@ -452,7 +452,7 @@ SQL prompt`)},
 		WithSubAgentDefinitionsSource(definitionFS, "defs"),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to setup configured sub-agents")
 }
@@ -476,7 +476,7 @@ SQL prompt`)},
 		WithSubAgentDefinitionsSource(definitionFS, "defs"),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `unknown tool "made_up_tool"`)
 }
@@ -512,7 +512,7 @@ SQL prompt`)},
 		WithSubAgents(custom),
 	)
 
-	err := cfg.BuildServices()
+	_, err := cfg.BuildServices()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already registered")
 }

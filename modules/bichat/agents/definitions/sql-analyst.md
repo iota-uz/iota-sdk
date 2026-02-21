@@ -1,7 +1,7 @@
 ---
 name: sql-analyst
 description: Specialized agent for SQL query generation and database analysis
-model: gpt-5.2-2025-12-11
+model: gpt-5.2
 tools:
   - schema_list
   - schema_describe

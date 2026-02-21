@@ -16,7 +16,7 @@ func TestSessionTitleService_AutoSkipsExistingTitle(t *testing.T) {
 
 	repo := newMockChatRepository()
 	model := newMockModel()
-	svc, err := NewTitleGenerationService(model, repo, nil)
+	svc, err := NewSessionTitleService(model, repo, nil)
 	require.NoError(t, err)
 
 	session := domain.NewSession(
@@ -41,11 +41,8 @@ func TestSessionTitleService_RegenerateOverwritesExistingTitle(t *testing.T) {
 	repo := newMockChatRepository()
 	model := newMockModel()
 	model.response.Message = types.AssistantMessage("Fresh title")
-	svc, err := NewTitleGenerationService(model, repo, nil)
+	svc, err := NewSessionTitleService(model, repo, nil)
 	require.NoError(t, err)
-
-	regenerator, ok := svc.(SessionTitleRegenerationService)
-	require.True(t, ok)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -56,7 +53,7 @@ func TestSessionTitleService_RegenerateOverwritesExistingTitle(t *testing.T) {
 	require.NoError(t, repo.SaveMessage(context.Background(), types.UserMessage("monthly revenue", types.WithSessionID(session.ID()))))
 	require.NoError(t, repo.SaveMessage(context.Background(), types.AssistantMessage("sure", types.WithSessionID(session.ID()))))
 
-	err = regenerator.RegenerateSessionTitle(context.Background(), session.ID())
+	err = svc.RegenerateSessionTitle(context.Background(), session.ID())
 	require.NoError(t, err)
 
 	updated, err := repo.GetSession(context.Background(), session.ID())

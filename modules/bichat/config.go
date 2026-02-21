@@ -83,22 +83,94 @@ const (
 )
 
 const (
-	defaultTitleQueueStream         = "bichat:title:jobs"
-	defaultTitleQueueGroup          = "bichat-title-workers"
-	defaultTitleQueuePollInterval   = 300 * time.Millisecond
-	defaultTitleQueueReadBlock      = 2 * time.Second
-	defaultTitleQueueBatchSize      = 16
-	defaultTitleQueueMaxRetries     = 3
-	defaultTitleQueueRetryBaseDelay = 5 * time.Second
-	defaultTitleQueueRetryMaxDelay  = 2 * time.Minute
-	defaultTitleQueuePendingIdle    = 30 * time.Second
-	defaultTitleQueueReconcileEvery = 1 * time.Minute
-	defaultTitleQueueReconcileBatch = 200
-	defaultTitleQueueDedupeTTL      = 30 * time.Minute
-	defaultTitleQueueJobTimeout     = 20 * time.Second
-	defaultSkillsSelectionLimit     = 3
-	defaultSkillsMaxChars           = 8000
+	defaultSkillsSelectionLimit = 3
+	defaultSkillsMaxChars       = 8000
 )
+
+// TitleQueueConfig holds Redis-backed async title generation queue settings.
+// A nil *TitleQueueConfig means title queueing is disabled (titles are generated synchronously).
+type TitleQueueConfig struct {
+	RedisURL       string
+	Stream         string
+	Group          string
+	Consumer       string
+	PollInterval   time.Duration
+	ReadBlock      time.Duration
+	BatchSize      int
+	MaxRetries     int
+	RetryBaseDelay time.Duration
+	RetryMaxDelay  time.Duration
+	PendingIdle    time.Duration
+	ReconcileEvery time.Duration
+	ReconcileBatch int
+	DedupeTTL      time.Duration
+	JobTimeout     time.Duration
+}
+
+// DefaultTitleQueueConfig returns a TitleQueueConfig with sensible defaults for the given Redis URL.
+func DefaultTitleQueueConfig(redisURL string) *TitleQueueConfig {
+	return &TitleQueueConfig{
+		RedisURL:       strings.TrimSpace(redisURL),
+		Stream:         "bichat:title:jobs",
+		Group:          "bichat-title-workers",
+		Consumer:       defaultTitleQueueConsumer(),
+		PollInterval:   300 * time.Millisecond,
+		ReadBlock:      2 * time.Second,
+		BatchSize:      16,
+		MaxRetries:     3,
+		RetryBaseDelay: 5 * time.Second,
+		RetryMaxDelay:  2 * time.Minute,
+		PendingIdle:    30 * time.Second,
+		ReconcileEvery: 1 * time.Minute,
+		ReconcileBatch: 200,
+		DedupeTTL:      30 * time.Minute,
+		JobTimeout:     20 * time.Second,
+	}
+}
+
+// Validate checks that all TitleQueueConfig fields are valid.
+func (tq *TitleQueueConfig) Validate() error {
+	if strings.TrimSpace(tq.RedisURL) == "" {
+		return errors.New("TitleQueueConfig.RedisURL is required")
+	}
+	if strings.TrimSpace(tq.Stream) == "" {
+		return errors.New("TitleQueueConfig.Stream is required")
+	}
+	if strings.TrimSpace(tq.Group) == "" {
+		return errors.New("TitleQueueConfig.Group is required")
+	}
+	if tq.BatchSize <= 0 {
+		return errors.New("TitleQueueConfig.BatchSize must be > 0")
+	}
+	if tq.PollInterval <= 0 {
+		return errors.New("TitleQueueConfig.PollInterval must be > 0")
+	}
+	if tq.ReadBlock <= 0 {
+		return errors.New("TitleQueueConfig.ReadBlock must be > 0")
+	}
+	if tq.MaxRetries <= 0 {
+		return errors.New("TitleQueueConfig.MaxRetries must be > 0")
+	}
+	if tq.RetryBaseDelay <= 0 {
+		return errors.New("TitleQueueConfig.RetryBaseDelay must be > 0")
+	}
+	if tq.RetryMaxDelay <= 0 {
+		return errors.New("TitleQueueConfig.RetryMaxDelay must be > 0")
+	}
+	if tq.ReconcileBatch <= 0 {
+		return errors.New("TitleQueueConfig.ReconcileBatch must be > 0")
+	}
+	if tq.ReconcileEvery <= 0 {
+		return errors.New("TitleQueueConfig.ReconcileEvery must be > 0")
+	}
+	if tq.DedupeTTL <= 0 {
+		return errors.New("TitleQueueConfig.DedupeTTL must be > 0")
+	}
+	if tq.JobTimeout <= 0 {
+		return errors.New("TitleQueueConfig.JobTimeout must be > 0")
+	}
+	return nil
+}
 
 // ModuleConfig holds configuration for the bichat module.
 // It uses functional options pattern for optional dependencies.
@@ -173,22 +245,10 @@ type ModuleConfig struct {
 	AttachmentStorageBaseURL  string // e.g., "https://example.com/bichat/attachments"
 	AttachmentStorageMode     AttachmentStorageMode
 
-	// Optional: Redis-backed title generation queue settings
-	TitleQueueRedisURL       string
-	TitleQueueStream         string
-	TitleQueueGroup          string
-	TitleQueueConsumer       string
-	TitleQueuePollInterval   time.Duration
-	TitleQueueReadBlock      time.Duration
-	TitleQueueBatchSize      int
-	TitleQueueMaxRetries     int
-	TitleQueueRetryBaseDelay time.Duration
-	TitleQueueRetryMaxDelay  time.Duration
-	TitleQueuePendingIdle    time.Duration
-	TitleQueueReconcileEvery time.Duration
-	TitleQueueReconcileBatch int
-	TitleQueueDedupeTTL      time.Duration
-	TitleQueueJobTimeout     time.Duration
+	// Optional: Redis-backed title generation queue.
+	// nil means title queueing is disabled (titles generated synchronously).
+	// Use WithTitleQueueRedis(url) or set directly.
+	TitleQueue *TitleQueueConfig
 
 	// Optional: ViewManager manages analytics view definitions and syncs them to DB.
 	// When configured, views are synced on startup and used for permission-based access control.
@@ -199,21 +259,83 @@ type ModuleConfig struct {
 	StreamRequireAccessPermission permission.Permission
 	StreamReadAllPermission       permission.Permission
 
-	// Internal: Created services (initialized during BuildServices)
-	chatService       bichatservices.ChatService
-	agentService      bichatservices.AgentService
-	attachmentService bichatservices.AttachmentService
-	artifactService   bichatservices.ArtifactService
-
-	// Internal: Resolved once during BuildServices.
+	// Internal: Build-time state (resolved once during BuildServices).
 	resolvedProjectPromptExtension string
 	projectPromptExtensionResolved bool
 	capabilitiesConfigured         bool
 	subAgentsInitialized           bool
-	titleGenerationService         services.TitleGenerationService
-	titleJobQueue                  *services.RedisTitleJobQueue
 	skillsCatalog                  *bichatskills.Catalog
 	skillsSelector                 bichatskills.Selector
+}
+
+// ServiceContainer holds built services created by ModuleConfig.BuildServices().
+// Use accessor methods to retrieve individual services.
+type ServiceContainer struct {
+	chatService       bichatservices.ChatService
+	agentService      bichatservices.AgentService
+	attachmentService bichatservices.AttachmentService
+	artifactService   bichatservices.ArtifactService
+	titleService      services.TitleService
+	titleJobQueue     *services.RedisTitleJobQueue
+	titleQueueConfig  *TitleQueueConfig
+	logger            *logrus.Logger
+}
+
+// ChatService returns the ChatService.
+func (sc *ServiceContainer) ChatService() bichatservices.ChatService { return sc.chatService }
+
+// AgentService returns the AgentService.
+func (sc *ServiceContainer) AgentService() bichatservices.AgentService { return sc.agentService }
+
+// AttachmentService returns the AttachmentService.
+func (sc *ServiceContainer) AttachmentService() bichatservices.AttachmentService {
+	return sc.attachmentService
+}
+
+// ArtifactService returns the ArtifactService.
+func (sc *ServiceContainer) ArtifactService() bichatservices.ArtifactService {
+	return sc.artifactService
+}
+
+// NewTitleJobWorker builds a Redis-backed title generation worker when queueing is enabled.
+// Returns ErrTitleJobWorkerDisabled when queueing is not configured.
+func (sc *ServiceContainer) NewTitleJobWorker(pool *pgxpool.Pool) (*services.TitleJobWorker, error) {
+	if sc.titleJobQueue == nil || sc.titleService == nil {
+		return nil, ErrTitleJobWorkerDisabled
+	}
+	if pool == nil {
+		return nil, errors.New("database pool is required for title job worker")
+	}
+
+	tq := sc.titleQueueConfig
+	return services.NewTitleJobWorker(services.TitleJobWorkerConfig{
+		Queue:          sc.titleJobQueue,
+		TitleService:   sc.titleService,
+		Pool:           pool,
+		Logger:         sc.logger,
+		Group:          tq.Group,
+		Consumer:       tq.Consumer,
+		BatchSize:      tq.BatchSize,
+		PollInterval:   tq.PollInterval,
+		ReadBlock:      tq.ReadBlock,
+		MaxRetries:     tq.MaxRetries,
+		RetryBaseDelay: tq.RetryBaseDelay,
+		RetryMaxDelay:  tq.RetryMaxDelay,
+		PendingIdle:    tq.PendingIdle,
+		ReconcileEvery: tq.ReconcileEvery,
+		ReconcileBatch: tq.ReconcileBatch,
+		JobTimeout:     tq.JobTimeout,
+	})
+}
+
+// CloseTitleQueue releases queue resources when Redis queueing is configured.
+func (sc *ServiceContainer) CloseTitleQueue() error {
+	if sc.titleJobQueue == nil {
+		return nil
+	}
+	err := sc.titleJobQueue.Close()
+	sc.titleJobQueue = nil
+	return err
 }
 
 // ConfigOption is a functional option for ModuleConfig
@@ -245,20 +367,6 @@ func NewModuleConfig(
 		Logger:                      logrus.New(),
 		Profile:                     FeatureProfileMinimal,
 		AttachmentStorageMode:       AttachmentStorageModeLocal,
-		TitleQueueStream:            defaultTitleQueueStream,
-		TitleQueueGroup:             defaultTitleQueueGroup,
-		TitleQueuePollInterval:      defaultTitleQueuePollInterval,
-		TitleQueueReadBlock:         defaultTitleQueueReadBlock,
-		TitleQueueBatchSize:         defaultTitleQueueBatchSize,
-		TitleQueueMaxRetries:        defaultTitleQueueMaxRetries,
-		TitleQueueConsumer:          defaultTitleQueueConsumer(),
-		TitleQueueRetryBaseDelay:    defaultTitleQueueRetryBaseDelay,
-		TitleQueueRetryMaxDelay:     defaultTitleQueueRetryMaxDelay,
-		TitleQueuePendingIdle:       defaultTitleQueuePendingIdle,
-		TitleQueueReconcileEvery:    defaultTitleQueueReconcileEvery,
-		TitleQueueReconcileBatch:    defaultTitleQueueReconcileBatch,
-		TitleQueueDedupeTTL:         defaultTitleQueueDedupeTTL,
-		TitleQueueJobTimeout:        defaultTitleQueueJobTimeout,
 		SkillsSelectionLimit:        defaultSkillsSelectionLimit,
 		SkillsMaxChars:              defaultSkillsMaxChars,
 	}
@@ -397,42 +505,9 @@ func (c *ModuleConfig) Validate() error {
 		return errors.New("AttachmentStorageMode must be one of: local, noop")
 	}
 
-	if strings.TrimSpace(c.TitleQueueRedisURL) != "" {
-		if strings.TrimSpace(c.TitleQueueStream) == "" {
-			return errors.New("TitleQueueStream is required when TitleQueueRedisURL is set")
-		}
-		if strings.TrimSpace(c.TitleQueueGroup) == "" {
-			return errors.New("TitleQueueGroup is required when TitleQueueRedisURL is set")
-		}
-		if c.TitleQueueBatchSize <= 0 {
-			return errors.New("TitleQueueBatchSize must be > 0")
-		}
-		if c.TitleQueuePollInterval <= 0 {
-			return errors.New("TitleQueuePollInterval must be > 0")
-		}
-		if c.TitleQueueReadBlock <= 0 {
-			return errors.New("TitleQueueReadBlock must be > 0")
-		}
-		if c.TitleQueueMaxRetries <= 0 {
-			return errors.New("TitleQueueMaxRetries must be > 0")
-		}
-		if c.TitleQueueRetryBaseDelay <= 0 {
-			return errors.New("TitleQueueRetryBaseDelay must be > 0")
-		}
-		if c.TitleQueueRetryMaxDelay <= 0 {
-			return errors.New("TitleQueueRetryMaxDelay must be > 0")
-		}
-		if c.TitleQueueReconcileBatch <= 0 {
-			return errors.New("TitleQueueReconcileBatch must be > 0")
-		}
-		if c.TitleQueueReconcileEvery <= 0 {
-			return errors.New("TitleQueueReconcileEvery must be > 0")
-		}
-		if c.TitleQueueDedupeTTL <= 0 {
-			return errors.New("TitleQueueDedupeTTL must be > 0")
-		}
-		if c.TitleQueueJobTimeout <= 0 {
-			return errors.New("TitleQueueJobTimeout must be > 0")
+	if c.TitleQueue != nil {
+		if err := c.TitleQueue.Validate(); err != nil {
+			return err
 		}
 	}
 
@@ -468,12 +543,12 @@ func defaultKindPriorities() []bichatcontext.KindPriority {
 	}
 }
 
-// DefaultContextPolicy returns a sensible default context policy for Claude 3.5 Sonnet.
+// DefaultContextPolicy returns a sensible default context policy for modern models (e.g. claude-sonnet-4-6, gpt-5.2).
 // Uses OverflowTruncate strategy - history is truncated when token budget is exceeded.
 // For intelligent summarization, use DefaultContextPolicyWithCompaction.
 func DefaultContextPolicy() bichatcontext.ContextPolicy {
 	return bichatcontext.ContextPolicy{
-		ContextWindow:     180000, // Claude 3.5 context window
+		ContextWindow:     200000, // SOTA context window
 		CompletionReserve: 8000,   // Reserve for completion
 		OverflowStrategy:  bichatcontext.OverflowTruncate,
 		KindPriorities:    defaultKindPriorities(),
@@ -501,7 +576,7 @@ func DefaultContextPolicy() bichatcontext.ContextPolicy {
 //	)
 func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 	return bichatcontext.ContextPolicy{
-		ContextWindow:     180000,                        // Claude 3.5 context window
+		ContextWindow:     200000,                        // SOTA context window
 		CompletionReserve: 8000,                          // Reserve for completion
 		OverflowStrategy:  bichatcontext.OverflowCompact, // Intelligent compaction
 		KindPriorities:    defaultKindPriorities(),

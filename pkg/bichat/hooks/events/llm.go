@@ -8,7 +8,7 @@ import (
 // Emitted before sending a request to the LLM provider.
 type LLMRequestEvent struct {
 	baseEvent
-	Model           string // Model identifier (e.g., "claude-3-5-sonnet-20241022")
+	Model           string // Model identifier (e.g., "claude-sonnet-4-6", "gpt-5.2")
 	Provider        string // Provider name (e.g., "anthropic", "openai")
 	Messages        int    // Number of messages in the request
 	Tools           int    // Number of tools provided

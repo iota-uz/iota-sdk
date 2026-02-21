@@ -41,7 +41,7 @@ type MissingSessionsFetcher func(ctx context.Context, limit int) ([]titleJobPayl
 
 type TitleJobWorkerConfig struct {
 	Queue          *RedisTitleJobQueue
-	TitleService   TitleGenerationService
+	TitleService   TitleService
 	Pool           *pgxpool.Pool
 	Logger         *logrus.Logger
 	Group          string
@@ -63,7 +63,7 @@ type TitleJobWorkerConfig struct {
 // TitleJobWorker consumes Redis title jobs with retry + reconciliation.
 type TitleJobWorker struct {
 	queue          *RedisTitleJobQueue
-	titleService   TitleGenerationService
+	titleService   TitleService
 	pool           *pgxpool.Pool
 	logger         *logrus.Logger
 	group          string

@@ -199,5 +199,4 @@ func (s *sessionTitleService) finalizeTitle(generated, userMessage string) strin
 	return title
 }
 
-var _ TitleGenerationService = (*sessionTitleService)(nil)
-var _ SessionTitleRegenerationService = (*sessionTitleService)(nil)
+var _ TitleService = (*sessionTitleService)(nil)

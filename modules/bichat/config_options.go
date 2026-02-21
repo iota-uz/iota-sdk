@@ -3,7 +3,6 @@ package bichat
 import (
 	"io/fs"
 	"strings"
-	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -237,56 +236,18 @@ func WithAttachmentStorage(basePath, baseURL string) ConfigOption {
 	}
 }
 
-// WithTitleQueueRedis enables Redis-backed durable title generation queue.
+// WithTitleQueueRedis enables Redis-backed durable title generation queue with default settings.
 func WithTitleQueueRedis(redisURL string) ConfigOption {
 	return func(c *ModuleConfig) {
-		c.TitleQueueRedisURL = strings.TrimSpace(redisURL)
+		c.TitleQueue = DefaultTitleQueueConfig(redisURL)
 	}
 }
 
-// WithTitleQueueStream overrides the Redis stream name for title jobs.
-func WithTitleQueueStream(stream string) ConfigOption {
+// WithTitleQueue sets a custom title queue configuration.
+// Use DefaultTitleQueueConfig(url) as a starting point and override fields as needed.
+func WithTitleQueue(tq *TitleQueueConfig) ConfigOption {
 	return func(c *ModuleConfig) {
-		c.TitleQueueStream = strings.TrimSpace(stream)
-	}
-}
-
-// WithTitleQueueConsumerGroup overrides the Redis consumer group for title jobs.
-func WithTitleQueueConsumerGroup(group string) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.TitleQueueGroup = strings.TrimSpace(group)
-	}
-}
-
-// WithTitleQueueConsumer overrides the consumer name used by title job worker.
-func WithTitleQueueConsumer(consumer string) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.TitleQueueConsumer = strings.TrimSpace(consumer)
-	}
-}
-
-// WithTitleQueuePolling configures queue polling cadence and read block timeout.
-func WithTitleQueuePolling(pollInterval, readBlock time.Duration) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.TitleQueuePollInterval = pollInterval
-		c.TitleQueueReadBlock = readBlock
-	}
-}
-
-// WithTitleQueueRetry configures retry attempts and backoff windows.
-func WithTitleQueueRetry(maxRetries int, baseDelay, maxDelay time.Duration) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.TitleQueueMaxRetries = maxRetries
-		c.TitleQueueRetryBaseDelay = baseDelay
-		c.TitleQueueRetryMaxDelay = maxDelay
-	}
-}
-
-// WithTitleQueueReconciliation configures periodic DB reconciliation for missing titles.
-func WithTitleQueueReconciliation(interval time.Duration, batchSize int) ConfigOption {
-	return func(c *ModuleConfig) {
-		c.TitleQueueReconcileEvery = interval
-		c.TitleQueueReconcileBatch = batchSize
+		c.TitleQueue = tq
 	}
 }
 

@@ -29,7 +29,7 @@ type chatServiceImpl struct {
 	chatRepo     domain.ChatRepository
 	agentService bichatservices.AgentService
 	model        agents.Model
-	titleService TitleGenerationService
+	titleService TitleService
 	titleQueue   TitleJobQueue
 }
 
@@ -42,7 +42,7 @@ func NewChatService(
 	chatRepo domain.ChatRepository,
 	agentService bichatservices.AgentService,
 	model agents.Model,
-	titleService TitleGenerationService,
+	titleService TitleService,
 	titleQueue TitleJobQueue,
 ) bichatservices.ChatService {
 	return &chatServiceImpl{
@@ -1251,11 +1251,7 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 		return serrors.E(op, serrors.KindValidation, "title generation service is not configured")
 	}
 
-	if regenerator, ok := s.titleService.(SessionTitleRegenerationService); ok {
-		return regenerator.RegenerateSessionTitle(ctx, sessionID)
-	}
-
-	return s.titleService.GenerateSessionTitle(ctx, sessionID)
+	return s.titleService.RegenerateSessionTitle(ctx, sessionID)
 }
 
 func (s *chatServiceImpl) generateCompactionSummary(ctx context.Context, messages []types.Message) (string, error) {

@@ -16,7 +16,7 @@ func TestTitleGenerationService_NoMessagesUsesDeterministicFallback(t *testing.T
 
 	chatRepo := newMockChatRepository()
 	model := newMockModel()
-	service, err := NewTitleGenerationService(model, chatRepo, nil)
+	service, err := NewSessionTitleService(model, chatRepo, nil)
 	require.NoError(t, err)
 
 	session := domain.NewSession(
@@ -40,7 +40,7 @@ func TestTitleGenerationService_ModelFailureFallsBackToExtractedTitle(t *testing
 	chatRepo := newMockChatRepository()
 	model := newMockModel()
 	model.err = assert.AnError
-	service, err := NewTitleGenerationService(model, chatRepo, nil)
+	service, err := NewSessionTitleService(model, chatRepo, nil)
 	require.NoError(t, err)
 
 	session := domain.NewSession(
@@ -65,7 +65,7 @@ func TestTitleGenerationService_NoUserMessageFallsBackToUntitled(t *testing.T) {
 
 	chatRepo := newMockChatRepository()
 	model := newMockModel()
-	service, err := NewTitleGenerationService(model, chatRepo, nil)
+	service, err := NewSessionTitleService(model, chatRepo, nil)
 	require.NoError(t, err)
 
 	session := domain.NewSession(

@@ -15,13 +15,13 @@ import (
 //   - Request/response serialization
 //   - Provider-specific features (thinking, JSON mode, etc.)
 //
-// The same logical model (e.g., claude-3.5-sonnet) can have multiple
+// The same logical model (e.g., claude-sonnet-4-6) can have multiple
 // implementations for different providers (Anthropic, Bedrock, Vertex).
 //
 // Example:
 //
 //	model := openai.NewModel(client, openai.ModelConfig{
-//	    Name:      "gpt-5.2-2025-12-11",
+//	    Name:      "gpt-5.2",
 //	    MaxTokens: 4096,
 //	})
 //
@@ -73,7 +73,7 @@ type Model interface {
 // ModelInfo describes a model for discovery and observability.
 // It contains metadata about the model including its capabilities.
 type ModelInfo struct {
-	// Name is the model identifier (e.g., "gpt-5.2-2025-12-11", "claude-3-5-sonnet").
+	// Name is the model identifier (e.g., "gpt-5.2", "claude-sonnet-4-6").
 	Name string
 
 	// Provider is the service provider (e.g., "openai", "anthropic", "bedrock", "vertex").

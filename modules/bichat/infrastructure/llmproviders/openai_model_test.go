@@ -40,33 +40,33 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-5.2-2025-12-11", oaiModel.modelName)
+	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
 }
 
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4-turbo"))
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5.2"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-4-turbo", oaiModel.modelName)
+	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
 }
 
 func TestOpenAIModel_Info(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4o"))
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5-mini"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-4o", info.Name)
+	assert.Equal(t, "gpt-5-mini", info.Name)
 	assert.Equal(t, "openai", info.Provider)
-	assert.Equal(t, 128000, info.ContextWindow)
+	assert.Equal(t, 400000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
@@ -81,8 +81,8 @@ func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-5.2-2025-12-11", info.Name)
-	assert.Equal(t, 272000, info.ContextWindow)
+	assert.Equal(t, "gpt-5.2", info.Name)
+	assert.Equal(t, 400000, info.ContextWindow)
 }
 
 func TestContextWindowForModel_GPT52Variants(t *testing.T) {
@@ -93,10 +93,10 @@ func TestContextWindowForModel_GPT52Variants(t *testing.T) {
 		modelName string
 		expected  int
 	}{
-		{name: "canonical", modelName: "gpt-5.2-2025-12-11", expected: 272000},
-		{name: "family alias", modelName: "gpt-5.2", expected: 272000},
-		{name: "uppercase with spaces", modelName: " GPT-5.2-2025-12-11 ", expected: 272000},
-		{name: "gpt4o uppercase", modelName: " GPT-4O ", expected: 128000},
+		{name: "canonical", modelName: "gpt-5.2", expected: 400000},
+		{name: "family alias", modelName: "gpt-5.2", expected: 400000},
+		{name: "uppercase with spaces", modelName: " GPT-5.2-2025-12-11 ", expected: 400000},
+		{name: "gpt5mini", modelName: "gpt-5-mini", expected: 400000},
 		{name: "unknown", modelName: "unknown-model", expected: 0},
 	}
 
@@ -165,7 +165,7 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Verify model
-	assert.Equal(t, "gpt-5.2-2025-12-11", params.Model)
+	assert.Equal(t, "gpt-5.2", params.Model)
 
 	// Verify input items
 	assert.NotNil(t, params.Input.OfInputItemList)
@@ -726,7 +726,7 @@ func TestOpenAIModel_Pricing(t *testing.T) {
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	t.Run("KnownModel", func(t *testing.T) {
-		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4o"))
+		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5-mini"))
 		defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
 
 		model, err := NewOpenAIModel()
@@ -734,12 +734,12 @@ func TestOpenAIModel_Pricing(t *testing.T) {
 
 		pricing := model.Pricing()
 		assert.Equal(t, "USD", pricing.Currency)
-		assert.InEpsilon(t, 2.50, pricing.InputPer1M, 1e-9)
-		assert.InEpsilon(t, 10.00, pricing.OutputPer1M, 1e-9)
+		assert.InEpsilon(t, 0.25, pricing.InputPer1M, 1e-9)
+		assert.InEpsilon(t, 2.00, pricing.OutputPer1M, 1e-9)
 	})
 
 	t.Run("DefaultModel_GPT52", func(t *testing.T) {
-		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5.2-2025-12-11"))
+		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5.2"))
 		defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
 
 		model, err := NewOpenAIModel()
@@ -749,7 +749,7 @@ func TestOpenAIModel_Pricing(t *testing.T) {
 		assert.Equal(t, "USD", pricing.Currency)
 		assert.InEpsilon(t, 1.75, pricing.InputPer1M, 1e-9)
 		assert.InEpsilon(t, 14.00, pricing.OutputPer1M, 1e-9)
-		assert.InEpsilon(t, 0.18, pricing.CacheReadPer1M, 1e-9)
+		assert.InEpsilon(t, 0.175, pricing.CacheReadPer1M, 1e-9)
 	})
 
 	t.Run("UnknownModel_FallsBackToGPT52", func(t *testing.T) {

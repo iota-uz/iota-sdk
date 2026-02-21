@@ -39,7 +39,7 @@ agent, _ := bichatagents.NewDefaultBIAgent(
     executor,
     bichatagents.WithKBSearcher(kbSearcher),           // Add KB search
     bichatagents.WithExportTools(excelTool, pdfTool),  // Add Excel/PDF export
-    bichatagents.WithModel("gpt-4"),                   // Custom model
+    bichatagents.WithModel("gpt-5.2"),                   // Custom model
     bichatagents.WithCodeInterpreter(true),            // Enable Python execution
     bichatagents.WithAgentRegistry(registry),          // Multi-agent delegation
 )
@@ -65,7 +65,7 @@ agent, _ := bichatagents.NewDefaultBIAgent(
 ## Configuration
 
 - **Name**: `bi_agent`
-- **Model**: `gpt-4` (customizable)
+- **Model**: `gpt-5.2` (customizable)
 - **Isolation**: Isolated (no parent context access)
 - **Termination**: `final_answer` tool
 

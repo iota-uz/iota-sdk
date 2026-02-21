@@ -24,21 +24,16 @@ var distFS = assets.AppletFS()
 // This enables BiChat to integrate with the SDK's generic applet system,
 // providing context injection, routing, and asset serving.
 type BiChatApplet struct {
-	config *ModuleConfig
+	config    *ModuleConfig
+	container *ServiceContainer
 }
 
 // NewBiChatApplet creates a new BiChatApplet instance.
-// The config is optional and can be set later via SetConfig.
-func NewBiChatApplet(config *ModuleConfig) *BiChatApplet {
+func NewBiChatApplet(config *ModuleConfig, container *ServiceContainer) *BiChatApplet {
 	return &BiChatApplet{
-		config: config,
+		config:    config,
+		container: container,
 	}
-}
-
-// SetConfig updates the applet configuration.
-// This allows the applet to be created before the full module configuration is available.
-func (a *BiChatApplet) SetConfig(config *ModuleConfig) {
-	a.config = config
 }
 
 // Name returns the unique identifier for the BiChat applets.
@@ -109,11 +104,11 @@ func (a *BiChatApplet) Config() applets.Config {
 		},
 
 		RPC: func() *applets.RPCConfig {
-			if a.config == nil {
+			if a.container == nil {
 				return nil
 			}
-			chatSvc := a.config.ChatService()
-			artifactSvc := a.config.ArtifactService()
+			chatSvc := a.container.ChatService()
+			artifactSvc := a.container.ArtifactService()
 			if chatSvc == nil || artifactSvc == nil {
 				return nil
 			}
@@ -210,7 +205,7 @@ func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
 //	  "debug": {
 //	    "limits": {
 //	      "policyMaxTokens": 180000,
-//	      "modelMaxTokens": 272000,
+//	      "modelMaxTokens": 400000,
 //	      "effectiveMaxTokens": 180000,
 //	      "completionReserveTokens": 8000
 //	    }

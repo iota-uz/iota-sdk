@@ -39,6 +39,10 @@ func (s *sequenceTitleService) GenerateSessionTitle(_ context.Context, sessionID
 	return err
 }
 
+func (s *sequenceTitleService) RegenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error {
+	return s.GenerateSessionTitle(ctx, sessionID)
+}
+
 func TestRedisTitleJobQueue_EnqueueIsDeduplicated(t *testing.T) {
 	t.Parallel()
 

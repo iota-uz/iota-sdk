@@ -246,14 +246,12 @@ type judgePricing struct {
 }
 
 func estimateJudgeCost(model string, promptTokens, completionTokens int64) (float64, string, bool) {
+	// Per platform.openai.com/docs/models (GPT-5.2); mini/nano from official pricing.
 	pricing := map[string]judgePricing{
+		"gpt-5.2":            {Currency: "USD", InputPer1M: 1.75, OutputPer1M: 14.00},
 		"gpt-5.2-2025-12-11": {Currency: "USD", InputPer1M: 1.75, OutputPer1M: 14.00},
-		"gpt-5-mini":         {Currency: "USD", InputPer1M: 1.75, OutputPer1M: 14.00},
-		"gpt-5-nano":         {Currency: "USD", InputPer1M: 1.75, OutputPer1M: 14.00},
-		"gpt-4o":             {Currency: "USD", InputPer1M: 2.50, OutputPer1M: 10.00},
-		"gpt-4o-mini":        {Currency: "USD", InputPer1M: 0.150, OutputPer1M: 0.600},
-		"gpt-4-turbo":        {Currency: "USD", InputPer1M: 10.00, OutputPer1M: 30.00},
-		"gpt-4":              {Currency: "USD", InputPer1M: 30.00, OutputPer1M: 60.00},
+		"gpt-5-mini":         {Currency: "USD", InputPer1M: 0.25, OutputPer1M: 2.00},
+		"gpt-5-nano":         {Currency: "USD", InputPer1M: 0.05, OutputPer1M: 0.40},
 	}
 
 	model = strings.TrimSpace(strings.ToLower(model))

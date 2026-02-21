@@ -97,7 +97,7 @@ func WithImageUploadResolver(resolver OpenAIImageUploadLookup) OpenAIModelOption
 }
 
 // NewOpenAIModel creates a new OpenAI model from environment variables.
-// It reads OPENAI_API_KEY (required) and OPENAI_MODEL (optional, defaults to gpt-5.2-2025-12-11).
+// It reads OPENAI_API_KEY (required) and OPENAI_MODEL (optional, defaults to gpt-5.2).
 func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 	const op serrors.Op = "llmproviders.NewOpenAIModel"
 
@@ -108,7 +108,7 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 
 	modelName := os.Getenv("OPENAI_MODEL")
 	if modelName == "" {
-		modelName = "gpt-5.2-2025-12-11"
+		modelName = "gpt-5.2"
 	}
 
 	client := openai.NewClient(option.WithAPIKey(apiKey))

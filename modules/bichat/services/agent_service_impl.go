@@ -226,40 +226,7 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 	// Use compiled.Messages directly (now canonical []types.Message)
 	executorMessages := compiled.Messages
 
-	// Build executor options
-	executorOpts := []agents.ExecutorOption{
-		agents.WithCheckpointer(s.checkpointer),
-		agents.WithEventBus(s.eventBus),
-		agents.WithMaxIterations(10),
-	}
-
-	// Add formatter registry if configured
-	if s.formatterRegistry != nil {
-		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
-	}
-
-	// Add delegation tool if registry is configured
-	if s.agentRegistry != nil && len(s.agentRegistry.All()) > 0 {
-		// Get agent's default tools
-		agentTools := s.agent.Tools()
-
-		// Create delegation tool with runtime session/tenant IDs
-		delegationTool := agents.NewDelegationTool(
-			s.agentRegistry,
-			s.model,
-			sessionID,
-			tenantID,
-		)
-
-		// Append delegation tool to agent tools
-		extendedTools := append(agentTools, delegationTool)
-
-		// Add tools to executor options
-		executorOpts = append(executorOpts, agents.WithExecutorTools(extendedTools))
-	}
-
-	// Create executor with agent, model, and options
-	executor := agents.NewExecutor(s.agent, s.model, executorOpts...)
+	executor := s.buildExecutor(sessionID, tenantID)
 
 	// Execute agent and get event generator
 	input := agents.Input{
@@ -299,43 +266,37 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 		return nil, serrors.E(op, err)
 	}
 
-	// Build executor options (same as ProcessMessage)
-	executorOpts := []agents.ExecutorOption{
+	executor := s.buildExecutor(sessionID, tenantID)
+
+	// Return resume generator directly — no conversion needed.
+	return executor.Resume(ctx, checkpointID, answers), nil
+}
+
+// buildExecutor creates an Executor with shared options (delegation, formatter, checkpointer).
+// Used by both ProcessMessage and ResumeWithAnswer to avoid duplicating setup logic.
+func (s *agentServiceImpl) buildExecutor(sessionID, tenantID uuid.UUID) *agents.Executor {
+	opts := []agents.ExecutorOption{
 		agents.WithCheckpointer(s.checkpointer),
 		agents.WithEventBus(s.eventBus),
-		agents.WithMaxIterations(10),
+		agents.WithMaxIterations(100),
 	}
 
-	// Add formatter registry if configured
 	if s.formatterRegistry != nil {
-		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
+		opts = append(opts, agents.WithFormatterRegistry(s.formatterRegistry))
 	}
 
-	// Add delegation tool if registry is configured
 	if s.agentRegistry != nil && len(s.agentRegistry.All()) > 0 {
-		// Get agent's default tools
 		agentTools := s.agent.Tools()
-
-		// Create delegation tool with runtime session/tenant IDs
 		delegationTool := agents.NewDelegationTool(
 			s.agentRegistry,
 			s.model,
 			sessionID,
 			tenantID,
 		)
-
-		// Append delegation tool to agent tools
-		extendedTools := append(agentTools, delegationTool)
-
-		// Add tools to executor options
-		executorOpts = append(executorOpts, agents.WithExecutorTools(extendedTools))
+		opts = append(opts, agents.WithExecutorTools(append(agentTools, delegationTool)))
 	}
 
-	// Create executor (same configuration as ProcessMessage)
-	executor := agents.NewExecutor(s.agent, s.model, executorOpts...)
-
-	// Return resume generator directly — no conversion needed.
-	return executor.Resume(ctx, checkpointID, answers), nil
+	return agents.NewExecutor(s.agent, s.model, opts...)
 }
 
 // convertToHistoryPayload converts types.Message slice to ConversationHistoryPayload
