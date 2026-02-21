@@ -132,6 +132,28 @@
       "PageOf": "Страница {{page}} из {{total}}",
       "TruncatedNotice": "Таблица обрезана из-за лимита ответа. Уточните SQL-запрос или экспортируйте для полного набора данных."
     },
+    "DataTable": {
+      "Search": "Поиск...",
+      "SearchRows": "Поиск по строкам",
+      "ClearSearch": "Очистить поиск",
+      "NoSearchResults": "Строки не найдены.",
+      "FilteredRows": "{{filtered}} из {{total}} строк",
+      "SortBy": "Сортировать по {{column}}",
+      "ColumnActions": "Действия со столбцом",
+      "SummarizeColumn": "Анализировать столбец",
+      "UniqueValues": "Уникальные значения",
+      "HideColumn": "Скрыть столбец",
+      "ToggleColumns": "Показать/скрыть столбцы",
+      "Columns": "Столбцы",
+      "ShowAllColumns": "Показать все столбцы",
+      "ToggleStats": "Статистика",
+      "Stats": "Стат.",
+      "StatsSum": "Сумма",
+      "StatsAvg": "Средн.",
+      "StatsMin": "Мин",
+      "StatsMax": "Макс",
+      "Visualize": "Визуализация"
+    },
     "Sidebar": {
       "ChatHistory": "История чатов",
       "CloseSidebar": "Закрыть боковую панель",

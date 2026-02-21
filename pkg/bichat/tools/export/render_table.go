@@ -129,6 +129,7 @@ type renderTableOutput struct {
 	Title           string             `json:"title,omitempty"`
 	Query           string             `json:"query"`
 	Columns         []string           `json:"columns"`
+	ColumnTypes     []string           `json:"column_types,omitempty"`
 	Headers         []string           `json:"headers"`
 	Rows            [][]any            `json:"rows"`
 	TotalRows       int                `json:"total_rows"`
@@ -205,6 +206,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 		Title:           strings.TrimSpace(params.Title),
 		Query:           normalizedQuery,
 		Columns:         append([]string(nil), result.Columns...),
+		ColumnTypes:     result.ColumnTypes,
 		Headers:         headers,
 		Rows:            rows,
 		TotalRows:       len(rows),

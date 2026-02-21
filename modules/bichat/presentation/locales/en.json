@@ -132,6 +132,28 @@
       "PageOf": "Page {{page}} / {{total}}",
       "TruncatedNotice": "This table is truncated by the tool response limit. Refine the SQL query or export for a fuller dataset."
     },
+    "DataTable": {
+      "Search": "Search...",
+      "SearchRows": "Search rows",
+      "ClearSearch": "Clear search",
+      "NoSearchResults": "No rows match your search.",
+      "FilteredRows": "{{filtered}} of {{total}} rows",
+      "SortBy": "Sort by {{column}}",
+      "ColumnActions": "Column actions",
+      "SummarizeColumn": "Summarize column",
+      "UniqueValues": "Show unique values",
+      "HideColumn": "Hide column",
+      "ToggleColumns": "Toggle columns",
+      "Columns": "Columns",
+      "ShowAllColumns": "Show all columns",
+      "ToggleStats": "Toggle statistics",
+      "Stats": "Stats",
+      "StatsSum": "Sum",
+      "StatsAvg": "Avg",
+      "StatsMin": "Min",
+      "StatsMax": "Max",
+      "Visualize": "Visualize"
+    },
     "Sidebar": {
       "ChatHistory": "Chat history",
       "CloseSidebar": "Close sidebar",

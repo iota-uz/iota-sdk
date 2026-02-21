@@ -132,6 +132,28 @@
       "PageOf": "第 {{page}} 页，共 {{total}} 页",
       "TruncatedNotice": "此表因工具响应限制而被截断。请优化 SQL 查询或导出以获取完整数据集。"
     },
+    "DataTable": {
+      "Search": "搜索...",
+      "SearchRows": "搜索行",
+      "ClearSearch": "清除搜索",
+      "NoSearchResults": "没有匹配的行。",
+      "FilteredRows": "{{filtered}} / {{total}} 行",
+      "SortBy": "按 {{column}} 排序",
+      "ColumnActions": "列操作",
+      "SummarizeColumn": "汇总列",
+      "UniqueValues": "显示唯一值",
+      "HideColumn": "隐藏列",
+      "ToggleColumns": "切换列",
+      "Columns": "列",
+      "ShowAllColumns": "显示所有列",
+      "ToggleStats": "切换统计",
+      "Stats": "统计",
+      "StatsSum": "总和",
+      "StatsAvg": "平均",
+      "StatsMin": "最小",
+      "StatsMax": "最大",
+      "Visualize": "可视化"
+    },
     "Sidebar": {
       "ChatHistory": "聊天记录",
       "CloseSidebar": "关闭侧边栏",

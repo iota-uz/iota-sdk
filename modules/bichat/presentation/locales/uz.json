@@ -132,6 +132,28 @@
       "PageOf": "Sahifa {{page}} / {{total}}",
       "TruncatedNotice": "Jadval asbob javobi limiti tufayli qisqartirilgan. To'liq ma'lumot uchun SQL so'rovini aniqlang yoki eksport qiling."
     },
+    "DataTable": {
+      "Search": "Qidirish...",
+      "SearchRows": "Qatorlarni qidirish",
+      "ClearSearch": "Qidiruvni tozalash",
+      "NoSearchResults": "Qatorlar topilmadi.",
+      "FilteredRows": "{{total}} dan {{filtered}} ta qator",
+      "SortBy": "{{column}} bo'yicha saralash",
+      "ColumnActions": "Ustun amallari",
+      "SummarizeColumn": "Ustunni tahlil qilish",
+      "UniqueValues": "Noyob qiymatlar",
+      "HideColumn": "Ustunni yashirish",
+      "ToggleColumns": "Ustunlarni ko'rsatish/yashirish",
+      "Columns": "Ustunlar",
+      "ShowAllColumns": "Barcha ustunlarni ko'rsatish",
+      "ToggleStats": "Statistika",
+      "Stats": "Stat.",
+      "StatsSum": "Yig'indi",
+      "StatsAvg": "O'rtacha",
+      "StatsMin": "Min",
+      "StatsMax": "Maks",
+      "Visualize": "Vizualizatsiya"
+    },
     "Sidebar": {
       "ChatHistory": "Chat tarixi",
       "CloseSidebar": "Yon panelni yopish",

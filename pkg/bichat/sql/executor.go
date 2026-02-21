@@ -25,6 +25,11 @@ type QueryResult struct {
 	// Columns are the column names in order
 	Columns []string `json:"columns"`
 
+	// ColumnTypes are the inferred data types in the same order as Columns.
+	// Values: "string", "number", "boolean", "date".
+	// May be nil if the executor does not provide type information.
+	ColumnTypes []string `json:"column_types,omitempty"`
+
 	// Rows contains the row data (each row is a slice of values matching Columns order)
 	Rows [][]any `json:"rows"`
 

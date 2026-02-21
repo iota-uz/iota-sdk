@@ -121,8 +121,8 @@ func TestRenderTableTool_CallStructured_TruncatedByExecutor(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, types.CodecJSON, result.CodecID)
 
-	var out renderTableOutput
-	require.NoError(t, json.Unmarshal([]byte(result.Payload.(types.JSONPayload).Output.(string)), &out))
+	out, ok := result.Payload.(types.JSONPayload).Output.(renderTableOutput)
+	require.True(t, ok, "Output should be renderTableOutput, got %T", result.Payload.(types.JSONPayload).Output)
 	assert.True(t, out.Truncated)
 	assert.Equal(t, "executor_cap", out.TruncatedReason)
 }
