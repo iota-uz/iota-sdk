@@ -160,9 +160,10 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 			DedupeTTL: c.TitleQueue.DedupeTTL,
 		})
 		if err != nil {
-			return nil, serrors.E(op, err, "failed to create redis title job queue")
+			c.Logger.WithError(err).Warn("Redis title job queue unavailable, falling back to synchronous title generation")
+		} else {
+			titleJobQueue = queue
 		}
-		titleJobQueue = queue
 	}
 
 	attachmentService := services.NewAttachmentService(fileStorage)
