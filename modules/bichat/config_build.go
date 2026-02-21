@@ -206,7 +206,7 @@ func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
 		return serrors.E(op, serrors.KindValidation, "ParentAgent or QueryExecutor is required")
 	}
 
-	opts := make([]bichatagents.BIAgentOption, 0, 6)
+	opts := make([]bichatagents.BIAgentOption, 0, 8)
 	if c.KBSearcher != nil {
 		opts = append(opts, bichatagents.WithKBSearcher(c.KBSearcher))
 	}

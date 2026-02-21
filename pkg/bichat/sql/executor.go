@@ -72,15 +72,30 @@ func (r *QueryResult) AllMaps() []map[string]any {
 	return result
 }
 
+// PostgreSQL type OIDs (values match github.com/jackc/pgx/v5/pgtype).
+const (
+	oidInt2       uint32 = 21
+	oidInt4       uint32 = 23
+	oidInt8       uint32 = 20
+	oidFloat4     uint32 = 700
+	oidFloat8     uint32 = 701
+	oidNumeric    uint32 = 1700
+	oidBool       uint32 = 16
+	oidTimestamp  uint32 = 1114
+	oidTimestamptz uint32 = 1184
+	oidDate       uint32 = 1082
+	oidTime       uint32 = 1083
+)
+
 // PgOIDToColumnType maps a PostgreSQL type OID to a frontend column type string.
 // Valid return values: "string", "number", "boolean", "date".
 func PgOIDToColumnType(oid uint32) string {
 	switch oid {
-	case 21, 23, 20, 700, 701, 1700: // int2, int4, int8, float4, float8, numeric
+	case oidInt2, oidInt4, oidInt8, oidFloat4, oidFloat8, oidNumeric:
 		return "number"
-	case 16: // bool
+	case oidBool:
 		return "boolean"
-	case 1114, 1184, 1082, 1083: // timestamp, timestamptz, date, time
+	case oidTimestamp, oidTimestamptz, oidDate, oidTime:
 		return "date"
 	default:
 		return "string"

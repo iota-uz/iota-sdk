@@ -46,7 +46,8 @@ func TestRenderTableTool_Call_SuccessWithExport(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := &mockRenderTableExecutor{
 		result: &bichatsql.QueryResult{
-			Columns: []string{"policy_id", "premium_amount"},
+			Columns:     []string{"policy_id", "premium_amount"},
+			ColumnTypes: []string{"number", "number"},
 			Rows: [][]any{
 				{int64(1), 1000.0},
 				{int64(2), 2500.0},
@@ -74,6 +75,7 @@ func TestRenderTableTool_Call_SuccessWithExport(t *testing.T) {
 	assert.Equal(t, "Policy Premiums", out.Title)
 	assert.Equal(t, "SELECT policy_id, premium_amount FROM analytics.policies_with_details", out.Query)
 	assert.Equal(t, []string{"policy_id", "premium_amount"}, out.Columns)
+	assert.Equal(t, []string{"number", "number"}, out.ColumnTypes)
 	assert.Equal(t, []string{"Policy ID", "Premium (UZS)"}, out.Headers)
 	require.Len(t, out.Rows, 2)
 	assert.False(t, out.Truncated)
@@ -108,8 +110,9 @@ func TestRenderTableTool_CallStructured_TruncatedByExecutor(t *testing.T) {
 
 	executor := &mockRenderTableExecutor{
 		result: &bichatsql.QueryResult{
-			Columns: []string{"id"},
-			Rows:    [][]any{{int64(1)}},
+			Columns:     []string{"id"},
+			ColumnTypes: []string{"number"},
+			Rows:        [][]any{{int64(1)}},
 			// executor indicates truncation via metadata flag
 			Truncated: true,
 		},
@@ -127,6 +130,7 @@ func TestRenderTableTool_CallStructured_TruncatedByExecutor(t *testing.T) {
 	require.True(t, ok, "Output should be renderTableOutput, got %T", jsonPayload.Output)
 	assert.True(t, out.Truncated)
 	assert.Equal(t, "executor_cap", out.TruncatedReason)
+	assert.Equal(t, []string{"number"}, out.ColumnTypes)
 }
 
 func TestRenderTableTool_Call_NoOutputDirStillReturnsPrompt(t *testing.T) {

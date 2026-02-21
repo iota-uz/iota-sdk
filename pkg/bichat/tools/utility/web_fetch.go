@@ -53,10 +53,10 @@ func WithWebFetchHTTPClient(client *http.Client) WebFetchToolOption {
 }
 
 // WithWebFetchMaxDownloadBytes sets the maximum response body size.
-func WithWebFetchMaxDownloadBytes(max int64) WebFetchToolOption {
+func WithWebFetchMaxDownloadBytes(maxBytes int64) WebFetchToolOption {
 	return func(t *WebFetchTool) {
-		if max > 0 {
-			t.maxDownloadBytes = max
+		if maxBytes > 0 {
+			t.maxDownloadBytes = maxBytes
 		}
 	}
 }
@@ -70,10 +70,23 @@ func WithWebFetchTimeout(timeout time.Duration) WebFetchToolOption {
 	}
 }
 
+const maxRedirects = 5
+
 // NewWebFetchTool creates a new web fetch tool.
 func NewWebFetchTool(opts ...WebFetchToolOption) agents.Tool {
 	tool := &WebFetchTool{
-		httpClient:       &http.Client{},
+		httpClient: &http.Client{
+			Transport: newSSRFSafeTransport(),
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= maxRedirects {
+					return fmt.Errorf("too many redirects")
+				}
+				if _, err := validatePublicWebFetchURL(req.URL.String()); err != nil {
+					return fmt.Errorf("redirect blocked: %w", err)
+				}
+				return nil
+			},
+		},
 		maxDownloadBytes: defaultWebFetchMaxDownloadBytes,
 		timeout:          defaultWebFetchTimeout,
 	}
@@ -81,6 +94,30 @@ func NewWebFetchTool(opts ...WebFetchToolOption) agents.Tool {
 		opt(tool)
 	}
 	return tool
+}
+
+// newSSRFSafeTransport returns an http.Transport whose DialContext validates
+// resolved IPs so hostnames that resolve to private/internal IPs are rejected.
+func newSSRFSafeTransport() *http.Transport {
+	return &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid address: %w", err)
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("DNS resolution failed: %w", err)
+			}
+			for _, ipa := range ips {
+				if !isPublicIP(ipa.IP) {
+					return nil, fmt.Errorf("resolved IP %s is not public", ipa.IP)
+				}
+			}
+			dialer := &net.Dialer{Timeout: 10 * time.Second}
+			return dialer.DialContext(ctx, network, net.JoinHostPort(host, port))
+		},
+	}
 }
 
 // Name returns the tool name.
@@ -149,6 +186,7 @@ func (t *WebFetchTool) CallStructured(ctx context.Context, input string) (*types
 		), nil
 	}
 	req.Header.Set("Accept", "image/*,application/pdf;q=0.9,*/*;q=0.1")
+	req.Header.Set("User-Agent", "iota-sdk/web_fetch")
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
@@ -235,7 +273,9 @@ func (t *WebFetchTool) CallStructured(ctx context.Context, input string) (*types
 		), nil
 	}
 
-	savedURL, err := t.fileStorage.Save(timeoutCtx, filename, bytes.NewReader(body), storage.FileMetadata{
+	saveCtx, saveCancel := context.WithTimeout(ctx, t.timeout)
+	defer saveCancel()
+	savedURL, err := t.fileStorage.Save(saveCtx, filename, bytes.NewReader(body), storage.FileMetadata{
 		ContentType: contentType,
 		Size:        int64(len(body)),
 	})

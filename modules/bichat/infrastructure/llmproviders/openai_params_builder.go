@@ -40,10 +40,9 @@ func (m *OpenAIModel) buildResponseParams(ctx context.Context, req agents.Reques
 	}
 
 	if config.ReasoningEffort != nil {
-		effort := shared.ReasoningEffort(string(*config.ReasoningEffort))
+		effort := shared.ReasoningEffort(*config.ReasoningEffort)
 		params.Reasoning = shared.ReasoningParam{
-			Effort:  effort,
-			Summary: shared.ReasoningSummaryConcise,
+			Effort: effort,
 		}
 	}
 

@@ -83,6 +83,9 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 
 		case "reasoning":
 			for _, s := range item.Summary {
+				if thinking != "" {
+					thinking += "\n"
+				}
 				thinking += s.Text
 			}
 		}
