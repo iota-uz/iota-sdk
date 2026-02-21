@@ -175,7 +175,19 @@
         "VisualizeChart": "根据此数据创建图表可视化",
         "SummarizeColumn": "汇总查询结果中的「{{column}}」列",
         "UniqueValues": "列出查询结果中「{{column}}」列的唯一值"
-      }
+      },
+      "NoMatchingRows": "没有匹配搜索的行",
+      "ClearSearchAction": "清除搜索",
+      "SortedBy": "排序: {{column}}",
+      "ClearSort": "清除排序",
+      "Copy": "复制",
+      "CopyTable": "复制表格到剪贴板",
+      "TableCopied": "表格已复制到剪贴板",
+      "FirstPage": "第一页",
+      "LastPage": "最后一页",
+      "SummaryRow": "汇总",
+      "Expand": "展开",
+      "Collapse": "收起"
     },
     "Sidebar": {
       "ChatHistory": "聊天记录",

@@ -175,7 +175,19 @@
         "VisualizeChart": "Create a chart visualization from this data",
         "SummarizeColumn": "Summarize the \"{{column}}\" column from the query results",
         "UniqueValues": "List unique values in the \"{{column}}\" column from the query results"
-      }
+      },
+      "NoMatchingRows": "No rows match your search",
+      "ClearSearchAction": "Clear search",
+      "SortedBy": "Sorted by: {{column}}",
+      "ClearSort": "Clear sort",
+      "Copy": "Copy",
+      "CopyTable": "Copy table to clipboard",
+      "TableCopied": "Table copied to clipboard",
+      "FirstPage": "First page",
+      "LastPage": "Last page",
+      "SummaryRow": "Summary",
+      "Expand": "Expand",
+      "Collapse": "Collapse"
     },
     "Sidebar": {
       "ChatHistory": "Chat history",

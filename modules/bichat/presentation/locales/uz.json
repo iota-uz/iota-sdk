@@ -175,7 +175,19 @@
         "VisualizeChart": "Ushbu ma'lumotlardan grafik vizualizatsiya yarating",
         "SummarizeColumn": "So'rov natijalaridagi \"{{column}}\" ustunini umumlashtiring",
         "UniqueValues": "So'rov natijalaridagi \"{{column}}\" ustunidagi noyob qiymatlarni ro'yxatlang"
-      }
+      },
+      "NoMatchingRows": "Qidiruvga mos qatorlar topilmadi",
+      "ClearSearchAction": "Qidiruvni tozalash",
+      "SortedBy": "Saralash: {{column}}",
+      "ClearSort": "Saralashni bekor qilish",
+      "Copy": "Nusxalash",
+      "CopyTable": "Jadvalni vaqtinchalik xotiraga nusxalash",
+      "TableCopied": "Jadval vaqtinchalik xotiraga nusxalandi",
+      "FirstPage": "Birinchi sahifa",
+      "LastPage": "Oxirgi sahifa",
+      "SummaryRow": "Jami",
+      "Expand": "Kengaytirish",
+      "Collapse": "Yig'ish"
     },
     "Sidebar": {
       "ChatHistory": "Chat tarixi",
