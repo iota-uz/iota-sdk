@@ -65,7 +65,7 @@ func WithRenderTableStyleOptions(opts *excel.StyleOptions) RenderTableToolOption
 	}
 }
 
-// NewRenderTableTool creates a new renderTable tool.
+// NewRenderTableTool creates a new render_table tool.
 func NewRenderTableTool(executor bichatsql.QueryExecutor, opts ...RenderTableToolOption) agents.Tool {
 	tool := &RenderTableTool{
 		executor:   executor,
@@ -82,7 +82,7 @@ func NewRenderTableTool(executor bichatsql.QueryExecutor, opts ...RenderTableToo
 
 // Name returns the tool name.
 func (t *RenderTableTool) Name() string {
-	return "renderTable"
+	return "render_table"
 }
 
 // Description returns the tool description for the LLM.
@@ -343,7 +343,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 	}, nil
 }
 
-// Call executes renderTable and returns JSON output.
+// Call executes render_table and returns JSON output.
 func (t *RenderTableTool) Call(ctx context.Context, input string) (string, error) {
 	return FormatStructuredResult(t.CallStructured(ctx, input))
 }

@@ -256,7 +256,7 @@ WORKFLOW GUIDELINES:
    - Use indexes for WHERE and JOIN conditions when available
 
 4. VISUALIZE DATA
-   - Use renderTable when users need an interactive, paginated table in chat
+   - Use render_table when users need an interactive, paginated table in chat
    - Use draw_chart for data visualization when appropriate
    - Choose chart type based on data: line (trends), bar (comparisons), pie (proportions)
    - Pie and donut charts require exactly one series

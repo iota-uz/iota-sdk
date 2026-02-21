@@ -36,7 +36,7 @@ func TestRenderTableTool_Name(t *testing.T) {
 	t.Parallel()
 
 	tool := NewRenderTableTool(&mockRenderTableExecutor{})
-	assert.Equal(t, "renderTable", tool.Name())
+	assert.Equal(t, "render_table", tool.Name())
 }
 
 func TestRenderTableTool_Call_SuccessWithExport(t *testing.T) {
