@@ -73,6 +73,7 @@
       "draw_table": "Строю таблицу",
       "kb_search": "Ищу в базе знаний",
       "web_search": "Ищу в интернете",
+      "web_fetch": "Получаю данные из веба",
       "code_interpreter": "Выполняю код",
       "export_data_to_excel": "Экспортирую в Excel",
       "export_query_to_excel": "Экспортирую запрос в Excel",

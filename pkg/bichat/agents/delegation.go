@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -207,7 +208,7 @@ eventLoop:
 	for {
 		event, err := gen.Next(ctx)
 		if err != nil {
-			if err == types.ErrGeneratorDone {
+			if errors.Is(err, types.ErrGeneratorDone) {
 				break
 			}
 			return "", fmt.Errorf("child agent generator error: %w", err)
@@ -229,16 +230,9 @@ eventLoop:
 			// Forward child tool events to parent stream with agent identity.
 			if event.Tool != nil {
 				forwarded := event
-				forwarded.Tool = &ToolEvent{
-					CallID:     event.Tool.CallID,
-					Name:       event.Tool.Name,
-					AgentName:  metadata.Name,
-					Arguments:  event.Tool.Arguments,
-					Result:     event.Tool.Result,
-					Error:      event.Tool.Error,
-					DurationMs: event.Tool.DurationMs,
-					Artifacts:  event.Tool.Artifacts,
-				}
+				toolCopy := *event.Tool
+				toolCopy.AgentName = metadata.Name
+				forwarded.Tool = &toolCopy
 				if !emit(forwarded) {
 					interrupted = true
 					break eventLoop

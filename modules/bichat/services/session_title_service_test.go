@@ -86,13 +86,16 @@ func TestSessionTitleService_Sanitizer_TruncatesUnicodeSafely(t *testing.T) {
 	t.Parallel()
 
 	longInput := strings.Repeat("А", maxTitleLength+10)
+	invalidUTF8Short := string([]byte{0xFF, 0xFE, 0xFD}) // invalid UTF-8, replaced by ToValidUTF8 then short
 	cases := []struct {
-		name      string
-		input     string
+		name       string
+		input      string
 		wantSuffix string
 	}{
 		{"long_unicode_truncated", longInput, "..."},
 		{"exactly_max_length", strings.Repeat("Б", maxTitleLength), ""},
+		{"exactly_max_length_plus_one", strings.Repeat("В", maxTitleLength+1), "..."},
+		{"invalid_utf8", invalidUTF8Short, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

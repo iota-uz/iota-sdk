@@ -231,7 +231,7 @@ Required fields:
 - Skills are loaded and validated once during `BuildServices()`.
 - On each turn, BiChat injects a catalog of available skills (name, description, slug, path).
 - The model should call `load_skill` with a catalog slug to fetch full skill instructions.
-- `SkillsSelectionLimit` controls max catalog entries rendered per turn.
+- `SkillsCatalogLimit` controls max catalog entries rendered per turn.
 - `SkillsMaxChars` controls max rendered chars for catalog and `load_skill` output.
 - If skills loading fails, startup fails fast.
 
@@ -246,7 +246,7 @@ cfg := bichat.NewModuleConfig(
     bichat.DefaultContextPolicy(),
     parentAgent,
     bichat.WithSkillsDir("/opt/bichat/skills"),
-    bichat.WithSkillsSelectionLimit(3),
+    bichat.WithSkillsCatalogLimit(3),
     bichat.WithSkillsMaxChars(8000),
 )
 ```

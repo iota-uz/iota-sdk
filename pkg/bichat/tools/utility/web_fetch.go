@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
@@ -31,10 +33,30 @@ type WebFetchTool struct {
 	httpClient       *http.Client
 	maxDownloadBytes int64
 	timeout          time.Duration
+	logger           logging.Logger
+	metrics          hooks.MetricsRecorder
 }
 
 // WebFetchToolOption configures WebFetchTool.
 type WebFetchToolOption func(*WebFetchTool)
+
+// WithWebFetchLogger sets the logger for the tool.
+func WithWebFetchLogger(logger logging.Logger) WebFetchToolOption {
+	return func(t *WebFetchTool) {
+		if logger != nil {
+			t.logger = logger
+		}
+	}
+}
+
+// WithWebFetchMetrics sets the metrics recorder for the tool.
+func WithWebFetchMetrics(metrics hooks.MetricsRecorder) WebFetchToolOption {
+	return func(t *WebFetchTool) {
+		if metrics != nil {
+			t.metrics = metrics
+		}
+	}
+}
 
 // WithWebFetchStorage enables save_to_artifacts by wiring file storage.
 func WithWebFetchStorage(fs storage.FileStorage) WebFetchToolOption {
@@ -89,6 +111,7 @@ func NewWebFetchTool(opts ...WebFetchToolOption) agents.Tool {
 		},
 		maxDownloadBytes: defaultWebFetchMaxDownloadBytes,
 		timeout:          defaultWebFetchTimeout,
+		logger:           logging.NewNoOpLogger(),
 	}
 	for _, opt := range opts {
 		opt(tool)

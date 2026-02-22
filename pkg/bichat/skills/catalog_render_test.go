@@ -9,26 +9,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRenderCatalogReference_IncludesMetadataAndInstructions(t *testing.T) {
+func TestRenderCatalogReference(t *testing.T) {
 	t.Parallel()
 
 	catalog := buildRenderTestCatalog(t)
-	ref := RenderCatalogReference(catalog, 10, 4000)
-
-	assert.Contains(t, ref, "SKILLS CATALOG:")
-	assert.Contains(t, ref, "load_skill")
-	assert.Contains(t, ref, "@finance/month-end")
-	assert.Contains(t, ref, "@insurance/reserves")
-}
-
-func TestRenderCatalogReference_RespectsLimit(t *testing.T) {
-	t.Parallel()
-
-	catalog := buildRenderTestCatalog(t)
-	ref := RenderCatalogReference(catalog, 1, 4000)
-
-	assert.Contains(t, ref, "SKILLS CATALOG:")
-	assert.Contains(t, ref, "additional skill(s) omitted")
+	tests := []struct {
+		name     string
+		limit    int
+		contains []string
+	}{
+		{
+			name:     "IncludesMetadataAndInstructions",
+			limit:    10,
+			contains: []string{"SKILLS CATALOG:", "load_skill", "@finance/month-end", "@insurance/reserves"},
+		},
+		{
+			name:     "RespectsLimit",
+			limit:    1,
+			contains: []string{"SKILLS CATALOG:", "additional skill(s) omitted"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ref := RenderCatalogReference(catalog, tc.limit, 4000)
+			for _, want := range tc.contains {
+				assert.Contains(t, ref, want)
+			}
+		})
+	}
 }
 
 func TestRenderLoadedSkill_FormatsBody(t *testing.T) {

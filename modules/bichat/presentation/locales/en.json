@@ -73,6 +73,7 @@
       "draw_table": "Building table",
       "kb_search": "Searching knowledge base",
       "web_search": "Searching the web",
+      "web_fetch": "Fetching from web",
       "code_interpreter": "Running code",
       "export_data_to_excel": "Exporting to Excel",
       "export_query_to_excel": "Exporting query to Excel",

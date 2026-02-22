@@ -11,6 +11,7 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
@@ -256,7 +257,7 @@ func (m *OpenAIModel) buildInputItemsWithContext(ctx context.Context, messages [
 				continue
 			}
 			if toolName == webFetchToolName {
-				if richOutput, ok := buildWebFetchFunctionCallOutput(msg.Content()); ok {
+				if richOutput, ok := buildWebFetchFunctionCallOutput(ctx, msg.Content(), m.logger); ok {
 					items = append(items, responses.ResponseInputItemParamOfFunctionCallOutput(
 						callID,
 						richOutput,
@@ -287,7 +288,7 @@ type webFetchToolOutput struct {
 	Filename      string `json:"filename,omitempty"`
 }
 
-func buildWebFetchFunctionCallOutput(raw string) (responses.ResponseFunctionCallOutputItemListParam, bool) {
+func buildWebFetchFunctionCallOutput(ctx context.Context, raw string, logger logging.Logger) (responses.ResponseFunctionCallOutputItemListParam, bool) {
 	var payload webFetchToolOutput
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
 		return nil, false
@@ -322,6 +323,13 @@ func buildWebFetchFunctionCallOutput(raw string) (responses.ResponseFunctionCall
 			items = append(items, responses.ResponseFunctionCallOutputItemUnionParam{
 				OfInputFile: file,
 			})
+		default:
+			if logger != nil {
+				logger.Warn(ctx, "unknown web_fetch injection_type, skipping rich injection", map[string]any{
+					"injection_type": payload.InjectionType,
+					"injection_url":  injectionURL,
+				})
+			}
 		}
 	}
 

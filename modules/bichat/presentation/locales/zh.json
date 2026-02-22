@@ -73,6 +73,7 @@
       "draw_table": "正在构建表格",
       "kb_search": "正在搜索知识库",
       "web_search": "正在搜索互联网",
+      "web_fetch": "正在从网络获取",
       "code_interpreter": "正在执行代码",
       "export_data_to_excel": "正在导出到Excel",
       "export_query_to_excel": "正在导出查询到Excel",
@@ -177,7 +178,7 @@
         "SummarizeColumn": "汇总查询结果中的「{{column}}」列",
         "UniqueValues": "列出查询结果中「{{column}}」列的唯一值"
       },
-      "NoMatchingRows": "没有匹配搜索的行",
+      "NoMatchingRows": "没有匹配的行。",
       "ClearSearchAction": "清除搜索",
       "SortedBy": "排序: {{column}}",
       "ClearSort": "清除排序",

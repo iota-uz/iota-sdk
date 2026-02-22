@@ -148,7 +148,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		SchemaMetadata:         c.SchemaMetadataProvider,
 		ProjectPromptExtension: c.resolvedProjectPromptExtension,
 		SkillsCatalog:          c.skillsCatalog,
-		SkillsCatalogLimit:     c.SkillsSelectionLimit,
+		SkillsCatalogLimit:     c.SkillsCatalogLimit,
 		SkillsMaxChars:         c.SkillsMaxChars,
 		RuntimeTools:           runtimeTools,
 		Logger:                 c.Logger,

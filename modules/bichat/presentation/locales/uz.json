@@ -73,6 +73,7 @@
       "draw_table": "Jadval qurilmoqda",
       "kb_search": "Bilimlar bazasida qidirilmoqda",
       "web_search": "Internetda qidirilmoqda",
+      "web_fetch": "Vebdan ma'lumot olinmoqda",
       "code_interpreter": "Kod bajarilmoqda",
       "export_data_to_excel": "Excelga eksport qilinmoqda",
       "export_query_to_excel": "So'rov Excelga eksport qilinmoqda",

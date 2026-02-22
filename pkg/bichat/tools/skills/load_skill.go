@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	bichatagents "github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
 	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 )
 
@@ -18,6 +19,7 @@ const (
 type LoadSkillTool struct {
 	catalog  *bichatskills.Catalog
 	maxChars int
+	logger   logging.Logger
 }
 
 // LoadSkillToolOption customizes LoadSkillTool behavior.
@@ -30,11 +32,21 @@ func WithLoadSkillMaxChars(maxChars int) LoadSkillToolOption {
 	}
 }
 
+// WithLoadSkillLogger sets the logger for the tool.
+func WithLoadSkillLogger(logger logging.Logger) LoadSkillToolOption {
+	return func(t *LoadSkillTool) {
+		if logger != nil {
+			t.logger = logger
+		}
+	}
+}
+
 // NewLoadSkillTool creates a tool that returns full markdown instructions for one skill.
 func NewLoadSkillTool(catalog *bichatskills.Catalog, opts ...LoadSkillToolOption) *LoadSkillTool {
 	tool := &LoadSkillTool{
 		catalog:  catalog,
 		maxChars: defaultLoadSkillMaxChars,
+		logger:   logging.NewNoOpLogger(),
 	}
 	for _, opt := range opts {
 		opt(tool)

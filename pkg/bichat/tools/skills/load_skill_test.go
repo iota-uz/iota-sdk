@@ -16,23 +16,31 @@ func TestLoadSkillTool_LoadsBySlug(t *testing.T) {
 
 	catalog := createTestCatalog(t)
 	tool := NewLoadSkillTool(catalog)
-
-	out, err := tool.Call(context.Background(), `{"skill":"insurance/reserves"}`)
-	require.NoError(t, err)
-	assert.Contains(t, out, "SKILL LOADED: @insurance/reserves")
-	assert.Contains(t, out, "Reserve Calculations")
-	assert.Contains(t, out, "Use RNP, RZU, and RPNU formulas")
-}
-
-func TestLoadSkillTool_LoadsByMentionSlug(t *testing.T) {
-	t.Parallel()
-
-	catalog := createTestCatalog(t)
-	tool := NewLoadSkillTool(catalog)
-
-	out, err := tool.Call(context.Background(), `{"skill":"@insurance/reserves"}`)
-	require.NoError(t, err)
-	assert.Contains(t, out, "SKILL LOADED: @insurance/reserves")
+	tests := []struct {
+		name     string
+		input    string
+		contains []string
+	}{
+		{
+			name:     "BareSlug",
+			input:    `{"skill":"insurance/reserves"}`,
+			contains: []string{"SKILL LOADED: @insurance/reserves", "Reserve Calculations", "Use RNP, RZU, and RPNU formulas"},
+		},
+		{
+			name:     "MentionSlug",
+			input:    `{"skill":"@insurance/reserves"}`,
+			contains: []string{"SKILL LOADED: @insurance/reserves"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := tool.Call(context.Background(), tc.input)
+			require.NoError(t, err)
+			for _, want := range tc.contains {
+				assert.Contains(t, out, want)
+			}
+		})
+	}
 }
 
 func TestLoadSkillTool_MissingSkillReturnsSuggestions(t *testing.T) {
