@@ -6,6 +6,7 @@ import (
 
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
+	coreagents "github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
@@ -13,6 +14,7 @@ import (
 	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	bichatartifacts "github.com/iota-uz/iota-sdk/pkg/bichat/tools/artifacts"
+	toolskills "github.com/iota-uz/iota-sdk/pkg/bichat/tools/skills"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -41,8 +43,8 @@ func (c *ModuleConfig) resolveProjectPromptExtension() error {
 	return nil
 }
 
-func (c *ModuleConfig) resolveSkillsSelector() error {
-	if c.skillsSelector != nil {
+func (c *ModuleConfig) resolveSkillsCatalog() error {
+	if c.skillsCatalog != nil {
 		return nil
 	}
 
@@ -57,11 +59,6 @@ func (c *ModuleConfig) resolveSkillsSelector() error {
 	}
 
 	c.skillsCatalog = catalog
-	c.skillsSelector = bichatskills.NewSelector(
-		catalog,
-		bichatskills.WithSelectionLimit(c.SkillsSelectionLimit),
-		bichatskills.WithMaxChars(c.SkillsMaxChars),
-	)
 	return nil
 }
 
@@ -94,7 +91,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	if err := c.resolveProjectPromptExtension(); err != nil {
 		return nil, serrors.E(op, err, "failed to resolve project prompt extension")
 	}
-	if err := c.resolveSkillsSelector(); err != nil {
+	if err := c.resolveSkillsCatalog(); err != nil {
 		return nil, serrors.E(op, err, "failed to load skills catalog")
 	}
 
@@ -130,6 +127,14 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		return nil, serrors.E(op, err)
 	}
 
+	var runtimeTools []coreagents.Tool
+	if c.skillsCatalog != nil {
+		runtimeTools = append(runtimeTools, toolskills.NewLoadSkillTool(
+			c.skillsCatalog,
+			toolskills.WithLoadSkillMaxChars(c.SkillsMaxChars),
+		))
+	}
+
 	// Build AgentService first (ChatService depends on it)
 	agentService := services.NewAgentService(services.AgentServiceConfig{
 		Agent:                  c.ParentAgent,
@@ -142,7 +147,10 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		AgentRegistry:          c.AgentRegistry,
 		SchemaMetadata:         c.SchemaMetadataProvider,
 		ProjectPromptExtension: c.resolvedProjectPromptExtension,
-		SkillsSelector:         c.skillsSelector,
+		SkillsCatalog:          c.skillsCatalog,
+		SkillsCatalogLimit:     c.SkillsSelectionLimit,
+		SkillsMaxChars:         c.SkillsMaxChars,
+		RuntimeTools:           runtimeTools,
 		Logger:                 c.Logger,
 		FormatterRegistry:      formatters.DefaultFormatterRegistry(),
 	})

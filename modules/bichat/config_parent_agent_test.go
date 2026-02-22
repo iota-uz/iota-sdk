@@ -367,7 +367,6 @@ Use schema tools before retrying.
 	require.NoError(t, err)
 	require.NotNil(t, cfg.skillsCatalog)
 	assert.Len(t, cfg.skillsCatalog.Skills, 1)
-	require.NotNil(t, cfg.skillsSelector)
 }
 
 func TestModuleConfig_BuildServices_InvalidSkillsCatalogFails(t *testing.T) {

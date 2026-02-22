@@ -83,7 +83,7 @@ const (
 )
 
 const (
-	defaultSkillsSelectionLimit = 3
+	defaultSkillsSelectionLimit = 50
 	defaultSkillsMaxChars       = 8000
 )
 
@@ -265,7 +265,6 @@ type ModuleConfig struct {
 	capabilitiesConfigured         bool
 	subAgentsInitialized           bool
 	skillsCatalog                  *bichatskills.Catalog
-	skillsSelector                 bichatskills.Selector
 }
 
 // ServiceContainer holds built services created by ModuleConfig.BuildServices().

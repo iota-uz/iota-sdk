@@ -179,8 +179,9 @@ Behavior:
 
 ## Skills Tree (Codex/Claude-Style)
 
-BiChat supports a startup-loaded skills tree from markdown files. Skills are injected as a
-`KindReference` context block per turn (not merged into the base system prompt).
+BiChat supports a startup-loaded skills tree from markdown files with progressive disclosure:
+- Per turn, BiChat injects a compact **skills catalog** (metadata only) as `KindReference`.
+- The model loads full instructions on demand via the `load_skill` tool.
 
 ### Directory Structure
 
@@ -228,9 +229,10 @@ Required fields:
 ### Runtime Behavior
 
 - Skills are loaded and validated once during `BuildServices()`.
-- On each turn, BiChat auto-selects relevant skills by lexical overlap.
-- Users can force a skill with mention syntax: `@skill-slug` (example: `@finance/month-end`).
-- Default budget: top 3 skills and max 8000 rendered characters.
+- On each turn, BiChat injects a catalog of available skills (name, description, slug, path).
+- The model should call `load_skill` with a catalog slug to fetch full skill instructions.
+- `SkillsSelectionLimit` controls max catalog entries rendered per turn.
+- `SkillsMaxChars` controls max rendered chars for catalog and `load_skill` output.
 - If skills loading fails, startup fails fast.
 
 ### Configuration

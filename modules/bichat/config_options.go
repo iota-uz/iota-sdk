@@ -112,14 +112,16 @@ func WithSkillsDir(dir string) ConfigOption {
 	}
 }
 
-// WithSkillsSelectionLimit sets the maximum number of skills to inject per turn.
+// WithSkillsSelectionLimit sets the maximum number of skill metadata entries
+// included in the per-turn skills catalog reference.
 func WithSkillsSelectionLimit(limit int) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.SkillsSelectionLimit = limit
 	}
 }
 
-// WithSkillsMaxChars sets the maximum character budget for rendered skills context.
+// WithSkillsMaxChars sets the maximum character budget for rendered skills catalog
+// reference and load_skill tool output.
 func WithSkillsMaxChars(maxChars int) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.SkillsMaxChars = maxChars

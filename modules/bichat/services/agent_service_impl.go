@@ -20,6 +20,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	defaultSkillsCatalogLimit = 50
+	defaultSkillsMaxChars     = 8000
+)
+
 // agentServiceImpl is the production implementation of AgentService.
 // It bridges the chat domain with the Agent Framework, handling context building,
 // agent execution, and event streaming.
@@ -34,7 +39,10 @@ type agentServiceImpl struct {
 	agentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	schemaMetadata         schema.MetadataProvider // Optional for table metadata
 	projectPromptExtension string
-	skillsSelector         bichatskills.Selector
+	skillsCatalog          *bichatskills.Catalog
+	skillsCatalogLimit     int
+	skillsMaxChars         int
+	runtimeTools           []agents.Tool
 	logger                 *logrus.Logger
 	formatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
@@ -51,7 +59,10 @@ type AgentServiceConfig struct {
 	AgentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	SchemaMetadata         schema.MetadataProvider // Optional for table metadata
 	ProjectPromptExtension string
-	SkillsSelector         bichatskills.Selector
+	SkillsCatalog          *bichatskills.Catalog
+	SkillsCatalogLimit     int
+	SkillsMaxChars         int
+	RuntimeTools           []agents.Tool
 	Logger                 *logrus.Logger
 	FormatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
@@ -80,6 +91,14 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 	if logger == nil {
 		logger = logrus.New()
 	}
+	limit := cfg.SkillsCatalogLimit
+	if limit <= 0 {
+		limit = defaultSkillsCatalogLimit
+	}
+	maxChars := cfg.SkillsMaxChars
+	if maxChars <= 0 {
+		maxChars = defaultSkillsMaxChars
+	}
 	return &agentServiceImpl{
 		agent:                  cfg.Agent,
 		model:                  cfg.Model,
@@ -91,7 +110,10 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 		agentRegistry:          cfg.AgentRegistry,
 		schemaMetadata:         cfg.SchemaMetadata,
 		projectPromptExtension: strings.TrimSpace(cfg.ProjectPromptExtension),
-		skillsSelector:         cfg.SkillsSelector,
+		skillsCatalog:          cfg.SkillsCatalog,
+		skillsCatalogLimit:     limit,
+		skillsMaxChars:         maxChars,
+		runtimeTools:           append([]agents.Tool(nil), cfg.RuntimeTools...),
 		logger:                 logger,
 		formatterRegistry:      cfg.FormatterRegistry,
 	}
@@ -168,15 +190,8 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 			builder.Reference(metadataCodec, codecs.SchemaMetadataPayload{Tables: metadata})
 		}
 	}
-	if s.skillsSelector != nil {
-		selection, err := s.skillsSelector.Select(ctx, bichatskills.SelectionRequest{
-			Message: content,
-		})
-		if err != nil {
-			s.logger.WithError(err).Warn("failed to select skills context; continuing without skills")
-		} else if selection.Reference != "" {
-			builder.Reference(codecs.NewSystemRulesCodec(), selection.Reference)
-		}
+	if reference := s.buildSkillsCatalogReference(); reference != "" {
+		builder.Reference(codecs.NewSystemRulesCodec(), reference)
 	}
 
 	// 2. Session history (KindHistory)
@@ -285,18 +300,73 @@ func (s *agentServiceImpl) buildExecutor(sessionID, tenantID uuid.UUID) *agents.
 		opts = append(opts, agents.WithFormatterRegistry(s.formatterRegistry))
 	}
 
-	if s.agentRegistry != nil && len(s.agentRegistry.All()) > 0 {
-		agentTools := s.agent.Tools()
-		delegationTool := agents.NewDelegationTool(
+	if tools := s.composeExecutorTools(sessionID, tenantID); len(tools) > 0 {
+		opts = append(opts, agents.WithExecutorTools(tools))
+	}
+
+	return agents.NewExecutor(s.agent, s.model, opts...)
+}
+
+func (s *agentServiceImpl) buildSkillsCatalogReference() string {
+	if s.skillsCatalog == nil {
+		return ""
+	}
+	return bichatskills.RenderCatalogReference(
+		s.skillsCatalog,
+		s.skillsCatalogLimit,
+		s.skillsMaxChars,
+	)
+}
+
+func (s *agentServiceImpl) composeExecutorTools(sessionID, tenantID uuid.UUID) []agents.Tool {
+	hasDelegationTargets := s.agentRegistry != nil && len(s.agentRegistry.All()) > 0
+	if len(s.runtimeTools) == 0 && !hasDelegationTargets {
+		return nil
+	}
+
+	tools := append([]agents.Tool(nil), s.agent.Tools()...)
+	tools = append(tools, s.runtimeTools...)
+	if hasDelegationTargets {
+		tools = append(tools, agents.NewDelegationTool(
 			s.agentRegistry,
 			s.model,
 			sessionID,
 			tenantID,
-		)
-		opts = append(opts, agents.WithExecutorTools(append(agentTools, delegationTool)))
+		))
+	}
+	return deduplicateToolsByName(tools)
+}
+
+func deduplicateToolsByName(tools []agents.Tool) []agents.Tool {
+	if len(tools) == 0 {
+		return nil
 	}
 
-	return agents.NewExecutor(s.agent, s.model, opts...)
+	// Preserve order while preferring later definitions (runtime overrides base).
+	reversed := make([]agents.Tool, 0, len(tools))
+	seen := make(map[string]struct{}, len(tools))
+
+	for i := len(tools) - 1; i >= 0; i-- {
+		tool := tools[i]
+		if tool == nil {
+			continue
+		}
+		name := strings.TrimSpace(tool.Name())
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		reversed = append(reversed, tool)
+	}
+
+	result := make([]agents.Tool, len(reversed))
+	for i := range reversed {
+		result[i] = reversed[len(reversed)-1-i]
+	}
+	return result
 }
 
 // convertToHistoryPayload converts types.Message slice to ConversationHistoryPayload
