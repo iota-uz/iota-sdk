@@ -113,6 +113,11 @@ jobs:
       - name: Install BiChat applet dependencies
         run: pnpm install --frozen-lockfile -C modules/bichat/presentation/web
 
+      - name: Run applet DX guardrails
+        run: |
+          just applet deps-check
+          just applet doctor
+
       - name: Typecheck BiChat applet
         run: pnpm -C modules/bichat/presentation/web exec tsc --noEmit
 

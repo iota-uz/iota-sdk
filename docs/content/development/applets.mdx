@@ -39,9 +39,9 @@ Slice-2 local tooling packages are now available in the applets repo:
 
 ## SDK dependency policy
 
-Applet web packages must pin `@iota-uz/sdk` to an exact npm version (for example `0.3.0`).
+Applet web packages must pin `@iota-uz/sdk` to an exact npm version (for example `0.4.20`).
 
-- Do not use local overrides like `file:`, `link:`, or `workspace:` for `@iota-uz/sdk`.
+- Do not commit local overrides like `file:`, `link:`, or `workspace:` for `@iota-uz/sdk`.
 - Local SDK hot reload is provided by `just dev <name>` via Vite dev aliasing and SDK watch builds.
 - CI enforces this policy with `just applet deps-check`.
 
@@ -93,9 +93,9 @@ See [BiChat Downstream applet checklist](/bichat#downstream-applet-checklist-tai
 
 To iterate on `@iota-uz/sdk` inside a downstream app (e.g. EAI) without publishing:
 
-1. Build the SDK in watch mode in one terminal: `cd /path/to/iota-sdk && pnpm run build:js:dev`
-2. Set `IOTA_SDK_DIST=/path/to/iota-sdk/dist` and start the app’s dev server. The applet Vite config should use `createLocalSdkAliases({ enabled: true })` (or rely on `IOTA_SDK_DIST` so aliases point at the local dist).
-3. In EAI, `just dev-bichat-local-sdk` runs SDK watch and `just dev bichat` in one go; set `IOTA_SDK_ROOT` or `IOTA_SDK_DIST` if the SDK repo is not at `../../iota-sdk`.
+1. From the consumer repo (`eai/back` or `iota-sdk`), run `applet sdk link --sdk-root ../../applets`.
+2. Start development with `applet dev` (or `just dev`). The runner detects `go.work` dependencies, starts SDK watch where applicable, and restarts the critical server process on dependency changes.
+3. To return to published npm versions, run `applet sdk unlink`.
 
 ### Dev env toggles
 

@@ -28,6 +28,7 @@ dist/
 !**/presentation/assets/dist/.keep
 
 go.work*
+.applets/local.env
 
 **/.claude/settings.local.json
 .claude/backlog
