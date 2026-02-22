@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/smtp"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -85,25 +86,23 @@ func (e *EmailOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error 
 
 	// Send email with TLS
 	addr := fmt.Sprintf("%s:%d", e.host, e.port)
-	err := e.sendWithTLS(addr, auth, e.from, []string{req.Recipient}, []byte(msg))
+	err := e.sendWithTLS(ctx, addr, auth, e.from, []string{req.Recipient}, []byte(msg))
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
-	// Log successful delivery
 	logger := composables.UseLogger(ctx)
-	logger.Info("OTP sent via email", "recipient", req.Recipient)
+	logger.Info("OTP sent via email")
 
 	return nil
 }
 
 // sendWithTLS sends email using SMTP with explicit STARTTLS enforcement
-func (e *EmailOTPSender) sendWithTLS(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
+func (e *EmailOTPSender) sendWithTLS(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
 	const op serrors.Op = "EmailOTPSender.sendWithTLS"
 
-	// Connect to the SMTP server
-	var d net.Dialer
-	conn, err := d.DialContext(context.Background(), "tcp", addr)
+	d := net.Dialer{Timeout: 30 * time.Second}
+	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -271,9 +270,8 @@ func (s *SMSOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
 		return serrors.E(op, serrors.Invalid, errors.New("invalid Twilio response"))
 	}
 
-	// Log successful delivery
 	logger := composables.UseLogger(ctx)
-	logger.Info("OTP sent via SMS", "recipient", req.Recipient, "twilio_sid", *resp.Sid)
+	logger.Info("OTP sent via SMS", "twilio_sid", *resp.Sid)
 
 	return nil
 }

@@ -85,6 +85,7 @@ const (
 	oidTimestamptz uint32 = 1184
 	oidDate        uint32 = 1082
 	oidTime        uint32 = 1083
+	oidTimetz      uint32 = 1266 // TIME WITH TIME ZONE
 )
 
 // PgOIDToColumnType maps a PostgreSQL type OID to a frontend column type string.
@@ -95,7 +96,7 @@ func PgOIDToColumnType(oid uint32) string {
 		return "number"
 	case oidBool:
 		return "boolean"
-	case oidTimestamp, oidTimestamptz, oidDate, oidTime:
+	case oidTimestamp, oidTimestamptz, oidDate, oidTime, oidTimetz:
 		return "date"
 	default:
 		return "string"

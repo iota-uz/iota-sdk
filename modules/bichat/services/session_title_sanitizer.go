@@ -74,16 +74,17 @@ func isValidSessionTitle(title string) bool {
 	return true
 }
 
+var titleEllipsis = []rune("...")
+
 func truncateSessionTitle(title string) string {
 	runes := []rune(title)
 	if len(runes) <= maxTitleLength {
 		return title
 	}
 
-	suffix := []rune("...")
-	if maxTitleLength <= len(suffix) {
+	if maxTitleLength <= len(titleEllipsis) {
 		return string(runes[:maxTitleLength])
 	}
 
-	return string(runes[:maxTitleLength-len(suffix)]) + string(suffix)
+	return string(runes[:maxTitleLength-len(titleEllipsis)]) + string(titleEllipsis)
 }

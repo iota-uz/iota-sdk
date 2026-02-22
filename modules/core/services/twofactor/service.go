@@ -257,10 +257,13 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 	return challenge, nil
 }
 
+// baseUserOptionCount must match the number of With* calls in preserveUserFields below.
+const baseUserOptionCount = 24
+
 // preserveUserFields creates a new user instance with all fields from the original user preserved
 // This helper ensures no fields are lost when updating user for 2FA operations
 func preserveUserFields(u user.User, opts ...user.Option) user.User {
-	baseOpts := make([]user.Option, 0, 24+len(opts))
+	baseOpts := make([]user.Option, 0, baseUserOptionCount+len(opts))
 	baseOpts = append(baseOpts,
 		user.WithID(u.ID()),
 		user.WithTenantID(u.TenantID()),

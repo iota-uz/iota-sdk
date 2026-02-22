@@ -85,17 +85,43 @@ func TestSessionTitleService_Sanitizer(t *testing.T) {
 func TestSessionTitleService_Sanitizer_TruncatesUnicodeSafely(t *testing.T) {
 	t.Parallel()
 
-	input := "Аналитика продаж по регионам и страховым продуктам за длительный период времени"
-	cleaned := cleanSessionTitle(input)
-
-	assert.True(t, utf8.ValidString(cleaned))
-	assert.LessOrEqual(t, utf8.RuneCountInString(cleaned), maxTitleLength)
+	longInput := strings.Repeat("А", maxTitleLength+10)
+	cases := []struct {
+		name      string
+		input     string
+		wantSuffix string
+	}{
+		{"long_unicode_truncated", longInput, "..."},
+		{"exactly_max_length", strings.Repeat("Б", maxTitleLength), ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cleaned := cleanSessionTitle(tc.input)
+			assert.True(t, utf8.ValidString(cleaned))
+			assert.LessOrEqual(t, utf8.RuneCountInString(cleaned), maxTitleLength)
+			if tc.wantSuffix != "" {
+				assert.True(t, strings.HasSuffix(cleaned, tc.wantSuffix), "expected truncation suffix %q", tc.wantSuffix)
+			}
+		})
+	}
 }
 
 func TestSessionTitleService_Sanitizer_UppercasesFirstRuneInFallback(t *testing.T) {
 	t.Parallel()
 
-	fallback := extractFallbackSessionTitle("покажи продажи по регионам")
-	assert.True(t, strings.HasPrefix(fallback, "П"))
-	assert.True(t, utf8.ValidString(fallback))
+	cases := []struct {
+		name       string
+		input      string
+		wantPrefix string
+	}{
+		{"cyrillic_lowercase_first", "покажи продажи по регионам", "П"},
+		{"already_uppercase", "Покажи продажи по регионам", "П"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fallback := extractFallbackSessionTitle(tc.input)
+			assert.True(t, strings.HasPrefix(fallback, tc.wantPrefix))
+			assert.True(t, utf8.ValidString(fallback))
+		})
+	}
 }

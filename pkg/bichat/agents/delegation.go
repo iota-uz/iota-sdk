@@ -202,6 +202,7 @@ func (t *DelegationTool) CallStreaming(ctx context.Context, input string, emit E
 	// Collect final result from generator, forwarding child events to parent.
 	var finalContent string
 	var finalUsage types.TokenUsage
+	var interrupted bool // set when emit() returns false (parent disconnected)
 eventLoop:
 	for {
 		event, err := gen.Next(ctx)
@@ -239,18 +240,24 @@ eventLoop:
 					Artifacts:  event.Tool.Artifacts,
 				}
 				if !emit(forwarded) {
+					interrupted = true
 					break eventLoop
 				}
 			}
 		case EventTypeThinking:
 			// Forward child thinking events to parent stream.
 			if !emit(event) {
+				interrupted = true
 				break eventLoop
 			}
 		case EventTypeChunk:
 			// Content events from child are not forwarded — only the final
 			// result matters to the parent agent.
 		}
+	}
+
+	if interrupted {
+		return "", fmt.Errorf("delegation interrupted: parent stream disconnected")
 	}
 
 	// Format result as JSON
