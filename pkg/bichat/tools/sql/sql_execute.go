@@ -658,8 +658,10 @@ func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, p
 	// Get column descriptions
 	fieldDescriptions := rows.FieldDescriptions()
 	columnNames := make([]string, len(fieldDescriptions))
+	columnTypes := make([]string, len(fieldDescriptions))
 	for i, fd := range fieldDescriptions {
 		columnNames[i] = fd.Name
+		columnTypes[i] = bichatsql.PgOIDToColumnType(fd.DataTypeOID)
 	}
 
 	// Collect rows (canonical format: [][]any).
@@ -688,12 +690,13 @@ func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, p
 	duration := time.Since(start)
 
 	return &bichatsql.QueryResult{
-		Columns:   columnNames,
-		Rows:      results,
-		RowCount:  len(results),
-		Truncated: false,
-		Duration:  duration,
-		SQL:       query,
+		Columns:     columnNames,
+		ColumnTypes: columnTypes,
+		Rows:        results,
+		RowCount:    len(results),
+		Truncated:   false,
+		Duration:    duration,
+		SQL:         query,
 	}, nil
 }
 

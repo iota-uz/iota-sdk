@@ -48,6 +48,7 @@
     },
     "InlineQuestion": {
       "InputNeeded": "Input needed",
+      "WaitingForDetails": "Waiting for the question details from the assistant...",
       "Next": "Next",
       "Back": "Back",
       "OtherOption": "Other",
@@ -63,6 +64,27 @@
       "Computing": "Computing",
       "WorkingOnIt": "Working on it",
       "AriaLabel": "AI is {{verb}}"
+    },
+    "Tools": {
+      "sql_execute": "Querying database",
+      "schema_list": "Listing available tables",
+      "schema_describe": "Analyzing table structure",
+      "draw_chart": "Creating chart",
+      "draw_table": "Building table",
+      "kb_search": "Searching knowledge base",
+      "web_search": "Searching the web",
+      "web_fetch": "Fetching from web",
+      "code_interpreter": "Running code",
+      "export_data_to_excel": "Exporting to Excel",
+      "export_query_to_excel": "Exporting query to Excel",
+      "export_to_pdf": "Exporting to PDF",
+      "artifact_reader": "Reading uploaded file",
+      "ask_user_question": "Asking for your input",
+      "final_answer": "Composing answer",
+      "task": "Delegating to {{agent}}",
+      "time": "Checking current time",
+      "get_current_time": "Getting current time",
+      "render_table": "Building interactive table"
     },
     "Search": {
       "Clear": "Clear search"
@@ -132,10 +154,50 @@
       "PageOf": "Page {{page}} / {{total}}",
       "TruncatedNotice": "This table is truncated by the tool response limit. Refine the SQL query or export for a fuller dataset."
     },
+    "DataTable": {
+      "Search": "Search...",
+      "SearchRows": "Search rows",
+      "ClearSearch": "Clear search",
+      "NoSearchResults": "No rows match your search.",
+      "FilteredRows": "{{filtered}} of {{total}} rows",
+      "SortBy": "Sort by {{column}}",
+      "ColumnActions": "Column actions",
+      "SummarizeColumn": "Summarize column",
+      "UniqueValues": "Show unique values",
+      "HideColumn": "Hide column",
+      "ToggleColumns": "Toggle columns",
+      "Columns": "Columns",
+      "ShowAllColumns": "Show all columns",
+      "ToggleStats": "Toggle statistics",
+      "Stats": "Stats",
+      "StatsSum": "Sum",
+      "StatsAvg": "Avg",
+      "StatsMin": "Min",
+      "StatsMax": "Max",
+      "Visualize": "Visualize",
+      "Prompt": {
+        "VisualizeChart": "Create a chart visualization from this data",
+        "SummarizeColumn": "Summarize the \"{{column}}\" column from the query results",
+        "UniqueValues": "List unique values in the \"{{column}}\" column from the query results"
+      },
+      "NoMatchingRows": "No rows match your search",
+      "ClearSearchAction": "Clear search",
+      "SortedBy": "Sorted by: {{column}}",
+      "ClearSort": "Clear sort",
+      "Copy": "Copy",
+      "CopyTable": "Copy table to clipboard",
+      "TableCopied": "Table copied to clipboard",
+      "FirstPage": "First page",
+      "LastPage": "Last page",
+      "SummaryRow": "Summary",
+      "Expand": "Expand",
+      "Collapse": "Collapse"
+    },
     "Sidebar": {
       "ChatHistory": "Chat history",
       "CloseSidebar": "Close sidebar",
       "ChatSessions": "Chat sessions",
+      "MoreChats": "{{count}} more chats",
       "SearchChats": "Search chats...",
       "CreateNewChat": "Create new chat",
       "ArchivedChats": "Archived Chats",
@@ -197,6 +259,9 @@
       "Confirm": "Confirm",
       "TryAgain": "Try Again",
       "PleaseWait": "Please wait..."
+    },
+    "ScrollToBottom": {
+      "NewMessages": "New messages"
     },
     "Chat": {
       "NewChat": "New Chat",

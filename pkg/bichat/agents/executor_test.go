@@ -302,7 +302,7 @@ func TestExecutor_SingleTurn(t *testing.T) {
 			finalResult = event.Result
 		case agents.EventTypeError:
 			t.Fatalf("Unexpected error event: %v", event.Error)
-		case agents.EventTypeToolStart, agents.EventTypeToolEnd, agents.EventTypeInterrupt:
+		case agents.EventTypeToolStart, agents.EventTypeToolEnd, agents.EventTypeInterrupt, agents.EventTypeThinking:
 			// no-op for this test
 		}
 	}
@@ -414,7 +414,7 @@ func TestExecutor_ToolCalls(t *testing.T) {
 			toolEndEvent = event.Tool
 		case agents.EventTypeError:
 			t.Fatalf("Unexpected error event: %v", event.Error)
-		case agents.EventTypeChunk, agents.EventTypeInterrupt, agents.EventTypeDone:
+		case agents.EventTypeChunk, agents.EventTypeInterrupt, agents.EventTypeDone, agents.EventTypeThinking:
 			// no-op for this test
 		}
 	}

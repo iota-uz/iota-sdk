@@ -620,6 +620,91 @@ func TestOpenAIModel_BuildInputItems_SkipsInvalidToolCalls(t *testing.T) {
 	assert.Len(t, items, 3)
 }
 
+func TestOpenAIModel_BuildInputItems_WebFetchCases(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	cases := []struct {
+		name        string
+		messages    []types.Message
+		contains    []string
+		notContains []string
+	}{
+		{
+			name: "web_fetch_image_rich_output",
+			messages: []types.Message{
+				types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+					ID:        "call_web_1",
+					Name:      "web_fetch",
+					Arguments: `{"url":"https://example.com/chart.png"}`,
+				})),
+				types.ToolResponse("call_web_1", `{"source_url":"https://example.com/chart.png","content_type":"image/png","size_bytes":1234,"injectable":true,"injection_type":"input_image","injection_url":"https://example.com/chart.png","saved":false,"filename":"chart.png"}`),
+			},
+			contains:    []string{`"input_text"`, `"input_image"`, "https://example.com/chart.png"},
+			notContains: nil,
+		},
+		{
+			name: "web_fetch_pdf_rich_output",
+			messages: []types.Message{
+				types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+					ID:        "call_web_2",
+					Name:      "web_fetch",
+					Arguments: `{"url":"https://example.com/report.pdf"}`,
+				})),
+				types.ToolResponse("call_web_2", `{"source_url":"https://example.com/report.pdf","content_type":"application/pdf","size_bytes":2222,"injectable":true,"injection_type":"input_file","injection_url":"https://example.com/report.pdf","saved":false,"filename":"report.pdf"}`),
+			},
+			contains:    []string{`"input_text"`, `"input_file"`, `"report.pdf"`},
+			notContains: nil,
+		},
+		{
+			name: "non_web_fetch_tool_output_unchanged",
+			messages: []types.Message{
+				types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+					ID:        "call_sql_1",
+					Name:      "sql_execute",
+					Arguments: `{"query":"SELECT 1"}`,
+				})),
+				types.ToolResponse("call_sql_1", `{"rows":[[1]]}`),
+			},
+			contains:    []string{`{\"rows\":[[1]]}`},
+			notContains: []string{`"input_image"`, `"input_file"`},
+		},
+		{
+			name: "web_fetch_invalid_json_falls_back_to_string",
+			messages: []types.Message{
+				types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+					ID:        "call_web_3",
+					Name:      "web_fetch",
+					Arguments: `{"url":"https://example.com/file"}`,
+				})),
+				types.ToolResponse("call_web_3", `not-json`),
+			},
+			contains:    []string{"not-json"},
+			notContains: []string{`"input_image"`, `"input_file"`},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			model, err := NewOpenAIModel()
+			require.NoError(t, err)
+			oaiModel := model.(*OpenAIModel)
+
+			items := oaiModel.buildInputItems(tc.messages)
+			serialized, err := json.Marshal(items)
+			require.NoError(t, err)
+			payload := string(serialized)
+
+			for _, sub := range tc.contains {
+				assert.Contains(t, payload, sub, "payload should contain %q", sub)
+			}
+			for _, sub := range tc.notContains {
+				assert.NotContains(t, payload, sub, "payload should not contain %q", sub)
+			}
+		})
+	}
+}
+
 func TestOpenAIModel_BuildInputItems_OnlyImagesBecomeInputImage(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()

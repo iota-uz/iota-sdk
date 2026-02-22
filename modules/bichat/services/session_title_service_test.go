@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
@@ -78,4 +80,51 @@ func TestSessionTitleService_Sanitizer(t *testing.T) {
 	assert.Equal(t, "Sales report", cleanSessionTitle("  \"**Sales report**\"  "))
 	assert.True(t, isValidSessionTitle("Quarterly Revenue Overview"))
 	assert.False(t, isValidSessionTitle("title: hello"))
+}
+
+func TestSessionTitleService_Sanitizer_TruncatesUnicodeSafely(t *testing.T) {
+	t.Parallel()
+
+	longInput := strings.Repeat("А", maxTitleLength+10)
+	invalidUTF8Short := string([]byte{0xFF, 0xFE, 0xFD}) // invalid UTF-8, replaced by ToValidUTF8 then short
+	cases := []struct {
+		name       string
+		input      string
+		wantSuffix string
+	}{
+		{"long_unicode_truncated", longInput, "..."},
+		{"exactly_max_length", strings.Repeat("Б", maxTitleLength), ""},
+		{"exactly_max_length_plus_one", strings.Repeat("В", maxTitleLength+1), "..."},
+		{"invalid_utf8", invalidUTF8Short, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cleaned := cleanSessionTitle(tc.input)
+			assert.True(t, utf8.ValidString(cleaned))
+			assert.LessOrEqual(t, utf8.RuneCountInString(cleaned), maxTitleLength)
+			if tc.wantSuffix != "" {
+				assert.True(t, strings.HasSuffix(cleaned, tc.wantSuffix), "expected truncation suffix %q", tc.wantSuffix)
+			}
+		})
+	}
+}
+
+func TestSessionTitleService_Sanitizer_UppercasesFirstRuneInFallback(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		input      string
+		wantPrefix string
+	}{
+		{"cyrillic_lowercase_first", "покажи продажи по регионам", "П"},
+		{"already_uppercase", "Покажи продажи по регионам", "П"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fallback := extractFallbackSessionTitle(tc.input)
+			assert.True(t, strings.HasPrefix(fallback, tc.wantPrefix))
+			assert.True(t, utf8.ValidString(fallback))
+		})
+	}
 }

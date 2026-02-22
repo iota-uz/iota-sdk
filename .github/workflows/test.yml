@@ -248,6 +248,7 @@ jobs:
 
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 20
     name: E2E Tests
     env:
       GOPRIVATE: github.com/iota-uz/*

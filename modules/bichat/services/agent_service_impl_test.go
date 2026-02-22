@@ -759,7 +759,7 @@ func TestProcessMessage_AppendsDebugPromptAfterProjectPromptExtension(t *testing
 	)
 }
 
-func TestProcessMessage_IncludesSelectedSkillsReference(t *testing.T) {
+func TestProcessMessage_IncludesSkillsCatalogReference(t *testing.T) {
 	t.Parallel()
 
 	skillsRoot := t.TempDir()
@@ -777,7 +777,6 @@ Inspect schema and retry safely.
 
 	catalog, err := bichatskills.LoadCatalog(skillsRoot)
 	require.NoError(t, err)
-	selector := bichatskills.NewSelector(catalog)
 
 	agent := newMockAgent()
 	model := newMockModel()
@@ -793,14 +792,14 @@ Inspect schema and retry safely.
 	}
 
 	service := NewAgentService(AgentServiceConfig{
-		Agent:          agent,
-		Model:          model,
-		Policy:         policy,
-		Renderer:       renderer,
-		Checkpointer:   checkpointer,
-		EventBus:       hooks.NewEventBus(),
-		ChatRepo:       chatRepo,
-		SkillsSelector: selector,
+		Agent:         agent,
+		Model:         model,
+		Policy:        policy,
+		Renderer:      renderer,
+		Checkpointer:  checkpointer,
+		EventBus:      hooks.NewEventBus(),
+		ChatRepo:      chatRepo,
+		SkillsCatalog: catalog,
 	})
 
 	ctx := context.Background()
@@ -834,32 +833,18 @@ Inspect schema and retry safely.
 		if !ok {
 			continue
 		}
-		if strings.Contains(payload, "@analytics/sql-debug") {
+		if strings.Contains(payload, "SKILLS CATALOG:") &&
+			strings.Contains(payload, "@analytics/sql-debug") &&
+			strings.Contains(payload, "load_skill") {
 			hasSkillsReference = true
 			break
 		}
 	}
-	assert.True(t, hasSkillsReference, "expected skills reference block with selected skill")
+	assert.True(t, hasSkillsReference, "expected skills catalog reference block")
 }
 
-func TestProcessMessage_NoSkillsMatchDoesNotInjectReference(t *testing.T) {
+func TestProcessMessage_NoSkillsConfiguredDoesNotInjectReference(t *testing.T) {
 	t.Parallel()
-
-	skillsRoot := t.TempDir()
-	writeServiceTestSkillFile(t, skillsRoot, "analytics/sql-debug", `---
-name: SQL Debugging
-description: Recover quickly from SQL failures
-when_to_use:
-  - sql error
-tags:
-  - sql
----
-Inspect schema and retry safely.
-`)
-
-	catalog, err := bichatskills.LoadCatalog(skillsRoot)
-	require.NoError(t, err)
-	selector := bichatskills.NewSelector(catalog)
 
 	agent := newMockAgent()
 	model := newMockModel()
@@ -875,14 +860,13 @@ Inspect schema and retry safely.
 	}
 
 	service := NewAgentService(AgentServiceConfig{
-		Agent:          agent,
-		Model:          model,
-		Policy:         policy,
-		Renderer:       renderer,
-		Checkpointer:   checkpointer,
-		EventBus:       hooks.NewEventBus(),
-		ChatRepo:       chatRepo,
-		SkillsSelector: selector,
+		Agent:        agent,
+		Model:        model,
+		Policy:       policy,
+		Renderer:     renderer,
+		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
+		ChatRepo:     chatRepo,
 	})
 
 	ctx := context.Background()
@@ -915,38 +899,12 @@ Inspect schema and retry safely.
 		if !ok {
 			continue
 		}
-		assert.NotContains(t, payload, "SKILLS CONTEXT:")
+		assert.NotContains(t, payload, "SKILLS CATALOG:")
 	}
 }
 
-func TestProcessMessage_MentionSelectsSkill(t *testing.T) {
+func TestProcessMessage_InjectsRuntimeToolsIntoModelRequest(t *testing.T) {
 	t.Parallel()
-
-	skillsRoot := t.TempDir()
-	writeServiceTestSkillFile(t, skillsRoot, "finance/month-end", `---
-name: Month End
-description: Close month books and verify reconciliations
-when_to_use:
-  - month close
-tags:
-  - finance
----
-Run period checks before closing.
-`)
-	writeServiceTestSkillFile(t, skillsRoot, "analytics/sql-debug", `---
-name: SQL Debugging
-description: Recover quickly from SQL failures
-when_to_use:
-  - sql error
-tags:
-  - sql
----
-Inspect schema and retry safely.
-`)
-
-	catalog, err := bichatskills.LoadCatalog(skillsRoot)
-	require.NoError(t, err)
-	selector := bichatskills.NewSelector(catalog)
 
 	agent := newMockAgent()
 	model := newMockModel()
@@ -962,14 +920,25 @@ Inspect schema and retry safely.
 	}
 
 	service := NewAgentService(AgentServiceConfig{
-		Agent:          agent,
-		Model:          model,
-		Policy:         policy,
-		Renderer:       renderer,
-		Checkpointer:   checkpointer,
-		EventBus:       hooks.NewEventBus(),
-		ChatRepo:       chatRepo,
-		SkillsSelector: selector,
+		Agent:        agent,
+		Model:        model,
+		Policy:       policy,
+		Renderer:     renderer,
+		Checkpointer: checkpointer,
+		EventBus:     hooks.NewEventBus(),
+		ChatRepo:     chatRepo,
+		RuntimeTools: []agents.Tool{
+			agents.NewTool(
+				"load_skill",
+				"Load skill instructions",
+				map[string]any{
+					"type": "object",
+				},
+				func(ctx context.Context, input string) (string, error) {
+					return "loaded", nil
+				},
+			),
+		},
 	})
 
 	ctx := context.Background()
@@ -985,30 +954,63 @@ Inspect schema and retry safely.
 	)
 	require.NoError(t, chatRepo.CreateSession(ctx, session))
 
-	gen, err := service.ProcessMessage(ctx, sessionID, "please use @finance/month-end checklist", nil)
+	gen, err := service.ProcessMessage(ctx, sessionID, "hello", nil)
 	require.NoError(t, err)
 	require.NotNil(t, gen)
 	defer gen.Close()
 
-	renderer.mu.Lock()
-	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
-	renderer.mu.Unlock()
+	for {
+		_, nextErr := gen.Next(ctx)
+		if errors.Is(nextErr, types.ErrGeneratorDone) {
+			break
+		}
+		require.NoError(t, nextErr)
+	}
 
-	var found bool
-	for _, block := range rendered {
-		if block.Meta.Kind != bichatctx.KindReference {
-			continue
-		}
-		payload, ok := block.Payload.(string)
-		if !ok {
-			continue
-		}
-		if strings.Contains(payload, "@finance/month-end") {
-			found = true
+	require.NotEmpty(t, model.requests)
+	lastReq := model.requests[len(model.requests)-1]
+	var hasLoadSkill bool
+	for _, tool := range lastReq.Tools {
+		if tool.Name() == "load_skill" {
+			hasLoadSkill = true
 			break
 		}
 	}
-	assert.True(t, found, "expected mention-selected skill in reference block")
+	assert.True(t, hasLoadSkill, "expected runtime tool to be present in model request")
+}
+
+func TestDeduplicateToolsByName_PrefersLaterDefinitions(t *testing.T) {
+	t.Parallel()
+
+	toolA1 := agents.NewTool(
+		"dup",
+		"first",
+		map[string]any{"type": "object"},
+		func(ctx context.Context, input string) (string, error) { return "first", nil },
+	)
+	toolA2 := agents.NewTool(
+		"dup",
+		"second",
+		map[string]any{"type": "object"},
+		func(ctx context.Context, input string) (string, error) { return "second", nil },
+	)
+	toolB := agents.NewTool(
+		"other",
+		"other",
+		map[string]any{"type": "object"},
+		func(ctx context.Context, input string) (string, error) { return "ok", nil },
+	)
+
+	deduped := deduplicateToolsByName([]agents.Tool{toolA1, toolB, toolA2})
+	require.Len(t, deduped, 2)
+
+	byName := make(map[string]agents.Tool, len(deduped))
+	for _, tool := range deduped {
+		byName[tool.Name()] = tool
+	}
+	require.Contains(t, byName, "dup")
+	require.Contains(t, byName, "other")
+	assert.Equal(t, "second", byName["dup"].Description())
 }
 
 func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {

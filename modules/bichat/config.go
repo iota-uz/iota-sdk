@@ -83,8 +83,8 @@ const (
 )
 
 const (
-	defaultSkillsSelectionLimit = 3
-	defaultSkillsMaxChars       = 8000
+	defaultSkillsCatalogLimit = 50
+	defaultSkillsMaxChars     = 8000
 )
 
 // TitleQueueConfig holds Redis-backed async title generation queue settings.
@@ -200,7 +200,7 @@ type ModuleConfig struct {
 	ProjectPromptExtension         string
 	ProjectPromptExtensionProvider prompts.ProjectPromptExtensionProvider
 	SkillsDir                      string
-	SkillsSelectionLimit           int
+	SkillsCatalogLimit             int
 	SkillsMaxChars                 int
 
 	// Optional: Agent Registry for multi-agent orchestration
@@ -265,7 +265,6 @@ type ModuleConfig struct {
 	capabilitiesConfigured         bool
 	subAgentsInitialized           bool
 	skillsCatalog                  *bichatskills.Catalog
-	skillsSelector                 bichatskills.Selector
 }
 
 // ServiceContainer holds built services created by ModuleConfig.BuildServices().
@@ -367,7 +366,7 @@ func NewModuleConfig(
 		Logger:                      logrus.New(),
 		Profile:                     FeatureProfileMinimal,
 		AttachmentStorageMode:       AttachmentStorageModeLocal,
-		SkillsSelectionLimit:        defaultSkillsSelectionLimit,
+		SkillsCatalogLimit:          defaultSkillsCatalogLimit,
 		SkillsMaxChars:              defaultSkillsMaxChars,
 	}
 
@@ -520,8 +519,8 @@ func (c *ModuleConfig) Validate() error {
 	}
 
 	if strings.TrimSpace(c.SkillsDir) != "" {
-		if c.SkillsSelectionLimit <= 0 {
-			return errors.New("SkillsSelectionLimit must be > 0 when SkillsDir is set")
+		if c.SkillsCatalogLimit <= 0 {
+			return errors.New("SkillsCatalogLimit must be > 0 when SkillsDir is set")
 		}
 		if c.SkillsMaxChars <= 0 {
 			return errors.New("SkillsMaxChars must be > 0 when SkillsDir is set")

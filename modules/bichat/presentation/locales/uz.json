@@ -48,6 +48,7 @@
     },
     "InlineQuestion": {
       "InputNeeded": "Kiritish kerak",
+      "WaitingForDetails": "Yordamchidan savol tafsilotlari kutilmoqda...",
       "Next": "Keyingisi",
       "Back": "Orqaga",
       "OtherOption": "Boshqa",
@@ -63,6 +64,27 @@
       "Computing": "Hisoblashmoqda",
       "WorkingOnIt": "Ustida ishlamoqda",
       "AriaLabel": "SI: {{verb}}"
+    },
+    "Tools": {
+      "sql_execute": "Ma'lumotlar bazasiga so'rov yuborilmoqda",
+      "schema_list": "Jadvallar ro'yxati olinmoqda",
+      "schema_describe": "Jadval tuzilishi tahlil qilinmoqda",
+      "draw_chart": "Grafik yaratilmoqda",
+      "draw_table": "Jadval qurilmoqda",
+      "kb_search": "Bilimlar bazasida qidirilmoqda",
+      "web_search": "Internetda qidirilmoqda",
+      "web_fetch": "Vebdan ma'lumot olinmoqda",
+      "code_interpreter": "Kod bajarilmoqda",
+      "export_data_to_excel": "Excelga eksport qilinmoqda",
+      "export_query_to_excel": "So'rov Excelga eksport qilinmoqda",
+      "export_to_pdf": "PDFga eksport qilinmoqda",
+      "artifact_reader": "Yuklangan fayl o'qilmoqda",
+      "ask_user_question": "Savol berilmoqda",
+      "final_answer": "Javob tayyorlanmoqda",
+      "task": "Delegatsiya — {{agent}}",
+      "time": "Joriy vaqt tekshirilmoqda",
+      "get_current_time": "Joriy vaqtni olish",
+      "render_table": "Interaktiv jadval yaratish"
     },
     "Search": {
       "Clear": "Qidiruvni tozalash"
@@ -132,10 +154,50 @@
       "PageOf": "Sahifa {{page}} / {{total}}",
       "TruncatedNotice": "Jadval asbob javobi limiti tufayli qisqartirilgan. To'liq ma'lumot uchun SQL so'rovini aniqlang yoki eksport qiling."
     },
+    "DataTable": {
+      "Search": "Qidirish...",
+      "SearchRows": "Qatorlarni qidirish",
+      "ClearSearch": "Qidiruvni tozalash",
+      "NoSearchResults": "Qatorlar topilmadi.",
+      "FilteredRows": "{{total}} dan {{filtered}} ta qator",
+      "SortBy": "{{column}} bo'yicha saralash",
+      "ColumnActions": "Ustun amallari",
+      "SummarizeColumn": "Ustunni tahlil qilish",
+      "UniqueValues": "Noyob qiymatlar",
+      "HideColumn": "Ustunni yashirish",
+      "ToggleColumns": "Ustunlarni ko'rsatish/yashirish",
+      "Columns": "Ustunlar",
+      "ShowAllColumns": "Barcha ustunlarni ko'rsatish",
+      "ToggleStats": "Statistika",
+      "Stats": "Stat.",
+      "StatsSum": "Yig'indi",
+      "StatsAvg": "O'rtacha",
+      "StatsMin": "Min",
+      "StatsMax": "Maks",
+      "Visualize": "Vizualizatsiya",
+      "Prompt": {
+        "VisualizeChart": "Ushbu ma'lumotlardan grafik vizualizatsiya yarating",
+        "SummarizeColumn": "So'rov natijalaridagi \"{{column}}\" ustunini umumlashtiring",
+        "UniqueValues": "So'rov natijalaridagi \"{{column}}\" ustunidagi noyob qiymatlarni ro'yxatlang"
+      },
+      "NoMatchingRows": "Qidiruvga mos qatorlar topilmadi",
+      "ClearSearchAction": "Qidiruvni tozalash",
+      "SortedBy": "Saralash: {{column}}",
+      "ClearSort": "Saralashni bekor qilish",
+      "Copy": "Nusxalash",
+      "CopyTable": "Jadvalni vaqtinchalik xotiraga nusxalash",
+      "TableCopied": "Jadval vaqtinchalik xotiraga nusxalandi",
+      "FirstPage": "Birinchi sahifa",
+      "LastPage": "Oxirgi sahifa",
+      "SummaryRow": "Jami",
+      "Expand": "Kengaytirish",
+      "Collapse": "Yig'ish"
+    },
     "Sidebar": {
       "ChatHistory": "Chat tarixi",
       "CloseSidebar": "Yon panelni yopish",
       "ChatSessions": "Chat sessiyalari",
+      "MoreChats": "Yana {{count}} ta chat",
       "SearchChats": "Chatlarni qidirish...",
       "CreateNewChat": "Yangi chat yaratish",
       "ArchivedChats": "Arxivlangan chatlar",
@@ -197,6 +259,9 @@
       "Confirm": "Tasdiqlash",
       "TryAgain": "Qayta urinish",
       "PleaseWait": "Kutib turing..."
+    },
+    "ScrollToBottom": {
+      "NewMessages": "Yangi xabarlar"
     },
     "Chat": {
       "NewChat": "Yangi chat",

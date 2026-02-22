@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/export"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/hitl"
@@ -30,6 +31,7 @@ type DefaultBIAgent struct {
 	validatedQueryStore   learning.ValidatedQueryStore // Optional validated query store for query library
 	exportTools           []agents.Tool                // Optional export tools (Excel, PDF)
 	artifactReaderTool    agents.Tool                  // Optional artifact reader tool
+	webFetchStorage       storage.FileStorage          // Optional storage for web_fetch save_to_artifacts
 	model                 string                       // Store model separately to apply during initialization
 	enableCodeInterpreter bool
 	agentRegistry         *agents.AgentRegistry         // Optional registry for multi-agent delegation
@@ -103,6 +105,13 @@ func WithArtifactReaderTool(tool agents.Tool) BIAgentOption {
 	}
 }
 
+// WithWebFetchStorage sets storage used by web_fetch when save_to_artifacts=true.
+func WithWebFetchStorage(fileStorage storage.FileStorage) BIAgentOption {
+	return func(a *DefaultBIAgent) {
+		a.webFetchStorage = fileStorage
+	}
+}
+
 // WithViewAccessControl enables permission-based view access control for SQL execution.
 // When configured, schema_list, schema_describe, and sql_execute tools will validate
 // user permissions against analytics schema views before execution.
@@ -167,6 +176,7 @@ func NewDefaultBIAgent(
 	// Build core tools list with optional view access control
 	agentTools := []agents.Tool{
 		utility.NewGetCurrentTimeTool(),
+		utility.NewWebFetchTool(utility.WithWebFetchStorage(agent.webFetchStorage)),
 		toolsql.NewSchemaListTool(schemaLister, toolsql.WithSchemaListViewAccess(agent.viewAccess)),
 		toolsql.NewSchemaDescribeTool(schemaDescriber, toolsql.WithSchemaDescribeViewAccess(agent.viewAccess)),
 		toolsql.NewSQLExecuteTool(executor, toolsql.WithViewAccessControl(agent.viewAccess)),
@@ -275,6 +285,12 @@ WORKFLOW GUIDELINES:
    - Call final_answer with your complete response
    - Use plain English business terms only — NEVER expose technical names (table names, column slugs, schema prefixes, internal IDs) to the user
    - Format monetary values with appropriate units and separators
+
+6. FETCH EXTERNAL FILES WHEN NEEDED
+   - Use web_fetch only for direct image/PDF URLs when the task requires external visual or document context
+   - web_fetch supports only image/* and application/pdf URLs
+   - Set save_to_artifacts=true only when the user explicitly wants the file saved/downloadable for later use
+   - Keep save_to_artifacts=false by default to avoid unnecessary artifact creation
 
 SEARCHING BY USER-PROVIDED DATA:
 Users often provide approximate or misspelled names, IDs, or keywords.

@@ -11,6 +11,7 @@ import (
 // mapResponse converts a Responses API Response to agents.Response.
 func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, error) {
 	var content string
+	var thinking string
 	var toolCalls []types.ToolCall
 	var citations []types.Citation
 	var codeResults []types.CodeInterpreterResult
@@ -79,6 +80,14 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 				}
 			}
 			codeResults = append(codeResults, result)
+
+		case "reasoning":
+			for _, s := range item.Summary {
+				if thinking != "" {
+					thinking += "\n"
+				}
+				thinking += s.Text
+			}
 		}
 	}
 
@@ -112,6 +121,7 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 		Message:                msg,
 		Usage:                  usage,
 		FinishReason:           finishReason,
+		Thinking:               thinking,
 		CodeInterpreterResults: codeResults,
 		FileAnnotations:        fileAnnotations,
 		ProviderResponseID:     resp.ID,

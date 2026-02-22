@@ -81,8 +81,10 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 	// Get column descriptions
 	fieldDescriptions := rows.FieldDescriptions()
 	columnNames := make([]string, len(fieldDescriptions))
+	columnTypes := make([]string, len(fieldDescriptions))
 	for i, fd := range fieldDescriptions {
 		columnNames[i] = fd.Name
+		columnTypes[i] = bichatsql.PgOIDToColumnType(fd.DataTypeOID)
 	}
 
 	// Collect rows (canonical format: [][]any).
@@ -118,12 +120,13 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 	}
 
 	return &bichatsql.QueryResult{
-		Columns:   columnNames,
-		Rows:      results,
-		RowCount:  len(results),
-		Truncated: false,
-		Duration:  time.Since(start),
-		SQL:       sql,
+		Columns:     columnNames,
+		ColumnTypes: columnTypes,
+		Rows:        results,
+		RowCount:    len(results),
+		Truncated:   false,
+		Duration:    time.Since(start),
+		SQL:         sql,
 	}, nil
 }
 

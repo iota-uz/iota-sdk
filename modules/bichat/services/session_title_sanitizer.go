@@ -3,6 +3,8 @@ package services
 import (
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 var (
@@ -11,17 +13,22 @@ var (
 )
 
 func cleanSessionTitle(title string) string {
+	if !utf8.ValidString(title) {
+		title = strings.ToValidUTF8(title, "�")
+	}
+
 	title = strings.TrimSpace(title)
 	title = strings.Trim(title, "\"'`")
 	title = titleMarkdownPattern.ReplaceAllString(title, "")
 	title = titleWhitespace.ReplaceAllString(title, " ")
-	if len(title) > maxTitleLength {
-		title = title[:maxTitleLength-3] + "..."
-	}
-	return title
+	return truncateSessionTitle(title)
 }
 
 func extractFallbackSessionTitle(message string) string {
+	if !utf8.ValidString(message) {
+		message = strings.ToValidUTF8(message, "�")
+	}
+
 	message = strings.TrimSpace(message)
 	if message == "" {
 		return ""
@@ -39,20 +46,20 @@ func extractFallbackSessionTitle(message string) string {
 		}
 	}
 
-	if len(message) > 0 {
-		message = strings.ToUpper(string(message[0])) + message[1:]
+	runes := []rune(message)
+	if len(runes) > 0 {
+		runes[0] = unicode.ToUpper(runes[0])
+		message = string(runes)
 	}
-	if len(message) > maxTitleLength {
-		message = message[:maxTitleLength-3] + "..."
-	}
-	return message
+
+	return truncateSessionTitle(message)
 }
 
 func isValidSessionTitle(title string) bool {
 	if title == "" {
 		return false
 	}
-	length := len(title)
+	length := utf8.RuneCountInString(title)
 	if length < minTitleLength || length > maxTitleLength {
 		return false
 	}
@@ -65,4 +72,19 @@ func isValidSessionTitle(title string) bool {
 		}
 	}
 	return true
+}
+
+var titleEllipsis = []rune("...")
+
+func truncateSessionTitle(title string) string {
+	runes := []rune(title)
+	if len(runes) <= maxTitleLength {
+		return title
+	}
+
+	if maxTitleLength <= len(titleEllipsis) {
+		return string(runes[:maxTitleLength])
+	}
+
+	return string(runes[:maxTitleLength-len(titleEllipsis)]) + string(titleEllipsis)
 }

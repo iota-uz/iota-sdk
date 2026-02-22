@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -111,14 +112,20 @@ func (t *DelegationTool) filterDelegationTool(tools []Tool) []Tool {
 	return filtered
 }
 
-// Call executes the delegation by invoking the child agent.
+// Call implements Tool.Call by delegating to CallStreaming with a no-op emitter.
+func (t *DelegationTool) Call(ctx context.Context, input string) (string, error) {
+	return t.CallStreaming(ctx, input, func(ExecutorEvent) bool { return true })
+}
+
+// CallStreaming executes the delegation by invoking the child agent.
 // The input should be a JSON string with subagent_type, prompt, and description fields.
 //
 // The child agent receives only the delegated task as input and executes
 // independently. The final result is returned as a JSON string.
+// Intermediate child events (tool calls, thinking) are forwarded via emit.
 //
 // Returns the final result from the child agent as a JSON string.
-func (t *DelegationTool) Call(ctx context.Context, input string) (string, error) {
+func (t *DelegationTool) CallStreaming(ctx context.Context, input string, emit EventEmitter) (string, error) {
 	// Parse input arguments
 	var args struct {
 		SubagentType string `json:"subagent_type"`
@@ -193,13 +200,15 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 	})
 	defer gen.Close()
 
-	// Collect final result from generator
+	// Collect final result from generator, forwarding child events to parent.
 	var finalContent string
 	var finalUsage types.TokenUsage
+	var interrupted bool // set when emit() returns false (parent disconnected)
+eventLoop:
 	for {
 		event, err := gen.Next(ctx)
 		if err != nil {
-			if err == types.ErrGeneratorDone {
+			if errors.Is(err, types.ErrGeneratorDone) {
 				break
 			}
 			return "", fmt.Errorf("child agent generator error: %w", err)
@@ -217,9 +226,32 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 		case EventTypeInterrupt:
 			// Child agent requested user interaction - not supported in delegation
 			return "", fmt.Errorf("child agent %q requested interrupt (not supported in delegation)", args.SubagentType)
-		case EventTypeChunk, EventTypeToolStart, EventTypeToolEnd:
-			// no-op (we only care about Done/Error/Interrupt)
+		case EventTypeToolStart, EventTypeToolEnd:
+			// Forward child tool events to parent stream with agent identity.
+			if event.Tool != nil {
+				forwarded := event
+				toolCopy := *event.Tool
+				toolCopy.AgentName = metadata.Name
+				forwarded.Tool = &toolCopy
+				if !emit(forwarded) {
+					interrupted = true
+					break eventLoop
+				}
+			}
+		case EventTypeThinking:
+			// Forward child thinking events to parent stream.
+			if !emit(event) {
+				interrupted = true
+				break eventLoop
+			}
+		case EventTypeChunk:
+			// Content events from child are not forwarded — only the final
+			// result matters to the parent agent.
 		}
+	}
+
+	if interrupted {
+		return "", fmt.Errorf("delegation interrupted: parent stream disconnected")
 	}
 
 	// Format result as JSON
@@ -236,6 +268,9 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 
 	return string(outputJSON), nil
 }
+
+// Ensure DelegationTool implements StreamingTool at compile time.
+var _ StreamingTool = (*DelegationTool)(nil)
 
 // Note: Executor, ExecutionResult, and related types are defined in executor.go.
 // The delegation tool depends on these types for multi-agent orchestration.

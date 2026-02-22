@@ -179,6 +179,11 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 					return nil
 				}
 
+			case "response.reasoning_summary_text.delta":
+				if !yield(agents.Chunk{Thinking: event.Delta}) {
+					return nil
+				}
+
 			case "response.function_call_arguments.delta":
 				callID := event.ItemID
 				if _, ok := toolCallAccum[callID]; !ok {

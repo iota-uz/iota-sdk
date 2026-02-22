@@ -39,6 +39,13 @@ func (m *OpenAIModel) buildResponseParams(ctx context.Context, req agents.Reques
 		params.Temperature = openai.Float(*config.Temperature)
 	}
 
+	if config.ReasoningEffort != nil {
+		effort := shared.ReasoningEffort(*config.ReasoningEffort)
+		params.Reasoning = shared.ReasoningParam{
+			Effort: effort,
+		}
+	}
+
 	if config.JSONMode && m.HasCapability(agents.CapabilityJSONMode) {
 		params.Text = responses.ResponseTextConfigParam{
 			Format: responses.ResponseFormatTextConfigUnionParam{

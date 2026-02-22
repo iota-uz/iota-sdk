@@ -244,6 +244,7 @@ func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T
 	assert.True(t, toolNames["search_validated_queries"])
 	assert.True(t, toolNames["save_validated_query"])
 	assert.True(t, toolNames["code_interpreter"])
+	assert.True(t, toolNames["web_fetch"])
 	assert.Equal(t, "gpt-test", cfg.ParentAgent.Metadata().Model)
 }
 
@@ -366,7 +367,6 @@ Use schema tools before retrying.
 	require.NoError(t, err)
 	require.NotNil(t, cfg.skillsCatalog)
 	assert.Len(t, cfg.skillsCatalog.Skills, 1)
-	require.NotNil(t, cfg.skillsSelector)
 }
 
 func TestModuleConfig_BuildServices_InvalidSkillsCatalogFails(t *testing.T) {

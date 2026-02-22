@@ -48,6 +48,7 @@
     },
     "InlineQuestion": {
       "InputNeeded": "Требуется ввод",
+      "WaitingForDetails": "Ожидание деталей вопроса от ассистента...",
       "Next": "Далее",
       "Back": "Назад",
       "OtherOption": "Другое",
@@ -63,6 +64,27 @@
       "Computing": "Вычисляю",
       "WorkingOnIt": "Работаю над этим",
       "AriaLabel": "ИИ: {{verb}}"
+    },
+    "Tools": {
+      "sql_execute": "Выполняю запрос к базе данных",
+      "schema_list": "Получаю список таблиц",
+      "schema_describe": "Анализирую структуру таблицы",
+      "draw_chart": "Создаю график",
+      "draw_table": "Строю таблицу",
+      "kb_search": "Ищу в базе знаний",
+      "web_search": "Ищу в интернете",
+      "web_fetch": "Получаю данные из веба",
+      "code_interpreter": "Выполняю код",
+      "export_data_to_excel": "Экспортирую в Excel",
+      "export_query_to_excel": "Экспортирую запрос в Excel",
+      "export_to_pdf": "Экспортирую в PDF",
+      "artifact_reader": "Читаю загруженный файл",
+      "ask_user_question": "Задаю вопрос",
+      "final_answer": "Формирую ответ",
+      "task": "Делегирую — {{agent}}",
+      "time": "Проверяю текущее время",
+      "get_current_time": "Получение текущего времени",
+      "render_table": "Построение интерактивной таблицы"
     },
     "Search": {
       "Clear": "Очистить поиск"
@@ -132,10 +154,50 @@
       "PageOf": "Страница {{page}} из {{total}}",
       "TruncatedNotice": "Таблица обрезана из-за лимита ответа. Уточните SQL-запрос или экспортируйте для полного набора данных."
     },
+    "DataTable": {
+      "Search": "Поиск...",
+      "SearchRows": "Поиск по строкам",
+      "ClearSearch": "Очистить поиск",
+      "NoSearchResults": "Строки не найдены.",
+      "FilteredRows": "{{filtered}} из {{total}} строк",
+      "SortBy": "Сортировать по {{column}}",
+      "ColumnActions": "Действия со столбцом",
+      "SummarizeColumn": "Анализировать столбец",
+      "UniqueValues": "Уникальные значения",
+      "HideColumn": "Скрыть столбец",
+      "ToggleColumns": "Показать/скрыть столбцы",
+      "Columns": "Столбцы",
+      "ShowAllColumns": "Показать все столбцы",
+      "ToggleStats": "Статистика",
+      "Stats": "Стат.",
+      "StatsSum": "Сумма",
+      "StatsAvg": "Средн.",
+      "StatsMin": "Мин",
+      "StatsMax": "Макс",
+      "Visualize": "Визуализация",
+      "Prompt": {
+        "VisualizeChart": "Построй визуализацию (график) по этим данным",
+        "SummarizeColumn": "Подведи итог по столбцу «{{column}}» из результатов запроса",
+        "UniqueValues": "Перечисли уникальные значения в столбце «{{column}}» из результатов запроса"
+      },
+      "NoMatchingRows": "Нет строк, соответствующих поиску",
+      "ClearSearchAction": "Очистить поиск",
+      "SortedBy": "Сортировка: {{column}}",
+      "ClearSort": "Сбросить сортировку",
+      "Copy": "Копировать",
+      "CopyTable": "Копировать таблицу в буфер обмена",
+      "TableCopied": "Таблица скопирована в буфер обмена",
+      "FirstPage": "Первая страница",
+      "LastPage": "Последняя страница",
+      "SummaryRow": "Итого",
+      "Expand": "Развернуть",
+      "Collapse": "Свернуть"
+    },
     "Sidebar": {
       "ChatHistory": "История чатов",
       "CloseSidebar": "Закрыть боковую панель",
       "ChatSessions": "Сессии чата",
+      "MoreChats": "Ещё {{count}} чатов",
       "SearchChats": "Поиск чатов...",
       "CreateNewChat": "Создать новый чат",
       "ArchivedChats": "Архивные чаты",
@@ -197,6 +259,9 @@
       "Confirm": "Подтвердить",
       "TryAgain": "Попробовать снова",
       "PleaseWait": "Подождите..."
+    },
+    "ScrollToBottom": {
+      "NewMessages": "Новые сообщения"
     },
     "Chat": {
       "NewChat": "Новый чат",

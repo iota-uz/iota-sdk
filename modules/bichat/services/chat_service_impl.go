@@ -580,6 +580,13 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				GenerationMs: generationMs,
 				Timestamp:    time.Now(),
 			})
+		case agents.EventTypeThinking:
+			onChunk(bichatservices.StreamChunk{
+				Type:      bichatservices.ChunkTypeThinking,
+				Content:   event.Content,
+				Timestamp: time.Now(),
+			})
+
 		case agents.EventTypeError:
 			onChunk(bichatservices.StreamChunk{
 				Type:      bichatservices.ChunkTypeError,
@@ -926,6 +933,8 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 		switch event.Type {
 		case agents.EventTypeContent:
 			content.WriteString(event.Content)
+		case agents.EventTypeThinking:
+			// Reasoning/thinking content from LLM; not appended to user-visible content
 		case agents.EventTypeToolStart, agents.EventTypeToolEnd:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
@@ -950,6 +959,7 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 				finalUsage = event.Usage
 			}
 			recordToolArtifacts(artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
+
 		case agents.EventTypeError:
 			var errDetail error
 			if event.Error != nil {
@@ -1405,6 +1415,7 @@ func agentToolToServiceTool(t *agents.ToolEvent) *bichatservices.ToolEvent {
 	return &bichatservices.ToolEvent{
 		CallID:     t.CallID,
 		Name:       t.Name,
+		AgentName:  t.AgentName,
 		Arguments:  t.Arguments,
 		Result:     t.Result,
 		Error:      t.Error,
