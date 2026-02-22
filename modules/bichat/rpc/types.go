@@ -131,15 +131,74 @@ type DebugToolCall struct {
 	DurationMs int64  `json:"durationMs,omitempty"`
 }
 
-type DebugTrace struct {
-	Usage             *DebugUsage     `json:"usage,omitempty"`
-	GenerationMs      int64           `json:"generationMs,omitempty"`
-	Tools             []DebugToolCall `json:"tools,omitempty"`
-	TraceID           string          `json:"traceId,omitempty"`
-	TraceURL          string          `json:"traceUrl,omitempty"`
-	SessionID         string          `json:"sessionId,omitempty"`
+type DebugGeneration struct {
+	ID                string          `json:"id,omitempty"`
+	RequestID         string          `json:"requestId,omitempty"`
+	Model             string          `json:"model,omitempty"`
+	Provider          string          `json:"provider,omitempty"`
+	FinishReason      string          `json:"finishReason,omitempty"`
+	PromptTokens      int             `json:"promptTokens,omitempty"`
+	CompletionTokens  int             `json:"completionTokens,omitempty"`
+	TotalTokens       int             `json:"totalTokens,omitempty"`
+	CachedTokens      int             `json:"cachedTokens,omitempty"`
+	Cost              float64         `json:"cost,omitempty"`
+	LatencyMs         int64           `json:"latencyMs,omitempty"`
+	Input             string          `json:"input,omitempty"`
+	Output            string          `json:"output,omitempty"`
 	Thinking          string          `json:"thinking,omitempty"`
 	ObservationReason string          `json:"observationReason,omitempty"`
+	StartedAt         string          `json:"startedAt,omitempty"`
+	CompletedAt       string          `json:"completedAt,omitempty"`
+	ToolCalls         []DebugToolCall `json:"toolCalls,omitempty"`
+}
+
+type DebugSpan struct {
+	ID           string                 `json:"id,omitempty"`
+	ParentID     string                 `json:"parentId,omitempty"`
+	GenerationID string                 `json:"generationId,omitempty"`
+	Name         string                 `json:"name,omitempty"`
+	Type         string                 `json:"type,omitempty"`
+	Status       string                 `json:"status,omitempty"`
+	Level        string                 `json:"level,omitempty"`
+	CallID       string                 `json:"callId,omitempty"`
+	ToolName     string                 `json:"toolName,omitempty"`
+	Input        string                 `json:"input,omitempty"`
+	Output       string                 `json:"output,omitempty"`
+	Error        string                 `json:"error,omitempty"`
+	DurationMs   int64                  `json:"durationMs,omitempty"`
+	StartedAt    string                 `json:"startedAt,omitempty"`
+	CompletedAt  string                 `json:"completedAt,omitempty"`
+	Attributes   map[string]interface{} `json:"attributes,omitempty"`
+}
+
+type DebugEvent struct {
+	ID           string                 `json:"id,omitempty"`
+	Name         string                 `json:"name,omitempty"`
+	Type         string                 `json:"type,omitempty"`
+	Level        string                 `json:"level,omitempty"`
+	Message      string                 `json:"message,omitempty"`
+	Reason       string                 `json:"reason,omitempty"`
+	SpanID       string                 `json:"spanId,omitempty"`
+	GenerationID string                 `json:"generationId,omitempty"`
+	Timestamp    string                 `json:"timestamp,omitempty"`
+	Attributes   map[string]interface{} `json:"attributes,omitempty"`
+}
+
+type DebugTrace struct {
+	SchemaVersion     string            `json:"schemaVersion,omitempty"`
+	StartedAt         string            `json:"startedAt,omitempty"`
+	CompletedAt       string            `json:"completedAt,omitempty"`
+	Usage             *DebugUsage       `json:"usage,omitempty"`
+	GenerationMs      int64             `json:"generationMs,omitempty"`
+	Tools             []DebugToolCall   `json:"tools,omitempty"`
+	Attempts          []DebugGeneration `json:"attempts,omitempty"`
+	Spans             []DebugSpan       `json:"spans,omitempty"`
+	Events            []DebugEvent      `json:"events,omitempty"`
+	TraceID           string            `json:"traceId,omitempty"`
+	TraceURL          string            `json:"traceUrl,omitempty"`
+	SessionID         string            `json:"sessionId,omitempty"`
+	Thinking          string            `json:"thinking,omitempty"`
+	ObservationReason string            `json:"observationReason,omitempty"`
 }
 
 type ConversationTurn struct {
@@ -473,10 +532,89 @@ func mapDebugTrace(trace *types.DebugTrace) *DebugTrace {
 		})
 	}
 
+	attempts := make([]DebugGeneration, 0, len(trace.Attempts))
+	for _, attempt := range trace.Attempts {
+		toolCalls := make([]DebugToolCall, 0, len(attempt.ToolCalls))
+		for _, tool := range attempt.ToolCalls {
+			toolCalls = append(toolCalls, DebugToolCall{
+				CallID:     tool.CallID,
+				Name:       tool.Name,
+				Arguments:  tool.Arguments,
+				Result:     tool.Result,
+				Error:      tool.Error,
+				DurationMs: tool.DurationMs,
+			})
+		}
+		attempts = append(attempts, DebugGeneration{
+			ID:                attempt.ID,
+			RequestID:         attempt.RequestID,
+			Model:             attempt.Model,
+			Provider:          attempt.Provider,
+			FinishReason:      attempt.FinishReason,
+			PromptTokens:      attempt.PromptTokens,
+			CompletionTokens:  attempt.CompletionTokens,
+			TotalTokens:       attempt.TotalTokens,
+			CachedTokens:      attempt.CachedTokens,
+			Cost:              attempt.Cost,
+			LatencyMs:         attempt.LatencyMs,
+			Input:             attempt.Input,
+			Output:            attempt.Output,
+			Thinking:          attempt.Thinking,
+			ObservationReason: attempt.ObservationReason,
+			StartedAt:         attempt.StartedAt,
+			CompletedAt:       attempt.CompletedAt,
+			ToolCalls:         toolCalls,
+		})
+	}
+
+	spans := make([]DebugSpan, 0, len(trace.Spans))
+	for _, span := range trace.Spans {
+		spans = append(spans, DebugSpan{
+			ID:           span.ID,
+			ParentID:     span.ParentID,
+			GenerationID: span.GenerationID,
+			Name:         span.Name,
+			Type:         span.Type,
+			Status:       span.Status,
+			Level:        span.Level,
+			CallID:       span.CallID,
+			ToolName:     span.ToolName,
+			Input:        span.Input,
+			Output:       span.Output,
+			Error:        span.Error,
+			DurationMs:   span.DurationMs,
+			StartedAt:    span.StartedAt,
+			CompletedAt:  span.CompletedAt,
+			Attributes:   span.Attributes,
+		})
+	}
+
+	events := make([]DebugEvent, 0, len(trace.Events))
+	for _, event := range trace.Events {
+		events = append(events, DebugEvent{
+			ID:           event.ID,
+			Name:         event.Name,
+			Type:         event.Type,
+			Level:        event.Level,
+			Message:      event.Message,
+			Reason:       event.Reason,
+			SpanID:       event.SpanID,
+			GenerationID: event.GenerationID,
+			Timestamp:    event.Timestamp,
+			Attributes:   event.Attributes,
+		})
+	}
+
 	return &DebugTrace{
+		SchemaVersion:     trace.SchemaVersion,
+		StartedAt:         trace.StartedAt,
+		CompletedAt:       trace.CompletedAt,
 		Usage:             usage,
 		GenerationMs:      trace.GenerationMs,
 		Tools:             tools,
+		Attempts:          attempts,
+		Spans:             spans,
+		Events:            events,
 		TraceID:           trace.TraceID,
 		TraceURL:          trace.TraceURL,
 		SessionID:         trace.SessionID,

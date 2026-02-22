@@ -3,6 +3,7 @@ package services
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -12,7 +13,7 @@ func TestBuildDebugTrace_IncludesTraceMetadata(t *testing.T) {
 	sessionID := uuid.New()
 	traceID := uuid.New().String()
 
-	trace := buildDebugTrace(sessionID, traceID, nil, nil, 123, "", "")
+	trace := buildDebugTrace(sessionID, traceID, nil, nil, 123, "", "", "", "", "", "", "", "", time.Now())
 	if trace == nil {
 		t.Fatalf("expected debug trace")
 	}
@@ -31,7 +32,7 @@ func TestBuildDebugTrace_IncludesTraceMetadata(t *testing.T) {
 func TestBuildDebugTrace_WithoutMetricsStillReturnsTraceReference(t *testing.T) {
 	sessionID := uuid.New()
 
-	trace := buildDebugTrace(sessionID, "", nil, nil, 0, "", "")
+	trace := buildDebugTrace(sessionID, "", nil, nil, 0, "", "", "", "", "", "", "", "", time.Now())
 	if trace == nil {
 		t.Fatalf("expected debug trace with trace metadata")
 	}

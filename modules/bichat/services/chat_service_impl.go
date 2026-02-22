@@ -408,7 +408,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 
 	var assistantMsg types.Message
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
-		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt)
+		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt, req.Content)
 		return err
 	})
 	if err != nil {
@@ -520,6 +520,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var finalUsage *types.DebugUsage
 	var generationMs int64
 	var traceID string
+	var requestID string
+	var model string
+	var provider string
+	var finishReason string
 	var thinking strings.Builder
 	var observationReason string
 
@@ -607,6 +611,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				if event.Result.TraceID != "" {
 					traceID = event.Result.TraceID
 				}
+				requestID = event.Result.RequestID
+				model = event.Result.Model
+				provider = event.Result.Provider
+				finishReason = event.Result.FinishReason
 				if event.Result.Thinking != "" {
 					thinking.Reset()
 					thinking.WriteString(event.Result.Thinking)
@@ -668,7 +676,22 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	if observationReason == "" && assistantContent.Len() == 0 && len(savedToolCalls) == 0 {
 		observationReason = "empty_assistant_output"
 	}
-	if debugTrace := buildDebugTrace(req.SessionID, traceID, savedToolCalls, finalUsage, generationMs, thinking.String(), observationReason); debugTrace != nil {
+	if debugTrace := buildDebugTrace(
+		req.SessionID,
+		traceID,
+		savedToolCalls,
+		finalUsage,
+		generationMs,
+		thinking.String(),
+		observationReason,
+		model,
+		provider,
+		requestID,
+		finishReason,
+		req.Content,
+		assistantContent.String(),
+		startedAt,
+	); debugTrace != nil {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 	}
 
@@ -931,6 +954,13 @@ func buildDebugTrace(
 	generationMs int64,
 	thinking string,
 	observationReason string,
+	model string,
+	provider string,
+	requestID string,
+	finishReason string,
+	input string,
+	output string,
+	startedAt time.Time,
 ) *types.DebugTrace {
 	debugTools := make([]types.DebugToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
@@ -949,16 +979,107 @@ func buildDebugTrace(
 		trimmedTraceID = sessionID.String()
 	}
 	traceURL := buildLangfuseTraceURL(trimmedTraceID)
+	obsReason := strings.TrimSpace(observationReason)
+
+	if startedAt.IsZero() {
+		startedAt = time.Now()
+	}
+	completedAt := startedAt
+	if generationMs > 0 {
+		completedAt = startedAt.Add(time.Duration(generationMs) * time.Millisecond)
+	}
+
+	attemptID := strings.TrimSpace(requestID)
+	if attemptID == "" {
+		attemptID = uuid.NewString()
+	}
+
+	attempt := types.DebugGeneration{
+		ID:                attemptID,
+		RequestID:         strings.TrimSpace(requestID),
+		Model:             strings.TrimSpace(model),
+		Provider:          strings.TrimSpace(provider),
+		FinishReason:      strings.TrimSpace(finishReason),
+		LatencyMs:         generationMs,
+		Input:             strings.TrimSpace(input),
+		Output:            strings.TrimSpace(output),
+		Thinking:          thinking,
+		ObservationReason: obsReason,
+		StartedAt:         startedAt.UTC().Format(time.RFC3339),
+		CompletedAt:       completedAt.UTC().Format(time.RFC3339),
+		ToolCalls:         debugTools,
+	}
+	if usage != nil {
+		attempt.PromptTokens = usage.PromptTokens
+		attempt.CompletionTokens = usage.CompletionTokens
+		attempt.TotalTokens = usage.TotalTokens
+		attempt.CachedTokens = usage.CachedTokens
+		attempt.Cost = usage.Cost
+	}
+
+	spans := make([]types.DebugSpan, 0, len(debugTools))
+	for _, tool := range debugTools {
+		status := "success"
+		outputValue := tool.Result
+		errorValue := ""
+		if strings.TrimSpace(tool.Error) != "" {
+			status = "error"
+			outputValue = ""
+			errorValue = tool.Error
+		}
+		spanID := strings.TrimSpace(tool.CallID)
+		if spanID == "" {
+			spanID = uuid.NewString()
+		}
+		spans = append(spans, types.DebugSpan{
+			ID:           spanID,
+			GenerationID: attemptID,
+			Name:         "tool.execute",
+			Type:         "tool",
+			Status:       status,
+			CallID:       tool.CallID,
+			ToolName:     tool.Name,
+			Input:        tool.Arguments,
+			Output:       outputValue,
+			Error:        errorValue,
+			DurationMs:   tool.DurationMs,
+			StartedAt:    completedAt.UTC().Format(time.RFC3339),
+			CompletedAt:  completedAt.UTC().Format(time.RFC3339),
+			Attributes: map[string]interface{}{
+				"tool_name": tool.Name,
+				"call_id":   tool.CallID,
+			},
+		})
+	}
+
+	events := make([]types.DebugEvent, 0, 1)
+	if obsReason != "" {
+		events = append(events, types.DebugEvent{
+			ID:        uuid.NewString(),
+			Name:      "observation",
+			Type:      "diagnostic",
+			Level:     "warning",
+			Reason:    obsReason,
+			Message:   obsReason,
+			Timestamp: completedAt.UTC().Format(time.RFC3339),
+		})
+	}
 
 	return &types.DebugTrace{
+		SchemaVersion:     "v2",
+		StartedAt:         startedAt.UTC().Format(time.RFC3339),
+		CompletedAt:       completedAt.UTC().Format(time.RFC3339),
 		Usage:             usage,
 		GenerationMs:      generationMs,
 		Tools:             debugTools,
+		Attempts:          []types.DebugGeneration{attempt},
+		Spans:             spans,
+		Events:            events,
 		TraceID:           trimmedTraceID,
 		TraceURL:          traceURL,
 		SessionID:         sessionID.String(),
 		Thinking:          thinking,
-		ObservationReason: strings.TrimSpace(observationReason),
+		ObservationReason: obsReason,
 	}
 }
 
@@ -1011,6 +1132,10 @@ type agentResult struct {
 	providerResponseID *string
 	usage              *types.DebugUsage
 	traceID            string
+	requestID          string
+	model              string
+	provider           string
+	finishReason       string
 	thinking           string
 	observationReason  string
 	lastError          error
@@ -1028,6 +1153,10 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 	var providerResponseID *string
 	var finalUsage *types.DebugUsage
 	var traceID string
+	var requestID string
+	var model string
+	var provider string
+	var finishReason string
 	var thinking strings.Builder
 	var observationReason string
 	var lastError error
@@ -1073,6 +1202,10 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 				if event.Result.TraceID != "" {
 					traceID = event.Result.TraceID
 				}
+				requestID = event.Result.RequestID
+				model = event.Result.Model
+				provider = event.Result.Provider
+				finishReason = event.Result.FinishReason
 				if event.Result.Thinking != "" {
 					thinking.Reset()
 					thinking.WriteString(event.Result.Thinking)
@@ -1110,6 +1243,10 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 		providerResponseID: providerResponseID,
 		usage:              finalUsage,
 		traceID:            traceID,
+		requestID:          requestID,
+		model:              model,
+		provider:           provider,
+		finishReason:       finishReason,
 		thinking:           thinking.String(),
 		observationReason:  observationReason,
 		lastError:          lastError,
@@ -1131,12 +1268,28 @@ func (s *chatServiceImpl) saveAgentResult(
 	sessionID uuid.UUID,
 	result *agentResult,
 	startedAt time.Time,
+	userInput string,
 ) (types.Message, domain.Session, error) {
 	assistantMsgOpts := []types.MessageOption{types.WithSessionID(sessionID)}
 	if len(result.toolCalls) > 0 {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(result.toolCalls...))
 	}
-	if debugTrace := buildDebugTrace(sessionID, result.traceID, result.toolCalls, result.usage, time.Since(startedAt).Milliseconds(), result.thinking, result.observationReason); debugTrace != nil {
+	if debugTrace := buildDebugTrace(
+		sessionID,
+		result.traceID,
+		result.toolCalls,
+		result.usage,
+		time.Since(startedAt).Milliseconds(),
+		result.thinking,
+		result.observationReason,
+		result.model,
+		result.provider,
+		result.requestID,
+		result.finishReason,
+		userInput,
+		result.content,
+		startedAt,
+	); debugTrace != nil {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 	}
 
@@ -1292,7 +1445,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 			return serrors.E(op, err)
 		}
 
-		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt)
+		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt, "")
 		return err
 	})
 	if err != nil {
@@ -1367,7 +1520,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 			return serrors.E(op, err)
 		}
 
-		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, sessionID, result, startedAt)
+		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, sessionID, result, startedAt, "")
 		return err
 	})
 	if err != nil {

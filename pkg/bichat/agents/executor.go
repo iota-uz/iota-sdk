@@ -952,6 +952,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				// No tools, execution complete
 				result := &Response{
 					TraceID:            traceID,
+					RequestID:          requestID,
+					Model:              modelInfo.Name,
+					Provider:           modelInfo.Provider,
 					Message:            responseMessage,
 					FinishReason:       finishReason,
 					Thinking:           joinStrings(thinkingChunks),
@@ -1106,6 +1109,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						// Termination tool called, return result
 						result := &Response{
 							TraceID:            traceID,
+							RequestID:          requestID,
+							Model:              modelInfo.Name,
+							Provider:           modelInfo.Provider,
 							Message:            types.AssistantMessage(resultContent),
 							FinishReason:       "tool_calls",
 							Thinking:           joinStrings(thinkingChunks),

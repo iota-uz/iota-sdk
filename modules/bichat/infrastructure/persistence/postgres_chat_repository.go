@@ -514,6 +514,10 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		return serrors.E(op, err)
 	}
 
+	if err := r.persistDebugTraceProjection(ctx, tx, tenantID, msg); err != nil {
+		return serrors.E(op, err)
+	}
+
 	if len(msg.CodeOutputs()) > 0 {
 		msgID := msg.ID()
 		for _, output := range msg.CodeOutputs() {
