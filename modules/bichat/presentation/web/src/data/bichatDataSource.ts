@@ -40,8 +40,16 @@ export function useBiChatDataSource(
 
       let artifacts = artifactCache.get(id)
       if (!artifacts && ds.fetchSessionArtifacts) {
-        const artifactsResult = await ds.fetchSessionArtifacts(id, { limit: 200, offset: 0 })
-        artifacts = artifactsResult.artifacts
+        const collected: SessionArtifact[] = []
+        let offset = 0
+        const pageSize = 200
+        for (;;) {
+          const artifactsResult = await ds.fetchSessionArtifacts(id, { limit: pageSize, offset })
+          collected.push(...(artifactsResult.artifacts || []))
+          if (!artifactsResult.hasMore || (artifactsResult.artifacts?.length ?? 0) === 0) break
+          offset = artifactsResult.nextOffset ?? offset + (artifactsResult.artifacts?.length ?? 0)
+        }
+        artifacts = collected
       }
       if (!artifacts || artifacts.length === 0) return result
 

@@ -165,6 +165,9 @@ func NewChatService(
 func (s *chatServiceImpl) registerStreamCancel(sessionID uuid.UUID, cancel context.CancelFunc) {
 	s.streamCancelMu.Lock()
 	defer s.streamCancelMu.Unlock()
+	if existing := s.activeStreamCancel[sessionID]; existing != nil {
+		existing()
+	}
 	s.activeStreamCancel[sessionID] = cancel
 }
 

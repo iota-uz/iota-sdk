@@ -65,8 +65,13 @@ type ContextCompactEvent struct {
 
 // NewContextCompactEvent creates a new ContextCompactEvent.
 func NewContextCompactEvent(sessionID, tenantID uuid.UUID, originalMessages, compactedTo, tokensSaved int, summaryText string) *ContextCompactEvent {
+	return NewContextCompactEventWithTrace(sessionID, tenantID, sessionID.String(), originalMessages, compactedTo, tokensSaved, summaryText)
+}
+
+// NewContextCompactEventWithTrace creates a new ContextCompactEvent with an explicit trace ID.
+func NewContextCompactEventWithTrace(sessionID, tenantID uuid.UUID, traceID string, originalMessages, compactedTo, tokensSaved int, summaryText string) *ContextCompactEvent {
 	return &ContextCompactEvent{
-		baseEvent:        newBaseEvent("context.compact", sessionID, tenantID),
+		baseEvent:        newBaseEventWithTrace("context.compact", sessionID, tenantID, traceID),
 		OriginalMessages: originalMessages,
 		CompactedTo:      compactedTo,
 		TokensSaved:      tokensSaved,
@@ -86,8 +91,13 @@ type ContextOverflowEvent struct {
 
 // NewContextOverflowEvent creates a new ContextOverflowEvent.
 func NewContextOverflowEvent(sessionID, tenantID uuid.UUID, requestedTokens, availableTokens int, strategy string, resolved bool) *ContextOverflowEvent {
+	return NewContextOverflowEventWithTrace(sessionID, tenantID, sessionID.String(), requestedTokens, availableTokens, strategy, resolved)
+}
+
+// NewContextOverflowEventWithTrace creates a new ContextOverflowEvent with an explicit trace ID.
+func NewContextOverflowEventWithTrace(sessionID, tenantID uuid.UUID, traceID string, requestedTokens, availableTokens int, strategy string, resolved bool) *ContextOverflowEvent {
 	return &ContextOverflowEvent{
-		baseEvent:        newBaseEvent("context.overflow", sessionID, tenantID),
+		baseEvent:        newBaseEventWithTrace("context.overflow", sessionID, tenantID, traceID),
 		RequestedTokens:  requestedTokens,
 		AvailableTokens:  availableTokens,
 		OverflowStrategy: strategy,

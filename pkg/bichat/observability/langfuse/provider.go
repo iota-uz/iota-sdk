@@ -22,7 +22,6 @@ type LangfuseProvider struct {
 	client LangfuseClient
 	config Config
 	state  *state
-	rng    *rand.Rand
 	log    *logrus.Logger
 }
 
@@ -61,7 +60,6 @@ func NewLangfuseProvider(client LangfuseClient, config Config) (*LangfuseProvide
 		client: client,
 		config: config,
 		state:  newState(),
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
 		log:    log,
 	}, nil
 }
@@ -526,7 +524,7 @@ func (p *LangfuseProvider) shouldSample() bool {
 	if p.config.SampleRate <= 0.0 {
 		return false
 	}
-	return p.rng.Float64() < p.config.SampleRate
+	return rand.Float64() < p.config.SampleRate
 }
 
 // calculateCost calculates the cost of a generation using metadata pricing.

@@ -400,6 +400,13 @@ func (h *providerHandler) finalizeAgentSpan(
 	// Collect and remove accumulated trace tags.
 	dynTags := h.bridge.traceTags[traceID]
 	delete(h.bridge.traceTags, traceID)
+	// Prune sessionTraceIDs so this trace no longer keeps the map growing.
+	for sid, tid := range h.bridge.sessionTraceIDs {
+		if tid == traceID {
+			delete(h.bridge.sessionTraceIDs, sid)
+			break
+		}
+	}
 	h.bridge.mu.Unlock()
 
 	spanID := ""

@@ -1055,13 +1055,13 @@ func parseDateStringToMillis(raw string) (int64, bool) {
 	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
 		return parsed.UnixMilli(), true
 	}
+	// Use a single slash format to avoid ambiguous month/day (e.g. 03/04/2025). US style: MM/DD/2006.
 	layouts := []string{
 		"2006-01-02 15:04:05",
 		"2006-01-02 15:04",
 		"2006-01-02",
 		"2006/01/02",
 		"01/02/2006",
-		"02/01/2006",
 		"2006-01",
 		"2006",
 	}
@@ -1073,8 +1073,11 @@ func parseDateStringToMillis(raw string) (int64, bool) {
 	return 0, false
 }
 
+// looksLikeUnixEpoch returns true only for values in a plausible Unix epoch range
+// (seconds 1e9–1e10 or milliseconds 1e12–1e13) to avoid misclassifying large numerics (e.g. revenue).
 func looksLikeUnixEpoch(value float64) bool {
-	return math.Abs(value) >= 1e8
+	abs := math.Abs(value)
+	return (abs >= 1e9 && abs < 1e11) || (abs >= 1e12 && abs < 1e14)
 }
 
 func normalizeEpochToMillis(value float64) int64 {

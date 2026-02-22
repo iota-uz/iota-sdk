@@ -419,7 +419,7 @@ export default function EnhancedChartCard({ chartData }: EnhancedChartCardProps)
             {fallbackTable && (
               <div className="overflow-auto rounded-lg border border-amber-200/80 bg-white dark:border-amber-800/50 dark:bg-gray-900">
                 <table className="min-w-full text-xs">
-                  <tbody>
+                  <thead>
                     <tr className="bg-amber-100/60 dark:bg-amber-900/30">
                       {fallbackTable.headers.map((header, idx) => (
                         <th
@@ -430,6 +430,8 @@ export default function EnhancedChartCard({ chartData }: EnhancedChartCardProps)
                         </th>
                       ))}
                     </tr>
+                  </thead>
+                  <tbody>
                     {fallbackTable.rows.map((row, rowIdx) => (
                       <tr key={rowIdx} className={rowIdx % 2 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/70 dark:bg-gray-900/70'}>
                         {row.map((cell, cellIdx) => (
