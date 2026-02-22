@@ -274,16 +274,17 @@ func (m *OpenAIModel) buildInputItemsWithContext(ctx context.Context, messages [
 	return items
 }
 
+// webFetchToolOutput unmarshals OpenAI tool output; tag shape matches pkg/bichat/tools/utility.webFetchOutput for consistency.
 type webFetchToolOutput struct {
 	SourceURL     string `json:"source_url"`
 	ContentType   string `json:"content_type"`
 	SizeBytes     int64  `json:"size_bytes"`
 	Injectable    bool   `json:"injectable"`
-	InjectionType string `json:"injection_type"`
-	InjectionURL  string `json:"injection_url"`
+	InjectionType string `json:"injection_type,omitempty"`
+	InjectionURL  string `json:"injection_url,omitempty"`
 	Saved         bool   `json:"saved"`
-	SavedURL      string `json:"saved_url"`
-	Filename      string `json:"filename"`
+	SavedURL      string `json:"saved_url,omitempty"`
+	Filename      string `json:"filename,omitempty"`
 }
 
 func buildWebFetchFunctionCallOutput(raw string) (responses.ResponseFunctionCallOutputItemListParam, bool) {
