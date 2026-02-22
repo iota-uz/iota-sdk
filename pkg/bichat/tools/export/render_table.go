@@ -279,7 +279,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 		Description: fmt.Sprintf("Table: %d rows", output.TotalRows),
 		MimeType:    "application/json",
 		Metadata: map[string]any{
-			"query":         output.Query,
+			"query":        output.Query,
 			"columns":      output.Columns,
 			"headers":      output.Headers,
 			"column_types": output.ColumnTypes,
