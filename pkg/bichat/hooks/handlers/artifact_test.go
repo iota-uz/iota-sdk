@@ -42,9 +42,10 @@ func TestArtifactHandler_SubscribedToolCompleteEvent_PersistsArtifact(t *testing
 	userMessageID := uuid.New()
 	ctx := bichatservices.WithArtifactMessageID(context.Background(), userMessageID)
 
-	err := bus.Publish(ctx, events.NewToolCompleteEvent(
+	err := bus.Publish(ctx, events.NewToolCompleteEventWithTrace(
 		sessionID,
 		tenantID,
+		"trace-1",
 		"export_query_to_excel",
 		`{"query":"SELECT * FROM users"}`,
 		"call-1",
@@ -88,9 +89,10 @@ func TestArtifactHandler_ChartPreservesArtifactMetadata(t *testing.T) {
 	}
 	warnings := []string{"Downsampled dense series to 500 points."}
 
-	event := events.NewToolCompleteEvent(
+	event := events.NewToolCompleteEventWithTrace(
 		sessionID,
 		tenantID,
+		"trace-1",
 		"draw_chart",
 		`{}`,
 		"call-chart-1",
@@ -132,9 +134,10 @@ func TestArtifactHandler_ChartFallbackToResultPayload(t *testing.T) {
 	tenantID := uuid.New()
 	sessionID := uuid.New()
 
-	event := events.NewToolCompleteEvent(
+	event := events.NewToolCompleteEventWithTrace(
 		sessionID,
 		tenantID,
+		"trace-1",
 		"draw_chart",
 		`{}`,
 		"call-chart-2",

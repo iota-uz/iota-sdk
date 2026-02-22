@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,11 +28,13 @@ const titleGenerationFallbackTimeout = 15 * time.Second
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
 type chatServiceImpl struct {
-	chatRepo     domain.ChatRepository
-	agentService bichatservices.AgentService
-	model        agents.Model
-	titleService TitleService
-	titleQueue   TitleJobQueue
+	chatRepo           domain.ChatRepository
+	agentService       bichatservices.AgentService
+	model              agents.Model
+	titleService       TitleService
+	titleQueue         TitleJobQueue
+	streamCancelMu     sync.Mutex
+	activeStreamCancel map[uuid.UUID]context.CancelFunc
 }
 
 // NewChatService creates a production implementation of ChatService.
@@ -47,12 +50,39 @@ func NewChatService(
 	titleQueue TitleJobQueue,
 ) bichatservices.ChatService {
 	return &chatServiceImpl{
-		chatRepo:     chatRepo,
-		agentService: agentService,
-		model:        model,
-		titleService: titleService,
-		titleQueue:   titleQueue,
+		chatRepo:           chatRepo,
+		agentService:       agentService,
+		model:              model,
+		titleService:       titleService,
+		titleQueue:         titleQueue,
+		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 	}
+}
+
+func (s *chatServiceImpl) registerStreamCancel(sessionID uuid.UUID, cancel context.CancelFunc) {
+	s.streamCancelMu.Lock()
+	defer s.streamCancelMu.Unlock()
+	s.activeStreamCancel[sessionID] = cancel
+}
+
+func (s *chatServiceImpl) unregisterStreamCancel(sessionID uuid.UUID) {
+	s.streamCancelMu.Lock()
+	defer s.streamCancelMu.Unlock()
+	delete(s.activeStreamCancel, sessionID)
+}
+
+// StopGeneration cancels the active stream for the session; no partial assistant message is persisted.
+func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUID) error {
+	s.streamCancelMu.Lock()
+	cancel, ok := s.activeStreamCancel[sessionID]
+	if ok {
+		delete(s.activeStreamCancel, sessionID)
+	}
+	s.streamCancelMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	return nil
 }
 
 // CreateSession creates a new chat session.
@@ -408,7 +438,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Create user message
 	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
 
-	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
+	streamCtx, cancelStream := context.WithCancel(ctx)
+	defer cancelStream()
+	s.registerStreamCancel(req.SessionID, cancelStream)
+	defer s.unregisterStreamCancel(req.SessionID)
+
+	processCtx := bichatservices.WithArtifactMessageID(streamCtx, userMsg.ID())
 
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
@@ -484,6 +519,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var providerResponseID *string
 	var finalUsage *types.DebugUsage
 	var generationMs int64
+	var traceID string
+	var thinking strings.Builder
+	var observationReason string
 
 	var streamErr error
 	for {
@@ -565,6 +603,15 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		case agents.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
+			if event.Result != nil {
+				if event.Result.TraceID != "" {
+					traceID = event.Result.TraceID
+				}
+				if event.Result.Thinking != "" {
+					thinking.Reset()
+					thinking.WriteString(event.Result.Thinking)
+				}
+			}
 			recordToolArtifacts(artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
 			if event.Usage != nil {
 				finalUsage = event.Usage
@@ -582,6 +629,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				Timestamp:    time.Now(),
 			})
 		case agents.EventTypeThinking:
+			if event.Content != "" {
+				thinking.WriteString(event.Content)
+			}
 			onChunk(bichatservices.StreamChunk{
 				Type:      bichatservices.ChunkTypeThinking,
 				Content:   event.Content,
@@ -597,6 +647,11 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 	}
 
+	// If stream was cancelled (explicit stop or client disconnect), do not persist partial assistant message.
+	if streamCtx.Err() != nil {
+		return nil
+	}
+
 	// Always persist assistant message, even if streaming had errors.
 	// Use a non-cancelable context so DB writes succeed even when the
 	// original HTTP context is already canceled.
@@ -610,7 +665,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	if len(savedToolCalls) > 0 {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
 	}
-	if debugTrace := buildDebugTrace(req.SessionID, savedToolCalls, finalUsage, generationMs); debugTrace != nil {
+	if observationReason == "" && assistantContent.Len() == 0 && len(savedToolCalls) == 0 {
+		observationReason = "empty_assistant_output"
+	}
+	if debugTrace := buildDebugTrace(req.SessionID, traceID, savedToolCalls, finalUsage, generationMs, thinking.String(), observationReason); debugTrace != nil {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 	}
 
@@ -865,7 +923,15 @@ func orderedToolCalls(toolCalls map[string]types.ToolCall, toolOrder []string) [
 	return result
 }
 
-func buildDebugTrace(sessionID uuid.UUID, toolCalls []types.ToolCall, usage *types.DebugUsage, generationMs int64) *types.DebugTrace {
+func buildDebugTrace(
+	sessionID uuid.UUID,
+	traceID string,
+	toolCalls []types.ToolCall,
+	usage *types.DebugUsage,
+	generationMs int64,
+	thinking string,
+	observationReason string,
+) *types.DebugTrace {
 	debugTools := make([]types.DebugToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		debugTools = append(debugTools, types.DebugToolCall{
@@ -878,15 +944,21 @@ func buildDebugTrace(sessionID uuid.UUID, toolCalls []types.ToolCall, usage *typ
 		})
 	}
 
-	traceID := sessionID.String()
-	traceURL := buildLangfuseTraceURL(traceID)
+	trimmedTraceID := strings.TrimSpace(traceID)
+	if trimmedTraceID == "" {
+		trimmedTraceID = sessionID.String()
+	}
+	traceURL := buildLangfuseTraceURL(trimmedTraceID)
 
 	return &types.DebugTrace{
-		Usage:        usage,
-		GenerationMs: generationMs,
-		Tools:        debugTools,
-		TraceID:      traceID,
-		TraceURL:     traceURL,
+		Usage:             usage,
+		GenerationMs:      generationMs,
+		Tools:             debugTools,
+		TraceID:           trimmedTraceID,
+		TraceURL:          traceURL,
+		SessionID:         sessionID.String(),
+		Thinking:          thinking,
+		ObservationReason: strings.TrimSpace(observationReason),
 	}
 }
 
@@ -915,7 +987,9 @@ func buildLangfuseTraceURL(traceID string) string {
 	parsedBaseURL.RawQuery = ""
 	parsedBaseURL.Fragment = ""
 	basePath := strings.TrimRight(parsedBaseURL.Path, "/")
-	parsedBaseURL.Path = basePath + "/trace/" + url.PathEscape(trimmedTraceID)
+	rawPath := basePath + "/trace/" + url.PathEscape(trimmedTraceID)
+	parsedBaseURL.Path = basePath + "/trace/" + trimmedTraceID
+	parsedBaseURL.RawPath = rawPath
 	return parsedBaseURL.String()
 }
 
@@ -936,6 +1010,9 @@ type agentResult struct {
 	interruptAgentName string
 	providerResponseID *string
 	usage              *types.DebugUsage
+	traceID            string
+	thinking           string
+	observationReason  string
 	lastError          error
 }
 
@@ -950,6 +1027,9 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 	var interruptAgentName string
 	var providerResponseID *string
 	var finalUsage *types.DebugUsage
+	var traceID string
+	var thinking strings.Builder
+	var observationReason string
 	var lastError error
 
 	for {
@@ -965,6 +1045,9 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 		case agents.EventTypeContent:
 			content.WriteString(event.Content)
 		case agents.EventTypeThinking:
+			if event.Content != "" {
+				thinking.WriteString(event.Content)
+			}
 			// Reasoning/thinking content from LLM; not appended to user-visible content
 		case agents.EventTypeToolStart, agents.EventTypeToolEnd:
 			recordToolEvent(toolCalls, &toolOrder, event.Tool)
@@ -986,6 +1069,15 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 			}
 		case agents.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
+			if event.Result != nil {
+				if event.Result.TraceID != "" {
+					traceID = event.Result.TraceID
+				}
+				if event.Result.Thinking != "" {
+					thinking.Reset()
+					thinking.WriteString(event.Result.Thinking)
+				}
+			}
 			if event.Usage != nil {
 				finalUsage = event.Usage
 			}
@@ -1017,7 +1109,13 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 		interruptAgentName: interruptAgentName,
 		providerResponseID: providerResponseID,
 		usage:              finalUsage,
+		traceID:            traceID,
+		thinking:           thinking.String(),
+		observationReason:  observationReason,
 		lastError:          lastError,
+	}
+	if result.observationReason == "" && strings.TrimSpace(result.content) == "" && len(result.toolCalls) == 0 {
+		result.observationReason = "empty_assistant_output"
 	}
 	if lastError != nil {
 		return result, lastError
@@ -1038,7 +1136,7 @@ func (s *chatServiceImpl) saveAgentResult(
 	if len(result.toolCalls) > 0 {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(result.toolCalls...))
 	}
-	if debugTrace := buildDebugTrace(sessionID, result.toolCalls, result.usage, time.Since(startedAt).Milliseconds()); debugTrace != nil {
+	if debugTrace := buildDebugTrace(sessionID, result.traceID, result.toolCalls, result.usage, time.Since(startedAt).Milliseconds(), result.thinking, result.observationReason); debugTrace != nil {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 	}
 

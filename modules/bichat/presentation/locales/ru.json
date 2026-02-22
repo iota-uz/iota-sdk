@@ -331,6 +331,7 @@
       "DeleteConfirm": "Удалить загруженный артефакт? Это действие нельзя отменить.",
       "DeleteFailed": "Не удалось удалить",
       "GroupCharts": "Графики",
+      "GroupTables": "Таблицы",
       "GroupCodeOutputs": "Результаты кода",
       "GroupExports": "Экспорты",
       "GroupAttachments": "Вложения",

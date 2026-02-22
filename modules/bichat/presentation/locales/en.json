@@ -331,6 +331,7 @@
       "DeleteConfirm": "Delete this uploaded artifact? This action cannot be undone.",
       "DeleteFailed": "Failed to delete artifact",
       "GroupCharts": "Charts",
+      "GroupTables": "Tables",
       "GroupCodeOutputs": "Code outputs",
       "GroupExports": "Exports",
       "GroupAttachments": "Attachments",

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/henomis/langfuse-go/model"
@@ -78,8 +79,12 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 		return nil
 	}
 
-	// Ensure trace exists first (generation is typically the first observation per session).
-	if err := p.ensureTrace(ctx, obs.SessionID.String(), obs.TenantID.String(), obs.UserID, obs.UserEmail); err != nil {
+	// Ensure trace exists first (generation is typically the first observation per run).
+	traceID := strings.TrimSpace(obs.TraceID)
+	if traceID == "" {
+		traceID = obs.SessionID.String()
+	}
+	if err := p.ensureTrace(ctx, traceID, obs.SessionID.String(), obs.TenantID.String(), obs.UserID, obs.UserEmail); err != nil {
 		p.log.Errorf("langfuse: failed to ensure trace: %v", err)
 		return nil // Non-blocking
 	}
@@ -120,7 +125,7 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 	// Create generation
 	generation := &model.Generation{
 		ID:                  obs.ID,
-		TraceID:             obs.SessionID.String(),
+		TraceID:             traceID,
 		Name:                obs.Model,
 		StartTime:           &obs.Timestamp,
 		Model:               obs.Model,
@@ -159,7 +164,7 @@ func (p *LangfuseProvider) RecordGeneration(ctx context.Context, obs observabili
 	// when there's meaningful data to propagate.
 	if obs.Input != nil || obs.Output != nil || obs.UserID != "" || obs.UserEmail != "" {
 		trace := &model.Trace{
-			ID:     obs.SessionID.String(),
+			ID:     traceID,
 			Input:  obs.Input,
 			Output: obs.Output,
 		}
@@ -214,8 +219,12 @@ func (p *LangfuseProvider) RecordSpan(ctx context.Context, obs observability.Spa
 		return nil
 	}
 
+	traceID := strings.TrimSpace(obs.TraceID)
+	if traceID == "" {
+		traceID = obs.SessionID.String()
+	}
 	// Ensure trace exists first
-	if err := p.ensureTrace(ctx, obs.SessionID.String(), obs.TenantID.String(), "", ""); err != nil {
+	if err := p.ensureTrace(ctx, traceID, obs.SessionID.String(), obs.TenantID.String(), "", ""); err != nil {
 		p.log.Errorf("langfuse: failed to ensure trace: %v", err)
 		return nil // Non-blocking
 	}
@@ -234,7 +243,7 @@ func (p *LangfuseProvider) RecordSpan(ctx context.Context, obs observability.Spa
 	// Create span
 	span := &model.Span{
 		ID:        obs.ID,
-		TraceID:   obs.SessionID.String(),
+		TraceID:   traceID,
 		Name:      obs.Name,
 		StartTime: &obs.Timestamp,
 		Metadata:  metadata,
@@ -278,8 +287,12 @@ func (p *LangfuseProvider) RecordEvent(ctx context.Context, obs observability.Ev
 		return nil
 	}
 
+	traceID := strings.TrimSpace(obs.TraceID)
+	if traceID == "" {
+		traceID = obs.SessionID.String()
+	}
 	// Ensure trace exists first
-	if err := p.ensureTrace(ctx, obs.SessionID.String(), obs.TenantID.String(), "", ""); err != nil {
+	if err := p.ensureTrace(ctx, traceID, obs.SessionID.String(), obs.TenantID.String(), "", ""); err != nil {
 		p.log.Errorf("langfuse: failed to ensure trace: %v", err)
 		return nil // Non-blocking
 	}
@@ -290,7 +303,7 @@ func (p *LangfuseProvider) RecordEvent(ctx context.Context, obs observability.Ev
 	// Create event
 	event := &model.Event{
 		ID:        obs.ID,
-		TraceID:   obs.SessionID.String(),
+		TraceID:   traceID,
 		Name:      obs.Name,
 		StartTime: &obs.Timestamp,
 		Metadata:  metadata,
@@ -334,8 +347,12 @@ func (p *LangfuseProvider) RecordTrace(ctx context.Context, obs observability.Tr
 	}
 
 	// Create trace
+	traceID := strings.TrimSpace(obs.ID)
+	if traceID == "" {
+		traceID = obs.SessionID.String()
+	}
 	trace := &model.Trace{
-		ID:        obs.SessionID.String(),
+		ID:        traceID,
 		Name:      obs.Name,
 		Timestamp: &obs.Timestamp,
 		UserID:    obs.UserID.String(),
@@ -355,7 +372,7 @@ func (p *LangfuseProvider) RecordTrace(ctx context.Context, obs observability.Tr
 	}
 
 	// Store trace ID mapping
-	p.state.setTraceID(obs.SessionID.String(), obs.SessionID.String())
+	p.state.setTraceID(traceID, traceID)
 
 	// Log success
 	p.log.Debugf("langfuse: recorded trace %s (name=%s, tokens=%d, cost=%.6f)",
@@ -397,9 +414,17 @@ func (p *LangfuseProvider) Shutdown(ctx context.Context) error {
 
 // ensureTrace creates a trace if it doesn't exist yet.
 // This is necessary because Langfuse requires a trace before creating observations.
-func (p *LangfuseProvider) ensureTrace(ctx context.Context, sessionID, tenantID, userID, userEmail string) error {
+func (p *LangfuseProvider) ensureTrace(ctx context.Context, traceID, sessionID, tenantID, userID, userEmail string) error {
+	traceID = strings.TrimSpace(traceID)
+	if traceID == "" {
+		traceID = strings.TrimSpace(sessionID)
+	}
+	if traceID == "" {
+		return fmt.Errorf("trace id is required")
+	}
+
 	// Check if trace already exists in state
-	if traceID := p.state.getTraceID(sessionID); traceID != "" {
+	if existingTraceID := p.state.getTraceID(traceID); existingTraceID != "" {
 		return nil
 	}
 
@@ -415,8 +440,8 @@ func (p *LangfuseProvider) ensureTrace(ctx context.Context, sessionID, tenantID,
 
 	// Create trace
 	trace := &model.Trace{
-		ID:        sessionID,
-		Name:      "BiChat Session",
+		ID:        traceID,
+		Name:      "BiChat Run",
 		SessionID: sessionID,
 		UserID:    userID,
 		Metadata:  metadata,
@@ -432,20 +457,20 @@ func (p *LangfuseProvider) ensureTrace(ctx context.Context, sessionID, tenantID,
 	}
 
 	// Store trace ID
-	p.state.setTraceID(sessionID, sessionID)
+	p.state.setTraceID(traceID, traceID)
 
 	return nil
 }
 
 // UpdateTraceName updates the name of an existing trace.
 // This is used to set the trace name from a generated chat title (async).
-func (p *LangfuseProvider) UpdateTraceName(_ context.Context, sessionID, name string) error {
+func (p *LangfuseProvider) UpdateTraceName(_ context.Context, traceID, name string) error {
 	if !p.config.Enabled {
 		return nil
 	}
 
 	trace := &model.Trace{
-		ID:   sessionID,
+		ID:   traceID,
 		Name: name,
 	}
 
@@ -454,13 +479,13 @@ func (p *LangfuseProvider) UpdateTraceName(_ context.Context, sessionID, name st
 		return nil // Non-blocking
 	}
 
-	p.log.Debugf("langfuse: updated trace name for session %s to %q", sessionID, name)
+	p.log.Debugf("langfuse: updated trace name for trace %s to %q", traceID, name)
 	return nil
 }
 
 // UpdateTraceTags updates the tags on an existing trace.
 // It merges the provided dynamic tags with the provider's static config tags.
-func (p *LangfuseProvider) UpdateTraceTags(_ context.Context, sessionID string, tags []string) error {
+func (p *LangfuseProvider) UpdateTraceTags(_ context.Context, traceID string, tags []string) error {
 	if !p.config.Enabled {
 		return nil
 	}
@@ -480,7 +505,7 @@ func (p *LangfuseProvider) UpdateTraceTags(_ context.Context, sessionID string, 
 	slices.Sort(allTags)
 
 	trace := &model.Trace{
-		ID:   sessionID,
+		ID:   traceID,
 		Tags: allTags,
 	}
 
@@ -489,7 +514,7 @@ func (p *LangfuseProvider) UpdateTraceTags(_ context.Context, sessionID string, 
 		return nil // Non-blocking
 	}
 
-	p.log.Debugf("langfuse: updated trace tags for session %s: %v", sessionID, allTags)
+	p.log.Debugf("langfuse: updated trace tags for trace %s: %v", traceID, allTags)
 	return nil
 }
 

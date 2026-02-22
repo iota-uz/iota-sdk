@@ -10,24 +10,28 @@ import (
 func TestBuildDebugTrace_IncludesTraceMetadata(t *testing.T) {
 	t.Setenv("LANGFUSE_BASE_URL", "https://langfuse.local/")
 	sessionID := uuid.New()
+	traceID := uuid.New().String()
 
-	trace := buildDebugTrace(sessionID, nil, nil, 123)
+	trace := buildDebugTrace(sessionID, traceID, nil, nil, 123, "", "")
 	if trace == nil {
 		t.Fatalf("expected debug trace")
 	}
-	if trace.TraceID != sessionID.String() {
-		t.Fatalf("expected trace id %q, got %q", sessionID.String(), trace.TraceID)
+	if trace.TraceID != traceID {
+		t.Fatalf("expected trace id %q, got %q", traceID, trace.TraceID)
 	}
-	expectedURL := "https://langfuse.local/trace/" + sessionID.String()
+	expectedURL := "https://langfuse.local/trace/" + traceID
 	if trace.TraceURL != expectedURL {
 		t.Fatalf("expected trace url %q, got %q", expectedURL, trace.TraceURL)
+	}
+	if trace.SessionID != sessionID.String() {
+		t.Fatalf("expected session id %q, got %q", sessionID.String(), trace.SessionID)
 	}
 }
 
 func TestBuildDebugTrace_WithoutMetricsStillReturnsTraceReference(t *testing.T) {
 	sessionID := uuid.New()
 
-	trace := buildDebugTrace(sessionID, nil, nil, 0)
+	trace := buildDebugTrace(sessionID, "", nil, nil, 0, "", "")
 	if trace == nil {
 		t.Fatalf("expected debug trace with trace metadata")
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -263,6 +264,10 @@ type Input struct {
 	// TenantID identifies the tenant for observability and checkpointing.
 	TenantID uuid.UUID
 
+	// TraceID identifies a single execution run for observability.
+	// If empty, Execute() will generate one.
+	TraceID string
+
 	// ThreadID identifies the conversation thread for checkpointing.
 	// If empty, a new thread ID will be generated.
 	ThreadID string
@@ -462,11 +467,16 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 		agentStartTime := time.Now()
 		agentName := e.agent.Metadata().Name
 		totalAgentTokens := 0
+		traceID := strings.TrimSpace(input.TraceID)
+		if traceID == "" {
+			traceID = uuid.New().String()
+		}
 
 		// Emit agent.start event
-		_ = e.eventBus.Publish(ctx, events.NewAgentStartEvent(
+		_ = e.eventBus.Publish(ctx, events.NewAgentStartEventWithTrace(
 			input.SessionID,
 			input.TenantID,
+			traceID,
 			agentName,
 			input.isResume,
 		))
@@ -491,6 +501,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 			// Emit LLM request event
 			modelInfo := e.model.Info()
+			requestID := uuid.New().String()
 
 			// Estimate tokens if estimator is configured
 			estimatedTokens := 0
@@ -507,9 +518,11 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}
 			}
 
-			_ = e.eventBus.Publish(ctx, events.NewLLMRequestEvent(
+			_ = e.eventBus.Publish(ctx, events.NewLLMRequestEventWithTrace(
 				input.SessionID,
 				input.TenantID,
+				traceID,
+				requestID,
 				modelInfo.Name,
 				modelInfo.Provider,
 				len(req.Messages),
@@ -519,11 +532,15 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			))
 
 			// Call model (streaming)
-			gen, err := e.model.Stream(ctx, req)
+			var streamOpts []GenerateOption
+			if e.model.HasCapability(CapabilityThinking) {
+				streamOpts = append(streamOpts, WithReasoningEffort(ReasoningMedium))
+			}
+			gen, err := e.model.Stream(ctx, req, streamOpts...)
 			if err != nil {
 				// Emit agent.error event
-				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEvent(
-					input.SessionID, input.TenantID, agentName,
+				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEventWithTrace(
+					input.SessionID, input.TenantID, traceID, agentName,
 					iteration, err.Error(),
 					time.Since(agentStartTime).Milliseconds(),
 				))
@@ -546,6 +563,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			var usage *types.TokenUsage
 			var finishReason string
 			var providerResponseID string
+			var thinkingChunks []string
 			startTime := time.Now()
 
 			// Speculative tool execution state (best-effort).
@@ -603,9 +621,10 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				// Emit tool completion/error event
 				if tr.err != nil {
-					_ = e.eventBus.Publish(ctx, events.NewToolErrorEvent(
+					_ = e.eventBus.Publish(ctx, events.NewToolErrorEventWithTrace(
 						input.SessionID,
 						input.TenantID,
+						traceID,
 						tr.call.Name,
 						tr.call.Arguments,
 						tr.call.ID,
@@ -613,9 +632,10 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						tr.durationMs,
 					))
 				} else {
-					_ = e.eventBus.Publish(ctx, events.NewToolCompleteEvent(
+					_ = e.eventBus.Publish(ctx, events.NewToolCompleteEventWithTrace(
 						input.SessionID,
 						input.TenantID,
+						traceID,
 						tr.call.Name,
 						tr.call.Arguments,
 						tr.call.ID,
@@ -701,9 +721,10 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				specStarted[callID] = struct{}{}
 
 				// Emit tool start event
-				_ = e.eventBus.Publish(specToolCtx, events.NewToolStartEvent(
+				_ = e.eventBus.Publish(specToolCtx, events.NewToolStartEventWithTrace(
 					input.SessionID,
 					input.TenantID,
+					traceID,
 					tc.Name,
 					tc.Arguments,
 					tc.ID,
@@ -766,6 +787,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				// Yield thinking event (ephemeral reasoning content)
 				if chunk.Thinking != "" {
+					thinkingChunks = append(thinkingChunks, chunk.Thinking)
 					if !yield(ExecutorEvent{
 						Type:    EventTypeThinking,
 						Content: chunk.Thinking,
@@ -858,13 +880,23 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				// Get accumulated response text for trace Output
 				responseText := joinStrings(chunks)
+				thinkingText := joinStrings(thinkingChunks)
+				toolSummary := make([]events.LLMToolCallSummary, 0, len(toolCalls))
+				for _, tc := range toolCalls {
+					toolSummary = append(toolSummary, events.LLMToolCallSummary{
+						CallID: tc.ID,
+						Name:   tc.Name,
+					})
+				}
 
 				// Use appropriate event constructor based on cache token presence
 				var responseEvent *events.LLMResponseEvent
 				if usageTokens.CacheWriteTokens > 0 || usageTokens.CacheReadTokens > 0 {
-					responseEvent = events.NewLLMResponseEventWithCache(
+					responseEvent = events.NewLLMResponseEventWithCacheAndTrace(
 						input.SessionID,
 						input.TenantID,
+						traceID,
+						requestID,
 						modelInfo.Name,
 						modelInfo.Provider,
 						usageTokens.PromptTokens,
@@ -876,11 +908,16 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						finishReason,
 						len(toolCalls),
 						responseText,
+						thinkingText,
+						"",
+						toolSummary,
 					)
 				} else {
-					responseEvent = events.NewLLMResponseEvent(
+					responseEvent = events.NewLLMResponseEventWithTrace(
 						input.SessionID,
 						input.TenantID,
+						traceID,
+						requestID,
 						modelInfo.Name,
 						modelInfo.Provider,
 						usageTokens.PromptTokens,
@@ -890,6 +927,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						finishReason,
 						len(toolCalls),
 						responseText,
+						thinkingText,
+						"",
+						toolSummary,
 					)
 				}
 				// Attach model parameters if the model reports them.
@@ -903,16 +943,18 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Check for tool calls
 			if len(toolCalls) == 0 {
 				// Emit agent.complete event
-				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEvent(
-					input.SessionID, input.TenantID, agentName,
+				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEventWithTrace(
+					input.SessionID, input.TenantID, traceID, agentName,
 					iteration, totalAgentTokens,
 					time.Since(agentStartTime).Milliseconds(),
 				))
 
 				// No tools, execution complete
 				result := &Response{
+					TraceID:            traceID,
 					Message:            responseMessage,
 					FinishReason:       finishReason,
+					Thinking:           joinStrings(thinkingChunks),
 					ProviderResponseID: providerResponseID,
 				}
 				if usage != nil {
@@ -961,13 +1003,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					}
 				}
 			} else {
-				toolResults, interrupt, toolErr = e.executeToolCalls(ctx, input.SessionID, input.TenantID, tools, toolCalls, yield)
+				toolResults, interrupt, toolErr = e.executeToolCalls(ctx, input.SessionID, input.TenantID, traceID, tools, toolCalls, yield)
 			}
 
 			if toolErr != nil {
 				// Emit agent.error event
-				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEvent(
-					input.SessionID, input.TenantID, agentName,
+				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEventWithTrace(
+					input.SessionID, input.TenantID, traceID, agentName,
 					iteration, toolErr.Error(),
 					time.Since(agentStartTime).Milliseconds(),
 				))
@@ -1018,8 +1060,8 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				))
 
 				// Emit agent.complete event (interrupted, will resume later)
-				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEvent(
-					input.SessionID, input.TenantID, agentName,
+				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEventWithTrace(
+					input.SessionID, input.TenantID, traceID, agentName,
 					iteration, totalAgentTokens,
 					time.Since(agentStartTime).Milliseconds(),
 				))
@@ -1055,16 +1097,18 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						}
 
 						// Emit agent.complete event (termination tool)
-						_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEvent(
-							input.SessionID, input.TenantID, agentName,
+						_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEventWithTrace(
+							input.SessionID, input.TenantID, traceID, agentName,
 							iteration, totalAgentTokens,
 							time.Since(agentStartTime).Milliseconds(),
 						))
 
 						// Termination tool called, return result
 						result := &Response{
+							TraceID:            traceID,
 							Message:            types.AssistantMessage(resultContent),
 							FinishReason:       "tool_calls",
+							Thinking:           joinStrings(thinkingChunks),
 							ProviderResponseID: providerResponseID,
 						}
 						if usage != nil {
@@ -1083,15 +1127,15 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 		}
 
 		// Emit agent.error event (max iterations)
-		_ = e.eventBus.Publish(ctx, events.NewAgentErrorEvent(
-			input.SessionID, input.TenantID, agentName,
+		_ = e.eventBus.Publish(ctx, events.NewAgentErrorEventWithTrace(
+			input.SessionID, input.TenantID, traceID, agentName,
 			iteration, ErrMaxIterations.Error(),
 			time.Since(agentStartTime).Milliseconds(),
 		))
 
 		// Max iterations reached
 		return serrors.E(op, ErrMaxIterations)
-	})
+	}, types.WithBufferSize(32))
 }
 
 // Resume continues execution from a saved checkpoint after receiving user input.
@@ -1181,6 +1225,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 			Messages:           messages,
 			SessionID:          checkpoint.SessionID,
 			TenantID:           checkpoint.TenantID,
+			TraceID:            uuid.New().String(),
 			ThreadID:           checkpoint.ThreadID,
 			PreviousResponseID: checkpoint.PreviousResponseID,
 			isResume:           true,
@@ -1206,7 +1251,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 		}
 
 		return nil
-	})
+	}, types.WithBufferSize(32))
 }
 
 // executeToolCalls executes all tool calls in parallel and returns their results.
@@ -1214,6 +1259,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 func (e *Executor) executeToolCalls(
 	ctx context.Context,
 	sessionID, tenantID uuid.UUID,
+	traceID string,
 	tools []Tool,
 	toolCalls []types.ToolCall,
 	yield func(ExecutorEvent) bool,
@@ -1238,9 +1284,10 @@ func (e *Executor) executeToolCalls(
 		tc := toolCalls[interruptIdx]
 
 		// Emit tool start event
-		_ = e.eventBus.Publish(ctx, events.NewToolStartEvent(
+		_ = e.eventBus.Publish(ctx, events.NewToolStartEventWithTrace(
 			sessionID,
 			tenantID,
+			traceID,
 			tc.Name,
 			tc.Arguments,
 			tc.ID,
@@ -1316,9 +1363,10 @@ func (e *Executor) executeToolCalls(
 	// Emit tool start events before launching each tool execution.
 	for i, tc := range toolCalls {
 		// Emit tool start event
-		_ = e.eventBus.Publish(toolCtx, events.NewToolStartEvent(
+		_ = e.eventBus.Publish(toolCtx, events.NewToolStartEventWithTrace(
 			sessionID,
 			tenantID,
+			traceID,
 			tc.Name,
 			tc.Arguments,
 			tc.ID,
@@ -1404,9 +1452,10 @@ func (e *Executor) executeToolCalls(
 
 		// Emit tool completion/error event
 		if tr.err != nil {
-			_ = e.eventBus.Publish(toolCtx, events.NewToolErrorEvent(
+			_ = e.eventBus.Publish(toolCtx, events.NewToolErrorEventWithTrace(
 				sessionID,
 				tenantID,
+				traceID,
 				tr.call.Name,
 				tr.call.Arguments,
 				tr.call.ID,
@@ -1414,9 +1463,10 @@ func (e *Executor) executeToolCalls(
 				tr.durationMs,
 			))
 		} else {
-			_ = e.eventBus.Publish(toolCtx, events.NewToolCompleteEvent(
+			_ = e.eventBus.Publish(toolCtx, events.NewToolCompleteEventWithTrace(
 				sessionID,
 				tenantID,
+				traceID,
 				tr.call.Name,
 				tr.call.Arguments,
 				tr.call.ID,

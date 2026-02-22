@@ -329,6 +329,7 @@
       "DeleteConfirm": "删除此上传的工件？此操作无法撤销。",
       "DeleteFailed": "删除失败",
       "GroupCharts": "图表",
+      "GroupTables": "表格",
       "GroupCodeOutputs": "代码输出",
       "GroupExports": "导出",
       "GroupAttachments": "附件",

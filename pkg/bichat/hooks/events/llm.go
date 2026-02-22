@@ -8,6 +8,7 @@ import (
 // Emitted before sending a request to the LLM provider.
 type LLMRequestEvent struct {
 	baseEvent
+	RequestID       string // Deterministic request correlation ID for request/response pairing
 	Model           string // Model identifier (e.g., "claude-sonnet-4-6", "gpt-5.2")
 	Provider        string // Provider name (e.g., "anthropic", "openai")
 	Messages        int    // Number of messages in the request
@@ -18,8 +19,14 @@ type LLMRequestEvent struct {
 
 // NewLLMRequestEvent creates a new LLMRequestEvent.
 func NewLLMRequestEvent(sessionID, tenantID uuid.UUID, model, provider string, messages, tools, estimatedTokens int, userInput string) *LLMRequestEvent {
+	return NewLLMRequestEventWithTrace(sessionID, tenantID, sessionID.String(), uuid.New().String(), model, provider, messages, tools, estimatedTokens, userInput)
+}
+
+// NewLLMRequestEventWithTrace creates a new LLMRequestEvent with explicit trace/request IDs.
+func NewLLMRequestEventWithTrace(sessionID, tenantID uuid.UUID, traceID, requestID, model, provider string, messages, tools, estimatedTokens int, userInput string) *LLMRequestEvent {
 	return &LLMRequestEvent{
-		baseEvent:       newBaseEvent("llm.request", sessionID, tenantID),
+		baseEvent:       newBaseEventWithTrace("llm.request", sessionID, tenantID, traceID),
+		RequestID:       requestID,
 		Model:           model,
 		Provider:        provider,
 		Messages:        messages,
@@ -33,18 +40,28 @@ func NewLLMRequestEvent(sessionID, tenantID uuid.UUID, model, provider string, m
 // Emitted after receiving a complete (non-streaming) response from the LLM.
 type LLMResponseEvent struct {
 	baseEvent
-	Model            string                 // Model identifier
-	Provider         string                 // Provider name
-	PromptTokens     int                    // Input tokens consumed
-	CompletionTokens int                    // Output tokens generated
-	TotalTokens      int                    // Total tokens (prompt + completion + cache)
-	CacheWriteTokens int                    // Cache write tokens (prompt caching)
-	CacheReadTokens  int                    // Cache read tokens (prompt caching)
-	LatencyMs        int64                  // Response latency in milliseconds
-	FinishReason     string                 // "stop", "tool_calls", "length", etc.
-	ToolCalls        int                    // Number of tool calls in the response
-	ResponseText     string                 // Accumulated response text (for trace Output)
-	ModelParameters  map[string]interface{} // Model parameters (temperature, max_tokens, store, etc.)
+	RequestID         string                 // Correlation ID copied from the matching request event
+	Model             string                 // Model identifier
+	Provider          string                 // Provider name
+	PromptTokens      int                    // Input tokens consumed
+	CompletionTokens  int                    // Output tokens generated
+	TotalTokens       int                    // Total tokens (prompt + completion + cache)
+	CacheWriteTokens  int                    // Cache write tokens (prompt caching)
+	CacheReadTokens   int                    // Cache read tokens (prompt caching)
+	LatencyMs         int64                  // Response latency in milliseconds
+	FinishReason      string                 // "stop", "tool_calls", "length", etc.
+	ToolCalls         int                    // Number of tool calls in the response
+	ResponseText      string                 // Accumulated response text (for trace Output)
+	Thinking          string                 // Final reasoning text emitted for this LLM response
+	ObservationReason string                 // Annotation for degraded observability paths
+	ToolCallSummary   []LLMToolCallSummary   // Optional tool-call summary for debug/metadata
+	ModelParameters   map[string]interface{} // Model parameters (temperature, max_tokens, store, etc.)
+}
+
+// LLMToolCallSummary is a lightweight projection of tool calls returned by an LLM response.
+type LLMToolCallSummary struct {
+	CallID string `json:"callId,omitempty"`
+	Name   string `json:"name,omitempty"`
 }
 
 // NewLLMResponseEvent creates a new LLMResponseEvent.
@@ -57,19 +74,56 @@ func NewLLMResponseEvent(
 	toolCalls int,
 	responseText string,
 ) *LLMResponseEvent {
+	return NewLLMResponseEventWithTrace(
+		sessionID,
+		tenantID,
+		sessionID.String(),
+		"",
+		model,
+		provider,
+		promptTokens,
+		completionTokens,
+		totalTokens,
+		latencyMs,
+		finishReason,
+		toolCalls,
+		responseText,
+		"",
+		"",
+		nil,
+	)
+}
+
+// NewLLMResponseEventWithTrace creates a new LLMResponseEvent with explicit trace/request IDs.
+func NewLLMResponseEventWithTrace(
+	sessionID, tenantID uuid.UUID,
+	traceID, requestID, model, provider string,
+	promptTokens, completionTokens, totalTokens int,
+	latencyMs int64,
+	finishReason string,
+	toolCalls int,
+	responseText string,
+	thinking string,
+	observationReason string,
+	toolCallSummary []LLMToolCallSummary,
+) *LLMResponseEvent {
 	return &LLMResponseEvent{
-		baseEvent:        newBaseEvent("llm.response", sessionID, tenantID),
-		Model:            model,
-		Provider:         provider,
-		PromptTokens:     promptTokens,
-		CompletionTokens: completionTokens,
-		TotalTokens:      totalTokens,
-		CacheWriteTokens: 0, // Set separately if needed
-		CacheReadTokens:  0, // Set separately if needed
-		LatencyMs:        latencyMs,
-		FinishReason:     finishReason,
-		ToolCalls:        toolCalls,
-		ResponseText:     responseText,
+		baseEvent:         newBaseEventWithTrace("llm.response", sessionID, tenantID, traceID),
+		RequestID:         requestID,
+		Model:             model,
+		Provider:          provider,
+		PromptTokens:      promptTokens,
+		CompletionTokens:  completionTokens,
+		TotalTokens:       totalTokens,
+		CacheWriteTokens:  0, // Set separately if needed
+		CacheReadTokens:   0, // Set separately if needed
+		LatencyMs:         latencyMs,
+		FinishReason:      finishReason,
+		ToolCalls:         toolCalls,
+		ResponseText:      responseText,
+		Thinking:          thinking,
+		ObservationReason: observationReason,
+		ToolCallSummary:   toolCallSummary,
 	}
 }
 
@@ -84,19 +138,59 @@ func NewLLMResponseEventWithCache(
 	toolCalls int,
 	responseText string,
 ) *LLMResponseEvent {
+	return NewLLMResponseEventWithCacheAndTrace(
+		sessionID,
+		tenantID,
+		sessionID.String(),
+		"",
+		model,
+		provider,
+		promptTokens,
+		completionTokens,
+		totalTokens,
+		cacheWriteTokens,
+		cacheReadTokens,
+		latencyMs,
+		finishReason,
+		toolCalls,
+		responseText,
+		"",
+		"",
+		nil,
+	)
+}
+
+// NewLLMResponseEventWithCacheAndTrace creates a cache-aware response event with explicit trace/request IDs.
+func NewLLMResponseEventWithCacheAndTrace(
+	sessionID, tenantID uuid.UUID,
+	traceID, requestID, model, provider string,
+	promptTokens, completionTokens, totalTokens int,
+	cacheWriteTokens, cacheReadTokens int,
+	latencyMs int64,
+	finishReason string,
+	toolCalls int,
+	responseText string,
+	thinking string,
+	observationReason string,
+	toolCallSummary []LLMToolCallSummary,
+) *LLMResponseEvent {
 	return &LLMResponseEvent{
-		baseEvent:        newBaseEvent("llm.response", sessionID, tenantID),
-		Model:            model,
-		Provider:         provider,
-		PromptTokens:     promptTokens,
-		CompletionTokens: completionTokens,
-		TotalTokens:      totalTokens,
-		CacheWriteTokens: cacheWriteTokens,
-		CacheReadTokens:  cacheReadTokens,
-		LatencyMs:        latencyMs,
-		FinishReason:     finishReason,
-		ToolCalls:        toolCalls,
-		ResponseText:     responseText,
+		baseEvent:         newBaseEventWithTrace("llm.response", sessionID, tenantID, traceID),
+		RequestID:         requestID,
+		Model:             model,
+		Provider:          provider,
+		PromptTokens:      promptTokens,
+		CompletionTokens:  completionTokens,
+		TotalTokens:       totalTokens,
+		CacheWriteTokens:  cacheWriteTokens,
+		CacheReadTokens:   cacheReadTokens,
+		LatencyMs:         latencyMs,
+		FinishReason:      finishReason,
+		ToolCalls:         toolCalls,
+		ResponseText:      responseText,
+		Thinking:          thinking,
+		ObservationReason: observationReason,
+		ToolCallSummary:   toolCallSummary,
 	}
 }
 

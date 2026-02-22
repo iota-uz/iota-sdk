@@ -133,6 +133,31 @@ func TestRenderTableTool_CallStructured_TruncatedByExecutor(t *testing.T) {
 	assert.Equal(t, []string{"number"}, out.ColumnTypes)
 }
 
+func TestRenderTableTool_CallStructured_EmitsTableArtifact(t *testing.T) {
+	t.Parallel()
+
+	executor := &mockRenderTableExecutor{
+		result: &bichatsql.QueryResult{
+			Columns:     []string{"id", "name"},
+			ColumnTypes: []string{"number", "string"},
+			Rows:        [][]any{{int64(1), "a"}, {int64(2), "b"}},
+		},
+	}
+	tool := NewRenderTableTool(executor).(*RenderTableTool)
+
+	result, err := tool.CallStructured(context.Background(), `{"sql":"SELECT id, name FROM t"}`)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.Artifacts, 1, "render_table should emit one table artifact")
+	artifact := result.Artifacts[0]
+	assert.Equal(t, "table", artifact.Type)
+	assert.NotEmpty(t, artifact.Name)
+	assert.NotNil(t, artifact.Metadata)
+	assert.Contains(t, artifact.Metadata, "query")
+	assert.Contains(t, artifact.Metadata, "columns")
+	assert.Contains(t, artifact.Metadata, "rows")
+}
+
 func TestRenderTableTool_Call_NoOutputDirStillReturnsPrompt(t *testing.T) {
 	t.Parallel()
 

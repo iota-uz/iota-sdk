@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/stretchr/testify/assert"

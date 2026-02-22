@@ -331,6 +331,7 @@
       "DeleteConfirm": "Yuklangan artefaktni o'chirish? Bu amalni bekor qilib bo'lmaydi.",
       "DeleteFailed": "O'chirish muvaffaqiyatsiz",
       "GroupCharts": "Grafiklar",
+      "GroupTables": "Jadvallar",
       "GroupCodeOutputs": "Kod natijalari",
       "GroupExports": "Eksportlar",
       "GroupAttachments": "Biriktirmalar",

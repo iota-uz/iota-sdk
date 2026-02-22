@@ -220,14 +220,16 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 
 	// Emit context.compile event
 	// Convert TokensByKind map keys from BlockKind to string
+	traceID := uuid.New().String()
 	tokensByKindStr := make(map[string]int)
 	for kind, tokens := range compiled.TokensByKind {
 		tokensByKindStr[string(kind)] = tokens
 	}
 
-	event := events.NewContextCompileEvent(
+	event := events.NewContextCompileEventWithTrace(
 		sessionID,
 		tenantID,
+		traceID,
 		s.renderer.Provider(),
 		compiled.TotalTokens,
 		tokensByKindStr,
@@ -248,6 +250,7 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 		Messages:           executorMessages,
 		SessionID:          sessionID,
 		TenantID:           tenantID,
+		TraceID:            traceID,
 		PreviousResponseID: session.LLMPreviousResponseID(),
 	}
 

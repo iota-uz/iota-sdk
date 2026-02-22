@@ -34,7 +34,7 @@ type Provider interface {
 type GenerationObservation struct {
 	// Identity
 	ID        string    // Unique generation ID
-	TraceID   string    // Parent trace ID (session ID)
+	TraceID   string    // Parent trace ID (run-scoped)
 	ParentID  string    // Parent span ID for nesting (e.g., agent span)
 	TenantID  uuid.UUID // Multi-tenant isolation
 	SessionID uuid.UUID // Chat session
@@ -60,10 +60,18 @@ type GenerationObservation struct {
 	ToolCalls        int           // Number of tool calls in response
 	CompletionText   string        // Optional: completion text for debugging (may contain PII)
 	Duration         time.Duration // Total duration
+	Thinking         string        // Final reasoning content emitted by the model (if available)
 
 	// Input/Output for trace visualization
 	Input  interface{} // Prompt messages or user input
 	Output interface{} // LLM response text
+
+	// ObservationReason annotates degraded or fallback paths.
+	// Example values: "missing_request_id", "missing_request_match".
+	ObservationReason string
+
+	// ToolCallSummary captures lightweight tool-call metadata.
+	ToolCallSummary []ToolCallSummary
 
 	// Model parameters (temperature, max_tokens, store, etc.) for Langfuse modelParameters field.
 	ModelParameters map[string]interface{}
@@ -76,11 +84,17 @@ type GenerationObservation struct {
 	Attributes map[string]interface{} // Extensible metadata (tags, custom fields)
 }
 
+// ToolCallSummary is a lightweight projection of a tool call for observability metadata.
+type ToolCallSummary struct {
+	CallID string
+	Name   string
+}
+
 // SpanObservation represents a completed operation span.
 type SpanObservation struct {
 	// Identity
 	ID        string    // Unique span ID
-	TraceID   string    // Parent trace ID (session ID)
+	TraceID   string    // Parent trace ID (run-scoped)
 	ParentID  string    // Parent span ID (for nested operations)
 	TenantID  uuid.UUID // Multi-tenant isolation
 	SessionID uuid.UUID // Chat session
@@ -110,7 +124,7 @@ type SpanObservation struct {
 type EventObservation struct {
 	// Identity
 	ID        string    // Unique event ID
-	TraceID   string    // Parent trace ID (session ID)
+	TraceID   string    // Parent trace ID (run-scoped)
 	TenantID  uuid.UUID // Multi-tenant isolation
 	SessionID uuid.UUID // Chat session
 	Timestamp time.Time // When event occurred
@@ -129,22 +143,22 @@ type EventObservation struct {
 // to support updating trace names after initial creation (e.g., when a
 // generated chat title becomes available asynchronously).
 type TraceNameUpdater interface {
-	UpdateTraceName(ctx context.Context, sessionID, name string) error
+	UpdateTraceName(ctx context.Context, traceID, name string) error
 }
 
 // TraceTagUpdater is an optional interface that providers can implement
 // to support updating trace tags after initial creation (e.g., to add
 // dynamic tags for tools used, errors encountered, or HITL interrupts).
 type TraceTagUpdater interface {
-	UpdateTraceTags(ctx context.Context, sessionID string, tags []string) error
+	UpdateTraceTags(ctx context.Context, traceID string, tags []string) error
 }
 
 // TraceObservation represents a complete trace (session-level hierarchy).
 type TraceObservation struct {
 	// Identity
-	ID        string    // Trace ID (typically session ID)
+	ID        string    // Trace ID (run-scoped)
 	TenantID  uuid.UUID // Multi-tenant isolation
-	SessionID uuid.UUID // Chat session
+	SessionID uuid.UUID // Chat session (grouping identifier)
 	Timestamp time.Time // Trace start time
 
 	// Trace metadata

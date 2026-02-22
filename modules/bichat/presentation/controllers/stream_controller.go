@@ -68,6 +68,7 @@ func (c *StreamController) Register(r *mux.Router) {
 
 	// Stream route
 	subRouter.HandleFunc("/stream", c.StreamMessage).Methods("POST")
+	subRouter.HandleFunc("/stream/stop", c.StopStream).Methods("POST")
 }
 
 // StreamMessage handles SSE streaming for a message.
@@ -272,6 +273,54 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		Type:      "done",
 		Timestamp: time.Now().UnixMilli(),
 	})
+}
+
+// StopStream handles POST /stream/stop to cancel active generation for a session.
+// Request body: { "sessionId": "uuid" }. No partial assistant message is persisted.
+func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
+	type stopRequest struct {
+		SessionID uuid.UUID `json:"sessionId"`
+	}
+	var req stopRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	defer func() { _ = r.Body.Close() }()
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.SessionID == uuid.Nil {
+		http.Error(w, "sessionId is required and must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+
+	user, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if c.opts.RequireAccessPermission != nil {
+		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+	}
+
+	session, err := c.chatService.GetSession(r.Context(), req.SessionID)
+	if err != nil {
+		if errors.Is(err, persistence.ErrSessionNotFound) {
+			http.Error(w, "Session not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
+
+	_ = c.chatService.StopGeneration(r.Context(), req.SessionID)
+	w.WriteHeader(http.StatusOK)
 }
 
 // Helper methods

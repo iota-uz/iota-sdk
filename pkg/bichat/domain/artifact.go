@@ -15,6 +15,7 @@ type ArtifactType string
 const (
 	ArtifactTypeCodeOutput ArtifactType = "code_output"
 	ArtifactTypeChart      ArtifactType = "chart"
+	ArtifactTypeTable      ArtifactType = "table"
 	ArtifactTypeExport     ArtifactType = "export"
 	ArtifactTypeAttachment ArtifactType = "attachment"
 )

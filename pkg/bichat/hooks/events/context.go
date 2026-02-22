@@ -27,8 +27,22 @@ func NewContextCompileEvent(
 	compacted, truncated bool,
 	excludedBlocks int,
 ) *ContextCompileEvent {
+	return NewContextCompileEventWithTrace(sessionID, tenantID, sessionID.String(), provider, totalTokens, tokensByKind, blockCount, compacted, truncated, excludedBlocks)
+}
+
+// NewContextCompileEventWithTrace creates a new ContextCompileEvent with an explicit trace ID.
+func NewContextCompileEventWithTrace(
+	sessionID, tenantID uuid.UUID,
+	traceID string,
+	provider string,
+	totalTokens int,
+	tokensByKind map[string]int,
+	blockCount int,
+	compacted, truncated bool,
+	excludedBlocks int,
+) *ContextCompileEvent {
 	return &ContextCompileEvent{
-		baseEvent:      newBaseEvent("context.compile", sessionID, tenantID),
+		baseEvent:      newBaseEventWithTrace("context.compile", sessionID, tenantID, traceID),
 		Provider:       provider,
 		TotalTokens:    totalTokens,
 		TokensByKind:   tokensByKind,

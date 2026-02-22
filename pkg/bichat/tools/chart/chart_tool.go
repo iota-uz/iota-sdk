@@ -71,7 +71,7 @@ func (t *DrawChartTool) Description() string {
 // Parameters returns the JSON Schema for tool parameters.
 func (t *DrawChartTool) Parameters() map[string]any {
 	return map[string]any{
-		"type": "object",
+		"type":        "object",
 		"description": "Create an ApexCharts chart using canonical arguments: {\"options\": {...}}.",
 		"properties": map[string]any{
 			"options": map[string]any{
@@ -80,7 +80,7 @@ func (t *DrawChartTool) Parameters() map[string]any {
 				"additionalProperties": true,
 			},
 		},
-		"required": []string{"options"},
+		"required":             []string{"options"},
 		"additionalProperties": true,
 	}
 }
@@ -128,6 +128,7 @@ func (t *DrawChartTool) CallStructured(ctx context.Context, input string) (*type
 	}
 
 	if err := t.validateNoLegacyFields(options); err != nil {
+		//nolint:nilerr // validation error is surfaced as a structured ToolResult; callers receive CodecToolError payload instead of a Go error
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
@@ -140,6 +141,7 @@ func (t *DrawChartTool) CallStructured(ctx context.Context, input string) (*type
 
 	chartType, err := t.ensureChartType(options)
 	if err != nil {
+		//nolint:nilerr // validation error is surfaced as a structured ToolResult; callers receive CodecToolError payload instead of a Go error
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
@@ -181,6 +183,7 @@ func (t *DrawChartTool) CallStructured(ctx context.Context, input string) (*type
 
 	logWarning, err := t.applyLogScale(options, chartType, stats)
 	if err != nil {
+		//nolint:nilerr // validation error is surfaced as a structured ToolResult; callers receive CodecToolError payload instead of a Go error
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
@@ -646,7 +649,7 @@ func validateTitle(options map[string]any) error {
 	return nil
 }
 
-func getLogConfig(options map[string]any) (explicit bool, hasExplicit bool, multiAxis bool) {
+func getLogConfig(options map[string]any) (bool, bool, bool) {
 	yaxisRaw, ok := options["yaxis"]
 	if !ok {
 		return false, false, false

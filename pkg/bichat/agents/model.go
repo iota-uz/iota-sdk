@@ -281,6 +281,9 @@ type Request struct {
 // Response is the output from Generate.
 // It contains the assistant's response and metadata about the completion.
 type Response struct {
+	// TraceID is the run-scoped observability trace identifier for this execution.
+	TraceID string
+
 	// Message is the assistant's response message.
 	// It may contain tool calls if the model decided to use tools.
 	Message types.Message

@@ -29,9 +29,12 @@ type DebugToolCall struct {
 
 // DebugTrace stores deterministic debug metadata for one assistant response.
 type DebugTrace struct {
-	Usage        *DebugUsage     `json:"usage,omitempty"`
-	GenerationMs int64           `json:"generationMs,omitempty"`
-	Tools        []DebugToolCall `json:"tools,omitempty"`
-	TraceID      string          `json:"traceId,omitempty"`
-	TraceURL     string          `json:"traceUrl,omitempty"`
+	Usage             *DebugUsage     `json:"usage,omitempty"`
+	GenerationMs      int64           `json:"generationMs,omitempty"`
+	Tools             []DebugToolCall `json:"tools,omitempty"`
+	TraceID           string          `json:"traceId,omitempty"`
+	TraceURL          string          `json:"traceUrl,omitempty"`
+	SessionID         string          `json:"sessionId,omitempty"`
+	Thinking          string          `json:"thinking,omitempty"`
+	ObservationReason string          `json:"observationReason,omitempty"`
 }

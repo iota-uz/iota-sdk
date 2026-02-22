@@ -2,6 +2,7 @@ package export
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	toolsql "github.com/iota-uz/iota-sdk/pkg/bichat/tools/sql"
@@ -267,9 +268,29 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 		}
 	}
 
+	// Only emit table artifact when we can attach metadata (required for overlay preview).
+	var artifacts []types.ToolArtifact
+	if raw, err := json.Marshal(output); err == nil {
+		var meta map[string]any
+		if json.Unmarshal(raw, &meta) == nil {
+			name := strings.TrimSpace(output.Title)
+			if name == "" {
+				name = "Table"
+			}
+			artifacts = []types.ToolArtifact{{
+				Type:        "table",
+				Name:        name,
+				Description: fmt.Sprintf("Table: %d rows", output.TotalRows),
+				MimeType:    "application/json",
+				Metadata:    meta,
+			}}
+		}
+	}
+
 	return &types.ToolResult{
-		CodecID: types.CodecJSON,
-		Payload: types.JSONPayload{Output: output},
+		CodecID:   types.CodecJSON,
+		Payload:   types.JSONPayload{Output: output},
+		Artifacts: artifacts,
 	}, nil
 }
 

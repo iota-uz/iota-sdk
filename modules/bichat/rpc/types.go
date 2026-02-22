@@ -132,11 +132,14 @@ type DebugToolCall struct {
 }
 
 type DebugTrace struct {
-	Usage        *DebugUsage     `json:"usage,omitempty"`
-	GenerationMs int64           `json:"generationMs,omitempty"`
-	Tools        []DebugToolCall `json:"tools,omitempty"`
-	TraceID      string          `json:"traceId,omitempty"`
-	TraceURL     string          `json:"traceUrl,omitempty"`
+	Usage             *DebugUsage     `json:"usage,omitempty"`
+	GenerationMs      int64           `json:"generationMs,omitempty"`
+	Tools             []DebugToolCall `json:"tools,omitempty"`
+	TraceID           string          `json:"traceId,omitempty"`
+	TraceURL          string          `json:"traceUrl,omitempty"`
+	SessionID         string          `json:"sessionId,omitempty"`
+	Thinking          string          `json:"thinking,omitempty"`
+	ObservationReason string          `json:"observationReason,omitempty"`
 }
 
 type ConversationTurn struct {
@@ -471,11 +474,14 @@ func mapDebugTrace(trace *types.DebugTrace) *DebugTrace {
 	}
 
 	return &DebugTrace{
-		Usage:        usage,
-		GenerationMs: trace.GenerationMs,
-		Tools:        tools,
-		TraceID:      trace.TraceID,
-		TraceURL:     trace.TraceURL,
+		Usage:             usage,
+		GenerationMs:      trace.GenerationMs,
+		Tools:             tools,
+		TraceID:           trace.TraceID,
+		TraceURL:          trace.TraceURL,
+		SessionID:         trace.SessionID,
+		Thinking:          trace.Thinking,
+		ObservationReason: trace.ObservationReason,
 	}
 }
 

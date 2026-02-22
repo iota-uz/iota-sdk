@@ -15,6 +15,7 @@ var (
 			CapabilityStreaming,
 			CapabilityTools,
 			CapabilityJSONMode,
+			CapabilityThinking,
 		},
 		Pricing: ModelPricing{
 			Currency:        "USD",
@@ -34,6 +35,7 @@ var (
 			CapabilityStreaming,
 			CapabilityTools,
 			CapabilityJSONMode,
+			CapabilityThinking,
 		},
 		Pricing: ModelPricing{
 			Currency:        "USD",
@@ -53,6 +55,7 @@ var (
 			CapabilityStreaming,
 			CapabilityTools,
 			CapabilityJSONMode,
+			CapabilityThinking,
 		},
 		Pricing: ModelPricing{
 			Currency:        "USD",

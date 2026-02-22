@@ -40,6 +40,10 @@ type ChatService interface {
 
 	// Generate session title from first message
 	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
+
+	// StopGeneration cancels the active stream for the given session, if any.
+	// After stop, no partial assistant message is persisted; the next send continues normally.
+	StopGeneration(ctx context.Context, sessionID uuid.UUID) error
 }
 
 // SendMessageRequest contains the input for sending a message

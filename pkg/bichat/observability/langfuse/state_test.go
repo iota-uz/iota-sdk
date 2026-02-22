@@ -82,8 +82,8 @@ func TestState_SessionIsolation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Each session should have separate state
-	traceID1 := provider.state.getTraceID(session1.String())
-	traceID2 := provider.state.getTraceID(session2.String())
+	traceID1 := provider.state.getTraceID(obs1.TraceID)
+	traceID2 := provider.state.getTraceID(obs2.TraceID)
 
 	assert.NotEmpty(t, traceID1)
 	assert.NotEmpty(t, traceID2)
@@ -116,7 +116,7 @@ func TestState_StateCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify state exists
-	traceID := provider.state.getTraceID(obs.SessionID.String())
+	traceID := provider.state.getTraceID(obs.TraceID)
 	assert.NotEmpty(t, traceID)
 
 	genID := provider.state.getGenerationID(obs.ID)
@@ -129,7 +129,7 @@ func TestState_StateCleanup(t *testing.T) {
 	provider.state.clear()
 
 	// State should be empty
-	traceID = provider.state.getTraceID(obs.SessionID.String())
+	traceID = provider.state.getTraceID(obs.TraceID)
 	assert.Empty(t, traceID)
 
 	genID = provider.state.getGenerationID(obs.ID)
@@ -153,6 +153,7 @@ func TestState_MultipleGenerations(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		obs := buildCompleteObservation()
 		obs.SessionID = sessionID
+		obs.TraceID = sessionID.String()
 		obs.ID = fmt.Sprintf("gen-%d", i)
 
 		err := provider.RecordGeneration(ctx, obs)
@@ -188,7 +189,7 @@ func TestState_StateAfterFlush(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify state exists
-	traceID := provider.state.getTraceID(obs.SessionID.String())
+	traceID := provider.state.getTraceID(obs.TraceID)
 	genID := provider.state.getGenerationID(obs.ID)
 	assert.NotEmpty(t, traceID)
 	assert.NotEmpty(t, genID)
@@ -198,7 +199,7 @@ func TestState_StateAfterFlush(t *testing.T) {
 	require.NoError(t, err)
 
 	// State should persist after flush
-	traceIDAfter := provider.state.getTraceID(obs.SessionID.String())
+	traceIDAfter := provider.state.getTraceID(obs.TraceID)
 	genIDAfter := provider.state.getGenerationID(obs.ID)
 
 	assert.Equal(t, traceID, traceIDAfter)
@@ -223,7 +224,7 @@ func TestState_StateAfterShutdown(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify state exists
-	traceID := provider.state.getTraceID(obs.SessionID.String())
+	traceID := provider.state.getTraceID(obs.TraceID)
 	genID := provider.state.getGenerationID(obs.ID)
 	assert.NotEmpty(t, traceID)
 	assert.NotEmpty(t, genID)
@@ -233,7 +234,7 @@ func TestState_StateAfterShutdown(t *testing.T) {
 	require.NoError(t, err)
 
 	// State should be cleared
-	traceIDAfter := provider.state.getTraceID(obs.SessionID.String())
+	traceIDAfter := provider.state.getTraceID(obs.TraceID)
 	genIDAfter := provider.state.getGenerationID(obs.ID)
 
 	assert.Empty(t, traceIDAfter)
