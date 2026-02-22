@@ -333,7 +333,7 @@ func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 		{
 			name:        "draw_chart tool",
 			toolName:    "draw_chart",
-			input:       `{"chartType":"line","title":"Test Chart","series":[{"name":"Series 1","data":[1,2,3]}]}`,
+			input:       `{"options":{"chart":{"type":"line"},"title":{"text":"Test Chart"},"series":[{"name":"Series 1","data":[1,2,3]}]}}`,
 			expectError: false,
 		},
 		{

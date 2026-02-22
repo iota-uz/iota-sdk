@@ -274,9 +274,10 @@ WORKFLOW GUIDELINES:
 4. VISUALIZE DATA
    - Use render_table when users need an interactive, paginated table in chat
    - Use draw_chart for data visualization when appropriate
-   - Choose chart type based on data: line (trends), bar (comparisons), pie (proportions)
-   - Pie and donut charts require exactly one series
-   - Max 1000 data points per series
+   - draw_chart expects a single ApexCharts options object (include chart.type, series, title.text)
+   - Choose chart type based on data: line/area (trends), bar (comparisons), pie/donut (proportions)
+   - For widely scattered positive values, prefer yaxis.logarithmic=true
+   - Keep charts readable: concise labels, sane height, and avoid excessive series/points
 
 5. PROVIDE CLEAR ANSWERS
    - Summarize findings clearly and concisely
