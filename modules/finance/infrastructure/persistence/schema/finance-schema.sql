@@ -65,8 +65,8 @@ CREATE TABLE transactions (
     amount bigint NOT NULL,
     origin_account_id uuid REFERENCES money_accounts (id) ON DELETE RESTRICT,
     destination_account_id uuid REFERENCES money_accounts (id) ON DELETE RESTRICT,
-    transaction_date date NOT NULL DEFAULT now()::date,
-    accounting_period date NOT NULL DEFAULT now()::date,
+    transaction_date date NOT NULL DEFAULT now() :: date,
+    accounting_period date NOT NULL DEFAULT now() :: date,
     transaction_type varchar(255) NOT NULL, -- income, expense, transfer, exchange
     comment text,
     -- Exchange operation fields

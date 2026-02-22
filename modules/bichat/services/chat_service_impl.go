@@ -703,8 +703,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		return err
 	}
 
-	// Decouple generation from request lifecycle so refresh does not cancel the run.
-	processCtx, cancelProcess := context.WithCancel(context.Background())
+	// Decouple generation from request cancellation, but keep request values
+	// (tenant/user/pool/tx) required by downstream services and repositories.
+	processCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelProcess()
 	s.registerStreamCancel(req.SessionID, cancelProcess)
 	defer s.unregisterStreamCancel(req.SessionID)
@@ -747,6 +748,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			}
 			onChunk(chunk)
 			if chunk.Type == bichatservices.ChunkTypeDone {
+				// Wait for run loop shutdown/persistence so request-scoped resources
+				// (notably test transactions) are no longer in use before returning.
+				for range primaryCh {
+				}
 				return nil
 			}
 			if chunk.Type == bichatservices.ChunkTypeError {
