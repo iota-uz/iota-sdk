@@ -34,7 +34,7 @@ func ExampleNewDefaultBIAgent() {
 	// Output:
 	// Agent name: bi_agent
 	// Agent model: gpt-5.2
-	// Number of tools: 8
+	// Number of tools: 9
 }
 
 // ExampleNewDefaultBIAgent_withOptions demonstrates using optional tools.
@@ -60,7 +60,7 @@ func ExampleNewDefaultBIAgent_withOptions() {
 
 	// Output:
 	// Model: gpt-5-mini
-	// Tools count: 9
+	// Tools count: 10
 }
 
 // ExampleNewDefaultBIAgent_withInsightPrompting demonstrates insight-focused response prompting.
