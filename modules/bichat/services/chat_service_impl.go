@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -134,6 +135,7 @@ type chatServiceImpl struct {
 	model              agents.Model
 	titleService       TitleService
 	titleQueue         TitleJobQueue
+	runStore           generationRunStore
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
 	runRegistry        *runRegistry
@@ -157,6 +159,7 @@ func NewChatService(
 		model:              model,
 		titleService:       titleService,
 		titleQueue:         titleQueue,
+		runStore:           newConfiguredGenerationRunStore(),
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        newRunRegistry(),
 	}
@@ -191,7 +194,7 @@ func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUI
 	return nil
 }
 
-// GetStreamStatus returns the active run for the session from memory or DB.
+// GetStreamStatus returns the active run for the session from memory or persisted state.
 func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UUID) (*bichatservices.StreamStatus, error) {
 	const op serrors.Op = "chatServiceImpl.GetStreamStatus"
 
@@ -213,8 +216,8 @@ func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UU
 		}, nil
 	}
 
-	// Fallback to DB (e.g. run may be in another process or stale)
-	run, err := s.chatRepo.GetActiveRunBySession(ctx, sessionID)
+	// Fallback to persisted state (e.g. run may be in another process).
+	run, err := s.getPersistedRun(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNoActiveRun) {
 			return &bichatservices.StreamStatus{Active: false}, nil
@@ -230,6 +233,48 @@ func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UU
 		Snapshot:  bichatservices.StreamSnapshot{PartialContent: run.PartialContent(), PartialMetadata: run.PartialMetadata()},
 		StartedAt: run.StartedAt(),
 	}, nil
+}
+
+func (s *chatServiceImpl) createRunState(ctx context.Context, run domain.GenerationRun) (bool, error) {
+	if s.runStore == nil {
+		return false, nil
+	}
+	if err := s.runStore.CreateRun(ctx, run); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (s *chatServiceImpl) getPersistedRun(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
+	if s.runStore == nil {
+		return nil, domain.ErrNoActiveRun
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, domain.ErrNoActiveRun
+	}
+	return s.runStore.GetActiveRunBySession(ctx, tenantID, sessionID)
+}
+
+func (s *chatServiceImpl) updateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
+	if s.runStore == nil {
+		return nil
+	}
+	return s.runStore.UpdateRunSnapshot(ctx, tenantID, sessionID, runID, partialContent, partialMetadata)
+}
+
+func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	if s.runStore == nil {
+		return nil
+	}
+	return s.runStore.CompleteRun(ctx, tenantID, sessionID, runID)
+}
+
+func (s *chatServiceImpl) cancelRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	if s.runStore == nil {
+		return nil
+	}
+	return s.runStore.CancelRun(ctx, tenantID, sessionID, runID)
 }
 
 // ResumeStream attaches to an active run and streams snapshot then new chunks.
@@ -643,16 +688,23 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		domainAttachments[i] = domain.NewAttachment(attachmentOpts...)
 	}
 
-	run := domain.NewGenerationRun(
-		domain.WithGenerationRunSessionID(req.SessionID),
-		domain.WithGenerationRunTenantID(uuid.Nil),
-		domain.WithGenerationRunUserID(req.UserID),
-	)
+	var run domain.GenerationRun
+	runStateCreated := false
 
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err = s.chatRepo.GetSession(txCtx, req.SessionID)
 		if err != nil {
 			return serrors.E(op, err)
+		}
+
+		run = domain.NewGenerationRun(
+			domain.WithGenerationRunSessionID(req.SessionID),
+			domain.WithGenerationRunTenantID(session.TenantID()),
+			domain.WithGenerationRunUserID(session.UserID()),
+		)
+		runStateCreated, err = s.createRunState(txCtx, run)
+		if err != nil {
+			return err
 		}
 
 		session, err = s.maybeReplaceHistoryFromMessage(txCtx, session, req.ReplaceFromMessageID)
@@ -685,18 +737,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			}
 		}
 
-		run = domain.NewGenerationRun(
-			domain.WithGenerationRunID(run.ID()),
-			domain.WithGenerationRunSessionID(req.SessionID),
-			domain.WithGenerationRunTenantID(session.TenantID()),
-			domain.WithGenerationRunUserID(session.UserID()),
-		)
-		if err := s.chatRepo.CreateRun(txCtx, run); err != nil {
-			return err
-		}
 		return nil
 	})
 	if err != nil {
+		if runStateCreated && run != nil && session != nil {
+			_ = s.cancelRunState(context.WithoutCancel(ctx), session.TenantID(), req.SessionID, run.ID())
+		}
 		if errors.Is(err, domain.ErrActiveRunExists) {
 			return serrors.E(op, err)
 		}
@@ -706,9 +752,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Decouple generation from request cancellation, but keep request values
 	// (tenant/user/pool/tx) required by downstream services and repositories.
 	processCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
-	defer cancelProcess()
 	s.registerStreamCancel(req.SessionID, cancelProcess)
-	defer s.unregisterStreamCancel(req.SessionID)
 
 	processCtx = bichatservices.WithArtifactMessageID(processCtx, userMsg.ID())
 
@@ -727,6 +771,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	s.runRegistry.add(active)
 
 	persistCtx := context.WithoutCancel(ctx)
+	// Stream finalization may outlive request-scoped middleware transactions.
+	// Clear TxKey so persistence always opens its own durable transaction.
+	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
 
 	go s.runStreamLoop(processCtx, persistCtx, run.ID(), req, userMsg, session, domainAttachments, startedAt, active)
 
@@ -778,6 +825,10 @@ func (s *chatServiceImpl) runStreamLoop(
 	active *activeRun,
 ) {
 	const op serrors.Op = "chatServiceImpl.runStreamLoop"
+	defer s.unregisterStreamCancel(req.SessionID)
+	if active.cancel != nil {
+		defer active.cancel()
+	}
 	defer active.closeAllSubscribers()
 	defer s.runRegistry.remove(active.runID)
 
@@ -788,7 +839,7 @@ func (s *chatServiceImpl) runStreamLoop(
 			Error:     err,
 			Timestamp: time.Now(),
 		})
-		_ = s.chatRepo.CancelRun(persistCtx, runID)
+		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 		return
 	}
 	defer gen.Close()
@@ -805,6 +856,7 @@ func (s *chatServiceImpl) runStreamLoop(
 	var finishReason string
 	var thinking strings.Builder
 	var observationReason string
+	emitDoneChunk := false
 
 	for {
 		event, err := gen.Next(processCtx)
@@ -899,11 +951,7 @@ func (s *chatServiceImpl) runStreamLoop(
 				})
 			}
 			generationMs = time.Since(startedAt).Milliseconds()
-			active.broadcast(bichatservices.StreamChunk{
-				Type:         bichatservices.ChunkTypeDone,
-				GenerationMs: generationMs,
-				Timestamp:    time.Now(),
-			})
+			emitDoneChunk = true
 
 		case agents.EventTypeThinking:
 			if event.Content != "" {
@@ -924,7 +972,7 @@ func (s *chatServiceImpl) runStreamLoop(
 			content := active.content
 			active.mu.RUnlock()
 			meta := active.snapshotMetadata()
-			_ = s.chatRepo.UpdateRunSnapshot(persistCtx, runID, content, meta)
+			_ = s.updateRunSnapshot(persistCtx, session.TenantID(), req.SessionID, runID, content, meta)
 			active.mu.Lock()
 			active.lastPersist = time.Now()
 			active.mu.Unlock()
@@ -932,7 +980,12 @@ func (s *chatServiceImpl) runStreamLoop(
 	}
 
 	if processCtx.Err() != nil {
-		_ = s.chatRepo.CancelRun(persistCtx, runID)
+		active.broadcast(bichatservices.StreamChunk{
+			Type:      bichatservices.ChunkTypeError,
+			Error:     serrors.E(op, processCtx.Err()),
+			Timestamp: time.Now(),
+		})
+		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 		return
 	}
 
@@ -994,11 +1047,23 @@ func (s *chatServiceImpl) runStreamLoop(
 		return nil
 	})
 	if err != nil {
-		_ = s.chatRepo.CancelRun(persistCtx, runID)
+		active.broadcast(bichatservices.StreamChunk{
+			Type:      bichatservices.ChunkTypeError,
+			Error:     err,
+			Timestamp: time.Now(),
+		})
+		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 		return
 	}
 
-	_ = s.chatRepo.CompleteRun(persistCtx, runID)
+	_ = s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+	if emitDoneChunk {
+		active.broadcast(bichatservices.StreamChunk{
+			Type:         bichatservices.ChunkTypeDone,
+			GenerationMs: generationMs,
+			Timestamp:    time.Now(),
+		})
+	}
 	if interrupt == nil {
 		s.maybeGenerateTitleAsync(persistCtx, req.SessionID)
 	}

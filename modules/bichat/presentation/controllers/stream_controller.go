@@ -240,12 +240,9 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 			}
 		}
 		if chunk.Error != nil {
-			// Avoid leaking internal errors to the client.
-			if chunk.Type == bichatservices.ChunkTypeError {
-				payload.Error = "An error occurred while processing your request"
-			} else {
-				payload.Error = chunk.Error.Error()
-			}
+			// Preserve known provider-facing failures (quota/auth/rate-limit), and
+			// keep all other internal failures generic.
+			payload.Error = c.streamClientErrorMessage(chunk.Error, chunk.Type)
 		}
 		if chunk.RunID != "" {
 			payload.RunID = chunk.RunID
@@ -274,7 +271,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		// Send sanitized error to client
 		c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
 			Type:      "error",
-			Error:     "An error occurred while processing your request",
+			Error:     c.streamClientErrorMessage(err, bichatservices.ChunkTypeError),
 			Timestamp: time.Now().UnixMilli(),
 		})
 		return
@@ -482,10 +479,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 			}
 		}
 		if chunk.Error != nil {
-			payload.Error = "An error occurred while processing your request"
-			if chunk.Type != bichatservices.ChunkTypeError {
-				payload.Error = chunk.Error.Error()
-			}
+			payload.Error = c.streamClientErrorMessage(chunk.Error, chunk.Type)
 		}
 		if chunk.Snapshot != nil {
 			payload.Snapshot = &httpdto.StreamSnapshotPayload{
@@ -533,4 +527,73 @@ func (c *StreamController) sendSSEEvent(w http.ResponseWriter, flusher http.Flus
 	_, _ = fmt.Fprintf(w, "event: %s\n", event)
 	_, _ = fmt.Fprintf(w, "data: %s\n\n", jsonData)
 	flusher.Flush()
+}
+
+func (c *StreamController) streamClientErrorMessage(err error, chunkType bichatservices.ChunkType) string {
+	const generic = "An error occurred while processing your request"
+	if err == nil {
+		return ""
+	}
+	// Preserve previous behavior for non-error chunk types.
+	if chunkType != bichatservices.ChunkTypeError {
+		return err.Error()
+	}
+
+	code, message, ok := parseProviderStreamError(err.Error())
+	if !ok {
+		return generic
+	}
+
+	switch strings.ToLower(code) {
+	case "insufficient_quota":
+		if strings.TrimSpace(message) != "" {
+			return message
+		}
+		return "You exceeded your current quota. Please check your plan and billing details."
+	case "rate_limit_exceeded", "rate_limit":
+		if strings.TrimSpace(message) != "" {
+			return message
+		}
+		return "Rate limit exceeded. Please retry shortly."
+	case "invalid_api_key", "authentication_error", "auth_error":
+		if strings.TrimSpace(message) != "" {
+			return message
+		}
+		return "Authentication failed with the model provider. Please verify API credentials."
+	default:
+		return generic
+	}
+}
+
+func parseProviderStreamError(raw string) (code string, message string, ok bool) {
+	start := strings.Index(raw, "{\"type\":")
+	if start < 0 {
+		start = strings.Index(raw, "{\"code\":")
+	}
+	if start < 0 {
+		return "", "", false
+	}
+	fragment := raw[start:]
+	end := strings.LastIndex(fragment, "}")
+	if end < 0 {
+		return "", "", false
+	}
+	fragment = fragment[:end+1]
+
+	var providerErr struct {
+		Type    string `json:"type"`
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(fragment), &providerErr); err != nil {
+		return "", "", false
+	}
+
+	switch {
+	case strings.TrimSpace(providerErr.Code) != "":
+		code = providerErr.Code
+	default:
+		code = providerErr.Type
+	}
+	return code, providerErr.Message, strings.TrimSpace(code) != ""
 }
