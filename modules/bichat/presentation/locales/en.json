@@ -48,6 +48,7 @@
     },
     "InlineQuestion": {
       "InputNeeded": "Input needed",
+      "WaitingForDetails": "Waiting for the question details from the assistant...",
       "Next": "Next",
       "Back": "Back",
       "OtherOption": "Other",
@@ -195,6 +196,7 @@
       "ChatHistory": "Chat history",
       "CloseSidebar": "Close sidebar",
       "ChatSessions": "Chat sessions",
+      "MoreChats": "{{count}} more chats",
       "SearchChats": "Search chats...",
       "CreateNewChat": "Create new chat",
       "ArchivedChats": "Archived Chats",

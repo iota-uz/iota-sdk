@@ -48,6 +48,7 @@
     },
     "InlineQuestion": {
       "InputNeeded": "需要输入",
+      "WaitingForDetails": "正在等待助手的提问详情...",
       "Next": "下一步",
       "Back": "返回",
       "OtherOption": "其他",
@@ -193,6 +194,7 @@
       "ChatHistory": "聊天记录",
       "CloseSidebar": "关闭侧边栏",
       "ChatSessions": "聊天会话",
+      "MoreChats": "还有 {{count}} 个聊天",
       "SearchChats": "搜索聊天...",
       "CreateNewChat": "创建新聊天",
       "ArchivedChats": "已归档聊天",

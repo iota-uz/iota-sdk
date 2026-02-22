@@ -48,6 +48,7 @@
     },
     "InlineQuestion": {
       "InputNeeded": "Kiritish kerak",
+      "WaitingForDetails": "Yordamchidan savol tafsilotlari kutilmoqda...",
       "Next": "Keyingisi",
       "Back": "Orqaga",
       "OtherOption": "Boshqa",
@@ -195,6 +196,7 @@
       "ChatHistory": "Chat tarixi",
       "CloseSidebar": "Yon panelni yopish",
       "ChatSessions": "Chat sessiyalari",
+      "MoreChats": "Yana {{count}} ta chat",
       "SearchChats": "Chatlarni qidirish...",
       "CreateNewChat": "Yangi chat yaratish",
       "ArchivedChats": "Arxivlangan chatlar",

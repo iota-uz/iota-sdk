@@ -48,6 +48,7 @@
     },
     "InlineQuestion": {
       "InputNeeded": "Требуется ввод",
+      "WaitingForDetails": "Ожидание деталей вопроса от ассистента...",
       "Next": "Далее",
       "Back": "Назад",
       "OtherOption": "Другое",
@@ -195,6 +196,7 @@
       "ChatHistory": "История чатов",
       "CloseSidebar": "Закрыть боковую панель",
       "ChatSessions": "Сессии чата",
+      "MoreChats": "Ещё {{count}} чатов",
       "SearchChats": "Поиск чатов...",
       "CreateNewChat": "Создать новый чат",
       "ArchivedChats": "Архивные чаты",
