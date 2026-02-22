@@ -121,3 +121,26 @@ func TestPendingQuestionFromMessages_ReturnsNilWhenNoPending(t *testing.T) {
 	pending := pendingQuestionFromMessages(messages)
 	assert.Nil(t, pending)
 }
+
+func TestMapDebugTrace_IncludesTraceMetadata(t *testing.T) {
+	t.Parallel()
+
+	debug := &types.DebugTrace{
+		Usage: &types.DebugUsage{
+			PromptTokens:     10,
+			CompletionTokens: 5,
+			TotalTokens:      15,
+		},
+		GenerationMs: 42,
+		TraceID:      "trace-123",
+		TraceURL:     "https://langfuse.local/trace/trace-123",
+	}
+
+	mapped := mapDebugTrace(debug)
+	require.NotNil(t, mapped)
+	require.NotNil(t, mapped.Usage)
+	assert.Equal(t, "trace-123", mapped.TraceID)
+	assert.Equal(t, "https://langfuse.local/trace/trace-123", mapped.TraceURL)
+	assert.Equal(t, int64(42), mapped.GenerationMs)
+	assert.Equal(t, 10, mapped.Usage.PromptTokens)
+}

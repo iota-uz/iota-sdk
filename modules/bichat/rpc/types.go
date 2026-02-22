@@ -135,6 +135,8 @@ type DebugTrace struct {
 	Usage        *DebugUsage     `json:"usage,omitempty"`
 	GenerationMs int64           `json:"generationMs,omitempty"`
 	Tools        []DebugToolCall `json:"tools,omitempty"`
+	TraceID      string          `json:"traceId,omitempty"`
+	TraceURL     string          `json:"traceUrl,omitempty"`
 }
 
 type ConversationTurn struct {
@@ -472,6 +474,8 @@ func mapDebugTrace(trace *types.DebugTrace) *DebugTrace {
 		Usage:        usage,
 		GenerationMs: trace.GenerationMs,
 		Tools:        tools,
+		TraceID:      trace.TraceID,
+		TraceURL:     trace.TraceURL,
 	}
 }
 

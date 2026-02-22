@@ -32,4 +32,6 @@ type DebugTrace struct {
 	Usage        *DebugUsage     `json:"usage,omitempty"`
 	GenerationMs int64           `json:"generationMs,omitempty"`
 	Tools        []DebugToolCall `json:"tools,omitempty"`
+	TraceID      string          `json:"traceId,omitempty"`
+	TraceURL     string          `json:"traceUrl,omitempty"`
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"mime"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -609,7 +610,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	if len(savedToolCalls) > 0 {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
 	}
-	if debugTrace := buildDebugTrace(savedToolCalls, finalUsage, generationMs); debugTrace != nil {
+	if debugTrace := buildDebugTrace(req.SessionID, savedToolCalls, finalUsage, generationMs); debugTrace != nil {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 	}
 
@@ -864,7 +865,7 @@ func orderedToolCalls(toolCalls map[string]types.ToolCall, toolOrder []string) [
 	return result
 }
 
-func buildDebugTrace(toolCalls []types.ToolCall, usage *types.DebugUsage, generationMs int64) *types.DebugTrace {
+func buildDebugTrace(sessionID uuid.UUID, toolCalls []types.ToolCall, usage *types.DebugUsage, generationMs int64) *types.DebugTrace {
 	debugTools := make([]types.DebugToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		debugTools = append(debugTools, types.DebugToolCall{
@@ -877,15 +878,45 @@ func buildDebugTrace(toolCalls []types.ToolCall, usage *types.DebugUsage, genera
 		})
 	}
 
-	if usage == nil && generationMs <= 0 && len(debugTools) == 0 {
-		return nil
-	}
+	traceID := sessionID.String()
+	traceURL := buildLangfuseTraceURL(traceID)
 
 	return &types.DebugTrace{
 		Usage:        usage,
 		GenerationMs: generationMs,
 		Tools:        debugTools,
+		TraceID:      traceID,
+		TraceURL:     traceURL,
 	}
+}
+
+func buildLangfuseTraceURL(traceID string) string {
+	trimmedTraceID := strings.TrimSpace(traceID)
+	if trimmedTraceID == "" {
+		return ""
+	}
+
+	baseURL := strings.TrimSpace(os.Getenv("LANGFUSE_BASE_URL"))
+	if baseURL == "" {
+		baseURL = strings.TrimSpace(os.Getenv("LANGFUSE_HOST"))
+	}
+	if baseURL == "" {
+		return ""
+	}
+
+	parsedBaseURL, err := url.Parse(baseURL)
+	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
+		return ""
+	}
+	if parsedBaseURL.Scheme != "http" && parsedBaseURL.Scheme != "https" {
+		return ""
+	}
+
+	parsedBaseURL.RawQuery = ""
+	parsedBaseURL.Fragment = ""
+	basePath := strings.TrimRight(parsedBaseURL.Path, "/")
+	parsedBaseURL.Path = basePath + "/trace/" + url.PathEscape(trimmedTraceID)
+	return parsedBaseURL.String()
 }
 
 func optionalStringPtr(value string) *string {
@@ -1007,7 +1038,7 @@ func (s *chatServiceImpl) saveAgentResult(
 	if len(result.toolCalls) > 0 {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(result.toolCalls...))
 	}
-	if debugTrace := buildDebugTrace(result.toolCalls, result.usage, time.Since(startedAt).Milliseconds()); debugTrace != nil {
+	if debugTrace := buildDebugTrace(sessionID, result.toolCalls, result.usage, time.Since(startedAt).Milliseconds()); debugTrace != nil {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 	}
 
