@@ -218,7 +218,9 @@
       "AllChats": "All Chats",
       "ChatViewSelector": "Chat view selector",
       "DeleteChat": "Delete Chat",
+      "ChatArchived": "Chat archived",
       "FailedToArchiveChat": "Failed to archive chat",
+      "FailedToRestoreChat": "Failed to restore chat",
       "FailedToTogglePin": "Failed to toggle pin",
       "CollapseSidebar": "Collapse sidebar",
       "Collapse": "Collapse",
@@ -253,6 +255,7 @@
       "ScrollToBottom": "Scroll to bottom",
       "Search": "Search",
       "Confirm": "Confirm",
+      "Undo": "Undo",
       "TryAgain": "Try Again",
       "PleaseWait": "Please wait..."
     },

@@ -218,7 +218,9 @@
       "AllChats": "Все чаты",
       "ChatViewSelector": "Выбор представления чатов",
       "DeleteChat": "Удалить чат",
+      "ChatArchived": "Чат архивирован",
       "FailedToArchiveChat": "Не удалось архивировать чат",
+      "FailedToRestoreChat": "Не удалось восстановить чат",
       "FailedToTogglePin": "Не удалось изменить закрепление",
       "CollapseSidebar": "Свернуть боковую панель",
       "Collapse": "Свернуть",
@@ -253,6 +255,7 @@
       "ScrollToBottom": "Прокрутить вниз",
       "Search": "Поиск",
       "Confirm": "Подтвердить",
+      "Undo": "Отменить",
       "TryAgain": "Попробовать снова",
       "PleaseWait": "Подождите..."
     },

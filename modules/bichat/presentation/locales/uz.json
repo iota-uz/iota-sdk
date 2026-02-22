@@ -218,7 +218,9 @@
       "AllChats": "Barcha chatlar",
       "ChatViewSelector": "Chat ko'rinishini tanlash",
       "DeleteChat": "Chatni o'chirish",
+      "ChatArchived": "Chat arxivlandi",
       "FailedToArchiveChat": "Chatni arxivlashda xatolik",
+      "FailedToRestoreChat": "Chatni tiklashda xatolik",
       "FailedToTogglePin": "Biriktirishni o'zgartirishda xatolik",
       "CollapseSidebar": "Yon panelni yig'ish",
       "Collapse": "Yig'ish",
@@ -253,6 +255,7 @@
       "ScrollToBottom": "Pastga o'tish",
       "Search": "Qidirish",
       "Confirm": "Tasdiqlash",
+      "Undo": "Bekor qilish",
       "TryAgain": "Qayta urinish",
       "PleaseWait": "Kutib turing..."
     },
