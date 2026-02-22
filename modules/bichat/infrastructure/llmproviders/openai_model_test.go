@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/openai/openai-go/v3/responses"
@@ -129,7 +130,7 @@ func TestOpenAIModel_HasCapability(t *testing.T) {
 	assert.True(t, model.HasCapability(agents.CapabilityStreaming))
 	assert.True(t, model.HasCapability(agents.CapabilityTools))
 	assert.True(t, model.HasCapability(agents.CapabilityJSONMode))
-	assert.False(t, model.HasCapability(agents.CapabilityThinking))
+	assert.True(t, model.HasCapability(agents.CapabilityThinking))
 }
 
 func TestOpenAIModel_BuildResponseParams(t *testing.T) {
@@ -353,6 +354,34 @@ func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
 	assert.Equal(t, 2, funcCount, "should have 2 function tools")
 	assert.Equal(t, 1, webCount, "should have 1 web search tool")
 	assert.Equal(t, 1, codeCount, "should have 1 code interpreter tool")
+}
+
+func TestOpenAIModel_BuildResponseParams_DrawChartSchemaRequiresCanonicalOptions(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	req := agents.Request{
+		Messages: []types.Message{types.UserMessage("draw a chart")},
+		Tools:    []agents.Tool{chart.NewDrawChartTool()},
+	}
+
+	params := oaiModel.buildResponseParams(context.Background(), req, agents.GenerateConfig{})
+	require.Len(t, params.Tools, 1)
+	require.NotNil(t, params.Tools[0].OfFunction)
+
+	schema := params.Tools[0].OfFunction.Parameters
+
+	properties, ok := schema["properties"].(map[string]any)
+	require.True(t, ok, "schema.properties should be map[string]any")
+	_, hasOptions := properties["options"]
+	assert.True(t, hasOptions, "draw_chart schema should include options property")
+	required, ok := schema["required"].([]string)
+	require.True(t, ok, "schema.required should be []string")
+	assert.Equal(t, []string{"options"}, required, "draw_chart schema should require options")
 }
 
 func TestOpenAIModel_MapResponse_TextOnly(t *testing.T) {

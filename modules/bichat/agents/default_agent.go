@@ -274,7 +274,9 @@ WORKFLOW GUIDELINES:
 4. VISUALIZE DATA
    - Use render_table when users need an interactive, paginated table in chat
    - Use draw_chart for data visualization when appropriate
-   - draw_chart expects a single ApexCharts options object (include chart.type, series, title.text)
+   - draw_chart arguments should be {"options": {...}} where ... is an ApexCharts options object (include chart.type, series, title.text)
+   - Example tool args: {"options":{"chart":{"type":"bar"},"title":{"text":"Monthly Sales"},"series":[{"name":"Sales","data":[120,150,180]}],"xaxis":{"categories":["Jan","Feb","Mar"]}}}
+   - Never call draw_chart with empty arguments {}
    - Choose chart type based on data: line/area (trends), bar (comparisons), pie/donut (proportions)
    - For widely scattered positive values, prefer yaxis.logarithmic=true
    - Keep charts readable: concise labels, sane height, and avoid excessive series/points

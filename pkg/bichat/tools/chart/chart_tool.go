@@ -72,14 +72,16 @@ func (t *DrawChartTool) Description() string {
 func (t *DrawChartTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
+		"description": "Create an ApexCharts chart using canonical arguments: {\"options\": {...}}.",
 		"properties": map[string]any{
 			"options": map[string]any{
 				"type":                 "object",
-				"description":          "ApexCharts options object. Must include series and can include chart/type, title, xaxis, yaxis, colors, etc.",
+				"description":          "ApexCharts options object with series and chart/type (plus title, xaxis, yaxis, colors, etc.).",
 				"additionalProperties": true,
 			},
 		},
 		"required": []string{"options"},
+		"additionalProperties": true,
 	}
 }
 
@@ -112,7 +114,9 @@ func (t *DrawChartTool) CallStructured(ctx context.Context, input string) (*type
 		}, nil
 	}
 
-	if len(params.Options) == 0 {
+	options := cloneMap(params.Options)
+
+	if len(options) == 0 {
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
@@ -122,8 +126,6 @@ func (t *DrawChartTool) CallStructured(ctx context.Context, input string) (*type
 			},
 		}, nil
 	}
-
-	options := cloneMap(params.Options)
 
 	if err := t.validateNoLegacyFields(options); err != nil {
 		return &types.ToolResult{

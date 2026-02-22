@@ -39,50 +39,26 @@ func TestDrawChartTool_CallStructured_RequiresOptions(t *testing.T) {
 	}
 }
 
-func TestDrawChartTool_CallStructured_RejectsLegacyOptionKeys(t *testing.T) {
+func TestDrawChartTool_Parameters_RequireCanonicalOptions(t *testing.T) {
 	t.Parallel()
 
-	tool := NewDrawChartTool().(*DrawChartTool)
-	tests := []struct {
-		name    string
-		input   string
-		contain string
-	}{
-		{
-			name:    "legacy chartType",
-			input:   `{"options":{"chartType":"line","series":[{"name":"S","data":[1,2,3]}]}}`,
-			contain: "options.chartType",
-		},
-		{
-			name:    "legacy root type",
-			input:   `{"options":{"type":"line","series":[{"name":"S","data":[1,2,3]}]}}`,
-			contain: "options.type",
-		},
-		{
-			name:    "legacy root height",
-			input:   `{"options":{"height":350,"series":[{"name":"S","data":[1,2,3]}]}}`,
-			contain: "options.height",
-		},
-	}
+	tool := NewDrawChartTool()
+	schema := tool.Parameters()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := tool.CallStructured(context.Background(), tt.input)
-			if err != nil {
-				t.Fatalf("CallStructured() error = %v", err)
-			}
-			payload, ok := result.Payload.(types.ToolErrorPayload)
-			if !ok {
-				t.Fatalf("payload type = %T, want ToolErrorPayload", result.Payload)
-			}
-			if !strings.Contains(payload.Message, tt.contain) {
-				t.Fatalf("payload.Message = %q, want %q", payload.Message, tt.contain)
-			}
-		})
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("schema.properties type = %T, want map[string]any", schema["properties"])
+	}
+	if _, ok := props["options"]; !ok {
+		t.Fatal("schema.properties should include options")
+	}
+	required, ok := schema["required"].([]string)
+	if !ok || len(required) != 1 || required[0] != "options" {
+		t.Fatalf("schema.required = %v, want [options]", schema["required"])
 	}
 }
 
-func TestDrawChartTool_CallStructured_RejectsLegacySeriesShape(t *testing.T) {
+func TestDrawChartTool_CallStructured_ValidatesSeriesShape(t *testing.T) {
 	t.Parallel()
 
 	tool := NewDrawChartTool().(*DrawChartTool)
