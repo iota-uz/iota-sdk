@@ -98,6 +98,7 @@ func NewWebFetchTool(opts ...WebFetchToolOption) agents.Tool {
 
 // newSSRFSafeTransport returns an http.Transport whose DialContext validates
 // resolved IPs so hostnames that resolve to private/internal IPs are rejected.
+// Timeouts are set so stalled TLS handshakes or delayed headers don't hold connections indefinitely.
 func newSSRFSafeTransport() *http.Transport {
 	return &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -117,6 +118,10 @@ func newSSRFSafeTransport() *http.Transport {
 			dialer := &net.Dialer{Timeout: 10 * time.Second}
 			return dialer.DialContext(ctx, network, net.JoinHostPort(host, port))
 		},
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 }
 
