@@ -24,7 +24,6 @@ func newTestProvider(client LangfuseClient, config Config) *LangfuseProvider {
 		client: client,
 		config: config,
 		state:  newState(),
-		rng:    nil, // Not needed for deterministic tests
 		log:    log,
 	}
 }
