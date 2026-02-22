@@ -643,6 +643,174 @@ func TestPostgresChatRepository_SaveMessage_WithDebugTrace(t *testing.T) {
 	assert.Equal(t, int64(987), sessionMessages[0].DebugTrace().GenerationMs)
 }
 
+func TestPostgresChatRepository_SaveMessage_PersistsV2TraceGraphProjection(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	session := domain.NewSession(
+		domain.WithTenantID(env.Tenant.ID),
+		domain.WithUserID(int64(env.User.ID())),
+		domain.WithTitle("Debug Trace V2 Projection Test"),
+	)
+	err := repo.CreateSession(env.Ctx, session)
+	require.NoError(t, err)
+
+	startedAt := time.Now().UTC().Truncate(time.Second)
+	completedAt := startedAt.Add(2 * time.Second)
+	traceID := "trace_" + uuid.NewString()
+
+	trace := &types.DebugTrace{
+		SchemaVersion: "v2",
+		StartedAt:     startedAt.Format(time.RFC3339),
+		CompletedAt:   completedAt.Format(time.RFC3339),
+		Usage: &types.DebugUsage{
+			PromptTokens:     240,
+			CompletionTokens: 80,
+			TotalTokens:      320,
+			CachedTokens:     24,
+			Cost:             0.0032,
+		},
+		GenerationMs: 2000,
+		Tools: []types.DebugToolCall{
+			{
+				CallID:     "call_1",
+				Name:       "sql_execute",
+				Arguments:  `{"query":"select 1"}`,
+				Result:     `{"rows":[{"value":1}]}`,
+				DurationMs: 130,
+			},
+		},
+		Attempts: []types.DebugGeneration{
+			{
+				ID:               "gen_1",
+				RequestID:        "req_1",
+				Model:            "gpt-5",
+				Provider:         "openai",
+				FinishReason:     "stop",
+				PromptTokens:     240,
+				CompletionTokens: 80,
+				TotalTokens:      320,
+				CachedTokens:     24,
+				Cost:             0.0032,
+				LatencyMs:        2000,
+				Input:            "Show latest revenue by month",
+				Output:           "Here is the latest revenue breakdown...",
+				Thinking:         "Need aggregate by month and order descending.",
+				StartedAt:        startedAt.Format(time.RFC3339),
+				CompletedAt:      completedAt.Format(time.RFC3339),
+				ToolCalls: []types.DebugToolCall{
+					{
+						CallID:     "call_1",
+						Name:       "sql_execute",
+						Arguments:  `{"query":"select 1"}`,
+						Result:     `{"rows":[{"value":1}]}`,
+						DurationMs: 130,
+					},
+				},
+			},
+		},
+		Spans: []types.DebugSpan{
+			{
+				ID:           "span_1",
+				GenerationID: "gen_1",
+				Name:         "tool.execute",
+				Type:         "tool",
+				Status:       "success",
+				CallID:       "call_1",
+				ToolName:     "sql_execute",
+				Input:        `{"query":"select 1"}`,
+				Output:       `{"rows":[{"value":1}]}`,
+				DurationMs:   130,
+				StartedAt:    startedAt.Format(time.RFC3339),
+				CompletedAt:  completedAt.Format(time.RFC3339),
+				Attributes: map[string]interface{}{
+					"tool_name": "sql_execute",
+				},
+			},
+		},
+		Events: []types.DebugEvent{
+			{
+				ID:           "event_1",
+				Name:         "observation",
+				Type:         "diagnostic",
+				Level:        "info",
+				Message:      "projection captured",
+				SpanID:       "span_1",
+				GenerationID: "gen_1",
+				Timestamp:    completedAt.Format(time.RFC3339),
+				Attributes: map[string]interface{}{
+					"source": "repository-test",
+				},
+			},
+		},
+		TraceID:   traceID,
+		TraceURL:  "https://langfuse.example/trace/" + traceID,
+		SessionID: session.ID().String(),
+		Thinking:  "Need aggregate by month and order descending.",
+	}
+
+	msg := types.AssistantMessage(
+		"Here is the latest revenue breakdown...",
+		types.WithSessionID(session.ID()),
+		types.WithDebugTrace(trace),
+	)
+	err = repo.SaveMessage(env.Ctx, msg)
+	require.NoError(t, err)
+
+	var (
+		traceRefID   uuid.UUID
+		traceMessage uuid.UUID
+		externalID   string
+		status       string
+		generationMS int64
+	)
+	err = env.Tx.QueryRow(
+		env.Ctx,
+		`SELECT id, message_id, external_trace_id, status, generation_ms
+		 FROM bichat.traces
+		 WHERE tenant_id = $1 AND external_trace_id = $2`,
+		env.Tenant.ID,
+		traceID,
+	).Scan(&traceRefID, &traceMessage, &externalID, &status, &generationMS)
+	require.NoError(t, err)
+	assert.Equal(t, msg.ID(), traceMessage)
+	assert.Equal(t, traceID, externalID)
+	assert.Equal(t, "completed", status)
+	assert.Equal(t, int64(2000), generationMS)
+
+	var generationCount int
+	err = env.Tx.QueryRow(
+		env.Ctx,
+		`SELECT COUNT(*) FROM bichat.generations WHERE tenant_id = $1 AND trace_ref_id = $2`,
+		env.Tenant.ID,
+		traceRefID,
+	).Scan(&generationCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, generationCount)
+
+	var spanCount int
+	err = env.Tx.QueryRow(
+		env.Ctx,
+		`SELECT COUNT(*) FROM bichat.spans WHERE tenant_id = $1 AND trace_ref_id = $2`,
+		env.Tenant.ID,
+		traceRefID,
+	).Scan(&spanCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, spanCount)
+
+	var eventCount int
+	err = env.Tx.QueryRow(
+		env.Ctx,
+		`SELECT COUNT(*) FROM bichat.events WHERE tenant_id = $1 AND trace_ref_id = $2`,
+		env.Tenant.ID,
+		traceRefID,
+	).Scan(&eventCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, eventCount)
+}
+
 func TestPostgresChatRepository_SaveMessage_EmptyToolCallsAndCitations(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
