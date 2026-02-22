@@ -33,8 +33,8 @@ func (t *SearchValidatedQueriesTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *SearchValidatedQueriesTool) Description() string {
 	return "Search the library of validated SQL queries for patterns matching your question. " +
-		"Use this before writing new SQL to reuse proven patterns. " +
-		"Results are ordered by relevance and usage frequency."
+		"Call before your first SQL attempt for each user question to find proven patterns (by keywords or table names). " +
+		"Do not skip this when query library is available unless the question clearly needs no SQL."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -213,8 +213,8 @@ func (t *SaveValidatedQueryTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *SaveValidatedQueryTool) Description() string {
 	return "Save a successful SQL query to the library for future reuse. " +
-		"Only save queries that produced correct results and answer a meaningful business question. " +
-		"This helps you and future conversations reuse proven query patterns."
+		"Use after queries that answer meaningful business questions; include clear question, summary, tables used, and data quality notes. " +
+		"Do not save: simple single-table lookups, one-off exploratory queries, or queries with errors. Saved queries grow the library for future conversations."
 }
 
 // Parameters returns the JSON Schema for tool parameters.

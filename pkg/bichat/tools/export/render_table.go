@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
@@ -82,9 +83,9 @@ func (t *RenderTableTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *RenderTableTool) Description() string {
-	return "Run a read-only SQL query and render an interactive table card in chat. " +
-		"Accepts custom column header names and returns rows for frontend/backend pagination, " +
-		"with an Export to Excel action."
+	return "Run a read-only SQL query and render an interactive, paginated table in chat. " +
+		"Use this when users need an interactive table (not just a chart). " +
+		"Accepts optional title and headers. Returns rows for frontend pagination with an Export to Excel action."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -267,9 +268,31 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 		}
 	}
 
+	// Emit a table artifact with structural metadata for overlay preview; full row data is in the tool result payload.
+	name := strings.TrimSpace(output.Title)
+	if name == "" {
+		name = "Table"
+	}
+	artifacts := []types.ToolArtifact{{
+		Type:        string(domain.ArtifactTypeTable),
+		Name:        name,
+		Description: fmt.Sprintf("Table: %d rows", output.TotalRows),
+		MimeType:    "application/json",
+		Metadata: map[string]any{
+			"query":        output.Query,
+			"columns":      output.Columns,
+			"headers":      output.Headers,
+			"column_types": output.ColumnTypes,
+			"total_rows":   output.TotalRows,
+			"truncated":    output.Truncated,
+			"title":        output.Title,
+		},
+	}}
+
 	return &types.ToolResult{
-		CodecID: types.CodecJSON,
-		Payload: types.JSONPayload{Output: output},
+		CodecID:   types.CodecJSON,
+		Payload:   types.JSONPayload{Output: output},
+		Artifacts: artifacts,
 	}, nil
 }
 

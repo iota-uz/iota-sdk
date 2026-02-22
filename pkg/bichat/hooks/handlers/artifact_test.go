@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,9 +42,10 @@ func TestArtifactHandler_SubscribedToolCompleteEvent_PersistsArtifact(t *testing
 	userMessageID := uuid.New()
 	ctx := bichatservices.WithArtifactMessageID(context.Background(), userMessageID)
 
-	err := bus.Publish(ctx, events.NewToolCompleteEvent(
+	err := bus.Publish(ctx, events.NewToolCompleteEventWithTrace(
 		sessionID,
 		tenantID,
+		"trace-1",
 		"export_query_to_excel",
 		`{"query":"SELECT * FROM users"}`,
 		"call-1",
@@ -66,4 +68,92 @@ func TestArtifactHandler_SubscribedToolCompleteEvent_PersistsArtifact(t *testing
 	require.NotNil(t, artifact.MessageID())
 	assert.Equal(t, userMessageID, *artifact.MessageID())
 	assert.Equal(t, tenantID, repo.tenantIDsSeen[0])
+}
+
+func TestArtifactHandler_ChartPreservesArtifactMetadata(t *testing.T) {
+	repo := &artifactRepoStub{}
+	handler := NewArtifactHandler(repo)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	sessionID := uuid.New()
+
+	spec := map[string]any{
+		"chart": map[string]any{"type": "line"},
+		"title": map[string]any{"text": "Revenue"},
+		"series": []any{
+			map[string]any{
+				"name": "Revenue",
+				"data": []any{10.0, 20.0, 30.0},
+			},
+		},
+	}
+	warnings := []string{"Downsampled dense series to 500 points."}
+
+	event := events.NewToolCompleteEventWithTrace(
+		sessionID,
+		tenantID,
+		"trace-1",
+		"draw_chart",
+		`{}`,
+		"call-chart-1",
+		`{"chart":{"type":"line"},"series":[{"name":"Revenue","data":[10,20,30]}]}`,
+		[]types.ToolArtifact{
+			{
+				Type: "chart",
+				Name: "Revenue",
+				Metadata: map[string]any{
+					"spec":     spec,
+					"warnings": warnings,
+				},
+			},
+		},
+		42,
+	)
+
+	err := handler.Handle(ctx, event)
+	require.NoError(t, err)
+	require.Len(t, repo.saved, 1)
+
+	artifact := repo.saved[0]
+	assert.Equal(t, domain.ArtifactTypeChart, artifact.Type())
+	assert.Equal(t, "Revenue", artifact.Name())
+
+	metadata := artifact.Metadata()
+	require.NotNil(t, metadata)
+	assert.Equal(t, warnings, metadata["warnings"])
+
+	savedSpec, ok := metadata["spec"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "line", savedSpec["chart"].(map[string]any)["type"])
+}
+
+func TestArtifactHandler_ChartFallbackToResultPayload(t *testing.T) {
+	repo := &artifactRepoStub{}
+	handler := NewArtifactHandler(repo)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	sessionID := uuid.New()
+
+	event := events.NewToolCompleteEventWithTrace(
+		sessionID,
+		tenantID,
+		"trace-1",
+		"draw_chart",
+		`{}`,
+		"call-chart-2",
+		`{"chart":{"type":"line"},"title":{"text":"Revenue from Result"},"series":[{"name":"Revenue","data":[10,20,30]}]}`,
+		nil,
+		20,
+	)
+
+	err := handler.Handle(ctx, event)
+	require.NoError(t, err)
+	require.Len(t, repo.saved, 1)
+
+	artifact := repo.saved[0]
+	assert.Equal(t, "Revenue from Result", artifact.Name())
+	metadata := artifact.Metadata()
+	require.NotNil(t, metadata)
+	_, ok := metadata["spec"].(map[string]any)
+	require.True(t, ok)
 }

@@ -154,8 +154,8 @@ func (t *WebFetchTool) Name() string { return "web_fetch" }
 // Description returns the tool description for the LLM.
 func (t *WebFetchTool) Description() string {
 	return "Fetch a single public URL for image/* or application/pdf content. " +
-		"Use this to bring web images/PDFs into model context. " +
-		"Set save_to_artifacts=true only when the user wants the file saved for later download/reference."
+		"Use only for direct image or PDF URLs when the task requires external visual or document context. " +
+		"Set save_to_artifacts=true only when the user explicitly wants the file saved/downloadable for later use; keep false by default to avoid unnecessary artifact creation."
 }
 
 // Parameters returns the JSON Schema for tool parameters.

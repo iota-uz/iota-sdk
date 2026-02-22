@@ -256,6 +256,7 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 					CodeInterpreterResults: agentResp.CodeInterpreterResults,
 					FileAnnotations:        agentResp.FileAnnotations,
 					ProviderResponseID:     agentResp.ProviderResponseID,
+					Thinking:               agentResp.Thinking,
 				}
 				if !yield(chunk) {
 					return nil

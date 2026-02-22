@@ -12,6 +12,7 @@ Write prompts as **behavioral guidance**, not a registry of facts the runtime al
 
 ## What to avoid
 
+- **Do not describe tools in system prompts.** Tool behavior, usage rules, and parameter semantics belong in **tool descriptions** and **tool parameter descriptions** (e.g. each tool’s `Description()` and `Parameters()` in code). The LLM receives tool metadata automatically; system prompts should only contain role, mission, and high-level behavior.
 - **Do not redeclare tools** (names, parameters, descriptions, schemas). Tool metadata is injected automatically.
 - **Do not copy database schemas, view lists, or UI details** into prompts. Those change and belong in tooling/context.
 - **Do not embed long examples** unless they establish an essential pattern; prefer short, representative examples.

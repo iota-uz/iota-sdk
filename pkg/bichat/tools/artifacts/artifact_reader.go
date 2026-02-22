@@ -65,7 +65,10 @@ func (t *ArtifactReaderTool) Name() string {
 }
 
 func (t *ArtifactReaderTool) Description() string {
-	return "List and read artifacts attached to the current chat session, including charts and document attachments."
+	return "List and read artifacts attached to the current chat session (uploaded files, charts, exports). " +
+		"When user files are attached, inspect them with this tool before answering. " +
+		"Use action=\"list\" to discover available artifacts in the session; use action=\"read\" with artifact_id or artifact_name to read content. " +
+		"For chart artifacts use mode=\"spec\" to read chart metadata/spec."
 }
 
 func (t *ArtifactReaderTool) Parameters() map[string]any {
@@ -73,8 +76,9 @@ func (t *ArtifactReaderTool) Parameters() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"action": map[string]any{
-				"type": "string",
-				"enum": []string{"list", "read"},
+				"type":        "string",
+				"enum":        []string{"list", "read"},
+				"description": "list: discover artifacts in session; read: read content by artifact_id or artifact_name (use mode=spec for chart metadata)",
 			},
 			"artifact_id": map[string]any{
 				"type":        "string",

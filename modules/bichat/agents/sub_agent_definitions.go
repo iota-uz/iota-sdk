@@ -195,7 +195,6 @@ func BuildSubAgent(def SubAgentDefinition, deps SubAgentDependencies, opts ...Su
 		coreagents.WithModel(model),
 		coreagents.WithTools(agentTools...),
 		coreagents.WithSystemPrompt(strings.TrimSpace(def.SystemPrompt)),
-		coreagents.WithTerminationTools(coreagents.ToolFinalAnswer),
 	)
 
 	return agent, nil

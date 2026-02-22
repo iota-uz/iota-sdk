@@ -157,7 +157,7 @@ func newMockAgent(name string, tools ...agents.Tool) *mockAgent {
 		name:             name,
 		tools:            tools,
 		systemPrompt:     "You are a helpful assistant.",
-		terminationTools: []string{agents.ToolFinalAnswer},
+		terminationTools: []string{},
 		toolResults:      make(map[string]string),
 		toolErrors:       make(map[string]error),
 	}
@@ -179,7 +179,7 @@ func (a *funcAgent) Description() string { return "Test agent" }
 func (a *funcAgent) Metadata() agents.AgentMetadata {
 	term := a.terminationTools
 	if term == nil {
-		term = []string{agents.ToolFinalAnswer}
+		term = []string{}
 	}
 	return agents.AgentMetadata{
 		Name:             a.name,
@@ -1215,85 +1215,6 @@ func TestExecutor_StreamingChunks(t *testing.T) {
 	expected := "Hello world! This is a test."
 	if fullContent != expected {
 		t.Errorf("Expected content '%s', got '%s'", expected, fullContent)
-	}
-}
-
-// TestExecutor_TerminationTool tests execution stops when termination tool is called.
-func TestExecutor_TerminationTool(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	finalAnswerTool := agents.NewTool(
-		agents.ToolFinalAnswer,
-		"Provides the final answer",
-		map[string]any{},
-		nil,
-	)
-
-	agent := newMockAgent("test-agent", finalAnswerTool)
-	agent.setToolResult(agents.ToolFinalAnswer, "The answer is 42")
-
-	model := newMockModel(
-		mockResponse{
-			content: "Let me provide the answer.",
-			toolCalls: []types.ToolCall{
-				{
-					ID:        "call_1",
-					Name:      agents.ToolFinalAnswer,
-					Arguments: `{"answer": "42"}`,
-				},
-			},
-			finishReason: "tool_calls",
-		},
-	)
-
-	executor := agents.NewExecutor(agent, model)
-
-	input := agents.Input{
-		Messages: []types.Message{
-			types.UserMessage("What is the answer?"),
-		},
-		SessionID: uuid.New(),
-		TenantID:  uuid.New(),
-	}
-
-	gen := executor.Execute(ctx, input)
-	defer gen.Close()
-
-	// Collect events
-	var finalResult *agents.Response
-	toolExecutions := 0
-
-	for {
-		event, err := gen.Next(ctx)
-		if err != nil {
-			if err == types.ErrGeneratorDone {
-				break
-			}
-			t.Fatalf("Unexpected error: %v", err)
-		}
-
-		if event.Type == agents.EventTypeToolEnd {
-			toolExecutions++
-		}
-
-		if event.Type == agents.EventTypeDone {
-			finalResult = event.Result
-		}
-	}
-
-	// Verify execution stopped after termination tool
-	if toolExecutions != 1 {
-		t.Errorf("Expected 1 tool execution, got %d", toolExecutions)
-	}
-
-	if finalResult == nil {
-		t.Fatal("Expected final result, got nil")
-	}
-
-	if finalResult.Message.Content() != "The answer is 42" {
-		t.Errorf("Expected result 'The answer is 42', got '%s'", finalResult.Message.Content())
 	}
 }
 

@@ -3,7 +3,6 @@ package observability
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -75,8 +74,10 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 	tenantID := uuid.New()
 
 	// Emit LLM request
-	requestEvent := events.NewLLMRequestEvent(
+	requestEvent := events.NewLLMRequestEventWithTrace(
 		sessionID, tenantID,
+		"trace-correlation",
+		"req-correlation",
 		"claude-sonnet-4-6", "anthropic",
 		3,                 // messages
 		5,                 // tools
@@ -90,14 +91,19 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 
 	// Emit LLM response (2 seconds later)
 	time.Sleep(100 * time.Millisecond)
-	responseEvent := events.NewLLMResponseEvent(
+	responseEvent := events.NewLLMResponseEventWithTrace(
 		sessionID, tenantID,
+		"trace-correlation",
+		"req-correlation",
 		"claude-sonnet-4-6", "anthropic",
 		950, 120, 1070, // tokens
 		1234, // latencyMs
 		"stop",
 		2,                    // toolCalls
 		"test response text", // responseText
+		"",
+		"",
+		nil,
 	)
 	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 
@@ -171,8 +177,9 @@ func TestEventBridge_OrphanCleanup(t *testing.T) {
 
 	// Manually insert old pending generation (6 minutes ago)
 	bridge.mu.Lock()
-	correlationKey := fmt.Sprintf("%s-%d", sessionID.String(), time.Now().Add(-6*time.Minute).Unix())
-	bridge.pendingGenerations[correlationKey] = &simplePendingGeneration{
+	bridge.pendingGenerations["req-orphan"] = &simplePendingGeneration{
+		requestID: "req-orphan",
+		traceID:   sessionID.String(),
 		sessionID: sessionID,
 		timestamp: time.Now().Add(-6 * time.Minute),
 		messages:  3,
@@ -271,11 +278,16 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 	require.NoError(t, bus.Publish(context.Background(), requestEvent))
 	time.Sleep(50 * time.Millisecond)
 
-	responseEvent := events.NewLLMResponseEvent(
+	responseEvent := events.NewLLMResponseEventWithTrace(
 		sessionID, tenantID,
+		sessionID.String(),
+		requestEvent.RequestID,
 		"claude-sonnet-4-6", "anthropic",
 		950, 120, 1070, 1234, "stop", 2,
 		"test response text",
+		"",
+		"",
+		nil,
 	)
 	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 
@@ -426,7 +438,7 @@ func TestEventBridge_AgentLifecycle(t *testing.T) {
 
 	// Verify bridge stores the agent span state
 	bridge.mu.RLock()
-	agentSpan := bridge.agentSpans[sessionID]
+	agentSpan := bridge.agentSpans[sessionID.String()]
 	bridge.mu.RUnlock()
 	require.NotNil(t, agentSpan, "bridge should store agent span state")
 	agentSpanID := agentSpan.spanID
@@ -449,8 +461,8 @@ func TestEventBridge_AgentLifecycle(t *testing.T) {
 
 	// Verify bridge cleaned up state
 	bridge.mu.RLock()
-	_, hasAgent := bridge.agentSpans[sessionID]
-	_, hasGen := bridge.lastGenerationIDs[sessionID]
+	_, hasAgent := bridge.agentSpans[sessionID.String()]
+	_, hasGen := bridge.lastGenerationIDs[sessionID.String()]
 	bridge.mu.RUnlock()
 	assert.False(t, hasAgent, "agent span state should be cleaned up")
 	assert.False(t, hasGen, "last generation ID should be cleaned up")
@@ -532,7 +544,7 @@ func TestEventBridge_HierarchicalNesting(t *testing.T) {
 
 	// Resolve agent span ID from bridge state
 	bridge.mu.RLock()
-	agentSpan := bridge.agentSpans[sessionID]
+	agentSpan := bridge.agentSpans[sessionID.String()]
 	bridge.mu.RUnlock()
 	require.NotNil(t, agentSpan, "agent span state should exist for session %s", sessionID)
 	agentSpanID := agentSpan.spanID

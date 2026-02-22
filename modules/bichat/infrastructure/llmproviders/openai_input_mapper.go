@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	openai "github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -309,16 +308,16 @@ func buildWebFetchFunctionCallOutput(ctx context.Context, raw string, logger log
 		case "input_image":
 			items = append(items, responses.ResponseFunctionCallOutputItemUnionParam{
 				OfInputImage: &responses.ResponseInputImageContentParam{
-					ImageURL: param.NewOpt(injectionURL),
+					ImageURL: openai.String(injectionURL),
 					Detail:   responses.ResponseInputImageContentDetailLow,
 				},
 			})
 		case "input_file":
 			file := &responses.ResponseInputFileContentParam{
-				FileURL: param.NewOpt(injectionURL),
+				FileURL: openai.String(injectionURL),
 			}
 			if filename := strings.TrimSpace(payload.Filename); filename != "" {
-				file.Filename = param.NewOpt(filename)
+				file.Filename = openai.String(filename)
 			}
 			items = append(items, responses.ResponseFunctionCallOutputItemUnionParam{
 				OfInputFile: file,

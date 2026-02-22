@@ -270,7 +270,9 @@ type RPCAssistantTurn struct {
 }
 
 type RPCDebugTrace struct {
-	Usage *RPCDebugUsage `json:"usage,omitempty"`
+	Usage    *RPCDebugUsage `json:"usage,omitempty"`
+	TraceID  string         `json:"traceId,omitempty"`
+	TraceURL string         `json:"traceUrl,omitempty"`
 }
 
 type RPCDebugUsage struct {

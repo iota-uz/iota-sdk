@@ -53,9 +53,8 @@ func (t *AskUserQuestionTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *AskUserQuestionTool) Description() string {
 	return "Ask the user one or more clarifying questions when requirements are ambiguous. " +
-		"The agent will pause until the user provides answers. " +
-		"Use this sparingly, only when truly necessary. " +
-		"You can ask 1-4 questions at once, each with 2-4 options."
+		"Execution pauses until the user answers. Use when date range, product type, or metric interpretation is unclear, or when multiple close matches exist and the user should pick. " +
+		"Ask 1-4 questions at once, each with 2-4 options. Use sparingly."
 }
 
 // Parameters returns the JSON Schema for tool parameters.

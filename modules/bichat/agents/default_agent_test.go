@@ -110,7 +110,7 @@ func TestNewDefaultBIAgent(t *testing.T) {
 	assert.Equal(t, "Business Intelligence assistant with SQL and KB access", metadata.Description)
 	assert.Equal(t, "Use for data analysis, reporting, and BI queries", metadata.WhenToUse)
 	assert.Equal(t, "gpt-5.2", metadata.Model)
-	assert.Equal(t, []string{agents.ToolFinalAnswer}, metadata.TerminationTools)
+	assert.Empty(t, metadata.TerminationTools)
 }
 
 func TestNewDefaultBIAgent_NilExecutor(t *testing.T) {
@@ -235,7 +235,6 @@ func TestDefaultBIAgent_WithArtifactReaderTool(t *testing.T) {
 	}
 
 	assert.True(t, toolNames["artifact_reader"])
-	assert.Contains(t, agent.SystemPrompt(context.Background()), "ATTACHMENT ANALYSIS:")
 }
 
 func TestDefaultBIAgent_WithoutExportTools(t *testing.T) {
@@ -333,7 +332,7 @@ func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 		{
 			name:        "draw_chart tool",
 			toolName:    "draw_chart",
-			input:       `{"chartType":"line","title":"Test Chart","series":[{"name":"Series 1","data":[1,2,3]}]}`,
+			input:       `{"options":{"chart":{"type":"line"},"title":{"text":"Test Chart"},"series":[{"name":"Series 1","data":[1,2,3]}]}}`,
 			expectError: false,
 		},
 		{

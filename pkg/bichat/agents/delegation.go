@@ -71,8 +71,8 @@ func (t *DelegationTool) Name() string {
 
 // Description returns a human-readable description for the LLM.
 func (t *DelegationTool) Description() string {
-	return `Delegate a task to a specialized sub-agent. Use this when you need specialized capabilities
-that another agent provides. The sub-agent will execute independently and return its final result.
+	return `Delegate a task to a specialized sub-agent. Use for complex SQL tasks, multi-step database queries, or schema analysis.
+Provide clear instructions and context in the prompt. The sub-agent runs independently and returns its final result; you can then use draw_chart or provide insights.
 
 Available agents:
 ` + t.registry.Describe()

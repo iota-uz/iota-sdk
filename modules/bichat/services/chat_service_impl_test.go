@@ -544,3 +544,107 @@ func TestBuildTitleGenerationContext_DoesNotCarryTx(t *testing.T) {
 	_, err = composables.UseTx(titleCtx)
 	require.ErrorIs(t, err, composables.ErrNoPool)
 }
+
+func TestChatService_StopGeneration_NoErrorWhenNoActiveStream(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+	err := svc.StopGeneration(context.Background(), uuid.New())
+	require.NoError(t, err)
+}
+
+func TestChatService_SendMessageStream_CancelDoesNotPersistAssistant(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("stop test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
+
+	// Agent that yields one chunk then blocks until context is cancelled
+	cancelAgent := &cancelAwareAgentService{
+		events: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "partial"},
+		},
+	}
+
+	svc := NewChatService(chatRepo, cancelAgent, nil, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	streamDone := make(chan struct{})
+	go func() {
+		defer close(streamDone)
+		_ = svc.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+			SessionID: session.ID(),
+			UserID:    1,
+			Content:   "hello",
+		}, func(_ bichatservices.StreamChunk) {})
+	}()
+
+	// Give stream time to register and emit one chunk
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	<-streamDone
+
+	messages, err := chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, messages, 1, "only user message should be persisted when stream is cancelled")
+	assert.Equal(t, types.RoleUser, messages[0].Role())
+}
+
+type cancelAwareAgentService struct {
+	events []agents.ExecutorEvent
+}
+
+func (s *cancelAwareAgentService) ProcessMessage(ctx context.Context, _ uuid.UUID, _ string, _ []domain.Attachment) (types.Generator[agents.ExecutorEvent], error) {
+	evs := append([]agents.ExecutorEvent{}, s.events...)
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
+		for _, ev := range evs {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				if !yield(ev) {
+					return nil
+				}
+			}
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}), nil
+}
+
+func (s *cancelAwareAgentService) ResumeWithAnswer(context.Context, uuid.UUID, string, map[string]types.Answer) (types.Generator[agents.ExecutorEvent], error) {
+	return nil, assert.AnError
+}
+
+func TestChatService_GetStreamStatus_ReturnsInactiveWhenNoRun(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+	sessionID := uuid.New()
+	status, err := svc.GetStreamStatus(context.Background(), sessionID)
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.False(t, status.Active)
+}
+
+func TestChatService_ResumeStream_ReturnsErrWhenRunNotFound(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+	sessionID := uuid.New()
+	runID := uuid.New()
+	err := svc.ResumeStream(context.Background(), sessionID, runID, func(bichatservices.StreamChunk) {})
+	require.ErrorIs(t, err, bichatservices.ErrRunNotFoundOrFinished)
+}

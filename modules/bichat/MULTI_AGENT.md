@@ -220,10 +220,10 @@ User: "Find top 10 customers by total sales"
    - `schema_list` → Find sales/customers tables
    - `schema_describe` → Understand schema structure
    - `sql_execute` → Run query with JOIN and ORDER BY
-   - `final_answer` → Return structured results
+   - Returns structured results in response (implicit stop)
 4. **Parent agent** receives SQLAgent result
 5. Parent uses `draw_chart` to visualize
-6. Parent calls `final_answer` with chart + insights
+6. Parent returns chart + insights in response (implicit stop)
 
 ## Testing
 

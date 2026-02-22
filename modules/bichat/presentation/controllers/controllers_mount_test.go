@@ -459,3 +459,54 @@ func TestStreamController_AttachmentUpload_PersistsOnUserMessage_Integration(t *
 	assert.Equal(t, "text/plain", userMsg.Attachments()[0].MimeType)
 	assert.NotEmpty(t, userMsg.Attachments()[0].FilePath)
 }
+
+func TestStreamController_Stop_Returns200_Integration(t *testing.T) {
+	t.Parallel()
+
+	env := setupControllerTest(t)
+	u := createCoreUser(t, env, "bichat-controllers-stop@example.com").
+		AddPermission(bichatperm.BiChatAccess)
+
+	deps := newControllerDeps(t)
+	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "stop test")
+
+	r := newRouterWithContext(t, env, u)
+	NewStreamController(env.App, deps.chatService,
+		deps.attachmentService,
+		WithRequireAccessPermission(bichatperm.BiChatAccess),
+	).Register(r)
+
+	body := map[string]any{"sessionId": session.ID().String()}
+	data, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream/stop", bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+}
+
+func TestStreamController_Stop_Returns400_WhenSessionIDMissing(t *testing.T) {
+	t.Parallel()
+
+	env := setupControllerTest(t)
+	u := createCoreUser(t, env, "bichat-controllers-stop-bad@example.com").
+		AddPermission(bichatperm.BiChatAccess)
+
+	deps := newControllerDeps(t)
+	r := newRouterWithContext(t, env, u)
+	NewStreamController(env.App, deps.chatService,
+		deps.attachmentService,
+		WithRequireAccessPermission(bichatperm.BiChatAccess),
+	).Register(r)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream/stop", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "sessionId")
+}

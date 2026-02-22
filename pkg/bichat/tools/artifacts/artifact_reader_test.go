@@ -139,6 +139,26 @@ func (s *artifactReaderRepoStub) GetPendingQuestionMessage(ctx context.Context, 
 	return nil, errNoPendingQuestion
 }
 
+func (s *artifactReaderRepoStub) CreateRun(ctx context.Context, run domain.GenerationRun) error {
+	return nil
+}
+
+func (s *artifactReaderRepoStub) GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
+	return nil, domain.ErrNoActiveRun
+}
+
+func (s *artifactReaderRepoStub) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
+	return nil
+}
+
+func (s *artifactReaderRepoStub) CompleteRun(ctx context.Context, runID uuid.UUID) error {
+	return nil
+}
+
+func (s *artifactReaderRepoStub) CancelRun(ctx context.Context, runID uuid.UUID) error {
+	return nil
+}
+
 type artifactReaderStorageStub struct {
 	contents map[string][]byte
 }

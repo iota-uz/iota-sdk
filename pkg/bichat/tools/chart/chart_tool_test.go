@@ -2,8 +2,11 @@ package chart
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 func TestDrawChartTool_Name(t *testing.T) {
@@ -15,483 +18,230 @@ func TestDrawChartTool_Name(t *testing.T) {
 	}
 }
 
-func TestDrawChartTool_Call(t *testing.T) {
+func TestDrawChartTool_CallStructured_RequiresOptions(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name           string
-		input          string
-		wantErr        bool // true if we expect non-nil error (currently all should be false)
-		wantErrCode    string
-		wantErrContain string
-		wantSuccess    bool // true if result should NOT contain "error"
-	}{
-		// === Valid inputs (expect nil error, no "error" in result) ===
-		{
-			name:        "valid line chart",
-			input:       `{"chartType":"line","title":"Sales","series":[{"name":"Q1","data":[1,2,3]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "valid bar chart with labels",
-			input:       `{"chartType":"bar","title":"Revenue","series":[{"name":"2024","data":[100,200,300]}],"labels":["Jan","Feb","Mar"]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "valid pie chart",
-			input:       `{"chartType":"pie","title":"Market Share","series":[{"name":"Products","data":[30,45,25]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "valid donut chart",
-			input:       `{"chartType":"donut","title":"Distribution","series":[{"name":"Categories","data":[10,20,30,40]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "valid area chart with colors",
-			input:       `{"chartType":"area","title":"Trends","series":[{"name":"Data","data":[1.5,2.3,4.7]}],"colors":["#FF0000","#00FF00"]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "valid chart with custom height",
-			input:       `{"chartType":"line","title":"Custom Height","series":[{"name":"Test","data":[1,2]}],"height":500}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "default height when omitted",
-			input:       `{"chartType":"bar","title":"Default","series":[{"name":"Data","data":[5,10]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-
-		// === Missing required fields (expect nil error, result contains INVALID_REQUEST) ===
-		{
-			name:           "missing chartType",
-			input:          `{"title":"Missing Type","series":[{"name":"Data","data":[1,2,3]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "chartType",
-			wantSuccess:    false,
-		},
-		{
-			name:           "missing title",
-			input:          `{"chartType":"line","series":[{"name":"Data","data":[1,2,3]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "title",
-			wantSuccess:    false,
-		},
-		{
-			name:           "missing series",
-			input:          `{"chartType":"bar","title":"No Series"}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "series",
-			wantSuccess:    false,
-		},
-		{
-			name:           "empty series array",
-			input:          `{"chartType":"line","title":"Empty Series","series":[]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "series",
-			wantSuccess:    false,
-		},
-		{
-			name:           "empty string chartType",
-			input:          `{"chartType":"","title":"Empty Type","series":[{"name":"Data","data":[1,2,3]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "chartType",
-			wantSuccess:    false,
-		},
-		{
-			name:           "empty string title",
-			input:          `{"chartType":"line","title":"","series":[{"name":"Data","data":[1,2,3]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "title",
-			wantSuccess:    false,
-		},
-
-		// === Invalid chart type ===
-		{
-			name:           "invalid chart type",
-			input:          `{"chartType":"scatter","title":"Invalid Type","series":[{"name":"Data","data":[1,2,3]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "unsupported chart type",
-			wantSuccess:    false,
-		},
-
-		// === Data validation ===
-		{
-			name:           "non-numeric data string",
-			input:          `{"chartType":"line","title":"Invalid Data","series":[{"name":"Data","data":["a","b","c"]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "not a number",
-			wantSuccess:    false,
-		},
-		{
-			name:           "NaN value in data",
-			input:          `{"chartType":"bar","title":"NaN Data","series":[{"name":"Data","data":[1.0,"NaN",3.0]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "not a number",
-			wantSuccess:    false,
-		},
-		{
-			name:           "null in data",
-			input:          `{"chartType":"bar","title":"Null Data","series":[{"name":"Data","data":[1,null,3]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "not a number",
-			wantSuccess:    false,
-		},
-		{
-			name:           "boolean in data",
-			input:          `{"chartType":"line","title":"Boolean Data","series":[{"name":"Data","data":[true,false]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "not a number",
-			wantSuccess:    false,
-		},
-		{
-			name:           "empty data array",
-			input:          `{"chartType":"bar","title":"Empty Data","series":[{"name":"Data","data":[]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "no data points",
-			wantSuccess:    false,
-		},
-		{
-			name:           "mixed valid and invalid data",
-			input:          `{"chartType":"line","title":"Mixed Data","series":[{"name":"Data","data":[1,2,"invalid",4]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "not a number",
-			wantSuccess:    false,
-		},
-		{
-			name:        "floating point numbers",
-			input:       `{"chartType":"area","title":"Float Data","series":[{"name":"Data","data":[1.5,2.7,3.14,4.0]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "negative numbers in line chart",
-			input:       `{"chartType":"line","title":"Negative Line","series":[{"name":"Data","data":[-10,-5,0,5,10]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "large numbers",
-			input:       `{"chartType":"bar","title":"Large Numbers","series":[{"name":"Data","data":[1000000,2000000,3000000]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name: "exceeds max data points",
-			// Generate 1001 data points
-			input: func() string {
-				data := `{"chartType":"line","title":"Too Many Points","series":[{"name":"Data","data":[`
-				for i := 0; i < 1001; i++ {
-					if i > 0 {
-						data += ","
-					}
-					data += "1"
-				}
-				data += `]}]}`
-				return data
-			}(),
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "exceeds maximum 1000 data points",
-			wantSuccess:    false,
-		},
-
-		// === Pie/donut specific ===
-		{
-			name:           "pie with multiple series",
-			input:          `{"chartType":"pie","title":"Multi Series","series":[{"name":"S1","data":[1,2]},{"name":"S2","data":[3,4]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "exactly one series",
-			wantSuccess:    false,
-		},
-		{
-			name:           "donut with multiple series",
-			input:          `{"chartType":"donut","title":"Multi Series","series":[{"name":"S1","data":[5,10]},{"name":"S2","data":[15,20]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "exactly one series",
-			wantSuccess:    false,
-		},
-		{
-			name:           "pie with negative values",
-			input:          `{"chartType":"pie","title":"Negative Pie","series":[{"name":"Data","data":[-1,2,3]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "negative",
-			wantSuccess:    false,
-		},
-		{
-			name:           "donut with negative values",
-			input:          `{"chartType":"donut","title":"Negative Donut","series":[{"name":"Data","data":[-5,10]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "negative",
-			wantSuccess:    false,
-		},
-		{
-			name:        "pie with zero values",
-			input:       `{"chartType":"pie","title":"Zero Pie","series":[{"name":"Data","data":[0,5,10]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-
-		// === Labels validation ===
-		{
-			name:           "labels count mismatch line",
-			input:          `{"chartType":"line","title":"Label Mismatch","series":[{"name":"Data","data":[1,2,3]}],"labels":["A","B"]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "labels count",
-			wantSuccess:    false,
-		},
-		{
-			name:           "labels count mismatch pie",
-			input:          `{"chartType":"pie","title":"Pie Label Mismatch","series":[{"name":"Data","data":[1,2,3]}],"labels":["A","B"]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "labels count",
-			wantSuccess:    false,
-		},
-		{
-			name:        "labels matching is ok",
-			input:       `{"chartType":"bar","title":"Label Match","series":[{"name":"Data","data":[10,20,30]}],"labels":["A","B","C"]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-
-		// === Cross-series validation ===
-		{
-			name:           "series length mismatch",
-			input:          `{"chartType":"line","title":"Series Mismatch","series":[{"name":"S1","data":[1,2,3]},{"name":"S2","data":[4,5]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "data points",
-			wantSuccess:    false,
-		},
-		{
-			name:           "three series length mismatch",
-			input:          `{"chartType":"bar","title":"Three Series","series":[{"name":"S1","data":[1,2]},{"name":"S2","data":[3,4]},{"name":"S3","data":[5,6,7]}]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "data points",
-			wantSuccess:    false,
-		},
-		{
-			name:        "series length match",
-			input:       `{"chartType":"bar","title":"Series Match","series":[{"name":"S1","data":[1,2,3]},{"name":"S2","data":[4,5,6]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-
-		// === Color validation ===
-		{
-			name:           "invalid hex color",
-			input:          `{"chartType":"line","title":"Bad Color","series":[{"name":"Data","data":[1,2]}],"colors":["red"]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "not a valid hex color",
-			wantSuccess:    false,
-		},
-		{
-			name:        "valid hex colors",
-			input:       `{"chartType":"bar","title":"Good Colors","series":[{"name":"Data","data":[1,2]}],"colors":["#FFF","#AABBCC"]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "valid hex colors with alpha",
-			input:       `{"chartType":"area","title":"Alpha Colors","series":[{"name":"Data","data":[1,2]}],"colors":["#FF0000AA","#00FF00FF"]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "valid short hex colors",
-			input:       `{"chartType":"line","title":"Short Hex","series":[{"name":"Data","data":[1,2]}],"colors":["#F00","#0F0","#00F"]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:           "hex without hash",
-			input:          `{"chartType":"bar","title":"No Hash","series":[{"name":"Data","data":[1,2]}],"colors":["FF0000"]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "not a valid hex color",
-			wantSuccess:    false,
-		},
-		{
-			name:           "invalid hex characters",
-			input:          `{"chartType":"line","title":"Bad Hex","series":[{"name":"Data","data":[1,2]}],"colors":["#GGHHII"]}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "not a valid hex color",
-			wantSuccess:    false,
-		},
-
-		// === Height validation ===
-		{
-			name:           "height too small",
-			input:          `{"chartType":"line","title":"Small Height","series":[{"name":"Data","data":[1,2]}],"height":50}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "height must be between 100-1000",
-			wantSuccess:    false,
-		},
-		{
-			name:           "height too large",
-			input:          `{"chartType":"bar","title":"Large Height","series":[{"name":"Data","data":[1,2]}],"height":2000}`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "height must be between 100-1000",
-			wantSuccess:    false,
-		},
-		{
-			name:        "height at min boundary",
-			input:       `{"chartType":"line","title":"Min Height","series":[{"name":"Data","data":[1,2]}],"height":100}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "height at max boundary",
-			input:       `{"chartType":"area","title":"Max Height","series":[{"name":"Data","data":[1,2]}],"height":1000}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-
-		// === Malformed input ===
-		{
-			name:           "invalid JSON",
-			input:          `not json`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "failed to parse input",
-			wantSuccess:    false,
-		},
-		{
-			name:           "completely empty input",
-			input:          ``,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "failed to parse input",
-			wantSuccess:    false,
-		},
-		{
-			name:           "malformed JSON object",
-			input:          `{"chartType":"line","title":"Test"`,
-			wantErr:        false,
-			wantErrCode:    "INVALID_REQUEST",
-			wantErrContain: "failed to parse input",
-			wantSuccess:    false,
-		},
-
-		// === Edge cases ===
-		{
-			name:        "single data point",
-			input:       `{"chartType":"bar","title":"Single Point","series":[{"name":"Data","data":[42]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "many series",
-			input:       `{"chartType":"line","title":"Many Series","series":[{"name":"S1","data":[1,2]},{"name":"S2","data":[3,4]},{"name":"S3","data":[5,6]},{"name":"S4","data":[7,8]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "zero values",
-			input:       `{"chartType":"bar","title":"Zeros","series":[{"name":"Data","data":[0,0,0]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "mixed positive and negative",
-			input:       `{"chartType":"area","title":"Mixed Signs","series":[{"name":"Data","data":[-10,5,-3,8,0]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name:        "donut with single value",
-			input:       `{"chartType":"donut","title":"Single Donut","series":[{"name":"Data","data":[100]}]}`,
-			wantErr:     false,
-			wantSuccess: true,
-		},
-		{
-			name: "exact 1000 data points",
-			input: func() string {
-				data := `{"chartType":"line","title":"Exactly 1000","series":[{"name":"Data","data":[`
-				for i := 0; i < 1000; i++ {
-					if i > 0 {
-						data += ","
-					}
-					data += "1"
-				}
-				data += `]}]}`
-				return data
-			}(),
-			wantErr:     false,
-			wantSuccess: true,
-		},
+	tool := NewDrawChartTool().(*DrawChartTool)
+	result, err := tool.CallStructured(context.Background(), `{}`)
+	if err != nil {
+		t.Fatalf("CallStructured() error = %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	payload, ok := result.Payload.(types.ToolErrorPayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want ToolErrorPayload", result.Payload)
+	}
+	if payload.Code != "INVALID_REQUEST" {
+		t.Fatalf("payload.Code = %q, want INVALID_REQUEST", payload.Code)
+	}
+	if !strings.Contains(payload.Message, "options") {
+		t.Fatalf("payload.Message = %q, want mention of options", payload.Message)
+	}
+}
 
-			tool := NewDrawChartTool()
-			result, err := tool.Call(context.Background(), tt.input)
+func TestDrawChartTool_Parameters_RequireCanonicalOptions(t *testing.T) {
+	t.Parallel()
 
-			// Check error expectation
-			if tt.wantErr && err == nil {
-				t.Error("expected non-nil error, got nil")
-			}
-			if !tt.wantErr && err != nil {
-				t.Errorf("expected nil error, got: %v", err)
-			}
+	tool := NewDrawChartTool()
+	schema := tool.Parameters()
 
-			// For success cases, verify result does NOT contain "error"
-			if tt.wantSuccess {
-				if strings.Contains(result, `"error"`) {
-					t.Errorf("expected success but result contains error: %s", result)
-				}
-				// Also verify it contains the input title and chartType
-				// (these should be in the returned JSON spec)
-				return
-			}
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("schema.properties type = %T, want map[string]any", schema["properties"])
+	}
+	if _, ok := props["options"]; !ok {
+		t.Fatal("schema.properties should include options")
+	}
+	required, ok := schema["required"].([]string)
+	if !ok || len(required) != 1 || required[0] != "options" {
+		t.Fatalf("schema.required = %v, want [options]", schema["required"])
+	}
+}
 
-			// For error cases, verify error code and message
-			if tt.wantErrCode != "" {
-				if !strings.Contains(result, tt.wantErrCode) {
-					t.Errorf("expected error code %q in result, got: %s", tt.wantErrCode, result)
-				}
-			}
+func TestDrawChartTool_CallStructured_ValidatesSeriesShape(t *testing.T) {
+	t.Parallel()
 
-			if tt.wantErrContain != "" {
-				if !strings.Contains(result, tt.wantErrContain) {
-					t.Errorf("expected result to contain %q, got: %s", tt.wantErrContain, result)
-				}
-			}
-		})
+	tool := NewDrawChartTool().(*DrawChartTool)
+
+	resultLine, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"line"},"series":[1,2,3]}}`)
+	if err != nil {
+		t.Fatalf("CallStructured(line) error = %v", err)
+	}
+	payload, ok := resultLine.Payload.(types.ToolErrorPayload)
+	if !ok {
+		t.Fatalf("line payload type = %T, want ToolErrorPayload", resultLine.Payload)
+	}
+	if !strings.Contains(payload.Message, "array of objects") {
+		t.Fatalf("line payload.Message = %q, want mention of array of objects", payload.Message)
+	}
+
+	resultPie, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"pie"},"series":[{"name":"Products","data":[30,45,25]}],"labels":["A","B","C"]}}`)
+	if err != nil {
+		t.Fatalf("CallStructured(pie) error = %v", err)
+	}
+	payload, ok = resultPie.Payload.(types.ToolErrorPayload)
+	if !ok {
+		t.Fatalf("pie payload type = %T, want ToolErrorPayload", resultPie.Payload)
+	}
+	if !strings.Contains(payload.Message, "numeric options.series") {
+		t.Fatalf("pie payload.Message = %q, want mention of numeric options.series", payload.Message)
+	}
+}
+
+func TestDrawChartTool_CallStructured_AppliesDefaults(t *testing.T) {
+	t.Parallel()
+
+	tool := NewDrawChartTool().(*DrawChartTool)
+	result, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"bar"},"title":{"text":"Revenue"},"series":[{"name":"S","data":[1,2,3]}],"xaxis":{"categories":["Jan","Feb","Mar"]}}}`)
+	if err != nil {
+		t.Fatalf("CallStructured() error = %v", err)
+	}
+
+	payload, ok := result.Payload.(types.JSONPayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want JSONPayload", result.Payload)
+	}
+	options, ok := payload.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("payload.Output type = %T, want map[string]any", payload.Output)
+	}
+
+	chartCfg, ok := options["chart"].(map[string]any)
+	if !ok {
+		t.Fatalf("options.chart type = %T, want map[string]any", options["chart"])
+	}
+	if chartCfg["height"] != defaultChartHeight {
+		t.Fatalf("chart.height = %v, want %d", chartCfg["height"], defaultChartHeight)
+	}
+	if chartCfg["type"] != "bar" {
+		t.Fatalf("chart.type = %v, want bar", chartCfg["type"])
+	}
+
+	if _, ok := options["colors"].([]any); !ok {
+		t.Fatalf("options.colors type = %T, want []any", options["colors"])
+	}
+}
+
+func TestDrawChartTool_CallStructured_AutoEnablesLogScale(t *testing.T) {
+	t.Parallel()
+
+	tool := NewDrawChartTool().(*DrawChartTool)
+	result, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"line"},"title":{"text":"Spread"},"series":[{"name":"S","data":[1,100,10000]}]}}`)
+	if err != nil {
+		t.Fatalf("CallStructured() error = %v", err)
+	}
+
+	payload := result.Payload.(types.JSONPayload)
+	options := payload.Output.(map[string]any)
+	yaxis, ok := options["yaxis"].(map[string]any)
+	if !ok {
+		t.Fatalf("options.yaxis type = %T, want map[string]any", options["yaxis"])
+	}
+	if logRaw, ok := yaxis["logarithmic"].(bool); !ok || !logRaw {
+		t.Fatalf("yaxis.logarithmic = %v, want true", yaxis["logarithmic"])
+	}
+}
+
+func TestDrawChartTool_CallStructured_DoesNotAutoEnableLogScaleWhenNonPositive(t *testing.T) {
+	t.Parallel()
+
+	tool := NewDrawChartTool().(*DrawChartTool)
+	result, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"line"},"title":{"text":"Mixed"},"series":[{"name":"S","data":[0,100,10000]}]}}`)
+	if err != nil {
+		t.Fatalf("CallStructured() error = %v", err)
+	}
+
+	payload := result.Payload.(types.JSONPayload)
+	options := payload.Output.(map[string]any)
+	yaxisRaw, ok := options["yaxis"]
+	if !ok {
+		return
+	}
+	yaxis, ok := yaxisRaw.(map[string]any)
+	if !ok {
+		t.Fatalf("options.yaxis type = %T, want map[string]any", yaxisRaw)
+	}
+	if logRaw, ok := yaxis["logarithmic"].(bool); ok && logRaw {
+		t.Fatalf("yaxis.logarithmic = true, want false/absent")
+	}
+}
+
+func TestDrawChartTool_CallStructured_RejectsExplicitLogScaleWithNonPositive(t *testing.T) {
+	t.Parallel()
+
+	tool := NewDrawChartTool().(*DrawChartTool)
+	result, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"line"},"yaxis":{"logarithmic":true},"series":[{"name":"S","data":[0,10,100]}]}}`)
+	if err != nil {
+		t.Fatalf("CallStructured() error = %v", err)
+	}
+
+	payload, ok := result.Payload.(types.ToolErrorPayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want ToolErrorPayload", result.Payload)
+	}
+	if payload.Code != "INVALID_REQUEST" {
+		t.Fatalf("payload.Code = %q, want INVALID_REQUEST", payload.Code)
+	}
+	if !strings.Contains(payload.Message, "logarithmic") {
+		t.Fatalf("payload.Message = %q, want mention of logarithmic", payload.Message)
+	}
+}
+
+func TestDrawChartTool_CallStructured_ValidatesTitleHeightAndColors(t *testing.T) {
+	t.Parallel()
+
+	tool := NewDrawChartTool().(*DrawChartTool)
+
+	resultTitle, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"line"},"title":"Revenue","series":[{"name":"S","data":[1,2,3]}]}}`)
+	if err != nil {
+		t.Fatalf("CallStructured(title) error = %v", err)
+	}
+	errPayload, ok := resultTitle.Payload.(types.ToolErrorPayload)
+	if !ok {
+		t.Fatalf("title payload type = %T, want ToolErrorPayload", resultTitle.Payload)
+	}
+	if !strings.Contains(errPayload.Message, "options.title") {
+		t.Fatalf("title payload.Message = %q, want mention of options.title", errPayload.Message)
+	}
+
+	resultHeight, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"line","height":50},"series":[{"name":"S","data":[1,2,3]}]}}`)
+	if err != nil {
+		t.Fatalf("CallStructured(height) error = %v", err)
+	}
+	errPayload, ok = resultHeight.Payload.(types.ToolErrorPayload)
+	if !ok {
+		t.Fatalf("height payload type = %T, want ToolErrorPayload", resultHeight.Payload)
+	}
+	if !strings.Contains(errPayload.Message, "height") {
+		t.Fatalf("height payload.Message = %q, want mention of height", errPayload.Message)
+	}
+
+	resultColor, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"line"},"series":[{"name":"S","data":[1,2,3]}],"colors":["#GGGGGG"]}}`)
+	if err != nil {
+		t.Fatalf("CallStructured(color) error = %v", err)
+	}
+	errPayload, ok = resultColor.Payload.(types.ToolErrorPayload)
+	if !ok {
+		t.Fatalf("color payload type = %T, want ToolErrorPayload", resultColor.Payload)
+	}
+	if !strings.Contains(errPayload.Message, "hex color") {
+		t.Fatalf("color payload.Message = %q, want mention of hex color", errPayload.Message)
+	}
+}
+
+func TestDrawChartTool_Call_ReturnsFormattedResult(t *testing.T) {
+	t.Parallel()
+
+	tool := NewDrawChartTool()
+	result, err := tool.Call(context.Background(), `{"options":{"chart":{"type":"line"},"title":{"text":"Sales"},"series":[{"name":"Q1","data":[1,2,3]}]}}`)
+	if err != nil {
+		t.Fatalf("Call() error = %v", err)
+	}
+	if strings.Contains(result, "\"code\": \"INVALID_REQUEST\"") {
+		t.Fatalf("expected success output, got: %s", result)
+	}
+	if !strings.Contains(result, "\"series\"") {
+		t.Fatalf("expected result to contain series, got: %s", result)
 	}
 }
 
@@ -499,7 +249,7 @@ func TestDrawChartTool_CallStructured_EmitsArtifact(t *testing.T) {
 	t.Parallel()
 
 	tool := NewDrawChartTool().(*DrawChartTool)
-	result, err := tool.CallStructured(context.Background(), `{"chartType":"line","title":"Monthly Sales","series":[{"name":"Q1","data":[1,2,3]}]}`)
+	result, err := tool.CallStructured(context.Background(), `{"options":{"chart":{"type":"line"},"title":{"text":"Monthly Sales"},"series":[{"name":"Q1","data":[1,2,3]}]}}`)
 	if err != nil {
 		t.Fatalf("CallStructured() error = %v", err)
 	}
@@ -509,11 +259,159 @@ func TestDrawChartTool_CallStructured_EmitsArtifact(t *testing.T) {
 	if len(result.Artifacts) != 1 {
 		t.Fatalf("expected 1 artifact, got %d", len(result.Artifacts))
 	}
+
 	artifact := result.Artifacts[0]
 	if artifact.Type != "chart" {
 		t.Fatalf("artifact.Type = %q, want %q", artifact.Type, "chart")
 	}
 	if artifact.Name != "Monthly Sales" {
 		t.Fatalf("artifact.Name = %q, want %q", artifact.Name, "Monthly Sales")
+	}
+	if artifact.Metadata == nil || artifact.Metadata["spec"] == nil {
+		t.Fatalf("artifact.Metadata.spec should be present")
+	}
+}
+
+func TestDrawChartTool_CallStructured_DownsamplesDenseSeriesAndEmitsWarning(t *testing.T) {
+	t.Parallel()
+
+	data := make([]any, 0, 1200)
+	for i := 0; i < 1200; i++ {
+		data = append(data, i+1)
+	}
+
+	inputMap := map[string]any{
+		"options": map[string]any{
+			"chart": map[string]any{
+				"type": "line",
+			},
+			"title": map[string]any{
+				"text": "Dense Series",
+			},
+			"series": []any{
+				map[string]any{
+					"name": "Revenue",
+					"data": data,
+				},
+			},
+		},
+	}
+	inputBytes, err := json.Marshal(inputMap)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	tool := NewDrawChartTool().(*DrawChartTool)
+	result, err := tool.CallStructured(context.Background(), string(inputBytes))
+	if err != nil {
+		t.Fatalf("CallStructured() error = %v", err)
+	}
+
+	payload, ok := result.Payload.(types.JSONPayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want JSONPayload", result.Payload)
+	}
+	options, ok := payload.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("payload.Output type = %T, want map[string]any", payload.Output)
+	}
+	series, ok := options["series"].([]any)
+	if !ok || len(series) == 0 {
+		t.Fatalf("options.series type = %T, want non-empty []any", options["series"])
+	}
+	seriesMap, ok := series[0].(map[string]any)
+	if !ok {
+		t.Fatalf("series[0] type = %T, want map[string]any", series[0])
+	}
+	downsampled, ok := seriesMap["data"].([]any)
+	if !ok {
+		t.Fatalf("series[0].data type = %T, want []any", seriesMap["data"])
+	}
+	if len(downsampled) != downsampleTargetPoints {
+		t.Fatalf("downsampled len = %d, want %d", len(downsampled), downsampleTargetPoints)
+	}
+
+	if len(result.Artifacts) != 1 {
+		t.Fatalf("expected 1 artifact, got %d", len(result.Artifacts))
+	}
+	warningsRaw, ok := result.Artifacts[0].Metadata["warnings"]
+	if !ok {
+		t.Fatalf("artifact metadata should include warnings")
+	}
+	warnings, ok := warningsRaw.([]string)
+	if !ok {
+		t.Fatalf("warnings type = %T, want []string", warningsRaw)
+	}
+	if len(warnings) == 0 {
+		t.Fatalf("expected downsampling warning")
+	}
+	if !strings.Contains(strings.ToLower(strings.Join(warnings, " ")), "downsampled") {
+		t.Fatalf("warnings = %v, want downsampled hint", warnings)
+	}
+}
+
+func TestDrawChartTool_CallStructured_InferDatetimeAxisAndNormalizeValues(t *testing.T) {
+	t.Parallel()
+
+	tool := NewDrawChartTool().(*DrawChartTool)
+	result, err := tool.CallStructured(
+		context.Background(),
+		`{"options":{"chart":{"type":"line"},"series":[{"name":"Revenue","data":[{"x":"2025-01-01","y":1200},{"x":"2025-02-01","y":980},{"x":"2025-03-01","y":1540}]}]}}`,
+	)
+	if err != nil {
+		t.Fatalf("CallStructured() error = %v", err)
+	}
+
+	payload, ok := result.Payload.(types.JSONPayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want JSONPayload", result.Payload)
+	}
+	options, ok := payload.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("payload.Output type = %T, want map[string]any", payload.Output)
+	}
+	xaxis, ok := options["xaxis"].(map[string]any)
+	if !ok {
+		t.Fatalf("options.xaxis type = %T, want map[string]any", options["xaxis"])
+	}
+	if xaxis["type"] != "datetime" {
+		t.Fatalf("xaxis.type = %v, want datetime", xaxis["type"])
+	}
+
+	series, _ := options["series"].([]any)
+	seriesMap, _ := series[0].(map[string]any)
+	points, _ := seriesMap["data"].([]any)
+	firstPoint, _ := points[0].(map[string]any)
+	if _, ok := toFloat(firstPoint["x"]); !ok {
+		t.Fatalf("expected normalized numeric x, got %T (%v)", firstPoint["x"], firstPoint["x"])
+	}
+}
+
+func TestDrawChartTool_CallStructured_DoesNotInferDatetimeFromNumericCategories(t *testing.T) {
+	t.Parallel()
+
+	tool := NewDrawChartTool().(*DrawChartTool)
+	result, err := tool.CallStructured(
+		context.Background(),
+		`{"options":{"chart":{"type":"line"},"xaxis":{"categories":["1","2","3"]},"series":[{"name":"Revenue","data":[1200,980,1540]}]}}`,
+	)
+	if err != nil {
+		t.Fatalf("CallStructured() error = %v", err)
+	}
+
+	payload, ok := result.Payload.(types.JSONPayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want JSONPayload", result.Payload)
+	}
+	options, ok := payload.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("payload.Output type = %T, want map[string]any", payload.Output)
+	}
+	xaxis, ok := options["xaxis"].(map[string]any)
+	if !ok {
+		t.Fatalf("options.xaxis type = %T, want map[string]any", options["xaxis"])
+	}
+	if _, hasType := xaxis["type"]; hasType {
+		t.Fatalf("xaxis.type should not be inferred for numeric labels, got %v", xaxis["type"])
 	}
 }
