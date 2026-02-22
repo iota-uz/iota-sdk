@@ -317,7 +317,17 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 
 	if err := c.chatService.StopGeneration(r.Context(), req.SessionID); err != nil {
 		logger := configuration.Use().Logger()
-		logger.WithError(serrors.E(op, err)).Warn("StopGeneration failed")
+		wrapped := serrors.E(op, err)
+		if errors.Is(err, domain.ErrNoActiveRun) || errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
+			// Known condition: stop called when session is no longer streaming.
+			// Preserve idempotent API behavior and just log for observability.
+			logger.WithError(wrapped).Info("StopGeneration called for non-streaming session")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		logger.WithError(wrapped).Error("StopGeneration failed")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
