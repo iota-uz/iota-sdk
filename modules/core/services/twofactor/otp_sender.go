@@ -102,7 +102,8 @@ func (e *EmailOTPSender) sendWithTLS(addr string, auth smtp.Auth, from string, t
 	const op serrors.Op = "EmailOTPSender.sendWithTLS"
 
 	// Connect to the SMTP server
-	conn, err := net.Dial("tcp", addr)
+	var d net.Dialer
+	conn, err := d.DialContext(context.Background(), "tcp", addr)
 	if err != nil {
 		return serrors.E(op, err)
 	}

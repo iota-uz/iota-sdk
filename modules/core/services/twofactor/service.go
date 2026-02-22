@@ -260,7 +260,8 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 // preserveUserFields creates a new user instance with all fields from the original user preserved
 // This helper ensures no fields are lost when updating user for 2FA operations
 func preserveUserFields(u user.User, opts ...user.Option) user.User {
-	baseOpts := []user.Option{
+	baseOpts := make([]user.Option, 0, 24+len(opts))
+	baseOpts = append(baseOpts,
 		user.WithID(u.ID()),
 		user.WithTenantID(u.TenantID()),
 		user.WithType(u.Type()),
@@ -285,7 +286,7 @@ func preserveUserFields(u user.User, opts ...user.Option) user.User {
 		user.WithTwoFactorMethod(u.TwoFactorMethod()),
 		user.WithTwoFactorEnabledAt(u.TwoFactorEnabledAt()),
 		user.WithTOTPSecretEncrypted(u.TOTPSecretEncrypted()),
-	}
+	)
 	// Append any additional options passed by caller (these will override base options)
 	baseOpts = append(baseOpts, opts...)
 	return user.New(

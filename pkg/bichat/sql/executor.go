@@ -74,17 +74,17 @@ func (r *QueryResult) AllMaps() []map[string]any {
 
 // PostgreSQL type OIDs (values match github.com/jackc/pgx/v5/pgtype).
 const (
-	oidInt2       uint32 = 21
-	oidInt4       uint32 = 23
-	oidInt8       uint32 = 20
-	oidFloat4     uint32 = 700
-	oidFloat8     uint32 = 701
-	oidNumeric    uint32 = 1700
-	oidBool       uint32 = 16
-	oidTimestamp  uint32 = 1114
+	oidInt2        uint32 = 21
+	oidInt4        uint32 = 23
+	oidInt8        uint32 = 20
+	oidFloat4      uint32 = 700
+	oidFloat8      uint32 = 701
+	oidNumeric     uint32 = 1700
+	oidBool        uint32 = 16
+	oidTimestamp   uint32 = 1114
 	oidTimestamptz uint32 = 1184
-	oidDate       uint32 = 1082
-	oidTime       uint32 = 1083
+	oidDate        uint32 = 1082
+	oidTime        uint32 = 1083
 )
 
 // PgOIDToColumnType maps a PostgreSQL type OID to a frontend column type string.

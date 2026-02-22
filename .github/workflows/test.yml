@@ -249,7 +249,6 @@ jobs:
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: E2E Tests
-    continue-on-error: true  # Do not block PRs on e2e failures; fix e2e separately
     env:
       GOPRIVATE: github.com/iota-uz/*
       GONOSUMDB: github.com/iota-uz/*
