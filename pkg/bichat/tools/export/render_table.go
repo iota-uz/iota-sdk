@@ -2,7 +2,6 @@ package export
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	toolsql "github.com/iota-uz/iota-sdk/pkg/bichat/tools/sql"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
@@ -268,24 +268,26 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 		}
 	}
 
-	// Only emit table artifact when we can attach metadata (required for overlay preview).
-	var artifacts []types.ToolArtifact
-	if raw, err := json.Marshal(output); err == nil {
-		var meta map[string]any
-		if json.Unmarshal(raw, &meta) == nil {
-			name := strings.TrimSpace(output.Title)
-			if name == "" {
-				name = "Table"
-			}
-			artifacts = []types.ToolArtifact{{
-				Type:        "table",
-				Name:        name,
-				Description: fmt.Sprintf("Table: %d rows", output.TotalRows),
-				MimeType:    "application/json",
-				Metadata:    meta,
-			}}
-		}
+	// Emit a table artifact with structural metadata for overlay preview; full row data is in the tool result payload.
+	name := strings.TrimSpace(output.Title)
+	if name == "" {
+		name = "Table"
 	}
+	artifacts := []types.ToolArtifact{{
+		Type:        string(domain.ArtifactTypeTable),
+		Name:        name,
+		Description: fmt.Sprintf("Table: %d rows", output.TotalRows),
+		MimeType:    "application/json",
+		Metadata: map[string]any{
+			"query":         output.Query,
+			"columns":      output.Columns,
+			"headers":      output.Headers,
+			"column_types": output.ColumnTypes,
+			"total_rows":   output.TotalRows,
+			"truncated":    output.Truncated,
+			"title":        output.Title,
+		},
+	}}
 
 	return &types.ToolResult{
 		CodecID:   types.CodecJSON,

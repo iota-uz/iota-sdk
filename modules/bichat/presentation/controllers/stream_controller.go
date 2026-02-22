@@ -290,13 +290,20 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 // StopStream handles POST /stream/stop to cancel active generation for a session.
 // Request body: { "sessionId": "uuid" }. No partial assistant message is persisted.
 func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
+	const op serrors.Op = "StreamController.StopStream"
 	type stopRequest struct {
 		SessionID uuid.UUID `json:"sessionId"`
 	}
 	var req stopRequest
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	defer func() { _ = r.Body.Close() }()
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
@@ -308,7 +315,10 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = c.chatService.StopGeneration(r.Context(), req.SessionID)
+	if err := c.chatService.StopGeneration(r.Context(), req.SessionID); err != nil {
+		logger := configuration.Use().Logger()
+		logger.WithError(serrors.E(op, err)).Warn("StopGeneration failed")
+	}
 	w.WriteHeader(http.StatusOK)
 }
 

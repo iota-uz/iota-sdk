@@ -168,15 +168,11 @@
       "ToggleColumns": "Toggle columns",
       "Columns": "Columns",
       "ShowAllColumns": "Show all columns",
-      "ToggleStats": "Toggle statistics",
-      "Stats": "Stats",
       "StatsSum": "Sum",
       "StatsAvg": "Avg",
       "StatsMin": "Min",
       "StatsMax": "Max",
-      "Visualize": "Visualize",
       "Prompt": {
-        "VisualizeChart": "Create a chart visualization from this data",
         "SummarizeColumn": "Summarize the \"{{column}}\" column from the query results",
         "UniqueValues": "List unique values in the \"{{column}}\" column from the query results"
       },

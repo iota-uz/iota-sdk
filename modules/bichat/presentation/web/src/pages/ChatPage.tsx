@@ -31,7 +31,13 @@ export default function ChatPage() {
       <AssistantTurnView
         turn={turn}
         slots={{
-          charts: ({ chartData }) => <EnhancedChartCard chartData={chartData} />,
+          charts: ({ charts }) => (
+            <>
+              {charts.map((chart, i) => (
+                <EnhancedChartCard key={`chart-${i}`} chartData={chart} />
+              ))}
+            </>
+          ),
         }}
       />
     ),

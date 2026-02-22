@@ -168,15 +168,11 @@
       "ToggleColumns": "Показать/скрыть столбцы",
       "Columns": "Столбцы",
       "ShowAllColumns": "Показать все столбцы",
-      "ToggleStats": "Статистика",
-      "Stats": "Стат.",
       "StatsSum": "Сумма",
       "StatsAvg": "Средн.",
       "StatsMin": "Мин",
       "StatsMax": "Макс",
-      "Visualize": "Визуализация",
       "Prompt": {
-        "VisualizeChart": "Построй визуализацию (график) по этим данным",
         "SummarizeColumn": "Подведи итог по столбцу «{{column}}» из результатов запроса",
         "UniqueValues": "Перечисли уникальные значения в столбце «{{column}}» из результатов запроса"
       },

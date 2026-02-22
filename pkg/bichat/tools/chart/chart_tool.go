@@ -456,11 +456,11 @@ func (t *DrawChartTool) applySmartDefaults(options map[string]any, chartType str
 	if _, ok := chartCfg["height"]; !ok {
 		chartCfg["height"] = defaultChartHeight
 	}
-	toolbar, _ := ensureNestedMap(chartCfg, "toolbar")
+	toolbar, _ := ensureMap(chartCfg, "toolbar")
 	if _, ok := toolbar["show"]; !ok {
 		toolbar["show"] = true
 	}
-	zoom, _ := ensureNestedMap(chartCfg, "zoom")
+	zoom, _ := ensureMap(chartCfg, "zoom")
 	if _, ok := zoom["enabled"]; !ok {
 		zoom["enabled"] = !isPieLikeChart(chartType)
 	}
@@ -736,19 +736,6 @@ func toFloat(value any) (float64, bool) {
 }
 
 func ensureMap(parent map[string]any, key string) (map[string]any, error) {
-	if raw, ok := parent[key]; ok {
-		existing, ok := raw.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("options.%s must be an object", key)
-		}
-		return existing, nil
-	}
-	created := make(map[string]any)
-	parent[key] = created
-	return created, nil
-}
-
-func ensureNestedMap(parent map[string]any, key string) (map[string]any, error) {
 	if raw, ok := parent[key]; ok {
 		existing, ok := raw.(map[string]any)
 		if !ok {

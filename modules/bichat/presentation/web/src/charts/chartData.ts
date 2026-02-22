@@ -23,6 +23,8 @@ function toStringArray(value: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined
 }
 
+// Custom clone for JSON-derived chart data; structuredClone() not used because
+// the ES2020/browser target may lack structuredClone support.
 function cloneDeep<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map((item) => cloneDeep(item)) as T
@@ -68,9 +70,9 @@ function inferTitleFromOptions(options: Record<string, unknown>, fallback: strin
 function inferChartType(options: Record<string, unknown>): string | null {
   const chartRaw = options.chart
   if (!isRecord(chartRaw)) return null
-  const type = chartRaw.type
-  if (typeof type !== 'string') return null
-  const trimmed = type.trim().toLowerCase()
+  const rawType = chartRaw.type
+  if (typeof rawType !== 'string') return null
+  const trimmed = rawType.trim().toLowerCase()
   return trimmed || null
 }
 
@@ -295,6 +297,8 @@ function toMillis(value: string): number {
   return Number.isFinite(parsed) ? parsed : Number.NaN
 }
 
+// Artifacts are emitted during tool execution before the assistant turn finalizes,
+// so we match the first assistant turn whose createdAt is >= artifactCreatedAt ("at or after").
 function findAssistantIndexByFallback(turns: ConversationTurn[], artifactCreatedAt: string): number | null {
   const assistantPositions = turns
     .map((turn, index) => ({
@@ -353,7 +357,8 @@ export function attachRichChartDataToTurns(
     const assistantTurn = nextTurns[targetIndex]?.assistantTurn
     if (!assistantTurn) return
 
-    assistantTurn.chartData = chartData
+    if (!assistantTurn.charts) assistantTurn.charts = []
+    assistantTurn.charts.push(chartData)
   })
 
   return nextTurns

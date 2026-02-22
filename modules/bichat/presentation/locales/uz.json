@@ -168,15 +168,11 @@
       "ToggleColumns": "Ustunlarni ko'rsatish/yashirish",
       "Columns": "Ustunlar",
       "ShowAllColumns": "Barcha ustunlarni ko'rsatish",
-      "ToggleStats": "Statistika",
-      "Stats": "Stat.",
       "StatsSum": "Yig'indi",
       "StatsAvg": "O'rtacha",
       "StatsMin": "Min",
       "StatsMax": "Maks",
-      "Visualize": "Vizualizatsiya",
       "Prompt": {
-        "VisualizeChart": "Ushbu ma'lumotlardan grafik vizualizatsiya yarating",
         "SummarizeColumn": "So'rov natijalaridagi \"{{column}}\" ustunini umumlashtiring",
         "UniqueValues": "So'rov natijalaridagi \"{{column}}\" ustunidagi noyob qiymatlarni ro'yxatlang"
       },

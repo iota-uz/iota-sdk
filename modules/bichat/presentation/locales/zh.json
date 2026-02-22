@@ -166,15 +166,11 @@
       "ToggleColumns": "切换列",
       "Columns": "列",
       "ShowAllColumns": "显示所有列",
-      "ToggleStats": "切换统计",
-      "Stats": "统计",
       "StatsSum": "总和",
       "StatsAvg": "平均",
       "StatsMin": "最小",
       "StatsMax": "最大",
-      "Visualize": "可视化",
       "Prompt": {
-        "VisualizeChart": "根据此数据创建图表可视化",
         "SummarizeColumn": "汇总查询结果中的「{{column}}」列",
         "UniqueValues": "列出查询结果中「{{column}}」列的唯一值"
       },
