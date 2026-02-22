@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
@@ -78,4 +80,22 @@ func TestSessionTitleService_Sanitizer(t *testing.T) {
 	assert.Equal(t, "Sales report", cleanSessionTitle("  \"**Sales report**\"  "))
 	assert.True(t, isValidSessionTitle("Quarterly Revenue Overview"))
 	assert.False(t, isValidSessionTitle("title: hello"))
+}
+
+func TestSessionTitleService_Sanitizer_TruncatesUnicodeSafely(t *testing.T) {
+	t.Parallel()
+
+	input := "Аналитика продаж по регионам и страховым продуктам за длительный период времени"
+	cleaned := cleanSessionTitle(input)
+
+	assert.True(t, utf8.ValidString(cleaned))
+	assert.LessOrEqual(t, utf8.RuneCountInString(cleaned), maxTitleLength)
+}
+
+func TestSessionTitleService_Sanitizer_UppercasesFirstRuneInFallback(t *testing.T) {
+	t.Parallel()
+
+	fallback := extractFallbackSessionTitle("покажи продажи по регионам")
+	assert.True(t, strings.HasPrefix(fallback, "П"))
+	assert.True(t, utf8.ValidString(fallback))
 }
