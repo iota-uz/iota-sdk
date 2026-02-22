@@ -202,6 +202,7 @@ func (t *DelegationTool) CallStreaming(ctx context.Context, input string, emit E
 	// Collect final result from generator, forwarding child events to parent.
 	var finalContent string
 	var finalUsage types.TokenUsage
+eventLoop:
 	for {
 		event, err := gen.Next(ctx)
 		if err != nil {
@@ -237,11 +238,15 @@ func (t *DelegationTool) CallStreaming(ctx context.Context, input string, emit E
 					DurationMs: event.Tool.DurationMs,
 					Artifacts:  event.Tool.Artifacts,
 				}
-				emit(forwarded)
+				if !emit(forwarded) {
+					break eventLoop
+				}
 			}
 		case EventTypeThinking:
 			// Forward child thinking events to parent stream.
-			emit(event)
+			if !emit(event) {
+				break eventLoop
+			}
 		case EventTypeChunk:
 			// Content events from child are not forwarded — only the final
 			// result matters to the parent agent.
@@ -262,6 +267,9 @@ func (t *DelegationTool) CallStreaming(ctx context.Context, input string, emit E
 
 	return string(outputJSON), nil
 }
+
+// Ensure DelegationTool implements StreamingTool at compile time.
+var _ StreamingTool = (*DelegationTool)(nil)
 
 // Note: Executor, ExecutionResult, and related types are defined in executor.go.
 // The delegation tool depends on these types for multi-agent orchestration.
