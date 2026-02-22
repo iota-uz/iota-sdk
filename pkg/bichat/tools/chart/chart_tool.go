@@ -62,10 +62,12 @@ func (t *DrawChartTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *DrawChartTool) Description() string {
 	return "Create chart visualizations using ApexCharts options. " +
-		"Pass a single options object that mirrors ApexCharts configuration " +
-		"(chart, series, xaxis, yaxis, colors, etc). " +
-		"The tool applies smart defaults, validates chart safety/quality, " +
-		"and auto-enables logarithmic y-axis for highly scattered positive data when appropriate."
+		"Pass {\"options\": {...}} where ... is an ApexCharts options object (include chart.type, series, title.text). " +
+		"Example: {\"options\":{\"chart\":{\"type\":\"bar\"},\"title\":{\"text\":\"Monthly Sales\"},\"series\":[{\"name\":\"Sales\",\"data\":[120,150,180]}],\"xaxis\":{\"categories\":[\"Jan\",\"Feb\",\"Mar\"]}}}. " +
+		"Never call with empty arguments {}. " +
+		"Choose chart type by data: line/area for trends, bar for comparisons, pie/donut for proportions. " +
+		"For widely scattered positive values use yaxis.logarithmic=true. Keep charts readable: concise labels, sane height, avoid excessive series/points. " +
+		"The tool applies smart defaults and validates chart safety/quality."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -76,7 +78,7 @@ func (t *DrawChartTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"options": map[string]any{
 				"type":                 "object",
-				"description":          "ApexCharts options object with series and chart/type (plus title, xaxis, yaxis, colors, etc.).",
+				"description":          "ApexCharts options object: chart.type, series (array of {name, data}), title.text, xaxis.categories, yaxis.logarithmic for scattered positive values.",
 				"additionalProperties": true,
 			},
 		},

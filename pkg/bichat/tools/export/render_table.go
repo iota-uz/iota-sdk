@@ -83,9 +83,9 @@ func (t *RenderTableTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *RenderTableTool) Description() string {
-	return "Run a read-only SQL query and render an interactive table card in chat. " +
-		"Accepts custom column header names and returns rows for frontend/backend pagination, " +
-		"with an Export to Excel action."
+	return "Run a read-only SQL query and render an interactive, paginated table in chat. " +
+		"Use this when users need an interactive table (not just a chart). " +
+		"Accepts optional title and headers. Returns rows for frontend pagination with an Export to Excel action."
 }
 
 // Parameters returns the JSON Schema for tool parameters.

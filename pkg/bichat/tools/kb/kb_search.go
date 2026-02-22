@@ -55,7 +55,7 @@ func (t *KBSearchTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *KBSearchTool) Description() string {
 	return "Search the knowledge base for documentation, FAQs, and how-to guides. " +
-		"Use this when the user asks about business rules, procedures, or domain knowledge."
+		"Use when you need business rules, procedures, or domain knowledge (e.g. before assuming how a metric or status works)."
 }
 
 // Parameters returns the JSON Schema for tool parameters.

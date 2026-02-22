@@ -63,7 +63,8 @@ func (t *SchemaListTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *SchemaListTool) Description() string {
-	return "List all available tables and views in the analytics schema with approximate row counts."
+	return "List all available tables and views in the analytics schema with approximate row counts. " +
+		"Call this before writing SQL to see available tables. Pay attention to foreign keys and indexes for optimal query performance."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -194,8 +195,10 @@ func (t *SchemaDescribeTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *SchemaDescribeTool) Description() string {
-	return "Get detailed column information for a specific table or view. " +
-		"Returns column names, types, nullability, and defaults."
+	return "Get detailed column information for a specific table or view (column names, types, nullability, defaults, relationships). " +
+		"Use this to understand table structure before writing SQL. " +
+		"When SQL fails with COLUMN_NOT_FOUND or TYPE_MISMATCH, call this on the referenced table to verify columns and types, then fix and retry (max 2 retries before asking the user). " +
+		"For TABLE_NOT_FOUND, use schema_list to find the correct table name first."
 }
 
 // Parameters returns the JSON Schema for tool parameters.

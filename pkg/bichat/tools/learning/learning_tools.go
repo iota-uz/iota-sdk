@@ -31,8 +31,8 @@ func (t *SearchLearningsTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *SearchLearningsTool) Description() string {
 	return "Search past learnings about SQL errors, type mismatches, and corrections for this database. " +
-		"Use this before writing SQL to check for known patterns, gotchas, and fixes. " +
-		"Learnings help you avoid repeating mistakes from previous conversations."
+		"Call before your first SQL attempt for each user question to check known patterns, gotchas, and fixes. " +
+		"Learnings persist across conversations and help avoid repeating mistakes."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -219,9 +219,10 @@ func (t *SaveLearningTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *SaveLearningTool) Description() string {
-	return "Save a new learning when you discover an error pattern, type mismatch, or important insight about the database. " +
-		"This helps you and future conversations avoid repeating the same mistakes. " +
-		"Use this after resolving SQL errors, discovering type casting issues, or receiving user corrections."
+	return "Save a new learning when you discover an error pattern, type mismatch, or important insight. " +
+		"Use after resolving SQL errors, type casting issues, or user corrections. " +
+		"Categories: sql_error, type_mismatch, user_correction, business_rule. Include table_name and sql_patch when applicable. " +
+		"Your saves help future queries succeed on first try."
 }
 
 // Parameters returns the JSON Schema for tool parameters.

@@ -67,11 +67,15 @@ func (t *SQLExecuteTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *SQLExecuteTool) Description() string {
 	return "Execute a read-only SQL query against the analytics database (SELECT or WITH...SELECT only). " +
-		"Always use schema-qualified table names (e.g., analytics.policies_with_details, NOT just policies_with_details). " +
-		"Use small limits for previews (default 25, max 1000). " +
-		"Supports positional parameters for $1..$n via params array. " +
-		"Set explain_plan=true to return an EXPLAIN plan instead of rows. " +
-		"Returns plain Markdown text including a preview table and the executed SQL."
+		"Always use schema-qualified table names (e.g., analytics.policies_with_details). " +
+		"Use small limits for previews (default 25, max 1000). Query timeout is 30 seconds; results limited to 1000 rows. " +
+		"Supports positional parameters $1..$n via params array. Set explain_plan=true to return an EXPLAIN plan instead of rows. " +
+		"Always validate table/column names using schema_list and schema_describe first. " +
+		"Searching: for structured IDs (UUIDs, order IDs) use exact equality (=); for names, policy numbers, license plates use ILIKE with wildcards (e.g. WHERE name ILIKE '%ali%'). " +
+		"When a query returns 0 rows but the user expects results, try a broader/fuzzy search; if you find close matches, use ask_user_question to let the user pick. " +
+		"Resolve-then-query: once you identify an entity by name, get its concrete ID and use that for follow-up queries. " +
+		"On error: the response includes diagnosis (code, table, column, suggestions). For COLUMN_NOT_FOUND/TABLE_NOT_FOUND/TYPE_MISMATCH/SYNTAX_ERROR/AMBIGUOUS_COLUMN, use schema tools to fix and retry (max 2 retries), then explain to the user if it persists. " +
+		"Returns plain Markdown including a preview table and the executed SQL."
 }
 
 // Parameters returns the JSON Schema for tool parameters.

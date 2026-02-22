@@ -235,7 +235,6 @@ func TestDefaultBIAgent_WithArtifactReaderTool(t *testing.T) {
 	}
 
 	assert.True(t, toolNames["artifact_reader"])
-	assert.Contains(t, agent.SystemPrompt(context.Background()), "ATTACHMENT ANALYSIS:")
 }
 
 func TestDefaultBIAgent_WithoutExportTools(t *testing.T) {

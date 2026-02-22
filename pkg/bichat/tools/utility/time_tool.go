@@ -26,8 +26,8 @@ func (t *GetCurrentTimeTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *GetCurrentTimeTool) Description() string {
-	return "Get the current date and time in the specified timezone. " +
-		"Use this to interpret relative date queries like 'last month', 'this quarter', 'YTD'."
+	return "Get the current date and time in the specified timezone (default UTC). " +
+		"For date-related queries call this first to establish context (e.g. 'last month', 'this quarter', 'YTD')."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
