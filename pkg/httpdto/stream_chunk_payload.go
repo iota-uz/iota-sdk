@@ -34,6 +34,12 @@ type InterruptEventPayload struct {
 	Questions          []InterruptQuestionPayload `json:"questions,omitempty"`
 }
 
+// StreamSnapshotPayload is the partial state sent when resuming a stream.
+type StreamSnapshotPayload struct {
+	PartialContent  string         `json:"partialContent,omitempty"`
+	PartialMetadata map[string]any `json:"partialMetadata,omitempty"`
+}
+
 type StreamChunkPayload struct {
 	Type         string                 `json:"type"`
 	Content      string                 `json:"content,omitempty"`
@@ -44,4 +50,6 @@ type StreamChunkPayload struct {
 	GenerationMs int64                  `json:"generationMs,omitempty"`
 	Error        string                 `json:"error,omitempty"`
 	Timestamp    int64                  `json:"timestamp,omitempty"`
+	Snapshot     *StreamSnapshotPayload `json:"snapshot,omitempty"`
+	RunID        string                 `json:"runId,omitempty"`
 }

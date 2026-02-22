@@ -623,3 +623,28 @@ func (s *cancelAwareAgentService) ProcessMessage(ctx context.Context, _ uuid.UUI
 func (s *cancelAwareAgentService) ResumeWithAnswer(context.Context, uuid.UUID, string, map[string]types.Answer) (types.Generator[agents.ExecutorEvent], error) {
 	return nil, assert.AnError
 }
+
+func TestChatService_GetStreamStatus_ReturnsInactiveWhenNoRun(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+	sessionID := uuid.New()
+	status, err := svc.GetStreamStatus(context.Background(), sessionID)
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.False(t, status.Active)
+}
+
+func TestChatService_ResumeStream_ReturnsErrWhenRunNotFound(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+	sessionID := uuid.New()
+	runID := uuid.New()
+	err := svc.ResumeStream(context.Background(), sessionID, runID, func(bichatservices.StreamChunk) {})
+	require.ErrorIs(t, err, bichatservices.ErrRunNotFoundOrFinished)
+}

@@ -506,6 +506,26 @@ func (m *mockChatRepository) GetPendingQuestionMessage(ctx context.Context, sess
 	return nil, errors.New("no pending question found")
 }
 
+func (m *mockChatRepository) CreateRun(ctx context.Context, run domain.GenerationRun) error {
+	return nil
+}
+
+func (m *mockChatRepository) GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
+	return nil, domain.ErrNoActiveRun
+}
+
+func (m *mockChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
+	return nil
+}
+
+func (m *mockChatRepository) CompleteRun(ctx context.Context, runID uuid.UUID) error {
+	return nil
+}
+
+func (m *mockChatRepository) CancelRun(ctx context.Context, runID uuid.UUID) error {
+	return nil
+}
+
 func TestProcessMessage_Success(t *testing.T) {
 	t.Parallel()
 

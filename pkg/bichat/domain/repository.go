@@ -65,6 +65,26 @@ type ArtifactRepository interface {
 	UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error
 }
 
+// GenerationRunRepository persists in-progress streaming run state for refresh-safe resume.
+type GenerationRunRepository interface {
+	// CreateRun inserts a new streaming run; call at stream start. Returns ErrActiveRunExists if session already has an active run.
+	CreateRun(ctx context.Context, run GenerationRun) error
+	// GetActiveRunBySession returns the active (status=streaming) run for the session, or nil if none.
+	GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (GenerationRun, error)
+	// UpdateRunSnapshot updates partial_content and partial_metadata for the run.
+	UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error
+	// CompleteRun marks the run as completed.
+	CompleteRun(ctx context.Context, runID uuid.UUID) error
+	// CancelRun marks the run as cancelled.
+	CancelRun(ctx context.Context, runID uuid.UUID) error
+}
+
+// ErrActiveRunExists is returned when creating a run for a session that already has an active run.
+var ErrActiveRunExists = errors.New("session already has an active generation run")
+
+// ErrNoActiveRun is returned by GetActiveRunBySession when the session has no active (streaming) run.
+var ErrNoActiveRun = errors.New("no active generation run for session")
+
 // ChatRepository defines the persistence interface for chat domain models.
 // All operations are tenant-scoped for multi-tenancy isolation.
 // Implementations MUST use composables.UseTenantID(ctx) for tenant isolation.
@@ -73,4 +93,5 @@ type ChatRepository interface {
 	MessageRepository
 	AttachmentRepository
 	ArtifactRepository
+	GenerationRunRepository
 }

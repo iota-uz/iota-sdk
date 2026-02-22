@@ -24,6 +24,107 @@ import (
 
 const streamPersistenceTimeout = 10 * time.Second
 const titleGenerationFallbackTimeout = 15 * time.Second
+const streamSnapshotThrottle = 2 * time.Second
+
+// activeRun holds in-memory state for a streaming run so clients can resume.
+type activeRun struct {
+	runID       uuid.UUID
+	sessionID   uuid.UUID
+	cancel      context.CancelFunc
+	startedAt   time.Time
+	content     string
+	toolCalls   map[string]types.ToolCall
+	toolOrder   []string
+	artifactMap map[string]types.ToolArtifact
+	subscribers map[chan bichatservices.StreamChunk]struct{}
+	lastPersist time.Time
+	mu          sync.RWMutex
+}
+
+// runRegistry maps session and run ID to active runs.
+type runRegistry struct {
+	mu        sync.RWMutex
+	bySession map[uuid.UUID]*activeRun
+	byRun     map[uuid.UUID]*activeRun
+}
+
+func newRunRegistry() *runRegistry {
+	return &runRegistry{
+		bySession: make(map[uuid.UUID]*activeRun),
+		byRun:     make(map[uuid.UUID]*activeRun),
+	}
+}
+
+func (reg *runRegistry) add(run *activeRun) {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	reg.bySession[run.sessionID] = run
+	reg.byRun[run.runID] = run
+}
+
+func (reg *runRegistry) remove(runID uuid.UUID) {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	if r, ok := reg.byRun[runID]; ok {
+		delete(reg.bySession, r.sessionID)
+		delete(reg.byRun, runID)
+	}
+}
+
+func (reg *runRegistry) getBySession(sessionID uuid.UUID) *activeRun {
+	reg.mu.RLock()
+	defer reg.mu.RUnlock()
+	return reg.bySession[sessionID]
+}
+
+func (reg *runRegistry) getByRun(runID uuid.UUID) *activeRun {
+	reg.mu.RLock()
+	defer reg.mu.RUnlock()
+	return reg.byRun[runID]
+}
+
+func (r *activeRun) addSubscriber(ch chan bichatservices.StreamChunk) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.subscribers == nil {
+		r.subscribers = make(map[chan bichatservices.StreamChunk]struct{})
+	}
+	r.subscribers[ch] = struct{}{}
+}
+
+func (r *activeRun) removeSubscriber(ch chan bichatservices.StreamChunk) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.subscribers, ch)
+}
+
+func (r *activeRun) broadcast(chunk bichatservices.StreamChunk) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for ch := range r.subscribers {
+		select {
+		case ch <- chunk:
+		default:
+		}
+	}
+}
+
+func (r *activeRun) closeAllSubscribers() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for ch := range r.subscribers {
+		close(ch)
+	}
+	r.subscribers = nil
+}
+
+func (r *activeRun) snapshotMetadata() map[string]any {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	ordered := orderedToolCalls(r.toolCalls, r.toolOrder)
+	m := map[string]any{"tool_calls": ordered}
+	return m
+}
 
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
@@ -35,6 +136,7 @@ type chatServiceImpl struct {
 	titleQueue         TitleJobQueue
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
+	runRegistry        *runRegistry
 }
 
 // NewChatService creates a production implementation of ChatService.
@@ -56,6 +158,7 @@ func NewChatService(
 		titleService:       titleService,
 		titleQueue:         titleQueue,
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
+		runRegistry:        newRunRegistry(),
 	}
 }
 
@@ -83,6 +186,89 @@ func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUI
 		cancel()
 	}
 	return nil
+}
+
+// GetStreamStatus returns the active run for the session from memory or DB.
+func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UUID) (*bichatservices.StreamStatus, error) {
+	const op serrors.Op = "chatServiceImpl.GetStreamStatus"
+
+	if run := s.runRegistry.getBySession(sessionID); run != nil {
+		run.mu.RLock()
+		content := run.content
+		meta := run.snapshotMetadata()
+		runID := run.runID
+		startedAt := run.startedAt
+		run.mu.RUnlock()
+		if startedAt.IsZero() {
+			startedAt = time.Now()
+		}
+		return &bichatservices.StreamStatus{
+			Active:    true,
+			RunID:     runID,
+			Snapshot:  bichatservices.StreamSnapshot{PartialContent: content, PartialMetadata: meta},
+			StartedAt: startedAt,
+		}, nil
+	}
+
+	// Fallback to DB (e.g. run may be in another process or stale)
+	run, err := s.chatRepo.GetActiveRunBySession(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNoActiveRun) {
+			return &bichatservices.StreamStatus{Active: false}, nil
+		}
+		return nil, serrors.E(op, err)
+	}
+	if run == nil {
+		return &bichatservices.StreamStatus{Active: false}, nil
+	}
+	return &bichatservices.StreamStatus{
+		Active:    true,
+		RunID:     run.ID(),
+		Snapshot:  bichatservices.StreamSnapshot{PartialContent: run.PartialContent(), PartialMetadata: run.PartialMetadata()},
+		StartedAt: run.StartedAt(),
+	}, nil
+}
+
+// ResumeStream attaches to an active run and streams snapshot then new chunks.
+func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID, runID uuid.UUID, onChunk func(bichatservices.StreamChunk)) error {
+	const op serrors.Op = "chatServiceImpl.ResumeStream"
+
+	run := s.runRegistry.getByRun(runID)
+	if run == nil {
+		return bichatservices.ErrRunNotFoundOrFinished
+	}
+	if run.sessionID != sessionID {
+		return serrors.E(op, serrors.KindValidation, "session id mismatch")
+	}
+
+	ch := make(chan bichatservices.StreamChunk, 256)
+	run.mu.RLock()
+	snap := bichatservices.StreamSnapshot{PartialContent: run.content, PartialMetadata: run.snapshotMetadata()}
+	run.mu.RUnlock()
+
+	onChunk(bichatservices.StreamChunk{
+		Type:      bichatservices.ChunkTypeSnapshot,
+		Snapshot:  &snap,
+		Timestamp: time.Now(),
+	})
+
+	run.addSubscriber(ch)
+	defer run.removeSubscriber(ch)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case chunk, ok := <-ch:
+			if !ok {
+				return nil
+			}
+			onChunk(chunk)
+			if chunk.Type == bichatservices.ChunkTypeDone || chunk.Type == bichatservices.ChunkTypeError {
+				return nil
+			}
+		}
+	}
 }
 
 // CreateSession creates a new chat session.
@@ -438,13 +624,6 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Create user message
 	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
 
-	streamCtx, cancelStream := context.WithCancel(ctx)
-	defer cancelStream()
-	s.registerStreamCancel(req.SessionID, cancelStream)
-	defer s.unregisterStreamCancel(req.SessionID)
-
-	processCtx := bichatservices.WithArtifactMessageID(streamCtx, userMsg.ID())
-
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
 	for i, att := range req.Attachments {
@@ -460,6 +639,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 		domainAttachments[i] = domain.NewAttachment(attachmentOpts...)
 	}
+
+	run := domain.NewGenerationRun(
+		domain.WithGenerationRunSessionID(req.SessionID),
+		domain.WithGenerationRunTenantID(uuid.Nil),
+		domain.WithGenerationRunUserID(req.UserID),
+	)
 
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err = s.chatRepo.GetSession(txCtx, req.SessionID)
@@ -496,26 +681,112 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				return serrors.E(op, err)
 			}
 		}
+
+		run = domain.NewGenerationRun(
+			domain.WithGenerationRunID(run.ID()),
+			domain.WithGenerationRunSessionID(req.SessionID),
+			domain.WithGenerationRunTenantID(session.TenantID()),
+			domain.WithGenerationRunUserID(session.UserID()),
+		)
+		if err := s.chatRepo.CreateRun(txCtx, run); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, domain.ErrActiveRunExists) {
+			return serrors.E(op, err)
+		}
 		return err
 	}
 
-	// Process message with agent
+	// Decouple generation from request lifecycle so refresh does not cancel the run.
+	processCtx, cancelProcess := context.WithCancel(context.Background())
+	defer cancelProcess()
+	s.registerStreamCancel(req.SessionID, cancelProcess)
+	defer s.unregisterStreamCancel(req.SessionID)
+
+	processCtx = bichatservices.WithArtifactMessageID(processCtx, userMsg.ID())
+
+	active := &activeRun{
+		runID:       run.ID(),
+		sessionID:   req.SessionID,
+		cancel:      cancelProcess,
+		startedAt:   time.Now(),
+		toolCalls:   make(map[string]types.ToolCall),
+		toolOrder:   make([]string, 0),
+		artifactMap: make(map[string]types.ToolArtifact),
+		subscribers: make(map[chan bichatservices.StreamChunk]struct{}),
+	}
+	primaryCh := make(chan bichatservices.StreamChunk, 256)
+	active.addSubscriber(primaryCh)
+	s.runRegistry.add(active)
+
+	persistCtx := context.WithoutCancel(ctx)
+
+	go s.runStreamLoop(processCtx, persistCtx, run.ID(), req, userMsg, session, domainAttachments, startedAt, active)
+
+	onChunk(bichatservices.StreamChunk{
+		Type:      bichatservices.ChunkTypeStreamStarted,
+		RunID:     run.ID().String(),
+		Timestamp: time.Now(),
+	})
+
+	var streamErr error
+	for {
+		select {
+		case <-ctx.Done():
+			active.removeSubscriber(primaryCh)
+			return nil
+		case chunk, ok := <-primaryCh:
+			if !ok {
+				return streamErr
+			}
+			onChunk(chunk)
+			if chunk.Type == bichatservices.ChunkTypeDone {
+				return nil
+			}
+			if chunk.Type == bichatservices.ChunkTypeError {
+				streamErr = chunk.Error
+				// Drain until channel closes so the goroutine can persist and exit
+				for range primaryCh {
+				}
+				return streamErr
+			}
+		}
+	}
+}
+
+// runStreamLoop runs the agent in a goroutine, updates active run state, and persists on completion or cancel.
+func (s *chatServiceImpl) runStreamLoop(
+	processCtx context.Context,
+	persistCtx context.Context,
+	runID uuid.UUID,
+	req bichatservices.SendMessageRequest,
+	userMsg types.Message,
+	session domain.Session,
+	domainAttachments []domain.Attachment,
+	startedAt time.Time,
+	active *activeRun,
+) {
+	const op serrors.Op = "chatServiceImpl.runStreamLoop"
+	defer active.closeAllSubscribers()
+	defer s.runRegistry.remove(active.runID)
+
 	gen, err := s.agentService.ProcessMessage(processCtx, req.SessionID, req.Content, domainAttachments)
 	if err != nil {
-		return serrors.E(op, err)
+		active.broadcast(bichatservices.StreamChunk{
+			Type:      bichatservices.ChunkTypeError,
+			Error:     err,
+			Timestamp: time.Now(),
+		})
+		_ = s.chatRepo.CancelRun(persistCtx, runID)
+		return
 	}
 	defer gen.Close()
 
-	// Stream agent response
-	var assistantContent strings.Builder
 	var interrupt *bichatservices.Interrupt
 	var interruptAgentName string
-	toolCalls := make(map[string]types.ToolCall)
-	toolOrder := make([]string, 0)
-	artifactMap := make(map[string]types.ToolArtifact)
 	var providerResponseID *string
 	var finalUsage *types.DebugUsage
 	var generationMs int64
@@ -527,56 +798,51 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var thinking strings.Builder
 	var observationReason string
 
-	var streamErr error
 	for {
 		event, err := gen.Next(processCtx)
 		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
 		if err != nil {
-			// Send error chunk
-			onChunk(bichatservices.StreamChunk{
+			active.broadcast(bichatservices.StreamChunk{
 				Type:      bichatservices.ChunkTypeError,
 				Error:     err,
 				Timestamp: time.Now(),
 			})
-			streamErr = err
 			break
 		}
 
+		chunk := bichatservices.StreamChunk{Timestamp: time.Now()}
+
 		switch event.Type {
 		case agents.EventTypeContent:
-			assistantContent.WriteString(event.Content)
-			onChunk(bichatservices.StreamChunk{
-				Type:      bichatservices.ChunkTypeContent,
-				Content:   event.Content,
-				Timestamp: time.Now(),
-			})
+			active.mu.Lock()
+			active.content += event.Content
+			active.mu.Unlock()
+			chunk.Type = bichatservices.ChunkTypeContent
+			chunk.Content = event.Content
+			active.broadcast(chunk)
 
 		case agents.EventTypeToolStart:
-			recordToolEvent(toolCalls, &toolOrder, event.Tool)
+			recordToolEvent(active.toolCalls, &active.toolOrder, event.Tool)
 			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
-				recordToolArtifacts(artifactMap, event.Tool.Artifacts)
+				recordToolArtifacts(active.artifactMap, event.Tool.Artifacts)
 			}
 			if event.Tool != nil {
-				onChunk(bichatservices.StreamChunk{
-					Type:      bichatservices.ChunkTypeToolStart,
-					Tool:      agentToolToServiceTool(event.Tool),
-					Timestamp: time.Now(),
-				})
+				chunk.Type = bichatservices.ChunkTypeToolStart
+				chunk.Tool = agentToolToServiceTool(event.Tool)
+				active.broadcast(chunk)
 			}
 
 		case agents.EventTypeToolEnd:
-			recordToolEvent(toolCalls, &toolOrder, event.Tool)
+			recordToolEvent(active.toolCalls, &active.toolOrder, event.Tool)
 			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
-				recordToolArtifacts(artifactMap, event.Tool.Artifacts)
+				recordToolArtifacts(active.artifactMap, event.Tool.Artifacts)
 			}
 			if event.Tool != nil {
-				onChunk(bichatservices.StreamChunk{
-					Type:      bichatservices.ChunkTypeToolEnd,
-					Tool:      agentToolToServiceTool(event.Tool),
-					Timestamp: time.Now(),
-				})
+				chunk.Type = bichatservices.ChunkTypeToolEnd
+				chunk.Tool = agentToolToServiceTool(event.Tool)
+				active.broadcast(chunk)
 			}
 
 		case agents.EventTypeInterrupt:
@@ -585,25 +851,20 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			}
 			pi := event.ParsedInterrupt
 			questions := agentQuestionsToServiceQuestions(pi.Questions)
-			interrupt = &bichatservices.Interrupt{
-				CheckpointID: pi.CheckpointID,
-				Questions:    questions,
-			}
+			interrupt = &bichatservices.Interrupt{CheckpointID: pi.CheckpointID, Questions: questions}
 			interruptAgentName = pi.AgentName
 			if interruptAgentName == "" {
 				interruptAgentName = "default-agent"
 			}
 			providerResponseID = optionalStringPtr(pi.ProviderResponseID)
-			onChunk(bichatservices.StreamChunk{
-				Type: bichatservices.ChunkTypeInterrupt,
-				Interrupt: &bichatservices.InterruptEvent{
-					CheckpointID:       pi.CheckpointID,
-					AgentName:          pi.AgentName,
-					ProviderResponseID: pi.ProviderResponseID,
-					Questions:          questions,
-				},
-				Timestamp: time.Now(),
-			})
+			chunk.Type = bichatservices.ChunkTypeInterrupt
+			chunk.Interrupt = &bichatservices.InterruptEvent{
+				CheckpointID:       pi.CheckpointID,
+				AgentName:          pi.AgentName,
+				ProviderResponseID: pi.ProviderResponseID,
+				Questions:          questions,
+			}
+			active.broadcast(chunk)
 
 		case agents.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
@@ -620,61 +881,65 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 					thinking.WriteString(event.Result.Thinking)
 				}
 			}
-			recordToolArtifacts(artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
+			recordToolArtifacts(active.artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
 			if event.Usage != nil {
 				finalUsage = event.Usage
-				onChunk(bichatservices.StreamChunk{
+				active.broadcast(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeUsage,
 					Usage:     event.Usage,
 					Timestamp: time.Now(),
 				})
 			}
 			generationMs = time.Since(startedAt).Milliseconds()
-			// Send done chunk
-			onChunk(bichatservices.StreamChunk{
+			active.broadcast(bichatservices.StreamChunk{
 				Type:         bichatservices.ChunkTypeDone,
 				GenerationMs: generationMs,
 				Timestamp:    time.Now(),
 			})
+
 		case agents.EventTypeThinking:
 			if event.Content != "" {
 				thinking.WriteString(event.Content)
 			}
-			onChunk(bichatservices.StreamChunk{
-				Type:      bichatservices.ChunkTypeThinking,
-				Content:   event.Content,
-				Timestamp: time.Now(),
-			})
+			chunk.Type = bichatservices.ChunkTypeThinking
+			chunk.Content = event.Content
+			active.broadcast(chunk)
 
 		case agents.EventTypeError:
-			onChunk(bichatservices.StreamChunk{
-				Type:      bichatservices.ChunkTypeError,
-				Error:     event.Error,
-				Timestamp: time.Now(),
-			})
+			chunk.Type = bichatservices.ChunkTypeError
+			chunk.Error = event.Error
+			active.broadcast(chunk)
+		}
+
+		if time.Since(active.lastPersist) >= streamSnapshotThrottle {
+			active.mu.RLock()
+			content := active.content
+			active.mu.RUnlock()
+			meta := active.snapshotMetadata()
+			_ = s.chatRepo.UpdateRunSnapshot(persistCtx, runID, content, meta)
+			active.mu.Lock()
+			active.lastPersist = time.Now()
+			active.mu.Unlock()
 		}
 	}
 
-	// If stream was cancelled (explicit stop or client disconnect), do not persist partial assistant message.
-	if streamCtx.Err() != nil {
-		return nil
+	if processCtx.Err() != nil {
+		_ = s.chatRepo.CancelRun(persistCtx, runID)
+		return
 	}
 
-	// Always persist assistant message, even if streaming had errors.
-	// Use a non-cancelable context so DB writes succeed even when the
-	// original HTTP context is already canceled.
-	persistCtx := context.WithoutCancel(ctx)
-	persistCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
-	defer persistCancel()
+	active.mu.RLock()
+	assistantContent := active.content
+	savedToolCalls := orderedToolCalls(active.toolCalls, active.toolOrder)
+	artifactMap := mapsValues(active.artifactMap)
+	active.mu.RUnlock()
 
-	// Build assistant message options
+	if observationReason == "" && assistantContent == "" && len(savedToolCalls) == 0 {
+		observationReason = "empty_assistant_output"
+	}
 	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
-	savedToolCalls := orderedToolCalls(toolCalls, toolOrder)
 	if len(savedToolCalls) > 0 {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
-	}
-	if observationReason == "" && assistantContent.Len() == 0 && len(savedToolCalls) == 0 {
-		observationReason = "empty_assistant_output"
 	}
 	if debugTrace := buildDebugTrace(
 		req.SessionID,
@@ -689,34 +954,29 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		requestID,
 		finishReason,
 		req.Content,
-		assistantContent.String(),
+		assistantContent,
 		startedAt,
 	); debugTrace != nil {
 		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
 	}
-
-	// Attach QuestionData if interrupted
 	if interrupt != nil {
 		qd, err := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
-		if err != nil {
-			return serrors.E(op, err)
-		}
-		if qd != nil {
+		if err == nil && qd != nil {
 			assistantMsgOpts = append(assistantMsgOpts, types.WithQuestionData(qd))
 		}
 	}
 
-	// Always save assistant message (partial or complete)
-	assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
+	assistantMsg := types.AssistantMessage(assistantContent, assistantMsgOpts...)
+	persistCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+	defer persistCancel()
+
 	err = s.withinTx(persistCtx, func(txCtx context.Context) error {
 		if err := s.chatRepo.SaveMessage(txCtx, assistantMsg); err != nil {
 			return serrors.E(op, err)
 		}
-		if err := s.persistGeneratedArtifacts(txCtx, session, assistantMsg.ID(), mapsValues(artifactMap)); err != nil {
+		if err := s.persistGeneratedArtifacts(txCtx, session, assistantMsg.ID(), artifactMap); err != nil {
 			return serrors.E(op, err)
 		}
-
-		// Update session
 		session = session.
 			UpdateLLMPreviousResponseID(providerResponseID).
 			UpdateUpdatedAt(time.Now())
@@ -726,19 +986,14 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		return nil
 	})
 	if err != nil {
-		return err
+		_ = s.chatRepo.CancelRun(persistCtx, runID)
+		return
 	}
 
-	// Generate title if not interrupted
+	_ = s.chatRepo.CompleteRun(persistCtx, runID)
 	if interrupt == nil {
-		s.maybeGenerateTitleAsync(ctx, req.SessionID)
+		s.maybeGenerateTitleAsync(persistCtx, req.SessionID)
 	}
-
-	if streamErr != nil {
-		return serrors.E(op, streamErr)
-	}
-
-	return nil
 }
 
 func recordToolEvent(toolCalls map[string]types.ToolCall, toolOrder *[]string, tool *agents.ToolEvent) {
