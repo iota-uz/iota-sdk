@@ -80,7 +80,9 @@
       "ask_user_question": "Savol berilmoqda",
       "final_answer": "Javob tayyorlanmoqda",
       "task": "Delegatsiya — {{agent}}",
-      "time": "Joriy vaqt tekshirilmoqda"
+      "time": "Joriy vaqt tekshirilmoqda",
+      "get_current_time": "Joriy vaqtni olish",
+      "render_table": "Interaktiv jadval yaratish"
     },
     "Search": {
       "Clear": "Qidiruvni tozalash"

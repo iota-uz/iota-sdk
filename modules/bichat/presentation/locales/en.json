@@ -80,7 +80,9 @@
       "ask_user_question": "Asking for your input",
       "final_answer": "Composing answer",
       "task": "Delegating to {{agent}}",
-      "time": "Checking current time"
+      "time": "Checking current time",
+      "get_current_time": "Getting current time",
+      "render_table": "Building interactive table"
     },
     "Search": {
       "Clear": "Clear search"
