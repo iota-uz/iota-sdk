@@ -235,7 +235,6 @@ func NewDefaultBIAgent(
 		agents.WithModel(agent.model),
 		agents.WithTools(agentTools...),
 		agents.WithSystemPrompt(systemPrompt),
-		agents.WithTerminationTools(agents.ToolFinalAnswer),
 	)
 
 	return agent, nil

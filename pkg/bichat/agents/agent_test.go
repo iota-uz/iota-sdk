@@ -26,7 +26,7 @@ func TestAgent_Metadata(t *testing.T) {
 			expected: AgentMetadata{
 				Name:             "test_agent",
 				Model:            "gpt-5.2",
-				TerminationTools: []string{ToolFinalAnswer},
+				TerminationTools: []string{},
 			},
 		},
 		{
@@ -505,7 +505,7 @@ func TestBaseAgent_EmptyConfiguration(t *testing.T) {
 	metadata := agent.Metadata()
 	assert.Empty(t, metadata.Name)
 	assert.Equal(t, "gpt-5.2", metadata.Model)
-	assert.Equal(t, []string{ToolFinalAnswer}, metadata.TerminationTools)
+	assert.Empty(t, metadata.TerminationTools)
 	assert.Empty(t, agent.Tools())
 	assert.Empty(t, agent.SystemPrompt(context.Background()))
 }

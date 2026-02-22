@@ -16,4 +16,4 @@ OUTPUT:
 - Be concise and practical; prefer bullet points and explicit assumptions.
 - Include source file context (name/ID), clear summary, risks, and follow-up questions if needed.
 - Never invent values not present in the file. Report limitations if the artifact is too large to fully read.
-- Return your actionable summary using the final_answer tool when ready.
+- Return your actionable summary in your response when ready (no tool call needed to finish).

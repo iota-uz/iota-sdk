@@ -18,4 +18,4 @@ BEST PRACTICES:
 - Prefer small limits for previews; for large exports the parent agent has export tools.
 
 CONSTRAINTS:
-- Never expose sensitive data or credentials. Always return your findings using the final_answer tool.
+- Never expose sensitive data or credentials. Always return your findings in your response (no tool call needed to finish).

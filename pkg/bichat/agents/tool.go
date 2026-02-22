@@ -22,10 +22,6 @@ const (
 	// The Result.Interrupt field will contain the interrupt details.
 	ToolAskUserQuestion = "ask_user_question"
 
-	// ToolFinalAnswer terminates the ReAct loop and returns the result.
-	// This is the standard way for an agent to complete its task.
-	ToolFinalAnswer = "final_answer"
-
 	// ToolTask delegates work to a sub-agent.
 	// The executor handles spawning and managing the child agent.
 	ToolTask = "task"

@@ -27,7 +27,7 @@ type AgentMetadata struct {
 
 	// TerminationTools is a list of tool names that cause the agent to stop.
 	// When any of these tools are called, the ReAct loop terminates.
-	// Common values: ["final_answer"]
+	// Completion is typically via implicit stop (model returns no tool calls).
 	TerminationTools []string
 }
 
@@ -101,7 +101,7 @@ type ExtendedAgent interface {
 //	    WithModel("gpt-5.2"),
 //	    WithTools(sqlTool, schemaTool),
 //	    WithSystemPrompt("You are a SQL expert..."),
-//	    WithTerminationTools("final_answer"),
+//	    WithTerminationTools("submit_result"), // optional
 //	)
 type BaseAgent struct {
 	metadata     AgentMetadata
@@ -122,13 +122,13 @@ type BaseAgent struct {
 //	    WithModel("gpt-5.2"),
 //	    WithTools(searchTool, summaryTool),
 //	    WithSystemPrompt("You are a research assistant..."),
-//	    WithTerminationTools("final_answer"),
+//	    WithTerminationTools("submit_result"), // optional
 //	)
 func NewBaseAgent(opts ...AgentOption) *BaseAgent {
 	agent := &BaseAgent{
 		metadata: AgentMetadata{
 			Model:            "gpt-5.2", // Default model (SOTA)
-			TerminationTools: []string{ToolFinalAnswer},
+			TerminationTools: []string{},
 		},
 		tools:   []Tool{},
 		toolMap: make(map[string]Tool),
@@ -277,10 +277,11 @@ func WithModel(model string) AgentOption {
 
 // WithTerminationTools sets the tools that terminate execution.
 // When any of these tools are called, the ReAct loop stops.
+// By default completion is via implicit stop (no tool calls).
 //
 // Example:
 //
-//	WithTerminationTools("final_answer", "submit_result")
+//	WithTerminationTools("submit_result")
 func WithTerminationTools(tools ...string) AgentOption {
 	return func(a *BaseAgent) {
 		a.metadata.TerminationTools = tools

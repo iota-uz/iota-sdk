@@ -1085,50 +1085,6 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Add tool results to messages
 			messages = append(messages, toolResults...)
 
-			// Check for termination tools
-			metadata := e.agent.Metadata()
-			for _, tc := range toolCalls {
-				for _, term := range metadata.TerminationTools {
-					if tc.Name == term {
-						// Find the tool result
-						var resultContent string
-						for _, tr := range toolResults {
-							if tr.ToolCallID() != nil && *tr.ToolCallID() == tc.ID {
-								resultContent = tr.Content()
-								break
-							}
-						}
-
-						// Emit agent.complete event (termination tool)
-						_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEventWithTrace(
-							input.SessionID, input.TenantID, traceID, agentName,
-							iteration, totalAgentTokens,
-							time.Since(agentStartTime).Milliseconds(),
-						))
-
-						// Termination tool called, return result
-						result := &Response{
-							TraceID:            traceID,
-							RequestID:          requestID,
-							Model:              modelInfo.Name,
-							Provider:           modelInfo.Provider,
-							Message:            types.AssistantMessage(resultContent),
-							FinishReason:       "tool_calls",
-							Thinking:           joinStrings(thinkingChunks),
-							ProviderResponseID: providerResponseID,
-						}
-						if usage != nil {
-							result.Usage = *usage
-						}
-
-						if !yield(buildDoneEvent(result)) {
-							return nil
-						}
-						return nil
-					}
-				}
-			}
-
 			// Continue to next iteration
 		}
 

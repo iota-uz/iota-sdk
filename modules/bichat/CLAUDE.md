@@ -283,7 +283,6 @@ HTTP Routes:
 
 Core tools (always available):
 - `ask_user_question` - HITL questions (triggers interrupt)
-- `final_answer` - End conversation
 - `schema_list` - List database tables
 - `schema_describe` - Describe table schema
 - `sql_execute` - Execute read-only SQL (max 1000 rows, 30s timeout)
@@ -456,10 +455,10 @@ User: "Find top 10 customers by total sales and generate a chart"
    - `schema_list` to find tables
    - `schema_describe` to understand schema
    - `sql_execute` to query data
-   - `final_answer` to return results
+   - Returns results in its response (implicit stop)
 4. **Parent agent** receives SQLAgent's result
 5. Parent uses `draw_chart` to visualize
-6. Parent calls `final_answer` with chart + insights
+6. Parent returns chart + insights in its response (implicit stop)
 
 ### Recursion Prevention
 

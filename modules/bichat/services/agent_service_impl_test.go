@@ -39,7 +39,7 @@ func newMockAgent() *mockAgent {
 			Name:             "test_agent",
 			Description:      "A test agent for unit testing",
 			Model:            "test-model",
-			TerminationTools: []string{agents.ToolFinalAnswer},
+			TerminationTools: []string{},
 		},
 	}
 }

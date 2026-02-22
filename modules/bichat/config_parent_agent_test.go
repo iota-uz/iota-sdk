@@ -523,7 +523,6 @@ SQL prompt`)},
 		agents.WithWhenToUse("custom"),
 		agents.WithModel("gpt-custom"),
 		agents.WithSystemPrompt("custom prompt"),
-		agents.WithTerminationTools(agents.ToolFinalAnswer),
 	)
 
 	cfg := newConfigWithProjectPromptOpts(

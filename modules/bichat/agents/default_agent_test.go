@@ -110,7 +110,7 @@ func TestNewDefaultBIAgent(t *testing.T) {
 	assert.Equal(t, "Business Intelligence assistant with SQL and KB access", metadata.Description)
 	assert.Equal(t, "Use for data analysis, reporting, and BI queries", metadata.WhenToUse)
 	assert.Equal(t, "gpt-5.2", metadata.Model)
-	assert.Equal(t, []string{agents.ToolFinalAnswer}, metadata.TerminationTools)
+	assert.Empty(t, metadata.TerminationTools)
 }
 
 func TestNewDefaultBIAgent_NilExecutor(t *testing.T) {

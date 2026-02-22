@@ -67,7 +67,7 @@
 //   - Name: "bi_agent"
 //   - Model: "gpt-5.2" (default, customizable via WithModel)
 //   - Isolation: Isolated (no access to parent context)
-//   - Termination: final_answer tool
+//   - Completion: implicit stop (model returns no tool calls)
 //
 // # System Prompt
 //

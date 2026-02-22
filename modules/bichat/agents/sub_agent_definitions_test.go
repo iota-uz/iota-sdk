@@ -265,7 +265,7 @@ func TestBuildSubAgent_SQLDefinition(t *testing.T) {
 	assert.Equal(t, sqlDef.Description, metadata.Description)
 	assert.Equal(t, sqlDef.Description, metadata.WhenToUse)
 	assert.Equal(t, "gpt-5.2", metadata.Model)
-	assert.Equal(t, []string{coreagents.ToolFinalAnswer}, metadata.TerminationTools)
+	assert.Empty(t, metadata.TerminationTools)
 
 	toolNames := make(map[string]bool)
 	for _, tool := range agent.Tools() {
