@@ -40,11 +40,9 @@
     },
     "SlashCommands": {
       "Clear": "Tarixni tozalash",
-      "Debug": "Debug rejimi",
       "Compact": "Tarixni ixchamlashtirish",
       "Compacting": "Tarix ixchamlashtirilmoqda",
-      "CompactedSummary": "Ixcham xulosa",
-      "DebugTrace": "Debug izi"
+      "CompactedSummary": "Ixcham xulosa"
     },
     "InlineQuestion": {
       "InputNeeded": "Kiritish kerak",
@@ -353,7 +351,12 @@
       "QueueFull": "Navbat to'ldi (maks. 5 xabar)",
       "QueuedMessages": "{{count}} navbatda",
       "EditQueueItem": "Navbatdagi xabarni tahrirlash",
-      "RemoveQueueItem": "Navbatdan olib tashlash"
+      "RemoveQueueItem": "Navbatdan olib tashlash",
+      "ReasoningEffort": "Fikrlash",
+      "ReasoningEffortLow": "Past",
+      "ReasoningEffortMedium": "O'rtacha",
+      "ReasoningEffortHigh": "Yuqori",
+      "ReasoningEffortXHigh": "Maksimal"
     },
     "Assistant": {
       "Explanation": "Tushuntirish"
