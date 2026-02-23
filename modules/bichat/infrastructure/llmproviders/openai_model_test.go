@@ -505,8 +505,57 @@ func TestOpenAIModel_MapResponse_WithCitations(t *testing.T) {
 	assert.Equal(t, "web", cite.Type)
 	assert.Equal(t, "Why is the sky blue?", cite.Title)
 	assert.Equal(t, "https://example.com/sky", cite.URL)
+	assert.Empty(t, cite.Excerpt)
 	assert.Equal(t, 0, cite.StartIndex)
 	assert.Equal(t, 18, cite.EndIndex)
+}
+
+func TestOpenAIModel_MapResponse_CitationsEnrichedFromWebSearchSources(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	resp := &responses.Response{
+		Output: []responses.ResponseOutputItemUnion{
+			{
+				Type: "web_search_call",
+				Action: responses.ResponseOutputItemUnionAction{
+					Type: "search",
+					Sources: []responses.ResponseFunctionWebSearchActionSearchSource{
+						{URL: "https://search.example.com/source1", Type: "url"},
+						{URL: "https://search.example.com/source2", Type: "url"},
+					},
+				},
+			},
+			{
+				Type: "message",
+				Content: []responses.ResponseOutputMessageContentUnion{
+					{
+						Type: "output_text",
+						Text: "See [1] and [2] for more.",
+						Annotations: []responses.ResponseOutputTextAnnotationUnion{
+							{Type: "url_citation", Title: "Source 1", URL: "", StartIndex: 4, EndIndex: 7},
+							{Type: "url_citation", Title: "Source 2", URL: "", StartIndex: 12, EndIndex: 15},
+						},
+					},
+				},
+			},
+		},
+		Usage:  responses.ResponseUsage{InputTokens: 5, OutputTokens: 10, TotalTokens: 15},
+		Status: "completed",
+	}
+
+	agentResp, err := oaiModel.mapResponse(resp)
+	require.NoError(t, err)
+
+	require.Len(t, agentResp.Message.Citations(), 2)
+	assert.Equal(t, "https://search.example.com/source1", agentResp.Message.Citations()[0].URL)
+	assert.Equal(t, "https://search.example.com/source2", agentResp.Message.Citations()[1].URL)
+	assert.Equal(t, "Source 1", agentResp.Message.Citations()[0].Title)
+	assert.Equal(t, "Source 2", agentResp.Message.Citations()[1].Title)
 }
 
 func TestOpenAIModel_MapResponse_CodeInterpreterCall(t *testing.T) {

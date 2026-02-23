@@ -16,9 +16,14 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 	var citations []types.Citation
 	var codeResults []types.CodeInterpreterResult
 	var fileAnnotations []types.FileAnnotation
+	var webSearchSources []string
 
 	for _, item := range resp.Output {
 		switch item.Type {
+		case "web_search_call":
+			for _, src := range item.Action.Sources {
+				webSearchSources = append(webSearchSources, src.URL)
+			}
 		case "message":
 			for _, part := range item.Content {
 				if part.Type == "output_text" {
@@ -26,13 +31,15 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 
 					for _, ann := range part.Annotations {
 						if ann.Type == "url_citation" {
-							citations = append(citations, types.Citation{
+							c := types.Citation{
 								Type:       "web",
 								Title:      ann.Title,
 								URL:        ann.URL,
+								Excerpt:    "", // API url_citation does not expose excerpt in SDK; can be set when available
 								StartIndex: int(ann.StartIndex),
 								EndIndex:   int(ann.EndIndex),
-							})
+							}
+							citations = append(citations, c)
 						}
 						if ann.Type == "container_file_citation" {
 							fileAnnotations = append(fileAnnotations, types.FileAnnotation{
@@ -88,6 +95,13 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 				}
 				thinking += s.Text
 			}
+		}
+	}
+
+	// Enrich citations from web_search_call sources when annotation URL is missing
+	for i := range citations {
+		if citations[i].URL == "" && i < len(webSearchSources) {
+			citations[i].URL = webSearchSources[i]
 		}
 	}
 

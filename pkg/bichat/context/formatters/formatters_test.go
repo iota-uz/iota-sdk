@@ -1,11 +1,23 @@
 package formatters
 
 import (
+	"math/big"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+// mustPgNumeric builds a pgtype.Numeric for tests.
+func mustPgNumeric(mantissa string, exp int32) pgtype.Numeric {
+	i := new(big.Int)
+	if _, ok := i.SetString(mantissa, 10); !ok {
+		panic("invalid mantissa: " + mantissa)
+	}
+	return pgtype.Numeric{Valid: true, Int: i, Exp: exp}
+}
 
 // TestEscapeMarkdownCell tests the markdown cell escaping utility.
 func TestEscapeMarkdownCell(t *testing.T) {
@@ -255,6 +267,44 @@ func TestQueryResultFormatter(t *testing.T) {
 			},
 			wantTexts: []string{
 				"line1\\nline2",
+			},
+		},
+		{
+			name: "pgtype.Numeric renders as decimal string not raw struct",
+			payload: types.QueryResultFormatPayload{
+				Query:       "SELECT amount FROM totals",
+				ExecutedSQL: "SELECT amount FROM totals",
+				DurationMs:  10,
+				Columns:     []string{"amount"},
+				Rows: [][]any{
+					{mustPgNumeric("123456", -2)},
+					{"plain string"},
+					{nil},
+				},
+				RowCount: 3,
+				Limit:    100,
+			},
+			wantTexts: []string{
+				"1234.56",
+				"plain string",
+				"NULL",
+			},
+		},
+		{
+			name: "time.Time with MarshalJSON formats in preview",
+			payload: types.QueryResultFormatPayload{
+				Query:       "SELECT ts FROM events",
+				ExecutedSQL: "SELECT ts FROM events",
+				DurationMs:  10,
+				Columns:     []string{"ts"},
+				Rows: [][]any{
+					{time.Date(2026, 2, 23, 12, 0, 0, 0, time.UTC)},
+				},
+				RowCount: 1,
+				Limit:    100,
+			},
+			wantTexts: []string{
+				"2026-02-23T12:00:00Z",
 			},
 		},
 	}
