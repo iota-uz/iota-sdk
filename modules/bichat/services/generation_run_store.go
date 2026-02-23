@@ -111,6 +111,9 @@ func (s *redisGenerationRunStore) CreateRun(ctx context.Context, run domain.Gene
 	if run.SessionID() == uuid.Nil {
 		return serrors.E(op, serrors.KindValidation, "session id is required")
 	}
+	if run.ID() == uuid.Nil {
+		return serrors.E(op, serrors.KindValidation, "run id is required")
+	}
 
 	record := persistedGenerationRun{
 		ID:             run.ID().String(),
@@ -156,7 +159,11 @@ func (s *redisGenerationRunStore) GetActiveRunBySession(ctx context.Context, ten
 		return nil, domain.ErrNoActiveRun
 	}
 
-	return record.toDomainRun()
+	run, err := mapPersistedGenerationRunToDomain(record)
+	if err != nil {
+		return nil, serrors.E(op, "convert persisted run", err)
+	}
+	return run, nil
 }
 
 // UpdateRunSnapshot performs a loadRun -> mutate -> saveRun cycle.
@@ -181,7 +188,10 @@ func (s *redisGenerationRunStore) UpdateRunSnapshot(ctx context.Context, tenantI
 	record.PartialMeta = cloneMetadata(partialMetadata)
 	record.LastUpdatedAt = time.Now().UTC()
 
-	return s.saveRun(ctx, tenantID, sessionID, record)
+	if err := s.saveRun(ctx, tenantID, sessionID, record); err != nil {
+		return serrors.E(op, "save run state", err)
+	}
+	return nil
 }
 
 func (s *redisGenerationRunStore) CompleteRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
@@ -234,18 +244,23 @@ func (s *redisGenerationRunStore) loadRun(ctx context.Context, tenantID, session
 }
 
 func (s *redisGenerationRunStore) saveRun(ctx context.Context, tenantID, sessionID uuid.UUID, record persistedGenerationRun) error {
+	const op serrors.Op = "redisGenerationRunStore.saveRun"
+
 	payload, err := json.Marshal(record)
 	if err != nil {
-		return err
+		return serrors.E(op, "marshal run state", err)
 	}
-	return s.client.Set(ctx, s.sessionKey(tenantID, sessionID), payload, s.ttl).Err()
+	if err := s.client.Set(ctx, s.sessionKey(tenantID, sessionID), payload, s.ttl).Err(); err != nil {
+		return serrors.E(op, "set run state", err)
+	}
+	return nil
 }
 
 func (s *redisGenerationRunStore) sessionKey(tenantID, sessionID uuid.UUID) string {
 	return fmt.Sprintf("%s:%s:%s", s.keyPrefix, tenantID.String(), sessionID.String())
 }
 
-func (r persistedGenerationRun) toDomainRun() (domain.GenerationRun, error) {
+func mapPersistedGenerationRunToDomain(r persistedGenerationRun) (domain.GenerationRun, error) {
 	id, err := uuid.Parse(r.ID)
 	if err != nil {
 		return nil, err

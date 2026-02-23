@@ -11,5 +11,8 @@
   "scripts": {
     "build": "echo \"Canonical @iota-uz/sdk package is maintained in ../applets\"",
     "lint": "echo \"no lint\""
+  },
+  "devDependencies": {
+    "tailwindcss": "4.1.18"
   }
 }
