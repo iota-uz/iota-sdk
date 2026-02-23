@@ -40,11 +40,9 @@
     },
     "SlashCommands": {
       "Clear": "Clear history",
-      "Debug": "Debug mode",
       "Compact": "Compact history",
       "Compacting": "Compacting history",
-      "CompactedSummary": "Compacted Summary",
-      "DebugTrace": "Debug Trace"
+      "CompactedSummary": "Compacted Summary"
     },
     "InlineQuestion": {
       "InputNeeded": "Input needed",
@@ -353,7 +351,12 @@
       "QueueFull": "Queue is full (max 5 messages)",
       "QueuedMessages": "{{count}} queued",
       "EditQueueItem": "Edit queued message",
-      "RemoveQueueItem": "Remove from queue"
+      "RemoveQueueItem": "Remove from queue",
+      "ReasoningEffort": "Reasoning",
+      "ReasoningEffortLow": "Low",
+      "ReasoningEffortMedium": "Medium",
+      "ReasoningEffortHigh": "High",
+      "ReasoningEffortXHigh": "Maximum"
     },
     "Assistant": {
       "Explanation": "Explanation"

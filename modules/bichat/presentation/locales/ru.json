@@ -40,11 +40,9 @@
     },
     "SlashCommands": {
       "Clear": "Очистить историю",
-      "Debug": "Режим отладки",
       "Compact": "Сжать историю",
       "Compacting": "Сжатие истории",
-      "CompactedSummary": "Сжатое резюме",
-      "DebugTrace": "Трассировка отладки"
+      "CompactedSummary": "Сжатое резюме"
     },
     "InlineQuestion": {
       "InputNeeded": "Требуется ввод",
@@ -353,7 +351,12 @@
       "QueueFull": "Очередь заполнена (макс. 5 сообщений)",
       "QueuedMessages": "{{count}} в очереди",
       "EditQueueItem": "Редактировать сообщение в очереди",
-      "RemoveQueueItem": "Удалить из очереди"
+      "RemoveQueueItem": "Удалить из очереди",
+      "ReasoningEffort": "Мышление",
+      "ReasoningEffortLow": "Низкое",
+      "ReasoningEffortMedium": "Среднее",
+      "ReasoningEffortHigh": "Высокое",
+      "ReasoningEffortXHigh": "Максимальное"
     },
     "Assistant": {
       "Explanation": "Объяснение"
