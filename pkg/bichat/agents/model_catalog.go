@@ -8,12 +8,12 @@ import (
 // ModelSpec is the canonical metadata for a model (pricing, context window, capabilities).
 // Providers resolve model names to a spec and expose it via Model.Info() and Model.Pricing().
 type ModelSpec struct {
-	Name                    string
-	Provider                string
-	ContextWindow           int
-	Capabilities            []Capability
-	ReasoningEffortOptions  []ReasoningEffort
-	Pricing                 ModelPricing
+	Name                   string
+	Provider               string
+	ContextWindow          int
+	Capabilities           []Capability
+	ReasoningEffortOptions []ReasoningEffort
+	Pricing                ModelPricing
 }
 
 // ToModelInfo returns ModelInfo for this spec, using the given display name.

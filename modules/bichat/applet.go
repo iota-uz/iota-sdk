@@ -223,9 +223,9 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 				"multiAgent":      false,
 			},
 			"llm": map[string]interface{}{
-				"provider":                "",
-				"apiKeyConfigured":        false,
-				"reasoningEffortOptions":  []string{},
+				"provider":               "",
+				"apiKeyConfigured":       false,
+				"reasoningEffortOptions": []string{},
 			},
 			"debug": map[string]interface{}{
 				"limits": map[string]int{
@@ -294,9 +294,9 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 	return map[string]interface{}{
 		"features": features,
 		"llm": map[string]interface{}{
-			"provider":                modelProvider,
-			"apiKeyConfigured":        apiKeyConfigured,
-			"reasoningEffortOptions":  reasoningEffortOptions,
+			"provider":               modelProvider,
+			"apiKeyConfigured":       apiKeyConfigured,
+			"reasoningEffortOptions": reasoningEffortOptions,
 		},
 		"debug": map[string]interface{}{
 			"limits": limits,
