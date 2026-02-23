@@ -14,6 +14,7 @@ import (
 	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
@@ -222,8 +223,9 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 				"multiAgent":      false,
 			},
 			"llm": map[string]interface{}{
-				"provider":         "",
-				"apiKeyConfigured": false,
+				"provider":               "",
+				"apiKeyConfigured":       false,
+				"reasoningEffortOptions": []string{},
 			},
 			"debug": map[string]interface{}{
 				"limits": map[string]int{
@@ -272,19 +274,29 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 	}
 
 	modelProvider := ""
+	modelName := ""
 	if a.config.Model != nil {
-		modelProvider = strings.ToLower(strings.TrimSpace(a.config.Model.Info().Provider))
+		info := a.config.Model.Info()
+		modelProvider = strings.ToLower(strings.TrimSpace(info.Provider))
+		modelName = info.Name
 	}
 	apiKeyConfigured := true
 	if modelProvider == "openai" {
 		apiKeyConfigured = strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != ""
 	}
 
+	var reasoningEffortOptions []string
+	if modelName != "" && modelProvider != "" {
+		opts := agents.ReasoningEffortOptionsForModel(modelProvider, modelName)
+		reasoningEffortOptions = agents.ReasoningEffortOptionsStrings(opts)
+	}
+
 	return map[string]interface{}{
 		"features": features,
 		"llm": map[string]interface{}{
-			"provider":         modelProvider,
-			"apiKeyConfigured": apiKeyConfigured,
+			"provider":               modelProvider,
+			"apiKeyConfigured":       apiKeyConfigured,
+			"reasoningEffortOptions": reasoningEffortOptions,
 		},
 		"debug": map[string]interface{}{
 			"limits": limits,

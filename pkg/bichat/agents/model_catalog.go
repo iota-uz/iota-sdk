@@ -8,11 +8,12 @@ import (
 // ModelSpec is the canonical metadata for a model (pricing, context window, capabilities).
 // Providers resolve model names to a spec and expose it via Model.Info() and Model.Pricing().
 type ModelSpec struct {
-	Name          string
-	Provider      string
-	ContextWindow int
-	Capabilities  []Capability
-	Pricing       ModelPricing
+	Name                   string
+	Provider               string
+	ContextWindow          int
+	Capabilities           []Capability
+	ReasoningEffortOptions []ReasoningEffort
+	Pricing                ModelPricing
 }
 
 // ToModelInfo returns ModelInfo for this spec, using the given display name.
@@ -107,4 +108,26 @@ func DefaultModelSpecForProvider(provider string) (ModelSpec, bool) {
 		return ModelSpec{}, false
 	}
 	return LookupModelSpec(provider, name)
+}
+
+// ReasoningEffortOptionsForModel returns the available reasoning effort options for a model.
+// Returns nil if the model is not in the catalog or has no reasoning support.
+func ReasoningEffortOptionsForModel(provider, modelName string) []ReasoningEffort {
+	spec, ok := LookupModelSpec(provider, modelName)
+	if !ok {
+		return nil
+	}
+	return spec.ReasoningEffortOptions
+}
+
+// ReasoningEffortOptionsStrings converts reasoning effort options to plain strings.
+func ReasoningEffortOptionsStrings(opts []ReasoningEffort) []string {
+	if len(opts) == 0 {
+		return nil
+	}
+	out := make([]string, len(opts))
+	for i, o := range opts {
+		out[i] = string(o)
+	}
+	return out
 }

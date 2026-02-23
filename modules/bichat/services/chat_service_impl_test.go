@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -368,6 +369,104 @@ func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t
 	}
 }
 
+type delayedAssistantSaveChatRepository struct {
+	*mockChatRepository
+	delay time.Duration
+}
+
+func (r *delayedAssistantSaveChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
+	if msg.Role() == types.RoleAssistant && r.delay > 0 {
+		time.Sleep(r.delay)
+	}
+	return r.mockChatRepository.SaveMessage(ctx, msg)
+}
+
+func TestChatService_SendMessageStream_DoneEmittedAfterAssistantPersistence(t *testing.T) {
+	t.Parallel()
+
+	baseRepo := newMockChatRepository()
+	chatRepo := &delayedAssistantSaveChatRepository{
+		mockChatRepository: baseRepo,
+		delay:              120 * time.Millisecond,
+	}
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("stream ordering"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	agentSvc := &stubAgentService{
+		processEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "assistant response"},
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+
+	doneSawPersistedAssistant := false
+	err := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+		SessionID: session.ID(),
+		Content:   "hello",
+	}, func(chunk bichatservices.StreamChunk) {
+		if chunk.Type != bichatservices.ChunkTypeDone {
+			return
+		}
+		messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+		require.NoError(t, msgErr)
+		doneSawPersistedAssistant = len(messages) >= 2 && messages[len(messages)-1].Role() == types.RoleAssistant
+	})
+
+	require.NoError(t, err)
+	require.True(t, doneSawPersistedAssistant, "done must be emitted only after assistant message is persisted")
+}
+
+type assistantFailsWhenTxPresentRepo struct {
+	*mockChatRepository
+}
+
+func (r *assistantFailsWhenTxPresentRepo) SaveMessage(ctx context.Context, msg types.Message) error {
+	if msg.Role() == types.RoleAssistant && ctx.Value(constants.TxKey) != nil {
+		return errors.New("assistant save must not reuse request transaction")
+	}
+	return r.mockChatRepository.SaveMessage(ctx, msg)
+}
+
+func TestChatService_SendMessageStream_ClearsRequestTxForAsyncPersistence(t *testing.T) {
+	t.Parallel()
+
+	baseRepo := newMockChatRepository()
+	chatRepo := &assistantFailsWhenTxPresentRepo{mockChatRepository: baseRepo}
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("tx isolation"),
+	)
+	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
+
+	agentSvc := &stubAgentService{
+		processEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "assistant response"},
+			{Type: agents.EventTypeDone},
+		},
+	}
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+
+	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	err := svc.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+		SessionID: session.ID(),
+		UserID:    1,
+		Content:   "hello",
+	}, func(_ bichatservices.StreamChunk) {})
+	require.NoError(t, err)
+
+	messages, msgErr := chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
+	require.NoError(t, msgErr)
+	require.Len(t, messages, 2)
+	assert.Equal(t, types.RoleAssistant, messages[1].Role())
+}
+
 type captureTitleContextService struct {
 	called      chan context.Context
 	regenerated chan context.Context
@@ -555,7 +654,7 @@ func TestChatService_StopGeneration_NoErrorWhenNoActiveStream(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestChatService_SendMessageStream_CancelDoesNotPersistAssistant(t *testing.T) {
+func TestChatService_SendMessageStream_ClientDisconnectStillPersistsAssistant(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
@@ -566,14 +665,14 @@ func TestChatService_SendMessageStream_CancelDoesNotPersistAssistant(t *testing.
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 
-	// Agent that yields one chunk then blocks until context is cancelled
-	cancelAgent := &cancelAwareAgentService{
-		events: []agents.ExecutorEvent{
-			{Type: agents.EventTypeContent, Content: "partial"},
+	agentSvc := &stubAgentService{
+		processEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "persist me"},
+			{Type: agents.EventTypeDone},
 		},
 	}
 
-	svc := NewChatService(chatRepo, cancelAgent, nil, nil, nil)
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -584,17 +683,73 @@ func TestChatService_SendMessageStream_CancelDoesNotPersistAssistant(t *testing.
 			SessionID: session.ID(),
 			UserID:    1,
 			Content:   "hello",
+		}, func(chunk bichatservices.StreamChunk) {
+			if chunk.Type == bichatservices.ChunkTypeContent {
+				cancel()
+			}
+		})
+	}()
+
+	<-streamDone
+	var (
+		messages []types.Message
+		err      error
+	)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		messages, err = chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
+		require.NoError(t, err)
+		if len(messages) == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for assistant persistence, got %d messages", len(messages))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	require.Len(t, messages, 2, "assistant message should be persisted after client disconnect")
+	assert.Equal(t, types.RoleUser, messages[0].Role())
+	assert.Equal(t, types.RoleAssistant, messages[1].Role())
+	assert.Equal(t, "persist me", messages[1].Content())
+}
+
+func TestChatService_SendMessageStream_StopGenerationDoesNotPersistAssistant(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("stop test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
+
+	cancelAgent := &cancelAwareAgentService{
+		events: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "partial"},
+		},
+	}
+
+	svc := NewChatService(chatRepo, cancelAgent, nil, nil, nil)
+	ctx := context.Background()
+	streamDone := make(chan struct{})
+	go func() {
+		defer close(streamDone)
+		_ = svc.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+			SessionID: session.ID(),
+			UserID:    1,
+			Content:   "hello",
 		}, func(_ bichatservices.StreamChunk) {})
 	}()
 
-	// Give stream time to register and emit one chunk
 	time.Sleep(50 * time.Millisecond)
-	cancel()
+	require.NoError(t, svc.StopGeneration(context.Background(), session.ID()))
 	<-streamDone
 
 	messages, err := chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
 	require.NoError(t, err)
-	require.Len(t, messages, 1, "only user message should be persisted when stream is cancelled")
+	require.Len(t, messages, 1, "only user message should be persisted when stream is explicitly stopped")
 	assert.Equal(t, types.RoleUser, messages[0].Role())
 }
 

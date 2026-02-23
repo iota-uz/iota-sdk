@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS bichat.traces (
     generation_ms bigint NOT NULL DEFAULT 0,
     thinking text,
     observation_reason text,
-    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+    metadata jsonb NOT NULL DEFAULT '{}' ::jsonb,
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW(),
     CONSTRAINT bichat_traces_status_check CHECK (status IN ('running', 'completed', 'error', 'interrupted'))
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS bichat.generations (
     output_text text,
     thinking text,
     observation_reason text,
-    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+    metadata jsonb NOT NULL DEFAULT '{}' ::jsonb,
     started_at timestamptz,
     completed_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT NOW()
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS bichat.spans (
     output_text text,
     error_text text,
     duration_ms bigint NOT NULL DEFAULT 0,
-    attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
+    attributes jsonb NOT NULL DEFAULT '{}' ::jsonb,
     started_at timestamptz,
     completed_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT NOW()
@@ -156,32 +156,10 @@ CREATE TABLE IF NOT EXISTS bichat.events (
     reason text,
     span_external_id text,
     generation_external_id text,
-    attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
+    attributes jsonb NOT NULL DEFAULT '{}' ::jsonb,
     timestamp timestamptz,
     created_at timestamptz NOT NULL DEFAULT NOW()
 );
-
--- Transient state for refresh-safe streaming: one active run per session.
-CREATE TABLE IF NOT EXISTS bichat.generation_runs (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
-    session_id uuid NOT NULL REFERENCES bichat.sessions (id) ON DELETE CASCADE,
-    tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
-    user_id bigint NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
-    status varchar(20) NOT NULL DEFAULT 'streaming',
-    partial_content text NOT NULL DEFAULT '',
-    partial_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-    started_at timestamptz NOT NULL DEFAULT NOW(),
-    last_updated_at timestamptz NOT NULL DEFAULT NOW(),
-    CONSTRAINT generation_runs_status_check CHECK (status IN ('streaming', 'completed', 'cancelled'))
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_generation_runs_session_active ON bichat.generation_runs (session_id)
-WHERE
-    status = 'streaming';
-
-CREATE INDEX IF NOT EXISTS idx_generation_runs_tenant_session ON bichat.generation_runs (tenant_id, session_id);
-
-COMMENT ON TABLE bichat.generation_runs IS 'Active streaming run state for refresh-safe resume; one row per session when streaming.';
 
 CREATE TABLE IF NOT EXISTS bichat.learnings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),

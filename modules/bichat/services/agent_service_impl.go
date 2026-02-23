@@ -254,6 +254,12 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 		PreviousResponseID: session.LLMPreviousResponseID(),
 	}
 
+	// Apply per-request reasoning effort override from context
+	if effort, ok := services.UseReasoningEffort(ctx); ok {
+		re := agents.ReasoningEffort(effort)
+		input.ReasoningEffort = &re
+	}
+
 	// Return executor generator directly — no conversion needed.
 	return executor.Execute(ctx, input), nil
 }
