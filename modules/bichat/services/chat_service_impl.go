@@ -757,6 +757,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	s.registerStreamCancel(req.SessionID, cancelProcess)
 
 	processCtx = bichatservices.WithArtifactMessageID(processCtx, userMsg.ID())
+	if req.ReasoningEffort != nil {
+		processCtx = bichatservices.WithReasoningEffort(processCtx, *req.ReasoningEffort)
+	}
 
 	active := &activeRun{
 		runID:       run.ID(),

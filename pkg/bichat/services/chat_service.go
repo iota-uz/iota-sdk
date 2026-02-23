@@ -82,6 +82,9 @@ type SendMessageRequest struct {
 	// ReplaceFromMessageID truncates session history from this user message onward
 	// before sending the new content (used by edit/regenerate flows).
 	ReplaceFromMessageID *uuid.UUID
+	// ReasoningEffort overrides the default reasoning effort for this request.
+	// Valid values: "low", "medium", "high", "xhigh". Nil means use model default.
+	ReasoningEffort *string
 }
 
 // SendMessageResponse contains the result of sending a message

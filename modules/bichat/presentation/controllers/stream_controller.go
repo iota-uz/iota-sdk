@@ -112,11 +112,12 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 
 	// 4. Parse request
 	type streamRequest struct {
-		SessionID   uuid.UUID             `json:"sessionId"`
-		Content     string                `json:"content"`
-		Attachments []AttachmentUploadDTO `json:"attachments"`
-		DebugMode   bool                  `json:"debugMode"`
-		ReplaceFrom *uuid.UUID            `json:"replaceFromMessageId,omitempty"`
+		SessionID       uuid.UUID             `json:"sessionId"`
+		Content         string                `json:"content"`
+		Attachments     []AttachmentUploadDTO `json:"attachments"`
+		DebugMode       bool                  `json:"debugMode"`
+		ReplaceFrom     *uuid.UUID            `json:"replaceFromMessageId,omitempty"`
+		ReasoningEffort *string               `json:"reasoningEffort,omitempty"`
 	}
 
 	var req streamRequest
@@ -185,6 +186,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		Attachments:          domainAttachments,
 		DebugMode:            req.DebugMode,
 		ReplaceFromMessageID: req.ReplaceFrom,
+		ReasoningEffort:      req.ReasoningEffort,
 	}, func(chunk bichatservices.StreamChunk) {
 		// Handle context cancellation
 		select {

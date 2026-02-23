@@ -207,6 +207,10 @@ const (
 
 	// ReasoningHigh uses maximum thinking for complex problems.
 	ReasoningHigh ReasoningEffort = "high"
+
+	// ReasoningXHigh uses extra-high thinking for the most demanding tasks.
+	// Supported by select models (e.g., gpt-5.2).
+	ReasoningXHigh ReasoningEffort = "xhigh"
 )
 
 // GenerateOption configures a Generate/Stream request.

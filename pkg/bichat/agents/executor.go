@@ -276,6 +276,11 @@ type Input struct {
 	// For OpenAI Responses API this maps to previous_response_id.
 	PreviousResponseID *string
 
+	// ReasoningEffort overrides the default reasoning effort for this request.
+	// Only effective when the model has CapabilityThinking.
+	// If nil, defaults to ReasoningMedium.
+	ReasoningEffort *ReasoningEffort
+
 	// isResume is set internally by Resume() so that AgentStartEvent.IsResume
 	// is emitted correctly. Callers should not set this directly.
 	isResume bool
@@ -534,7 +539,11 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Call model (streaming)
 			var streamOpts []GenerateOption
 			if e.model.HasCapability(CapabilityThinking) {
-				streamOpts = append(streamOpts, WithReasoningEffort(ReasoningMedium))
+				effort := ReasoningMedium
+				if input.ReasoningEffort != nil {
+					effort = *input.ReasoningEffort
+				}
+				streamOpts = append(streamOpts, WithReasoningEffort(effort))
 			}
 			gen, err := e.model.Stream(ctx, req, streamOpts...)
 			if err != nil {
