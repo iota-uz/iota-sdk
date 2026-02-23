@@ -301,7 +301,7 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 	challengeID := r.URL.Query().Get("challengeId")
 	// Validate the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
-	if _, ok := requirePendingTwoFactorSetupSession(w, logger, r); !ok {
+	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
 		return
 	}
 
@@ -346,7 +346,7 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 	challengeID := r.URL.Query().Get("challengeId")
 	// Validate the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
-	if _, ok := requirePendingTwoFactorSetupSession(w, logger, r); !ok {
+	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
 		return
 	}
 
@@ -427,7 +427,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 	}
 
 	// Get session
-	sess, ok := requirePendingTwoFactorSetupSession(w, logger, r)
+	sess, ok := requireTwoFactorSetupSession(w, logger, r)
 	if !ok {
 		return
 	}
@@ -485,7 +485,7 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
 		return
 	}
-	if _, ok := requirePendingTwoFactorSetupSession(w, logger, r); !ok {
+	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
 		return
 	}
 
@@ -554,7 +554,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 	}
 
 	// Get session
-	sess, ok := requirePendingTwoFactorSetupSession(w, logger, r)
+	sess, ok := requireTwoFactorSetupSession(w, logger, r)
 	if !ok {
 		return
 	}
