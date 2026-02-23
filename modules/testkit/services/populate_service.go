@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	phonevo "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	twofactorsvc "github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/modules/testkit/domain/schemas"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -188,6 +189,8 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 	userRepo := persistence.NewUserRepository(uploadRepo)
 	roleRepo := persistence.NewRoleRepository()
 	permissionRepo := persistence.NewPermissionRepository()
+	recoveryCodeRepo := persistence.NewRecoveryCodeRepository()
+	recoveryCodeService := twofactorsvc.NewRecoveryCodeService(recoveryCodeRepo)
 
 	// Ensure default "Admin" role exists before creating users
 	adminRole, err := s.ensureAdminRole(ctx, roleRepo, permissionRepo, tenantID)
@@ -302,6 +305,12 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 		createdUser, err := userRepo.Create(ctx, newUser)
 		if err != nil {
 			return fmt.Errorf("failed to create user %s: %w", userSpec.Email, err)
+		}
+
+		if len(userSpec.RecoveryCodes) > 0 {
+			if err := recoveryCodeService.Store(ctx, createdUser.ID(), userSpec.RecoveryCodes); err != nil {
+				return fmt.Errorf("failed to store recovery codes for user %s: %w", userSpec.Email, err)
+			}
 		}
 
 		logger.WithField("email", userSpec.Email).WithField("id", createdUser.ID()).Info("User created successfully")

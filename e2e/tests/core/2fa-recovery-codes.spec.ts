@@ -4,8 +4,6 @@ import { resetTestDatabase, populateTestData } from '../../fixtures/test-data';
 import { TwoFactorVerifyPage } from '../../pages/core/twofactor-verify-page';
 import { TwoFactorSetupPage } from '../../pages/core/twofactor-setup-page';
 import { generateTOTPCode } from '../../helpers/totp';
-import { createTestRecoveryCodesForUser, getDBConfig } from '../../helpers/recovery-codes';
-import { Pool } from 'pg';
 
 /**
  * Recovery Codes E2E Tests
@@ -53,10 +51,10 @@ test.describe('2FA Recovery Codes', () => {
 	}
 
 	async function setupUserWithRecoveryCodes(
-		_page: Parameters<typeof login>[0],
 		request: Parameters<typeof populateTestData>[0],
 		email: string
 	): Promise<string[]> {
+		const seededRecoveryCodes = ['ABCD-EFGH-IJKL', 'MNOP-QRST-UVWX', 'YZ23-4567-ABCD'];
 		await populateTestData(request, {
 			version: '1.0',
 			tenant: {
@@ -75,26 +73,13 @@ test.describe('2FA Recovery Codes', () => {
 						twoFactorMethod: 'totp',
 						totpSecretEncrypted: testUser.totpSecret,
 						twoFactorEnabledAt: new Date().toISOString(),
+						recoveryCodes: seededRecoveryCodes,
 					},
 				],
 			},
 		});
 
-		const pool = new Pool(getDBConfig());
-		let userID: number | null = null;
-		try {
-			const result = await pool.query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
-			if (result.rows.length === 0) {
-				throw new Error(`User not found after seed: ${email}`);
-			}
-			userID = Number(result.rows[0].id);
-		} finally {
-			await pool.end();
-		}
-
-		const recoveryCodes = await createTestRecoveryCodesForUser(userID, 10);
-		expect(recoveryCodes.length).toBeGreaterThan(1);
-		return recoveryCodes;
+		return seededRecoveryCodes;
 	}
 
 	async function loginAndReachVerify(page: Parameters<typeof login>[0], email: string, password: string) {
@@ -192,7 +177,7 @@ test.describe('2FA Recovery Codes', () => {
 	test('should successfully login with valid recovery code', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const email = 'recovery-login@example.com';
-		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
+		const recoveryCodes = await setupUserWithRecoveryCodes(request, email);
 
 		// Login to trigger verification
 		await loginAndReachVerify(page, email, 'TestPass123!');
@@ -235,7 +220,7 @@ test.describe('2FA Recovery Codes', () => {
 	test('should mark recovery code as used after successful login', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const email = 'recovery-used@example.com';
-		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
+		const recoveryCodes = await setupUserWithRecoveryCodes(request, email);
 		const codeToUse = recoveryCodes[0];
 
 		// Login and use recovery code
@@ -257,7 +242,7 @@ test.describe('2FA Recovery Codes', () => {
 	test('should not allow reusing the same recovery code', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const email = 'recovery-reuse@example.com';
-		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
+		const recoveryCodes = await setupUserWithRecoveryCodes(request, email);
 		const usedCode = recoveryCodes[0];
 		const backupCode = recoveryCodes[1];
 
