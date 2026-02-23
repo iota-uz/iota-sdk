@@ -24,8 +24,8 @@ func TestParseProviderStreamError_NoJSON(t *testing.T) {
 
 	code, message, ok := parseProviderStreamError("plain upstream failure")
 	assert.False(t, ok)
-	assert.Equal(t, "", code)
-	assert.Equal(t, "", message)
+	assert.Empty(t, code)
+	assert.Empty(t, message)
 }
 
 func TestParseProviderStreamError_CodeMarker(t *testing.T) {
@@ -51,7 +51,7 @@ func TestStreamClientErrorMessage_NilError(t *testing.T) {
 	t.Parallel()
 
 	controller := &StreamController{}
-	assert.Equal(t, "", controller.streamClientErrorMessage(nil, bichatservices.ChunkTypeError))
+	assert.Empty(t, controller.streamClientErrorMessage(nil, bichatservices.ChunkTypeError))
 }
 
 func TestStreamClientErrorMessage_NonErrorChunkTypeIsSanitized(t *testing.T) {

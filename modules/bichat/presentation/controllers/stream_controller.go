@@ -577,7 +577,7 @@ func sanitizeErrorString(err error) string {
 // containing "type"/"code"/"message". It scans the raw string for {"type": or
 // {"code":, then attempts to unmarshal that fragment. If parsing fails, it
 // intentionally returns ok=false so callers fall back to a generic safe message.
-func parseProviderStreamError(raw string) (code string, message string, ok bool) {
+func parseProviderStreamError(raw string) (string, string, bool) {
 	start := strings.Index(raw, "{\"type\":")
 	if start < 0 {
 		start = strings.Index(raw, "{\"code\":")
@@ -601,10 +601,8 @@ func parseProviderStreamError(raw string) (code string, message string, ok bool)
 		return "", "", false
 	}
 
-	switch {
-	case strings.TrimSpace(providerErr.Code) != "":
-		code = providerErr.Code
-	default:
+	code := providerErr.Code
+	if strings.TrimSpace(code) == "" {
 		code = providerErr.Type
 	}
 	return code, providerErr.Message, strings.TrimSpace(code) != ""
