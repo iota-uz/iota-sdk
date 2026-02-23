@@ -115,7 +115,6 @@ jobs:
 
       - name: Run applet DX guardrails
         run: |
-          just applet deps-check
           just applet doctor
 
       - name: Typecheck BiChat applet

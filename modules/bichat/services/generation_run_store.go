@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -56,6 +57,7 @@ type persistedGenerationRun struct {
 func newConfiguredGenerationRunStore() generationRunStore {
 	redisURL, ok := os.LookupEnv("REDIS_URL")
 	if !ok || strings.TrimSpace(redisURL) == "" {
+		log.Printf("bichat generation run store disabled: REDIS_URL is missing or empty")
 		return nil
 	}
 
@@ -63,6 +65,7 @@ func newConfiguredGenerationRunStore() generationRunStore {
 		RedisURL: redisURL,
 	})
 	if err != nil {
+		log.Printf("bichat generation run store disabled: failed to initialize redis store: %v", err)
 		return nil
 	}
 
@@ -271,7 +274,29 @@ func cloneMetadata(in map[string]any) map[string]any {
 	}
 	out := make(map[string]any, len(in))
 	for k, v := range in {
-		out[k] = v
+		out[k] = cloneAny(v)
 	}
 	return out
+}
+
+func cloneAny(v any) any {
+	switch typed := v.(type) {
+	case map[string]any:
+		if len(typed) == 0 {
+			return map[string]any{}
+		}
+		cloned := make(map[string]any, len(typed))
+		for key, val := range typed {
+			cloned[key] = cloneAny(val)
+		}
+		return cloned
+	case []any:
+		cloned := make([]any, len(typed))
+		for i, item := range typed {
+			cloned[i] = cloneAny(item)
+		}
+		return cloned
+	default:
+		return typed
+	}
 }

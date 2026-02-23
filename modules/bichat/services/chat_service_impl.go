@@ -236,6 +236,7 @@ func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UU
 }
 
 func (s *chatServiceImpl) createRunState(ctx context.Context, run domain.GenerationRun) (bool, error) {
+	// true means run state is persisted in runStore; false means no state was persisted.
 	if s.runStore == nil {
 		return false, nil
 	}
@@ -246,12 +247,13 @@ func (s *chatServiceImpl) createRunState(ctx context.Context, run domain.Generat
 }
 
 func (s *chatServiceImpl) getPersistedRun(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
+	const op serrors.Op = "chatServiceImpl.getPersistedRun"
 	if s.runStore == nil {
 		return nil, domain.ErrNoActiveRun
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, domain.ErrNoActiveRun
+		return nil, serrors.E(op, err)
 	}
 	return s.runStore.GetActiveRunBySession(ctx, tenantID, sessionID)
 }
@@ -825,12 +827,16 @@ func (s *chatServiceImpl) runStreamLoop(
 	active *activeRun,
 ) {
 	const op serrors.Op = "chatServiceImpl.runStreamLoop"
-	defer s.unregisterStreamCancel(req.SessionID)
-	if active.cancel != nil {
-		defer active.cancel()
-	}
-	defer active.closeAllSubscribers()
-	defer s.runRegistry.remove(active.runID)
+	// Cleanup order matters: cancel first so generator work stops before closing
+	// subscriber channels and unregistering/removing run bookkeeping.
+	defer func() {
+		if active.cancel != nil {
+			active.cancel()
+		}
+		active.closeAllSubscribers()
+		s.runRegistry.remove(active.runID)
+		s.unregisterStreamCancel(req.SessionID)
+	}()
 
 	gen, err := s.agentService.ProcessMessage(processCtx, req.SessionID, req.Content, domainAttachments)
 	if err != nil {
@@ -1052,11 +1058,15 @@ func (s *chatServiceImpl) runStreamLoop(
 			Error:     err,
 			Timestamp: time.Now(),
 		})
-		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+		runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
+		defer runStateCancel()
+		_ = s.cancelRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 		return
 	}
 
-	_ = s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+	runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
+	defer runStateCancel()
+	_ = s.completeRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 	if emitDoneChunk {
 		active.broadcast(bichatservices.StreamChunk{
 			Type:         bichatservices.ChunkTypeDone,

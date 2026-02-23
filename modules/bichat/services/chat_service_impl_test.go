@@ -691,10 +691,23 @@ func TestChatService_SendMessageStream_ClientDisconnectStillPersistsAssistant(t 
 	}()
 
 	<-streamDone
-	time.Sleep(100 * time.Millisecond)
+	var (
+		messages []types.Message
+		err      error
+	)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		messages, err = chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
+		require.NoError(t, err)
+		if len(messages) == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for assistant persistence, got %d messages", len(messages))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 
-	messages, err := chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
-	require.NoError(t, err)
 	require.Len(t, messages, 2, "assistant message should be persisted after client disconnect")
 	assert.Equal(t, types.RoleUser, messages[0].Role())
 	assert.Equal(t, types.RoleAssistant, messages[1].Role())

@@ -534,9 +534,8 @@ func (c *StreamController) streamClientErrorMessage(err error, chunkType bichats
 	if err == nil {
 		return ""
 	}
-	// Preserve previous behavior for non-error chunk types.
 	if chunkType != bichatservices.ChunkTypeError {
-		return err.Error()
+		return sanitizeErrorString(err)
 	}
 
 	code, message, ok := parseProviderStreamError(err.Error())
@@ -565,6 +564,17 @@ func (c *StreamController) streamClientErrorMessage(err error, chunkType bichats
 	}
 }
 
+func sanitizeErrorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return "internal error"
+}
+
+// parseProviderStreamError expects provider errors to include a JSON fragment
+// containing "type"/"code"/"message". It scans the raw string for {"type": or
+// {"code":, then attempts to unmarshal that fragment. If parsing fails, it
+// intentionally returns ok=false so callers fall back to a generic safe message.
 func parseProviderStreamError(raw string) (code string, message string, ok bool) {
 	start := strings.Index(raw, "{\"type\":")
 	if start < 0 {
