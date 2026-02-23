@@ -159,6 +159,10 @@ func (s *redisGenerationRunStore) GetActiveRunBySession(ctx context.Context, ten
 	return record.toDomainRun()
 }
 
+// UpdateRunSnapshot performs a loadRun -> mutate -> saveRun cycle.
+// This non-atomic flow is safe under the single-writer assumption: one
+// runStreamLoop goroutine owns writes for a given session/run. Callers must not
+// issue concurrent snapshot writes for the same session.
 func (s *redisGenerationRunStore) UpdateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
 	const op serrors.Op = "redisGenerationRunStore.UpdateRunSnapshot"
 
