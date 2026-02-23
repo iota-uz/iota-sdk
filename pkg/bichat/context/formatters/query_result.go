@@ -33,7 +33,11 @@ func (f *QueryResultFormatter) Format(payload any, opts types.FormatOptions) (st
 	}
 
 	var b strings.Builder
-	statsLine := fmt.Sprintf("Duration: %dms, Returned: %d row(s), Limit: %d\n\n", p.DurationMs, p.RowCount, p.Limit)
+	truncated := "no"
+	if p.Truncated {
+		truncated = "yes"
+	}
+	statsLine := fmt.Sprintf("Duration: %dms, Returned: %d row(s), Limit: %d, Truncated: %s\n\n", p.DurationMs, p.RowCount, p.Limit, truncated)
 
 	if len(p.Columns) == 0 {
 		b.WriteString("No columns returned.\n")

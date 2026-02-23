@@ -2,10 +2,11 @@ package sql
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockSchemaDescriber implements bichatsql.SchemaDescriber for testing.
@@ -71,20 +72,11 @@ func TestSchemaDescribeToolWithSampleData(t *testing.T) {
 
 	input := `{"table_name": "users"}`
 	result, err := tool.Call(context.Background(), input)
-	if err != nil {
-		t.Fatalf("Call() error = %v", err)
-	}
+	require.NoError(t, err)
 
-	// Verify markdown output
-	if !strings.Contains(result, "| Column | Type |") {
-		t.Errorf("expected markdown table header in result, got: %s", result)
-	}
-	if !strings.Contains(result, "| id | integer |") {
-		t.Errorf("expected first column row in result, got: %s", result)
-	}
-	if !strings.Contains(result, "| name | text |") {
-		t.Errorf("expected second column row in result, got: %s", result)
-	}
+	assert.Contains(t, result, "| Column | Type |", "markdown table header")
+	assert.Contains(t, result, "| id | integer |", "first column row")
+	assert.Contains(t, result, "| name | text |", "second column row")
 }
 
 func TestSchemaDescribeToolLargeDataset(t *testing.T) {
@@ -104,17 +96,10 @@ func TestSchemaDescribeToolLargeDataset(t *testing.T) {
 
 	input := `{"table_name": "large_table"}`
 	result, err := tool.Call(context.Background(), input)
-	if err != nil {
-		t.Fatalf("Call() error = %v", err)
-	}
+	require.NoError(t, err)
 
-	// Verify markdown output
-	if !strings.Contains(result, "| Column | Type |") {
-		t.Errorf("expected markdown table header in result, got: %s", result)
-	}
-	if !strings.Contains(result, "| id | integer |") {
-		t.Errorf("expected id column row in result, got: %s", result)
-	}
+	assert.Contains(t, result, "| Column | Type |", "markdown table header")
+	assert.Contains(t, result, "| id | integer |", "id column row")
 }
 
 func TestSchemaDescribeToolInvalidTableName(t *testing.T) {
@@ -152,19 +137,9 @@ func TestSchemaDescribeToolInvalidTableName(t *testing.T) {
 			input := `{"table_name": "` + tt.tableName + `"}`
 			result, err := tool.Call(context.Background(), input)
 
-			// Validation errors return nil error with error details in result
-			if err != nil {
-				t.Fatalf("expected nil error for validation failure, got: %v", err)
-			}
-
-			// Verify error format in result string
-			if !strings.Contains(result, "INVALID_REQUEST") {
-				t.Errorf("expected INVALID_REQUEST error, got: %s", result)
-			}
-
-			if !strings.Contains(result, "invalid table name") {
-				t.Errorf("expected 'invalid table name' message, got: %s", result)
-			}
+			require.NoError(t, err, "validation failure returns nil error with details in result")
+			assert.Contains(t, result, "INVALID_REQUEST", "error format")
+			assert.Contains(t, result, "invalid table name", "error message")
 		})
 	}
 }
@@ -182,21 +157,10 @@ func TestSchemaListTool(t *testing.T) {
 	tool := NewSchemaListTool(lister)
 
 	result, err := tool.Call(context.Background(), `{}`)
-	if err != nil {
-		t.Fatalf("Call() error = %v", err)
-	}
+	require.NoError(t, err)
 
-	// Verify markdown output
-	if !strings.Contains(result, "policies") {
-		t.Errorf("expected 'policies' in result, got: %s", result)
-	}
-	if !strings.Contains(result, "payments") {
-		t.Errorf("expected 'payments' in result, got: %s", result)
-	}
-	if !strings.Contains(result, "~100") {
-		t.Errorf("expected '~100' row count in result, got: %s", result)
-	}
-	if !strings.Contains(result, "~200") {
-		t.Errorf("expected '~200' row count in result, got: %s", result)
-	}
+	assert.Contains(t, result, "policies")
+	assert.Contains(t, result, "payments")
+	assert.Contains(t, result, "~100")
+	assert.Contains(t, result, "~200")
 }

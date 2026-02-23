@@ -2,12 +2,13 @@ package formatters
 
 import (
 	"math/big"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mustPgNumeric builds a pgtype.Numeric for tests.
@@ -113,9 +114,7 @@ func TestEscapeMarkdownCell(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := EscapeMarkdownCell(tt.input, tt.maxWidth)
-			if got != tt.want {
-				t.Errorf("EscapeMarkdownCell() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got, "EscapeMarkdownCell()")
 		})
 	}
 }
@@ -151,7 +150,7 @@ func TestQueryResultFormatter(t *testing.T) {
 			},
 			wantTexts: []string{
 				"No columns returned.",
-				"Duration: 10ms, Returned: 0 row(s), Limit: 100",
+				"Duration: 10ms, Returned: 0 row(s), Limit: 100, Truncated: no",
 				"```sql\nSELECT * FROM empty\n```",
 			},
 		},
@@ -168,7 +167,7 @@ func TestQueryResultFormatter(t *testing.T) {
 			},
 			wantTexts: []string{
 				"No rows returned.",
-				"Duration: 5ms, Returned: 0 row(s), Limit: 100",
+				"Duration: 5ms, Returned: 0 row(s), Limit: 100, Truncated: no",
 				"```sql\nSELECT * FROM users WHERE false\n```",
 			},
 		},
@@ -187,7 +186,7 @@ func TestQueryResultFormatter(t *testing.T) {
 				Limit:    100,
 			},
 			wantTexts: []string{
-				"Duration: 25ms, Returned: 2 row(s), Limit: 100",
+				"Duration: 25ms, Returned: 2 row(s), Limit: 100, Truncated: no",
 				"| id | name |",
 				"| 1 | Alice |",
 				"| 2 | Bob |",
@@ -207,7 +206,7 @@ func TestQueryResultFormatter(t *testing.T) {
 				Truncated:   true,
 			},
 			wantTexts: []string{
-				"Duration: 50ms, Returned: 30 row(s), Limit: 1000",
+				"Duration: 50ms, Returned: 30 row(s), Limit: 1000, Truncated: yes",
 				"Use a follow-up query",
 			},
 		},
@@ -308,17 +307,13 @@ func TestQueryResultFormatter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := formatter.Format(tt.payload, opts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
 			for _, text := range tt.wantTexts {
-				if !strings.Contains(got, text) {
-					t.Errorf("Format() output missing %q\nGot:\n%s", text, got)
-				}
+				assert.Contains(t, got, text, "Format() output missing %q", text)
 			}
 		})
 	}
@@ -398,17 +393,13 @@ func TestExplainPlanFormatter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := formatter.Format(tt.payload, opts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
 			for _, text := range tt.wantTexts {
-				if !strings.Contains(got, text) {
-					t.Errorf("Format() output missing %q\nGot:\n%s", text, got)
-				}
+				assert.Contains(t, got, text, "Format() output missing %q", text)
 			}
 		})
 	}
@@ -500,22 +491,16 @@ func TestSchemaListFormatter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := formatter.Format(tt.payload, opts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
 			for _, text := range tt.wantTexts {
-				if !strings.Contains(got, text) {
-					t.Errorf("Format() output missing %q\nGot:\n%s", text, got)
-				}
+				assert.Contains(t, got, text, "Format() output missing %q", text)
 			}
 			for _, text := range tt.noTexts {
-				if strings.Contains(got, text) {
-					t.Errorf("Format() output should not contain %q\nGot:\n%s", text, got)
-				}
+				assert.NotContains(t, got, text, "Format() output should not contain %q", text)
 			}
 		})
 	}
@@ -614,22 +599,16 @@ func TestSchemaDescribeFormatter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := formatter.Format(tt.payload, opts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
 			for _, text := range tt.wantTexts {
-				if !strings.Contains(got, text) {
-					t.Errorf("Format() output missing %q\nGot:\n%s", text, got)
-				}
+				assert.Contains(t, got, text, "Format() output missing %q", text)
 			}
 			for _, text := range tt.noTexts {
-				if strings.Contains(got, text) {
-					t.Errorf("Format() output should not contain %q\nGot:\n%s", text, got)
-				}
+				assert.NotContains(t, got, text, "Format() output should not contain %q", text)
 			}
 		})
 	}
@@ -709,17 +688,13 @@ func TestToolErrorFormatter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := formatter.Format(tt.payload, opts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
 			for _, text := range tt.wantTexts {
-				if !strings.Contains(got, text) {
-					t.Errorf("Format() output missing %q\nGot:\n%s", text, got)
-				}
+				assert.Contains(t, got, text, "Format() output missing %q", text)
 			}
 		})
 	}
@@ -813,17 +788,13 @@ func TestJSONFormatter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := formatter.Format(tt.payload, opts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
 			for _, text := range tt.wantTexts {
-				if !strings.Contains(got, text) {
-					t.Errorf("Format() output missing %q\nGot:\n%s", text, got)
-				}
+				assert.Contains(t, got, text, "Format() output missing %q", text)
 			}
 		})
 	}
@@ -981,17 +952,13 @@ func TestArtifactListFormatter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := formatter.Format(tt.payload, opts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
 			for _, text := range tt.wantTexts {
-				if !strings.Contains(got, text) {
-					t.Errorf("Format() output missing %q\nGot:\n%s", text, got)
-				}
+				assert.Contains(t, got, text, "Format() output missing %q", text)
 			}
 		})
 	}
@@ -1127,17 +1094,13 @@ func TestArtifactContentFormatter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := formatter.Format(tt.payload, opts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
 			for _, text := range tt.wantTexts {
-				if !strings.Contains(got, text) {
-					t.Errorf("Format() output missing %q\nGot:\n%s", text, got)
-				}
+				assert.Contains(t, got, text, "Format() output missing %q", text)
 			}
 		})
 	}

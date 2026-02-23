@@ -338,7 +338,7 @@ func TestSQLExecuteTool_EnforcesLimitAndWrapsQuery(t *testing.T) {
 		t.Fatalf("expected returned rows in output, got: %s", outStr)
 	}
 	if !strings.Contains(outStr, "Truncated: yes") {
-		t.Fatalf("expected truncated=yes in output, got: %s", outStr)
+		t.Fatalf("expected Truncated: yes in output, got: %s", outStr)
 	}
 	if !strings.Contains(outStr, "| id |") {
 		t.Fatalf("expected markdown table header, got: %s", outStr)
