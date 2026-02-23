@@ -89,21 +89,6 @@ func requireTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r
 	return sess, true
 }
 
-func requirePendingTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r *http.Request) (session.Session, bool) {
-	sess, err := composables.UseSession(r.Context())
-	if err != nil {
-		logger.WithError(err).Error("failed to get session")
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return nil, false
-	}
-	if !sess.IsPending() {
-		logger.WithField("status", sess.Status()).Error("session not in pending status for 2FA setup")
-		http.Error(w, "invalid session state", http.StatusBadRequest)
-		return nil, false
-	}
-	return sess, true
-}
-
 func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.ResponseWriter, sess session.Session) (session.Session, error) {
 	conf := configuration.Use()
 	updatedSession := session.New(
@@ -330,6 +315,7 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 		ChallengeID:  challengeID,
 		NextURL:      nextURL,
 		QRImageURL:   qrImageURL,
+		OTPAuthURL:   challenge.QRCodeURL,
 		ErrorMessage: string(errorMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.WithError(err).Error("failed to render TOTP setup template")

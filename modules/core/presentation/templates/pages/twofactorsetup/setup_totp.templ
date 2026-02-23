@@ -12,6 +12,7 @@ type TOTPSetupProps struct {
 	ChallengeID  string
 	NextURL      string
 	QRImageURL   string
+	OTPAuthURL   string
 	ErrorMessage string
 }
 
@@ -46,6 +47,7 @@ templ TOTPSetup(p *TOTPSetupProps) {
 						@composables.CSRFTokenField(ctx)
 						<input type="hidden" name="ChallengeID" value={ p.ChallengeID }/>
 						<input type="hidden" name="NextURL" value={ p.NextURL }/>
+						<input type="hidden" name="OTPAuthURL" value={ p.OTPAuthURL }/>
 						<div class="flex flex-col gap-4">
 							<label class="block">
 								<span class="text-sm font-medium text-100 block mb-2">

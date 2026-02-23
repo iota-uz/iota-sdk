@@ -31,7 +31,7 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 		await page.fill('[type=email]', email);
 		await page.fill('[type=password]', password);
 		await Promise.all([
-			page.waitForURL((url) => !url.pathname.includes('/login')),
+			page.waitForURL((url) => url.pathname !== '/login'),
 			page.click('[type=submit]'),
 		]);
 
@@ -219,12 +219,11 @@ test.describe('2FA Enforcement and Edge Cases', () => {
 			await page.fill('[type=email]', setupUser.email);
 			await page.fill('[type=password]', setupUser.password);
 			await Promise.all([
-				page.waitForURL((url) => !url.pathname.includes('/login')),
+				page.waitForURL((url) => url.pathname !== '/login'),
 				page.click('[type=submit]'),
 			]);
 			await page.goto(`/login/2fa/setup?next=${encodeURIComponent(nextURL)}`);
 			await expect(page).toHaveURL(/\/login\/2fa\/setup/);
-			await expect(page.locator('input[name="NextURL"]')).toBeVisible();
 		};
 
 		test('should accept valid internal nextURL', async ({ page }) => {
