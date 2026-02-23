@@ -30,7 +30,10 @@ export async function login(page: Page, email: string, password: string, timeout
  * @param page - Playwright page object
  */
 export async function logout(page: Page) {
-	await page.goto('/logout');
+	await page.goto('/logout', { waitUntil: 'domcontentloaded' });
+	await page.waitForURL((url) => url.pathname === '/login', { timeout: 10000 });
+	// Enforce a clean session boundary for subsequent login assertions.
+	await page.context().clearCookies();
 }
 
 /**

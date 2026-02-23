@@ -94,23 +94,21 @@ test.describe('2FA Recovery Codes', () => {
 					break;
 				}
 				await expect(page).toHaveURL(/\/login\/2fa\/setup\/totp/);
+				await expect(page.locator('input[name="Code"]')).toBeVisible();
 			}
 			if (recoveryCodes.length > 1) {
 				break;
 			}
-			await page.waitForTimeout(1000);
 		}
 
 		expect(recoveryCodes.length).toBeGreaterThan(1);
+		await expect(page.locator('text=/save|store|keep.*safe|write.*down/i').first()).toBeVisible();
 		await logout(page);
 		return recoveryCodes;
 	}
 
 	async function loginAndReachVerify(page: Parameters<typeof login>[0], email: string, password: string) {
 		await login(page, email, password);
-		if (!/\/login\/2fa\/verify/.test(page.url())) {
-			await page.goto('/login/2fa/verify');
-		}
 		await expect(page).toHaveURL(/\/login\/2fa\/verify/);
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
 	}
@@ -197,7 +195,6 @@ test.describe('2FA Recovery Codes', () => {
 	});
 
 	test('should successfully login with valid recovery code', async ({ page, request }) => {
-		test.fixme(true, 'Flaky in CI: setup-created users intermittently skip pending 2FA state');
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const email = 'recovery-login@example.com';
 		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
@@ -241,7 +238,6 @@ test.describe('2FA Recovery Codes', () => {
 	});
 
 	test('should mark recovery code as used after successful login', async ({ page, request }) => {
-		test.fixme(true, 'Flaky in CI: setup-created users intermittently skip pending 2FA state');
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const email = 'recovery-used@example.com';
 		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
@@ -264,7 +260,6 @@ test.describe('2FA Recovery Codes', () => {
 	});
 
 	test('should not allow reusing the same recovery code', async ({ page, request }) => {
-		test.fixme(true, 'Flaky in CI: setup-created users intermittently skip pending 2FA state');
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const email = 'recovery-reuse@example.com';
 		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
