@@ -166,7 +166,7 @@ func newRouterWithContext(t *testing.T, env *itf.TestEnvironment, u coreuser.Use
 func mustCreateSession(t *testing.T, ctx context.Context, deps controllerDeps, tenantID uuid.UUID, u coreuser.User, title string) bichatdomain.Session {
 	t.Helper()
 
-	s, err := deps.chatService.CreateSession(ctx, tenantID, int64(u.ID()), title)
+	s, err := deps.chatService.CreateSession(context.WithValue(ctx, constants.TxKey, nil), tenantID, int64(u.ID()), title)
 	require.NoError(t, err)
 	require.NotNil(t, s)
 	return s
@@ -191,7 +191,7 @@ func mustCreateControllerUpload(t *testing.T, ctx context.Context, fileName, mim
 		mime,
 	)
 
-	created, err := uploadRepo.Create(ctx, entity)
+	created, err := uploadRepo.Create(context.WithValue(ctx, constants.TxKey, nil), entity)
 	require.NoError(t, err)
 	return int64(created.ID())
 }
