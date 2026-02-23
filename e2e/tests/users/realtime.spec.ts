@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, TimeoutError } from '@playwright/test';
 import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
@@ -53,7 +53,8 @@ test.describe('user realtime behavior', () => {
 		const createdRow = page.locator('tbody tr').filter({ hasText: 'Realtime Test' });
 		try {
 			await expect(createdRow).toBeVisible({ timeout: 15000 });
-		} catch {
+		} catch (e) {
+			if (!(e instanceof TimeoutError)) throw e;
 			await page.reload();
 			await expect(createdRow).toBeVisible({ timeout: 10000 });
 		}
@@ -82,7 +83,8 @@ test.describe('user realtime behavior', () => {
 		const updatedRow = page.locator('tbody tr').filter({ hasText: 'RealtimeUpdated TestUpdated' });
 		try {
 			await expect(updatedRow).toBeVisible({ timeout: 15000 });
-		} catch {
+		} catch (e) {
+			if (!(e instanceof TimeoutError)) throw e;
 			await page.reload();
 			await expect(updatedRow).toBeVisible({ timeout: 10000 });
 		}
@@ -93,12 +95,12 @@ test.describe('user realtime behavior', () => {
 		await page.request.delete(`/users/${userId}`);
 
 		// Verify user was removed from the table; refresh as a fallback for delayed updates.
-		const removedRow = page.locator('tbody tr').filter({ hasText: 'RealtimeUpdated TestUpdated' });
 		try {
-			await expect(removedRow).toHaveCount(0, { timeout: 15000 });
-		} catch {
+			await expect(updatedRow).toHaveCount(0, { timeout: 15000 });
+		} catch (e) {
+			if (!(e instanceof TimeoutError)) throw e;
 			await page.reload();
-			await expect(removedRow).toHaveCount(0, { timeout: 10000 });
+			await expect(updatedRow).toHaveCount(0, { timeout: 10000 });
 		}
 		await expect(page.locator('tbody tr')).toHaveCount(initialRowCount);
 	});
