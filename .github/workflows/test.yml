@@ -31,6 +31,11 @@ jobs:
           go install github.com/a-h/templ/cmd/templ@v0.3.857
           templ --help
 
+      - name: Install air
+        run: |
+          go install github.com/air-verse/air@latest
+          air -v
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
