@@ -23,21 +23,20 @@ func (f *SchemaListFormatter) Format(payload any, opts types.FormatOptions) (str
 	}
 
 	var b strings.Builder
-	b.WriteString("## Available Tables\n\n")
 
 	// Header
 	if p.HasAccess {
-		b.WriteString("| # | Table | Est. Rows | Access | Description |\n")
-		b.WriteString("| --- | --- | --- | --- | --- |\n")
-	} else {
-		b.WriteString("| # | Table | Est. Rows | Description |\n")
+		b.WriteString("| Table | Est. Rows | Access | Description |\n")
 		b.WriteString("| --- | --- | --- | --- |\n")
+	} else {
+		b.WriteString("| Table | Est. Rows | Description |\n")
+		b.WriteString("| --- | --- | --- |\n")
 	}
 
 	// Rows
 	maxCell := opts.MaxCellWidth
 	for i, table := range p.Tables {
-		b.WriteString(fmt.Sprintf("| %d | %s | ", i+1, EscapeMarkdownCell(table.Name, maxCell)))
+		b.WriteString(fmt.Sprintf("| %s | ", EscapeMarkdownCell(table.Name, maxCell)))
 		b.WriteString(abbreviateCount(table.RowCount) + " | ")
 
 		if p.HasAccess {
@@ -54,8 +53,6 @@ func (f *SchemaListFormatter) Format(payload any, opts types.FormatOptions) (str
 			b.WriteString("- |\n")
 		}
 	}
-
-	b.WriteString(fmt.Sprintf("\n%d table(s) found.", len(p.Tables)))
 
 	return b.String(), nil
 }

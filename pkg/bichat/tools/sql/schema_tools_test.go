@@ -193,9 +193,6 @@ func TestSchemaListTool(t *testing.T) {
 	}
 
 	// Verify markdown output
-	if !strings.Contains(result, "## Available Tables") {
-		t.Errorf("expected '## Available Tables' header in result, got: %s", result)
-	}
 	if !strings.Contains(result, "policies") {
 		t.Errorf("expected 'policies' in result, got: %s", result)
 	}
@@ -207,8 +204,5 @@ func TestSchemaListTool(t *testing.T) {
 	}
 	if !strings.Contains(result, "~200") {
 		t.Errorf("expected '~200' row count in result, got: %s", result)
-	}
-	if !strings.Contains(result, "2 table(s) found") {
-		t.Errorf("expected '2 table(s) found' footer in result, got: %s", result)
 	}
 }

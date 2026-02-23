@@ -445,8 +445,7 @@ func TestSchemaListFormatter(t *testing.T) {
 				HasAccess: false,
 			},
 			wantTexts: []string{
-				"## Available Tables",
-				"0 table(s) found.",
+				"| Table | Est. Rows | Description |",
 			},
 		},
 		{
@@ -459,11 +458,9 @@ func TestSchemaListFormatter(t *testing.T) {
 				HasAccess: false,
 			},
 			wantTexts: []string{
-				"## Available Tables",
-				"| # | Table | Est. Rows | Description |",
-				"| 1 | users | ~100 | User accounts |",
-				"| 2 | orders | ~500 | - |",
-				"2 table(s) found.",
+				"| Table | Est. Rows | Description |",
+				"| users | ~100 | User accounts |",
+				"| orders | ~500 | - |",
 			},
 			noTexts: []string{
 				"Access",
@@ -483,11 +480,9 @@ func TestSchemaListFormatter(t *testing.T) {
 				HasAccess: true,
 			},
 			wantTexts: []string{
-				"## Available Tables",
-				"| # | Table | Est. Rows | Access | Description |",
-				"| 1 | users | ~100 | ok | User accounts |",
-				"| 2 | sensitive | ~50 | denied | Sensitive data |",
-				"2 table(s) found.",
+				"| Table | Est. Rows | Access | Description |",
+				"| users | ~100 | ok | User accounts |",
+				"| sensitive | ~50 | denied | Sensitive data |",
 			},
 		},
 		{
@@ -500,8 +495,8 @@ func TestSchemaListFormatter(t *testing.T) {
 				HasAccess: false,
 			},
 			wantTexts: []string{
-				"| 1 | products | ~1K | Product catalog |",
-				"| 2 | temp | - | - |",
+				"| products | ~1K | Product catalog |",
+				"| temp | - | - |",
 			},
 		},
 	}
