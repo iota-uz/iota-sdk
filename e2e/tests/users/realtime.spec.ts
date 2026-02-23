@@ -1,8 +1,12 @@
-import { test, expect, TimeoutError } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
 test.describe('user realtime behavior', () => {
+	const isTimeoutError = (e: unknown): boolean =>
+		(e instanceof Error && e.message.includes('Timeout')) ||
+		(typeof e === 'object' && e !== null && 'name' in e && (e as { name: string }).name === 'TimeoutError');
+
 	test.beforeAll(async ({ request }) => {
 		// Reset database and seed with comprehensive data for user management tests
 		await resetTestDatabase(request, { reseedMinimal: false });
@@ -54,7 +58,7 @@ test.describe('user realtime behavior', () => {
 		try {
 			await expect(createdRow).toBeVisible({ timeout: 15000 });
 		} catch (e) {
-			if (!(e instanceof TimeoutError)) throw e;
+			if (!isTimeoutError(e)) throw e;
 			await page.reload();
 			await expect(createdRow).toBeVisible({ timeout: 10000 });
 		}
@@ -84,7 +88,7 @@ test.describe('user realtime behavior', () => {
 		try {
 			await expect(updatedRow).toBeVisible({ timeout: 15000 });
 		} catch (e) {
-			if (!(e instanceof TimeoutError)) throw e;
+			if (!isTimeoutError(e)) throw e;
 			await page.reload();
 			await expect(updatedRow).toBeVisible({ timeout: 10000 });
 		}
@@ -98,7 +102,7 @@ test.describe('user realtime behavior', () => {
 		try {
 			await expect(updatedRow).toHaveCount(0, { timeout: 15000 });
 		} catch (e) {
-			if (!(e instanceof TimeoutError)) throw e;
+			if (!isTimeoutError(e)) throw e;
 			await page.reload();
 			await expect(updatedRow).toHaveCount(0, { timeout: 10000 });
 		}
