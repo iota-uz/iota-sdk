@@ -140,7 +140,10 @@ func newRouterWithContext(t *testing.T, env *itf.TestEnvironment, u coreuser.Use
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := req.Context()
 			ctx = composables.WithPool(ctx, env.Pool)
-			ctx = composables.WithTx(ctx, env.Tx)
+			// Stream persistence runs on a separate transaction; avoid keeping all
+			// request operations in a long-lived test transaction to prevent lock
+			// contention/timeouts in integration tests.
+			ctx = context.WithValue(ctx, constants.TxKey, nil)
 			ctx = composables.WithTenantID(ctx, env.Tenant.ID)
 			ctx = composables.WithUser(ctx, u)
 			ctx = context.WithValue(ctx, constants.AppKey, env.App)

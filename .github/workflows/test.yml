@@ -115,7 +115,7 @@ jobs:
 
       - name: Run applet DX guardrails
         run: |
-          just applet doctor
+          applet doctor
 
       - name: Typecheck BiChat applet
         run: pnpm -C modules/bichat/presentation/web exec tsc --noEmit
