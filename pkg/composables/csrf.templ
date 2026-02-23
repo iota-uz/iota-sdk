@@ -6,8 +6,7 @@ import "context"
 // for form submission protection. This should be included in all POST forms.
 templ CSRFTokenField(ctx context.Context) {
 	{{ csrfToken, ok := ctx.Value("gorilla.csrf.Token").(string) }}
-	if !ok || csrfToken == "" {
-		{{ panic("gorilla.csrf.Token missing from context") }}
+	if ok && csrfToken != "" {
+		<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
 	}
-	<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
 }
