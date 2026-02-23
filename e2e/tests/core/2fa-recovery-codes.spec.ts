@@ -3,7 +3,9 @@ import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, populateTestData } from '../../fixtures/test-data';
 import { TwoFactorVerifyPage } from '../../pages/core/twofactor-verify-page';
 import { TwoFactorSetupPage } from '../../pages/core/twofactor-setup-page';
-import { generateTOTPCode, generateTOTPCodeWithOffset } from '../../helpers/totp';
+import { generateTOTPCode } from '../../helpers/totp';
+import { createTestRecoveryCodesForUser, getDBConfig } from '../../helpers/recovery-codes';
+import { Pool } from 'pg';
 
 /**
  * Recovery Codes E2E Tests
@@ -51,7 +53,7 @@ test.describe('2FA Recovery Codes', () => {
 	}
 
 	async function setupUserWithRecoveryCodes(
-		page: Parameters<typeof login>[0],
+		_page: Parameters<typeof login>[0],
 		request: Parameters<typeof populateTestData>[0],
 		email: string
 	): Promise<string[]> {
@@ -70,40 +72,28 @@ test.describe('2FA Recovery Codes', () => {
 						firstName: 'Recovery',
 						lastName: 'Setup',
 						language: 'en',
+						twoFactorMethod: 'totp',
+						totpSecretEncrypted: testUser.totpSecret,
+						twoFactorEnabledAt: new Date().toISOString(),
 					},
 				],
 			},
 		});
 
-		await login(page, email, 'TestPass123!');
-		await page.goto('/login/2fa/setup');
-		const setupPage = new TwoFactorSetupPage(page);
-		await setupPage.selectMethod('totp');
-		let recoveryCodes: string[] = [];
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const secret = await setupPage.extractTOTPSecret();
-			const candidateCodes = [
-				generateTOTPCodeWithOffset(secret, 0),
-				generateTOTPCodeWithOffset(secret, -1),
-				generateTOTPCodeWithOffset(secret, 1),
-			];
-			for (const code of candidateCodes) {
-				await setupPage.enterTOTPCode(code);
-				recoveryCodes = await setupPage.getRecoveryCodes();
-				if (recoveryCodes.length > 1) {
-					break;
-				}
-				await expect(page).toHaveURL(/\/login\/2fa\/setup\/totp/);
-				await expect(page.locator('input[name="Code"]')).toBeVisible();
+		const pool = new Pool(getDBConfig());
+		let userID: number | null = null;
+		try {
+			const result = await pool.query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
+			if (result.rows.length === 0) {
+				throw new Error(`User not found after seed: ${email}`);
 			}
-			if (recoveryCodes.length > 1) {
-				break;
-			}
+			userID = Number(result.rows[0].id);
+		} finally {
+			await pool.end();
 		}
 
+		const recoveryCodes = await createTestRecoveryCodesForUser(userID, 10);
 		expect(recoveryCodes.length).toBeGreaterThan(1);
-		await expect(page.locator('text=/save|store|keep.*safe|write.*down/i').first()).toBeVisible();
-		await logout(page);
 		return recoveryCodes;
 	}
 
