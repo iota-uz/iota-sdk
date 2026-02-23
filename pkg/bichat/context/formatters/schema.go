@@ -82,20 +82,19 @@ func (f *SchemaDescribeFormatter) Format(payload any, opts types.FormatOptions) 
 	}
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("## Table: %s (%s)\n\n", p.Name, p.Schema))
 
 	// Header
 	if hasDescription {
-		b.WriteString("| # | Column | Type | Nullable | Default | Description |\n")
-		b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
-	} else {
-		b.WriteString("| # | Column | Type | Nullable | Default |\n")
+		b.WriteString("| Column | Type | Nullable | Default | Description |\n")
 		b.WriteString("| --- | --- | --- | --- | --- |\n")
+	} else {
+		b.WriteString("| Column | Type | Nullable | Default |\n")
+		b.WriteString("| --- | --- | --- | --- |\n")
 	}
 
 	// Rows
-	for i, col := range p.Columns {
-		b.WriteString(fmt.Sprintf("| %d | %s | %s | ", i+1, EscapeMarkdownCell(col.Name, 0), EscapeMarkdownCell(col.Type, 0)))
+	for _, col := range p.Columns {
+		b.WriteString(fmt.Sprintf("| %s | %s | ", EscapeMarkdownCell(col.Name, 0), EscapeMarkdownCell(col.Type, 0)))
 
 		if col.Nullable {
 			b.WriteString("YES | ")
@@ -120,8 +119,6 @@ func (f *SchemaDescribeFormatter) Format(payload any, opts types.FormatOptions) 
 
 		b.WriteString("|\n")
 	}
-
-	b.WriteString(fmt.Sprintf("\n%d column(s)", len(p.Columns)))
 
 	return b.String(), nil
 }

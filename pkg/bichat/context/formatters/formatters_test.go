@@ -150,8 +150,8 @@ func TestQueryResultFormatter(t *testing.T) {
 				Limit:       100,
 			},
 			wantTexts: []string{
-				"Query executed successfully.",
 				"No columns returned.",
+				"Duration: 10ms, Returned: 0 row(s), Limit: 100",
 				"```sql\nSELECT * FROM empty\n```",
 			},
 		},
@@ -167,8 +167,8 @@ func TestQueryResultFormatter(t *testing.T) {
 				Limit:       100,
 			},
 			wantTexts: []string{
-				"Query executed successfully.",
 				"No rows returned.",
+				"Duration: 5ms, Returned: 0 row(s), Limit: 100",
 				"```sql\nSELECT * FROM users WHERE false\n```",
 			},
 		},
@@ -187,11 +187,7 @@ func TestQueryResultFormatter(t *testing.T) {
 				Limit:    100,
 			},
 			wantTexts: []string{
-				"Query executed successfully.",
-				"Duration: 25ms",
-				"Returned: 2 row(s)",
-				"Limit: 100",
-				"Truncated: no",
+				"Duration: 25ms, Returned: 2 row(s), Limit: 100",
 				"| id | name |",
 				"| 1 | Alice |",
 				"| 2 | Bob |",
@@ -211,8 +207,7 @@ func TestQueryResultFormatter(t *testing.T) {
 				Truncated:   true,
 			},
 			wantTexts: []string{
-				"Query executed successfully.",
-				"Truncated: yes",
+				"Duration: 50ms, Returned: 30 row(s), Limit: 1000",
 				"Use a follow-up query",
 			},
 		},
@@ -557,11 +552,9 @@ func TestSchemaDescribeFormatter(t *testing.T) {
 				},
 			},
 			wantTexts: []string{
-				"## Table: users (public)",
-				"| # | Column | Type | Nullable | Default |",
-				"| 1 | id | integer | NO | - |",
-				"| 2 | email | text | NO | - |",
-				"2 column(s)",
+				"| Column | Type | Nullable | Default |",
+				"| id | integer | NO | - |",
+				"| email | text | NO | - |",
 			},
 			noTexts: []string{
 				"Description",
@@ -579,12 +572,10 @@ func TestSchemaDescribeFormatter(t *testing.T) {
 				},
 			},
 			wantTexts: []string{
-				"## Table: products (public)",
-				"| # | Column | Type | Nullable | Default | Description |",
-				"| 1 | id | uuid | NO | - | Primary key|",
-				"| 2 | name | text | NO | - | Product name|",
-				"| 3 | stock | integer | YES | 0 | -|",
-				"3 column(s)",
+				"| Column | Type | Nullable | Default | Description |",
+				"| id | uuid | NO | - | Primary key|",
+				"| name | text | NO | - | Product name|",
+				"| stock | integer | YES | 0 | -|",
 			},
 		},
 		{
@@ -598,8 +589,8 @@ func TestSchemaDescribeFormatter(t *testing.T) {
 				},
 			},
 			wantTexts: []string{
-				"| 1 | id | bigint | NO | - |",
-				"| 2 | notes | text | YES | - |",
+				"| id | bigint | NO | - |",
+				"| notes | text | YES | - |",
 			},
 		},
 		{
@@ -613,8 +604,8 @@ func TestSchemaDescribeFormatter(t *testing.T) {
 				},
 			},
 			wantTexts: []string{
-				"| 1 | id | integer | NO | - |",
-				"| 2 | enabled | boolean | NO | 0 |",
+				"| id | integer | NO | - |",
+				"| enabled | boolean | NO | 0 |",
 			},
 		},
 	}

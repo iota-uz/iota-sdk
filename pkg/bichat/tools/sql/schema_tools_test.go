@@ -76,20 +76,14 @@ func TestSchemaDescribeToolWithSampleData(t *testing.T) {
 	}
 
 	// Verify markdown output
-	if !strings.Contains(result, "## Table: users (public)") {
-		t.Errorf("expected '## Table: users (public)' in result, got: %s", result)
-	}
-	if !strings.Contains(result, "| # | Column | Type |") {
+	if !strings.Contains(result, "| Column | Type |") {
 		t.Errorf("expected markdown table header in result, got: %s", result)
 	}
-	if !strings.Contains(result, "| 1 | id | integer |") {
+	if !strings.Contains(result, "| id | integer |") {
 		t.Errorf("expected first column row in result, got: %s", result)
 	}
-	if !strings.Contains(result, "| 2 | name | text |") {
+	if !strings.Contains(result, "| name | text |") {
 		t.Errorf("expected second column row in result, got: %s", result)
-	}
-	if !strings.Contains(result, "2 column(s)") {
-		t.Errorf("expected '2 column(s)' footer in result, got: %s", result)
 	}
 }
 
@@ -115,11 +109,11 @@ func TestSchemaDescribeToolLargeDataset(t *testing.T) {
 	}
 
 	// Verify markdown output
-	if !strings.Contains(result, "## Table: large_table (public)") {
-		t.Errorf("expected '## Table: large_table (public)' in result, got: %s", result)
+	if !strings.Contains(result, "| Column | Type |") {
+		t.Errorf("expected markdown table header in result, got: %s", result)
 	}
-	if !strings.Contains(result, "1 column(s)") {
-		t.Errorf("expected '1 column(s)' footer in result, got: %s", result)
+	if !strings.Contains(result, "| id | integer |") {
+		t.Errorf("expected id column row in result, got: %s", result)
 	}
 }
 
