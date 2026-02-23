@@ -109,7 +109,12 @@ test.describe('2FA Recovery Codes', () => {
 
 	async function loginAndReachVerify(page: Parameters<typeof login>[0], email: string, password: string) {
 		await login(page, email, password);
-		await expect(page).toHaveURL(/\/login\/2fa\/verify/);
+		// Some flows briefly land on "/" first; navigating to a protected route
+		// consistently triggers the pending 2FA verification redirect.
+		if (!/\/login\/2fa\/verify/.test(new URL(page.url()).pathname)) {
+			await page.goto('/users');
+		}
+		await expect(page).toHaveURL(/\/login\/2fa\/verify/, { timeout: 10000 });
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
 	}
 
