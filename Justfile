@@ -173,7 +173,7 @@ check cmd="help":
   case "{{cmd}}" in \
     lint) golangci-lint run --build-tags {{GO_TEST_TAG}} ./... ;; \
     tr) go run cmd/command/main.go check_tr_keys ;; \
-    gosec) gosec -exclude-generated -severity high -confidence medium ./... ;; \
+    gosec) GOTOOLCHAIN=auto gosec -r ./cmd/server -exclude-generated -severity high -confidence medium && GOTOOLCHAIN=auto gosec -r ./cmd/superadmin -exclude-generated -severity high -confidence medium ;; \
     *) \
       echo "Usage: just check [lint|tr|gosec]" ; \
       exit 2 ;; \

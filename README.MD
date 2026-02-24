@@ -127,7 +127,8 @@ The script automatically detects your OS (macOS/Linux) and architecture, downloa
 ### CI Security Scanning (gosec)
 
 The CI pipeline runs [`gosec`](https://github.com/securego/gosec) on pull requests to `main` and on direct pushes to `main`.
-Generated files are excluded from the scan.
+The scan is focused on production server entrypoints (`cmd/server` and `cmd/superadmin`).
+Generated files are excluded.
 The scan is configured to fail the build when high-severity findings are detected.
 
 Run the same check locally:
