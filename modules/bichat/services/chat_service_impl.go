@@ -1754,20 +1754,47 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		return nil, serrors.E(op, serrors.KindValidation, "pending message has no question data")
 	}
 
-	answeredQD, err := qd.Answer(req.Answers)
+	canonicalCheckpointID := strings.TrimSpace(qd.CheckpointID)
+	if canonicalCheckpointID == "" {
+		return nil, serrors.E(op, serrors.KindValidation, "pending message has empty checkpoint id")
+	}
+	if requestedCheckpointID := strings.TrimSpace(req.CheckpointID); requestedCheckpointID != "" && requestedCheckpointID != canonicalCheckpointID {
+		configuration.Use().Logger().
+			WithField("session_id", req.SessionID.String()).
+			WithField("requested_checkpoint_id", requestedCheckpointID).
+			WithField("canonical_checkpoint_id", canonicalCheckpointID).
+			Warn("resume request checkpoint mismatch; using canonical checkpoint from pending question")
+	}
+
+	normalizedAnswerValues, answersMap := normalizeResumeAnswers(qd.Questions, req.Answers)
+	answeredQD, err := qd.Answer(normalizedAnswerValues)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
 
-	// Convert map[string]string to map[string]types.Answer
-	answersMap := make(map[string]types.Answer, len(req.Answers))
-	for questionID, answerValue := range req.Answers {
-		answersMap[questionID] = types.NewAnswer(answerValue)
-	}
-
 	// Resume agent execution with answers
-	gen, err := s.agentService.ResumeWithAnswer(ctx, req.SessionID, req.CheckpointID, answersMap)
+	gen, err := s.agentService.ResumeWithAnswer(ctx, req.SessionID, canonicalCheckpointID, answersMap)
 	if err != nil {
+		if errors.Is(err, agents.ErrCheckpointNotFound) {
+			configuration.Use().Logger().
+				WithError(err).
+				WithField("session_id", req.SessionID.String()).
+				WithField("checkpoint_id", canonicalCheckpointID).
+				Warn("resume checkpoint missing; finalizing pending question as answered")
+
+			if txErr := s.withinTx(ctx, func(txCtx context.Context) error {
+				return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), answeredQD)
+			}); txErr != nil {
+				return nil, txErr
+			}
+
+			return &bichatservices.SendMessageResponse{
+				UserMessage:      nil,
+				AssistantMessage: nil,
+				Session:          session,
+				Interrupt:        nil,
+			}, nil
+		}
 		return nil, serrors.E(op, err)
 	}
 	defer gen.Close()
@@ -1843,6 +1870,26 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 
 	gen, err := s.agentService.ResumeWithAnswer(ctx, sessionID, qd.CheckpointID, rejectionAnswers)
 	if err != nil {
+		if errors.Is(err, agents.ErrCheckpointNotFound) {
+			configuration.Use().Logger().
+				WithError(err).
+				WithField("session_id", sessionID.String()).
+				WithField("checkpoint_id", qd.CheckpointID).
+				Warn("reject checkpoint missing; finalizing pending question as rejected")
+
+			if txErr := s.withinTx(ctx, func(txCtx context.Context) error {
+				return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), rejectedQD)
+			}); txErr != nil {
+				return nil, txErr
+			}
+
+			return &bichatservices.SendMessageResponse{
+				UserMessage:      nil,
+				AssistantMessage: nil,
+				Session:          session,
+				Interrupt:        nil,
+			}, nil
+		}
 		return nil, serrors.E(op, err)
 	}
 	defer gen.Close()
@@ -2001,6 +2048,104 @@ func buildTitleGenerationContext(ctx context.Context) context.Context {
 	}
 
 	return titleCtx
+}
+
+func normalizeResumeAnswers(
+	questions []types.QuestionDataItem,
+	rawAnswers map[string]string,
+) (map[string]string, map[string]types.Answer) {
+	normalizedValues := make(map[string]string, len(rawAnswers))
+	normalizedAnswers := make(map[string]types.Answer, len(rawAnswers))
+	questionsByID := make(map[string]types.QuestionDataItem, len(questions))
+	for _, q := range questions {
+		questionsByID[q.ID] = q
+	}
+
+	for questionID, answerValue := range rawAnswers {
+		question, ok := questionsByID[questionID]
+		if !ok {
+			trimmed := strings.TrimSpace(answerValue)
+			normalizedValues[questionID] = trimmed
+			normalizedAnswers[questionID] = types.NewAnswer(trimmed)
+			continue
+		}
+
+		if question.Type == "multiple_choice" {
+			parts := splitAnswerParts(answerValue)
+			if len(parts) == 0 {
+				trimmed := strings.TrimSpace(answerValue)
+				normalizedValues[questionID] = trimmed
+				normalizedAnswers[questionID] = types.NewAnswer(trimmed)
+				continue
+			}
+
+			canonicalParts := make([]string, 0, len(parts))
+			seen := make(map[string]struct{}, len(parts))
+			for _, part := range parts {
+				canonical := canonicalizeAnswerPart(part, question.Options)
+				if canonical == "" {
+					continue
+				}
+				if _, exists := seen[canonical]; exists {
+					continue
+				}
+				seen[canonical] = struct{}{}
+				canonicalParts = append(canonicalParts, canonical)
+			}
+
+			if len(canonicalParts) == 0 {
+				trimmed := strings.TrimSpace(answerValue)
+				normalizedValues[questionID] = trimmed
+				normalizedAnswers[questionID] = types.NewAnswer(trimmed)
+			} else if len(canonicalParts) == 1 {
+				normalizedValues[questionID] = canonicalParts[0]
+				normalizedAnswers[questionID] = types.NewAnswer(canonicalParts[0])
+			} else {
+				normalizedValues[questionID] = strings.Join(canonicalParts, ", ")
+				normalizedAnswers[questionID] = types.NewMultiAnswer(canonicalParts)
+			}
+			continue
+		}
+
+		canonical := canonicalizeAnswerPart(answerValue, question.Options)
+		normalizedValues[questionID] = canonical
+		normalizedAnswers[questionID] = types.NewAnswer(canonical)
+	}
+
+	return normalizedValues, normalizedAnswers
+}
+
+func splitAnswerParts(value string) []string {
+	parts := strings.Split(strings.TrimSpace(value), ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed == "" {
+			continue
+		}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+func canonicalizeAnswerPart(value string, options []types.QuestionDataOption) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+
+	for _, opt := range options {
+		if strings.EqualFold(strings.TrimSpace(opt.ID), trimmed) {
+			return opt.ID
+		}
+	}
+	for _, opt := range options {
+		if strings.EqualFold(strings.TrimSpace(opt.Label), trimmed) {
+			return opt.ID
+		}
+	}
+
+	return trimmed
 }
 
 // buildQuestionData converts agent interrupt questions to QuestionData for persistence.

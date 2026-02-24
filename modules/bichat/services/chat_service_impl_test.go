@@ -323,6 +323,175 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 	assert.Len(t, messages, 2)
 }
 
+func TestChatService_ResumeWithAnswer_UsesCanonicalCheckpointAndNormalizesLabels(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("resume canonical checkpoint"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-canonical", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	agentSvc := &stubAgentService{
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-stale-from-client",
+		Answers: map[string]string{
+			"scope": "All policies",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "cp-canonical", agentSvc.resumeCheckpoint)
+	require.Contains(t, agentSvc.resumeAnswers, "scope")
+	assert.Equal(t, "all", agentSvc.resumeAnswers["scope"].String())
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	updatedQuestionData := messages[0].QuestionData()
+	require.NotNil(t, updatedQuestionData)
+	assert.Equal(t, types.QuestionStatusAnswered, updatedQuestionData.Status)
+	assert.Equal(t, "all", updatedQuestionData.Answers["scope"])
+}
+
+func TestChatService_ResumeWithAnswer_CheckpointNotFoundFinalizesAnswered(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("resume stale checkpoint"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-missing", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	agentSvc := &stubAgentService{
+		resumeErr: agents.ErrCheckpointNotFound,
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-missing",
+		Answers: map[string]string{
+			"scope": "all",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Nil(t, resp.AssistantMessage)
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	updatedQuestionData := messages[0].QuestionData()
+	require.NotNil(t, updatedQuestionData)
+	assert.Equal(t, types.QuestionStatusAnswered, updatedQuestionData.Status)
+	assert.Equal(t, "all", updatedQuestionData.Answers["scope"])
+}
+
+func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("reject stale checkpoint"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-missing", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	agentSvc := &stubAgentService{
+		resumeErr: agents.ErrCheckpointNotFound,
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	resp, err := svc.RejectPendingQuestion(t.Context(), session.ID())
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Nil(t, resp.AssistantMessage)
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	updatedQuestionData := messages[0].QuestionData()
+	require.NotNil(t, updatedQuestionData)
+	assert.Equal(t, types.QuestionStatusRejected, updatedQuestionData.Status)
+	assert.False(t, messages[0].HasPendingQuestion())
+}
+
 func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -484,6 +653,9 @@ type stubAgentService struct {
 	processErr       error
 	processStreamErr error
 	resumeEvents     []agents.ExecutorEvent
+	resumeErr        error
+	resumeCheckpoint string
+	resumeAnswers    map[string]types.Answer
 }
 
 func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UUID, content string, attachments []domain.Attachment) (types.Generator[agents.ExecutorEvent], error) {
@@ -507,6 +679,18 @@ func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UU
 }
 
 func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.UUID, checkpointID string, answers map[string]types.Answer) (types.Generator[agents.ExecutorEvent], error) {
+	s.resumeCheckpoint = checkpointID
+	if answers != nil {
+		s.resumeAnswers = make(map[string]types.Answer, len(answers))
+		for k, v := range answers {
+			s.resumeAnswers[k] = v
+		}
+	} else {
+		s.resumeAnswers = nil
+	}
+	if s.resumeErr != nil {
+		return nil, s.resumeErr
+	}
 	evs := append([]agents.ExecutorEvent{}, s.resumeEvents...)
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
 		for _, ev := range evs {
