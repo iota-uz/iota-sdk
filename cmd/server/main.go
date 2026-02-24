@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -198,7 +199,7 @@ func main() {
 				kbIndexPath = filepath.Join(conf.UploadsPath, "bichat", "knowledge.bleve")
 			}
 			if kbIndexPath != "" {
-				if err := os.MkdirAll(filepath.Dir(kbIndexPath), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Dir(kbIndexPath), 0750); err != nil {
 					logger.Warnf("Failed to create KB index directory: %v", err)
 				} else {
 					_, kbSearcher, kbErr := kb.NewBleveIndex(kbIndexPath)
@@ -269,7 +270,12 @@ func main() {
 						if err != nil {
 							panic(err) // Fail fast if user context missing
 						}
-						return int64(user.ID())
+						userID := user.ID()
+						parsedUserID, parseErr := strconv.ParseInt(strconv.FormatUint(uint64(userID), 10), 10, 64)
+						if parseErr != nil {
+							panic("user id overflows int64")
+						}
+						return parsedUserID
 					},
 					chatRepo,
 					model,
