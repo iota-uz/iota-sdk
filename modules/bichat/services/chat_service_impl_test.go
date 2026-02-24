@@ -13,6 +13,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -647,6 +649,8 @@ type stubTitleJobQueue struct {
 	tenantID  uuid.UUID
 	sessionID uuid.UUID
 }
+
+type stubRepoTx struct{}
 
 type stubAgentService struct {
 	processEvents    []agents.ExecutorEvent
