@@ -32,6 +32,11 @@ jobs:
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.2
 
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
+
       - name: Run gosec (production entrypoints)
         run: just gosec
 
