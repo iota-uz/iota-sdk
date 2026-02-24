@@ -15,6 +15,7 @@ import (
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +60,7 @@ func createCoreUser(t *testing.T, env *itf.TestEnvironment, email string) coreus
 		"bichat-controllers-test-"+uuid.NewString()[:8],
 		role.WithTenantID(env.Tenant.ID),
 	)
-	createdRole, err := roleRepo.Create(env.Ctx, testRole)
+	createdRole, err := roleRepo.Create(context.WithValue(env.Ctx, constants.TxKey, nil), testRole)
 	require.NoError(t, err, "failed to create test role")
 
 	uploadRepo := corepersistence.NewUploadRepository()
@@ -76,7 +77,7 @@ func createCoreUser(t *testing.T, env *itf.TestEnvironment, email string) coreus
 		coreuser.WithTenantID(env.Tenant.ID),
 	).AddRole(createdRole)
 
-	createdUser, err := userRepo.Create(env.Ctx, u)
+	createdUser, err := userRepo.Create(context.WithValue(env.Ctx, constants.TxKey, nil), u)
 	require.NoError(t, err, "failed to create test user")
 
 	env.User = createdUser

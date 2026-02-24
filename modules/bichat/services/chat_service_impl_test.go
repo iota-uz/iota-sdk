@@ -2,17 +2,17 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ func TestChatService_UnarchiveSession(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -47,7 +47,7 @@ func TestChatService_ClearSessionHistory(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -101,7 +101,7 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 	chatRepo := newMockChatRepository()
 	model := newMockModel()
 	model.response.Message = types.AssistantMessage("## Conversation Summary\nCompacted response")
-	svc := NewChatService(chatRepo, nil, model, nil)
+	svc := NewChatService(chatRepo, nil, model, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -144,7 +144,7 @@ func TestChatService_CompactSessionHistory_EmptyHistory(t *testing.T) {
 
 	chatRepo := newMockChatRepository()
 	model := newMockModel()
-	svc := NewChatService(chatRepo, nil, model, nil)
+	svc := NewChatService(chatRepo, nil, model, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -171,7 +171,7 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -224,7 +224,7 @@ func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *tes
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -275,19 +275,19 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
 
 	agentSvc := &stubAgentService{
-		resumeEvents: []bichatservices.Event{
+		resumeEvents: []agents.ExecutorEvent{
 			{
-				Type: bichatservices.EventTypeInterrupt,
-				Interrupt: &bichatservices.InterruptEvent{
+				Type: agents.EventTypeInterrupt,
+				ParsedInterrupt: &agents.ParsedInterrupt{
 					CheckpointID:       "cp-next",
 					AgentName:          "bi_agent",
 					ProviderResponseID: "resp-next",
-					Questions: []bichatservices.Question{
+					Questions: []agents.Question{
 						{
 							ID:   "metric",
 							Text: "Choose metric",
-							Type: bichatservices.QuestionTypeSingleChoice,
-							Options: []bichatservices.QuestionOption{
+							Type: agents.QuestionTypeSingleChoice,
+							Options: []agents.QuestionOption{
 								{ID: "rev", Label: "Revenue"},
 								{ID: "exp", Label: "Expense"},
 							},
@@ -298,7 +298,7 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil)
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
 	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-prev",
@@ -323,24 +323,377 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 	assert.Len(t, messages, 2)
 }
 
-type captureTitleContextService struct {
-	called chan context.Context
+func TestChatService_ResumeWithAnswer_UsesCanonicalCheckpointAndNormalizesLabels(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("resume canonical checkpoint"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-canonical", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	agentSvc := &stubAgentService{
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-stale-from-client",
+		Answers: map[string]string{
+			"scope": "All policies",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "cp-canonical", agentSvc.resumeCheckpoint)
+	require.Contains(t, agentSvc.resumeAnswers, "scope")
+	assert.Equal(t, "all", agentSvc.resumeAnswers["scope"].String())
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	updatedQuestionData := messages[0].QuestionData()
+	require.NotNil(t, updatedQuestionData)
+	assert.Equal(t, types.QuestionStatusAnswered, updatedQuestionData.Status)
+	assert.Equal(t, "all", updatedQuestionData.Answers["scope"])
 }
 
-type stubRepoTx struct{}
+func TestChatService_ResumeWithAnswer_CheckpointNotFoundFinalizesAnswered(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("resume stale checkpoint"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-missing", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	agentSvc := &stubAgentService{
+		resumeErr: agents.ErrCheckpointNotFound,
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-missing",
+		Answers: map[string]string{
+			"scope": "all",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Nil(t, resp.AssistantMessage)
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	updatedQuestionData := messages[0].QuestionData()
+	require.NotNil(t, updatedQuestionData)
+	assert.Equal(t, types.QuestionStatusAnswered, updatedQuestionData.Status)
+	assert.Equal(t, "all", updatedQuestionData.Answers["scope"])
+}
+
+func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("reject stale checkpoint"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-missing", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	agentSvc := &stubAgentService{
+		resumeErr: agents.ErrCheckpointNotFound,
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	resp, err := svc.RejectPendingQuestion(t.Context(), session.ID())
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Nil(t, resp.AssistantMessage)
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	updatedQuestionData := messages[0].QuestionData()
+	require.NotNil(t, updatedQuestionData)
+	assert.Equal(t, types.QuestionStatusRejected, updatedQuestionData.Status)
+	assert.False(t, messages[0].HasPendingQuestion())
+}
+
+func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("Generating..."),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	agentSvc := &stubAgentService{
+		processEvents: []agents.ExecutorEvent{
+			{
+				Type:    agents.EventTypeContent,
+				Content: "partial assistant response",
+			},
+		},
+		processStreamErr: assert.AnError,
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	err := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+		SessionID: session.ID(),
+		Content:   "first user message",
+	}, func(_ bichatservices.StreamChunk) {})
+
+	require.ErrorIs(t, err, assert.AnError)
+
+	messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, msgErr)
+	require.Len(t, messages, 2)
+	assert.Equal(t, types.RoleUser, messages[0].Role())
+	assert.Equal(t, types.RoleAssistant, messages[1].Role())
+	assert.Equal(t, "partial assistant response", messages[1].Content())
+
+	select {
+	case <-titleService.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected async title generation to be invoked")
+	}
+}
+
+type delayedAssistantSaveChatRepository struct {
+	*mockChatRepository
+	delay time.Duration
+}
+
+func (r *delayedAssistantSaveChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
+	if msg.Role() == types.RoleAssistant && r.delay > 0 {
+		time.Sleep(r.delay)
+	}
+	return r.mockChatRepository.SaveMessage(ctx, msg)
+}
+
+func TestChatService_SendMessageStream_DoneEmittedAfterAssistantPersistence(t *testing.T) {
+	t.Parallel()
+
+	baseRepo := newMockChatRepository()
+	chatRepo := &delayedAssistantSaveChatRepository{
+		mockChatRepository: baseRepo,
+		delay:              120 * time.Millisecond,
+	}
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("stream ordering"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	agentSvc := &stubAgentService{
+		processEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "assistant response"},
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+
+	doneSawPersistedAssistant := false
+	err := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+		SessionID: session.ID(),
+		Content:   "hello",
+	}, func(chunk bichatservices.StreamChunk) {
+		if chunk.Type != bichatservices.ChunkTypeDone {
+			return
+		}
+		messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+		require.NoError(t, msgErr)
+		doneSawPersistedAssistant = len(messages) >= 2 && messages[len(messages)-1].Role() == types.RoleAssistant
+	})
+
+	require.NoError(t, err)
+	require.True(t, doneSawPersistedAssistant, "done must be emitted only after assistant message is persisted")
+}
+
+type assistantFailsWhenTxPresentRepo struct {
+	*mockChatRepository
+}
+
+func (r *assistantFailsWhenTxPresentRepo) SaveMessage(ctx context.Context, msg types.Message) error {
+	if msg.Role() == types.RoleAssistant && ctx.Value(constants.TxKey) != nil {
+		return errors.New("assistant save must not reuse request transaction")
+	}
+	return r.mockChatRepository.SaveMessage(ctx, msg)
+}
+
+func TestChatService_SendMessageStream_ClearsRequestTxForAsyncPersistence(t *testing.T) {
+	t.Parallel()
+
+	baseRepo := newMockChatRepository()
+	chatRepo := &assistantFailsWhenTxPresentRepo{mockChatRepository: baseRepo}
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("tx isolation"),
+	)
+	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
+
+	agentSvc := &stubAgentService{
+		processEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "assistant response"},
+			{Type: agents.EventTypeDone},
+		},
+	}
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+
+	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	err := svc.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+		SessionID: session.ID(),
+		UserID:    1,
+		Content:   "hello",
+	}, func(_ bichatservices.StreamChunk) {})
+	require.NoError(t, err)
+
+	messages, msgErr := chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
+	require.NoError(t, msgErr)
+	require.Len(t, messages, 2)
+	assert.Equal(t, types.RoleAssistant, messages[1].Role())
+}
+
+type captureTitleContextService struct {
+	called      chan context.Context
+	regenerated chan context.Context
+}
+
+type stubTitleJobQueue struct {
+	err       error
+	callCount int
+	tenantID  uuid.UUID
+	sessionID uuid.UUID
+}
 
 type stubAgentService struct {
-	resumeEvents []bichatservices.Event
+	processEvents    []agents.ExecutorEvent
+	processErr       error
+	processStreamErr error
+	resumeEvents     []agents.ExecutorEvent
+	resumeErr        error
+	resumeCheckpoint string
+	resumeAnswers    map[string]types.Answer
 }
 
-func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UUID, content string, attachments []domain.Attachment) (types.Generator[bichatservices.Event], error) {
-	return nil, assert.AnError
+func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UUID, content string, attachments []domain.Attachment) (types.Generator[agents.ExecutorEvent], error) {
+	if s.processErr != nil {
+		return nil, s.processErr
+	}
+	if len(s.processEvents) == 0 && s.processStreamErr == nil {
+		return nil, assert.AnError
+	}
+
+	evs := append([]agents.ExecutorEvent{}, s.processEvents...)
+	streamErr := s.processStreamErr
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
+		for _, ev := range evs {
+			if !yield(ev) {
+				return nil
+			}
+		}
+		return streamErr
+	}), nil
 }
 
-func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.UUID, checkpointID string, answers map[string]types.Answer) (types.Generator[bichatservices.Event], error) {
-	events := append([]bichatservices.Event{}, s.resumeEvents...)
-	return types.NewGenerator(ctx, func(ctx context.Context, yield func(bichatservices.Event) bool) error {
-		for _, ev := range events {
+func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.UUID, checkpointID string, answers map[string]types.Answer) (types.Generator[agents.ExecutorEvent], error) {
+	s.resumeCheckpoint = checkpointID
+	if answers != nil {
+		s.resumeAnswers = make(map[string]types.Answer, len(answers))
+		for k, v := range answers {
+			s.resumeAnswers[k] = v
+		}
+	} else {
+		s.resumeAnswers = nil
+	}
+	if s.resumeErr != nil {
+		return nil, s.resumeErr
+	}
+	evs := append([]agents.ExecutorEvent{}, s.resumeEvents...)
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
+		for _, ev := range evs {
 			if !yield(ev) {
 				return nil
 			}
@@ -357,11 +710,14 @@ func (s *captureTitleContextService) GenerateSessionTitle(ctx context.Context, _
 	return nil
 }
 
-func (stubRepoTx) CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error) {
-	return 0, nil
-}
-
-func (stubRepoTx) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults {
+func (s *captureTitleContextService) RegenerateSessionTitle(ctx context.Context, _ uuid.UUID) error {
+	if s.regenerated == nil {
+		return s.GenerateSessionTitle(ctx, uuid.Nil)
+	}
+	select {
+	case s.regenerated <- ctx:
+	default:
+	}
 	return nil
 }
 
@@ -378,6 +734,13 @@ func (stubRepoTx) QueryRow(context.Context, string, ...any) pgx.Row {
 	return nil
 }
 
+func (s *stubTitleJobQueue) Enqueue(_ context.Context, tenantID uuid.UUID, sessionID uuid.UUID) error {
+	s.callCount++
+	s.tenantID = tenantID
+	s.sessionID = sessionID
+	return s.err
+}
+
 func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T) {
 	t.Parallel()
 
@@ -385,11 +748,69 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 	titleService := &captureTitleContextService{
 		called: make(chan context.Context, 1),
 	}
+	queue := &stubTitleJobQueue{}
+	svc := &chatServiceImpl{
+		titleService: titleService,
+		titleQueue:   queue,
+	}
+
+	sessionID := uuid.New()
+	reqCtx := composables.WithTenantID(context.Background(), tenantID)
+	reqCtx = context.WithValue(reqCtx, constants.TxKey, "should-not-leak")
+	svc.maybeGenerateTitleAsync(reqCtx, sessionID)
+
+	require.Equal(t, 1, queue.callCount)
+	assert.Equal(t, tenantID, queue.tenantID)
+	assert.Equal(t, sessionID, queue.sessionID)
+
+	select {
+	case <-titleService.called:
+		t.Fatal("title service should not be called when queue enqueue succeeds")
+	default:
+	}
+}
+
+func TestChatService_GenerateSessionTitle_UsesRegenerationService(t *testing.T) {
+	t.Parallel()
+
+	titleService := &captureTitleContextService{
+		called:      make(chan context.Context, 1),
+		regenerated: make(chan context.Context, 1),
+	}
 	svc := &chatServiceImpl{
 		titleService: titleService,
 	}
 
+	err := svc.GenerateSessionTitle(context.Background(), uuid.New())
+	require.NoError(t, err)
+
+	select {
+	case <-titleService.regenerated:
+	default:
+		t.Fatal("expected regenerate method to be called")
+	}
+	select {
+	case <-titleService.called:
+		t.Fatal("expected auto-generation method not to be called")
+	default:
+	}
+}
+
+func TestChatService_MaybeGenerateTitleAsync_FallbackWhenQueueEnqueueFails(t *testing.T) {
+	t.Parallel()
+
+	tenantID := uuid.New()
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	queue := &stubTitleJobQueue{err: assert.AnError}
+	svc := &chatServiceImpl{
+		titleService: titleService,
+		titleQueue:   queue,
+	}
+
 	reqCtx := composables.WithTenantID(context.Background(), tenantID)
+	reqCtx = context.WithValue(reqCtx, constants.TxKey, "should-not-leak")
 	svc.maybeGenerateTitleAsync(reqCtx, uuid.New())
 
 	select {
@@ -398,18 +819,17 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 		require.NoError(t, err)
 		assert.Equal(t, tenantID, gotTenantID)
 	case <-time.After(2 * time.Second):
-		t.Fatal("expected async title generation to be invoked")
+		t.Fatal("expected sync fallback title generation to be invoked")
 	}
 }
 
-func TestBuildTitleGenerationContext_PreservesDatabaseExecutionContext(t *testing.T) {
+func TestBuildTitleGenerationContext_DoesNotCarryTx(t *testing.T) {
 	t.Parallel()
 
 	tenantID := uuid.New()
-	tx := stubRepoTx{}
 
 	reqCtx := composables.WithTenantID(context.Background(), tenantID)
-	reqCtx = context.WithValue(reqCtx, constants.TxKey, tx)
+	reqCtx = context.WithValue(reqCtx, constants.TxKey, "should-not-leak")
 
 	titleCtx := buildTitleGenerationContext(reqCtx)
 
@@ -417,10 +837,166 @@ func TestBuildTitleGenerationContext_PreservesDatabaseExecutionContext(t *testin
 	require.NoError(t, err)
 	assert.Equal(t, tenantID, gotTenantID)
 
-	gotTx, err := composables.UseTx(titleCtx)
-	require.NoError(t, err)
-	assert.Equal(t, tx, gotTx)
-
-	_, err = composables.UsePool(titleCtx)
+	_, err = composables.UseTx(titleCtx)
 	require.ErrorIs(t, err, composables.ErrNoPool)
+}
+
+func TestChatService_StopGeneration_NoErrorWhenNoActiveStream(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+	err := svc.StopGeneration(context.Background(), uuid.New())
+	require.NoError(t, err)
+}
+
+func TestChatService_SendMessageStream_ClientDisconnectStillPersistsAssistant(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("stop test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
+
+	agentSvc := &stubAgentService{
+		processEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "persist me"},
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	streamDone := make(chan struct{})
+	go func() {
+		defer close(streamDone)
+		_ = svc.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+			SessionID: session.ID(),
+			UserID:    1,
+			Content:   "hello",
+		}, func(chunk bichatservices.StreamChunk) {
+			if chunk.Type == bichatservices.ChunkTypeContent {
+				cancel()
+			}
+		})
+	}()
+
+	<-streamDone
+	var (
+		messages []types.Message
+		err      error
+	)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		messages, err = chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
+		require.NoError(t, err)
+		if len(messages) == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for assistant persistence, got %d messages", len(messages))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	require.Len(t, messages, 2, "assistant message should be persisted after client disconnect")
+	assert.Equal(t, types.RoleUser, messages[0].Role())
+	assert.Equal(t, types.RoleAssistant, messages[1].Role())
+	assert.Equal(t, "persist me", messages[1].Content())
+}
+
+func TestChatService_SendMessageStream_StopGenerationDoesNotPersistAssistant(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := domain.NewSession(
+		domain.WithTenantID(uuid.New()),
+		domain.WithUserID(1),
+		domain.WithTitle("stop test"),
+	)
+	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
+
+	cancelAgent := &cancelAwareAgentService{
+		events: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "partial"},
+		},
+	}
+
+	svc := NewChatService(chatRepo, cancelAgent, nil, nil, nil)
+	ctx := context.Background()
+	streamDone := make(chan struct{})
+	go func() {
+		defer close(streamDone)
+		_ = svc.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+			SessionID: session.ID(),
+			UserID:    1,
+			Content:   "hello",
+		}, func(_ bichatservices.StreamChunk) {})
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	require.NoError(t, svc.StopGeneration(context.Background(), session.ID()))
+	<-streamDone
+
+	messages, err := chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, messages, 1, "only user message should be persisted when stream is explicitly stopped")
+	assert.Equal(t, types.RoleUser, messages[0].Role())
+}
+
+type cancelAwareAgentService struct {
+	events []agents.ExecutorEvent
+}
+
+func (s *cancelAwareAgentService) ProcessMessage(ctx context.Context, _ uuid.UUID, _ string, _ []domain.Attachment) (types.Generator[agents.ExecutorEvent], error) {
+	evs := append([]agents.ExecutorEvent{}, s.events...)
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
+		for _, ev := range evs {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				if !yield(ev) {
+					return nil
+				}
+			}
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}), nil
+}
+
+func (s *cancelAwareAgentService) ResumeWithAnswer(context.Context, uuid.UUID, string, map[string]types.Answer) (types.Generator[agents.ExecutorEvent], error) {
+	return nil, assert.AnError
+}
+
+func TestChatService_GetStreamStatus_ReturnsInactiveWhenNoRun(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+	sessionID := uuid.New()
+	status, err := svc.GetStreamStatus(context.Background(), sessionID)
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.False(t, status.Active)
+}
+
+func TestChatService_ResumeStream_ReturnsErrWhenRunNotFound(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+	sessionID := uuid.New()
+	runID := uuid.New()
+	err := svc.ResumeStream(context.Background(), sessionID, runID, func(bichatservices.StreamChunk) {})
+	require.ErrorIs(t, err, bichatservices.ErrRunNotFoundOrFinished)
 }

@@ -342,7 +342,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
 	// Timeout errors vary by driver, just check that it failed
 }
 
-func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
+func TestPostgresQueryExecutor_ExecuteQuery_NoGlobalRowLimit(t *testing.T) {
 	t.Parallel()
 
 	requirePostgres(t)
@@ -376,7 +376,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
-	// Insert 1500 rows (exceeds 1000 row limit) with tenant_id
+	// Insert 1500 rows with tenant_id
 	_, err = env.Pool.Exec(env.Ctx, `
 		INSERT INTO test_large (tenant_id, value)
 		SELECT $1, generate_series(1, 1500)
@@ -387,9 +387,10 @@ func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
 	result, err := executor.ExecuteQuery(env.Ctx, "SELECT * FROM analytics.analytics_test_large", nil, 10*time.Second)
 	require.NoError(t, err)
 
-	// Should be limited to 1000 rows
-	assert.Equal(t, 1000, result.RowCount)
-	assert.True(t, result.Truncated)
+	// Executor should not apply a global 1000-row cap.
+	assert.Equal(t, 1500, result.RowCount)
+	assert.Len(t, result.Rows, 1500)
+	assert.False(t, result.Truncated)
 }
 
 func TestPostgresQueryExecutor_FormatValue(t *testing.T) {

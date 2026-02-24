@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -208,7 +209,7 @@ func main() {
 				kbIndexPath = filepath.Join(conf.UploadsPath, "bichat", "knowledge.bleve")
 			}
 			if kbIndexPath != "" {
-				if err := os.MkdirAll(filepath.Dir(kbIndexPath), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Dir(kbIndexPath), 0750); err != nil {
 					logger.Warnf("Failed to create KB index directory: %v", err)
 				} else {
 					_, kbSearcher, kbErr := kb.NewBleveIndex(kbIndexPath)
@@ -279,7 +280,11 @@ func main() {
 						if err != nil {
 							panic(err) // Fail fast if user context missing
 						}
-						return int64(user.ID())
+						uid := uint64(user.ID())
+						if uid > math.MaxInt64 {
+							panic("user id overflows int64")
+						}
+						return int64(uid) // #nosec G115 -- bounded by the MaxInt64 guard above
 					},
 					chatRepo,
 					model,

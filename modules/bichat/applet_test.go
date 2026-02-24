@@ -26,9 +26,9 @@ func (m *appletTestModel) Stream(ctx context.Context, req agents.Request, opts .
 
 func (m *appletTestModel) Info() agents.ModelInfo {
 	return agents.ModelInfo{
-		Name:          "gpt-5.2-2025-12-11",
+		Name:          "gpt-5.2",
 		Provider:      "openai",
-		ContextWindow: 272000,
+		ContextWindow: 400000,
 	}
 }
 
@@ -43,7 +43,7 @@ func (m *appletTestModel) Pricing() agents.ModelPricing {
 func TestBiChatApplet_Config(t *testing.T) {
 	t.Parallel()
 
-	bichatApplet := NewBiChatApplet(nil)
+	bichatApplet := NewBiChatApplet(nil, nil)
 	config := bichatApplet.Config()
 
 	t.Run("WindowGlobal", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestBiChatApplet_Config_BasePathDerivedValues(t *testing.T) {
 		},
 		{
 			name:               "config with features derives base path correctly",
-			moduleConfig:       &ModuleConfig{EnableVision: true},
+			moduleConfig:       &ModuleConfig{Capabilities: Capabilities{Vision: true}},
 			expectedBasePath:   "/bi-chat",
 			expectedStreamPath: "/bi-chat/stream",
 		},
@@ -114,7 +114,7 @@ func TestBiChatApplet_Config_BasePathDerivedValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bichatApplet := NewBiChatApplet(tt.moduleConfig)
+			bichatApplet := NewBiChatApplet(tt.moduleConfig, nil)
 			basePath := bichatApplet.BasePath()
 			config := bichatApplet.Config()
 
@@ -128,7 +128,7 @@ func TestBiChatApplet_Config_BasePathDerivedValues(t *testing.T) {
 func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {
 	t.Parallel()
 
-	bichatApplet := NewBiChatApplet(nil)
+	bichatApplet := NewBiChatApplet(nil, nil)
 	ctx := context.Background()
 
 	custom, err := bichatApplet.buildCustomContext(ctx)
@@ -165,17 +165,19 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 
 	// Create config with some features enabled
 	config := &ModuleConfig{
-		EnableVision:          true,
-		EnableWebSearch:       false,
-		EnableCodeInterpreter: true,
-		EnableMultiAgent:      false,
+		Capabilities: Capabilities{
+			Vision:          true,
+			WebSearch:       false,
+			CodeInterpreter: true,
+			MultiAgent:      false,
+		},
 		ContextPolicy: bichatcontext.ContextPolicy{
-			ContextWindow:     180000,
+			ContextWindow:     200000,
 			CompletionReserve: 8000,
 		},
 	}
 
-	bichatApplet := NewBiChatApplet(config)
+	bichatApplet := NewBiChatApplet(config, nil)
 	ctx := context.Background()
 
 	custom, err := bichatApplet.buildCustomContext(ctx)
@@ -201,34 +203,10 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 	require.True(t, ok)
 	limits, ok := debug["limits"].(map[string]int)
 	require.True(t, ok)
-	assert.Equal(t, 180000, limits["policyMaxTokens"])
+	assert.Equal(t, 200000, limits["policyMaxTokens"])
 	assert.Equal(t, 0, limits["modelMaxTokens"])
-	assert.Equal(t, 180000, limits["effectiveMaxTokens"])
+	assert.Equal(t, 200000, limits["effectiveMaxTokens"])
 	assert.Equal(t, 8000, limits["completionReserveTokens"])
-}
-
-func TestBiChatApplet_SetConfig(t *testing.T) {
-	t.Parallel()
-
-	// Create applet without config
-	bichatApplet := NewBiChatApplet(nil)
-	assert.Nil(t, bichatApplet.config)
-
-	// Set config
-	config := &ModuleConfig{
-		EnableVision: true,
-	}
-	bichatApplet.SetConfig(config)
-	assert.NotNil(t, bichatApplet.config)
-	assert.True(t, bichatApplet.config.EnableVision)
-
-	// Verify custom context reflects new config
-	ctx := context.Background()
-	custom, err := bichatApplet.buildCustomContext(ctx)
-	require.NoError(t, err)
-
-	features := custom["features"].(map[string]bool)
-	assert.True(t, features["vision"])
 }
 
 func TestBiChatApplet_buildCustomContext_UsesEffectiveContextWindow(t *testing.T) {
@@ -241,7 +219,7 @@ func TestBiChatApplet_buildCustomContext_UsesEffectiveContextWindow(t *testing.T
 		},
 	}
 
-	bichatApplet := NewBiChatApplet(config)
+	bichatApplet := NewBiChatApplet(config, nil)
 	custom, err := bichatApplet.buildCustomContext(context.Background())
 	require.NoError(t, err)
 
@@ -251,30 +229,33 @@ func TestBiChatApplet_buildCustomContext_UsesEffectiveContextWindow(t *testing.T
 	require.True(t, ok)
 	assert.Equal(t, 180000, limits["effectiveMaxTokens"])
 	assert.Equal(t, 180000, limits["policyMaxTokens"])
-	assert.Equal(t, 272000, limits["modelMaxTokens"])
+	assert.Equal(t, 400000, limits["modelMaxTokens"])
 }
 
-func TestModuleConfig_FeatureFlagOptions(t *testing.T) {
+func TestModuleConfig_CapabilityAndModeOptions(t *testing.T) {
 	t.Parallel()
 
 	// Create base config (no options would normally be used with NewModuleConfig, but this tests the options)
 	config := &ModuleConfig{}
 
-	// Apply feature flag options
+	// Apply capability/mode options
 	opts := []ConfigOption{
-		WithVision(true),
-		WithWebSearch(true),
-		WithCodeInterpreter(false),
-		WithMultiAgent(true),
+		WithCapabilities(Capabilities{
+			Vision:    true,
+			WebSearch: true,
+		}),
+		WithCodeInterpreterMemoryLimit("16g"),
+		WithAttachmentStorageMode(AttachmentStorageModeNoOp),
 	}
 
 	for _, opt := range opts {
 		opt(config)
 	}
 
-	// Verify flags are set correctly
-	assert.True(t, config.EnableVision)
-	assert.True(t, config.EnableWebSearch)
-	assert.False(t, config.EnableCodeInterpreter)
-	assert.True(t, config.EnableMultiAgent)
+	// Verify options are set correctly
+	assert.True(t, config.Capabilities.Vision)
+	assert.True(t, config.Capabilities.WebSearch)
+	assert.False(t, config.Capabilities.CodeInterpreter)
+	assert.Equal(t, "16g", config.CodeInterpreterMemoryLimit)
+	assert.Equal(t, AttachmentStorageModeNoOp, config.AttachmentStorageMode)
 }

@@ -244,6 +244,7 @@ type TableProps struct {
 	NoTBody              bool
 	ScrollbarPosition    ScrollbarPosition
 	ScrollbarUnderHeader bool
+	ScrollbarGutter      bool
 }
 
 func Table(props TableProps) templ.Component {
@@ -279,7 +280,7 @@ func Table(props TableProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<style>\n\t\t\tth:has(+ .sticky),\n\t\t\ttd:has(+ .sticky) {\n\t\t\t\tborder-right-color: transparent !important;\n\t\t\t}\n\t\t</style>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<style>\n\t\t\tth:has(+ .sticky),\n\t\t\ttd:has(+ .sticky) {\n\t\t\t\tborder-right-color: transparent !important;\n\t\t\t}\n\t\t\t/* Nowrap utility */\n\t\t\t.table-nowrap td, .table-nowrap th { white-space: nowrap; }\n\n\t\t\t/* Filler rows */\n\t\t\t.table-filler-rows tbody td { border-bottom: 1px solid oklch(var(--clr-border-primary)); }\n\t\t\t.table-filler-rows .grid-filler td {\n\t\t\t\tpadding: 0;\n\t\t\t\tborder-right: 1px solid oklch(var(--clr-border-primary));\n\t\t\t\tborder-bottom: 1px solid oklch(var(--clr-border-primary));\n\t\t\t}\n\t\t\t.table-filler-rows .grid-filler td:last-child { border-right: 0; }\n\t\t\t.table-filler-rows .grid-filler td.grid-sticky-right {\n\t\t\t\tposition: sticky;\n\t\t\t\tright: 0;\n\t\t\t\tbackground-color: oklch(var(--clr-surface-600));\n\t\t\t\tborder-left: 1px solid oklch(var(--clr-border-primary));\n\t\t\t\tborder-right: 0;\n\t\t\t}\n\t\t\t.table-filler-rows .grid-filler td:has(+ td.grid-sticky-right) { border-right: 0; }\n\n\t\t\t/* Grid toggle */\n\t\t\t.table-grid-no-vertical td,\n\t\t\t.table-grid-no-vertical th { border-right-color: transparent !important; }\n\t\t\t.table-grid-no-vertical .grid-sticky-right { border-left-color: transparent !important; }\n\t\t\t.table-grid-no-horizontal tbody td { border-bottom-color: transparent !important; }\n\n\t\t\t/* Container height (filler rows need 100% height through the full chain) */\n\t\t\t.table-filler-container,\n\t\t\t.table-filler-container > #sortable-table-container,\n\t\t\t.table-filler-container > #sortable-table-container > div { height: 100%; }\n\n\t\t\t/* Scrollbar gutter */\n\t\t\t.table-scrollbar-gutter { scrollbar-gutter: stable; }\n\t\t\t.table-scrollbar-gutter > table { height: auto; }\n\t\t\t.table-scrollbar-gutter ~ [class*=\"z-[11]\"] { display: none; }\n\t\t</style>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -290,11 +291,11 @@ func Table(props TableProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if props.ScrollbarUnderHeader {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"relative\" x-data=\"{\n\t\t\t\tsyncing: false,\n\t\t\t\tproxyW: 0,\n\t\t\t\theadH: 0,\n\t\t\t\tsbGap: 0,\n\t\t\t\tstickyR: 0,\n\t\t\t\tinit() {\n\t\t\t\t\tthis.$nextTick(() =&gt; this.measure());\n\t\t\t\t\tnew ResizeObserver(() =&gt; this.measure()).observe(this.$refs.sc);\n\t\t\t\t\tnew MutationObserver(() =&gt; requestAnimationFrame(() =&gt; this.measure())).observe(\n\t\t\t\t\t\tthis.$refs.sc.querySelector(&#39;tbody&#39;) || this.$refs.sc,\n\t\t\t\t\t\t{ childList: true, subtree: true }\n\t\t\t\t\t);\n\t\t\t\t\tthis.$refs.sc.addEventListener(&#39;wheel&#39;, (e) =&gt; {\n\t\t\t\t\t\tif (e.deltaX !== 0) { this.$refs.sc.scrollLeft += e.deltaX; }\n\t\t\t\t\t}, { passive: true });\n\t\t\t\t},\n\t\t\t\tmeasure() {\n\t\t\t\t\tconst sc = this.$refs.sc;\n\t\t\t\t\tthis.proxyW = sc.scrollWidth;\n\t\t\t\t\tthis.headH = sc.querySelector(&#39;thead&#39;)?.offsetHeight || 0;\n\t\t\t\t\tthis.sbGap = sc.offsetWidth - sc.clientWidth;\n\t\t\t\t\tlet sr = 0;\n\t\t\t\t\tsc.querySelectorAll(&#39;thead th&#39;).forEach(th =&gt; {\n\t\t\t\t\t\tconst s = getComputedStyle(th);\n\t\t\t\t\t\tif (s.position === &#39;sticky&#39; &amp;&amp; s.right !== &#39;auto&#39;) sr += th.offsetWidth;\n\t\t\t\t\t});\n\t\t\t\t\tthis.stickyR = sr;\n\t\t\t\t},\n\t\t\t\tonScroll() { if(!this.syncing){this.syncing=true; this.$refs.proxy.scrollLeft=this.$refs.sc.scrollLeft; this.$nextTick(()=&gt;this.syncing=false)} },\n\t\t\t\tonProxy() { if(!this.syncing){this.syncing=true; this.$refs.sc.scrollLeft=this.$refs.proxy.scrollLeft; this.$nextTick(()=&gt;this.syncing=false)} }\n\t\t\t}\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"relative\" x-data=\"{\n\t\t\t\tsyncing: false,\n\t\t\t\tproxyW: 0,\n\t\t\t\theadH: 0,\n\t\t\t\tsbGap: 0,\n\t\t\t\tstickyR: 0,\n\t\t\t\tinit() {\n\t\t\t\t\tconst sc = this.$refs.sc;\n\t\t\t\t\tif (!sc) return;\n\t\t\t\t\tthis.$nextTick(() =&gt; this.measure());\n\t\t\t\t\tthis._ro = new ResizeObserver(() =&gt; this.measure());\n\t\t\t\t\tthis._ro.observe(sc);\n\t\t\t\t\tthis._mo = new MutationObserver(() =&gt; requestAnimationFrame(() =&gt; this.measure()));\n\t\t\t\t\tthis._mo.observe(\n\t\t\t\t\t\tsc.querySelector(&#39;tbody&#39;) || sc,\n\t\t\t\t\t\t{ childList: true, subtree: true }\n\t\t\t\t\t);\n\t\t\t\t\tsc.addEventListener(&#39;wheel&#39;, (e) =&gt; {\n\t\t\t\t\t\tif (e.deltaX !== 0) { sc.scrollLeft += e.deltaX; }\n\t\t\t\t\t}, { passive: true });\n\t\t\t\t},\n\t\t\t\tdestroy() {\n\t\t\t\t\tif (this._ro) this._ro.disconnect();\n\t\t\t\t\tif (this._mo) this._mo.disconnect();\n\t\t\t\t},\n\t\t\t\tmeasure() {\n\t\t\t\t\tconst sc = this.$refs.sc;\n\t\t\t\t\tif (!sc || !sc.isConnected) return;\n\t\t\t\t\tthis.proxyW = sc.scrollWidth;\n\t\t\t\t\tthis.headH = sc.querySelector(&#39;thead&#39;)?.offsetHeight || 0;\n\t\t\t\t\tthis.sbGap = sc.offsetWidth - sc.clientWidth;\n\t\t\t\t\tlet sr = 0;\n\t\t\t\t\tsc.querySelectorAll(&#39;thead th&#39;).forEach(th =&gt; {\n\t\t\t\t\t\tconst s = getComputedStyle(th);\n\t\t\t\t\t\tif (s.position === &#39;sticky&#39; &amp;&amp; s.right !== &#39;auto&#39;) sr += th.offsetWidth;\n\t\t\t\t\t});\n\t\t\t\t\tthis.stickyR = sr;\n\t\t\t\t},\n\t\t\t\tonScroll() { if(!this.syncing){this.syncing=true; this.$refs.proxy.scrollLeft=this.$refs.sc.scrollLeft; this.$nextTick(()=&gt;this.syncing=false)} },\n\t\t\t\tonProxy() { if(!this.syncing){this.syncing=true; this.$refs.sc.scrollLeft=this.$refs.proxy.scrollLeft; this.$nextTick(()=&gt;this.syncing=false)} }\n\t\t\t}\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var7 = []any{twmerge.Merge(templ.Classes("overflow-y-auto overflow-x-hidden relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String())}
+			var templ_7745c5c3_Var7 = []any{twmerge.Merge(templ.Classes("overflow-y-auto overflow-x-hidden relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), templ.KV("table-scrollbar-gutter", props.ScrollbarGutter), props.WrapperClasses.String()).String())}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var7...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -426,7 +427,7 @@ func Table(props TableProps) templ.Component {
 						var templ_7745c5c3_Var15 string
 						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 229, Col: 29}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 274, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
@@ -456,7 +457,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(col.SortURL)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 239, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 284, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -487,7 +488,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 249, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 294, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -565,7 +566,7 @@ func Table(props TableProps) templ.Component {
 						var templ_7745c5c3_Var20 string
 						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 273, Col: 29}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 318, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 						if templ_7745c5c3_Err != nil {
@@ -609,7 +610,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 287, Col: 23}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 332, Col: 23}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -692,7 +693,7 @@ func Table(props TableProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			var templ_7745c5c3_Var24 = []any{twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), props.WrapperClasses.String()).String())}
+			var templ_7745c5c3_Var24 = []any{twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), templ.KV("table-scrollbar-gutter", props.ScrollbarGutter), props.WrapperClasses.String()).String())}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var24...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -824,7 +825,7 @@ func Table(props TableProps) templ.Component {
 						var templ_7745c5c3_Var32 string
 						templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 362, Col: 28}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 407, Col: 28}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 						if templ_7745c5c3_Err != nil {
@@ -854,7 +855,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var33 string
 					templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(col.SortURL)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 373, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 418, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 					if templ_7745c5c3_Err != nil {
@@ -885,7 +886,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var34 string
 					templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 383, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 428, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 					if templ_7745c5c3_Err != nil {
@@ -963,7 +964,7 @@ func Table(props TableProps) templ.Component {
 						var templ_7745c5c3_Var37 string
 						templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 407, Col: 28}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 452, Col: 28}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 						if templ_7745c5c3_Err != nil {
@@ -1007,7 +1008,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var38 string
 					templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 422, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 467, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 					if templ_7745c5c3_Err != nil {

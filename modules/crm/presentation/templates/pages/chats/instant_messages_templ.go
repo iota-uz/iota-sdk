@@ -91,7 +91,7 @@ func InstantMessagesDialog(props InstantMessagesDialogProps) templ.Component {
 		}
 		var templ_7745c5c3_Var4 = []any{
 			"py-3 px-4 min-h-36 min-w-96",
-			templ.KV("grid grid-cols-3 items-center justify-center gap-2", len(props.Templates) > 0),
+			templ.KV("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 items-center justify-center gap-2", len(props.Templates) > 0),
 			templ.KV("flex flex-col items-center justify-center gap-2", len(props.Templates) == 0),
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)

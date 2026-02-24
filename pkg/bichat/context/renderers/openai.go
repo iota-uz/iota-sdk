@@ -211,11 +211,28 @@ func (r *OpenAIRenderer) renderTurn(block context.ContextBlock) (context.Rendere
 					if v, ok := attMap["reference"].(string); ok {
 						reference = v
 					}
+					var uploadID *int64
+					if v, ok := attMap["uploadId"].(float64); ok {
+						parsed := int64(v)
+						if parsed > 0 {
+							uploadID = &parsed
+						}
+					} else if v, ok := attMap["uploadId"].(int64); ok {
+						if v > 0 {
+							uploadID = &v
+						}
+					} else if v, ok := attMap["uploadId"].(int); ok {
+						parsed := int64(v)
+						if parsed > 0 {
+							uploadID = &parsed
+						}
+					}
 					turnPayload.Attachments = append(turnPayload.Attachments, codecs.TurnAttachment{
 						FileName:  fileName,
 						MimeType:  mimeType,
 						SizeBytes: sizeBytes,
 						Reference: reference,
+						UploadID:  uploadID,
 					})
 				}
 			}
@@ -245,6 +262,7 @@ func (r *OpenAIRenderer) renderTurn(block context.ContextBlock) (context.Rendere
 
 		attachments = append(attachments, types.Attachment{
 			ID:        attID,
+			UploadID:  att.UploadID,
 			FileName:  att.FileName,
 			MimeType:  att.MimeType,
 			SizeBytes: att.SizeBytes,

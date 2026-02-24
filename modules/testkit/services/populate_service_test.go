@@ -3,6 +3,7 @@ package services_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -13,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -484,6 +486,54 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 
 func TestPopulateService_TenantWithUsers(t *testing.T) {
 	t.Parallel()
+
+	t.Run("CreateUserWithTwoFactorFields", func(t *testing.T) {
+		f := setupTest(t)
+
+		populateService := services.NewPopulateService(f.App)
+		userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+
+		tenantID := uuid.New()
+		enabledAt := time.Now().UTC().Round(time.Second)
+		req := &schemas.PopulateRequest{
+			Tenant: &schemas.TenantSpec{
+				ID:   tenantID.String(),
+				Name: "Tenant with 2FA User",
+			},
+			Data: &schemas.DataSpec{
+				Users: []schemas.UserSpec{
+					{
+						Email:               "twofactor@test.com",
+						FirstName:           "Two",
+						LastName:            "Factor",
+						Password:            "Password123!",
+						TwoFactorMethod:     string(pkgtwofactor.MethodTOTP),
+						TOTPSecretEncrypted: "ENCRYPTED_TOTP_SECRET",
+						TwoFactorEnabledAt:  enabledAt.Format(time.RFC3339),
+					},
+				},
+			},
+		}
+
+		tx, err := f.Pool.Begin(f.Ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(f.Ctx) }()
+
+		logger := logrus.New()
+		ctxWithTx := context.WithValue(composables.WithTx(f.Ctx, tx), constants.LoggerKey, logrus.NewEntry(logger))
+
+		_, err = populateService.Execute(ctxWithTx, req)
+		require.NoError(t, err)
+		require.NoError(t, tx.Commit(ctxWithTx))
+
+		ctxWithTenant := composables.WithTenantID(f.Ctx, tenantID)
+		createdUser, err := userRepo.GetByEmail(ctxWithTenant, "twofactor@test.com")
+		require.NoError(t, err)
+
+		assert.Equal(t, pkgtwofactor.MethodTOTP, createdUser.TwoFactorMethod())
+		assert.Equal(t, "ENCRYPTED_TOTP_SECRET", createdUser.TOTPSecretEncrypted())
+		assert.WithinDuration(t, enabledAt, createdUser.TwoFactorEnabledAt().UTC(), time.Second)
+	})
 
 	t.Run("CreateTenantAndUsers", func(t *testing.T) {
 		f := setupTest(t)

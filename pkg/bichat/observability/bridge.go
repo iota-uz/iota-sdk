@@ -3,8 +3,8 @@ package observability
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +16,8 @@ import (
 
 // simplePendingGeneration tracks an LLM request waiting for its response (simple bridge).
 type simplePendingGeneration struct {
+	traceID         string
+	requestID       string
 	sessionID       uuid.UUID
 	timestamp       time.Time
 	messages        int
@@ -85,9 +87,10 @@ type EventBridge struct {
 	// Correlation state
 	mu                 sync.RWMutex
 	pendingGenerations map[string]*simplePendingGeneration
-	agentSpans         map[uuid.UUID]*agentSpanState     // sessionID → agent span state
-	lastGenerationIDs  map[uuid.UUID]string              // sessionID → last generation span ID
-	sessionTags        map[uuid.UUID]map[string]struct{} // sessionID → accumulated dynamic tags
+	agentSpans         map[string]*agentSpanState     // traceID → agent span state
+	lastGenerationIDs  map[string]string              // traceID → last generation span ID
+	traceTags          map[string]map[string]struct{} // traceID → accumulated dynamic tags
+	sessionTraceIDs    map[uuid.UUID]string           // sessionID → most recent active traceID
 	cleanupStop        chan struct{}
 	cleanupDone        chan struct{}
 }
@@ -118,9 +121,10 @@ func NewEventBridge(eventBus hooks.EventBus, providers []Provider, opts ...Bridg
 		providers:          providers,
 		handlers:           make([]hooks.EventHandler, 0, len(providers)),
 		pendingGenerations: make(map[string]*simplePendingGeneration),
-		agentSpans:         make(map[uuid.UUID]*agentSpanState),
-		lastGenerationIDs:  make(map[uuid.UUID]string),
-		sessionTags:        make(map[uuid.UUID]map[string]struct{}),
+		agentSpans:         make(map[string]*agentSpanState),
+		lastGenerationIDs:  make(map[string]string),
+		traceTags:          make(map[string]map[string]struct{}),
+		sessionTraceIDs:    make(map[uuid.UUID]string),
 		cleanupStop:        make(chan struct{}),
 		cleanupDone:        make(chan struct{}),
 	}
@@ -206,14 +210,18 @@ func (b *EventBridge) cleanupOrphans() {
 	}
 }
 
-// addSessionTag records a dynamic tag for a session (caller must NOT hold the lock).
-func (b *EventBridge) addSessionTag(sessionID uuid.UUID, tag string) {
+// addTraceTag records a dynamic tag for a trace/run (caller must NOT hold the lock).
+func (b *EventBridge) addTraceTag(traceID string, tag string) {
+	traceID = strings.TrimSpace(traceID)
+	if traceID == "" || strings.TrimSpace(tag) == "" {
+		return
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.sessionTags[sessionID] == nil {
-		b.sessionTags[sessionID] = make(map[string]struct{})
+	if b.traceTags[traceID] == nil {
+		b.traceTags[traceID] = make(map[string]struct{})
 	}
-	b.sessionTags[sessionID][tag] = struct{}{}
+	b.traceTags[traceID][tag] = struct{}{}
 }
 
 // performCleanup removes orphaned pending observations.
@@ -232,12 +240,38 @@ func (b *EventBridge) performCleanup() {
 		}
 	}
 
-	// Cleanup session tags for sessions without active agent spans (stale)
-	for sid := range b.sessionTags {
-		if _, hasSpan := b.agentSpans[sid]; !hasSpan {
-			delete(b.sessionTags, sid)
+	// Cleanup trace tags for traces without active agent spans (stale)
+	for traceID := range b.traceTags {
+		if _, hasSpan := b.agentSpans[traceID]; !hasSpan {
+			delete(b.traceTags, traceID)
 		}
 	}
+}
+
+func eventTraceID(event hooks.Event) string {
+	if event == nil {
+		return ""
+	}
+	if withTrace, ok := event.(interface{ TraceID() string }); ok {
+		if traceID := strings.TrimSpace(withTrace.TraceID()); traceID != "" {
+			return traceID
+		}
+	}
+	return event.SessionID().String()
+}
+
+func mapToolCallSummary(items []events.LLMToolCallSummary) []ToolCallSummary {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]ToolCallSummary, 0, len(items))
+	for _, item := range items {
+		out = append(out, ToolCallSummary{
+			CallID: item.CallID,
+			Name:   item.Name,
+		})
+	}
+	return out
 }
 
 // llmRequestHandler captures LLM requests for correlation.
@@ -254,10 +288,14 @@ func (h *llmRequestHandler) Handle(ctx context.Context, event hooks.Event) error
 	h.bridge.mu.Lock()
 	defer h.bridge.mu.Unlock()
 
-	// Create correlation key: sessionID + timestamp (truncated to second)
-	correlationKey := fmt.Sprintf("%s-%d", llmEvent.SessionID().String(), llmEvent.Timestamp().Unix())
+	requestID := strings.TrimSpace(llmEvent.RequestID)
+	if requestID == "" {
+		return nil
+	}
 
-	h.bridge.pendingGenerations[correlationKey] = &simplePendingGeneration{
+	h.bridge.pendingGenerations[requestID] = &simplePendingGeneration{
+		traceID:         eventTraceID(llmEvent),
+		requestID:       requestID,
 		sessionID:       llmEvent.SessionID(),
 		timestamp:       llmEvent.Timestamp(),
 		messages:        llmEvent.Messages,
@@ -280,14 +318,19 @@ func (h *agentStartHandler) Handle(_ context.Context, event hooks.Event) error {
 	if !ok {
 		return nil
 	}
+	traceID := eventTraceID(e)
+	if traceID == "" {
+		return nil
+	}
 	h.bridge.mu.Lock()
 	defer h.bridge.mu.Unlock()
-	if _, exists := h.bridge.agentSpans[e.SessionID()]; !exists {
-		h.bridge.agentSpans[e.SessionID()] = &agentSpanState{
+	if _, exists := h.bridge.agentSpans[traceID]; !exists {
+		h.bridge.agentSpans[traceID] = &agentSpanState{
 			spanID:    uuid.New().String(),
 			startTime: e.Timestamp(),
 		}
 	}
+	h.bridge.sessionTraceIDs[e.SessionID()] = traceID
 	return nil
 }
 
@@ -336,6 +379,7 @@ func (h *providerHandler) handleAgentStart(_ context.Context, _ *events.AgentSta
 
 func (h *providerHandler) finalizeAgentSpan(
 	ctx context.Context,
+	traceID string,
 	sessionID uuid.UUID,
 	tenantID uuid.UUID,
 	timestamp time.Time,
@@ -344,13 +388,25 @@ func (h *providerHandler) finalizeAgentSpan(
 	output string,
 	attrs map[string]interface{},
 ) error {
+	traceID = strings.TrimSpace(traceID)
+	if traceID == "" {
+		traceID = sessionID.String()
+	}
+
 	h.bridge.mu.Lock()
-	as := h.bridge.agentSpans[sessionID]
-	delete(h.bridge.agentSpans, sessionID)
-	delete(h.bridge.lastGenerationIDs, sessionID)
-	// Collect and remove accumulated session tags.
-	dynTags := h.bridge.sessionTags[sessionID]
-	delete(h.bridge.sessionTags, sessionID)
+	as := h.bridge.agentSpans[traceID]
+	delete(h.bridge.agentSpans, traceID)
+	delete(h.bridge.lastGenerationIDs, traceID)
+	// Collect and remove accumulated trace tags.
+	dynTags := h.bridge.traceTags[traceID]
+	delete(h.bridge.traceTags, traceID)
+	// Prune sessionTraceIDs so this trace no longer keeps the map growing.
+	for sid, tid := range h.bridge.sessionTraceIDs {
+		if tid == traceID {
+			delete(h.bridge.sessionTraceIDs, sid)
+			break
+		}
+	}
 	h.bridge.mu.Unlock()
 
 	spanID := ""
@@ -371,7 +427,7 @@ func (h *providerHandler) finalizeAgentSpan(
 
 	obs := SpanObservation{
 		ID:         spanID,
-		TraceID:    sessionID.String(),
+		TraceID:    traceID,
 		TenantID:   tenantID,
 		SessionID:  sessionID,
 		Timestamp:  startTime,
@@ -396,14 +452,14 @@ func (h *providerHandler) finalizeAgentSpan(
 			tags = append(tags, t)
 		}
 		slices.Sort(tags)
-		_ = tagUpdater.UpdateTraceTags(ctx, sessionID.String(), tags)
+		_ = tagUpdater.UpdateTraceTags(ctx, traceID, tags)
 	}
 
 	return nil
 }
 
 func (h *providerHandler) handleAgentComplete(ctx context.Context, e *events.AgentCompleteEvent) error {
-	return h.finalizeAgentSpan(ctx, e.SessionID(), e.TenantID(), e.Timestamp(), e.DurationMs, "success", "", map[string]interface{}{
+	return h.finalizeAgentSpan(ctx, eventTraceID(e), e.SessionID(), e.TenantID(), e.Timestamp(), e.DurationMs, "success", "", map[string]interface{}{
 		"agent_name":   e.AgentName,
 		"iterations":   e.Iterations,
 		"total_tokens": e.TotalTokens,
@@ -412,9 +468,9 @@ func (h *providerHandler) handleAgentComplete(ctx context.Context, e *events.Age
 
 func (h *providerHandler) handleAgentError(ctx context.Context, e *events.AgentErrorEvent) error {
 	// Accumulate dynamic tag for error.
-	h.bridge.addSessionTag(e.SessionID(), "error")
+	h.bridge.addTraceTag(eventTraceID(e), "error")
 
-	return h.finalizeAgentSpan(ctx, e.SessionID(), e.TenantID(), e.Timestamp(), e.DurationMs, "error", e.Error, map[string]interface{}{
+	return h.finalizeAgentSpan(ctx, eventTraceID(e), e.SessionID(), e.TenantID(), e.Timestamp(), e.DurationMs, "error", e.Error, map[string]interface{}{
 		"agent_name": e.AgentName,
 		"iterations": e.Iterations,
 		"error":      e.Error,
@@ -422,30 +478,33 @@ func (h *providerHandler) handleAgentError(ctx context.Context, e *events.AgentE
 }
 
 func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMResponseEvent) error {
-	// Find matching pending generation (correlation)
-	var matchedGen *simplePendingGeneration
+	traceID := eventTraceID(e)
+	if traceID == "" {
+		traceID = e.SessionID().String()
+	}
 
-	// Single RLock to read both pending generation correlation and agent span parent.
+	requestID := strings.TrimSpace(e.RequestID)
+	var matchedGen *simplePendingGeneration
+	observationReason := strings.TrimSpace(e.ObservationReason)
+
 	h.bridge.mu.RLock()
-	// Search within correlation window (30 seconds)
-	for _, pending := range h.bridge.pendingGenerations {
-		if pending.sessionID == e.SessionID() {
-			timeDiff := e.Timestamp().Sub(pending.timestamp)
-			if timeDiff >= 0 && timeDiff < 30*time.Second {
-				matchedGen = pending
-				break
-			}
-		}
+	if requestID != "" {
+		matchedGen = h.bridge.pendingGenerations[requestID]
 	}
 	var agentSpanID string
-	if as := h.bridge.agentSpans[e.SessionID()]; as != nil {
+	if as := h.bridge.agentSpans[traceID]; as != nil {
 		agentSpanID = as.spanID
 	}
 	h.bridge.mu.RUnlock()
 
-	// NOTE: We don't delete the correlation data here to support multi-provider.
-	// Multiple providers can use the same correlation data.
-	// Orphan cleanup will remove stale entries after 5 minutes.
+	if observationReason == "" {
+		switch {
+		case requestID == "":
+			observationReason = "missing_request_id"
+		case matchedGen == nil:
+			observationReason = "missing_request_match"
+		}
+	}
 
 	// Populate observation with correlated data (graceful degradation)
 	promptMessages := 0
@@ -455,6 +514,9 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		promptMessages = matchedGen.messages
 		tools = matchedGen.tools
 		userInput = matchedGen.userInput
+		if matchedGen.traceID != "" {
+			traceID = matchedGen.traceID
+		}
 	}
 
 	attrs := make(map[string]interface{})
@@ -497,35 +559,38 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 	}
 
 	obs := GenerationObservation{
-		ID:               genID,
-		TraceID:          e.SessionID().String(),
-		ParentID:         agentSpanID,
-		TenantID:         e.TenantID(),
-		SessionID:        e.SessionID(),
-		UserID:           userID,
-		UserEmail:        userEmail,
-		Timestamp:        e.Timestamp(),
-		Model:            e.Model,
-		Provider:         e.Provider,
-		PromptMessages:   promptMessages,
-		PromptTokens:     e.PromptTokens,
-		Tools:            tools,
-		CompletionTokens: e.CompletionTokens,
-		TotalTokens:      e.TotalTokens,
-		LatencyMs:        e.LatencyMs,
-		FinishReason:     e.FinishReason,
-		ToolCalls:        e.ToolCalls,
-		Duration:         time.Duration(e.LatencyMs) * time.Millisecond,
-		Input:            userInput,
-		Output:           e.ResponseText,
-		ModelParameters:  e.ModelParameters,
-		Level:            level,
-		Attributes:       attrs,
+		ID:                genID,
+		TraceID:           traceID,
+		ParentID:          agentSpanID,
+		TenantID:          e.TenantID(),
+		SessionID:         e.SessionID(),
+		UserID:            userID,
+		UserEmail:         userEmail,
+		Timestamp:         e.Timestamp(),
+		Model:             e.Model,
+		Provider:          e.Provider,
+		PromptMessages:    promptMessages,
+		PromptTokens:      e.PromptTokens,
+		Tools:             tools,
+		CompletionTokens:  e.CompletionTokens,
+		TotalTokens:       e.TotalTokens,
+		LatencyMs:         e.LatencyMs,
+		FinishReason:      e.FinishReason,
+		ToolCalls:         e.ToolCalls,
+		Duration:          time.Duration(e.LatencyMs) * time.Millisecond,
+		Input:             userInput,
+		Output:            e.ResponseText,
+		Thinking:          e.Thinking,
+		ObservationReason: observationReason,
+		ToolCallSummary:   mapToolCallSummary(e.ToolCallSummary),
+		ModelParameters:   e.ModelParameters,
+		Level:             level,
+		Attributes:        attrs,
 	}
 
 	// Store this generation's ID so tool spans can parent under it
 	h.bridge.mu.Lock()
-	h.bridge.lastGenerationIDs[e.SessionID()] = genID
+	h.bridge.lastGenerationIDs[traceID] = genID
 	h.bridge.mu.Unlock()
 
 	// Prefer OpenTelemetry trace context if present on ctx.
@@ -538,17 +603,22 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 }
 
 func (h *providerHandler) handleToolComplete(ctx context.Context, e *events.ToolCompleteEvent) error {
+	traceID := eventTraceID(e)
+	if traceID == "" {
+		traceID = e.SessionID().String()
+	}
+
 	// Accumulate dynamic tag for this tool.
-	h.bridge.addSessionTag(e.SessionID(), "tool:"+e.ToolName)
+	h.bridge.addTraceTag(traceID, "tool:"+e.ToolName)
 
 	// Resolve parent (last generation span) for hierarchical nesting
 	h.bridge.mu.RLock()
-	parentID := h.bridge.lastGenerationIDs[e.SessionID()]
+	parentID := h.bridge.lastGenerationIDs[traceID]
 	h.bridge.mu.RUnlock()
 
 	obs := SpanObservation{
 		ID:        uuid.New().String(),
-		TraceID:   e.SessionID().String(),
+		TraceID:   traceID,
 		ParentID:  parentID,
 		TenantID:  e.TenantID(),
 		SessionID: e.SessionID(),
@@ -580,18 +650,23 @@ func (h *providerHandler) handleToolComplete(ctx context.Context, e *events.Tool
 }
 
 func (h *providerHandler) handleToolError(ctx context.Context, e *events.ToolErrorEvent) error {
+	traceID := eventTraceID(e)
+	if traceID == "" {
+		traceID = e.SessionID().String()
+	}
+
 	// Accumulate dynamic tags for this tool and error.
-	h.bridge.addSessionTag(e.SessionID(), "tool:"+e.ToolName)
-	h.bridge.addSessionTag(e.SessionID(), "error")
+	h.bridge.addTraceTag(traceID, "tool:"+e.ToolName)
+	h.bridge.addTraceTag(traceID, "error")
 
 	// Resolve parent (last generation span) for hierarchical nesting
 	h.bridge.mu.RLock()
-	parentID := h.bridge.lastGenerationIDs[e.SessionID()]
+	parentID := h.bridge.lastGenerationIDs[traceID]
 	h.bridge.mu.RUnlock()
 
 	obs := SpanObservation{
 		ID:        uuid.New().String(),
-		TraceID:   e.SessionID().String(),
+		TraceID:   traceID,
 		ParentID:  parentID,
 		TenantID:  e.TenantID(),
 		SessionID: e.SessionID(),
@@ -623,6 +698,11 @@ func (h *providerHandler) handleToolError(ctx context.Context, e *events.ToolErr
 }
 
 func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.ContextCompileEvent) error {
+	traceID := eventTraceID(e)
+	if traceID == "" {
+		traceID = e.SessionID().String()
+	}
+
 	inputSummary := map[string]interface{}{
 		"provider":    e.Provider,
 		"block_count": e.BlockCount,
@@ -652,7 +732,7 @@ func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.Co
 
 	obs := SpanObservation{
 		ID:        uuid.New().String(),
-		TraceID:   e.SessionID().String(),
+		TraceID:   traceID,
 		TenantID:  e.TenantID(),
 		SessionID: e.SessionID(),
 		Timestamp: e.Timestamp(),
@@ -685,8 +765,13 @@ func (h *providerHandler) handleContextCompile(ctx context.Context, e *events.Co
 }
 
 func (h *providerHandler) handleInterrupt(ctx context.Context, e *events.InterruptEvent) error {
+	traceID := eventTraceID(e)
+	if traceID == "" {
+		traceID = e.SessionID().String()
+	}
+
 	// Accumulate dynamic tag for HITL interrupt.
-	h.bridge.addSessionTag(e.SessionID(), "hitl")
+	h.bridge.addTraceTag(traceID, "hitl")
 
 	inputSummary := map[string]interface{}{
 		"interrupt_type": e.InterruptType,
@@ -708,7 +793,7 @@ func (h *providerHandler) handleInterrupt(ctx context.Context, e *events.Interru
 
 	obs := SpanObservation{
 		ID:        uuid.New().String(),
-		TraceID:   e.SessionID().String(),
+		TraceID:   traceID,
 		TenantID:  e.TenantID(),
 		SessionID: e.SessionID(),
 		Timestamp: e.Timestamp(),
@@ -735,7 +820,13 @@ func (h *providerHandler) handleInterrupt(ctx context.Context, e *events.Interru
 
 func (h *providerHandler) handleSessionTitleUpdated(ctx context.Context, e *events.SessionTitleUpdatedEvent) error {
 	if updater, ok := h.provider.(TraceNameUpdater); ok {
-		return updater.UpdateTraceName(ctx, e.SessionID().String(), e.Title)
+		h.bridge.mu.RLock()
+		traceID := h.bridge.sessionTraceIDs[e.SessionID()]
+		h.bridge.mu.RUnlock()
+		if strings.TrimSpace(traceID) == "" {
+			traceID = e.SessionID().String()
+		}
+		return updater.UpdateTraceName(ctx, traceID, e.Title)
 	}
 	return nil
 }
@@ -754,9 +845,14 @@ func (h *providerHandler) handleLLMRequest(_ context.Context, _ *events.LLMReque
 }
 
 func (h *providerHandler) handleGenericEvent(ctx context.Context, event hooks.Event) error {
+	traceID := eventTraceID(event)
+	if traceID == "" {
+		traceID = event.SessionID().String()
+	}
+
 	obs := EventObservation{
 		ID:         uuid.New().String(),
-		TraceID:    event.SessionID().String(),
+		TraceID:    traceID,
 		TenantID:   event.TenantID(),
 		SessionID:  event.SessionID(),
 		Timestamp:  event.Timestamp(),

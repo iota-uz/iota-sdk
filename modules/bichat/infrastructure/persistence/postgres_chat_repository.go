@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // SQL query constants (tables live in bichat schema)
@@ -30,11 +31,21 @@ const (
 			WHERE tenant_id = $1 AND id = $2
 		`
 	updateSessionQuery = `
-			UPDATE bichat.sessions
-			SET title = $1, status = $2, pinned = $3,
-				parent_session_id = $4, llm_previous_response_id = $5, updated_at = $6
-			WHERE tenant_id = $7 AND id = $8
-		`
+				UPDATE bichat.sessions
+				SET title = $1, status = $2, pinned = $3,
+					parent_session_id = $4, llm_previous_response_id = $5, updated_at = $6
+				WHERE tenant_id = $7 AND id = $8
+			`
+	updateSessionTitleQuery = `
+		UPDATE bichat.sessions
+		SET title = $1, updated_at = $2
+		WHERE tenant_id = $3 AND id = $4
+	`
+	updateSessionTitleIfEmptyQuery = `
+		UPDATE bichat.sessions
+		SET title = $1, updated_at = $2
+		WHERE tenant_id = $3 AND id = $4 AND btrim(title) = ''
+	`
 	listUserSessionsQuery = `
 			SELECT id, tenant_id, user_id, title, status, pinned,
 				   parent_session_id, llm_previous_response_id, created_at, updated_at
@@ -95,52 +106,69 @@ const (
 		JOIN bichat.sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
 		  AND m.question_data->>'status' = 'PENDING'
+		ORDER BY m.created_at DESC, m.id DESC
 		LIMIT 1
 	`
 
-	// Attachment queries
-	insertAttachmentQuery = `
-		INSERT INTO bichat.attachments (
-			id, message_id, file_name, mime_type, size_bytes, storage_path, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+	// Attachment compatibility queries (backed by bichat.artifacts type='attachment')
+	selectMessageSessionQuery = `
+		SELECT m.session_id
+		FROM bichat.messages m
+		JOIN bichat.sessions s ON m.session_id = s.id
+		WHERE s.tenant_id = $1 AND m.id = $2
 	`
 	selectAttachmentQuery = `
-		SELECT a.id, a.message_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.created_at
-		FROM bichat.attachments a
-		JOIN bichat.messages m ON a.message_id = m.id
-		JOIN bichat.sessions s ON m.session_id = s.id
-		WHERE s.tenant_id = $1 AND a.id = $2
+		SELECT a.id, a.message_id, a.upload_id, a.name, a.mime_type, a.size_bytes, a.url, a.created_at
+		FROM bichat.artifacts a
+		WHERE a.tenant_id = $1
+		  AND a.id = $2
+		  AND a.type = 'attachment'
+		  AND a.message_id IS NOT NULL
 	`
 	selectMessageAttachmentsQuery = `
-		SELECT a.id, a.message_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.created_at
-		FROM bichat.attachments a
-		JOIN bichat.messages m ON a.message_id = m.id
-		JOIN bichat.sessions s ON m.session_id = s.id
-		WHERE s.tenant_id = $1 AND a.message_id = $2
+		SELECT a.id, a.message_id, a.upload_id, a.name, a.mime_type, a.size_bytes, a.url, a.created_at
+		FROM bichat.artifacts a
+		WHERE a.tenant_id = $1
+		  AND a.message_id = $2
+		  AND a.type = 'attachment'
 		ORDER BY a.created_at ASC
 	`
-	deleteAttachmentQuery = `
-		DELETE FROM bichat.attachments a
-		USING bichat.messages m, bichat.sessions s
-		WHERE a.message_id = m.id
-		  AND m.session_id = s.id
-		  AND s.tenant_id = $1
-		  AND a.id = $2
-	`
 
-	// Code interpreter output queries
-	insertCodeOutputQuery = `
-		INSERT INTO bichat.code_interpreter_outputs (
-			id, message_id, name, mime_type, url, size_bytes, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+	selectMessageCodeOutputArtifactsQuery = `
+			SELECT a.id, a.message_id, a.name, COALESCE(a.mime_type, ''), COALESCE(a.url, ''), COALESCE(a.size_bytes, 0), a.created_at
+			FROM bichat.artifacts a
+			WHERE a.tenant_id = $1
+			  AND a.message_id = $2
+			  AND a.type = 'code_output'
+			ORDER BY a.created_at ASC
+		`
+
+	// Generation run queries (refresh-safe streaming)
+	insertGenerationRunQuery = `
+		INSERT INTO bichat.generation_runs (
+			id, session_id, tenant_id, user_id, status, partial_content, partial_metadata, started_at, last_updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	selectMessageCodeOutputsQuery = `
-		SELECT o.id, o.message_id, o.name, o.mime_type, o.url, o.size_bytes, o.created_at
-		FROM bichat.code_interpreter_outputs o
-		JOIN bichat.messages m ON o.message_id = m.id
-		JOIN bichat.sessions s ON m.session_id = s.id
-		WHERE s.tenant_id = $1 AND o.message_id = $2
-		ORDER BY o.created_at ASC
+	selectActiveGenerationRunBySessionQuery = `
+		SELECT id, session_id, tenant_id, user_id, status, partial_content, partial_metadata, started_at, last_updated_at
+		FROM bichat.generation_runs
+		WHERE tenant_id = $1 AND session_id = $2 AND status = 'streaming'
+		LIMIT 1
+	`
+	updateGenerationRunSnapshotQuery = `
+		UPDATE bichat.generation_runs
+		SET partial_content = $1, partial_metadata = $2, last_updated_at = $3
+		WHERE tenant_id = $4 AND id = $5 AND status = 'streaming'
+	`
+	completeGenerationRunQuery = `
+		UPDATE bichat.generation_runs
+		SET status = 'completed', last_updated_at = $1
+		WHERE tenant_id = $2 AND id = $3
+	`
+	cancelGenerationRunQuery = `
+		UPDATE bichat.generation_runs
+		SET status = 'cancelled', last_updated_at = $1
+		WHERE tenant_id = $2 AND id = $3
 	`
 )
 
@@ -294,6 +322,53 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session doma
 	return nil
 }
 
+// UpdateSessionTitle updates a session title.
+func (r *PostgresChatRepository) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
+	const op serrors.Op = "PostgresChatRepository.UpdateSessionTitle"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	result, err := tx.Exec(ctx, updateSessionTitleQuery, title, time.Now(), tenantID, id)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if result.RowsAffected() == 0 {
+		return serrors.E(op, ErrSessionNotFound)
+	}
+
+	return nil
+}
+
+// UpdateSessionTitleIfEmpty updates a session title only when it is currently blank.
+func (r *PostgresChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
+	const op serrors.Op = "PostgresChatRepository.UpdateSessionTitleIfEmpty"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	result, err := tx.Exec(ctx, updateSessionTitleIfEmptyQuery, title, time.Now(), tenantID, id)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	return result.RowsAffected() > 0, nil
+}
+
 // ListUserSessions lists all sessions for a user with pagination.
 func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	const op serrors.Op = "PostgresChatRepository.ListUserSessions"
@@ -416,6 +491,11 @@ func (r *PostgresChatRepository) DeleteSession(ctx context.Context, id uuid.UUID
 func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
 	const op serrors.Op = "PostgresChatRepository.SaveMessage"
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return serrors.E(op, err)
@@ -463,24 +543,34 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		return serrors.E(op, err)
 	}
 
-	// Save code interpreter outputs if present
-	for _, output := range msg.CodeOutputs() {
-		outputCreatedAt := output.CreatedAt
-		if outputCreatedAt.IsZero() {
-			outputCreatedAt = time.Now()
-		}
+	if err := r.persistDebugTraceProjection(ctx, tx, tenantID, msg); err != nil {
+		return serrors.E(op, err)
+	}
 
-		_, err = tx.Exec(ctx, insertCodeOutputQuery,
-			output.ID,
-			output.MessageID,
-			output.Name,
-			output.MimeType,
-			output.URL,
-			output.Size,
-			outputCreatedAt,
-		)
-		if err != nil {
-			return serrors.E(op, err)
+	if len(msg.CodeOutputs()) > 0 {
+		msgID := msg.ID()
+		for _, output := range msg.CodeOutputs() {
+			outputCreatedAt := output.CreatedAt
+			if outputCreatedAt.IsZero() {
+				outputCreatedAt = createdAt
+			}
+
+			codeOutputArtifact := domain.NewArtifact(
+				domain.WithArtifactID(output.ID),
+				domain.WithArtifactTenantID(tenantID),
+				domain.WithArtifactSessionID(msg.SessionID()),
+				domain.WithArtifactMessageID(&msgID),
+				domain.WithArtifactType(domain.ArtifactTypeCodeOutput),
+				domain.WithArtifactName(output.Name),
+				domain.WithArtifactMimeType(output.MimeType),
+				domain.WithArtifactURL(output.URL),
+				domain.WithArtifactSizeBytes(output.Size),
+				domain.WithArtifactCreatedAt(outputCreatedAt),
+			)
+
+			if err := r.SaveArtifact(ctx, codeOutputArtifact); err != nil {
+				return serrors.E(op, err)
+			}
 		}
 	}
 
@@ -947,8 +1037,21 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
 	const op serrors.Op = "PostgresChatRepository.SaveAttachment"
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	var sessionID uuid.UUID
+	if err := tx.QueryRow(ctx, selectMessageSessionQuery, tenantID, attachment.MessageID()).Scan(&sessionID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return serrors.E(op, ErrMessageNotFound)
+		}
 		return serrors.E(op, err)
 	}
 
@@ -956,16 +1059,25 @@ func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment 
 	if createdAt.IsZero() {
 		createdAt = time.Now()
 	}
+	msgID := attachment.MessageID()
 
-	_, err = tx.Exec(ctx, insertAttachmentQuery,
-		attachment.ID(),
-		attachment.MessageID(),
-		attachment.FileName(),
-		attachment.MimeType(),
-		attachment.SizeBytes(),
-		attachment.FilePath(),
-		createdAt,
-	)
+	artifactOpts := []domain.ArtifactOption{
+		domain.WithArtifactID(attachment.ID()),
+		domain.WithArtifactTenantID(tenantID),
+		domain.WithArtifactSessionID(sessionID),
+		domain.WithArtifactMessageID(&msgID),
+		domain.WithArtifactType(domain.ArtifactTypeAttachment),
+		domain.WithArtifactName(attachment.FileName()),
+		domain.WithArtifactMimeType(attachment.MimeType()),
+		domain.WithArtifactURL(attachment.FilePath()),
+		domain.WithArtifactSizeBytes(attachment.SizeBytes()),
+		domain.WithArtifactCreatedAt(createdAt),
+	}
+	if attachment.UploadID() != nil {
+		artifactOpts = append(artifactOpts, domain.WithArtifactUploadID(*attachment.UploadID()))
+	}
+
+	err = r.SaveArtifact(ctx, domain.NewArtifact(artifactOpts...))
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -989,16 +1101,18 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 
 	var (
 		aid       uuid.UUID
-		messageID uuid.UUID
+		messageID *uuid.UUID
+		uploadID  *int64
 		fileName  string
-		mimeType  string
+		mimeType  *string
 		sizeBytes int64
-		filePath  string
+		filePath  *string
 		createdAt time.Time
 	)
 	err = tx.QueryRow(ctx, selectAttachmentQuery, tenantID, id).Scan(
 		&aid,
 		&messageID,
+		&uploadID,
 		&fileName,
 		&mimeType,
 		&sizeBytes,
@@ -1011,16 +1125,24 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 		}
 		return nil, serrors.E(op, err)
 	}
+	if messageID == nil {
+		return nil, serrors.E(op, ErrAttachmentNotFound)
+	}
 
-	return domain.NewAttachment(
+	opts := []domain.AttachmentOption{
 		domain.WithAttachmentID(aid),
-		domain.WithAttachmentMessageID(messageID),
+		domain.WithAttachmentMessageID(*messageID),
 		domain.WithFileName(fileName),
-		domain.WithMimeType(mimeType),
+		domain.WithMimeType(derefString(mimeType)),
 		domain.WithSizeBytes(sizeBytes),
-		domain.WithFilePath(filePath),
+		domain.WithFilePath(derefString(filePath)),
 		domain.WithAttachmentCreatedAt(createdAt),
-	), nil
+	}
+	if uploadID != nil {
+		opts = append(opts, domain.WithUploadID(*uploadID))
+	}
+
+	return domain.NewAttachment(opts...), nil
 }
 
 // GetMessageAttachments retrieves all attachments for a message.
@@ -1047,16 +1169,18 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 	for rows.Next() {
 		var (
 			aid       uuid.UUID
-			msgID     uuid.UUID
+			msgID     *uuid.UUID
+			uploadID  *int64
 			fileName  string
-			mimeType  string
+			mimeType  *string
 			sizeBytes int64
-			filePath  string
+			filePath  *string
 			createdAt time.Time
 		)
 		err := rows.Scan(
 			&aid,
 			&msgID,
+			&uploadID,
 			&fileName,
 			&mimeType,
 			&sizeBytes,
@@ -1066,15 +1190,22 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
-		attachments = append(attachments, domain.NewAttachment(
+		if msgID == nil {
+			continue
+		}
+		opts := []domain.AttachmentOption{
 			domain.WithAttachmentID(aid),
-			domain.WithAttachmentMessageID(msgID),
+			domain.WithAttachmentMessageID(*msgID),
 			domain.WithFileName(fileName),
-			domain.WithMimeType(mimeType),
+			domain.WithMimeType(derefString(mimeType)),
 			domain.WithSizeBytes(sizeBytes),
-			domain.WithFilePath(filePath),
+			domain.WithFilePath(derefString(filePath)),
 			domain.WithAttachmentCreatedAt(createdAt),
-		))
+		}
+		if uploadID != nil {
+			opts = append(opts, domain.WithUploadID(*uploadID))
+		}
+		attachments = append(attachments, domain.NewAttachment(opts...))
 	}
 
 	if err := rows.Err(); err != nil {
@@ -1086,34 +1217,175 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 
 // DeleteAttachment deletes an attachment.
 func (r *PostgresChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
-	const op serrors.Op = "PostgresChatRepository.DeleteAttachment"
+	if err := r.DeleteArtifact(ctx, id); err != nil {
+		if errors.Is(err, ErrArtifactNotFound) {
+			return serrors.E("PostgresChatRepository.DeleteAttachment", ErrAttachmentNotFound)
+		}
+		return err
+	}
+	return nil
+}
+
+// Generation run operations (refresh-safe streaming)
+
+// CreateRun inserts a new streaming run. Returns domain.ErrActiveRunExists if session already has an active run.
+func (r *PostgresChatRepository) CreateRun(ctx context.Context, run domain.GenerationRun) error {
+	const op serrors.Op = "PostgresChatRepository.CreateRun"
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return serrors.E(op, err)
 	}
-
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
-	result, err := tx.Exec(ctx, deleteAttachmentQuery, tenantID, id)
+	metaJSON, err := json.Marshal(run.PartialMetadata())
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
-	rowsAffected := result.RowsAffected()
-	if rowsAffected == 0 {
-		return serrors.E(op, ErrAttachmentNotFound)
+	_, err = tx.Exec(ctx, insertGenerationRunQuery,
+		run.ID(),
+		run.SessionID(),
+		tenantID,
+		run.UserID(),
+		string(run.Status()),
+		run.PartialContent(),
+		metaJSON,
+		run.StartedAt(),
+		run.LastUpdatedAt(),
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return domain.ErrActiveRunExists
+		}
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
+// GetActiveRunBySession returns the active run for the session, or nil if none.
+func (r *PostgresChatRepository) GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
+	const op serrors.Op = "PostgresChatRepository.GetActiveRunBySession"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
 
+	row := tx.QueryRow(ctx, selectActiveGenerationRunBySessionQuery, tenantID, sessionID)
+	var id, sessID, tID uuid.UUID
+	var userID int64
+	var status string
+	var partialContent string
+	var partialMetadata []byte
+	var startedAt, lastUpdatedAt time.Time
+	err = row.Scan(&id, &sessID, &tID, &userID, &status, &partialContent, &partialMetadata, &startedAt, &lastUpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNoActiveRun
+		}
+		return nil, serrors.E(op, err)
+	}
+
+	var meta map[string]any
+	if len(partialMetadata) > 0 {
+		if err := json.Unmarshal(partialMetadata, &meta); err != nil {
+			return nil, serrors.E(op, err)
+		}
+	}
+	if meta == nil {
+		meta = make(map[string]any)
+	}
+
+	return domain.NewGenerationRun(
+		domain.WithGenerationRunID(id),
+		domain.WithGenerationRunSessionID(sessID),
+		domain.WithGenerationRunTenantID(tID),
+		domain.WithGenerationRunUserID(userID),
+		domain.WithGenerationRunStatus(domain.GenerationRunStatus(status)),
+		domain.WithGenerationRunPartialContent(partialContent),
+		domain.WithGenerationRunPartialMetadata(meta),
+		domain.WithGenerationRunStartedAt(startedAt),
+		domain.WithGenerationRunLastUpdatedAt(lastUpdatedAt),
+	), nil
+}
+
+// UpdateRunSnapshot updates partial content and metadata for the run.
+func (r *PostgresChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
+	const op serrors.Op = "PostgresChatRepository.UpdateRunSnapshot"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	metaJSON, err := json.Marshal(partialMetadata)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	_, err = tx.Exec(ctx, updateGenerationRunSnapshotQuery, partialContent, metaJSON, time.Now(), tenantID, runID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
+// CompleteRun marks the run as completed.
+func (r *PostgresChatRepository) CompleteRun(ctx context.Context, runID uuid.UUID) error {
+	const op serrors.Op = "PostgresChatRepository.CompleteRun"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	_, err = tx.Exec(ctx, completeGenerationRunQuery, time.Now(), tenantID, runID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
+// CancelRun marks the run as cancelled.
+func (r *PostgresChatRepository) CancelRun(ctx context.Context, runID uuid.UUID) error {
+	const op serrors.Op = "PostgresChatRepository.CancelRun"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	_, err = tx.Exec(ctx, cancelGenerationRunQuery, time.Now(), tenantID, runID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
 	return nil
 }
 
 // Helper methods
 
-// loadCodeOutputsForMessage loads code interpreter outputs for a specific message.
+// loadCodeOutputsForMessage loads code output artifacts for a specific message.
 func (r *PostgresChatRepository) loadCodeOutputsForMessage(ctx context.Context, tenantID uuid.UUID, messageID uuid.UUID) ([]types.CodeInterpreterOutput, error) {
 	const op serrors.Op = "PostgresChatRepository.loadCodeOutputsForMessage"
 
@@ -1122,7 +1394,7 @@ func (r *PostgresChatRepository) loadCodeOutputsForMessage(ctx context.Context, 
 		return nil, serrors.E(op, err)
 	}
 
-	rows, err := tx.Query(ctx, selectMessageCodeOutputsQuery, tenantID, messageID)
+	rows, err := tx.Query(ctx, selectMessageCodeOutputArtifactsQuery, tenantID, messageID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -1163,6 +1435,7 @@ func convertDomainAttachmentsToTypes(in []domain.Attachment) []types.Attachment 
 		out = append(out, types.Attachment{
 			ID:        a.ID(),
 			MessageID: a.MessageID(),
+			UploadID:  a.UploadID(),
 			FileName:  a.FileName(),
 			MimeType:  a.MimeType(),
 			SizeBytes: a.SizeBytes(),
@@ -1172,4 +1445,11 @@ func convertDomainAttachmentsToTypes(in []domain.Attachment) []types.Attachment 
 	}
 
 	return out
+}
+
+func derefString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
 }

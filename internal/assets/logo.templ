@@ -13,27 +13,34 @@ type LogoProps struct {
 }
 
 templ DynamicLogo(props LogoProps) {
+	{{
+		compactLogoURL := companyLogoCompact
+		if props.LogoCompactUpload != nil && props.LogoCompactUpload.URL != "" {
+			compactLogoURL = props.LogoCompactUpload.URL
+		}
+
+		fullLogoURL := companyLogo
+		if props.LogoUpload != nil && props.LogoUpload.URL != "" {
+			fullLogoURL = props.LogoUpload.URL
+		}
+	}}
 	<!-- Collapsed view: compact logo -->
-	if props.LogoCompactUpload != nil {
-		<img
-			x-show="isCollapsed"
-			src={ props.LogoCompactUpload.URL }
-			alt="Logo"
-			width="48"
-			height="48"
-			class="mx-auto"
-		/>
-	}
+	<img
+		x-show="isCollapsed"
+		src={ compactLogoURL }
+		alt="Logo"
+		width="48"
+		height="48"
+		class="mx-auto"
+	/>
 	<!-- Expanded view: full logo -->
-	if props.LogoUpload != nil {
-		<img
-			x-show="!isCollapsed"
-			src={ props.LogoUpload.URL }
-			alt="Logo"
-			width="150"
-			height="50"
-		/>
-	}
+	<img
+		x-show="!isCollapsed"
+		src={ fullLogoURL }
+		alt="Logo"
+		width="150"
+		height="50"
+	/>
 }
 
 templ DefaultLogo() {

@@ -3,10 +3,10 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // InterruptEvent represents a human-in-the-loop (HITL) interrupt event.
@@ -185,8 +185,6 @@ func (r *InterruptHandlerRegistry) All() map[string]InterruptHandler {
 //	registry.Register("ask_user_question", &CustomQuestionHandler{service: svc})
 type AskUserQuestionHandler struct{}
 
-const op serrors.Op = "AskUserQuestionHandler.Handle"
-
 // Handle processes ask_user_question interrupts.
 // This default implementation is a no-op placeholder.
 //
@@ -209,7 +207,7 @@ func (h *AskUserQuestionHandler) Handle(ctx context.Context, event InterruptEven
 		} `json:"questions"`
 	}
 	if err := json.Unmarshal(event.Data, &data); err != nil {
-		return false, serrors.E(op, err)
+		return false, fmt.Errorf("AskUserQuestionHandler.Handle: %w", err)
 	}
 
 	// User interaction is handled by the production module (modules/bichat)

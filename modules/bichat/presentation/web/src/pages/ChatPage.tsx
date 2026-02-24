@@ -1,8 +1,14 @@
 import { useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ChatSession, RateLimiter } from '@iota-uz/sdk/bichat'
+import {
+  AssistantTurnView,
+  ChatSession,
+  type ConversationTurn,
+  RateLimiter,
+} from '@iota-uz/sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 import { useIotaContext } from '../contexts/IotaContext'
+import EnhancedChartCard from '../components/charts/EnhancedChartCard'
 
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>()
@@ -20,6 +26,17 @@ export default function ChatPage() {
     [navigate]
   )
   const dataSource = useBiChatDataSource(onNavigateToSession)
+  const renderAssistantTurn = useCallback(
+    (turn: ConversationTurn) => (
+      <AssistantTurnView
+        turn={turn}
+        slots={{
+          charts: ({ chartData }) => <EnhancedChartCard chartData={chartData} />,
+        }}
+      />
+    ),
+    []
+  )
   const rateLimiter = useMemo(
     () => new RateLimiter({ maxRequests: 20, windowMs: 60_000 }),
     []
@@ -55,6 +72,7 @@ export default function ChatPage() {
       sessionId={id}
       readOnly={readOnly}
       rateLimiter={rateLimiter}
+      renderAssistantTurn={renderAssistantTurn}
       showArtifactsPanel
       artifactsPanelDefaultExpanded={false}
       artifactsPanelStorageKey="bichat.web.artifacts-panel.expanded"

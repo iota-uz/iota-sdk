@@ -10,8 +10,8 @@ import (
 type state struct {
 	mu sync.RWMutex
 
-	// traceIDs maps BiChat session IDs to Langfuse trace IDs.
-	// In BiChat, session ID = trace ID, but we track this for consistency.
+	// traceIDs maps BiChat trace IDs to Langfuse trace IDs.
+	// IDs are typically identical, but tracked for consistency/extensibility.
 	traceIDs map[string]string
 
 	// generationIDs maps BiChat generation IDs to Langfuse generation IDs.
@@ -32,19 +32,19 @@ func newState() *state {
 	}
 }
 
-// setTraceID stores a BiChat session ID → Langfuse trace ID mapping.
-func (s *state) setTraceID(sessionID, langfuseTraceID string) {
+// setTraceID stores a BiChat trace ID → Langfuse trace ID mapping.
+func (s *state) setTraceID(traceID, langfuseTraceID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.traceIDs[sessionID] = langfuseTraceID
+	s.traceIDs[traceID] = langfuseTraceID
 }
 
-// getTraceID retrieves the Langfuse trace ID for a BiChat session ID.
+// getTraceID retrieves the Langfuse trace ID for a BiChat trace ID.
 // Returns empty string if not found.
-func (s *state) getTraceID(sessionID string) string {
+func (s *state) getTraceID(traceID string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.traceIDs[sessionID]
+	return s.traceIDs[traceID]
 }
 
 // setGenerationID stores a BiChat generation ID → Langfuse generation ID mapping.

@@ -63,7 +63,7 @@ provider.RecordGeneration(ctx, observability.GenerationObservation{
     ID:               "gen-123",
     SessionID:        sessionID,
     TenantID:         tenantID,
-    Model:            "claude-3-5-sonnet-20241022",
+    Model:            "claude-sonnet-4-6",
     PromptTokens:     1000,
     CompletionTokens: 500,
     TotalTokens:      1500,
@@ -98,7 +98,7 @@ The provider automatically calculates costs based on token usage:
 
 ```go
 obs := observability.GenerationObservation{
-    Model:            "gpt-4",
+    Model:            "gpt-5.2",
     PromptTokens:     1000,
     CompletionTokens: 500,
     Attributes: map[string]interface{}{
@@ -146,8 +146,8 @@ func TestMyService(t *testing.T) {
         t.Errorf("expected 1 generation call, got %d", len(calls))
     }
 
-    if calls[0].Generation.Model != "gpt-4" {
-        t.Errorf("expected model gpt-4, got %s", calls[0].Generation.Model)
+    if calls[0].Generation.Model != "gpt-5.2" {
+        t.Errorf("expected model gpt-5.2, got %s", calls[0].Generation.Model)
     }
 }
 ```

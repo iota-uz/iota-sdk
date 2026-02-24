@@ -2,12 +2,16 @@ package services
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
+
+// ErrRunNotFoundOrFinished is returned by ResumeStream when the run is not active in this process.
+var ErrRunNotFoundOrFinished = errors.New("generation run not found or already finished")
 
 // ChatService manages chat sessions and messages.
 // This is the primary public API for chat functionality.
@@ -40,6 +44,32 @@ type ChatService interface {
 
 	// Generate session title from first message
 	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
+
+	// StopGeneration cancels the active stream for the given session, if any.
+	// After stop, no partial assistant message is persisted; the next send continues normally.
+	StopGeneration(ctx context.Context, sessionID uuid.UUID) error
+
+	// GetStreamStatus returns the active generation run for the session, if any.
+	// Used for refresh-safe resume: client checks on load and resumes or shows passive "in progress".
+	GetStreamStatus(ctx context.Context, sessionID uuid.UUID) (*StreamStatus, error)
+
+	// ResumeStream attaches to an active run: delivers current snapshot then streams subsequent chunks.
+	// Returns ErrRunNotFoundOrFinished if the run is not active in this process.
+	ResumeStream(ctx context.Context, sessionID uuid.UUID, runID uuid.UUID, onChunk func(StreamChunk)) error
+}
+
+// StreamStatus describes an active streaming run for a session.
+type StreamStatus struct {
+	Active    bool
+	RunID     uuid.UUID
+	Snapshot  StreamSnapshot
+	StartedAt time.Time
+}
+
+// StreamSnapshot is the partial state to send when resuming a stream.
+type StreamSnapshot struct {
+	PartialContent  string
+	PartialMetadata map[string]any
 }
 
 // SendMessageRequest contains the input for sending a message
@@ -52,6 +82,9 @@ type SendMessageRequest struct {
 	// ReplaceFromMessageID truncates session history from this user message onward
 	// before sending the new content (used by edit/regenerate flows).
 	ReplaceFromMessageID *uuid.UUID
+	// ReasoningEffort overrides the default reasoning effort for this request.
+	// Valid values: "low", "medium", "high", "xhigh". Nil means use model default.
+	ReasoningEffort *string
 }
 
 // SendMessageResponse contains the result of sending a message
@@ -101,29 +134,56 @@ type ResumeRequest struct {
 type StreamChunk struct {
 	Type         ChunkType
 	Content      string
-	Citation     *domain.Citation
+	Citation     *types.Citation
 	Usage        *types.DebugUsage
 	Tool         *ToolEvent
 	Interrupt    *InterruptEvent
 	GenerationMs int64
 	Error        error
 	Timestamp    time.Time
+	// Snapshot is set when Type is ChunkTypeSnapshot (resume flow: partial state so far)
+	Snapshot *StreamSnapshot
+	// RunID is set when Type is ChunkTypeStreamStarted so the client can store it for resume.
+	RunID string
 }
 
 // ChunkType represents the type of streaming chunk
 type ChunkType string
 
 const (
-	ChunkTypeChunk     ChunkType = "chunk"
-	ChunkTypeContent   ChunkType = "content"
-	ChunkTypeCitation  ChunkType = "citation"
-	ChunkTypeToolStart ChunkType = "tool_start"
-	ChunkTypeToolEnd   ChunkType = "tool_end"
-	ChunkTypeInterrupt ChunkType = "interrupt"
-	ChunkTypeUsage     ChunkType = "usage"
-	ChunkTypeDone      ChunkType = "done"
-	ChunkTypeError     ChunkType = "error"
+	ChunkTypeChunk         ChunkType = "chunk"
+	ChunkTypeContent       ChunkType = "content"
+	ChunkTypeCitation      ChunkType = "citation"
+	ChunkTypeToolStart     ChunkType = "tool_start"
+	ChunkTypeToolEnd       ChunkType = "tool_end"
+	ChunkTypeInterrupt     ChunkType = "interrupt"
+	ChunkTypeUsage         ChunkType = "usage"
+	ChunkTypeDone          ChunkType = "done"
+	ChunkTypeError         ChunkType = "error"
+	ChunkTypeThinking      ChunkType = "thinking"
+	ChunkTypeSnapshot      ChunkType = "snapshot"
+	ChunkTypeStreamStarted ChunkType = "stream_started"
 )
+
+// ToolEvent represents a tool execution event in a streaming chunk.
+type ToolEvent struct {
+	CallID     string
+	Name       string
+	AgentName  string
+	Arguments  string
+	Result     string
+	Error      error
+	DurationMs int64
+	Artifacts  []types.ToolArtifact
+}
+
+// InterruptEvent represents a HITL interrupt in a streaming chunk.
+type InterruptEvent struct {
+	CheckpointID       string
+	AgentName          string // Name of the agent that triggered this interrupt
+	ProviderResponseID string
+	Questions          []Question
+}
 
 type ClearSessionHistoryResponse struct {
 	Success          bool

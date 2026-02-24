@@ -31,22 +31,22 @@ templ ProfileForm(props *ProfilePageProps) {
 		hx-post={ props.PostPath }
 		hx-swap="outerHTML"
 	>
-		<div class="flex flex-col gap-5 p-6">
+		<div class="flex flex-col gap-5 p-4 md:p-6">
 			@card.Card(card.Props{
-				Class: "grid grid-cols-3 gap-4",
+				Class: "grid grid-cols-1 md:grid-cols-3 gap-4",
 			}) {
 				if props.User.Avatar == nil {
 					@components.UploadInput(&components.UploadInputProps{
 						Label:   pageCtx.T("Account.BrowseFilesystem"),
 						Name:    "AvatarID",
-						Class:   "col-span-3",
+						Class:   "md:col-span-3",
 						Uploads: []*viewmodels.Upload{},
 					})
 				} else {
 					@components.UploadInput(&components.UploadInputProps{
 						Label:   pageCtx.T("Account.BrowseFilesystem"),
 						Name:    "AvatarID",
-						Class:   "col-span-3",
+						Class:   "md:col-span-3",
 						Uploads: []*viewmodels.Upload{props.User.Avatar},
 					})
 				}
@@ -121,7 +121,7 @@ templ ProfileForm(props *ProfilePageProps) {
 				})
 			}
 		</div>
-		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Attrs: templ.Attributes{
 					"type": "submit",

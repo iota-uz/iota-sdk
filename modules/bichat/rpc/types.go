@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -59,12 +58,12 @@ type SessionGetParams struct {
 }
 
 type Attachment struct {
-	ID         string `json:"id"`
-	Filename   string `json:"filename"`
-	MimeType   string `json:"mimeType"`
-	SizeBytes  int64  `json:"sizeBytes"`
-	Base64Data string `json:"base64Data,omitempty"`
-	URL        string `json:"url,omitempty"`
+	ID        string `json:"id"`
+	UploadID  *int64 `json:"uploadId,omitempty"`
+	Filename  string `json:"filename"`
+	MimeType  string `json:"mimeType"`
+	SizeBytes int64  `json:"sizeBytes"`
+	URL       string `json:"url,omitempty"`
 }
 
 type Citation struct {
@@ -132,10 +131,74 @@ type DebugToolCall struct {
 	DurationMs int64  `json:"durationMs,omitempty"`
 }
 
+type DebugGeneration struct {
+	ID                string          `json:"id,omitempty"`
+	RequestID         string          `json:"requestId,omitempty"`
+	Model             string          `json:"model,omitempty"`
+	Provider          string          `json:"provider,omitempty"`
+	FinishReason      string          `json:"finishReason,omitempty"`
+	PromptTokens      int             `json:"promptTokens,omitempty"`
+	CompletionTokens  int             `json:"completionTokens,omitempty"`
+	TotalTokens       int             `json:"totalTokens,omitempty"`
+	CachedTokens      int             `json:"cachedTokens,omitempty"`
+	Cost              float64         `json:"cost,omitempty"`
+	LatencyMs         int64           `json:"latencyMs,omitempty"`
+	Input             string          `json:"input,omitempty"`
+	Output            string          `json:"output,omitempty"`
+	Thinking          string          `json:"thinking,omitempty"`
+	ObservationReason string          `json:"observationReason,omitempty"`
+	StartedAt         string          `json:"startedAt,omitempty"`
+	CompletedAt       string          `json:"completedAt,omitempty"`
+	ToolCalls         []DebugToolCall `json:"toolCalls,omitempty"`
+}
+
+type DebugSpan struct {
+	ID           string                 `json:"id,omitempty"`
+	ParentID     string                 `json:"parentId,omitempty"`
+	GenerationID string                 `json:"generationId,omitempty"`
+	Name         string                 `json:"name,omitempty"`
+	Type         string                 `json:"type,omitempty"`
+	Status       string                 `json:"status,omitempty"`
+	Level        string                 `json:"level,omitempty"`
+	CallID       string                 `json:"callId,omitempty"`
+	ToolName     string                 `json:"toolName,omitempty"`
+	Input        string                 `json:"input,omitempty"`
+	Output       string                 `json:"output,omitempty"`
+	Error        string                 `json:"error,omitempty"`
+	DurationMs   int64                  `json:"durationMs,omitempty"`
+	StartedAt    string                 `json:"startedAt,omitempty"`
+	CompletedAt  string                 `json:"completedAt,omitempty"`
+	Attributes   map[string]interface{} `json:"attributes,omitempty"`
+}
+
+type DebugEvent struct {
+	ID           string                 `json:"id,omitempty"`
+	Name         string                 `json:"name,omitempty"`
+	Type         string                 `json:"type,omitempty"`
+	Level        string                 `json:"level,omitempty"`
+	Message      string                 `json:"message,omitempty"`
+	Reason       string                 `json:"reason,omitempty"`
+	SpanID       string                 `json:"spanId,omitempty"`
+	GenerationID string                 `json:"generationId,omitempty"`
+	Timestamp    string                 `json:"timestamp,omitempty"`
+	Attributes   map[string]interface{} `json:"attributes,omitempty"`
+}
+
 type DebugTrace struct {
-	Usage        *DebugUsage     `json:"usage,omitempty"`
-	GenerationMs int64           `json:"generationMs,omitempty"`
-	Tools        []DebugToolCall `json:"tools,omitempty"`
+	SchemaVersion     string            `json:"schemaVersion,omitempty"`
+	StartedAt         string            `json:"startedAt,omitempty"`
+	CompletedAt       string            `json:"completedAt,omitempty"`
+	Usage             *DebugUsage       `json:"usage,omitempty"`
+	GenerationMs      int64             `json:"generationMs,omitempty"`
+	Tools             []DebugToolCall   `json:"tools,omitempty"`
+	Attempts          []DebugGeneration `json:"attempts,omitempty"`
+	Spans             []DebugSpan       `json:"spans,omitempty"`
+	Events            []DebugEvent      `json:"events,omitempty"`
+	TraceID           string            `json:"traceId,omitempty"`
+	TraceURL          string            `json:"traceUrl,omitempty"`
+	SessionID         string            `json:"sessionId,omitempty"`
+	Thinking          string            `json:"thinking,omitempty"`
+	ObservationReason string            `json:"observationReason,omitempty"`
 }
 
 type ConversationTurn struct {
@@ -206,6 +269,7 @@ type Artifact struct {
 	ID          string         `json:"id"`
 	SessionID   string         `json:"sessionId"`
 	MessageID   string         `json:"messageId,omitempty"`
+	UploadID    *int64         `json:"uploadId,omitempty"`
 	Type        string         `json:"type"`
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
@@ -390,12 +454,10 @@ func mapAttachments(in []types.Attachment) []Attachment {
 	for _, a := range in {
 		dto := Attachment{
 			ID:        a.ID.String(),
+			UploadID:  a.UploadID,
 			Filename:  a.FileName,
 			MimeType:  a.MimeType,
 			SizeBytes: a.SizeBytes,
-		}
-		if len(a.Data) > 0 {
-			dto.Base64Data = base64.StdEncoding.EncodeToString(a.Data)
 		}
 		if a.FilePath != "" {
 			dto.URL = a.FilePath
@@ -470,10 +532,94 @@ func mapDebugTrace(trace *types.DebugTrace) *DebugTrace {
 		})
 	}
 
+	attempts := make([]DebugGeneration, 0, len(trace.Attempts))
+	for _, attempt := range trace.Attempts {
+		toolCalls := make([]DebugToolCall, 0, len(attempt.ToolCalls))
+		for _, tool := range attempt.ToolCalls {
+			toolCalls = append(toolCalls, DebugToolCall{
+				CallID:     tool.CallID,
+				Name:       tool.Name,
+				Arguments:  tool.Arguments,
+				Result:     tool.Result,
+				Error:      tool.Error,
+				DurationMs: tool.DurationMs,
+			})
+		}
+		attempts = append(attempts, DebugGeneration{
+			ID:                attempt.ID,
+			RequestID:         attempt.RequestID,
+			Model:             attempt.Model,
+			Provider:          attempt.Provider,
+			FinishReason:      attempt.FinishReason,
+			PromptTokens:      attempt.PromptTokens,
+			CompletionTokens:  attempt.CompletionTokens,
+			TotalTokens:       attempt.TotalTokens,
+			CachedTokens:      attempt.CachedTokens,
+			Cost:              attempt.Cost,
+			LatencyMs:         attempt.LatencyMs,
+			Input:             attempt.Input,
+			Output:            attempt.Output,
+			Thinking:          attempt.Thinking,
+			ObservationReason: attempt.ObservationReason,
+			StartedAt:         attempt.StartedAt,
+			CompletedAt:       attempt.CompletedAt,
+			ToolCalls:         toolCalls,
+		})
+	}
+
+	spans := make([]DebugSpan, 0, len(trace.Spans))
+	for _, span := range trace.Spans {
+		spans = append(spans, DebugSpan{
+			ID:           span.ID,
+			ParentID:     span.ParentID,
+			GenerationID: span.GenerationID,
+			Name:         span.Name,
+			Type:         span.Type,
+			Status:       span.Status,
+			Level:        span.Level,
+			CallID:       span.CallID,
+			ToolName:     span.ToolName,
+			Input:        span.Input,
+			Output:       span.Output,
+			Error:        span.Error,
+			DurationMs:   span.DurationMs,
+			StartedAt:    span.StartedAt,
+			CompletedAt:  span.CompletedAt,
+			Attributes:   span.Attributes,
+		})
+	}
+
+	events := make([]DebugEvent, 0, len(trace.Events))
+	for _, event := range trace.Events {
+		events = append(events, DebugEvent{
+			ID:           event.ID,
+			Name:         event.Name,
+			Type:         event.Type,
+			Level:        event.Level,
+			Message:      event.Message,
+			Reason:       event.Reason,
+			SpanID:       event.SpanID,
+			GenerationID: event.GenerationID,
+			Timestamp:    event.Timestamp,
+			Attributes:   event.Attributes,
+		})
+	}
+
 	return &DebugTrace{
-		Usage:        usage,
-		GenerationMs: trace.GenerationMs,
-		Tools:        tools,
+		SchemaVersion:     trace.SchemaVersion,
+		StartedAt:         trace.StartedAt,
+		CompletedAt:       trace.CompletedAt,
+		Usage:             usage,
+		GenerationMs:      trace.GenerationMs,
+		Tools:             tools,
+		Attempts:          attempts,
+		Spans:             spans,
+		Events:            events,
+		TraceID:           trace.TraceID,
+		TraceURL:          trace.TraceURL,
+		SessionID:         trace.SessionID,
+		Thinking:          trace.Thinking,
+		ObservationReason: trace.ObservationReason,
 	}
 }
 
@@ -499,6 +645,7 @@ func toArtifactDTO(a domain.Artifact) Artifact {
 	out := Artifact{
 		ID:          a.ID().String(),
 		SessionID:   a.SessionID().String(),
+		UploadID:    a.UploadID(),
 		Type:        string(a.Type()),
 		Name:        a.Name(),
 		Description: a.Description(),
@@ -540,11 +687,14 @@ func parseUUID(s string) (uuid.UUID, error) {
 // pendingQuestionFromMessages scans messages for pending question data
 // and builds the DTO with turn ID inference.
 func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
-	// Find the message with pending question data
+	// Find the latest message with pending question data.
 	var pendingMsg types.Message
-	for _, m := range msgs {
+	pendingIndex := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
 		if m != nil && m.HasPendingQuestion() {
 			pendingMsg = m
+			pendingIndex = i
 			break
 		}
 	}
@@ -555,7 +705,7 @@ func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
 
 	// Find the turn ID: look backward for the nearest user message
 	turnID := pendingMsg.ID().String()
-	for i := len(msgs) - 1; i >= 0; i-- {
+	for i := pendingIndex - 1; i >= 0; i-- {
 		if msgs[i] != nil && msgs[i].Role() == types.RoleUser && msgs[i].CreatedAt().Before(pendingMsg.CreatedAt()) {
 			turnID = msgs[i].ID().String()
 			break

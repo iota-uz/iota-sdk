@@ -24,8 +24,15 @@ export function extractSecretFromOTPAuthURL(otpauthURL: string): string {
  * Generate a valid 6-digit TOTP code (RFC 6238 / SHA1 / 30s period).
  */
 export function generateTOTPCode(secret: string): string {
+	return generateTOTPCodeWithOffset(secret, 0);
+}
+
+/**
+ * Generate a valid 6-digit TOTP code with step offset.
+ */
+export function generateTOTPCodeWithOffset(secret: string, stepOffset: number): string {
 	try {
-		const step = Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS);
+		const step = Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS) + stepOffset;
 		return generateCodeAtStep(secret, step);
 	} catch (error) {
 		throw new Error(`Failed to generate TOTP code: ${error}`);

@@ -6,14 +6,12 @@ import {
   createBichatStylesPlugin,
 } from '@iota-uz/sdk/applet/vite'
 
-const sdkDist = path.resolve(__dirname, '../../../../dist')
-
 export default defineConfig(({ command }) =>
   createAppletViteConfig({
     basePath: '/bi-chat',
     backendUrl: 'http://localhost:3900',
-    enableLocalSdkAliases: command === 'serve',
-    sdkDistDir: command === 'serve' ? sdkDist : undefined,
+    enableLocalSdkAliases: command === 'serve' && Boolean(process.env.IOTA_SDK_DIST),
+    sdkDistDir: process.env.IOTA_SDK_DIST,
     extend: {
       plugins: [
         react(),

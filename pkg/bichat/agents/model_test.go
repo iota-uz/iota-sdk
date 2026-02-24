@@ -43,7 +43,7 @@ func TestCapability_HasCapability(t *testing.T) {
 	t.Parallel()
 
 	info := agents.ModelInfo{
-		Name:     "claude-3-5-sonnet",
+		Name:     "claude-sonnet-4-6",
 		Provider: "anthropic",
 		Capabilities: []agents.Capability{
 			agents.CapabilityStreaming,

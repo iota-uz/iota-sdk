@@ -37,7 +37,7 @@ templ EditForm(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ uploads := useUploads(props.User) }}
 	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
-		<div class="flex-1 overflow-y-auto p-6">
+		<div class="flex-1 overflow-y-auto p-4 md:p-6">
 			if props.User.IsBlocked {
 				<div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
 					<div class="flex items-start gap-3">
@@ -92,11 +92,11 @@ templ EditForm(props *EditFormProps) {
 						}
 					}
 				}
-				<div x-show="selectedTab === 'userinfo'" class="flex gap-5 mt-5">
+				<div x-show="selectedTab === 'userinfo'" class="flex flex-col md:flex-row gap-5 mt-5">
 					<div class="flex-1 space-y-5">
 						@card.Card(card.Props{
 							Header: card.DefaultHeader(pageCtx.T("Users.Cards.PersonalInfo")),
-							Class:  "grid grid-cols-2 gap-4",
+							Class:  "grid grid-cols-1 md:grid-cols-2 gap-4",
 						}) {
 							@input.Text(&input.Props{
 								Label: pageCtx.T("Users.Single.FirstName"),
@@ -150,7 +150,7 @@ templ EditForm(props *EditFormProps) {
 						}
 						@card.Card(card.Props{
 							Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),
-							Class:  "grid grid-cols-3 gap-4",
+							Class:  "grid grid-cols-1 md:grid-cols-3 gap-4",
 						}) {
 							@RoleSelect(&RoleSelectProps{
 								Roles:    props.Roles,
@@ -189,7 +189,6 @@ templ EditForm(props *EditFormProps) {
 							Label:       pageCtx.T("Users.Single.ChooseAvatar"),
 							Placeholder: "PNG, JPG",
 							Name:        "AvatarID",
-							Class:       "col-span-2",
 							Accept:      "image/*",
 							Error:       props.Errors["AvatarID"],
 							Uploads:     uploads,
@@ -228,7 +227,7 @@ templ EditForm(props *EditFormProps) {
 			}
 		</div>
 		<div
-			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+			class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
 			if composables.CanUser(ctx, permissions.UserUpdateBlockStatus) == nil {
 				if !props.User.IsBlocked {

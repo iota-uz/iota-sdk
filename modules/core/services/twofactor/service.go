@@ -190,7 +190,7 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 	case pkgtf.MethodSMS:
 		// Get user's phone number
 		phone := u.Phone()
-		if phone.Value() == "" {
+		if phone == nil || phone.Value() == "" {
 			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
 		}
 
@@ -257,10 +257,14 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 	return challenge, nil
 }
 
+// baseUserOptionCount must match the number of With* calls in preserveUserFields below.
+const baseUserOptionCount = 24
+
 // preserveUserFields creates a new user instance with all fields from the original user preserved
 // This helper ensures no fields are lost when updating user for 2FA operations
 func preserveUserFields(u user.User, opts ...user.Option) user.User {
-	baseOpts := []user.Option{
+	baseOpts := make([]user.Option, 0, baseUserOptionCount+len(opts))
+	baseOpts = append(baseOpts,
 		user.WithID(u.ID()),
 		user.WithTenantID(u.TenantID()),
 		user.WithType(u.Type()),
@@ -285,7 +289,7 @@ func preserveUserFields(u user.User, opts ...user.Option) user.User {
 		user.WithTwoFactorMethod(u.TwoFactorMethod()),
 		user.WithTwoFactorEnabledAt(u.TwoFactorEnabledAt()),
 		user.WithTOTPSecretEncrypted(u.TOTPSecretEncrypted()),
-	}
+	)
 	// Append any additional options passed by caller (these will override base options)
 	baseOpts = append(baseOpts, opts...)
 	return user.New(
@@ -455,7 +459,11 @@ func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (
 
 	case pkgtf.MethodSMS:
 		// Get user's phone number
-		phone := u.Phone().Value()
+		phoneVO := u.Phone()
+		if phoneVO == nil {
+			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
+		}
+		phone := phoneVO.Value()
 		if phone == "" {
 			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
 		}
@@ -548,7 +556,14 @@ func (s *TwoFactorService) Verify(ctx context.Context, userID uint, code string)
 
 	case pkgtf.MethodSMS:
 		// Validate SMS OTP
-		phone := u.Phone().Value()
+		phoneVO := u.Phone()
+		if phoneVO == nil {
+			return serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
+		}
+		phone := phoneVO.Value()
+		if phone == "" {
+			return serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
+		}
 		if err := s.otpService.Validate(ctx, phone, code); err != nil {
 			return serrors.E(op, err)
 		}

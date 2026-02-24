@@ -153,6 +153,10 @@ lint: (check "lint")
 tr: (check "tr")
 
 [group("quality")]
+[doc("Run gosec security scan (high severity, excludes generated files)")]
+gosec: (check "gosec")
+
+[group("quality")]
 [doc("Auto-fix commands (fmt|imports)")]
 fix cmd="help":
   case "{{cmd}}" in \
@@ -169,8 +173,9 @@ check cmd="help":
   case "{{cmd}}" in \
     lint) golangci-lint run --build-tags {{GO_TEST_TAG}} ./... ;; \
     tr) IOTA_SKIP_SPOTLIGHT_PREFLIGHT=1 go run cmd/command/main.go check_tr_keys ;; \
+    gosec) GOTOOLCHAIN=auto gosec -r ./cmd/server -exclude-generated -severity high -confidence medium && GOTOOLCHAIN=auto gosec -r ./cmd/superadmin -exclude-generated -severity high -confidence medium ;; \
     *) \
-      echo "Usage: just check [lint|tr]" ; \
+      echo "Usage: just check [lint|tr|gosec]" ; \
       exit 2 ;; \
   esac
 

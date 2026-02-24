@@ -33,38 +33,31 @@ func (f *QueryResultFormatter) Format(payload any, opts types.FormatOptions) (st
 	}
 
 	var b strings.Builder
-	b.WriteString("Query executed successfully.\n\n")
-	b.WriteString(fmt.Sprintf("- Query: `%s`\n", p.Query))
-	b.WriteString(fmt.Sprintf("- Duration: %dms\n", p.DurationMs))
-	b.WriteString(fmt.Sprintf("- Returned: %d row(s)\n", p.RowCount))
-	b.WriteString(fmt.Sprintf("- Limit: %d\n", p.Limit))
+	truncated := "no"
 	if p.Truncated {
-		reason := p.TruncatedReason
-		if reason == "" {
-			reason = "limit"
-		}
-		b.WriteString(fmt.Sprintf("- Truncated: yes (`%s`)\n", reason))
-	} else {
-		b.WriteString("- Truncated: no\n")
+		truncated = "yes"
 	}
-	b.WriteString("\n\n")
+	statsLine := fmt.Sprintf("Duration: %dms, Returned: %d row(s), Limit: %d, Truncated: %s\n\n", p.DurationMs, p.RowCount, p.Limit, truncated)
 
 	if len(p.Columns) == 0 {
 		b.WriteString("No columns returned.\n")
-		b.WriteString("\nExecuted SQL:\n\n```sql\n")
+		b.WriteString(statsLine)
+		b.WriteString("Executed SQL:\n\n```sql\n")
 		b.WriteString(p.ExecutedSQL)
 		b.WriteString("\n```\n")
 		return b.String(), nil
 	}
 	if len(p.Rows) == 0 {
 		b.WriteString("No rows returned.\n")
+		b.WriteString(statsLine)
 		if len(p.Hints) > 0 {
-			b.WriteString("\n**Hints:**\n")
+			b.WriteString("**Hints:**\n")
 			for _, hint := range p.Hints {
 				b.WriteString(fmt.Sprintf("- %s\n", hint))
 			}
+			b.WriteString("\n")
 		}
-		b.WriteString("\nExecuted SQL:\n\n```sql\n")
+		b.WriteString("Executed SQL:\n\n```sql\n")
 		b.WriteString(p.ExecutedSQL)
 		b.WriteString("\n```\n")
 		return b.String(), nil
@@ -75,6 +68,8 @@ func (f *QueryResultFormatter) Format(payload any, opts types.FormatOptions) (st
 	if len(rows) > maxRows {
 		rows = rows[:maxRows]
 	}
+
+	b.WriteString(statsLine)
 
 	// Header
 	b.WriteString("| ")

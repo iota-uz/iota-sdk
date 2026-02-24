@@ -15,8 +15,18 @@ type ArtifactType string
 const (
 	ArtifactTypeCodeOutput ArtifactType = "code_output"
 	ArtifactTypeChart      ArtifactType = "chart"
+	ArtifactTypeTable      ArtifactType = "table"
 	ArtifactTypeExport     ArtifactType = "export"
 	ArtifactTypeAttachment ArtifactType = "attachment"
+)
+
+type ArtifactStatus string
+
+const (
+	ArtifactStatusPendingUpload ArtifactStatus = "pending_upload"
+	ArtifactStatusAvailable     ArtifactStatus = "available"
+	ArtifactStatusFailed        ArtifactStatus = "failed"
+	ArtifactStatusDeleted       ArtifactStatus = "deleted"
 )
 
 // Artifact represents any generated output from a chat session.
@@ -26,6 +36,7 @@ type Artifact interface {
 	TenantID() uuid.UUID
 	SessionID() uuid.UUID
 	MessageID() *uuid.UUID
+	UploadID() *int64
 	Type() ArtifactType
 	Name() string
 	Description() string
@@ -33,6 +44,8 @@ type Artifact interface {
 	URL() string
 	SizeBytes() int64
 	Metadata() map[string]any
+	Status() ArtifactStatus
+	IdempotencyKey() string
 	CreatedAt() time.Time
 
 	HasFile() bool
@@ -46,6 +59,7 @@ type artifact struct {
 	tenantID     uuid.UUID
 	sessionID    uuid.UUID
 	messageID    *uuid.UUID
+	uploadID     *int64
 	artifactType ArtifactType
 	name         string
 	description  string
@@ -53,6 +67,8 @@ type artifact struct {
 	url          string
 	sizeBytes    int64
 	metadata     map[string]any
+	status       ArtifactStatus
+	idempotency  string
 	createdAt    time.Time
 }
 
@@ -62,9 +78,11 @@ type ArtifactOption func(*artifact)
 // NewArtifact creates a new artifact with the given options.
 func NewArtifact(opts ...ArtifactOption) Artifact {
 	a := &artifact{
-		id:        uuid.New(),
-		metadata:  make(map[string]any),
-		createdAt: time.Now(),
+		id:          uuid.New(),
+		metadata:    make(map[string]any),
+		status:      ArtifactStatusAvailable,
+		idempotency: "",
+		createdAt:   time.Now(),
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -97,6 +115,13 @@ func WithArtifactSessionID(sessionID uuid.UUID) ArtifactOption {
 func WithArtifactMessageID(messageID *uuid.UUID) ArtifactOption {
 	return func(a *artifact) {
 		a.messageID = messageID
+	}
+}
+
+// WithArtifactUploadID sets the optional upload ID.
+func WithArtifactUploadID(uploadID int64) ArtifactOption {
+	return func(a *artifact) {
+		a.uploadID = &uploadID
 	}
 }
 
@@ -151,6 +176,18 @@ func WithArtifactMetadata(m map[string]any) ArtifactOption {
 	}
 }
 
+func WithArtifactStatus(status ArtifactStatus) ArtifactOption {
+	return func(a *artifact) {
+		a.status = status
+	}
+}
+
+func WithArtifactIdempotencyKey(key string) ArtifactOption {
+	return func(a *artifact) {
+		a.idempotency = strings.TrimSpace(key)
+	}
+}
+
 // WithArtifactCreatedAt sets the created timestamp.
 func WithArtifactCreatedAt(t time.Time) ArtifactOption {
 	return func(a *artifact) {
@@ -173,6 +210,10 @@ func (a *artifact) SessionID() uuid.UUID {
 
 func (a *artifact) MessageID() *uuid.UUID {
 	return a.messageID
+}
+
+func (a *artifact) UploadID() *int64 {
+	return a.uploadID
 }
 
 func (a *artifact) Type() ArtifactType {
@@ -201,6 +242,14 @@ func (a *artifact) SizeBytes() int64 {
 
 func (a *artifact) Metadata() map[string]any {
 	return a.metadata
+}
+
+func (a *artifact) Status() ArtifactStatus {
+	return a.status
+}
+
+func (a *artifact) IdempotencyKey() string {
+	return a.idempotency
 }
 
 func (a *artifact) CreatedAt() time.Time {

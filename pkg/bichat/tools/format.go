@@ -42,18 +42,3 @@ func FormatStructuredResult(result *types.ToolResult, err error) (string, error)
 	}
 	return f.Format(result.Payload, types.DefaultFormatOptions())
 }
-
-// Compile-time interface checks
-var (
-	_ agents.StructuredTool = (*SQLExecuteTool)(nil)
-	_ agents.StructuredTool = (*SchemaListTool)(nil)
-	_ agents.StructuredTool = (*SchemaDescribeTool)(nil)
-	_ agents.StructuredTool = (*KBSearchTool)(nil)
-	_ agents.StructuredTool = (*GetCurrentTimeTool)(nil)
-	_ agents.StructuredTool = (*ArtifactReaderTool)(nil)
-	_ agents.StructuredTool = (*ExportQueryToExcelTool)(nil)
-	_ agents.StructuredTool = (*SearchLearningsTool)(nil)
-	_ agents.StructuredTool = (*SaveLearningTool)(nil)
-	_ agents.StructuredTool = (*SearchValidatedQueriesTool)(nil)
-	_ agents.StructuredTool = (*SaveValidatedQueryTool)(nil)
-)

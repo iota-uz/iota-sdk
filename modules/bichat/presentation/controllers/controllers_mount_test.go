@@ -3,18 +3,20 @@ package controllers
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	bichatpersistence "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	modservices "github.com/iota-uz/iota-sdk/modules/bichat/services"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	coreupload "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	bichatagents "github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
@@ -119,7 +121,7 @@ func newControllerDeps(t *testing.T) controllerDeps {
 		ChatRepo:     chatRepo,
 	})
 
-	chatService := modservices.NewChatService(chatRepo, agentService, model, nil)
+	chatService := modservices.NewChatService(chatRepo, agentService, model, nil, nil)
 	attachmentService := modservices.NewAttachmentService(storage.NewNoOpFileStorage())
 
 	return controllerDeps{
@@ -138,7 +140,10 @@ func newRouterWithContext(t *testing.T, env *itf.TestEnvironment, u coreuser.Use
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := req.Context()
 			ctx = composables.WithPool(ctx, env.Pool)
-			ctx = composables.WithTx(ctx, env.Tx)
+			// Stream persistence runs on a separate transaction; avoid keeping all
+			// request operations in a long-lived test transaction to prevent lock
+			// contention/timeouts in integration tests.
+			ctx = context.WithValue(ctx, constants.TxKey, nil)
 			ctx = composables.WithTenantID(ctx, env.Tenant.ID)
 			ctx = composables.WithUser(ctx, u)
 			ctx = context.WithValue(ctx, constants.AppKey, env.App)
@@ -164,10 +169,34 @@ func newRouterWithContext(t *testing.T, env *itf.TestEnvironment, u coreuser.Use
 func mustCreateSession(t *testing.T, ctx context.Context, deps controllerDeps, tenantID uuid.UUID, u coreuser.User, title string) bichatdomain.Session {
 	t.Helper()
 
-	s, err := deps.chatService.CreateSession(ctx, tenantID, int64(u.ID()), title)
+	s, err := deps.chatService.CreateSession(context.WithValue(ctx, constants.TxKey, nil), tenantID, int64(u.ID()), title)
 	require.NoError(t, err)
 	require.NotNil(t, s)
 	return s
+}
+
+func mustCreateControllerUpload(t *testing.T, ctx context.Context, fileName, mimeType string, size int) int64 {
+	t.Helper()
+
+	mime := mimetype.Lookup(mimeType)
+	if mime == nil {
+		mime = mimetype.Lookup("application/octet-stream")
+	}
+
+	uploadRepo := corepersistence.NewUploadRepository()
+	seed := uuid.NewString()[:8]
+	entity := coreupload.New(
+		"bichat-controller-hash-"+seed,
+		"uploads/bichat-controller-"+seed,
+		fileName,
+		"bichat-controller-"+seed,
+		size,
+		mime,
+	)
+
+	created, err := uploadRepo.Create(context.WithValue(ctx, constants.TxKey, nil), entity)
+	require.NoError(t, err)
+	return int64(created.ID())
 }
 
 func TestControllers_BasePathRouting_Integration(t *testing.T) {
@@ -248,12 +277,12 @@ func TestChatController_OwnershipVsReadAllPermission_Integration(t *testing.T) {
 	require.Contains(t, w2.Body.String(), session.ID().String())
 }
 
-func TestStreamController_DebugMode_ForbiddenWithoutExportPermission_Integration(t *testing.T) {
+func TestStreamController_DebugMode_AllowedWithoutExtraPermission_Integration(t *testing.T) {
 	t.Parallel()
 
 	env := setupControllerTest(t)
 	u := createCoreUser(t, env, "bichat-controllers-debug-noexport@example.com").
-		AddPermission(bichatperm.BiChatAccess) // no BiChatExport
+		AddPermission(bichatperm.BiChatAccess)
 
 	deps := newControllerDeps(t)
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "s")
@@ -276,7 +305,9 @@ func TestStreamController_DebugMode_ForbiddenWithoutExportPermission_Integration
 	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewReader(data))
 	r.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
+	require.Contains(t, w.Body.String(), `"type":"done"`)
 }
 
 func TestStreamController_DebugMode_AllowedWithExportPermission_Integration(t *testing.T) {
@@ -396,16 +427,13 @@ func TestStreamController_AttachmentUpload_PersistsOnUserMessage_Integration(t *
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
-	attachmentData := []byte("hello,artifact-reader")
+	uploadID := mustCreateControllerUpload(t, env.Ctx, "notes.txt", "text/plain", len("hello,artifact-reader"))
 	body := map[string]any{
 		"sessionId": session.ID().String(),
 		"content":   "Analyze this file",
 		"attachments": []map[string]any{
 			{
-				"filename":   "notes.txt",
-				"mimeType":   "text/plain",
-				"sizeBytes":  len(attachmentData),
-				"base64Data": base64.StdEncoding.EncodeToString(attachmentData),
+				"uploadId": uploadID,
 			},
 		},
 	}
@@ -433,4 +461,55 @@ func TestStreamController_AttachmentUpload_PersistsOnUserMessage_Integration(t *
 	assert.Equal(t, "notes.txt", userMsg.Attachments()[0].FileName)
 	assert.Equal(t, "text/plain", userMsg.Attachments()[0].MimeType)
 	assert.NotEmpty(t, userMsg.Attachments()[0].FilePath)
+}
+
+func TestStreamController_Stop_Returns200_Integration(t *testing.T) {
+	t.Parallel()
+
+	env := setupControllerTest(t)
+	u := createCoreUser(t, env, "bichat-controllers-stop@example.com").
+		AddPermission(bichatperm.BiChatAccess)
+
+	deps := newControllerDeps(t)
+	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "stop test")
+
+	r := newRouterWithContext(t, env, u)
+	NewStreamController(env.App, deps.chatService,
+		deps.attachmentService,
+		WithRequireAccessPermission(bichatperm.BiChatAccess),
+	).Register(r)
+
+	body := map[string]any{"sessionId": session.ID().String()}
+	data, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream/stop", bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+}
+
+func TestStreamController_Stop_Returns400_WhenSessionIDMissing(t *testing.T) {
+	t.Parallel()
+
+	env := setupControllerTest(t)
+	u := createCoreUser(t, env, "bichat-controllers-stop-bad@example.com").
+		AddPermission(bichatperm.BiChatAccess)
+
+	deps := newControllerDeps(t)
+	r := newRouterWithContext(t, env, u)
+	NewStreamController(env.App, deps.chatService,
+		deps.attachmentService,
+		WithRequireAccessPermission(bichatperm.BiChatAccess),
+	).Register(r)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream/stop", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "sessionId")
 }

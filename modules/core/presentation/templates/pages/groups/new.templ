@@ -22,7 +22,7 @@ templ CreateForm(props *CreateFormProps) {
 		hx-indicator="#save-btn"
 	>
 		<input type="hidden" name="form" value="drawer-form"/>
-		<div class="flex-1 overflow-y-auto p-6">
+		<div class="flex-1 overflow-y-auto p-4 md:p-6">
 			<div class="space-y-6">
 				@input.Text(&input.Props{
 					Label:       pageCtx.T("Groups.Single.Name"),
@@ -52,7 +52,7 @@ templ CreateForm(props *CreateFormProps) {
 				})
 			</div>
 		</div>
-		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Size:  button.SizeMD,
 				Class: "w-full bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",

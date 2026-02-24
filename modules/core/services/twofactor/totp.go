@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtf "github.com/iota-uz/iota-sdk/pkg/twofactor"
+	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/yeqown/go-qrcode/v2"
 	"github.com/yeqown/go-qrcode/writer/standard"
@@ -212,7 +213,10 @@ func (s *TOTPService) ValidateWithSkew(secret, code string, skew uint) (bool, er
 		secret,
 		time.Now(),
 		totp.ValidateOpts{
-			Skew: skew,
+			Period:    30,
+			Skew:      skew,
+			Digits:    otp.DigitsSix,
+			Algorithm: otp.AlgorithmSHA1,
 		},
 	)
 	if err != nil {

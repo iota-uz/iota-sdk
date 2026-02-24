@@ -103,7 +103,7 @@ func DefaultCompactionConfig() *CompactionConfig {
 // DefaultPolicy returns a sensible default policy for Anthropic Claude 3.5 Sonnet.
 func DefaultPolicy() ContextPolicy {
 	return ContextPolicy{
-		ContextWindow:     180000, // Claude 3.5 Sonnet context window
+		ContextWindow:     200000, // Claude standard context window (docs.anthropic.com)
 		CompletionReserve: 8000,
 		OverflowStrategy:  OverflowCompact,
 		KindPriorities:    DefaultKindPriorities(),

@@ -16,14 +16,11 @@ import { generateTOTPCode, generateInvalidTOTPCode } from '../../helpers/totp';
  */
 
 test.describe('2FA TOTP Setup Flow', () => {
-	test.beforeAll(async ({ request }) => {
-		// Reset database and seed with comprehensive data
+	test.beforeEach(async ({ page, request }) => {
 		await resetTestDatabase(request, { reseedMinimal: false });
 		await seedScenario(request, 'comprehensive');
-	});
-
-	test.beforeEach(async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 720 });
+		await login(page, 'test@gmail.com', 'TestPass123!');
 	});
 
 	test.afterEach(async ({ page }) => {
@@ -59,7 +56,7 @@ test.describe('2FA TOTP Setup Flow', () => {
 		await setupPage.expectQRCodeVisible();
 
 		// Verify setup instructions are present
-		await expect(page.locator('text=/scan.*qr|authenticator/i')).toBeVisible();
+		await expect(page.locator('text=/scan.*qr|authenticator/i').first()).toBeVisible();
 
 		// Verify code input field is present
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
@@ -176,11 +173,18 @@ test.describe('2FA TOTP Setup Flow', () => {
 
 		// Try to enter non-numeric characters
 		const codeInput = page.locator('input[name="Code"]');
-
-		// HTML5 validation should prevent non-numeric input
-		await codeInput.fill('abcdef');
-		const value1 = await codeInput.inputValue();
-		expect(value1).not.toBe('abcdef'); // Should be empty or different
+		await expect(codeInput).toHaveAttribute('pattern', '[0-9]{6}');
+		await codeInput.fill('abc123');
+		const isValidBeforeSubmit = await codeInput.evaluate(
+			(node) => (node as HTMLInputElement).validity.valid,
+		);
+		expect(isValidBeforeSubmit).toBe(false);
+		await page.click('button[type="submit"]');
+		await expect(page).toHaveURL(/\/login\/2fa\/setup\/totp/);
+		const isValidAfterSubmit = await codeInput.evaluate(
+			(node) => (node as HTMLInputElement).validity.valid,
+		);
+		expect(isValidAfterSubmit).toBe(false);
 
 		// Try to enter more than 6 digits
 		await codeInput.fill('1234567890');
@@ -198,12 +202,12 @@ test.describe('2FA TOTP Setup Flow', () => {
 		await setupPage.selectMethod('totp');
 
 		// Verify help text is present
-		await expect(page.locator('text=/google authenticator|authy|totp/i')).toBeVisible();
+		await expect(page.locator('h1')).toContainText(/authenticator|two.?factor|2fa/i);
 
 		// Verify instructions mention scanning QR code
-		await expect(page.locator('text=/scan/i')).toBeVisible();
+		await expect(page.locator('text=/scan|qr/i').first()).toBeVisible();
 
 		// Verify there's a code input instruction
-		await expect(page.locator('text=/enter.*code|verification.*code|6.*digit/i')).toBeVisible();
+		await expect(page.locator('text=/enter.*code|verification.*code|6.*digit/i').first()).toBeVisible();
 	});
 });

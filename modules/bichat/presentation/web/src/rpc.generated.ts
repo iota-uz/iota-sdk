@@ -26,6 +26,7 @@ export interface Artifact {
   id: string
   sessionId: string
   messageId?: string
+  uploadId?: number | null
   type: string
   name: string
   description?: string
@@ -65,10 +66,10 @@ export interface AssistantTurn {
 
 export interface Attachment {
   id: string
+  uploadId?: number | null
   filename: string
   mimeType: string
   sizeBytes: number
-  base64Data?: string
   url?: string
 }
 
@@ -99,6 +100,59 @@ export interface ConversationTurn {
   createdAt: string
 }
 
+export interface DebugEvent {
+  id?: string
+  name?: string
+  type?: string
+  level?: string
+  message?: string
+  reason?: string
+  spanId?: string
+  generationId?: string
+  timestamp?: string
+  attributes?: Record<string, unknown>
+}
+
+export interface DebugGeneration {
+  id?: string
+  requestId?: string
+  model?: string
+  provider?: string
+  finishReason?: string
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+  cachedTokens?: number
+  cost?: number
+  latencyMs?: number
+  input?: string
+  output?: string
+  thinking?: string
+  observationReason?: string
+  startedAt?: string
+  completedAt?: string
+  toolCalls?: DebugToolCall[]
+}
+
+export interface DebugSpan {
+  id?: string
+  parentId?: string
+  generationId?: string
+  name?: string
+  type?: string
+  status?: string
+  level?: string
+  callId?: string
+  toolName?: string
+  input?: string
+  output?: string
+  error?: string
+  durationMs?: number
+  startedAt?: string
+  completedAt?: string
+  attributes?: Record<string, unknown>
+}
+
 export interface DebugToolCall {
   callId?: string
   name?: string
@@ -109,9 +163,20 @@ export interface DebugToolCall {
 }
 
 export interface DebugTrace {
+  schemaVersion?: string
+  startedAt?: string
+  completedAt?: string
   usage?: DebugUsage | null
   generationMs?: number
   tools?: DebugToolCall[]
+  attempts?: DebugGeneration[]
+  spans?: DebugSpan[]
+  events?: DebugEvent[]
+  traceId?: string
+  traceUrl?: string
+  sessionId?: string
+  thinking?: string
+  observationReason?: string
 }
 
 export interface DebugUsage {

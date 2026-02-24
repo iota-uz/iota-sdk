@@ -1,9 +1,45 @@
 name: Test, lint & build
 
 on:
-  - push
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
+  security-gosec:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
+    name: Security Scan (gosec)
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.24.13"
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.2
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
+
+      - name: Run gosec (production entrypoints)
+        run: just gosec
+
   lint-and-format:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
@@ -20,7 +56,7 @@ jobs:
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
-          go-version: "1.23.2"
+          go-version: "1.24.13"
 
       - name: Install golangci-lint
         run: |
@@ -31,6 +67,11 @@ jobs:
         run: |
           go install github.com/a-h/templ/cmd/templ@v0.3.857
           templ --help
+
+      - name: Install air
+        run: |
+          go install github.com/air-verse/air@latest
+          air -v
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,7 +89,9 @@ jobs:
           sudo apt-get install -y pgformatter
 
       - name: Install just
-        uses: taiki-e/install-action@just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
 
       - name: Download Go dependencies
         run: go mod download
@@ -111,6 +154,10 @@ jobs:
 
       - name: Install BiChat applet dependencies
         run: pnpm install --frozen-lockfile -C modules/bichat/presentation/web
+
+      - name: Run applet DX guardrails
+        run: |
+          applet doctor
 
       - name: Typecheck BiChat applet
         run: pnpm -C modules/bichat/presentation/web exec tsc --noEmit
@@ -182,10 +229,12 @@ jobs:
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
-          go-version: "1.23.2"
+          go-version: "1.24.13"
 
       - name: Install just
-        uses: taiki-e/install-action@just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
 
       - name: Install tools
         run: |
@@ -253,7 +302,20 @@ jobs:
 
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    name: E2E Tests
+    timeout-minutes: 20
+    name: E2E Tests (shard ${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1/4
+            shardIndex: 1
+          - shard: 2/4
+            shardIndex: 2
+          - shard: 3/4
+            shardIndex: 3
+          - shard: 4/4
+            shardIndex: 4
     env:
       GOPRIVATE: github.com/iota-uz/*
       GONOSUMDB: github.com/iota-uz/*
@@ -312,10 +374,22 @@ jobs:
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
-          go-version: "1.23.2"
+          go-version: "1.24.13"
+
+      - name: Cache Go modules and build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-e2e-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-e2e-
 
       - name: Install just
-        uses: taiki-e/install-action@just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
 
       - name: Install tools
         run: |
@@ -331,6 +405,18 @@ jobs:
         uses: pnpm/action-setup@v3
         with:
           version: 9.15.0
+
+      - name: Get pnpm store directory
+        id: pnpm-store
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-e2e-${{ hashFiles('pnpm-lock.yaml', 'e2e/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-e2e-
 
       - name: Download Go dependencies
         run: go mod download
@@ -348,6 +434,14 @@ jobs:
       - name: Install Node dependencies
         run: pnpm install
         working-directory: e2e
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
@@ -380,7 +474,7 @@ jobs:
       - name: Run Playwright Tests
         env:
           BASE_URL: http://localhost:3201
-        run: npx playwright test
+        run: npx playwright test --shard=${{ matrix.shard }}
         working-directory: e2e
 
       - name: Stop Go Server
@@ -397,7 +491,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shardIndex }}
           path: e2e/playwright-report/
           retention-days: 30
 
@@ -405,7 +499,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.shardIndex }}
           path: e2e/test-results/
           retention-days: 30
 
@@ -413,7 +507,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: server-logs
+          name: server-logs-${{ matrix.shardIndex }}
           path: /tmp/server.log
           retention-days: 7
 

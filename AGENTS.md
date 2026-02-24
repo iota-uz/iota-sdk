@@ -103,7 +103,7 @@ modules/{module}/
 
 ## Technology Stack
 
-- **Backend**: Go 1.23.2, IOTA SDK framework, GraphQL
+- **Backend**: Go 1.24.10, IOTA SDK framework, GraphQL
 - **Database**: PostgreSQL 13+ (multi-tenant with organization_id)
 - **Frontend**: HTMX + Alpine.js + Templ + Tailwind CSS
 - **Auth**: Cookie-based sessions with RBAC
@@ -146,7 +146,7 @@ cd e2e && npx playwright test tests/module/specific.spec.ts  # Single test
 
 ## Code Style Guidelines
 - Use `go fmt` for formatting. Do not indent code manually.
-- Use Go v1.23.2 and follow standard Go idioms
+- Use Go v1.24.10 and follow standard Go idioms
 - File organization: group related functionality in modules/ or pkg/ directories
 - Naming: use camelCase for variables, PascalCase for exported functions/types
 - Testing: table-driven tests with descriptive names (TestFunctionName_Scenario), use the `require` and `assert` packages from `github.com/stretchr/testify`
