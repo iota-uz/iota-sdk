@@ -7,3 +7,4 @@
 -- - oidc_auth_requests
 -- - oidc_refresh_tokens
 -- - oidc_signing_keys
+-- - oidc_revoked_access_tokens
