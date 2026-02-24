@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -36,7 +37,7 @@ func controllerTestConnString(defaultDB string) string {
 	if dbName == "" {
 		dbName = defaultDB
 	}
-	return fmt.Sprintf("postgres://%s:%s@%s/%s", user, password, net.JoinHostPort(host, port), dbName)
+	return fmt.Sprintf("postgres://%s@%s/%s", url.UserPassword(user, password).String(), net.JoinHostPort(host, port), dbName)
 }
 
 func openControllerTestPool(t *testing.T) *pgxpool.Pool {
@@ -73,6 +74,7 @@ func TestController_LazyInitAndClose(t *testing.T) {
 		{
 			name: "Dashboard",
 			run: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
 				controller := NewDashboardController(testApplicationWithPool(pool))
 				c, ok := controller.(*DashboardController)
 				require.True(t, ok)
@@ -94,6 +96,7 @@ func TestController_LazyInitAndClose(t *testing.T) {
 		{
 			name: "Showcase",
 			run: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
 				controller := NewShowcaseController(testApplicationWithPool(pool))
 				c, ok := controller.(*ShowcaseController)
 				require.True(t, ok)

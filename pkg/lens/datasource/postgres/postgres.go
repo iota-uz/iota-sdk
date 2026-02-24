@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -349,8 +351,9 @@ func (ds *PostgreSQLDataSource) Close() error {
 }
 
 func newPostgreSQLDataSource(pool *pgxpool.Pool, config Config, ownsPool bool) (*PostgreSQLDataSource, error) {
+	op := serrors.Op("lens.postgres.newPostgreSQLDataSource")
 	if pool == nil {
-		return nil, fmt.Errorf("pool is required")
+		return nil, serrors.E(op, errors.New("pool is required"))
 	}
 	if config.QueryTimeout == 0 {
 		config.QueryTimeout = 30 * time.Second

@@ -33,36 +33,55 @@ func (c plainController) Register(_ *mux.Router) {}
 
 func (c plainController) Key() string { return c.key }
 
-func TestCloseControllerResources_ClosesOnlyClosableControllers(t *testing.T) {
+func TestCloseControllerResources(t *testing.T) {
 	t.Parallel()
 
-	closedCount := 0
-	controllers := []application.Controller{
-		testController{
-			key: "closable",
-			close: func() error {
-				closedCount++
-				return nil
+	tests := []struct {
+		name           string
+		build          func() ([]application.Controller, *int)
+		expectedClosed int
+	}{
+		{
+			name: "closes only closable controllers",
+			build: func() ([]application.Controller, *int) {
+				closed := 0
+				return []application.Controller{
+					testController{
+						key: "closable",
+						close: func() error {
+							closed++
+							return nil
+						},
+					},
+					plainController{key: "plain"},
+				}, &closed
 			},
+			expectedClosed: 1,
 		},
-		plainController{key: "plain"},
+		{
+			name: "logs close errors",
+			build: func() ([]application.Controller, *int) {
+				closed := 0
+				return []application.Controller{
+					testController{
+						key: "failing-closer",
+						close: func() error {
+							closed++
+							return errors.New("close failed")
+						},
+					},
+				}, &closed
+			},
+			expectedClosed: 1,
+		},
 	}
 
-	closeControllerResources(t, controllers)
-	require.Equal(t, 1, closedCount)
-}
-
-func TestCloseControllerResources_LogsCloseErrors(t *testing.T) {
-	t.Parallel()
-
-	controllers := []application.Controller{
-		testController{
-			key: "failing-closer",
-			close: func() error {
-				return errors.New("close failed")
-			},
-		},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			controllers, closed := tt.build()
+			closeControllerResources(t, controllers)
+			require.Equal(t, tt.expectedClosed, *closed)
+		})
 	}
-
-	closeControllerResources(t, controllers)
 }
