@@ -218,6 +218,13 @@ const (
 		WHERE tenant_id = $1
 		ORDER BY first_name ASC, last_name ASC, id ASC
 	`
+	listTenantUsersByGroupQuery = `
+		SELECT u.id, COALESCE(u.first_name, ''), COALESCE(u.last_name, '')
+		FROM public.users u
+		INNER JOIN group_users gu ON gu.user_id = u.id
+		WHERE u.tenant_id = $1 AND gu.group_id = $2
+		ORDER BY u.first_name ASC, u.last_name ASC, u.id ASC
+	`
 	getTenantUserQuery = `
 		SELECT id, COALESCE(first_name, ''), COALESCE(last_name, '')
 		FROM public.users
@@ -355,11 +362,28 @@ var (
 )
 
 // PostgresChatRepository implements ChatRepository using PostgreSQL.
-type PostgresChatRepository struct{}
+// ChatRepoOption configures PostgresChatRepository.
+type ChatRepoOption func(*PostgresChatRepository)
+
+// WithUserGroupFilter restricts ListTenantUsers to members of the given group.
+func WithUserGroupFilter(groupID uuid.UUID) ChatRepoOption {
+	return func(r *PostgresChatRepository) {
+		r.userGroupID = groupID
+	}
+}
+
+// PostgresChatRepository implements domain.ChatRepository using PostgreSQL.
+type PostgresChatRepository struct {
+	userGroupID uuid.UUID
+}
 
 // NewPostgresChatRepository creates a new PostgreSQL chat repository.
-func NewPostgresChatRepository() domain.ChatRepository {
-	return &PostgresChatRepository{}
+func NewPostgresChatRepository(opts ...ChatRepoOption) domain.ChatRepository {
+	r := &PostgresChatRepository{}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
 }
 
 // Session operations
@@ -941,7 +965,8 @@ func (r *PostgresChatRepository) CountSessionParticipants(ctx context.Context, s
 	return count, nil
 }
 
-// ListTenantUsers lists all users in current tenant ordered by name.
+// ListTenantUsers lists users in current tenant ordered by name.
+// When a user group filter is configured, only members of that group are returned.
 func (r *PostgresChatRepository) ListTenantUsers(ctx context.Context) ([]domain.SessionUser, error) {
 	const op serrors.Op = "PostgresChatRepository.ListTenantUsers"
 
@@ -954,7 +979,12 @@ func (r *PostgresChatRepository) ListTenantUsers(ctx context.Context) ([]domain.
 		return nil, serrors.E(op, err)
 	}
 
-	rows, err := tx.Query(ctx, listTenantUsersQuery, tenantID)
+	var rows pgx.Rows
+	if r.userGroupID != uuid.Nil {
+		rows, err = tx.Query(ctx, listTenantUsersByGroupQuery, tenantID, r.userGroupID)
+	} else {
+		rows, err = tx.Query(ctx, listTenantUsersQuery, tenantID)
+	}
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
