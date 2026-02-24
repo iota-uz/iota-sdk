@@ -8,9 +8,7 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import (
-	"github.com/iota-uz/iota-sdk/pkg/lens"
-)
+import "github.com/iota-uz/iota-sdk/pkg/lens"
 
 // TablePanel renders a data table with optional clickable rows.
 func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
@@ -59,7 +57,7 @@ func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(panel.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 13, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 11, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -109,7 +107,7 @@ func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 32, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 30, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -133,7 +131,7 @@ func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(resolveDrillURL(panel.DrillDown.URL, row))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 42, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 40, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -151,7 +149,7 @@ func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(panel.DrillDown.Target)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 44, Col: 45}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 42, Col: 45}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -174,7 +172,7 @@ func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
 						var templ_7745c5c3_Var8 string
 						templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(formatCellValue(row[col.Key]))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 50, Col: 43}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 48, Col: 43}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 						if templ_7745c5c3_Err != nil {
@@ -202,7 +200,7 @@ func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(formatCellValue(row[col.Key]))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 58, Col: 43}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 56, Col: 43}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
