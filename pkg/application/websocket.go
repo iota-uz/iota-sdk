@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -71,6 +72,7 @@ type huber struct {
 	bundle          *i18n.Bundle
 	pool            *pgxpool.Pool
 	logger          *logrus.Logger
+	mu              sync.RWMutex
 	connectionsMeta map[*ws.Connection]*MetaInfo
 	userRepo        user.Repository
 }
@@ -84,19 +86,25 @@ func (h *huber) onConnect(r *http.Request, hub *ws.Hub, conn *ws.Connection) err
 	usr, err := composables.UseUser(r.Context())
 	if err != nil {
 		// Allow unauthenticated connections - they can still receive public broadcasts
+		h.mu.Lock()
 		h.connectionsMeta[conn] = meta
+		h.mu.Unlock()
 		return nil //nolint:nilerr // Intentionally ignore auth error for public connections
 	}
 	meta.UserID = usr.ID()
 	meta.TenantID = usr.TenantID()
+	h.mu.Lock()
+	h.connectionsMeta[conn] = meta
+	h.mu.Unlock()
 	h.hub.JoinChannel(ChannelAuthenticated, conn)
 	h.hub.JoinChannel(fmt.Sprintf("user/%d", usr.ID()), conn)
-	h.connectionsMeta[conn] = meta
 	return nil
 }
 
 func (h *huber) onDisconnect(conn *ws.Connection) {
+	h.mu.Lock()
 	delete(h.connectionsMeta, conn)
+	h.mu.Unlock()
 }
 
 func (h *huber) buildContext() context.Context {
@@ -123,7 +131,9 @@ func (h *huber) ForEach(channel string, f WsCallback) error {
 	connections := h.hub.ConnectionsInChannel(channel)
 
 	for _, conn := range connections {
+		h.mu.RLock()
 		meta, ok := h.connectionsMeta[conn]
+		h.mu.RUnlock()
 		if !ok {
 			h.logger.Error("connection meta not found")
 			continue
