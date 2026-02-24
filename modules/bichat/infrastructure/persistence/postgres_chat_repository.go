@@ -772,6 +772,11 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 	}
 
 	switch domain.ParseSessionMemberRole(memberRole) {
+	case domain.SessionMemberRoleOwner:
+		return domain.NewSessionAccess(
+			domain.SessionMemberRoleOwner,
+			domain.SessionAccessSourceMember,
+		), nil
 	case domain.SessionMemberRoleEditor:
 		return domain.NewSessionAccess(
 			domain.SessionMemberRoleEditor,
@@ -782,12 +787,22 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 			domain.SessionMemberRoleViewer,
 			domain.SessionAccessSourceMember,
 		), nil
-	default:
+	case domain.SessionMemberRoleReadAll:
+		return domain.NewSessionAccess(
+			domain.SessionMemberRoleReadAll,
+			domain.SessionAccessSourcePermission,
+		), nil
+	case domain.SessionMemberRoleNone:
 		return domain.NewSessionAccess(
 			domain.SessionMemberRoleNone,
 			domain.SessionAccessSourceNone,
 		), nil
 	}
+
+	return domain.NewSessionAccess(
+		domain.SessionMemberRoleNone,
+		domain.SessionAccessSourceNone,
+	), nil
 }
 
 // ListSessionMembers returns explicit non-owner members for a session.

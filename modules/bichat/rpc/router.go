@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -186,9 +187,17 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			if requestedLimit <= 0 {
 				requestedLimit = 50
 			}
-			ownerUserID, err := parseOptionalUserID(p.UserID)
-			if err != nil {
-				return SessionListAllResult{}, serrors.E(op, serrors.Invalid, err)
+
+			var ownerUserID *int64
+			if p.UserID != nil {
+				value := strings.TrimSpace(*p.UserID)
+				if value != "" {
+					parsed, parseErr := strconv.ParseInt(value, 10, 64)
+					if parseErr != nil {
+						return SessionListAllResult{}, serrors.E(op, serrors.Invalid, parseErr)
+					}
+					ownerUserID = &parsed
+				}
 			}
 
 			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: p.Offset, IncludeArchived: p.IncludeArchived}

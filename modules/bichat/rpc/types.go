@@ -456,21 +456,6 @@ func parseUserID(input string) (int64, error) {
 	return strconv.ParseInt(strings.TrimSpace(input), 10, 64)
 }
 
-func parseOptionalUserID(input *string) (*int64, error) {
-	if input == nil {
-		return nil, nil
-	}
-	value := strings.TrimSpace(*input)
-	if value == "" {
-		return nil, nil
-	}
-	parsed, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	return &parsed, nil
-}
-
 func buildTurns(msgs []types.Message) []ConversationTurn {
 	turns := make([]ConversationTurn, 0)
 	var current *ConversationTurn

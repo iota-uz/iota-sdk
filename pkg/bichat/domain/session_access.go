@@ -21,12 +21,7 @@ const (
 func (r SessionMemberRole) String() string { return string(r) }
 
 func (r SessionMemberRole) ValidMemberRole() bool {
-	switch r {
-	case SessionMemberRoleEditor, SessionMemberRoleViewer:
-		return true
-	default:
-		return false
-	}
+	return r == SessionMemberRoleEditor || r == SessionMemberRoleViewer
 }
 
 func ParseSessionMemberRole(raw string) SessionMemberRole {
