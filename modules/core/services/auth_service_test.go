@@ -71,12 +71,10 @@ func TestAuthService_Authorize(t *testing.T) {
 		require.NoError(t, sessionRepo.Create(f.Ctx, expiredSession))
 
 		_, err := authService.Authorize(f.Ctx, token)
-		require.Error(t, err)
-		assert.ErrorIs(t, err, services.ErrSessionExpired)
+		require.ErrorIs(t, err, services.ErrSessionExpired)
 
 		_, err = sessionService.GetByToken(f.Ctx, token)
-		require.Error(t, err)
-		assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+		require.ErrorIs(t, err, persistence.ErrSessionNotFound)
 	})
 
 	t.Run("Authorize_ActiveSession_ReturnsSession", func(t *testing.T) {
@@ -98,7 +96,6 @@ func TestAuthService_Authorize(t *testing.T) {
 
 	t.Run("Authorize_MissingSession_ReturnsError", func(t *testing.T) {
 		_, err := authService.Authorize(f.Ctx, "missing-session-token")
-		require.Error(t, err)
-		assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+		require.ErrorIs(t, err, persistence.ErrSessionNotFound)
 	})
 }
