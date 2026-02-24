@@ -32,8 +32,8 @@ jobs:
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.2
 
-      - name: Run gosec (high severity)
-        run: gosec -severity high -confidence medium ./...
+      - name: Run gosec (high severity, excluding generated files)
+        run: gosec -exclude-generated -severity high -confidence medium ./...
 
   lint-and-format:
     runs-on: blacksmith-8vcpu-ubuntu-2404
