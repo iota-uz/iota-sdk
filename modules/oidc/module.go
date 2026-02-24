@@ -5,7 +5,7 @@ import (
 	"embed"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/oidc"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/oidc/presentation/controllers"
@@ -44,8 +44,8 @@ func (m *Module) Register(app application.Application) error {
 	// Get configuration
 	config := configuration.Use()
 
-	// Only register OIDC if enabled
-	if !config.OIDC.Enabled {
+	// Only register OIDC when required settings are configured
+	if !config.OIDC.IsConfigured() {
 		return nil
 	}
 
@@ -54,8 +54,9 @@ func (m *Module) Register(app application.Application) error {
 	authRequestRepo := persistence.NewAuthRequestRepository()
 	tokenRepo := persistence.NewTokenRepository()
 
-	// Get user repository from core module (injected via DI)
-	userRepo := app.Service(user.Repository(nil)).(user.Repository)
+	// Create user repository from core persistence.
+	// This avoids tight coupling to service-registration order and concrete service types.
+	userRepo := corepersistence.NewUserRepository(corepersistence.NewUploadRepository())
 
 	// Create OIDC storage adapter (bridge to zitadel/oidc library)
 	storage := oidc.NewStorage(

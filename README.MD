@@ -165,11 +165,10 @@ IOTA SDK can act as an OpenID Connect (OIDC) provider, enabling Single Sign-On (
 
 **Configuration:**
 
-Enable OIDC provider by setting environment variables:
+OIDC provider is enabled automatically when required settings are present:
 
 ```env
-OIDC_ENABLED=true
-OIDC_ISSUER_URL=https://auth.example.com
+OIDC_ISSUER_URL=https://auth.example.com/oidc
 OIDC_CRYPTO_KEY=your-32-byte-base64-encoded-key-here
 OIDC_ACCESS_TOKEN_LIFETIME=1h
 OIDC_REFRESH_TOKEN_LIFETIME=720h

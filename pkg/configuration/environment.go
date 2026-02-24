@@ -137,12 +137,17 @@ type StripeOptions struct {
 }
 
 type OIDCOptions struct {
-	Enabled              bool          `env:"OIDC_ENABLED" envDefault:"false"`
 	IssuerURL            string        `env:"OIDC_ISSUER_URL"`
 	CryptoKey            string        `env:"OIDC_CRYPTO_KEY"` // 32-byte base64
 	AccessTokenLifetime  time.Duration `env:"OIDC_ACCESS_TOKEN_LIFETIME" envDefault:"1h"`
 	RefreshTokenLifetime time.Duration `env:"OIDC_REFRESH_TOKEN_LIFETIME" envDefault:"720h"`
 	IDTokenLifetime      time.Duration `env:"OIDC_ID_TOKEN_LIFETIME" envDefault:"1h"`
+}
+
+// IsConfigured returns true when required OIDC settings are present.
+// OIDC activation is implicit to keep configuration consistent with other modules (e.g. Google OAuth).
+func (o *OIDCOptions) IsConfigured() bool {
+	return o.IssuerURL != "" && o.CryptoKey != ""
 }
 
 type RateLimitOptions struct {

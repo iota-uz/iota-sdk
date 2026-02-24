@@ -278,7 +278,7 @@ _e2e-clean:
 
 [group("e2e")]
 _e2e-dev:
-  PORT=3201 ORIGIN='http://localhost:3201' DB_NAME=iota_erp_e2e ENABLE_TEST_ENDPOINTS=true air
+  PORT=3201 ORIGIN='http://localhost:3201' DB_NAME=iota_erp_e2e ENABLE_TEST_ENDPOINTS=true OIDC_ISSUER_URL='https://localhost:3201/oidc' OIDC_CRYPTO_KEY='MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=' air
 
 [group("build")]
 [doc("Build commands (dev|local|prod|linux|docker-base|docker-prod)")]

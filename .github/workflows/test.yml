@@ -408,6 +408,8 @@ jobs:
           GO_APP_ENV: production
           ENABLE_TEST_ENDPOINTS: true
           TOTP_ENCRYPTION_KEY: e2e-test-encryption-key-32bytes!!
+          OIDC_ISSUER_URL: https://localhost:3201/oidc
+          OIDC_CRYPTO_KEY: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
         run: |
           go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
           SERVER_PID=$!

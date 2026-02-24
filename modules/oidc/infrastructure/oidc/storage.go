@@ -534,25 +534,28 @@ func (s *Storage) SignatureAlgorithms(ctx context.Context) ([]jose.SignatureAlgo
 	return []jose.SignatureAlgorithm{jose.RS256}, nil
 }
 
-// KeySet returns all active signing keys
+// KeySet returns all active public keys for JWKS publishing.
+// Private keys are intentionally excluded from this set.
 func (s *Storage) KeySet(ctx context.Context) ([]op.Key, error) {
 	const operation serrors.Op = "Storage.KeySet"
 
-	// Retrieve active signing key
-	privateKey, keyID, err := GetActiveSigningKey(ctx, s.db, s.cryptoKey)
+	// Retrieve active public keys
+	keysWithIDs, err := GetPublicKeysWithIDs(ctx, s.db)
 	if err != nil {
 		return nil, serrors.E(operation, err)
 	}
 
-	// Create key wrapper
-	key := &signingKey{
-		id:        keyID,
-		algorithm: jose.RS256,
-		use:       "sig",
-		key:       privateKey,
+	keys := make([]op.Key, 0, len(keysWithIDs))
+	for _, keyWithID := range keysWithIDs {
+		keys = append(keys, &signingKey{
+			id:        keyWithID.KeyID,
+			algorithm: jose.RS256,
+			use:       "sig",
+			key:       keyWithID.PublicKey,
+		})
 	}
 
-	return []op.Key{key}, nil
+	return keys, nil
 }
 
 // GetKeySet returns the JSON Web Key Set for public key verification
@@ -814,7 +817,7 @@ func (k *signingKeyAdapter) ID() string                                  { retur
 func (k *signingKeyAdapter) SignatureAlgorithm() jose.SignatureAlgorithm { return k.algorithm }
 func (k *signingKeyAdapter) Key() any                                    { return k.key }
 
-// signingKey wraps a private key to implement op.Key interface
+// signingKey wraps key material (public for KeySet) to implement op.Key interface
 type signingKey struct {
 	id        string
 	algorithm jose.SignatureAlgorithm

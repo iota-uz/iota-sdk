@@ -31,7 +31,7 @@ var (
 		crm.NewModule(),
 		website.NewModule(),
 		billing.NewModule(),
-		oidc.NewModule(&oidc.ModuleOptions{}), // OIDC provider - only active when OIDC_ENABLED=true
+		oidc.NewModule(&oidc.ModuleOptions{}), // OIDC provider - active when required OIDC settings are configured
 		testkit.NewModule(),                   // Test endpoints - only active when ENABLE_TEST_ENDPOINTS=true
 	}
 
