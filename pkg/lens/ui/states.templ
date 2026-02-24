@@ -1,0 +1,57 @@
+package ui
+
+import "github.com/iota-uz/iota-sdk/pkg/lens"
+
+// EmptyState renders a placeholder when a panel has no data.
+templ EmptyState(title string) {
+	<div class="flex flex-col items-center justify-center py-12 text-center">
+		<div class="text-3xl text-gray-300 mb-2">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+			</svg>
+		</div>
+		<p class="text-sm font-medium text-gray-400">No data available</p>
+	</div>
+}
+
+// ErrorState renders an error message inside a panel.
+templ ErrorState(title string, message string) {
+	<div class="flex flex-col items-center justify-center py-8 text-center">
+		<div class="text-2xl text-red-300 mb-2">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path>
+			</svg>
+		</div>
+		<p class="text-sm font-medium text-red-400 max-w-xs">{ message }</p>
+	</div>
+}
+
+// LoadingState renders a skeleton loader for a panel.
+templ LoadingState(panel lens.Panel) {
+	<div class={ spanClass(panel.Span) }>
+		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden animate-pulse">
+			<div class="px-5 py-3.5 border-b border-gray-100">
+				<div class="h-4 w-32 bg-gray-200 rounded"></div>
+			</div>
+			<div class="p-4">
+				<div class="h-48 bg-gray-100 rounded-lg"></div>
+			</div>
+		</div>
+	</div>
+}
+
+// panelData safely extracts the PanelResult from Results for a given panel.
+func panelData(p lens.Panel, results *lens.Results) *lens.PanelResult {
+	if results == nil || results.Panels == nil {
+		return nil
+	}
+	return results.Panels[p.ID]
+}
+
+// resultData safely extracts the QueryResult from a PanelResult.
+func resultData(pr *lens.PanelResult) *lens.QueryResult {
+	if pr == nil {
+		return nil
+	}
+	return pr.Data
+}

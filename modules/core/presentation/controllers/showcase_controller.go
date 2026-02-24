@@ -21,57 +21,30 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
-	"github.com/iota-uz/iota-sdk/pkg/lens/builder"
-	"github.com/iota-uz/iota-sdk/pkg/lens/datasource/postgres"
-	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type ShowcaseController struct {
 	app      application.Application
 	basePath string
-	executor executor.Executor
+	ds       lens.DataSource
 }
 
 func NewShowcaseController(app application.Application) application.Controller {
-	// Setup PostgreSQL data source for lens
 	config := configuration.Use()
-	pgConfig := postgres.Config{
+	ds, err := lenspostgres.New(lenspostgres.Config{
 		ConnectionString: config.Database.ConnectionString(),
 		MaxConnections:   5,
 		MinConnections:   1,
 		QueryTimeout:     30 * time.Second,
-	}
-
-	pgDataSource, err := postgres.NewPostgreSQLDataSource(pgConfig)
+	})
 	if err != nil {
-		log.Printf("Failed to create PostgreSQL data source for lens: %v", err)
-		// Create controller without executor if data source fails
-		return &ShowcaseController{
-			app:      app,
-			basePath: "/_dev",
-			executor: nil,
-		}
+		log.Printf("Failed to create lens data source for showcase: %v", err)
+		return &ShowcaseController{app: app, basePath: "/_dev"}
 	}
-
-	// Create executor and register data source
-	exec := executor.NewExecutor(nil, 30*time.Second)
-	err = exec.RegisterDataSource("core", pgDataSource)
-	if err != nil {
-		log.Printf("Failed to register data source: %v", err)
-		if closeErr := pgDataSource.Close(); closeErr != nil {
-			log.Printf("Failed to close data source: %v", closeErr)
-		}
-		exec = nil
-	}
-
-	controller := &ShowcaseController{
-		app:      app,
-		basePath: "/_dev",
-		executor: exec,
-	}
-
-	return controller
+	return &ShowcaseController{app: app, basePath: "/_dev", ds: ds}
 }
 
 func (c *ShowcaseController) Key() string {
@@ -97,10 +70,8 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/lens", di.H(c.Lens)).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/403", di.H(c.Error403Page)).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/404", di.H(c.Error404Page)).Methods(http.MethodGet)
-	// Preview routes for actual error pages without sidebar
 	router.HandleFunc("/error-preview/403", di.H(c.Error403Preview)).Methods(http.MethodGet)
 	router.HandleFunc("/error-preview/404", di.H(c.Error404Preview)).Methods(http.MethodGet)
-	// Toast example endpoint
 	router.HandleFunc("/api/showcase/toast-example", di.H(c.ToastExample)).Methods(http.MethodPost)
 
 	log.Printf(
@@ -235,115 +206,39 @@ func (c *ShowcaseController) Lens(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	// Create dashboard configuration
-	dashboard := builder.NewDashboard().
-		ID("showcase-dashboard").
-		Title("IOTA SDK Core Analytics").
-		Description("Core system analytics dashboard using real database tables").
-		Grid(12, 120).
-		Variable("timeRange", "30d").
-		Variable("tenant", "current").
-		Panel(
-			builder.LineChart().
-				ID("user-registrations").
-				Title("User Registrations Over Time").
-				Position(0, 0).
-				Size(6, 4).
-				DataSource("core").
-				Query("SELECT DATE(created_at) as timestamp, COUNT(*)::float as value FROM users WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY timestamp").
-				Option("yAxis", map[string]interface{}{
-					"label": "New Users",
-				}).
-				Option("xAxis", map[string]interface{}{
-					"type":  "datetime",
-					"label": "Date",
-				}).
-				Build(),
-		).
-		Panel(
-			builder.BarChart().
-				ID("user-languages").
-				Title("User Interface Languages").
-				Position(6, 0).
-				Size(6, 4).
-				DataSource("core").
-				Query("SELECT ui_language as timestamp, COUNT(*)::float as value FROM users GROUP BY ui_language ORDER BY value DESC").
-				Option("yAxis", map[string]interface{}{
-					"label": "User Count",
-				}).
-				Build(),
-		).
-		Panel(
-			builder.PieChart().
-				ID("user-types").
-				Title("User Type Distribution").
-				Position(0, 4).
-				Size(4, 4).
-				DataSource("core").
-				Query("SELECT type as timestamp, COUNT(*)::float as value FROM users GROUP BY type").
-				Option("showLegend", true).
-				Option("showLabels", true).
-				Build(),
-		).
-		Panel(
-			builder.GaugeChart().
-				ID("session-activity").
-				Title("Active Sessions").
-				Position(4, 4).
-				Size(4, 4).
-				DataSource("core").
-				Query("SELECT NOW() as timestamp, COUNT(*)::float as value FROM sessions WHERE expires_at > NOW()").
-				Option("min", 0).
-				Option("max", 1000).
-				Option("unit", "sessions").
-				Build(),
-		).
-		Panel(
-			builder.TableChart().
-				ID("recent-users").
-				Title("Recently Registered Users").
-				Position(8, 4).
-				Size(4, 8).
-				DataSource("core").
+	dash := lens.NewDashboard("IOTA SDK Core Analytics",
+		lens.NewRow(
+			lens.Line("user-registrations", "User Registrations Over Time").
+				Query("SELECT DATE(created_at) as label, COUNT(*)::float as value FROM users WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label").
+				Span(6).Build(),
+			lens.Bar("user-languages", "User Interface Languages").
+				Query("SELECT ui_language as label, COUNT(*)::float as value FROM users GROUP BY ui_language ORDER BY value DESC").
+				Span(6).Build(),
+		),
+		lens.NewRow(
+			lens.Pie("user-types", "User Type Distribution").
+				Query("SELECT type as label, COUNT(*)::float as value FROM users GROUP BY type").
+				Legend().Span(4).Build(),
+			lens.Gauge("session-activity", "Active Sessions").
+				Query("SELECT COUNT(*)::float as value FROM sessions WHERE expires_at > NOW()").
+				Colors("#f59e0b").Span(4).Build(),
+			lens.Table("recent-users", "Recently Registered Users").
 				Query("SELECT first_name, last_name, email, ui_language, created_at FROM users ORDER BY created_at DESC LIMIT 10").
-				Option("pageSize", 5).
-				Option("sortable", true).
-				Option("columns", []map[string]interface{}{
-					{"field": "first_name", "header": "First Name", "type": "text"},
-					{"field": "last_name", "header": "Last Name", "type": "text"},
-					{"field": "email", "header": "Email", "type": "text"},
-					{"field": "ui_language", "header": "Language", "type": "badge"},
-					{"field": "created_at", "header": "Registered", "type": "datetime"},
-				}).
-				Build(),
-		).
-		Build()
+				Span(4).Build(),
+		),
+	)
 
-	// Execute dashboard queries if executor is available
-	var dashboardResult *executor.DashboardResult
-	if c.executor != nil {
+	var results *lens.Results
+	if c.ds != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-
-		result, err := c.executor.ExecuteDashboard(ctx, dashboard)
-		if err != nil {
-			logger.WithError(err).Error("Failed to execute dashboard queries")
-			// Continue with empty result
-			dashboardResult = &executor.DashboardResult{
-				PanelResults: make(map[string]*executor.ExecutionResult),
-				Duration:     0,
-				Errors:       []error{err},
-				ExecutedAt:   time.Now(),
-			}
-		} else {
-			dashboardResult = result
-		}
+		results = lens.Execute(ctx, c.ds, dash)
 	}
 
 	props := showcase.LensPageProps{
-		SidebarProps:    c.getSidebarProps(),
-		Dashboard:       dashboard,
-		DashboardResult: dashboardResult,
+		SidebarProps: c.getSidebarProps(),
+		Dashboard:    dash,
+		Results:      results,
 	}
 	templ.Handler(showcase.LensPage(props)).ServeHTTP(w, r)
 }
@@ -393,7 +288,6 @@ func (c *ShowcaseController) ToastExample(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	// Example of triggering a toast notification from a server endpoint
 	htmx.ToastSuccess(w, "Server Response", "This toast was triggered by an HTMX request!")
 	w.WriteHeader(http.StatusOK)
 }

@@ -1,139 +1,85 @@
 # Lens Dashboard Framework
 
-Dashboard framework with layered architecture: Configuration → Evaluation → Execution → Rendering.
+Row-based dashboard framework: Build → Execute → Render.
 
 ## Architecture
 
 ```
 pkg/lens/
-├── types.go              # Core types - START HERE
-├── builder/              # Fluent API for dashboard creation
-├── evaluation/           # Layout & config processing
-├── executor/             # Query execution (line ~184 critical!)
-├── datasource/           # Data abstraction - NEVER import ui/
-└── ui/                   # Rendering - consumes evaluated configs
+├── lens.go          # Core types: Dashboard, Row, Panel, PanelType
+├── builder.go       # Fluent API: Metric(), Line(), Bar(), Table(), etc.
+├── datasource.go    # DataSource interface, QueryResult
+├── executor.go      # Execute() — runs all panel queries concurrently
+├── postgres/
+│   └── postgres.go  # PostgreSQL DataSource (pgxpool)
+└── ui/
+    ├── dashboard.templ  # Dashboard + Row rendering
+    ├── row.templ        # 12-column grid row with panel dispatch
+    ├── metric.templ     # Metric cards
+    ├── chart.templ      # Chart panels (delegates to components/charts)
+    ├── table.templ      # Data tables with drill-through
+    ├── states.templ     # Empty, Error, Loading states
+    └── helpers.go       # QueryResult → chart series/metric transformations
 ```
 
-**RULE**: Never import `datasource` from `ui/` or `ui` from `datasource/`.
+## Quick Start
 
-## Adding New Chart Types
-
-### 1. Define Type (`types.go`)
 ```go
-const ChartTypeNewChart ChartType = "new_chart"
+// 1. Build dashboard
+dash := lens.NewDashboard("Finance Overview",
+    lens.NewRow(
+        lens.Metric("revenue", "Revenue").Query("SELECT SUM(amount) as value FROM orders").Unit("USD").Span(3).Build(),
+        lens.Metric("orders", "Orders").Query("SELECT COUNT(*) as value FROM orders").Span(3).Build(),
+    ),
+    lens.NewRow(
+        lens.Line("trend", "Revenue Trend").Query("SELECT date as label, SUM(amount) as value FROM orders GROUP BY 1").Span(8).Build(),
+        lens.Pie("categories", "By Category").Query("SELECT category as label, SUM(amount) as value FROM orders GROUP BY 1").Span(4).Build(),
+    ),
+)
+
+// 2. Execute queries
+results := lens.Execute(ctx, dataSource, dash)
+
+// 3. Render (in templ)
+@lensui.Dashboard(dash, results)
 ```
 
-### 2. Add Builder (`builder/dashboard.go`)
+## Panel Types & Query Formats
+
+| Type | Constructor | Expected Columns |
+|------|-------------|-----------------|
+| metric | `Metric()` | `value` (single row) |
+| line | `Line()` | `label`, `value` |
+| bar | `Bar()` | `label`, `value` |
+| stacked_bar | `StackedBar()` | `category`, `series`, `value` |
+| pie/donut | `Pie()`/`Donut()` | `label`, `value` |
+| area | `Area()` | `label`, `value` |
+| gauge | `Gauge()` | `value` (single row, 0–100) |
+| table | `Table()` | any columns |
+
+## Drill-Through (HTMX)
+
 ```go
-func NewChart() PanelBuilder {
-    return NewPanel().Type(lens.ChartTypeNewChart)
-}
+// Chart click → full navigation
+lens.Bar("sales", "Sales").DrillTo("/analytics?category={label}").Build()
+
+// Chart click → HTMX partial update
+lens.Bar("sales", "Sales").DrillToTarget("/analytics?category={label}", "#detail").Build()
+
+// Table row click → navigation
+lens.Table("orders", "Orders").DrillTo("/orders/{id}").Build()
 ```
 
-### 3. Set Query Format (`executor/executor.go:184`)
-```go
-case lens.ChartTypeBar, lens.ChartTypeNewChart:
-    query.Format = datasource.FormatTable  // or FormatTimeSeries
-```
+## Adding New Panel Types
 
-**CRITICAL**: Use `FormatTable` for categorical data, `FormatTimeSeries` for time-based.
+1. Add constant in `lens.go`: `TypeNewType PanelType = "new_type"`
+2. Add constructor in `builder.go`: `func NewType(id, title string) *PanelBuilder`
+3. Handle in `ui/helpers.go`: add to `panelTypeToChartType()`, `panelColors()`
+4. If needed, add templ component in `ui/` and dispatch case in `row.templ`
 
-### 4. Handle Conversion (`ui/helpers.go`)
-```go
-case lens.ChartTypeNewChart:
-    return charts.NewChartType
-```
+## Critical Rules
 
-### 5. Add Data Processing (`ui/helpers.go`)
-```go
-} else if config.Type == lens.ChartTypeNewChart {
-    options.Series = buildNewChartSeriesFromResult(result)
-}
-```
-
-### 6. Add Chart Options (`ui/helpers.go`)
-```go
-case lens.ChartTypeNewChart:
-    options.PlotOptions = &charts.PlotOptions{...}
-```
-
-### 7. Add Colors (`ui/helpers.go`)
-```go
-case lens.ChartTypeNewChart:
-    return []string{"#3b82f6", "#10b981"}
-```
-
-## Query Format Rules
-
-| Format | Chart Types | Query Pattern |
-|--------|-------------|---------------|
-| **FormatTable** | bar, column, stacked_bar, pie, table, metric, gauge | `SELECT category, series, value FROM ...` |
-| **FormatTimeSeries** | line, area | `SELECT timestamp, value FROM ...` |
-
-## Data Processing Patterns
-
-### Standard Charts (single series)
-```go
-func buildSeriesFromResult(result *executor.ExecutionResult) []charts.Series {
-    // Expects: label/timestamp, value columns
-}
-```
-
-### Multi-Series (stacked_bar)
-```go
-func buildStackedSeriesFromResult(result *executor.ExecutionResult) []charts.Series {
-    // Expects: category, series, value columns
-    // Groups by series name
-}
-```
-
-### Single Value (pie, gauge)
-```go
-func buildPieSeriesFromResult(result *executor.ExecutionResult) []interface{} {
-    // Returns flat array of values
-}
-```
-
-## PostgreSQL Column Mapping
-
-**FormatTable**: All columns → `point.Fields`
-```go
-fields[columnName] = value
-```
-
-**FormatTimeSeries**: Structured mapping
-```go
-// col 0: timestamp, col 1: value
-col 2+: if string → labels[columnName], else → fields[columnName]
-```
-
-## Critical Gotchas
-
-1. **Empty Chart**: Most common cause is wrong query format in `executor.go:184`. Verify chart type is in correct case (Table vs TimeSeries).
-
-2. **No Data Grouping**: Query must return `category, series, value` columns for multi-series charts.
-
-3. **Import Cycles**: Never import `datasource` from `ui/` or vice versa. `executor` orchestrates between layers.
-
-4. **Template Changes**: Always run `templ generate && just css` after modifying .templ files.
-
-5. **Query Timeout**: Default 30s. Long queries need optimization or pagination.
-
-## Testing & Debugging
-
-```bash
-# Common fixes
-templ generate && just css              # After template changes
-go vet ./...                            # Check types
-
-# Debug empty charts
-1. Check executor.go:184 - is chart type in correct format case?
-2. Verify query returns expected columns
-3. Test query directly in database
-```
-
-## Code Style
-
-- Function naming: `buildXxxFromResult`, `addXxxOptions`, `convertXxxType`
-- Constants: `lens.ChartTypeXxx`
-- Type safety: Use `value, ok := column.(type)` assertions
+- **Query column conventions**: Use `label`/`category` for x-axis, `value` for y-axis, `series` for stacking
+- **Import rule**: `ui/` may import `lens` root, never the reverse
+- **Template changes**: Always run `templ generate && just css`
+- **Never read `*_templ.go` files** — they're generated

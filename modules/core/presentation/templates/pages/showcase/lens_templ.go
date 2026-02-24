@@ -13,14 +13,13 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
-	"github.com/iota-uz/iota-sdk/pkg/lens/ui"
+	lensui "github.com/iota-uz/iota-sdk/pkg/lens/ui"
 )
 
 type LensPageProps struct {
-	SidebarProps    sidebar.Props
-	Dashboard       lens.DashboardConfig
-	DashboardResult *executor.DashboardResult
+	SidebarProps sidebar.Props
+	Dashboard    lens.Dashboard
+	Results      *lens.Results
 }
 
 func LensContent(props LensPageProps) templ.Component {
@@ -44,12 +43,8 @@ func LensContent(props LensPageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templ.Raw(ui.GenerateCSS(props.Dashboard.Grid)).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if props.DashboardResult != nil {
-			templ_7745c5c3_Err = ui.DashboardWithData(props.Dashboard, props.DashboardResult).Render(ctx, templ_7745c5c3_Buffer)
+		if props.Results != nil {
+			templ_7745c5c3_Err = lensui.Dashboard(props.Dashboard, props.Results).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
