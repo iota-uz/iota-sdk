@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -63,23 +64,179 @@ const (
 		DELETE FROM bichat.sessions
 		WHERE tenant_id = $1 AND id = $2
 	`
+	listAccessibleSessionSummariesQuery = `
+		SELECT
+			s.id, s.tenant_id, s.user_id, s.title, s.status, s.pinned,
+			s.parent_session_id, s.llm_previous_response_id, s.created_at, s.updated_at,
+			COALESCE(owner_u.first_name, ''), COALESCE(owner_u.last_name, ''),
+			CASE
+				WHEN s.user_id = $2 THEN 'OWNER'
+				WHEN sm_self.role = 'EDITOR' THEN 'EDITOR'
+				WHEN sm_self.role = 'VIEWER' THEN 'VIEWER'
+				ELSE 'NONE'
+			END AS access_role,
+			CASE
+				WHEN s.user_id = $2 THEN 'owner'
+				WHEN sm_self.user_id IS NOT NULL THEN 'member'
+				ELSE 'none'
+			END AS access_source,
+			(1 + COALESCE(member_stats.member_count, 0))::int AS participant_count
+		FROM bichat.sessions s
+		LEFT JOIN bichat.session_members sm_self
+			ON sm_self.tenant_id = s.tenant_id
+			AND sm_self.session_id = s.id
+			AND sm_self.user_id = $2
+		LEFT JOIN public.users owner_u ON owner_u.id = s.user_id
+		LEFT JOIN (
+			SELECT session_id, COUNT(*) AS member_count
+			FROM bichat.session_members
+			WHERE tenant_id = $1
+			GROUP BY session_id
+		) member_stats ON member_stats.session_id = s.id
+		WHERE s.tenant_id = $1
+		  AND ($5::boolean OR s.status != 'ARCHIVED')
+		  AND (s.user_id = $2 OR sm_self.user_id IS NOT NULL)
+		ORDER BY s.pinned DESC, s.created_at DESC
+		LIMIT $3 OFFSET $4
+	`
+	countAccessibleSessionsQuery = `
+		SELECT COUNT(*)
+		FROM bichat.sessions s
+		LEFT JOIN bichat.session_members sm_self
+			ON sm_self.tenant_id = s.tenant_id
+			AND sm_self.session_id = s.id
+			AND sm_self.user_id = $2
+		WHERE s.tenant_id = $1
+		  AND ($3::boolean OR s.status != 'ARCHIVED')
+		  AND (s.user_id = $2 OR sm_self.user_id IS NOT NULL)
+	`
+	listAllSessionSummariesQuery = `
+		SELECT
+			s.id, s.tenant_id, s.user_id, s.title, s.status, s.pinned,
+			s.parent_session_id, s.llm_previous_response_id, s.created_at, s.updated_at,
+			COALESCE(owner_u.first_name, ''), COALESCE(owner_u.last_name, ''),
+			CASE
+				WHEN s.user_id = $2 THEN 'OWNER'
+				WHEN sm_self.role = 'EDITOR' THEN 'EDITOR'
+				WHEN sm_self.role = 'VIEWER' THEN 'VIEWER'
+				ELSE 'NONE'
+			END AS access_role,
+			CASE
+				WHEN s.user_id = $2 THEN 'owner'
+				WHEN sm_self.user_id IS NOT NULL THEN 'member'
+				ELSE 'none'
+			END AS access_source,
+			(1 + COALESCE(member_stats.member_count, 0))::int AS participant_count
+		FROM bichat.sessions s
+		LEFT JOIN bichat.session_members sm_self
+			ON sm_self.tenant_id = s.tenant_id
+			AND sm_self.session_id = s.id
+			AND sm_self.user_id = $2
+		LEFT JOIN public.users owner_u ON owner_u.id = s.user_id
+		LEFT JOIN (
+			SELECT session_id, COUNT(*) AS member_count
+			FROM bichat.session_members
+			WHERE tenant_id = $1
+			GROUP BY session_id
+		) member_stats ON member_stats.session_id = s.id
+		WHERE s.tenant_id = $1
+		  AND ($5::boolean OR s.status != 'ARCHIVED')
+		  AND ($6::bigint IS NULL OR s.user_id = $6)
+		ORDER BY s.pinned DESC, s.created_at DESC
+		LIMIT $3 OFFSET $4
+	`
+	countAllSessionsQuery = `
+		SELECT COUNT(*)
+		FROM bichat.sessions s
+		WHERE s.tenant_id = $1
+		  AND ($2::boolean OR s.status != 'ARCHIVED')
+		  AND ($3::bigint IS NULL OR s.user_id = $3)
+	`
+	resolveSessionAccessQuery = `
+		SELECT
+			s.user_id,
+			COALESCE(sm_self.role, '')
+		FROM bichat.sessions s
+		LEFT JOIN bichat.session_members sm_self
+			ON sm_self.tenant_id = s.tenant_id
+			AND sm_self.session_id = s.id
+			AND sm_self.user_id = $3
+		WHERE s.tenant_id = $1
+		  AND s.id = $2
+	`
+	listSessionMembersQuery = `
+		SELECT
+			sm.session_id,
+			sm.user_id,
+			sm.role,
+			sm.created_at,
+			sm.updated_at,
+			COALESCE(u.first_name, ''),
+			COALESCE(u.last_name, '')
+		FROM bichat.session_members sm
+		JOIN public.users u ON u.id = sm.user_id
+		WHERE sm.tenant_id = $1
+		  AND sm.session_id = $2
+		ORDER BY sm.created_at ASC, sm.user_id ASC
+	`
+	upsertSessionMemberQuery = `
+		INSERT INTO bichat.session_members (
+			tenant_id, session_id, user_id, role, created_at, updated_at
+		)
+		SELECT
+			$1, $2, $3, $4, NOW(), NOW()
+		WHERE EXISTS (
+			SELECT 1 FROM bichat.sessions s
+			WHERE s.tenant_id = $1 AND s.id = $2 AND s.user_id <> $3
+		)
+		  AND EXISTS (
+			SELECT 1 FROM public.users u
+			WHERE u.id = $3 AND u.tenant_id = $1
+		)
+		ON CONFLICT (tenant_id, session_id, user_id)
+		DO UPDATE SET role = EXCLUDED.role, updated_at = NOW()
+	`
+	removeSessionMemberQuery = `
+		DELETE FROM bichat.session_members
+		WHERE tenant_id = $1
+		  AND session_id = $2
+		  AND user_id = $3
+	`
+	countSessionParticipantsQuery = `
+		SELECT (1 + COALESCE((
+			SELECT COUNT(*)
+			FROM bichat.session_members sm
+			WHERE sm.tenant_id = $1 AND sm.session_id = $2
+		), 0))::int
+		FROM bichat.sessions s
+		WHERE s.tenant_id = $1
+		  AND s.id = $2
+	`
+	listTenantUsersQuery = `
+		SELECT id, COALESCE(first_name, ''), COALESCE(last_name, '')
+		FROM public.users
+		WHERE tenant_id = $1
+		ORDER BY first_name ASC, last_name ASC, id ASC
+	`
 
 	// Message queries
 	insertMessageQuery = `
 		INSERT INTO bichat.messages (
-			id, session_id, role, content, tool_calls, tool_call_id, citations, debug_trace, question_data, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			id, session_id, role, content, author_user_id, tool_calls, tool_call_id, citations, debug_trace, question_data, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 	selectMessageQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
+		SELECT m.id, m.session_id, m.role, m.content, m.author_user_id, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
+		LEFT JOIN public.users u ON u.id = m.author_user_id
 		WHERE s.tenant_id = $1 AND m.id = $2
 	`
 	selectSessionMessagesQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
+		SELECT m.id, m.session_id, m.role, m.content, m.author_user_id, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
+		LEFT JOIN public.users u ON u.id = m.author_user_id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
 		ORDER BY m.created_at ASC
 		LIMIT $3 OFFSET $4
@@ -101,13 +258,20 @@ const (
 		  AND m.id = $3
 	`
 	selectPendingQuestionMessageQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
+		SELECT m.id, m.session_id, m.role, m.content, m.author_user_id, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
+		LEFT JOIN public.users u ON u.id = m.author_user_id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
 		  AND m.question_data->>'status' = 'PENDING'
 		ORDER BY m.created_at DESC, m.id DESC
 		LIMIT 1
+	`
+
+	selectSessionOwnerUserIDQuery = `
+		SELECT user_id
+		FROM bichat.sessions
+		WHERE tenant_id = $1 AND id = $2
 	`
 
 	// Attachment compatibility queries (backed by bichat.artifacts type='attachment')
@@ -458,6 +622,327 @@ func (r *PostgresChatRepository) CountUserSessions(ctx context.Context, userID i
 	return count, nil
 }
 
+// ListAccessibleSessionSummaries returns owned + shared sessions for a user.
+func (r *PostgresChatRepository) ListAccessibleSessionSummaries(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.SessionSummary, error) {
+	const op serrors.Op = "PostgresChatRepository.ListAccessibleSessionSummaries"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	rows, err := tx.Query(ctx, listAccessibleSessionSummariesQuery, tenantID, userID, opts.Limit, opts.Offset, opts.IncludeArchived)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	defer rows.Close()
+
+	out := make([]domain.SessionSummary, 0)
+	for rows.Next() {
+		summary, scanErr := scanSessionSummaryRow(rows)
+		if scanErr != nil {
+			return nil, serrors.E(op, scanErr)
+		}
+		out = append(out, summary)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return out, nil
+}
+
+// CountAccessibleSessions returns total owned + shared sessions for a user.
+func (r *PostgresChatRepository) CountAccessibleSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	const op serrors.Op = "PostgresChatRepository.CountAccessibleSessions"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	var count int
+	if err := tx.QueryRow(ctx, countAccessibleSessionsQuery, tenantID, userID, opts.IncludeArchived).Scan(&count); err != nil {
+		return 0, serrors.E(op, err)
+	}
+	return count, nil
+}
+
+// ListAllSessionSummaries returns tenant-wide sessions (for read-all views).
+func (r *PostgresChatRepository) ListAllSessionSummaries(ctx context.Context, requestingUserID int64, opts domain.ListOptions, ownerUserID *int64) ([]domain.SessionSummary, error) {
+	const op serrors.Op = "PostgresChatRepository.ListAllSessionSummaries"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	rows, err := tx.Query(ctx, listAllSessionSummariesQuery, tenantID, requestingUserID, opts.Limit, opts.Offset, opts.IncludeArchived, ownerUserID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	defer rows.Close()
+
+	out := make([]domain.SessionSummary, 0)
+	for rows.Next() {
+		summary, scanErr := scanSessionSummaryRow(rows)
+		if scanErr != nil {
+			return nil, serrors.E(op, scanErr)
+		}
+		out = append(out, summary)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return out, nil
+}
+
+// CountAllSessions returns total tenant sessions for read-all views.
+func (r *PostgresChatRepository) CountAllSessions(ctx context.Context, opts domain.ListOptions, ownerUserID *int64) (int, error) {
+	const op serrors.Op = "PostgresChatRepository.CountAllSessions"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	var count int
+	if err := tx.QueryRow(ctx, countAllSessionsQuery, tenantID, opts.IncludeArchived, ownerUserID).Scan(&count); err != nil {
+		return 0, serrors.E(op, err)
+	}
+	return count, nil
+}
+
+// ResolveSessionAccess resolves owner/member access for a user.
+func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64) (domain.SessionAccess, error) {
+	const op serrors.Op = "PostgresChatRepository.ResolveSessionAccess"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return domain.SessionAccess{}, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return domain.SessionAccess{}, serrors.E(op, err)
+	}
+
+	var (
+		ownerID    int64
+		memberRole string
+	)
+	if err := tx.QueryRow(ctx, resolveSessionAccessQuery, tenantID, sessionID, userID).Scan(&ownerID, &memberRole); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.SessionAccess{}, serrors.E(op, ErrSessionNotFound)
+		}
+		return domain.SessionAccess{}, serrors.E(op, err)
+	}
+
+	if ownerID == userID {
+		return domain.SessionAccess{
+			Role:             domain.SessionMemberRoleOwner,
+			Source:           domain.SessionAccessSourceOwner,
+			CanRead:          true,
+			CanWrite:         true,
+			CanManageMembers: true,
+		}, nil
+	}
+
+	switch domain.ParseSessionMemberRole(memberRole) {
+	case domain.SessionMemberRoleEditor:
+		return domain.SessionAccess{
+			Role:             domain.SessionMemberRoleEditor,
+			Source:           domain.SessionAccessSourceMember,
+			CanRead:          true,
+			CanWrite:         true,
+			CanManageMembers: false,
+		}, nil
+	case domain.SessionMemberRoleViewer:
+		return domain.SessionAccess{
+			Role:             domain.SessionMemberRoleViewer,
+			Source:           domain.SessionAccessSourceMember,
+			CanRead:          true,
+			CanWrite:         false,
+			CanManageMembers: false,
+		}, nil
+	default:
+		return domain.SessionAccess{
+			Role:             domain.SessionMemberRoleNone,
+			Source:           domain.SessionAccessSourceNone,
+			CanRead:          false,
+			CanWrite:         false,
+			CanManageMembers: false,
+		}, nil
+	}
+}
+
+// ListSessionMembers returns explicit non-owner members for a session.
+func (r *PostgresChatRepository) ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]domain.SessionMember, error) {
+	const op serrors.Op = "PostgresChatRepository.ListSessionMembers"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	rows, err := tx.Query(ctx, listSessionMembersQuery, tenantID, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	defer rows.Close()
+
+	out := make([]domain.SessionMember, 0)
+	for rows.Next() {
+		var (
+			memberSessionID uuid.UUID
+			userID          int64
+			role            string
+			createdAt       time.Time
+			updatedAt       time.Time
+			firstName       string
+			lastName        string
+		)
+		if err := rows.Scan(&memberSessionID, &userID, &role, &createdAt, &updatedAt, &firstName, &lastName); err != nil {
+			return nil, serrors.E(op, err)
+		}
+		out = append(out, domain.SessionMember{
+			SessionID: memberSessionID,
+			User: domain.SessionUser{
+				ID:        userID,
+				FirstName: firstName,
+				LastName:  lastName,
+			},
+			Role:      domain.ParseSessionMemberRole(role),
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return out, nil
+}
+
+// UpsertSessionMember creates or updates an explicit non-owner member role.
+func (r *PostgresChatRepository) UpsertSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64, role domain.SessionMemberRole) error {
+	const op serrors.Op = "PostgresChatRepository.UpsertSessionMember"
+
+	if !role.ValidMemberRole() {
+		return serrors.E(op, serrors.KindValidation, "invalid session member role")
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	result, err := tx.Exec(ctx, upsertSessionMemberQuery, tenantID, sessionID, userID, role.String())
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if result.RowsAffected() == 0 {
+		return serrors.E(op, serrors.KindValidation, "failed to add or update session member")
+	}
+	return nil
+}
+
+// RemoveSessionMember removes an explicit non-owner member.
+func (r *PostgresChatRepository) RemoveSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64) error {
+	const op serrors.Op = "PostgresChatRepository.RemoveSessionMember"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	if _, err := tx.Exec(ctx, removeSessionMemberQuery, tenantID, sessionID, userID); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
+// CountSessionParticipants returns owner + explicit member count.
+func (r *PostgresChatRepository) CountSessionParticipants(ctx context.Context, sessionID uuid.UUID) (int, error) {
+	const op serrors.Op = "PostgresChatRepository.CountSessionParticipants"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+
+	var count int
+	if err := tx.QueryRow(ctx, countSessionParticipantsQuery, tenantID, sessionID).Scan(&count); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, serrors.E(op, ErrSessionNotFound)
+		}
+		return 0, serrors.E(op, err)
+	}
+	return count, nil
+}
+
+// ListTenantUsers lists all users in current tenant ordered by name.
+func (r *PostgresChatRepository) ListTenantUsers(ctx context.Context) ([]domain.SessionUser, error) {
+	const op serrors.Op = "PostgresChatRepository.ListTenantUsers"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	rows, err := tx.Query(ctx, listTenantUsersQuery, tenantID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	defer rows.Close()
+
+	out := make([]domain.SessionUser, 0)
+	for rows.Next() {
+		var u domain.SessionUser
+		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName); err != nil {
+			return nil, serrors.E(op, err)
+		}
+		out = append(out, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return out, nil
+}
+
 // DeleteSession deletes a session and all related data (cascades to messages/attachments).
 func (r *PostgresChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
 	const op serrors.Op = "PostgresChatRepository.DeleteSession"
@@ -527,11 +1012,24 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		createdAt = time.Now()
 	}
 
+	authorUserID := msg.AuthorUserID()
+	if msg.Role() == types.RoleUser && authorUserID == nil {
+		var ownerUserID int64
+		if err := tx.QueryRow(ctx, selectSessionOwnerUserIDQuery, tenantID, msg.SessionID()).Scan(&ownerUserID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return serrors.E(op, ErrSessionNotFound)
+			}
+			return serrors.E(op, err)
+		}
+		authorUserID = &ownerUserID
+	}
+
 	_, err = tx.Exec(ctx, insertMessageQuery,
 		msg.ID(),
 		msg.SessionID(),
 		msg.Role(),
 		msg.Content(),
+		authorUserID,
 		toolCallsJSON,
 		msg.ToolCallID(),
 		citationsJSON,
@@ -596,6 +1094,9 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		sessionID        uuid.UUID
 		role             types.Role
 		content          string
+		authorUserID     *int64
+		authorFirstName  string
+		authorLastName   string
 		toolCallsJSON    []byte
 		toolCallID       *string
 		citationsJSON    []byte
@@ -609,6 +1110,9 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		&sessionID,
 		&role,
 		&content,
+		&authorUserID,
+		&authorFirstName,
+		&authorLastName,
 		&toolCallsJSON,
 		&toolCallID,
 		&citationsJSON,
@@ -692,6 +1196,12 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	if questionData != nil {
 		opts = append(opts, types.WithQuestionData(questionData))
 	}
+	if authorUserID != nil {
+		opts = append(opts, types.WithAuthorUserID(*authorUserID))
+	}
+	if strings.TrimSpace(authorFirstName) != "" || strings.TrimSpace(authorLastName) != "" {
+		opts = append(opts, types.WithAuthorName(authorFirstName, authorLastName))
+	}
 
 	return types.NewMessage(opts...), nil
 }
@@ -702,6 +1212,9 @@ type messageData struct {
 	sessID       uuid.UUID
 	role         types.Role
 	content      string
+	authorUserID *int64
+	authorFirst  string
+	authorLast   string
 	toolCalls    []types.ToolCall
 	toolCallID   *string
 	citations    []types.Citation
@@ -739,6 +1252,9 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			sessID           uuid.UUID
 			role             types.Role
 			content          string
+			authorUserID     *int64
+			authorFirstName  string
+			authorLastName   string
 			toolCallsJSON    []byte
 			toolCallID       *string
 			citationsJSON    []byte
@@ -752,6 +1268,9 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			&sessID,
 			&role,
 			&content,
+			&authorUserID,
+			&authorFirstName,
+			&authorLastName,
 			&toolCallsJSON,
 			&toolCallID,
 			&citationsJSON,
@@ -797,6 +1316,9 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			sessID:       sessID,
 			role:         role,
 			content:      content,
+			authorUserID: authorUserID,
+			authorFirst:  authorFirstName,
+			authorLast:   authorLastName,
 			toolCalls:    toolCalls,
 			toolCallID:   toolCallID,
 			citations:    citations,
@@ -851,6 +1373,12 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 		}
 		if md.questionData != nil {
 			msgOpts = append(msgOpts, types.WithQuestionData(md.questionData))
+		}
+		if md.authorUserID != nil {
+			msgOpts = append(msgOpts, types.WithAuthorUserID(*md.authorUserID))
+		}
+		if strings.TrimSpace(md.authorFirst) != "" || strings.TrimSpace(md.authorLast) != "" {
+			msgOpts = append(msgOpts, types.WithAuthorName(md.authorFirst, md.authorLast))
 		}
 
 		messages = append(messages, types.NewMessage(msgOpts...))
@@ -931,6 +1459,9 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 		sessID           uuid.UUID
 		role             types.Role
 		content          string
+		authorUserID     *int64
+		authorFirstName  string
+		authorLastName   string
 		toolCallsJSON    []byte
 		toolCallID       *string
 		citationsJSON    []byte
@@ -944,6 +1475,9 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 		&sessID,
 		&role,
 		&content,
+		&authorUserID,
+		&authorFirstName,
+		&authorLastName,
 		&toolCallsJSON,
 		&toolCallID,
 		&citationsJSON,
@@ -1026,6 +1560,12 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 	}
 	if questionData != nil {
 		opts = append(opts, types.WithQuestionData(questionData))
+	}
+	if authorUserID != nil {
+		opts = append(opts, types.WithAuthorUserID(*authorUserID))
+	}
+	if strings.TrimSpace(authorFirstName) != "" || strings.TrimSpace(authorLastName) != "" {
+		opts = append(opts, types.WithAuthorName(authorFirstName, authorLastName))
 	}
 
 	return types.NewMessage(opts...), nil
@@ -1445,6 +1985,94 @@ func convertDomainAttachmentsToTypes(in []domain.Attachment) []types.Attachment 
 	}
 
 	return out
+}
+
+func scanSessionSummaryRow(rows pgx.Rows) (domain.SessionSummary, error) {
+	var (
+		sid                   uuid.UUID
+		tenantID              uuid.UUID
+		userID                int64
+		title                 string
+		status                domain.SessionStatus
+		pinned                bool
+		parentSessionID       *uuid.UUID
+		llmPreviousResponseID *string
+		createdAt             time.Time
+		updatedAt             time.Time
+		ownerFirstName        string
+		ownerLastName         string
+		accessRoleRaw         string
+		accessSourceRaw       string
+		memberCount           int
+	)
+
+	if err := rows.Scan(
+		&sid,
+		&tenantID,
+		&userID,
+		&title,
+		&status,
+		&pinned,
+		&parentSessionID,
+		&llmPreviousResponseID,
+		&createdAt,
+		&updatedAt,
+		&ownerFirstName,
+		&ownerLastName,
+		&accessRoleRaw,
+		&accessSourceRaw,
+		&memberCount,
+	); err != nil {
+		return domain.SessionSummary{}, err
+	}
+
+	sessionOpts := []domain.SessionOption{
+		domain.WithID(sid),
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(userID),
+		domain.WithTitle(title),
+		domain.WithStatus(status),
+		domain.WithPinned(pinned),
+		domain.WithCreatedAt(createdAt),
+		domain.WithUpdatedAt(updatedAt),
+	}
+	if parentSessionID != nil {
+		sessionOpts = append(sessionOpts, domain.WithParentSessionID(*parentSessionID))
+	}
+	if llmPreviousResponseID != nil {
+		sessionOpts = append(sessionOpts, domain.WithLLMPreviousResponseID(*llmPreviousResponseID))
+	}
+
+	role := domain.ParseSessionMemberRole(accessRoleRaw)
+	source := domain.SessionAccessSourceNone
+	switch strings.ToLower(strings.TrimSpace(accessSourceRaw)) {
+	case "owner":
+		source = domain.SessionAccessSourceOwner
+	case "member":
+		source = domain.SessionAccessSourceMember
+	case "permission":
+		source = domain.SessionAccessSourcePermission
+	}
+
+	access := domain.SessionAccess{
+		Role:             role,
+		Source:           source,
+		CanRead:          role != domain.SessionMemberRoleNone,
+		CanWrite:         role == domain.SessionMemberRoleOwner || role == domain.SessionMemberRoleEditor,
+		CanManageMembers: role == domain.SessionMemberRoleOwner,
+	}
+
+	return domain.SessionSummary{
+		Session: domain.NewSession(sessionOpts...),
+		Owner: domain.SessionUser{
+			ID:        userID,
+			FirstName: ownerFirstName,
+			LastName:  ownerLastName,
+		},
+		Access:      access,
+		MemberCount: memberCount,
+		IsGroup:     memberCount > 1,
+	}, nil
 }
 
 func derefString(v *string) string {

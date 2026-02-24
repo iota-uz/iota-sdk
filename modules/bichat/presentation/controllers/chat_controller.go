@@ -193,12 +193,6 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 // GetSession returns details for a specific session.
 func (c *ChatController) GetSession(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "ChatController.GetSession"
-
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
-		return
-	}
 	if err := c.enforceAccess(r.Context()); err != nil {
 		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
@@ -211,18 +205,8 @@ func (c *ChatController) GetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := c.chatService.GetSession(r.Context(), sessionID)
-	if err != nil {
-		if errors.Is(err, persistence.ErrSessionNotFound) {
-			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
-		} else {
-			c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
-		}
-		return
-	}
-
-	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
-		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
+	session, ok := c.requireSessionAccess(w, r, sessionID, false, false)
+	if !ok {
 		return
 	}
 	c.sendJSON(w, sessionToResponse(session), http.StatusOK)
@@ -249,18 +233,8 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate session ownership (CRITICAL SECURITY)
-	session, err := c.chatRepo.GetSession(r.Context(), sessionID)
-	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusNotFound)
+	if _, ok := c.requireSessionAccess(w, r, sessionID, true, false); !ok {
 		return
-	}
-
-	if session.UserID() != int64(user.ID()) {
-		if err := composables.CanUser(r.Context(), c.opts.ReadAllPermission); err != nil {
-			c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
-			return
-		}
 	}
 
 	var req struct {
@@ -298,11 +272,6 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "ChatController.ResumeWithAnswer"
 
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
-		return
-	}
 	if err := c.enforceAccess(r.Context()); err != nil {
 		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
@@ -315,18 +284,8 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Validate session ownership (CRITICAL SECURITY)
-	session, err := c.chatRepo.GetSession(r.Context(), sessionID)
-	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusNotFound)
+	if _, ok := c.requireSessionAccess(w, r, sessionID, true, false); !ok {
 		return
-	}
-
-	if session.UserID() != int64(user.ID()) {
-		if err := composables.CanUser(r.Context(), c.opts.ReadAllPermission); err != nil {
-			c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
-			return
-		}
 	}
 
 	var req struct {
@@ -357,11 +316,6 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "ChatController.ArchiveSession"
 
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
-		return
-	}
 	if err := c.enforceAccess(r.Context()); err != nil {
 		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
@@ -374,19 +328,7 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Check permission (user owns session)
-	session, err := c.chatService.GetSession(r.Context(), sessionID)
-	if err != nil {
-		if errors.Is(err, persistence.ErrSessionNotFound) {
-			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
-		} else {
-			c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
-		}
-		return
-	}
-
-	if session.UserID() != int64(user.ID()) {
-		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
+	if _, ok := c.requireSessionAccess(w, r, sessionID, false, true); !ok {
 		return
 	}
 
@@ -402,11 +344,6 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "ChatController.TogglePin"
 
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
-		return
-	}
 	if err := c.enforceAccess(r.Context()); err != nil {
 		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
@@ -419,19 +356,8 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get current session
-	session, err := c.chatService.GetSession(r.Context(), sessionID)
-	if err != nil {
-		if errors.Is(err, persistence.ErrSessionNotFound) {
-			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
-		} else {
-			c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
-		}
-		return
-	}
-
-	if session.UserID() != int64(user.ID()) {
-		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
+	session, ok := c.requireSessionAccess(w, r, sessionID, false, true)
+	if !ok {
 		return
 	}
 	var updatedSession domain.Session
@@ -451,11 +377,6 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "ChatController.DeleteSession"
 
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
-		return
-	}
 	if err := c.enforceAccess(r.Context()); err != nil {
 		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 		return
@@ -468,24 +389,13 @@ func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check permission (user owns session)
-	session, err := c.chatService.GetSession(r.Context(), sessionID)
-	if err != nil {
-		if errors.Is(err, persistence.ErrSessionNotFound) {
-			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
-		} else {
-			c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
-		}
-		return
-	}
-
-	if session.UserID() != int64(user.ID()) {
-		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
+	session, ok := c.requireSessionAccess(w, r, sessionID, false, true)
+	if !ok {
 		return
 	}
 
 	// Delete session (cascades to messages/attachments)
-	if err := c.chatRepo.DeleteSession(r.Context(), sessionID); err != nil {
+	if err := c.chatService.DeleteSession(r.Context(), session.ID()); err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
@@ -516,4 +426,42 @@ func (c *ChatController) enforceAccess(ctx context.Context) error {
 		return nil
 	}
 	return composables.CanUser(ctx, c.opts.RequireAccessPermission)
+}
+
+func (c *ChatController) requireSessionAccess(
+	w http.ResponseWriter,
+	r *http.Request,
+	sessionID uuid.UUID,
+	requireWrite bool,
+	requireManageMembers bool,
+) (domain.Session, bool) {
+	user, err := composables.UseUser(r.Context())
+	if err != nil {
+		c.sendError(w, serrors.E("ChatController.requireSessionAccess", err), http.StatusUnauthorized)
+		return nil, false
+	}
+
+	session, err := c.chatService.GetSession(r.Context(), sessionID)
+	if err != nil {
+		if errors.Is(err, persistence.ErrSessionNotFound) {
+			c.sendError(w, serrors.E("ChatController.requireSessionAccess", err), http.StatusNotFound)
+		} else {
+			c.sendError(w, serrors.E("ChatController.requireSessionAccess", err), http.StatusInternalServerError)
+		}
+		return nil, false
+	}
+
+	readAll := composables.CanUser(r.Context(), c.opts.ReadAllPermission) == nil
+	access, err := c.chatService.ResolveSessionAccess(r.Context(), sessionID, int64(user.ID()), readAll)
+	if err != nil {
+		c.sendError(w, serrors.E("ChatController.requireSessionAccess", err), http.StatusInternalServerError)
+		return nil, false
+	}
+
+	if !access.CanRead || (requireWrite && !access.CanWrite) || (requireManageMembers && !access.CanManageMembers) {
+		c.sendError(w, serrors.E("ChatController.requireSessionAccess", serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		return nil, false
+	}
+
+	return session, true
 }

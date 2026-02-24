@@ -1,18 +1,14 @@
 package rpc
 
 import (
-	"context"
-	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type PingParams struct{}
@@ -22,13 +18,32 @@ type PingResult struct {
 	TenantID string `json:"tenantId"`
 }
 
-type Session struct {
+type SessionUser struct {
 	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Status    string `json:"status"`
-	Pinned    bool   `json:"pinned"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	Initials  string `json:"initials"`
+}
+
+type SessionAccess struct {
+	Role             string `json:"role"`
+	Source           string `json:"source"`
+	CanRead          bool   `json:"canRead"`
+	CanWrite         bool   `json:"canWrite"`
+	CanManageMembers bool   `json:"canManageMembers"`
+}
+
+type Session struct {
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Status      string         `json:"status"`
+	Pinned      bool           `json:"pinned"`
+	CreatedAt   string         `json:"createdAt"`
+	UpdatedAt   string         `json:"updatedAt"`
+	Owner       *SessionUser   `json:"owner,omitempty"`
+	IsGroup     bool           `json:"isGroup,omitempty"`
+	MemberCount int            `json:"memberCount,omitempty"`
+	Access      *SessionAccess `json:"access,omitempty"`
 }
 
 type SessionListParams struct {
@@ -37,12 +52,25 @@ type SessionListParams struct {
 	IncludeArchived bool `json:"includeArchived"`
 }
 
+type SessionListAllParams struct {
+	Limit           int     `json:"limit"`
+	Offset          int     `json:"offset"`
+	IncludeArchived bool    `json:"includeArchived"`
+	UserID          *string `json:"userId,omitempty"`
+}
+
 // SessionListResult is the response for bichat.session.list.
 type SessionListResult struct {
 	Sessions []Session `json:"sessions"`
 	// Total is the full count of sessions matching the filter (includeArchived, etc.), not the page size.
 	Total   int  `json:"total,omitempty"`
 	HasMore bool `json:"hasMore"`
+}
+
+type SessionListAllResult struct {
+	Sessions []Session `json:"sessions"`
+	Total    int       `json:"total,omitempty"`
+	HasMore  bool      `json:"hasMore"`
 }
 
 type SessionCreateParams struct {
@@ -55,6 +83,10 @@ type SessionCreateResult struct {
 
 type SessionGetParams struct {
 	ID string `json:"id"`
+}
+
+type UserListResult struct {
+	Users []SessionUser `json:"users"`
 }
 
 type Attachment struct {
@@ -89,6 +121,7 @@ type UserTurn struct {
 	ID          string       `json:"id"`
 	Content     string       `json:"content"`
 	Attachments []Attachment `json:"attachments"`
+	Author      *SessionUser `json:"author,omitempty"`
 	CreatedAt   string       `json:"createdAt"`
 }
 
@@ -234,6 +267,32 @@ type SessionGetResult struct {
 	PendingQuestion *PendingQuestion   `json:"pendingQuestion,omitempty"`
 }
 
+type SessionMember struct {
+	User      SessionUser `json:"user"`
+	Role      string      `json:"role"`
+	CreatedAt string      `json:"createdAt"`
+	UpdatedAt string      `json:"updatedAt"`
+}
+
+type SessionMembersListParams struct {
+	SessionID string `json:"sessionId"`
+}
+
+type SessionMembersListResult struct {
+	Members []SessionMember `json:"members"`
+}
+
+type SessionMembersUpsertParams struct {
+	SessionID string `json:"sessionId"`
+	UserID    string `json:"userId"`
+	Role      string `json:"role"`
+}
+
+type SessionMembersRemoveParams struct {
+	SessionID string `json:"sessionId"`
+	UserID    string `json:"userId"`
+}
+
 // ArtifactIDParams is used by bichat.artifact.delete (p.ID is artifact ID).
 type ArtifactIDParams struct {
 	ID string `json:"id"`
@@ -322,6 +381,14 @@ type QuestionCancelParams struct {
 }
 
 func toSessionDTO(s domain.Session) Session {
+	return toSessionDTOWithMeta(s, nil, nil, 0)
+}
+
+func toSessionDTOFromSummary(summary domain.SessionSummary) Session {
+	return toSessionDTOWithMeta(summary.Session, &summary.Owner, &summary.Access, summary.MemberCount)
+}
+
+func toSessionDTOWithMeta(s domain.Session, owner *domain.SessionUser, access *domain.SessionAccess, memberCount int) Session {
 	if s == nil {
 		return Session{
 			ID:        "",
@@ -344,7 +411,7 @@ func toSessionDTO(s domain.Session) Session {
 	var createdAt, updatedAt time.Time
 	createdAt = s.CreatedAt()
 	updatedAt = s.UpdatedAt()
-	return Session{
+	dto := Session{
 		ID:        s.ID().String(),
 		Title:     s.Title(),
 		Status:    status,
@@ -352,6 +419,56 @@ func toSessionDTO(s domain.Session) Session {
 		CreatedAt: createdAt.Format(time.RFC3339),
 		UpdatedAt: updatedAt.Format(time.RFC3339),
 	}
+	if owner != nil {
+		dto.Owner = &SessionUser{
+			ID:        fmt.Sprintf("%d", owner.ID),
+			FirstName: owner.FirstName,
+			LastName:  owner.LastName,
+			Initials:  owner.Initials(),
+		}
+	}
+	if access != nil {
+		dto.Access = &SessionAccess{
+			Role:             strings.ToLower(access.Role.String()),
+			Source:           string(access.Source),
+			CanRead:          access.CanRead,
+			CanWrite:         access.CanWrite,
+			CanManageMembers: access.CanManageMembers,
+		}
+	}
+	if memberCount > 0 {
+		dto.MemberCount = memberCount
+		dto.IsGroup = memberCount > 1
+	}
+	return dto
+}
+
+func toSessionUserDTO(user domain.SessionUser) SessionUser {
+	return SessionUser{
+		ID:        fmt.Sprintf("%d", user.ID),
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Initials:  user.Initials(),
+	}
+}
+
+func parseUserID(input string) (int64, error) {
+	return strconv.ParseInt(strings.TrimSpace(input), 10, 64)
+}
+
+func parseOptionalUserID(input *string) (*int64, error) {
+	if input == nil {
+		return nil, nil
+	}
+	value := strings.TrimSpace(*input)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
 
 func buildTurns(msgs []types.Message) []ConversationTurn {
@@ -365,6 +482,16 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 
 		switch m.Role() {
 		case types.RoleUser:
+			var author *SessionUser
+			if m.AuthorUserID() != nil {
+				authorDTO := SessionUser{
+					ID:        fmt.Sprintf("%d", *m.AuthorUserID()),
+					FirstName: m.AuthorFirstName(),
+					LastName:  m.AuthorLastName(),
+					Initials:  domain.SessionUser{FirstName: m.AuthorFirstName(), LastName: m.AuthorLastName()}.Initials(),
+				}
+				author = &authorDTO
+			}
 			t := ConversationTurn{
 				ID:        m.ID().String(),
 				SessionID: m.SessionID().String(),
@@ -372,6 +499,7 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 					ID:          m.ID().String(),
 					Content:     m.Content(),
 					Attachments: mapAttachments(m.Attachments()),
+					Author:      author,
 					CreatedAt:   m.CreatedAt().Format(time.RFC3339),
 				},
 				CreatedAt: m.CreatedAt().Format(time.RFC3339),
@@ -659,21 +787,6 @@ func toArtifactDTO(a domain.Artifact) Artifact {
 		out.MessageID = mid.String()
 	}
 	return out
-}
-
-func requireSessionOwner(ctx context.Context, chatSvc services.ChatService, sessionID uuid.UUID) (domain.Session, error) {
-	user, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, serrors.E("requireSessionOwner", serrors.PermissionDenied, err)
-	}
-	session, err := chatSvc.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E("requireSessionOwner", err)
-	}
-	if session.UserID() != int64(user.ID()) {
-		return nil, serrors.E("requireSessionOwner", serrors.PermissionDenied, errors.New("access denied"))
-	}
-	return session, nil
 }
 
 func parseUUID(s string) (uuid.UUID, error) {

@@ -14,12 +14,18 @@ export type BichatRPC = {
   "bichat.session.delete": { params: SessionIDParams; result: OkResult }
   "bichat.session.get": { params: SessionGetParams; result: SessionGetResult }
   "bichat.session.list": { params: SessionListParams; result: SessionListResult }
+  "bichat.session.listAll": { params: SessionListAllParams; result: SessionListAllResult }
+  "bichat.session.members.add": { params: SessionMembersUpsertParams; result: OkResult }
+  "bichat.session.members.list": { params: SessionMembersListParams; result: SessionMembersListResult }
+  "bichat.session.members.remove": { params: SessionMembersRemoveParams; result: OkResult }
+  "bichat.session.members.updateRole": { params: SessionMembersUpsertParams; result: OkResult }
   "bichat.session.pin": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.regenerateTitle": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.unarchive": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.unpin": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.updateTitle": { params: SessionUpdateTitleParams; result: SessionCreateResult }
   "bichat.session.uploadArtifacts": { params: SessionUploadArtifactsParams; result: SessionUploadArtifactsResult }
+  "bichat.user.list": { params: PingParams; result: UserListResult }
 }
 
 export interface Artifact {
@@ -234,6 +240,18 @@ export interface Session {
   pinned: boolean
   createdAt: string
   updatedAt: string
+  owner?: SessionUser | null
+  isGroup?: boolean
+  memberCount?: number
+  access?: SessionAccess | null
+}
+
+export interface SessionAccess {
+  role: string
+  source: string
+  canRead: boolean
+  canWrite: boolean
+  canManageMembers: boolean
 }
 
 export interface SessionArtifactsParams {
@@ -283,6 +301,19 @@ export interface SessionIDParams {
   id: string
 }
 
+export interface SessionListAllParams {
+  limit: number
+  offset: number
+  includeArchived: boolean
+  userId?: string | null
+}
+
+export interface SessionListAllResult {
+  sessions: Session[]
+  total?: number
+  hasMore: boolean
+}
+
 export interface SessionListParams {
   limit: number
   offset: number
@@ -293,6 +324,32 @@ export interface SessionListResult {
   sessions: Session[]
   total?: number
   hasMore: boolean
+}
+
+export interface SessionMember {
+  user: SessionUser
+  role: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SessionMembersListParams {
+  sessionId: string
+}
+
+export interface SessionMembersListResult {
+  members: SessionMember[]
+}
+
+export interface SessionMembersRemoveParams {
+  sessionId: string
+  userId: string
+}
+
+export interface SessionMembersUpsertParams {
+  sessionId: string
+  userId: string
+  role: string
 }
 
 export interface SessionUpdateTitleParams {
@@ -309,6 +366,13 @@ export interface SessionUploadArtifactsResult {
   artifacts: Artifact[]
 }
 
+export interface SessionUser {
+  id: string
+  firstName: string
+  lastName: string
+  initials: string
+}
+
 export interface ToolCall {
   id: string
   name: string
@@ -318,10 +382,15 @@ export interface ToolCall {
   durationMs?: number
 }
 
+export interface UserListResult {
+  users: SessionUser[]
+}
+
 export interface UserTurn {
   id: string
   content: string
   attachments: Attachment[]
+  author?: SessionUser | null
   createdAt: string
 }
 

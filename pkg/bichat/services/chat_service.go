@@ -21,6 +21,15 @@ type ChatService interface {
 	GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error)
 	CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error)
+	ListAccessibleSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.SessionSummary, error)
+	CountAccessibleSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error)
+	ListAllSessions(ctx context.Context, requestingUserID int64, opts domain.ListOptions, ownerUserID *int64) ([]domain.SessionSummary, error)
+	CountAllSessions(ctx context.Context, opts domain.ListOptions, ownerUserID *int64) (int, error)
+	ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64, allowReadAll bool) (domain.SessionAccess, error)
+	ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]domain.SessionMember, error)
+	UpsertSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64, role domain.SessionMemberRole) error
+	RemoveSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64) error
+	ListTenantUsers(ctx context.Context) ([]domain.SessionUser, error)
 	UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error)
 	ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)

@@ -16,11 +16,23 @@ CREATE TABLE IF NOT EXISTS bichat.sessions (
     CONSTRAINT sessions_status_check CHECK (status IN ('ACTIVE', 'ARCHIVED'))
 );
 
+CREATE TABLE IF NOT EXISTS bichat.session_members (
+    tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
+    session_id uuid NOT NULL REFERENCES bichat.sessions (id) ON DELETE CASCADE,
+    user_id bigint NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
+    role varchar(16) NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    updated_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, session_id, user_id),
+    CONSTRAINT session_members_role_check CHECK (role IN ('EDITOR', 'VIEWER'))
+);
+
 CREATE TABLE IF NOT EXISTS bichat.messages (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     session_id uuid NOT NULL REFERENCES bichat.sessions (id) ON DELETE CASCADE,
     role varchar(20) NOT NULL,
     content text NOT NULL,
+    author_user_id bigint REFERENCES public.users (id) ON DELETE SET NULL,
     tool_calls jsonb,
     tool_call_id varchar(255),
     citations jsonb,
@@ -29,6 +41,13 @@ CREATE TABLE IF NOT EXISTS bichat.messages (
     created_at timestamptz NOT NULL DEFAULT NOW(),
     CONSTRAINT messages_role_check CHECK (ROLE IN ('user', 'assistant', 'tool', 'system'))
 );
+ALTER TABLE bichat.messages
+    DROP CONSTRAINT IF EXISTS messages_user_requires_author;
+
+ALTER TABLE bichat.messages
+    ADD CONSTRAINT messages_user_requires_author
+    CHECK (role <> 'user' OR author_user_id IS NOT NULL);
+
 
 CREATE TABLE IF NOT EXISTS bichat.checkpoints (
     id varchar(255) PRIMARY KEY,
@@ -208,6 +227,10 @@ CREATE INDEX IF NOT EXISTS idx_sessions_parent ON bichat.sessions (parent_sessio
 WHERE
     parent_session_id IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_session_members_user ON bichat.session_members (tenant_id, user_id, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_session_members_session ON bichat.session_members (tenant_id, session_id, role);
+
 CREATE INDEX IF NOT EXISTS idx_messages_session ON bichat.messages (session_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON bichat.messages (created_at);
@@ -217,6 +240,10 @@ CREATE INDEX IF NOT EXISTS idx_messages_role ON bichat.messages (ROLE);
 CREATE INDEX IF NOT EXISTS idx_messages_tool_call ON bichat.messages (tool_call_id)
 WHERE
     tool_call_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_messages_author ON bichat.messages (author_user_id)
+WHERE
+    author_user_id IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_one_pending_question ON bichat.messages (session_id)
 WHERE
@@ -298,6 +325,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_bichat_vq_dedup ON bichat.validated_querie
 
 COMMENT ON TABLE bichat.sessions IS 'Chat sessions with multi-tenant support';
 
+COMMENT ON TABLE bichat.session_members IS 'Explicit non-owner session membership for shared/group chats';
+
 COMMENT ON TABLE bichat.messages IS 'Messages within chat sessions';
 
 COMMENT ON TABLE bichat.checkpoints IS 'HITL checkpoints for resumable execution';
@@ -317,4 +346,3 @@ COMMENT ON TABLE bichat.events IS 'Point-in-time observability events linked to 
 COMMENT ON TABLE bichat.learnings IS 'Agent-captured learnings from SQL errors and user corrections';
 
 COMMENT ON TABLE bichat.validated_queries IS 'Proven SQL query patterns that answered prior questions';
-

@@ -20,6 +20,9 @@ type Message interface {
 	CodeOutputs() []CodeInterpreterOutput
 	DebugTrace() *DebugTrace
 	QuestionData() *QuestionData
+	AuthorUserID() *int64
+	AuthorFirstName() string
+	AuthorLastName() string
 	CreatedAt() time.Time
 
 	HasToolCalls() bool
@@ -42,6 +45,9 @@ type message struct {
 	codeOutputs  []CodeInterpreterOutput
 	debugTrace   *DebugTrace
 	questionData *QuestionData
+	authorUserID *int64
+	authorFirst  string
+	authorLast   string
 	createdAt    time.Time
 }
 
@@ -122,6 +128,21 @@ func WithDebugTrace(trace *DebugTrace) MessageOption {
 func WithQuestionData(qd *QuestionData) MessageOption {
 	return func(m *message) {
 		m.questionData = qd
+	}
+}
+
+// WithAuthorUserID sets the optional author user ID for user messages.
+func WithAuthorUserID(userID int64) MessageOption {
+	return func(m *message) {
+		m.authorUserID = &userID
+	}
+}
+
+// WithAuthorName sets optional author first/last name metadata.
+func WithAuthorName(firstName, lastName string) MessageOption {
+	return func(m *message) {
+		m.authorFirst = firstName
+		m.authorLast = lastName
 	}
 }
 
@@ -245,6 +266,18 @@ func (m *message) DebugTrace() *DebugTrace {
 
 func (m *message) QuestionData() *QuestionData {
 	return m.questionData
+}
+
+func (m *message) AuthorUserID() *int64 {
+	return m.authorUserID
+}
+
+func (m *message) AuthorFirstName() string {
+	return m.authorFirst
+}
+
+func (m *message) AuthorLastName() string {
+	return m.authorLast
 }
 
 func (m *message) CreatedAt() time.Time {

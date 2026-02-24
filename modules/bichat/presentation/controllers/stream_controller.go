@@ -150,20 +150,8 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 5. Validate session access
-	session, err := c.chatService.GetSession(r.Context(), req.SessionID)
-	if err != nil {
-		if errors.Is(err, persistence.ErrSessionNotFound) {
-			http.Error(w, "Session not found", http.StatusNotFound)
-		} else {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-		}
-		return
-	}
-
-	// Check permission (user owns session or has read_all permission)
-	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
-		http.Error(w, "Access denied", http.StatusForbidden)
+	// 5. Validate write access
+	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID, true); !ok {
 		return
 	}
 
@@ -310,7 +298,7 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "sessionId is required and must be a valid UUID", http.StatusBadRequest)
 		return
 	}
-	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID); !ok {
+	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID, true); !ok {
 		return
 	}
 
@@ -331,9 +319,9 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// requireStreamSessionAuth ensures the user is authenticated, has stream access, and owns (or can read) the session.
+// requireStreamSessionAuth ensures the user is authenticated, has stream access, and has the required capability.
 // On failure it writes the appropriate HTTP error to w and returns (nil, false). On success it returns (session, true).
-func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *http.Request, sessionID uuid.UUID) (domain.Session, bool) {
+func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *http.Request, sessionID uuid.UUID, requireWrite bool) (domain.Session, bool) {
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -354,7 +342,17 @@ func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *ht
 		}
 		return nil, false
 	}
-	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
+	readAll := composables.CanUser(r.Context(), c.opts.ReadAllPermission) == nil
+	access, err := c.chatService.ResolveSessionAccess(r.Context(), sessionID, int64(user.ID()), readAll)
+	if err != nil {
+		if errors.Is(err, persistence.ErrSessionNotFound) {
+			http.Error(w, "Session not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return nil, false
+	}
+	if !access.CanRead || (requireWrite && !access.CanWrite) {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return nil, false
 	}
@@ -374,7 +372,7 @@ func (c *StreamController) StreamStatus(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "sessionId must be a valid UUID", http.StatusBadRequest)
 		return
 	}
-	if _, ok := c.requireStreamSessionAuth(w, r, sessionID); !ok {
+	if _, ok := c.requireStreamSessionAuth(w, r, sessionID, false); !ok {
 		return
 	}
 
@@ -432,7 +430,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "sessionId and runId are required", http.StatusBadRequest)
 		return
 	}
-	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID); !ok {
+	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID, false); !ok {
 		return
 	}
 
