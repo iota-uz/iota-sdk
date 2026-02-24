@@ -451,7 +451,10 @@ func (c *ChatController) requireSessionAccess(
 		return nil, false
 	}
 
-	readAll := composables.CanUser(r.Context(), c.opts.ReadAllPermission) == nil
+	readAll := false
+	if c.opts.ReadAllPermission != nil {
+		readAll = composables.CanUser(r.Context(), c.opts.ReadAllPermission) == nil
+	}
 	access, err := c.chatService.ResolveSessionAccess(r.Context(), sessionID, int64(user.ID()), readAll)
 	if err != nil {
 		c.sendError(w, serrors.E("ChatController.requireSessionAccess", err), http.StatusInternalServerError)

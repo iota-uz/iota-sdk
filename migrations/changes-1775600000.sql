@@ -20,7 +20,7 @@ CREATE INDEX IF NOT EXISTS idx_session_members_session
     ON bichat.session_members (tenant_id, session_id, role);
 
 ALTER TABLE IF EXISTS bichat.messages
-    ADD COLUMN IF NOT EXISTS author_user_id bigint REFERENCES public.users (id) ON DELETE SET NULL;
+    ADD COLUMN IF NOT EXISTS author_user_id bigint REFERENCES public.users (id) ON DELETE RESTRICT;
 
 UPDATE bichat.messages AS m
 SET author_user_id = s.user_id

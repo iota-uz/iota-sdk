@@ -86,7 +86,7 @@ const (
 			ON sm_self.tenant_id = s.tenant_id
 			AND sm_self.session_id = s.id
 			AND sm_self.user_id = $2
-		LEFT JOIN public.users owner_u ON owner_u.id = s.user_id
+		LEFT JOIN public.users owner_u ON owner_u.id = s.user_id AND owner_u.tenant_id = s.tenant_id
 		LEFT JOIN (
 			SELECT session_id, COUNT(*) AS member_count
 			FROM bichat.session_members
@@ -132,7 +132,7 @@ const (
 			ON sm_self.tenant_id = s.tenant_id
 			AND sm_self.session_id = s.id
 			AND sm_self.user_id = $2
-		LEFT JOIN public.users owner_u ON owner_u.id = s.user_id
+		LEFT JOIN public.users owner_u ON owner_u.id = s.user_id AND owner_u.tenant_id = s.tenant_id
 		LEFT JOIN (
 			SELECT session_id, COUNT(*) AS member_count
 			FROM bichat.session_members
@@ -174,7 +174,7 @@ const (
 			COALESCE(u.first_name, ''),
 			COALESCE(u.last_name, '')
 		FROM bichat.session_members sm
-		JOIN public.users u ON u.id = sm.user_id
+		JOIN public.users u ON u.id = sm.user_id AND u.tenant_id = sm.tenant_id
 		WHERE sm.tenant_id = $1
 		  AND sm.session_id = $2
 		ORDER BY sm.created_at ASC, sm.user_id ASC
@@ -229,14 +229,14 @@ const (
 		SELECT m.id, m.session_id, m.role, m.content, m.author_user_id, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
-		LEFT JOIN public.users u ON u.id = m.author_user_id
+		LEFT JOIN public.users u ON u.id = m.author_user_id AND u.tenant_id = s.tenant_id
 		WHERE s.tenant_id = $1 AND m.id = $2
 	`
 	selectSessionMessagesQuery = `
 		SELECT m.id, m.session_id, m.role, m.content, m.author_user_id, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
-		LEFT JOIN public.users u ON u.id = m.author_user_id
+		LEFT JOIN public.users u ON u.id = m.author_user_id AND u.tenant_id = s.tenant_id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
 		ORDER BY m.created_at ASC
 		LIMIT $3 OFFSET $4
@@ -261,7 +261,7 @@ const (
 		SELECT m.id, m.session_id, m.role, m.content, m.author_user_id, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
 		FROM bichat.messages m
 		JOIN bichat.sessions s ON m.session_id = s.id
-		LEFT JOIN public.users u ON u.id = m.author_user_id
+		LEFT JOIN public.users u ON u.id = m.author_user_id AND u.tenant_id = s.tenant_id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
 		  AND m.question_data->>'status' = 'PENDING'
 		ORDER BY m.created_at DESC, m.id DESC

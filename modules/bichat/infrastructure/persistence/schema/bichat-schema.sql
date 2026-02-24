@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS bichat.session_members (
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW(),
     PRIMARY KEY (tenant_id, session_id, user_id),
-    CONSTRAINT session_members_role_check CHECK (role IN ('EDITOR', 'VIEWER'))
+    CONSTRAINT session_members_role_check CHECK (ROLE IN ('EDITOR', 'VIEWER'))
 );
 
 CREATE TABLE IF NOT EXISTS bichat.messages (
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS bichat.messages (
     session_id uuid NOT NULL REFERENCES bichat.sessions (id) ON DELETE CASCADE,
     role varchar(20) NOT NULL,
     content text NOT NULL,
-    author_user_id bigint REFERENCES public.users (id) ON DELETE SET NULL,
+    author_user_id bigint REFERENCES public.users (id) ON DELETE RESTRICT,
     tool_calls jsonb,
     tool_call_id varchar(255),
     citations jsonb,
@@ -45,8 +45,7 @@ ALTER TABLE bichat.messages
     DROP CONSTRAINT IF EXISTS messages_user_requires_author;
 
 ALTER TABLE bichat.messages
-    ADD CONSTRAINT messages_user_requires_author
-    CHECK (role <> 'user' OR author_user_id IS NOT NULL);
+    ADD CONSTRAINT messages_user_requires_author CHECK (ROLE <> 'user' OR author_user_id IS NOT NULL);
 
 
 CREATE TABLE IF NOT EXISTS bichat.checkpoints (
@@ -229,7 +228,7 @@ WHERE
 
 CREATE INDEX IF NOT EXISTS idx_session_members_user ON bichat.session_members (tenant_id, user_id, updated_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_session_members_session ON bichat.session_members (tenant_id, session_id, role);
+CREATE INDEX IF NOT EXISTS idx_session_members_session ON bichat.session_members (tenant_id, session_id, ROLE);
 
 CREATE INDEX IF NOT EXISTS idx_messages_session ON bichat.messages (session_id, created_at DESC);
 

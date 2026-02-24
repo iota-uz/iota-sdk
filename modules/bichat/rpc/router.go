@@ -67,6 +67,14 @@ func withSessionMeta(ctx context.Context, chatSvc services.ChatService, session 
 		memberCount = len(members) + 1
 	}
 	owner := domain.SessionUser{ID: session.UserID()}
+	if users, err := chatSvc.ListTenantUsers(ctx); err == nil {
+		for _, user := range users {
+			if user.ID == session.UserID() {
+				owner = user
+				break
+			}
+		}
+	}
 	return toSessionDTOWithMeta(session, &owner, &access, memberCount)
 }
 
@@ -673,6 +681,9 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			if err != nil {
 				return OkResult{}, serrors.E(op, serrors.Invalid, err)
 			}
+			if userID == session.UserID() {
+				return OkResult{}, serrors.E(op, serrors.KindValidation, "owner cannot be added as a member")
+			}
 			role := domain.ParseSessionMemberRole(p.Role)
 			if !role.ValidMemberRole() {
 				return OkResult{}, serrors.E(op, serrors.KindValidation, "invalid role")
@@ -696,6 +707,9 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			userID, err := parseUserID(p.UserID)
 			if err != nil {
 				return OkResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			if userID == session.UserID() {
+				return OkResult{}, serrors.E(op, serrors.KindValidation, "owner cannot be added as a member")
 			}
 			role := domain.ParseSessionMemberRole(p.Role)
 			if !role.ValidMemberRole() {
