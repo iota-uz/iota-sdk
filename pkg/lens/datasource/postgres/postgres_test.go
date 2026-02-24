@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -36,7 +37,7 @@ func connectionStringFromEnv(defaultDB string) string {
 	if dbName == "" {
 		dbName = defaultDB
 	}
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s", user, password, host, port, dbName)
+	return fmt.Sprintf("postgres://%s:%s@%s/%s", user, password, net.JoinHostPort(host, port), dbName)
 }
 
 func openTestPool(t *testing.T) *pgxpool.Pool {
