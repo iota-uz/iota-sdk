@@ -1,9 +1,45 @@
 name: Test, lint & build
 
 on:
-  - push
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
+  security-gosec:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
+    name: Security Scan (gosec)
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.24.13"
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.2
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
+
+      - name: Run gosec (production entrypoints)
+        run: just gosec
+
   lint-and-format:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
