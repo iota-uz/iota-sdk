@@ -9,6 +9,10 @@ export interface ChatSession {
   createdAt: string
   updatedAt: string
   pinned?: boolean
+  isGroup?: boolean
+  memberCount?: number
+  owner?: { firstName: string; lastName: string; initials?: string }
+  access?: { role: string; canManageMembers?: boolean }
 }
 
 /**
