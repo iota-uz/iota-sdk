@@ -38,10 +38,10 @@ func TestResolveColumn_Fallbacks(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		row      map[string]any
-		wantVal  any
-		wantKey  string
+		name    string
+		row     map[string]any
+		wantVal any
+		wantKey string
 	}{
 		{
 			name:    "value fallback",
@@ -76,7 +76,6 @@ func TestResolveColumn_Fallbacks(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// Empty ColumnMap → use fallbacks.
@@ -146,9 +145,9 @@ func TestResolveLabel_Fallbacks(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		row     map[string]any
-		want    string
+		name string
+		row  map[string]any
+		want string
 	}{
 		{"label", map[string]any{"label": "Jan"}, "Jan"},
 		{"category", map[string]any{"category": "Cat A"}, "Cat A"},
@@ -157,7 +156,6 @@ func TestResolveLabel_Fallbacks(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			cm := lens.ColumnMap{}
@@ -306,7 +304,6 @@ func TestFormatNumber(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.want, func(t *testing.T) {
 			t.Parallel()
 			got := formatNumber(tt.input)
@@ -347,7 +344,6 @@ func TestFormatCellValue(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := formatCellValue(tt.input)
@@ -376,7 +372,6 @@ func TestSpanClass_KnownSpans(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run("span"+string(rune('0'+tt.span)), func(t *testing.T) {
 			t.Parallel()
 			got := spanClass(tt.span)
@@ -391,7 +386,6 @@ func TestSpanClass_AllValidSpans(t *testing.T) {
 	t.Parallel()
 
 	for span := 1; span <= 12; span++ {
-		span := span
 		t.Run("span", func(t *testing.T) {
 			t.Parallel()
 			got := spanClass(span)
@@ -408,7 +402,6 @@ func TestSpanClass_InvalidSpanFallsBackToSix(t *testing.T) {
 	fallback := spanClass(6)
 
 	for _, bad := range []int{0, -1, 13, 100} {
-		bad := bad
 		t.Run("invalid", func(t *testing.T) {
 			t.Parallel()
 			got := spanClass(bad)
@@ -763,7 +756,6 @@ func TestToFloat64(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, ok := toFloat64(tt.input)

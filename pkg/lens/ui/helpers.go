@@ -261,7 +261,7 @@ func buildChartOptions(p lens.Panel, result *lens.QueryResult) charts.ChartOptio
 		} else {
 			addAreaOptions(&opts)
 		}
-	default: // bar, column
+	case lens.TypeBar, lens.TypeColumn:
 		if hasSeriesColumn(result, cm) {
 			opts.Series = buildGroupedSeries(result, cm)
 			opts.XAxis = charts.XAxisConfig{Categories: buildUniqueCategories(result, cm)}
@@ -270,6 +270,9 @@ func buildChartOptions(p lens.Panel, result *lens.QueryResult) charts.ChartOptio
 			opts.XAxis = charts.XAxisConfig{Categories: buildLabels(result, cm)}
 		}
 		addBarOptions(&opts)
+	case lens.TypeMetric, lens.TypeTable:
+		// Not chart types — should not reach here.
+		return opts
 	}
 
 	if p.Chart != nil && p.Chart.ShowLegend {
@@ -298,9 +301,10 @@ func panelTypeToChartType(t lens.PanelType) charts.ChartType {
 		return charts.AreaChartType
 	case lens.TypeGauge:
 		return charts.RadialBarChartType
-	default:
+	case lens.TypeMetric, lens.TypeTable:
 		return charts.LineChartType
 	}
+	return charts.LineChartType
 }
 
 func panelColors(p lens.Panel) []string {
@@ -320,9 +324,10 @@ func panelColors(p lens.Panel) []string {
 		return []string{"#06b6d4"}
 	case lens.TypeGauge:
 		return []string{"#f59e0b"}
-	default:
+	case lens.TypeMetric, lens.TypeTable:
 		return []string{"#6b7280"}
 	}
+	return []string{"#6b7280"}
 }
 
 // ---------------------------------------------------------------------------
@@ -469,7 +474,10 @@ func addDrillDownEvents(opts *charts.ChartOptions, p lens.Panel) {
 		return
 	}
 
-	urlTemplate, _ := json.Marshal(dd.URL)
+	urlTemplate, err := json.Marshal(dd.URL)
+	if err != nil {
+		return
+	}
 
 	// Build a JS snippet that constructs a data object from the clicked point,
 	// then substitutes all {key} placeholders in the URL template.

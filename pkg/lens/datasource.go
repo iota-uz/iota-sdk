@@ -13,7 +13,7 @@ type DataSource interface {
 
 // QueryResult holds the tabular result of a query execution.
 type QueryResult struct {
-	Columns []QueryColumn          // ordered column metadata
+	Columns []QueryColumn    // ordered column metadata
 	Rows    []map[string]any // each row is a map of column name → value
 }
 

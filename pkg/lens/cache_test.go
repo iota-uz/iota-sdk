@@ -8,49 +8,12 @@ import (
 	"time"
 )
 
-// ---------------------------------------------------------------------------
-// countingMockDS — tracks calls and returns pre-set results
-// ---------------------------------------------------------------------------
-
-// countingMockDS is a DataSource that counts Execute calls and returns
-// pre-configured results keyed by query string.
-type countingMockDS struct {
-	calls   atomic.Int64
-	results map[string]*QueryResult
-	errors  map[string]error
-	closed  atomic.Bool
-}
-
-func (d *countingMockDS) Execute(_ context.Context, query string) (*QueryResult, error) {
-	d.calls.Add(1)
-	if err, ok := d.errors[query]; ok {
-		return nil, err
-	}
-	if r, ok := d.results[query]; ok {
-		return r, nil
-	}
-	return &QueryResult{}, nil
-}
-
-func (d *countingMockDS) Close() error {
-	d.closed.Store(true)
-	return nil
-}
-
-// newCountingMockDS constructs a countingMockDS with default result for any query.
-func newCountingMockDS(defaultResult *QueryResult) *countingMockDS {
-	return &countingMockDS{
-		results: map[string]*QueryResult{"*": defaultResult},
-		errors:  map[string]error{},
-	}
-}
-
-// overrideExecute wraps countingMockDS to return the default result for any query.
+// anyQueryDS returns the same result for any query and tracks call counts.
 type anyQueryDS struct {
-	calls   atomic.Int64
-	result  *QueryResult
-	err     error
-	closed  atomic.Bool
+	calls  atomic.Int64
+	result *QueryResult
+	err    error
+	closed atomic.Bool
 }
 
 func (d *anyQueryDS) Execute(_ context.Context, _ string) (*QueryResult, error) {

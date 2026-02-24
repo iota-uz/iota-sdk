@@ -37,12 +37,12 @@ func Metric(id, title string) *MetricBuilder {
 	}
 }
 
-func (b *MetricBuilder) Query(q string) *MetricBuilder   { b.panel.Query = q; return b }
-func (b *MetricBuilder) Span(n int) *MetricBuilder        { b.panel.Span = n; return b }
-func (b *MetricBuilder) Class(c string) *MetricBuilder    { b.panel.Class = c; return b }
-func (b *MetricBuilder) Unit(u string) *MetricBuilder     { b.panel.Metric.Unit = u; return b }
-func (b *MetricBuilder) Prefix(p string) *MetricBuilder   { b.panel.Metric.Prefix = p; return b }
-func (b *MetricBuilder) Color(c string) *MetricBuilder    { b.panel.Metric.Color = c; return b }
+func (b *MetricBuilder) Query(q string) *MetricBuilder         { b.panel.Query = q; return b }
+func (b *MetricBuilder) Span(n int) *MetricBuilder             { b.panel.Span = n; return b }
+func (b *MetricBuilder) Class(c string) *MetricBuilder         { b.panel.Class = c; return b }
+func (b *MetricBuilder) Unit(u string) *MetricBuilder          { b.panel.Metric.Unit = u; return b }
+func (b *MetricBuilder) Prefix(p string) *MetricBuilder        { b.panel.Metric.Prefix = p; return b }
+func (b *MetricBuilder) Color(c string) *MetricBuilder         { b.panel.Metric.Color = c; return b }
 func (b *MetricBuilder) Icon(c templ.Component) *MetricBuilder { b.panel.Metric.Icon = c; return b }
 
 // ValueColumn sets the column name used for the metric value.
@@ -110,11 +110,11 @@ func Area(id, title string) *ChartBuilder { return newChartBuilder(id, title, Ty
 func Gauge(id, title string) *ChartBuilder { return newChartBuilder(id, title, TypeGauge) }
 
 func (b *ChartBuilder) Query(q string) *ChartBuilder  { b.panel.Query = q; return b }
-func (b *ChartBuilder) Span(n int) *ChartBuilder       { b.panel.Span = n; return b }
-func (b *ChartBuilder) Class(c string) *ChartBuilder   { b.panel.Class = c; return b }
-func (b *ChartBuilder) Height(h string) *ChartBuilder  { b.panel.Chart.Height = h; return b }
-func (b *ChartBuilder) Stacked() *ChartBuilder         { b.panel.Chart.Stacked = true; return b }
-func (b *ChartBuilder) Legend() *ChartBuilder           { b.panel.Chart.ShowLegend = true; return b }
+func (b *ChartBuilder) Span(n int) *ChartBuilder      { b.panel.Span = n; return b }
+func (b *ChartBuilder) Class(c string) *ChartBuilder  { b.panel.Class = c; return b }
+func (b *ChartBuilder) Height(h string) *ChartBuilder { b.panel.Chart.Height = h; return b }
+func (b *ChartBuilder) Stacked() *ChartBuilder        { b.panel.Chart.Stacked = true; return b }
+func (b *ChartBuilder) Legend() *ChartBuilder         { b.panel.Chart.ShowLegend = true; return b }
 
 // Colors sets multiple series/category colors.
 func (b *ChartBuilder) Colors(c ...string) *ChartBuilder {
@@ -184,8 +184,8 @@ func Table(id, title string) *TableBuilder {
 }
 
 func (b *TableBuilder) Query(q string) *TableBuilder { b.panel.Query = q; return b }
-func (b *TableBuilder) Span(n int) *TableBuilder      { b.panel.Span = n; return b }
-func (b *TableBuilder) Class(c string) *TableBuilder  { b.panel.Class = c; return b }
+func (b *TableBuilder) Span(n int) *TableBuilder     { b.panel.Span = n; return b }
+func (b *TableBuilder) Class(c string) *TableBuilder { b.panel.Class = c; return b }
 
 // Columns sets explicit column definitions for the table.
 func (b *TableBuilder) Columns(cols ...TableColumn) *TableBuilder {
