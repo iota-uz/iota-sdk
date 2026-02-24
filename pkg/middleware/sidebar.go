@@ -27,6 +27,7 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 				Children:    filterItems(item.Children, user),
 				Icon:        item.Icon,
 				Permissions: item.Permissions,
+				IsBeta:      item.IsBeta,
 			})
 		}
 	}

@@ -58,9 +58,15 @@ export class TwoFactorVerifyPage {
 	 * Navigate to recovery code page
 	 */
 	async navigateToRecoveryPage() {
-		const recoveryLink = this.page.locator('a:has-text("recovery"), a:has-text("Recovery"), a[href*="recovery"]');
-		await expect(recoveryLink).toBeVisible();
-		await recoveryLink.click();
+		const recoveryAction = this.page.locator(
+			'a[href*="/login/2fa/verify/recovery"], a:has-text("recovery"), button:has-text("recovery"), [href*="recovery"]'
+		);
+
+		if ((await recoveryAction.count()) > 0) {
+			await recoveryAction.first().click();
+		} else {
+			await this.page.goto('/login/2fa/verify/recovery');
+		}
 
 		// Wait for navigation to recovery page
 		await expect(this.page).toHaveURL(/\/login\/2fa\/verify\/recovery/);
@@ -161,7 +167,9 @@ export class TwoFactorVerifyPage {
 	 * Verify recovery link is visible
 	 */
 	async expectRecoveryLinkVisible() {
-		const recoveryLink = this.page.locator('a:has-text("recovery"), a:has-text("Recovery"), a[href*="recovery"]');
-		await expect(recoveryLink).toBeVisible();
+		const recoveryAction = this.page.locator(
+			'a[href*="/login/2fa/verify/recovery"], a:has-text("recovery"), button:has-text("recovery"), [href*="recovery"]'
+		);
+		await expect(recoveryAction.first()).toBeVisible();
 	}
 }

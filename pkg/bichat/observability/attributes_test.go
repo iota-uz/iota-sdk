@@ -10,8 +10,8 @@ func TestAttributes(t *testing.T) {
 	attrs := NewAttributes()
 
 	// Test SetString
-	attrs.SetString(AttrModelName, "gpt-4")
-	if val, ok := attrs.GetString(AttrModelName); !ok || val != "gpt-4" {
+	attrs.SetString(AttrModelName, "gpt-5.2")
+	if val, ok := attrs.GetString(AttrModelName); !ok || val != "gpt-5.2" {
 		t.Errorf("GetString failed: got %v, %v", val, ok)
 	}
 
@@ -54,8 +54,8 @@ func TestAttributes(t *testing.T) {
 	}
 
 	// Modify copy should not affect original
-	attrsCopy.SetString(AttrModelName, "claude-3")
-	if val, _ := attrs.GetString(AttrModelName); val != "gpt-4" {
+	attrsCopy.SetString(AttrModelName, "claude-sonnet-4-6")
+	if val, _ := attrs.GetString(AttrModelName); val != "gpt-5.2" {
 		t.Errorf("Copy is not independent: original modified")
 	}
 }

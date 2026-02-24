@@ -4,7 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 	"sync"
+	"time"
+	"unicode"
 )
 
 // OTPChannel represents the delivery channel for OTP codes.
@@ -64,6 +68,144 @@ type CompositeSender struct {
 	senders map[OTPChannel]OTPSender
 }
 
+type testOTPEntry struct {
+	code      string
+	expiresAt time.Time
+}
+
+var testOTPCache = struct {
+	mu    sync.RWMutex
+	codes map[string]testOTPEntry
+}{
+	codes: make(map[string]testOTPEntry),
+}
+
+// StoreTestOTPCode stores a plaintext OTP for test retrieval.
+func StoreTestOTPCode(key, code string, ttl time.Duration) {
+	if key == "" || code == "" {
+		return
+	}
+	if ttl <= 0 {
+		ttl = 10 * time.Minute
+	}
+	testOTPCache.mu.Lock()
+	cleanupExpiredLocked(time.Now())
+	expiresAt := time.Now().Add(ttl)
+	for _, candidateKey := range otpCacheKeys(key) {
+		testOTPCache.codes[candidateKey] = testOTPEntry{
+			code:      code,
+			expiresAt: expiresAt,
+		}
+	}
+	testOTPCache.mu.Unlock()
+}
+
+// GetTestOTPCode returns the latest plaintext OTP for a key if not expired.
+func GetTestOTPCode(key string) (string, bool) {
+	if key == "" {
+		return "", false
+	}
+	now := time.Now()
+	for _, candidateKey := range otpCacheKeys(key) {
+		testOTPCache.mu.RLock()
+		entry, ok := testOTPCache.codes[candidateKey]
+		testOTPCache.mu.RUnlock()
+		if ok && now.Before(entry.expiresAt) {
+			return entry.code, true
+		}
+		if ok {
+			testOTPCache.mu.Lock()
+			if current, exists := testOTPCache.codes[candidateKey]; exists && !now.Before(current.expiresAt) {
+				delete(testOTPCache.codes, candidateKey)
+			}
+			testOTPCache.mu.Unlock()
+		}
+	}
+	return "", false
+}
+
+func otpCacheKeys(key string) []string {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return nil
+	}
+
+	keys := make([]string, 0, 4)
+	seen := make(map[string]struct{}, 4)
+	add := func(v string) {
+		if v == "" {
+			return
+		}
+		if _, exists := seen[v]; exists {
+			return
+		}
+		seen[v] = struct{}{}
+		keys = append(keys, v)
+	}
+
+	add(trimmed)
+	if !isPhoneLikeOTPKey(trimmed) {
+		return keys
+	}
+
+	add(strings.TrimPrefix(trimmed, "+"))
+
+	digitsOnly := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, trimmed)
+	add(digitsOnly)
+	if digitsOnly != "" {
+		add("+" + digitsOnly)
+	}
+
+	return keys
+}
+
+func cleanupExpiredLocked(now time.Time) {
+	for key, entry := range testOTPCache.codes {
+		if !now.Before(entry.expiresAt) {
+			delete(testOTPCache.codes, key)
+		}
+	}
+}
+
+func isPhoneLikeOTPKey(key string) bool {
+	if strings.Contains(key, "@") {
+		return false
+	}
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return false
+	}
+	for _, r := range trimmed {
+		if unicode.IsDigit(r) {
+			continue
+		}
+		switch r {
+		case '+', '-', '(', ')', '.', ' ':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func sortedOTPTestCacheKeys() []string {
+	testOTPCache.mu.RLock()
+	defer testOTPCache.mu.RUnlock()
+
+	keys := make([]string, 0, len(testOTPCache.codes))
+	for key := range testOTPCache.codes {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // NewCompositeSender creates a new CompositeSender with the given channel-to-sender mappings.
 func NewCompositeSender(senders map[OTPChannel]OTPSender) *CompositeSender {
 	if senders == nil {
@@ -117,6 +259,11 @@ func NewNoopSender() *NoopSender {
 
 // Send logs the OTP code to stdout instead of sending it.
 func (n *NoopSender) Send(_ context.Context, req SendRequest) error {
+	StoreTestOTPCode(req.Recipient, req.Code, 10*time.Minute)
+	if userID, ok := req.Metadata["user_id"]; ok {
+		StoreTestOTPCode(userID, req.Code, 10*time.Minute)
+	}
+
 	// In development, log the OTP code for manual testing
 	// TODO: Replace with proper structured logging in production
 	fmt.Fprintf(os.Stderr, "[NoopSender] OTP Code: %s | Channel: %s | Recipient: %s\n", req.Code, req.Channel, req.Recipient)

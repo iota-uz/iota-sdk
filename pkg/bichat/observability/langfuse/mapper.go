@@ -21,6 +21,9 @@ func mapGenerationToLangfuse(obs observability.GenerationObservation) map[string
 	if obs.FinishReason != "" {
 		metadata["finish_reason"] = obs.FinishReason
 	}
+	if obs.ObservationReason != "" {
+		metadata["observation_reason"] = obs.ObservationReason
+	}
 
 	// Request details
 	if obs.PromptMessages > 0 {
@@ -39,6 +42,12 @@ func mapGenerationToLangfuse(obs observability.GenerationObservation) map[string
 	}
 	if obs.CompletionText != "" {
 		metadata["completion_text"] = obs.CompletionText
+	}
+	if obs.Thinking != "" {
+		metadata["thinking"] = obs.Thinking
+	}
+	if len(obs.ToolCallSummary) > 0 {
+		metadata["tool_call_summary"] = obs.ToolCallSummary
 	}
 
 	// Merge custom attributes

@@ -22,10 +22,6 @@ const (
 	// The Result.Interrupt field will contain the interrupt details.
 	ToolAskUserQuestion = "ask_user_question"
 
-	// ToolFinalAnswer terminates the ReAct loop and returns the result.
-	// This is the standard way for an agent to complete its task.
-	ToolFinalAnswer = "final_answer"
-
 	// ToolTask delegates work to a sub-agent.
 	// The executor handles spawning and managing the child agent.
 	ToolTask = "task"
@@ -94,6 +90,19 @@ type StructuredTool interface {
 	// it should return a ToolResult with a "tool-error" codec ID and
 	// ToolErrorPayload, not a Go error.
 	CallStructured(ctx context.Context, input string) (*types.ToolResult, error)
+}
+
+// StreamingTool extends Tool with the ability to emit events during execution.
+// Tools that implement this interface can push intermediate events (e.g., child
+// tool calls, thinking content) to the parent executor's event stream.
+//
+// The executor will prefer CallStreaming over Call when available.
+// Tools that do not need event emission should implement only the Tool interface.
+type StreamingTool interface {
+	Tool
+	// CallStreaming executes the tool and pushes intermediate events via emit.
+	// The emit callback returns false if the consumer has stopped listening.
+	CallStreaming(ctx context.Context, input string, emit EventEmitter) (string, error)
 }
 
 // ToolFunc is a convenience type for creating simple tools from functions.

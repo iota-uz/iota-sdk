@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -68,6 +69,9 @@ func (c *StreamController) Register(r *mux.Router) {
 
 	// Stream route
 	subRouter.HandleFunc("/stream", c.StreamMessage).Methods("POST")
+	subRouter.HandleFunc("/stream/stop", c.StopStream).Methods("POST")
+	subRouter.HandleFunc("/stream/status", c.StreamStatus).Methods("GET")
+	subRouter.HandleFunc("/stream/resume", c.ResumeStream).Methods("POST")
 }
 
 // StreamMessage handles SSE streaming for a message.
@@ -108,11 +112,12 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 
 	// 4. Parse request
 	type streamRequest struct {
-		SessionID   uuid.UUID             `json:"sessionId"`
-		Content     string                `json:"content"`
-		Attachments []AttachmentUploadDTO `json:"attachments"`
-		DebugMode   bool                  `json:"debugMode"`
-		ReplaceFrom *uuid.UUID            `json:"replaceFromMessageId,omitempty"`
+		SessionID       uuid.UUID             `json:"sessionId"`
+		Content         string                `json:"content"`
+		Attachments     []AttachmentUploadDTO `json:"attachments"`
+		DebugMode       bool                  `json:"debugMode"`
+		ReplaceFrom     *uuid.UUID            `json:"replaceFromMessageId,omitempty"`
+		ReasoningEffort *string               `json:"reasoningEffort,omitempty"`
 	}
 
 	var req streamRequest
@@ -134,28 +139,14 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if req.DebugMode {
-		if err := composables.CanUser(r.Context(), bichatperm.BiChatExport); err != nil {
-			http.Error(w, "Access denied", http.StatusForbidden)
-			return
+	domainAttachments, err := convertAttachmentDTOs(r.Context(), req.Attachments)
+	if err != nil {
+		message := "Invalid attachments"
+		errorText := err.Error()
+		if strings.Contains(errorText, "uploadId is required") || strings.Contains(errorText, "uploadId not found") {
+			message = fmt.Sprintf("Invalid attachments: %s; upload artifacts first", errorText)
 		}
-	}
-
-	tenantID, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		http.Error(w, "Invalid tenant context", http.StatusBadRequest)
-		return
-	}
-
-	domainAttachments, err := convertAttachmentDTOs(
-		r.Context(),
-		c.attachmentService,
-		req.Attachments,
-		tenantID,
-		uuid.Nil,
-	)
-	if err != nil {
-		http.Error(w, "Invalid attachments", http.StatusBadRequest)
+		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
 
@@ -195,6 +186,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		Attachments:          domainAttachments,
 		DebugMode:            req.DebugMode,
 		ReplaceFromMessageID: req.ReplaceFrom,
+		ReasoningEffort:      req.ReasoningEffort,
 	}, func(chunk bichatservices.StreamChunk) {
 		// Handle context cancellation
 		select {
@@ -215,6 +207,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 			toolPayload := &httpdto.ToolEventPayload{
 				CallID:     chunk.Tool.CallID,
 				Name:       chunk.Tool.Name,
+				AgentName:  chunk.Tool.AgentName,
 				Arguments:  chunk.Tool.Arguments,
 				Result:     chunk.Tool.Result,
 				DurationMs: chunk.Tool.DurationMs,
@@ -249,11 +242,17 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 			}
 		}
 		if chunk.Error != nil {
-			// Avoid leaking internal errors to the client.
-			if chunk.Type == bichatservices.ChunkTypeError {
-				payload.Error = "An error occurred while processing your request"
-			} else {
-				payload.Error = chunk.Error.Error()
+			// Preserve known provider-facing failures (quota/auth/rate-limit), and
+			// keep all other internal failures generic.
+			payload.Error = c.streamClientErrorMessage(chunk.Error, chunk.Type)
+		}
+		if chunk.RunID != "" {
+			payload.RunID = chunk.RunID
+		}
+		if chunk.Snapshot != nil {
+			payload.Snapshot = &httpdto.StreamSnapshotPayload{
+				PartialContent:  chunk.Snapshot.PartialContent,
+				PartialMetadata: chunk.Snapshot.PartialMetadata,
 			}
 		}
 
@@ -274,13 +273,240 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		// Send sanitized error to client
 		c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
 			Type:      "error",
-			Error:     "An error occurred while processing your request",
+			Error:     c.streamClientErrorMessage(err, bichatservices.ChunkTypeError),
 			Timestamp: time.Now().UnixMilli(),
 		})
 		return
 	}
 
 	// Send done event
+	c.sendSSEEvent(w, flusher, "done", httpdto.StreamChunkPayload{
+		Type:      "done",
+		Timestamp: time.Now().UnixMilli(),
+	})
+}
+
+// StopStream handles POST /stream/stop to cancel active generation for a session.
+// Request body: { "sessionId": "uuid" }. No partial assistant message is persisted.
+func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
+	const op serrors.Op = "StreamController.StopStream"
+	type stopRequest struct {
+		SessionID uuid.UUID `json:"sessionId"`
+	}
+	var req stopRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	defer func() { _ = r.Body.Close() }()
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.SessionID == uuid.Nil {
+		http.Error(w, "sessionId is required and must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID); !ok {
+		return
+	}
+
+	if err := c.chatService.StopGeneration(r.Context(), req.SessionID); err != nil {
+		logger := configuration.Use().Logger()
+		wrapped := serrors.E(op, err)
+		if errors.Is(err, domain.ErrNoActiveRun) || errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
+			// Known condition: stop called when session is no longer streaming.
+			// Preserve idempotent API behavior and just log for observability.
+			logger.WithError(wrapped).Info("StopGeneration called for non-streaming session")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		logger.WithError(wrapped).Error("StopGeneration failed")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// requireStreamSessionAuth ensures the user is authenticated, has stream access, and owns (or can read) the session.
+// On failure it writes the appropriate HTTP error to w and returns (nil, false). On success it returns (session, true).
+func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *http.Request, sessionID uuid.UUID) (domain.Session, bool) {
+	user, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return nil, false
+	}
+	if c.opts.RequireAccessPermission != nil {
+		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return nil, false
+		}
+	}
+	session, err := c.chatService.GetSession(r.Context(), sessionID)
+	if err != nil {
+		if errors.Is(err, persistence.ErrSessionNotFound) {
+			http.Error(w, "Session not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return nil, false
+	}
+	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return nil, false
+	}
+	return session, true
+}
+
+// StreamStatus handles GET /stream/status?sessionId=uuid for refresh-safe resume.
+// Returns JSON: { "active": bool, "runId": "uuid"?, "snapshot": { "partialContent", "partialMetadata" }?, "startedAt": "ISO8601"? }.
+func (c *StreamController) StreamStatus(w http.ResponseWriter, r *http.Request) {
+	sessionIDStr := r.URL.Query().Get("sessionId")
+	if sessionIDStr == "" {
+		http.Error(w, "sessionId is required", http.StatusBadRequest)
+		return
+	}
+	sessionID, err := uuid.Parse(sessionIDStr)
+	if err != nil || sessionID == uuid.Nil {
+		http.Error(w, "sessionId must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	if _, ok := c.requireStreamSessionAuth(w, r, sessionID); !ok {
+		return
+	}
+
+	status, err := c.chatService.GetStreamStatus(r.Context(), sessionID)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	type statusPayload struct {
+		Active    bool                           `json:"active"`
+		RunID     string                         `json:"runId,omitempty"`
+		Snapshot  *httpdto.StreamSnapshotPayload `json:"snapshot,omitempty"`
+		StartedAt int64                          `json:"startedAt,omitempty"`
+	}
+	payload := statusPayload{Active: status.Active}
+	if status.Active {
+		payload.RunID = status.RunID.String()
+		payload.Snapshot = &httpdto.StreamSnapshotPayload{
+			PartialContent:  status.Snapshot.PartialContent,
+			PartialMetadata: status.Snapshot.PartialMetadata,
+		}
+		payload.StartedAt = status.StartedAt.UnixMilli()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// ResumeStream handles POST /stream/resume for reconnecting to an active run.
+// Request body: { "sessionId": "uuid", "runId": "uuid" }. Response: SSE stream (snapshot event then content/done/error).
+func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) {
+	const op serrors.Op = "StreamController.ResumeStream"
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	type resumeRequest struct {
+		SessionID uuid.UUID `json:"sessionId"`
+		RunID     uuid.UUID `json:"runId"`
+	}
+	var req resumeRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	defer func() { _ = r.Body.Close() }()
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.SessionID == uuid.Nil || req.RunID == uuid.Nil {
+		http.Error(w, "sessionId and runId are required", http.StatusBadRequest)
+		return
+	}
+	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID); !ok {
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	err := c.chatService.ResumeStream(r.Context(), req.SessionID, req.RunID, func(chunk bichatservices.StreamChunk) {
+		payload := httpdto.StreamChunkPayload{
+			Type:         string(chunk.Type),
+			Content:      chunk.Content,
+			Citation:     chunk.Citation,
+			Usage:        chunk.Usage,
+			GenerationMs: chunk.GenerationMs,
+			Timestamp:    chunk.Timestamp.UnixMilli(),
+		}
+		if chunk.Tool != nil {
+			toolPayload := &httpdto.ToolEventPayload{
+				CallID:     chunk.Tool.CallID,
+				Name:       chunk.Tool.Name,
+				AgentName:  chunk.Tool.AgentName,
+				Arguments:  chunk.Tool.Arguments,
+				Result:     chunk.Tool.Result,
+				DurationMs: chunk.Tool.DurationMs,
+			}
+			if chunk.Tool.Error != nil {
+				toolPayload.Error = chunk.Tool.Error.Error()
+			}
+			payload.Tool = toolPayload
+		}
+		if chunk.Interrupt != nil {
+			questions := make([]httpdto.InterruptQuestionPayload, 0, len(chunk.Interrupt.Questions))
+			for _, q := range chunk.Interrupt.Questions {
+				options := make([]httpdto.InterruptQuestionOptionPayload, 0, len(q.Options))
+				for _, opt := range q.Options {
+					options = append(options, httpdto.InterruptQuestionOptionPayload{ID: opt.ID, Label: opt.Label})
+				}
+				questions = append(questions, httpdto.InterruptQuestionPayload{ID: q.ID, Text: q.Text, Type: string(q.Type), Options: options})
+			}
+			payload.Interrupt = &httpdto.InterruptEventPayload{
+				CheckpointID:       chunk.Interrupt.CheckpointID,
+				AgentName:          chunk.Interrupt.AgentName,
+				ProviderResponseID: chunk.Interrupt.ProviderResponseID,
+				Questions:          questions,
+			}
+		}
+		if chunk.Error != nil {
+			payload.Error = c.streamClientErrorMessage(chunk.Error, chunk.Type)
+		}
+		if chunk.Snapshot != nil {
+			payload.Snapshot = &httpdto.StreamSnapshotPayload{
+				PartialContent:  chunk.Snapshot.PartialContent,
+				PartialMetadata: chunk.Snapshot.PartialMetadata,
+			}
+		}
+
+		eventName := payload.Type
+		if eventName == "" {
+			eventName = "chunk"
+		}
+		c.sendSSEEvent(w, flusher, eventName, payload)
+	})
+	if err != nil {
+		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
+			http.Error(w, "Run not found or already finished", http.StatusNotFound)
+			return
+		}
+		logger := configuration.Use().Logger()
+		logger.WithError(serrors.E(op, err)).Error("Resume stream error")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	c.sendSSEEvent(w, flusher, "done", httpdto.StreamChunkPayload{
 		Type:      "done",
 		Timestamp: time.Now().UnixMilli(),
@@ -303,4 +529,81 @@ func (c *StreamController) sendSSEEvent(w http.ResponseWriter, flusher http.Flus
 	_, _ = fmt.Fprintf(w, "event: %s\n", event)
 	_, _ = fmt.Fprintf(w, "data: %s\n\n", jsonData)
 	flusher.Flush()
+}
+
+func (c *StreamController) streamClientErrorMessage(err error, chunkType bichatservices.ChunkType) string {
+	const generic = "An error occurred while processing your request"
+	if err == nil {
+		return ""
+	}
+	if chunkType != bichatservices.ChunkTypeError {
+		return sanitizeErrorString(err)
+	}
+
+	code, message, ok := parseProviderStreamError(err.Error())
+	if !ok {
+		return generic
+	}
+
+	switch strings.ToLower(code) {
+	case "insufficient_quota":
+		if strings.TrimSpace(message) != "" {
+			return message
+		}
+		return "You exceeded your current quota. Please check your plan and billing details."
+	case "rate_limit_exceeded", "rate_limit":
+		if strings.TrimSpace(message) != "" {
+			return message
+		}
+		return "Rate limit exceeded. Please retry shortly."
+	case "invalid_api_key", "authentication_error", "auth_error":
+		if strings.TrimSpace(message) != "" {
+			return message
+		}
+		return "Authentication failed with the model provider. Please verify API credentials."
+	default:
+		return generic
+	}
+}
+
+func sanitizeErrorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return "internal error"
+}
+
+// parseProviderStreamError expects provider errors to include a JSON fragment
+// containing "type"/"code"/"message". It scans the raw string for {"type": or
+// {"code":, then attempts to unmarshal that fragment. If parsing fails, it
+// intentionally returns ok=false so callers fall back to a generic safe message.
+func parseProviderStreamError(raw string) (string, string, bool) {
+	start := strings.Index(raw, "{\"type\":")
+	if start < 0 {
+		start = strings.Index(raw, "{\"code\":")
+	}
+	if start < 0 {
+		return "", "", false
+	}
+	fragment := raw[start:]
+	end := strings.LastIndex(fragment, "}")
+	if end < 0 {
+		return "", "", false
+	}
+	fragment = fragment[:end+1]
+
+	var providerErr struct {
+		Type    string `json:"type"`
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(fragment), &providerErr); err != nil {
+		return "", "", false
+	}
+
+	code := providerErr.Code
+	if strings.TrimSpace(code) == "" {
+		code = providerErr.Type
+	}
+	return code, providerErr.Message, strings.TrimSpace(code) != ""
 }

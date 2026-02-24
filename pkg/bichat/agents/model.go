@@ -15,13 +15,13 @@ import (
 //   - Request/response serialization
 //   - Provider-specific features (thinking, JSON mode, etc.)
 //
-// The same logical model (e.g., claude-3.5-sonnet) can have multiple
+// The same logical model (e.g., claude-sonnet-4-6) can have multiple
 // implementations for different providers (Anthropic, Bedrock, Vertex).
 //
 // Example:
 //
 //	model := openai.NewModel(client, openai.ModelConfig{
-//	    Name:      "gpt-5.2-2025-12-11",
+//	    Name:      "gpt-5.2",
 //	    MaxTokens: 4096,
 //	})
 //
@@ -73,7 +73,7 @@ type Model interface {
 // ModelInfo describes a model for discovery and observability.
 // It contains metadata about the model including its capabilities.
 type ModelInfo struct {
-	// Name is the model identifier (e.g., "gpt-5.2-2025-12-11", "claude-3-5-sonnet").
+	// Name is the model identifier (e.g., "gpt-5.2", "claude-sonnet-4-6").
 	Name string
 
 	// Provider is the service provider (e.g., "openai", "anthropic", "bedrock", "vertex").
@@ -207,6 +207,10 @@ const (
 
 	// ReasoningHigh uses maximum thinking for complex problems.
 	ReasoningHigh ReasoningEffort = "high"
+
+	// ReasoningXHigh uses extra-high thinking for the most demanding tasks.
+	// Supported by select models (e.g., gpt-5.2).
+	ReasoningXHigh ReasoningEffort = "xhigh"
 )
 
 // GenerateOption configures a Generate/Stream request.
@@ -281,6 +285,16 @@ type Request struct {
 // Response is the output from Generate.
 // It contains the assistant's response and metadata about the completion.
 type Response struct {
+	// TraceID is the run-scoped observability trace identifier for this execution.
+	TraceID string
+
+	// RequestID is the deterministic request identifier of the final generation.
+	RequestID string
+
+	// Model and Provider capture the final generation source.
+	Model    string
+	Provider string
+
 	// Message is the assistant's response message.
 	// It may contain tool calls if the model decided to use tools.
 	Message types.Message
@@ -314,6 +328,9 @@ type Response struct {
 type Chunk struct {
 	// Delta is the text content delta (partial content).
 	Delta string
+
+	// Thinking holds reasoning/thinking token deltas; models advertise via HasCapability(CapabilityThinking).
+	Thinking string
 
 	// ToolCalls contains tool call deltas (accumulated incrementally).
 	// Tool calls are built up across multiple chunks.

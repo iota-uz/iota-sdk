@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,12 +37,37 @@ type askUserQuestionArgsOption struct {
 	Description string `json:"description"`
 }
 
+// EventEmitter is a callback that pushes an ExecutorEvent into the parent
+// generator's yield stream. It returns false if the consumer has stopped.
+// Used by streaming tools (e.g., delegation) to propagate child events.
+type EventEmitter = func(ExecutorEvent) bool
+
+type eventEmitterKey struct{}
+
+// Deprecated: WithEventEmitter stores an EventEmitter in the context.
+// Prefer implementing the StreamingTool interface instead.
+func WithEventEmitter(ctx context.Context, emitter EventEmitter) context.Context {
+	return context.WithValue(ctx, eventEmitterKey{}, emitter)
+}
+
+// Deprecated: EventEmitterFromContext retrieves the EventEmitter from the context.
+// Prefer implementing the StreamingTool interface instead.
+func EventEmitterFromContext(ctx context.Context) (EventEmitter, bool) {
+	emitter, ok := ctx.Value(eventEmitterKey{}).(EventEmitter)
+	return emitter, ok
+}
+
 // ExecutorEventType identifies different types of executor events.
 type ExecutorEventType string
 
 const (
-	// EventTypeChunk is emitted for streaming text chunks from the LLM.
-	EventTypeChunk ExecutorEventType = "chunk"
+	// EventTypeContent is emitted for streaming text chunks from the LLM.
+	// Content is available in both Chunk.Delta (raw) and Content (convenience field).
+	EventTypeContent ExecutorEventType = "content"
+
+	// EventTypeChunk is an alias for EventTypeContent for backward compatibility.
+	// Prefer EventTypeContent in new code.
+	EventTypeChunk ExecutorEventType = "content"
 
 	// EventTypeToolStart is emitted when a tool execution begins.
 	EventTypeToolStart ExecutorEventType = "tool_start"
@@ -57,7 +83,46 @@ const (
 
 	// EventTypeError is emitted when an error occurs during execution.
 	EventTypeError ExecutorEventType = "error"
+
+	// EventTypeThinking is emitted for reasoning/thinking content from the LLM.
+	// Thinking content is ephemeral — it is shown to the user during generation
+	// but is not persisted as part of the final assistant message.
+	EventTypeThinking ExecutorEventType = "thinking"
 )
+
+// Question represents a structured HITL question carried in ExecutorEvent.
+// It is populated from the raw JSON interrupt payload so that consumers
+// do not need to parse AskUserQuestionPayload themselves.
+type Question struct {
+	ID      string
+	Text    string
+	Type    QuestionType
+	Options []QuestionOption
+}
+
+// QuestionType indicates whether a question is single- or multiple-choice.
+type QuestionType string
+
+const (
+	QuestionTypeSingleChoice   QuestionType = "single_choice"
+	QuestionTypeMultipleChoice QuestionType = "multiple_choice"
+)
+
+// QuestionOption is one selectable choice within a Question.
+type QuestionOption struct {
+	ID    string
+	Label string
+}
+
+// ParsedInterrupt holds the structured representation of an interrupt event.
+// It is derived from InterruptEvent.Data so that consumers do not need to
+// unmarshal the raw JSON themselves.
+type ParsedInterrupt struct {
+	CheckpointID       string
+	AgentName          string
+	ProviderResponseID string
+	Questions          []Question
+}
 
 // ExecutorEvent represents a single event during ReAct loop execution.
 // Events are yielded as the executor progresses through reasoning and action steps.
@@ -65,14 +130,24 @@ type ExecutorEvent struct {
 	// Type identifies what kind of event this is.
 	Type ExecutorEventType
 
-	// Chunk contains streaming text data (for EventTypeChunk).
+	// Content holds the text delta for EventTypeContent events.
+	// It is identical to Chunk.Delta and provided as a convenience so that
+	// callers do not need to nil-check Chunk.
+	Content string
+
+	// Chunk contains streaming text data (for EventTypeContent).
 	Chunk *Chunk
 
 	// Tool contains tool execution data (for EventTypeToolStart/EventTypeToolEnd).
 	Tool *ToolEvent
 
 	// Interrupt contains HITL interrupt data (for EventTypeInterrupt).
+	// Use ParsedInterrupt for the structured representation.
 	Interrupt *InterruptEvent
+
+	// ParsedInterrupt holds the structured representation of Interrupt.
+	// It is always populated when Type == EventTypeInterrupt.
+	ParsedInterrupt *ParsedInterrupt
 
 	// Error contains error information (for EventTypeError).
 	Error error
@@ -82,6 +157,22 @@ type ExecutorEvent struct {
 
 	// Result contains the final response (for EventTypeDone).
 	Result *Response
+
+	// Usage holds token-consumption metrics extracted from Result.Usage.
+	// It is populated when Type == EventTypeDone and token usage is available.
+	Usage *types.DebugUsage
+
+	// ProviderResponseID is the provider continuity token, extracted from Result.
+	// It is populated when Type == EventTypeDone.
+	ProviderResponseID string
+
+	// CodeInterpreter holds code interpreter results extracted from Result.
+	// It is populated when Type == EventTypeDone and code interpreter was used.
+	CodeInterpreter []types.CodeInterpreterResult
+
+	// FileAnnotations holds file references extracted from Result.
+	// It is populated when Type == EventTypeDone and files were generated.
+	FileAnnotations []types.FileAnnotation
 }
 
 // ToolEvent represents a tool execution event.
@@ -91,6 +182,11 @@ type ToolEvent struct {
 
 	// Name is the tool being executed.
 	Name string
+
+	// AgentName identifies which agent this tool call belongs to.
+	// Empty for the primary agent; set to the sub-agent's name when
+	// tool events are forwarded from a child executor via delegation.
+	AgentName string
 
 	// Arguments is the JSON-encoded input.
 	Arguments string
@@ -103,6 +199,14 @@ type ToolEvent struct {
 
 	// DurationMs is the execution time in milliseconds (only present in EventTypeToolEnd).
 	DurationMs int64
+
+	// Artifacts are generated outputs returned by the tool execution.
+	Artifacts []types.ToolArtifact
+}
+
+type toolExecutionResult struct {
+	output    string
+	artifacts []types.ToolArtifact
 }
 
 // Executor executes the ReAct (Reason + Act) loop for an agent.
@@ -160,6 +264,10 @@ type Input struct {
 	// TenantID identifies the tenant for observability and checkpointing.
 	TenantID uuid.UUID
 
+	// TraceID identifies a single execution run for observability.
+	// If empty, Execute() will generate one.
+	TraceID string
+
 	// ThreadID identifies the conversation thread for checkpointing.
 	// If empty, a new thread ID will be generated.
 	ThreadID string
@@ -167,6 +275,11 @@ type Input struct {
 	// PreviousResponseID is a provider continuity token for multi-turn state.
 	// For OpenAI Responses API this maps to previous_response_id.
 	PreviousResponseID *string
+
+	// ReasoningEffort overrides the default reasoning effort for this request.
+	// Only effective when the model has CapabilityThinking.
+	// If nil, defaults to ReasoningMedium.
+	ReasoningEffort *ReasoningEffort
 
 	// isResume is set internally by Resume() so that AgentStartEvent.IsResume
 	// is emitted correctly. Callers should not set this directly.
@@ -275,24 +388,28 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 // Accepts a tool directly to avoid O(n) lookup. If tool is nil or has nil handler,
 // falls back to agent.OnToolCall for backward compatibility.
 // After invoking StructuredTool.CallStructured we always return and never fall through to Tool.Call() to avoid double execution.
-func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (string, error) {
+func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (toolExecutionResult, error) {
 	if e.formatterRegistry != nil && tool != nil {
 		if st, ok := tool.(StructuredTool); ok {
 			result, err := st.CallStructured(ctx, arguments)
 			if err != nil && result == nil {
-				return "", err
+				return toolExecutionResult{}, err
 			}
 			if result == nil {
-				return "", nil
+				return toolExecutionResult{}, nil
+			}
+			execResult := toolExecutionResult{
+				artifacts: result.Artifacts,
 			}
 			// result != nil: format or fallback, then return (never fall through to tool.Call())
 			if f := e.formatterRegistry.Get(result.CodecID); f != nil {
 				formatted, fmtErr := f.Format(result.Payload, types.DefaultFormatOptions())
 				if fmtErr == nil {
+					execResult.output = formatted
 					if err != nil && errors.Is(err, ErrStructuredToolOutput) {
-						return formatted, nil
+						return execResult, nil
 					}
-					return formatted, err
+					return execResult, err
 				}
 			}
 			// Formatter missing or format failed: return raw payload stringified
@@ -300,21 +417,25 @@ func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments 
 			if fallback == "" {
 				fallback = fmt.Sprintf("%v", result.Payload)
 			}
+			execResult.output = fallback
 			if err != nil && errors.Is(err, ErrStructuredToolOutput) {
-				return fallback, nil
+				return execResult, nil
 			}
-			return fallback, err
+			return execResult, err
 		}
 	}
 
 	// Non-StructuredTool path: ToolFunc nil-handler fallback and agent.OnToolCall
 	if tool != nil {
 		if tf, ok := tool.(*ToolFunc); ok && tf.Fn == nil {
-			return e.agent.OnToolCall(ctx, toolName, arguments)
+			output, err := e.agent.OnToolCall(ctx, toolName, arguments)
+			return toolExecutionResult{output: output}, err
 		}
-		return tool.Call(ctx, arguments)
+		output, err := tool.Call(ctx, arguments)
+		return toolExecutionResult{output: output}, err
 	}
-	return e.agent.OnToolCall(ctx, toolName, arguments)
+	output, err := e.agent.OnToolCall(ctx, toolName, arguments)
+	return toolExecutionResult{output: output}, err
 }
 
 // Execute runs the ReAct loop and returns a Generator that yields ExecutorEvent objects.
@@ -351,11 +472,16 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 		agentStartTime := time.Now()
 		agentName := e.agent.Metadata().Name
 		totalAgentTokens := 0
+		traceID := strings.TrimSpace(input.TraceID)
+		if traceID == "" {
+			traceID = uuid.New().String()
+		}
 
 		// Emit agent.start event
-		_ = e.eventBus.Publish(ctx, events.NewAgentStartEvent(
+		_ = e.eventBus.Publish(ctx, events.NewAgentStartEventWithTrace(
 			input.SessionID,
 			input.TenantID,
+			traceID,
 			agentName,
 			input.isResume,
 		))
@@ -380,6 +506,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 			// Emit LLM request event
 			modelInfo := e.model.Info()
+			requestID := uuid.New().String()
 
 			// Estimate tokens if estimator is configured
 			estimatedTokens := 0
@@ -396,9 +523,11 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}
 			}
 
-			_ = e.eventBus.Publish(ctx, events.NewLLMRequestEvent(
+			_ = e.eventBus.Publish(ctx, events.NewLLMRequestEventWithTrace(
 				input.SessionID,
 				input.TenantID,
+				traceID,
+				requestID,
 				modelInfo.Name,
 				modelInfo.Provider,
 				len(req.Messages),
@@ -408,11 +537,19 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			))
 
 			// Call model (streaming)
-			gen, err := e.model.Stream(ctx, req)
+			var streamOpts []GenerateOption
+			if e.model.HasCapability(CapabilityThinking) {
+				effort := ReasoningMedium
+				if input.ReasoningEffort != nil {
+					effort = *input.ReasoningEffort
+				}
+				streamOpts = append(streamOpts, WithReasoningEffort(effort))
+			}
+			gen, err := e.model.Stream(ctx, req, streamOpts...)
 			if err != nil {
 				// Emit agent.error event
-				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEvent(
-					input.SessionID, input.TenantID, agentName,
+				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEventWithTrace(
+					input.SessionID, input.TenantID, traceID, agentName,
 					iteration, err.Error(),
 					time.Since(agentStartTime).Milliseconds(),
 				))
@@ -435,12 +572,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			var usage *types.TokenUsage
 			var finishReason string
 			var providerResponseID string
+			var thinkingChunks []string
 			startTime := time.Now()
 
 			// Speculative tool execution state (best-effort).
 			type specToolResult struct {
 				call       types.ToolCall
-				result     string
+				result     toolExecutionResult
 				err        error
 				durationMs int64
 			}
@@ -485,16 +623,17 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					return true
 				}
 
-				toolOutput := tr.result
+				toolOutput := tr.result.output
 				if tr.err != nil {
 					toolOutput = fmt.Sprintf("Error: %v", tr.err)
 				}
 
 				// Emit tool completion/error event
 				if tr.err != nil {
-					_ = e.eventBus.Publish(ctx, events.NewToolErrorEvent(
+					_ = e.eventBus.Publish(ctx, events.NewToolErrorEventWithTrace(
 						input.SessionID,
 						input.TenantID,
+						traceID,
 						tr.call.Name,
 						tr.call.Arguments,
 						tr.call.ID,
@@ -502,13 +641,15 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						tr.durationMs,
 					))
 				} else {
-					_ = e.eventBus.Publish(ctx, events.NewToolCompleteEvent(
+					_ = e.eventBus.Publish(ctx, events.NewToolCompleteEventWithTrace(
 						input.SessionID,
 						input.TenantID,
+						traceID,
 						tr.call.Name,
 						tr.call.Arguments,
 						tr.call.ID,
 						toolOutput,
+						tr.result.artifacts,
 						tr.durationMs,
 					))
 				}
@@ -523,6 +664,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						Result:     toolOutput,
 						Error:      tr.err,
 						DurationMs: tr.durationMs,
+						Artifacts:  tr.result.artifacts,
 					},
 				}) {
 					specCancel()
@@ -588,9 +730,10 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				specStarted[callID] = struct{}{}
 
 				// Emit tool start event
-				_ = e.eventBus.Publish(specToolCtx, events.NewToolStartEvent(
+				_ = e.eventBus.Publish(specToolCtx, events.NewToolStartEventWithTrace(
 					input.SessionID,
 					input.TenantID,
+					traceID,
 					tc.Name,
 					tc.Arguments,
 					tc.ID,
@@ -651,12 +794,25 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					return serrors.E(op, err)
 				}
 
+				// Yield thinking event (ephemeral reasoning content)
+				if chunk.Thinking != "" {
+					thinkingChunks = append(thinkingChunks, chunk.Thinking)
+					if !yield(ExecutorEvent{
+						Type:    EventTypeThinking,
+						Content: chunk.Thinking,
+					}) {
+						gen.Close()
+						return nil // Consumer stopped
+					}
+				}
+
 				// Yield chunk event
 				if chunk.Delta != "" {
 					chunks = append(chunks, chunk.Delta)
 					if !yield(ExecutorEvent{
-						Type:  EventTypeChunk,
-						Chunk: &chunk,
+						Type:    EventTypeContent,
+						Content: chunk.Delta,
+						Chunk:   &chunk,
 					}) {
 						gen.Close()
 						return nil // Consumer stopped
@@ -733,13 +889,23 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				// Get accumulated response text for trace Output
 				responseText := joinStrings(chunks)
+				thinkingText := joinStrings(thinkingChunks)
+				toolSummary := make([]events.LLMToolCallSummary, 0, len(toolCalls))
+				for _, tc := range toolCalls {
+					toolSummary = append(toolSummary, events.LLMToolCallSummary{
+						CallID: tc.ID,
+						Name:   tc.Name,
+					})
+				}
 
 				// Use appropriate event constructor based on cache token presence
 				var responseEvent *events.LLMResponseEvent
 				if usageTokens.CacheWriteTokens > 0 || usageTokens.CacheReadTokens > 0 {
-					responseEvent = events.NewLLMResponseEventWithCache(
+					responseEvent = events.NewLLMResponseEventWithCacheAndTrace(
 						input.SessionID,
 						input.TenantID,
+						traceID,
+						requestID,
 						modelInfo.Name,
 						modelInfo.Provider,
 						usageTokens.PromptTokens,
@@ -751,11 +917,16 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						finishReason,
 						len(toolCalls),
 						responseText,
+						thinkingText,
+						"",
+						toolSummary,
 					)
 				} else {
-					responseEvent = events.NewLLMResponseEvent(
+					responseEvent = events.NewLLMResponseEventWithTrace(
 						input.SessionID,
 						input.TenantID,
+						traceID,
+						requestID,
 						modelInfo.Name,
 						modelInfo.Provider,
 						usageTokens.PromptTokens,
@@ -765,6 +936,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						finishReason,
 						len(toolCalls),
 						responseText,
+						thinkingText,
+						"",
+						toolSummary,
 					)
 				}
 				// Attach model parameters if the model reports them.
@@ -778,27 +952,28 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Check for tool calls
 			if len(toolCalls) == 0 {
 				// Emit agent.complete event
-				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEvent(
-					input.SessionID, input.TenantID, agentName,
+				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEventWithTrace(
+					input.SessionID, input.TenantID, traceID, agentName,
 					iteration, totalAgentTokens,
 					time.Since(agentStartTime).Milliseconds(),
 				))
 
 				// No tools, execution complete
 				result := &Response{
+					TraceID:            traceID,
+					RequestID:          requestID,
+					Model:              modelInfo.Name,
+					Provider:           modelInfo.Provider,
 					Message:            responseMessage,
 					FinishReason:       finishReason,
+					Thinking:           joinStrings(thinkingChunks),
 					ProviderResponseID: providerResponseID,
 				}
 				if usage != nil {
 					result.Usage = *usage
 				}
 
-				if !yield(ExecutorEvent{
-					Type:   EventTypeDone,
-					Done:   true,
-					Result: result,
-				}) {
+				if !yield(buildDoneEvent(result)) {
 					return nil
 				}
 				return nil
@@ -840,13 +1015,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					}
 				}
 			} else {
-				toolResults, interrupt, toolErr = e.executeToolCalls(ctx, input.SessionID, input.TenantID, tools, toolCalls, yield)
+				toolResults, interrupt, toolErr = e.executeToolCalls(ctx, input.SessionID, input.TenantID, traceID, tools, toolCalls, yield)
 			}
 
 			if toolErr != nil {
 				// Emit agent.error event
-				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEvent(
-					input.SessionID, input.TenantID, agentName,
+				_ = e.eventBus.Publish(ctx, events.NewAgentErrorEventWithTrace(
+					input.SessionID, input.TenantID, traceID, agentName,
 					iteration, toolErr.Error(),
 					time.Since(agentStartTime).Milliseconds(),
 				))
@@ -897,16 +1072,17 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				))
 
 				// Emit agent.complete event (interrupted, will resume later)
-				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEvent(
-					input.SessionID, input.TenantID, agentName,
+				_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEventWithTrace(
+					input.SessionID, input.TenantID, traceID, agentName,
 					iteration, totalAgentTokens,
 					time.Since(agentStartTime).Milliseconds(),
 				))
 
 				// Yield interrupt event to generator consumer
 				if !yield(ExecutorEvent{
-					Type:      EventTypeInterrupt,
-					Interrupt: interrupt,
+					Type:            EventTypeInterrupt,
+					Interrupt:       interrupt,
+					ParsedInterrupt: parseInterruptEvent(interrupt),
 				}) {
 					return nil
 				}
@@ -918,62 +1094,19 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Add tool results to messages
 			messages = append(messages, toolResults...)
 
-			// Check for termination tools
-			metadata := e.agent.Metadata()
-			for _, tc := range toolCalls {
-				for _, term := range metadata.TerminationTools {
-					if tc.Name == term {
-						// Find the tool result
-						var resultContent string
-						for _, tr := range toolResults {
-							if tr.ToolCallID() != nil && *tr.ToolCallID() == tc.ID {
-								resultContent = tr.Content()
-								break
-							}
-						}
-
-						// Emit agent.complete event (termination tool)
-						_ = e.eventBus.Publish(ctx, events.NewAgentCompleteEvent(
-							input.SessionID, input.TenantID, agentName,
-							iteration, totalAgentTokens,
-							time.Since(agentStartTime).Milliseconds(),
-						))
-
-						// Termination tool called, return result
-						result := &Response{
-							Message:            types.AssistantMessage(resultContent),
-							FinishReason:       "tool_calls",
-							ProviderResponseID: providerResponseID,
-						}
-						if usage != nil {
-							result.Usage = *usage
-						}
-
-						if !yield(ExecutorEvent{
-							Type:   EventTypeDone,
-							Done:   true,
-							Result: result,
-						}) {
-							return nil
-						}
-						return nil
-					}
-				}
-			}
-
 			// Continue to next iteration
 		}
 
 		// Emit agent.error event (max iterations)
-		_ = e.eventBus.Publish(ctx, events.NewAgentErrorEvent(
-			input.SessionID, input.TenantID, agentName,
+		_ = e.eventBus.Publish(ctx, events.NewAgentErrorEventWithTrace(
+			input.SessionID, input.TenantID, traceID, agentName,
 			iteration, ErrMaxIterations.Error(),
 			time.Since(agentStartTime).Milliseconds(),
 		))
 
 		// Max iterations reached
 		return serrors.E(op, ErrMaxIterations)
-	})
+	}, types.WithBufferSize(32))
 }
 
 // Resume continues execution from a saved checkpoint after receiving user input.
@@ -1063,6 +1196,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 			Messages:           messages,
 			SessionID:          checkpoint.SessionID,
 			TenantID:           checkpoint.TenantID,
+			TraceID:            uuid.New().String(),
 			ThreadID:           checkpoint.ThreadID,
 			PreviousResponseID: checkpoint.PreviousResponseID,
 			isResume:           true,
@@ -1088,7 +1222,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 		}
 
 		return nil
-	})
+	}, types.WithBufferSize(32))
 }
 
 // executeToolCalls executes all tool calls in parallel and returns their results.
@@ -1096,6 +1230,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 func (e *Executor) executeToolCalls(
 	ctx context.Context,
 	sessionID, tenantID uuid.UUID,
+	traceID string,
 	tools []Tool,
 	toolCalls []types.ToolCall,
 	yield func(ExecutorEvent) bool,
@@ -1120,9 +1255,10 @@ func (e *Executor) executeToolCalls(
 		tc := toolCalls[interruptIdx]
 
 		// Emit tool start event
-		_ = e.eventBus.Publish(ctx, events.NewToolStartEvent(
+		_ = e.eventBus.Publish(ctx, events.NewToolStartEventWithTrace(
 			sessionID,
 			tenantID,
+			traceID,
 			tc.Name,
 			tc.Arguments,
 			tc.ID,
@@ -1171,7 +1307,7 @@ func (e *Executor) executeToolCalls(
 	type toolResult struct {
 		idx        int
 		call       types.ToolCall
-		result     string
+		result     toolExecutionResult
 		err        error
 		durationMs int64
 	}
@@ -1198,9 +1334,10 @@ func (e *Executor) executeToolCalls(
 	// Emit tool start events before launching each tool execution.
 	for i, tc := range toolCalls {
 		// Emit tool start event
-		_ = e.eventBus.Publish(toolCtx, events.NewToolStartEvent(
+		_ = e.eventBus.Publish(toolCtx, events.NewToolStartEventWithTrace(
 			sessionID,
 			tenantID,
+			traceID,
 			tc.Name,
 			tc.Arguments,
 			tc.ID,
@@ -1227,7 +1364,7 @@ func (e *Executor) executeToolCalls(
 			}
 		}
 
-		go func(idx int, call types.ToolCall, concurrencyKey string, t Tool) {
+		go func(idx int, call types.ToolCall, concurrencyKey string, t Tool, emitFn EventEmitter) {
 			startTime := time.Now()
 
 			if concurrencyKey != "" {
@@ -1236,7 +1373,20 @@ func (e *Executor) executeToolCalls(
 				defer lock.Unlock()
 			}
 
-			res, err := e.callTool(toolCtx, t, call.Name, call.Arguments)
+			var res toolExecutionResult
+			var err error
+
+			// Prefer StreamingTool for event-emitting tools (e.g., delegation).
+			if st, ok := t.(StreamingTool); ok {
+				var result string
+				result, err = st.CallStreaming(toolCtx, call.Arguments, emitFn)
+				if err == nil {
+					res = toolExecutionResult{output: result}
+				}
+			} else {
+				res, err = e.callTool(toolCtx, t, call.Name, call.Arguments)
+			}
+
 			durationMs := time.Since(startTime).Milliseconds()
 
 			select {
@@ -1250,7 +1400,7 @@ func (e *Executor) executeToolCalls(
 			case <-toolCtx.Done():
 				return
 			}
-		}(i, tc, key, toolByName[tc.Name])
+		}(i, tc, key, toolByName[tc.Name], yield)
 	}
 
 	ordered := make([]types.Message, len(toolCalls))
@@ -1266,16 +1416,17 @@ func (e *Executor) executeToolCalls(
 
 		received++
 
-		toolOutput := tr.result
+		toolOutput := tr.result.output
 		if tr.err != nil {
 			toolOutput = fmt.Sprintf("Error: %v", tr.err)
 		}
 
 		// Emit tool completion/error event
 		if tr.err != nil {
-			_ = e.eventBus.Publish(toolCtx, events.NewToolErrorEvent(
+			_ = e.eventBus.Publish(toolCtx, events.NewToolErrorEventWithTrace(
 				sessionID,
 				tenantID,
+				traceID,
 				tr.call.Name,
 				tr.call.Arguments,
 				tr.call.ID,
@@ -1283,13 +1434,15 @@ func (e *Executor) executeToolCalls(
 				tr.durationMs,
 			))
 		} else {
-			_ = e.eventBus.Publish(toolCtx, events.NewToolCompleteEvent(
+			_ = e.eventBus.Publish(toolCtx, events.NewToolCompleteEventWithTrace(
 				sessionID,
 				tenantID,
+				traceID,
 				tr.call.Name,
 				tr.call.Arguments,
 				tr.call.ID,
 				toolOutput,
+				tr.result.artifacts,
 				tr.durationMs,
 			))
 		}
@@ -1304,6 +1457,7 @@ func (e *Executor) executeToolCalls(
 				Result:     toolOutput,
 				Error:      tr.err,
 				DurationMs: tr.durationMs,
+				Artifacts:  tr.result.artifacts,
 			},
 		}) {
 			cancel()
@@ -1444,6 +1598,83 @@ func (e *Executor) saveCheckpoint(
 	}
 
 	return checkpointID, nil
+}
+
+// parseInterruptEvent converts an InterruptEvent's raw JSON payload into a
+// ParsedInterrupt that callers can consume without parsing JSON themselves.
+// The function is best-effort: if parsing fails, Questions is left nil.
+func parseInterruptEvent(interrupt *InterruptEvent) *ParsedInterrupt {
+	if interrupt == nil {
+		return nil
+	}
+
+	parsed := &ParsedInterrupt{
+		CheckpointID:       interrupt.CheckpointID,
+		AgentName:          interrupt.AgentName,
+		ProviderResponseID: interrupt.ProviderResponseID,
+	}
+
+	if len(interrupt.Data) > 0 {
+		var payload types.AskUserQuestionPayload
+		if err := json.Unmarshal(interrupt.Data, &payload); err == nil {
+			questions := make([]Question, 0, len(payload.Questions))
+			for _, q := range payload.Questions {
+				options := make([]QuestionOption, 0, len(q.Options))
+				for _, opt := range q.Options {
+					options = append(options, QuestionOption{
+						ID:    opt.ID,
+						Label: opt.Label,
+					})
+				}
+				qt := QuestionTypeSingleChoice
+				if q.MultiSelect {
+					qt = QuestionTypeMultipleChoice
+				}
+				questions = append(questions, Question{
+					ID:      q.ID,
+					Text:    q.Question,
+					Type:    qt,
+					Options: options,
+				})
+			}
+			parsed.Questions = questions
+		}
+	}
+
+	return parsed
+}
+
+// buildDoneEvent constructs an ExecutorEvent for EventTypeDone, populating
+// convenience fields (Usage, ProviderResponseID, CodeInterpreter, FileAnnotations)
+// from the Response so that callers do not need to inspect Result directly.
+func buildDoneEvent(result *Response) ExecutorEvent {
+	ev := ExecutorEvent{
+		Type:   EventTypeDone,
+		Done:   true,
+		Result: result,
+	}
+	if result == nil {
+		return ev
+	}
+	ev.ProviderResponseID = result.ProviderResponseID
+	ev.CodeInterpreter = result.CodeInterpreterResults
+	ev.FileAnnotations = result.FileAnnotations
+
+	u := result.Usage
+	if u.PromptTokens > 0 || u.CompletionTokens > 0 || u.TotalTokens > 0 ||
+		u.CachedTokens > 0 || u.CacheReadTokens > 0 || u.CacheWriteTokens > 0 {
+		cachedTokens := u.CachedTokens
+		if cachedTokens == 0 {
+			cachedTokens = u.CacheReadTokens
+		}
+		ev.Usage = &types.DebugUsage{
+			PromptTokens:     u.PromptTokens,
+			CompletionTokens: u.CompletionTokens,
+			TotalTokens:      u.TotalTokens,
+			CachedTokens:     cachedTokens,
+		}
+	}
+	return ev
 }
 
 // joinStrings concatenates a slice of strings.

@@ -25,6 +25,11 @@ type QueryResult struct {
 	// Columns are the column names in order
 	Columns []string `json:"columns"`
 
+	// ColumnTypes are the inferred data types in the same order as Columns.
+	// Values: "string", "number", "boolean", "date".
+	// May be nil if the executor does not provide type information.
+	ColumnTypes []string `json:"column_types,omitempty"`
+
 	// Rows contains the row data (each row is a slice of values matching Columns order)
 	Rows [][]any `json:"rows"`
 
@@ -65,4 +70,35 @@ func (r *QueryResult) AllMaps() []map[string]any {
 		result[i] = r.ToMap(i)
 	}
 	return result
+}
+
+// PostgreSQL type OIDs (values match github.com/jackc/pgx/v5/pgtype).
+const (
+	oidInt2        uint32 = 21
+	oidInt4        uint32 = 23
+	oidInt8        uint32 = 20
+	oidFloat4      uint32 = 700
+	oidFloat8      uint32 = 701
+	oidNumeric     uint32 = 1700
+	oidBool        uint32 = 16
+	oidTimestamp   uint32 = 1114
+	oidTimestamptz uint32 = 1184
+	oidDate        uint32 = 1082
+	oidTime        uint32 = 1083
+	oidTimetz      uint32 = 1266 // TIME WITH TIME ZONE
+)
+
+// PgOIDToColumnType maps a PostgreSQL type OID to a frontend column type string.
+// Valid return values: "string", "number", "boolean", "date".
+func PgOIDToColumnType(oid uint32) string {
+	switch oid {
+	case oidInt2, oidInt4, oidInt8, oidFloat4, oidFloat8, oidNumeric:
+		return "number"
+	case oidBool:
+		return "boolean"
+	case oidTimestamp, oidTimestamptz, oidDate, oidTime, oidTimetz:
+		return "date"
+	default:
+		return "string"
+	}
 }

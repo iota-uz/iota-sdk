@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/stretchr/testify/assert"
@@ -40,33 +41,33 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-5.2-2025-12-11", oaiModel.modelName)
+	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
 }
 
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4-turbo"))
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5.2"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-4-turbo", oaiModel.modelName)
+	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
 }
 
 func TestOpenAIModel_Info(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4o"))
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5-mini"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-4o", info.Name)
+	assert.Equal(t, "gpt-5-mini", info.Name)
 	assert.Equal(t, "openai", info.Provider)
-	assert.Equal(t, 128000, info.ContextWindow)
+	assert.Equal(t, 400000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
@@ -81,28 +82,40 @@ func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-5.2-2025-12-11", info.Name)
-	assert.Equal(t, 272000, info.ContextWindow)
+	assert.Equal(t, "gpt-5.2", info.Name)
+	assert.Equal(t, 400000, info.ContextWindow)
 }
 
-func TestContextWindowForModel_GPT52Variants(t *testing.T) {
-	t.Parallel()
+func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	tests := []struct {
-		name      string
-		modelName string
-		expected  int
+		name       string
+		modelEnv   string
+		expectCtx  int
+		expectName string
 	}{
-		{name: "canonical", modelName: "gpt-5.2-2025-12-11", expected: 272000},
-		{name: "family alias", modelName: "gpt-5.2", expected: 272000},
-		{name: "uppercase with spaces", modelName: " GPT-5.2-2025-12-11 ", expected: 272000},
-		{name: "gpt4o uppercase", modelName: " GPT-4O ", expected: 128000},
-		{name: "unknown", modelName: "unknown-model", expected: 0},
+		{name: "canonical gpt-5.2", modelEnv: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
+		{name: "versioned alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
+		{name: "normalized alias", modelEnv: " GPT-5.2-2025-12-11 ", expectCtx: 400000, expectName: " GPT-5.2-2025-12-11 "},
+		{name: "gpt-5-mini", modelEnv: "gpt-5-mini", expectCtx: 400000, expectName: "gpt-5-mini"},
+		{name: "gpt-5-nano", modelEnv: "gpt-5-nano", expectCtx: 400000, expectName: "gpt-5-nano"},
+		{name: "unknown falls back to default spec", modelEnv: "unknown-model", expectCtx: 400000, expectName: "unknown-model"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, contextWindowForModel(tt.modelName))
+			require.NoError(t, os.Setenv("OPENAI_MODEL", tt.modelEnv))
+			defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
+
+			model, err := NewOpenAIModel()
+			require.NoError(t, err)
+
+			info := model.Info()
+			assert.Equal(t, tt.expectName, info.Name)
+			assert.Equal(t, "openai", info.Provider)
+			assert.Equal(t, tt.expectCtx, info.ContextWindow)
 		})
 	}
 }
@@ -117,7 +130,7 @@ func TestOpenAIModel_HasCapability(t *testing.T) {
 	assert.True(t, model.HasCapability(agents.CapabilityStreaming))
 	assert.True(t, model.HasCapability(agents.CapabilityTools))
 	assert.True(t, model.HasCapability(agents.CapabilityJSONMode))
-	assert.False(t, model.HasCapability(agents.CapabilityThinking))
+	assert.True(t, model.HasCapability(agents.CapabilityThinking))
 }
 
 func TestOpenAIModel_BuildResponseParams(t *testing.T) {
@@ -162,10 +175,10 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 		JSONMode:    true,
 	}
 
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Verify model
-	assert.Equal(t, "gpt-5.2-2025-12-11", params.Model)
+	assert.Equal(t, "gpt-5.2", params.Model)
 
 	// Verify input items
 	assert.NotNil(t, params.Input.OfInputItemList)
@@ -219,7 +232,7 @@ func TestOpenAIModel_BuildResponseParams_NativeWebSearch(t *testing.T) {
 	}
 
 	config := agents.GenerateConfig{}
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// web_search should be added as native WebSearchToolParam
 	require.Len(t, params.Tools, 1)
@@ -255,14 +268,45 @@ func TestOpenAIModel_BuildResponseParams_NativeCodeInterpreter(t *testing.T) {
 	}
 
 	config := agents.GenerateConfig{}
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// code_interpreter should be added as native ToolCodeInterpreterParam
 	require.Len(t, params.Tools, 1)
 	assert.NotNil(t, params.Tools[0].OfCodeInterpreter, "code_interpreter should be a native ToolCodeInterpreterParam")
+	assert.Equal(t, "4g", params.Tools[0].OfCodeInterpreter.Container.OfCodeInterpreterToolAuto.MemoryLimit)
 
 	// Should request outputs in include
 	assert.Contains(t, params.Include, responses.ResponseIncludableCodeInterpreterCallOutputs)
+}
+
+func TestOpenAIModel_BuildResponseParams_CodeInterpreterMemoryLimitOverride(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel(WithCodeInterpreterMemoryLimit("16g"))
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	req := agents.Request{
+		Messages: []types.Message{
+			types.UserMessage("Run code"),
+		},
+		Tools: []agents.Tool{
+			agents.NewTool(
+				"code_interpreter",
+				"Execute code",
+				map[string]any{"type": "object"},
+				func(ctx context.Context, input string) (string, error) {
+					return "", nil
+				},
+			),
+		},
+	}
+
+	params := oaiModel.buildResponseParams(context.Background(), req, agents.GenerateConfig{})
+	require.Len(t, params.Tools, 1)
+	require.NotNil(t, params.Tools[0].OfCodeInterpreter)
+	assert.Equal(t, "16g", params.Tools[0].OfCodeInterpreter.Container.OfCodeInterpreterToolAuto.MemoryLimit)
 }
 
 func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
@@ -289,7 +333,7 @@ func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
 	}
 
 	config := agents.GenerateConfig{}
-	params := oaiModel.buildResponseParams(req, config)
+	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Should have 4 tools: 2 function + 1 web_search + 1 code_interpreter
 	require.Len(t, params.Tools, 4)
@@ -310,6 +354,34 @@ func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
 	assert.Equal(t, 2, funcCount, "should have 2 function tools")
 	assert.Equal(t, 1, webCount, "should have 1 web search tool")
 	assert.Equal(t, 1, codeCount, "should have 1 code interpreter tool")
+}
+
+func TestOpenAIModel_BuildResponseParams_DrawChartSchemaRequiresCanonicalOptions(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	req := agents.Request{
+		Messages: []types.Message{types.UserMessage("draw a chart")},
+		Tools:    []agents.Tool{chart.NewDrawChartTool()},
+	}
+
+	params := oaiModel.buildResponseParams(context.Background(), req, agents.GenerateConfig{})
+	require.Len(t, params.Tools, 1)
+	require.NotNil(t, params.Tools[0].OfFunction)
+
+	schema := params.Tools[0].OfFunction.Parameters
+
+	properties, ok := schema["properties"].(map[string]any)
+	require.True(t, ok, "schema.properties should be map[string]any")
+	_, hasOptions := properties["options"]
+	assert.True(t, hasOptions, "draw_chart schema should include options property")
+	required, ok := schema["required"].([]string)
+	require.True(t, ok, "schema.required should be []string")
+	assert.Equal(t, []string{"options"}, required, "draw_chart schema should require options")
 }
 
 func TestOpenAIModel_MapResponse_TextOnly(t *testing.T) {
@@ -433,8 +505,57 @@ func TestOpenAIModel_MapResponse_WithCitations(t *testing.T) {
 	assert.Equal(t, "web", cite.Type)
 	assert.Equal(t, "Why is the sky blue?", cite.Title)
 	assert.Equal(t, "https://example.com/sky", cite.URL)
+	assert.Empty(t, cite.Excerpt)
 	assert.Equal(t, 0, cite.StartIndex)
 	assert.Equal(t, 18, cite.EndIndex)
+}
+
+func TestOpenAIModel_MapResponse_CitationsEnrichedFromWebSearchSources(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+
+	resp := &responses.Response{
+		Output: []responses.ResponseOutputItemUnion{
+			{
+				Type: "web_search_call",
+				Action: responses.ResponseOutputItemUnionAction{
+					Type: "search",
+					Sources: []responses.ResponseFunctionWebSearchActionSearchSource{
+						{URL: "https://search.example.com/source1", Type: "url"},
+						{URL: "https://search.example.com/source2", Type: "url"},
+					},
+				},
+			},
+			{
+				Type: "message",
+				Content: []responses.ResponseOutputMessageContentUnion{
+					{
+						Type: "output_text",
+						Text: "See [1] and [2] for more.",
+						Annotations: []responses.ResponseOutputTextAnnotationUnion{
+							{Type: "url_citation", Title: "Source 1", URL: "", StartIndex: 4, EndIndex: 7},
+							{Type: "url_citation", Title: "Source 2", URL: "", StartIndex: 12, EndIndex: 15},
+						},
+					},
+				},
+			},
+		},
+		Usage:  responses.ResponseUsage{InputTokens: 5, OutputTokens: 10, TotalTokens: 15},
+		Status: "completed",
+	}
+
+	agentResp, err := oaiModel.mapResponse(resp)
+	require.NoError(t, err)
+
+	require.Len(t, agentResp.Message.Citations(), 2)
+	assert.Equal(t, "https://search.example.com/source1", agentResp.Message.Citations()[0].URL)
+	assert.Equal(t, "https://search.example.com/source2", agentResp.Message.Citations()[1].URL)
+	assert.Equal(t, "Source 1", agentResp.Message.Citations()[0].Title)
+	assert.Equal(t, "Source 2", agentResp.Message.Citations()[1].Title)
 }
 
 func TestOpenAIModel_MapResponse_CodeInterpreterCall(t *testing.T) {
@@ -577,6 +698,91 @@ func TestOpenAIModel_BuildInputItems_SkipsInvalidToolCalls(t *testing.T) {
 	assert.Len(t, items, 3)
 }
 
+func TestOpenAIModel_BuildInputItems_WebFetchCases(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+
+	cases := []struct {
+		name        string
+		messages    []types.Message
+		contains    []string
+		notContains []string
+	}{
+		{
+			name: "web_fetch_image_rich_output",
+			messages: []types.Message{
+				types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+					ID:        "call_web_1",
+					Name:      "web_fetch",
+					Arguments: `{"url":"https://example.com/chart.png"}`,
+				})),
+				types.ToolResponse("call_web_1", `{"source_url":"https://example.com/chart.png","content_type":"image/png","size_bytes":1234,"injectable":true,"injection_type":"input_image","injection_url":"https://example.com/chart.png","saved":false,"filename":"chart.png"}`),
+			},
+			contains:    []string{`"input_text"`, `"input_image"`, "https://example.com/chart.png"},
+			notContains: nil,
+		},
+		{
+			name: "web_fetch_pdf_rich_output",
+			messages: []types.Message{
+				types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+					ID:        "call_web_2",
+					Name:      "web_fetch",
+					Arguments: `{"url":"https://example.com/report.pdf"}`,
+				})),
+				types.ToolResponse("call_web_2", `{"source_url":"https://example.com/report.pdf","content_type":"application/pdf","size_bytes":2222,"injectable":true,"injection_type":"input_file","injection_url":"https://example.com/report.pdf","saved":false,"filename":"report.pdf"}`),
+			},
+			contains:    []string{`"input_text"`, `"input_file"`, `"report.pdf"`},
+			notContains: nil,
+		},
+		{
+			name: "non_web_fetch_tool_output_unchanged",
+			messages: []types.Message{
+				types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+					ID:        "call_sql_1",
+					Name:      "sql_execute",
+					Arguments: `{"query":"SELECT 1"}`,
+				})),
+				types.ToolResponse("call_sql_1", `{"rows":[[1]]}`),
+			},
+			contains:    []string{`{\"rows\":[[1]]}`},
+			notContains: []string{`"input_image"`, `"input_file"`},
+		},
+		{
+			name: "web_fetch_invalid_json_falls_back_to_string",
+			messages: []types.Message{
+				types.AssistantMessage("", types.WithToolCalls(types.ToolCall{
+					ID:        "call_web_3",
+					Name:      "web_fetch",
+					Arguments: `{"url":"https://example.com/file"}`,
+				})),
+				types.ToolResponse("call_web_3", `not-json`),
+			},
+			contains:    []string{"not-json"},
+			notContains: []string{`"input_image"`, `"input_file"`},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			model, err := NewOpenAIModel()
+			require.NoError(t, err)
+			oaiModel := model.(*OpenAIModel)
+
+			items := oaiModel.buildInputItems(tc.messages)
+			serialized, err := json.Marshal(items)
+			require.NoError(t, err)
+			payload := string(serialized)
+
+			for _, sub := range tc.contains {
+				assert.Contains(t, payload, sub, "payload should contain %q", sub)
+			}
+			for _, sub := range tc.notContains {
+				assert.NotContains(t, payload, sub, "payload should not contain %q", sub)
+			}
+		})
+	}
+}
+
 func TestOpenAIModel_BuildInputItems_OnlyImagesBecomeInputImage(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
@@ -694,42 +900,19 @@ func TestOpenAIModel_Pricing(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
-	t.Run("KnownModel", func(t *testing.T) {
-		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4o"))
-		defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
+	// Pricing() comes from catalog; exact numbers are catalog data. Only assert behavior:
+	// unknown model falls back to default spec and returns valid pricing usable for cost calculation.
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-99-future"))
+	defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
 
-		model, err := NewOpenAIModel()
-		require.NoError(t, err)
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
 
-		pricing := model.Pricing()
-		assert.Equal(t, "USD", pricing.Currency)
-		assert.InEpsilon(t, 2.50, pricing.InputPer1M, 1e-9)
-		assert.InEpsilon(t, 10.00, pricing.OutputPer1M, 1e-9)
-	})
-
-	t.Run("DefaultModel_GPT52", func(t *testing.T) {
-		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5.2-2025-12-11"))
-		defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
-
-		model, err := NewOpenAIModel()
-		require.NoError(t, err)
-
-		pricing := model.Pricing()
-		assert.Equal(t, "USD", pricing.Currency)
-		assert.InEpsilon(t, 1.75, pricing.InputPer1M, 1e-9)
-		assert.InEpsilon(t, 14.00, pricing.OutputPer1M, 1e-9)
-		assert.InEpsilon(t, 0.18, pricing.CacheReadPer1M, 1e-9)
-	})
-
-	t.Run("UnknownModel_FallsBackToGPT52", func(t *testing.T) {
-		require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-99-future"))
-		defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
-
-		model, err := NewOpenAIModel()
-		require.NoError(t, err)
-
-		pricing := model.Pricing()
-		assert.Equal(t, "USD", pricing.Currency)
-		assert.InEpsilon(t, 1.75, pricing.InputPer1M, 1e-9)
-	})
+	pricing := model.Pricing()
+	assert.Equal(t, "USD", pricing.Currency)
+	assert.Greater(t, pricing.InputPer1M, 0.)
+	assert.Greater(t, pricing.OutputPer1M, 0.)
+	// Smoke-check: CalculateCost doesn't panic and returns non-negative for typical usage
+	cost := pricing.CalculateCost(types.TokenUsage{PromptTokens: 1000, CompletionTokens: 500})
+	assert.GreaterOrEqual(t, cost, 0.)
 }

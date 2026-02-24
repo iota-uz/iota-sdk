@@ -11,6 +11,7 @@ import (
 type Attachment struct {
 	ID        uuid.UUID `json:"id"`
 	MessageID uuid.UUID `json:"message_id"`
+	UploadID  *int64    `json:"upload_id,omitempty"`
 	FileName  string    `json:"file_name"`
 	MimeType  string    `json:"mime_type"`
 	SizeBytes int64     `json:"size_bytes"`

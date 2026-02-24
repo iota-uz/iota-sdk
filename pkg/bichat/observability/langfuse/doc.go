@@ -44,7 +44,7 @@
 //	    ID: "gen-123",
 //	    SessionID: sessionID,
 //	    TenantID: tenantID,
-//	    Model: "claude-3-5-sonnet-20241022",
+//	    Model: "claude-sonnet-4-6",
 //	    Provider: "anthropic",
 //	    PromptTokens: 1500,
 //	    CompletionTokens: 500,

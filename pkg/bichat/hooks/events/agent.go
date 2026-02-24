@@ -14,8 +14,13 @@ type AgentStartEvent struct {
 
 // NewAgentStartEvent creates a new AgentStartEvent.
 func NewAgentStartEvent(sessionID, tenantID uuid.UUID, agentName string, isResume bool) *AgentStartEvent {
+	return NewAgentStartEventWithTrace(sessionID, tenantID, sessionID.String(), agentName, isResume)
+}
+
+// NewAgentStartEventWithTrace creates a new AgentStartEvent with an explicit trace ID.
+func NewAgentStartEventWithTrace(sessionID, tenantID uuid.UUID, traceID, agentName string, isResume bool) *AgentStartEvent {
 	return &AgentStartEvent{
-		baseEvent: newBaseEvent("agent.start", sessionID, tenantID),
+		baseEvent: newBaseEventWithTrace("agent.start", sessionID, tenantID, traceID),
 		AgentName: agentName,
 		IsResume:  isResume,
 	}
@@ -33,8 +38,13 @@ type AgentCompleteEvent struct {
 
 // NewAgentCompleteEvent creates a new AgentCompleteEvent.
 func NewAgentCompleteEvent(sessionID, tenantID uuid.UUID, agentName string, iterations, totalTokens int, durationMs int64) *AgentCompleteEvent {
+	return NewAgentCompleteEventWithTrace(sessionID, tenantID, sessionID.String(), agentName, iterations, totalTokens, durationMs)
+}
+
+// NewAgentCompleteEventWithTrace creates a new AgentCompleteEvent with an explicit trace ID.
+func NewAgentCompleteEventWithTrace(sessionID, tenantID uuid.UUID, traceID, agentName string, iterations, totalTokens int, durationMs int64) *AgentCompleteEvent {
 	return &AgentCompleteEvent{
-		baseEvent:   newBaseEvent("agent.complete", sessionID, tenantID),
+		baseEvent:   newBaseEventWithTrace("agent.complete", sessionID, tenantID, traceID),
 		AgentName:   agentName,
 		Iterations:  iterations,
 		TotalTokens: totalTokens,
@@ -54,8 +64,13 @@ type AgentErrorEvent struct {
 
 // NewAgentErrorEvent creates a new AgentErrorEvent.
 func NewAgentErrorEvent(sessionID, tenantID uuid.UUID, agentName string, iterations int, errMsg string, durationMs int64) *AgentErrorEvent {
+	return NewAgentErrorEventWithTrace(sessionID, tenantID, sessionID.String(), agentName, iterations, errMsg, durationMs)
+}
+
+// NewAgentErrorEventWithTrace creates a new AgentErrorEvent with an explicit trace ID.
+func NewAgentErrorEventWithTrace(sessionID, tenantID uuid.UUID, traceID, agentName string, iterations int, errMsg string, durationMs int64) *AgentErrorEvent {
 	return &AgentErrorEvent{
-		baseEvent:  newBaseEvent("agent.error", sessionID, tenantID),
+		baseEvent:  newBaseEventWithTrace("agent.error", sessionID, tenantID, traceID),
 		AgentName:  agentName,
 		Iterations: iterations,
 		Error:      errMsg,

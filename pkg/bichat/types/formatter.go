@@ -43,6 +43,19 @@ type ToolResult struct {
 	CodecID string
 	// Payload is the structured data to be formatted.
 	Payload any
+	// Artifacts are typed output artifacts produced by the tool execution.
+	Artifacts []ToolArtifact
+}
+
+// ToolArtifact describes a generated artifact emitted by a tool execution.
+type ToolArtifact struct {
+	Type        string         `json:"type"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	MimeType    string         `json:"mime_type,omitempty"`
+	URL         string         `json:"url,omitempty"`
+	SizeBytes   int64          `json:"size_bytes,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 // Codec IDs for built-in formatters.

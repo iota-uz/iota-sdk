@@ -66,7 +66,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" hx-swap=\"outerHTML\"><div class=\"flex flex-col gap-5 p-6\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" hx-swap=\"outerHTML\"><div class=\"flex flex-col gap-5 p-4 md:p-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -86,7 +86,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
 					Label:   pageCtx.T("Account.BrowseFilesystem"),
 					Name:    "AvatarID",
-					Class:   "col-span-3",
+					Class:   "md:col-span-3",
 					Uploads: []*viewmodels.Upload{},
 				}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -96,7 +96,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
 					Label:   pageCtx.T("Account.BrowseFilesystem"),
 					Name:    "AvatarID",
-					Class:   "col-span-3",
+					Class:   "md:col-span-3",
 					Uploads: []*viewmodels.Upload{props.User.Avatar},
 				}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -212,12 +212,12 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = card.Card(card.Props{
-			Class: "grid grid-cols-3 gap-4",
+			Class: "grid grid-cols-1 md:grid-cols-3 gap-4",
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div><div class=\"h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div><div class=\"h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

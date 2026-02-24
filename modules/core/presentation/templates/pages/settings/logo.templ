@@ -22,7 +22,7 @@ type LogoPageProps struct {
 
 templ LogoForm(props *LogoPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div id="logo-form-fields" class="flex flex-col gap-6 p-6">
+	<div id="logo-form-fields" class="flex flex-col gap-6 p-4 md:p-6">
 		@card.Card(card.Props{}) {
 			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 				<div class="space-y-4">
@@ -141,7 +141,7 @@ templ Logo(props *LogoPageProps) {
 				@LogoForm(props)
 			</form>
 			<div
-				class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+				class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 			>
 				@button.Primary(button.Props{
 					Attrs: templ.Attributes{

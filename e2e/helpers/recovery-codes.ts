@@ -12,12 +12,17 @@ import * as bcrypt from 'bcryptjs';
 /**
  * Database configuration for E2E tests
  */
-function getDBConfig() {
+export function getDBConfig() {
+	const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+	const defaultPort = isCI ? 5432 : 5438;
+
 	return {
 		user: process.env.DB_USER || 'postgres',
 		password: process.env.DB_PASSWORD || 'postgres',
-		host: process.env.DB_HOST || 'localhost',
-		port: parseInt(process.env.DB_PORT || '5438'),
+		// GitHub Actions jobs run on the host with DB services mapped to localhost.
+		// Other CI systems can still override this via DB_HOST/PGHOST.
+		host: process.env.DB_HOST || process.env.PGHOST || 'localhost',
+		port: parseInt(process.env.DB_PORT ?? process.env.PGPORT ?? String(defaultPort), 10),
 		database: process.env.DB_NAME || 'iota_erp_e2e',
 	};
 }
@@ -135,7 +140,7 @@ export async function getUnusedRecoveryCodeCount(userID: number): Promise<number
 				[userID]
 			);
 
-			return parseInt(result.rows[0].count);
+			return parseInt(result.rows[0].count, 10);
 		} finally {
 			client.release();
 		}

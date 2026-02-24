@@ -24,7 +24,6 @@ func newTestProvider(client LangfuseClient, config Config) *LangfuseProvider {
 		client: client,
 		config: config,
 		state:  newState(),
-		rng:    nil, // Not needed for deterministic tests
 		log:    log,
 	}
 }
@@ -49,7 +48,7 @@ func buildCompleteObservation() observability.GenerationObservation {
 		TenantID:         uuid.New(),
 		SessionID:        uuid.New(),
 		Timestamp:        time.Now(),
-		Model:            "claude-3-5-sonnet-20241022",
+		Model:            "claude-sonnet-4-6",
 		Provider:         "anthropic",
 		PromptMessages:   3,
 		PromptTokens:     1500,

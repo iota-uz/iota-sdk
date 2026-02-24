@@ -168,6 +168,36 @@ asyncHandler := handlers.NewAsyncHandler(baseHandler, bufferSize, handlers.WithM
    - `OverflowTruncate` - Remove history blocks
    - `OverflowCompact` - Summarize history with LLM
 
+## Error Handling Convention
+
+`pkg/bichat` is a **library package** with no dependency on `pkg/serrors`. All error wrapping
+must use the standard `fmt.Errorf("operation: %w", err)` pattern.
+
+**Do not import `github.com/iota-uz/iota-sdk/pkg/serrors` in this package.**
+
+```go
+// Correct — library code
+func (e *TiktokenEstimator) EstimateTokens(ctx context.Context, text string) (int, error) {
+    tkm, err := tiktoken.GetEncoding(e.encoding)
+    if err != nil {
+        return 0, fmt.Errorf("agents.TiktokenEstimator.EstimateTokens: %w", err)
+    }
+    // ...
+}
+
+// Wrong — serrors must not be used in pkg/bichat
+func (e *TiktokenEstimator) EstimateTokens(ctx context.Context, text string) (int, error) {
+    const op = serrors.Op("agents.TiktokenEstimator.EstimateTokens")
+    tkm, err := tiktoken.GetEncoding(e.encoding)
+    if err != nil {
+        return 0, serrors.E(op, err)
+    }
+    // ...
+}
+```
+
+**Sentinel errors** (`var ErrFoo = errors.New(...)`) are fine everywhere.
+
 ## Integration Points
 
 - **Module**: `modules/bichat/` implements repository interfaces, creates agents

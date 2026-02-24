@@ -3,14 +3,14 @@ package bichat
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"time"
 
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/handlers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
@@ -58,20 +58,17 @@ func NewModuleWithConfig(cfg *ModuleConfig) *Module {
 
 type Module struct {
 	config                 *ModuleConfig
+	container              *ServiceContainer
 	observabilityProviders []observability.Provider
 	eventBridge            *observability.EventBridge
-	artifactUnsubscribe    func()
+	titleWorker            *services.TitleJobWorker
+	titleWorkerCancel      context.CancelFunc
+	titleWorkerDone        chan struct{}
 }
 
 func (m *Module) Register(app application.Application) error {
 	// Register translation files
 	app.RegisterLocaleFiles(&LocaleFiles)
-
-	// Register BiChat applet (unified applet system)
-	bichatApplet := NewBiChatApplet(m.config)
-	if err := app.RegisterApplet(bichatApplet); err != nil {
-		return fmt.Errorf("failed to register BiChat applet: %w", err)
-	}
 
 	controllersToRegister := []application.Controller{}
 
@@ -85,22 +82,35 @@ func (m *Module) Register(app application.Application) error {
 		}
 
 		// Build services (fail fast - no try/continue)
-		if err := m.config.BuildServices(); err != nil {
+		container, err := m.config.BuildServices()
+		if err != nil {
 			return fmt.Errorf("failed to build BiChat services: %w", err)
 		}
+		m.container = container
 
-		chatService := m.config.ChatService()
-		agentService := m.config.AgentService()
-		attachmentService := m.config.AttachmentService()
-		artifactService := m.config.ArtifactService()
+		chatService := container.ChatService()
+		agentService := container.AgentService()
+		attachmentService := container.AttachmentService()
+		artifactService := container.ArtifactService()
 		app.RegisterServices(chatService, agentService, attachmentService, artifactService)
 
-		if m.artifactUnsubscribe == nil && m.config.EventBus != nil && m.config.ChatRepo != nil {
-			artifactHandler := handlers.NewArtifactHandler(m.config.ChatRepo)
-			m.artifactUnsubscribe = m.config.EventBus.Subscribe(
-				artifactHandler,
-				string(hooks.EventToolComplete),
-			)
+		if m.titleWorker == nil {
+			worker, err := container.NewTitleJobWorker(app.DB())
+			if err != nil && !errors.Is(err, ErrTitleJobWorkerDisabled) {
+				return fmt.Errorf("failed to create title job worker: %w", err)
+			}
+			if err == nil && worker != nil {
+				workerCtx, workerCancel := context.WithCancel(context.Background())
+				m.titleWorker = worker
+				m.titleWorkerCancel = workerCancel
+				m.titleWorkerDone = make(chan struct{})
+				go func() {
+					defer close(m.titleWorkerDone)
+					if startErr := worker.Start(workerCtx); startErr != nil && m.config.Logger != nil {
+						m.config.Logger.WithError(startErr).Warn("bichat title job worker stopped with error")
+					}
+				}()
+			}
 		}
 
 		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Icon, BiChatLink.Name, BiChatLink.Href))
@@ -135,6 +145,12 @@ func (m *Module) Register(app application.Application) error {
 		}
 	}
 
+	// Register BiChat applet (after services are built so RPC can access them)
+	bichatApplet := NewBiChatApplet(m.config, m.container)
+	if err := app.RegisterApplet(bichatApplet); err != nil {
+		return fmt.Errorf("failed to register BiChat applet: %w", err)
+	}
+
 	app.RegisterControllers(controllersToRegister...)
 
 	return nil
@@ -157,18 +173,39 @@ func (m *Module) Name() string {
 //	module := bichat.NewModuleWithConfig(cfg)
 //	defer module.Shutdown(context.Background())
 func (m *Module) Shutdown(ctx context.Context) error {
-	if m.artifactUnsubscribe != nil {
-		m.artifactUnsubscribe()
-		m.artifactUnsubscribe = nil
+	var shutdownErr error
+
+	if m.titleWorkerCancel != nil {
+		m.titleWorkerCancel()
+		m.titleWorkerCancel = nil
+	}
+	if m.titleWorkerDone != nil {
+		select {
+		case <-m.titleWorkerDone:
+		case <-ctx.Done():
+			shutdownErr = errors.Join(shutdownErr, ctx.Err())
+		}
+		m.titleWorkerDone = nil
+	}
+	m.titleWorker = nil
+
+	if m.container != nil {
+		if err := m.container.CloseTitleQueue(); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
 	}
 
 	if m.eventBridge == nil {
-		return nil // No observability configured
+		return shutdownErr
 	}
 
 	// Create timeout context for shutdown (30 seconds)
 	shutdownCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return m.eventBridge.Shutdown(shutdownCtx)
+	if err := m.eventBridge.Shutdown(shutdownCtx); err != nil {
+		shutdownErr = errors.Join(shutdownErr, err)
+	}
+
+	return shutdownErr
 }

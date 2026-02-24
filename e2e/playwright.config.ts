@@ -7,6 +7,7 @@ import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 
 const exec = promisify(execCallback);
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
 
 // Smart environment detection
 function loadEnvironmentConfig() {
@@ -18,14 +19,13 @@ function loadEnvironmentConfig() {
 	}
 
 	// Extract configuration with smart defaults based on environment
-	const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
 	const defaultPort = isCI ? 5432 : 5438; // CI uses standard port, local uses custom port
 
 	return {
 		DB_USER: process.env.DB_USER || 'postgres',
 		DB_PASSWORD: process.env.DB_PASSWORD || 'postgres',
 		DB_HOST: process.env.DB_HOST || 'localhost',
-		DB_PORT: parseInt(process.env.DB_PORT || String(defaultPort)),
+		DB_PORT: parseInt(process.env.DB_PORT || String(defaultPort), 10),
 		DB_NAME: process.env.DB_NAME || 'iota_erp_e2e',
 		BASE_URL: process.env.BASE_URL || 'http://localhost:3201',
 	};
@@ -62,7 +62,7 @@ export function getEnvironmentInfo() {
 	const envConfig = loadEnvironmentConfig();
 	return {
 		env: process.env.NODE_ENV || 'development',
-		isCI: process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true',
+			isCI,
 		dbConfig: {
 			host: envConfig.DB_HOST,
 			port: envConfig.DB_PORT,
@@ -86,10 +86,10 @@ export default defineConfig({
 	timeout: 60 * 1000,
 
 	// Test execution settings
-	fullyParallel: true,
-	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 0,
-	workers: process.env.CI ? 4 : undefined,
+	fullyParallel: !isCI,
+	forbidOnly: isCI,
+	retries: isCI ? 2 : 0,
+	workers: isCI ? 1 : undefined,
 
 	// Reporter configuration
 	reporter: 'html',
@@ -109,7 +109,7 @@ export default defineConfig({
 		video: 'retain-on-failure',
 
 		// Timeout settings (higher in CI to reduce flakiness on slower runners)
-		actionTimeout: process.env.CI ? 25000 : 15000,
+		actionTimeout: isCI ? 25000 : 15000,
 		navigationTimeout: 60000, // pageLoadTimeout
 	},
 

@@ -221,10 +221,10 @@ func Example_costTracking() {
 		var inputPricePerToken, outputPricePerToken float64
 
 		switch obs.Model {
-		case "claude-3-5-sonnet-20241022":
+		case "claude-sonnet-4-6":
 			inputPricePerToken = 3.0 / 1_000_000   // $3 per 1M input tokens
 			outputPricePerToken = 15.0 / 1_000_000 // $15 per 1M output tokens
-		case "gpt-4-turbo":
+		case "gpt-5.2":
 			inputPricePerToken = 10.0 / 1_000_000  // $10 per 1M input tokens
 			outputPricePerToken = 30.0 / 1_000_000 // $30 per 1M output tokens
 		default:
@@ -247,7 +247,7 @@ func Example_costTracking() {
 
 	// Simulate generation
 	_ = recordGeneration(context.Background(), observability.GenerationObservation{
-		Model:            "claude-3-5-sonnet-20241022",
+		Model:            "claude-sonnet-4-6",
 		PromptTokens:     1000,
 		CompletionTokens: 500,
 	})

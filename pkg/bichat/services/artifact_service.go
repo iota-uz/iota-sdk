@@ -1,11 +1,10 @@
 package services
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -22,24 +21,19 @@ type ArtifactService interface {
 }
 
 type ArtifactUpload struct {
-	Filename  string
-	MimeType  string
-	SizeBytes int64
-	Data      []byte
+	UploadID int64
 }
 
 type artifactService struct {
-	repo              domain.ChatRepository
-	storage           storage.FileStorage
-	attachmentService AttachmentService
+	repo    domain.ChatRepository
+	storage storage.FileStorage
 }
 
 // NewArtifactService creates a new ArtifactService.
-func NewArtifactService(repo domain.ChatRepository, fileStorage storage.FileStorage, attachmentService AttachmentService) ArtifactService {
+func NewArtifactService(repo domain.ChatRepository, fileStorage storage.FileStorage, _ AttachmentService) ArtifactService {
 	return &artifactService{
-		repo:              repo,
-		storage:           fileStorage,
-		attachmentService: attachmentService,
+		repo:    repo,
+		storage: fileStorage,
 	}
 }
 
@@ -63,7 +57,7 @@ func (s *artifactService) GetArtifact(ctx context.Context, id uuid.UUID) (domain
 	return a, nil
 }
 
-// DeleteArtifact removes the artifact and, if it has a file URL, deletes the file from storage (best effort).
+// DeleteArtifact removes the artifact and, for legacy non-upload artifacts, deletes local storage files (best effort).
 func (s *artifactService) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
 	const op serrors.Op = "ArtifactService.DeleteArtifact"
 
@@ -72,7 +66,7 @@ func (s *artifactService) DeleteArtifact(ctx context.Context, id uuid.UUID) erro
 		return serrors.E(op, err)
 	}
 
-	if artifact.URL() != "" && s.storage != nil {
+	if artifact.UploadID() == nil && artifact.URL() != "" && s.storage != nil {
 		_ = s.storage.Delete(ctx, artifact.URL())
 	}
 
@@ -96,13 +90,10 @@ func (s *artifactService) UpdateArtifact(ctx context.Context, id uuid.UUID, name
 	return artifact, nil
 }
 
-// UploadSessionArtifacts stores files and saves them as attachment artifacts without creating chat turns.
+// UploadSessionArtifacts links existing core uploads as session attachment artifacts without creating chat turns.
 func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID uuid.UUID, uploads []ArtifactUpload) ([]domain.Artifact, error) {
 	const op serrors.Op = "ArtifactService.UploadSessionArtifacts"
 
-	if s.attachmentService == nil {
-		return nil, serrors.E(op, serrors.Internal, "attachment service is not configured")
-	}
 	if len(uploads) == 0 {
 		return nil, serrors.E(op, serrors.KindValidation, "no uploads provided")
 	}
@@ -112,52 +103,41 @@ func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID 
 		return nil, serrors.E(op, err)
 	}
 
-	u, err := composables.UseUser(ctx)
-	if err != nil || u == nil {
-		return nil, serrors.E(op, serrors.PermissionDenied, "upload requires an authenticated user", err)
-	}
-	uploaderID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("user:%d", u.ID())))
-
-	files := make([]FileUpload, 0, len(uploads))
-	for _, upload := range uploads {
-		files = append(files, FileUpload{
-			Filename: upload.Filename,
-			MimeType: upload.MimeType,
-			Size:     upload.SizeBytes,
-		})
-	}
-	if err := s.attachmentService.ValidateMultiple(files); err != nil {
-		return nil, serrors.E(op, err)
-	}
+	uploadRepo := corepersistence.NewUploadRepository()
 
 	var artifacts []domain.Artifact
-	var savedPaths []string
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		artifacts = make([]domain.Artifact, 0, len(uploads))
-		savedPaths = make([]string, 0, len(uploads))
 		for _, upload := range uploads {
-			attachment, err := s.attachmentService.ValidateAndSave(
-				txCtx,
-				upload.Filename,
-				upload.MimeType,
-				upload.SizeBytes,
-				bytes.NewReader(upload.Data),
-				session.TenantID(),
-				uploaderID,
-			)
+			if upload.UploadID <= 0 {
+				return serrors.E(op, serrors.KindValidation, "uploadId must be a positive integer")
+			}
+
+			found, err := uploadRepo.GetByIDs(txCtx, []uint{uint(upload.UploadID)})
 			if err != nil {
 				return err
 			}
-			savedPaths = append(savedPaths, attachment.FilePath())
+			if len(found) == 0 {
+				return serrors.E(op, serrors.KindValidation, "upload not found")
+			}
+			entity := found[0]
+			mimeType := ""
+			if entity.Mimetype() != nil {
+				mimeType = entity.Mimetype().String()
+			}
+			url := entity.URL().String()
+			sizeBytes := int64(entity.Size().Bytes())
+			uploadID := int64(entity.ID())
 
 			artifact := domain.NewArtifact(
 				domain.WithArtifactTenantID(session.TenantID()),
 				domain.WithArtifactSessionID(sessionID),
 				domain.WithArtifactType(domain.ArtifactTypeAttachment),
-				domain.WithArtifactName(attachment.FileName()),
-				domain.WithArtifactMimeType(attachment.MimeType()),
-				domain.WithArtifactURL(attachment.FilePath()),
-				domain.WithArtifactSizeBytes(attachment.SizeBytes()),
+				domain.WithArtifactName(entity.Name()),
+				domain.WithArtifactMimeType(mimeType),
+				domain.WithArtifactURL(url),
+				domain.WithArtifactSizeBytes(sizeBytes),
+				domain.WithArtifactUploadID(uploadID),
 			)
 			if err := s.repo.SaveArtifact(txCtx, artifact); err != nil {
 				return err
@@ -167,7 +147,6 @@ func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID 
 		return nil
 	})
 	if err != nil {
-		s.attachmentService.DeleteFiles(ctx, savedPaths)
 		return nil, serrors.E(op, err)
 	}
 	return artifacts, nil

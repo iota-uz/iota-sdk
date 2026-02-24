@@ -101,22 +101,18 @@ func (h *ArtifactHandler) handleCodeInterpreter(ctx context.Context, e *events.T
 func (h *ArtifactHandler) handleChart(ctx context.Context, e *events.ToolCompleteEvent) error {
 	const op serrors.Op = "ArtifactHandler.handleChart"
 
-	var spec map[string]any
-	if err := json.Unmarshal([]byte(e.Result), &spec); err != nil {
+	spec, metadata, artifactName, err := parseChartArtifactPayload(e)
+	if err != nil {
 		return serrors.E(op, err, "failed to parse draw_chart result")
 	}
-
-	title, _ := spec["title"].(string)
-	if title == "" {
-		title = "Chart"
-	}
+	title := resolveChartTitle(spec, artifactName)
 
 	opts := []domain.ArtifactOption{
 		domain.WithArtifactTenantID(e.TenantID()),
 		domain.WithArtifactSessionID(e.SessionID()),
 		domain.WithArtifactType(domain.ArtifactTypeChart),
 		domain.WithArtifactName(title),
-		domain.WithArtifactMetadata(map[string]any{"spec": spec}),
+		domain.WithArtifactMetadata(metadata),
 	}
 
 	if messageID, ok := bichatservices.UseArtifactMessageID(ctx); ok {
@@ -128,6 +124,62 @@ func (h *ArtifactHandler) handleChart(ctx context.Context, e *events.ToolComplet
 		return serrors.E(op, err, "failed to save chart artifact")
 	}
 	return nil
+}
+
+func parseChartArtifactPayload(e *events.ToolCompleteEvent) (map[string]any, map[string]any, string, error) {
+	metadata := map[string]any{}
+	artifactName := ""
+	var spec map[string]any
+
+	for _, artifact := range e.Artifacts {
+		if artifact.Type != "chart" {
+			continue
+		}
+		artifactName = strings.TrimSpace(artifact.Name)
+		for k, v := range artifact.Metadata {
+			metadata[k] = v
+		}
+		if rawSpec, ok := artifact.Metadata["spec"]; ok {
+			if parsedSpec, ok := rawSpec.(map[string]any); ok {
+				spec = parsedSpec
+			}
+		}
+		break
+	}
+
+	if spec == nil {
+		if err := json.Unmarshal([]byte(e.Result), &spec); err != nil {
+			return nil, nil, "", err
+		}
+	}
+
+	if _, ok := metadata["spec"]; !ok {
+		metadata["spec"] = spec
+	}
+
+	return spec, metadata, artifactName, nil
+}
+
+func resolveChartTitle(spec map[string]any, preferred string) string {
+	if preferred != "" {
+		return preferred
+	}
+
+	title, _ := spec["title"].(string)
+	title = strings.TrimSpace(title)
+	if title != "" {
+		return title
+	}
+
+	if titleObj, ok := spec["title"].(map[string]any); ok {
+		if text, ok := titleObj["text"].(string); ok {
+			text = strings.TrimSpace(text)
+			if text != "" {
+				return text
+			}
+		}
+	}
+	return "Chart"
 }
 
 type exportResult struct {

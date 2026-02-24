@@ -24,6 +24,9 @@ templ ContentHTMX(config *TableConfig) {
 		if hxTarget == "sortable-table-container" {
 			// Sort request - return full table to update headers
 			@Table(config)
+		} else if config.ContentID != "" && hxTarget == config.ContentID {
+			// Content-level update (e.g. search, filters targeting content wrapper)
+			@TableContent(config)
 		} else {
 			// Filter/search or infinite scroll - return only rows
 			@Rows(config)

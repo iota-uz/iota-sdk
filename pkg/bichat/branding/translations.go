@@ -332,6 +332,7 @@ func DefaultTranslations() Translations {
 			"Artifacts.Empty":                    "No artifacts yet",
 			"Artifacts.EmptySubtitle":            "Artifacts will appear here",
 			"Artifacts.GroupCharts":              "Charts",
+			"Artifacts.GroupTables":              "Tables",
 			"Artifacts.GroupCodeOutputs":         "Code Outputs",
 			"Artifacts.GroupExports":             "Exports",
 			"Artifacts.GroupAttachments":         "Attachments",

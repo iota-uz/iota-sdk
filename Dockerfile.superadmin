@@ -1,4 +1,4 @@
-FROM golang:1.23.2-alpine AS base
+FROM golang:1.24.10-alpine AS base
 
 ARG JUST_VERSION=1.46.0
 

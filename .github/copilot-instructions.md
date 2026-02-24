@@ -17,7 +17,7 @@ Multi-tenant business management platform built on the IOTA SDK framework. Provi
 
 ## Technology Stack
 
-- **Backend**: Go 1.23.2, IOTA SDK framework, GraphQL
+- **Backend**: Go 1.24.10, IOTA SDK framework, GraphQL
 - **Database**: PostgreSQL 13+ (multi-tenant with organization_id)
 - **Frontend**: HTMX + Alpine.js + Templ + Tailwind CSS
 - **Auth**: Cookie-based sessions with RBAC

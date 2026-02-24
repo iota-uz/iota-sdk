@@ -13,6 +13,7 @@ require (
 	github.com/Rhymond/go-money v1.0.15
 	github.com/a-h/templ v0.3.857
 	github.com/alecthomas/chroma/v2 v2.17.0
+	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/antchfx/htmlquery v1.3.4
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
@@ -83,6 +84,7 @@ require (
 	golang.org/x/sync v0.19.0
 	golang.org/x/text v0.33.0
 	google.golang.org/api v0.209.0
+	gopkg.in/yaml.v3 v3.0.1
 	rsc.io/pdf v0.1.1
 )
 
@@ -195,6 +197,7 @@ require (
 	github.com/yeqown/reedsolomon v1.0.0 // indirect
 	github.com/zitadel/logging v0.6.2 // indirect
 	github.com/zitadel/schema v1.3.2 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -216,7 +219,6 @@ require (
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )

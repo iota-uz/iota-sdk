@@ -252,7 +252,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     this.open = false;
     this.openedWithKeyboard = false;
     this.searchQuery = '';
-    this.options = this.allOptions;
+    this.options = [...this.allOptions];
     if (this.selectedValues.size === 0) {
       this.$refs.select.value = "";
     }
@@ -289,7 +289,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   onSearch(e) {
     if (!this.open) this.open = true
     let searchValue = e.target.value.trim();
-    this.options = Array.from(this.allOptions).filter((o) => {
+    this.options = this.allOptions.filter((o) => {
       return o.textContent.toLowerCase().includes(searchValue.toLowerCase());
     });
     if (this.options.length > 0) {
@@ -326,8 +326,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   },
   select: {
     ["x-init"]() {
-      this.options = this.$el.querySelectorAll("option");
-      this.allOptions = this.options;
+      this.options = Array.from(this.$el.querySelectorAll("option"));
+      this.allOptions = [...this.options];
       this.multiple = this.$el.multiple;
       for (let i = 0, len = this.options.length; i < len; i++) {
         let option = this.options[i];
@@ -342,7 +342,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
         }
       }
       this.observer = new MutationObserver(() => {
-        this.options = this.$el.querySelectorAll("option");
+        this.options = Array.from(this.$el.querySelectorAll("option"));
+        this.allOptions = [...this.options];
         if (this.$refs.input) {
           this.setActiveIndex(this.$refs.input.value);
           this.setActiveValue(this.$refs.input.value);
@@ -374,6 +375,13 @@ let filtersDropdown = () => ({
     // Dispatch custom event after Alpine state is updated
     // We use 'filter-changed' custom event instead of 'change' to avoid race condition
     // where HTMX collects form data before Alpine updates checkbox state
+    this.$nextTick(() => {
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
+    });
+  },
+  clearAll() {
+    this.selected = [];
+    this.$el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
     this.$nextTick(() => {
       this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
     });
@@ -524,7 +532,16 @@ let datePicker = ({
       plugins,
       onChange(selected = []) {
         let formattedDates = selected.map((s) => flatpickr.formatDate(s, dateFormat));
-        if (!formattedDates.length) return;
+        if (!formattedDates.length) {
+          self.selected = [];
+          self.$nextTick(() => {
+            self.$el.dispatchEvent(new CustomEvent('date-selected', {
+              bubbles: true,
+              detail: {selected: self.selected}
+            }));
+          });
+          return;
+        }
         if (mode === 'single') {
           self.selected = [formattedDates[0]];
         } else if (mode === 'range') {
@@ -624,7 +641,18 @@ window.initSidebarCollapsed = function() {
   return false;
 }
 
-let sidebar = () => ({
+let createAnchoredOverlayPositioner = ({gap = 8, minTop = 8} = {}) => ({
+  rightStart(anchorEl) {
+    if (!anchorEl) return null;
+    const rect = anchorEl.getBoundingClientRect();
+    return {
+      left: rect.right + gap,
+      top: Math.max(minTop, rect.top),
+    };
+  },
+});
+
+let sidebarShell = () => ({
   isCollapsed: initSidebarCollapsed(),
   storedTab: localStorage.getItem('sidebar-active-tab') || null,
 
@@ -652,7 +680,7 @@ let sidebar = () => ({
     return this.storedTab;
   },
 
-  initSidebar() {
+  initSidebarShell() {
     // Apply initial state class to prevent flash
     this.$nextTick(() => {
       if (this.isCollapsed) {
@@ -667,30 +695,155 @@ let sidebar = () => ({
         }, 100);
       }
     });
-  }
+  },
+})
+
+let sidebarNavigation = () => ({
+  collapsedMenus: [],
+  outsideClickHandler: null,
+  escapeHandler: null,
+  overlayPositioner: createAnchoredOverlayPositioner({gap: 8, minTop: 8}),
+
+  onCollapsedGroupTrigger(event) {
+    const trigger = event.currentTarget;
+    if (!trigger) return;
+
+    const groupId = trigger.dataset.groupId;
+    const depth = Number(trigger.dataset.depth || 0);
+    if (!groupId || Number.isNaN(depth)) return;
+
+    this.openCollapsedMenu(trigger, groupId, depth);
+  },
+
+  openCollapsedMenu(anchorEl, groupId, depth) {
+    if (!this.isCollapsed) return;
+
+    const current = this.collapsedMenus[depth];
+    if (current && current.id === groupId) {
+      this.collapsedMenus = this.collapsedMenus.slice(0, depth);
+      return;
+    }
+
+    const position = this.overlayPositioner.rightStart(anchorEl);
+    if (!position) return;
+
+    this.collapsedMenus = this.collapsedMenus.slice(0, depth);
+    this.collapsedMenus[depth] = {
+      id: groupId,
+      left: position.left,
+      top: position.top,
+    };
+  },
+
+  closeCollapsedMenus() {
+    this.collapsedMenus = [];
+  },
+
+  isCollapsedMenuOpen(groupId, depth) {
+    return this.isCollapsed && this.collapsedMenus[depth]?.id === groupId;
+  },
+
+  isCollapsedMenuOpenFor(el) {
+    if (!el) return false;
+    const groupId = el.dataset.groupId;
+    const depth = Number(el.dataset.depth || 0);
+    if (!groupId || Number.isNaN(depth)) return false;
+    return this.isCollapsedMenuOpen(groupId, depth);
+  },
+
+  collapsedMenuStyleFor(el) {
+    if (!el) return {};
+    const groupId = el.dataset.groupId;
+    const depth = Number(el.dataset.depth || 0);
+    if (!groupId || Number.isNaN(depth)) return {};
+    if (!this.isCollapsedMenuOpen(groupId, depth)) {
+      return {};
+    }
+    const menu = this.collapsedMenus[depth];
+    return {
+      left: `${menu.left}px`,
+      top: `${menu.top}px`,
+    };
+  },
+
+  handleCollapsedMenuOutsideClick(event) {
+    if (!this.isCollapsed || this.collapsedMenus.length === 0) return;
+
+    const target = event.target;
+    if (
+      target.closest('[data-sidebar-collapsed-menu="true"]') ||
+      target.closest('[data-sidebar-collapsed-group-trigger="true"]')
+    ) {
+      return;
+    }
+
+    this.closeCollapsedMenus();
+  },
+
+  handleCollapsedMenuEscape(event) {
+    if (event.key === 'Escape') {
+      this.closeCollapsedMenus();
+    }
+  },
+
+  initSidebarNavigation() {
+    this.outsideClickHandler = this.handleCollapsedMenuOutsideClick.bind(this);
+    this.escapeHandler = this.handleCollapsedMenuEscape.bind(this);
+    document.addEventListener('click', this.outsideClickHandler);
+    document.addEventListener('keydown', this.escapeHandler);
+    this.$watch('isCollapsed', () => {
+      this.closeCollapsedMenus();
+    });
+    this.$watch('storedTab', () => {
+      this.closeCollapsedMenus();
+    });
+  },
+
+  destroy() {
+    if (this.outsideClickHandler) {
+      document.removeEventListener('click', this.outsideClickHandler);
+      this.outsideClickHandler = null;
+    }
+    if (this.escapeHandler) {
+      document.removeEventListener('keydown', this.escapeHandler);
+      this.escapeHandler = null;
+    }
+  },
 })
 
 let disableFormElementsWhen = (query) => ({
   matches: window.matchMedia(query).matches,
   media: null,
+  observer: null,
+  changeHandler: null,
   onChange() {
     this.matches = window.matchMedia(query).matches;
     this.disableAllFormElements();
   },
   disableAllFormElements() {
-    let elements = this.$el.querySelectorAll('input,select,textarea');
+    let elements = this.$el.querySelectorAll('input,select,textarea,button');
     for (let element of elements) {
       element.disabled = this.matches;
     }
   },
   init() {
     this.media = window.matchMedia(query);
-    this.media.addEventListener('change', this.onChange.bind(this));
+    this.changeHandler = this.onChange.bind(this);
+    this.media.addEventListener('change', this.changeHandler);
+    this.observer = new MutationObserver(() => this.disableAllFormElements());
+    this.observer.observe(this.$el, { childList: true, subtree: true });
     this.disableAllFormElements();
   },
   destroy() {
     if (this.media == null) return;
-    this.media.removeEventListener('change', this.onChange.bind(this));
+    if (this.changeHandler) {
+      this.media.removeEventListener('change', this.changeHandler);
+      this.changeHandler = null;
+    }
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
     this.media = null;
   }
 })
@@ -1089,6 +1242,76 @@ function createPermissionFormData(allChecked, someChecked, permissionIds) {
   };
 }
 
+let fillerRows = (rowHeight = 49) => ({
+  _resizeHandler: null,
+  _settleHandler: null,
+  init() {
+    this.$nextTick(() => this.fillGrid());
+    this._resizeHandler = this._debounce(() => this.fillGrid(), 150);
+    window.addEventListener('resize', this._resizeHandler);
+    this._settleHandler = () => {
+      this.$nextTick(() => this.fillGrid());
+    };
+    document.addEventListener('htmx:afterSettle', this._settleHandler);
+  },
+  destroy() {
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+    if (this._settleHandler) document.removeEventListener('htmx:afterSettle', this._settleHandler);
+  },
+  fillGrid() {
+    const wrapper = this.$el;
+    const tbody = wrapper.querySelector('tbody#table-body');
+    const thead = wrapper.querySelector('thead');
+    if (!tbody || !thead) return;
+    tbody.querySelectorAll('.grid-filler').forEach(r => r.remove());
+    const scEl = wrapper.querySelector('[x-ref=sc]');
+    if (tbody.querySelector('tr:not(.hidden) > td[colspan]')) {
+      if (scEl) scEl.style.overflowY = 'hidden';
+      return;
+    }
+    if (scEl) scEl.style.overflowY = '';
+    const ths = thead.querySelector('tr').children;
+    const colCount = ths.length;
+    const stickyInfo = [];
+    for (let i = 0; i < colCount; i++) {
+      const cs = getComputedStyle(ths[i]);
+      stickyInfo.push({
+        isSticky: cs.position === 'sticky',
+        right: cs.right !== 'auto' && cs.right !== '' ? cs.right : null,
+        left: cs.left !== 'auto' && cs.left !== '' ? cs.left : null
+      });
+    }
+    const wrapperH = scEl ? scEl.clientHeight : wrapper.offsetHeight;
+    const theadH = thead.offsetHeight;
+    let dataH = 0;
+    for (const row of tbody.children) {
+      if (!row.classList.contains('grid-filler') && !row.classList.contains('hidden')) {
+        dataH += row.offsetHeight;
+      }
+    }
+    const emptySpace = wrapperH - theadH - dataH;
+    const count = Math.max(0, Math.floor(emptySpace / rowHeight));
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < count; i++) {
+      const tr = document.createElement('tr');
+      tr.className = 'grid-filler';
+      for (let j = 0; j < colCount; j++) {
+        const td = document.createElement('td');
+        if (stickyInfo[j].isSticky && stickyInfo[j].right !== null) {
+          td.className = 'grid-sticky-right';
+        }
+        tr.appendChild(td);
+      }
+      frag.appendChild(tr);
+    }
+    tbody.appendChild(frag);
+  },
+  _debounce(fn, ms) {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
+  }
+});
+
 let tableConfig = (id) => ({
   get key() {
     return "iota-table-config-" + (id || (window.location.origin + window.location.pathname))
@@ -1320,7 +1543,8 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("dateFns", dateFns);
   Alpine.data("datePicker", datePicker);
   Alpine.data("navTabs", navTabs);
-  Alpine.data("sidebar", sidebar);
+  Alpine.data("sidebarShell", sidebarShell);
+  Alpine.data("sidebarNavigation", sidebarNavigation);
   Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
   Alpine.data("editableTableRows", editableTableRows);
   Alpine.data("kanban", kanban);
@@ -1328,6 +1552,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("dateRangeButtons", dateRangeButtons);
   Alpine.data("createPermissionFormData", createPermissionFormData);
   Alpine.data("createPermissionSetData", createPermissionSetData);
+  Alpine.data("fillerRows", fillerRows);
   Alpine.data("tableConfig", tableConfig);
   Sortable(Alpine);
 });

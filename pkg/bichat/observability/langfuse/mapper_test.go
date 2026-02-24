@@ -23,7 +23,7 @@ func TestMappers_AllFields(t *testing.T) {
 			TenantID:         uuid.New(),
 			SessionID:        uuid.New(),
 			Timestamp:        time.Now(),
-			Model:            "claude-3-5-sonnet-20241022",
+			Model:            "claude-sonnet-4-6",
 			Provider:         "anthropic",
 			PromptMessages:   5,
 			PromptTokens:     1000,
@@ -48,7 +48,7 @@ func TestMappers_AllFields(t *testing.T) {
 		metadata := mapGenerationToLangfuse(obs)
 
 		// Core fields
-		assert.Equal(t, "claude-3-5-sonnet-20241022", metadata["model"])
+		assert.Equal(t, "claude-sonnet-4-6", metadata["model"])
 		assert.Equal(t, "anthropic", metadata["provider"])
 		assert.Equal(t, "stop", metadata["finish_reason"])
 
@@ -76,7 +76,7 @@ func TestMappers_AllFields(t *testing.T) {
 			TenantID:         uuid.New(),
 			SessionID:        uuid.New(),
 			Timestamp:        time.Now(),
-			Model:            "gpt-4",
+			Model:            "gpt-5.2",
 			PromptTokens:     100,
 			CompletionTokens: 50,
 			TotalTokens:      150,
@@ -85,7 +85,7 @@ func TestMappers_AllFields(t *testing.T) {
 		metadata := mapGenerationToLangfuse(obs)
 
 		// Should include model
-		assert.Equal(t, "gpt-4", metadata["model"])
+		assert.Equal(t, "gpt-5.2", metadata["model"])
 
 		// Should not include empty optional fields
 		assert.NotContains(t, metadata, "provider")
@@ -403,7 +403,7 @@ func TestMappers_EdgeCases(t *testing.T) {
 			TenantID:         uuid.New(),
 			SessionID:        uuid.New(),
 			Timestamp:        time.Now(),
-			Model:            "gpt-4",
+			Model:            "gpt-5.2",
 			PromptTokens:     100,
 			CompletionTokens: 50,
 			TotalTokens:      150,
@@ -413,7 +413,7 @@ func TestMappers_EdgeCases(t *testing.T) {
 		metadata := mapGenerationToLangfuse(obs)
 
 		assert.NotNil(t, metadata)
-		assert.Equal(t, "gpt-4", metadata["model"])
+		assert.Equal(t, "gpt-5.2", metadata["model"])
 	})
 
 	t.Run("mapSpanToLangfuse - nil attributes", func(t *testing.T) {
@@ -530,7 +530,7 @@ func TestMappers_EdgeCases(t *testing.T) {
 			TenantID:   uuid.New(),
 			SessionID:  uuid.New(),
 			Timestamp:  time.Now(),
-			Model:      "gpt-4",
+			Model:      "gpt-5.2",
 			Attributes: attrs,
 		}
 
@@ -558,7 +558,7 @@ func TestMappers_AttributeMerging(t *testing.T) {
 			TenantID:  uuid.New(),
 			SessionID: uuid.New(),
 			Timestamp: time.Now(),
-			Model:     "gpt-4",
+			Model:     "gpt-5.2",
 			Provider:  "openai",
 			Attributes: map[string]interface{}{
 				"model":    "custom-model", // Override model
@@ -599,7 +599,7 @@ func TestMappers_AttributeMerging(t *testing.T) {
 			TenantID:       uuid.New(),
 			SessionID:      uuid.New(),
 			Timestamp:      time.Now(),
-			Model:          "gpt-4",
+			Model:          "gpt-5.2",
 			PromptMessages: 0, // Zero count
 			Tools:          0,
 			ToolCalls:      0,

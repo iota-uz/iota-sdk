@@ -461,6 +461,9 @@ func (c *TestEndpointsController) handleGetOTP(w http.ResponseWriter, r *http.Re
 
 	code, exists := c.otpCache.get(userIDStr)
 	if !exists {
+		code, exists = tf.GetTestOTPCode(userIDStr)
+	}
+	if !exists {
 		logger.WithField("userID", userIDStr).Warn("OTP not found in cache")
 		http.Error(w, "OTP not found or expired", http.StatusNotFound)
 		return
@@ -489,6 +492,9 @@ func (c *TestEndpointsController) handleGetOTPByIdentifier(w http.ResponseWriter
 	}
 
 	code, exists := c.otpCache.get(identifier)
+	if !exists {
+		code, exists = tf.GetTestOTPCode(identifier)
+	}
 	if !exists {
 		logger.WithField("identifier", identifier).Warn("OTP not found in cache")
 		http.Error(w, "OTP not found or expired", http.StatusNotFound)

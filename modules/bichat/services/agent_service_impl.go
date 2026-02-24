@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/google/uuid"
@@ -14,9 +13,16 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
+)
+
+const (
+	defaultSkillsCatalogLimit = 50
+	defaultSkillsMaxChars     = 8000
 )
 
 // agentServiceImpl is the production implementation of AgentService.
@@ -33,6 +39,11 @@ type agentServiceImpl struct {
 	agentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	schemaMetadata         schema.MetadataProvider // Optional for table metadata
 	projectPromptExtension string
+	skillsCatalog          *bichatskills.Catalog
+	skillsCatalogLimit     int
+	skillsMaxChars         int
+	runtimeTools           []agents.Tool
+	logger                 *logrus.Logger
 	formatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
 
@@ -48,6 +59,11 @@ type AgentServiceConfig struct {
 	AgentRegistry          *agents.AgentRegistry   // Optional for multi-agent delegation
 	SchemaMetadata         schema.MetadataProvider // Optional for table metadata
 	ProjectPromptExtension string
+	SkillsCatalog          *bichatskills.Catalog
+	SkillsCatalogLimit     int
+	SkillsMaxChars         int
+	RuntimeTools           []agents.Tool
+	Logger                 *logrus.Logger
 	FormatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
 
@@ -71,6 +87,18 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 	if eventBus == nil {
 		eventBus = hooks.NewEventBus()
 	}
+	logger := cfg.Logger
+	if logger == nil {
+		logger = logrus.New()
+	}
+	limit := cfg.SkillsCatalogLimit
+	if limit <= 0 {
+		limit = defaultSkillsCatalogLimit
+	}
+	maxChars := cfg.SkillsMaxChars
+	if maxChars <= 0 {
+		maxChars = defaultSkillsMaxChars
+	}
 	return &agentServiceImpl{
 		agent:                  cfg.Agent,
 		model:                  cfg.Model,
@@ -82,6 +110,11 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 		agentRegistry:          cfg.AgentRegistry,
 		schemaMetadata:         cfg.SchemaMetadata,
 		projectPromptExtension: strings.TrimSpace(cfg.ProjectPromptExtension),
+		skillsCatalog:          cfg.SkillsCatalog,
+		skillsCatalogLimit:     limit,
+		skillsMaxChars:         maxChars,
+		runtimeTools:           append([]agents.Tool(nil), cfg.RuntimeTools...),
+		logger:                 logger,
 		formatterRegistry:      cfg.FormatterRegistry,
 	}
 }
@@ -97,7 +130,7 @@ func (s *agentServiceImpl) ProcessMessage(
 	sessionID uuid.UUID,
 	content string,
 	attachments []domain.Attachment,
-) (types.Generator[services.Event], error) {
+) (types.Generator[agents.ExecutorEvent], error) {
 	const op serrors.Op = "agentServiceImpl.ProcessMessage"
 	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
@@ -157,6 +190,9 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 			builder.Reference(metadataCodec, codecs.SchemaMetadataPayload{Tables: metadata})
 		}
 	}
+	if reference := s.buildSkillsCatalogReference(); reference != "" {
+		builder.Reference(codecs.NewSystemRulesCodec(), reference)
+	}
 
 	// 2. Session history (KindHistory)
 	if len(sessionMessages) > 0 {
@@ -184,14 +220,16 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 
 	// Emit context.compile event
 	// Convert TokensByKind map keys from BlockKind to string
+	traceID := uuid.New().String()
 	tokensByKindStr := make(map[string]int)
 	for kind, tokens := range compiled.TokensByKind {
 		tokensByKindStr[string(kind)] = tokens
 	}
 
-	event := events.NewContextCompileEvent(
+	event := events.NewContextCompileEventWithTrace(
 		sessionID,
 		tenantID,
+		traceID,
 		s.renderer.Provider(),
 		compiled.TotalTokens,
 		tokensByKindStr,
@@ -205,53 +243,25 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 	// Use compiled.Messages directly (now canonical []types.Message)
 	executorMessages := compiled.Messages
 
-	// Build executor options
-	executorOpts := []agents.ExecutorOption{
-		agents.WithCheckpointer(s.checkpointer),
-		agents.WithEventBus(s.eventBus),
-		agents.WithMaxIterations(10),
-	}
-
-	// Add formatter registry if configured
-	if s.formatterRegistry != nil {
-		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
-	}
-
-	// Add delegation tool if registry is configured
-	if s.agentRegistry != nil && len(s.agentRegistry.All()) > 0 {
-		// Get agent's default tools
-		agentTools := s.agent.Tools()
-
-		// Create delegation tool with runtime session/tenant IDs
-		delegationTool := agents.NewDelegationTool(
-			s.agentRegistry,
-			s.model,
-			sessionID,
-			tenantID,
-		)
-
-		// Append delegation tool to agent tools
-		extendedTools := append(agentTools, delegationTool)
-
-		// Add tools to executor options
-		executorOpts = append(executorOpts, agents.WithExecutorTools(extendedTools))
-	}
-
-	// Create executor with agent, model, and options
-	executor := agents.NewExecutor(s.agent, s.model, executorOpts...)
+	executor := s.buildExecutor(sessionID, tenantID)
 
 	// Execute agent and get event generator
 	input := agents.Input{
 		Messages:           executorMessages,
 		SessionID:          sessionID,
 		TenantID:           tenantID,
+		TraceID:            traceID,
 		PreviousResponseID: session.LLMPreviousResponseID(),
 	}
 
-	execGen := executor.Execute(ctx, input)
+	// Apply per-request reasoning effort override from context
+	if effort, ok := services.UseReasoningEffort(ctx); ok {
+		re := agents.ReasoningEffort(effort)
+		input.ReasoningEffort = &re
+	}
 
-	// Convert executor generator to service event generator
-	return s.convertExecutorGenerator(ctx, execGen), nil
+	// Return executor generator directly — no conversion needed.
+	return executor.Execute(ctx, input), nil
 }
 
 // ResumeWithAnswer resumes agent execution after user answers questions (HITL).
@@ -265,7 +275,7 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 	sessionID uuid.UUID,
 	checkpointID string,
 	answers map[string]types.Answer,
-) (types.Generator[services.Event], error) {
+) (types.Generator[agents.ExecutorEvent], error) {
 	const op serrors.Op = "agentServiceImpl.ResumeWithAnswer"
 	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
@@ -280,191 +290,92 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 		return nil, serrors.E(op, err)
 	}
 
-	// Build executor options (same as ProcessMessage)
-	executorOpts := []agents.ExecutorOption{
+	executor := s.buildExecutor(sessionID, tenantID)
+
+	// Return resume generator directly — no conversion needed.
+	return executor.Resume(ctx, checkpointID, answers), nil
+}
+
+// buildExecutor creates an Executor with shared options (delegation, formatter, checkpointer).
+// Used by both ProcessMessage and ResumeWithAnswer to avoid duplicating setup logic.
+func (s *agentServiceImpl) buildExecutor(sessionID, tenantID uuid.UUID) *agents.Executor {
+	opts := []agents.ExecutorOption{
 		agents.WithCheckpointer(s.checkpointer),
 		agents.WithEventBus(s.eventBus),
-		agents.WithMaxIterations(10),
+		agents.WithMaxIterations(100),
 	}
 
-	// Add formatter registry if configured
 	if s.formatterRegistry != nil {
-		executorOpts = append(executorOpts, agents.WithFormatterRegistry(s.formatterRegistry))
+		opts = append(opts, agents.WithFormatterRegistry(s.formatterRegistry))
 	}
 
-	// Add delegation tool if registry is configured
-	if s.agentRegistry != nil && len(s.agentRegistry.All()) > 0 {
-		// Get agent's default tools
-		agentTools := s.agent.Tools()
+	if tools := s.composeExecutorTools(sessionID, tenantID); len(tools) > 0 {
+		opts = append(opts, agents.WithExecutorTools(tools))
+	}
 
-		// Create delegation tool with runtime session/tenant IDs
-		delegationTool := agents.NewDelegationTool(
+	return agents.NewExecutor(s.agent, s.model, opts...)
+}
+
+func (s *agentServiceImpl) buildSkillsCatalogReference() string {
+	if s.skillsCatalog == nil {
+		return ""
+	}
+	return bichatskills.RenderCatalogReference(
+		s.skillsCatalog,
+		s.skillsCatalogLimit,
+		s.skillsMaxChars,
+	)
+}
+
+func (s *agentServiceImpl) composeExecutorTools(sessionID, tenantID uuid.UUID) []agents.Tool {
+	hasDelegationTargets := s.agentRegistry != nil && len(s.agentRegistry.All()) > 0
+	if len(s.runtimeTools) == 0 && !hasDelegationTargets {
+		return nil
+	}
+
+	tools := append([]agents.Tool(nil), s.agent.Tools()...)
+	tools = append(tools, s.runtimeTools...)
+	if hasDelegationTargets {
+		tools = append(tools, agents.NewDelegationTool(
 			s.agentRegistry,
 			s.model,
 			sessionID,
 			tenantID,
-		)
-
-		// Append delegation tool to agent tools
-		extendedTools := append(agentTools, delegationTool)
-
-		// Add tools to executor options
-		executorOpts = append(executorOpts, agents.WithExecutorTools(extendedTools))
+		))
 	}
-
-	// Create executor (same configuration as ProcessMessage)
-	executor := agents.NewExecutor(s.agent, s.model, executorOpts...)
-
-	// Resume execution from checkpoint with user answers
-	execGen := executor.Resume(ctx, checkpointID, answers)
-
-	// Convert executor generator to service event generator
-	return s.convertExecutorGenerator(ctx, execGen), nil
+	return deduplicateToolsByName(tools)
 }
 
-// convertExecutorGenerator converts an executor event generator to a service event generator.
-// This converts agents.ExecutorEvent to services.Event for the service layer.
-func (s *agentServiceImpl) convertExecutorGenerator(
-	ctx context.Context,
-	execGen types.Generator[agents.ExecutorEvent],
-) types.Generator[services.Event] {
-	return types.NewGenerator(ctx, func(ctx context.Context, yield func(services.Event) bool) error {
-		for {
-			execEvent, err := execGen.Next(ctx)
-			if err != nil {
-				if err == types.ErrGeneratorDone {
-					return nil // Normal completion
-				}
-				return err
-			}
-
-			// Convert executor event to service event
-			serviceEvent := convertExecutorEvent(execEvent)
-			if !yield(serviceEvent) {
-				return nil // Consumer stopped
-			}
-		}
-	})
-}
-
-// convertExecutorEvent converts an agents.ExecutorEvent to a services.Event.
-func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
-	event := services.Event{}
-
-	switch execEvent.Type {
-	case agents.EventTypeChunk:
-		event.Type = services.EventTypeContent
-		if execEvent.Chunk != nil {
-			event.Content = execEvent.Chunk.Delta
-		}
-
-	case agents.EventTypeToolStart:
-		event.Type = services.EventTypeToolStart
-		if execEvent.Tool != nil {
-			event.Tool = &services.ToolEvent{
-				CallID:    execEvent.Tool.CallID,
-				Name:      execEvent.Tool.Name,
-				Arguments: execEvent.Tool.Arguments,
-			}
-		}
-
-	case agents.EventTypeToolEnd:
-		event.Type = services.EventTypeToolEnd
-		if execEvent.Tool != nil {
-			event.Tool = &services.ToolEvent{
-				CallID:     execEvent.Tool.CallID,
-				Name:       execEvent.Tool.Name,
-				Arguments:  execEvent.Tool.Arguments,
-				Result:     execEvent.Tool.Result,
-				Error:      execEvent.Tool.Error,
-				DurationMs: execEvent.Tool.DurationMs,
-			}
-		}
-
-	case agents.EventTypeInterrupt:
-		event.Type = services.EventTypeInterrupt
-		if execEvent.Interrupt != nil {
-			event.Interrupt = convertInterruptEvent(execEvent.Interrupt)
-		}
-
-	case agents.EventTypeDone:
-		event.Type = services.EventTypeDone
-		event.Done = true
-		// Extract usage from result if available
-		if execEvent.Result != nil {
-			event.ProviderResponseID = execEvent.Result.ProviderResponseID
-			usage := execEvent.Result.Usage
-			if usage.PromptTokens > 0 || usage.CompletionTokens > 0 || usage.TotalTokens > 0 || usage.CachedTokens > 0 || usage.CacheReadTokens > 0 || usage.CacheWriteTokens > 0 {
-				cachedTokens := usage.CachedTokens
-				if cachedTokens == 0 {
-					cachedTokens = usage.CacheReadTokens
-				}
-				event.Usage = &types.DebugUsage{
-					PromptTokens:     usage.PromptTokens,
-					CompletionTokens: usage.CompletionTokens,
-					TotalTokens:      usage.TotalTokens,
-					CachedTokens:     cachedTokens,
-				}
-			}
-		}
-
-	case agents.EventTypeError:
-		event.Type = services.EventTypeError
-		event.Error = execEvent.Error
-	}
-
-	return event
-}
-
-// convertInterruptEvent converts an agents.InterruptEvent to a services.InterruptEvent.
-func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.InterruptEvent {
-	if agentInterrupt == nil {
+func deduplicateToolsByName(tools []agents.Tool) []agents.Tool {
+	if len(tools) == 0 {
 		return nil
 	}
 
-	// Parse the canonical interrupt payload
-	var questions []services.Question
-	if len(agentInterrupt.Data) > 0 {
-		var payload types.AskUserQuestionPayload
-		if err := json.Unmarshal(agentInterrupt.Data, &payload); err == nil {
-			questions = make([]services.Question, 0, len(payload.Questions))
-			for _, q := range payload.Questions {
-				// Convert options
-				options := make([]services.QuestionOption, 0, len(q.Options))
-				for _, opt := range q.Options {
-					options = append(options, services.QuestionOption{
-						ID:    opt.ID,
-						Label: opt.Label,
-					})
-				}
+	// Preserve order while preferring later definitions (runtime overrides base).
+	reversed := make([]agents.Tool, 0, len(tools))
+	seen := make(map[string]struct{}, len(tools))
 
-				// Determine question type.
-				// Questions are always single_choice or multiple_choice (no standalone free-text type).
-				questionType := services.QuestionTypeSingleChoice
-				if q.MultiSelect {
-					questionType = services.QuestionTypeMultipleChoice
-				}
-
-				questions = append(questions, services.Question{
-					ID:      q.ID,
-					Text:    q.Question,
-					Type:    questionType,
-					Options: options,
-				})
-			}
+	for i := len(tools) - 1; i >= 0; i-- {
+		tool := tools[i]
+		if tool == nil {
+			continue
 		}
+		name := strings.TrimSpace(tool.Name())
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		reversed = append(reversed, tool)
 	}
 
-	// Use the real checkpoint ID and agent name from the interrupt event
-	checkpointID := agentInterrupt.CheckpointID
-	agentName := agentInterrupt.AgentName
-
-	return &services.InterruptEvent{
-		CheckpointID:       checkpointID,
-		AgentName:          agentName,
-		ProviderResponseID: agentInterrupt.ProviderResponseID,
-		Questions:          questions,
+	result := make([]agents.Tool, len(reversed))
+	for i := range reversed {
+		result[i] = reversed[len(reversed)-1-i]
 	}
+	return result
 }
 
 // convertToHistoryPayload converts types.Message slice to ConversationHistoryPayload
@@ -494,6 +405,7 @@ func convertToTypeAttachments(domainAttachments []domain.Attachment) []types.Att
 		result[i] = types.Attachment{
 			ID:        a.ID(),
 			MessageID: a.MessageID(),
+			UploadID:  a.UploadID(),
 			FileName:  a.FileName(),
 			MimeType:  a.MimeType(),
 			SizeBytes: a.SizeBytes(),

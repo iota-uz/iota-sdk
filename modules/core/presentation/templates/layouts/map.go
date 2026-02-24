@@ -11,12 +11,14 @@ func MapNavItemToSidebar(navItem types.NavigationItem) sidebar.Item {
 			navItem.Name,
 			navItem.Icon,
 			MapNavItemsToSidebar(navItem.Children),
+			sidebar.WithBeta(navItem.IsBeta),
 		)
 	}
 	return sidebar.NewLink(
 		navItem.Href,
 		navItem.Name,
 		navItem.Icon,
+		sidebar.WithBeta(navItem.IsBeta),
 	)
 }
 

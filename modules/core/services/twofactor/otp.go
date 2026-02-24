@@ -163,7 +163,8 @@ func (s *OTPService) Generate(ctx context.Context, userID uint, channel pkgtf.OT
 			Recipient: destination,
 			Code:      code,
 			Metadata: map[string]string{
-				"user_id": fmt.Sprintf("%d", userID),
+				"user_id":     fmt.Sprintf("%d", userID),
+				"ttl_seconds": fmt.Sprintf("%d", int(s.expiry.Seconds())),
 			},
 		}
 

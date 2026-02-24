@@ -50,7 +50,8 @@ func (p *clickProvider) Create(_ context.Context, t billing.Transaction) (billin
 	params["service_id"] = p.config.ServiceID
 	params["merchant_id"] = p.config.MerchantID
 	params["merchant_user_id"] = p.config.MerchantUserID
-	params["amount"] = t.Amount().Quantity()
+	// https://docs.click.uz/click-button/ (format N.NN)
+	params["amount"] = fmt.Sprintf("%.2f", t.Amount().Quantity())
 	params["transaction_param"] = clickDetails.MerchantTransID()
 
 	values := url.Values{}

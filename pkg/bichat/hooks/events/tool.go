@@ -2,6 +2,7 @@ package events
 
 import (
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // ToolStartEvent indicates a tool execution has started.
@@ -15,8 +16,13 @@ type ToolStartEvent struct {
 
 // NewToolStartEvent creates a new ToolStartEvent.
 func NewToolStartEvent(sessionID, tenantID uuid.UUID, toolName, arguments, callID string) *ToolStartEvent {
+	return NewToolStartEventWithTrace(sessionID, tenantID, sessionID.String(), toolName, arguments, callID)
+}
+
+// NewToolStartEventWithTrace creates a new ToolStartEvent with an explicit trace ID.
+func NewToolStartEventWithTrace(sessionID, tenantID uuid.UUID, traceID, toolName, arguments, callID string) *ToolStartEvent {
 	return &ToolStartEvent{
-		baseEvent: newBaseEvent("tool.start", sessionID, tenantID),
+		baseEvent: newBaseEventWithTrace("tool.start", sessionID, tenantID, traceID),
 		ToolName:  toolName,
 		Arguments: arguments,
 		CallID:    callID,
@@ -31,17 +37,24 @@ type ToolCompleteEvent struct {
 	Arguments  string // JSON-encoded arguments
 	CallID     string // Unique identifier for this tool call
 	Result     string // Tool execution result (as returned to LLM)
-	DurationMs int64  // Execution duration in milliseconds
+	Artifacts  []types.ToolArtifact
+	DurationMs int64 // Execution duration in milliseconds
 }
 
 // NewToolCompleteEvent creates a new ToolCompleteEvent.
-func NewToolCompleteEvent(sessionID, tenantID uuid.UUID, toolName, arguments, callID, result string, durationMs int64) *ToolCompleteEvent {
+func NewToolCompleteEvent(sessionID, tenantID uuid.UUID, toolName, arguments, callID, result string, artifacts []types.ToolArtifact, durationMs int64) *ToolCompleteEvent {
+	return NewToolCompleteEventWithTrace(sessionID, tenantID, sessionID.String(), toolName, arguments, callID, result, artifacts, durationMs)
+}
+
+// NewToolCompleteEventWithTrace creates a new ToolCompleteEvent with an explicit trace ID.
+func NewToolCompleteEventWithTrace(sessionID, tenantID uuid.UUID, traceID, toolName, arguments, callID, result string, artifacts []types.ToolArtifact, durationMs int64) *ToolCompleteEvent {
 	return &ToolCompleteEvent{
-		baseEvent:  newBaseEvent("tool.complete", sessionID, tenantID),
+		baseEvent:  newBaseEventWithTrace("tool.complete", sessionID, tenantID, traceID),
 		ToolName:   toolName,
 		Arguments:  arguments,
 		CallID:     callID,
 		Result:     result,
+		Artifacts:  artifacts,
 		DurationMs: durationMs,
 	}
 }
@@ -59,8 +72,13 @@ type ToolErrorEvent struct {
 
 // NewToolErrorEvent creates a new ToolErrorEvent.
 func NewToolErrorEvent(sessionID, tenantID uuid.UUID, toolName, arguments, callID, errMsg string, durationMs int64) *ToolErrorEvent {
+	return NewToolErrorEventWithTrace(sessionID, tenantID, sessionID.String(), toolName, arguments, callID, errMsg, durationMs)
+}
+
+// NewToolErrorEventWithTrace creates a new ToolErrorEvent with an explicit trace ID.
+func NewToolErrorEventWithTrace(sessionID, tenantID uuid.UUID, traceID, toolName, arguments, callID, errMsg string, durationMs int64) *ToolErrorEvent {
 	return &ToolErrorEvent{
-		baseEvent:  newBaseEvent("tool.error", sessionID, tenantID),
+		baseEvent:  newBaseEventWithTrace("tool.error", sessionID, tenantID, traceID),
 		ToolName:   toolName,
 		Arguments:  arguments,
 		CallID:     callID,

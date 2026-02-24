@@ -21,7 +21,7 @@ func TestCostTracker_TrackLLMResponse(t *testing.T) {
 
 	// Create pricing
 	pricing := hooks.NewStaticModelPricing()
-	pricing.AddPrice("claude-3-5-sonnet", 3.0, 15.0) // $3/$15 per 1M tokens
+	pricing.AddPrice("claude-sonnet-4-6", 3.0, 15.0) // $3/$15 per 1M tokens
 
 	// Create tracker
 	tracker := hooks.NewCostTracker(pricing)
@@ -33,7 +33,7 @@ func TestCostTracker_TrackLLMResponse(t *testing.T) {
 
 	event := events.NewLLMResponseEvent(
 		sessionID, tenantID,
-		"claude-3-5-sonnet", "anthropic",
+		"claude-sonnet-4-6", "anthropic",
 		1000,   // prompt tokens
 		2000,   // completion tokens
 		3000,   // total tokens
@@ -88,7 +88,7 @@ func TestCostTracker_MultipleSessions(t *testing.T) {
 
 	// Create pricing
 	pricing := hooks.NewStaticModelPricing()
-	pricing.AddPrice("gpt-4", 10.0, 30.0) // $10/$30 per 1M tokens
+	pricing.AddPrice("gpt-5.2", 10.0, 30.0) // $10/$30 per 1M tokens
 
 	// Create tracker
 	tracker := hooks.NewCostTracker(pricing)
@@ -99,13 +99,13 @@ func TestCostTracker_MultipleSessions(t *testing.T) {
 	session2 := uuid.New()
 
 	// Session 1: 500 prompt + 1000 completion
-	event1 := events.NewLLMResponseEvent(session1, tenantID, "gpt-4", "openai", 500, 1000, 1500, 1000, "stop", 0, "")
+	event1 := events.NewLLMResponseEvent(session1, tenantID, "gpt-5.2", "openai", 500, 1000, 1500, 1000, "stop", 0, "")
 	if err := tracker.Handle(ctx, event1); err != nil {
 		t.Fatalf("Failed to handle event1: %v", err)
 	}
 
 	// Session 2: 300 prompt + 600 completion
-	event2 := events.NewLLMResponseEvent(session2, tenantID, "gpt-4", "openai", 300, 600, 900, 800, "stop", 0, "")
+	event2 := events.NewLLMResponseEvent(session2, tenantID, "gpt-5.2", "openai", 300, 600, 900, 800, "stop", 0, "")
 	if err := tracker.Handle(ctx, event2); err != nil {
 		t.Fatalf("Failed to handle event2: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestCostTracker_UnknownModel(t *testing.T) {
 
 	// Create pricing with limited models
 	pricing := hooks.NewStaticModelPricing()
-	pricing.AddPrice("claude-3-5-sonnet", 3.0, 15.0)
+	pricing.AddPrice("claude-sonnet-4-6", 3.0, 15.0)
 
 	// Create tracker
 	tracker := hooks.NewCostTracker(pricing)
@@ -181,7 +181,7 @@ func TestCostTracker_Reset(t *testing.T) {
 	t.Parallel()
 
 	pricing := hooks.NewStaticModelPricing()
-	pricing.AddPrice("claude-3-5-sonnet", 3.0, 15.0)
+	pricing.AddPrice("claude-sonnet-4-6", 3.0, 15.0)
 
 	tracker := hooks.NewCostTracker(pricing)
 	ctx := context.Background()
@@ -190,7 +190,7 @@ func TestCostTracker_Reset(t *testing.T) {
 	sessionID := uuid.New()
 
 	// Track some cost
-	event := events.NewLLMResponseEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 1000, 2000, 3000, 1000, "stop", 0, "")
+	event := events.NewLLMResponseEvent(sessionID, tenantID, "claude-sonnet-4-6", "anthropic", 1000, 2000, 3000, 1000, "stop", 0, "")
 	if err := tracker.Handle(ctx, event); err != nil {
 		t.Fatalf("Failed to handle event: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestCostTracker_CacheTokens(t *testing.T) {
 	pricing := hooks.NewStaticModelPricing()
 	// OpenAI GPT-4o pricing with cache
 	// Input: $2.50/1M, Output: $10/1M, Cache Write: $1.25/1M, Cache Read: $0.625/1M
-	pricing.AddPriceWithCache("gpt-4o", 2.50, 10.0, 1.25, 0.625)
+	pricing.AddPriceWithCache("gpt-5.2", 2.50, 10.0, 1.25, 0.625)
 
 	// Create tracker
 	tracker := hooks.NewCostTracker(pricing)
@@ -229,7 +229,7 @@ func TestCostTracker_CacheTokens(t *testing.T) {
 	// 1000 prompt tokens, 500 completion tokens, 0 cache write, 2000 cache read
 	event := events.NewLLMResponseEventWithCache(
 		sessionID, tenantID,
-		"gpt-4o", "openai",
+		"gpt-5.2", "openai",
 		1000, // prompt tokens
 		500,  // completion tokens
 		3500, // total tokens
@@ -291,7 +291,7 @@ func TestCostTracker_CacheTokensWithWrite(t *testing.T) {
 	// Create pricing with cache support
 	pricing := hooks.NewStaticModelPricing()
 	// OpenAI GPT-4o mini pricing
-	pricing.AddPriceWithCache("gpt-4o-mini", 0.150, 0.600, 0.075, 0.038)
+	pricing.AddPriceWithCache("gpt-5-mini", 0.150, 0.600, 0.075, 0.038)
 
 	tracker := hooks.NewCostTracker(pricing)
 	ctx := context.Background()
@@ -302,7 +302,7 @@ func TestCostTracker_CacheTokensWithWrite(t *testing.T) {
 	// Create event with both cache write and read
 	event := events.NewLLMResponseEventWithCache(
 		sessionID, tenantID,
-		"gpt-4o-mini", "openai",
+		"gpt-5-mini", "openai",
 		1000, // prompt tokens
 		500,  // completion tokens
 		4500, // total tokens
@@ -349,7 +349,7 @@ func TestCostTracker_ModelWithoutCachePricing(t *testing.T) {
 
 	// Create pricing without cache support (e.g., older models)
 	pricing := hooks.NewStaticModelPricing()
-	pricing.AddPrice("gpt-3.5-turbo", 0.50, 1.50)
+	pricing.AddPrice("gpt-5-mini", 0.50, 1.50)
 
 	tracker := hooks.NewCostTracker(pricing)
 	ctx := context.Background()
@@ -360,7 +360,7 @@ func TestCostTracker_ModelWithoutCachePricing(t *testing.T) {
 	// Create event with cache tokens (but model doesn't support caching)
 	event := events.NewLLMResponseEventWithCache(
 		sessionID, tenantID,
-		"gpt-3.5-turbo", "openai",
+		"gpt-5-mini", "openai",
 		1000, // prompt tokens
 		500,  // completion tokens
 		1500, // total tokens

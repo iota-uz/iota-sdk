@@ -81,21 +81,18 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 	// Get column descriptions
 	fieldDescriptions := rows.FieldDescriptions()
 	columnNames := make([]string, len(fieldDescriptions))
+	columnTypes := make([]string, len(fieldDescriptions))
 	for i, fd := range fieldDescriptions {
 		columnNames[i] = fd.Name
+		columnTypes[i] = bichatsql.PgOIDToColumnType(fd.DataTypeOID)
 	}
 
-	// Collect rows (canonical format: [][]any)
+	// Collect rows (canonical format: [][]any).
+	// Do not enforce a global executor cap here: tool-level limits (e.g. sql_execute,
+	// export_query_to_excel) must control row count semantics.
 	var results [][]any
-	maxRows := 1000
-	hitLimit := false
 
 	for rows.Next() {
-		if len(results) >= maxRows {
-			hitLimit = true
-			break
-		}
-
 		values, err := rows.Values()
 		if err != nil {
 			return nil, serrors.E(op, err, "failed to scan row")
@@ -123,12 +120,13 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 	}
 
 	return &bichatsql.QueryResult{
-		Columns:   columnNames,
-		Rows:      results,
-		RowCount:  len(results),
-		Truncated: hitLimit,
-		Duration:  time.Since(start),
-		SQL:       sql,
+		Columns:     columnNames,
+		ColumnTypes: columnTypes,
+		Rows:        results,
+		RowCount:    len(results),
+		Truncated:   false,
+		Duration:    time.Since(start),
+		SQL:         sql,
 	}, nil
 }
 

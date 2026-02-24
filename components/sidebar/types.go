@@ -18,6 +18,7 @@ type Link interface {
 	Href() string
 	Text() string
 	Icon() templ.Component
+	IsBeta() bool
 	IsActive(ctx context.Context) bool
 	SetPosition(position int) Link
 }
@@ -29,6 +30,7 @@ type Group interface {
 	Position() int
 	Text() string
 	Icon() templ.Component
+	IsBeta() bool
 	Children() []Item
 	IsActive(ctx context.Context) bool
 	SetPosition(position int) Group
@@ -39,6 +41,7 @@ type Item interface {
 	IsLink() bool
 	Position() int
 	Icon() templ.Component
+	IsBeta() bool
 	IsActive(ctx context.Context) bool
 }
 
@@ -51,13 +54,37 @@ func asGroup(i Item) Group {
 }
 
 // NewGroup creates a new navigation group with the given text, icon, and child items.
-func NewGroup(text string, icon templ.Component, children []Item) Group {
+type itemOptions struct {
+	isBeta bool
+}
+
+type ItemOption func(*itemOptions)
+
+func WithBeta(isBeta bool) ItemOption {
+	return func(opts *itemOptions) {
+		opts.isBeta = isBeta
+	}
+}
+
+func applyOptions(options ...ItemOption) itemOptions {
+	opts := itemOptions{}
+	for _, option := range options {
+		if option != nil {
+			option(&opts)
+		}
+	}
+	return opts
+}
+
+func NewGroup(text string, icon templ.Component, children []Item, options ...ItemOption) Group {
+	opts := applyOptions(options...)
 	return &group{
 		id:       random.String(8, random.AlphaNumericSet),
 		text:     text,
 		position: 0,
 		icon:     icon,
 		children: children,
+		isBeta:   opts.isBeta,
 	}
 }
 
@@ -67,6 +94,7 @@ type group struct {
 	position int
 	icon     templ.Component
 	children []Item
+	isBeta   bool
 }
 
 func (g *group) SetPosition(position int) Group {
@@ -76,6 +104,7 @@ func (g *group) SetPosition(position int) Group {
 		position: position,
 		icon:     g.icon,
 		children: g.children,
+		isBeta:   g.isBeta,
 	}
 }
 
@@ -89,6 +118,10 @@ func (g *group) ID() string {
 
 func (g *group) Text() string {
 	return g.text
+}
+
+func (g *group) IsBeta() bool {
+	return g.isBeta
 }
 
 func (g *group) Position() int {
@@ -113,12 +146,14 @@ func (g *group) Children() []Item {
 }
 
 // NewLink creates a new navigation link with the given URL, text, and icon.
-func NewLink(href, text string, icon templ.Component) Link {
+func NewLink(href, text string, icon templ.Component, options ...ItemOption) Link {
+	opts := applyOptions(options...)
 	return &link{
 		href:     href,
 		text:     text,
 		position: 0,
 		icon:     icon,
+		isBeta:   opts.isBeta,
 	}
 }
 
@@ -127,6 +162,7 @@ type link struct {
 	text     string
 	position int
 	icon     templ.Component
+	isBeta   bool
 }
 
 func (l *link) SetPosition(position int) Link {
@@ -135,6 +171,7 @@ func (l *link) SetPosition(position int) Link {
 		text:     l.text,
 		position: position,
 		icon:     l.icon,
+		isBeta:   l.isBeta,
 	}
 }
 
@@ -151,6 +188,10 @@ func (l *link) IsLink() bool {
 	return true
 }
 
+func (l *link) IsBeta() bool {
+	return l.isBeta
+}
+
 func (l *link) Position() int {
 	return l.position
 }
@@ -165,9 +206,10 @@ func (l *link) Href() string {
 
 // TabGroup represents a group of sidebar items organized under a tab
 type TabGroup struct {
-	Label string
-	Value string
-	Items []Item
+	Label  string
+	Value  string
+	Items  []Item
+	IsBeta bool
 }
 
 // TabGroupCollection holds multiple tab groups for the sidebar

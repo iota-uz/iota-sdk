@@ -11,6 +11,7 @@ import (
 type Attachment interface {
 	ID() uuid.UUID
 	MessageID() uuid.UUID
+	UploadID() *int64
 	FileName() string
 	MimeType() string
 	SizeBytes() int64
@@ -24,6 +25,7 @@ type Attachment interface {
 type attachment struct {
 	id        uuid.UUID
 	messageID uuid.UUID
+	uploadID  *int64
 	fileName  string
 	mimeType  string
 	sizeBytes int64
@@ -60,6 +62,13 @@ func WithAttachmentID(id uuid.UUID) AttachmentOption {
 func WithAttachmentMessageID(messageID uuid.UUID) AttachmentOption {
 	return func(a *attachment) {
 		a.messageID = messageID
+	}
+}
+
+// WithUploadID sets the upload ID linked to this attachment.
+func WithUploadID(uploadID int64) AttachmentOption {
+	return func(a *attachment) {
+		a.uploadID = &uploadID
 	}
 }
 
@@ -106,6 +115,10 @@ func (a *attachment) ID() uuid.UUID {
 
 func (a *attachment) MessageID() uuid.UUID {
 	return a.messageID
+}
+
+func (a *attachment) UploadID() *int64 {
+	return a.uploadID
 }
 
 func (a *attachment) FileName() string {

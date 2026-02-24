@@ -1,30 +1,12 @@
 package domain
 
-// Citation represents a source reference in an AI response.
-// This is a struct (not interface) following idiomatic Go patterns.
-type Citation struct {
-	Source  string `json:"source"`
-	Title   string `json:"title,omitempty"`
-	URL     string `json:"url,omitempty"`
-	Excerpt string `json:"excerpt,omitempty"`
-}
+import "github.com/iota-uz/iota-sdk/pkg/bichat/types"
 
-// NewCitation creates a new citation with the given parameters
-func NewCitation(source, title, url, excerpt string) Citation {
-	return Citation{
-		Source:  source,
-		Title:   title,
-		URL:     url,
-		Excerpt: excerpt,
-	}
-}
+// Citation is an alias for types.Citation.
+// All citation handling is consolidated in pkg/bichat/types.
+// Use this alias to avoid import changes in domain-layer callers.
+type Citation = types.Citation
 
-// HasURL returns true if the citation has a URL
-func (c Citation) HasURL() bool {
-	return c.URL != ""
-}
-
-// HasExcerpt returns true if the citation has an excerpt
-func (c Citation) HasExcerpt() bool {
-	return c.Excerpt != ""
-}
+// NewCitation creates a new Citation with the given source metadata.
+// Re-exported from types for domain-layer convenience.
+var NewCitation = types.NewCitation

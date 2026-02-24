@@ -911,6 +911,28 @@
     color: oklch(var(--white));
   }
 
+  /* Sidebar flyout dropdown (collapsed mode popover) */
+  .sidebar-flyout {
+    background-color: oklch(var(--clr-surface-200));
+    border: 1px solid oklch(var(--white) / 8%);
+    box-shadow: 0 8px 24px -4px oklch(var(--black) / 60%);
+    color: oklch(var(--white));
+  }
+
+  .sidebar-flyout .btn-sidebar {
+    --text-color: var(--gray-300);
+  }
+
+  .sidebar-flyout .btn-sidebar:not(.btn-loading):not(.htmx-request):hover {
+    --bg-color: var(--clr-sidebar-btn-bg-hover);
+    --text-color: var(--white);
+  }
+
+  .sidebar-flyout .btn-sidebar:not(.btn-loading):not(.htmx-request).active {
+    --bg-color: var(--clr-sidebar-btn-bg-active);
+    --text-color: var(--white);
+  }
+
   /* Toggle button styling */
   .btn-ghost {
     --text-color: var(--gray-600);

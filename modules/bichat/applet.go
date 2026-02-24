@@ -14,6 +14,7 @@ import (
 	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
@@ -24,21 +25,16 @@ var distFS = assets.AppletFS()
 // This enables BiChat to integrate with the SDK's generic applet system,
 // providing context injection, routing, and asset serving.
 type BiChatApplet struct {
-	config *ModuleConfig
+	config    *ModuleConfig
+	container *ServiceContainer
 }
 
 // NewBiChatApplet creates a new BiChatApplet instance.
-// The config is optional and can be set later via SetConfig.
-func NewBiChatApplet(config *ModuleConfig) *BiChatApplet {
+func NewBiChatApplet(config *ModuleConfig, container *ServiceContainer) *BiChatApplet {
 	return &BiChatApplet{
-		config: config,
+		config:    config,
+		container: container,
 	}
-}
-
-// SetConfig updates the applet configuration.
-// This allows the applet to be created before the full module configuration is available.
-func (a *BiChatApplet) SetConfig(config *ModuleConfig) {
-	a.config = config
 }
 
 // Name returns the unique identifier for the BiChat applets.
@@ -91,7 +87,7 @@ func (a *BiChatApplet) Config() applets.Config {
 		// Router uses MuxRouter to extract route parameters (e.g., /sessions/{id})
 		Router: applets.NewMuxRouter(),
 
-		// CustomContext injects BiChat feature flags into InitialContext.Extensions
+		// CustomContext injects BiChat capabilities into InitialContext.Extensions
 		CustomContext: a.buildCustomContext,
 
 		// Middleware: Required middleware stack for authenticated applet
@@ -109,11 +105,11 @@ func (a *BiChatApplet) Config() applets.Config {
 		},
 
 		RPC: func() *applets.RPCConfig {
-			if a.config == nil {
+			if a.container == nil {
 				return nil
 			}
-			chatSvc := a.config.ChatService()
-			artifactSvc := a.config.ArtifactService()
+			chatSvc := a.container.ChatService()
+			artifactSvc := a.container.ArtifactService()
 			if chatSvc == nil || artifactSvc == nil {
 				return nil
 			}
@@ -196,7 +192,7 @@ func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
 }
 
 // buildCustomContext creates custom context fields for the BiChat React app.
-// This passes feature flags from ModuleConfig to the frontend via InitialContext.Extensions.
+// This passes capabilities from ModuleConfig to the frontend via InitialContext.Extensions.
 //
 // Extensions structure:
 //
@@ -210,7 +206,7 @@ func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
 //	  "debug": {
 //	    "limits": {
 //	      "policyMaxTokens": 180000,
-//	      "modelMaxTokens": 272000,
+//	      "modelMaxTokens": 400000,
 //	      "effectiveMaxTokens": 180000,
 //	      "completionReserveTokens": 8000
 //	    }
@@ -227,8 +223,9 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 				"multiAgent":      false,
 			},
 			"llm": map[string]interface{}{
-				"provider":         "",
-				"apiKeyConfigured": false,
+				"provider":               "",
+				"apiKeyConfigured":       false,
+				"reasoningEffortOptions": []string{},
 			},
 			"debug": map[string]interface{}{
 				"limits": map[string]int{
@@ -241,12 +238,12 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 		}, nil
 	}
 
-	// Extract feature flags from config
+	// Extract capabilities from config
 	features := map[string]bool{
-		"vision":          a.config.EnableVision,
-		"webSearch":       a.config.EnableWebSearch,
-		"codeInterpreter": a.config.EnableCodeInterpreter,
-		"multiAgent":      a.config.EnableMultiAgent,
+		"vision":          a.config.Capabilities.Vision,
+		"webSearch":       a.config.Capabilities.WebSearch,
+		"codeInterpreter": a.config.Capabilities.CodeInterpreter,
+		"multiAgent":      a.config.Capabilities.MultiAgent,
 	}
 
 	policyMax := a.config.ContextPolicy.ContextWindow
@@ -277,19 +274,29 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 	}
 
 	modelProvider := ""
+	modelName := ""
 	if a.config.Model != nil {
-		modelProvider = strings.ToLower(strings.TrimSpace(a.config.Model.Info().Provider))
+		info := a.config.Model.Info()
+		modelProvider = strings.ToLower(strings.TrimSpace(info.Provider))
+		modelName = info.Name
 	}
 	apiKeyConfigured := true
 	if modelProvider == "openai" {
 		apiKeyConfigured = strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != ""
 	}
 
+	var reasoningEffortOptions []string
+	if modelName != "" && modelProvider != "" {
+		opts := agents.ReasoningEffortOptionsForModel(modelProvider, modelName)
+		reasoningEffortOptions = agents.ReasoningEffortOptionsStrings(opts)
+	}
+
 	return map[string]interface{}{
 		"features": features,
 		"llm": map[string]interface{}{
-			"provider":         modelProvider,
-			"apiKeyConfigured": apiKeyConfigured,
+			"provider":               modelProvider,
+			"apiKeyConfigured":       apiKeyConfigured,
+			"reasoningEffortOptions": reasoningEffortOptions,
 		},
 		"debug": map[string]interface{}{
 			"limits": limits,
