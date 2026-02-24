@@ -1,0 +1,467 @@
+{
+  "NavigationLinks": {
+    "BiChat": "БИ-Чат"
+  },
+  "BiChat": {
+    "Meta": {
+      "Index": {
+        "Title": "БИ-Чат"
+      }
+    },
+    "Title": "БИ-Чат",
+    "NewChat": "Янги чат",
+    "MessagePlaceholder": "Хабар ёзинг...",
+    "SendMessage": "Хабар юбориш",
+    "Loading": "Юкланмоқда...",
+    "Error": {
+      "Generic": "Хатолик юз берди",
+      "Label": "Хато",
+      "SomethingWentWrong": "Нимадир хато кетди",
+      "UnexpectedError": "Кутилмаган хатолик юз берди. Қайта уриниб кўринг."
+    },
+    "Retry": {
+      "Title": "Қайта уриниш",
+      "Subtitle": "Нимадир хато кетди. Қайта уриниб кўрмоқчимисиз?",
+      "Button": "Қайта уриниш",
+      "Label": "Қайта уриниш"
+    },
+    "Cancel": "Бекор қилиш",
+    "Submit": "Юбориш",
+    "Export": "Експорт",
+    "ExportTableToExcel": "Юқоридаги жадвални Ехcелга експорт қилиш",
+    "History": {
+      "Empty": "Тарих бўш",
+      "HelpText": "Янги чат бошлаш учун \"Янги чат\" тугмасини босинг"
+    },
+    "Permissions": {
+      "Access": "БИ-чатга кириш",
+      "ReadAll": "Барча сессияларни кўриш",
+      "Export": "Маълумотларни експорт қилиш"
+    },
+    "SlashCommands": {
+      "Clear": "Тарихни тозалаш",
+      "Compact": "Тарихни ихчамлаштириш",
+      "Compacting": "Тарих ихчамлаштирилмоқда",
+      "CompactedSummary": "Ихчам хулоса"
+    },
+    "InlineQuestion": {
+      "InputNeeded": "Киритиш керак",
+      "WaitingForDetails": "Ёрдамчидан савол тафсилотлари кутилмоқда...",
+      "Next": "Кейингиси",
+      "Back": "Орқага",
+      "OtherOption": "Бошқа",
+      "TypeYourAnswer": "Жавобингизни ёзинг...",
+      "SelectAllThatApply": "Тегишли барчасини танланг",
+      "Dismiss": "Ёпиш"
+    },
+    "Thinking": {
+      "Thinking": "Ўйламоқда",
+      "Processing": "Қайта ишламоқда",
+      "Analyzing": "Таҳлил қилмоқда",
+      "Synthesizing": "Синтез қилмоқда",
+      "Computing": "Ҳисоблашмоқда",
+      "WorkingOnIt": "Устида ишламоқда",
+      "AriaLabel": "СИ: {{verb}}"
+    },
+    "Tools": {
+      "sql_execute": "Маълумотлар базасига сўров юборилмоқда",
+      "schema_list": "Жадваллар рўйхати олинмоқда",
+      "schema_describe": "Жадвал тузилиши таҳлил қилинмоқда",
+      "draw_chart": "График яратилмоқда",
+      "draw_table": "Жадвал қурилмоқда",
+      "kb_search": "Билимлар базасида қидирилмоқда",
+      "web_search": "Интернетда қидирилмоқда",
+      "web_fetch": "Вебдан маълумот олинмоқда",
+      "code_interpreter": "Код бажарилмоқда",
+      "export_data_to_excel": "Ехcелга експорт қилинмоқда",
+      "export_query_to_excel": "Сўров Ехcелга експорт қилинмоқда",
+      "export_to_pdf": "ПДФга експорт қилинмоқда",
+      "artifact_reader": "Юкланган файл ўқилмоқда",
+      "ask_user_question": "Савол берилмоқда",
+      "final_answer": "Жавоб тайёрланмоқда",
+      "task": "Делегатсия — {{agent}}",
+      "time": "Жорий вақт текширилмоқда",
+      "get_current_time": "Жорий вақтни олиш",
+      "render_table": "Интерактив жадвал яратиш"
+    },
+    "Search": {
+      "Clear": "Қидирувни тозалаш"
+    },
+    "EditableText": {
+      "AriaLabel": "Матнни таҳрирлаш. Ентер — сақлаш, Есcапе — бекор қилиш",
+      "DoubleClickToEdit": "Таҳрирлаш учун икки марта босинг"
+    },
+    "ContextMenu": "Контекст менюси",
+    "Archive": {
+      "Banner": "Архив баннери",
+      "Archived": "Бу чат архивланган",
+      "Restore": "Тиклаш",
+      "Restoring": "Тикланмоқда...",
+      "RestoreFailed": "Тиклаб бўлмади"
+    },
+    "Message": {
+      "CopiedToClipboard": "Буферга нусхаланди",
+      "FailedToCopy": "Хабарни нусхалаб бўлмади",
+      "CopyMessage": "Хабарни нусхалаш",
+      "Copying": "Нусхаланмоқда...",
+      "Regenerate": "Жавобни қайта яратиш",
+      "Regenerating": "Қайта яратилмоқда...",
+      "EditMessage": "Хабарни таҳрирлаш",
+      "Copy": "Нусхалаш",
+      "Copied": "Нусхаланди",
+      "Save": "Сақлаш",
+      "Cancel": "Бекор қилиш",
+      "CopyFailed": "Хато"
+    },
+    "Attachment": {
+      "PreviewUnavailable": "Кўриб чиқиш мавжуд емас",
+      "Remove": "Иловани олиб ташлаш",
+      "InvalidFile": "Нотўғри файл",
+      "SelectFiles": "Файлларни танлаш"
+    },
+    "Image": {
+      "Close": "Ёпиш",
+      "FailedToLoad": "Расмни юклаб бўлмади",
+      "Retry": "Қайта юклаш",
+      "Previous": "Олдинги расм",
+      "Next": "Кейинги расм",
+      "ZoomOut": "Кичиклаштириш",
+      "ZoomIn": "Катталаштириш",
+      "ResetZoom": "Масштабни қайтариш"
+    },
+    "Sources": {
+      "Source": "манба",
+      "Sources": "манба",
+      "Title": "Манбалар",
+      "Close": "Ёпиш",
+      "SourceN": "Манба {{n}}"
+    },
+    "Table": {
+      "QueryResults": "Сўров натижалари",
+      "OneRowLoaded": "1 қатор юкланди",
+      "RowsLoaded": "{{count}} қатор юкланди",
+      "TruncatedSuffix": "(қисқартирилган)",
+      "ExportToExcel": "Ехcелга експорт қилиш",
+      "PleaseWait": "Илтимос кутинг",
+      "ExportUnavailable": "Експорт мавжуд емас",
+      "NoRows": "Кўрсатиладиган қаторлар ёъқ.",
+      "Showing": "{{from}}–{{to}} / {{total}}",
+      "RowsLabel": "Қаторлар",
+      "Prev": "Олдинги",
+      "Next": "Кейинги",
+      "PageOf": "Саҳифа {{page}} / {{total}}",
+      "TruncatedNotice": "Жадвал асбоб жавоби лимити туфайли қисқартирилган. Тўлиқ маълумот учун СҚЛ сўровини аниқланг ёки експорт қилинг."
+    },
+    "DataTable": {
+      "Search": "Қидириш...",
+      "SearchRows": "Қаторларни қидириш",
+      "ClearSearch": "Қидирувни тозалаш",
+      "NoSearchResults": "Қаторлар топилмади.",
+      "FilteredRows": "{{total}} дан {{filtered}} та қатор",
+      "SortBy": "{{column}} бўйича саралаш",
+      "ColumnActions": "Устун амаллари",
+      "SummarizeColumn": "Устунни таҳлил қилиш",
+      "UniqueValues": "Ноёб қийматлар",
+      "HideColumn": "Устунни яшириш",
+      "ToggleColumns": "Устунларни кўрсатиш/яшириш",
+      "Columns": "Устунлар",
+      "ShowAllColumns": "Барча устунларни кўрсатиш",
+      "StatsSum": "Йиғинди",
+      "StatsAvg": "Ўртача",
+      "StatsMin": "Мин",
+      "StatsMax": "Макс",
+      "Prompt": {
+        "SummarizeColumn": "Сўров натижаларидаги \"{{column}}\" устунини умумлаштиринг",
+        "UniqueValues": "Сўров натижаларидаги \"{{column}}\" устунидаги ноёб қийматларни рўйхатланг"
+      },
+      "NoMatchingRows": "Қидирувга мос қаторлар топилмади",
+      "ClearSearchAction": "Қидирувни тозалаш",
+      "SortedBy": "Саралаш: {{column}}",
+      "ClearSort": "Саралашни бекор қилиш",
+      "Copy": "Нусхалаш",
+      "CopyTable": "Жадвални вақтинчалик хотирага нусхалаш",
+      "TableCopied": "Жадвал вақтинчалик хотирага нусхаланди",
+      "FirstPage": "Биринчи саҳифа",
+      "LastPage": "Охирги саҳифа",
+      "SummaryRow": "Жами",
+      "Expand": "Кенгайтириш",
+      "Collapse": "Йиғиш"
+    },
+    "Sidebar": {
+      "ChatHistory": "Чат тарихи",
+      "CloseSidebar": "Ён панелни ёпиш",
+      "ChatSessions": "Чат сессиялари",
+      "MoreChats": "Яна {{count}} та чат",
+      "SearchChats": "Чатларни қидириш...",
+      "CreateNewChat": "Янги чат яратиш",
+      "ArchivedChats": "Архивланган чатлар",
+      "PinnedChats": "Бириктирилган чатлар",
+      "NoChatsYet": "Ҳали чатлар ёъқ",
+      "CreateOneToGetStarted": "Бошлаш учун битта яратинг!",
+      "FailedToLoadSessions": "Сессияларни юклашда хатолик",
+      "ChatRenamedSuccessfully": "Чат муваффақиятли қайта номланди",
+      "FailedToRenameChat": "Чатни қайта номлашда хатолик",
+      "TitleRegenerated": "Сарлавҳа қайта яратилди",
+      "FailedToRegenerateTitle": "Сарлавҳани қайта яратишда хатолик",
+      "ChatOptions": "Чат параметрлари",
+      "PinChat": "Чатни бириктириш",
+      "UnpinChat": "Чатни ажратиш",
+      "RenameChat": "Чатни қайта номлаш",
+      "RegenerateTitle": "Сарлавҳани қайта яратиш",
+      "ArchiveChat": "Чатни архивлаш",
+      "ArchiveChatSession": "Чат сессиясини архивлаш",
+      "ArchiveChatMessage": "Ушбу чатни архивлаш? Кейинроқ Архивланган чатлар бўлимидан қайта тиклаш мумкин.",
+      "ArchiveButton": "Архивлаш",
+      "MyChats": "Менинг чатларим",
+      "AllChats": "Барча чатлар",
+      "ChatViewSelector": "Чат кўринишини танлаш",
+      "DeleteChat": "Чатни ўчириш",
+      "ChatArchived": "Чат архивланди",
+      "GroupChat": "Гуруҳли чат",
+      "SharedWithYou": "Сиз билан бўлишилган",
+      "FailedToArchiveChat": "Чатни архивлашда хатолик",
+      "FailedToRestoreChat": "Чатни тиклашда хатолик",
+      "FailedToTogglePin": "Бириктиришни ўзгартиришда хатолик",
+      "CollapseSidebar": "Ён панелни йиғиш",
+      "Collapse": "Йиғиш",
+      "ExpandSidebar": "Ён панелни очиш",
+      "Expand": "Очиш",
+      "NoChatsFound": "\"{{query}}\" бўйича натижа топилмади",
+      "Settings": "Созламалар",
+      "MissingPermission": "БиЧат учун рухсат ёъқ"
+    },
+    "Welcome": {
+      "QuickStart": "Тезкор бошлаш",
+      "Disclaimer": "Сунъий интеллект асосида ишлайди. Хатолар бўлиши мумкин.",
+      "Prompt1Category": "Маълумотлар таҳлили",
+      "Prompt1Text": "Асосий кўрсаткичлар бўйича хулосани кўрсатинг",
+      "Prompt2Category": "Ҳисоботлар",
+      "Prompt2Text": "Жорий давр учун ҳисобот яратинг",
+      "Prompt3Category": "Таҳлиллар",
+      "Prompt3Text": "Маълумотларда қандай тендентсияларни аниқлаш мумкин?"
+    },
+    "Common": {
+      "Loading": "Юкланмоқда...",
+      "Generating": "Ҳосил қилинмоқда...",
+      "Untitled": "Номсиз чат",
+      "Clear": "Қидирувни тозалаш",
+      "Cancel": "Бекор қилиш",
+      "Back": "Орқага",
+      "Close": "Ёпиш",
+      "Pinned": "Бириктирилган",
+      "Creating": "Яратилмоқда...",
+      "AITyping": "Сунъий интеллект ёзмоқда",
+      "Notifications": "Билдиришномалар",
+      "ScrollToBottom": "Пастга ўтиш",
+      "Search": "Қидириш",
+      "Confirm": "Тасдиқлаш",
+      "Undo": "Бекор қилиш",
+      "TryAgain": "Қайта уриниш",
+      "PleaseWait": "Кутиб туринг..."
+    },
+    "ScrollToBottom": {
+      "NewMessages": "Янги хабарлар"
+    },
+    "Chat": {
+      "NewChat": "Янги чат",
+      "GoBack": "Орқага",
+      "Pinned": "Бириктирилган",
+      "ReadOnly": "Фақат ўқиш",
+      "Archived": "Архив",
+      "Retry": "Қайта уриниш",
+      "DismissNotification": "Хабарни ёпиш",
+      "OneMember": "1 аъзо",
+      "MemberCount": "{{count}} аъзо"
+    },
+    "Share": {
+      "Title": "Улашиш",
+      "Button": "Улашиш",
+      "RoleLabel": "Рол",
+      "RoleEditor": "Муҳаррир",
+      "RoleViewer": "Кўрувчи",
+      "RoleOwner": "Егаси",
+      "RoleReadOnly": "Фақат ўқиш",
+      "Members": "Аъзолар",
+      "Empty": "Ҳали аъзолар ёъқ",
+      "AddMember": "Аъзо қўшиш",
+      "SearchUsers": "Фойдаланувчиларни қидириш...",
+      "NoUsersAvailable": "Фойдаланувчилар мавжуд емас",
+      "NoSearchResults": "Натижалар топилмади",
+      "Add": "Қўшиш",
+      "Remove": "Ўчириш",
+      "RemoveConfirmTitle": "Аъзони ўчириш",
+      "RemoveConfirmMessage": "{{name}}ни бу сессиядан ўчиришни хоҳлайсизми?",
+      "Unsupported": "Бу сессия учун улашиш имконияти мавжуд емас",
+      "LoadFailed": "Аъзоларни юклашда хатолик",
+      "MemberAdded": "Аъзо қўшилди",
+      "AddFailed": "Аъзони қўшишда хатолик",
+      "UpdateFailed": "Ролни янгилашда хатолик",
+      "MemberRemoved": "Аъзо ўчирилди",
+      "RemoveFailed": "Аъзони ўчиришда хатолик"
+    },
+    "Archived": {
+      "RestoreButton": "Қайта тиклаш",
+      "ChatRestoredSuccessfully": "Чат муваффақиятли қайта тикланди",
+      "FailedToRestoreChat": "Чатни қайта тиклашда хатолик",
+      "BackToChats": "Чатларга қайтиш",
+      "Title": "Архивланган чатлар",
+      "SearchArchivedChats": "Архивланган чатларни қидириш...",
+      "NoArchivedChats": "Архивланган чатлар ёъқ",
+      "NoArchivedChatsDescription": "Ҳали архивланган чатларингиз ёъқ. Асосий рўйхатдан чатни архивласангиз, у бу ерда пайдо бўлади.",
+      "NoResults": "Натижалар топилмади",
+      "NoResultsDescription": "Бошқа қидирув сўзини синаб кўринг",
+      "FailedToLoadChats": "Архивланган чатларни юклашда хатолик",
+      "RestoreChat": "Чатни қайта тиклаш",
+      "RestoreChatMessage": "Ушбу архивланган чатни асосий чат рўйхатига қайта тиклаш?"
+    },
+    "AllChats": {
+      "AllUsers": "Барча фойдаланувчилар",
+      "LoadingUsers": "Фойдаланувчилар юкланмоқда...",
+      "NoUsersFound": "Фойдаланувчилар топилмади",
+      "FailedToLoad": "Ташкилот чатларини юклашда хатолик",
+      "IncludeArchived": "Архивланганларни қўшиш",
+      "OrganizationChats": "Ташкилот чатлари",
+      "OrganizationChatSessions": "Ташкилот чат сессиялари",
+      "LoadMore": "Кўпроқ юклаш",
+      "NoChatsFound": "Чатлар топилмади",
+      "NoChatsInOrg": "Ушбу ташкилотда ҳали чатлар ёъқ",
+      "NoActiveChatsInOrg": "Ушбу ташкилотда фаол чатлар ёъқ"
+    },
+    "Artifacts": {
+      "Title": "Артефактлар",
+      "ToggleShow": "Артефактларни кўрсатиш",
+      "ToggleHide": "Артефактларни яшириш",
+      "Resize": "Панел ўлчамини ўзгартириш",
+      "Loading": "Артефактлар юкланмоқда...",
+      "Empty": "Ҳали артефактлар ёъқ",
+      "EmptySubtitle": "Суҳбат давомида артефактлар шу ерда пайдо бўлади",
+      "Back": "Орқага",
+      "Refresh": "Янгилаш",
+      "LoadMore": "Кўпроқ юклаш",
+      "LoadingMore": "Юкланмоқда...",
+      "FailedToLoad": "Артефактларни юклаб бўлмади",
+      "Unsupported": "Ушбу манба учун артефактлар панели мавжуд емас.",
+      "Download": "Юклаб олиш",
+      "OpenInNewTab": "Янги табда очиш",
+      "DownloadUnavailable": "Юклаб олиш УРЛ мавжуд емас.",
+      "ImageUnavailable": "Расм УРЛ мавжуд емас.",
+      "ChartUnavailable": "График метадаталари қўллаб-қувватланмайдиган форматда.",
+      "PreviewLoading": "Кўриб чиқиш юкланмоқда...",
+      "PreviewUnavailable": "Кўриб чиқиш мавжуд емас.",
+      "PreviewNotSupported": "Ушбу файл турини кўриб чиқиб бўлмайди.",
+      "OfficePreviewUnavailable": "Оффиcе кўриб чиқиши мавжуд емас. Файлни очинг ёки юклаб олинг.",
+      "TextPreviewFailed": "Матн кўриб чиқишни юклаб бўлмади.",
+      "TextPreviewTruncated": "Кўриб чиқиш қисқартирилган. Тўлиқ матн учун файлни очинг.",
+      "Rename": "Артефактни қайта номлаш",
+      "RenameFailed": "Қайта номлаш муваффақиятсиз",
+      "Delete": "Артефактни ўчириш",
+      "DeleteConfirm": "Юкланган артефактни ўчириш? Бу амални бекор қилиб бўлмайди.",
+      "DeleteFailed": "Ўчириш муваффақиятсиз",
+      "GroupCharts": "Графиклар",
+      "GroupTables": "Жадваллар",
+      "GroupCodeOutputs": "Код натижалари",
+      "GroupExports": "Експортлар",
+      "GroupAttachments": "Бириктирмалар",
+      "GroupOther": "Бошқа",
+      "EmptyHint": "Файлларни бу ерга ташланг ёки бириктириш тугмасини босинг",
+      "AttachFiles": "Файлларни бириктириш"
+    },
+    "Input": {
+      "Placeholder": "Хабарингизни киритинг...",
+      "AttachFiles": "Файлларни бириктириш",
+      "SendMessage": "Хабар юбориш",
+      "Processing": "Қайта ишланмоқда...",
+      "DropFiles": "Файлларни бу ерга ташланг",
+      "FilesAdded": "Файллар қўшилди",
+      "DismissError": "Хатони ёпиш",
+      "ShiftEnterHint": "Янги қатор учун Шифт+Ентер",
+      "FileInput": "Файл танлаш",
+      "MessageInput": "Хабар киритиш",
+      "MessagesQueued": "{{count}} навбатда",
+      "QueueFull": "Навбат тўлди (макс. 5 хабар)",
+      "QueuedMessages": "{{count}} навбатда",
+      "EditQueueItem": "Навбатдаги хабарни таҳрирлаш",
+      "RemoveQueueItem": "Навбатдан олиб ташлаш",
+      "ReasoningEffort": "Фикрлаш",
+      "ReasoningEffortLow": "Паст",
+      "ReasoningEffortMedium": "Ўртача",
+      "ReasoningEffortHigh": "Юқори",
+      "ReasoningEffortXHigh": "Максимал"
+    },
+    "Assistant": {
+      "Explanation": "Тушунтириш"
+    },
+    "CodeOutput": {
+      "Title": "Код натижаси",
+      "CodeOutput": "Код натижаси"
+    },
+    "System": {
+      "ConversationSummary": "Суҳбат хулосаси",
+      "LoadingSummary": "Хулоса юкланмоқда...",
+      "ShowMore": "Кўпроқ кўрсатиш",
+      "ShowLess": "Камроқ кўрсатиш"
+    },
+    "Question": {
+      "SelectMulti": "Бир нечта вариантни танланг",
+      "SpecifyOther": "Бошқасини киритинг",
+      "OtherOption": "Бошқа"
+    },
+    "QuestionForm": {
+      "Title": "Саволлар",
+      "Back": "Орқага",
+      "Next": "Кейинги",
+      "Confirm": "Тасдиқлаш",
+      "Submitting": "Юборилмоқда...",
+      "ReviewTitle": "Жавобларингизни кўриб чиқинг",
+      "ReviewDescription": "Юборишдан олдин жавобларингизни кўриб чиқинг",
+      "Skip": "Ўтказиб юбориш"
+    },
+    "StreamError": {
+      "Retry": "Қайта уриниш",
+      "Regenerate": "Қайта яратиш"
+    },
+    "Chart": {
+      "NoData": "Маълумотлар ёъқ",
+      "Download": "Графикни юклаб олиш",
+      "DownloadPNG": "ПНГ юклаб олиш",
+      "Exporting": "Експорт қилинмоқда..."
+    },
+    "Alert": {
+      "Retry": "Қайта уриниш"
+    },
+    "Layout": {
+      "OpenSidebar": "Ён панелни очиш"
+    },
+    "SkipLink": {
+      "Label": "Контентга ўтиш"
+    },
+    "Slash": {
+      "CommandsList": "Буйруқлар",
+      "ClearDescription": "Суҳбатни тозалаш",
+      "DebugDescription": "Носозликларни тузатиш панели",
+      "CompactDescription": "Суҳбатни қисқартириш",
+      "NoMatches": "Мос буйруқлар топилмади",
+      "CompactingTitle": "Суҳбат қисқартирилмоқда...",
+      "CompactingSubtitle": "Бу бироз вақт олиши мумкин",
+      "ErrorNoArguments": "Буйруқлар аргументларни қабул қилмайди",
+      "ErrorSessionRequired": "Бу буйруқ фаол чат сессиясини талаб қилади",
+      "ErrorClearFailed": "Суҳбатни тозалаб бўлмади",
+      "ErrorCompactFailed": "Суҳбатни қисқартириб бўлмади",
+      "ErrorUnknownCommand": "Номаълум буйруқ",
+      "ErrorNoAttachments": "Буйруқлар бириктирмаларни қўллаб-қувватламайди"
+    },
+    "DateGroup": {
+      "Today": "Бугун",
+      "Yesterday": "Кеча",
+      "Last7Days": "Охирги 7 кун",
+      "Last30Days": "Охирги 30 кун",
+      "Older": "Ески"
+    },
+    "RelativeTime": {
+      "JustNow": "Ҳозиргина",
+      "MinutesAgo": "{{count}} дақиқа олдин",
+      "HoursAgo": "{{count}} соат олдин",
+      "DaysAgo": "{{count}} кун олдин"
+    }
+  }
+}
