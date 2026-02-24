@@ -44,6 +44,31 @@ func ParseSessionMemberRole(raw string) SessionMemberRole {
 	}
 }
 
+// NewSessionAccess builds access flags for a role/source pair.
+func NewSessionAccess(role SessionMemberRole, source SessionAccessSource) SessionAccess {
+	access := SessionAccess{
+		Role:   role,
+		Source: source,
+	}
+
+	switch role {
+	case SessionMemberRoleOwner:
+		access.CanRead = true
+		access.CanWrite = true
+		access.CanManageMembers = true
+	case SessionMemberRoleEditor:
+		access.CanRead = true
+		access.CanWrite = true
+	case SessionMemberRoleViewer:
+		access.CanRead = true
+	case SessionMemberRoleReadAll:
+		access.CanRead = true
+	case SessionMemberRoleNone:
+	}
+
+	return access
+}
+
 // SessionAccessSource tells how access was granted.
 type SessionAccessSource string
 

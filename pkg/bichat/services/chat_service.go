@@ -27,6 +27,7 @@ type ChatService interface {
 	CountAllSessions(ctx context.Context, opts domain.ListOptions, ownerUserID *int64) (int, error)
 	ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64, allowReadAll bool) (domain.SessionAccess, error)
 	ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]domain.SessionMember, error)
+	GetTenantUser(ctx context.Context, userID int64) (domain.SessionUser, error)
 	UpsertSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64, role domain.SessionMemberRole) error
 	RemoveSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64) error
 	ListTenantUsers(ctx context.Context) ([]domain.SessionUser, error)

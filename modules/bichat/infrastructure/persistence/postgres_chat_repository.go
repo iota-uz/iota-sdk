@@ -218,6 +218,17 @@ const (
 		WHERE tenant_id = $1
 		ORDER BY first_name ASC, last_name ASC, id ASC
 	`
+	getTenantUserQuery = `
+		SELECT id, COALESCE(first_name, ''), COALESCE(last_name, '')
+		FROM public.users
+		WHERE tenant_id = $1 AND id = $2
+	`
+	sessionUserExistsQuery = `
+		SELECT EXISTS (
+			SELECT 1 FROM public.users
+			WHERE tenant_id = $1 AND id = $2
+		)
+	`
 
 	// Message queries
 	insertMessageQuery = `
@@ -340,6 +351,7 @@ var (
 	ErrSessionNotFound    = errors.New("session not found")
 	ErrMessageNotFound    = errors.New("message not found")
 	ErrAttachmentNotFound = errors.New("attachment not found")
+	ErrTenantUserNotFound = errors.New("tenant user not found")
 )
 
 // PostgresChatRepository implements ChatRepository using PostgreSQL.
@@ -753,40 +765,28 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 	}
 
 	if ownerID == userID {
-		return domain.SessionAccess{
-			Role:             domain.SessionMemberRoleOwner,
-			Source:           domain.SessionAccessSourceOwner,
-			CanRead:          true,
-			CanWrite:         true,
-			CanManageMembers: true,
-		}, nil
+		return domain.NewSessionAccess(
+			domain.SessionMemberRoleOwner,
+			domain.SessionAccessSourceOwner,
+		), nil
 	}
 
 	switch domain.ParseSessionMemberRole(memberRole) {
 	case domain.SessionMemberRoleEditor:
-		return domain.SessionAccess{
-			Role:             domain.SessionMemberRoleEditor,
-			Source:           domain.SessionAccessSourceMember,
-			CanRead:          true,
-			CanWrite:         true,
-			CanManageMembers: false,
-		}, nil
+		return domain.NewSessionAccess(
+			domain.SessionMemberRoleEditor,
+			domain.SessionAccessSourceMember,
+		), nil
 	case domain.SessionMemberRoleViewer:
-		return domain.SessionAccess{
-			Role:             domain.SessionMemberRoleViewer,
-			Source:           domain.SessionAccessSourceMember,
-			CanRead:          true,
-			CanWrite:         false,
-			CanManageMembers: false,
-		}, nil
+		return domain.NewSessionAccess(
+			domain.SessionMemberRoleViewer,
+			domain.SessionAccessSourceMember,
+		), nil
 	default:
-		return domain.SessionAccess{
-			Role:             domain.SessionMemberRoleNone,
-			Source:           domain.SessionAccessSourceNone,
-			CanRead:          false,
-			CanWrite:         false,
-			CanManageMembers: false,
-		}, nil
+		return domain.NewSessionAccess(
+			domain.SessionMemberRoleNone,
+			domain.SessionAccessSourceNone,
+		), nil
 	}
 }
 
@@ -863,6 +863,22 @@ func (r *PostgresChatRepository) UpsertSessionMember(ctx context.Context, sessio
 		return serrors.E(op, err)
 	}
 	if result.RowsAffected() == 0 {
+		session, err := r.GetSession(ctx, sessionID)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		if session.UserID() == userID {
+			return serrors.E(op, serrors.KindValidation, "cannot add session owner as a member")
+		}
+
+		var exists bool
+		if err := tx.QueryRow(ctx, sessionUserExistsQuery, tenantID, userID).Scan(&exists); err != nil {
+			return serrors.E(op, err)
+		}
+		if !exists {
+			return serrors.E(op, ErrTenantUserNotFound)
+		}
+
 		return serrors.E(op, serrors.KindValidation, "failed to add or update session member")
 	}
 	return nil
@@ -941,6 +957,30 @@ func (r *PostgresChatRepository) ListTenantUsers(ctx context.Context) ([]domain.
 		return nil, serrors.E(op, err)
 	}
 	return out, nil
+}
+
+// GetTenantUser returns a single tenant user by id.
+func (r *PostgresChatRepository) GetTenantUser(ctx context.Context, userID int64) (domain.SessionUser, error) {
+	const op serrors.Op = "PostgresChatRepository.GetTenantUser"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return domain.SessionUser{}, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return domain.SessionUser{}, serrors.E(op, err)
+	}
+
+	var user domain.SessionUser
+	if err := tx.QueryRow(ctx, getTenantUserQuery, tenantID, userID).Scan(&user.ID, &user.FirstName, &user.LastName); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.SessionUser{}, serrors.E(op, ErrTenantUserNotFound)
+		}
+		return domain.SessionUser{}, serrors.E(op, err)
+	}
+
+	return user, nil
 }
 
 // DeleteSession deletes a session and all related data (cascades to messages/attachments).
@@ -2054,13 +2094,7 @@ func scanSessionSummaryRow(rows pgx.Rows) (domain.SessionSummary, error) {
 		source = domain.SessionAccessSourcePermission
 	}
 
-	access := domain.SessionAccess{
-		Role:             role,
-		Source:           source,
-		CanRead:          role != domain.SessionMemberRoleNone,
-		CanWrite:         role == domain.SessionMemberRoleOwner || role == domain.SessionMemberRoleEditor,
-		CanManageMembers: role == domain.SessionMemberRoleOwner,
-	}
+	access := domain.NewSessionAccess(role, source)
 
 	return domain.SessionSummary{
 		Session: domain.NewSession(sessionOpts...),

@@ -63,19 +63,53 @@ func requireSessionAccess(
 
 func withSessionMeta(ctx context.Context, chatSvc services.ChatService, session domain.Session, access domain.SessionAccess) Session {
 	memberCount := 1
-	if members, err := chatSvc.ListSessionMembers(ctx, session.ID()); err == nil {
+	members, err := chatSvc.ListSessionMembers(ctx, session.ID())
+	if err != nil {
+		configuration.Use().Logger().WithError(err).Warn("failed to list session members for session metadata")
+	} else {
 		memberCount = len(members) + 1
 	}
-	owner := domain.SessionUser{ID: session.UserID()}
-	if users, err := chatSvc.ListTenantUsers(ctx); err == nil {
-		for _, user := range users {
-			if user.ID == session.UserID() {
-				owner = user
-				break
-			}
-		}
+
+	owner, err := resolveSessionOwner(ctx, chatSvc, session.UserID())
+	if err != nil {
+		configuration.Use().Logger().WithError(err).Warn("failed to resolve session owner metadata")
 	}
 	return toSessionDTOWithMeta(session, &owner, &access, memberCount)
+}
+
+func resolveSessionOwner(ctx context.Context, chatSvc services.ChatService, ownerUserID int64) (domain.SessionUser, error) {
+	const op serrors.Op = "bichat.rpc.resolveSessionOwner"
+
+	user, err := chatSvc.GetTenantUser(ctx, ownerUserID)
+	if err != nil {
+		return domain.SessionUser{ID: ownerUserID}, serrors.E(op, err)
+	}
+
+	return user, nil
+}
+
+// upsertSessionMember validates member upsert payload and delegates to service.
+// Used by both add and updateRole RPC handlers to keep request validation in one place.
+func upsertSessionMember(ctx context.Context, chatSvc services.ChatService, session domain.Session, p SessionMembersUpsertParams) error {
+	const op serrors.Op = "bichat.rpc.session.members.upsert"
+
+	userID, err := parseUserID(p.UserID)
+	if err != nil {
+		return serrors.E(op, serrors.Invalid, err)
+	}
+	if userID == session.UserID() {
+		return serrors.E(op, serrors.KindValidation, "owner cannot be added as a member")
+	}
+
+	role := domain.ParseSessionMemberRole(p.Role)
+	if !role.ValidMemberRole() {
+		return serrors.E(op, serrors.KindValidation, "invalid role")
+	}
+
+	if err := chatSvc.UpsertSessionMember(ctx, session.ID(), userID, role); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) *applets.TypedRPCRouter {
@@ -638,14 +672,9 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				return SessionMembersListResult{}, serrors.E(op, err)
 			}
 
-			owner := domain.SessionUser{ID: session.UserID()}
-			if users, listErr := chatSvc.ListTenantUsers(ctx); listErr == nil {
-				for _, user := range users {
-					if user.ID == session.UserID() {
-						owner = user
-						break
-					}
-				}
+			owner, listErr := resolveSessionOwner(ctx, chatSvc, session.UserID())
+			if listErr != nil {
+				return SessionMembersListResult{}, serrors.E(op, listErr)
 			}
 
 			out := make([]SessionMember, 0, len(members)+1)
@@ -677,18 +706,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			if err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
-			userID, err := parseUserID(p.UserID)
-			if err != nil {
-				return OkResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if userID == session.UserID() {
-				return OkResult{}, serrors.E(op, serrors.KindValidation, "owner cannot be added as a member")
-			}
-			role := domain.ParseSessionMemberRole(p.Role)
-			if !role.ValidMemberRole() {
-				return OkResult{}, serrors.E(op, serrors.KindValidation, "invalid role")
-			}
-			if err := chatSvc.UpsertSessionMember(ctx, session.ID(), userID, role); err != nil {
+			if err := upsertSessionMember(ctx, chatSvc, session, p); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
 			return OkResult{Ok: true}, nil
@@ -704,18 +722,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			if err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
-			userID, err := parseUserID(p.UserID)
-			if err != nil {
-				return OkResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if userID == session.UserID() {
-				return OkResult{}, serrors.E(op, serrors.KindValidation, "owner cannot be added as a member")
-			}
-			role := domain.ParseSessionMemberRole(p.Role)
-			if !role.ValidMemberRole() {
-				return OkResult{}, serrors.E(op, serrors.KindValidation, "invalid role")
-			}
-			if err := chatSvc.UpsertSessionMember(ctx, session.ID(), userID, role); err != nil {
+			if err := upsertSessionMember(ctx, chatSvc, session, p); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
 			return OkResult{Ok: true}, nil

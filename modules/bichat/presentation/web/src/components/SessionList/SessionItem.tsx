@@ -38,7 +38,14 @@ const SessionItem = memo<SessionItemProps>(
 
     // Generate title from session (use existing title or show generating state)
     const displayTitle = isTitleGenerating ? t('BiChat.Common.Generating') : (session.title ?? t('BiChat.Common.Untitled'))
-    const isGroupOrShared = Boolean(session.isGroup || (session.memberCount && session.memberCount > 1))
+    const source = (session.access?.source ?? '').toLowerCase()
+    const isMemberSession = source === 'member'
+    const isGroupOrShared = Boolean(
+      session.isGroup ||
+        isMemberSession ||
+        (session.access?.role && session.access.role !== 'owner' && session.access.role !== 'read_all') ||
+        (session.memberCount !== undefined && session.memberCount > 1),
+    )
 
     const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
       setIsDragging(false)

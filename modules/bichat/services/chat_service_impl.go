@@ -457,30 +457,21 @@ func (s *chatServiceImpl) ResolveSessionAccess(ctx context.Context, sessionID uu
 			return domain.SessionAccess{}, serrors.E(op, err)
 		}
 		if session.UserID() == userID {
-			return domain.SessionAccess{
-				Role:             domain.SessionMemberRoleOwner,
-				Source:           domain.SessionAccessSourceOwner,
-				CanRead:          true,
-				CanWrite:         true,
-				CanManageMembers: true,
-			}, nil
+			return domain.NewSessionAccess(
+				domain.SessionMemberRoleOwner,
+				domain.SessionAccessSourceOwner,
+			), nil
 		}
 		if allowReadAll {
-			return domain.SessionAccess{
-				Role:             domain.SessionMemberRoleReadAll,
-				Source:           domain.SessionAccessSourcePermission,
-				CanRead:          true,
-				CanWrite:         false,
-				CanManageMembers: false,
-			}, nil
+			return domain.NewSessionAccess(
+				domain.SessionMemberRoleReadAll,
+				domain.SessionAccessSourcePermission,
+			), nil
 		}
-		return domain.SessionAccess{
-			Role:             domain.SessionMemberRoleNone,
-			Source:           domain.SessionAccessSourceNone,
-			CanRead:          false,
-			CanWrite:         false,
-			CanManageMembers: false,
-		}, nil
+		return domain.NewSessionAccess(
+			domain.SessionMemberRoleNone,
+			domain.SessionAccessSourceNone,
+		), nil
 	}
 
 	access, err := repo.ResolveSessionAccess(ctx, sessionID, userID)
@@ -491,13 +482,10 @@ func (s *chatServiceImpl) ResolveSessionAccess(ctx context.Context, sessionID uu
 		return access, nil
 	}
 	if allowReadAll {
-		return domain.SessionAccess{
-			Role:             domain.SessionMemberRoleReadAll,
-			Source:           domain.SessionAccessSourcePermission,
-			CanRead:          true,
-			CanWrite:         false,
-			CanManageMembers: false,
-		}, nil
+		return domain.NewSessionAccess(
+			domain.SessionMemberRoleReadAll,
+			domain.SessionAccessSourcePermission,
+		), nil
 	}
 	return access, nil
 }
@@ -559,6 +547,20 @@ func (s *chatServiceImpl) ListTenantUsers(ctx context.Context) ([]domain.Session
 		return nil, serrors.E(op, err)
 	}
 	return users, nil
+}
+
+func (s *chatServiceImpl) GetTenantUser(ctx context.Context, userID int64) (domain.SessionUser, error) {
+	const op serrors.Op = "chatServiceImpl.GetTenantUser"
+
+	repo, ok := s.sessionAccessRepo()
+	if !ok {
+		return domain.SessionUser{}, serrors.E(op, serrors.KindValidation, "session access repository is not configured")
+	}
+	user, err := repo.GetTenantUser(ctx, userID)
+	if err != nil {
+		return domain.SessionUser{}, serrors.E(op, err)
+	}
+	return user, nil
 }
 
 // ArchiveSession archives a session.

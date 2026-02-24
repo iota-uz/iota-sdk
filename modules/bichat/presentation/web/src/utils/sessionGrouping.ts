@@ -12,7 +12,7 @@ export interface ChatSession {
   isGroup?: boolean
   memberCount?: number
   owner?: { firstName: string; lastName: string; initials?: string }
-  access?: { role: string; canManageMembers?: boolean }
+  access?: { role: string; source?: string; canManageMembers?: boolean }
 }
 
 /**

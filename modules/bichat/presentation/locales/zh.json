@@ -217,6 +217,8 @@
       "ChatViewSelector": "聊天视图选择",
       "DeleteChat": "删除聊天",
       "ChatArchived": "聊天已归档",
+      "GroupChat": "群聊",
+      "SharedWithYou": "与你共享",
       "FailedToArchiveChat": "归档聊天失败",
       "FailedToRestoreChat": "恢复聊天失败",
       "FailedToTogglePin": "切换置顶失败",

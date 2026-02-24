@@ -39,14 +39,9 @@ CREATE TABLE IF NOT EXISTS bichat.messages (
     debug_trace jsonb,
     question_data jsonb,
     created_at timestamptz NOT NULL DEFAULT NOW(),
-    CONSTRAINT messages_role_check CHECK (ROLE IN ('user', 'assistant', 'tool', 'system'))
+    CONSTRAINT messages_role_check CHECK (ROLE IN ('user', 'assistant', 'tool', 'system')),
+    CONSTRAINT messages_user_requires_author CHECK (ROLE <> 'user' OR author_user_id IS NOT NULL)
 );
-ALTER TABLE bichat.messages
-    DROP CONSTRAINT IF EXISTS messages_user_requires_author;
-
-ALTER TABLE bichat.messages
-    ADD CONSTRAINT messages_user_requires_author CHECK (ROLE <> 'user' OR author_user_id IS NOT NULL);
-
 
 CREATE TABLE IF NOT EXISTS bichat.checkpoints (
     id varchar(255) PRIMARY KEY,
@@ -345,3 +340,4 @@ COMMENT ON TABLE bichat.events IS 'Point-in-time observability events linked to 
 COMMENT ON TABLE bichat.learnings IS 'Agent-captured learnings from SQL errors and user corrections';
 
 COMMENT ON TABLE bichat.validated_queries IS 'Proven SQL query patterns that answered prior questions';
+

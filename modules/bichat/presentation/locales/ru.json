@@ -217,6 +217,8 @@
       "ChatViewSelector": "Выбор представления чатов",
       "DeleteChat": "Удалить чат",
       "ChatArchived": "Чат архивирован",
+      "GroupChat": "Групповой чат",
+      "SharedWithYou": "Поделился с вами",
       "FailedToArchiveChat": "Не удалось архивировать чат",
       "FailedToRestoreChat": "Не удалось восстановить чат",
       "FailedToTogglePin": "Не удалось изменить закрепление",
