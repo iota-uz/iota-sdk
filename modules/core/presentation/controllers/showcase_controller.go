@@ -4,9 +4,11 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/a-h/templ"
@@ -28,50 +30,18 @@ import (
 )
 
 type ShowcaseController struct {
-	app      application.Application
-	basePath string
-	executor executor.Executor
+	app             application.Application
+	basePath        string
+	executorMu      sync.Mutex
+	executor        executor.Executor
+	executorInitErr error
 }
 
 func NewShowcaseController(app application.Application) application.Controller {
-	// Setup PostgreSQL data source for lens
-	config := configuration.Use()
-	pgConfig := postgres.Config{
-		ConnectionString: config.Database.ConnectionString(),
-		MaxConnections:   5,
-		MinConnections:   1,
-		QueryTimeout:     30 * time.Second,
-	}
-
-	pgDataSource, err := postgres.NewPostgreSQLDataSource(pgConfig)
-	if err != nil {
-		log.Printf("Failed to create PostgreSQL data source for lens: %v", err)
-		// Create controller without executor if data source fails
-		return &ShowcaseController{
-			app:      app,
-			basePath: "/_dev",
-			executor: nil,
-		}
-	}
-
-	// Create executor and register data source
-	exec := executor.NewExecutor(nil, 30*time.Second)
-	err = exec.RegisterDataSource("core", pgDataSource)
-	if err != nil {
-		log.Printf("Failed to register data source: %v", err)
-		if closeErr := pgDataSource.Close(); closeErr != nil {
-			log.Printf("Failed to close data source: %v", closeErr)
-		}
-		exec = nil
-	}
-
-	controller := &ShowcaseController{
+	return &ShowcaseController{
 		app:      app,
 		basePath: "/_dev",
-		executor: exec,
 	}
-
-	return controller
 }
 
 func (c *ShowcaseController) Key() string {
@@ -235,6 +205,7 @@ func (c *ShowcaseController) Lens(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
+	exec := c.ensureExecutor()
 	// Create dashboard configuration
 	dashboard := builder.NewDashboard().
 		ID("showcase-dashboard").
@@ -321,11 +292,11 @@ func (c *ShowcaseController) Lens(
 
 	// Execute dashboard queries if executor is available
 	var dashboardResult *executor.DashboardResult
-	if c.executor != nil {
+	if exec != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 
-		result, err := c.executor.ExecuteDashboard(ctx, dashboard)
+		result, err := exec.ExecuteDashboard(ctx, dashboard)
 		if err != nil {
 			logger.WithError(err).Error("Failed to execute dashboard queries")
 			// Continue with empty result
@@ -396,4 +367,57 @@ func (c *ShowcaseController) ToastExample(
 	// Example of triggering a toast notification from a server endpoint
 	htmx.ToastSuccess(w, "Server Response", "This toast was triggered by an HTMX request!")
 	w.WriteHeader(http.StatusOK)
+}
+
+func (c *ShowcaseController) ensureExecutor() executor.Executor {
+	c.executorMu.Lock()
+	defer c.executorMu.Unlock()
+
+	if c.executor != nil {
+		return c.executor
+	}
+	if c.executorInitErr != nil {
+		return nil
+	}
+	if c.app == nil || c.app.DB() == nil {
+		c.executorInitErr = errors.New("showcase database pool is not available")
+		log.Printf("Failed to create showcase executor: %v", c.executorInitErr)
+		return nil
+	}
+
+	pgDataSource, err := postgres.NewPostgreSQLDataSourceFromPool(c.app.DB(), postgres.Config{
+		QueryTimeout: 30 * time.Second,
+	})
+	if err != nil {
+		c.executorInitErr = err
+		log.Printf("Failed to create PostgreSQL data source for showcase: %v", err)
+		return nil
+	}
+
+	exec := executor.NewExecutor(nil, 30*time.Second)
+	if err := exec.RegisterDataSource("core", pgDataSource); err != nil {
+		c.executorInitErr = err
+		log.Printf("Failed to register showcase data source: %v", err)
+		if closeErr := pgDataSource.Close(); closeErr != nil {
+			log.Printf("Failed to close showcase data source: %v", closeErr)
+		}
+		return nil
+	}
+
+	c.executor = exec
+	return c.executor
+}
+
+func (c *ShowcaseController) Close() error {
+	c.executorMu.Lock()
+	defer c.executorMu.Unlock()
+
+	if c.executor == nil {
+		return nil
+	}
+
+	err := c.executor.Close()
+	c.executor = nil
+	c.executorInitErr = nil
+	return err
 }

@@ -2,15 +2,16 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/builder"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource/postgres"
@@ -21,45 +22,16 @@ import (
 )
 
 func NewDashboardController(app application.Application) application.Controller {
-	// Setup PostgreSQL data source for lens
-	config := configuration.Use()
-	pgConfig := postgres.Config{
-		ConnectionString: config.Database.ConnectionString(),
-		MaxConnections:   5,
-		MinConnections:   1,
-		QueryTimeout:     30 * time.Second,
-	}
-
-	pgDataSource, err := postgres.NewPostgreSQLDataSource(pgConfig)
-	if err != nil {
-		log.Printf("Failed to create PostgreSQL data source for dashboard: %v", err)
-		// Create controller without executor if data source fails
-		return &DashboardController{
-			app:      app,
-			executor: nil,
-		}
-	}
-
-	// Create executor and register data source
-	exec := executor.NewExecutor(nil, 30*time.Second)
-	err = exec.RegisterDataSource("postgres", pgDataSource)
-	if err != nil {
-		log.Printf("Failed to register data source: %v", err)
-		if closeErr := pgDataSource.Close(); closeErr != nil {
-			log.Printf("Failed to close data source: %v", closeErr)
-		}
-		exec = nil
-	}
-
 	return &DashboardController{
-		app:      app,
-		executor: exec,
+		app: app,
 	}
 }
 
 type DashboardController struct {
-	app      application.Application
-	executor executor.Executor
+	app             application.Application
+	executorMu      sync.Mutex
+	executor        executor.Executor
+	executorInitErr error
 }
 
 // createFinanceDashboard creates a finance dashboard configuration using lens builders
@@ -344,15 +316,16 @@ func (c *DashboardController) Register(r *mux.Router) {
 func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 	// Create finance dashboard configuration
 	dashboardConfig := c.createFinanceDashboard()
+	exec := c.ensureExecutor()
 
 	// Execute dashboard queries if executor is available
 	var dashboardResult *executor.DashboardResult
-	if c.executor != nil {
+	if exec != nil {
 		err := composables.InTx(r.Context(), func(txCtx context.Context) error {
 			ctx, cancel := context.WithTimeout(txCtx, 30*time.Second)
 			defer cancel()
 
-			result, err := c.executor.ExecuteDashboard(ctx, dashboardConfig)
+			result, err := exec.ExecuteDashboard(ctx, dashboardConfig)
 			if err != nil {
 				log.Printf("Failed to execute dashboard queries: %v", err)
 				dashboardResult = &executor.DashboardResult{
@@ -382,4 +355,57 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 		DashboardResult: dashboardResult,
 	}
 	templ.Handler(dashboard.Index(props)).ServeHTTP(w, r)
+}
+
+func (c *DashboardController) ensureExecutor() executor.Executor {
+	c.executorMu.Lock()
+	defer c.executorMu.Unlock()
+
+	if c.executor != nil {
+		return c.executor
+	}
+	if c.executorInitErr != nil {
+		return nil
+	}
+	if c.app == nil || c.app.DB() == nil {
+		c.executorInitErr = errors.New("dashboard database pool is not available")
+		log.Printf("Failed to create dashboard executor: %v", c.executorInitErr)
+		return nil
+	}
+
+	pgDataSource, err := postgres.NewPostgreSQLDataSourceFromPool(c.app.DB(), postgres.Config{
+		QueryTimeout: 30 * time.Second,
+	})
+	if err != nil {
+		c.executorInitErr = err
+		log.Printf("Failed to create PostgreSQL data source for dashboard: %v", err)
+		return nil
+	}
+
+	exec := executor.NewExecutor(nil, 30*time.Second)
+	if err := exec.RegisterDataSource("postgres", pgDataSource); err != nil {
+		c.executorInitErr = err
+		log.Printf("Failed to register dashboard data source: %v", err)
+		if closeErr := pgDataSource.Close(); closeErr != nil {
+			log.Printf("Failed to close dashboard data source: %v", closeErr)
+		}
+		return nil
+	}
+
+	c.executor = exec
+	return c.executor
+}
+
+func (c *DashboardController) Close() error {
+	c.executorMu.Lock()
+	defer c.executorMu.Unlock()
+
+	if c.executor == nil {
+		return nil
+	}
+
+	err := c.executor.Close()
+	c.executor = nil
+	c.executorInitErr = nil
+	return err
 }
