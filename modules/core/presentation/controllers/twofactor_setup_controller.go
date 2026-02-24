@@ -89,21 +89,6 @@ func requireTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r
 	return sess, true
 }
 
-func requirePendingTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r *http.Request) (session.Session, bool) {
-	sess, err := composables.UseSession(r.Context())
-	if err != nil {
-		logger.WithError(err).Error("failed to get session")
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return nil, false
-	}
-	if !sess.IsPending() {
-		logger.WithField("status", sess.Status()).Error("session not in pending status for 2FA setup")
-		http.Error(w, "invalid session state", http.StatusBadRequest)
-		return nil, false
-	}
-	return sess, true
-}
-
 func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.ResponseWriter, sess session.Session) (session.Session, error) {
 	conf := configuration.Use()
 	updatedSession := session.New(
@@ -301,7 +286,7 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 	challengeID := r.URL.Query().Get("challengeId")
 	// Validate the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
-	if _, ok := requirePendingTwoFactorSetupSession(w, logger, r); !ok {
+	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
 		return
 	}
 
@@ -330,6 +315,7 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 		ChallengeID:  challengeID,
 		NextURL:      nextURL,
 		QRImageURL:   qrImageURL,
+		OTPAuthURL:   challenge.QRCodeURL,
 		ErrorMessage: string(errorMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.WithError(err).Error("failed to render TOTP setup template")
@@ -346,7 +332,7 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 	challengeID := r.URL.Query().Get("challengeId")
 	// Validate the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
-	if _, ok := requirePendingTwoFactorSetupSession(w, logger, r); !ok {
+	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
 		return
 	}
 
@@ -427,7 +413,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 	}
 
 	// Get session
-	sess, ok := requirePendingTwoFactorSetupSession(w, logger, r)
+	sess, ok := requireTwoFactorSetupSession(w, logger, r)
 	if !ok {
 		return
 	}
@@ -485,7 +471,7 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
 		return
 	}
-	if _, ok := requirePendingTwoFactorSetupSession(w, logger, r); !ok {
+	if _, ok := requireTwoFactorSetupSession(w, logger, r); !ok {
 		return
 	}
 
@@ -554,7 +540,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 	}
 
 	// Get session
-	sess, ok := requirePendingTwoFactorSetupSession(w, logger, r)
+	sess, ok := requireTwoFactorSetupSession(w, logger, r)
 	if !ok {
 		return
 	}

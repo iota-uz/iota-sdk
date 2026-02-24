@@ -19,7 +19,7 @@ jobs:
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
-          go-version: "1.24.10"
+          go-version: "1.24.13"
 
       - name: Install golangci-lint
         run: |
@@ -184,7 +184,7 @@ jobs:
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
-          go-version: "1.24.10"
+          go-version: "1.24.13"
 
       - name: Install just
         uses: extractions/setup-just@v3
@@ -258,7 +258,19 @@ jobs:
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 20
-    name: E2E Tests
+    name: E2E Tests (shard ${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1/4
+            shardIndex: 1
+          - shard: 2/4
+            shardIndex: 2
+          - shard: 3/4
+            shardIndex: 3
+          - shard: 4/4
+            shardIndex: 4
     env:
       GOPRIVATE: github.com/iota-uz/*
       GONOSUMDB: github.com/iota-uz/*
@@ -309,7 +321,17 @@ jobs:
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
-          go-version: "1.24.10"
+          go-version: "1.24.13"
+
+      - name: Cache Go modules and build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-e2e-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-e2e-
 
       - name: Install just
         uses: extractions/setup-just@v3
@@ -331,6 +353,18 @@ jobs:
         with:
           version: 9.15.0
 
+      - name: Get pnpm store directory
+        id: pnpm-store
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-e2e-${{ hashFiles('pnpm-lock.yaml', 'e2e/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-e2e-
+
       - name: Download Go dependencies
         run: go mod download
 
@@ -347,6 +381,14 @@ jobs:
       - name: Install Node dependencies
         run: pnpm install
         working-directory: e2e
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
@@ -378,7 +420,7 @@ jobs:
       - name: Run Playwright Tests
         env:
           BASE_URL: http://localhost:3201
-        run: npx playwright test
+        run: npx playwright test --shard=${{ matrix.shard }}
         working-directory: e2e
 
       - name: Stop Go Server
@@ -395,7 +437,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shardIndex }}
           path: e2e/playwright-report/
           retention-days: 30
 
@@ -403,7 +445,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.shardIndex }}
           path: e2e/test-results/
           retention-days: 30
 
@@ -411,7 +453,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: server-logs
+          name: server-logs-${{ matrix.shardIndex }}
           path: /tmp/server.log
           retention-days: 7
 

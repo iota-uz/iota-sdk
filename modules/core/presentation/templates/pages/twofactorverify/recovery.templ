@@ -43,7 +43,7 @@ templ Recovery(p *RecoveryProps) {
 					}
 					<!-- Recovery Code Form -->
 					<form method="post" action="/login/2fa/verify/recovery" class="flex flex-col gap-4">
-						@composables.CSRFTokenField(ctx)
+						@composables.CSRFTokenField()
 						<input type="hidden" name="NextURL" value={ p.NextURL }/>
 						<div>
 							<label class="block text-sm font-medium text-100 mb-2">

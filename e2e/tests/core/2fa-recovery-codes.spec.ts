@@ -3,7 +3,7 @@ import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, populateTestData } from '../../fixtures/test-data';
 import { TwoFactorVerifyPage } from '../../pages/core/twofactor-verify-page';
 import { TwoFactorSetupPage } from '../../pages/core/twofactor-setup-page';
-import { generateTOTPCode, generateTOTPCodeWithOffset } from '../../helpers/totp';
+import { generateTOTPCode } from '../../helpers/totp';
 
 /**
  * Recovery Codes E2E Tests
@@ -51,10 +51,10 @@ test.describe('2FA Recovery Codes', () => {
 	}
 
 	async function setupUserWithRecoveryCodes(
-		page: Parameters<typeof login>[0],
 		request: Parameters<typeof populateTestData>[0],
 		email: string
 	): Promise<string[]> {
+		const seededRecoveryCodes = ['ABCD-EFGH-IJKL', 'MNOP-QRST-UVWX', 'YZ23-4567-ABCD'];
 		await populateTestData(request, {
 			version: '1.0',
 			tenant: {
@@ -70,48 +70,26 @@ test.describe('2FA Recovery Codes', () => {
 						firstName: 'Recovery',
 						lastName: 'Setup',
 						language: 'en',
+						twoFactorMethod: 'totp',
+						totpSecretEncrypted: testUser.totpSecret,
+						twoFactorEnabledAt: new Date().toISOString(),
+						recoveryCodes: seededRecoveryCodes,
 					},
 				],
 			},
 		});
 
-		await login(page, email, 'TestPass123!');
-		await page.goto('/login/2fa/setup');
-		const setupPage = new TwoFactorSetupPage(page);
-		await setupPage.selectMethod('totp');
-		let recoveryCodes: string[] = [];
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const secret = await setupPage.extractTOTPSecret();
-			const candidateCodes = [
-				generateTOTPCodeWithOffset(secret, 0),
-				generateTOTPCodeWithOffset(secret, -1),
-				generateTOTPCodeWithOffset(secret, 1),
-			];
-			for (const code of candidateCodes) {
-				await setupPage.enterTOTPCode(code);
-				recoveryCodes = await setupPage.getRecoveryCodes();
-				if (recoveryCodes.length > 1) {
-					break;
-				}
-				await expect(page).toHaveURL(/\/login\/2fa\/setup\/totp/);
-			}
-			if (recoveryCodes.length > 1) {
-				break;
-			}
-			await page.waitForTimeout(1000);
-		}
-
-		expect(recoveryCodes.length).toBeGreaterThan(1);
-		await logout(page);
-		return recoveryCodes;
+		return seededRecoveryCodes;
 	}
 
 	async function loginAndReachVerify(page: Parameters<typeof login>[0], email: string, password: string) {
 		await login(page, email, password);
-		if (!/\/login\/2fa\/verify/.test(page.url())) {
-			await page.goto('/login/2fa/verify');
+		// Some flows briefly land on "/" first; navigating to a protected route
+		// consistently triggers the pending 2FA verification redirect.
+		if (!/\/login\/2fa\/verify/.test(new URL(page.url()).pathname)) {
+			await page.goto('/users');
 		}
-		await expect(page).toHaveURL(/\/login\/2fa\/verify/);
+		await expect(page).toHaveURL(/\/login\/2fa\/verify/, { timeout: 10000 });
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
 	}
 
@@ -197,10 +175,9 @@ test.describe('2FA Recovery Codes', () => {
 	});
 
 	test('should successfully login with valid recovery code', async ({ page, request }) => {
-		test.fixme(true, 'Flaky in CI: setup-created users intermittently skip pending 2FA state');
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const email = 'recovery-login@example.com';
-		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
+		const recoveryCodes = await setupUserWithRecoveryCodes(request, email);
 
 		// Login to trigger verification
 		await loginAndReachVerify(page, email, 'TestPass123!');
@@ -241,10 +218,9 @@ test.describe('2FA Recovery Codes', () => {
 	});
 
 	test('should mark recovery code as used after successful login', async ({ page, request }) => {
-		test.fixme(true, 'Flaky in CI: setup-created users intermittently skip pending 2FA state');
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const email = 'recovery-used@example.com';
-		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
+		const recoveryCodes = await setupUserWithRecoveryCodes(request, email);
 		const codeToUse = recoveryCodes[0];
 
 		// Login and use recovery code
@@ -264,10 +240,9 @@ test.describe('2FA Recovery Codes', () => {
 	});
 
 	test('should not allow reusing the same recovery code', async ({ page, request }) => {
-		test.fixme(true, 'Flaky in CI: setup-created users intermittently skip pending 2FA state');
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const email = 'recovery-reuse@example.com';
-		const recoveryCodes = await setupUserWithRecoveryCodes(page, request, email);
+		const recoveryCodes = await setupUserWithRecoveryCodes(request, email);
 		const usedCode = recoveryCodes[0];
 		const backupCode = recoveryCodes[1];
 

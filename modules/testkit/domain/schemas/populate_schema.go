@@ -36,6 +36,7 @@ type UserSpec struct {
 	TwoFactorMethod     string   `json:"twoFactorMethod,omitempty"`
 	TOTPSecretEncrypted string   `json:"totpSecretEncrypted,omitempty"`
 	TwoFactorEnabledAt  string   `json:"twoFactorEnabledAt,omitempty"`
+	RecoveryCodes       []string `json:"recoveryCodes,omitempty"`
 	Ref                 string   `json:"_ref,omitempty"`
 }
 

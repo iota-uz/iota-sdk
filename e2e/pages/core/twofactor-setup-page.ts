@@ -63,6 +63,14 @@ export class TwoFactorSetupPage {
 	 * @returns The TOTP secret
 	 */
 	async extractTOTPSecret(): Promise<string> {
+		const otpAuthDataEl = this.page.locator('[data-otp-auth-url]');
+		if (await otpAuthDataEl.count()) {
+			const otpAuthAttr = await otpAuthDataEl.first().getAttribute('data-otp-auth-url');
+			if (otpAuthAttr) {
+				return extractSecretFromOTPAuthURL(otpAuthAttr);
+			}
+		}
+
 		const otpAuthInput = this.page.locator('input[name="OTPAuthURL"]');
 		if (await otpAuthInput.count()) {
 			const otpAuthURL = await otpAuthInput.first().inputValue();
