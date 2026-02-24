@@ -14,6 +14,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type controllerCloser interface {
+	Close() error
+}
+
 // TestContext provides a fluent API for building test contexts
 type TestContext struct {
 	ctx     context.Context
@@ -101,6 +105,9 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 		if err := tx.Rollback(tc.ctx); err != nil && err != pgx.ErrTxClosed {
 			tb.Logf("Warning: failed to rollback transaction: %v", err)
 		}
+		if tc.app != nil {
+			closeControllerResources(tb, tc.app.Controllers())
+		}
 		tc.pool.Close()
 		// Drop the test database to free disk space
 		DropDB(dbName)
@@ -177,4 +184,17 @@ func (te *TestEnvironment) TenantID() uuid.UUID {
 // WithTx returns a new context with the test transaction
 func (te *TestEnvironment) WithTx(ctx context.Context) context.Context {
 	return composables.WithTx(ctx, te.Tx)
+}
+
+func closeControllerResources(tb testing.TB, controllers []application.Controller) {
+	tb.Helper()
+	for _, controller := range controllers {
+		closer, ok := controller.(controllerCloser)
+		if !ok {
+			continue
+		}
+		if err := closer.Close(); err != nil {
+			tb.Logf("Warning: failed to close controller %T: %v", controller, err)
+		}
+	}
 }
