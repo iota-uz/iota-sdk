@@ -242,6 +242,22 @@ jobs:
             sleep 1
           done
 
+      - name: Validate PostgreSQL max connections
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: |
+          max_connections=$(psql "host=$DB_HOST port=$DB_PORT dbname=$DB_NAME user=$DB_USER password=$DB_PASSWORD sslmode=disable" -tAc "SHOW max_connections;" | tr -d '[:space:]')
+          echo "PostgreSQL max_connections=$max_connections"
+          min_expected=300
+          if [ -z "$max_connections" ] || [ "$max_connections" -lt "$min_expected" ]; then
+            echo "Error: max_connections is too low (expected >= $min_expected, got ${max_connections:-empty})"
+            exit 1
+          fi
+
       - name: Test just recipes
         env:
           DB_HOST: localhost

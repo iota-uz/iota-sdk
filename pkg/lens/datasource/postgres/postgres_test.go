@@ -1,15 +1,63 @@
 package postgres
 
 import (
+	"context"
+	"fmt"
+	"net"
+	"net/url"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 )
+
+func connectionStringFromEnv(defaultDB string) string {
+	host := os.Getenv("DB_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	port := os.Getenv("DB_PORT")
+	if port == "" {
+		port = "5432"
+	}
+	user := os.Getenv("DB_USER")
+	if user == "" {
+		user = "postgres"
+	}
+	password := os.Getenv("DB_PASSWORD")
+	if password == "" {
+		password = "postgres"
+	}
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = defaultDB
+	}
+	return fmt.Sprintf("postgres://%s@%s/%s", url.UserPassword(user, password).String(), net.JoinHostPort(host, port), dbName)
+}
+
+func openTestPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	connString := connectionStringFromEnv("postgres")
+	pool, err := pgxpool.New(ctx, connString)
+	if err != nil {
+		t.Skipf("Skipping test due to database connection: %v", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		t.Skipf("Skipping test due to database ping failure: %v", err)
+	}
+	return pool
+}
 
 func TestNewPostgreSQLDataSource(t *testing.T) {
 	tests := []struct {
@@ -70,6 +118,61 @@ func TestNewPostgreSQLDataSource(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPostgreSQLDataSource_PoolOwnershipSemantics(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "shared pool ownership",
+			run: func(t *testing.T) {
+				t.Helper()
+				pool := openTestPool(t)
+				defer pool.Close()
+
+				ds, err := NewPostgreSQLDataSourceFromPool(pool, Config{QueryTimeout: 30 * time.Second})
+				require.NoError(t, err)
+				require.NoError(t, ds.Close())
+
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				require.NoError(t, pool.Ping(ctx))
+			},
+		},
+		{
+			name: "nil pool",
+			run: func(t *testing.T) {
+				t.Helper()
+				ds, err := NewPostgreSQLDataSourceFromPool(nil, Config{QueryTimeout: time.Second})
+				require.Error(t, err)
+				assert.Nil(t, ds)
+			},
+		},
+		{
+			name: "owned pool close",
+			run: func(t *testing.T) {
+				t.Helper()
+				ds, err := NewPostgreSQLDataSource(Config{
+					ConnectionString: connectionStringFromEnv("postgres"),
+					QueryTimeout:     30 * time.Second,
+				})
+				if err != nil {
+					t.Skipf("Skipping test due to database connection: %v", err)
+				}
+				require.NoError(t, ds.Close())
+
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				require.Error(t, ds.pool.Ping(ctx))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, tt.run)
 	}
 }
 

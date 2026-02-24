@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,12 +10,14 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PostgreSQLDataSource implements DataSource for PostgreSQL databases
 type PostgreSQLDataSource struct {
 	pool     *pgxpool.Pool
+	ownsPool bool
 	metadata datasource.DataSourceMetadata
 	config   Config
 }
@@ -61,27 +64,13 @@ func NewPostgreSQLDataSource(config Config) (*PostgreSQLDataSource, error) {
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
 
-	// Set default timeout
-	if config.QueryTimeout == 0 {
-		config.QueryTimeout = 30 * time.Second
-	}
+	return newPostgreSQLDataSource(pool, config, true)
+}
 
-	ds := &PostgreSQLDataSource{
-		pool:   pool,
-		config: config,
-		metadata: datasource.DataSourceMetadata{
-			Type:        datasource.TypePostgreSQL,
-			Name:        "PostgreSQL",
-			Version:     "1.0.0",
-			Description: "PostgreSQL database data source using pgxpool",
-			Capabilities: []datasource.Capability{
-				datasource.CapabilityQuery,
-				datasource.CapabilityMetrics,
-			},
-		},
-	}
-
-	return ds, nil
+// NewPostgreSQLDataSourceFromPool creates a data source from an existing pgx pool.
+// The underlying pool lifecycle remains owned by the caller.
+func NewPostgreSQLDataSourceFromPool(pool *pgxpool.Pool, config Config) (*PostgreSQLDataSource, error) {
+	return newPostgreSQLDataSource(pool, config, false)
 }
 
 // Query executes a query and returns the result
@@ -355,10 +344,35 @@ func (ds *PostgreSQLDataSource) ValidateQuery(query datasource.Query) error {
 
 // Close closes the datasource connection
 func (ds *PostgreSQLDataSource) Close() error {
-	if ds.pool != nil {
+	if ds.pool != nil && ds.ownsPool {
 		ds.pool.Close()
 	}
 	return nil
+}
+
+func newPostgreSQLDataSource(pool *pgxpool.Pool, config Config, ownsPool bool) (*PostgreSQLDataSource, error) {
+	op := serrors.Op("lens.postgres.newPostgreSQLDataSource")
+	if pool == nil {
+		return nil, serrors.E(op, errors.New("pool is required"))
+	}
+	if config.QueryTimeout == 0 {
+		config.QueryTimeout = 30 * time.Second
+	}
+	return &PostgreSQLDataSource{
+		pool:     pool,
+		ownsPool: ownsPool,
+		config:   config,
+		metadata: datasource.DataSourceMetadata{
+			Type:        datasource.TypePostgreSQL,
+			Name:        "PostgreSQL",
+			Version:     "1.0.0",
+			Description: "PostgreSQL database data source using pgxpool",
+			Capabilities: []datasource.Capability{
+				datasource.CapabilityQuery,
+				datasource.CapabilityMetrics,
+			},
+		},
+	}, nil
 }
 
 // Helper methods
