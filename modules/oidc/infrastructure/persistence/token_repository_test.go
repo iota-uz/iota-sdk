@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/token"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
 func hashToken(tokenString string) string {
@@ -19,9 +20,29 @@ func hashToken(tokenString string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+func setupTokenFixtures(t *testing.T, f *itf.TestEnvironment) uuid.UUID {
+	t.Helper()
+
+	tenantID := createOIDCTestTenantAndUsers(t, f, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
+	createOIDCTestClients(
+		t,
+		f,
+		"test-client-id",
+		"custom-client-id",
+		"client-1",
+		"client-2",
+		"test-client",
+		"user-client-test",
+		"different-client",
+	)
+
+	return tenantID
+}
+
 func TestTokenRepository_Create(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
@@ -88,7 +109,7 @@ func TestTokenRepository_Create(t *testing.T) {
 					tokenHash,
 					"client-1",
 					3,
-					uuid.New(),
+					tenantID,
 					[]string{"openid"},
 					time.Now(),
 					24*time.Hour,
@@ -102,7 +123,7 @@ func TestTokenRepository_Create(t *testing.T) {
 				tokenHash,
 				tc.clientID,
 				tc.userID,
-				uuid.New(),
+				tenantID,
 				tc.scopes,
 				time.Now(),
 				tc.lifetime,
@@ -140,6 +161,7 @@ func TestTokenRepository_Create(t *testing.T) {
 func TestTokenRepository_GetByTokenHash(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
@@ -151,7 +173,7 @@ func TestTokenRepository_GetByTokenHash(t *testing.T) {
 			tokenHash,
 			"test-client",
 			5,
-			uuid.New(),
+			tenantID,
 			[]string{"openid"},
 			time.Now(),
 			24*time.Hour,
@@ -176,6 +198,7 @@ func TestTokenRepository_GetByTokenHash(t *testing.T) {
 func TestTokenRepository_Delete(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
@@ -187,7 +210,7 @@ func TestTokenRepository_Delete(t *testing.T) {
 			tokenHash,
 			"test-client",
 			6,
-			uuid.New(),
+			tenantID,
 			[]string{"openid"},
 			time.Now(),
 			24*time.Hour,
@@ -212,6 +235,7 @@ func TestTokenRepository_Delete(t *testing.T) {
 func TestTokenRepository_DeleteByTokenHash(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
@@ -223,7 +247,7 @@ func TestTokenRepository_DeleteByTokenHash(t *testing.T) {
 			tokenHash,
 			"test-client",
 			7,
-			uuid.New(),
+			tenantID,
 			[]string{"openid"},
 			time.Now(),
 			24*time.Hour,
@@ -248,13 +272,12 @@ func TestTokenRepository_DeleteByTokenHash(t *testing.T) {
 func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
 	userID := 8
 	clientID := "user-client-test"
-	tenantID := uuid.New()
-
 	// Create multiple tokens for same user+client
 	token1 := token.New(
 		hashToken("token-1"),
@@ -312,6 +335,7 @@ func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
 func TestTokenRepository_DeleteExpired(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
@@ -320,7 +344,7 @@ func TestTokenRepository_DeleteExpired(t *testing.T) {
 		hashToken("expired-token"),
 		"test-client",
 		9,
-		uuid.New(),
+		tenantID,
 		[]string{"openid"},
 		time.Now().Add(-2*time.Hour),
 		1*time.Hour,
@@ -334,7 +358,7 @@ func TestTokenRepository_DeleteExpired(t *testing.T) {
 		hashToken("valid-token"),
 		"test-client",
 		10,
-		uuid.New(),
+		tenantID,
 		[]string{"openid"},
 		time.Now(),
 		24*time.Hour,
@@ -359,6 +383,7 @@ func TestTokenRepository_DeleteExpired(t *testing.T) {
 func TestTokenRepository_IsExpired(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
@@ -368,7 +393,7 @@ func TestTokenRepository_IsExpired(t *testing.T) {
 			tokenHash,
 			"test-client",
 			11,
-			uuid.New(),
+			tenantID,
 			[]string{"openid"},
 			time.Now(),
 			24*time.Hour,
@@ -388,7 +413,7 @@ func TestTokenRepository_IsExpired(t *testing.T) {
 			tokenHash,
 			"test-client",
 			12,
-			uuid.New(),
+			tenantID,
 			[]string{"openid"},
 			time.Now().Add(-2*time.Hour),
 			1*time.Hour,
@@ -407,6 +432,7 @@ func TestTokenRepository_IsExpired(t *testing.T) {
 func TestTokenRepository_TokenLifetime(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
@@ -418,7 +444,7 @@ func TestTokenRepository_TokenLifetime(t *testing.T) {
 		tokenHash,
 		"test-client",
 		13,
-		uuid.New(),
+		tenantID,
 		[]string{"openid", "offline_access"},
 		authTime,
 		customLifetime,
@@ -438,6 +464,7 @@ func TestTokenRepository_TokenLifetime(t *testing.T) {
 func TestTokenRepository_Scopes(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
@@ -449,7 +476,7 @@ func TestTokenRepository_Scopes(t *testing.T) {
 			tokenHash,
 			"test-client",
 			14,
-			uuid.New(),
+			tenantID,
 			scopes,
 			time.Now(),
 			24*time.Hour,
@@ -470,7 +497,7 @@ func TestTokenRepository_Scopes(t *testing.T) {
 			tokenHash,
 			"test-client",
 			15,
-			uuid.New(),
+			tenantID,
 			[]string{},
 			time.Now(),
 			24*time.Hour,
@@ -488,6 +515,7 @@ func TestTokenRepository_Scopes(t *testing.T) {
 func TestTokenRepository_AMR(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
 
 	tokenRepo := persistence.NewTokenRepository()
 
@@ -498,7 +526,7 @@ func TestTokenRepository_AMR(t *testing.T) {
 			tokenHash,
 			"test-client",
 			16,
-			uuid.New(),
+			tenantID,
 			[]string{"openid"},
 			time.Now(),
 			24*time.Hour,
@@ -520,7 +548,7 @@ func TestTokenRepository_AMR(t *testing.T) {
 			tokenHash,
 			"test-client",
 			17,
-			uuid.New(),
+			tenantID,
 			[]string{"openid"},
 			time.Now(),
 			24*time.Hour,

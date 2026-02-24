@@ -44,7 +44,7 @@ func TestClientRepository_Create(t *testing.T) {
 		testClient := client.New(
 			"custom-client-id",
 			"Custom Client",
-			"spa",
+			"native",
 			[]string{"http://localhost:4000/callback"},
 			client.WithClientSecretHash(secretHash),
 			client.WithGrantTypes([]string{"authorization_code", "refresh_token"}),

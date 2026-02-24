@@ -165,7 +165,7 @@ func TestAuthRequestRepository_Update(t *testing.T) {
 
 		// Complete authentication
 		userID := 123
-		tenantID := uuid.New()
+		tenantID := createOIDCTestTenantAndUsers(t, f, userID)
 		updatedReq := authReq.CompleteAuthentication(userID, tenantID)
 
 		err = authRequestRepo.Update(f.Ctx, updatedReq)
@@ -329,7 +329,7 @@ func TestAuthRequestRepository_CompleteAuthentication(t *testing.T) {
 
 		// Complete authentication
 		userID := 456
-		tenantID := uuid.New()
+		tenantID := createOIDCTestTenantAndUsers(t, f, userID)
 		completedReq := authReq.CompleteAuthentication(userID, tenantID)
 
 		err = authRequestRepo.Update(f.Ctx, completedReq)

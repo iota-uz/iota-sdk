@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/client"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/oidc/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
@@ -21,6 +23,33 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	os.Exit(m.Run())
+}
+
+func createOIDCTestTenantAndUser(t *testing.T, env *itf.TestEnvironment, userID int) uuid.UUID {
+	t.Helper()
+
+	tx, err := composables.UseTx(env.Ctx)
+	require.NoError(t, err)
+
+	tenantID := uuid.New()
+	tenantName := fmt.Sprintf("oidc-service-tenant-%s", tenantID.String())
+
+	_, err = tx.Exec(env.Ctx, `INSERT INTO tenants (id, name) VALUES ($1, $2)`, tenantID, tenantName)
+	require.NoError(t, err)
+
+	email := fmt.Sprintf("oidc-service-user-%d-%s@example.com", userID, tenantID.String()[:8])
+	_, err = tx.Exec(
+		env.Ctx,
+		`INSERT INTO users (id, tenant_id, type, first_name, last_name, email, ui_language)
+		 VALUES ($1, $2, 'user', 'OIDC', 'Service', $3, 'en')
+		 ON CONFLICT (id) DO NOTHING`,
+		userID,
+		tenantID,
+		email,
+	)
+	require.NoError(t, err)
+
+	return tenantID
 }
 
 func TestOIDCService_CompleteAuthRequest(t *testing.T) {
@@ -60,7 +89,7 @@ func TestOIDCService_CompleteAuthRequest(t *testing.T) {
 
 	// Complete the auth request
 	userID := 1
-	tenantID := uuid.New()
+	tenantID := createOIDCTestTenantAndUser(t, env, userID)
 	err = oidcService.CompleteAuthRequest(env.Ctx, testAuthReq.ID().String(), userID, tenantID)
 	require.NoError(t, err)
 
@@ -110,7 +139,7 @@ func TestOIDCService_CompleteAuthRequest_Expired(t *testing.T) {
 
 	// Attempt to complete the expired auth request
 	userID := 1
-	tenantID := uuid.New()
+	tenantID := createOIDCTestTenantAndUser(t, env, userID)
 	err = oidcService.CompleteAuthRequest(env.Ctx, testAuthReq.ID().String(), userID, tenantID)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "expired")
