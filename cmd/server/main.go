@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"time"
 
@@ -270,12 +270,11 @@ func main() {
 						if err != nil {
 							panic(err) // Fail fast if user context missing
 						}
-						userID := user.ID()
-						parsedUserID, parseErr := strconv.ParseInt(strconv.FormatUint(uint64(userID), 10), 10, 64)
-						if parseErr != nil {
+						uid := uint64(user.ID())
+						if uid > math.MaxInt64 {
 							panic("user id overflows int64")
 						}
-						return parsedUserID
+						return int64(uid) // #nosec G115 -- bounded by the MaxInt64 guard above
 					},
 					chatRepo,
 					model,
