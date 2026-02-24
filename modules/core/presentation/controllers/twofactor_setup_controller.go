@@ -83,7 +83,7 @@ func requireTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r
 	}
 	if !sess.IsPending() && !sess.IsActive() {
 		logger.WithField("status", sess.Status()).Error("session not in allowed status for 2FA setup")
-		http.Error(w, "invalid session state", http.StatusBadRequest)
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return nil, false
 	}
 	return sess, true
@@ -237,6 +237,14 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 	if err != nil {
 		logger.WithError(err).Error("failed to get user")
 		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+	if u.Has2FAEnabled() {
+		if sess.Status() == session.StatusPending2FA {
+			http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, nextURL, http.StatusFound)
 		return
 	}
 

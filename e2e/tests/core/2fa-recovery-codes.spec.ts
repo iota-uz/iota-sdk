@@ -22,7 +22,6 @@ test.describe('2FA Recovery Codes', () => {
 		email: 'recovery-test@example.com',
 		password: 'TestPass123!',
 		totpSecret: 'JBSWY3DPEHPK3PXP',
-		recoveryCodes: ['RECOVERY-CODE-1', 'RECOVERY-CODE-2', 'RECOVERY-CODE-3'],
 	};
 
 	async function seedRecoveryUser(request: Parameters<typeof populateTestData>[0]) {
@@ -148,9 +147,9 @@ test.describe('2FA Recovery Codes', () => {
 		expect(recoveryCodes.length).toBeLessThanOrEqual(10);
 
 		// Verify format of recovery codes
-		recoveryCodes.forEach((code) => {
-			expect(code).toMatch(/^[A-Z0-9-]+$/i);
-			expect(code.length).toBeGreaterThanOrEqual(8);
+		recoveryCodes.forEach((recoveryCode) => {
+			expect(recoveryCode).toMatch(/^[A-Z0-9-]+$/i);
+			expect(recoveryCode.length).toBeGreaterThanOrEqual(8);
 		});
 
 		// Verify instructions to save codes
