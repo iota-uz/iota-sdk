@@ -26,6 +26,7 @@ import (
 const streamPersistenceTimeout = 10 * time.Second
 const titleGenerationFallbackTimeout = 15 * time.Second
 const streamSnapshotThrottle = 2 * time.Second
+const sessionAccessRepoNotConfiguredError = "session access repository is not configured"
 
 // activeRun holds in-memory state for a streaming run so clients can resume.
 type activeRun struct {
@@ -358,6 +359,11 @@ func (s *chatServiceImpl) ListUserSessions(ctx context.Context, userID int64, op
 		}
 		return sessions, nil
 	}
+	if !isSessionAccessRepoNotConfiguredErr(err) {
+		return nil, serrors.E(op, err)
+	}
+
+	configuration.Use().Logger().WithError(err).Warn("session access repository not configured; falling back to legacy session list")
 
 	sessions, fallbackErr := s.chatRepo.ListUserSessions(ctx, userID, opts)
 	if fallbackErr != nil {
@@ -374,12 +380,25 @@ func (s *chatServiceImpl) CountUserSessions(ctx context.Context, userID int64, o
 	if err == nil {
 		return count, nil
 	}
+	if !isSessionAccessRepoNotConfiguredErr(err) {
+		return 0, serrors.E(op, err)
+	}
+
+	configuration.Use().Logger().WithError(err).Warn("session access repository not configured; falling back to legacy session count")
 
 	count, fallbackErr := s.chatRepo.CountUserSessions(ctx, userID, opts)
 	if fallbackErr != nil {
 		return 0, serrors.E(op, fallbackErr)
 	}
 	return count, nil
+}
+
+func isSessionAccessRepoNotConfiguredErr(err error) bool {
+	var sErr *serrors.Error
+	if !errors.As(err, &sErr) {
+		return false
+	}
+	return sErr.Kind == serrors.KindValidation && strings.EqualFold(sErr.Context, sessionAccessRepoNotConfiguredError)
 }
 
 func (s *chatServiceImpl) sessionAccessRepo() (domain.SessionAccessRepository, bool) {
