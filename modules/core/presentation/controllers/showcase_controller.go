@@ -27,7 +27,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource/postgres"
 	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
+
+const showcaseExecutorInitCooldown = 30 * time.Second
 
 type ShowcaseController struct {
 	app             application.Application
@@ -35,6 +38,7 @@ type ShowcaseController struct {
 	executorMu      sync.Mutex
 	executor        executor.Executor
 	executorInitErr error
+	executorInitAt  time.Time
 }
 
 func NewShowcaseController(app application.Application) application.Controller {
@@ -370,17 +374,21 @@ func (c *ShowcaseController) ToastExample(
 }
 
 func (c *ShowcaseController) ensureExecutor() executor.Executor {
+	const op = serrors.Op("ShowcaseController.ensureExecutor")
 	c.executorMu.Lock()
 	defer c.executorMu.Unlock()
 
 	if c.executor != nil {
 		return c.executor
 	}
-	if c.executorInitErr != nil {
+	if c.executorInitErr != nil && time.Since(c.executorInitAt) < showcaseExecutorInitCooldown {
 		return nil
 	}
+	c.executorInitErr = nil
+
 	if c.app == nil || c.app.DB() == nil {
-		c.executorInitErr = errors.New("showcase database pool is not available")
+		c.executorInitErr = serrors.E(op, errors.New("database pool is not available"))
+		c.executorInitAt = time.Now()
 		log.Printf("Failed to create showcase executor: %v", c.executorInitErr)
 		return nil
 	}
@@ -389,17 +397,19 @@ func (c *ShowcaseController) ensureExecutor() executor.Executor {
 		QueryTimeout: 30 * time.Second,
 	})
 	if err != nil {
-		c.executorInitErr = err
-		log.Printf("Failed to create PostgreSQL data source for showcase: %v", err)
+		c.executorInitErr = serrors.E(op, err)
+		c.executorInitAt = time.Now()
+		log.Printf("Failed to create PostgreSQL data source for showcase: %v", c.executorInitErr)
 		return nil
 	}
 
 	exec := executor.NewExecutor(nil, 30*time.Second)
 	if err := exec.RegisterDataSource("core", pgDataSource); err != nil {
-		c.executorInitErr = err
-		log.Printf("Failed to register showcase data source: %v", err)
+		c.executorInitErr = serrors.E(op, err)
+		c.executorInitAt = time.Now()
+		log.Printf("Failed to register showcase data source: %v", c.executorInitErr)
 		if closeErr := pgDataSource.Close(); closeErr != nil {
-			log.Printf("Failed to close showcase data source: %v", closeErr)
+			log.Printf("Failed to close showcase data source: %v", serrors.E(op, closeErr))
 		}
 		return nil
 	}
@@ -409,6 +419,7 @@ func (c *ShowcaseController) ensureExecutor() executor.Executor {
 }
 
 func (c *ShowcaseController) Close() error {
+	const op = serrors.Op("ShowcaseController.Close")
 	c.executorMu.Lock()
 	defer c.executorMu.Unlock()
 
@@ -419,5 +430,8 @@ func (c *ShowcaseController) Close() error {
 	err := c.executor.Close()
 	c.executor = nil
 	c.executorInitErr = nil
-	return err
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }

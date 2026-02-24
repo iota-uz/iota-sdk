@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource/postgres"
 	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/gorilla/mux"
 )
@@ -27,11 +28,14 @@ func NewDashboardController(app application.Application) application.Controller 
 	}
 }
 
+const executorInitCooldown = 30 * time.Second
+
 type DashboardController struct {
 	app             application.Application
 	executorMu      sync.Mutex
 	executor        executor.Executor
 	executorInitErr error
+	executorInitAt  time.Time
 }
 
 // createFinanceDashboard creates a finance dashboard configuration using lens builders
@@ -358,17 +362,21 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *DashboardController) ensureExecutor() executor.Executor {
+	const op = serrors.Op("DashboardController.ensureExecutor")
 	c.executorMu.Lock()
 	defer c.executorMu.Unlock()
 
 	if c.executor != nil {
 		return c.executor
 	}
-	if c.executorInitErr != nil {
+	if c.executorInitErr != nil && time.Since(c.executorInitAt) < executorInitCooldown {
 		return nil
 	}
+	c.executorInitErr = nil
+
 	if c.app == nil || c.app.DB() == nil {
-		c.executorInitErr = errors.New("dashboard database pool is not available")
+		c.executorInitErr = serrors.E(op, errors.New("database pool is not available"))
+		c.executorInitAt = time.Now()
 		log.Printf("Failed to create dashboard executor: %v", c.executorInitErr)
 		return nil
 	}
@@ -377,17 +385,19 @@ func (c *DashboardController) ensureExecutor() executor.Executor {
 		QueryTimeout: 30 * time.Second,
 	})
 	if err != nil {
-		c.executorInitErr = err
-		log.Printf("Failed to create PostgreSQL data source for dashboard: %v", err)
+		c.executorInitErr = serrors.E(op, err)
+		c.executorInitAt = time.Now()
+		log.Printf("Failed to create PostgreSQL data source for dashboard: %v", c.executorInitErr)
 		return nil
 	}
 
 	exec := executor.NewExecutor(nil, 30*time.Second)
 	if err := exec.RegisterDataSource("postgres", pgDataSource); err != nil {
-		c.executorInitErr = err
-		log.Printf("Failed to register dashboard data source: %v", err)
+		c.executorInitErr = serrors.E(op, err)
+		c.executorInitAt = time.Now()
+		log.Printf("Failed to register dashboard data source: %v", c.executorInitErr)
 		if closeErr := pgDataSource.Close(); closeErr != nil {
-			log.Printf("Failed to close dashboard data source: %v", closeErr)
+			log.Printf("Failed to close dashboard data source: %v", serrors.E(op, closeErr))
 		}
 		return nil
 	}
@@ -397,6 +407,7 @@ func (c *DashboardController) ensureExecutor() executor.Executor {
 }
 
 func (c *DashboardController) Close() error {
+	const op = serrors.Op("DashboardController.Close")
 	c.executorMu.Lock()
 	defer c.executorMu.Unlock()
 
@@ -407,5 +418,8 @@ func (c *DashboardController) Close() error {
 	err := c.executor.Close()
 	c.executor = nil
 	c.executorInitErr = nil
-	return err
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }

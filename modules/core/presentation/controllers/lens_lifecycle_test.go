@@ -63,48 +63,63 @@ func testApplicationWithPool(pool *pgxpool.Pool) application.Application {
 	})
 }
 
-func TestDashboardController_LazyInitAndClose(t *testing.T) {
+func TestController_LazyInitAndClose(t *testing.T) {
 	t.Parallel()
 
-	pool := openControllerTestPool(t)
-	t.Cleanup(pool.Close)
+	cases := []struct {
+		name string
+		run  func(t *testing.T, pool *pgxpool.Pool)
+	}{
+		{
+			name: "Dashboard",
+			run: func(t *testing.T, pool *pgxpool.Pool) {
+				controller := NewDashboardController(testApplicationWithPool(pool))
+				c, ok := controller.(*DashboardController)
+				require.True(t, ok)
+				require.Nil(t, c.executor)
 
-	controller := NewDashboardController(testApplicationWithPool(pool))
-	dashboardController, ok := controller.(*DashboardController)
-	require.True(t, ok)
-	require.Nil(t, dashboardController.executor)
+				exec := c.ensureExecutor()
+				require.NoError(t, c.executorInitErr)
+				require.NotNil(t, exec)
+				require.Same(t, exec, c.ensureExecutor())
 
-	exec := dashboardController.ensureExecutor()
-	require.NotNil(t, exec)
-	require.Same(t, exec, dashboardController.ensureExecutor())
+				require.NoError(t, c.Close())
+				require.NoError(t, c.Close())
 
-	require.NoError(t, dashboardController.Close())
-	require.NoError(t, dashboardController.Close())
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				require.NoError(t, pool.Ping(ctx))
+			},
+		},
+		{
+			name: "Showcase",
+			run: func(t *testing.T, pool *pgxpool.Pool) {
+				controller := NewShowcaseController(testApplicationWithPool(pool))
+				c, ok := controller.(*ShowcaseController)
+				require.True(t, ok)
+				require.Nil(t, c.executor)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	require.NoError(t, pool.Ping(ctx))
-}
+				exec := c.ensureExecutor()
+				require.NoError(t, c.executorInitErr)
+				require.NotNil(t, exec)
+				require.Same(t, exec, c.ensureExecutor())
 
-func TestShowcaseController_LazyInitAndClose(t *testing.T) {
-	t.Parallel()
+				require.NoError(t, c.Close())
+				require.NoError(t, c.Close())
 
-	pool := openControllerTestPool(t)
-	t.Cleanup(pool.Close)
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				require.NoError(t, pool.Ping(ctx))
+			},
+		},
+	}
 
-	controller := NewShowcaseController(testApplicationWithPool(pool))
-	showcaseController, ok := controller.(*ShowcaseController)
-	require.True(t, ok)
-	require.Nil(t, showcaseController.executor)
-
-	exec := showcaseController.ensureExecutor()
-	require.NotNil(t, exec)
-	require.Same(t, exec, showcaseController.ensureExecutor())
-
-	require.NoError(t, showcaseController.Close())
-	require.NoError(t, showcaseController.Close())
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	require.NoError(t, pool.Ping(ctx))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pool := openControllerTestPool(t)
+			t.Cleanup(pool.Close)
+			tc.run(t, pool)
+		})
+	}
 }
