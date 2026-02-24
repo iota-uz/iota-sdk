@@ -13,8 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -650,8 +648,6 @@ type stubTitleJobQueue struct {
 	sessionID uuid.UUID
 }
 
-type stubRepoTx struct{}
-
 type stubAgentService struct {
 	processEvents    []agents.ExecutorEvent
 	processErr       error
@@ -722,19 +718,6 @@ func (s *captureTitleContextService) RegenerateSessionTitle(ctx context.Context,
 	case s.regenerated <- ctx:
 	default:
 	}
-	return nil
-}
-
-func (stubRepoTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
-	var tag pgconn.CommandTag
-	return tag, nil
-}
-
-func (stubRepoTx) Query(context.Context, string, ...any) (pgx.Rows, error) {
-	return nil, assert.AnError
-}
-
-func (stubRepoTx) QueryRow(context.Context, string, ...any) pgx.Row {
 	return nil
 }
 

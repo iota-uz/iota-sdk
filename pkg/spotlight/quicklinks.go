@@ -50,11 +50,12 @@ func (ql *QuickLinks) Capabilities() ProviderCapabilities {
 
 // resolveAllTranslations resolves the translation key into a title (English)
 // and a body containing all unique translations joined by " | " for multi-language search.
-func (ql *QuickLinks) resolveAllTranslations(trKey string) (title, body string) {
+func (ql *QuickLinks) resolveAllTranslations(trKey string) (string, string) {
 	if ql.bundle == nil || len(ql.languages) == 0 {
 		return trKey, trKey
 	}
 
+	var title string
 	seen := make(map[string]struct{}, len(ql.languages))
 	translations := make([]string, 0, len(ql.languages))
 
