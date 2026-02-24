@@ -6,7 +6,7 @@ import (
 
 // TablePanel renders a data table with optional clickable rows.
 templ TablePanel(panel lens.Panel, result *lens.PanelResult) {
-	<div class={ spanClass(panel.Span), panel.Options.Class }>
+	<div class={ spanClass(panel.Span), panel.Class }>
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
 			<!-- Header -->
 			<div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
@@ -36,12 +36,12 @@ templ TablePanel(panel lens.Panel, result *lens.PanelResult) {
 						</thead>
 						<tbody class="divide-y divide-gray-100">
 							for _, row := range result.Data.Rows {
-								if panel.Options.DrillDown != nil {
+								if panel.DrillDown != nil {
 									<tr
 										class="hover:bg-blue-50/50 cursor-pointer transition-colors"
-										hx-get={ drillDownURL(panel.Options.DrillDown.URL, row) }
-										if panel.Options.DrillDown.Target != "" {
-											hx-target={ panel.Options.DrillDown.Target }
+										hx-get={ resolveDrillURL(panel.DrillDown.URL, row) }
+										if panel.DrillDown.Target != "" {
+											hx-target={ panel.DrillDown.Target }
 										}
 										hx-push-url="true"
 									>

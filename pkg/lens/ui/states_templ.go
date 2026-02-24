@@ -131,20 +131,4 @@ func LoadingState(panel lens.Panel) templ.Component {
 	})
 }
 
-// panelData safely extracts the PanelResult from Results for a given panel.
-func panelData(p lens.Panel, results *lens.Results) *lens.PanelResult {
-	if results == nil || results.Panels == nil {
-		return nil
-	}
-	return results.Panels[p.ID]
-}
-
-// resultData safely extracts the QueryResult from a PanelResult.
-func resultData(pr *lens.PanelResult) *lens.QueryResult {
-	if pr == nil {
-		return nil
-	}
-	return pr.Data
-}
-
 var _ = templruntime.GeneratedTemplate

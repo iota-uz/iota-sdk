@@ -8,7 +8,7 @@ import (
 
 // ChartPanel renders a chart visualization (line, bar, pie, area, gauge, etc).
 templ ChartPanel(panel lens.Panel, result *lens.PanelResult) {
-	<div class={ spanClass(panel.Span), panel.Options.Class }>
+	<div class={ spanClass(panel.Span), panel.Class }>
 		<div
 			class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden"
 			x-data="{ expanded: false }"

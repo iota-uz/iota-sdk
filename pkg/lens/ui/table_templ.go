@@ -34,7 +34,7 @@ func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var2 = []any{spanClass(panel.Span), panel.Options.Class}
+		var templ_7745c5c3_Var2 = []any{spanClass(panel.Span), panel.Class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -125,15 +125,15 @@ func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			for _, row := range result.Data.Rows {
-				if panel.Options.DrillDown != nil {
+				if panel.DrillDown != nil {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<tr class=\"hover:bg-blue-50/50 cursor-pointer transition-colors\" hx-get=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var6 string
-					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(drillDownURL(panel.Options.DrillDown.URL, row))
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(resolveDrillURL(panel.DrillDown.URL, row))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 42, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 42, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -143,15 +143,15 @@ func TablePanel(panel lens.Panel, result *lens.PanelResult) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if panel.Options.DrillDown.Target != "" {
+					if panel.DrillDown.Target != "" {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, " hx-target=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var7 string
-						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(panel.Options.DrillDown.Target)
+						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(panel.DrillDown.Target)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 44, Col: 53}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/table.templ`, Line: 44, Col: 45}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {

@@ -13,23 +13,136 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 )
 
-// panelHeight returns the chart height for a panel, with a default.
-func panelHeight(p lens.Panel) string {
-	if p.Options.Height != "" {
-		return p.Options.Height
-	}
-	return "320px"
+// ---------------------------------------------------------------------------
+// Tailwind grid helpers
+// ---------------------------------------------------------------------------
+
+// spanClasses maps column spans to static Tailwind classes.
+// These must be spelled out literally so Tailwind's JIT scanner can find them.
+var spanClasses = map[int]string{
+	1:  "col-span-12 md:col-span-1",
+	2:  "col-span-12 md:col-span-2",
+	3:  "col-span-12 md:col-span-3",
+	4:  "col-span-12 md:col-span-4",
+	5:  "col-span-12 md:col-span-5",
+	6:  "col-span-12 md:col-span-6",
+	7:  "col-span-12 md:col-span-7",
+	8:  "col-span-12 md:col-span-8",
+	9:  "col-span-12 md:col-span-9",
+	10: "col-span-12 md:col-span-10",
+	11: "col-span-12 md:col-span-11",
+	12: "col-span-12 md:col-span-12",
 }
 
 // spanClass returns the Tailwind col-span class for a panel.
 func spanClass(span int) string {
-	if span <= 0 || span > 12 {
-		span = 6
+	if c, ok := spanClasses[span]; ok {
+		return c
 	}
-	return fmt.Sprintf("col-span-12 md:col-span-%d", span)
+	return spanClasses[6]
 }
 
-// --- Metric helpers ---
+// ---------------------------------------------------------------------------
+// Panel data accessors
+// ---------------------------------------------------------------------------
+
+// panelData safely extracts the PanelResult from Results for a given panel.
+func panelData(p lens.Panel, results *lens.Results) *lens.PanelResult {
+	if results == nil || results.Panels == nil {
+		return nil
+	}
+	return results.Panels[p.ID]
+}
+
+// resultData safely extracts the QueryResult from a PanelResult.
+func resultData(pr *lens.PanelResult) *lens.QueryResult {
+	if pr == nil {
+		return nil
+	}
+	return pr.Data
+}
+
+// ---------------------------------------------------------------------------
+// Column resolution
+// ---------------------------------------------------------------------------
+
+// resolveColumn returns the value for a named column from a row.
+// It first checks the explicit ColumnMap mapping, then falls back to
+// convention-based detection across common column names.
+func resolveColumn(row map[string]any, mapName string, fallbacks []string) (any, bool) {
+	// Try the explicit mapping first.
+	if mapName != "" {
+		v, ok := row[mapName]
+		return v, ok
+	}
+	// Fall back to conventions.
+	for _, name := range fallbacks {
+		if v, ok := row[name]; ok {
+			return v, true
+		}
+	}
+	return nil, false
+}
+
+var (
+	labelFallbacks    = []string{"label", "category", "name", "timestamp", "date"}
+	valueFallbacks    = []string{"value", "amount", "count", "total"}
+	seriesFallbacks   = []string{"series", "group"}
+	categoryFallbacks = []string{"category", "label"}
+)
+
+// resolveLabel returns the label value for a row using column map + fallbacks.
+func resolveLabel(row map[string]any, cm lens.ColumnMap) string {
+	v, ok := resolveColumn(row, cm.Label, labelFallbacks)
+	if !ok {
+		return ""
+	}
+	return formatCellValue(v)
+}
+
+// resolveValue returns the numeric value for a row using column map + fallbacks.
+func resolveValue(row map[string]any, cm lens.ColumnMap) (any, bool) {
+	return resolveColumn(row, cm.Value, valueFallbacks)
+}
+
+// resolveSeries returns the series name for a row using column map + fallbacks.
+func resolveSeries(row map[string]any, cm lens.ColumnMap) (string, bool) {
+	v, ok := resolveColumn(row, cm.Series, seriesFallbacks)
+	if !ok {
+		return "", false
+	}
+	return fmt.Sprintf("%v", v), true
+}
+
+// resolveCategory returns the category value for a row using column map + fallbacks.
+func resolveCategory(row map[string]any, cm lens.ColumnMap) (string, bool) {
+	v, ok := resolveColumn(row, cm.Category, categoryFallbacks)
+	if !ok {
+		return "", false
+	}
+	return fmt.Sprintf("%v", v), true
+}
+
+// ---------------------------------------------------------------------------
+// Drill-down URL resolution (unified for charts and tables)
+// ---------------------------------------------------------------------------
+
+// resolveDrillURL substitutes all {column_name} placeholders in a URL template
+// with URL-encoded values from the given data row.
+func resolveDrillURL(tmpl string, row map[string]any) string {
+	result := tmpl
+	for k, v := range row {
+		placeholder := "{" + k + "}"
+		if strings.Contains(result, placeholder) {
+			result = strings.ReplaceAll(result, placeholder, url.QueryEscape(fmt.Sprintf("%v", v)))
+		}
+	}
+	return result
+}
+
+// ---------------------------------------------------------------------------
+// Metric helpers
+// ---------------------------------------------------------------------------
 
 // MetricData holds the extracted metric value from a query result.
 type MetricData struct {
@@ -38,24 +151,24 @@ type MetricData struct {
 	HasData        bool
 }
 
-// extractMetric reads the first row's "value" column from the result.
-func extractMetric(result *lens.QueryResult) MetricData {
+// extractMetric reads the metric value from the first row of the result.
+func extractMetric(result *lens.QueryResult, cm lens.ColumnMap) MetricData {
 	if result == nil || len(result.Rows) == 0 {
 		return MetricData{}
 	}
 	row := result.Rows[0]
-	val, ok := row["value"]
+	v, ok := resolveValue(row, cm)
 	if !ok {
-		// Try first numeric column
-		for _, v := range row {
-			if f, ok := toFloat64(v); ok {
+		// Last resort: try first numeric value in the row.
+		for _, val := range row {
+			if f, fOk := toFloat64(val); fOk {
 				return MetricData{Value: f, FormattedValue: formatNumber(f), HasData: true}
 			}
 		}
 		return MetricData{}
 	}
-	f, ok := toFloat64(val)
-	if !ok {
+	f, fOk := toFloat64(v)
+	if !fOk {
 		return MetricData{}
 	}
 	return MetricData{Value: f, FormattedValue: formatNumber(f), HasData: true}
@@ -67,27 +180,48 @@ func formatMetricDisplay(m MetricData, p lens.Panel) string {
 		return "-"
 	}
 	s := m.FormattedValue
-	if p.Options.Prefix != "" {
-		s = p.Options.Prefix + s
-	}
-	if p.Options.Unit != "" {
-		s = s + " " + p.Options.Unit
+	if p.Metric != nil {
+		if p.Metric.Prefix != "" {
+			s = p.Metric.Prefix + s
+		}
+		if p.Metric.Unit != "" {
+			s = s + " " + p.Metric.Unit
+		}
 	}
 	return s
 }
 
-// --- Chart helpers ---
+// metricColor returns the accent color for a metric panel.
+func metricColor(p lens.Panel) string {
+	if p.Metric != nil && p.Metric.Color != "" {
+		return p.Metric.Color
+	}
+	return ""
+}
+
+// ---------------------------------------------------------------------------
+// Chart building
+// ---------------------------------------------------------------------------
+
+// panelHeight returns the chart height for a panel, with a default.
+func panelHeight(p lens.Panel) string {
+	if p.Chart != nil && p.Chart.Height != "" {
+		return p.Chart.Height
+	}
+	return "320px"
+}
 
 // buildChartOptions converts a panel + query result into ApexCharts options.
 func buildChartOptions(p lens.Panel, result *lens.QueryResult) charts.ChartOptions {
 	chartType := panelTypeToChartType(p.Type)
+	stacked := p.Chart != nil && p.Chart.Stacked
 
 	opts := charts.ChartOptions{
 		Chart: charts.ChartConfig{
 			Type:    chartType,
 			Height:  panelHeight(p),
 			Toolbar: charts.Toolbar{Show: false},
-			Stacked: p.Options.Stacked,
+			Stacked: stacked,
 		},
 		DataLabels: &charts.DataLabels{Enabled: false},
 		Colors:     panelColors(p),
@@ -97,41 +231,53 @@ func buildChartOptions(p lens.Panel, result *lens.QueryResult) charts.ChartOptio
 		return opts
 	}
 
+	cm := p.ColumnMap
+
 	switch p.Type {
 	case lens.TypePie, lens.TypeDonut:
-		opts.Series = buildPieSeries(result)
-		opts.Labels = buildLabels(result)
-		addPieOptions(&opts, p)
+		opts.Series = buildPieSeries(result, cm)
+		opts.Labels = buildLabels(result, cm)
+		addPieOptions(&opts)
 	case lens.TypeGauge:
-		opts.Series = buildPieSeries(result)
-		opts.Labels = buildLabels(result)
+		opts.Series = buildPieSeries(result, cm)
+		opts.Labels = buildLabels(result, cm)
 		addGaugeOptions(&opts)
 	case lens.TypeStackedBar:
-		opts.Series = buildStackedSeries(result)
-		opts.XAxis = charts.XAxisConfig{Categories: buildCategories(result)}
+		opts.Series = buildGroupedSeries(result, cm)
+		opts.XAxis = charts.XAxisConfig{Categories: buildUniqueCategories(result, cm)}
 		addBarOptions(&opts)
 		opts.Chart.Stacked = true
-	case lens.TypeLine:
-		opts.Series = buildSeries(result)
-		opts.XAxis = charts.XAxisConfig{Categories: buildLabels(result)}
-		addLineOptions(&opts)
-	case lens.TypeArea:
-		opts.Series = buildSeries(result)
-		opts.XAxis = charts.XAxisConfig{Categories: buildLabels(result)}
-		addAreaOptions(&opts)
-	default: // bar, column, etc.
-		opts.Series = buildSeries(result)
-		opts.XAxis = charts.XAxisConfig{Categories: buildLabels(result)}
+	case lens.TypeLine, lens.TypeArea:
+		// Multi-series: if a series column exists, group by it.
+		if hasSeriesColumn(result, cm) {
+			opts.Series = buildGroupedSeries(result, cm)
+			opts.XAxis = charts.XAxisConfig{Categories: buildUniqueCategories(result, cm)}
+		} else {
+			opts.Series = buildSingleSeries(result, cm)
+			opts.XAxis = charts.XAxisConfig{Categories: buildLabels(result, cm)}
+		}
+		if p.Type == lens.TypeLine {
+			addLineOptions(&opts)
+		} else {
+			addAreaOptions(&opts)
+		}
+	default: // bar, column
+		if hasSeriesColumn(result, cm) {
+			opts.Series = buildGroupedSeries(result, cm)
+			opts.XAxis = charts.XAxisConfig{Categories: buildUniqueCategories(result, cm)}
+		} else {
+			opts.Series = buildSingleSeries(result, cm)
+			opts.XAxis = charts.XAxisConfig{Categories: buildLabels(result, cm)}
+		}
 		addBarOptions(&opts)
 	}
 
-	if p.Options.ShowLegend {
+	if p.Chart != nil && p.Chart.ShowLegend {
 		pos := charts.LegendPositionBottom
 		opts.Legend = &charts.LegendConfig{Position: &pos}
 	}
 
-	// Add drill-down event handler
-	if p.Options.DrillDown != nil {
+	if p.DrillDown != nil {
 		addDrillDownEvents(&opts, p)
 	}
 
@@ -158,11 +304,8 @@ func panelTypeToChartType(t lens.PanelType) charts.ChartType {
 }
 
 func panelColors(p lens.Panel) []string {
-	if len(p.Options.Colors) > 0 {
-		return p.Options.Colors
-	}
-	if p.Options.Color != "" {
-		return []string{p.Options.Color}
+	if p.Chart != nil && len(p.Chart.Colors) > 0 {
+		return p.Chart.Colors
 	}
 	switch p.Type {
 	case lens.TypeLine:
@@ -182,12 +325,24 @@ func panelColors(p lens.Panel) []string {
 	}
 }
 
-// buildSeries creates a single series from query result.
-// Expects columns: label/category, value
-func buildSeries(result *lens.QueryResult) []charts.Series {
+// ---------------------------------------------------------------------------
+// Series builders (column-map aware)
+// ---------------------------------------------------------------------------
+
+// hasSeriesColumn returns true if any row has a resolvable series column.
+func hasSeriesColumn(result *lens.QueryResult, cm lens.ColumnMap) bool {
+	if len(result.Rows) == 0 {
+		return false
+	}
+	_, ok := resolveSeries(result.Rows[0], cm)
+	return ok
+}
+
+// buildSingleSeries creates a single series from the query result.
+func buildSingleSeries(result *lens.QueryResult, cm lens.ColumnMap) []charts.Series {
 	data := make([]interface{}, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		if v, ok := row["value"]; ok {
+		if v, ok := resolveValue(row, cm); ok {
 			data = append(data, v)
 		} else {
 			data = append(data, 0)
@@ -196,33 +351,20 @@ func buildSeries(result *lens.QueryResult) []charts.Series {
 	return []charts.Series{{Name: "Data", Data: data}}
 }
 
-// buildPieSeries creates a flat value array for pie/donut/gauge charts.
-func buildPieSeries(result *lens.QueryResult) []interface{} {
-	data := make([]interface{}, 0, len(result.Rows))
-	for _, row := range result.Rows {
-		if v, ok := row["value"]; ok {
-			data = append(data, v)
-		}
-	}
-	return data
-}
-
-// buildStackedSeries groups rows by "series" column for stacked charts.
-// Expects columns: category, series, value
-func buildStackedSeries(result *lens.QueryResult) []charts.Series {
-	// Preserve insertion order for series names.
+// buildGroupedSeries groups rows by series column for multi-series/stacked charts.
+func buildGroupedSeries(result *lens.QueryResult, cm lens.ColumnMap) []charts.Series {
 	var seriesOrder []string
 	seriesData := make(map[string][]interface{})
 
 	for _, row := range result.Rows {
 		name := "Series"
-		if s, ok := row["series"]; ok {
-			name = fmt.Sprintf("%v", s)
+		if s, ok := resolveSeries(row, cm); ok {
+			name = s
 		}
 		if _, exists := seriesData[name]; !exists {
 			seriesOrder = append(seriesOrder, name)
 		}
-		val := row["value"]
+		val, _ := resolveValue(row, cm)
 		if val == nil {
 			val = 0
 		}
@@ -236,16 +378,34 @@ func buildStackedSeries(result *lens.QueryResult) []charts.Series {
 	return series
 }
 
-// buildCategories extracts unique category values for stacked charts.
-func buildCategories(result *lens.QueryResult) []string {
+// buildPieSeries creates a flat value array for pie/donut/gauge charts.
+func buildPieSeries(result *lens.QueryResult, cm lens.ColumnMap) []interface{} {
+	data := make([]interface{}, 0, len(result.Rows))
+	for _, row := range result.Rows {
+		if v, ok := resolveValue(row, cm); ok {
+			data = append(data, v)
+		}
+	}
+	return data
+}
+
+// buildLabels extracts label values for chart x-axis categories.
+func buildLabels(result *lens.QueryResult, cm lens.ColumnMap) []string {
+	labels := make([]string, 0, len(result.Rows))
+	for _, row := range result.Rows {
+		labels = append(labels, resolveLabel(row, cm))
+	}
+	return labels
+}
+
+// buildUniqueCategories extracts unique category values for grouped charts.
+func buildUniqueCategories(result *lens.QueryResult, cm lens.ColumnMap) []string {
 	seen := make(map[string]bool)
 	var cats []string
 	for _, row := range result.Rows {
-		cat := ""
-		if v, ok := row["category"]; ok {
-			cat = fmt.Sprintf("%v", v)
-		} else if v, ok := row["label"]; ok {
-			cat = fmt.Sprintf("%v", v)
+		cat, ok := resolveCategory(row, cm)
+		if !ok {
+			cat = resolveLabel(row, cm)
 		}
 		if cat != "" && !seen[cat] {
 			seen[cat] = true
@@ -255,38 +415,9 @@ func buildCategories(result *lens.QueryResult) []string {
 	return cats
 }
 
-// buildLabels extracts label values for chart x-axis categories.
-func buildLabels(result *lens.QueryResult) []string {
-	labels := make([]string, 0, len(result.Rows))
-	for _, row := range result.Rows {
-		label := ""
-		if v, ok := row["label"]; ok {
-			label = formatCellValue(v)
-		} else if v, ok := row["category"]; ok {
-			label = formatCellValue(v)
-		} else if v, ok := row["name"]; ok {
-			label = formatCellValue(v)
-		} else if v, ok := row["timestamp"]; ok {
-			label = formatCellValue(v)
-		} else if v, ok := row["date"]; ok {
-			label = formatCellValue(v)
-		} else {
-			// Use first string column
-			for _, col := range result.Columns {
-				if col.Type == "string" || col.Type == "timestamp" {
-					if v, ok := row[col.Name]; ok {
-						label = formatCellValue(v)
-						break
-					}
-				}
-			}
-		}
-		labels = append(labels, label)
-	}
-	return labels
-}
-
-// --- Chart-specific option helpers ---
+// ---------------------------------------------------------------------------
+// Chart-specific option helpers
+// ---------------------------------------------------------------------------
 
 func addLineOptions(opts *charts.ChartOptions) {
 	opts.Stroke = &charts.StrokeConfig{Curve: charts.StrokeCurveSmooth, Width: 2}
@@ -311,7 +442,7 @@ func addBarOptions(opts *charts.ChartOptions) {
 	}
 }
 
-func addPieOptions(opts *charts.ChartOptions, p lens.Panel) {
+func addPieOptions(opts *charts.ChartOptions) {
 	pos := charts.LegendPositionBottom
 	opts.Legend = &charts.LegendConfig{Position: &pos}
 }
@@ -329,52 +460,81 @@ func addGaugeOptions(opts *charts.ChartOptions) {
 	}
 }
 
+// addDrillDownEvents wires up chart click events to navigate via the drill-down
+// URL template. All {column_name} placeholders in the URL are substituted from
+// the row data — not just {label}.
 func addDrillDownEvents(opts *charts.ChartOptions, p lens.Panel) {
-	dd := p.Options.DrillDown
+	dd := p.DrillDown
 	if dd == nil {
 		return
 	}
 
-	// Escape the URL template for safe embedding in JS.
 	urlTemplate, _ := json.Marshal(dd.URL)
 
-	var js string
+	// Build a JS snippet that constructs a data object from the clicked point,
+	// then substitutes all {key} placeholders in the URL template.
+	replacerJS := `
+		var url = urlTmpl;
+		for (var key in dataObj) {
+			url = url.replace('{' + key + '}', encodeURIComponent(dataObj[key]));
+		}
+	`
+
+	var actionJS string
 	if dd.Target != "" {
-		// Use HTMX for partial page update
-		js = fmt.Sprintf(`function(event, chartContext, opts) {
-			var labels = chartContext.w.config.xaxis && chartContext.w.config.xaxis.categories ? chartContext.w.config.xaxis.categories : (chartContext.w.config.labels || []);
-			var idx = opts.dataPointIndex !== undefined ? opts.dataPointIndex : (opts.seriesIndex !== undefined ? opts.seriesIndex : -1);
-			if (idx < 0) return;
-			var label = labels[idx] || '';
-			var url = %s.replace('{label}', encodeURIComponent(label));
-			for (var key in opts.w.config.series) {
-				url = url.replace('{' + key + '}', encodeURIComponent(opts.w.config.series[key]));
-			}
-			htmx.ajax('GET', url, {target: %q, swap: 'innerHTML'});
-		}`, string(urlTemplate), dd.Target)
+		actionJS = fmt.Sprintf(`htmx.ajax('GET', url, {target: %q, swap: 'innerHTML'});`, dd.Target)
 	} else {
-		// Full page navigation
-		js = fmt.Sprintf(`function(event, chartContext, opts) {
-			var labels = chartContext.w.config.xaxis && chartContext.w.config.xaxis.categories ? chartContext.w.config.xaxis.categories : (chartContext.w.config.labels || []);
-			var idx = opts.dataPointIndex !== undefined ? opts.dataPointIndex : (opts.seriesIndex !== undefined ? opts.seriesIndex : -1);
-			if (idx < 0) return;
-			var label = labels[idx] || '';
-			var url = %s.replace('{label}', encodeURIComponent(label));
-			window.location.href = url;
-		}`, string(urlTemplate))
+		actionJS = `window.location.href = url;`
 	}
+
+	js := fmt.Sprintf(`function(event, chartContext, opts) {
+		var cfg = chartContext.w.config;
+		var labels = (cfg.xaxis && cfg.xaxis.categories) ? cfg.xaxis.categories : (cfg.labels || []);
+		var idx = opts.dataPointIndex !== undefined && opts.dataPointIndex >= 0
+			? opts.dataPointIndex
+			: (opts.seriesIndex !== undefined ? opts.seriesIndex : -1);
+		if (idx < 0) return;
+
+		var seriesName = '';
+		if (cfg.series && cfg.series[opts.seriesIndex] && cfg.series[opts.seriesIndex].name) {
+			seriesName = cfg.series[opts.seriesIndex].name;
+		}
+		var value = '';
+		if (cfg.series && cfg.series[opts.seriesIndex]) {
+			var s = cfg.series[opts.seriesIndex];
+			if (s.data && s.data[opts.dataPointIndex] !== undefined) {
+				value = s.data[opts.dataPointIndex];
+			} else if (typeof s === 'number') {
+				value = s;
+			}
+		}
+
+		var dataObj = {
+			label: labels[idx] || '',
+			value: value,
+			series: seriesName,
+			category: labels[idx] || '',
+			index: idx
+		};
+
+		var urlTmpl = %s;
+		%s
+		%s
+	}`, string(urlTemplate), replacerJS, actionJS)
 
 	opts.Chart.Events = &charts.ChartEvents{
 		DataPointSelection: templ.JSExpression(js),
 	}
 }
 
-// --- Table helpers ---
+// ---------------------------------------------------------------------------
+// Table helpers
+// ---------------------------------------------------------------------------
 
 // tableColumns returns column definitions, falling back to query result columns.
 func tableColumns(p lens.Panel, result *lens.QueryResult) []lens.TableColumn {
-	if len(p.Options.Columns) > 0 {
-		return p.Options.Columns
+	if p.Table != nil && len(p.Table.Columns) > 0 {
+		return p.Table.Columns
 	}
 	if result == nil {
 		return nil
@@ -386,17 +546,9 @@ func tableColumns(p lens.Panel, result *lens.QueryResult) []lens.TableColumn {
 	return cols
 }
 
-// drillDownURL builds a concrete URL from a template and row data.
-func drillDownURL(tmpl string, row map[string]any) string {
-	result := tmpl
-	for k, v := range row {
-		placeholder := "{" + k + "}"
-		result = strings.ReplaceAll(result, placeholder, url.QueryEscape(fmt.Sprintf("%v", v)))
-	}
-	return result
-}
-
-// --- Formatting helpers ---
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
 
 func formatCellValue(v any) string {
 	if v == nil {

@@ -38,13 +38,21 @@ type Row struct {
 }
 
 // Panel represents a single dashboard widget (metric, chart, or table).
+// Exactly one of Metric, Chart, or Table is non-nil, determined by Type.
 type Panel struct {
-	ID      string
-	Title   string
-	Type    PanelType
-	Span    int    // 1–12 column span
-	Query   string // SQL or data source query
-	Options PanelOptions
+	ID        string
+	Title     string
+	Type      PanelType
+	Span      int    // 1–12 column span
+	Query     string // SQL query
+	Class     string // extra CSS classes
+	ColumnMap ColumnMap
+	DrillDown *DrillDown
+
+	// Type-specific options — exactly one is non-nil.
+	Metric *MetricOptions
+	Chart  *ChartOptions
+	Table  *TableOptions
 }
 
 // PanelType identifies the visualization type of a panel.
@@ -63,32 +71,34 @@ const (
 	TypeTable      PanelType = "table"
 )
 
-// PanelOptions holds type-specific rendering and interaction options.
-type PanelOptions struct {
-	// Common
-	Height string   // chart height (default "320px")
-	Class  string   // extra CSS classes
-	Colors []string // series/category colors
+// ColumnMap allows explicit mapping of query result columns to chart axes.
+// Empty strings fall back to convention-based detection (label, value, series, etc.).
+type ColumnMap struct {
+	Label    string // column for x-axis labels / chart categories
+	Value    string // column for y-axis values
+	Series   string // column for series grouping (stacked/multi-series)
+	Category string // column for category grouping (stacked charts)
+}
 
-	// Metric
-	Unit   string          // "USD", "%", etc.
-	Color  string          // accent color
+// MetricOptions holds options specific to metric card panels.
+type MetricOptions struct {
+	Unit   string          // display unit, e.g. "USD", "%"
+	Prefix string          // value prefix, e.g. "$"
+	Color  string          // accent color (left border + icon background)
 	Icon   templ.Component // icon component (e.g. phosphor icon)
-	Prefix string          // value prefix like "$"
+}
 
-	// Chart
-	Stacked    bool
-	ShowLegend bool
+// ChartOptions holds options specific to chart panels (line, bar, pie, etc.).
+type ChartOptions struct {
+	Height     string   // chart height (default "320px")
+	Colors     []string // series/category colors
+	Stacked    bool     // enable stacked mode
+	ShowLegend bool     // show chart legend
+}
 
-	// Table
-	Columns []TableColumn
-
-	// Interaction — drill-through
-	DrillDown *DrillDown
-
-	// HTMX — per-panel refresh
-	RefreshInterval string // e.g. "30s" → hx-trigger="every 30s"
-	RefreshURL      string // hx-get endpoint for panel refresh
+// TableOptions holds options specific to data table panels.
+type TableOptions struct {
+	Columns []TableColumn // explicit column definitions; auto-detected if empty
 }
 
 // DrillDown configures click-through navigation from a panel.

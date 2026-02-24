@@ -4,31 +4,31 @@ import "github.com/iota-uz/iota-sdk/pkg/lens"
 
 // MetricPanel renders a metric card showing a single KPI value.
 templ MetricPanel(panel lens.Panel, result *lens.PanelResult) {
-	<div class={ spanClass(panel.Span), panel.Options.Class }>
+	<div class={ spanClass(panel.Span), panel.Class }>
 		if result != nil && result.Error != nil {
 			@ErrorState(panel.Title, result.Error.Error())
 		} else {
-			{{ m := extractMetric(resultData(result)) }}
+			{{ m := extractMetric(resultData(result), panel.ColumnMap) }}
 			<div
 				class="group relative bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200"
-				if panel.Options.Color != "" {
-					style={ "border-left: 4px solid " + panel.Options.Color }
+				if metricColor(panel) != "" {
+					style={ "border-left: 4px solid " + metricColor(panel) }
 				}
 			>
-				if panel.Options.DrillDown != nil && m.HasData {
-					<a href={ templ.URL(panel.Options.DrillDown.URL) } class="absolute inset-0 z-10"></a>
+				if panel.DrillDown != nil && m.HasData {
+					<a href={ templ.URL(panel.DrillDown.URL) } class="absolute inset-0 z-10"></a>
 				}
 				<div class="flex items-center gap-2.5 mb-3">
-					if panel.Options.Icon != nil {
+					if panel.Metric != nil && panel.Metric.Icon != nil {
 						<div
 							class="flex items-center justify-center w-9 h-9 rounded-lg text-white shrink-0"
-							if panel.Options.Color != "" {
-								style={ "background-color: " + panel.Options.Color }
+							if metricColor(panel) != "" {
+								style={ "background-color: " + metricColor(panel) }
 							} else {
 								style="background-color: #3b82f6"
 							}
 						>
-							@panel.Options.Icon
+							@panel.Metric.Icon
 						</div>
 					}
 					<span class="text-xs font-semibold uppercase tracking-wide text-gray-500">
