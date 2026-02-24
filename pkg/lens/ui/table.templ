@@ -1,0 +1,68 @@
+package ui
+
+import "github.com/iota-uz/iota-sdk/pkg/lens"
+
+// TablePanel renders a data table with optional clickable rows.
+templ TablePanel(panel lens.Panel, result *lens.PanelResult) {
+	<div class={ spanClass(panel.Span), panel.Class }>
+		<div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+			<!-- Header -->
+			<div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
+				<h3 class="text-sm font-semibold text-gray-700">{ panel.Title }</h3>
+			</div>
+			<!-- Content -->
+			<div class="flex-1 overflow-auto">
+				if result != nil && result.Error != nil {
+					<div class="p-4">
+						@ErrorState(panel.Title, result.Error.Error())
+					</div>
+				} else if result == nil || result.Data == nil || len(result.Data.Rows) == 0 {
+					<div class="p-4">
+						@EmptyState(panel.Title)
+					</div>
+				} else {
+					{{ cols := tableColumns(panel, result.Data) }}
+					<table class="w-full text-sm">
+						<thead>
+							<tr class="border-b border-gray-200 bg-gray-50/80">
+								for _, col := range cols {
+									<th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">
+										{ col.Label }
+									</th>
+								}
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-100">
+							for _, row := range result.Data.Rows {
+								if panel.DrillDown != nil {
+									<tr
+										class="hover:bg-blue-50/50 cursor-pointer transition-colors"
+										hx-get={ resolveDrillURL(panel.DrillDown.URL, row) }
+										if panel.DrillDown.Target != "" {
+											hx-target={ panel.DrillDown.Target }
+										}
+										hx-push-url="true"
+									>
+										for _, col := range cols {
+											<td class="px-4 py-2.5 text-gray-700 whitespace-nowrap">
+												{ formatCellValue(row[col.Key]) }
+											</td>
+										}
+									</tr>
+								} else {
+									<tr class="hover:bg-gray-50/50 transition-colors">
+										for _, col := range cols {
+											<td class="px-4 py-2.5 text-gray-700 whitespace-nowrap">
+												{ formatCellValue(row[col.Key]) }
+											</td>
+										}
+									</tr>
+								}
+							}
+						</tbody>
+					</table>
+				}
+			</div>
+		</div>
+	</div>
+}
