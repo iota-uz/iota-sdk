@@ -147,7 +147,8 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 				return
 			}
 
-			if trimmed := strings.TrimSpace(summary); trimmed != "" {
+			trimmed := strings.TrimSpace(summary)
+			if trimmed != "" {
 				active.Mu.Lock()
 				active.Content = trimmed
 				active.Mu.Unlock()
@@ -188,7 +189,7 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 					return serrors.E(op, deleteArtifactsErr)
 				}
 
-				systemMsg := types.SystemMessage(summary, types.WithSessionID(sessionID))
+				systemMsg := types.SystemMessage(trimmed, types.WithSessionID(sessionID))
 				if saveErr := s.chatRepo.SaveMessage(txCtx, systemMsg); saveErr != nil {
 					return serrors.E(op, saveErr)
 				}

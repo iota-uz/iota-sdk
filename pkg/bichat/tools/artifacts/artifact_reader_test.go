@@ -14,7 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
-	testutil "github.com/iota-uz/iota-sdk/pkg/bichat/testutil"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

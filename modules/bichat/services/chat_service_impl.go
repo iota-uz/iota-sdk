@@ -212,7 +212,7 @@ func (s *chatServiceImpl) startAsyncRun(
 		}
 		runStateCreated, err = s.createRunState(txCtx, run)
 		if err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 		if prepare != nil {
 			if err := prepare(txCtx, session); err != nil {

@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -760,7 +761,7 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 func TestChatService_MaybeGenerateTitleAsync_IgnoresNilWrappedQueue(t *testing.T) {
 	t.Parallel()
 
-	tenantID := uuid.New()
+	env := itf.Setup(t)
 	titleService := &captureTitleContextService{
 		called: make(chan context.Context, 1),
 	}
@@ -771,14 +772,13 @@ func TestChatService_MaybeGenerateTitleAsync_IgnoresNilWrappedQueue(t *testing.T
 	}
 
 	sessionID := uuid.New()
-	reqCtx := composables.WithTenantID(context.Background(), tenantID)
-	svc.maybeGenerateTitleAsync(reqCtx, sessionID)
+	svc.maybeGenerateTitleAsync(env.Ctx, sessionID)
 
 	select {
 	case titleCtx := <-titleService.called:
 		gotTenantID, err := composables.UseTenantID(titleCtx)
 		require.NoError(t, err)
-		assert.Equal(t, tenantID, gotTenantID)
+		assert.Equal(t, env.Tenant.ID, gotTenantID)
 	default:
 		t.Fatal("expected sync fallback title generation to be invoked")
 	}

@@ -262,12 +262,12 @@ func (s *redisGenerationRunStore) finishRun(ctx context.Context, tenantID, sessi
 		return nil
 	}
 	record.Status = string(status)
-	if _, err := s.client.Del(ctx, s.sessionKey(tenantID, sessionID)).Result(); err != nil {
-		return serrors.E(op, "delete active session run state", err)
-	}
 	record.LastUpdatedAt = time.Now().UTC()
 	if err := s.saveRunByID(ctx, tenantID, runID, record); err != nil {
 		return serrors.E(op, "persist terminal run state", err)
+	}
+	if _, err := s.client.Del(ctx, s.sessionKey(tenantID, sessionID)).Result(); err != nil {
+		return serrors.E(op, "delete active session run state", err)
 	}
 	return nil
 }

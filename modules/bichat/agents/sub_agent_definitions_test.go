@@ -9,7 +9,7 @@ import (
 
 	coreagents "github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
-	testutil "github.com/iota-uz/iota-sdk/pkg/bichat/testutil"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

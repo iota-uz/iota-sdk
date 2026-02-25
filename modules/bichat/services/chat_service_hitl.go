@@ -171,7 +171,15 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			if canonicalCheckpointID == "" {
 				return serrors.E(op, serrors.KindValidation, "pending message has empty checkpoint id")
 			}
-			resolvedCheckpointID, _ = hitlsvc.ResolveCheckpoint(req.CheckpointID, canonicalCheckpointID)
+			var checkpointMismatch bool
+			resolvedCheckpointID, checkpointMismatch = hitlsvc.ResolveCheckpoint(req.CheckpointID, canonicalCheckpointID)
+			if checkpointMismatch {
+				configuration.Use().Logger().
+					WithField("session_id", req.SessionID.String()).
+					WithField("requested_checkpoint_id", strings.TrimSpace(req.CheckpointID)).
+					WithField("canonical_checkpoint_id", canonicalCheckpointID).
+					Warn("async resume request checkpoint mismatch; using canonical checkpoint from pending question")
+			}
 
 			normalizedAnswerValues, normalizedAnswersMap, err := hitlsvc.NormalizeAnswers(qd.Questions, req.Answers)
 			if err != nil {
@@ -204,7 +212,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 						_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 						return
 					}
-					updateCtx, cancel := context.WithTimeout(processCtx, streamPersistenceTimeout)
+					updateCtx, cancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
 					defer cancel()
 					if txErr := s.withinTx(updateCtx, func(txCtx context.Context) error {
 						return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, answeredQuestionData)
@@ -255,7 +263,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 				_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 				return
 			}
-			persistRunCtx, persistCancel := context.WithTimeout(processCtx, streamPersistenceTimeout)
+			persistRunCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
 			defer persistCancel()
 			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
 				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, answeredQuestionData); err != nil {
@@ -265,7 +273,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 				return saveErr
 			})
 			if err != nil {
-				active.Broadcast(streamingsvc.TerminalChunk(err, 0))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 				return
 			}
@@ -379,11 +387,10 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 		pendingMsgID         uuid.UUID
 		checkpointID         string
 		rejectedQuestionData *types.QuestionData
-		rejectionAnswers     map[string]types.Answer
+		rejectionAnswers     = map[string]types.Answer{
+			"__rejected__": types.NewAnswer("User dismissed the questions"),
+		}
 	)
-	rejectionAnswers = map[string]types.Answer{
-		"__rejected__": types.NewAnswer("User dismissed the questions"),
-	}
 
 	return s.startAsyncRun(
 		ctx,
@@ -433,7 +440,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 						_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 						return
 					}
-					updateCtx, cancel := context.WithTimeout(processCtx, streamPersistenceTimeout)
+					updateCtx, cancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
 					defer cancel()
 					if txErr := s.withinTx(updateCtx, func(txCtx context.Context) error {
 						return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, rejectedQuestionData)
@@ -483,7 +490,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}
-			persistRunCtx, persistCancel := context.WithTimeout(processCtx, streamPersistenceTimeout)
+			persistRunCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
 			defer persistCancel()
 			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
 				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, rejectedQuestionData); err != nil {
@@ -493,7 +500,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 				return saveErr
 			})
 			if err != nil {
-				active.Broadcast(streamingsvc.TerminalChunk(err, 0))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}

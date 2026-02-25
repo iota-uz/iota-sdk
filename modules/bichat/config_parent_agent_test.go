@@ -17,7 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
-	testutil "github.com/iota-uz/iota-sdk/pkg/bichat/testutil"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/testutil"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
