@@ -59,11 +59,31 @@ func NewChatService(
 		agentService:       agentService,
 		model:              model,
 		titleService:       titleService,
-		titleQueue:         titleQueue,
+		titleQueue:         normalizeTitleJobQueue(titleQueue),
 		runState:           streamingsvc.NewRunStateManager(runStore),
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
 	}
+}
+
+func normalizeTitleJobQueue(queue TitleJobQueue) TitleJobQueue {
+	if queue == nil {
+		return nil
+	}
+
+	value := reflect.ValueOf(queue)
+	switch value.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		if value.IsNil() {
+			return nil
+		}
+	}
+
+	return queue
+}
+
+func isNilTitleJobQueue(queue TitleJobQueue) bool {
+	return normalizeTitleJobQueue(queue) == nil
 }
 
 func (s *chatServiceImpl) registerStreamCancel(sessionID uuid.UUID, cancel context.CancelFunc) {

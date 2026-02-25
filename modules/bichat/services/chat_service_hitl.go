@@ -586,7 +586,7 @@ func (s *chatServiceImpl) maybeGenerateTitleAsync(ctx context.Context, sessionID
 		return
 	}
 
-	if s.titleQueue != nil {
+	if !isNilTitleJobQueue(s.titleQueue) {
 		tenantID, tenantErr := composables.UseTenantID(ctx)
 		if tenantErr == nil {
 			enqueueCtx := context.WithoutCancel(ctx)

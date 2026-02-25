@@ -757,6 +757,33 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 	}
 }
 
+func TestChatService_MaybeGenerateTitleAsync_IgnoresNilWrappedQueue(t *testing.T) {
+	t.Parallel()
+
+	tenantID := uuid.New()
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	var queue *RedisTitleJobQueue
+	svc := &chatServiceImpl{
+		titleService: titleService,
+		titleQueue:   queue,
+	}
+
+	sessionID := uuid.New()
+	reqCtx := composables.WithTenantID(context.Background(), tenantID)
+	svc.maybeGenerateTitleAsync(reqCtx, sessionID)
+
+	select {
+	case titleCtx := <-titleService.called:
+		gotTenantID, err := composables.UseTenantID(titleCtx)
+		require.NoError(t, err)
+		assert.Equal(t, tenantID, gotTenantID)
+	default:
+		t.Fatal("expected sync fallback title generation to be invoked")
+	}
+}
+
 func TestChatService_GenerateSessionTitle_UsesRegenerationService(t *testing.T) {
 	t.Parallel()
 
