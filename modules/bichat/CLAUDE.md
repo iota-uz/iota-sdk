@@ -26,8 +26,8 @@ modules/bichat/
 │   ├── chat_service_history.go  # Clear/compact history operations
 │   ├── chat_service_helpers.go  # Shared execution/persistence helpers
 │   ├── chat_service_hitl.go     # HITL resume/reject + title helpers
-│   ├── services/hitl/           # HITL answer normalization and question mapping
-│   └── services/streaming/      # Stream run registry/state/orchestrator helpers
+│   ├── hitl/                    # HITL answer normalization and question mapping
+│   └── streaming/               # Stream run registry/state/orchestrator helpers
 │   ├── attachment_service.go    # File upload handling
 │   └── title_generation_service.go # AI session title generator
 ├── presentation/

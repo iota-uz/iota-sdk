@@ -757,7 +757,7 @@ func Router(
 				return OkResult{}, serrors.E(op, serrors.Invalid, err)
 			}
 			if userID == session.UserID() {
-				return OkResult{}, serrors.E(op, serrors.KindValidation, errors.New("cannot remove the session owner"))
+				return OkResult{}, serrors.E(op, serrors.KindValidation, "cannot remove the session owner")
 			}
 			if err := sessionSvc.RemoveSessionMember(ctx, session.ID(), userID); err != nil {
 				return OkResult{}, serrors.E(op, err)
