@@ -88,18 +88,22 @@ func (m *Module) Register(app application.Application) error {
 		}
 		m.container = container
 
-		sessionService := container.SessionService()
-		conversationService := container.ConversationService()
-		streamService := container.StreamService()
-		hitlService := container.HITLService()
+		sessionCommands := container.SessionCommands()
+		sessionQueries := container.SessionQueries()
+		turnCommands := container.TurnCommands()
+		turnQueries := container.TurnQueries()
+		streamCommands := container.StreamCommands()
+		hitlCommands := container.HITLCommands()
 		agentService := container.AgentService()
 		attachmentService := container.AttachmentService()
 		artifactService := container.ArtifactService()
 		app.RegisterServices(
-			sessionService,
-			conversationService,
-			streamService,
-			hitlService,
+			sessionCommands,
+			sessionQueries,
+			turnCommands,
+			turnQueries,
+			streamCommands,
+			hitlCommands,
 			agentService,
 			attachmentService,
 			artifactService,
@@ -145,8 +149,8 @@ func (m *Module) Register(app application.Application) error {
 		}
 		streamController := controllers.NewStreamController(
 			app,
-			streamService,
-			sessionService,
+			streamCommands,
+			sessionQueries,
 			attachmentService,
 			streamOpts...,
 		)

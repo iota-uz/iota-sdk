@@ -270,32 +270,40 @@ type ModuleConfig struct {
 // ServiceContainer holds built services created by ModuleConfig.BuildServices().
 // Use accessor methods to retrieve individual services.
 type ServiceContainer struct {
-	sessionService      bichatservices.SessionService
-	conversationService bichatservices.ConversationService
-	streamService       bichatservices.StreamService
-	hitlService         bichatservices.HITLService
-	agentService        bichatservices.AgentService
-	attachmentService   bichatservices.AttachmentService
-	artifactService     bichatservices.ArtifactService
-	titleService        services.TitleService
-	titleJobQueue       *services.RedisTitleJobQueue
-	titleQueueConfig    *TitleQueueConfig
-	logger              *logrus.Logger
+	sessionCommands   bichatservices.SessionCommands
+	sessionQueries    bichatservices.SessionQueries
+	turnCommands      bichatservices.TurnCommands
+	turnQueries       bichatservices.TurnQueries
+	streamCommands    bichatservices.StreamCommands
+	hitlCommands      bichatservices.HITLCommands
+	agentService      bichatservices.AgentService
+	attachmentService bichatservices.AttachmentService
+	artifactService   bichatservices.ArtifactService
+	titleService      services.TitleService
+	titleJobQueue     *services.RedisTitleJobQueue
+	titleQueueConfig  *TitleQueueConfig
+	logger            *logrus.Logger
 }
 
-// SessionService returns the session-management service.
-func (sc *ServiceContainer) SessionService() bichatservices.SessionService { return sc.sessionService }
-
-// ConversationService returns the non-streaming conversation service.
-func (sc *ServiceContainer) ConversationService() bichatservices.ConversationService {
-	return sc.conversationService
+// SessionCommands returns session mutating actions.
+func (sc *ServiceContainer) SessionCommands() bichatservices.SessionCommands {
+	return sc.sessionCommands
 }
 
-// StreamService returns the streaming service.
-func (sc *ServiceContainer) StreamService() bichatservices.StreamService { return sc.streamService }
+// SessionQueries returns session/access query actions.
+func (sc *ServiceContainer) SessionQueries() bichatservices.SessionQueries { return sc.sessionQueries }
 
-// HITLService returns the HITL resume/reject service.
-func (sc *ServiceContainer) HITLService() bichatservices.HITLService { return sc.hitlService }
+// TurnCommands returns non-streaming turn command actions.
+func (sc *ServiceContainer) TurnCommands() bichatservices.TurnCommands { return sc.turnCommands }
+
+// TurnQueries returns turn query actions.
+func (sc *ServiceContainer) TurnQueries() bichatservices.TurnQueries { return sc.turnQueries }
+
+// StreamCommands returns streaming turn actions.
+func (sc *ServiceContainer) StreamCommands() bichatservices.StreamCommands { return sc.streamCommands }
+
+// HITLCommands returns HITL command actions.
+func (sc *ServiceContainer) HITLCommands() bichatservices.HITLCommands { return sc.hitlCommands }
 
 // AgentService returns the AgentService.
 func (sc *ServiceContainer) AgentService() bichatservices.AgentService { return sc.agentService }

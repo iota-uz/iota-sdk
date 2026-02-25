@@ -2,26 +2,38 @@ package services
 
 import (
 	"context"
-	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
-
-var errSessionAccessRepoNotConfigured = errors.New(sessionAccessRepoNotConfiguredError)
 
 // CreateSession creates a new chat session.
 func (s *chatServiceImpl) CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.CreateSession"
 
-	session := domain.NewSession(
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(userID),
-		domain.WithTitle(title),
+	title = strings.TrimSpace(title)
+	spec := domain.SessionSpec{
+		TenantID:    tenantID,
+		OwnerUserID: userID,
+		Title:       title,
+	}
+
+	var (
+		session domain.Session
+		err     error
 	)
+	if title == "" {
+		session, err = domain.NewUntitledSession(spec)
+	} else {
+		session, err = domain.NewSession(spec)
+	}
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
+
 	if err := s.chatRepo.CreateSession(ctx, session); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -43,22 +55,13 @@ func (s *chatServiceImpl) ListUserSessions(ctx context.Context, userID int64, op
 	const op serrors.Op = "chatServiceImpl.ListUserSessions"
 
 	summaries, err := s.ListAccessibleSessions(ctx, userID, opts)
-	if err == nil {
-		sessions := make([]domain.Session, 0, len(summaries))
-		for _, summary := range summaries {
-			sessions = append(sessions, summary.Session)
-		}
-		return sessions, nil
-	}
-	if !isSessionAccessRepoNotConfiguredErr(err) {
+	if err != nil {
 		return nil, serrors.E(op, err)
 	}
 
-	configuration.Use().Logger().WithError(err).Warn("session access repository not configured; falling back to legacy session list")
-
-	sessions, fallbackErr := s.chatRepo.ListUserSessions(ctx, userID, opts)
-	if fallbackErr != nil {
-		return nil, serrors.E(op, fallbackErr)
+	sessions := make([]domain.Session, 0, len(summaries))
+	for _, summary := range summaries {
+		sessions = append(sessions, summary.Session)
 	}
 	return sessions, nil
 }
@@ -68,47 +71,16 @@ func (s *chatServiceImpl) CountUserSessions(ctx context.Context, userID int64, o
 	const op serrors.Op = "chatServiceImpl.CountUserSessions"
 
 	count, err := s.CountAccessibleSessions(ctx, userID, opts)
-	if err == nil {
-		return count, nil
-	}
-	if !isSessionAccessRepoNotConfiguredErr(err) {
+	if err != nil {
 		return 0, serrors.E(op, err)
 	}
-
-	configuration.Use().Logger().WithError(err).Warn("session access repository not configured; falling back to legacy session count")
-
-	count, fallbackErr := s.chatRepo.CountUserSessions(ctx, userID, opts)
-	if fallbackErr != nil {
-		return 0, serrors.E(op, fallbackErr)
-	}
 	return count, nil
-}
-
-func isSessionAccessRepoNotConfiguredErr(err error) bool {
-	if errors.Is(err, errSessionAccessRepoNotConfigured) {
-		return true
-	}
-	var sErr *serrors.Error
-	if !errors.As(err, &sErr) {
-		return false
-	}
-	return sErr.Kind == serrors.KindValidation && strings.EqualFold(sErr.Context, sessionAccessRepoNotConfiguredError)
-}
-
-func (s *chatServiceImpl) sessionAccessRepo() (domain.SessionAccessRepository, bool) {
-	repo, ok := s.chatRepo.(domain.SessionAccessRepository)
-	return repo, ok
 }
 
 func (s *chatServiceImpl) ListAccessibleSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.SessionSummary, error) {
 	const op serrors.Op = "chatServiceImpl.ListAccessibleSessions"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		return nil, serrors.E(op, serrors.KindValidation, errSessionAccessRepoNotConfigured)
-	}
-
-	out, err := repo.ListAccessibleSessionSummaries(ctx, userID, opts)
+	out, err := s.sessionAccess.ListAccessibleSessionSummaries(ctx, userID, opts)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -118,12 +90,7 @@ func (s *chatServiceImpl) ListAccessibleSessions(ctx context.Context, userID int
 func (s *chatServiceImpl) CountAccessibleSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
 	const op serrors.Op = "chatServiceImpl.CountAccessibleSessions"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		return 0, serrors.E(op, serrors.KindValidation, errSessionAccessRepoNotConfigured)
-	}
-
-	count, err := repo.CountAccessibleSessions(ctx, userID, opts)
+	count, err := s.sessionAccess.CountAccessibleSessions(ctx, userID, opts)
 	if err != nil {
 		return 0, serrors.E(op, err)
 	}
@@ -133,12 +100,7 @@ func (s *chatServiceImpl) CountAccessibleSessions(ctx context.Context, userID in
 func (s *chatServiceImpl) ListAllSessions(ctx context.Context, requestingUserID int64, opts domain.ListOptions, ownerUserID *int64) ([]domain.SessionSummary, error) {
 	const op serrors.Op = "chatServiceImpl.ListAllSessions"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		return nil, serrors.E(op, serrors.KindValidation, errSessionAccessRepoNotConfigured)
-	}
-
-	out, err := repo.ListAllSessionSummaries(ctx, requestingUserID, opts, ownerUserID)
+	out, err := s.sessionAccess.ListAllSessionSummaries(ctx, requestingUserID, opts, ownerUserID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -148,12 +110,7 @@ func (s *chatServiceImpl) ListAllSessions(ctx context.Context, requestingUserID 
 func (s *chatServiceImpl) CountAllSessions(ctx context.Context, opts domain.ListOptions, ownerUserID *int64) (int, error) {
 	const op serrors.Op = "chatServiceImpl.CountAllSessions"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		return 0, serrors.E(op, serrors.KindValidation, errSessionAccessRepoNotConfigured)
-	}
-
-	count, err := repo.CountAllSessions(ctx, opts, ownerUserID)
+	count, err := s.sessionAccess.CountAllSessions(ctx, opts, ownerUserID)
 	if err != nil {
 		return 0, serrors.E(op, err)
 	}
@@ -163,31 +120,7 @@ func (s *chatServiceImpl) CountAllSessions(ctx context.Context, opts domain.List
 func (s *chatServiceImpl) ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64, allowReadAll bool) (domain.SessionAccess, error) {
 	const op serrors.Op = "chatServiceImpl.ResolveSessionAccess"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		session, err := s.chatRepo.GetSession(ctx, sessionID)
-		if err != nil {
-			return domain.SessionAccess{}, serrors.E(op, err)
-		}
-		if session.UserID() == userID {
-			return domain.NewSessionAccess(
-				domain.SessionMemberRoleOwner,
-				domain.SessionAccessSourceOwner,
-			), nil
-		}
-		if allowReadAll {
-			return domain.NewSessionAccess(
-				domain.SessionMemberRoleReadAll,
-				domain.SessionAccessSourcePermission,
-			), nil
-		}
-		return domain.NewSessionAccess(
-			domain.SessionMemberRoleNone,
-			domain.SessionAccessSourceNone,
-		), nil
-	}
-
-	access, err := repo.ResolveSessionAccess(ctx, sessionID, userID)
+	access, err := s.sessionAccess.ResolveSessionAccess(ctx, sessionID, userID)
 	if err != nil {
 		return domain.SessionAccess{}, serrors.E(op, err)
 	}
@@ -195,10 +128,11 @@ func (s *chatServiceImpl) ResolveSessionAccess(ctx context.Context, sessionID uu
 		return access, nil
 	}
 	if allowReadAll {
-		return domain.NewSessionAccess(
-			domain.SessionMemberRoleReadAll,
-			domain.SessionAccessSourcePermission,
-		), nil
+		elevated, elevateErr := access.GrantReadAll()
+		if elevateErr != nil {
+			return domain.SessionAccess{}, serrors.E(op, elevateErr)
+		}
+		return elevated, nil
 	}
 	return access, nil
 }
@@ -206,43 +140,26 @@ func (s *chatServiceImpl) ResolveSessionAccess(ctx context.Context, sessionID uu
 func (s *chatServiceImpl) ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]domain.SessionMember, error) {
 	const op serrors.Op = "chatServiceImpl.ListSessionMembers"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		return nil, serrors.E(op, serrors.KindValidation, errSessionAccessRepoNotConfigured)
-	}
-
-	members, err := repo.ListSessionMembers(ctx, sessionID)
+	members, err := s.sessionAccess.ListSessionMembers(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
 	return members, nil
 }
 
-func (s *chatServiceImpl) UpsertSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64, role domain.SessionMemberRole) error {
+func (s *chatServiceImpl) UpsertSessionMember(ctx context.Context, command domain.SessionMemberUpsert) error {
 	const op serrors.Op = "chatServiceImpl.UpsertSessionMember"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		return serrors.E(op, serrors.KindValidation, errSessionAccessRepoNotConfigured)
-	}
-
-	if !role.ValidMemberRole() {
-		return serrors.E(op, serrors.KindValidation, "invalid member role")
-	}
-	if err := repo.UpsertSessionMember(ctx, sessionID, userID, role); err != nil {
+	if err := s.sessionAccess.UpsertSessionMember(ctx, command); err != nil {
 		return serrors.E(op, err)
 	}
 	return nil
 }
 
-func (s *chatServiceImpl) RemoveSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64) error {
+func (s *chatServiceImpl) RemoveSessionMember(ctx context.Context, command domain.SessionMemberRemoval) error {
 	const op serrors.Op = "chatServiceImpl.RemoveSessionMember"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		return serrors.E(op, serrors.KindValidation, errSessionAccessRepoNotConfigured)
-	}
-	if err := repo.RemoveSessionMember(ctx, sessionID, userID); err != nil {
+	if err := s.sessionAccess.RemoveSessionMember(ctx, command); err != nil {
 		return serrors.E(op, err)
 	}
 	return nil
@@ -251,11 +168,7 @@ func (s *chatServiceImpl) RemoveSessionMember(ctx context.Context, sessionID uui
 func (s *chatServiceImpl) ListTenantUsers(ctx context.Context) ([]domain.SessionUser, error) {
 	const op serrors.Op = "chatServiceImpl.ListTenantUsers"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		return nil, serrors.E(op, serrors.KindValidation, errSessionAccessRepoNotConfigured)
-	}
-	users, err := repo.ListTenantUsers(ctx)
+	users, err := s.sessionAccess.ListTenantUsers(ctx)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -265,11 +178,7 @@ func (s *chatServiceImpl) ListTenantUsers(ctx context.Context) ([]domain.Session
 func (s *chatServiceImpl) GetTenantUser(ctx context.Context, userID int64) (domain.SessionUser, error) {
 	const op serrors.Op = "chatServiceImpl.GetTenantUser"
 
-	repo, ok := s.sessionAccessRepo()
-	if !ok {
-		return domain.SessionUser{}, serrors.E(op, serrors.KindValidation, errSessionAccessRepoNotConfigured)
-	}
-	user, err := repo.GetTenantUser(ctx, userID)
+	user, err := s.sessionAccess.GetTenantUser(ctx, userID)
 	if err != nil {
 		return domain.SessionUser{}, serrors.E(op, err)
 	}
@@ -284,7 +193,10 @@ func (s *chatServiceImpl) ArchiveSession(ctx context.Context, sessionID uuid.UUI
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	updated := session.UpdateStatus(domain.SessionStatusArchived)
+	updated, err := session.Archive(time.Now())
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -299,7 +211,10 @@ func (s *chatServiceImpl) UnarchiveSession(ctx context.Context, sessionID uuid.U
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	updated := session.UpdateStatus(domain.SessionStatusActive)
+	updated, err := session.Unarchive(time.Now())
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -314,7 +229,10 @@ func (s *chatServiceImpl) PinSession(ctx context.Context, sessionID uuid.UUID) (
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	updated := session.UpdatePinned(true)
+	updated, err := session.Pin(time.Now())
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -329,7 +247,10 @@ func (s *chatServiceImpl) UnpinSession(ctx context.Context, sessionID uuid.UUID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	updated := session.UpdatePinned(false)
+	updated, err := session.Unpin(time.Now())
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -340,15 +261,14 @@ func (s *chatServiceImpl) UnpinSession(ctx context.Context, sessionID uuid.UUID)
 func (s *chatServiceImpl) UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.UpdateSessionTitle"
 
-	if title == "" {
-		return nil, serrors.E(op, serrors.KindValidation, "title cannot be empty")
-	}
-
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	updated := session.UpdateTitle(title)
+	updated, err := session.Rename(title, time.Now())
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -359,11 +279,8 @@ func (s *chatServiceImpl) UpdateSessionTitle(ctx context.Context, sessionID uuid
 func (s *chatServiceImpl) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
 	const op serrors.Op = "chatServiceImpl.DeleteSession"
 
-	// Repository handles cascade deletion of messages and attachments
-	err := s.chatRepo.DeleteSession(ctx, sessionID)
-	if err != nil {
+	if err := s.chatRepo.DeleteSession(ctx, sessionID); err != nil {
 		return serrors.E(op, err)
 	}
-
 	return nil
 }

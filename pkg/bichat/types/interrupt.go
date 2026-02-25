@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // InterruptType identifies the type of interrupt.
@@ -128,15 +129,36 @@ type QuestionDataOption struct {
 // NewQuestionData constructs a QuestionData in pending state.
 // Returns error if invariants are violated.
 func NewQuestionData(checkpointID, agentName string, questions []QuestionDataItem) (*QuestionData, error) {
+	checkpointID = strings.TrimSpace(checkpointID)
 	if checkpointID == "" {
 		return nil, fmt.Errorf("%w: checkpointID required", ErrQuestionDataInvalid)
 	}
 	if len(questions) == 0 {
 		return nil, fmt.Errorf("%w: at least one question required", ErrQuestionDataInvalid)
 	}
+	seenQuestionIDs := make(map[string]struct{}, len(questions))
 	for _, q := range questions {
-		if len(q.Options) < 2 {
-			return nil, fmt.Errorf("%w: question %q must have at least 2 options", ErrQuestionDataInvalid, q.ID)
+		qID := strings.TrimSpace(q.ID)
+		if qID == "" {
+			return nil, fmt.Errorf("%w: question id is required", ErrQuestionDataInvalid)
+		}
+		if _, exists := seenQuestionIDs[qID]; exists {
+			return nil, fmt.Errorf("%w: duplicated question id %q", ErrQuestionDataInvalid, qID)
+		}
+		seenQuestionIDs[qID] = struct{}{}
+		if len(q.Options) < 2 || len(q.Options) > 4 {
+			return nil, fmt.Errorf("%w: question %q must have between 2 and 4 options", ErrQuestionDataInvalid, q.ID)
+		}
+		seenOptionIDs := make(map[string]struct{}, len(q.Options))
+		for _, opt := range q.Options {
+			optID := strings.TrimSpace(opt.ID)
+			if optID == "" {
+				return nil, fmt.Errorf("%w: option id is required in question %q", ErrQuestionDataInvalid, q.ID)
+			}
+			if _, exists := seenOptionIDs[optID]; exists {
+				return nil, fmt.Errorf("%w: duplicated option id %q in question %q", ErrQuestionDataInvalid, optID, q.ID)
+			}
+			seenOptionIDs[optID] = struct{}{}
 		}
 	}
 	return &QuestionData{
@@ -151,6 +173,42 @@ func NewQuestionData(checkpointID, agentName string, questions []QuestionDataIte
 func (qd *QuestionData) Answer(answers map[string]string) (*QuestionData, error) {
 	if qd.Status != QuestionStatusPending {
 		return nil, fmt.Errorf("%w: cannot answer from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	if len(answers) == 0 {
+		return nil, fmt.Errorf("%w: at least one answer is required", ErrQuestionDataInvalid)
+	}
+	questionsByID := make(map[string]QuestionDataItem, len(qd.Questions))
+	for _, q := range qd.Questions {
+		questionsByID[q.ID] = q
+	}
+	for answerQID, rawAnswer := range answers {
+		question, ok := questionsByID[answerQID]
+		if !ok {
+			return nil, fmt.Errorf("%w: unknown question id %q", ErrQuestionDataInvalid, answerQID)
+		}
+		allowed := make(map[string]struct{}, len(question.Options))
+		for _, opt := range question.Options {
+			allowed[opt.ID] = struct{}{}
+		}
+		candidates := []string{strings.TrimSpace(rawAnswer)}
+		if question.Type == "multiple_choice" {
+			parts := strings.Split(rawAnswer, ",")
+			candidates = make([]string, 0, len(parts))
+			for _, part := range parts {
+				trimmed := strings.TrimSpace(part)
+				if trimmed != "" {
+					candidates = append(candidates, trimmed)
+				}
+			}
+		}
+		if len(candidates) == 0 {
+			return nil, fmt.Errorf("%w: empty answer for question %q", ErrQuestionDataInvalid, answerQID)
+		}
+		for _, candidate := range candidates {
+			if _, exists := allowed[candidate]; !exists {
+				return nil, fmt.Errorf("%w: invalid option %q for question %q", ErrQuestionDataInvalid, candidate, answerQID)
+			}
+		}
 	}
 	next := *qd
 	next.Status = QuestionStatusAnswered

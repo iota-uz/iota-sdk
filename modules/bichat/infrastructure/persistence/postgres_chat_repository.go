@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -403,26 +404,29 @@ func (r *PostgresChatRepository) CreateSession(ctx context.Context, session doma
 		return serrors.E(op, err)
 	}
 
-	createdAt := session.CreatedAt()
-	updatedAt := session.UpdatedAt()
-	if createdAt.IsZero() {
-		createdAt = time.Now()
+	model, err := models.SessionModelFromDomain(session)
+	if err != nil {
+		return serrors.E(op, err)
 	}
-	if updatedAt.IsZero() {
-		updatedAt = createdAt
+	model.TenantID = tenantID
+	if model.CreatedAt.IsZero() {
+		model.CreatedAt = time.Now()
+	}
+	if model.UpdatedAt.IsZero() {
+		model.UpdatedAt = model.CreatedAt
 	}
 
 	_, err = tx.Exec(ctx, insertSessionQuery,
-		session.ID(),
-		tenantID,
-		session.UserID(),
-		session.Title(),
-		session.Status(),
-		session.Pinned(),
-		session.ParentSessionID(),
-		session.LLMPreviousResponseID(),
-		createdAt,
-		updatedAt,
+		model.ID,
+		model.TenantID,
+		model.UserID,
+		model.Title,
+		model.Status,
+		model.Pinned,
+		model.ParentSessionID,
+		model.LLMPreviousResponseID,
+		model.CreatedAt,
+		model.UpdatedAt,
 	)
 	if err != nil {
 		return serrors.E(op, err)
@@ -445,21 +449,18 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 		return nil, serrors.E(op, err)
 	}
 
-	var (
-		sid                   uuid.UUID
-		tenantIDRow           uuid.UUID
-		userID                int64
-		title                 string
-		status                domain.SessionStatus
-		pinned                bool
-		parentSessionID       *uuid.UUID
-		llmPreviousResponseID *string
-		createdAt             time.Time
-		updatedAt             time.Time
-	)
+	var model models.SessionModel
 	err = tx.QueryRow(ctx, selectSessionQuery, tenantID, id).Scan(
-		&sid, &tenantIDRow, &userID, &title, &status, &pinned,
-		&parentSessionID, &llmPreviousResponseID, &createdAt, &updatedAt,
+		&model.ID,
+		&model.TenantID,
+		&model.UserID,
+		&model.Title,
+		&model.Status,
+		&model.Pinned,
+		&model.ParentSessionID,
+		&model.LLMPreviousResponseID,
+		&model.CreatedAt,
+		&model.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -468,23 +469,11 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 		return nil, serrors.E(op, err)
 	}
 
-	opts := []domain.SessionOption{
-		domain.WithID(sid),
-		domain.WithTenantID(tenantIDRow),
-		domain.WithUserID(userID),
-		domain.WithTitle(title),
-		domain.WithStatus(status),
-		domain.WithPinned(pinned),
-		domain.WithCreatedAt(createdAt),
-		domain.WithUpdatedAt(updatedAt),
+	sessionEntity, err := model.ToDomain()
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
-	if parentSessionID != nil {
-		opts = append(opts, domain.WithParentSessionID(*parentSessionID))
-	}
-	if llmPreviousResponseID != nil {
-		opts = append(opts, domain.WithLLMPreviousResponseID(*llmPreviousResponseID))
-	}
-	return domain.NewSession(opts...), nil
+	return sessionEntity, nil
 }
 
 // UpdateSession updates an existing session.
@@ -501,15 +490,20 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session doma
 		return serrors.E(op, err)
 	}
 
+	model, err := models.SessionModelFromDomain(session)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
 	result, err := tx.Exec(ctx, updateSessionQuery,
-		session.Title(),
-		session.Status(),
-		session.Pinned(),
-		session.ParentSessionID(),
-		session.LLMPreviousResponseID(),
-		session.UpdatedAt(),
+		model.Title,
+		model.Status,
+		model.Pinned,
+		model.ParentSessionID,
+		model.LLMPreviousResponseID,
+		model.UpdatedAt,
 		tenantID,
-		session.ID(),
+		model.ID,
 	)
 	if err != nil {
 		return serrors.E(op, err)
@@ -592,42 +586,27 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 
 	var sessions []domain.Session
 	for rows.Next() {
-		var (
-			sid                   uuid.UUID
-			tenantIDRow           uuid.UUID
-			userIDRow             int64
-			title                 string
-			status                domain.SessionStatus
-			pinned                bool
-			parentSessionID       *uuid.UUID
-			llmPreviousResponseID *string
-			createdAt             time.Time
-			updatedAt             time.Time
-		)
+		var model models.SessionModel
 		err := rows.Scan(
-			&sid, &tenantIDRow, &userIDRow, &title, &status, &pinned,
-			&parentSessionID, &llmPreviousResponseID, &createdAt, &updatedAt,
+			&model.ID,
+			&model.TenantID,
+			&model.UserID,
+			&model.Title,
+			&model.Status,
+			&model.Pinned,
+			&model.ParentSessionID,
+			&model.LLMPreviousResponseID,
+			&model.CreatedAt,
+			&model.UpdatedAt,
 		)
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
-		opts := []domain.SessionOption{
-			domain.WithID(sid),
-			domain.WithTenantID(tenantIDRow),
-			domain.WithUserID(userIDRow),
-			domain.WithTitle(title),
-			domain.WithStatus(status),
-			domain.WithPinned(pinned),
-			domain.WithCreatedAt(createdAt),
-			domain.WithUpdatedAt(updatedAt),
+		sessionEntity, err := model.ToDomain()
+		if err != nil {
+			return nil, serrors.E(op, err)
 		}
-		if parentSessionID != nil {
-			opts = append(opts, domain.WithParentSessionID(*parentSessionID))
-		}
-		if llmPreviousResponseID != nil {
-			opts = append(opts, domain.WithLLMPreviousResponseID(*llmPreviousResponseID))
-		}
-		sessions = append(sessions, domain.NewSession(opts...))
+		sessions = append(sessions, sessionEntity)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -790,44 +769,49 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 	}
 
 	if ownerID == userID {
-		return domain.NewSessionAccess(
-			domain.SessionMemberRoleOwner,
-			domain.SessionAccessSourceOwner,
-		), nil
+		access, err := (&models.SessionAccessModel{
+			Role:   domain.SessionMemberRoleOwner.String(),
+			Source: string(domain.SessionAccessSourceOwner),
+		}).ToDomain()
+		if err != nil {
+			return domain.SessionAccess{}, serrors.E(op, err)
+		}
+		return access, nil
 	}
 
 	switch domain.ParseSessionMemberRole(memberRole) {
-	case domain.SessionMemberRoleOwner:
-		return domain.NewSessionAccess(
-			domain.SessionMemberRoleOwner,
-			domain.SessionAccessSourceMember,
-		), nil
 	case domain.SessionMemberRoleEditor:
-		return domain.NewSessionAccess(
-			domain.SessionMemberRoleEditor,
-			domain.SessionAccessSourceMember,
-		), nil
+		access, err := (&models.SessionAccessModel{
+			Role:   domain.SessionMemberRoleEditor.String(),
+			Source: string(domain.SessionAccessSourceMember),
+		}).ToDomain()
+		if err != nil {
+			return domain.SessionAccess{}, serrors.E(op, err)
+		}
+		return access, nil
 	case domain.SessionMemberRoleViewer:
-		return domain.NewSessionAccess(
-			domain.SessionMemberRoleViewer,
-			domain.SessionAccessSourceMember,
-		), nil
-	case domain.SessionMemberRoleReadAll:
-		return domain.NewSessionAccess(
-			domain.SessionMemberRoleReadAll,
-			domain.SessionAccessSourcePermission,
-		), nil
-	case domain.SessionMemberRoleNone:
-		return domain.NewSessionAccess(
-			domain.SessionMemberRoleNone,
-			domain.SessionAccessSourceNone,
-		), nil
+		access, err := (&models.SessionAccessModel{
+			Role:   domain.SessionMemberRoleViewer.String(),
+			Source: string(domain.SessionAccessSourceMember),
+		}).ToDomain()
+		if err != nil {
+			return domain.SessionAccess{}, serrors.E(op, err)
+		}
+		return access, nil
+	case domain.SessionMemberRoleNone, domain.SessionMemberRoleOwner, domain.SessionMemberRoleReadAll:
+		// OWNER is already handled above and READ_ALL is permission-derived, not membership-derived.
+		// Unknown/none roles should resolve to no access.
+		fallthrough
+	default:
+		access, err := (&models.SessionAccessModel{
+			Role:   domain.SessionMemberRoleNone.String(),
+			Source: string(domain.SessionAccessSourceNone),
+		}).ToDomain()
+		if err != nil {
+			return domain.SessionAccess{}, serrors.E(op, err)
+		}
+		return access, nil
 	}
-
-	return domain.NewSessionAccess(
-		domain.SessionMemberRoleNone,
-		domain.SessionAccessSourceNone,
-	), nil
 }
 
 // ListSessionMembers returns explicit non-owner members for a session.
@@ -851,29 +835,23 @@ func (r *PostgresChatRepository) ListSessionMembers(ctx context.Context, session
 
 	out := make([]domain.SessionMember, 0)
 	for rows.Next() {
-		var (
-			memberSessionID uuid.UUID
-			userID          int64
-			role            string
-			createdAt       time.Time
-			updatedAt       time.Time
-			firstName       string
-			lastName        string
-		)
-		if err := rows.Scan(&memberSessionID, &userID, &role, &createdAt, &updatedAt, &firstName, &lastName); err != nil {
+		var model models.SessionMemberModel
+		if err := rows.Scan(
+			&model.SessionID,
+			&model.UserID,
+			&model.Role,
+			&model.CreatedAt,
+			&model.UpdatedAt,
+			&model.FirstName,
+			&model.LastName,
+		); err != nil {
 			return nil, serrors.E(op, err)
 		}
-		out = append(out, domain.SessionMember{
-			SessionID: memberSessionID,
-			User: domain.SessionUser{
-				ID:        userID,
-				FirstName: firstName,
-				LastName:  lastName,
-			},
-			Role:      domain.ParseSessionMemberRole(role),
-			CreatedAt: createdAt,
-			UpdatedAt: updatedAt,
-		})
+		member, memberErr := model.ToDomain()
+		if memberErr != nil {
+			return nil, serrors.E(op, memberErr)
+		}
+		out = append(out, member)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, serrors.E(op, err)
@@ -882,12 +860,8 @@ func (r *PostgresChatRepository) ListSessionMembers(ctx context.Context, session
 }
 
 // UpsertSessionMember creates or updates an explicit non-owner member role.
-func (r *PostgresChatRepository) UpsertSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64, role domain.SessionMemberRole) error {
+func (r *PostgresChatRepository) UpsertSessionMember(ctx context.Context, command domain.SessionMemberUpsert) error {
 	const op serrors.Op = "PostgresChatRepository.UpsertSessionMember"
-
-	if !role.ValidMemberRole() {
-		return serrors.E(op, serrors.KindValidation, "invalid session member role")
-	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -898,21 +872,22 @@ func (r *PostgresChatRepository) UpsertSessionMember(ctx context.Context, sessio
 		return serrors.E(op, err)
 	}
 
-	result, err := tx.Exec(ctx, upsertSessionMemberQuery, tenantID, sessionID, userID, role.String())
+	model := models.SessionMemberUpsertModelFromDomain(command)
+	result, err := tx.Exec(ctx, upsertSessionMemberQuery, tenantID, model.SessionID, model.UserID, model.Role)
 	if err != nil {
 		return serrors.E(op, err)
 	}
 	if result.RowsAffected() == 0 {
-		session, err := r.GetSession(ctx, sessionID)
+		session, err := r.GetSession(ctx, model.SessionID)
 		if err != nil {
 			return serrors.E(op, err)
 		}
-		if session.UserID() == userID {
+		if session.UserID() == model.UserID {
 			return serrors.E(op, serrors.KindValidation, "cannot add session owner as a member")
 		}
 
 		var exists bool
-		if err := tx.QueryRow(ctx, sessionUserExistsQuery, tenantID, userID).Scan(&exists); err != nil {
+		if err := tx.QueryRow(ctx, sessionUserExistsQuery, tenantID, model.UserID).Scan(&exists); err != nil {
 			return serrors.E(op, err)
 		}
 		if !exists {
@@ -925,7 +900,7 @@ func (r *PostgresChatRepository) UpsertSessionMember(ctx context.Context, sessio
 }
 
 // RemoveSessionMember removes an explicit non-owner member.
-func (r *PostgresChatRepository) RemoveSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64) error {
+func (r *PostgresChatRepository) RemoveSessionMember(ctx context.Context, command domain.SessionMemberRemoval) error {
 	const op serrors.Op = "PostgresChatRepository.RemoveSessionMember"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -937,7 +912,8 @@ func (r *PostgresChatRepository) RemoveSessionMember(ctx context.Context, sessio
 		return serrors.E(op, err)
 	}
 
-	if _, err := tx.Exec(ctx, removeSessionMemberQuery, tenantID, sessionID, userID); err != nil {
+	model := models.SessionMemberRemovalModelFromDomain(command)
+	if _, err := tx.Exec(ctx, removeSessionMemberQuery, tenantID, model.SessionID, model.UserID); err != nil {
 		return serrors.E(op, err)
 	}
 	return nil
@@ -1867,21 +1843,22 @@ func (r *PostgresChatRepository) CreateRun(ctx context.Context, run domain.Gener
 		return serrors.E(op, err)
 	}
 
-	metaJSON, err := json.Marshal(run.PartialMetadata())
+	model, err := models.GenerationRunModelFromDomain(run)
 	if err != nil {
 		return serrors.E(op, err)
 	}
+	model.TenantID = tenantID
 
 	_, err = tx.Exec(ctx, insertGenerationRunQuery,
-		run.ID(),
-		run.SessionID(),
-		tenantID,
-		run.UserID(),
-		string(run.Status()),
-		run.PartialContent(),
-		metaJSON,
-		run.StartedAt(),
-		run.LastUpdatedAt(),
+		model.ID,
+		model.SessionID,
+		model.TenantID,
+		model.UserID,
+		model.Status,
+		model.PartialContent,
+		model.PartialMeta,
+		model.StartedAt,
+		model.LastUpdatedAt,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -1907,13 +1884,18 @@ func (r *PostgresChatRepository) GetActiveRunBySession(ctx context.Context, sess
 	}
 
 	row := tx.QueryRow(ctx, selectActiveGenerationRunBySessionQuery, tenantID, sessionID)
-	var id, sessID, tID uuid.UUID
-	var userID int64
-	var status string
-	var partialContent string
-	var partialMetadata []byte
-	var startedAt, lastUpdatedAt time.Time
-	err = row.Scan(&id, &sessID, &tID, &userID, &status, &partialContent, &partialMetadata, &startedAt, &lastUpdatedAt)
+	var model models.GenerationRunModel
+	err = row.Scan(
+		&model.ID,
+		&model.SessionID,
+		&model.TenantID,
+		&model.UserID,
+		&model.Status,
+		&model.PartialContent,
+		&model.PartialMeta,
+		&model.StartedAt,
+		&model.LastUpdatedAt,
+	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrNoActiveRun
@@ -1921,27 +1903,11 @@ func (r *PostgresChatRepository) GetActiveRunBySession(ctx context.Context, sess
 		return nil, serrors.E(op, err)
 	}
 
-	var meta map[string]any
-	if len(partialMetadata) > 0 {
-		if err := json.Unmarshal(partialMetadata, &meta); err != nil {
-			return nil, serrors.E(op, err)
-		}
+	runEntity, err := model.ToDomain()
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
-	if meta == nil {
-		meta = make(map[string]any)
-	}
-
-	return domain.NewGenerationRun(
-		domain.WithGenerationRunID(id),
-		domain.WithGenerationRunSessionID(sessID),
-		domain.WithGenerationRunTenantID(tID),
-		domain.WithGenerationRunUserID(userID),
-		domain.WithGenerationRunStatus(domain.GenerationRunStatus(status)),
-		domain.WithGenerationRunPartialContent(partialContent),
-		domain.WithGenerationRunPartialMetadata(meta),
-		domain.WithGenerationRunStartedAt(startedAt),
-		domain.WithGenerationRunLastUpdatedAt(lastUpdatedAt),
-	), nil
+	return runEntity, nil
 }
 
 // UpdateRunSnapshot updates partial content and metadata for the run.
@@ -2075,34 +2041,25 @@ func convertDomainAttachmentsToTypes(in []domain.Attachment) []types.Attachment 
 
 func scanSessionSummaryRow(rows pgx.Rows) (domain.SessionSummary, error) {
 	var (
-		sid                   uuid.UUID
-		tenantID              uuid.UUID
-		userID                int64
-		title                 string
-		status                domain.SessionStatus
-		pinned                bool
-		parentSessionID       *uuid.UUID
-		llmPreviousResponseID *string
-		createdAt             time.Time
-		updatedAt             time.Time
-		ownerFirstName        string
-		ownerLastName         string
-		accessRoleRaw         string
-		accessSourceRaw       string
-		memberCount           int
+		model           models.SessionModel
+		ownerFirstName  string
+		ownerLastName   string
+		accessRoleRaw   string
+		accessSourceRaw string
+		memberCount     int
 	)
 
 	if err := rows.Scan(
-		&sid,
-		&tenantID,
-		&userID,
-		&title,
-		&status,
-		&pinned,
-		&parentSessionID,
-		&llmPreviousResponseID,
-		&createdAt,
-		&updatedAt,
+		&model.ID,
+		&model.TenantID,
+		&model.UserID,
+		&model.Title,
+		&model.Status,
+		&model.Pinned,
+		&model.ParentSessionID,
+		&model.LLMPreviousResponseID,
+		&model.CreatedAt,
+		&model.UpdatedAt,
 		&ownerFirstName,
 		&ownerLastName,
 		&accessRoleRaw,
@@ -2112,21 +2069,9 @@ func scanSessionSummaryRow(rows pgx.Rows) (domain.SessionSummary, error) {
 		return domain.SessionSummary{}, err
 	}
 
-	sessionOpts := []domain.SessionOption{
-		domain.WithID(sid),
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(userID),
-		domain.WithTitle(title),
-		domain.WithStatus(status),
-		domain.WithPinned(pinned),
-		domain.WithCreatedAt(createdAt),
-		domain.WithUpdatedAt(updatedAt),
-	}
-	if parentSessionID != nil {
-		sessionOpts = append(sessionOpts, domain.WithParentSessionID(*parentSessionID))
-	}
-	if llmPreviousResponseID != nil {
-		sessionOpts = append(sessionOpts, domain.WithLLMPreviousResponseID(*llmPreviousResponseID))
+	sessionEntity, err := model.ToDomain()
+	if err != nil {
+		return domain.SessionSummary{}, err
 	}
 
 	role := domain.ParseSessionMemberRole(accessRoleRaw)
@@ -2140,19 +2085,23 @@ func scanSessionSummaryRow(rows pgx.Rows) (domain.SessionSummary, error) {
 		source = domain.SessionAccessSourcePermission
 	}
 
-	access := domain.NewSessionAccess(role, source)
-
-	return domain.SessionSummary{
-		Session: domain.NewSession(sessionOpts...),
+	access, err := (&models.SessionAccessModel{
+		Role:   role.String(),
+		Source: string(source),
+	}).ToDomain()
+	if err != nil {
+		return domain.SessionSummary{}, err
+	}
+	return domain.NewSessionSummary(domain.SessionSummarySpec{
+		Session: sessionEntity,
 		Owner: domain.SessionUser{
-			ID:        userID,
+			ID:        model.UserID,
 			FirstName: ownerFirstName,
 			LastName:  ownerLastName,
 		},
 		Access:      access,
 		MemberCount: memberCount,
-		IsGroup:     memberCount > 1,
-	}, nil
+	})
 }
 
 func derefString(v *string) string {

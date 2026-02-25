@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -23,7 +22,7 @@ func hasReadAllPermission(ctx context.Context) bool {
 
 func requireSessionAccess(
 	ctx context.Context,
-	sessionSvc services.SessionService,
+	sessionQueries services.SessionQueries,
 	sessionID string,
 	requireWrite bool,
 	requireManageMembers bool,
@@ -40,21 +39,15 @@ func requireSessionAccess(
 		return nil, domain.SessionAccess{}, serrors.E(op, serrors.Invalid, err)
 	}
 
-	access, err := sessionSvc.ResolveSessionAccess(ctx, parsedSessionID, int64(user.ID()), hasReadAllPermission(ctx))
+	access, err := sessionQueries.ResolveSessionAccess(ctx, parsedSessionID, int64(user.ID()), hasReadAllPermission(ctx))
 	if err != nil {
 		return nil, domain.SessionAccess{}, serrors.E(op, err)
 	}
-	if !access.CanRead {
-		return nil, domain.SessionAccess{}, serrors.E(op, serrors.PermissionDenied, errors.New("access denied"))
-	}
-	if requireWrite && !access.CanWrite {
-		return nil, domain.SessionAccess{}, serrors.E(op, serrors.PermissionDenied, errors.New("write access denied"))
-	}
-	if requireManageMembers && !access.CanManageMembers {
-		return nil, domain.SessionAccess{}, serrors.E(op, serrors.PermissionDenied, errors.New("member management denied"))
+	if err := access.Require(requireWrite, requireManageMembers); err != nil {
+		return nil, domain.SessionAccess{}, serrors.E(op, serrors.PermissionDenied, err)
 	}
 
-	session, err := sessionSvc.GetSession(ctx, parsedSessionID)
+	session, err := sessionQueries.GetSession(ctx, parsedSessionID)
 	if err != nil {
 		return nil, domain.SessionAccess{}, serrors.E(op, err)
 	}
@@ -62,26 +55,26 @@ func requireSessionAccess(
 	return session, access, nil
 }
 
-func withSessionMeta(ctx context.Context, sessionSvc services.SessionService, session domain.Session, access domain.SessionAccess) Session {
+func withSessionMeta(ctx context.Context, sessionQueries services.SessionQueries, session domain.Session, access domain.SessionAccess) Session {
 	memberCount := 1
-	members, err := sessionSvc.ListSessionMembers(ctx, session.ID())
+	members, err := sessionQueries.ListSessionMembers(ctx, session.ID())
 	if err != nil {
 		configuration.Use().Logger().WithError(err).Warn("failed to list session members for session metadata")
 	} else {
 		memberCount = len(members) + 1
 	}
 
-	owner, err := resolveSessionOwner(ctx, sessionSvc, session.UserID())
+	owner, err := resolveSessionOwner(ctx, sessionQueries, session.UserID())
 	if err != nil {
 		configuration.Use().Logger().WithError(err).Warn("failed to resolve session owner metadata")
 	}
 	return toSessionDTOWithMeta(session, &owner, &access, memberCount)
 }
 
-func resolveSessionOwner(ctx context.Context, sessionSvc services.SessionService, ownerUserID int64) (domain.SessionUser, error) {
+func resolveSessionOwner(ctx context.Context, sessionQueries services.SessionQueries, ownerUserID int64) (domain.SessionUser, error) {
 	const op serrors.Op = "bichat.rpc.resolveSessionOwner"
 
-	user, err := sessionSvc.GetTenantUser(ctx, ownerUserID)
+	user, err := sessionQueries.GetTenantUser(ctx, ownerUserID)
 	if err != nil {
 		return domain.SessionUser{ID: ownerUserID}, serrors.E(op, err)
 	}
@@ -91,7 +84,7 @@ func resolveSessionOwner(ctx context.Context, sessionSvc services.SessionService
 
 // upsertSessionMember validates member upsert payload and delegates to service.
 // Used by both add and updateRole RPC handlers to keep request validation in one place.
-func upsertSessionMember(ctx context.Context, sessionSvc services.SessionService, session domain.Session, p SessionMembersUpsertParams) error {
+func upsertSessionMember(ctx context.Context, sessionCommands services.SessionCommands, session domain.Session, p SessionMembersUpsertParams) error {
 	const op serrors.Op = "bichat.rpc.session.members.upsert"
 
 	userID, err := parseUserID(p.UserID)
@@ -102,23 +95,34 @@ func upsertSessionMember(ctx context.Context, sessionSvc services.SessionService
 		return serrors.E(op, serrors.KindValidation, "owner cannot be added as a member")
 	}
 
-	role := domain.ParseSessionMemberRole(p.Role)
-	if !role.ValidMemberRole() {
-		return serrors.E(op, serrors.KindValidation, "invalid role")
+	role, err := domain.NewSessionMemberRole(p.Role)
+	if err != nil {
+		return serrors.E(op, serrors.KindValidation, err)
 	}
-
-	if err := sessionSvc.UpsertSessionMember(ctx, session.ID(), userID, role); err != nil {
+	command, err := domain.NewSessionMemberUpsert(domain.SessionMemberUpsertSpec{
+		SessionID: session.ID(),
+		UserID:    userID,
+		Role:      role,
+	})
+	if err != nil {
+		return serrors.E(op, serrors.KindValidation, err)
+	}
+	if err := sessionCommands.UpsertSessionMember(ctx, command); err != nil {
 		return serrors.E(op, err)
 	}
 	return nil
 }
 
 func Router(
-	sessionSvc services.SessionService,
-	conversationSvc services.ConversationService,
-	hitlSvc services.HITLService,
+	sessionCommands services.SessionCommands,
+	sessionQueries services.SessionQueries,
+	turnCommands services.TurnCommands,
+	turnQueries services.TurnQueries,
+	hitlCommands services.HITLCommands,
 	artifactSvc services.ArtifactService,
 ) *applets.TypedRPCRouter {
+	// Reserved for dedicated non-streaming turn command RPC procedures.
+	_ = turnCommands
 	r := applets.NewTypedRPCRouter()
 	mustAdd := func(err error) {
 		if err != nil {
@@ -157,12 +161,12 @@ func Router(
 				requestedLimit = 50
 			}
 			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: p.Offset, IncludeArchived: p.IncludeArchived}
-			list, err := sessionSvc.ListAccessibleSessions(ctx, int64(user.ID()), opts)
+			list, err := sessionQueries.ListAccessibleSessions(ctx, int64(user.ID()), opts)
 			if err != nil {
 				return SessionListResult{}, serrors.E(op, err)
 			}
 			// Total = full count matching filter (for pagination), not page size
-			total, err := sessionSvc.CountAccessibleSessions(ctx, int64(user.ID()), domain.ListOptions{IncludeArchived: p.IncludeArchived})
+			total, err := sessionQueries.CountAccessibleSessions(ctx, int64(user.ID()), domain.ListOptions{IncludeArchived: p.IncludeArchived})
 			if err != nil {
 				return SessionListResult{}, serrors.E(op, err)
 			}
@@ -206,11 +210,11 @@ func Router(
 			}
 
 			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: p.Offset, IncludeArchived: p.IncludeArchived}
-			list, err := sessionSvc.ListAllSessions(ctx, int64(user.ID()), opts, ownerUserID)
+			list, err := sessionQueries.ListAllSessions(ctx, int64(user.ID()), opts, ownerUserID)
 			if err != nil {
 				return SessionListAllResult{}, serrors.E(op, err)
 			}
-			total, err := sessionSvc.CountAllSessions(ctx, domain.ListOptions{IncludeArchived: p.IncludeArchived}, ownerUserID)
+			total, err := sessionQueries.CountAllSessions(ctx, domain.ListOptions{IncludeArchived: p.IncludeArchived}, ownerUserID)
 			if err != nil {
 				return SessionListAllResult{}, serrors.E(op, err)
 			}
@@ -233,7 +237,7 @@ func Router(
 		Handler: func(ctx context.Context, _ UserListParams) (UserListResult, error) {
 			const op serrors.Op = "bichat.rpc.user.list"
 
-			users, err := sessionSvc.ListTenantUsers(ctx)
+			users, err := sessionQueries.ListTenantUsers(ctx)
 			if err != nil {
 				return UserListResult{}, serrors.E(op, err)
 			}
@@ -259,7 +263,7 @@ func Router(
 				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
 			}
 
-			s, err := sessionSvc.CreateSession(ctx, tenantID, int64(user.ID()), p.Title)
+			s, err := sessionCommands.CreateSession(ctx, tenantID, int64(user.ID()), p.Title)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -271,12 +275,12 @@ func Router(
 		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionGetParams) (SessionGetResult, error) {
 			const op serrors.Op = "bichat.rpc.session.get"
-			s, access, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, false)
+			s, access, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, false)
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 
-			msgs, err := conversationSvc.GetSessionMessages(ctx, s.ID(), domain.ListOptions{Limit: 500})
+			msgs, err := turnQueries.GetSessionMessages(ctx, s.ID(), domain.ListOptions{Limit: 500})
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
@@ -284,7 +288,7 @@ func Router(
 			pq := pendingQuestionFromMessages(msgs)
 
 			return SessionGetResult{
-				Session:         withSessionMeta(ctx, sessionSvc, s, access),
+				Session:         withSessionMeta(ctx, sessionQueries, s, access),
 				Turns:           buildTurns(msgs),
 				PendingQuestion: pq,
 			}, nil
@@ -296,12 +300,12 @@ func Router(
 		Handler: func(ctx context.Context, p SessionUpdateTitleParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.updateTitle"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
 
-			s, err := sessionSvc.UpdateSessionTitle(ctx, session.ID(), p.Title)
+			s, err := sessionCommands.UpdateSessionTitle(ctx, session.ID(), p.Title)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -314,12 +318,12 @@ func Router(
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionClearResult, error) {
 			const op serrors.Op = "bichat.rpc.session.clear"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
 				return SessionClearResult{}, serrors.E(op, err)
 			}
 
-			result, err := sessionSvc.ClearSessionHistory(ctx, session.ID())
+			result, err := sessionCommands.ClearSessionHistory(ctx, session.ID())
 			if err != nil {
 				return SessionClearResult{}, serrors.E(op, err)
 			}
@@ -337,12 +341,12 @@ func Router(
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCompactResult, error) {
 			const op serrors.Op = "bichat.rpc.session.compact"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
 				return SessionCompactResult{}, serrors.E(op, err)
 			}
 
-			result, err := sessionSvc.CompactSessionHistory(ctx, session.ID())
+			result, err := sessionCommands.CompactSessionHistory(ctx, session.ID())
 			if err != nil {
 				return SessionCompactResult{}, serrors.E(op, err)
 			}
@@ -361,11 +365,11 @@ func Router(
 		Handler: func(ctx context.Context, p SessionIDParams) (OkResult, error) {
 			const op serrors.Op = "bichat.rpc.session.delete"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
-			if err := sessionSvc.DeleteSession(ctx, session.ID()); err != nil {
+			if err := sessionCommands.DeleteSession(ctx, session.ID()); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
 			return OkResult{Ok: true}, nil
@@ -377,11 +381,11 @@ func Router(
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.pin"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := sessionSvc.PinSession(ctx, session.ID())
+			s, err := sessionCommands.PinSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -394,11 +398,11 @@ func Router(
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.unpin"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := sessionSvc.UnpinSession(ctx, session.ID())
+			s, err := sessionCommands.UnpinSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -411,7 +415,7 @@ func Router(
 		Handler: func(ctx context.Context, p SessionArtifactsParams) (SessionArtifactsResult, error) {
 			const op serrors.Op = "bichat.rpc.session.artifacts"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.SessionID, false, false)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, false)
 			if err != nil {
 				return SessionArtifactsResult{}, serrors.E(op, err)
 			}
@@ -453,7 +457,7 @@ func Router(
 		Handler: func(ctx context.Context, p SessionUploadArtifactsParams) (SessionUploadArtifactsResult, error) {
 			const op serrors.Op = "bichat.rpc.session.uploadArtifacts"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.SessionID, true, false)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
 				return SessionUploadArtifactsResult{}, serrors.E(op, err)
 			}
@@ -502,7 +506,7 @@ func Router(
 			if err != nil {
 				return ArtifactResult{}, serrors.E(op, err)
 			}
-			if _, _, err := requireSessionAccess(ctx, sessionSvc, currentArtifact.SessionID().String(), true, false); err != nil {
+			if _, _, err := requireSessionAccess(ctx, sessionQueries, currentArtifact.SessionID().String(), true, false); err != nil {
 				return ArtifactResult{}, serrors.E(op, err)
 			}
 
@@ -539,7 +543,7 @@ func Router(
 			if err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
-			if _, _, err := requireSessionAccess(ctx, sessionSvc, artifact.SessionID().String(), true, false); err != nil {
+			if _, _, err := requireSessionAccess(ctx, sessionQueries, artifact.SessionID().String(), true, false); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
 
@@ -555,11 +559,11 @@ func Router(
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.archive"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := sessionSvc.ArchiveSession(ctx, session.ID())
+			s, err := sessionCommands.ArchiveSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -572,11 +576,11 @@ func Router(
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.unarchive"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := sessionSvc.UnarchiveSession(ctx, session.ID())
+			s, err := sessionCommands.UnarchiveSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -589,14 +593,14 @@ func Router(
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.regenerateTitle"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.ID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			if err := sessionSvc.GenerateSessionTitle(ctx, session.ID()); err != nil {
+			if err := sessionCommands.GenerateSessionTitle(ctx, session.ID()); err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := sessionSvc.GetSession(ctx, session.ID())
+			s, err := sessionQueries.GetSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -609,12 +613,12 @@ func Router(
 		Handler: func(ctx context.Context, p QuestionSubmitParams) (SessionGetResult, error) {
 			const op serrors.Op = "bichat.rpc.question.submit"
 
-			session, access, err := requireSessionAccess(ctx, sessionSvc, p.SessionID, true, false)
+			session, access, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 
-			_, err = hitlSvc.ResumeWithAnswer(ctx, services.ResumeRequest{
+			_, err = hitlCommands.ResumeWithAnswer(ctx, services.ResumeRequest{
 				SessionID:    session.ID(),
 				CheckpointID: p.CheckpointID,
 				Answers:      p.Answers,
@@ -624,17 +628,17 @@ func Router(
 			}
 
 			// Re-fetch session and messages to return updated state
-			s, err := sessionSvc.GetSession(ctx, session.ID())
+			s, err := sessionQueries.GetSession(ctx, session.ID())
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
-			msgs, err := conversationSvc.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
+			msgs, err := turnQueries.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 
 			return SessionGetResult{
-				Session:         withSessionMeta(ctx, sessionSvc, s, access),
+				Session:         withSessionMeta(ctx, sessionQueries, s, access),
 				Turns:           buildTurns(msgs),
 				PendingQuestion: pendingQuestionFromMessages(msgs),
 			}, nil
@@ -646,25 +650,25 @@ func Router(
 		Handler: func(ctx context.Context, p QuestionCancelParams) (SessionGetResult, error) {
 			const op serrors.Op = "bichat.rpc.question.reject"
 
-			session, access, err := requireSessionAccess(ctx, sessionSvc, p.SessionID, true, false)
+			session, access, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
-			_, err = hitlSvc.RejectPendingQuestion(ctx, session.ID())
+			_, err = hitlCommands.RejectPendingQuestion(ctx, session.ID())
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 			// Re-fetch to return updated state
-			s, err := sessionSvc.GetSession(ctx, session.ID())
+			s, err := sessionQueries.GetSession(ctx, session.ID())
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
-			msgs, err := conversationSvc.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
+			msgs, err := turnQueries.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 			return SessionGetResult{
-				Session:         withSessionMeta(ctx, sessionSvc, s, access),
+				Session:         withSessionMeta(ctx, sessionQueries, s, access),
 				Turns:           buildTurns(msgs),
 				PendingQuestion: pendingQuestionFromMessages(msgs),
 			}, nil
@@ -676,17 +680,17 @@ func Router(
 		Handler: func(ctx context.Context, p SessionMembersListParams) (SessionMembersListResult, error) {
 			const op serrors.Op = "bichat.rpc.session.members.list"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.SessionID, false, false)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, false)
 			if err != nil {
 				return SessionMembersListResult{}, serrors.E(op, err)
 			}
 
-			members, err := sessionSvc.ListSessionMembers(ctx, session.ID())
+			members, err := sessionQueries.ListSessionMembers(ctx, session.ID())
 			if err != nil {
 				return SessionMembersListResult{}, serrors.E(op, err)
 			}
 
-			owner, listErr := resolveSessionOwner(ctx, sessionSvc, session.UserID())
+			owner, listErr := resolveSessionOwner(ctx, sessionQueries, session.UserID())
 			if listErr != nil {
 				return SessionMembersListResult{}, serrors.E(op, listErr)
 			}
@@ -716,11 +720,11 @@ func Router(
 		Handler: func(ctx context.Context, p SessionMembersUpsertParams) (OkResult, error) {
 			const op serrors.Op = "bichat.rpc.session.members.add"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.SessionID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, true)
 			if err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
-			if err := upsertSessionMember(ctx, sessionSvc, session, p); err != nil {
+			if err := upsertSessionMember(ctx, sessionCommands, session, p); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
 			return OkResult{Ok: true}, nil
@@ -732,11 +736,11 @@ func Router(
 		Handler: func(ctx context.Context, p SessionMembersUpsertParams) (OkResult, error) {
 			const op serrors.Op = "bichat.rpc.session.members.updateRole"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.SessionID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, true)
 			if err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
-			if err := upsertSessionMember(ctx, sessionSvc, session, p); err != nil {
+			if err := upsertSessionMember(ctx, sessionCommands, session, p); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
 			return OkResult{Ok: true}, nil
@@ -748,7 +752,7 @@ func Router(
 		Handler: func(ctx context.Context, p SessionMembersRemoveParams) (OkResult, error) {
 			const op serrors.Op = "bichat.rpc.session.members.remove"
 
-			session, _, err := requireSessionAccess(ctx, sessionSvc, p.SessionID, false, true)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, true)
 			if err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
@@ -759,7 +763,14 @@ func Router(
 			if userID == session.UserID() {
 				return OkResult{}, serrors.E(op, serrors.KindValidation, "cannot remove the session owner")
 			}
-			if err := sessionSvc.RemoveSessionMember(ctx, session.ID(), userID); err != nil {
+			command, err := domain.NewSessionMemberRemoval(domain.SessionMemberRemovalSpec{
+				SessionID: session.ID(),
+				UserID:    userID,
+			})
+			if err != nil {
+				return OkResult{}, serrors.E(op, serrors.KindValidation, err)
+			}
+			if err := sessionCommands.RemoveSessionMember(ctx, command); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
 			return OkResult{Ok: true}, nil

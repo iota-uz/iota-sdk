@@ -7,7 +7,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,10 +20,10 @@ func TestSessionTitleService_AutoSkipsExistingTitle(t *testing.T) {
 	svc, err := NewSessionTitleService(model, repo, nil)
 	require.NoError(t, err)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("Existing title"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("Existing title"),
 	)
 	require.NoError(t, repo.CreateSession(context.Background(), session))
 	require.NoError(t, repo.SaveMessage(context.Background(), types.UserMessage("monthly revenue", types.WithSessionID(session.ID()))))
@@ -46,10 +45,10 @@ func TestSessionTitleService_RegenerateOverwritesExistingTitle(t *testing.T) {
 	svc, err := NewSessionTitleService(model, repo, nil)
 	require.NoError(t, err)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("Old title"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("Old title"),
 	)
 	require.NoError(t, repo.CreateSession(context.Background(), session))
 	require.NoError(t, repo.SaveMessage(context.Background(), types.UserMessage("monthly revenue", types.WithSessionID(session.ID()))))

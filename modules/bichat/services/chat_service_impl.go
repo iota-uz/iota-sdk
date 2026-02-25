@@ -21,12 +21,12 @@ import (
 const streamPersistenceTimeout = 10 * time.Second
 const titleGenerationFallbackTimeout = 15 * time.Second
 const streamSnapshotThrottle = 2 * time.Second
-const sessionAccessRepoNotConfiguredError = "session access repository is not configured"
 
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
 type chatServiceImpl struct {
 	chatRepo           domain.ChatRepository
+	sessionAccess      domain.SessionAccessRepository
 	agentService       bichatservices.AgentService
 	model              agents.Model
 	titleService       TitleService
@@ -50,8 +50,10 @@ func NewChatService(
 	titleQueue TitleJobQueue,
 ) *chatServiceImpl {
 	runStore := newConfiguredGenerationRunStore()
+	accessRepo := chatRepo.(domain.SessionAccessRepository)
 	return &chatServiceImpl{
 		chatRepo:           chatRepo,
+		sessionAccess:      accessRepo,
 		agentService:       agentService,
 		model:              model,
 		titleService:       titleService,
@@ -203,12 +205,19 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	var session domain.Session
 	var err error
 
-	// Create user message (omit author when UserID is 0 so SaveMessage can fall back to session owner)
-	userMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
+	var authorUserID *int64
 	if req.UserID != 0 {
-		userMsgOpts = append(userMsgOpts, types.WithAuthorUserID(req.UserID))
+		authorUserID = &req.UserID
 	}
-	userMsg := types.UserMessage(req.Content, userMsgOpts...)
+	userMsg, err := domain.NewUserMessage(domain.UserMessageSpec{
+		SessionID:    req.SessionID,
+		AuthorUserID: authorUserID,
+		Content:      req.Content,
+		Attachments:  req.Attachments,
+	})
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
 
 	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
 
@@ -231,21 +240,26 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 
 		for _, att := range domainAttachments {
 			msgID := userMsg.ID()
-			artifactOpts := []domain.ArtifactOption{
-				domain.WithArtifactTenantID(session.TenantID()),
-				domain.WithArtifactSessionID(session.ID()),
-				domain.WithArtifactMessageID(&msgID),
-				domain.WithArtifactType(domain.ArtifactTypeAttachment),
-				domain.WithArtifactName(att.FileName()),
-				domain.WithArtifactMimeType(att.MimeType()),
-				domain.WithArtifactURL(att.FilePath()),
-				domain.WithArtifactSizeBytes(att.SizeBytes()),
+			artifact := domain.ArtifactSpec{
+				TenantID:       session.TenantID(),
+				SessionID:      session.ID(),
+				MessageID:      &msgID,
+				Type:           domain.ArtifactTypeAttachment,
+				Name:           att.FileName(),
+				MimeType:       att.MimeType(),
+				URL:            att.FilePath(),
+				SizeBytes:      att.SizeBytes(),
+				Status:         domain.ArtifactStatusAvailable,
+				IdempotencyKey: "attachment:" + msgID.String() + ":" + att.FileName(),
 			}
 			if att.UploadID() != nil {
-				artifactOpts = append(artifactOpts, domain.WithArtifactUploadID(*att.UploadID()))
+				artifact.UploadID = att.UploadID()
 			}
-			artifact := domain.NewArtifact(artifactOpts...)
-			if err := s.chatRepo.SaveArtifact(txCtx, artifact); err != nil {
+			artifactEntity, err := domain.NewArtifactFromSpec(artifact)
+			if err != nil {
+				return serrors.E(op, serrors.KindValidation, err)
+			}
+			if err := s.chatRepo.SaveArtifact(txCtx, artifactEntity); err != nil {
 				return serrors.E(op, err)
 			}
 		}
@@ -297,12 +311,19 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var session domain.Session
 	var err error
 
-	// Create user message (omit author when UserID is 0 so SaveMessage can fall back to session owner)
-	userMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
+	var authorUserID *int64
 	if req.UserID != 0 {
-		userMsgOpts = append(userMsgOpts, types.WithAuthorUserID(req.UserID))
+		authorUserID = &req.UserID
 	}
-	userMsg := types.UserMessage(req.Content, userMsgOpts...)
+	userMsg, err := domain.NewUserMessage(domain.UserMessageSpec{
+		SessionID:    req.SessionID,
+		AuthorUserID: authorUserID,
+		Content:      req.Content,
+		Attachments:  req.Attachments,
+	})
+	if err != nil {
+		return serrors.E(op, serrors.KindValidation, err)
+	}
 
 	domainAttachments := cloneAttachmentsForMessage(userMsg.ID(), req.Attachments)
 
@@ -315,11 +336,14 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			return serrors.E(op, err)
 		}
 
-		run = domain.NewGenerationRun(
-			domain.WithGenerationRunSessionID(req.SessionID),
-			domain.WithGenerationRunTenantID(session.TenantID()),
-			domain.WithGenerationRunUserID(session.UserID()),
-		)
+		run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
+			SessionID: req.SessionID,
+			TenantID:  session.TenantID(),
+			UserID:    session.UserID(),
+		})
+		if err != nil {
+			return serrors.E(op, serrors.KindValidation, err)
+		}
 		runStateCreated, err = s.createRunState(txCtx, run)
 		if err != nil {
 			return err
@@ -336,21 +360,26 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		for _, att := range domainAttachments {
 			msgID := userMsg.ID()
-			artifactOpts := []domain.ArtifactOption{
-				domain.WithArtifactTenantID(session.TenantID()),
-				domain.WithArtifactSessionID(session.ID()),
-				domain.WithArtifactMessageID(&msgID),
-				domain.WithArtifactType(domain.ArtifactTypeAttachment),
-				domain.WithArtifactName(att.FileName()),
-				domain.WithArtifactMimeType(att.MimeType()),
-				domain.WithArtifactURL(att.FilePath()),
-				domain.WithArtifactSizeBytes(att.SizeBytes()),
+			artifact := domain.ArtifactSpec{
+				TenantID:       session.TenantID(),
+				SessionID:      session.ID(),
+				MessageID:      &msgID,
+				Type:           domain.ArtifactTypeAttachment,
+				Name:           att.FileName(),
+				MimeType:       att.MimeType(),
+				URL:            att.FilePath(),
+				SizeBytes:      att.SizeBytes(),
+				Status:         domain.ArtifactStatusAvailable,
+				IdempotencyKey: "attachment:" + msgID.String() + ":" + att.FileName(),
 			}
 			if att.UploadID() != nil {
-				artifactOpts = append(artifactOpts, domain.WithArtifactUploadID(*att.UploadID()))
+				artifact.UploadID = att.UploadID()
 			}
-			artifact := domain.NewArtifact(artifactOpts...)
-			if err := s.chatRepo.SaveArtifact(txCtx, artifact); err != nil {
+			artifactEntity, err := domain.NewArtifactFromSpec(artifact)
+			if err != nil {
+				return serrors.E(op, serrors.KindValidation, err)
+			}
+			if err := s.chatRepo.SaveArtifact(txCtx, artifactEntity); err != nil {
 				return serrors.E(op, err)
 			}
 		}
@@ -608,10 +637,7 @@ func (s *chatServiceImpl) runStreamLoop(
 	if observationReason == "" && assistantContent == "" && len(savedToolCalls) == 0 {
 		observationReason = "empty_assistant_output"
 	}
-	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
-	if len(savedToolCalls) > 0 {
-		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
-	}
+	var assistantDebugTrace *types.DebugTrace
 	if debugTrace := buildDebugTrace(
 		req.SessionID,
 		traceID,
@@ -628,16 +654,28 @@ func (s *chatServiceImpl) runStreamLoop(
 		assistantContent,
 		startedAt,
 	); debugTrace != nil {
-		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
+		assistantDebugTrace = debugTrace
 	}
+	var assistantQuestionData *types.QuestionData
 	if interrupt != nil {
 		qd, err := hitlsvc.BuildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
 		if err == nil && qd != nil {
-			assistantMsgOpts = append(assistantMsgOpts, types.WithQuestionData(qd))
+			assistantQuestionData = qd
 		}
 	}
 
-	assistantMsg := types.AssistantMessage(assistantContent, assistantMsgOpts...)
+	assistantMsg, err := domain.NewAssistantMessage(domain.AssistantMessageSpec{
+		SessionID:    req.SessionID,
+		Content:      assistantContent,
+		ToolCalls:    savedToolCalls,
+		DebugTrace:   assistantDebugTrace,
+		QuestionData: assistantQuestionData,
+	})
+	if err != nil {
+		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, serrors.KindValidation, err), 0))
+		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+		return
+	}
 	persistCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
 	defer persistCancel()
 
@@ -648,9 +686,7 @@ func (s *chatServiceImpl) runStreamLoop(
 		if err := s.persistGeneratedArtifacts(txCtx, session, assistantMsg.ID(), artifactMap); err != nil {
 			return serrors.E(op, err)
 		}
-		session = session.
-			UpdateLLMPreviousResponseID(providerResponseID).
-			UpdateUpdatedAt(time.Now())
+		session = session.SetPreviousResponseID(providerResponseID, time.Now())
 		if err := s.chatRepo.UpdateSession(txCtx, session); err != nil {
 			return serrors.E(op, err)
 		}

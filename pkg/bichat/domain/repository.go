@@ -45,8 +45,8 @@ type SessionAccessRepository interface {
 	ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64) (SessionAccess, error)
 	ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]SessionMember, error)
 	GetTenantUser(ctx context.Context, userID int64) (SessionUser, error)
-	UpsertSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64, role SessionMemberRole) error
-	RemoveSessionMember(ctx context.Context, sessionID uuid.UUID, userID int64) error
+	UpsertSessionMember(ctx context.Context, command SessionMemberUpsert) error
+	RemoveSessionMember(ctx context.Context, command SessionMemberRemoval) error
 	CountSessionParticipants(ctx context.Context, sessionID uuid.UUID) (int, error)
 
 	ListTenantUsers(ctx context.Context) ([]SessionUser, error)

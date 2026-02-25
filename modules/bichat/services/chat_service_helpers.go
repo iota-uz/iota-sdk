@@ -229,9 +229,7 @@ func (s *chatServiceImpl) maybeReplaceHistoryFromMessage(
 		return nil, serrors.E(op, err)
 	}
 
-	updated := session.
-		UpdateLLMPreviousResponseID(nil).
-		UpdateUpdatedAt(time.Now())
+	updated := session.SetPreviousResponseID(nil, time.Now())
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -580,10 +578,7 @@ func (s *chatServiceImpl) saveAgentResult(
 	startedAt time.Time,
 	userInput string,
 ) (types.Message, domain.Session, error) {
-	assistantMsgOpts := []types.MessageOption{types.WithSessionID(sessionID)}
-	if len(result.toolCalls) > 0 {
-		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(result.toolCalls...))
-	}
+	var assistantDebugTrace *types.DebugTrace
 	if debugTrace := buildDebugTrace(
 		sessionID,
 		result.traceID,
@@ -600,20 +595,30 @@ func (s *chatServiceImpl) saveAgentResult(
 		result.content,
 		startedAt,
 	); debugTrace != nil {
-		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
+		assistantDebugTrace = debugTrace
 	}
 
+	var assistantQuestionData *types.QuestionData
 	if result.interrupt != nil {
 		qd, err := hitlsvc.BuildQuestionData(result.interrupt.CheckpointID, result.interruptAgentName, result.interrupt.Questions)
 		if err != nil {
 			return nil, nil, serrors.E(op, err)
 		}
 		if qd != nil {
-			assistantMsgOpts = append(assistantMsgOpts, types.WithQuestionData(qd))
+			assistantQuestionData = qd
 		}
 	}
 
-	assistantMsg := types.AssistantMessage(result.content, assistantMsgOpts...)
+	assistantMsg, err := domain.NewAssistantMessage(domain.AssistantMessageSpec{
+		SessionID:    sessionID,
+		Content:      result.content,
+		ToolCalls:    result.toolCalls,
+		DebugTrace:   assistantDebugTrace,
+		QuestionData: assistantQuestionData,
+	})
+	if err != nil {
+		return nil, nil, serrors.E(op, serrors.KindValidation, err)
+	}
 	if err := s.chatRepo.SaveMessage(ctx, assistantMsg); err != nil {
 		return nil, nil, serrors.E(op, err)
 	}
@@ -621,9 +626,7 @@ func (s *chatServiceImpl) saveAgentResult(
 		return nil, nil, serrors.E(op, err)
 	}
 
-	session = session.
-		UpdateLLMPreviousResponseID(result.providerResponseID).
-		UpdateUpdatedAt(time.Now())
+	session = session.SetPreviousResponseID(result.providerResponseID, time.Now())
 	if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 		return nil, nil, serrors.E(op, err)
 	}
@@ -651,30 +654,25 @@ func (s *chatServiceImpl) persistGeneratedArtifacts(
 		if name == "" {
 			name = fmt.Sprintf("artifact-%d", idx+1)
 		}
-		mimeType := strings.TrimSpace(artifact.MimeType)
-		if mimeType == "" {
-			mimeType = inferMimeTypeFromName(name)
-		}
-		artifactURL := strings.TrimSpace(artifact.URL)
-
 		msgID := messageID
-		opts := []domain.ArtifactOption{
-			domain.WithArtifactTenantID(session.TenantID()),
-			domain.WithArtifactSessionID(session.ID()),
-			domain.WithArtifactMessageID(&msgID),
-			domain.WithArtifactType(domain.ArtifactType(artifactType)),
-			domain.WithArtifactName(name),
-			domain.WithArtifactDescription(strings.TrimSpace(artifact.Description)),
-			domain.WithArtifactMimeType(mimeType),
-			domain.WithArtifactURL(artifactURL),
-			domain.WithArtifactSizeBytes(artifact.SizeBytes),
-			domain.WithArtifactStatus(domain.ArtifactStatusAvailable),
-			domain.WithArtifactIdempotencyKey(fmt.Sprintf("assistant:%s:%s:%d", messageID.String(), artifactType, idx)),
+		artifactEntity, err := domain.NewArtifactFromSpec(domain.ArtifactSpec{
+			TenantID:       session.TenantID(),
+			SessionID:      session.ID(),
+			MessageID:      &msgID,
+			Type:           domain.ArtifactType(artifactType),
+			Name:           name,
+			Description:    strings.TrimSpace(artifact.Description),
+			MimeType:       strings.TrimSpace(artifact.MimeType),
+			URL:            strings.TrimSpace(artifact.URL),
+			SizeBytes:      artifact.SizeBytes,
+			Status:         domain.ArtifactStatusAvailable,
+			IdempotencyKey: fmt.Sprintf("assistant:%s:%s:%d", messageID.String(), artifactType, idx),
+			Metadata:       artifact.Metadata,
+		})
+		if err != nil {
+			return serrors.E(op, serrors.KindValidation, err)
 		}
-		if len(artifact.Metadata) > 0 {
-			opts = append(opts, domain.WithArtifactMetadata(artifact.Metadata))
-		}
-		if err := s.chatRepo.SaveArtifact(ctx, domain.NewArtifact(opts...)); err != nil {
+		if err := s.chatRepo.SaveArtifact(ctx, artifactEntity); err != nil {
 			return serrors.E(op, err)
 		}
 	}

@@ -17,10 +17,10 @@ func TestPostgresChatRepository_SaveAndGetArtifact(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Artifact Session"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Artifact Session"),
 	)
 	require.NoError(t, repo.CreateSession(env.Ctx, session))
 
@@ -74,10 +74,10 @@ func TestPostgresChatRepository_GetSessionArtifacts_OrderAndTypeFilter(t *testin
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Artifacts Listing"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Artifacts Listing"),
 	)
 	require.NoError(t, repo.CreateSession(env.Ctx, session))
 
@@ -132,10 +132,10 @@ func TestPostgresChatRepository_UpdateAndDeleteArtifact(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Artifact Updates"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Artifact Updates"),
 	)
 	require.NoError(t, repo.CreateSession(env.Ctx, session))
 
@@ -168,10 +168,10 @@ func TestPostgresChatRepository_TenantIsolation_Artifacts(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	sessionA := domain.NewSession(
-		domain.WithTenantID(envA.Tenant.ID),
-		domain.WithUserID(int64(envA.User.ID())),
-		domain.WithTitle("Tenant A Artifacts"),
+	sessionA := mustSession(t,
+		withSessionTenantID(envA.Tenant.ID),
+		withSessionUserID(int64(envA.User.ID())),
+		withSessionTitle("Tenant A Artifacts"),
 	)
 	require.NoError(t, repo.CreateSession(envA.Ctx, sessionA))
 
@@ -196,15 +196,15 @@ func TestPostgresChatRepository_DeleteSessionArtifacts(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	sessionA := domain.NewSession(
-		domain.WithTenantID(envA.Tenant.ID),
-		domain.WithUserID(int64(envA.User.ID())),
-		domain.WithTitle("Tenant A Session"),
+	sessionA := mustSession(t,
+		withSessionTenantID(envA.Tenant.ID),
+		withSessionUserID(int64(envA.User.ID())),
+		withSessionTitle("Tenant A Session"),
 	)
-	sessionB := domain.NewSession(
-		domain.WithTenantID(envB.Tenant.ID),
-		domain.WithUserID(int64(envB.User.ID())),
-		domain.WithTitle("Tenant B Session"),
+	sessionB := mustSession(t,
+		withSessionTenantID(envB.Tenant.ID),
+		withSessionUserID(int64(envB.User.ID())),
+		withSessionTitle("Tenant B Session"),
 	)
 	require.NoError(t, repo.CreateSession(envA.Ctx, sessionA))
 	require.NoError(t, repo.CreateSession(envB.Ctx, sessionB))
@@ -252,10 +252,10 @@ func TestPostgresChatRepository_UpsertAndGetArtifactProviderFile(t *testing.T) {
 	repo, ok := persistence.NewPostgresChatRepository().(*persistence.PostgresChatRepository)
 	require.True(t, ok)
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Provider File Sync"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Provider File Sync"),
 	)
 	require.NoError(t, repo.CreateSession(env.Ctx, session))
 

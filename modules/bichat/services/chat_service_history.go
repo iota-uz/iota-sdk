@@ -33,9 +33,7 @@ func (s *chatServiceImpl) ClearSessionHistory(ctx context.Context, sessionID uui
 			return serrors.E(op, err)
 		}
 
-		updated := session.
-			UpdateLLMPreviousResponseID(nil).
-			UpdateUpdatedAt(time.Now())
+		updated := session.SetPreviousResponseID(nil, time.Now())
 		if err := s.chatRepo.UpdateSession(txCtx, updated); err != nil {
 			return serrors.E(op, err)
 		}
@@ -92,9 +90,7 @@ func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID u
 			return serrors.E(op, err)
 		}
 
-		updated := session.
-			UpdateLLMPreviousResponseID(nil).
-			UpdateUpdatedAt(time.Now())
+		updated := session.SetPreviousResponseID(nil, time.Now())
 		if err := s.chatRepo.UpdateSession(txCtx, updated); err != nil {
 			return serrors.E(op, err)
 		}

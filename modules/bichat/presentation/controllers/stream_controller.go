@@ -25,8 +25,8 @@ import (
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
 type StreamController struct {
 	app               application.Application
-	streamService     bichatservices.StreamService
-	sessionService    bichatservices.SessionService
+	streamService     bichatservices.StreamCommands
+	sessionService    bichatservices.SessionQueries
 	attachmentService bichatservices.AttachmentService
 	opts              ControllerOptions
 }
@@ -36,8 +36,8 @@ const maxStreamRequestBodyBytes int64 = 32 << 20 // 32 MiB
 // NewStreamController creates a new stream controller.
 func NewStreamController(
 	app application.Application,
-	streamService bichatservices.StreamService,
-	sessionService bichatservices.SessionService,
+	streamService bichatservices.StreamCommands,
+	sessionService bichatservices.SessionQueries,
 	attachmentService bichatservices.AttachmentService,
 	opts ...ControllerOption,
 ) *StreamController {
@@ -353,7 +353,7 @@ func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *ht
 		}
 		return false
 	}
-	if !access.CanRead || (requireWrite && !access.CanWrite) {
+	if err := access.Require(requireWrite, false); err != nil {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return false
 	}
