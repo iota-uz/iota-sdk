@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	bichatmoduleagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
