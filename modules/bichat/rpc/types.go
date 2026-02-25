@@ -472,12 +472,11 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 		case types.RoleUser:
 			var author *SessionUser
 			if m.AuthorUserID() != nil {
-				authorDTO := SessionUser{
-					ID:        fmt.Sprintf("%d", *m.AuthorUserID()),
+				authorDTO := toSessionUserDTO(domain.SessionUser{
+					ID:        *m.AuthorUserID(),
 					FirstName: m.AuthorFirstName(),
 					LastName:  m.AuthorLastName(),
-					Initials:  domain.SessionUser{FirstName: m.AuthorFirstName(), LastName: m.AuthorLastName()}.Initials(),
-				}
+				})
 				author = &authorDTO
 			}
 			t := ConversationTurn{

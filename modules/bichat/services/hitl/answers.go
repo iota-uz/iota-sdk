@@ -1,6 +1,7 @@
 package hitl
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
@@ -9,7 +10,7 @@ import (
 func NormalizeAnswers(
 	questions []types.QuestionDataItem,
 	rawAnswers map[string]string,
-) (map[string]string, map[string]types.Answer) {
+) (map[string]string, map[string]types.Answer, error) {
 	normalizedValues := make(map[string]string, len(rawAnswers))
 	normalizedAnswers := make(map[string]types.Answer, len(rawAnswers))
 	questionsByID := make(map[string]types.QuestionDataItem, len(questions))
@@ -20,10 +21,7 @@ func NormalizeAnswers(
 	for questionID, answerValue := range rawAnswers {
 		question, ok := questionsByID[questionID]
 		if !ok {
-			trimmed := strings.TrimSpace(answerValue)
-			normalizedValues[questionID] = trimmed
-			normalizedAnswers[questionID] = types.NewAnswer(trimmed)
-			continue
+			return nil, nil, fmt.Errorf("unknown question id: %s", questionID)
 		}
 
 		if question.Type == "multiple_choice" {
@@ -68,7 +66,7 @@ func NormalizeAnswers(
 		normalizedAnswers[questionID] = types.NewAnswer(canonical)
 	}
 
-	return normalizedValues, normalizedAnswers
+	return normalizedValues, normalizedAnswers, nil
 }
 
 func splitAnswerParts(value string) []string {

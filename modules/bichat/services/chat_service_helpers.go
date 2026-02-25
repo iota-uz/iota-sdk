@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -181,9 +182,15 @@ func mapsValues(in map[string]types.ToolArtifact) []types.ToolArtifact {
 	if len(in) == 0 {
 		return nil
 	}
+	keys := make([]string, 0, len(in))
+	for key := range in {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	out := make([]types.ToolArtifact, 0, len(in))
-	for _, value := range in {
-		out = append(out, value)
+	for _, key := range keys {
+		out = append(out, in[key])
 	}
 	return out
 }
@@ -648,7 +655,7 @@ func (s *chatServiceImpl) persistGeneratedArtifacts(
 		if mimeType == "" {
 			mimeType = inferMimeTypeFromName(name)
 		}
-		url := strings.TrimSpace(artifact.URL)
+		artifactURL := strings.TrimSpace(artifact.URL)
 
 		msgID := messageID
 		opts := []domain.ArtifactOption{
@@ -659,7 +666,7 @@ func (s *chatServiceImpl) persistGeneratedArtifacts(
 			domain.WithArtifactName(name),
 			domain.WithArtifactDescription(strings.TrimSpace(artifact.Description)),
 			domain.WithArtifactMimeType(mimeType),
-			domain.WithArtifactURL(url),
+			domain.WithArtifactURL(artifactURL),
 			domain.WithArtifactSizeBytes(artifact.SizeBytes),
 			domain.WithArtifactStatus(domain.ArtifactStatusAvailable),
 			domain.WithArtifactIdempotencyKey(fmt.Sprintf("assistant:%s:%s:%d", messageID.String(), artifactType, idx)),

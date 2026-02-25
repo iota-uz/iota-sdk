@@ -71,7 +71,10 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 			Warn("resume request checkpoint mismatch; using canonical checkpoint from pending question")
 	}
 
-	normalizedAnswerValues, answersMap := hitlsvc.NormalizeAnswers(qd.Questions, req.Answers)
+	normalizedAnswerValues, answersMap, err := hitlsvc.NormalizeAnswers(qd.Questions, req.Answers)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
 	answeredQD, err := qd.Answer(normalizedAnswerValues)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -90,7 +93,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 			if txErr := s.withinTx(ctx, func(txCtx context.Context) error {
 				return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), answeredQD)
 			}); txErr != nil {
-				return nil, txErr
+				return nil, serrors.E(op, txErr)
 			}
 
 			return &bichatservices.SendMessageResponse{
@@ -185,7 +188,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 			if txErr := s.withinTx(ctx, func(txCtx context.Context) error {
 				return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), rejectedQD)
 			}); txErr != nil {
-				return nil, txErr
+				return nil, serrors.E(op, txErr)
 			}
 
 			return &bichatservices.SendMessageResponse{
@@ -236,7 +239,10 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 		return serrors.E(op, serrors.KindValidation, "title generation service is not configured")
 	}
 
-	return s.titleService.RegenerateSessionTitle(ctx, sessionID)
+	if err := s.titleService.RegenerateSessionTitle(ctx, sessionID); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func (s *chatServiceImpl) generateCompactionSummary(ctx context.Context, messages []types.Message) (string, error) {

@@ -42,7 +42,7 @@ func (s *chatServiceImpl) ClearSessionHistory(ctx context.Context, sessionID uui
 		return nil
 	})
 	if err != nil {
-		return bichatservices.ClearSessionHistoryResponse{}, err
+		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
 	}
 
 	return bichatservices.ClearSessionHistoryResponse{
@@ -101,7 +101,7 @@ func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID u
 		return nil
 	})
 	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, err
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
 	}
 
 	return bichatservices.CompactSessionHistoryResponse{
