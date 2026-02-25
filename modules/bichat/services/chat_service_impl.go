@@ -203,8 +203,12 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	var session domain.Session
 	var err error
 
-	// Create user message
-	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID), types.WithAuthorUserID(req.UserID))
+	// Create user message (omit author when UserID is 0 so SaveMessage can fall back to session owner)
+	userMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
+	if req.UserID != 0 {
+		userMsgOpts = append(userMsgOpts, types.WithAuthorUserID(req.UserID))
+	}
+	userMsg := types.UserMessage(req.Content, userMsgOpts...)
 
 	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
 
@@ -293,8 +297,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var session domain.Session
 	var err error
 
-	// Create user message
-	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID), types.WithAuthorUserID(req.UserID))
+	// Create user message (omit author when UserID is 0 so SaveMessage can fall back to session owner)
+	userMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
+	if req.UserID != 0 {
+		userMsgOpts = append(userMsgOpts, types.WithAuthorUserID(req.UserID))
+	}
+	userMsg := types.UserMessage(req.Content, userMsgOpts...)
 
 	domainAttachments := cloneAttachmentsForMessage(userMsg.ID(), req.Attachments)
 

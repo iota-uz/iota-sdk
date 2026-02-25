@@ -271,7 +271,11 @@
       "Retry": "Повторить",
       "DismissNotification": "Закрыть уведомление",
       "OneMember": "1 участник",
-      "MemberCount": "{{count}} участников"
+      "MemberCount": "{{count}} участников",
+      "MemberCount_one": "{{count}} участник",
+      "MemberCount_few": "{{count}} участника",
+      "MemberCount_many": "{{count}} участников",
+      "MemberCount_other": "{{count}} участников"
     },
     "Share": {
       "Title": "Поделиться",

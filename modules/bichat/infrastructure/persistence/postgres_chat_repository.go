@@ -119,12 +119,12 @@ const (
 				WHEN s.user_id = $2 THEN 'OWNER'
 				WHEN sm_self.role = 'EDITOR' THEN 'EDITOR'
 				WHEN sm_self.role = 'VIEWER' THEN 'VIEWER'
-				ELSE 'NONE'
+				ELSE 'READ_ALL'
 			END AS access_role,
 			CASE
 				WHEN s.user_id = $2 THEN 'owner'
 				WHEN sm_self.user_id IS NOT NULL THEN 'member'
-				ELSE 'none'
+				ELSE 'permission'
 			END AS access_source,
 			(1 + COALESCE(member_stats.member_count, 0))::int AS participant_count
 		FROM bichat.sessions s

@@ -228,9 +228,9 @@ func Router(
 		},
 	}))
 
-	mustAdd(applets.AddProcedure(r, "bichat.user.list", applets.Procedure[PingParams, UserListResult]{
+	mustAdd(applets.AddProcedure(r, "bichat.user.list", applets.Procedure[UserListParams, UserListResult]{
 		RequirePermissions: []string{"BiChat.ReadAll"},
-		Handler: func(ctx context.Context, _ PingParams) (UserListResult, error) {
+		Handler: func(ctx context.Context, _ UserListParams) (UserListResult, error) {
 			const op serrors.Op = "bichat.rpc.user.list"
 
 			users, err := sessionSvc.ListTenantUsers(ctx)
@@ -755,6 +755,9 @@ func Router(
 			userID, err := parseUserID(p.UserID)
 			if err != nil {
 				return OkResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			if userID == session.UserID() {
+				return OkResult{}, serrors.E(op, serrors.KindValidation, errors.New("cannot remove the session owner"))
 			}
 			if err := sessionSvc.RemoveSessionMember(ctx, session.ID(), userID); err != nil {
 				return OkResult{}, serrors.E(op, err)

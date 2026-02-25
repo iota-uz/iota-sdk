@@ -13,6 +13,9 @@ import (
 
 type PingParams struct{}
 
+// UserListParams is the (empty) input for bichat.user.list.
+type UserListParams struct{}
+
 type PingResult struct {
 	Ok       bool   `json:"ok"`
 	TenantID string `json:"tenantId"`
