@@ -3,9 +3,10 @@ package sql
 import (
 	"context"
 	"fmt"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"regexp"
 	"strings"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
