@@ -105,6 +105,14 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// 2b. Require access permission (so 403 is returned before body validation)
+	if c.opts.RequireAccessPermission != nil {
+		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+	}
+
 	// 3. Parse request
 	type streamRequest struct {
 		SessionID       uuid.UUID             `json:"sessionId"`
