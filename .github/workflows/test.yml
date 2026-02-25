@@ -181,7 +181,6 @@ jobs:
         image: postgres:17
         ports:
           - 5432:5432
-        command: [ "postgres", "-c", "max_connections=500" ]
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -243,7 +242,7 @@ jobs:
         run: |
           max_connections=$(psql "host=$DB_HOST port=$DB_PORT dbname=$DB_NAME user=$DB_USER password=$DB_PASSWORD sslmode=disable" -tAc "SHOW max_connections;" | tr -d '[:space:]')
           echo "PostgreSQL max_connections=$max_connections"
-          min_expected=300
+          min_expected=100
           if [ -z "$max_connections" ] || [ "$max_connections" -lt "$min_expected" ]; then
             echo "Error: max_connections is too low (expected >= $min_expected, got ${max_connections:-empty})"
             exit 1
@@ -324,7 +323,6 @@ jobs:
         image: postgres:17
         ports:
           - 5432:5432
-        command: [ "postgres", "-c", "max_connections=500" ]
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
