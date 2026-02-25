@@ -5,19 +5,32 @@ import (
 	"testing"
 
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestTerminalChunk_Done(t *testing.T) {
-	chunk := TerminalChunk(nil, 123)
-	require.Equal(t, bichatservices.ChunkTypeDone, chunk.Type)
-	require.Equal(t, int64(123), chunk.GenerationMs)
-	require.NoError(t, chunk.Error)
-}
+func TestTerminalChunk_Scenarios(t *testing.T) {
+	testCases := []struct {
+		name         string
+		err          error
+		generationMs int64
+		wantType     bichatservices.ChunkType
+		wantGenMs    int64
+	}{
+		{name: "done", err: nil, generationMs: 123, wantType: bichatservices.ChunkTypeDone, wantGenMs: 123},
+		{name: "error", err: errors.New("boom"), generationMs: 0, wantType: bichatservices.ChunkTypeError, wantGenMs: 0},
+	}
 
-func TestTerminalChunk_Error(t *testing.T) {
-	err := errors.New("boom")
-	chunk := TerminalChunk(err, 0)
-	require.Equal(t, bichatservices.ChunkTypeError, chunk.Type)
-	require.Equal(t, err, chunk.Error)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			chunk := TerminalChunk(tc.err, tc.generationMs)
+			require.Equal(t, tc.wantType, chunk.Type)
+			assert.Equal(t, tc.wantGenMs, chunk.GenerationMs)
+			if tc.err == nil {
+				require.NoError(t, chunk.Error)
+			} else {
+				require.Equal(t, tc.err, chunk.Error)
+			}
+		})
+	}
 }

@@ -454,6 +454,9 @@ func (m *mockChatRepository) GetMessageAttachments(ctx context.Context, messageI
 	defer m.mu.RUnlock()
 	atts := make([]domain.Attachment, 0, len(m.attachments))
 	for _, att := range m.attachments {
+		if att.MessageID() != messageID {
+			continue
+		}
 		atts = append(atts, att)
 	}
 	return atts, nil

@@ -105,15 +105,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 3. Enforce access permission early (avoid DB work for forbidden users)
-	if c.opts.RequireAccessPermission != nil {
-		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
-			http.Error(w, "Access denied", http.StatusForbidden)
-			return
-		}
-	}
-
-	// 4. Parse request
+	// 3. Parse request
 	type streamRequest struct {
 		SessionID       uuid.UUID             `json:"sessionId"`
 		Content         string                `json:"content"`
@@ -141,6 +133,10 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
+	if req.SessionID == uuid.Nil {
+		http.Error(w, "sessionId is required and must be a valid UUID", http.StatusBadRequest)
+		return
+	}
 
 	domainAttachments, err := convertAttachmentDTOs(r.Context(), req.Attachments)
 	if err != nil {
@@ -154,7 +150,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	}
 
 	// 5. Validate write access
-	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID, true); !ok {
+	if !c.requireStreamSessionAuth(w, r, req.SessionID, true) {
 		return
 	}
 
@@ -301,7 +297,7 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "sessionId is required and must be a valid UUID", http.StatusBadRequest)
 		return
 	}
-	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID, true); !ok {
+	if !c.requireStreamSessionAuth(w, r, req.SessionID, true) {
 		return
 	}
 
@@ -323,27 +319,18 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 }
 
 // requireStreamSessionAuth ensures the user is authenticated, has stream access, and has the required capability.
-// On failure it writes the appropriate HTTP error to w and returns (nil, false). On success it returns (session, true).
-func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *http.Request, sessionID uuid.UUID, requireWrite bool) (domain.Session, bool) {
+// On failure it writes the appropriate HTTP error to w and returns false. On success it returns true.
+func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *http.Request, sessionID uuid.UUID, requireWrite bool) bool {
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return nil, false
+		return false
 	}
 	if c.opts.RequireAccessPermission != nil {
 		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
 			http.Error(w, "Access denied", http.StatusForbidden)
-			return nil, false
+			return false
 		}
-	}
-	session, err := c.sessionService.GetSession(r.Context(), sessionID)
-	if err != nil {
-		if errors.Is(err, persistence.ErrSessionNotFound) {
-			http.Error(w, "Session not found", http.StatusNotFound)
-		} else {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-		}
-		return nil, false
 	}
 	readAll := false
 	if c.opts.ReadAllPermission != nil {
@@ -356,13 +343,13 @@ func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *ht
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
-		return nil, false
+		return false
 	}
 	if !access.CanRead || (requireWrite && !access.CanWrite) {
 		http.Error(w, "Access denied", http.StatusForbidden)
-		return nil, false
+		return false
 	}
-	return session, true
+	return true
 }
 
 // StreamStatus handles GET /stream/status?sessionId=uuid for refresh-safe resume.
@@ -378,7 +365,7 @@ func (c *StreamController) StreamStatus(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "sessionId must be a valid UUID", http.StatusBadRequest)
 		return
 	}
-	if _, ok := c.requireStreamSessionAuth(w, r, sessionID, false); !ok {
+	if !c.requireStreamSessionAuth(w, r, sessionID, false) {
 		return
 	}
 
@@ -436,7 +423,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "sessionId and runId are required", http.StatusBadRequest)
 		return
 	}
-	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID, false); !ok {
+	if !c.requireStreamSessionAuth(w, r, req.SessionID, false) {
 		return
 	}
 

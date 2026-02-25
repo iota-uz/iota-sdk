@@ -222,6 +222,7 @@ const (
 		SELECT u.id, COALESCE(u.first_name, ''), COALESCE(u.last_name, '')
 		FROM public.users u
 		INNER JOIN group_users gu ON gu.user_id = u.id
+		INNER JOIN user_groups ug ON ug.id = gu.group_id AND ug.tenant_id = $1
 		WHERE u.tenant_id = $1 AND gu.group_id = $2
 		ORDER BY u.first_name ASC, u.last_name ASC, u.id ASC
 	`

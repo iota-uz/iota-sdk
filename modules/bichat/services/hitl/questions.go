@@ -4,10 +4,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // BuildQuestionData converts service interrupt questions to QuestionData for persistence.
 func BuildQuestionData(checkpointID, agentName string, questions []bichatservices.Question) (*types.QuestionData, error) {
+	const op serrors.Op = "hitl.BuildQuestionData"
 	items := make([]types.QuestionDataItem, len(questions))
 	for i, q := range questions {
 		opts := make([]types.QuestionDataOption, len(q.Options))
@@ -27,7 +29,7 @@ func BuildQuestionData(checkpointID, agentName string, questions []bichatservice
 	}
 	qd, err := types.NewQuestionData(checkpointID, agentName, items)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	return qd, nil
 }

@@ -58,8 +58,9 @@ func TestActiveRun_SubscriberLifecycleAndSnapshot(t *testing.T) {
 	meta := run.SnapshotMetadata()
 	require.Contains(t, meta, "tool_calls")
 
-	run.RemoveSubscriber(ch)
 	run.CloseAllSubscribers()
+	_, ok := <-ch
+	require.False(t, ok, "CloseAllSubscribers should close subscriber channel")
 }
 
 func TestActiveRun_ConcurrentAddRemove(t *testing.T) {

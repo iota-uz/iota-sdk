@@ -239,7 +239,8 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := c.requireSessionAccess(w, r, sessionID, true, false); !ok {
+	session, ok := c.requireSessionAccess(w, r, sessionID, true, false)
+	if !ok {
 		return
 	}
 
@@ -261,7 +262,7 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := c.conversationSvc.SendMessage(r.Context(), services.SendMessageRequest{
-		SessionID:   sessionID,
+		SessionID:   session.ID(),
 		UserID:      int64(user.ID()),
 		Content:     req.Content,
 		Attachments: domainAttachments,
@@ -290,7 +291,8 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if _, ok := c.requireSessionAccess(w, r, sessionID, true, false); !ok {
+	session, ok := c.requireSessionAccess(w, r, sessionID, true, false)
+	if !ok {
 		return
 	}
 
@@ -306,7 +308,7 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 	}
 
 	response, err := c.hitlService.ResumeWithAnswer(r.Context(), services.ResumeRequest{
-		SessionID:    sessionID,
+		SessionID:    session.ID(),
 		CheckpointID: req.CheckpointID,
 		Answers:      req.Answers,
 	})
@@ -334,11 +336,12 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if _, ok := c.requireSessionAccess(w, r, sessionID, false, true); !ok {
+	session, ok := c.requireSessionAccess(w, r, sessionID, false, true)
+	if !ok {
 		return
 	}
 
-	updatedSession, err := c.sessionService.ArchiveSession(r.Context(), sessionID)
+	updatedSession, err := c.sessionService.ArchiveSession(r.Context(), session.ID())
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
@@ -368,9 +371,9 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 	}
 	var updatedSession domain.Session
 	if session.Pinned() {
-		updatedSession, err = c.sessionService.UnpinSession(r.Context(), sessionID)
+		updatedSession, err = c.sessionService.UnpinSession(r.Context(), session.ID())
 	} else {
-		updatedSession, err = c.sessionService.PinSession(r.Context(), sessionID)
+		updatedSession, err = c.sessionService.PinSession(r.Context(), session.ID())
 	}
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)

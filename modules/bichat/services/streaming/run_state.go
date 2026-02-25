@@ -26,11 +26,12 @@ func NewRunStateManager(store RunStateStore) *RunStateManager {
 }
 
 func (m *RunStateManager) CreateRunState(ctx context.Context, run domain.GenerationRun) (bool, error) {
+	const op serrors.Op = "runStateManager.CreateRunState"
 	if m == nil || m.store == nil {
 		return false, nil
 	}
 	if err := m.store.CreateRun(ctx, run); err != nil {
-		return false, err
+		return false, serrors.E(op, err)
 	}
 	return true, nil
 }
@@ -48,22 +49,34 @@ func (m *RunStateManager) GetPersistedRun(ctx context.Context, sessionID uuid.UU
 }
 
 func (m *RunStateManager) UpdateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
+	const op serrors.Op = "runStateManager.UpdateRunSnapshot"
 	if m == nil || m.store == nil {
 		return nil
 	}
-	return m.store.UpdateRunSnapshot(ctx, tenantID, sessionID, runID, partialContent, partialMetadata)
+	if err := m.store.UpdateRunSnapshot(ctx, tenantID, sessionID, runID, partialContent, partialMetadata); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func (m *RunStateManager) CompleteRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	const op serrors.Op = "runStateManager.CompleteRunState"
 	if m == nil || m.store == nil {
 		return nil
 	}
-	return m.store.CompleteRun(ctx, tenantID, sessionID, runID)
+	if err := m.store.CompleteRun(ctx, tenantID, sessionID, runID); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func (m *RunStateManager) CancelRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	const op serrors.Op = "runStateManager.CancelRunState"
 	if m == nil || m.store == nil {
 		return nil
 	}
-	return m.store.CancelRun(ctx, tenantID, sessionID, runID)
+	if err := m.store.CancelRun(ctx, tenantID, sessionID, runID); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }

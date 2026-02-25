@@ -116,6 +116,8 @@ func (reg *RunRegistry) Add(run *ActiveRun) {
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 	if previous, ok := reg.bySession[run.SessionID]; ok {
+		previous.Cancel()
+		previous.CloseAllSubscribers()
 		delete(reg.byRun, previous.RunID)
 	}
 	reg.bySession[run.SessionID] = run
