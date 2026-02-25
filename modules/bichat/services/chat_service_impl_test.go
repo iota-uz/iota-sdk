@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -761,7 +762,10 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 func TestChatService_MaybeGenerateTitleAsync_IgnoresNilWrappedQueue(t *testing.T) {
 	t.Parallel()
 
-	env := itf.Setup(t)
+	env := itf.Setup(
+		t,
+		itf.WithModules(modules.BuiltInModules...),
+	)
 	titleService := &captureTitleContextService{
 		called: make(chan context.Context, 1),
 	}
