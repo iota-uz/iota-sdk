@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	hitlsvc "github.com/iota-uz/iota-sdk/modules/bichat/services/hitl"
+	streamingsvc "github.com/iota-uz/iota-sdk/modules/bichat/services/streaming"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -136,6 +137,135 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	}, nil
 }
 
+// ResumeWithAnswerAsync starts HITL resume as an async run and returns run metadata.
+func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichatservices.ResumeRequest) (bichatservices.AsyncRunAccepted, error) {
+	const op serrors.Op = "chatServiceImpl.ResumeWithAnswerAsync"
+
+	var (
+		pendingMsgID         uuid.UUID
+		resolvedCheckpointID string
+		answersMap           map[string]types.Answer
+		answeredQuestionData *types.QuestionData
+	)
+	return s.startAsyncRun(
+		ctx,
+		req.SessionID,
+		bichatservices.AsyncRunOperationQuestionSubmit,
+		func(txCtx context.Context, _ domain.Session) error {
+			pendingMsg, err := s.chatRepo.GetPendingQuestionMessage(txCtx, req.SessionID)
+			if err != nil {
+				if errors.Is(err, domain.ErrNoPendingQuestion) {
+					return serrors.E(op, serrors.KindValidation, "no pending question found for session")
+				}
+				return serrors.E(op, err)
+			}
+			if pendingMsg == nil {
+				return serrors.E(op, serrors.KindValidation, "no pending question found for session")
+			}
+
+			qd := pendingMsg.QuestionData()
+			if qd == nil {
+				return serrors.E(op, serrors.KindValidation, "pending message has no question data")
+			}
+			canonicalCheckpointID := strings.TrimSpace(qd.CheckpointID)
+			if canonicalCheckpointID == "" {
+				return serrors.E(op, serrors.KindValidation, "pending message has empty checkpoint id")
+			}
+			resolvedCheckpointID, _ = hitlsvc.ResolveCheckpoint(req.CheckpointID, canonicalCheckpointID)
+
+			normalizedAnswerValues, normalizedAnswersMap, err := hitlsvc.NormalizeAnswers(qd.Questions, req.Answers)
+			if err != nil {
+				return serrors.E(op, serrors.KindValidation, err)
+			}
+			answeredQuestionData, err = qd.Answer(normalizedAnswerValues)
+			if err != nil {
+				return serrors.E(op, err)
+			}
+			pendingMsgID = pendingMsg.ID()
+			answersMap = normalizedAnswersMap
+			return nil
+		},
+		func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun) {
+			defer func() {
+				if active.Cancel != nil {
+					active.Cancel()
+				}
+				active.CloseAllSubscribers()
+				s.runRegistry.Remove(active.RunID)
+				s.unregisterStreamCancel(req.SessionID)
+			}()
+
+			startedAt := time.Now()
+			gen, err := s.agentService.ResumeWithAnswer(processCtx, req.SessionID, resolvedCheckpointID, answersMap)
+			if err != nil {
+				if errors.Is(err, agents.ErrCheckpointNotFound) {
+					updateCtx, cancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+					defer cancel()
+					if txErr := s.withinTx(updateCtx, func(txCtx context.Context) error {
+						return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, answeredQuestionData)
+					}); txErr != nil {
+						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, txErr), 0))
+						_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+						return
+					}
+					_ = s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+					active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
+					return
+				}
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+				return
+			}
+			defer gen.Close()
+
+			result, err := consumeAgentEvents(processCtx, gen)
+			if err != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+				return
+			}
+
+			if strings.TrimSpace(result.content) != "" {
+				active.Mu.Lock()
+				active.Content = result.content
+				active.Mu.Unlock()
+				active.Broadcast(bichatservices.StreamChunk{
+					Type:      bichatservices.ChunkTypeContent,
+					Content:   result.content,
+					Timestamp: time.Now(),
+				})
+			}
+
+			_ = s.updateRunSnapshot(
+				persistCtx,
+				session.TenantID(),
+				req.SessionID,
+				runID,
+				result.content,
+				map[string]any{"tool_calls": result.toolCalls},
+			)
+
+			persistRunCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+			defer persistCancel()
+			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
+				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, answeredQuestionData); err != nil {
+					return serrors.E(op, err)
+				}
+				_, _, saveErr := s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt, "")
+				return saveErr
+			})
+			if err != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(err, 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+				return
+			}
+
+			_ = s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+			active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
+		},
+	)
+}
+
 // RejectPendingQuestion rejects a pending HITL question and resumes execution.
 // This marks the question data as rejected and tells the agent the user dismissed it.
 func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*bichatservices.SendMessageResponse, error) {
@@ -229,6 +359,129 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 		Session:          session,
 		Interrupt:        result.interrupt,
 	}, nil
+}
+
+// RejectPendingQuestionAsync starts question rejection as an async run and returns run metadata.
+func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessionID uuid.UUID) (bichatservices.AsyncRunAccepted, error) {
+	const op serrors.Op = "chatServiceImpl.RejectPendingQuestionAsync"
+
+	var (
+		pendingMsgID         uuid.UUID
+		checkpointID         string
+		rejectedQuestionData *types.QuestionData
+		rejectionAnswers     map[string]types.Answer
+	)
+	rejectionAnswers = map[string]types.Answer{
+		"__rejected__": types.NewAnswer("User dismissed the questions"),
+	}
+
+	return s.startAsyncRun(
+		ctx,
+		sessionID,
+		bichatservices.AsyncRunOperationQuestionReject,
+		func(txCtx context.Context, _ domain.Session) error {
+			pendingMsg, err := s.chatRepo.GetPendingQuestionMessage(txCtx, sessionID)
+			if err != nil {
+				if errors.Is(err, domain.ErrNoPendingQuestion) {
+					return serrors.E(op, serrors.KindValidation, "no pending question found for session")
+				}
+				return serrors.E(op, err)
+			}
+			if pendingMsg == nil {
+				return serrors.E(op, serrors.KindValidation, "no pending question found for session")
+			}
+
+			qd := pendingMsg.QuestionData()
+			if qd == nil {
+				return serrors.E(op, serrors.KindValidation, "pending message has no question data")
+			}
+
+			rejectedQuestionData, err = qd.Reject()
+			if err != nil {
+				return serrors.E(op, err)
+			}
+			pendingMsgID = pendingMsg.ID()
+			checkpointID = qd.CheckpointID
+			return nil
+		},
+		func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun) {
+			defer func() {
+				if active.Cancel != nil {
+					active.Cancel()
+				}
+				active.CloseAllSubscribers()
+				s.runRegistry.Remove(active.RunID)
+				s.unregisterStreamCancel(sessionID)
+			}()
+
+			startedAt := time.Now()
+			gen, err := s.agentService.ResumeWithAnswer(processCtx, sessionID, checkpointID, rejectionAnswers)
+			if err != nil {
+				if errors.Is(err, agents.ErrCheckpointNotFound) {
+					updateCtx, cancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+					defer cancel()
+					if txErr := s.withinTx(updateCtx, func(txCtx context.Context) error {
+						return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, rejectedQuestionData)
+					}); txErr != nil {
+						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, txErr), 0))
+						_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+						return
+					}
+					_ = s.completeRunState(persistCtx, session.TenantID(), sessionID, runID)
+					active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
+					return
+				}
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
+			defer gen.Close()
+
+			result, err := consumeAgentEvents(processCtx, gen)
+			if err != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
+
+			if strings.TrimSpace(result.content) != "" {
+				active.Mu.Lock()
+				active.Content = result.content
+				active.Mu.Unlock()
+				active.Broadcast(bichatservices.StreamChunk{
+					Type:      bichatservices.ChunkTypeContent,
+					Content:   result.content,
+					Timestamp: time.Now(),
+				})
+			}
+			_ = s.updateRunSnapshot(
+				persistCtx,
+				session.TenantID(),
+				sessionID,
+				runID,
+				result.content,
+				map[string]any{"tool_calls": result.toolCalls},
+			)
+
+			persistRunCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+			defer persistCancel()
+			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
+				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, rejectedQuestionData); err != nil {
+					return serrors.E(op, err)
+				}
+				_, _, saveErr := s.saveAgentResult(txCtx, op, session, sessionID, result, startedAt, "")
+				return saveErr
+			})
+			if err != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(err, 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
+
+			_ = s.completeRunState(persistCtx, session.TenantID(), sessionID, runID)
+			active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
+		},
+	)
 }
 
 // GenerateSessionTitle regenerates a session title explicitly.

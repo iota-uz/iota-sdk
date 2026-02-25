@@ -21,6 +21,7 @@ import (
 const streamPersistenceTimeout = 10 * time.Second
 const titleGenerationFallbackTimeout = 15 * time.Second
 const streamSnapshotThrottle = 2 * time.Second
+const remoteResumePollInterval = time.Second
 
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
@@ -50,6 +51,9 @@ func NewChatService(
 	titleQueue TitleJobQueue,
 ) *chatServiceImpl {
 	runStore := newConfiguredGenerationRunStore()
+	if runStore == nil {
+		runStore = newRepositoryGenerationRunStore(chatRepo)
+	}
 	accessRepo := chatRepo.(domain.SessionAccessRepository)
 	return &chatServiceImpl{
 		chatRepo:           chatRepo,
@@ -142,6 +146,10 @@ func (s *chatServiceImpl) getPersistedRun(ctx context.Context, sessionID uuid.UU
 	return s.runState.GetPersistedRun(ctx, sessionID)
 }
 
+func (s *chatServiceImpl) getPersistedRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
+	return s.runState.GetPersistedRunByID(ctx, runID)
+}
+
 func (s *chatServiceImpl) updateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
 	return s.runState.UpdateRunSnapshot(ctx, tenantID, sessionID, runID, partialContent, partialMetadata)
 }
@@ -154,43 +162,201 @@ func (s *chatServiceImpl) cancelRunState(ctx context.Context, tenantID, sessionI
 	return s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
 }
 
+type asyncRunWorker func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun)
+
+func (s *chatServiceImpl) startAsyncRun(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	operation bichatservices.AsyncRunOperation,
+	prepare func(txCtx context.Context, session domain.Session) error,
+	worker asyncRunWorker,
+) (bichatservices.AsyncRunAccepted, error) {
+	const op serrors.Op = "chatServiceImpl.startAsyncRun"
+
+	var (
+		session         domain.Session
+		run             domain.GenerationRun
+		err             error
+		runStateCreated bool
+	)
+	err = s.withinTx(ctx, func(txCtx context.Context) error {
+		session, err = s.chatRepo.GetSession(txCtx, sessionID)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
+			SessionID: sessionID,
+			TenantID:  session.TenantID(),
+			UserID:    session.UserID(),
+		})
+		if err != nil {
+			return serrors.E(op, serrors.KindValidation, err)
+		}
+		runStateCreated, err = s.createRunState(txCtx, run)
+		if err != nil {
+			return err
+		}
+		if prepare != nil {
+			if err := prepare(txCtx, session); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if runStateCreated && run != nil && session != nil {
+			_ = s.cancelRunState(context.WithoutCancel(ctx), session.TenantID(), sessionID, run.ID())
+		}
+		return bichatservices.AsyncRunAccepted{}, serrors.E(op, err)
+	}
+
+	processCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
+	s.registerStreamCancel(sessionID, cancelProcess)
+
+	active := streamingsvc.NewActiveRun(run.ID(), sessionID, cancelProcess, time.Now())
+	s.runRegistry.Add(active)
+
+	persistCtx := context.WithoutCancel(ctx)
+	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
+	go worker(processCtx, persistCtx, run.ID(), session, active)
+
+	return bichatservices.AsyncRunAccepted{
+		Accepted:  true,
+		Operation: operation,
+		SessionID: sessionID,
+		RunID:     run.ID(),
+		StartedAt: active.StartedAt,
+	}, nil
+}
+
 // ResumeStream attaches to an active run and streams snapshot then new chunks.
 func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID, runID uuid.UUID, onChunk func(bichatservices.StreamChunk)) error {
 	const op serrors.Op = "chatServiceImpl.ResumeStream"
 
 	run := s.runRegistry.GetByRun(runID)
-	if run == nil {
+	if run != nil {
+		if run.SessionID != sessionID {
+			return serrors.E(op, serrors.KindValidation, "session id mismatch")
+		}
+
+		ch := make(chan bichatservices.StreamChunk, 256)
+		run.Mu.RLock()
+		partialContent := run.Content
+		run.Mu.RUnlock()
+		snap := bichatservices.StreamSnapshot{PartialContent: partialContent, PartialMetadata: run.SnapshotMetadata()}
+
+		onChunk(bichatservices.StreamChunk{
+			Type:      bichatservices.ChunkTypeSnapshot,
+			Snapshot:  &snap,
+			Timestamp: time.Now(),
+		})
+
+		run.AddSubscriber(ch)
+		defer run.RemoveSubscriber(ch)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case chunk, ok := <-ch:
+				if !ok {
+					return nil
+				}
+				onChunk(chunk)
+				if chunk.Type == bichatservices.ChunkTypeDone || chunk.Type == bichatservices.ChunkTypeError {
+					return nil
+				}
+			}
+		}
+	}
+
+	// Remote-node resume path: poll persisted run state by run id.
+	persisted, err := s.getPersistedRunByID(ctx, runID)
+	if err != nil {
+		if errors.Is(err, domain.ErrRunNotFound) || errors.Is(err, domain.ErrNoActiveRun) {
+			return bichatservices.ErrRunNotFoundOrFinished
+		}
+		return serrors.E(op, err)
+	}
+	if persisted == nil {
 		return bichatservices.ErrRunNotFoundOrFinished
 	}
-	if run.SessionID != sessionID {
+	if persisted.SessionID() != sessionID {
 		return serrors.E(op, serrors.KindValidation, "session id mismatch")
 	}
 
-	ch := make(chan bichatservices.StreamChunk, 256)
-	run.Mu.RLock()
-	partialContent := run.Content
-	run.Mu.RUnlock()
-	snap := bichatservices.StreamSnapshot{PartialContent: partialContent, PartialMetadata: run.SnapshotMetadata()}
-
+	lastContent := persisted.PartialContent()
 	onChunk(bichatservices.StreamChunk{
-		Type:      bichatservices.ChunkTypeSnapshot,
-		Snapshot:  &snap,
+		Type: bichatservices.ChunkTypeSnapshot,
+		Snapshot: &bichatservices.StreamSnapshot{
+			PartialContent:  lastContent,
+			PartialMetadata: persisted.PartialMetadata(),
+		},
 		Timestamp: time.Now(),
 	})
+	if persisted.Status() != domain.GenerationRunStatusStreaming {
+		if persisted.Status() == domain.GenerationRunStatusCancelled {
+			onChunk(streamingsvc.TerminalChunk(serrors.E(op, "generation cancelled"), 0))
+		} else {
+			onChunk(streamingsvc.TerminalChunk(nil, 0))
+		}
+		return nil
+	}
 
-	run.AddSubscriber(ch)
-	defer run.RemoveSubscriber(ch)
+	ticker := time.NewTicker(remoteResumePollInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case chunk, ok := <-ch:
-			if !ok {
+		case <-ticker.C:
+			current, lookupErr := s.getPersistedRunByID(ctx, runID)
+			if lookupErr != nil {
+				if errors.Is(lookupErr, domain.ErrRunNotFound) || errors.Is(lookupErr, domain.ErrNoActiveRun) {
+					onChunk(streamingsvc.TerminalChunk(nil, 0))
+					return nil
+				}
+				return serrors.E(op, lookupErr)
+			}
+			if current == nil {
+				onChunk(streamingsvc.TerminalChunk(nil, 0))
 				return nil
 			}
-			onChunk(chunk)
-			if chunk.Type == bichatservices.ChunkTypeDone || chunk.Type == bichatservices.ChunkTypeError {
+			if current.SessionID() != sessionID {
+				return serrors.E(op, serrors.KindValidation, "session id mismatch")
+			}
+
+			currentContent := current.PartialContent()
+			if currentContent != lastContent {
+				if strings.HasPrefix(currentContent, lastContent) {
+					delta := strings.TrimPrefix(currentContent, lastContent)
+					if delta != "" {
+						onChunk(bichatservices.StreamChunk{
+							Type:      bichatservices.ChunkTypeContent,
+							Content:   delta,
+							Timestamp: time.Now(),
+						})
+					}
+				} else {
+					onChunk(bichatservices.StreamChunk{
+						Type: bichatservices.ChunkTypeSnapshot,
+						Snapshot: &bichatservices.StreamSnapshot{
+							PartialContent:  currentContent,
+							PartialMetadata: current.PartialMetadata(),
+						},
+						Timestamp: time.Now(),
+					})
+				}
+				lastContent = currentContent
+			}
+
+			if current.Status() != domain.GenerationRunStatusStreaming {
+				if current.Status() == domain.GenerationRunStatusCancelled {
+					onChunk(streamingsvc.TerminalChunk(serrors.E(op, "generation cancelled"), 0))
+				} else {
+					onChunk(streamingsvc.TerminalChunk(nil, 0))
+				}
 				return nil
 			}
 		}

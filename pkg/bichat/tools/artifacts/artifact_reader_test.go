@@ -147,6 +147,10 @@ func (s *artifactReaderRepoStub) GetActiveRunBySession(ctx context.Context, sess
 	return nil, domain.ErrNoActiveRun
 }
 
+func (s *artifactReaderRepoStub) GetRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
+	return nil, domain.ErrRunNotFound
+}
+
 func (s *artifactReaderRepoStub) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
 	return nil
 }

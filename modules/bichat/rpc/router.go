@@ -336,26 +336,26 @@ func Router(
 		},
 	}))
 
-	mustAdd(applets.AddProcedure(r, "bichat.session.compact", applets.Procedure[SessionIDParams, SessionCompactResult]{
+	mustAdd(applets.AddProcedure(r, "bichat.session.compact", applets.Procedure[SessionIDParams, AsyncRunAcceptedResult]{
 		RequirePermissions: []string{"BiChat.Access"},
-		Handler: func(ctx context.Context, p SessionIDParams) (SessionCompactResult, error) {
+		Handler: func(ctx context.Context, p SessionIDParams) (AsyncRunAcceptedResult, error) {
 			const op serrors.Op = "bichat.rpc.session.compact"
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCompactResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
 
-			result, err := sessionCommands.CompactSessionHistory(ctx, session.ID())
+			result, err := sessionCommands.CompactSessionHistoryAsync(ctx, session.ID())
 			if err != nil {
-				return SessionCompactResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-
-			return SessionCompactResult{
-				Success:          result.Success,
-				Summary:          result.Summary,
-				DeletedMessages:  result.DeletedMessages,
-				DeletedArtifacts: result.DeletedArtifacts,
+			return AsyncRunAcceptedResult{
+				Accepted:  result.Accepted,
+				Operation: string(result.Operation),
+				SessionID: result.SessionID.String(),
+				RunID:     result.RunID.String(),
+				StartedAt: result.StartedAt.UnixMilli(),
 			}, nil
 		},
 	}))
@@ -608,69 +608,53 @@ func Router(
 		},
 	}))
 
-	mustAdd(applets.AddProcedure(r, "bichat.question.submit", applets.Procedure[QuestionSubmitParams, SessionGetResult]{
+	mustAdd(applets.AddProcedure(r, "bichat.question.submit", applets.Procedure[QuestionSubmitParams, AsyncRunAcceptedResult]{
 		RequirePermissions: []string{"BiChat.Access"},
-		Handler: func(ctx context.Context, p QuestionSubmitParams) (SessionGetResult, error) {
+		Handler: func(ctx context.Context, p QuestionSubmitParams) (AsyncRunAcceptedResult, error) {
 			const op serrors.Op = "bichat.rpc.question.submit"
 
-			session, access, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
 
-			_, err = hitlCommands.ResumeWithAnswer(ctx, services.ResumeRequest{
+			result, err := hitlCommands.ResumeWithAnswerAsync(ctx, services.ResumeRequest{
 				SessionID:    session.ID(),
 				CheckpointID: p.CheckpointID,
 				Answers:      p.Answers,
 			})
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-
-			// Re-fetch session and messages to return updated state
-			s, err := sessionQueries.GetSession(ctx, session.ID())
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
-			}
-			msgs, err := turnQueries.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
-			}
-
-			return SessionGetResult{
-				Session:         withSessionMeta(ctx, sessionQueries, s, access),
-				Turns:           buildTurns(msgs),
-				PendingQuestion: pendingQuestionFromMessages(msgs),
+			return AsyncRunAcceptedResult{
+				Accepted:  result.Accepted,
+				Operation: string(result.Operation),
+				SessionID: result.SessionID.String(),
+				RunID:     result.RunID.String(),
+				StartedAt: result.StartedAt.UnixMilli(),
 			}, nil
 		},
 	}))
 
-	mustAdd(applets.AddProcedure(r, "bichat.question.reject", applets.Procedure[QuestionCancelParams, SessionGetResult]{
+	mustAdd(applets.AddProcedure(r, "bichat.question.reject", applets.Procedure[QuestionCancelParams, AsyncRunAcceptedResult]{
 		RequirePermissions: []string{"BiChat.Access"},
-		Handler: func(ctx context.Context, p QuestionCancelParams) (SessionGetResult, error) {
+		Handler: func(ctx context.Context, p QuestionCancelParams) (AsyncRunAcceptedResult, error) {
 			const op serrors.Op = "bichat.rpc.question.reject"
 
-			session, access, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-			_, err = hitlCommands.RejectPendingQuestion(ctx, session.ID())
+			result, err := hitlCommands.RejectPendingQuestionAsync(ctx, session.ID())
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-			// Re-fetch to return updated state
-			s, err := sessionQueries.GetSession(ctx, session.ID())
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
-			}
-			msgs, err := turnQueries.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
-			}
-			return SessionGetResult{
-				Session:         withSessionMeta(ctx, sessionQueries, s, access),
-				Turns:           buildTurns(msgs),
-				PendingQuestion: pendingQuestionFromMessages(msgs),
+			return AsyncRunAcceptedResult{
+				Accepted:  result.Accepted,
+				Operation: string(result.Operation),
+				SessionID: result.SessionID.String(),
+				RunID:     result.RunID.String(),
+				StartedAt: result.StartedAt.UnixMilli(),
 			}, nil
 		},
 	}))

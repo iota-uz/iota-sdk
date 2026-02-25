@@ -2,6 +2,7 @@ package streaming
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
@@ -12,6 +13,7 @@ import (
 type RunStateStore interface {
 	CreateRun(ctx context.Context, run domain.GenerationRun) error
 	GetActiveRunBySession(ctx context.Context, tenantID uuid.UUID, sessionID uuid.UUID) (domain.GenerationRun, error)
+	GetRunByID(ctx context.Context, tenantID uuid.UUID, runID uuid.UUID) (domain.GenerationRun, error)
 	UpdateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error
 	CompleteRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
 	CancelRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
@@ -43,9 +45,27 @@ func (m *RunStateManager) GetPersistedRun(ctx context.Context, sessionID uuid.UU
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
+		if errors.Is(err, composables.ErrNoTenantIDFound) {
+			return nil, domain.ErrNoActiveRun
+		}
 		return nil, serrors.E(op, err)
 	}
 	return m.store.GetActiveRunBySession(ctx, tenantID, sessionID)
+}
+
+func (m *RunStateManager) GetPersistedRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
+	const op serrors.Op = "runStateManager.GetPersistedRunByID"
+	if m == nil || m.store == nil {
+		return nil, domain.ErrRunNotFound
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		if errors.Is(err, composables.ErrNoTenantIDFound) {
+			return nil, domain.ErrRunNotFound
+		}
+		return nil, serrors.E(op, err)
+	}
+	return m.store.GetRunByID(ctx, tenantID, runID)
 }
 
 func (m *RunStateManager) UpdateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {

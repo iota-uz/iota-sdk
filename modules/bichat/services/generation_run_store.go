@@ -24,6 +24,7 @@ const (
 type generationRunStore interface {
 	CreateRun(ctx context.Context, run domain.GenerationRun) error
 	GetActiveRunBySession(ctx context.Context, tenantID uuid.UUID, sessionID uuid.UUID) (domain.GenerationRun, error)
+	GetRunByID(ctx context.Context, tenantID uuid.UUID, runID uuid.UUID) (domain.GenerationRun, error)
 	UpdateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error
 	CompleteRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
 	CancelRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
@@ -145,6 +146,10 @@ func (s *redisGenerationRunStore) CreateRun(ctx context.Context, run domain.Gene
 	if !created {
 		return domain.ErrActiveRunExists
 	}
+	if err := s.client.Set(ctx, s.runKey(run.TenantID(), run.ID()), payload, s.ttl).Err(); err != nil {
+		_, _ = s.client.Del(ctx, s.sessionKey(run.TenantID(), run.SessionID())).Result()
+		return serrors.E(op, "create run index", err)
+	}
 	return nil
 }
 
@@ -157,6 +162,32 @@ func (s *redisGenerationRunStore) GetActiveRunBySession(ctx context.Context, ten
 	}
 	if !found || record.Status != string(domain.GenerationRunStatusStreaming) {
 		return nil, domain.ErrNoActiveRun
+	}
+
+	run, err := mapPersistedGenerationRunToDomain(record)
+	if err != nil {
+		return nil, serrors.E(op, "convert persisted run", err)
+	}
+	return run, nil
+}
+
+func (s *redisGenerationRunStore) GetRunByID(ctx context.Context, tenantID uuid.UUID, runID uuid.UUID) (domain.GenerationRun, error) {
+	const op serrors.Op = "redisGenerationRunStore.GetRunByID"
+
+	raw, err := s.client.Get(ctx, s.runKey(tenantID, runID)).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, domain.ErrRunNotFound
+		}
+		return nil, serrors.E(op, "get run by id", err)
+	}
+
+	var record persistedGenerationRun
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return nil, serrors.E(op, "unmarshal run", err)
+	}
+	if record.PartialMeta == nil {
+		record.PartialMeta = make(map[string]any)
 	}
 
 	run, err := mapPersistedGenerationRunToDomain(record)
@@ -195,14 +226,14 @@ func (s *redisGenerationRunStore) UpdateRunSnapshot(ctx context.Context, tenantI
 }
 
 func (s *redisGenerationRunStore) CompleteRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	return s.finishRun(ctx, tenantID, sessionID, runID)
+	return s.finishRun(ctx, tenantID, sessionID, runID, domain.GenerationRunStatusCompleted)
 }
 
 func (s *redisGenerationRunStore) CancelRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	return s.finishRun(ctx, tenantID, sessionID, runID)
+	return s.finishRun(ctx, tenantID, sessionID, runID, domain.GenerationRunStatusCancelled)
 }
 
-func (s *redisGenerationRunStore) finishRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+func (s *redisGenerationRunStore) finishRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID, status domain.GenerationRunStatus) error {
 	const op serrors.Op = "redisGenerationRunStore.finishRun"
 
 	record, found, err := s.loadRun(ctx, tenantID, sessionID)
@@ -216,8 +247,16 @@ func (s *redisGenerationRunStore) finishRun(ctx context.Context, tenantID, sessi
 		return nil
 	}
 
+	if record.Status != string(domain.GenerationRunStatusStreaming) {
+		return nil
+	}
+	record.Status = string(status)
 	if _, err := s.client.Del(ctx, s.sessionKey(tenantID, sessionID)).Result(); err != nil {
-		return serrors.E(op, "delete run state", err)
+		return serrors.E(op, "delete active session run state", err)
+	}
+	record.LastUpdatedAt = time.Now().UTC()
+	if err := s.saveRunByID(ctx, tenantID, runID, record); err != nil {
+		return serrors.E(op, "persist terminal run state", err)
 	}
 	return nil
 }
@@ -253,11 +292,35 @@ func (s *redisGenerationRunStore) saveRun(ctx context.Context, tenantID, session
 	if err := s.client.Set(ctx, s.sessionKey(tenantID, sessionID), payload, s.ttl).Err(); err != nil {
 		return serrors.E(op, "set run state", err)
 	}
+	runID, err := uuid.Parse(record.ID)
+	if err != nil {
+		return serrors.E(op, "invalid run id", err)
+	}
+	if err := s.client.Set(ctx, s.runKey(tenantID, runID), payload, s.ttl).Err(); err != nil {
+		return serrors.E(op, "set run index", err)
+	}
 	return nil
 }
 
 func (s *redisGenerationRunStore) sessionKey(tenantID, sessionID uuid.UUID) string {
 	return fmt.Sprintf("%s:%s:%s", s.keyPrefix, tenantID.String(), sessionID.String())
+}
+
+func (s *redisGenerationRunStore) runKey(tenantID, runID uuid.UUID) string {
+	return fmt.Sprintf("%s:%s:run:%s", s.keyPrefix, tenantID.String(), runID.String())
+}
+
+func (s *redisGenerationRunStore) saveRunByID(ctx context.Context, tenantID, runID uuid.UUID, record persistedGenerationRun) error {
+	const op serrors.Op = "redisGenerationRunStore.saveRunByID"
+
+	payload, err := json.Marshal(record)
+	if err != nil {
+		return serrors.E(op, "marshal run state", err)
+	}
+	if err := s.client.Set(ctx, s.runKey(tenantID, runID), payload, s.ttl).Err(); err != nil {
+		return serrors.E(op, "set run by id", err)
+	}
+	return nil
 }
 
 func mapPersistedGenerationRunToDomain(r persistedGenerationRun) (domain.GenerationRun, error) {

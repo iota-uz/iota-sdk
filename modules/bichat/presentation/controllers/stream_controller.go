@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ type StreamController struct {
 }
 
 const maxStreamRequestBodyBytes int64 = 32 << 20 // 32 MiB
+const streamHeartbeatInterval = 15 * time.Second
 
 // NewStreamController creates a new stream controller.
 func NewStreamController(
@@ -170,6 +172,31 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 
 	// 7. Stream chunks
 	ctx := r.Context()
+	var writeMu sync.Mutex
+	sendEvent := func(event string, payload interface{}) {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		c.sendSSEEvent(w, flusher, event, payload)
+	}
+	heartbeatStop := make(chan struct{})
+	defer close(heartbeatStop)
+	go func() {
+		ticker := time.NewTicker(streamHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-heartbeatStop:
+				return
+			case <-ticker.C:
+				sendEvent("ping", httpdto.StreamChunkPayload{
+					Type:      string(bichatservices.ChunkTypePing),
+					Timestamp: time.Now().UnixMilli(),
+				})
+			}
+		}
+	}()
 	if req.DebugMode {
 		ctx = bichatservices.WithDebugMode(ctx, true)
 	}
@@ -256,7 +283,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		if eventName == "" {
 			eventName = "chunk"
 		}
-		c.sendSSEEvent(w, flusher, eventName, payload)
+		sendEvent(eventName, payload)
 	})
 
 	if err != nil {
@@ -266,7 +293,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		entry.Error("Stream error")
 
 		// Send sanitized error to client
-		c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
+		sendEvent("error", httpdto.StreamChunkPayload{
 			Type:      "error",
 			Error:     c.streamClientErrorMessage(err, bichatservices.ChunkTypeError),
 			Timestamp: time.Now().UnixMilli(),
@@ -275,7 +302,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Send done event
-	c.sendSSEEvent(w, flusher, "done", httpdto.StreamChunkPayload{
+	sendEvent("done", httpdto.StreamChunkPayload{
 		Type:      "done",
 		Timestamp: time.Now().UnixMilli(),
 	})
@@ -440,6 +467,32 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
+	var writeMu sync.Mutex
+	sendEvent := func(event string, payload interface{}) {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		c.sendSSEEvent(w, flusher, event, payload)
+	}
+	heartbeatStop := make(chan struct{})
+	defer close(heartbeatStop)
+	go func() {
+		ticker := time.NewTicker(streamHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-heartbeatStop:
+				return
+			case <-ticker.C:
+				sendEvent("ping", httpdto.StreamChunkPayload{
+					Type:      string(bichatservices.ChunkTypePing),
+					Timestamp: time.Now().UnixMilli(),
+				})
+			}
+		}
+	}()
+
 	err := c.streamService.ResumeStream(r.Context(), req.SessionID, req.RunID, func(chunk bichatservices.StreamChunk) {
 		payload := httpdto.StreamChunkPayload{
 			Type:         string(chunk.Type),
@@ -493,7 +546,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 		if eventName == "" {
 			eventName = "chunk"
 		}
-		c.sendSSEEvent(w, flusher, eventName, payload)
+		sendEvent(eventName, payload)
 	})
 	if err != nil {
 		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
@@ -506,7 +559,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	c.sendSSEEvent(w, flusher, "done", httpdto.StreamChunkPayload{
+	sendEvent("done", httpdto.StreamChunkPayload{
 		Type:      "done",
 		Timestamp: time.Now().UnixMilli(),
 	})

@@ -220,6 +220,10 @@ func (m *configTestChatRepository) GetActiveRunBySession(ctx context.Context, se
 	return nil, domain.ErrNoActiveRun
 }
 
+func (m *configTestChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
+	return nil, domain.ErrRunNotFound
+}
+
 func (m *configTestChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
 	return nil
 }

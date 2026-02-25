@@ -318,6 +318,14 @@ type SessionCompactResult struct {
 	DeletedArtifacts int64  `json:"deletedArtifacts"`
 }
 
+type AsyncRunAcceptedResult struct {
+	Accepted  bool   `json:"accepted"`
+	Operation string `json:"operation"`
+	SessionID string `json:"sessionId"`
+	RunID     string `json:"runId"`
+	StartedAt int64  `json:"startedAt"`
+}
+
 type SessionUpdateTitleParams struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`

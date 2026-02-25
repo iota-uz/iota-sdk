@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	streamingsvc "github.com/iota-uz/iota-sdk/modules/bichat/services/streaming"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
@@ -106,4 +108,99 @@ func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID u
 		DeletedMessages:  deletedMessages,
 		DeletedArtifacts: deletedArtifacts,
 	}, nil
+}
+
+// CompactSessionHistoryAsync starts compaction as an async run and returns run metadata.
+func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessionID uuid.UUID) (bichatservices.AsyncRunAccepted, error) {
+	const op serrors.Op = "chatServiceImpl.CompactSessionHistoryAsync"
+
+	return s.startAsyncRun(
+		ctx,
+		sessionID,
+		bichatservices.AsyncRunOperationSessionCompact,
+		nil,
+		func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun) {
+			defer func() {
+				if active.Cancel != nil {
+					active.Cancel()
+				}
+				active.CloseAllSubscribers()
+				s.runRegistry.Remove(active.RunID)
+				s.unregisterStreamCancel(sessionID)
+			}()
+
+			startedAt := time.Now()
+			messages, err := s.chatRepo.GetSessionMessages(processCtx, sessionID, domain.ListOptions{
+				Limit:  5000,
+				Offset: 0,
+			})
+			if err != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
+
+			summary, err := s.generateCompactionSummary(processCtx, messages)
+			if err != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
+
+			if trimmed := strings.TrimSpace(summary); trimmed != "" {
+				active.Mu.Lock()
+				active.Content = trimmed
+				active.Mu.Unlock()
+				active.Broadcast(bichatservices.StreamChunk{
+					Type:      bichatservices.ChunkTypeContent,
+					Content:   trimmed,
+					Timestamp: time.Now(),
+				})
+				_ = s.updateRunSnapshot(
+					persistCtx,
+					session.TenantID(),
+					sessionID,
+					runID,
+					trimmed,
+					map[string]any{},
+				)
+			}
+
+			persistRunCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+			defer persistCancel()
+
+			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
+				currentSession, getErr := s.chatRepo.GetSession(txCtx, sessionID)
+				if getErr != nil {
+					return serrors.E(op, getErr)
+				}
+
+				_, truncateErr := s.chatRepo.TruncateMessagesFrom(txCtx, sessionID, time.Unix(0, 0))
+				if truncateErr != nil {
+					return serrors.E(op, truncateErr)
+				}
+				if _, deleteArtifactsErr := s.chatRepo.DeleteSessionArtifacts(txCtx, sessionID); deleteArtifactsErr != nil {
+					return serrors.E(op, deleteArtifactsErr)
+				}
+
+				systemMsg := types.SystemMessage(summary, types.WithSessionID(sessionID))
+				if saveErr := s.chatRepo.SaveMessage(txCtx, systemMsg); saveErr != nil {
+					return serrors.E(op, saveErr)
+				}
+				updated := currentSession.SetPreviousResponseID(nil, time.Now())
+				if updateErr := s.chatRepo.UpdateSession(txCtx, updated); updateErr != nil {
+					return serrors.E(op, updateErr)
+				}
+				return nil
+			})
+			if err != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(err, 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
+
+			_ = s.completeRunState(persistCtx, session.TenantID(), sessionID, runID)
+			active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
+		},
+	)
 }
