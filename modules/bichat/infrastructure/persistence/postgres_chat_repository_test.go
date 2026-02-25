@@ -1107,7 +1107,7 @@ func TestPostgresChatRepository_GetPendingQuestionMessage_ReturnsNewestActivePen
 	)
 	require.NoError(t, repo.SaveMessage(env.Ctx, oldPendingMsg))
 
-	answeredOld, err := firstPending.Answer(map[string]string{"q-old": "One"})
+	answeredOld, err := firstPending.Answer(map[string]string{"q-old": "opt-1"})
 	require.NoError(t, err)
 	require.NoError(t, repo.UpdateMessageQuestionData(env.Ctx, oldPendingMsg.ID(), answeredOld))
 
@@ -1490,7 +1490,7 @@ func TestPostgresChatRepository_TenantIsolation_UpdateSessionTitleIfEmpty(t *tes
 
 	stored, err := repo.GetSession(envA.Ctx, sessionA.ID())
 	require.NoError(t, err)
-	assert.Empty(t, stored.Title())
+	assert.Equal(t, "Untitled Session", stored.Title())
 }
 
 func TestPostgresChatRepository_TenantIsolation_Messages(t *testing.T) {
@@ -1614,10 +1614,10 @@ func TestPostgresChatRepository_EmptyTitle(t *testing.T) {
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	// Verify empty title is preserved
+	// Verify empty input is normalized by strict session constructor.
 	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
-	assert.Empty(t, retrieved.Title())
+	assert.Equal(t, "Untitled Session", retrieved.Title())
 }
 
 func TestPostgresChatRepository_NilParentSessionID(t *testing.T) {

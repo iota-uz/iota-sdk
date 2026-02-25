@@ -46,7 +46,9 @@ const (
 	updateSessionTitleIfEmptyQuery = `
 		UPDATE bichat.sessions
 		SET title = $1, updated_at = $2
-		WHERE tenant_id = $3 AND id = $4 AND btrim(title) = ''
+		WHERE tenant_id = $3 AND id = $4 AND (
+			btrim(title) = '' OR title = 'Untitled Session' OR title = 'Untitled Chat'
+		)
 	`
 	listUserSessionsQuery = `
 			SELECT id, tenant_id, user_id, title, status, pinned,
@@ -542,7 +544,8 @@ func (r *PostgresChatRepository) UpdateSessionTitle(ctx context.Context, id uuid
 	return nil
 }
 
-// UpdateSessionTitleIfEmpty updates a session title only when it is currently blank.
+// UpdateSessionTitleIfEmpty updates a session title only when it is currently
+// blank or still using an untitled placeholder title.
 func (r *PostgresChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
 	const op serrors.Op = "PostgresChatRepository.UpdateSessionTitleIfEmpty"
 
