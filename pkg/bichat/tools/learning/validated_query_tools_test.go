@@ -3,9 +3,10 @@ package learning
 import (
 	"context"
 	"errors"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"strings"
 	"testing"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"

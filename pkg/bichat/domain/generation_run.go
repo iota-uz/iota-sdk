@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,9 +16,24 @@ const (
 	GenerationRunStatusCancelled GenerationRunStatus = "cancelled"
 )
 
+var (
+	ErrInvalidGenerationRun           = errors.New("invalid generation run")
+	ErrInvalidGenerationRunTransition = errors.New("invalid generation run transition")
+)
+
+type GenerationRunSpec struct {
+	ID              uuid.UUID
+	SessionID       uuid.UUID
+	TenantID        uuid.UUID
+	UserID          int64
+	Status          GenerationRunStatus
+	PartialContent  string
+	PartialMetadata map[string]any
+	StartedAt       time.Time
+	LastUpdatedAt   time.Time
+}
+
 // GenerationRun represents an in-progress or recently finished streaming run.
-// Used for refresh-safe resume: partial state is persisted so a reconnecting
-// client can resume from the last snapshot.
 type GenerationRun interface {
 	ID() uuid.UUID
 	SessionID() uuid.UUID
@@ -28,6 +44,10 @@ type GenerationRun interface {
 	PartialMetadata() map[string]any
 	StartedAt() time.Time
 	LastUpdatedAt() time.Time
+
+	UpdateSnapshot(partialContent string, partialMetadata map[string]any, now time.Time) (GenerationRun, error)
+	Complete(now time.Time) (GenerationRun, error)
+	Cancel(now time.Time) (GenerationRun, error)
 }
 
 type generationRun struct {
@@ -42,6 +62,111 @@ type generationRun struct {
 	lastUpdatedAt   time.Time
 }
 
+func cloneRunMetadata(meta map[string]any) map[string]any {
+	if meta == nil {
+		return nil
+	}
+	out := make(map[string]any, len(meta))
+	for k, v := range meta {
+		out[k] = v
+	}
+	return out
+}
+
+func validateRunStatus(status GenerationRunStatus) bool {
+	switch status {
+	case GenerationRunStatusStreaming, GenerationRunStatusCompleted, GenerationRunStatusCancelled:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeRunNow(now time.Time) time.Time {
+	if now.IsZero() {
+		return time.Now()
+	}
+	return now
+}
+
+// NewGenerationRun creates a validated streaming run.
+func NewGenerationRun(spec GenerationRunSpec) (GenerationRun, error) {
+	if spec.SessionID == uuid.Nil || spec.TenantID == uuid.Nil {
+		return nil, ErrInvalidGenerationRun
+	}
+	if spec.UserID <= 0 {
+		return nil, ErrInvalidGenerationRun
+	}
+	status := spec.Status
+	if status == "" {
+		status = GenerationRunStatusStreaming
+	}
+	if status != GenerationRunStatusStreaming {
+		return nil, ErrInvalidGenerationRun
+	}
+
+	id := spec.ID
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+	startedAt := spec.StartedAt
+	if startedAt.IsZero() {
+		startedAt = time.Now()
+	}
+	lastUpdatedAt := spec.LastUpdatedAt
+	if lastUpdatedAt.IsZero() {
+		lastUpdatedAt = startedAt
+	}
+
+	return &generationRun{
+		id:              id,
+		sessionID:       spec.SessionID,
+		tenantID:        spec.TenantID,
+		userID:          spec.UserID,
+		status:          GenerationRunStatusStreaming,
+		partialContent:  spec.PartialContent,
+		partialMetadata: cloneRunMetadata(spec.PartialMetadata),
+		startedAt:       startedAt,
+		lastUpdatedAt:   lastUpdatedAt,
+	}, nil
+}
+
+// RehydrateGenerationRun loads a run from persistence.
+func RehydrateGenerationRun(spec GenerationRunSpec) (GenerationRun, error) {
+	if spec.ID == uuid.Nil || spec.SessionID == uuid.Nil || spec.TenantID == uuid.Nil || spec.UserID <= 0 {
+		return nil, ErrInvalidGenerationRun
+	}
+	if !validateRunStatus(spec.Status) {
+		return nil, ErrInvalidGenerationRun
+	}
+	startedAt := spec.StartedAt
+	if startedAt.IsZero() {
+		startedAt = time.Now()
+	}
+	lastUpdatedAt := spec.LastUpdatedAt
+	if lastUpdatedAt.IsZero() {
+		lastUpdatedAt = startedAt
+	}
+
+	return &generationRun{
+		id:              spec.ID,
+		sessionID:       spec.SessionID,
+		tenantID:        spec.TenantID,
+		userID:          spec.UserID,
+		status:          spec.Status,
+		partialContent:  spec.PartialContent,
+		partialMetadata: cloneRunMetadata(spec.PartialMetadata),
+		startedAt:       startedAt,
+		lastUpdatedAt:   lastUpdatedAt,
+	}, nil
+}
+
+func (r *generationRun) copy() *generationRun {
+	c := *r
+	c.partialMetadata = cloneRunMetadata(r.partialMetadata)
+	return &c
+}
+
 func (r *generationRun) ID() uuid.UUID               { return r.id }
 func (r *generationRun) SessionID() uuid.UUID        { return r.sessionID }
 func (r *generationRun) TenantID() uuid.UUID         { return r.tenantID }
@@ -49,77 +174,38 @@ func (r *generationRun) UserID() int64               { return r.userID }
 func (r *generationRun) Status() GenerationRunStatus { return r.status }
 func (r *generationRun) PartialContent() string      { return r.partialContent }
 func (r *generationRun) PartialMetadata() map[string]any {
-	if r.partialMetadata == nil {
-		return nil
-	}
-	return r.partialMetadata
+	return cloneRunMetadata(r.partialMetadata)
 }
 func (r *generationRun) StartedAt() time.Time     { return r.startedAt }
 func (r *generationRun) LastUpdatedAt() time.Time { return r.lastUpdatedAt }
 
-// GenerationRunOption configures a generation run.
-type GenerationRunOption func(*generationRun)
-
-// NewGenerationRun creates a new run with the given options.
-func NewGenerationRun(opts ...GenerationRunOption) GenerationRun {
-	r := &generationRun{
-		id:              uuid.New(),
-		status:          GenerationRunStatusStreaming,
-		partialMetadata: make(map[string]any),
-		startedAt:       time.Now(),
-		lastUpdatedAt:   time.Now(),
+func (r *generationRun) UpdateSnapshot(partialContent string, partialMetadata map[string]any, now time.Time) (GenerationRun, error) {
+	if r.status != GenerationRunStatusStreaming {
+		return nil, ErrInvalidGenerationRunTransition
 	}
-	for _, opt := range opts {
-		opt(r)
+	c := r.copy()
+	c.partialContent = partialContent
+	c.partialMetadata = cloneRunMetadata(partialMetadata)
+	c.lastUpdatedAt = normalizeRunNow(now)
+	return c, nil
+}
+
+func (r *generationRun) Complete(now time.Time) (GenerationRun, error) {
+	if r.status != GenerationRunStatusStreaming {
+		return nil, ErrInvalidGenerationRunTransition
 	}
-	return r
+	c := r.copy()
+	c.status = GenerationRunStatusCompleted
+	c.lastUpdatedAt = normalizeRunNow(now)
+	return c, nil
 }
 
-// WithGenerationRunID sets the run ID (e.g. when loading from DB).
-func WithGenerationRunID(id uuid.UUID) GenerationRunOption {
-	return func(r *generationRun) { r.id = id }
-}
-
-// WithGenerationRunSessionID sets the session ID.
-func WithGenerationRunSessionID(sessionID uuid.UUID) GenerationRunOption {
-	return func(r *generationRun) { r.sessionID = sessionID }
-}
-
-// WithGenerationRunTenantID sets the tenant ID.
-func WithGenerationRunTenantID(tenantID uuid.UUID) GenerationRunOption {
-	return func(r *generationRun) { r.tenantID = tenantID }
-}
-
-// WithGenerationRunUserID sets the user ID.
-func WithGenerationRunUserID(userID int64) GenerationRunOption {
-	return func(r *generationRun) { r.userID = userID }
-}
-
-// WithGenerationRunStatus sets the status.
-func WithGenerationRunStatus(status GenerationRunStatus) GenerationRunOption {
-	return func(r *generationRun) { r.status = status }
-}
-
-// WithGenerationRunPartialContent sets the partial assistant content.
-func WithGenerationRunPartialContent(content string) GenerationRunOption {
-	return func(r *generationRun) { r.partialContent = content }
-}
-
-// WithGenerationRunPartialMetadata sets the partial metadata (tool_calls, etc.).
-func WithGenerationRunPartialMetadata(m map[string]any) GenerationRunOption {
-	return func(r *generationRun) {
-		if m != nil {
-			r.partialMetadata = m
-		}
+func (r *generationRun) Cancel(now time.Time) (GenerationRun, error) {
+	if r.status != GenerationRunStatusStreaming {
+		return nil, ErrInvalidGenerationRunTransition
 	}
-}
-
-// WithGenerationRunStartedAt sets the started-at timestamp.
-func WithGenerationRunStartedAt(t time.Time) GenerationRunOption {
-	return func(r *generationRun) { r.startedAt = t }
-}
-
-// WithGenerationRunLastUpdatedAt sets the last-updated timestamp.
-func WithGenerationRunLastUpdatedAt(t time.Time) GenerationRunOption {
-	return func(r *generationRun) { r.lastUpdatedAt = t }
+	c := r.copy()
+	c.status = GenerationRunStatusCancelled
+	c.lastUpdatedAt = normalizeRunNow(now)
+	return c, nil
 }

@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/formatters"

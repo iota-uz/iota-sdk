@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"

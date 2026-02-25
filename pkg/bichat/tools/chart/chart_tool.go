@@ -3,12 +3,13 @@ package chart
 import (
 	"context"
 	"fmt"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"math"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"

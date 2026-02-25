@@ -2,9 +2,10 @@ package sql
 
 import (
 	"errors"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"strings"
 	"testing"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )

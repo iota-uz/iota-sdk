@@ -23,10 +23,10 @@ func TestChatService_UnarchiveSession(t *testing.T) {
 	chatRepo := newMockChatRepository()
 	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("t"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("t"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -49,12 +49,12 @@ func TestChatService_ClearSessionHistory(t *testing.T) {
 	chatRepo := newMockChatRepository()
 	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("keep me"),
-		domain.WithPinned(true),
-		domain.WithLLMPreviousResponseID("resp_prev_clear"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("keep me"),
+		withSessionPinned(true),
+		withSessionLLMPreviousResponseID("resp_prev_clear"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -103,11 +103,11 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 	model.response.Message = types.AssistantMessage("## Conversation Summary\nCompacted response")
 	svc := NewChatService(chatRepo, nil, model, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("to compact"),
-		domain.WithLLMPreviousResponseID("resp_prev_compact"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("to compact"),
+		withSessionLLMPreviousResponseID("resp_prev_compact"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -146,10 +146,10 @@ func TestChatService_CompactSessionHistory_EmptyHistory(t *testing.T) {
 	model := newMockModel()
 	svc := NewChatService(chatRepo, nil, model, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("empty"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("empty"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -171,13 +171,13 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("replace"),
-		domain.WithLLMPreviousResponseID("resp_prev_replace"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("replace"),
+		withSessionLLMPreviousResponseID("resp_prev_replace"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -224,12 +224,12 @@ func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *tes
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("replace"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("replace"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -246,10 +246,10 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("resume interrupt"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("resume interrupt"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -327,10 +327,10 @@ func TestChatService_ResumeWithAnswer_UsesCanonicalCheckpointAndNormalizesLabels
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("resume canonical checkpoint"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("resume canonical checkpoint"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -388,10 +388,10 @@ func TestChatService_ResumeWithAnswer_CheckpointNotFoundFinalizesAnswered(t *tes
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("resume stale checkpoint"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("resume stale checkpoint"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -445,10 +445,10 @@ func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("reject stale checkpoint"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("reject stale checkpoint"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -496,10 +496,10 @@ func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("Generating..."),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("Generating..."),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -558,10 +558,10 @@ func TestChatService_SendMessageStream_DoneEmittedAfterAssistantPersistence(t *t
 		mockChatRepository: baseRepo,
 		delay:              120 * time.Millisecond,
 	}
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("stream ordering"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("stream ordering"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -607,10 +607,10 @@ func TestChatService_SendMessageStream_ClearsRequestTxForAsyncPersistence(t *tes
 
 	baseRepo := newMockChatRepository()
 	chatRepo := &assistantFailsWhenTxPresentRepo{mockChatRepository: baseRepo}
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("tx isolation"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("tx isolation"),
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 
@@ -842,10 +842,10 @@ func TestChatService_SendMessageStream_ClientDisconnectStillPersistsAssistant(t 
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("stop test"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("stop test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 
@@ -902,10 +902,10 @@ func TestChatService_SendMessageStream_StopGenerationDoesNotPersistAssistant(t *
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("stop test"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("stop test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 

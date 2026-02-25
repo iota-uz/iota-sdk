@@ -57,12 +57,12 @@ func TestPostgresChatRepository_CreateSession(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Test Session"),
-		domain.WithStatus(domain.SessionStatusActive),
-		domain.WithPinned(false),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Test Session"),
+		withSessionStatus(domain.SessionStatusActive),
+		withSessionPinned(false),
 	)
 
 	err := repo.CreateSession(env.Ctx, session)
@@ -87,20 +87,20 @@ func TestPostgresChatRepository_CreateSession_WithParent(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create parent session first
-	parentSession := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Parent Session"),
+	parentSession := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Parent Session"),
 	)
 	err := repo.CreateSession(env.Ctx, parentSession)
 	require.NoError(t, err)
 
 	// Create child session with parent reference
-	childSession := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Child Session"),
-		domain.WithParentSessionID(parentSession.ID()),
+	childSession := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Child Session"),
+		withSessionParentID(parentSession.ID()),
 	)
 	err = repo.CreateSession(env.Ctx, childSession)
 	require.NoError(t, err)
@@ -119,10 +119,10 @@ func TestPostgresChatRepository_GetSession(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Retrieve Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Retrieve Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -155,20 +155,22 @@ func TestPostgresChatRepository_UpdateSession(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Original Title"),
-		domain.WithStatus(domain.SessionStatusActive),
-		domain.WithPinned(false),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Original Title"),
+		withSessionStatus(domain.SessionStatusActive),
+		withSessionPinned(false),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	updated := session.
-		UpdateTitle("Updated Title").
-		UpdateStatus(domain.SessionStatusArchived).
-		UpdatePinned(true)
+	renamed, err := session.Rename("Updated Title", time.Now())
+	require.NoError(t, err)
+	pinned, err := renamed.Pin(time.Now())
+	require.NoError(t, err)
+	updated, err := pinned.Archive(time.Now())
+	require.NoError(t, err)
 	err = repo.UpdateSession(env.Ctx, updated)
 	require.NoError(t, err)
 
@@ -186,11 +188,11 @@ func TestPostgresChatRepository_UpdateSession_NotFound(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Try to update non-existent session
-	session := domain.NewSession(
-		domain.WithID(uuid.New()),
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Non-existent"),
+	session := mustSession(t,
+		withSessionID(uuid.New()),
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Non-existent"),
 	)
 
 	err := repo.UpdateSession(env.Ctx, session)
@@ -203,10 +205,10 @@ func TestPostgresChatRepository_UpdateSessionTitleIfEmpty(t *testing.T) {
 	env := setupTest(t)
 
 	repo := persistence.NewPostgresChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle(""),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle(""),
 	)
 	require.NoError(t, repo.CreateSession(env.Ctx, session))
 
@@ -232,10 +234,10 @@ func TestPostgresChatRepository_UpdateSessionTitle(t *testing.T) {
 	env := setupTest(t)
 
 	repo := persistence.NewPostgresChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Original"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Original"),
 	)
 	require.NoError(t, repo.CreateSession(env.Ctx, session))
 
@@ -252,11 +254,11 @@ func TestPostgresChatRepository_SessionLLMPreviousResponseID(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Continuity Session"),
-		domain.WithLLMPreviousResponseID("resp_prev_1"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Continuity Session"),
+		withSessionLLMPreviousResponseID("resp_prev_1"),
 	)
 	require.NoError(t, repo.CreateSession(env.Ctx, session))
 
@@ -266,7 +268,7 @@ func TestPostgresChatRepository_SessionLLMPreviousResponseID(t *testing.T) {
 	assert.Equal(t, "resp_prev_1", *retrieved.LLMPreviousResponseID())
 
 	next := "resp_prev_2"
-	updated := retrieved.UpdateLLMPreviousResponseID(&next)
+	updated := retrieved.SetPreviousResponseID(&next, time.Now())
 	require.NoError(t, repo.UpdateSession(env.Ctx, updated))
 
 	afterUpdate, err := repo.GetSession(env.Ctx, session.ID())
@@ -274,7 +276,7 @@ func TestPostgresChatRepository_SessionLLMPreviousResponseID(t *testing.T) {
 	require.NotNil(t, afterUpdate.LLMPreviousResponseID())
 	assert.Equal(t, "resp_prev_2", *afterUpdate.LLMPreviousResponseID())
 
-	cleared := afterUpdate.UpdateLLMPreviousResponseID(nil)
+	cleared := afterUpdate.SetPreviousResponseID(nil, time.Now())
 	require.NoError(t, repo.UpdateSession(env.Ctx, cleared))
 
 	afterClear, err := repo.GetSession(env.Ctx, session.ID())
@@ -290,29 +292,29 @@ func TestPostgresChatRepository_ListUserSessions(t *testing.T) {
 
 	baseTime := time.Now()
 	sessions := []domain.Session{
-		domain.NewSession(
-			domain.WithTenantID(env.Tenant.ID),
-			domain.WithUserID(int64(env.User.ID())),
-			domain.WithTitle("Session 1"),
-			domain.WithPinned(false),
-			domain.WithCreatedAt(baseTime),
-			domain.WithUpdatedAt(baseTime),
+		mustSession(t,
+			withSessionTenantID(env.Tenant.ID),
+			withSessionUserID(int64(env.User.ID())),
+			withSessionTitle("Session 1"),
+			withSessionPinned(false),
+			withSessionCreatedAt(baseTime),
+			withSessionUpdatedAt(baseTime),
 		),
-		domain.NewSession(
-			domain.WithTenantID(env.Tenant.ID),
-			domain.WithUserID(int64(env.User.ID())),
-			domain.WithTitle("Session 2 Pinned"),
-			domain.WithPinned(true),
-			domain.WithCreatedAt(baseTime.Add(10*time.Millisecond)),
-			domain.WithUpdatedAt(baseTime.Add(10*time.Millisecond)),
+		mustSession(t,
+			withSessionTenantID(env.Tenant.ID),
+			withSessionUserID(int64(env.User.ID())),
+			withSessionTitle("Session 2 Pinned"),
+			withSessionPinned(true),
+			withSessionCreatedAt(baseTime.Add(10*time.Millisecond)),
+			withSessionUpdatedAt(baseTime.Add(10*time.Millisecond)),
 		),
-		domain.NewSession(
-			domain.WithTenantID(env.Tenant.ID),
-			domain.WithUserID(int64(env.User.ID())),
-			domain.WithTitle("Session 3"),
-			domain.WithPinned(false),
-			domain.WithCreatedAt(baseTime.Add(20*time.Millisecond)),
-			domain.WithUpdatedAt(baseTime.Add(20*time.Millisecond)),
+		mustSession(t,
+			withSessionTenantID(env.Tenant.ID),
+			withSessionUserID(int64(env.User.ID())),
+			withSessionTitle("Session 3"),
+			withSessionPinned(false),
+			withSessionCreatedAt(baseTime.Add(20*time.Millisecond)),
+			withSessionUpdatedAt(baseTime.Add(20*time.Millisecond)),
 		),
 	}
 
@@ -354,12 +356,12 @@ func TestPostgresChatRepository_ListUserSessions_Pagination(t *testing.T) {
 
 	baseTime := time.Now()
 	for i := 0; i < 5; i++ {
-		session := domain.NewSession(
-			domain.WithTenantID(env.Tenant.ID),
-			domain.WithUserID(int64(env.User.ID())),
-			domain.WithTitle("Session "+string('A'+byte(i))),
-			domain.WithCreatedAt(baseTime.Add(time.Duration(i)*5*time.Millisecond)),
-			domain.WithUpdatedAt(baseTime.Add(time.Duration(i)*5*time.Millisecond)),
+		session := mustSession(t,
+			withSessionTenantID(env.Tenant.ID),
+			withSessionUserID(int64(env.User.ID())),
+			withSessionTitle("Session "+string('A'+byte(i))),
+			withSessionCreatedAt(baseTime.Add(time.Duration(i)*5*time.Millisecond)),
+			withSessionUpdatedAt(baseTime.Add(time.Duration(i)*5*time.Millisecond)),
 		)
 		err := repo.CreateSession(env.Ctx, session)
 		require.NoError(t, err)
@@ -379,10 +381,10 @@ func TestPostgresChatRepository_DeleteSession(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("To Delete"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("To Delete"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -404,10 +406,10 @@ func TestPostgresChatRepository_DeleteSession_CascadeToMessages(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Session with Messages"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Session with Messages"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -460,10 +462,10 @@ func TestPostgresChatRepository_SaveMessage(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session first
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Message Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Message Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -492,10 +494,10 @@ func TestPostgresChatRepository_SaveMessage_WithToolCalls(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Tool Call Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Tool Call Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -538,10 +540,10 @@ func TestPostgresChatRepository_SaveMessage_WithCitations(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Citation Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Citation Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -589,10 +591,10 @@ func TestPostgresChatRepository_SaveMessage_WithDebugTrace(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Debug Trace Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Debug Trace Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -649,10 +651,10 @@ func TestPostgresChatRepository_SaveMessage_PersistsV2TraceGraphProjection(t *te
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Debug Trace V2 Projection Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Debug Trace V2 Projection Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -818,10 +820,10 @@ func TestPostgresChatRepository_SaveMessage_EmptyToolCallsAndCitations(t *testin
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Empty Arrays Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Empty Arrays Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -847,10 +849,10 @@ func TestPostgresChatRepository_GetMessage(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session and message
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Get Message Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Get Message Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -887,10 +889,10 @@ func TestPostgresChatRepository_GetSessionMessages(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Multiple Messages Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Multiple Messages Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -940,10 +942,10 @@ func TestPostgresChatRepository_GetSessionMessages_Pagination(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Pagination Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Pagination Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -973,10 +975,10 @@ func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Truncate Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Truncate Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1026,10 +1028,10 @@ func TestPostgresChatRepository_TruncateMessagesFrom_NoMatch(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session and message
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("No Match Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("No Match Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1053,10 +1055,10 @@ func TestPostgresChatRepository_GetPendingQuestionMessage_ReturnsNewestActivePen
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Pending question ordering"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Pending question ordering"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1105,7 +1107,7 @@ func TestPostgresChatRepository_GetPendingQuestionMessage_ReturnsNewestActivePen
 	)
 	require.NoError(t, repo.SaveMessage(env.Ctx, oldPendingMsg))
 
-	answeredOld, err := firstPending.Answer(map[string]string{"q-old": "One"})
+	answeredOld, err := firstPending.Answer(map[string]string{"q-old": "opt-1"})
 	require.NoError(t, err)
 	require.NoError(t, repo.UpdateMessageQuestionData(env.Ctx, oldPendingMsg.ID(), answeredOld))
 
@@ -1131,10 +1133,10 @@ func TestPostgresChatRepository_GetPendingQuestionMessage_NoPending(t *testing.T
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("No pending question"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("No pending question"),
 	)
 	require.NoError(t, repo.CreateSession(env.Ctx, session))
 
@@ -1159,10 +1161,10 @@ func TestPostgresChatRepository_SaveAttachment(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session and message
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Attachment Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Attachment Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1203,10 +1205,10 @@ func TestPostgresChatRepository_SaveAttachment_SpecialCharacters(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session and message
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Special Chars Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Special Chars Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1242,10 +1244,10 @@ func TestPostgresChatRepository_GetAttachment(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session, message, and attachment
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Get Attachment Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Get Attachment Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1293,10 +1295,10 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session and message
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Multiple Attachments Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Multiple Attachments Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1364,10 +1366,10 @@ func TestPostgresChatRepository_GetMessageAttachments_Empty(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session and message without attachments
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("No Attachments Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("No Attachments Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1391,10 +1393,10 @@ func TestPostgresChatRepository_DeleteAttachment(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session, message, and attachment
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Delete Attachment Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Delete Attachment Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1449,10 +1451,10 @@ func TestPostgresChatRepository_TenantIsolation_Sessions(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session in Tenant A
-	sessionA := domain.NewSession(
-		domain.WithTenantID(envA.Tenant.ID),
-		domain.WithUserID(int64(envA.User.ID())),
-		domain.WithTitle("Tenant A Session"),
+	sessionA := mustSession(t,
+		withSessionTenantID(envA.Tenant.ID),
+		withSessionUserID(int64(envA.User.ID())),
+		withSessionTitle("Tenant A Session"),
 	)
 	err := repo.CreateSession(envA.Ctx, sessionA)
 	require.NoError(t, err)
@@ -1475,10 +1477,10 @@ func TestPostgresChatRepository_TenantIsolation_UpdateSessionTitleIfEmpty(t *tes
 
 	repo := persistence.NewPostgresChatRepository()
 
-	sessionA := domain.NewSession(
-		domain.WithTenantID(envA.Tenant.ID),
-		domain.WithUserID(int64(envA.User.ID())),
-		domain.WithTitle(""),
+	sessionA := mustSession(t,
+		withSessionTenantID(envA.Tenant.ID),
+		withSessionUserID(int64(envA.User.ID())),
+		withSessionTitle(""),
 	)
 	require.NoError(t, repo.CreateSession(envA.Ctx, sessionA))
 
@@ -1488,7 +1490,7 @@ func TestPostgresChatRepository_TenantIsolation_UpdateSessionTitleIfEmpty(t *tes
 
 	stored, err := repo.GetSession(envA.Ctx, sessionA.ID())
 	require.NoError(t, err)
-	assert.Empty(t, stored.Title())
+	assert.Equal(t, "Untitled Session", stored.Title())
 }
 
 func TestPostgresChatRepository_TenantIsolation_Messages(t *testing.T) {
@@ -1500,10 +1502,10 @@ func TestPostgresChatRepository_TenantIsolation_Messages(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session and message in Tenant A
-	sessionA := domain.NewSession(
-		domain.WithTenantID(envA.Tenant.ID),
-		domain.WithUserID(int64(envA.User.ID())),
-		domain.WithTitle("Tenant A Session"),
+	sessionA := mustSession(t,
+		withSessionTenantID(envA.Tenant.ID),
+		withSessionUserID(int64(envA.User.ID())),
+		withSessionTitle("Tenant A Session"),
 	)
 	err := repo.CreateSession(envA.Ctx, sessionA)
 	require.NoError(t, err)
@@ -1515,10 +1517,10 @@ func TestPostgresChatRepository_TenantIsolation_Messages(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create session in Tenant B
-	sessionB := domain.NewSession(
-		domain.WithTenantID(envB.Tenant.ID),
-		domain.WithUserID(int64(envB.User.ID())),
-		domain.WithTitle("Tenant B Session"),
+	sessionB := mustSession(t,
+		withSessionTenantID(envB.Tenant.ID),
+		withSessionUserID(int64(envB.User.ID())),
+		withSessionTitle("Tenant B Session"),
 	)
 	err = repo.CreateSession(envB.Ctx, sessionB)
 	require.NoError(t, err)
@@ -1544,10 +1546,10 @@ func TestPostgresChatRepository_TenantIsolation_Attachments(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session, message, and attachment in Tenant A
-	sessionA := domain.NewSession(
-		domain.WithTenantID(envA.Tenant.ID),
-		domain.WithUserID(int64(envA.User.ID())),
-		domain.WithTitle("Tenant A Session"),
+	sessionA := mustSession(t,
+		withSessionTenantID(envA.Tenant.ID),
+		withSessionUserID(int64(envA.User.ID())),
+		withSessionTitle("Tenant A Session"),
 	)
 	err := repo.CreateSession(envA.Ctx, sessionA)
 	require.NoError(t, err)
@@ -1570,10 +1572,10 @@ func TestPostgresChatRepository_TenantIsolation_Attachments(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create session and message in Tenant B
-	sessionB := domain.NewSession(
-		domain.WithTenantID(envB.Tenant.ID),
-		domain.WithUserID(int64(envB.User.ID())),
-		domain.WithTitle("Tenant B Session"),
+	sessionB := mustSession(t,
+		withSessionTenantID(envB.Tenant.ID),
+		withSessionUserID(int64(envB.User.ID())),
+		withSessionTitle("Tenant B Session"),
 	)
 	err = repo.CreateSession(envB.Ctx, sessionB)
 	require.NoError(t, err)
@@ -1604,18 +1606,18 @@ func TestPostgresChatRepository_EmptyTitle(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session with empty title
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle(""),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle(""),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	// Verify empty title is preserved
+	// Verify empty input is normalized by strict session constructor.
 	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
-	assert.Empty(t, retrieved.Title())
+	assert.Equal(t, "Untitled Session", retrieved.Title())
 }
 
 func TestPostgresChatRepository_NilParentSessionID(t *testing.T) {
@@ -1625,10 +1627,10 @@ func TestPostgresChatRepository_NilParentSessionID(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session without parent
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("No Parent"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("No Parent"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1646,10 +1648,10 @@ func TestPostgresChatRepository_PaginationBoundaries(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create a session with a few messages
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Boundary Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Boundary Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1684,10 +1686,10 @@ func TestPostgresChatRepository_LargeAttachment(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session and message
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Large Attachment Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Large Attachment Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1723,10 +1725,10 @@ func TestPostgresChatRepository_ToolCallID(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Tool Call ID Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Tool Call ID Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1768,20 +1770,20 @@ func TestPostgresChatRepository_UpdateSession_NullParent(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create parent session
-	parentSession := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Parent"),
+	parentSession := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Parent"),
 	)
 	err := repo.CreateSession(env.Ctx, parentSession)
 	require.NoError(t, err)
 
 	// Create child session with parent
-	childSession := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Child"),
-		domain.WithParentSessionID(parentSession.ID()),
+	childSession := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Child"),
+		withSessionParentID(parentSession.ID()),
 	)
 	err = repo.CreateSession(env.Ctx, childSession)
 	require.NoError(t, err)
@@ -1802,10 +1804,10 @@ func TestPostgresChatRepository_MessageWithNilToolCallID(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Nil Tool Call Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Nil Tool Call Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1832,19 +1834,20 @@ func TestPostgresChatRepository_UpdateSessionTimestamp(t *testing.T) {
 	base := time.Now().Add(-1 * time.Hour)
 
 	// Create session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Timestamp Test"),
-		domain.WithCreatedAt(base),
-		domain.WithUpdatedAt(base),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Timestamp Test"),
+		withSessionCreatedAt(base),
+		withSessionUpdatedAt(base),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
 	originalUpdatedAt := session.UpdatedAt()
 
-	updated := session.UpdateTitle("Updated")
+	updated, err := session.Rename("Updated", time.Now())
+	require.NoError(t, err)
 	err = repo.UpdateSession(env.Ctx, updated)
 	require.NoError(t, err)
 
@@ -1860,10 +1863,10 @@ func TestPostgresChatRepository_GetMessage_HydratesAttachments(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Hydration Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Hydration Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1896,10 +1899,10 @@ func TestPostgresChatRepository_GetSessionMessages_HydratesAttachments(t *testin
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Session Message Attachment Hydration"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Session Message Attachment Hydration"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1941,10 +1944,10 @@ func TestPostgresChatRepository_GetSession_WithSQLNullTypes(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("NULL Fields Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("NULL Fields Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
@@ -1961,10 +1964,10 @@ func TestPostgresChatRepository_InvalidTenantContext(t *testing.T) {
 	repo := persistence.NewPostgresChatRepository()
 
 	// Create session
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Invalid Context Test"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Invalid Context Test"),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)

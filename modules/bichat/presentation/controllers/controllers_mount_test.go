@@ -95,7 +95,11 @@ func (m *deterministicModel) Pricing() bichatagents.ModelPricing { return bichat
 type controllerDeps struct {
 	chatRepo          bichatdomain.ChatRepository
 	agentService      pkgservices.AgentService
-	chatService       pkgservices.ChatService
+	sessionCommands   pkgservices.SessionCommands
+	sessionQueries    pkgservices.SessionQueries
+	turnCommands      pkgservices.TurnCommands
+	streamCommands    pkgservices.StreamCommands
+	hitlCommands      pkgservices.HITLCommands
 	attachmentService pkgservices.AttachmentService
 }
 
@@ -127,7 +131,11 @@ func newControllerDeps(t *testing.T) controllerDeps {
 	return controllerDeps{
 		chatRepo:          chatRepo,
 		agentService:      agentService,
-		chatService:       chatService,
+		sessionCommands:   chatService,
+		sessionQueries:    chatService,
+		turnCommands:      chatService,
+		streamCommands:    chatService,
+		hitlCommands:      chatService,
 		attachmentService: attachmentService,
 	}
 }
@@ -169,7 +177,7 @@ func newRouterWithContext(t *testing.T, env *itf.TestEnvironment, u coreuser.Use
 func mustCreateSession(t *testing.T, ctx context.Context, deps controllerDeps, tenantID uuid.UUID, u coreuser.User, title string) bichatdomain.Session {
 	t.Helper()
 
-	s, err := deps.chatService.CreateSession(context.WithValue(ctx, constants.TxKey, nil), tenantID, int64(u.ID()), title)
+	s, err := deps.sessionCommands.CreateSession(context.WithValue(ctx, constants.TxKey, nil), tenantID, int64(u.ID()), title)
 	require.NoError(t, err)
 	require.NotNil(t, s)
 	return s
@@ -209,7 +217,7 @@ func TestControllers_BasePathRouting_Integration(t *testing.T) {
 	basePath := "/admin/ali/chat"
 
 	r := newRouterWithContext(t, env, u)
-	NewChatController(env.App, deps.chatService, deps.chatRepo, deps.agentService, nil, nil,
+	NewChatController(env.App, deps.sessionCommands, deps.sessionQueries, deps.turnCommands, deps.hitlCommands, deps.chatRepo, deps.agentService, nil, nil,
 		WithBasePath(basePath),
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
@@ -233,7 +241,7 @@ func TestStreamController_RequireAccessPermission_Integration(t *testing.T) {
 	deps := newControllerDeps(t)
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.chatService, deps.attachmentService, WithRequireAccessPermission(bichatperm.BiChatAccess)).Register(r)
+	NewStreamController(env.App, deps.streamCommands, deps.sessionQueries, deps.attachmentService, WithRequireAccessPermission(bichatperm.BiChatAccess)).Register(r)
 
 	w := flusherRecorder{ResponseRecorder: httptest.NewRecorder()}
 	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewBufferString(`{}`))
@@ -253,7 +261,7 @@ func TestChatController_OwnershipVsReadAllPermission_Integration(t *testing.T) {
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u2, "owned by u2")
 
 	r := newRouterWithContext(t, env, u1)
-	NewChatController(env.App, deps.chatService, deps.chatRepo, deps.agentService, nil, nil,
+	NewChatController(env.App, deps.sessionCommands, deps.sessionQueries, deps.turnCommands, deps.hitlCommands, deps.chatRepo, deps.agentService, nil, nil,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 		WithReadAllPermission(bichatperm.BiChatExport),
 	).Register(r)
@@ -265,7 +273,7 @@ func TestChatController_OwnershipVsReadAllPermission_Integration(t *testing.T) {
 
 	u1ReadAll := u1.AddPermission(bichatperm.BiChatExport)
 	r2 := newRouterWithContext(t, env, u1ReadAll)
-	NewChatController(env.App, deps.chatService, deps.chatRepo, deps.agentService, nil, nil,
+	NewChatController(env.App, deps.sessionCommands, deps.sessionQueries, deps.turnCommands, deps.hitlCommands, deps.chatRepo, deps.agentService, nil, nil,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 		WithReadAllPermission(bichatperm.BiChatExport),
 	).Register(r2)
@@ -288,8 +296,8 @@ func TestStreamController_DebugMode_AllowedWithoutExtraPermission_Integration(t 
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "s")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.chatService,
-		deps.attachmentService,
+	NewStreamController(env.App, deps.streamCommands,
+		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
@@ -322,8 +330,8 @@ func TestStreamController_DebugMode_AllowedWithExportPermission_Integration(t *t
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "s")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.chatService,
-		deps.attachmentService,
+	NewStreamController(env.App, deps.streamCommands,
+		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
@@ -355,8 +363,8 @@ func TestStreamController_ReplaceFromMessageID_TruncatesHistory_Integration(t *t
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "s")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.chatService,
-		deps.attachmentService,
+	NewStreamController(env.App, deps.streamCommands,
+		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
@@ -422,8 +430,8 @@ func TestStreamController_AttachmentUpload_PersistsOnUserMessage_Integration(t *
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "attachments")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.chatService,
-		deps.attachmentService,
+	NewStreamController(env.App, deps.streamCommands,
+		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
@@ -474,8 +482,8 @@ func TestStreamController_Stop_Returns200_Integration(t *testing.T) {
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "stop test")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.chatService,
-		deps.attachmentService,
+	NewStreamController(env.App, deps.streamCommands,
+		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 
@@ -500,8 +508,8 @@ func TestStreamController_Stop_Returns400_WhenSessionIDMissing(t *testing.T) {
 
 	deps := newControllerDeps(t)
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.chatService,
-		deps.attachmentService,
+	NewStreamController(env.App, deps.streamCommands,
+		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
 

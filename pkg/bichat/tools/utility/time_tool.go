@@ -3,8 +3,9 @@ package utility
 import (
 	"context"
 	"fmt"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"time"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"

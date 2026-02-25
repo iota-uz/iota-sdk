@@ -3,12 +3,13 @@ package export
 import (
 	"context"
 	"encoding/json"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
