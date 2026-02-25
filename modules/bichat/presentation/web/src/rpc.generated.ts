@@ -25,7 +25,7 @@ export type BichatRPC = {
   "bichat.session.unpin": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.updateTitle": { params: SessionUpdateTitleParams; result: SessionCreateResult }
   "bichat.session.uploadArtifacts": { params: SessionUploadArtifactsParams; result: SessionUploadArtifactsResult }
-  "bichat.user.list": { params: PingParams; result: UserListResult }
+  "bichat.user.list": { params: UserListParams; result: UserListResult }
 }
 
 export interface Artifact {
@@ -381,6 +381,8 @@ export interface ToolCall {
   error?: string
   durationMs?: number
 }
+
+export type UserListParams = Record<string, never>
 
 export interface UserListResult {
   users: SessionUser[]
