@@ -181,6 +181,7 @@ jobs:
         image: postgres:17
         ports:
           - 5432:5432
+        command: [ "postgres", "-c", "max_connections=500" ]
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -323,6 +324,7 @@ jobs:
         image: postgres:17
         ports:
           - 5432:5432
+        command: [ "postgres", "-c", "max_connections=500" ]
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
