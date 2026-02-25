@@ -148,23 +148,31 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 			}
 
 			trimmed := strings.TrimSpace(summary)
-			if trimmed != "" {
-				active.Mu.Lock()
-				active.Content = trimmed
-				active.Mu.Unlock()
-				active.Broadcast(bichatservices.StreamChunk{
-					Type:      bichatservices.ChunkTypeContent,
-					Content:   trimmed,
-					Timestamp: time.Now(),
-				})
-				_ = s.updateRunSnapshot(
-					persistCtx,
-					session.TenantID(),
-					sessionID,
-					runID,
-					trimmed,
-					map[string]any{},
-				)
+			if trimmed == "" {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, serrors.KindValidation, "compaction summary is empty"), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
+
+			active.Mu.Lock()
+			active.Content = trimmed
+			active.Mu.Unlock()
+			active.Broadcast(bichatservices.StreamChunk{
+				Type:      bichatservices.ChunkTypeContent,
+				Content:   trimmed,
+				Timestamp: time.Now(),
+			})
+			if snapErr := s.updateRunSnapshot(
+				persistCtx,
+				session.TenantID(),
+				sessionID,
+				runID,
+				trimmed,
+				map[string]any{},
+			); snapErr != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, snapErr), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
 			}
 
 			if processErr := processCtx.Err(); processErr != nil {
@@ -205,7 +213,11 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 				return
 			}
 
-			_ = s.completeRunState(persistCtx, session.TenantID(), sessionID, runID)
+			if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), time.Since(startedAt).Milliseconds()))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
 			active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
 		},
 	)
