@@ -172,7 +172,7 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}
-			persistRunCtx, persistCancel := context.WithTimeout(processCtx, streamPersistenceTimeout)
+			persistRunCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
 			defer persistCancel()
 
 			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
@@ -200,7 +200,7 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 				return nil
 			})
 			if err != nil {
-				active.Broadcast(streamingsvc.TerminalChunk(err, 0))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}
