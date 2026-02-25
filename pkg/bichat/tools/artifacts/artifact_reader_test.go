@@ -14,82 +14,15 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	testutil "github.com/iota-uz/iota-sdk/pkg/bichat/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type artifactReaderRepoStub struct {
+	testutil.NoOpChatRepository
 	artifactsByID map[uuid.UUID]domain.Artifact
 	bySession     map[uuid.UUID][]domain.Artifact
-}
-
-func (s *artifactReaderRepoStub) CreateSession(ctx context.Context, session domain.Session) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
-	return nil, errors.New("not found")
-}
-
-func (s *artifactReaderRepoStub) UpdateSession(ctx context.Context, session domain.Session) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
-	return true, nil
-}
-
-func (s *artifactReaderRepoStub) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
-	return nil, nil
-}
-
-func (s *artifactReaderRepoStub) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
-	return 0, nil
-}
-
-func (s *artifactReaderRepoStub) DeleteSession(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) SaveMessage(ctx context.Context, msg types.Message) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error) {
-	return nil, errors.New("not found")
-}
-
-func (s *artifactReaderRepoStub) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
-	return nil, nil
-}
-
-func (s *artifactReaderRepoStub) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
-	return 0, nil
-}
-
-func (s *artifactReaderRepoStub) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) GetAttachment(ctx context.Context, id uuid.UUID) (domain.Attachment, error) {
-	return nil, errors.New("not found")
-}
-
-func (s *artifactReaderRepoStub) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]domain.Attachment, error) {
-	return nil, nil
-}
-
-func (s *artifactReaderRepoStub) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
-	return nil
 }
 
 func (s *artifactReaderRepoStub) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
@@ -115,52 +48,6 @@ func (s *artifactReaderRepoStub) GetSessionArtifacts(ctx context.Context, sessio
 		end = len(artifacts)
 	}
 	return append([]domain.Artifact(nil), artifacts[opts.Offset:end]...), nil
-}
-
-func (s *artifactReaderRepoStub) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
-	return 0, nil
-}
-
-func (s *artifactReaderRepoStub) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error {
-	return nil
-}
-
-var errNoPendingQuestion = errors.New("no pending question")
-
-func (s *artifactReaderRepoStub) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
-	return nil, errNoPendingQuestion
-}
-
-func (s *artifactReaderRepoStub) CreateRun(ctx context.Context, run domain.GenerationRun) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
-	return nil, domain.ErrNoActiveRun
-}
-
-func (s *artifactReaderRepoStub) GetRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
-	return nil, domain.ErrRunNotFound
-}
-
-func (s *artifactReaderRepoStub) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) CompleteRun(ctx context.Context, runID uuid.UUID) error {
-	return nil
-}
-
-func (s *artifactReaderRepoStub) CancelRun(ctx context.Context, runID uuid.UUID) error {
-	return nil
 }
 
 type artifactReaderStorageStub struct {

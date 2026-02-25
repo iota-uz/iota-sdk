@@ -1947,7 +1947,7 @@ func (r *PostgresChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrRunNotFound
+			return nil, serrors.E(op, domain.ErrRunNotFound)
 		}
 		return nil, serrors.E(op, err)
 	}

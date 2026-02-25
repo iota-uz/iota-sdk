@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -51,9 +52,6 @@ func NewChatService(
 	titleQueue TitleJobQueue,
 ) *chatServiceImpl {
 	runStore := newConfiguredGenerationRunStore()
-	if runStore == nil {
-		runStore = newRepositoryGenerationRunStore(chatRepo)
-	}
 	accessRepo := chatRepo.(domain.SessionAccessRepository)
 	return &chatServiceImpl{
 		chatRepo:           chatRepo,
@@ -286,11 +284,12 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 	}
 
 	lastContent := persisted.PartialContent()
+	lastMetadata := persisted.PartialMetadata()
 	onChunk(bichatservices.StreamChunk{
 		Type: bichatservices.ChunkTypeSnapshot,
 		Snapshot: &bichatservices.StreamSnapshot{
 			PartialContent:  lastContent,
-			PartialMetadata: persisted.PartialMetadata(),
+			PartialMetadata: lastMetadata,
 		},
 		Timestamp: time.Now(),
 	})
@@ -328,8 +327,11 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 			}
 
 			currentContent := current.PartialContent()
-			if currentContent != lastContent {
-				if strings.HasPrefix(currentContent, lastContent) {
+			currentMetadata := current.PartialMetadata()
+			contentChanged := currentContent != lastContent
+			metadataChanged := !reflect.DeepEqual(currentMetadata, lastMetadata)
+			if contentChanged || metadataChanged {
+				if contentChanged && !metadataChanged && strings.HasPrefix(currentContent, lastContent) {
 					delta := strings.TrimPrefix(currentContent, lastContent)
 					if delta != "" {
 						onChunk(bichatservices.StreamChunk{
@@ -343,12 +345,13 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 						Type: bichatservices.ChunkTypeSnapshot,
 						Snapshot: &bichatservices.StreamSnapshot{
 							PartialContent:  currentContent,
-							PartialMetadata: current.PartialMetadata(),
+							PartialMetadata: currentMetadata,
 						},
 						Timestamp: time.Now(),
 					})
 				}
 				lastContent = currentContent
+				lastMetadata = currentMetadata
 			}
 
 			if current.Status() != domain.GenerationRunStatusStreaming {

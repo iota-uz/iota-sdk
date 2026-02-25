@@ -139,15 +139,26 @@ func (s *redisGenerationRunStore) CreateRun(ctx context.Context, run domain.Gene
 		return serrors.E(op, "marshal run state", err)
 	}
 
-	created, err := s.client.SetNX(ctx, s.sessionKey(run.TenantID(), run.SessionID()), payload, s.ttl).Result()
+	sessionKey := s.sessionKey(run.TenantID(), run.SessionID())
+	runKey := s.runKey(run.TenantID(), run.ID())
+
+	created, err := s.client.SetNX(ctx, sessionKey, payload, s.ttl).Result()
 	if err != nil {
 		return serrors.E(op, "create run state", err)
 	}
 	if !created {
 		return domain.ErrActiveRunExists
 	}
-	if err := s.client.Set(ctx, s.runKey(run.TenantID(), run.ID()), payload, s.ttl).Err(); err != nil {
-		_, _ = s.client.Del(ctx, s.sessionKey(run.TenantID(), run.SessionID())).Result()
+	if err := s.client.Set(ctx, runKey, payload, s.ttl).Err(); err != nil {
+		if _, rollbackErr := s.client.Del(ctx, sessionKey).Result(); rollbackErr != nil {
+			return serrors.E(op, fmt.Errorf(
+				"create run index via s.client.Set(ctx, %q) failed: %w; rollback s.client.Del(%q) failed: %v",
+				runKey,
+				err,
+				sessionKey,
+				rollbackErr,
+			))
+		}
 		return serrors.E(op, "create run index", err)
 	}
 	return nil

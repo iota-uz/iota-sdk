@@ -199,7 +199,12 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			gen, err := s.agentService.ResumeWithAnswer(processCtx, req.SessionID, resolvedCheckpointID, answersMap)
 			if err != nil {
 				if errors.Is(err, agents.ErrCheckpointNotFound) {
-					updateCtx, cancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+					if processErr := processCtx.Err(); processErr != nil {
+						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, processErr), 0))
+						_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+						return
+					}
+					updateCtx, cancel := context.WithTimeout(processCtx, streamPersistenceTimeout)
 					defer cancel()
 					if txErr := s.withinTx(updateCtx, func(txCtx context.Context) error {
 						return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, answeredQuestionData)
@@ -245,7 +250,12 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 				map[string]any{"tool_calls": result.toolCalls},
 			)
 
-			persistRunCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+			if processErr := processCtx.Err(); processErr != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, processErr), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+				return
+			}
+			persistRunCtx, persistCancel := context.WithTimeout(processCtx, streamPersistenceTimeout)
 			defer persistCancel()
 			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
 				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, answeredQuestionData); err != nil {
@@ -418,7 +428,12 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 			gen, err := s.agentService.ResumeWithAnswer(processCtx, sessionID, checkpointID, rejectionAnswers)
 			if err != nil {
 				if errors.Is(err, agents.ErrCheckpointNotFound) {
-					updateCtx, cancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+					if processErr := processCtx.Err(); processErr != nil {
+						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, processErr), 0))
+						_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+						return
+					}
+					updateCtx, cancel := context.WithTimeout(processCtx, streamPersistenceTimeout)
 					defer cancel()
 					if txErr := s.withinTx(updateCtx, func(txCtx context.Context) error {
 						return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, rejectedQuestionData)
@@ -463,7 +478,12 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 				map[string]any{"tool_calls": result.toolCalls},
 			)
 
-			persistRunCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
+			if processErr := processCtx.Err(); processErr != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, processErr), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
+			persistRunCtx, persistCancel := context.WithTimeout(processCtx, streamPersistenceTimeout)
 			defer persistCancel()
 			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
 				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, rejectedQuestionData); err != nil {

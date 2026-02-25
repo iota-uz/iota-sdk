@@ -2,17 +2,14 @@ package agents
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
 
-	"github.com/google/uuid"
 	coreagents "github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	testutil "github.com/iota-uz/iota-sdk/pkg/bichat/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,127 +25,7 @@ func (m *mockSQLExecutor) ExecuteQuery(ctx context.Context, sql string, params [
 	return &bichatsql.QueryResult{Columns: []string{}, Rows: [][]any{}, RowCount: 0}, nil
 }
 
-type mockChatRepoForDefinitions struct{}
-
-func (m *mockChatRepoForDefinitions) CreateSession(ctx context.Context, session domain.Session) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
-	return nil, errors.New("not found")
-}
-
-func (m *mockChatRepoForDefinitions) UpdateSession(ctx context.Context, session domain.Session) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
-	return true, nil
-}
-
-func (m *mockChatRepoForDefinitions) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
-	return nil, nil
-}
-
-func (m *mockChatRepoForDefinitions) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
-	return 0, nil
-}
-
-func (m *mockChatRepoForDefinitions) DeleteSession(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) SaveMessage(ctx context.Context, msg types.Message) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error) {
-	return nil, errors.New("not found")
-}
-
-func (m *mockChatRepoForDefinitions) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
-	return nil, nil
-}
-
-func (m *mockChatRepoForDefinitions) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
-	return 0, nil
-}
-
-func (m *mockChatRepoForDefinitions) UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
-	return nil, errors.New("no pending question")
-}
-
-func (m *mockChatRepoForDefinitions) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) GetAttachment(ctx context.Context, id uuid.UUID) (domain.Attachment, error) {
-	return nil, errors.New("not found")
-}
-
-func (m *mockChatRepoForDefinitions) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]domain.Attachment, error) {
-	return nil, nil
-}
-
-func (m *mockChatRepoForDefinitions) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
-	return nil, errors.New("not found")
-}
-
-func (m *mockChatRepoForDefinitions) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
-	return nil, nil
-}
-
-func (m *mockChatRepoForDefinitions) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
-	return 0, nil
-}
-
-func (m *mockChatRepoForDefinitions) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) CreateRun(ctx context.Context, run domain.GenerationRun) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
-	return nil, domain.ErrNoActiveRun
-}
-
-func (m *mockChatRepoForDefinitions) GetRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
-	return nil, domain.ErrRunNotFound
-}
-
-func (m *mockChatRepoForDefinitions) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) CompleteRun(ctx context.Context, runID uuid.UUID) error {
-	return nil
-}
-
-func (m *mockChatRepoForDefinitions) CancelRun(ctx context.Context, runID uuid.UUID) error {
-	return nil
-}
+type mockChatRepoForDefinitions = testutil.NoOpChatRepository
 
 func findDefinitionByName(t *testing.T, defs []SubAgentDefinition, name string) SubAgentDefinition {
 	t.Helper()

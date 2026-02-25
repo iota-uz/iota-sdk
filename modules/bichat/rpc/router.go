@@ -350,13 +350,16 @@ func Router(
 			if err != nil {
 				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-			return AsyncRunAcceptedResult{
+			response := AsyncRunAcceptedResult{
 				Accepted:  result.Accepted,
 				Operation: string(result.Operation),
-				SessionID: result.SessionID.String(),
-				RunID:     result.RunID.String(),
-				StartedAt: result.StartedAt.UnixMilli(),
-			}, nil
+			}
+			if result.Accepted {
+				response.SessionID = result.SessionID.String()
+				response.RunID = result.RunID.String()
+				response.StartedAt = result.StartedAt.UnixMilli()
+			}
+			return response, nil
 		},
 	}))
 
@@ -613,6 +616,14 @@ func Router(
 		Handler: func(ctx context.Context, p QuestionSubmitParams) (AsyncRunAcceptedResult, error) {
 			const op serrors.Op = "bichat.rpc.question.submit"
 
+			checkpointID := strings.TrimSpace(p.CheckpointID)
+			if checkpointID == "" {
+				return AsyncRunAcceptedResult{}, serrors.E(op, serrors.KindValidation, "checkpointId is required")
+			}
+			if len(p.Answers) == 0 {
+				return AsyncRunAcceptedResult{}, serrors.E(op, serrors.KindValidation, "answers are required")
+			}
+
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
 				return AsyncRunAcceptedResult{}, serrors.E(op, err)
@@ -620,19 +631,22 @@ func Router(
 
 			result, err := hitlCommands.ResumeWithAnswerAsync(ctx, services.ResumeRequest{
 				SessionID:    session.ID(),
-				CheckpointID: p.CheckpointID,
+				CheckpointID: checkpointID,
 				Answers:      p.Answers,
 			})
 			if err != nil {
 				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-			return AsyncRunAcceptedResult{
+			response := AsyncRunAcceptedResult{
 				Accepted:  result.Accepted,
 				Operation: string(result.Operation),
-				SessionID: result.SessionID.String(),
-				RunID:     result.RunID.String(),
-				StartedAt: result.StartedAt.UnixMilli(),
-			}, nil
+			}
+			if result.Accepted {
+				response.SessionID = result.SessionID.String()
+				response.RunID = result.RunID.String()
+				response.StartedAt = result.StartedAt.UnixMilli()
+			}
+			return response, nil
 		},
 	}))
 
@@ -649,13 +663,16 @@ func Router(
 			if err != nil {
 				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-			return AsyncRunAcceptedResult{
+			response := AsyncRunAcceptedResult{
 				Accepted:  result.Accepted,
 				Operation: string(result.Operation),
-				SessionID: result.SessionID.String(),
-				RunID:     result.RunID.String(),
-				StartedAt: result.StartedAt.UnixMilli(),
-			}, nil
+			}
+			if result.Accepted {
+				response.SessionID = result.SessionID.String()
+				response.RunID = result.RunID.String()
+				response.StartedAt = result.StartedAt.UnixMilli()
+			}
+			return response, nil
 		},
 	}))
 
