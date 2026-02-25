@@ -3,9 +3,12 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/iota-uz/applets"
+	modulepermissions "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -13,7 +16,113 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) *applets.TypedRPCRouter {
+func hasReadAllPermission(ctx context.Context) bool {
+	return composables.CanUser(ctx, modulepermissions.BiChatReadAll) == nil
+}
+
+func requireSessionAccess(
+	ctx context.Context,
+	sessionQueries services.SessionQueries,
+	sessionID string,
+	requireWrite bool,
+	requireManageMembers bool,
+) (domain.Session, domain.SessionAccess, error) {
+	const op serrors.Op = "bichat.rpc.requireSessionAccess"
+
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, domain.SessionAccess{}, serrors.E(op, serrors.PermissionDenied, err)
+	}
+
+	parsedSessionID, err := parseUUID(sessionID)
+	if err != nil {
+		return nil, domain.SessionAccess{}, serrors.E(op, serrors.Invalid, err)
+	}
+
+	access, err := sessionQueries.ResolveSessionAccess(ctx, parsedSessionID, int64(user.ID()), hasReadAllPermission(ctx))
+	if err != nil {
+		return nil, domain.SessionAccess{}, serrors.E(op, err)
+	}
+	if err := access.Require(requireWrite, requireManageMembers); err != nil {
+		return nil, domain.SessionAccess{}, serrors.E(op, serrors.PermissionDenied, err)
+	}
+
+	session, err := sessionQueries.GetSession(ctx, parsedSessionID)
+	if err != nil {
+		return nil, domain.SessionAccess{}, serrors.E(op, err)
+	}
+
+	return session, access, nil
+}
+
+func withSessionMeta(ctx context.Context, sessionQueries services.SessionQueries, session domain.Session, access domain.SessionAccess) Session {
+	memberCount := 1
+	members, err := sessionQueries.ListSessionMembers(ctx, session.ID())
+	if err != nil {
+		configuration.Use().Logger().WithError(err).Warn("failed to list session members for session metadata")
+	} else {
+		memberCount = len(members) + 1
+	}
+
+	owner, err := resolveSessionOwner(ctx, sessionQueries, session.UserID())
+	if err != nil {
+		configuration.Use().Logger().WithError(err).Warn("failed to resolve session owner metadata")
+	}
+	return toSessionDTOWithMeta(session, &owner, &access, memberCount)
+}
+
+func resolveSessionOwner(ctx context.Context, sessionQueries services.SessionQueries, ownerUserID int64) (domain.SessionUser, error) {
+	const op serrors.Op = "bichat.rpc.resolveSessionOwner"
+
+	user, err := sessionQueries.GetTenantUser(ctx, ownerUserID)
+	if err != nil {
+		return domain.SessionUser{ID: ownerUserID}, serrors.E(op, err)
+	}
+
+	return user, nil
+}
+
+// upsertSessionMember validates member upsert payload and delegates to service.
+// Used by both add and updateRole RPC handlers to keep request validation in one place.
+func upsertSessionMember(ctx context.Context, sessionCommands services.SessionCommands, session domain.Session, p SessionMembersUpsertParams) error {
+	const op serrors.Op = "bichat.rpc.session.members.upsert"
+
+	userID, err := parseUserID(p.UserID)
+	if err != nil {
+		return serrors.E(op, serrors.Invalid, err)
+	}
+	if userID == session.UserID() {
+		return serrors.E(op, serrors.KindValidation, "owner cannot be added as a member")
+	}
+
+	role, err := domain.NewSessionMemberRole(p.Role)
+	if err != nil {
+		return serrors.E(op, serrors.KindValidation, err)
+	}
+	command, err := domain.NewSessionMemberUpsert(domain.SessionMemberUpsertSpec{
+		SessionID: session.ID(),
+		UserID:    userID,
+		Role:      role,
+	})
+	if err != nil {
+		return serrors.E(op, serrors.KindValidation, err)
+	}
+	if err := sessionCommands.UpsertSessionMember(ctx, command); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
+func Router(
+	sessionCommands services.SessionCommands,
+	sessionQueries services.SessionQueries,
+	turnCommands services.TurnCommands,
+	turnQueries services.TurnQueries,
+	hitlCommands services.HITLCommands,
+	artifactSvc services.ArtifactService,
+) *applets.TypedRPCRouter {
+	// Reserved for dedicated non-streaming turn command RPC procedures.
+	_ = turnCommands
 	r := applets.NewTypedRPCRouter()
 	mustAdd := func(err error) {
 		if err != nil {
@@ -52,12 +161,12 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				requestedLimit = 50
 			}
 			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: p.Offset, IncludeArchived: p.IncludeArchived}
-			list, err := chatSvc.ListUserSessions(ctx, int64(user.ID()), opts)
+			list, err := sessionQueries.ListAccessibleSessions(ctx, int64(user.ID()), opts)
 			if err != nil {
 				return SessionListResult{}, serrors.E(op, err)
 			}
 			// Total = full count matching filter (for pagination), not page size
-			total, err := chatSvc.CountUserSessions(ctx, int64(user.ID()), domain.ListOptions{IncludeArchived: p.IncludeArchived})
+			total, err := sessionQueries.CountAccessibleSessions(ctx, int64(user.ID()), domain.ListOptions{IncludeArchived: p.IncludeArchived})
 			if err != nil {
 				return SessionListResult{}, serrors.E(op, err)
 			}
@@ -67,9 +176,76 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 			out := make([]Session, 0, len(list))
 			for _, s := range list {
-				out = append(out, toSessionDTO(s))
+				out = append(out, toSessionDTOFromSummary(s))
 			}
 			return SessionListResult{Sessions: out, Total: total, HasMore: hasMore}, nil
+		},
+	}))
+
+	mustAdd(applets.AddProcedure(r, "bichat.session.listAll", applets.Procedure[SessionListAllParams, SessionListAllResult]{
+		RequirePermissions: []string{"BiChat.ReadAll"},
+		Handler: func(ctx context.Context, p SessionListAllParams) (SessionListAllResult, error) {
+			const op serrors.Op = "bichat.rpc.session.listAll"
+
+			user, err := composables.UseUser(ctx)
+			if err != nil {
+				return SessionListAllResult{}, serrors.E(op, serrors.PermissionDenied, err)
+			}
+
+			requestedLimit := p.Limit
+			if requestedLimit <= 0 {
+				requestedLimit = 50
+			}
+
+			var ownerUserID *int64
+			if p.UserID != nil {
+				value := strings.TrimSpace(*p.UserID)
+				if value != "" {
+					parsed, parseErr := strconv.ParseInt(value, 10, 64)
+					if parseErr != nil {
+						return SessionListAllResult{}, serrors.E(op, serrors.Invalid, parseErr)
+					}
+					ownerUserID = &parsed
+				}
+			}
+
+			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: p.Offset, IncludeArchived: p.IncludeArchived}
+			list, err := sessionQueries.ListAllSessions(ctx, int64(user.ID()), opts, ownerUserID)
+			if err != nil {
+				return SessionListAllResult{}, serrors.E(op, err)
+			}
+			total, err := sessionQueries.CountAllSessions(ctx, domain.ListOptions{IncludeArchived: p.IncludeArchived}, ownerUserID)
+			if err != nil {
+				return SessionListAllResult{}, serrors.E(op, err)
+			}
+			hasMore := len(list) > requestedLimit
+			if hasMore {
+				list = list[:requestedLimit]
+			}
+
+			out := make([]Session, 0, len(list))
+			for _, summary := range list {
+				out = append(out, toSessionDTOFromSummary(summary))
+			}
+
+			return SessionListAllResult{Sessions: out, Total: total, HasMore: hasMore}, nil
+		},
+	}))
+
+	mustAdd(applets.AddProcedure(r, "bichat.user.list", applets.Procedure[UserListParams, UserListResult]{
+		RequirePermissions: []string{"BiChat.ReadAll"},
+		Handler: func(ctx context.Context, _ UserListParams) (UserListResult, error) {
+			const op serrors.Op = "bichat.rpc.user.list"
+
+			users, err := sessionQueries.ListTenantUsers(ctx)
+			if err != nil {
+				return UserListResult{}, serrors.E(op, err)
+			}
+			out := make([]SessionUser, 0, len(users))
+			for _, user := range users {
+				out = append(out, toSessionUserDTO(user))
+			}
+			return UserListResult{Users: out}, nil
 		},
 	}))
 
@@ -87,7 +263,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
 			}
 
-			s, err := chatSvc.CreateSession(ctx, tenantID, int64(user.ID()), p.Title)
+			s, err := sessionCommands.CreateSession(ctx, tenantID, int64(user.ID()), p.Title)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -99,18 +275,12 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		RequirePermissions: []string{"BiChat.Access"},
 		Handler: func(ctx context.Context, p SessionGetParams) (SessionGetResult, error) {
 			const op serrors.Op = "bichat.rpc.session.get"
-
-			sessionID, err := parseUUID(p.ID)
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-
-			s, err := requireSessionOwner(ctx, chatSvc, sessionID)
+			s, access, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, false)
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 
-			msgs, err := chatSvc.GetSessionMessages(ctx, sessionID, domain.ListOptions{Limit: 500})
+			msgs, err := turnQueries.GetSessionMessages(ctx, s.ID(), domain.ListOptions{Limit: 500})
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
@@ -118,7 +288,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			pq := pendingQuestionFromMessages(msgs)
 
 			return SessionGetResult{
-				Session:         toSessionDTO(s),
+				Session:         withSessionMeta(ctx, sessionQueries, s, access),
 				Turns:           buildTurns(msgs),
 				PendingQuestion: pq,
 			}, nil
@@ -130,15 +300,12 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionUpdateTitleParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.updateTitle"
 
-			sessionID, err := parseUUID(p.ID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
 
-			s, err := chatSvc.UpdateSessionTitle(ctx, sessionID, p.Title)
+			s, err := sessionCommands.UpdateSessionTitle(ctx, session.ID(), p.Title)
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -151,15 +318,12 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionClearResult, error) {
 			const op serrors.Op = "bichat.rpc.session.clear"
 
-			sessionID, err := parseUUID(p.ID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionClearResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionClearResult{}, serrors.E(op, err)
 			}
 
-			result, err := chatSvc.ClearSessionHistory(ctx, sessionID)
+			result, err := sessionCommands.ClearSessionHistory(ctx, session.ID())
 			if err != nil {
 				return SessionClearResult{}, serrors.E(op, err)
 			}
@@ -177,15 +341,12 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCompactResult, error) {
 			const op serrors.Op = "bichat.rpc.session.compact"
 
-			sessionID, err := parseUUID(p.ID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCompactResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionCompactResult{}, serrors.E(op, err)
 			}
 
-			result, err := chatSvc.CompactSessionHistory(ctx, sessionID)
+			result, err := sessionCommands.CompactSessionHistory(ctx, session.ID())
 			if err != nil {
 				return SessionCompactResult{}, serrors.E(op, err)
 			}
@@ -204,14 +365,11 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionIDParams) (OkResult, error) {
 			const op serrors.Op = "bichat.rpc.session.delete"
 
-			sessionID, err := parseUUID(p.ID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return OkResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
-			if err := chatSvc.DeleteSession(ctx, sessionID); err != nil {
+			if err := sessionCommands.DeleteSession(ctx, session.ID()); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
 			return OkResult{Ok: true}, nil
@@ -223,14 +381,11 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.pin"
 
-			sessionID, err := parseUUID(p.ID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := chatSvc.PinSession(ctx, sessionID)
+			s, err := sessionCommands.PinSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -243,14 +398,11 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.unpin"
 
-			sessionID, err := parseUUID(p.ID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := chatSvc.UnpinSession(ctx, sessionID)
+			s, err := sessionCommands.UnpinSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -263,11 +415,8 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionArtifactsParams) (SessionArtifactsResult, error) {
 			const op serrors.Op = "bichat.rpc.session.artifacts"
 
-			sessionID, err := parseUUID(p.SessionID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, false)
 			if err != nil {
-				return SessionArtifactsResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionArtifactsResult{}, serrors.E(op, err)
 			}
 
@@ -281,7 +430,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 
 			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: offset}
-			list, err := artifactSvc.GetSessionArtifacts(ctx, sessionID, opts)
+			list, err := artifactSvc.GetSessionArtifacts(ctx, session.ID(), opts)
 			if err != nil {
 				return SessionArtifactsResult{}, serrors.E(op, err)
 			}
@@ -308,11 +457,8 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionUploadArtifactsParams) (SessionUploadArtifactsResult, error) {
 			const op serrors.Op = "bichat.rpc.session.uploadArtifacts"
 
-			sessionID, err := parseUUID(p.SessionID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
-				return SessionUploadArtifactsResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionUploadArtifactsResult{}, serrors.E(op, err)
 			}
 			if len(p.Attachments) == 0 {
@@ -333,7 +479,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 				})
 			}
 
-			artifacts, err := artifactSvc.UploadSessionArtifacts(ctx, sessionID, uploads)
+			artifacts, err := artifactSvc.UploadSessionArtifacts(ctx, session.ID(), uploads)
 			if err != nil {
 				return SessionUploadArtifactsResult{}, serrors.E(op, err)
 			}
@@ -360,7 +506,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			if err != nil {
 				return ArtifactResult{}, serrors.E(op, err)
 			}
-			if _, err := requireSessionOwner(ctx, chatSvc, currentArtifact.SessionID()); err != nil {
+			if _, _, err := requireSessionAccess(ctx, sessionQueries, currentArtifact.SessionID().String(), true, false); err != nil {
 				return ArtifactResult{}, serrors.E(op, err)
 			}
 
@@ -397,7 +543,7 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			if err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
-			if _, err := requireSessionOwner(ctx, chatSvc, artifact.SessionID()); err != nil {
+			if _, _, err := requireSessionAccess(ctx, sessionQueries, artifact.SessionID().String(), true, false); err != nil {
 				return OkResult{}, serrors.E(op, err)
 			}
 
@@ -413,14 +559,11 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.archive"
 
-			sessionID, err := parseUUID(p.ID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := chatSvc.ArchiveSession(ctx, sessionID)
+			s, err := sessionCommands.ArchiveSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -433,14 +576,11 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.unarchive"
 
-			sessionID, err := parseUUID(p.ID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := chatSvc.UnarchiveSession(ctx, sessionID)
+			s, err := sessionCommands.UnarchiveSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -453,17 +593,14 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
 			const op serrors.Op = "bichat.rpc.session.regenerateTitle"
 
-			sessionID, err := parseUUID(p.ID)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			if err := chatSvc.GenerateSessionTitle(ctx, sessionID); err != nil {
+			if err := sessionCommands.GenerateSessionTitle(ctx, session.ID()); err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
-			s, err := chatSvc.GetSession(ctx, sessionID)
+			s, err := sessionQueries.GetSession(ctx, session.ID())
 			if err != nil {
 				return SessionCreateResult{}, serrors.E(op, err)
 			}
@@ -476,16 +613,13 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p QuestionSubmitParams) (SessionGetResult, error) {
 			const op serrors.Op = "bichat.rpc.question.submit"
 
-			sessionID, err := parseUUID(p.SessionID)
+			session, access, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 
-			_, err = chatSvc.ResumeWithAnswer(ctx, services.ResumeRequest{
-				SessionID:    sessionID,
+			_, err = hitlCommands.ResumeWithAnswer(ctx, services.ResumeRequest{
+				SessionID:    session.ID(),
 				CheckpointID: p.CheckpointID,
 				Answers:      p.Answers,
 			})
@@ -494,17 +628,17 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 			}
 
 			// Re-fetch session and messages to return updated state
-			s, err := chatSvc.GetSession(ctx, sessionID)
+			s, err := sessionQueries.GetSession(ctx, session.ID())
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
-			msgs, err := chatSvc.GetSessionMessages(ctx, sessionID, domain.ListOptions{Limit: 500})
+			msgs, err := turnQueries.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 
 			return SessionGetResult{
-				Session:         toSessionDTO(s),
+				Session:         withSessionMeta(ctx, sessionQueries, s, access),
 				Turns:           buildTurns(msgs),
 				PendingQuestion: pendingQuestionFromMessages(msgs),
 			}, nil
@@ -516,31 +650,130 @@ func Router(chatSvc services.ChatService, artifactSvc services.ArtifactService) 
 		Handler: func(ctx context.Context, p QuestionCancelParams) (SessionGetResult, error) {
 			const op serrors.Op = "bichat.rpc.question.reject"
 
-			sessionID, err := parseUUID(p.SessionID)
+			session, access, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, serrors.Invalid, err)
-			}
-			if _, err := requireSessionOwner(ctx, chatSvc, sessionID); err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
-			_, err = chatSvc.RejectPendingQuestion(ctx, sessionID)
+			_, err = hitlCommands.RejectPendingQuestion(ctx, session.ID())
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 			// Re-fetch to return updated state
-			s, err := chatSvc.GetSession(ctx, sessionID)
+			s, err := sessionQueries.GetSession(ctx, session.ID())
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
-			msgs, err := chatSvc.GetSessionMessages(ctx, sessionID, domain.ListOptions{Limit: 500})
+			msgs, err := turnQueries.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
 			if err != nil {
 				return SessionGetResult{}, serrors.E(op, err)
 			}
 			return SessionGetResult{
-				Session:         toSessionDTO(s),
+				Session:         withSessionMeta(ctx, sessionQueries, s, access),
 				Turns:           buildTurns(msgs),
 				PendingQuestion: pendingQuestionFromMessages(msgs),
 			}, nil
+		},
+	}))
+
+	mustAdd(applets.AddProcedure(r, "bichat.session.members.list", applets.Procedure[SessionMembersListParams, SessionMembersListResult]{
+		RequirePermissions: []string{"BiChat.Access"},
+		Handler: func(ctx context.Context, p SessionMembersListParams) (SessionMembersListResult, error) {
+			const op serrors.Op = "bichat.rpc.session.members.list"
+
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, false)
+			if err != nil {
+				return SessionMembersListResult{}, serrors.E(op, err)
+			}
+
+			members, err := sessionQueries.ListSessionMembers(ctx, session.ID())
+			if err != nil {
+				return SessionMembersListResult{}, serrors.E(op, err)
+			}
+
+			owner, listErr := resolveSessionOwner(ctx, sessionQueries, session.UserID())
+			if listErr != nil {
+				return SessionMembersListResult{}, serrors.E(op, listErr)
+			}
+
+			out := make([]SessionMember, 0, len(members)+1)
+			out = append(out, SessionMember{
+				User:      toSessionUserDTO(owner),
+				Role:      strings.ToLower(domain.SessionMemberRoleOwner.String()),
+				CreatedAt: session.CreatedAt().Format(time.RFC3339),
+				UpdatedAt: session.UpdatedAt().Format(time.RFC3339),
+			})
+			for _, member := range members {
+				out = append(out, SessionMember{
+					User:      toSessionUserDTO(member.User),
+					Role:      strings.ToLower(member.Role.String()),
+					CreatedAt: member.CreatedAt.Format(time.RFC3339),
+					UpdatedAt: member.UpdatedAt.Format(time.RFC3339),
+				})
+			}
+
+			return SessionMembersListResult{Members: out}, nil
+		},
+	}))
+
+	mustAdd(applets.AddProcedure(r, "bichat.session.members.add", applets.Procedure[SessionMembersUpsertParams, OkResult]{
+		RequirePermissions: []string{"BiChat.Access"},
+		Handler: func(ctx context.Context, p SessionMembersUpsertParams) (OkResult, error) {
+			const op serrors.Op = "bichat.rpc.session.members.add"
+
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, true)
+			if err != nil {
+				return OkResult{}, serrors.E(op, err)
+			}
+			if err := upsertSessionMember(ctx, sessionCommands, session, p); err != nil {
+				return OkResult{}, serrors.E(op, err)
+			}
+			return OkResult{Ok: true}, nil
+		},
+	}))
+
+	mustAdd(applets.AddProcedure(r, "bichat.session.members.updateRole", applets.Procedure[SessionMembersUpsertParams, OkResult]{
+		RequirePermissions: []string{"BiChat.Access"},
+		Handler: func(ctx context.Context, p SessionMembersUpsertParams) (OkResult, error) {
+			const op serrors.Op = "bichat.rpc.session.members.updateRole"
+
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, true)
+			if err != nil {
+				return OkResult{}, serrors.E(op, err)
+			}
+			if err := upsertSessionMember(ctx, sessionCommands, session, p); err != nil {
+				return OkResult{}, serrors.E(op, err)
+			}
+			return OkResult{Ok: true}, nil
+		},
+	}))
+
+	mustAdd(applets.AddProcedure(r, "bichat.session.members.remove", applets.Procedure[SessionMembersRemoveParams, OkResult]{
+		RequirePermissions: []string{"BiChat.Access"},
+		Handler: func(ctx context.Context, p SessionMembersRemoveParams) (OkResult, error) {
+			const op serrors.Op = "bichat.rpc.session.members.remove"
+
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, true)
+			if err != nil {
+				return OkResult{}, serrors.E(op, err)
+			}
+			userID, err := parseUserID(p.UserID)
+			if err != nil {
+				return OkResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			if userID == session.UserID() {
+				return OkResult{}, serrors.E(op, serrors.KindValidation, "cannot remove the session owner")
+			}
+			command, err := domain.NewSessionMemberRemoval(domain.SessionMemberRemovalSpec{
+				SessionID: session.ID(),
+				UserID:    userID,
+			})
+			if err != nil {
+				return OkResult{}, serrors.E(op, serrors.KindValidation, err)
+			}
+			if err := sessionCommands.RemoveSessionMember(ctx, command); err != nil {
+				return OkResult{}, serrors.E(op, err)
+			}
+			return OkResult{Ok: true}, nil
 		},
 	}))
 

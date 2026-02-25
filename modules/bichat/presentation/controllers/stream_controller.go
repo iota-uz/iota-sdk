@@ -25,7 +25,8 @@ import (
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
 type StreamController struct {
 	app               application.Application
-	chatService       bichatservices.ChatService
+	streamService     bichatservices.StreamCommands
+	sessionService    bichatservices.SessionQueries
 	attachmentService bichatservices.AttachmentService
 	opts              ControllerOptions
 }
@@ -35,13 +36,15 @@ const maxStreamRequestBodyBytes int64 = 32 << 20 // 32 MiB
 // NewStreamController creates a new stream controller.
 func NewStreamController(
 	app application.Application,
-	chatService bichatservices.ChatService,
+	streamService bichatservices.StreamCommands,
+	sessionService bichatservices.SessionQueries,
 	attachmentService bichatservices.AttachmentService,
 	opts ...ControllerOption,
 ) *StreamController {
 	return &StreamController{
 		app:               app,
-		chatService:       chatService,
+		streamService:     streamService,
+		sessionService:    sessionService,
 		attachmentService: attachmentService,
 		opts:              applyControllerOptions(opts...),
 	}
@@ -102,7 +105,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 3. Enforce access permission early (avoid DB work for forbidden users)
+	// 2b. Require access permission (so 403 is returned before body validation)
 	if c.opts.RequireAccessPermission != nil {
 		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
 			http.Error(w, "Access denied", http.StatusForbidden)
@@ -110,7 +113,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// 4. Parse request
+	// 3. Parse request
 	type streamRequest struct {
 		SessionID       uuid.UUID             `json:"sessionId"`
 		Content         string                `json:"content"`
@@ -138,6 +141,10 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
+	if req.SessionID == uuid.Nil {
+		http.Error(w, "sessionId is required and must be a valid UUID", http.StatusBadRequest)
+		return
+	}
 
 	domainAttachments, err := convertAttachmentDTOs(r.Context(), req.Attachments)
 	if err != nil {
@@ -150,20 +157,8 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 5. Validate session access
-	session, err := c.chatService.GetSession(r.Context(), req.SessionID)
-	if err != nil {
-		if errors.Is(err, persistence.ErrSessionNotFound) {
-			http.Error(w, "Session not found", http.StatusNotFound)
-		} else {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-		}
-		return
-	}
-
-	// Check permission (user owns session or has read_all permission)
-	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
-		http.Error(w, "Access denied", http.StatusForbidden)
+	// 5. Validate write access
+	if !c.requireStreamSessionAuth(w, r, req.SessionID, true) {
 		return
 	}
 
@@ -179,7 +174,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		ctx = bichatservices.WithDebugMode(ctx, true)
 	}
 
-	err = c.chatService.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+	err = c.streamService.SendMessageStream(ctx, bichatservices.SendMessageRequest{
 		SessionID:            req.SessionID,
 		UserID:               int64(user.ID()),
 		Content:              req.Content,
@@ -310,11 +305,11 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "sessionId is required and must be a valid UUID", http.StatusBadRequest)
 		return
 	}
-	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID); !ok {
+	if !c.requireStreamSessionAuth(w, r, req.SessionID, true) {
 		return
 	}
 
-	if err := c.chatService.StopGeneration(r.Context(), req.SessionID); err != nil {
+	if err := c.streamService.StopGeneration(r.Context(), req.SessionID); err != nil {
 		logger := configuration.Use().Logger()
 		wrapped := serrors.E(op, err)
 		if errors.Is(err, domain.ErrNoActiveRun) || errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
@@ -331,34 +326,38 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// requireStreamSessionAuth ensures the user is authenticated, has stream access, and owns (or can read) the session.
-// On failure it writes the appropriate HTTP error to w and returns (nil, false). On success it returns (session, true).
-func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *http.Request, sessionID uuid.UUID) (domain.Session, bool) {
+// requireStreamSessionAuth ensures the user is authenticated, has stream access, and has the required capability.
+// On failure it writes the appropriate HTTP error to w and returns false. On success it returns true.
+func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *http.Request, sessionID uuid.UUID, requireWrite bool) bool {
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return nil, false
+		return false
 	}
 	if c.opts.RequireAccessPermission != nil {
 		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
 			http.Error(w, "Access denied", http.StatusForbidden)
-			return nil, false
+			return false
 		}
 	}
-	session, err := c.chatService.GetSession(r.Context(), sessionID)
+	readAll := false
+	if c.opts.ReadAllPermission != nil {
+		readAll = composables.CanUser(r.Context(), c.opts.ReadAllPermission) == nil
+	}
+	access, err := c.sessionService.ResolveSessionAccess(r.Context(), sessionID, int64(user.ID()), readAll)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
 			http.Error(w, "Session not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
-		return nil, false
+		return false
 	}
-	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
+	if err := access.Require(requireWrite, false); err != nil {
 		http.Error(w, "Access denied", http.StatusForbidden)
-		return nil, false
+		return false
 	}
-	return session, true
+	return true
 }
 
 // StreamStatus handles GET /stream/status?sessionId=uuid for refresh-safe resume.
@@ -374,11 +373,11 @@ func (c *StreamController) StreamStatus(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "sessionId must be a valid UUID", http.StatusBadRequest)
 		return
 	}
-	if _, ok := c.requireStreamSessionAuth(w, r, sessionID); !ok {
+	if !c.requireStreamSessionAuth(w, r, sessionID, false) {
 		return
 	}
 
-	status, err := c.chatService.GetStreamStatus(r.Context(), sessionID)
+	status, err := c.streamService.GetStreamStatus(r.Context(), sessionID)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -432,7 +431,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "sessionId and runId are required", http.StatusBadRequest)
 		return
 	}
-	if _, ok := c.requireStreamSessionAuth(w, r, req.SessionID); !ok {
+	if !c.requireStreamSessionAuth(w, r, req.SessionID, false) {
 		return
 	}
 
@@ -441,7 +440,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	err := c.chatService.ResumeStream(r.Context(), req.SessionID, req.RunID, func(chunk bichatservices.StreamChunk) {
+	err := c.streamService.ResumeStream(r.Context(), req.SessionID, req.RunID, func(chunk bichatservices.StreamChunk) {
 		payload := httpdto.StreamChunkPayload{
 			Type:         string(chunk.Type),
 			Content:      chunk.Content,

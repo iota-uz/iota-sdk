@@ -5,20 +5,18 @@ package showcase
 import (
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
-	"github.com/iota-uz/iota-sdk/pkg/lens/ui"
+	lensui "github.com/iota-uz/iota-sdk/pkg/lens/ui"
 )
 
 type LensPageProps struct {
-	SidebarProps    sidebar.Props
-	Dashboard       lens.DashboardConfig
-	DashboardResult *executor.DashboardResult
+	SidebarProps sidebar.Props
+	Dashboard    lens.Dashboard
+	Results      *lens.Results
 }
 
 templ LensContent(props LensPageProps) {
-	@templ.Raw(ui.GenerateCSS(props.Dashboard.Grid))
-	if props.DashboardResult != nil {
-		@ui.DashboardWithData(props.Dashboard, props.DashboardResult)
+	if props.Results != nil {
+		@lensui.Dashboard(props.Dashboard, props.Results)
 	} else {
 		<div class="p-8 text-center">
 			<p class="text-gray-600">No database connection available</p>

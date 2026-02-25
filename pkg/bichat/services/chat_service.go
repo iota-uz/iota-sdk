@@ -13,14 +13,11 @@ import (
 // ErrRunNotFoundOrFinished is returned by ResumeStream when the run is not active in this process.
 var ErrRunNotFoundOrFinished = errors.New("generation run not found or already finished")
 
-// ChatService manages chat sessions and messages.
-// This is the primary public API for chat functionality.
-type ChatService interface {
-	// Session management
+// SessionCommands manages mutating session actions.
+type SessionCommands interface {
 	CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error)
-	GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
-	ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error)
-	CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error)
+	UpsertSessionMember(ctx context.Context, command domain.SessionMemberUpsert) error
+	RemoveSessionMember(ctx context.Context, command domain.SessionMemberRemoval) error
 	UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error)
 	ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
@@ -29,22 +26,46 @@ type ChatService interface {
 	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
 	ClearSessionHistory(ctx context.Context, sessionID uuid.UUID) (ClearSessionHistoryResponse, error)
 	CompactSessionHistory(ctx context.Context, sessionID uuid.UUID) (CompactSessionHistoryResponse, error)
+	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
+}
 
-	// Message management
+// SessionQueries reads session and access projections.
+type SessionQueries interface {
+	GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
+	ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error)
+	CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error)
+	ListAccessibleSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.SessionSummary, error)
+	CountAccessibleSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error)
+	ListAllSessions(ctx context.Context, requestingUserID int64, opts domain.ListOptions, ownerUserID *int64) ([]domain.SessionSummary, error)
+	CountAllSessions(ctx context.Context, opts domain.ListOptions, ownerUserID *int64) (int, error)
+	ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64, allowReadAll bool) (domain.SessionAccess, error)
+	ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]domain.SessionMember, error)
+	GetTenantUser(ctx context.Context, userID int64) (domain.SessionUser, error)
+	ListTenantUsers(ctx context.Context) ([]domain.SessionUser, error)
+}
+
+// TurnCommands handles non-streaming turn execution.
+type TurnCommands interface {
 	SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResponse, error)
-	SendMessageStream(ctx context.Context, req SendMessageRequest, onChunk func(StreamChunk)) error
-	GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error)
+}
 
-	// Resume after user answers questions (HITL)
+// TurnQueries reads conversation messages for a session.
+type TurnQueries interface {
+	GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error)
+}
+
+// HITLCommands resumes or rejects pending user-interaction questions.
+type HITLCommands interface {
 	ResumeWithAnswer(ctx context.Context, req ResumeRequest) (*SendMessageResponse, error)
 
 	// RejectPendingQuestion rejects a pending HITL question and resumes the agent
 	// with "user rejected questions" feedback.
 	RejectPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*SendMessageResponse, error)
+}
 
-	// Generate session title from first message
-	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
-
+// StreamCommands manages streaming turn execution and active stream lifecycle.
+type StreamCommands interface {
+	SendMessageStream(ctx context.Context, req SendMessageRequest, onChunk func(StreamChunk)) error
 	// StopGeneration cancels the active stream for the given session, if any.
 	// After stop, no partial assistant message is persisted; the next send continues normally.
 	StopGeneration(ctx context.Context, sessionID uuid.UUID) error

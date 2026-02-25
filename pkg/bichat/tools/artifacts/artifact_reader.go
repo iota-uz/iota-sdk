@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"io"
 	"os"
 	"strings"
 	"time"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/google/uuid"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"

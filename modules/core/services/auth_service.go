@@ -35,6 +35,7 @@ var (
 	ErrAudienceMismatch = errors.New("session audience mismatch")
 	ErrIPMismatch       = errors.New("session IP address mismatch")
 	ErrIPUnavailable    = errors.New("client IP address unavailable for validation")
+	ErrSessionExpired   = errors.New("session expired")
 )
 
 type AuthService struct {
@@ -155,6 +156,14 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (session.Sess
 	sess, err := s.sessionService.GetByToken(ctx, token)
 	if err != nil {
 		return nil, err
+	}
+
+	if sess.IsExpired() {
+		logger := configuration.Use().Logger()
+		if deleteErr := s.sessionService.Delete(ctx, token); deleteErr != nil {
+			logger.WithError(deleteErr).Warn("failed to cleanup expired session")
+		}
+		return nil, ErrSessionExpired
 	}
 
 	// Validate IP binding if configured

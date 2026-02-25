@@ -1,0 +1,24 @@
+package ui
+
+import "github.com/iota-uz/iota-sdk/pkg/lens"
+
+// Row renders a 12-column grid row containing panels.
+templ Row(row lens.Row, results *lens.Results) {
+	<div class={ "grid grid-cols-12 gap-4", row.Class }>
+		for _, panel := range row.Panels {
+			@PanelDispatch(panel, results)
+		}
+	</div>
+}
+
+// PanelDispatch routes a panel to its type-specific renderer.
+templ PanelDispatch(panel lens.Panel, results *lens.Results) {
+	switch panel.Type {
+		case lens.TypeMetric:
+			@MetricPanel(panel, panelData(panel, results))
+		case lens.TypeTable:
+			@TablePanel(panel, panelData(panel, results))
+		default:
+			@ChartPanel(panel, panelData(panel, results))
+	}
+}

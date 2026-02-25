@@ -33,6 +33,25 @@ type SessionRepository interface {
 	DeleteSession(ctx context.Context, id uuid.UUID) error
 }
 
+// SessionAccessRepository provides session sharing and access lookups.
+// Kept separate from ChatRepository to avoid forcing all test doubles to implement it.
+type SessionAccessRepository interface {
+	ListAccessibleSessionSummaries(ctx context.Context, userID int64, opts ListOptions) ([]SessionSummary, error)
+	CountAccessibleSessions(ctx context.Context, userID int64, opts ListOptions) (int, error)
+
+	ListAllSessionSummaries(ctx context.Context, requestingUserID int64, opts ListOptions, ownerUserID *int64) ([]SessionSummary, error)
+	CountAllSessions(ctx context.Context, opts ListOptions, ownerUserID *int64) (int, error)
+
+	ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64) (SessionAccess, error)
+	ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]SessionMember, error)
+	GetTenantUser(ctx context.Context, userID int64) (SessionUser, error)
+	UpsertSessionMember(ctx context.Context, command SessionMemberUpsert) error
+	RemoveSessionMember(ctx context.Context, command SessionMemberRemoval) error
+	CountSessionParticipants(ctx context.Context, sessionID uuid.UUID) (int, error)
+
+	ListTenantUsers(ctx context.Context) ([]SessionUser, error)
+}
+
 type MessageRepository interface {
 	SaveMessage(ctx context.Context, msg types.Message) error
 	GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error)

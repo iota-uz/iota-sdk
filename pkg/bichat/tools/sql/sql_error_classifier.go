@@ -3,8 +3,9 @@ package sql
 import (
 	"errors"
 	"fmt"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"regexp"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )

@@ -12,13 +12,12 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
-	"github.com/iota-uz/iota-sdk/pkg/lens/ui"
+	lensui "github.com/iota-uz/iota-sdk/pkg/lens/ui"
 )
 
 type IndexPageProps struct {
-	Dashboard       lens.DashboardConfig
-	DashboardResult *executor.DashboardResult
+	Dashboard lens.Dashboard
+	Results   *lens.Results
 }
 
 func DashboardContent(props *IndexPageProps) templ.Component {
@@ -46,12 +45,8 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.Raw(ui.GenerateCSS(props.Dashboard.Grid)).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if props.DashboardResult != nil {
-			templ_7745c5c3_Err = ui.DashboardWithData(props.Dashboard, props.DashboardResult).Render(ctx, templ_7745c5c3_Buffer)
+		if props.Results != nil {
+			templ_7745c5c3_Err = lensui.Dashboard(props.Dashboard, props.Results).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -274,17 +274,17 @@ func mapPersistedGenerationRunToDomain(r persistedGenerationRun) (domain.Generat
 		return nil, err
 	}
 
-	return domain.NewGenerationRun(
-		domain.WithGenerationRunID(id),
-		domain.WithGenerationRunSessionID(sessionID),
-		domain.WithGenerationRunTenantID(tenantID),
-		domain.WithGenerationRunUserID(r.UserID),
-		domain.WithGenerationRunStatus(domain.GenerationRunStatus(r.Status)),
-		domain.WithGenerationRunPartialContent(r.PartialContent),
-		domain.WithGenerationRunPartialMetadata(cloneMetadata(r.PartialMeta)),
-		domain.WithGenerationRunStartedAt(r.StartedAt),
-		domain.WithGenerationRunLastUpdatedAt(r.LastUpdatedAt),
-	), nil
+	return domain.RehydrateGenerationRun(domain.GenerationRunSpec{
+		ID:              id,
+		SessionID:       sessionID,
+		TenantID:        tenantID,
+		UserID:          r.UserID,
+		Status:          domain.GenerationRunStatus(r.Status),
+		PartialContent:  r.PartialContent,
+		PartialMetadata: cloneMetadata(r.PartialMeta),
+		StartedAt:       r.StartedAt,
+		LastUpdatedAt:   r.LastUpdatedAt,
+	})
 }
 
 func cloneMetadata(in map[string]any) map[string]any {

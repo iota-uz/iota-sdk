@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -67,12 +68,13 @@ type MetaInfo struct {
 }
 
 type huber struct {
-	hub             ws.Huber
-	bundle          *i18n.Bundle
-	pool            *pgxpool.Pool
-	logger          *logrus.Logger
-	connectionsMeta map[*ws.Connection]*MetaInfo
-	userRepo        user.Repository
+	hub               ws.Huber
+	bundle            *i18n.Bundle
+	pool              *pgxpool.Pool
+	logger            *logrus.Logger
+	connectionsMetaMu sync.RWMutex
+	connectionsMeta   map[*ws.Connection]*MetaInfo
+	userRepo          user.Repository
 }
 
 func (h *huber) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -84,18 +86,37 @@ func (h *huber) onConnect(r *http.Request, hub *ws.Hub, conn *ws.Connection) err
 	usr, err := composables.UseUser(r.Context())
 	if err != nil {
 		// Allow unauthenticated connections - they can still receive public broadcasts
-		h.connectionsMeta[conn] = meta
+		h.setConnectionMeta(conn, meta)
 		return nil //nolint:nilerr // Intentionally ignore auth error for public connections
 	}
 	meta.UserID = usr.ID()
 	meta.TenantID = usr.TenantID()
 	h.hub.JoinChannel(ChannelAuthenticated, conn)
 	h.hub.JoinChannel(fmt.Sprintf("user/%d", usr.ID()), conn)
-	h.connectionsMeta[conn] = meta
+	h.setConnectionMeta(conn, meta)
 	return nil
 }
 
 func (h *huber) onDisconnect(conn *ws.Connection) {
+	h.deleteConnectionMeta(conn)
+}
+
+func (h *huber) setConnectionMeta(conn *ws.Connection, meta *MetaInfo) {
+	h.connectionsMetaMu.Lock()
+	defer h.connectionsMetaMu.Unlock()
+	h.connectionsMeta[conn] = meta
+}
+
+func (h *huber) getConnectionMeta(conn *ws.Connection) (*MetaInfo, bool) {
+	h.connectionsMetaMu.RLock()
+	defer h.connectionsMetaMu.RUnlock()
+	meta, ok := h.connectionsMeta[conn]
+	return meta, ok
+}
+
+func (h *huber) deleteConnectionMeta(conn *ws.Connection) {
+	h.connectionsMetaMu.Lock()
+	defer h.connectionsMetaMu.Unlock()
 	delete(h.connectionsMeta, conn)
 }
 
@@ -123,7 +144,7 @@ func (h *huber) ForEach(channel string, f WsCallback) error {
 	connections := h.hub.ConnectionsInChannel(channel)
 
 	for _, conn := range connections {
-		meta, ok := h.connectionsMeta[conn]
+		meta, ok := h.getConnectionMeta(conn)
 		if !ok {
 			h.logger.Error("connection meta not found")
 			continue
