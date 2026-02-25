@@ -270,18 +270,32 @@ type ModuleConfig struct {
 // ServiceContainer holds built services created by ModuleConfig.BuildServices().
 // Use accessor methods to retrieve individual services.
 type ServiceContainer struct {
-	chatService       bichatservices.ChatService
-	agentService      bichatservices.AgentService
-	attachmentService bichatservices.AttachmentService
-	artifactService   bichatservices.ArtifactService
-	titleService      services.TitleService
-	titleJobQueue     *services.RedisTitleJobQueue
-	titleQueueConfig  *TitleQueueConfig
-	logger            *logrus.Logger
+	sessionService      bichatservices.SessionService
+	conversationService bichatservices.ConversationService
+	streamService       bichatservices.StreamService
+	hitlService         bichatservices.HITLService
+	agentService        bichatservices.AgentService
+	attachmentService   bichatservices.AttachmentService
+	artifactService     bichatservices.ArtifactService
+	titleService        services.TitleService
+	titleJobQueue       *services.RedisTitleJobQueue
+	titleQueueConfig    *TitleQueueConfig
+	logger              *logrus.Logger
 }
 
-// ChatService returns the ChatService.
-func (sc *ServiceContainer) ChatService() bichatservices.ChatService { return sc.chatService }
+// SessionService returns the session-management service.
+func (sc *ServiceContainer) SessionService() bichatservices.SessionService { return sc.sessionService }
+
+// ConversationService returns the non-streaming conversation service.
+func (sc *ServiceContainer) ConversationService() bichatservices.ConversationService {
+	return sc.conversationService
+}
+
+// StreamService returns the streaming service.
+func (sc *ServiceContainer) StreamService() bichatservices.StreamService { return sc.streamService }
+
+// HITLService returns the HITL resume/reject service.
+func (sc *ServiceContainer) HITLService() bichatservices.HITLService { return sc.hitlService }
 
 // AgentService returns the AgentService.
 func (sc *ServiceContainer) AgentService() bichatservices.AgentService { return sc.agentService }

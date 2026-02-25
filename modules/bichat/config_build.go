@@ -186,14 +186,17 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	)
 
 	return &ServiceContainer{
-		chatService:       chatService,
-		agentService:      agentService,
-		attachmentService: attachmentService,
-		artifactService:   artifactService,
-		titleService:      titleService,
-		titleJobQueue:     titleJobQueue,
-		titleQueueConfig:  c.TitleQueue,
-		logger:            c.Logger,
+		sessionService:      chatService,
+		conversationService: chatService,
+		streamService:       chatService,
+		hitlService:         chatService,
+		agentService:        agentService,
+		attachmentService:   attachmentService,
+		artifactService:     artifactService,
+		titleService:        titleService,
+		titleJobQueue:       titleJobQueue,
+		titleQueueConfig:    c.TitleQueue,
+		logger:              c.Logger,
 	}, nil
 }
 

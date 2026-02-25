@@ -88,11 +88,22 @@ func (m *Module) Register(app application.Application) error {
 		}
 		m.container = container
 
-		chatService := container.ChatService()
+		sessionService := container.SessionService()
+		conversationService := container.ConversationService()
+		streamService := container.StreamService()
+		hitlService := container.HITLService()
 		agentService := container.AgentService()
 		attachmentService := container.AttachmentService()
 		artifactService := container.ArtifactService()
-		app.RegisterServices(chatService, agentService, attachmentService, artifactService)
+		app.RegisterServices(
+			sessionService,
+			conversationService,
+			streamService,
+			hitlService,
+			agentService,
+			attachmentService,
+			artifactService,
+		)
 
 		if m.titleWorker == nil {
 			worker, err := container.NewTitleJobWorker(app.DB())
@@ -134,7 +145,8 @@ func (m *Module) Register(app application.Application) error {
 		}
 		streamController := controllers.NewStreamController(
 			app,
-			chatService,
+			streamService,
+			sessionService,
 			attachmentService,
 			streamOpts...,
 		)

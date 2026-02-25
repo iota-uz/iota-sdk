@@ -21,7 +21,9 @@ import (
 // ChatController handles HTTP endpoints for chat operations.
 type ChatController struct {
 	app               application.Application
-	chatService       services.ChatService
+	sessionService    services.SessionService
+	conversationSvc   services.ConversationService
+	hitlService       services.HITLService
 	chatRepo          domain.ChatRepository
 	agentService      services.AgentService
 	attachmentService services.AttachmentService
@@ -33,7 +35,9 @@ type ChatController struct {
 // Services can be nil - they're optional for legacy REST endpoints.
 func NewChatController(
 	app application.Application,
-	chatService services.ChatService,
+	sessionService services.SessionService,
+	conversationService services.ConversationService,
+	hitlService services.HITLService,
 	chatRepo domain.ChatRepository,
 	agentService services.AgentService,
 	attachmentService services.AttachmentService,
@@ -42,7 +46,9 @@ func NewChatController(
 ) *ChatController {
 	return &ChatController{
 		app:               app,
-		chatService:       chatService,
+		sessionService:    sessionService,
+		conversationSvc:   conversationService,
+		hitlService:       hitlService,
 		chatRepo:          chatRepo,
 		agentService:      agentService,
 		attachmentService: attachmentService,
@@ -140,7 +146,7 @@ func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {
 		Offset: params.Offset,
 	}
 
-	sessions, err := c.chatService.ListUserSessions(r.Context(), int64(user.ID()), opts)
+	sessions, err := c.sessionService.ListUserSessions(r.Context(), int64(user.ID()), opts)
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
@@ -182,7 +188,7 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := c.chatService.CreateSession(r.Context(), tenantID, int64(user.ID()), req.Title)
+	session, err := c.sessionService.CreateSession(r.Context(), tenantID, int64(user.ID()), req.Title)
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
@@ -254,7 +260,7 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := c.chatService.SendMessage(r.Context(), services.SendMessageRequest{
+	response, err := c.conversationSvc.SendMessage(r.Context(), services.SendMessageRequest{
 		SessionID:   sessionID,
 		UserID:      int64(user.ID()),
 		Content:     req.Content,
@@ -299,7 +305,7 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	response, err := c.chatService.ResumeWithAnswer(r.Context(), services.ResumeRequest{
+	response, err := c.hitlService.ResumeWithAnswer(r.Context(), services.ResumeRequest{
 		SessionID:    sessionID,
 		CheckpointID: req.CheckpointID,
 		Answers:      req.Answers,
@@ -332,7 +338,7 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	updatedSession, err := c.chatService.ArchiveSession(r.Context(), sessionID)
+	updatedSession, err := c.sessionService.ArchiveSession(r.Context(), sessionID)
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
@@ -362,9 +368,9 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 	}
 	var updatedSession domain.Session
 	if session.Pinned() {
-		updatedSession, err = c.chatService.UnpinSession(r.Context(), sessionID)
+		updatedSession, err = c.sessionService.UnpinSession(r.Context(), sessionID)
 	} else {
-		updatedSession, err = c.chatService.PinSession(r.Context(), sessionID)
+		updatedSession, err = c.sessionService.PinSession(r.Context(), sessionID)
 	}
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
@@ -395,7 +401,7 @@ func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete session (cascades to messages/attachments)
-	if err := c.chatService.DeleteSession(r.Context(), session.ID()); err != nil {
+	if err := c.sessionService.DeleteSession(r.Context(), session.ID()); err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
@@ -443,7 +449,7 @@ func (c *ChatController) requireSessionAccess(
 		return nil, false
 	}
 
-	session, err := c.chatService.GetSession(r.Context(), sessionID)
+	session, err := c.sessionService.GetSession(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
 			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
@@ -457,7 +463,7 @@ func (c *ChatController) requireSessionAccess(
 	if c.opts.ReadAllPermission != nil {
 		readAll = composables.CanUser(r.Context(), c.opts.ReadAllPermission) == nil
 	}
-	access, err := c.chatService.ResolveSessionAccess(r.Context(), sessionID, int64(user.ID()), readAll)
+	access, err := c.sessionService.ResolveSessionAccess(r.Context(), sessionID, int64(user.ID()), readAll)
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return nil, false

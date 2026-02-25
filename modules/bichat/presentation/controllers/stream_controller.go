@@ -25,7 +25,8 @@ import (
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
 type StreamController struct {
 	app               application.Application
-	chatService       bichatservices.ChatService
+	streamService     bichatservices.StreamService
+	sessionService    bichatservices.SessionService
 	attachmentService bichatservices.AttachmentService
 	opts              ControllerOptions
 }
@@ -35,13 +36,15 @@ const maxStreamRequestBodyBytes int64 = 32 << 20 // 32 MiB
 // NewStreamController creates a new stream controller.
 func NewStreamController(
 	app application.Application,
-	chatService bichatservices.ChatService,
+	streamService bichatservices.StreamService,
+	sessionService bichatservices.SessionService,
 	attachmentService bichatservices.AttachmentService,
 	opts ...ControllerOption,
 ) *StreamController {
 	return &StreamController{
 		app:               app,
-		chatService:       chatService,
+		streamService:     streamService,
+		sessionService:    sessionService,
 		attachmentService: attachmentService,
 		opts:              applyControllerOptions(opts...),
 	}
@@ -167,7 +170,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		ctx = bichatservices.WithDebugMode(ctx, true)
 	}
 
-	err = c.chatService.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+	err = c.streamService.SendMessageStream(ctx, bichatservices.SendMessageRequest{
 		SessionID:            req.SessionID,
 		UserID:               int64(user.ID()),
 		Content:              req.Content,
@@ -302,7 +305,7 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.chatService.StopGeneration(r.Context(), req.SessionID); err != nil {
+	if err := c.streamService.StopGeneration(r.Context(), req.SessionID); err != nil {
 		logger := configuration.Use().Logger()
 		wrapped := serrors.E(op, err)
 		if errors.Is(err, domain.ErrNoActiveRun) || errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
@@ -333,7 +336,7 @@ func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *ht
 			return nil, false
 		}
 	}
-	session, err := c.chatService.GetSession(r.Context(), sessionID)
+	session, err := c.sessionService.GetSession(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
 			http.Error(w, "Session not found", http.StatusNotFound)
@@ -346,7 +349,7 @@ func (c *StreamController) requireStreamSessionAuth(w http.ResponseWriter, r *ht
 	if c.opts.ReadAllPermission != nil {
 		readAll = composables.CanUser(r.Context(), c.opts.ReadAllPermission) == nil
 	}
-	access, err := c.chatService.ResolveSessionAccess(r.Context(), sessionID, int64(user.ID()), readAll)
+	access, err := c.sessionService.ResolveSessionAccess(r.Context(), sessionID, int64(user.ID()), readAll)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
 			http.Error(w, "Session not found", http.StatusNotFound)
@@ -379,7 +382,7 @@ func (c *StreamController) StreamStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	status, err := c.chatService.GetStreamStatus(r.Context(), sessionID)
+	status, err := c.streamService.GetStreamStatus(r.Context(), sessionID)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -442,7 +445,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	err := c.chatService.ResumeStream(r.Context(), req.SessionID, req.RunID, func(chunk bichatservices.StreamChunk) {
+	err := c.streamService.ResumeStream(r.Context(), req.SessionID, req.RunID, func(chunk bichatservices.StreamChunk) {
 		payload := httpdto.StreamChunkPayload{
 			Type:         string(chunk.Type),
 			Content:      chunk.Content,

@@ -13,9 +13,8 @@ import (
 // ErrRunNotFoundOrFinished is returned by ResumeStream when the run is not active in this process.
 var ErrRunNotFoundOrFinished = errors.New("generation run not found or already finished")
 
-// ChatService manages chat sessions and messages.
-// This is the primary public API for chat functionality.
-type ChatService interface {
+// SessionService manages session lifecycle, permissions, and metadata.
+type SessionService interface {
 	// Session management
 	CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error)
 	GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
@@ -39,22 +38,27 @@ type ChatService interface {
 	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
 	ClearSessionHistory(ctx context.Context, sessionID uuid.UUID) (ClearSessionHistoryResponse, error)
 	CompactSessionHistory(ctx context.Context, sessionID uuid.UUID) (CompactSessionHistoryResponse, error)
+	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
+}
 
-	// Message management
+// ConversationService handles non-streaming turn execution and message retrieval.
+type ConversationService interface {
 	SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResponse, error)
-	SendMessageStream(ctx context.Context, req SendMessageRequest, onChunk func(StreamChunk)) error
 	GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error)
+}
 
-	// Resume after user answers questions (HITL)
+// HITLService resumes or rejects pending user-interaction questions.
+type HITLService interface {
 	ResumeWithAnswer(ctx context.Context, req ResumeRequest) (*SendMessageResponse, error)
 
 	// RejectPendingQuestion rejects a pending HITL question and resumes the agent
 	// with "user rejected questions" feedback.
 	RejectPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*SendMessageResponse, error)
+}
 
-	// Generate session title from first message
-	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
-
+// StreamService manages streaming turn execution and active stream lifecycle.
+type StreamService interface {
+	SendMessageStream(ctx context.Context, req SendMessageRequest, onChunk func(StreamChunk)) error
 	// StopGeneration cancels the active stream for the given session, if any.
 	// After stop, no partial assistant message is persisted; the next send continues normally.
 	StopGeneration(ctx context.Context, sessionID uuid.UUID) error

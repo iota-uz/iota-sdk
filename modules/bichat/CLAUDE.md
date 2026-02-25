@@ -21,7 +21,13 @@ modules/bichat/
 │   └── postgres_executor.go     # SQL execution tool implementation
 ├── services/
 │   ├── agent_service_impl.go    # Agent orchestration with event streaming
-│   ├── chat_service_impl.go     # Chat session management
+│   ├── chat_service_impl.go     # Stream/message core orchestration
+│   ├── chat_service_session.go  # Session/member/access management
+│   ├── chat_service_history.go  # Clear/compact history operations
+│   ├── chat_service_helpers.go  # Shared execution/persistence helpers
+│   ├── chat_service_hitl.go     # HITL resume/reject + title helpers
+│   ├── services/hitl/           # HITL answer normalization and question mapping
+│   └── services/streaming/      # Stream run registry/state/orchestrator helpers
 │   ├── attachment_service.go    # File upload handling
 │   └── title_generation_service.go # AI session title generator
 ├── presentation/
@@ -40,6 +46,17 @@ modules/bichat/
 ```
 
 ## Applet System Integration
+
+## Service Interfaces
+
+BiChat now exposes focused service interfaces from `pkg/bichat/services` instead of a monolithic `ChatService`:
+
+- `SessionService`: sessions, access, members, title/archive/pin, history maintenance
+- `ConversationService`: non-streaming message send + message listing
+- `StreamService`: stream send/stop/status/resume
+- `HITLService`: resume/reject pending questions
+
+`BuildServices()` wires a single concrete implementation to all four interfaces.
 
 BiChat uses the `pkg/applet` system for React app integration. This provides:
 

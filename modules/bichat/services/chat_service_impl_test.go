@@ -171,7 +171,7 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
@@ -224,7 +224,7 @@ func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *tes
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
 	session := domain.NewSession(
 		domain.WithTenantID(uuid.New()),
