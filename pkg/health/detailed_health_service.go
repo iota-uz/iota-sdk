@@ -42,10 +42,6 @@ func NewDetailedHealthService(cfg DetailedHealthServiceConfig) DetailedHealthSer
 	for key, check := range cfg.Checks {
 		checks[key] = check
 	}
-	// keep behavior consistent for nil config maps
-	if cfg.Checks == nil {
-		checks = map[string]CheckFunc{}
-	}
 	capabilities := cfg.Capabilities
 	if capabilities == nil {
 		capabilities = NewCapabilityService(nil)
