@@ -169,7 +169,7 @@ templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
 					<span class="text-gray-600">Git Commit:</span>
 					if vm.Metrics.GitCommit != "unknown" && len(vm.Metrics.GitCommit) > 0 {
 						<a
-							href={ templ.SafeURL("https://github.com/iota-uz/eai/commit/" + vm.Metrics.GitCommit) }
+							href={ templ.URL("https://github.com/iota-uz/iota-sdk/commit/" + vm.Metrics.GitCommit) }
 							target="_blank"
 							rel="noopener noreferrer"
 							class="font-mono text-xs text-blue-600 hover:text-blue-800 hover:underline"

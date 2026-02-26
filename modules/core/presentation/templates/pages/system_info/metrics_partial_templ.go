@@ -641,7 +641,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var47 templ.SafeURL = templ.SafeURL("https://github.com/iota-uz/eai/commit/" + vm.Metrics.GitCommit)
+			var templ_7745c5c3_Var47 templ.SafeURL = templ.URL("https://github.com/iota-uz/iota-sdk/commit/" + vm.Metrics.GitCommit)
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var47)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

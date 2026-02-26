@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// CapabilityService returns health-capability snapshots from registered probes.
 type CapabilityService interface {
 	GetCapabilities(ctx context.Context) []Capability
 }
@@ -13,6 +14,7 @@ type capabilityServiceImpl struct {
 	registry CapabilityRegistry
 }
 
+// NewCapabilityService creates a capability service backed by a registry.
 func NewCapabilityService(registry CapabilityRegistry) CapabilityService {
 	if registry == nil {
 		registry = NewCapabilityRegistry()
@@ -21,6 +23,7 @@ func NewCapabilityService(registry CapabilityRegistry) CapabilityService {
 	return &capabilityServiceImpl{registry: registry}
 }
 
+// GetCapabilities evaluates registered probes and returns safe capabilities data.
 func (s *capabilityServiceImpl) GetCapabilities(ctx context.Context) []Capability {
 	probes := s.registry.List()
 	capabilities := make([]Capability, 0, len(probes))

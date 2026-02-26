@@ -22,11 +22,14 @@ type HealthUIControllerOptions struct {
 	BuildViewModel func(ctx context.Context, r *http.Request) (*viewmodels.SystemInfoViewModel, error)
 }
 
+// HealthUIController renders the system information UI endpoints.
 type HealthUIController struct {
 	app     application.Application
 	options *HealthUIControllerOptions
 }
 
+// NewHealthUIController builds a system info controller with the provided
+// application and options.
 func NewHealthUIController(app application.Application, options *HealthUIControllerOptions) application.Controller {
 	if options == nil {
 		options = &HealthUIControllerOptions{}
@@ -41,10 +44,12 @@ func NewHealthUIController(app application.Application, options *HealthUIControl
 	}
 }
 
+// Key identifies this controller for registration and lookups.
 func (c *HealthUIController) Key() string {
 	return "health-ui"
 }
 
+// Register wires system info and metrics routes with shared middleware.
 func (c *HealthUIController) Register(r *mux.Router) {
 	subRouter := r.PathPrefix(c.options.BasePath).Subrouter()
 	subRouter.Use(
@@ -62,6 +67,7 @@ func (c *HealthUIController) Register(r *mux.Router) {
 	subRouter.HandleFunc("/metrics", di.H(c.MetricsPartial)).Methods(http.MethodGet)
 }
 
+// Index renders the full system info page.
 func (c *HealthUIController) Index(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
@@ -93,6 +99,7 @@ func (c *HealthUIController) Index(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(system_info.Index(vm, c.metricsEndpoint()), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
+// MetricsPartial renders the system metrics partial and requires HTMX.
 func (c *HealthUIController) MetricsPartial(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
@@ -109,6 +116,11 @@ func (c *HealthUIController) MetricsPartial(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if !htmx.IsHxRequest(r) {
+		http.Error(w, "Expected HTMX request", http.StatusBadRequest)
+		return
+	}
+
 	vm, err := c.options.BuildViewModel(ctx, r)
 	if err != nil {
 		logger.Errorf("Failed to build system info view model: %v", err)
@@ -118,10 +130,6 @@ func (c *HealthUIController) MetricsPartial(w http.ResponseWriter, r *http.Reque
 	if vm == nil {
 		logger.Error("System info view model is nil")
 		http.Error(w, "Unable to build system information", http.StatusInternalServerError)
-		return
-	}
-	if !htmx.IsHxRequest(r) {
-		http.Error(w, "Expected HTMX request", http.StatusBadRequest)
 		return
 	}
 

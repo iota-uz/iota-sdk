@@ -3,16 +3,21 @@ package health
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 )
 
+// CheckFunc runs a single health check with the provided context.
 type CheckFunc func(ctx context.Context) HealthCheck
 
+// DetailedHealthService exposes detailed diagnostics for internal health views.
 type DetailedHealthService interface {
+	// GetDetailedHealth returns aggregated check status and capabilities.
 	GetDetailedHealth(ctx context.Context) *DetailedHealth
 }
 
+// DetailedHealthServiceConfig controls checks, capability probes, and cache TTL.
 type DetailedHealthServiceConfig struct {
 	Checks       map[string]CheckFunc
 	Capabilities CapabilityService
@@ -28,6 +33,7 @@ type detailedHealthServiceImpl struct {
 	cacheValue   *DetailedHealth
 }
 
+// NewDetailedHealthService constructs a diagnostics service instance.
 func NewDetailedHealthService(cfg DetailedHealthServiceConfig) DetailedHealthService {
 	checks := make(map[string]CheckFunc, len(cfg.Checks))
 	for key, check := range cfg.Checks {
@@ -54,6 +60,7 @@ func NewDetailedHealthService(cfg DetailedHealthServiceConfig) DetailedHealthSer
 	}
 }
 
+// GetDetailedHealth returns cached diagnostics when available, otherwise recomputes checks.
 func (s *detailedHealthServiceImpl) GetDetailedHealth(ctx context.Context) *DetailedHealth {
 	if cached := s.loadFromCache(); cached != nil {
 		return cached
@@ -78,11 +85,17 @@ func (s *detailedHealthServiceImpl) GetDetailedHealth(ctx context.Context) *Deta
 	return cloneDetailedHealth(health)
 }
 
+// aggregateStatus reduces individual check statuses into an overall status.
 func aggregateStatus(checks map[string]HealthCheck) Status {
 	status := StatusHealthy
 	for _, check := range checks {
 		if check.Status == StatusDown {
 			return StatusDown
+		}
+		if check.Status == StatusDisabled {
+			if status == StatusHealthy {
+				status = StatusDisabled
+			}
 		}
 		if check.Status == StatusDegraded {
 			status = StatusDegraded
@@ -152,7 +165,7 @@ func cloneDetailedHealth(health *DetailedHealth) *DetailedHealth {
 		if check.Details != nil {
 			cloned.Details = make(map[string]any, len(check.Details))
 			for detailKey, detailValue := range check.Details {
-				cloned.Details[detailKey] = detailValue
+				cloned.Details[detailKey] = cloneDetailsValue(detailValue)
 			}
 		}
 		checks[key] = cloned
@@ -166,5 +179,127 @@ func cloneDetailedHealth(health *DetailedHealth) *DetailedHealth {
 		Timestamp:    health.Timestamp,
 		Checks:       checks,
 		Capabilities: capabilities,
+	}
+}
+
+// cloneDetailsValue performs a controlled deep copy for mutable detail values.
+func cloneDetailsValue(value any) any {
+	if value == nil {
+		return nil
+	}
+
+	if typed, ok := value.(map[string]any); ok {
+		cloned := make(map[string]any, len(typed))
+		for detailKey, detailValue := range typed {
+			cloned[detailKey] = cloneDetailsValue(detailValue)
+		}
+		return cloned
+	}
+
+	if typed, ok := value.([]any); ok {
+		cloned := make([]any, len(typed))
+		for i, detailValue := range typed {
+			cloned[i] = cloneDetailsValue(detailValue)
+		}
+		return cloned
+	}
+
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Interface:
+		if rv.IsNil() {
+			return nil
+		}
+		return cloneDetailsValue(rv.Interface())
+	case reflect.Map:
+		if rv.IsNil() {
+			return nil
+		}
+		if rv.Type().Key().Kind() != reflect.String {
+			return value
+		}
+		cloned := reflect.MakeMapWithSize(rv.Type(), rv.Len())
+		for _, mapKey := range rv.MapKeys() {
+			clonedValue := cloneDetailsValue(rv.MapIndex(mapKey).Interface())
+			if clonedValue == nil {
+				cloned.SetMapIndex(mapKey, reflect.Zero(rv.Type().Elem()))
+				continue
+			}
+			clonedReflectValue := reflect.ValueOf(clonedValue)
+			if !clonedReflectValue.Type().AssignableTo(rv.Type().Elem()) {
+				if clonedReflectValue.Type().ConvertibleTo(rv.Type().Elem()) {
+					clonedReflectValue = clonedReflectValue.Convert(rv.Type().Elem())
+				} else {
+					continue
+				}
+			}
+			cloned.SetMapIndex(mapKey, clonedReflectValue)
+		}
+		return cloned.Interface()
+	case reflect.Slice:
+		if rv.IsNil() {
+			return nil
+		}
+		cloned := reflect.MakeSlice(rv.Type(), rv.Len(), rv.Len())
+		for idx := 0; idx < rv.Len(); idx++ {
+			clonedValue := cloneDetailsValue(rv.Index(idx).Interface())
+			if clonedValue == nil {
+				cloned.Index(idx).Set(reflect.Zero(rv.Type().Elem()))
+				continue
+			}
+			clonedReflectValue := reflect.ValueOf(clonedValue)
+			if !clonedReflectValue.Type().AssignableTo(rv.Type().Elem()) {
+				if clonedReflectValue.Type().ConvertibleTo(rv.Type().Elem()) {
+					clonedReflectValue = clonedReflectValue.Convert(rv.Type().Elem())
+				} else {
+					continue
+				}
+			}
+			cloned.Index(idx).Set(clonedReflectValue)
+		}
+		return cloned.Interface()
+	case reflect.Pointer:
+		if rv.IsNil() {
+			return nil
+		}
+		cloned := reflect.New(rv.Type().Elem())
+		elemValue := cloneDetailsValue(rv.Elem().Interface())
+		if elemValue != nil {
+			elemReflectValue := reflect.ValueOf(elemValue)
+			if !elemReflectValue.Type().AssignableTo(cloned.Elem().Type()) {
+				if elemReflectValue.Type().ConvertibleTo(cloned.Elem().Type()) {
+					elemReflectValue = elemReflectValue.Convert(cloned.Elem().Type())
+				} else {
+					cloned.Elem().Set(rv.Elem())
+					return cloned.Interface()
+				}
+			}
+			cloned.Elem().Set(elemReflectValue)
+		}
+		return cloned.Interface()
+	case reflect.Struct:
+		cloned := reflect.New(rv.Type()).Elem()
+		for idx := 0; idx < rv.NumField(); idx++ {
+			field := rv.Field(idx)
+			if !field.CanInterface() {
+				continue
+			}
+			targetField := cloned.Field(idx)
+			if !targetField.CanSet() {
+				continue
+			}
+			clonedValue := reflect.ValueOf(cloneDetailsValue(field.Interface()))
+			if !clonedValue.IsValid() {
+				continue
+			}
+			if clonedValue.Type().AssignableTo(targetField.Type()) {
+				targetField.Set(clonedValue)
+			} else if clonedValue.Type().ConvertibleTo(targetField.Type()) {
+				targetField.Set(clonedValue.Convert(targetField.Type()))
+			}
+		}
+		return cloned.Interface()
+	default:
+		return value
 	}
 }

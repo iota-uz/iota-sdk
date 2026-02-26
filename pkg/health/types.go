@@ -2,6 +2,7 @@ package health
 
 import "time"
 
+// Status represents a health evaluation state.
 type Status string
 
 const (
@@ -12,6 +13,7 @@ const (
 	StatusUnknown  Status = "unknown"
 )
 
+// Capability describes an optional feature and its runtime health state.
 type Capability struct {
 	Key     string `json:"key"`
 	Name    string `json:"name"`
@@ -21,6 +23,7 @@ type Capability struct {
 	Message string `json:"message,omitempty"`
 }
 
+// HealthCheck captures the outcome of a single detailed check.
 type HealthCheck struct {
 	Status    Status         `json:"status"`
 	LatencyMs int64          `json:"latencyMs,omitempty"`
@@ -28,6 +31,7 @@ type HealthCheck struct {
 	Details   map[string]any `json:"details,omitempty"`
 }
 
+// DetailedHealth is the full internal diagnostics payload.
 type DetailedHealth struct {
 	Status       Status                 `json:"status"`
 	Timestamp    time.Time              `json:"timestamp"`
