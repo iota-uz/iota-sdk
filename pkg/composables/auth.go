@@ -50,6 +50,18 @@ func CanUser(ctx context.Context, perm permission.Permission) error {
 	return nil
 }
 
+// CanUserStrict checks that a user exists in context and has the given permission.
+func CanUserStrict(ctx context.Context, perm permission.Permission) error {
+	u, err := UseUser(ctx)
+	if err != nil {
+		return err
+	}
+	if !u.Can(perm) {
+		return ErrForbidden
+	}
+	return nil
+}
+
 func CanUserAll(ctx context.Context, perms ...rbac.Permission) error {
 	u, _ := UseUser(ctx)
 	if u == nil || len(perms) == 0 {
