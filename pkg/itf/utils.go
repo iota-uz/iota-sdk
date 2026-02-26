@@ -48,7 +48,7 @@ func NewPool(dbOpts string) *pgxpool.Pool {
 	}
 
 	// With increased PostgreSQL max_connections (500), we can use reasonable limits
-	config.MaxConns = 1
+	config.MaxConns = 4
 	config.MinConns = 0
 	config.MaxConnLifetime = time.Minute * 5
 	config.MaxConnIdleTime = time.Second * 30

@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   security-gosec:
     runs-on: blacksmith-8vcpu-ubuntu-2404
@@ -171,6 +175,7 @@ jobs:
 
   test-unit-integration:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 25
     name: Unit & Integration Tests
     env:
       GOPRIVATE: github.com/iota-uz/*
