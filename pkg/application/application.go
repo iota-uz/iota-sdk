@@ -130,11 +130,6 @@ func LoadBundleFromLocaleFiles(fs ...*embed.FS) *i18n.Bundle {
 	return bundle
 }
 
-func shouldSkipSpotlightPreflight() bool {
-	value := strings.TrimSpace(os.Getenv("IOTA_SKIP_SPOTLIGHT_PREFLIGHT"))
-	return value == "1" || strings.EqualFold(value, "true")
-}
-
 // loadLocaleFSIntoBundle reads all files from the given embed.FS and parses them into the bundle.
 func loadLocaleFSIntoBundle(bundle *i18n.Bundle, localeFs *embed.FS) {
 	files, err := listFiles(localeFs, ".")
@@ -165,15 +160,13 @@ func New(opts *ApplicationOptions) (Application, error) {
 	cfg := configuration.Use()
 	if cfg.MeiliURL == "" {
 		if opts.Logger != nil {
-			opts.Logger.Warn("MEILI_URL not set — spotlight search is disabled (using noop engine)")
+			opts.Logger.Info("spotlight disabled: MEILI_URL not set")
 		}
 		engine = spotlight.NewNoopEngine()
 	} else {
 		engine = spotlight.NewMeilisearchEngine(cfg.MeiliURL, cfg.MeiliAPIKey)
-		if !shouldSkipSpotlightPreflight() {
-			if err := engine.Health(initCtx); err != nil {
-				return nil, fmt.Errorf("spotlight preflight check: %w", err)
-			}
+		if err := engine.Health(initCtx); err != nil {
+			return nil, fmt.Errorf("spotlight preflight check: %w", err)
 		}
 	}
 	spotlightService := spotlight.NewService(

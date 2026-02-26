@@ -47,7 +47,6 @@ jobs:
     env:
       GOPRIVATE: github.com/iota-uz/*
       GONOSUMDB: github.com/iota-uz/*
-      IOTA_SKIP_SPOTLIGHT_PREFLIGHT: "1"
 
     steps:
       - name: Checkout repository
