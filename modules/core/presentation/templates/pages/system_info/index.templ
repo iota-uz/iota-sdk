@@ -3,17 +3,15 @@ package system_info
 import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 templ Index(vm *viewmodels.SystemInfoViewModel, metricsPath string) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("Logsys.Pages.SystemInfo.Title")},
+		BaseProps: layouts.BaseProps{Title: "System Information"},
 	}) {
 		<div class="m-6">
 			<!-- Header -->
-			<h1 class="text-2xl font-medium mb-6">{ pageCtx.T("Logsys.Pages.SystemInfo.Title") }</h1>
+			<h1 class="text-2xl font-medium mb-6">System Information</h1>
 			<!-- Auto-refreshing container with HTMX -->
 			<div
 				id="system-metrics-container"

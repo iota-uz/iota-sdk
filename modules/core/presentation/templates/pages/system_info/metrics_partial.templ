@@ -6,34 +6,32 @@ import (
 
 	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 		<!-- Server Information Card -->
 		<div class="bg-white p-6 rounded-lg shadow">
-			<h3 class="text-lg font-semibold mb-4">{ pageCtx.T("Logsys.Pages.SystemInfo.Server") }</h3>
+			<h3 class="text-lg font-semibold mb-4">Server</h3>
 			<div class="space-y-2 text-sm">
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._hostname") }:</span>
+					<span class="text-gray-600">Hostname:</span>
 					<span class="font-mono">{ vm.Metrics.Hostname }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._uptime") }:</span>
+					<span class="text-gray-600">Uptime:</span>
 					<span class="font-mono">{ vm.FormattedUptime }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._current_time") }:</span>
+					<span class="text-gray-600">Current Time:</span>
 					<span class="font-mono">{ vm.Metrics.CurrentTime.Format("2006-01-02 15:04:05") }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._timezone") }:</span>
+					<span class="text-gray-600">Timezone:</span>
 					<span class="font-mono">{ vm.Metrics.Timezone } ({ vm.Metrics.TimezoneOffset })</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._environment") }:</span>
+					<span class="text-gray-600">Environment:</span>
 					@badge.New(badge.Props{
 						Variant: badge.VariantBlue,
 						Size:    badge.SizeNormal,
@@ -45,128 +43,128 @@ templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
 		</div>
 		<!-- Runtime Information Card -->
 		<div class="bg-white p-6 rounded-lg shadow">
-			<h3 class="text-lg font-semibold mb-4">{ pageCtx.T("Logsys.Pages.SystemInfo.Runtime") }</h3>
+			<h3 class="text-lg font-semibold mb-4">Runtime</h3>
 			<div class="space-y-2 text-sm">
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._go_version") }:</span>
+					<span class="text-gray-600">Go Version:</span>
 					<span class="font-mono">{ vm.Metrics.GoVersion }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._os_arch") }:</span>
+					<span class="text-gray-600">OS/Arch:</span>
 					<span class="font-mono">{ vm.Metrics.GOOS }/{ vm.Metrics.GOARCH }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._cpus") }:</span>
+					<span class="text-gray-600">CPUs:</span>
 					<span class="font-mono">{ strconv.Itoa(vm.Metrics.NumCPU) }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._goroutines") }:</span>
+					<span class="text-gray-600">Goroutines:</span>
 					<span class="font-mono">{ strconv.Itoa(vm.Metrics.NumGoroutines) }</span>
 				</div>
 			</div>
 		</div>
 		<!-- Memory Card -->
 		<div class="bg-white p-6 rounded-lg shadow">
-			<h3 class="text-lg font-semibold mb-4">{ pageCtx.T("Logsys.Pages.SystemInfo.Memory") }</h3>
+			<h3 class="text-lg font-semibold mb-4">Memory</h3>
 			<div class="space-y-2 text-sm">
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._heap_alloc") }:</span>
+					<span class="text-gray-600">Heap Alloc:</span>
 					<span class="font-mono">{ vm.FormattedHeapAlloc }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._heap_sys") }:</span>
+					<span class="text-gray-600">Heap Sys:</span>
 					<span class="font-mono">{ vm.FormattedHeapSys }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._total_memory") }:</span>
+					<span class="text-gray-600">Total Memory:</span>
 					<span class="font-mono">{ vm.FormattedTotalMemory }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._used_memory") }:</span>
+					<span class="text-gray-600">Used Memory:</span>
 					<span class="font-mono">{ vm.FormattedUsedMemory } ({ vm.FormattedMemoryPercent })</span>
 				</div>
 			</div>
 		</div>
 		<!-- GC Card -->
 		<div class="bg-white p-6 rounded-lg shadow">
-			<h3 class="text-lg font-semibold mb-4">{ pageCtx.T("Logsys.Pages.SystemInfo.GC") }</h3>
+			<h3 class="text-lg font-semibold mb-4">GC</h3>
 			<div class="space-y-2 text-sm">
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._gc_cycles") }:</span>
+					<span class="text-gray-600">GC Cycles:</span>
 					<span class="font-mono">{ strconv.FormatUint(uint64(vm.Metrics.NumGC), 10) }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._last_pause") }:</span>
+					<span class="text-gray-600">Last Pause:</span>
 					<span class="font-mono">{ strconv.FormatUint(vm.Metrics.LastPauseNs / 1000000, 10) } ms</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._cpu_fraction") }:</span>
-					<span class="font-mono">{ fmt.Sprintf("%.2f", vm.Metrics.GCCPUFraction * 100) }%</span>
+					<span class="text-gray-600">CPU Fraction:</span>
+					<span class="font-mono">{ fmt.Sprintf("%.2f", vm.Metrics.GCCPUFraction*100) }%</span>
 				</div>
 			</div>
 		</div>
 		<!-- Database Pool Card -->
 		<div class="bg-white p-6 rounded-lg shadow">
-			<h3 class="text-lg font-semibold mb-4">{ pageCtx.T("Logsys.Pages.SystemInfo.DatabasePool") }</h3>
+			<h3 class="text-lg font-semibold mb-4">Database Pool</h3>
 			<div class="space-y-2 text-sm">
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._active_conns") }:</span>
+					<span class="text-gray-600">Active Conns:</span>
 					<span class="font-mono">{ strconv.FormatInt(int64(vm.Metrics.PoolActiveConns), 10) }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._idle_conns") }:</span>
+					<span class="text-gray-600">Idle Conns:</span>
 					<span class="font-mono">{ strconv.FormatInt(int64(vm.Metrics.PoolIdleConns), 10) }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._total_max") }:</span>
+					<span class="text-gray-600">Total/Max:</span>
 					<span class="font-mono">{ strconv.FormatInt(int64(vm.Metrics.PoolTotalConns), 10) }/{ strconv.FormatInt(int64(vm.Metrics.PoolMaxConns), 10) }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._acquires") }:</span>
+					<span class="text-gray-600">Acquires:</span>
 					<span class="font-mono">{ strconv.FormatInt(vm.Metrics.PoolAcquireCount, 10) }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._new_conns") }:</span>
+					<span class="text-gray-600">New Conns:</span>
 					<span class="font-mono">{ strconv.FormatInt(vm.Metrics.PoolNewConnsCount, 10) }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._avg_acquire") }:</span>
+					<span class="text-gray-600">Avg Acquire:</span>
 					<span class="font-mono">{ strconv.FormatInt(vm.Metrics.PoolAcquireDuration.Milliseconds(), 10) } ms</span>
 				</div>
 			</div>
 		</div>
 		<!-- System Resources Card -->
 		<div class="bg-white p-6 rounded-lg shadow">
-			<h3 class="text-lg font-semibold mb-4">{ pageCtx.T("Logsys.Pages.SystemInfo.System") }</h3>
+			<h3 class="text-lg font-semibold mb-4">System</h3>
 			<div class="space-y-2 text-sm">
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._cpu_usage") }:</span>
+					<span class="text-gray-600">CPU Usage:</span>
 					<span class="font-mono">{ vm.FormattedCPUPercent }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._disk_total") }:</span>
+					<span class="text-gray-600">Disk Total:</span>
 					<span class="font-mono">{ vm.FormattedDiskTotal }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._disk_used") }:</span>
+					<span class="text-gray-600">Disk Used:</span>
 					<span class="font-mono">{ vm.FormattedDiskUsed } ({ vm.FormattedDiskPercent })</span>
 				</div>
 			</div>
 		</div>
 		<!-- Build Information Card -->
 		<div class="bg-white p-6 rounded-lg shadow">
-			<h3 class="text-lg font-semibold mb-4">{ pageCtx.T("Logsys.Pages.SystemInfo.Build") }</h3>
+			<h3 class="text-lg font-semibold mb-4">Build</h3>
 			<div class="space-y-2 text-sm">
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._version") }:</span>
+					<span class="text-gray-600">Version:</span>
 					<span class="font-mono">{ vm.Metrics.Version }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._branch") }:</span>
+					<span class="text-gray-600">Branch:</span>
 					<span class="font-mono">{ vm.Metrics.BranchName }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._git_commit") }:</span>
+					<span class="text-gray-600">Git Commit:</span>
 					if vm.Metrics.GitCommit != "unknown" && len(vm.Metrics.GitCommit) > 0 {
 						<a
 							href={ templ.URL("https://github.com/iota-uz/iota-sdk/commit/" + vm.Metrics.GitCommit) }
@@ -185,22 +183,22 @@ templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
 					}
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._build_time") }:</span>
+					<span class="text-gray-600">Build Time:</span>
 					<span class="font-mono text-xs">{ vm.Metrics.BuildTime }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._build_environment") }:</span>
+					<span class="text-gray-600">Environment:</span>
 					<span class="font-mono text-xs">{ vm.Metrics.BuildEnvironment }</span>
 				</div>
 				<div class="flex justify-between">
-					<span class="text-gray-600">{ pageCtx.T("Logsys.Fields._build_go_version") }:</span>
+					<span class="text-gray-600">Build Go Version:</span>
 					<span class="font-mono text-xs">{ vm.Metrics.BuildGoVersion }</span>
 				</div>
 			</div>
 		</div>
 		<!-- Optional Capabilities -->
 		<div class="bg-white p-6 rounded-lg shadow md:col-span-2 lg:col-span-3">
-			<h3 class="text-lg font-semibold mb-4">{ pageCtx.T("Logsys.Pages.SystemInfo.Capabilities") }</h3>
+			<h3 class="text-lg font-semibold mb-4">Capabilities</h3>
 			<div class="space-y-3">
 				for _, capability := range vm.Capabilities {
 					<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b border-gray-100 pb-2 last:border-b-0">
@@ -208,32 +206,32 @@ templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
 						<div class="flex flex-wrap items-center gap-2 text-sm">
 							if capability.Enabled {
 								@badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeNormal}) {
-									{ pageCtx.T("Logsys.Status.enabled") }
+									enabled
 								}
 							} else {
 								@badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeNormal}) {
-									{ pageCtx.T("Logsys.Status.disabled") }
+									disabled
 								}
 							}
 							if capability.Status == "healthy" {
 								@badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeNormal}) {
-									{ pageCtx.T("Logsys.Status.healthy") }
+									healthy
 								}
 							} else if capability.Status == "degraded" {
 								@badge.New(badge.Props{Variant: badge.VariantYellow, Size: badge.SizeNormal}) {
-									{ pageCtx.T("Logsys.Status.degraded") }
+									degraded
 								}
 							} else if capability.Status == "down" {
 								@badge.New(badge.Props{Variant: badge.VariantPink, Size: badge.SizeNormal}) {
-									{ pageCtx.T("Logsys.Status.down") }
+									down
 								}
 							} else if capability.Status == "disabled" {
 								@badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeNormal}) {
-									{ pageCtx.T("Logsys.Status.disabled") }
+									disabled
 								}
 							} else {
 								@badge.New(badge.Props{Variant: badge.VariantBlue, Size: badge.SizeNormal}) {
-									{ pageCtx.T("Logsys.Status.unknown") }
+									unknown
 								}
 							}
 							if capability.Message != "" {
