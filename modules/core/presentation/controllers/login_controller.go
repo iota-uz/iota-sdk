@@ -155,6 +155,16 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Run optional login gate before creating the session cookie.
+	if middleware.LoginAccessCheckFunc != nil {
+		if err := middleware.LoginAccessCheckFunc(r.Context(), u); err != nil {
+			shared.SetFlash(w, "error", []byte(err.Error()))
+			queryParams.Set("error", err.Error())
+			http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+			return
+		}
+	}
+
 	// Evaluate 2FA requirement for OAuth authentication.
 	// By default, users with 2FA enabled must complete verification.
 	{
@@ -326,6 +336,15 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
 		return
+	}
+
+	// Run optional login gate before creating the session cookie.
+	if middleware.LoginAccessCheckFunc != nil {
+		if err := middleware.LoginAccessCheckFunc(r.Context(), u); err != nil {
+			shared.SetFlash(w, "error", []byte(err.Error()))
+			http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+			return
+		}
 	}
 
 	// Evaluate 2FA requirement for password authentication.

@@ -57,7 +57,41 @@ var AdministrationLink = types.NavigationItem{
 	},
 }
 
-var NavItems = []types.NavigationItem{
-	DashboardLink,
-	AdministrationLink,
+// DashboardLinkPermissions and SettingsLinkPermissions allow host applications to
+// control which users can see these core links in the sidebar.
+var DashboardLinkPermissions []permission.Permission
+var SettingsLinkPermissions []permission.Permission
+
+// BuildNavItems returns core nav items with provided permission overrides.
+func BuildNavItems(
+	dashboardLinkPermissions []permission.Permission,
+	settingsLinkPermissions []permission.Permission,
+) []types.NavigationItem {
+	dashboardLink := DashboardLink
+	dashboardLink.Permissions = dashboardLinkPermissions
+
+	settingsLink := SettingsLink
+	settingsLink.Permissions = settingsLinkPermissions
+
+	administrationLink := AdministrationLink
+	administrationLink.Children = make([]types.NavigationItem, len(AdministrationLink.Children))
+	copy(administrationLink.Children, AdministrationLink.Children)
+	for i := range administrationLink.Children {
+		if administrationLink.Children[i].Name == SettingsLink.Name {
+			administrationLink.Children[i] = settingsLink
+			break
+		}
+	}
+
+	return []types.NavigationItem{
+		dashboardLink,
+		administrationLink,
+	}
 }
+
+// ResolvedNavItems resolves nav items from package-level permission overrides.
+func ResolvedNavItems() []types.NavigationItem {
+	return BuildNavItems(DashboardLinkPermissions, SettingsLinkPermissions)
+}
+
+var NavItems = BuildNavItems(nil, nil)
