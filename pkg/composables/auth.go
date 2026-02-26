@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var (
@@ -52,12 +53,14 @@ func CanUser(ctx context.Context, perm permission.Permission) error {
 
 // CanUserStrict checks that a user exists in context and has the given permission.
 func CanUserStrict(ctx context.Context, perm permission.Permission) error {
+	const op = "composables.CanUserStrict"
+
 	u, err := UseUser(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	if !u.Can(perm) {
-		return ErrForbidden
+		return serrors.E(op, ErrForbidden)
 	}
 	return nil
 }
