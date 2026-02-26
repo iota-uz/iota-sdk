@@ -89,21 +89,13 @@ func (s *detailedHealthServiceImpl) GetDetailedHealth(ctx context.Context) *Deta
 func aggregateStatus(checks map[string]HealthCheck) Status {
 	status := StatusHealthy
 	for _, check := range checks {
-		if check.Status == StatusDown {
+		switch check.Status {
+		case StatusDown:
 			return StatusDown
-		}
-		if check.Status == StatusDisabled {
-			if status == StatusHealthy {
-				status = StatusDisabled
-			}
-		}
-		if check.Status == StatusDegraded {
+		case StatusDegraded, StatusUnknown, StatusDisabled:
 			status = StatusDegraded
-		}
-		if check.Status == StatusUnknown {
-			if status == StatusHealthy {
-				status = StatusUnknown
-			}
+		case StatusHealthy:
+			// keep current aggregate status
 		}
 	}
 

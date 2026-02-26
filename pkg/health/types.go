@@ -23,12 +23,16 @@ type Capability struct {
 	Message string `json:"message,omitempty"`
 }
 
+// HealthCheckDetails intentionally remains open-ended because different checks
+// emit different diagnostic payloads.
+type HealthCheckDetails map[string]any
+
 // HealthCheck captures the outcome of a single detailed check.
 type HealthCheck struct {
-	Status    Status         `json:"status"`
-	LatencyMs int64          `json:"latencyMs,omitempty"`
-	Message   string         `json:"message,omitempty"`
-	Details   map[string]any `json:"details,omitempty"`
+	Status    Status             `json:"status"`
+	LatencyMs int64              `json:"latencyMs,omitempty"`
+	Message   string             `json:"message,omitempty"`
+	Details   HealthCheckDetails `json:"details,omitempty"`
 }
 
 // DetailedHealth is the full internal diagnostics payload.

@@ -28,9 +28,19 @@ type HealthUIController struct {
 	options *HealthUIControllerOptions
 }
 
-// NewHealthUIController builds a system info controller with the provided
-// application and options.
-func NewHealthUIController(app application.Application, options *HealthUIControllerOptions) application.Controller {
+// NewHealthUIController builds a system info controller from a dependency map.
+// Required dependency: "app" (application.Application). Optional: "options" (*HealthUIControllerOptions).
+func NewHealthUIController(deps map[string]any) application.Controller {
+	rawApp, ok := deps["app"]
+	if !ok {
+		panic("health ui controller requires dependency \"app\" (application.Application)")
+	}
+	app, ok := rawApp.(application.Application)
+	if !ok {
+		panic("health ui controller dependency \"app\" has invalid type")
+	}
+
+	options, _ := deps["options"].(*HealthUIControllerOptions)
 	if options == nil {
 		options = &HealthUIControllerOptions{}
 	}
