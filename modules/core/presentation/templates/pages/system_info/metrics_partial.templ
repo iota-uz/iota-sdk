@@ -207,32 +207,32 @@ templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
 						<div class="font-medium">{ capability.Name }</div>
 						<div class="flex flex-wrap items-center gap-2 text-sm">
 							if capability.Enabled {
-								@badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeSmall}) {
+								@badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeNormal}) {
 									enabled
 								}
 							} else {
-								@badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeSmall}) {
+								@badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeNormal}) {
 									disabled
 								}
 							}
 							if capability.Status == "healthy" {
-								@badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeSmall}) {
+								@badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeNormal}) {
 									healthy
 								}
 							} else if capability.Status == "degraded" {
-								@badge.New(badge.Props{Variant: badge.VariantYellow, Size: badge.SizeSmall}) {
+								@badge.New(badge.Props{Variant: badge.VariantYellow, Size: badge.SizeNormal}) {
 									degraded
 								}
 							} else if capability.Status == "down" {
-								@badge.New(badge.Props{Variant: badge.VariantPink, Size: badge.SizeSmall}) {
+								@badge.New(badge.Props{Variant: badge.VariantPink, Size: badge.SizeNormal}) {
 									down
 								}
 							} else if capability.Status == "disabled" {
-								@badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeSmall}) {
+								@badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeNormal}) {
 									disabled
 								}
 							} else {
-								@badge.New(badge.Props{Variant: badge.VariantBlue, Size: badge.SizeSmall}) {
+								@badge.New(badge.Props{Variant: badge.VariantBlue, Size: badge.SizeNormal}) {
 									unknown
 								}
 							}

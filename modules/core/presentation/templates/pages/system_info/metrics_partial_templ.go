@@ -774,7 +774,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeSmall}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var55), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeNormal}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var55), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -797,7 +797,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeSmall}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var56), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeNormal}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var56), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -821,7 +821,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeSmall}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var57), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeNormal}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var57), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -844,7 +844,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantYellow, Size: badge.SizeSmall}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantYellow, Size: badge.SizeNormal}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -867,7 +867,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantPink, Size: badge.SizeSmall}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var59), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantPink, Size: badge.SizeNormal}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var59), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -890,7 +890,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeSmall}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var60), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeNormal}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var60), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -913,7 +913,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantBlue, Size: badge.SizeSmall}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var61), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantBlue, Size: badge.SizeNormal}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var61), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

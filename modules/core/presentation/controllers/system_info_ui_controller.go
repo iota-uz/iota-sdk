@@ -12,12 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
-type SystemInfoUIControllerOptions struct {
-	BasePath       string
-	CanAccess      func(ctx context.Context) error
-	BuildViewModel func(ctx context.Context, r *http.Request) (*viewmodels.SystemInfoViewModel, error)
-}
-
 type HealthUIControllerOptions struct {
 	BasePath       string
 	CanAccess      func(ctx context.Context) error
