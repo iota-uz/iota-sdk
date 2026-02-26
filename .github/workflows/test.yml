@@ -278,7 +278,7 @@ jobs:
           DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
-        run: go test -tags dev -p 1 -parallel 4 -v ./... -coverprofile=coverage.out -covermode=atomic
+        run: go test -tags dev -v ./... -coverprofile=coverage.out -covermode=atomic
 
       - name: Generate coverage report
         env:
