@@ -90,6 +90,8 @@ type GenerationRunRepository interface {
 	CreateRun(ctx context.Context, run GenerationRun) error
 	// GetActiveRunBySession returns the active (status=streaming) run for the session, or nil if none.
 	GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (GenerationRun, error)
+	// GetRunByID returns a run by id regardless of status.
+	GetRunByID(ctx context.Context, runID uuid.UUID) (GenerationRun, error)
 	// UpdateRunSnapshot updates partial_content and partial_metadata for the run.
 	UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error
 	// CompleteRun marks the run as completed.
@@ -103,6 +105,9 @@ var ErrActiveRunExists = errors.New("session already has an active generation ru
 
 // ErrNoActiveRun is returned by GetActiveRunBySession when the session has no active (streaming) run.
 var ErrNoActiveRun = errors.New("no active generation run for session")
+
+// ErrRunNotFound is returned when no generation run row exists for the given id.
+var ErrRunNotFound = errors.New("generation run not found")
 
 // ChatRepository defines the persistence interface for chat domain models.
 // All operations are tenant-scoped for multi-tenancy isolation.

@@ -271,7 +271,11 @@
       "Retry": "Qayta urinish",
       "DismissNotification": "Xabarni yopish",
       "OneMember": "1 a'zo",
-      "MemberCount": "{{count}} a'zo"
+      "MemberCount": "{{count}} a'zo",
+      "MemberCount_one": "{{count}} a'zo",
+      "MemberCount_few": "{{count}} a'zolar",
+      "MemberCount_many": "{{count}} a'zolar",
+      "MemberCount_other": "{{count}} a'zolar"
     },
     "Share": {
       "Title": "Ulashish",

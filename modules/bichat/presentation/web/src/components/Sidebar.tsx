@@ -120,7 +120,7 @@ export default function Sidebar({ onNewChat, creating, onClose }: SidebarProps) 
   const activeSessionId = location.pathname.match(/\/session\/([^/]+)/)?.[1]
   const isArchivedView = location.pathname === '/archived'
 
-  const dataSource = useBiChatDataSource((sessionId: string) => navigate(`/session/${sessionId}`))
+  const dataSource = useBiChatDataSource()
 
   useEffect(() => {
     if (!canReadAllChats && activeTab === 'all-chats') {

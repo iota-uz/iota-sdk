@@ -341,6 +341,12 @@ const (
 		WHERE tenant_id = $1 AND session_id = $2 AND status = 'streaming'
 		LIMIT 1
 	`
+	selectGenerationRunByIDQuery = `
+		SELECT id, session_id, tenant_id, user_id, status, partial_content, partial_metadata, started_at, last_updated_at
+		FROM bichat.generation_runs
+		WHERE tenant_id = $1 AND id = $2
+		LIMIT 1
+	`
 	updateGenerationRunSnapshotQuery = `
 		UPDATE bichat.generation_runs
 		SET partial_content = $1, partial_metadata = $2, last_updated_at = $3
@@ -1902,6 +1908,46 @@ func (r *PostgresChatRepository) GetActiveRunBySession(ctx context.Context, sess
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrNoActiveRun
+		}
+		return nil, serrors.E(op, err)
+	}
+
+	runEntity, err := model.ToDomain()
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return runEntity, nil
+}
+
+// GetRunByID returns a run by id regardless of status.
+func (r *PostgresChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
+	const op serrors.Op = "PostgresChatRepository.GetRunByID"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	row := tx.QueryRow(ctx, selectGenerationRunByIDQuery, tenantID, runID)
+	var model models.GenerationRunModel
+	err = row.Scan(
+		&model.ID,
+		&model.SessionID,
+		&model.TenantID,
+		&model.UserID,
+		&model.Status,
+		&model.PartialContent,
+		&model.PartialMeta,
+		&model.StartedAt,
+		&model.LastUpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, serrors.E(op, domain.ErrRunNotFound)
 		}
 		return nil, serrors.E(op, err)
 	}

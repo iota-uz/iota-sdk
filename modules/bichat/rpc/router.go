@@ -336,27 +336,30 @@ func Router(
 		},
 	}))
 
-	mustAdd(applets.AddProcedure(r, "bichat.session.compact", applets.Procedure[SessionIDParams, SessionCompactResult]{
+	mustAdd(applets.AddProcedure(r, "bichat.session.compact", applets.Procedure[SessionIDParams, AsyncRunAcceptedResult]{
 		RequirePermissions: []string{"BiChat.Access"},
-		Handler: func(ctx context.Context, p SessionIDParams) (SessionCompactResult, error) {
+		Handler: func(ctx context.Context, p SessionIDParams) (AsyncRunAcceptedResult, error) {
 			const op serrors.Op = "bichat.rpc.session.compact"
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCompactResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
 
-			result, err := sessionCommands.CompactSessionHistory(ctx, session.ID())
+			result, err := sessionCommands.CompactSessionHistoryAsync(ctx, session.ID())
 			if err != nil {
-				return SessionCompactResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-
-			return SessionCompactResult{
-				Success:          result.Success,
-				Summary:          result.Summary,
-				DeletedMessages:  result.DeletedMessages,
-				DeletedArtifacts: result.DeletedArtifacts,
-			}, nil
+			response := AsyncRunAcceptedResult{
+				Accepted:  result.Accepted,
+				Operation: string(result.Operation),
+			}
+			if result.Accepted {
+				response.SessionID = result.SessionID.String()
+				response.RunID = result.RunID.String()
+				response.StartedAt = result.StartedAt.UnixMilli()
+			}
+			return response, nil
 		},
 	}))
 
@@ -608,70 +611,68 @@ func Router(
 		},
 	}))
 
-	mustAdd(applets.AddProcedure(r, "bichat.question.submit", applets.Procedure[QuestionSubmitParams, SessionGetResult]{
+	mustAdd(applets.AddProcedure(r, "bichat.question.submit", applets.Procedure[QuestionSubmitParams, AsyncRunAcceptedResult]{
 		RequirePermissions: []string{"BiChat.Access"},
-		Handler: func(ctx context.Context, p QuestionSubmitParams) (SessionGetResult, error) {
+		Handler: func(ctx context.Context, p QuestionSubmitParams) (AsyncRunAcceptedResult, error) {
 			const op serrors.Op = "bichat.rpc.question.submit"
 
-			session, access, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+			checkpointID := strings.TrimSpace(p.CheckpointID)
+			if checkpointID == "" {
+				return AsyncRunAcceptedResult{}, serrors.E(op, serrors.KindValidation, "checkpointId is required")
+			}
+			if len(p.Answers) == 0 {
+				return AsyncRunAcceptedResult{}, serrors.E(op, serrors.KindValidation, "answers are required")
 			}
 
-			_, err = hitlCommands.ResumeWithAnswer(ctx, services.ResumeRequest{
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
+			if err != nil {
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
+			}
+
+			result, err := hitlCommands.ResumeWithAnswerAsync(ctx, services.ResumeRequest{
 				SessionID:    session.ID(),
-				CheckpointID: p.CheckpointID,
+				CheckpointID: checkpointID,
 				Answers:      p.Answers,
 			})
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-
-			// Re-fetch session and messages to return updated state
-			s, err := sessionQueries.GetSession(ctx, session.ID())
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+			response := AsyncRunAcceptedResult{
+				Accepted:  result.Accepted,
+				Operation: string(result.Operation),
 			}
-			msgs, err := turnQueries.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+			if result.Accepted {
+				response.SessionID = result.SessionID.String()
+				response.RunID = result.RunID.String()
+				response.StartedAt = result.StartedAt.UnixMilli()
 			}
-
-			return SessionGetResult{
-				Session:         withSessionMeta(ctx, sessionQueries, s, access),
-				Turns:           buildTurns(msgs),
-				PendingQuestion: pendingQuestionFromMessages(msgs),
-			}, nil
+			return response, nil
 		},
 	}))
 
-	mustAdd(applets.AddProcedure(r, "bichat.question.reject", applets.Procedure[QuestionCancelParams, SessionGetResult]{
+	mustAdd(applets.AddProcedure(r, "bichat.question.reject", applets.Procedure[QuestionCancelParams, AsyncRunAcceptedResult]{
 		RequirePermissions: []string{"BiChat.Access"},
-		Handler: func(ctx context.Context, p QuestionCancelParams) (SessionGetResult, error) {
+		Handler: func(ctx context.Context, p QuestionCancelParams) (AsyncRunAcceptedResult, error) {
 			const op serrors.Op = "bichat.rpc.question.reject"
 
-			session, access, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
+			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-			_, err = hitlCommands.RejectPendingQuestion(ctx, session.ID())
+			result, err := hitlCommands.RejectPendingQuestionAsync(ctx, session.ID())
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.E(op, err)
 			}
-			// Re-fetch to return updated state
-			s, err := sessionQueries.GetSession(ctx, session.ID())
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+			response := AsyncRunAcceptedResult{
+				Accepted:  result.Accepted,
+				Operation: string(result.Operation),
 			}
-			msgs, err := turnQueries.GetSessionMessages(ctx, session.ID(), domain.ListOptions{Limit: 500})
-			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+			if result.Accepted {
+				response.SessionID = result.SessionID.String()
+				response.RunID = result.RunID.String()
+				response.StartedAt = result.StartedAt.UnixMilli()
 			}
-			return SessionGetResult{
-				Session:         withSessionMeta(ctx, sessionQueries, s, access),
-				Turns:           buildTurns(msgs),
-				PendingQuestion: pendingQuestionFromMessages(msgs),
-			}, nil
+			return response, nil
 		},
 	}))
 

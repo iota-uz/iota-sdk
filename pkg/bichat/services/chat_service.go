@@ -26,6 +26,7 @@ type SessionCommands interface {
 	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
 	ClearSessionHistory(ctx context.Context, sessionID uuid.UUID) (ClearSessionHistoryResponse, error)
 	CompactSessionHistory(ctx context.Context, sessionID uuid.UUID) (CompactSessionHistoryResponse, error)
+	CompactSessionHistoryAsync(ctx context.Context, sessionID uuid.UUID) (AsyncRunAccepted, error)
 	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
 }
 
@@ -57,10 +58,12 @@ type TurnQueries interface {
 // HITLCommands resumes or rejects pending user-interaction questions.
 type HITLCommands interface {
 	ResumeWithAnswer(ctx context.Context, req ResumeRequest) (*SendMessageResponse, error)
+	ResumeWithAnswerAsync(ctx context.Context, req ResumeRequest) (AsyncRunAccepted, error)
 
 	// RejectPendingQuestion rejects a pending HITL question and resumes the agent
 	// with "user rejected questions" feedback.
 	RejectPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*SendMessageResponse, error)
+	RejectPendingQuestionAsync(ctx context.Context, sessionID uuid.UUID) (AsyncRunAccepted, error)
 }
 
 // StreamCommands manages streaming turn execution and active stream lifecycle.
@@ -91,6 +94,22 @@ type StreamStatus struct {
 type StreamSnapshot struct {
 	PartialContent  string
 	PartialMetadata map[string]any
+}
+
+type AsyncRunOperation string
+
+const (
+	AsyncRunOperationQuestionSubmit AsyncRunOperation = "question_submit"
+	AsyncRunOperationQuestionReject AsyncRunOperation = "question_reject"
+	AsyncRunOperationSessionCompact AsyncRunOperation = "session_compact"
+)
+
+type AsyncRunAccepted struct {
+	Accepted  bool
+	Operation AsyncRunOperation
+	SessionID uuid.UUID
+	RunID     uuid.UUID
+	StartedAt time.Time
 }
 
 // SendMessageRequest contains the input for sending a message
@@ -184,6 +203,7 @@ const (
 	ChunkTypeThinking      ChunkType = "thinking"
 	ChunkTypeSnapshot      ChunkType = "snapshot"
 	ChunkTypeStreamStarted ChunkType = "stream_started"
+	ChunkTypePing          ChunkType = "ping"
 )
 
 // ToolEvent represents a tool execution event in a streaming chunk.
