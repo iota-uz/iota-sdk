@@ -173,7 +173,6 @@ jobs:
     env:
       GOPRIVATE: github.com/iota-uz/*
       GONOSUMDB: github.com/iota-uz/*
-      MEILI_URL: http://localhost:7700
 
     services:
       postgres:
@@ -213,13 +212,6 @@ jobs:
           - 6379:6379
         options: >-
           --tmpfs /data:rw,size=6g
-      meilisearch:
-        image: getmeili/meilisearch:v1.12
-        ports:
-          - 7700:7700
-        env:
-          MEILI_ENV: development
-          MEILI_NO_ANALYTICS: "true"
 
     steps:
       - name: Checkout repository
@@ -260,7 +252,7 @@ jobs:
         run: |
           max_connections=$(psql "host=$DB_HOST port=$DB_PORT dbname=$DB_NAME user=$DB_USER password=$DB_PASSWORD sslmode=disable" -tAc "SHOW max_connections;" | tr -d '[:space:]')
           echo "PostgreSQL max_connections=$max_connections"
-          min_expected=100
+          min_expected=300
           if [ -z "$max_connections" ] || [ "$max_connections" -lt "$min_expected" ]; then
             echo "Error: max_connections is too low (expected >= $min_expected, got ${max_connections:-empty})"
             exit 1
@@ -334,7 +326,6 @@ jobs:
     env:
       GOPRIVATE: github.com/iota-uz/*
       GONOSUMDB: github.com/iota-uz/*
-      MEILI_URL: http://localhost:7700
 
     services:
       postgres:
@@ -374,13 +365,6 @@ jobs:
           - 6379:6379
         options: >-
           --tmpfs /data:rw,size=6g
-      meilisearch:
-        image: getmeili/meilisearch:v1.12
-        ports:
-          - 7700:7700
-        env:
-          MEILI_ENV: development
-          MEILI_NO_ANALYTICS: "true"
 
     steps:
       - name: Checkout repository
@@ -476,7 +460,6 @@ jobs:
           GO_APP_ENV: production
           ENABLE_TEST_ENDPOINTS: true
           TOTP_ENCRYPTION_KEY: e2e-test-encryption-key-32bytes!!
-          MEILI_URL: http://localhost:7700
           OIDC_ISSUER_URL: https://localhost:3201/oidc
           OIDC_CRYPTO_KEY: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
         run: |
