@@ -72,7 +72,6 @@ func (c *HealthUIController) Register(r *mux.Router) {
 		middleware.ProvideDynamicLogo(c.app),
 	)
 
-	subRouter.HandleFunc("", di.H(c.Index)).Methods(http.MethodGet)
 	subRouter.HandleFunc("/", di.H(c.Index)).Methods(http.MethodGet)
 	subRouter.HandleFunc("/metrics", di.H(c.MetricsPartial)).Methods(http.MethodGet)
 }
@@ -102,6 +101,11 @@ func (c *HealthUIController) Index(w http.ResponseWriter, r *http.Request) {
 	}
 	if vm == nil {
 		logger.Error("System info view model is nil")
+		http.Error(w, "Unable to build system information", http.StatusInternalServerError)
+		return
+	}
+	if vm.Metrics == nil {
+		logger.Error("System info metrics are nil")
 		http.Error(w, "Unable to build system information", http.StatusInternalServerError)
 		return
 	}
@@ -139,6 +143,11 @@ func (c *HealthUIController) MetricsPartial(w http.ResponseWriter, r *http.Reque
 	}
 	if vm == nil {
 		logger.Error("System info view model is nil")
+		http.Error(w, "Unable to build system information", http.StatusInternalServerError)
+		return
+	}
+	if vm.Metrics == nil {
+		logger.Error("System info metrics are nil")
 		http.Error(w, "Unable to build system information", http.StatusInternalServerError)
 		return
 	}

@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // CheckFunc runs a single health check with the provided context.
@@ -31,6 +33,7 @@ type detailedHealthServiceImpl struct {
 	cacheMu      sync.RWMutex
 	cacheAt      time.Time
 	cacheValue   *DetailedHealth
+	group        singleflight.Group
 }
 
 // NewDetailedHealthService constructs a diagnostics service instance.
@@ -66,23 +69,41 @@ func (s *detailedHealthServiceImpl) GetDetailedHealth(ctx context.Context) *Deta
 		return cached
 	}
 
-	checks := make(map[string]HealthCheck, len(s.checks))
-	for key, check := range s.checks {
-		if check == nil {
-			continue
+	result, _, _ := s.group.Do("detailed-health", func() (interface{}, error) {
+		if cached := s.loadFromCache(); cached != nil {
+			return cached, nil
 		}
-		checks[key] = safeRunCheck(key, check, ctx)
+
+		checks := make(map[string]HealthCheck, len(s.checks))
+		for key, check := range s.checks {
+			if check == nil {
+				continue
+			}
+			checks[key] = safeRunCheck(key, check, ctx)
+		}
+
+		health := &DetailedHealth{
+			Status:       aggregateStatus(checks),
+			Timestamp:    time.Now().UTC(),
+			Checks:       checks,
+			Capabilities: s.capabilities.GetCapabilities(ctx),
+		}
+
+		s.storeInCache(health)
+		return cloneDetailedHealth(health), nil
+	})
+
+	health, ok := result.(*DetailedHealth)
+	if !ok || health == nil {
+		return &DetailedHealth{
+			Status:       StatusDown,
+			Timestamp:    time.Now().UTC(),
+			Checks:       map[string]HealthCheck{},
+			Capabilities: []Capability{},
+		}
 	}
 
-	health := &DetailedHealth{
-		Status:       aggregateStatus(checks),
-		Timestamp:    time.Now().UTC(),
-		Checks:       checks,
-		Capabilities: s.capabilities.GetCapabilities(ctx),
-	}
-
-	s.storeInCache(health)
-	return cloneDetailedHealth(health)
+	return health
 }
 
 // aggregateStatus reduces individual check statuses into an overall status.

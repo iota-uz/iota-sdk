@@ -1151,7 +1151,8 @@
         "GC": "Сборка мусора",
         "DatabasePool": "Пул БД",
         "System": "Система",
-        "Build": "Сборка"
+        "Build": "Сборка",
+        "Capabilities": "Возможности"
       }
     },
     "Fields": {
@@ -1159,7 +1160,41 @@
       "_uptime": "Время работы",
       "_current_time": "Текущее время",
       "_timezone": "Часовой пояс",
-      "_environment": "Окружение"
+      "_environment": "Окружение",
+      "_go_version": "Версия Go",
+      "_os_arch": "ОС/Арх",
+      "_cpus": "CPU",
+      "_goroutines": "Горутины",
+      "_heap_alloc": "Heap Alloc",
+      "_heap_sys": "Heap Sys",
+      "_total_memory": "Общая память",
+      "_used_memory": "Используемая память",
+      "_gc_cycles": "Циклы GC",
+      "_last_pause": "Последняя пауза",
+      "_cpu_fraction": "Доля CPU",
+      "_active_conns": "Активные соединения",
+      "_idle_conns": "Свободные соединения",
+      "_total_max": "Всего/Макс",
+      "_acquires": "Получения",
+      "_new_conns": "Новые соединения",
+      "_avg_acquire": "Среднее получение",
+      "_cpu_usage": "Использование CPU",
+      "_disk_total": "Диск всего",
+      "_disk_used": "Диск использовано",
+      "_version": "Версия",
+      "_branch": "Ветка",
+      "_git_commit": "Git commit",
+      "_build_time": "Время сборки",
+      "_build_environment": "Окружение сборки",
+      "_build_go_version": "Go версии сборки"
+    },
+    "Status": {
+      "enabled": "включено",
+      "disabled": "выключено",
+      "healthy": "исправно",
+      "degraded": "ухудшено",
+      "down": "недоступно",
+      "unknown": "неизвестно"
     }
   }
 }

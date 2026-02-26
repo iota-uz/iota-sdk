@@ -1155,7 +1155,8 @@
         "GC": "垃圾回收",
         "DatabasePool": "数据库连接池",
         "System": "系统",
-        "Build": "构建"
+        "Build": "构建",
+        "Capabilities": "能力"
       }
     },
     "Fields": {
@@ -1163,7 +1164,41 @@
       "_uptime": "运行时间",
       "_current_time": "当前时间",
       "_timezone": "时区",
-      "_environment": "环境"
+      "_environment": "环境",
+      "_go_version": "Go 版本",
+      "_os_arch": "系统/架构",
+      "_cpus": "CPU",
+      "_goroutines": "协程数",
+      "_heap_alloc": "堆已分配",
+      "_heap_sys": "堆系统内存",
+      "_total_memory": "总内存",
+      "_used_memory": "已用内存",
+      "_gc_cycles": "GC 次数",
+      "_last_pause": "最近暂停",
+      "_cpu_fraction": "CPU 占比",
+      "_active_conns": "活跃连接",
+      "_idle_conns": "空闲连接",
+      "_total_max": "总数/上限",
+      "_acquires": "获取次数",
+      "_new_conns": "新连接",
+      "_avg_acquire": "平均获取",
+      "_cpu_usage": "CPU 使用率",
+      "_disk_total": "磁盘总量",
+      "_disk_used": "磁盘已用",
+      "_version": "版本",
+      "_branch": "分支",
+      "_git_commit": "Git 提交",
+      "_build_time": "构建时间",
+      "_build_environment": "构建环境",
+      "_build_go_version": "构建 Go 版本"
+    },
+    "Status": {
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "healthy": "健康",
+      "degraded": "降级",
+      "down": "不可用",
+      "unknown": "未知"
     }
   }
 }
