@@ -112,6 +112,9 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 					return
 				}
 				filtered := filterItems(app.NavItems(localizer), u)
+				if len(u.Roles()) == 0 {
+					filtered = []types.NavigationItem{}
+				}
 				enabledNavItems := getEnabledNavItems(filtered)
 
 				// Build sidebar props with configurable tab groups
