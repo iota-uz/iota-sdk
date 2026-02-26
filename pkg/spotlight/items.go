@@ -36,9 +36,17 @@ func NewQuickLink(icon templ.Component, trKey, link string) *QuickLink {
 }
 
 type QuickLink struct {
-	trKey string
-	icon  templ.Component
-	link  string
+	trKey     string
+	icon      templ.Component
+	link      string
+	canAccess func(ctx context.Context) bool
+}
+
+// WithAccessCheck sets an optional access check function.
+// When set, the QuickLink is only shown if canAccess returns true.
+func (ql *QuickLink) WithAccessCheck(fn func(ctx context.Context) bool) *QuickLink {
+	ql.canAccess = fn
+	return ql
 }
 
 func (i *QuickLink) Render(ctx context.Context, w io.Writer) error {
@@ -51,8 +59,17 @@ type QuickLinks struct {
 }
 
 func (ql *QuickLinks) Find(ctx context.Context, q string) []Item {
-	words := make([]string, len(ql.items))
-	for i, it := range ql.items {
+	// Filter items by access check first
+	accessible := make([]*QuickLink, 0, len(ql.items))
+	for _, it := range ql.items {
+		if it.canAccess != nil && !it.canAccess(ctx) {
+			continue
+		}
+		accessible = append(accessible, it)
+	}
+
+	words := make([]string, len(accessible))
+	for i, it := range accessible {
 		words[i] = intl.MustT(ctx, it.trKey)
 	}
 	ranks := fuzzy.RankFindNormalizedFold(q, words)
@@ -60,7 +77,7 @@ func (ql *QuickLinks) Find(ctx context.Context, q string) []Item {
 
 	result := make([]Item, 0, len(ranks))
 	for _, rank := range ranks {
-		result = append(result, ql.items[rank.OriginalIndex])
+		result = append(result, accessible[rank.OriginalIndex])
 	}
 	return result
 }

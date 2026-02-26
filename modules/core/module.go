@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"os"
@@ -19,11 +20,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
@@ -237,14 +240,34 @@ func (m *Module) Register(app application.Application) error {
 		BasePath: "/",
 	})
 	app.Spotlight().Register(&dataSource{})
+	canReadUsers := func(ctx context.Context) bool {
+		return composables.CanUser(ctx, permissions.UserRead) == nil
+	}
+	canReadGroups := func(ctx context.Context) bool {
+		return composables.CanUser(ctx, permissions.GroupRead) == nil
+	}
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(DashboardLink.Icon, DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewQuickLink(UsersLink.Icon, UsersLink.Name, UsersLink.Href),
-		spotlight.NewQuickLink(GroupsLink.Icon, GroupsLink.Name, GroupsLink.Href),
+		spotlight.NewQuickLink(UsersLink.Icon, UsersLink.Name, UsersLink.Href).
+			WithAccessCheck(canReadUsers),
+		spotlight.NewQuickLink(GroupsLink.Icon, GroupsLink.Name, GroupsLink.Href).
+			WithAccessCheck(canReadGroups),
 		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Users.List.New",
 			"/users/new",
+		).WithAccessCheck(func(ctx context.Context) bool {
+			return composables.CanUser(ctx, permissions.UserCreate) == nil
+		}),
+		spotlight.NewQuickLink(
+			icons.UserCircle(icons.Props{Size: "24"}),
+			"Account.Meta.Index.Title",
+			"/account",
+		),
+		spotlight.NewQuickLink(
+			icons.Desktop(icons.Props{Size: "24"}),
+			"Account.Sessions.Title",
+			"/account/sessions",
 		),
 	)
 	return nil

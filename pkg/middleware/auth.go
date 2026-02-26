@@ -18,6 +18,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
+// UserAccessCheckFunc is called by ProvideUser after setting the user in context.
+// If it returns true, the request is blocked (the function must write the response).
+// Host applications can set this to enforce access policies (e.g. block zero-role users).
+var UserAccessCheckFunc func(w http.ResponseWriter, r *http.Request) (blocked bool)
+
 func getToken(r *http.Request) (string, error) {
 	conf := configuration.Use()
 	token, err := r.Cookie(conf.SidCookieKey)

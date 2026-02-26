@@ -7,6 +7,7 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
@@ -17,6 +18,9 @@ type dataSource struct {
 }
 
 func (d *dataSource) Find(ctx context.Context, q string) []spotlight.Item {
+	if err := composables.CanUser(ctx, permissions.UserRead); err != nil {
+		return nil
+	}
 	logger := composables.UseLogger(ctx)
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
