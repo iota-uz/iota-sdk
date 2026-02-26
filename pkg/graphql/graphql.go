@@ -48,6 +48,15 @@ func NewBaseServer(schema graphql.ExecutableSchema) *Handler {
 
 func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor) {
 	ctx := r.Context()
+	conf := configuration.Use()
+	if !isSameOrigin(r, conf) {
+		w.WriteHeader(http.StatusForbidden)
+		gqlErr := gqlerror.Errorf("origin not allowed")
+		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
+		writeJson(w, resp)
+		return
+	}
+
 	execs := ctx.Value(execsContextKey).([]*executor.Executor)
 	writeHeaders(w, h.ResponseHeaders)
 	params := pool.Get().(*graphql.RawParams)
@@ -467,6 +476,24 @@ type Handler struct {
 	transports []graphql.Transport
 }
 
+func isSameOrigin(r *http.Request, conf *configuration.Configuration) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	if origin == conf.Origin {
+		return true
+	}
+
+	// Allow localhost in development
+	if conf.IsDev() && (origin == "http://localhost:"+fmt.Sprint(conf.ServerPort) || origin == "http://127.0.0.1:"+fmt.Sprint(conf.ServerPort)) {
+		return true
+	}
+
+	return false
+}
+
 func NewHandler(rootExecutor *executor.Executor) *Handler {
 	conf := configuration.Use()
 	server := &Handler{}
@@ -475,9 +502,8 @@ func NewHandler(rootExecutor *executor.Executor) *Handler {
 	server.AddTransport(transport.Websocket{
 		KeepAlivePingInterval: 10 * time.Second,
 		Upgrader: websocket.Upgrader{
-			// TODO: Add origin check
-			CheckOrigin: func(_ *http.Request) bool {
-				return true
+			CheckOrigin: func(r *http.Request) bool {
+				return isSameOrigin(r, conf)
 			},
 		},
 	})
