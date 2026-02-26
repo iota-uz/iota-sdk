@@ -21,10 +21,15 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 	filteredItems := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
 		if item.HasPermission(user) {
+			filteredChildren := filterItems(item.Children, user)
+			// If item originally had children but all were filtered out, skip it
+			if len(item.Children) > 0 && len(filteredChildren) == 0 {
+				continue
+			}
 			filteredItems = append(filteredItems, types.NavigationItem{
 				Name:        item.Name,
 				Href:        item.Href,
-				Children:    filterItems(item.Children, user),
+				Children:    filteredChildren,
 				Icon:        item.Icon,
 				Permissions: item.Permissions,
 				IsBeta:      item.IsBeta,

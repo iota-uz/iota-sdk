@@ -33,7 +33,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewEmployeeController(app),
 	)
 	app.QuickLinks().Add(
-		spotlight.NewQuickLink(nil, EmployeesLink.Name, EmployeesLink.Href),
+		spotlight.NewQuickLink(EmployeesLink.Name, EmployeesLink.Href),
 	)
 	return nil
 }

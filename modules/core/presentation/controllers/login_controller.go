@@ -36,6 +36,17 @@ type LoginDTO struct {
 	Password string `validate:"required"`
 }
 
+type LoginControllerOptions struct {
+	// GetMiddlewares replaces default middleware list used by /login GET and OAuth callback routes when non-nil.
+	GetMiddlewares []mux.MiddlewareFunc
+	// PostMiddlewares replaces default middleware list used by /login POST route when non-nil.
+	PostMiddlewares []mux.MiddlewareFunc
+	// AppendGetMiddlewares appends middleware to get routes after default/overridden middleware.
+	AppendGetMiddlewares []mux.MiddlewareFunc
+	// AppendPostMiddlewares appends middleware to post route after default/overridden middleware.
+	AppendPostMiddlewares []mux.MiddlewareFunc
+}
+
 func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(e)
@@ -63,12 +74,17 @@ func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func NewLoginController(app application.Application) application.Controller {
+func NewLoginController(app application.Application, opts ...*LoginControllerOptions) application.Controller {
+	options := &LoginControllerOptions{}
+	if len(opts) > 0 && opts[0] != nil {
+		options = opts[0]
+	}
 	return &LoginController{
 		app:            app,
 		authService:    app.Service(services.AuthService{}).(*services.AuthService),
 		sessionService: app.Service(services.SessionService{}).(*services.SessionService),
 		userService:    app.Service(services.UserService{}).(*services.UserService),
+		options:        options,
 	}
 }
 
@@ -89,6 +105,7 @@ type LoginController struct {
 	twoFactorService *twofactor.TwoFactorService
 	sessionService   *services.SessionService
 	userService      *services.UserService
+	options          *LoginControllerOptions
 }
 
 func (c *LoginController) Key() string {
@@ -96,19 +113,36 @@ func (c *LoginController) Key() string {
 }
 
 func (c *LoginController) Register(r *mux.Router) {
+	options := c.options
+	if options == nil {
+		options = &LoginControllerOptions{}
+	}
+
+	getMiddlewares := options.GetMiddlewares
+	if getMiddlewares == nil {
+		getMiddlewares = []mux.MiddlewareFunc{
+			middleware.ProvideLocalizer(c.app),
+			middleware.WithPageContext(),
+		}
+	}
+	getMiddlewares = append(getMiddlewares, options.AppendGetMiddlewares...)
+
 	getRouter := r.PathPrefix("/").Subrouter()
-	getRouter.Use(
-		middleware.ProvideLocalizer(c.app),
-		middleware.WithPageContext(),
-	)
+	getRouter.Use(getMiddlewares...)
 	getRouter.HandleFunc("/login", c.Get).Methods(http.MethodGet)
 	getRouter.HandleFunc("/oauth/google/callback", c.GoogleCallback)
 
+	postMiddlewares := options.PostMiddlewares
+	if postMiddlewares == nil {
+		postMiddlewares = []mux.MiddlewareFunc{
+			middleware.ProvideLocalizer(c.app),
+			middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
+		}
+	}
+	postMiddlewares = append(postMiddlewares, options.AppendPostMiddlewares...)
+
 	setRouter := r.PathPrefix("/login").Subrouter()
-	setRouter.Use(
-		middleware.ProvideLocalizer(c.app),
-		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
-	)
+	setRouter.Use(postMiddlewares...)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
 }
 

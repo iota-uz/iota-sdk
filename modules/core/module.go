@@ -18,8 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 
-	icons "github.com/iota-uz/icons/phosphor"
-
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
@@ -43,6 +41,8 @@ type ModuleOptions struct {
 	PermissionSchema  *rbac.PermissionSchema // For UI-only use in RolesController
 	UploadsAuthorizer types.UploadsAuthorizer
 	DefaultTenantID   uuid.UUID // Fallback tenant ID for unauthenticated API uploads
+	// LoginControllerOptions allow customizing middleware used by login routes.
+	LoginControllerOptions *controllers.LoginControllerOptions
 	// LoginAccessCheck runs after successful authentication and before login session cookie is set.
 	LoginAccessCheck func(ctx context.Context, u user.User) error
 	// DashboardLinkPermissions controls visibility of the core Dashboard sidebar link.
@@ -208,7 +208,7 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterControllers(
 		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
-		controllers.NewLoginController(app),
+		controllers.NewLoginController(app, m.options.LoginControllerOptions),
 		controllers.NewTwoFactorSetupController(app),
 		controllers.NewTwoFactorVerifyController(app),
 		controllers.NewSpotlightController(app),
@@ -248,16 +248,14 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
-	app.Spotlight().Register(&dataSource{})
+	app.Spotlight().RegisterProvider(newSpotlightProvider(app.DB()))
 	app.QuickLinks().Add(
-		spotlight.NewQuickLink(DashboardLink.Icon, DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewQuickLink(UsersLink.Icon, UsersLink.Name, UsersLink.Href),
-		spotlight.NewQuickLink(GroupsLink.Icon, GroupsLink.Name, GroupsLink.Href),
-		spotlight.NewQuickLink(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"Users.List.New",
-			"/users/new",
-		),
+		spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
+		spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
+		spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
+		spotlight.NewQuickLink("Users.List.New", "/users/new"),
+		spotlight.NewQuickLink("Account.Meta.Index.Title", "/account"),
+		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
 	)
 	return nil
 }

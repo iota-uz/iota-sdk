@@ -23,6 +23,11 @@ import (
 // checks right after authentication succeeds, before session creation.
 var LoginAccessCheckFunc func(ctx context.Context, u user.User) error
 
+// UserAccessCheckFunc is called by WithPageContext after user context setup.
+// If it returns true, the request is blocked and the function must write the response.
+// Host applications can use it to enforce access policies (for example, blocking zero-role users).
+var UserAccessCheckFunc func(w http.ResponseWriter, r *http.Request) (blocked bool)
+
 func getToken(r *http.Request) (string, error) {
 	conf := configuration.Use()
 	token, err := r.Cookie(conf.SidCookieKey)

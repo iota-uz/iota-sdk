@@ -55,6 +55,14 @@ module.exports = {
           DEFAULT: "oklch(var(--black))",
           950: "oklch(var(--black-950))",
         },
+        primary: {
+          DEFAULT: "oklch(var(--primary-500) / <alpha-value>)",
+          50: "oklch(var(--primary-50) / <alpha-value>)",
+          400: "oklch(var(--primary-400) / <alpha-value>)",
+          500: "oklch(var(--primary-500) / <alpha-value>)",
+          600: "oklch(var(--primary-600) / <alpha-value>)",
+          700: "oklch(var(--primary-700) / <alpha-value>)",
+        },
         brand: {
           500: "oklch(var(--primary-500) / <alpha-value>)",
           600: "oklch(var(--primary-600) / <alpha-value>)",
