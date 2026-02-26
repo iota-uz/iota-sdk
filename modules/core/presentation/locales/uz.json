@@ -303,7 +303,8 @@
       "Title": "403",
       "Message": "Kirish taqiqlangan",
       "_Description": "Sizda ushbu resursga kirish uchun ruxsat yo'q.",
-      "Home": "Bosh sahifa"
+      "Home": "Bosh sahifa",
+      "GoBack": "Orqaga"
     }
   },
   "Errors": {

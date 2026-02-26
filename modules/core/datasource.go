@@ -7,6 +7,7 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
@@ -17,7 +18,18 @@ type dataSource struct {
 }
 
 func (d *dataSource) Find(ctx context.Context, q string) []spotlight.Item {
+	if _, err := composables.UseUser(ctx); err != nil {
+		return nil
+	}
+	if err := composables.CanUser(ctx, permissions.UserRead); err != nil {
+		return nil
+	}
 	logger := composables.UseLogger(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		logger.Error("tenant_id not found in context", "error", err)
+		return []spotlight.Item{}
+	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return []spotlight.Item{}
@@ -40,9 +52,11 @@ func (d *dataSource) Find(ctx context.Context, q string) []spotlight.Item {
 	}
 
 	// Build the WHERE clause for each part of the query
-	whereConditions := make([]string, 0, len(queryParts))
-	args := make([]interface{}, 0, len(queryParts)*len(searchFields))
-	argIndex := 1
+	whereConditions := make([]string, 0, len(queryParts)+1)
+	whereConditions = append(whereConditions, "tenant_id = $1")
+	args := make([]interface{}, 0, 1+len(queryParts)*len(searchFields))
+	args = append(args, tenantID)
+	argIndex := 2
 
 	for _, part := range queryParts {
 		fieldConditions := make([]string, 0, len(searchFields))
