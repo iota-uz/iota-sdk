@@ -46,12 +46,15 @@ func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 
-	app := application.New(&application.ApplicationOptions{
+	app, err := application.New(&application.ApplicationOptions{
 		Pool:     pool,
 		Bundle:   bundle,
 		EventBus: eventbus.NewEventPublisher(conf.Logger()),
 		Logger:   conf.Logger(),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize application: %w", err)
+	}
 
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, fmt.Errorf("failed to load modules: %w", err)

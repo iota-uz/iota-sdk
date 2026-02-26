@@ -43,6 +43,8 @@
     --transparent: 0 0 0 / 0;
 
     /* Primary */
+    --primary-50: 96% 0.02 280;
+    /* very light primary tint */
     --primary-400: 62.51% 0.172 283.89;
     /* #8f87ff */
     --primary-500: 58.73% 0.23 279.66;
