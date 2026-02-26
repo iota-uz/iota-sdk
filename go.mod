@@ -38,7 +38,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
 	github.com/henomis/langfuse-go v0.0.3
-	github.com/iota-uz/applets v0.4.27
+	github.com/iota-uz/applets v0.4.27-0.20260226122532-103d868057aa
 	github.com/iota-uz/click v1.0.4
 	github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049
 	github.com/iota-uz/go-i18n/v2 v2.6.1
