@@ -234,7 +234,9 @@ func (m *Module) Register(app application.Application) error {
 		app.RegisterControllers(ctrl)
 	}
 	app.RegisterControllers(controllers.NewCrudShowcaseController(app))
-	NavItems = BuildNavItems(m.options.DashboardLinkPermissions, m.options.SettingsLinkPermissions)
+	DashboardLinkPermissions = m.options.DashboardLinkPermissions
+	SettingsLinkPermissions = m.options.SettingsLinkPermissions
+	NavItems = ResolvedNavItems()
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
 		Value: graph.NewExecutableSchema(graph.Config{
