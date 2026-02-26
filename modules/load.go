@@ -19,10 +19,12 @@ import (
 )
 
 var (
+	coreModuleOptions = &core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}
+
 	BuiltInModules = []application.Module{
-		core.NewModule(&core.ModuleOptions{
-			PermissionSchema: defaults.PermissionSchema(),
-		}),
+		core.NewModule(coreModuleOptions),
 		hrm.NewModule(),
 		finance.NewModule(),
 		projects.NewModule(),
@@ -39,7 +41,7 @@ var (
 	// The BiChat module registers its own nav items when loaded (requires OPENAI_API_KEY).
 	// Including them here would cause translation errors when the module is not loaded.
 	NavLinks = slices.Concat(
-		core.NavItems,
+		core.BuildNavItems(coreModuleOptions.DashboardLinkPermissions, coreModuleOptions.SettingsLinkPermissions),
 		hrm.NavItems,
 		finance.NavItems,
 		projects.NavItems,
