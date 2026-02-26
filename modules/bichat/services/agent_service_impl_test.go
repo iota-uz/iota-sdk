@@ -689,6 +689,10 @@ func (m *mockChatRepository) GetActiveRunBySession(ctx context.Context, sessionI
 	return nil, domain.ErrNoActiveRun
 }
 
+func (m *mockChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
+	return nil, domain.ErrRunNotFound
+}
+
 func (m *mockChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
 	return nil
 }

@@ -239,9 +239,9 @@ func (m *Module) Register(app application.Application) error {
 		spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
 		spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
 		spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
-		spotlight.NewQuickLink("Users.List.New",
-			"/users/new",
-		),
+		spotlight.NewQuickLink("Users.List.New", "/users/new"),
+		spotlight.NewQuickLink("Account.Meta.Index.Title", "/account"),
+		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
 	)
 	return nil
 }

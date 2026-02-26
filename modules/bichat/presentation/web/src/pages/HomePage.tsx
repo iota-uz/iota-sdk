@@ -3,7 +3,7 @@
  * Uses ChatSessionProvider with sessionId="new" so the first message streams via SSE.
  */
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChatSessionProvider,
@@ -19,6 +19,7 @@ import {
 } from '@iota-uz/sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 import { toRPCErrorDisplay } from '../utils/rpcErrors'
+import { useSessionEvents } from '../contexts/SessionEventContext'
 
 type LocationState = {
   prompt?: string
@@ -154,6 +155,7 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
 export default function HomePage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const sessionEvents = useSessionEvents()
 
   const initialPrompt = useMemo(() => {
     const state = (location.state || {}) as LocationState
@@ -165,14 +167,26 @@ export default function HomePage() {
     navigate('.', { replace: true, state: {} })
   }, [initialPrompt, navigate])
 
-  const dataSource = useBiChatDataSource((sessionId: string) => navigate(`/session/${sessionId}`))
+  const onSessionCreated = useCallback(
+    (sessionId: string) => {
+      sessionEvents.notifySessionCreated(sessionId)
+      navigate(`/session/${sessionId}`)
+    },
+    [navigate, sessionEvents]
+  )
+  const dataSource = useBiChatDataSource()
   const rateLimiter = useMemo(
     () => new RateLimiter({ maxRequests: 20, windowMs: 60_000 }),
     []
   )
 
   return (
-    <ChatSessionProvider dataSource={dataSource} sessionId="new" rateLimiter={rateLimiter}>
+    <ChatSessionProvider
+      dataSource={dataSource}
+      sessionId="new"
+      rateLimiter={rateLimiter}
+      onSessionCreated={onSessionCreated}
+    >
       <LandingChat initialPrompt={initialPrompt} />
     </ChatSessionProvider>
   )

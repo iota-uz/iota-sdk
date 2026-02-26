@@ -12,11 +12,11 @@ import (
 	"github.com/google/uuid"
 	bichatmoduleagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/prompts"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/testutil"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,178 +114,7 @@ func (m *configTestKBSearcher) IsAvailable() bool {
 	return true
 }
 
-type configTestChatRepository struct{}
-
-func (m *configTestChatRepository) CreateSession(ctx context.Context, session domain.Session) error {
-	return nil
-}
-
-func (m *configTestChatRepository) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
-	return nil, errors.New("session not found")
-}
-
-func (m *configTestChatRepository) UpdateSession(ctx context.Context, session domain.Session) error {
-	return nil
-}
-
-func (m *configTestChatRepository) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
-	return nil
-}
-
-func (m *configTestChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
-	return true, nil
-}
-
-func (m *configTestChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
-	return []domain.Session{}, nil
-}
-
-func (m *configTestChatRepository) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
-	return 0, nil
-}
-
-func (m *configTestChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (m *configTestChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
-	return nil
-}
-
-func (m *configTestChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error) {
-	return nil, errors.New("message not found")
-}
-
-func (m *configTestChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
-	return []types.Message{}, nil
-}
-
-func (m *configTestChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
-	return 0, nil
-}
-
-func (m *configTestChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
-	return nil
-}
-
-func (m *configTestChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (domain.Attachment, error) {
-	return nil, errors.New("attachment not found")
-}
-
-func (m *configTestChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]domain.Attachment, error) {
-	return []domain.Attachment{}, nil
-}
-
-func (m *configTestChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (m *configTestChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
-	return nil
-}
-
-func (m *configTestChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
-	return nil, errors.New("artifact not found")
-}
-
-func (m *configTestChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
-	return []domain.Artifact{}, nil
-}
-
-func (m *configTestChatRepository) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
-	return 0, nil
-}
-
-func (m *configTestChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (m *configTestChatRepository) UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error {
-	return nil
-}
-
-func (m *configTestChatRepository) UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error {
-	return nil
-}
-
-func (m *configTestChatRepository) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
-	return nil, errors.New("no pending question")
-}
-
-func (m *configTestChatRepository) CreateRun(ctx context.Context, run domain.GenerationRun) error {
-	return nil
-}
-
-func (m *configTestChatRepository) GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
-	return nil, domain.ErrNoActiveRun
-}
-
-func (m *configTestChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
-	return nil
-}
-
-func (m *configTestChatRepository) CompleteRun(ctx context.Context, runID uuid.UUID) error {
-	return nil
-}
-
-func (m *configTestChatRepository) CancelRun(ctx context.Context, runID uuid.UUID) error {
-	return nil
-}
-
-func (m *configTestChatRepository) ListAccessibleSessionSummaries(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.SessionSummary, error) {
-	return []domain.SessionSummary{}, nil
-}
-
-func (m *configTestChatRepository) CountAccessibleSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
-	return 0, nil
-}
-
-func (m *configTestChatRepository) ListAllSessionSummaries(ctx context.Context, requestingUserID int64, opts domain.ListOptions, ownerUserID *int64) ([]domain.SessionSummary, error) {
-	return []domain.SessionSummary{}, nil
-}
-
-func (m *configTestChatRepository) CountAllSessions(ctx context.Context, opts domain.ListOptions, ownerUserID *int64) (int, error) {
-	return 0, nil
-}
-
-func (m *configTestChatRepository) ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64) (domain.SessionAccess, error) {
-	access, err := domain.NewSessionAccess(domain.SessionMemberRoleNone, domain.SessionAccessSourceNone)
-	if err != nil {
-		return domain.SessionAccess{}, err
-	}
-	return access, nil
-}
-
-func (m *configTestChatRepository) ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]domain.SessionMember, error) {
-	return []domain.SessionMember{}, nil
-}
-
-func (m *configTestChatRepository) GetTenantUser(ctx context.Context, userID int64) (domain.SessionUser, error) {
-	if userID <= 0 {
-		return domain.SessionUser{}, errors.New("invalid user id")
-	}
-	return domain.NewSessionUser(userID, "Test", "User")
-}
-
-func (m *configTestChatRepository) UpsertSessionMember(ctx context.Context, command domain.SessionMemberUpsert) error {
-	return nil
-}
-
-func (m *configTestChatRepository) RemoveSessionMember(ctx context.Context, command domain.SessionMemberRemoval) error {
-	return nil
-}
-
-func (m *configTestChatRepository) CountSessionParticipants(ctx context.Context, sessionID uuid.UUID) (int, error) {
-	return 1, nil
-}
-
-func (m *configTestChatRepository) ListTenantUsers(ctx context.Context) ([]domain.SessionUser, error) {
-	user, err := domain.NewSessionUser(42, "Test", "User")
-	if err != nil {
-		return nil, err
-	}
-	return []domain.SessionUser{user}, nil
-}
+type configTestChatRepository = testutil.NoOpChatRepository
 
 func TestModuleConfig_BuildParentAgent_UsesConfiguredKnowledgeTools(t *testing.T) {
 	t.Parallel()

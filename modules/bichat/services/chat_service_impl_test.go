@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -754,6 +756,35 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 	case <-titleService.called:
 		t.Fatal("title service should not be called when queue enqueue succeeds")
 	default:
+	}
+}
+
+func TestChatService_MaybeGenerateTitleAsync_IgnoresNilWrappedQueue(t *testing.T) {
+	t.Parallel()
+
+	env := itf.Setup(
+		t,
+		itf.WithModules(modules.BuiltInModules...),
+	)
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	var queue *RedisTitleJobQueue
+	svc := &chatServiceImpl{
+		titleService: titleService,
+		titleQueue:   queue,
+	}
+
+	sessionID := uuid.New()
+	svc.maybeGenerateTitleAsync(env.Ctx, sessionID)
+
+	select {
+	case titleCtx := <-titleService.called:
+		gotTenantID, err := composables.UseTenantID(titleCtx)
+		require.NoError(t, err)
+		assert.Equal(t, env.Tenant.ID, gotTenantID)
+	default:
+		t.Fatal("expected sync fallback title generation to be invoked")
 	}
 }
 

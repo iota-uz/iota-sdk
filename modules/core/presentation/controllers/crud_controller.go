@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
@@ -65,6 +66,12 @@ type CrudController[TEntity any] struct {
 	enableDelete bool
 	enableCreate bool
 
+	// permissions (nil means no check)
+	readPerm   permission.Permission
+	createPerm permission.Permission
+	updatePerm permission.Permission
+	deletePerm permission.Permission
+
 	// custom actions
 	customHeaderActions []actions.ActionProps
 	customRowActions    []func(primaryKey any) actions.ActionProps
@@ -98,6 +105,34 @@ func WithoutCreate[TEntity any]() CrudOption[TEntity] {
 func WithMultiLangRenderer[TEntity any]() CrudOption[TEntity] {
 	return func(c *CrudController[TEntity]) {
 		c.RegisterRenderer("multilang", multilang.NewMultiLangRendererWithSchema(c.schema))
+	}
+}
+
+// WithReadPermission sets the permission required for List and Details operations
+func WithReadPermission[TEntity any](perm permission.Permission) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.readPerm = perm
+	}
+}
+
+// WithCreatePermission sets the permission required for GetNew and Create operations
+func WithCreatePermission[TEntity any](perm permission.Permission) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.createPerm = perm
+	}
+}
+
+// WithUpdatePermission sets the permission required for GetEdit and Update operations
+func WithUpdatePermission[TEntity any](perm permission.Permission) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.updatePerm = perm
+	}
+}
+
+// WithDeletePermission sets the permission required for Delete operations
+func WithDeletePermission[TEntity any](perm permission.Permission) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.deletePerm = perm
 	}
 }
 
@@ -212,6 +247,19 @@ func (c *CrudController[TEntity]) initFieldCache() {
 	if c.primaryKeyField == nil {
 		panic(fmt.Sprintf("CrudController: no primary key field found in schema for %s", c.schema.Name()))
 	}
+}
+
+// accessDenied checks if the user has the given permission.
+// Returns true if access is denied and a response has been written.
+func (c *CrudController[TEntity]) accessDenied(w http.ResponseWriter, r *http.Request, perm permission.Permission) bool {
+	if perm == nil {
+		return false
+	}
+	if err := composables.CanUserStrict(r.Context(), perm); err != nil {
+		RenderForbidden(w, r)
+		return true
+	}
+	return false
 }
 
 // localize is a helper method to localize messages with defaults
@@ -472,6 +520,9 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 }
 
 func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
+	if c.accessDenied(w, r, c.readPerm) {
+		return
+	}
 	ctx := r.Context()
 
 	// Parse query parameters
@@ -650,6 +701,9 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request) {
+	if c.accessDenied(w, r, c.readPerm) {
+		return
+	}
 	ctx := r.Context()
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -957,6 +1011,9 @@ func (c *CrudController[TEntity]) buildRowActions(_ context.Context, primaryKey 
 }
 
 func (c *CrudController[TEntity]) GetNew(w http.ResponseWriter, r *http.Request) {
+	if c.accessDenied(w, r, c.createPerm) {
+		return
+	}
 	ctx := r.Context()
 
 	// Localize form title
@@ -1024,6 +1081,9 @@ func (c *CrudController[TEntity]) buildFormFields(ctx context.Context, fieldValu
 }
 
 func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request) {
+	if c.accessDenied(w, r, c.updatePerm) {
+		return
+	}
 	ctx := r.Context()
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -1089,6 +1149,9 @@ func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request
 }
 
 func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request) {
+	if c.accessDenied(w, r, c.createPerm) {
+		return
+	}
 	ctx := r.Context()
 
 	// Build field values from form
@@ -1164,6 +1227,9 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request) {
+	if c.accessDenied(w, r, c.updatePerm) {
+		return
+	}
 	ctx := r.Context()
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -1274,6 +1340,9 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *CrudController[TEntity]) Delete(w http.ResponseWriter, r *http.Request) {
+	if c.accessDenied(w, r, c.deletePerm) {
+		return
+	}
 	ctx := r.Context()
 	vars := mux.Vars(r)
 	id := vars["id"]

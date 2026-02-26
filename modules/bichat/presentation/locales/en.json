@@ -271,7 +271,11 @@
       "Retry": "Retry",
       "DismissNotification": "Dismiss notification",
       "OneMember": "1 member",
-      "MemberCount": "{{count}} members"
+      "MemberCount": "{{count}} members",
+      "MemberCount_one": "{{count}} member",
+      "MemberCount_few": "{{count}} members",
+      "MemberCount_many": "{{count}} members",
+      "MemberCount_other": "{{count}} members"
     },
     "Share": {
       "Title": "Share",

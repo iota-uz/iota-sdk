@@ -303,7 +303,8 @@
       "Title": "403",
       "Message": "Access Denied",
       "_Description": "You don't have permission to access this resource.",
-      "Home": "Home"
+      "Home": "Home",
+      "GoBack": "Go back"
     }
   },
   "Errors": {
