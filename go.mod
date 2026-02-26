@@ -38,7 +38,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
 	github.com/henomis/langfuse-go v0.0.3
-	github.com/iota-uz/applets v0.4.15-0.20260215190808-f1160e73f3f5
+	github.com/iota-uz/applets v0.4.26
 	github.com/iota-uz/click v1.0.4
 	github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049
 	github.com/iota-uz/go-i18n/v2 v2.6.1
@@ -195,9 +195,9 @@ require (
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/yeqown/reedsolomon v1.0.0 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/zitadel/logging v0.6.2 // indirect
 	github.com/zitadel/schema v1.3.2 // indirect
-	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
