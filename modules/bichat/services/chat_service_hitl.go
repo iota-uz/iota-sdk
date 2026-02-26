@@ -97,6 +97,8 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 				return nil, serrors.E(op, txErr)
 			}
 
+			s.maybeGenerateTitleAfterHITLCompletion(ctx, req.SessionID, false)
+
 			return &bichatservices.SendMessageResponse{
 				UserMessage:      nil,
 				AssistantMessage: nil,
@@ -128,6 +130,8 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	if err != nil {
 		return nil, err
 	}
+
+	s.maybeGenerateTitleAfterHITLCompletion(ctx, req.SessionID, result.interrupt != nil)
 
 	return &bichatservices.SendMessageResponse{
 		UserMessage:      nil,
@@ -221,7 +225,12 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 						_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 						return
 					}
-					_ = s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+					if completeErr := s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID); completeErr != nil {
+						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+						_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+						return
+					}
+					s.maybeGenerateTitleAfterHITLCompletion(persistCtx, req.SessionID, false)
 					active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
 					return
 				}
@@ -278,7 +287,12 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 				return
 			}
 
-			_ = s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+			if completeErr := s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID); completeErr != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+				return
+			}
+			s.maybeGenerateTitleAfterHITLCompletion(persistCtx, req.SessionID, result.interrupt != nil)
 			active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
 		},
 	)
@@ -339,6 +353,8 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 				return nil, serrors.E(op, txErr)
 			}
 
+			s.maybeGenerateTitleAfterHITLCompletion(ctx, sessionID, false)
+
 			return &bichatservices.SendMessageResponse{
 				UserMessage:      nil,
 				AssistantMessage: nil,
@@ -370,6 +386,8 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 	if err != nil {
 		return nil, err
 	}
+
+	s.maybeGenerateTitleAfterHITLCompletion(ctx, sessionID, result.interrupt != nil)
 
 	return &bichatservices.SendMessageResponse{
 		UserMessage:      nil,
@@ -449,7 +467,12 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 						_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 						return
 					}
-					_ = s.completeRunState(persistCtx, session.TenantID(), sessionID, runID)
+					if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
+						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+						_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+						return
+					}
+					s.maybeGenerateTitleAfterHITLCompletion(persistCtx, sessionID, false)
 					active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
 					return
 				}
@@ -505,10 +528,26 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 				return
 			}
 
-			_ = s.completeRunState(persistCtx, session.TenantID(), sessionID, runID)
+			if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
+			s.maybeGenerateTitleAfterHITLCompletion(persistCtx, sessionID, result.interrupt != nil)
 			active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
 		},
 	)
+}
+
+func (s *chatServiceImpl) maybeGenerateTitleAfterHITLCompletion(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	hasInterrupt bool,
+) {
+	if hasInterrupt {
+		return
+	}
+	s.maybeGenerateTitleAsync(ctx, sessionID)
 }
 
 // GenerateSessionTitle regenerates a session title explicitly.

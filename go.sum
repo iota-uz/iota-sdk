@@ -285,8 +285,8 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/iota-uz/applets v0.4.15-0.20260215190808-f1160e73f3f5 h1:4ZQ6pHFRiahnLmmblMErZZxNXBF9FAqKinhgQD2vuN0=
-github.com/iota-uz/applets v0.4.15-0.20260215190808-f1160e73f3f5/go.mod h1:PnaI9UI+C+cnx9HaV8kTMzozO7h+ycBvQUn1hFHIARY=
+github.com/iota-uz/applets v0.4.27-0.20260226122532-103d868057aa h1:w4wj5CeJoewqoaYLXJSVJ/DCKwGRwftMSlqGThqAx3g=
+github.com/iota-uz/applets v0.4.27-0.20260226122532-103d868057aa/go.mod h1:PnaI9UI+C+cnx9HaV8kTMzozO7h+ycBvQUn1hFHIARY=
 github.com/iota-uz/click v1.0.4 h1:XOiUWByPWpCEbGnuEV2kyOrf2UuXUYFqbXnBOjwOn6M=
 github.com/iota-uz/click v1.0.4/go.mod h1:WamcxWiFXli4WMWiPQgeNHX/hU4Ac/Xmx1N1ok6vbkQ=
 github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049 h1:rcV6DDYg68P/PAn1oshQGHQsFoZcRquMeN8+OvHshyQ=
@@ -456,14 +456,14 @@ github.com/yeqown/reedsolomon v1.0.0 h1:x1h/Ej/uJnNu8jaX7GLHBWmZKCAWjEJTetkqaabr
 github.com/yeqown/reedsolomon v1.0.0/go.mod h1:P76zpcn2TCuL0ul1Fso373qHRc69LKwAw/Iy6g1WiiM=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
+github.com/yuin/gopher-lua v1.1.1 h1:kYKnWBjvbNP4XLT3+bPEwAXJx262OhaHDWDVOPjL46M=
+github.com/yuin/gopher-lua v1.1.1/go.mod h1:GBR0iDaNXjAgGg9zfCvksxSRnQx76gclCIb7kdAd1Pw=
 github.com/zitadel/logging v0.6.2 h1:MW2kDDR0ieQynPZ0KIZPrh9ote2WkxfBif5QoARDQcU=
 github.com/zitadel/logging v0.6.2/go.mod h1:z6VWLWUkJpnNVDSLzrPSQSQyttysKZ6bCRongw0ROK4=
 github.com/zitadel/oidc/v3 v3.45.3 h1:iaicqH5M7L5a973DTaG9UVSE14Z6Nj6hN41pp7kYBIw=
 github.com/zitadel/oidc/v3 v3.45.3/go.mod h1:yerW4/1YA5rUgjSjHsJ4HRnMbaKsyeIJkzyQrwDQ4t8=
 github.com/zitadel/schema v1.3.2 h1:gfJvt7dOMfTmxzhscZ9KkapKo3Nei3B6cAxjav+lyjI=
 github.com/zitadel/schema v1.3.2/go.mod h1:IZmdfF9Wu62Zu6tJJTH3UsArevs3Y4smfJIj3L8fzxw=
-github.com/yuin/gopher-lua v1.1.1 h1:kYKnWBjvbNP4XLT3+bPEwAXJx262OhaHDWDVOPjL46M=
-github.com/yuin/gopher-lua v1.1.1/go.mod h1:GBR0iDaNXjAgGg9zfCvksxSRnQx76gclCIb7kdAd1Pw=
 go.etcd.io/bbolt v1.4.0 h1:TU77id3TnN/zKr7CO/uk+fBCwF2jGcMuw2B/FMAzYIk=
 go.etcd.io/bbolt v1.4.0/go.mod h1:AsD+OCi/qPN1giOX1aiLAha3o1U8rAz65bvN4j0sRuk=
 go.opencensus.io v0.24.0 h1:y73uSU6J157QMP2kn2r30vwW1A2W2WFwSCGnAVxeaD0=
