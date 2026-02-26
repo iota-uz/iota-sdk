@@ -249,9 +249,9 @@ func (c *CrudController[TEntity]) initFieldCache() {
 	}
 }
 
-// checkPermission checks if the user has the given permission.
-// Returns true if access is denied (caller should return immediately).
-func (c *CrudController[TEntity]) checkPermission(w http.ResponseWriter, r *http.Request, perm permission.Permission) bool {
+// accessDenied checks if the user has the given permission.
+// Returns true if access is denied and a response has been written.
+func (c *CrudController[TEntity]) accessDenied(w http.ResponseWriter, r *http.Request, perm permission.Permission) bool {
 	if perm == nil {
 		return false
 	}
@@ -520,7 +520,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 }
 
 func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
-	if c.checkPermission(w, r, c.readPerm) {
+	if c.accessDenied(w, r, c.readPerm) {
 		return
 	}
 	ctx := r.Context()
@@ -701,7 +701,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request) {
-	if c.checkPermission(w, r, c.readPerm) {
+	if c.accessDenied(w, r, c.readPerm) {
 		return
 	}
 	ctx := r.Context()
@@ -1011,7 +1011,7 @@ func (c *CrudController[TEntity]) buildRowActions(_ context.Context, primaryKey 
 }
 
 func (c *CrudController[TEntity]) GetNew(w http.ResponseWriter, r *http.Request) {
-	if c.checkPermission(w, r, c.createPerm) {
+	if c.accessDenied(w, r, c.createPerm) {
 		return
 	}
 	ctx := r.Context()
@@ -1081,7 +1081,7 @@ func (c *CrudController[TEntity]) buildFormFields(ctx context.Context, fieldValu
 }
 
 func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request) {
-	if c.checkPermission(w, r, c.updatePerm) {
+	if c.accessDenied(w, r, c.updatePerm) {
 		return
 	}
 	ctx := r.Context()
@@ -1149,7 +1149,7 @@ func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request
 }
 
 func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request) {
-	if c.checkPermission(w, r, c.createPerm) {
+	if c.accessDenied(w, r, c.createPerm) {
 		return
 	}
 	ctx := r.Context()
@@ -1227,7 +1227,7 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request) {
-	if c.checkPermission(w, r, c.updatePerm) {
+	if c.accessDenied(w, r, c.updatePerm) {
 		return
 	}
 	ctx := r.Context()
@@ -1340,7 +1340,7 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *CrudController[TEntity]) Delete(w http.ResponseWriter, r *http.Request) {
-	if c.checkPermission(w, r, c.deletePerm) {
+	if c.accessDenied(w, r, c.deletePerm) {
 		return
 	}
 	ctx := r.Context()

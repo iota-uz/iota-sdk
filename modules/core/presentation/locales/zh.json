@@ -303,7 +303,8 @@
       "Title": "403",
       "Message": "访问被拒绝",
       "_Description": "您没有权限访问此资源。",
-      "Home": "首页"
+      "Home": "首页",
+      "GoBack": "返回"
     }
   },
   "Errors": {
