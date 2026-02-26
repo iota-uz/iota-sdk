@@ -1140,5 +1140,26 @@
       "CurrentSession": "Joriy"
     },
     "Revoked": "Seans muvaffaqiyatli bekor qilindi"
+  },
+  "Logsys": {
+    "Pages": {
+      "SystemInfo": {
+        "Title": "Tizim ma'lumotlari",
+        "Server": "Server",
+        "Runtime": "Ish vaqti",
+        "Memory": "Xotira",
+        "GC": "GC",
+        "DatabasePool": "Ma'lumotlar bazasi havzasi",
+        "System": "Tizim",
+        "Build": "Qurilish"
+      }
+    },
+    "Fields": {
+      "_hostname": "Xost nomi",
+      "_uptime": "Ish vaqti",
+      "_current_time": "Joriy vaqt",
+      "_timezone": "Vaqt zonasi",
+      "_environment": "Muhit"
+    }
   }
 }

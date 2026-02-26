@@ -1144,5 +1144,26 @@
       "CurrentSession": "当前"
     },
     "Revoked": "会话已撤销"
+  },
+  "Logsys": {
+    "Pages": {
+      "SystemInfo": {
+        "Title": "系统信息",
+        "Server": "服务器",
+        "Runtime": "运行时",
+        "Memory": "内存",
+        "GC": "垃圾回收",
+        "DatabasePool": "数据库连接池",
+        "System": "系统",
+        "Build": "构建"
+      }
+    },
+    "Fields": {
+      "_hostname": "主机名",
+      "_uptime": "运行时间",
+      "_current_time": "当前时间",
+      "_timezone": "时区",
+      "_environment": "环境"
+    }
   }
 }

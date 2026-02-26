@@ -1140,5 +1140,26 @@
       "CurrentSession": "Текущая"
     },
     "Revoked": "Сессия успешно отозвана"
+  },
+  "Logsys": {
+    "Pages": {
+      "SystemInfo": {
+        "Title": "Информация о системе",
+        "Server": "Сервер",
+        "Runtime": "Среда выполнения",
+        "Memory": "Память",
+        "GC": "Сборка мусора",
+        "DatabasePool": "Пул БД",
+        "System": "Система",
+        "Build": "Сборка"
+      }
+    },
+    "Fields": {
+      "_hostname": "Имя хоста",
+      "_uptime": "Время работы",
+      "_current_time": "Текущее время",
+      "_timezone": "Часовой пояс",
+      "_environment": "Окружение"
+    }
   }
 }

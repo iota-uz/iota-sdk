@@ -1140,5 +1140,26 @@
       "CurrentSession": "Current"
     },
     "Revoked": "Session revoked successfully"
+  },
+  "Logsys": {
+    "Pages": {
+      "SystemInfo": {
+        "Title": "System Information",
+        "Server": "Server",
+        "Runtime": "Runtime",
+        "Memory": "Memory",
+        "GC": "GC",
+        "DatabasePool": "Database Pool",
+        "System": "System",
+        "Build": "Build"
+      }
+    },
+    "Fields": {
+      "_hostname": "Hostname",
+      "_uptime": "Uptime",
+      "_current_time": "Current time",
+      "_timezone": "Timezone",
+      "_environment": "Environment"
+    }
   }
 }
