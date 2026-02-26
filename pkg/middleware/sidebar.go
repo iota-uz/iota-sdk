@@ -62,33 +62,14 @@ func getEnabledNavItems(items []types.NavigationItem) []types.NavigationItem {
 	return out
 }
 
-func appendIfNotEmpty(groups *[]sidebar.TabGroup, group sidebar.TabGroup) {
-	if len(group.Items) == 0 {
-		return
-	}
-	*groups = append(*groups, group)
-}
-
-func normalizeDefaultTab(groups []sidebar.TabGroup, preferred string) string {
-	if len(groups) == 0 {
-		return ""
-	}
-	for _, group := range groups {
-		if group.Value == preferred {
-			return preferred
-		}
-	}
-	return groups[0].Value
-}
-
 func normalizeTabGroups(collection sidebar.TabGroupCollection) sidebar.TabGroupCollection {
 	groups := make([]sidebar.TabGroup, 0, len(collection.Groups))
 	for _, group := range collection.Groups {
-		appendIfNotEmpty(&groups, group)
+		pkgsidebar.AppendIfNotEmpty(&groups, group)
 	}
 	return sidebar.TabGroupCollection{
 		Groups:       groups,
-		DefaultValue: normalizeDefaultTab(groups, collection.DefaultValue),
+		DefaultValue: pkgsidebar.NormalizeDefaultTab(groups, collection.DefaultValue),
 	}
 }
 
@@ -112,6 +93,9 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 					return
 				}
 				filtered := filterItems(app.NavItems(localizer), u)
+				if len(u.Roles()) == 0 {
+					filtered = []types.NavigationItem{}
+				}
 				enabledNavItems := getEnabledNavItems(filtered)
 
 				// Build sidebar props with configurable tab groups
