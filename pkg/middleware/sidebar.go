@@ -62,6 +62,36 @@ func getEnabledNavItems(items []types.NavigationItem) []types.NavigationItem {
 	return out
 }
 
+func appendIfNotEmpty(groups *[]sidebar.TabGroup, group sidebar.TabGroup) {
+	if len(group.Items) == 0 {
+		return
+	}
+	*groups = append(*groups, group)
+}
+
+func normalizeDefaultTab(groups []sidebar.TabGroup, preferred string) string {
+	if len(groups) == 0 {
+		return ""
+	}
+	for _, group := range groups {
+		if group.Value == preferred {
+			return preferred
+		}
+	}
+	return groups[0].Value
+}
+
+func normalizeTabGroups(collection sidebar.TabGroupCollection) sidebar.TabGroupCollection {
+	groups := make([]sidebar.TabGroup, 0, len(collection.Groups))
+	for _, group := range collection.Groups {
+		appendIfNotEmpty(&groups, group)
+	}
+	return sidebar.TabGroupCollection{
+		Groups:       groups,
+		DefaultValue: normalizeDefaultTab(groups, collection.DefaultValue),
+	}
+}
+
 // NavItemsWithInitialState provides navigation items and sidebar props.
 // initialState controls the server-side sidebar default (collapsed/expanded/auto).
 func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareFunc {
@@ -85,7 +115,7 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 				enabledNavItems := getEnabledNavItems(filtered)
 
 				// Build sidebar props with configurable tab groups
-				tabGroups := pkgsidebar.BuildTabGroups(enabledNavItems, localizer)
+				tabGroups := normalizeTabGroups(pkgsidebar.BuildTabGroups(enabledNavItems, localizer))
 
 				sidebarProps := sidebar.Props{
 					Header:       layouts.DefaultSidebarHeader(),
