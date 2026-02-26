@@ -211,6 +211,67 @@ func cloneDetailsValue(value any) any {
 			return nil
 		}
 		return cloneDetailsValue(rv.Interface())
+	case reflect.Invalid:
+		return nil
+	case reflect.Bool:
+		return rv.Bool()
+	case reflect.Int:
+		return rv.Int()
+	case reflect.Int8:
+		return int8(rv.Int())
+	case reflect.Int16:
+		return int16(rv.Int())
+	case reflect.Int32:
+		return int32(rv.Int())
+	case reflect.Int64:
+		return rv.Int()
+	case reflect.Uint:
+		return rv.Uint()
+	case reflect.Uint8:
+		return uint8(rv.Uint())
+	case reflect.Uint16:
+		return uint16(rv.Uint())
+	case reflect.Uint32:
+		return uint32(rv.Uint())
+	case reflect.Uint64:
+		return rv.Uint()
+	case reflect.Uintptr:
+		return rv.Uint()
+	case reflect.Float32:
+		return float32(rv.Float())
+	case reflect.Float64:
+		return rv.Float()
+	case reflect.Complex64:
+		return rv.Complex()
+	case reflect.Complex128:
+		return rv.Complex()
+	case reflect.String:
+		return rv.String()
+	case reflect.Array:
+		cloned := reflect.New(rv.Type()).Elem()
+		for idx := 0; idx < rv.Len(); idx++ {
+			clonedValue := cloneDetailsValue(rv.Index(idx).Interface())
+			if clonedValue == nil {
+				cloned.Index(idx).Set(reflect.Zero(rv.Type().Elem()))
+				continue
+			}
+			clonedReflectValue := reflect.ValueOf(clonedValue)
+			if !clonedReflectValue.Type().AssignableTo(rv.Type().Elem()) {
+				if clonedReflectValue.Type().ConvertibleTo(rv.Type().Elem()) {
+					clonedReflectValue = clonedReflectValue.Convert(rv.Type().Elem())
+				} else {
+					continue
+				}
+			}
+			cloned.Index(idx).Set(clonedReflectValue)
+		}
+		return cloned.Interface()
+	case reflect.Chan:
+		return value
+	case reflect.Func:
+		return value
+	case reflect.UnsafePointer:
+		return value
 	case reflect.Map:
 		if rv.IsNil() {
 			return nil
