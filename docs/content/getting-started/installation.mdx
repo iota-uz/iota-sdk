@@ -83,7 +83,15 @@ SESSION_SECRET=your-random-secret-key-at-least-32-characters
 
 # Optional: Test endpoints
 ENABLE_TEST_ENDPOINTS=true
+
+# Optional: Spotlight search (auto-enabled when MEILI_URL is set)
+MEILI_URL=http://localhost:7700
+MEILI_API_KEY=
 ```
+
+Spotlight initialization is automatic:
+- If `MEILI_URL` is set, Spotlight is initialized and health-checked.
+- If `MEILI_URL` is not set, Spotlight initialization is skipped.
 
 ### Configuration Files
 
