@@ -160,25 +160,21 @@ func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row
 		}
 
 		// Set number format for specific types
-		switch value.(type) {
-		case time.Time, *time.Time:
-			style, _ := f.NewStyle(&excelize.Style{
-				NumFmt: 22, // m/d/yy h:mm
-			})
-			_ = f.SetCellStyle(sheet, cell, cell, style)
+		switch formattedValue.(type) {
+		case time.Time:
+			applyCellNumFmt(f, sheet, cell, 22) // m/d/yy h:mm
 		case float64, float32:
-			style, _ := f.NewStyle(&excelize.Style{
-				NumFmt: 2, // 0.00
-			})
-			_ = f.SetCellStyle(sheet, cell, cell, style)
-		case int, int64, int32:
-			style, _ := f.NewStyle(&excelize.Style{
-				NumFmt: 1, // 0
-			})
-			_ = f.SetCellStyle(sheet, cell, cell, style)
+			applyCellNumFmt(f, sheet, cell, 2) // 0.00
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+			applyCellNumFmt(f, sheet, cell, 1) // 0
 		}
 	}
 	return nil
+}
+
+func applyCellNumFmt(f *excelize.File, sheet, cell string, numFmt int) {
+	style, _ := f.NewStyle(&excelize.Style{NumFmt: numFmt})
+	_ = f.SetCellStyle(sheet, cell, cell, style)
 }
 
 // applyStyles applies styling to the Excel file

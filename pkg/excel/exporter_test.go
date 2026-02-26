@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
@@ -222,6 +223,61 @@ func TestExcelExporter_ContextCancellation(t *testing.T) {
 
 	_, err := exporter.Export(ctx, ds)
 	assert.Error(t, err)
+}
+
+func TestExcelExporter_FormatsPgxNumericValues(t *testing.T) {
+	headers := []string{"Type", "Count", "Premium"}
+	var count pgtype.Numeric
+	var premium pgtype.Numeric
+	require.NoError(t, count.Scan("10844"))
+	require.NoError(t, premium.Scan("2387743666"))
+
+	rows := [][]interface{}{
+		{"OSAGO", count, premium},
+	}
+
+	ds := NewMockDataSource(headers, rows)
+	exporter := excel.NewExcelExporter(nil, nil)
+
+	data, err := exporter.Export(context.Background(), ds)
+	require.NoError(t, err)
+
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	require.NoError(t, err)
+
+	countCell, err := f.GetCellValue("TestSheet", "B2")
+	require.NoError(t, err)
+	assert.Equal(t, "10844", countCell)
+	assert.NotContains(t, countCell, "finite")
+
+	premiumCell, err := f.GetCellValue("TestSheet", "C2")
+	require.NoError(t, err)
+	assert.Equal(t, "2387743666", premiumCell)
+	assert.NotContains(t, premiumCell, "finite")
+}
+
+func TestExcelExporter_FormatsPgxNumericDecimalWithoutArtifacts(t *testing.T) {
+	headers := []string{"Type", "Premium"}
+	var premium pgtype.Numeric
+	require.NoError(t, premium.Scan("2387743666.1250"))
+
+	rows := [][]interface{}{
+		{"OSAGO", premium},
+	}
+
+	ds := NewMockDataSource(headers, rows)
+	exporter := excel.NewExcelExporter(nil, nil)
+
+	data, err := exporter.Export(context.Background(), ds)
+	require.NoError(t, err)
+
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	require.NoError(t, err)
+
+	premiumCell, err := f.GetCellValue("TestSheet", "B2")
+	require.NoError(t, err)
+	assert.Equal(t, "2387743666.1250", premiumCell)
+	assert.NotContains(t, premiumCell, "finite")
 }
 
 // contextAwareDataSource is a DataSource that respects context cancellation
