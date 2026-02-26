@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 )
@@ -18,8 +17,8 @@ type Check struct {
 	CreatedAt    time.Time
 	FinishedAt   time.Time
 	CreatedByID  uint
-	CreatedBy    user.User
-	FinishedBy   user.User
+	CreatedBy    User
+	FinishedBy   User
 	FinishedByID uint
 }
 
