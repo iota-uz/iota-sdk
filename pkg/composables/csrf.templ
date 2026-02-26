@@ -1,34 +1,7 @@
 package composables
 
-// CSRFTokenField renders a hidden input field containing the CSRF token
-// for form submission protection. This should be included in all POST forms.
+// CSRFTokenField intentionally renders nothing.
+// CSRF validation is handled by gorilla/csrf Origin checks instead of
+// token inputs.
 templ CSRFTokenField() {
-	{{ csrfToken, ok := ctx.Value("gorilla.csrf.Token").(string) }}
-	if ok && csrfToken != "" {
-		<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
-	}
-}
-
-// CSRFMetaTag renders a <meta> tag containing the CSRF token.
-// Include this in <head> to make the token accessible to JavaScript/HTMX.
-templ CSRFMetaTag() {
-	{{ csrfToken, ok := ctx.Value("gorilla.csrf.Token").(string) }}
-	if ok && csrfToken != "" {
-		<meta name="csrf-token" content={ csrfToken }/>
-	}
-}
-
-// CSRFHead renders the CSRF meta tag and an HTMX event listener that
-// automatically sends the X-CSRF-Token header on every HTMX request.
-// Include once in the <head> section (after the HTMX script).
-templ CSRFHead() {
-	@CSRFMetaTag()
-	<script>
-		document.addEventListener("htmx:configRequest", function(evt) {
-			var meta = document.querySelector('meta[name="csrf-token"]');
-			if (meta) {
-				evt.detail.headers["X-CSRF-Token"] = meta.content;
-			}
-		});
-	</script>
 }
