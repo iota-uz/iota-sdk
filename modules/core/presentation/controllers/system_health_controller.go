@@ -93,5 +93,7 @@ func (c *SystemHealthController) Get(w http.ResponseWriter, r *http.Request) {
 func writeSystemHealthError(w http.ResponseWriter, statusCode int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
+		return
+	}
 }
