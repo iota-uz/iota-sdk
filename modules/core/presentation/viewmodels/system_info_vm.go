@@ -63,6 +63,7 @@ type SystemInfoViewModel struct {
 	FormattedUsedMemory    string
 	FormattedDiskTotal     string
 	FormattedDiskUsed      string
+	PoolUtilPercent        float64
 }
 
 func NewSystemInfoViewModel(metrics *SystemInfoMetrics, capabilities []sdkhealth.Capability, r *http.Request) *SystemInfoViewModel {
@@ -89,7 +90,36 @@ func NewSystemInfoViewModel(metrics *SystemInfoMetrics, capabilities []sdkhealth
 	vm.FormattedDiskTotal = formatBytes(metrics.DiskTotal)
 	vm.FormattedDiskUsed = formatBytes(metrics.DiskUsed)
 
+	if metrics.PoolMaxConns > 0 {
+		vm.PoolUtilPercent = float64(metrics.PoolTotalConns) / float64(metrics.PoolMaxConns) * 100
+	}
+
 	return vm
+}
+
+// ThresholdColor returns a Tailwind background color class suffix
+// based on resource utilization thresholds.
+func ThresholdColor(percent float64) string {
+	if percent < 60 {
+		return "green-500"
+	}
+	if percent < 80 {
+		return "yellow"
+	}
+	return "pink"
+}
+
+// PercentWidth clamps a float percentage to an integer in [0, 100]
+// for use in inline style width attributes.
+func PercentWidth(percent float64) int {
+	w := int(percent)
+	if w < 0 {
+		return 0
+	}
+	if w > 100 {
+		return 100
+	}
+	return w
 }
 
 func formatBytes(bytes uint64) string {
