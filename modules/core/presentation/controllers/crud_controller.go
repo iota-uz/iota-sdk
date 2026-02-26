@@ -255,11 +255,7 @@ func (c *CrudController[TEntity]) accessDenied(w http.ResponseWriter, r *http.Re
 	if perm == nil {
 		return false
 	}
-	if _, err := composables.UseUser(r.Context()); err != nil {
-		RenderForbidden(w, r)
-		return true
-	}
-	if err := composables.CanUser(r.Context(), perm); err != nil {
+	if err := composables.CanUserStrict(r.Context(), perm); err != nil {
 		RenderForbidden(w, r)
 		return true
 	}
