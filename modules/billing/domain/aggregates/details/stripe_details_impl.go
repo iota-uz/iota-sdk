@@ -34,6 +34,12 @@ func StripeWithInvoiceID(invoiceID string) StripeOption {
 	}
 }
 
+func StripeWithPaymentIntentID(paymentIntentID string) StripeOption {
+	return func(d *stripeDetails) {
+		d.paymentIntentID = paymentIntentID
+	}
+}
+
 func StripeWithSubscriptionID(subscriptionID string) StripeOption {
 	return func(d *stripeDetails) {
 		d.subscriptionID = subscriptionID
@@ -195,6 +201,7 @@ type stripeDetails struct {
 	sessionID         string
 	clientReferenceID string
 	invoiceID         string
+	paymentIntentID   string
 	subscriptionID    string
 	customerID        string
 	items             []StripeItem
@@ -211,6 +218,7 @@ func (d *stripeDetails) BillingReason() string     { return d.billingReason }
 func (d *stripeDetails) SessionID() string         { return d.sessionID }
 func (d *stripeDetails) ClientReferenceID() string { return d.clientReferenceID }
 func (d *stripeDetails) InvoiceID() string         { return d.invoiceID }
+func (d *stripeDetails) PaymentIntentID() string   { return d.paymentIntentID }
 func (d *stripeDetails) SubscriptionID() string    { return d.subscriptionID }
 func (d *stripeDetails) CustomerID() string        { return d.customerID }
 func (d *stripeDetails) Items() []StripeItem       { return d.items }
@@ -250,6 +258,12 @@ func (d *stripeDetails) SetClientReferenceID(clientReferenceID string) StripeDet
 func (d *stripeDetails) SetInvoiceID(invoiceID string) StripeDetails {
 	result := *d
 	result.invoiceID = invoiceID
+	return &result
+}
+
+func (d *stripeDetails) SetPaymentIntentID(paymentIntentID string) StripeDetails {
+	result := *d
+	result.paymentIntentID = paymentIntentID
 	return &result
 }
 

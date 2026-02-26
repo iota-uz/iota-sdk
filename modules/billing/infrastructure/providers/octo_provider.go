@@ -103,13 +103,61 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 }
 
 func (o *octoProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
-	//TODO implement me
-	panic("implement me")
+	return o.Refund(ctx, t, t.Amount().Quantity())
 }
 
-func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, quantity float64) (billing.Transaction, error) {
-	//TODO implement me
-	panic("implement me")
+func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, amount float64) (billing.Transaction, error) {
+	octoDetails, err := toOctoDetails(t.Details())
+	if err != nil {
+		return nil, err
+	}
+
+	if octoDetails.OctoPaymentUUID() == "" {
+		return nil, fmt.Errorf("cannot refund: octo_payment_uuid not found in details")
+	}
+
+	apiClient := newApiClient(o.logger)
+
+	// ShopRefundId should be unique, using transaction ID with suffix for now
+	shopRefundId := fmt.Sprintf("ref_%s_%d", t.ID().String(), t.UpdatedAt().Unix())
+
+	req := octoapi.RefundRequest{
+		OctoShopId:      o.config.OctoShopID,
+		OctoSecret:      o.config.OctoSecret,
+		OctoPaymentUUID: octoDetails.OctoPaymentUUID(),
+		ShopRefundId:    shopRefundId,
+		Amount:          amount,
+	}
+
+	resp, httpResp, err := apiClient.TransactionManagementAPI.
+		RefundPost(ctx).
+		RefundRequest(req).
+		Execute()
+
+	if httpResp != nil {
+		if hErr := httpResp.Body.Close(); hErr != nil {
+			log.Printf("failed to close http response body: %v", hErr)
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.GetError() != 0 {
+		return nil, fmt.Errorf("octo refund error: %s", resp.GetErrMessage())
+	}
+
+	if resp.Data != nil {
+		octoDetails = octoDetails.SetRefundedSum(octoDetails.RefundedSum() + amount)
+	}
+
+	newStatus := billing.PartiallyRefunded
+	if amount >= t.Amount().Quantity() {
+		newStatus = billing.Refunded
+	}
+
+	return t.SetDetails(octoDetails).SetStatus(newStatus), nil
 }
 
 // CheckStatus checks the current status of a transaction via Octo's API.

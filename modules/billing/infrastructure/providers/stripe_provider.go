@@ -8,6 +8,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/checkout/session"
+	"github.com/stripe/stripe-go/v82/refund"
+	"github.com/stripe/stripe-go/v82/subscription"
 )
 
 type StripeConfig struct {
@@ -82,19 +84,72 @@ func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billi
 		SetSessionID(sess.ID).
 		SetURL(sess.URL)
 
+	if sess.PaymentIntent != nil {
+		stripeDetails = stripeDetails.SetPaymentIntentID(sess.PaymentIntent.ID)
+	}
+
 	t = t.SetDetails(stripeDetails)
 
 	return t, nil
 }
 
-func (s *stripeProvider) Cancel(ctx context.Context, tx billing.Transaction) (billing.Transaction, error) {
-	//TODO implement me
-	panic("implement me")
+func (s *stripeProvider) Cancel(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
+	stripe.Key = s.config.SecretKey
+
+	stripeDetails, err := toStripeDetails(t.Details())
+	if err != nil {
+		return nil, err
+	}
+
+	if stripeDetails.SubscriptionID() != "" {
+		params := &stripe.SubscriptionParams{
+			CancelAtPeriodEnd: stripe.Bool(true),
+		}
+		_, err := subscription.Update(stripeDetails.SubscriptionID(), params)
+		if err != nil {
+			return nil, err
+		}
+		return t.SetStatus(billing.Canceled), nil
+	}
+
+	if stripeDetails.SessionID() != "" {
+		_, err := session.Expire(stripeDetails.SessionID(), nil)
+		if err != nil {
+			return nil, err
+		}
+		return t.SetStatus(billing.Canceled), nil
+	}
+
+	return nil, fmt.Errorf("cannot cancel: neither subscription_id nor session_id found in stripe details")
 }
 
-func (s *stripeProvider) Refund(ctx context.Context, tx billing.Transaction, quantity float64) (billing.Transaction, error) {
-	//TODO implement me
-	panic("implement me")
+func (s *stripeProvider) Refund(_ context.Context, t billing.Transaction, amount float64) (billing.Transaction, error) {
+	stripe.Key = s.config.SecretKey
+
+	stripeDetails, err := toStripeDetails(t.Details())
+	if err != nil {
+		return nil, err
+	}
+
+	if stripeDetails.PaymentIntentID() == "" {
+		return nil, fmt.Errorf("cannot refund: payment_intent_id not found in stripe details")
+	}
+
+	params := &stripe.RefundParams{
+		PaymentIntent: stripe.String(stripeDetails.PaymentIntentID()),
+		Amount:        stripe.Int64(int64(amount * 100)),
+	}
+
+	_, err = refund.New(params)
+	if err != nil {
+		return nil, err
+	}
+
+	if amount >= t.Amount().Quantity() {
+		return t.SetStatus(billing.Refunded), nil
+	}
+
+	return t.SetStatus(billing.PartiallyRefunded), nil
 }
 
 func toStripeDetails(detailsObj details.Details) (details.StripeDetails, error) {
