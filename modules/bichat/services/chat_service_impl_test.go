@@ -496,6 +496,7 @@ func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t
 
 func TestChatService_ResumeWithAnswer_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 
 	chatRepo := newMockChatRepository()
 	session := mustSession(t,
@@ -503,7 +504,7 @@ func TestChatService_ResumeWithAnswer_TriggersTitleGenerationAfterCompletion(t *
 		withSessionUserID(1),
 		withSessionTitle("Untitled Session"),
 	)
-	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+	require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
 
 	qd, err := types.NewQuestionData("cp-title-resume", "ali", []types.QuestionDataItem{
 		{
@@ -536,7 +537,7 @@ func TestChatService_ResumeWithAnswer_TriggersTitleGenerationAfterCompletion(t *
 	}
 
 	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
-	_, err = svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
+	_, err = svc.ResumeWithAnswer(env.Ctx, bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-title-resume",
 		Answers: map[string]string{
@@ -629,6 +630,7 @@ func TestChatService_ResumeWithAnswer_DoesNotTriggerTitleGenerationWhenInterrupt
 
 func TestChatService_RejectPendingQuestion_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 
 	chatRepo := newMockChatRepository()
 	session := mustSession(t,
@@ -636,7 +638,7 @@ func TestChatService_RejectPendingQuestion_TriggersTitleGenerationAfterCompletio
 		withSessionUserID(1),
 		withSessionTitle("Untitled Session"),
 	)
-	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+	require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
 
 	qd, err := types.NewQuestionData("cp-title-reject", "ali", []types.QuestionDataItem{
 		{
@@ -669,7 +671,7 @@ func TestChatService_RejectPendingQuestion_TriggersTitleGenerationAfterCompletio
 	}
 
 	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
-	_, err = svc.RejectPendingQuestion(t.Context(), session.ID())
+	_, err = svc.RejectPendingQuestion(env.Ctx, session.ID())
 	require.NoError(t, err)
 
 	select {
@@ -681,6 +683,7 @@ func TestChatService_RejectPendingQuestion_TriggersTitleGenerationAfterCompletio
 
 func TestChatService_ResumeWithAnswerAsync_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 
 	chatRepo := newMockChatRepository()
 	session := mustSession(t,
@@ -688,7 +691,7 @@ func TestChatService_ResumeWithAnswerAsync_TriggersTitleGenerationAfterCompletio
 		withSessionUserID(1),
 		withSessionTitle("Untitled Session"),
 	)
-	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+	require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
 
 	qd, err := types.NewQuestionData("cp-title-resume-async", "ali", []types.QuestionDataItem{
 		{
@@ -709,7 +712,7 @@ func TestChatService_ResumeWithAnswerAsync_TriggersTitleGenerationAfterCompletio
 		types.WithContent("Need scope"),
 		types.WithQuestionData(qd),
 	)
-	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+	require.NoError(t, chatRepo.SaveMessage(env.Ctx, pendingMsg))
 
 	titleService := &captureTitleContextService{
 		called: make(chan context.Context, 1),
@@ -721,7 +724,7 @@ func TestChatService_ResumeWithAnswerAsync_TriggersTitleGenerationAfterCompletio
 	}
 
 	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
-	_, err = svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
+	_, err = svc.ResumeWithAnswerAsync(env.Ctx, bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-title-resume-async",
 		Answers: map[string]string{
@@ -739,6 +742,7 @@ func TestChatService_ResumeWithAnswerAsync_TriggersTitleGenerationAfterCompletio
 
 func TestChatService_RejectPendingQuestionAsync_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 
 	chatRepo := newMockChatRepository()
 	session := mustSession(t,
@@ -746,7 +750,7 @@ func TestChatService_RejectPendingQuestionAsync_TriggersTitleGenerationAfterComp
 		withSessionUserID(1),
 		withSessionTitle("Untitled Session"),
 	)
-	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+	require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
 
 	qd, err := types.NewQuestionData("cp-title-reject-async", "ali", []types.QuestionDataItem{
 		{
@@ -767,7 +771,7 @@ func TestChatService_RejectPendingQuestionAsync_TriggersTitleGenerationAfterComp
 		types.WithContent("Need scope"),
 		types.WithQuestionData(qd),
 	)
-	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+	require.NoError(t, chatRepo.SaveMessage(env.Ctx, pendingMsg))
 
 	titleService := &captureTitleContextService{
 		called: make(chan context.Context, 1),
@@ -779,7 +783,7 @@ func TestChatService_RejectPendingQuestionAsync_TriggersTitleGenerationAfterComp
 	}
 
 	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
-	_, err = svc.RejectPendingQuestionAsync(t.Context(), session.ID())
+	_, err = svc.RejectPendingQuestionAsync(env.Ctx, session.ID())
 	require.NoError(t, err)
 
 	select {

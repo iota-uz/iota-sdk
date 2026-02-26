@@ -225,7 +225,11 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 						_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 						return
 					}
-					_ = s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+					if completeErr := s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID); completeErr != nil {
+						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+						_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+						return
+					}
 					s.maybeGenerateTitleAfterHITLCompletion(persistCtx, req.SessionID, false)
 					active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
 					return
@@ -283,7 +287,11 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 				return
 			}
 
-			_ = s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+			if completeErr := s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID); completeErr != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+				return
+			}
 			s.maybeGenerateTitleAfterHITLCompletion(persistCtx, req.SessionID, result.interrupt != nil)
 			active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
 		},
@@ -459,7 +467,11 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 						_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 						return
 					}
-					_ = s.completeRunState(persistCtx, session.TenantID(), sessionID, runID)
+					if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
+						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+						_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+						return
+					}
 					s.maybeGenerateTitleAfterHITLCompletion(persistCtx, sessionID, false)
 					active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
 					return
@@ -516,7 +528,11 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 				return
 			}
 
-			_ = s.completeRunState(persistCtx, session.TenantID(), sessionID, runID)
+			if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
+				return
+			}
 			s.maybeGenerateTitleAfterHITLCompletion(persistCtx, sessionID, result.interrupt != nil)
 			active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
 		},
