@@ -10,7 +10,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -18,10 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
-
-// LoginAccessCheckFunc allows host applications to run additional authorization
-// checks right after authentication succeeds, before session creation.
-var LoginAccessCheckFunc func(ctx context.Context, u user.User) error
 
 // UserAccessCheckFunc is called by WithPageContext after user context setup.
 // If it returns true, the request is blocked and the function must write the response.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -39,6 +40,8 @@ type LoginDTO struct {
 type MiddlewareChainCustomizer func(defaults []mux.MiddlewareFunc) []mux.MiddlewareFunc
 
 type LoginControllerOptions struct {
+	// LoginAccessCheck runs after successful authentication and before session creation.
+	LoginAccessCheck func(ctx context.Context, u coreuser.User) error
 	// CustomizeGetMiddlewares receives default middleware for /login GET and OAuth callback routes
 	// and returns the final chain.
 	CustomizeGetMiddlewares MiddlewareChainCustomizer
@@ -144,6 +147,13 @@ func (c *LoginController) Register(r *mux.Router) {
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
 }
 
+func (c *LoginController) runLoginAccessCheck(ctx context.Context, u coreuser.User) error {
+	if c.options == nil || c.options.LoginAccessCheck == nil {
+		return nil
+	}
+	return c.options.LoginAccessCheck(ctx, u)
+}
+
 func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// Validate and sanitize the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
@@ -188,13 +198,11 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Run optional login gate before creating the session cookie.
-	if middleware.LoginAccessCheckFunc != nil {
-		if err := middleware.LoginAccessCheckFunc(r.Context(), u); err != nil {
-			shared.SetFlash(w, "error", []byte(err.Error()))
-			queryParams.Set("error", err.Error())
-			http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
-			return
-		}
+	if err := c.runLoginAccessCheck(r.Context(), u); err != nil {
+		shared.SetFlash(w, "error", []byte(err.Error()))
+		queryParams.Set("error", err.Error())
+		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+		return
 	}
 
 	// Evaluate 2FA requirement for OAuth authentication.
@@ -371,12 +379,10 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run optional login gate before creating the session cookie.
-	if middleware.LoginAccessCheckFunc != nil {
-		if err := middleware.LoginAccessCheckFunc(r.Context(), u); err != nil {
-			shared.SetFlash(w, "error", []byte(err.Error()))
-			http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
-			return
-		}
+	if err := c.runLoginAccessCheck(r.Context(), u); err != nil {
+		shared.SetFlash(w, "error", []byte(err.Error()))
+		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+		return
 	}
 
 	// Evaluate 2FA requirement for password authentication.

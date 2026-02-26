@@ -1,18 +1,15 @@
 package core
 
 import (
-	"context"
 	"embed"
 	"errors"
 	"os"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -43,8 +40,6 @@ type ModuleOptions struct {
 	DefaultTenantID   uuid.UUID // Fallback tenant ID for unauthenticated API uploads
 	// LoginControllerOptions allow customizing middleware used by login routes.
 	LoginControllerOptions *controllers.LoginControllerOptions
-	// LoginAccessCheck runs after successful authentication and before login session cookie is set.
-	LoginAccessCheck func(ctx context.Context, u user.User) error
 	// DashboardLinkPermissions controls visibility of the core Dashboard sidebar link.
 	DashboardLinkPermissions []permission.Permission
 	// SettingsLinkPermissions controls visibility of the core Settings sidebar link.
@@ -239,7 +234,6 @@ func (m *Module) Register(app application.Application) error {
 		app.RegisterControllers(ctrl)
 	}
 	app.RegisterControllers(controllers.NewCrudShowcaseController(app))
-	middleware.LoginAccessCheckFunc = m.options.LoginAccessCheck
 	NavItems = BuildNavItems(m.options.DashboardLinkPermissions, m.options.SettingsLinkPermissions)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
