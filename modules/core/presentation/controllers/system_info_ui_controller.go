@@ -18,6 +18,8 @@ type SystemInfoUIControllerOptions struct {
 	BuildViewModel func(ctx context.Context, r *http.Request) (*viewmodels.SystemInfoViewModel, error)
 }
 
+type HealthUIControllerOptions = SystemInfoUIControllerOptions
+
 type SystemInfoUIController struct {
 	app     application.Application
 	options *SystemInfoUIControllerOptions
@@ -35,6 +37,10 @@ func NewSystemInfoUIController(app application.Application, options *SystemInfoU
 		app:     app,
 		options: options,
 	}
+}
+
+func NewHealthUIController(app application.Application, options *HealthUIControllerOptions) application.Controller {
+	return NewSystemInfoUIController(app, options)
 }
 
 func (c *SystemInfoUIController) Key() string {
