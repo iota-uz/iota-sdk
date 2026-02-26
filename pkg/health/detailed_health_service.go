@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -28,8 +29,12 @@ type detailedHealthServiceImpl struct {
 }
 
 func NewDetailedHealthService(cfg DetailedHealthServiceConfig) DetailedHealthService {
-	checks := cfg.Checks
-	if checks == nil {
+	checks := make(map[string]CheckFunc, len(cfg.Checks))
+	for key, check := range cfg.Checks {
+		checks[key] = check
+	}
+	// keep behavior consistent for nil config maps
+	if cfg.Checks == nil {
 		checks = map[string]CheckFunc{}
 	}
 	capabilities := cfg.Capabilities
@@ -59,7 +64,7 @@ func (s *detailedHealthServiceImpl) GetDetailedHealth(ctx context.Context) *Deta
 		if check == nil {
 			continue
 		}
-		checks[key] = check(ctx)
+		checks[key] = safeRunCheck(key, check, ctx)
 	}
 
 	health := &DetailedHealth{
@@ -82,9 +87,36 @@ func aggregateStatus(checks map[string]HealthCheck) Status {
 		if check.Status == StatusDegraded {
 			status = StatusDegraded
 		}
+		if check.Status == StatusUnknown {
+			if status == StatusHealthy {
+				status = StatusUnknown
+			}
+		}
 	}
 
 	return status
+}
+
+func safeRunCheck(name string, check CheckFunc, ctx context.Context) HealthCheck {
+	result := HealthCheck{
+		Status:  StatusDown,
+		Message: "health check failed",
+	}
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result = HealthCheck{
+				Status:  StatusDown,
+				Message: fmt.Sprintf("health check %q panicked: %v", name, recovered),
+			}
+		}
+	}()
+
+	if check != nil {
+		result = check(ctx)
+	}
+
+	return result
 }
 
 func (s *detailedHealthServiceImpl) loadFromCache() *DetailedHealth {

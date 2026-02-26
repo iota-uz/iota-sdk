@@ -1,6 +1,9 @@
 package health
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type CapabilityService interface {
 	GetCapabilities(ctx context.Context) []Capability
@@ -23,8 +26,29 @@ func (s *capabilityServiceImpl) GetCapabilities(ctx context.Context) []Capabilit
 	capabilities := make([]Capability, 0, len(probes))
 
 	for _, probe := range probes {
-		capabilities = append(capabilities, probe.Probe(ctx))
+		capabilities = append(capabilities, safeProbeCapability(probe, ctx))
 	}
 
 	return capabilities
+}
+
+func safeProbeCapability(probe CapabilityProbe, ctx context.Context) Capability {
+	capability := Capability{
+		Status: StatusDown,
+	}
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			capability = Capability{
+				Status:  StatusDown,
+				Message: fmt.Sprintf("failed to execute health probe: %v", recovered),
+			}
+		}
+	}()
+
+	if probe != nil {
+		capability = probe.Probe(ctx)
+	}
+
+	return capability
 }

@@ -1,12 +1,12 @@
 package system_info
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
-templ Index(vm *viewmodels.SystemInfoViewModel) {
+templ Index(vm *viewmodels.SystemInfoViewModel, metricsPath string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Logsys.Pages.SystemInfo.Title")},
@@ -17,7 +17,7 @@ templ Index(vm *viewmodels.SystemInfoViewModel) {
 			<!-- Auto-refreshing container with HTMX -->
 			<div
 				id="system-metrics-container"
-				hx-get="/system/info/metrics"
+				hx-get={ metricsPath }
 				hx-trigger="every 5s"
 				hx-swap="innerHTML"
 			>
