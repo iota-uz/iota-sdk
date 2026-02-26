@@ -18,36 +18,36 @@ type SystemInfoUIControllerOptions struct {
 	BuildViewModel func(ctx context.Context, r *http.Request) (*viewmodels.SystemInfoViewModel, error)
 }
 
-type HealthUIControllerOptions = SystemInfoUIControllerOptions
-
-type SystemInfoUIController struct {
-	app     application.Application
-	options *SystemInfoUIControllerOptions
+type HealthUIControllerOptions struct {
+	BasePath       string
+	CanAccess      func(ctx context.Context) error
+	BuildViewModel func(ctx context.Context, r *http.Request) (*viewmodels.SystemInfoViewModel, error)
 }
 
-func NewSystemInfoUIController(app application.Application, options *SystemInfoUIControllerOptions) application.Controller {
+type HealthUIController struct {
+	app     application.Application
+	options *HealthUIControllerOptions
+}
+
+func NewHealthUIController(app application.Application, options *HealthUIControllerOptions) application.Controller {
 	if options == nil {
-		options = &SystemInfoUIControllerOptions{}
+		options = &HealthUIControllerOptions{}
 	}
 	if options.BasePath == "" {
 		options.BasePath = "/system/info"
 	}
 
-	return &SystemInfoUIController{
+	return &HealthUIController{
 		app:     app,
 		options: options,
 	}
 }
 
-func NewHealthUIController(app application.Application, options *HealthUIControllerOptions) application.Controller {
-	return NewSystemInfoUIController(app, options)
+func (c *HealthUIController) Key() string {
+	return "health-ui"
 }
 
-func (c *SystemInfoUIController) Key() string {
-	return "system-info-ui"
-}
-
-func (c *SystemInfoUIController) Register(r *mux.Router) {
+func (c *HealthUIController) Register(r *mux.Router) {
 	subRouter := r.PathPrefix(c.options.BasePath).Subrouter()
 	subRouter.Use(
 		middleware.Authorize(),
@@ -64,7 +64,7 @@ func (c *SystemInfoUIController) Register(r *mux.Router) {
 	subRouter.HandleFunc("/metrics", c.MetricsPartial).Methods(http.MethodGet)
 }
 
-func (c *SystemInfoUIController) Index(w http.ResponseWriter, r *http.Request) {
+func (c *HealthUIController) Index(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if c.options.CanAccess != nil {
@@ -88,7 +88,7 @@ func (c *SystemInfoUIController) Index(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(system_info.Index(vm), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *SystemInfoUIController) MetricsPartial(w http.ResponseWriter, r *http.Request) {
+func (c *HealthUIController) MetricsPartial(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if c.options.CanAccess != nil {
