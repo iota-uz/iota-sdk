@@ -36,9 +36,9 @@ const (
 			p.description,
 			rp.role_id
 		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1)`
-	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles WHERE tenant_id = $1`
-	roleInsertQuery            = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
-	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
+	roleCountQuery              = `SELECT COUNT(DISTINCT roles.id) FROM roles WHERE tenant_id = $1`
+	roleInsertQuery             = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
+	roleUpdateQuery             = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
 	permissionUpsertByNameQuery = `
 		INSERT INTO permissions (id, name, resource, action, modifier, description)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -48,10 +48,21 @@ const (
 		    modifier = EXCLUDED.modifier,
 		    description = EXCLUDED.description
 		RETURNING id`
-	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
-	roleInsertPermissionQuery  = `
+	roleDeletePermissionsQuery = `
+		DELETE FROM role_permissions rp
+		USING roles r
+		WHERE rp.role_id = r.id
+		  AND r.id = $1
+		  AND r.tenant_id = $2`
+	roleInsertPermissionQuery = `
 		INSERT INTO role_permissions (role_id, permission_id)
-		VALUES ($1, $2)
+		SELECT $1, $2
+		WHERE EXISTS (
+			SELECT 1
+			FROM roles r
+			WHERE r.id = $1
+			  AND r.tenant_id = $3
+		)
 		ON CONFLICT (role_id, permission_id) DO NOTHING`
 	roleDeleteQuery = `DELETE FROM roles WHERE id = $1 AND tenant_id = $2`
 )
@@ -229,6 +240,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 		if err := g.execQuery(ctx, roleInsertPermissionQuery,
 			id,
 			permissionID,
+			entity.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -246,7 +258,12 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 
 	dbRole.TenantID = tenantID.String()
 
-	if err := g.execQuery(
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tx from ctx")
+	}
+
+	updateTag, err := tx.Exec(
 		ctx,
 		roleUpdateQuery,
 		dbRole.Name,
@@ -254,11 +271,20 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 		dbRole.UpdatedAt,
 		dbRole.ID,
 		dbRole.TenantID,
-	); err != nil {
-		return nil, err
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update role")
+	}
+	if updateTag.RowsAffected() == 0 {
+		return nil, ErrRoleNotFound
 	}
 
-	if err := g.execQuery(ctx, roleDeletePermissionsQuery, dbRole.ID); err != nil {
+	if err := g.execQuery(
+		ctx,
+		roleDeletePermissionsQuery,
+		dbRole.ID,
+		dbRole.TenantID,
+	); err != nil {
 		return nil, err
 	}
 
@@ -270,6 +296,7 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 		if err := g.execQuery(ctx, roleInsertPermissionQuery,
 			dbRole.ID,
 			permissionID,
+			dbRole.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -283,7 +310,7 @@ func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
 		return errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	if err := g.execQuery(ctx, roleDeletePermissionsQuery, id); err != nil {
+	if err := g.execQuery(ctx, roleDeletePermissionsQuery, id, tenantID.String()); err != nil {
 		return err
 	}
 	return g.execQuery(ctx, roleDeleteQuery, id, tenantID)

@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	warehousepermissions "github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,19 +52,23 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Delete", func(t *testing.T) {
-			if err := roleRepository.Delete(f.Ctx, 1); err != nil {
-				require.NoError(t, err)
-			}
-			_, err := roleRepository.GetByID(f.Ctx, 1)
+			err := roleRepository.Delete(f.Ctx, 1)
+			require.NoError(t, err)
+			_, err = roleRepository.GetByID(f.Ctx, 1)
 			require.Error(t, err)
 		},
 	)
 }
 
-func TestGormRoleRepository_CreateUpsertsMissingPermission(t *testing.T) {
-	f := setupTest(t)
-
-	roleRepository := persistence.NewRoleRepository()
+func TestGormRoleRepository_CreatePermissionResolutionScenarios(t *testing.T) {
+	type scenario struct {
+		name         string
+		setup        func(*testing.T, *testFixture, *persistence.PermissionRepository)
+		createRole   role.Role
+		mutate       func(role.Role) role.Role
+		assertCreate func(*testing.T, role.Role)
+		assertUpdate func(*testing.T, role.Role)
+	}
 
 	customPermission := permission.New(
 		permission.WithID(uuid.New()),
@@ -74,76 +78,96 @@ func TestGormRoleRepository_CreateUpsertsMissingPermission(t *testing.T) {
 		permission.WithModifier(permission.ModifierAll),
 	)
 
-	data := role.New(
-		"role-with-missing-permission-row",
-		role.WithDescription("role with missing permission row"),
-		role.WithPermissions([]permission.Permission{customPermission}),
-	)
+	legacyPermissionID := uuid.New()
+	legacyPermissionName := fmt.Sprintf("Role.Legacy.%s", uuid.NewString())
 
-	createdRole, err := roleRepository.Create(f.Ctx, data)
-	require.NoError(t, err)
-	require.Len(t, createdRole.Permissions(), 1)
-	assert.Equal(t, customPermission.Name(), createdRole.Permissions()[0].Name())
-}
+	cases := []scenario{
+		{
+			name: "CreateUpsertsMissingPermission",
+			createRole: role.New(
+				"role-with-missing-permission-row",
+				role.WithDescription("role with missing permission row"),
+				role.WithPermissions([]permission.Permission{customPermission}),
+			),
+			assertCreate: func(t *testing.T, createdRole role.Role) {
+				require.Len(t, createdRole.Permissions(), 1)
+				assert.Equal(t, customPermission.Name(), createdRole.Permissions()[0].Name())
+			},
+		},
+		{
+			name: "CreateAndUpdateUsesLegacyPermissionIDByName",
+			setup: func(t *testing.T, f *testFixture, permissionRepository *persistence.PermissionRepository) {
+				legacyPermission := permission.New(
+					permission.WithID(legacyPermissionID),
+					permission.WithName(legacyPermissionName),
+					permission.WithResource(corepermissions.ResourceRole),
+					permission.WithAction(permission.ActionRead),
+					permission.WithModifier(permission.ModifierAll),
+				)
+				require.NoError(t, permissionRepository.Save(f.Ctx, legacyPermission))
+			},
+			createRole: role.New(
+				"legacy-id-role",
+				role.WithDescription("legacy id role"),
+				role.WithPermissions([]permission.Permission{
+					permission.New(
+						permission.WithID(uuid.New()),
+						permission.WithName(legacyPermissionName),
+						permission.WithResource(corepermissions.ResourceRole),
+						permission.WithAction(permission.ActionUpdate),
+						permission.WithModifier(permission.ModifierAll),
+					),
+				}),
+			),
+			mutate: func(createdRole role.Role) role.Role {
+				return createdRole.SetPermissions([]permission.Permission{
+					permission.New(
+						permission.WithID(uuid.New()),
+						permission.WithName(legacyPermissionName),
+						permission.WithResource(corepermissions.ResourceRole),
+						permission.WithAction(permission.ActionDelete),
+						permission.WithModifier(permission.ModifierAll),
+					),
+				})
+			},
+			assertCreate: func(t *testing.T, createdRole role.Role) {
+				createdPermission := createdRole.Permissions()[0]
+				require.Len(t, createdRole.Permissions(), 1)
+				assert.Equal(t, legacyPermissionID, createdPermission.ID())
+				assert.Equal(t, permission.ActionUpdate, createdPermission.Action())
+			},
+			assertUpdate: func(t *testing.T, updatedRole role.Role) {
+				updatedPermission := updatedRole.Permissions()[0]
+				require.Len(t, updatedRole.Permissions(), 1)
+				assert.Equal(t, legacyPermissionID, updatedPermission.ID())
+				assert.Equal(t, permission.ActionDelete, updatedPermission.Action())
+			},
+		},
+	}
 
-func TestGormRoleRepository_CreateAndUpdateUseLegacyPermissionIDByName(t *testing.T) {
-	f := setupTest(t)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := setupTest(t)
+			permissionRepository := persistence.NewPermissionRepository()
+			roleRepository := persistence.NewRoleRepository()
 
-	permissionRepository := persistence.NewPermissionRepository()
-	roleRepository := persistence.NewRoleRepository()
+			if tc.setup != nil {
+				tc.setup(t, f, permissionRepository)
+			}
 
-	permissionName := fmt.Sprintf("Role.Legacy.%s", uuid.NewString())
-	legacyID := uuid.New()
+			createdRole, err := roleRepository.Create(f.Ctx, tc.createRole)
+			require.NoError(t, err)
 
-	legacyPermission := permission.New(
-		permission.WithID(legacyID),
-		permission.WithName(permissionName),
-		permission.WithResource(corepermissions.ResourceRole),
-		permission.WithAction(permission.ActionRead),
-		permission.WithModifier(permission.ModifierAll),
-	)
+			tc.assertCreate(t, createdRole)
 
-	require.NoError(t, permissionRepository.Save(f.Ctx, legacyPermission))
-
-	createPermission := permission.New(
-		permission.WithID(uuid.New()),
-		permission.WithName(permissionName),
-		permission.WithResource(corepermissions.ResourceRole),
-		permission.WithAction(permission.ActionUpdate),
-		permission.WithModifier(permission.ModifierAll),
-	)
-
-	createdRole, err := roleRepository.Create(
-		f.Ctx,
-		role.New(
-			"legacy-id-role",
-			role.WithDescription("legacy id role"),
-			role.WithPermissions([]permission.Permission{createPermission}),
-		),
-	)
-	require.NoError(t, err)
-	require.Len(t, createdRole.Permissions(), 1)
-
-	createdPermission := createdRole.Permissions()[0]
-	assert.Equal(t, legacyID, createdPermission.ID())
-	assert.Equal(t, permission.ActionUpdate, createdPermission.Action())
-
-	updatePermission := permission.New(
-		permission.WithID(uuid.New()),
-		permission.WithName(permissionName),
-		permission.WithResource(corepermissions.ResourceRole),
-		permission.WithAction(permission.ActionDelete),
-		permission.WithModifier(permission.ModifierAll),
-	)
-
-	updatedRole, err := roleRepository.Update(
-		f.Ctx,
-		createdRole.SetPermissions([]permission.Permission{updatePermission}),
-	)
-	require.NoError(t, err)
-	require.Len(t, updatedRole.Permissions(), 1)
-
-	updatedPermission := updatedRole.Permissions()[0]
-	assert.Equal(t, legacyID, updatedPermission.ID())
-	assert.Equal(t, permission.ActionDelete, updatedPermission.Action())
+			if tc.mutate != nil {
+				updatedRole, err := roleRepository.Update(
+					f.Ctx,
+					tc.mutate(createdRole),
+				)
+				require.NoError(t, err)
+				tc.assertUpdate(t, updatedRole)
+			}
+		})
+	}
 }

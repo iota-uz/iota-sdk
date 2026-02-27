@@ -25,6 +25,7 @@ templ CreateForm(props *CreateFormProps) {
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
+		@composables.CSRFTokenField()
 		<div class="flex-1 overflow-y-auto flex flex-col gap-5 p-4 md:p-6">
 			@card.Card(card.Props{
 				Class: "space-y-3",
