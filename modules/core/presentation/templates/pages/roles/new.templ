@@ -101,6 +101,7 @@ templ CreateForm(props *CreateFormProps) {
 			@button.Primary(button.Props{
 				Size: button.SizeMD,
 				Attrs: templ.Attributes{
+					"type":         "submit",
 					"id":           "save-btn",
 					"data-test-id": "save-role-btn",
 				},

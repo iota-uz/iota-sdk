@@ -39,6 +39,15 @@ const (
 	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles WHERE tenant_id = $1`
 	roleInsertQuery            = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
 	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
+	permissionUpsertByNameQuery = `
+		INSERT INTO permissions (id, name, resource, action, modifier, description)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (name) DO UPDATE
+		SET resource = EXCLUDED.resource,
+		    action = EXCLUDED.action,
+		    modifier = EXCLUDED.modifier,
+		    description = EXCLUDED.description
+		RETURNING id`
 	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
 	roleInsertPermissionQuery  = `
 		INSERT INTO role_permissions (role_id, permission_id)
@@ -213,9 +222,13 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 	}
 
 	for _, permission := range permissions {
+		permissionID, err := g.upsertPermissionAndGetID(ctx, permission)
+		if err != nil {
+			return nil, err
+		}
 		if err := g.execQuery(ctx, roleInsertPermissionQuery,
 			id,
-			permission.ID,
+			permissionID,
 		); err != nil {
 			return nil, err
 		}
@@ -250,9 +263,13 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 	}
 
 	for _, permission := range dbPermissions {
+		permissionID, err := g.upsertPermissionAndGetID(ctx, permission)
+		if err != nil {
+			return nil, err
+		}
 		if err := g.execQuery(ctx, roleInsertPermissionQuery,
 			dbRole.ID,
-			permission.ID,
+			permissionID,
 		); err != nil {
 			return nil, err
 		}
@@ -368,4 +385,27 @@ func (g *GormRoleRepository) execQuery(ctx context.Context, query string, args .
 	}
 	_, err = tx.Exec(ctx, query, args...)
 	return err
+}
+
+func (g *GormRoleRepository) upsertPermissionAndGetID(ctx context.Context, permission *models.Permission) (string, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get tx from ctx")
+	}
+
+	var permissionID string
+	if err := tx.QueryRow(
+		ctx,
+		permissionUpsertByNameQuery,
+		permission.ID,
+		permission.Name,
+		permission.Resource,
+		permission.Action,
+		permission.Modifier,
+		permission.Description,
+	).Scan(&permissionID); err != nil {
+		return "", errors.Wrap(err, "failed to upsert permission by name")
+	}
+
+	return permissionID, nil
 }

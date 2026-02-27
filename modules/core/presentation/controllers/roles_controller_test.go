@@ -5,8 +5,12 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 )
@@ -217,4 +221,62 @@ func TestRolesController_Update_NonExistent(t *testing.T) {
 
 	// Should return error (role not found)
 	response.Assert(t).ExpectStatus(500)
+}
+
+func TestRolesController_Update_PersistsSelectedPermissions(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(modules.BuiltInModules...).
+		AsUser(permissions.RoleCreate, permissions.RoleRead, permissions.RoleUpdate, permissions.RoleDelete).
+		Build()
+
+	controller := controllers.NewRolesController(suite.Env().App, &controllers.RolesControllerOptions{
+		BasePath:         "/roles",
+		PermissionSchema: defaults.PermissionSchema(),
+	})
+	suite.Register(controller)
+
+	roleRepository := persistence.NewRoleRepository()
+	createdRole, err := roleRepository.Create(
+		suite.Env().Ctx,
+		role.New(
+			"Controller Persist Role",
+			role.WithDescription("Initial description"),
+			role.WithPermissions([]permission.Permission{permissions.RoleRead}),
+		),
+	)
+	if err != nil {
+		t.Fatalf("failed to create role fixture: %v", err)
+	}
+
+	response := suite.POST(fmt.Sprintf("/roles/%d", createdRole.ID())).
+		FormFields(map[string]interface{}{
+			"Name":                                           createdRole.Name(),
+			"Description":                                    "Updated description",
+			fmt.Sprintf("Permissions[%s]", permissions.RoleUpdate.ID()): "on",
+		})
+
+	response.Assert(t).ExpectStatus(302)
+
+	updatedRole, err := roleRepository.GetByID(suite.Env().Ctx, createdRole.ID())
+	if err != nil {
+		t.Fatalf("failed to fetch updated role: %v", err)
+	}
+
+	if updatedRole.Description() != "Updated description" {
+		t.Fatalf("expected updated description, got %q", updatedRole.Description())
+	}
+
+	foundRoleUpdate := false
+	for _, p := range updatedRole.Permissions() {
+		if p.Name() == permissions.RoleUpdate.Name() {
+			foundRoleUpdate = true
+			break
+		}
+	}
+
+	if !foundRoleUpdate {
+		t.Fatalf("expected role to include permission %q after update", permissions.RoleUpdate.Name())
+	}
 }

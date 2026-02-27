@@ -291,7 +291,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/new.templ`, Line: 108, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/new.templ`, Line: 109, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -302,6 +302,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 		templ_7745c5c3_Err = button.Primary(button.Props{
 			Size: button.SizeMD,
 			Attrs: templ.Attributes{
+				"type":         "submit",
 				"id":           "save-btn",
 				"data-test-id": "save-role-btn",
 			},
