@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	warehousepermissions "github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +64,7 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 func TestGormRoleRepository_CreatePermissionResolutionScenarios(t *testing.T) {
 	type scenario struct {
 		name         string
-		setup        func(*testing.T, *testFixture, *persistence.PermissionRepository)
+		setup        func(*testing.T, *itf.TestEnvironment, permission.Repository)
 		createRole   role.Role
 		mutate       func(role.Role) role.Role
 		assertCreate func(*testing.T, role.Role)
@@ -96,7 +97,7 @@ func TestGormRoleRepository_CreatePermissionResolutionScenarios(t *testing.T) {
 		},
 		{
 			name: "CreateAndUpdateUsesLegacyPermissionIDByName",
-			setup: func(t *testing.T, f *testFixture, permissionRepository *persistence.PermissionRepository) {
+			setup: func(t *testing.T, f *itf.TestEnvironment, permissionRepository permission.Repository) {
 				legacyPermission := permission.New(
 					permission.WithID(legacyPermissionID),
 					permission.WithName(legacyPermissionName),

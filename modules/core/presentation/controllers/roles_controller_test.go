@@ -256,7 +256,7 @@ func TestRolesController_Update_PermissionScenarios(t *testing.T) {
 			initialDescription:  "Initial description",
 			initialPermissions:  []permission.Permission{permissions.RoleRead},
 			formDescription:     "Updated description",
-			formPermissionIDs:   []string{permissions.RoleUpdate.ID()},
+			formPermissionIDs:   []string{permissions.RoleUpdate.ID().String()},
 			expectedPermissions: []string{permissions.RoleUpdate.Name()},
 		},
 	}
