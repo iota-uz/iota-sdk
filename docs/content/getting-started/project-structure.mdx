@@ -12,17 +12,17 @@ This guide explains the organization of the IOTA SDK codebase.
 ```
 iota-sdk/
 ├── cmd/                    # Application entry points
-├── docs/                   # Documentation (this site: %v", err)
+├── docs/                   # Documentation (this site)
 ├── e2e/                    # End-to-end tests
 ├── modules/                # Business modules
 ├── pkg/                    # Shared packages
 ├── static/                 # Static assets
-├── web/                    # Web assets (CSS, JS: %v", err)
+├── web/                    # Web assets (CSS, JS)
 ├── Justfile               # Build commands
 └── go.mod                 # Go dependencies
 ```
 
-## Entry Points (`cmd/`: %v", err)
+## Entry Points (`cmd/`)
 
 Contains executable applications:
 
@@ -34,7 +34,7 @@ Contains executable applications:
 
 Each entry point initializes the application with different module combinations.
 
-## Business Modules (`modules/`: %v", err)
+## Business Modules (`modules/`)
 
 The heart of the SDK. Each module follows DDD structure:
 
@@ -71,7 +71,7 @@ modules/{module}/
 | `logging` | Audit logging |
 | `testkit` | E2E testing utilities |
 
-## Shared Packages (`pkg/`: %v", err)
+## Shared Packages (`pkg/`)
 
 Reusable utilities and frameworks:
 
@@ -108,30 +108,30 @@ pkg/
 
 ## Domain-Driven Design Layers
 
-### Domain Layer (`domain/`: %v", err)
+### Domain Layer (`domain/`)
 
 Contains pure business logic:
 
 - **Aggregates** - Complex entities with business rules
 - **Entities** - Objects with identity
-- **Value Objects** - Immutable concepts (money, dates: %v", err)
+- **Value Objects** - Immutable concepts (money, dates)
 
-### Infrastructure Layer (`infrastructure/`: %v", err)
+### Infrastructure Layer (`infrastructure/`)
 
 External concerns:
 
 - **Repositories** - Data access implementation
-- **Models** - Database models (sqlx: %v", err)
+- **Models** - Database models (sqlx)
 - **Mappers** - Domain-to-database conversion
 
-### Service Layer (`services/`: %v", err)
+### Service Layer (`services/`)
 
 Business process orchestration:
 
 - **Services** - Use cases and workflows
 - **Event handling** - Domain event processing
 
-### Presentation Layer (`presentation/`: %v", err)
+### Presentation Layer (`presentation/`)
 
 User interface and API:
 
@@ -147,7 +147,7 @@ Each module owns its schema in `infrastructure/persistence/schema/`:
 ```
 modules/finance/infrastructure/persistence/schema/
 ├── finance-schema.sql      # Table definitions
-└── finance-migration-*.sql # Migration files
+└── finance-schema.sql      # Schema; migrations may live here or in a central migrations dir
 ```
 
 Migrations are applied via `just db migrate up`.
