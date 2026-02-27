@@ -109,6 +109,7 @@ templ EditForm(props *EditFormProps) {
 				hx-indicator="#delete-role-btn"
 				hx-disabled-elt="find button"
 			>
+				@composables.CSRFTokenField()
 				@button.Danger(button.Props{
 					Disabled: !props.Role.CanDelete,
 					Size:     button.SizeMD,
@@ -132,12 +133,14 @@ templ EditForm(props *EditFormProps) {
 				hx-target="#edit-content"
 				hx-swap="outerHTML"
 			>
+				@composables.CSRFTokenField()
 				@button.Primary(button.Props{
 					Disabled: !props.Role.CanUpdate,
 					Size:     button.SizeMD,
 					Attrs: templ.Attributes{
 						"name":         "_action",
 						"value":        "save",
+						"type":         "submit",
 						"id":           "save-btn",
 						"data-test-id": "save-role-btn",
 					},
