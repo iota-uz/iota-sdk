@@ -91,6 +91,7 @@ func TestGormRoleRepository_CreatePermissionResolutionScenarios(t *testing.T) {
 				role.WithPermissions([]permission.Permission{customPermission}),
 			),
 			assertCreate: func(t *testing.T, createdRole role.Role) {
+				t.Helper()
 				require.Len(t, createdRole.Permissions(), 1)
 				assert.Equal(t, customPermission.Name(), createdRole.Permissions()[0].Name())
 			},
@@ -98,6 +99,7 @@ func TestGormRoleRepository_CreatePermissionResolutionScenarios(t *testing.T) {
 		{
 			name: "CreateAndUpdateUsesLegacyPermissionIDByName",
 			setup: func(t *testing.T, f *itf.TestEnvironment, permissionRepository permission.Repository) {
+				t.Helper()
 				legacyPermission := permission.New(
 					permission.WithID(legacyPermissionID),
 					permission.WithName(legacyPermissionName),
@@ -132,12 +134,14 @@ func TestGormRoleRepository_CreatePermissionResolutionScenarios(t *testing.T) {
 				})
 			},
 			assertCreate: func(t *testing.T, createdRole role.Role) {
+				t.Helper()
 				require.Len(t, createdRole.Permissions(), 1)
 				createdPermission := createdRole.Permissions()[0]
 				assert.Equal(t, legacyPermissionID, createdPermission.ID())
 				assert.Equal(t, permission.ActionUpdate, createdPermission.Action())
 			},
 			assertUpdate: func(t *testing.T, updatedRole role.Role) {
+				t.Helper()
 				require.Len(t, updatedRole.Permissions(), 1)
 				updatedPermission := updatedRole.Permissions()[0]
 				assert.Equal(t, legacyPermissionID, updatedPermission.ID())
