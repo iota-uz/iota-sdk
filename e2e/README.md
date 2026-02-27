@@ -58,8 +58,8 @@ Before running E2E tests, ensure you have:
 
 4. **Go server** running on port 3201
    ```bash
-   # From project root
-   go run cmd/app/main.go
+   # From project root (or use: just e2e dev)
+   go run cmd/server/main.go
    ```
 
 ## Installation

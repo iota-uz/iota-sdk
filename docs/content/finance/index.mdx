@@ -230,30 +230,22 @@ Individual account reports:
 
 ## API Reference
 
-The Finance module does not register a GraphQL schema. It exposes **REST endpoints and server-rendered UI** only (e.g. `/finance/accounts`, `/finance/payments`, `/finance/expenses`). Use the Core and Warehouse modules for GraphQL APIs.
+The Finance module does not register a GraphQL schema. It exposes **REST endpoints and server-rendered UI** only. Main paths: `/finance/overview` (dashboard with payments/expenses tabs), `/finance/accounts`, `/finance/expenses`, `/finance/expense-categories`, `/finance/payment-categories`, `/finance/counterparties`, `/finance/inventory`, `/finance/debts`, `/finance/debt-aggregates`, `/finance/reports/income-statement`, `/finance/reports/cashflow`, and related CRUD. Use the Core and Warehouse modules for GraphQL APIs.
 
 ## Permissions
 
 ### Available Permissions
 
+Permissions are defined in `modules/finance/permissions/constants.go` (Resource.Action style):
+
 | Permission | Description |
 |------------|-------------|
-| `money_accounts.view` | View accounts |
-| `money_accounts.create` | Create accounts |
-| `money_accounts.edit` | Modify accounts |
-| `money_accounts.delete` | Delete accounts |
-| `payments.view` | View payments |
-| `payments.create` | Record payments |
-| `payments.edit` | Modify payments |
-| `payments.delete` | Delete payments |
-| `expenses.view` | View expenses |
-| `expenses.create` | Record expenses |
-| `expenses.edit` | Modify expenses |
-| `expenses.delete` | Delete expenses |
-| `debts.view` | View debts |
-| `debts.create` | Create debts |
-| `debts.edit` | Modify debts |
-| `reports.view` | Generate reports |
+| `Payment.Create`, `Payment.Read`, `Payment.Update`, `Payment.Delete` | Payments |
+| `Expense.Create`, `Expense.Read`, `Expense.Update`, `Expense.Delete` | Expenses |
+| `ExpenseCategory.Create`, `ExpenseCategory.Read`, `ExpenseCategory.Update`, `ExpenseCategory.Delete` | Expense categories |
+| `Debt.Create`, `Debt.Read`, `Debt.Update`, `Debt.Delete` | Debts |
+
+Money accounts and reports use route-level auth; there are no separate `money_accounts.*` or `reports.view` permission constants.
 
 ## Integration with Other Modules
 

@@ -5,7 +5,7 @@ description: 'Complete guide to building custom IOTA SDK modules from scratch'
 
 # Module Development Guide
 
-This comprehensive guide walks you through creating a custom IOTA SDK module from scratch. We'll build a **Product Catalog** module that demonstrates all the patterns and best practices used in the SDK.
+This comprehensive guide walks you through creating a custom IOTA SDK module from scratch. We'll build a **Product Catalog** module that demonstrates all the patterns and best practices used in the SDK. The module path `modules/productcatalog/` is a hypothetical example—this module does not exist in the repository; use it as a reference when creating your own module.
 
 ## What You'll Build
 
@@ -952,9 +952,9 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewProductController(app),
 	)
 
-	// Register quick links
+	// Register quick links for Spotlight search (trKey = translation key, link = URL)
 	app.QuickLinks().Add(
-		spotlight.NewQuickLink(NavItems[0].Icon, NavItems[0].Name, NavItems[0].Href),
+		spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href),
 	)
 
 	// Register locale files

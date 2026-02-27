@@ -70,8 +70,8 @@ modules/mymodule/
 Modules register themselves with the application during startup:
 
 1. **Define the Module** - Implement the `application.Module` interface
-2. **Register Components** - Services, controllers, migrations
-3. **Load Module** - Add to `BuiltInModules` list
+2. **Register Components** - In your module's `Register(app)`, register services, controllers, nav items
+3. **Load Module** - Pass your module to `modules.Load(app, yourModule)` (built-in modules are already loaded via `modules.Load(app, modules.BuiltInModules...)`; do not edit `BuiltInModules` to add custom modules)
 
 ### Key Registration Steps
 

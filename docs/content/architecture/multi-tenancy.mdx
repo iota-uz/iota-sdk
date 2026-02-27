@@ -247,53 +247,33 @@ Tenants can customize:
 
 ## Implementation Details
 
-### Database Connection
+### Database and Migrations
 
-Single connection pool with schema switching:
+The implementation uses a **single shared schema** and one connection pool. Isolation is **row-level only** (all tenant-scoped tables have `tenant_id`; queries use `WHERE tenant_id = ?`). There is no per-tenant schema switching or `SET search_path`. Migrations are applied once to the shared schema; a single migration history table tracks applied versions.
 
 ```mermaid
 graph LR
-    A[Connection Pool] -->|SET search_path| B[Tenant A Schema]
-    A -->|SET search_path| C[Tenant B Schema]
-    A -->|SET search_path| D[Tenant C Schema]
-```
-
-### Migration Strategy
-
-Migrations run per-tenant:
-
-```mermaid
-graph TB
-    A[Migration File] -->|Apply| B[Tenant A Schema]
-    A -->|Apply| C[Tenant B Schema]
-    A -->|Apply| D[Tenant C Schema]
-    
-    B -->|Version| E[Schema Migrations Table]
-    C -->|Version| F[Schema Migrations Table]
-    D -->|Version| G[Schema Migrations Table]
+    A[Connection Pool] --> B[(Shared Schema)]
+    B --> C[tenant_id filter]
 ```
 
 ## Performance Considerations
 
 ### Connection Pooling
 
-- Shared pool across all tenants
-- Schema context set per query
-- No connection per tenant overhead
+- Single shared pool across all tenants
+- No per-tenant connection or schema context
 
 ### Query Optimization
 
-- Tenant ID in all indexes
-- Partitioning by tenant for large tables
-- Query plan caching per schema
+- Include `tenant_id` in indexes for tenant-scoped tables
+- Consider partitioning by `tenant_id` for very large tables
 
 ## Best Practices
 
-1. **Never Bypass Tenant Context** - Always use middleware
+1. **Never Bypass Tenant Context** - Always use middleware and include `tenant_id` in WHERE clauses
 2. **Test with Multiple Tenants** - Ensure isolation in tests
-3. **Monitor Per-Tenant** - Track usage and performance per tenant
-4. **Backup Individually** - Tenant-level backup/restore
-5. **Schema Migrations** - Test on all tenant schemas
+3. **Monitor Per-Tenant** - Track usage and performance per tenant where needed
 
 ## Next Steps
 

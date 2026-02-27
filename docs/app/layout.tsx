@@ -26,6 +26,12 @@ const navbar = (
       <Link className="text-gray-300 hover:text-white transition-colors" href="/architecture">
         Architecture
       </Link>
+      <Link className="text-gray-300 hover:text-white transition-colors" href="/patterns">
+        Patterns
+      </Link>
+      <Link className="text-gray-300 hover:text-white transition-colors" href="/development">
+        Development
+      </Link>
       <Link className="text-gray-300 hover:text-white transition-colors" href="/api">
         API Reference
       </Link>

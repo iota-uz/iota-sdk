@@ -199,11 +199,11 @@ web/
 Key variables in `.env`:
 
 ```bash
-DATABASE_URL=postgres://...     # Database connection
-APP_ENV=development|production  # Environment mode
-APP_PORT=3200                   # Server port
-SESSION_SECRET=...              # Session encryption
-ENABLE_TEST_ENDPOINTS=true      # E2E test endpoints
+DB_NAME=... DB_HOST=... DB_PORT=... DB_USER=... DB_PASSWORD=...  # Database (connection built from these)
+GO_APP_ENV=development|production  # Environment mode
+PORT=3200                         # Server port
+SID_COOKIE_KEY=...               # Session cookie name (session is DB-backed)
+ENABLE_TEST_ENDPOINTS=true       # E2E test endpoints
 ```
 
 ### Module Configuration

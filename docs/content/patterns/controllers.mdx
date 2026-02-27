@@ -80,6 +80,8 @@ func (c *ExpenseController) Register(r *mux.Router) {
 }
 ```
 
+Some modules register a controller by having another controller call its `Register` on a sub-router (e.g. the Finance module mounts the expense controller under the financial overview router rather than registering it directly in `module.go`).
+
 ## Request Handlers
 
 ### List Handler with Pagination
@@ -554,7 +556,9 @@ if errors.Is(err, persistence.ErrExpenseNotFound) {
 	return
 }
 
-// Forbidden - permission denied
+// Forbidden - permission denied (authenticated but not allowed)
+// Use composables.CanUser or strict checks (e.g. CanUserStrict) for resource-level auth.
+// The framework can render a dedicated forbidden page for HTML requests.
 if err := composables.CanUser(ctx, permission); err != nil {
 	http.Error(w, "Forbidden", http.StatusForbidden)
 	return

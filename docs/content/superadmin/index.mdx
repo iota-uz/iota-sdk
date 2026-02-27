@@ -153,7 +153,7 @@ Cross-tenant users:
 
 ### REST Endpoints
 
-The SuperAdmin app (separate binary, port 4000) registers:
+The SuperAdmin app (separate binary, port 4000) registers (all protected by `RequireSuperAdmin()`):
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -161,24 +161,11 @@ The SuperAdmin app (separate binary, port 4000) registers:
 | `/metrics` | GET | Dashboard metrics (HTMX partial) |
 | `/superadmin/tenants` | GET | List tenants |
 | `/superadmin/tenants` | POST | Create tenant |
-| `/superadmin/tenants/:id` | GET | Tenant details |
-| `/superadmin/tenants/:id` | PUT | Update tenant |
-| `/superadmin/tenants/:id/suspend` | POST | Suspend tenant |
+| `/superadmin/tenants/export` | POST | Export tenants |
+| `/superadmin/tenants/{id}/users` | GET | List users for a tenant |
+| `/superadmin/tenants/{id}/users/{userId}/reset-password` | POST | Reset user password |
 
-There are no dedicated `/superadmin/dashboard`, `/superadmin/analytics`, or `/superadmin/users` routes; dashboard and metrics are served at `/` and `/metrics`.
-
-## Permissions
-
-Superadmin permissions are hardcoded and managed separately from tenant RBAC:
-
-| Permission | Description |
-|------------|-------------|
-| `superadmin.full` | Full platform access |
-| `superadmin.tenants.view` | View all tenants |
-| `superadmin.tenants.manage` | Create/edit/delete tenants |
-| `superadmin.analytics.view` | View platform analytics |
-| `superadmin.users.view` | View cross-tenant users |
-| `superadmin.support` | Support access to tenants |
+There are no GET-by-id, PUT update, or suspend routes in the current implementation. Access is enforced by the superadmin role (e.g. `RequireSuperAdmin()` middleware), not by RBAC permission constants like `superadmin.tenants.view`.
 
 ## Security
 

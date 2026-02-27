@@ -20,8 +20,12 @@ OIDC_ISSUER_URL=https://your-domain.com
 # Crypto key for encrypting signing keys (32+ characters recommended)
 OIDC_CRYPTO_KEY=your-very-secure-random-key-here-32-chars-minimum
 
-# Database connection (already configured for SDK)
-DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+# Database: SDK builds the connection from DB_NAME, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD (see installation). Use the same DB for OIDC.
+DB_NAME=dbname
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=user
+DB_PASSWORD=password
 ```
 
 ### Optional Variables (supported in central config)

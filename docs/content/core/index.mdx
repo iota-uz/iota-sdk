@@ -39,8 +39,9 @@ Defines a set of permissions. The RBAC system allows:
 ### Session
 
 Cookie-based session management:
-- Secure session storage
-- Automatic expiration
+- Secure session storage (DB-backed)
+- Automatic expiration (configurable via `SESSION_DURATION`)
+- Expired sessions are rejected on authorize and removed from storage
 - Multi-device support
 - Session invalidation
 
@@ -145,10 +146,10 @@ The Core module exposes GraphQL endpoints:
 
 | Type | Queries | Mutations |
 |------|---------|-----------|
-| **User** | user, users | createUser, updateUser |
-| **Upload** | upload, uploads | createUpload |
-| **Auth** | me | login, logout |
-| **Session** | — | deleteSession(token: String!) |
+| **User** | user, users | (use REST /users for create/update/delete) |
+| **Upload** | uploads(filter: UploadFilter!) | uploadFile, uploadFileWithSlug, deleteUpload |
+| **Auth** | — | authenticate(email!, password!) → Session! (logout via REST GET /logout) |
+| **Session** | — | deleteSession(token: String!) (resolver may be unimplemented) |
 
 See [API Reference](/api/core) for detailed schema documentation.
 
@@ -158,13 +159,24 @@ Standard REST endpoints for form submissions:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
+| `/health` | GET | Liveness probe (JSON `{"status":"healthy"}`); checks DB and Spotlight readiness. No auth. |
 | `/users` | GET | List users |
 | `/users` | POST | Create user |
 | `/users/:id` | GET | View user |
-| `/users/:id` | PUT | Update user |
+| `/users/:id` | POST | Update user |
 | `/users/:id` | DELETE | Delete user |
 | `/login` | POST | Authenticate |
 | `/logout` | GET | End session |
+
+When the application registers them, the Core module also provides optional **detailed health** and **system info UI** (authenticated):
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/system/health` | GET | Detailed health (JSON, capabilities). Requires auth. |
+| `/system/info` | GET | System information and metrics UI (HTML). Requires auth. |
+| `/system/info/metrics` | GET | Metrics partial (HTMX). Requires auth. |
+
+Additional Core REST routes (when registered): `/spotlight/search` (GET, search); `/uploads` (POST, form uploads); `/api/uploads` (POST, when upload API enabled via ModuleOptions); `/roles`, `/groups` (CRUD); `/account`, `/account/sessions` (profile and session management); `/settings/sessions` (admin session list/revoke); `/login/2fa/setup`, `/login/2fa/verify`, `/login/2fa/verify/recovery`, `/login/2fa/verify/resend` (2FA when enabled).
 
 ## Permissions
 
@@ -176,15 +188,21 @@ Standard REST endpoints for form submissions:
 | `User.Create` | Create new users |
 | `User.Update` | Modify existing users |
 | `User.Delete` | Remove users |
+| `User.UpdateBlockStatus` | Block or unblock user |
 | `Role.Read` | View roles |
 | `Role.Create` | Create roles |
 | `Role.Update` | Modify roles |
 | `Role.Delete` | Delete roles |
+| `Group.Read` | View groups |
+| `Group.Create` | Create groups |
+| `Group.Update` | Modify groups |
+| `Group.Delete` | Delete groups |
 | `Upload.Read` | View uploads |
 | `Upload.Create` | Upload files |
+| `Upload.Update` | Update upload metadata |
 | `Upload.Delete` | Delete uploads |
-| `Setting.Read` | View settings |
-| `Setting.Update` | Modify settings |
+| `Session.Read` | View sessions (admin) |
+| `Session.Delete` | Revoke sessions |
 
 ### Default Roles
 
@@ -194,6 +212,8 @@ Standard REST endpoints for form submissions:
 | **Admin** | Users, roles, settings management |
 | **Manager** | View users, limited edit |
 | **User** | View own profile only |
+
+When an authenticated user lacks the required permission for a resource, the framework returns **403 Forbidden** and can render a dedicated forbidden page instead of redirecting to login.
 
 ## Integration with Other Modules
 
@@ -236,24 +256,29 @@ The Core module publishes domain events:
 
 ### Module Options
 
-Configure during registration:
+Configure during registration via **`core.ModuleOptions`** (passed to `core.NewModule(opts)`):
 
-- **Permission Schema** - Define available permissions
-- **Default Roles** - Initial roles to create
-- **Upload Limits** - Max file size, allowed types
-- **Session Settings** - Timeout, cookie settings
+- **Permission Schema** - Define available permissions (e.g. for Roles UI).
+- **LoginControllerOptions** - Customize middleware or access checks for login routes (e.g. custom "login gate").
+- **DashboardLinkPermissions** - Permissions required to see the Dashboard link in the sidebar; if empty, default visibility applies.
+- **SettingsLinkPermissions** - Permissions required to see the Settings link in the sidebar.
+- **UploadsAuthorizer** / **DefaultTenantID** - For upload API when using API-based uploads.
+
+The sidebar shows navigation items only to users who have at least one role; users with no roles see no sidebar nav items. The Settings link defaults to `/settings/logo`.
 
 ### Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
 | `SESSION_DURATION` | Session duration |
-| `MAX_UPLOAD_SIZE` | File upload limit |
+| `SID_COOKIE_KEY` | Session cookie name |
+| `MAX_UPLOAD_SIZE` | File upload size limit |
+| `MAX_UPLOAD_MEMORY` | Multipart form memory limit (bytes) |
 | `UPLOADS_PATH` | File storage directory |
 
 ## Usage
 
-The Core module is included in `BuiltInModules` and registered via `modules.Load(app, modules.BuiltInModules...)`. Do not call a separate register function; use `app.RegisterModule(module)` only when adding custom modules.
+The Core module is included in `BuiltInModules` and registered via `modules.Load(app, modules.BuiltInModules...)`. To add a custom module, pass it to `modules.Load(app, yourModule)` (or `modules.Load(app, modules.BuiltInModules..., yourModule)`); each module's `Register(app)` is called by `Load`. There is no `app.RegisterModule(module)`—use `modules.Load` instead.
 
 ## Best Practices
 

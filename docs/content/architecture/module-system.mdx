@@ -30,15 +30,15 @@ sequenceDiagram
     participant Mod as Module
     participant Registry as Service Registry
     participant Router as Router
-    participant Migrations as Migration Manager
     
     App->>Mod: Register(app)
-    Mod->>Migrations: Register schema files
     Mod->>Registry: Register services
     Mod->>Router: Register controllers
-    Mod->>App: Register middleware
+    Mod->>App: Register middleware (optional)
     Mod->>App: Register navigation items
 ```
+
+Schema/migration files are typically embedded in modules; the application loads migrations from its configured migrations directory (e.g. `MigrationsDir`), not by modules calling a migration manager during `Register()`.
 
 ### 2. Initialization Phase
 
@@ -133,7 +133,7 @@ classDiagram
 | `RegisterMiddleware()` | Add request middleware | Infrastructure |
 | `RegisterLocaleFiles()` | Translations | Presentation |
 | `RegisterHashFsAssets()` | Static assets | Presentation |
-| `QuickLinks().Add()` | Spotlight search | Navigation |
+| `QuickLinks().Add(spotlight.NewQuickLink(trKey, link)...)` | Spotlight quick links | Navigation / actions |
 
 ## Service Registration
 

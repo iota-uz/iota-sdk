@@ -13,6 +13,9 @@ This module includes essential features for advanced management.
 
 ## Usage
 
+Load a module by passing it to `modules.Load`; the module's `Register(app)` is called internally:
+
 ```go
-app.RegisterModule(module)
+modules.Load(app, yourModule)
+// or with built-ins: modules.Load(app, modules.BuiltInModules..., yourModule)
 ```
