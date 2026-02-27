@@ -9,10 +9,13 @@ import (
 )
 
 // RenderForbidden is a helper function that can be used directly in controllers
-// to render the 403 forbidden page when permission checks fail
+// to render the 403 forbidden page when permission checks fail.
+// When called inside an authenticated route (with sidebar context available),
+// it renders the error inside the authenticated layout with sidebar and navbar.
+// Otherwise it falls back to a standalone page.
 func RenderForbidden(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
-	if err := error_pages.ForbiddenContent().Render(r.Context(), w); err != nil {
+	if err := error_pages.Forbidden().Render(r.Context(), w); err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }

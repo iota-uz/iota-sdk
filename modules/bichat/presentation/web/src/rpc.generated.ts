@@ -4,22 +4,28 @@ export type BichatRPC = {
   "bichat.artifact.delete": { params: ArtifactIDParams; result: OkResult }
   "bichat.artifact.update": { params: ArtifactUpdateParams; result: ArtifactResult }
   "bichat.ping": { params: PingParams; result: PingResult }
-  "bichat.question.reject": { params: QuestionCancelParams; result: SessionGetResult }
-  "bichat.question.submit": { params: QuestionSubmitParams; result: SessionGetResult }
+  "bichat.question.reject": { params: QuestionCancelParams; result: AsyncRunAcceptedResult }
+  "bichat.question.submit": { params: QuestionSubmitParams; result: AsyncRunAcceptedResult }
   "bichat.session.archive": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.artifacts": { params: SessionArtifactsParams; result: SessionArtifactsResult }
   "bichat.session.clear": { params: SessionIDParams; result: SessionClearResult }
-  "bichat.session.compact": { params: SessionIDParams; result: SessionCompactResult }
+  "bichat.session.compact": { params: SessionIDParams; result: AsyncRunAcceptedResult }
   "bichat.session.create": { params: SessionCreateParams; result: SessionCreateResult }
   "bichat.session.delete": { params: SessionIDParams; result: OkResult }
   "bichat.session.get": { params: SessionGetParams; result: SessionGetResult }
   "bichat.session.list": { params: SessionListParams; result: SessionListResult }
+  "bichat.session.listAll": { params: SessionListAllParams; result: SessionListAllResult }
+  "bichat.session.members.add": { params: SessionMembersUpsertParams; result: OkResult }
+  "bichat.session.members.list": { params: SessionMembersListParams; result: SessionMembersListResult }
+  "bichat.session.members.remove": { params: SessionMembersRemoveParams; result: OkResult }
+  "bichat.session.members.updateRole": { params: SessionMembersUpsertParams; result: OkResult }
   "bichat.session.pin": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.regenerateTitle": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.unarchive": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.unpin": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.updateTitle": { params: SessionUpdateTitleParams; result: SessionCreateResult }
   "bichat.session.uploadArtifacts": { params: SessionUploadArtifactsParams; result: SessionUploadArtifactsResult }
+  "bichat.user.list": { params: UserListParams; result: UserListResult }
 }
 
 export interface Artifact {
@@ -62,6 +68,14 @@ export interface AssistantTurn {
   artifacts: unknown[]
   codeOutputs: CodeOutput[]
   createdAt: string
+}
+
+export interface AsyncRunAcceptedResult {
+  accepted: boolean
+  operation: string
+  sessionId: string
+  runId: string
+  startedAt: number
 }
 
 export interface Attachment {
@@ -234,6 +248,18 @@ export interface Session {
   pinned: boolean
   createdAt: string
   updatedAt: string
+  owner?: SessionUser | null
+  isGroup?: boolean
+  memberCount?: number
+  access?: SessionAccess | null
+}
+
+export interface SessionAccess {
+  role: string
+  source: string
+  canRead: boolean
+  canWrite: boolean
+  canManageMembers: boolean
 }
 
 export interface SessionArtifactsParams {
@@ -250,13 +276,6 @@ export interface SessionArtifactsResult {
 
 export interface SessionClearResult {
   success: boolean
-  deletedMessages: number
-  deletedArtifacts: number
-}
-
-export interface SessionCompactResult {
-  success: boolean
-  summary: string
   deletedMessages: number
   deletedArtifacts: number
 }
@@ -283,6 +302,19 @@ export interface SessionIDParams {
   id: string
 }
 
+export interface SessionListAllParams {
+  limit: number
+  offset: number
+  includeArchived: boolean
+  userId?: string | null
+}
+
+export interface SessionListAllResult {
+  sessions: Session[]
+  total?: number
+  hasMore: boolean
+}
+
 export interface SessionListParams {
   limit: number
   offset: number
@@ -293,6 +325,32 @@ export interface SessionListResult {
   sessions: Session[]
   total?: number
   hasMore: boolean
+}
+
+export interface SessionMember {
+  user: SessionUser
+  role: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SessionMembersListParams {
+  sessionId: string
+}
+
+export interface SessionMembersListResult {
+  members: SessionMember[]
+}
+
+export interface SessionMembersRemoveParams {
+  sessionId: string
+  userId: string
+}
+
+export interface SessionMembersUpsertParams {
+  sessionId: string
+  userId: string
+  role: string
 }
 
 export interface SessionUpdateTitleParams {
@@ -309,6 +367,13 @@ export interface SessionUploadArtifactsResult {
   artifacts: Artifact[]
 }
 
+export interface SessionUser {
+  id: string
+  firstName: string
+  lastName: string
+  initials: string
+}
+
 export interface ToolCall {
   id: string
   name: string
@@ -318,10 +383,17 @@ export interface ToolCall {
   durationMs?: number
 }
 
+export type UserListParams = Record<string, never>
+
+export interface UserListResult {
+  users: SessionUser[]
+}
+
 export interface UserTurn {
   id: string
   content: string
   attachments: Attachment[]
+  author?: SessionUser | null
   createdAt: string
 }
 

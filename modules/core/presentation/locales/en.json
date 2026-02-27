@@ -303,7 +303,8 @@
       "Title": "403",
       "Message": "Access Denied",
       "_Description": "You don't have permission to access this resource.",
-      "Home": "Home"
+      "Home": "Home",
+      "GoBack": "Go back"
     }
   },
   "Errors": {
@@ -887,9 +888,20 @@
   "Spotlight": {
     "Placeholder": "Search...",
     "NothingFound": "Nothing found",
+    "Summary": {
+      "Default": "Best matches found for your request",
+      "Help": "Here are the best matching pages and knowledge entries"
+    },
     "Actions": {
+      "Open": "Open",
       "AddUser": "Add user",
       "AddAccount": "Add account"
+    },
+    "Group": {
+      "Navigate": "Navigate",
+      "Data": "Data",
+      "Knowledge": "Knowledge",
+      "_Other": "Other"
     }
   },
   "Unknown": "Unknown",

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
@@ -222,6 +223,54 @@ func TestExcelExporter_ContextCancellation(t *testing.T) {
 
 	_, err := exporter.Export(ctx, ds)
 	assert.Error(t, err)
+}
+
+func TestExcelExporter_FormatsPgxNumericValues_Scenarios(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		headers  []string
+		scan     string
+		cell     string
+		expected string
+	}{
+		{
+			name:     "integer_numeric_without_artifacts",
+			headers:  []string{"Type", "Count"},
+			scan:     "10844",
+			cell:     "B2",
+			expected: "10844",
+		},
+		{
+			name:     "decimal_numeric_without_artifacts",
+			headers:  []string{"Type", "Premium"},
+			scan:     "2387743666.1250",
+			cell:     "B2",
+			expected: "2387743666.1250",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var n pgtype.Numeric
+			require.NoError(t, n.Scan(tc.scan))
+
+			ds := NewMockDataSource(tc.headers, [][]interface{}{{"OSAGO", n}})
+			exporter := excel.NewExcelExporter(nil, nil)
+
+			data, err := exporter.Export(context.Background(), ds)
+			require.NoError(t, err)
+
+			f, err := excelize.OpenReader(bytes.NewReader(data))
+			require.NoError(t, err)
+
+			got, err := f.GetCellValue("TestSheet", tc.cell)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
+			assert.NotContains(t, got, "finite")
+		})
+	}
 }
 
 // contextAwareDataSource is a DataSource that respects context cancellation

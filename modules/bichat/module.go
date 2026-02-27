@@ -88,11 +88,26 @@ func (m *Module) Register(app application.Application) error {
 		}
 		m.container = container
 
-		chatService := container.ChatService()
+		sessionCommands := container.SessionCommands()
+		sessionQueries := container.SessionQueries()
+		turnCommands := container.TurnCommands()
+		turnQueries := container.TurnQueries()
+		streamCommands := container.StreamCommands()
+		hitlCommands := container.HITLCommands()
 		agentService := container.AgentService()
 		attachmentService := container.AttachmentService()
 		artifactService := container.ArtifactService()
-		app.RegisterServices(chatService, agentService, attachmentService, artifactService)
+		app.RegisterServices(
+			sessionCommands,
+			sessionQueries,
+			turnCommands,
+			turnQueries,
+			streamCommands,
+			hitlCommands,
+			agentService,
+			attachmentService,
+			artifactService,
+		)
 
 		if m.titleWorker == nil {
 			worker, err := container.NewTitleJobWorker(app.DB())
@@ -113,7 +128,10 @@ func (m *Module) Register(app application.Application) error {
 			}
 		}
 
-		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Icon, BiChatLink.Name, BiChatLink.Href))
+		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
+		if m.config.KBSearcher != nil {
+			app.Spotlight().SetAgent(spotlight.NewBIChatAgent(m.config.KBSearcher))
+		}
 
 		// Create and register controllers.
 		// Applet request/response APIs should go through applet RPC.
@@ -134,7 +152,8 @@ func (m *Module) Register(app application.Application) error {
 		}
 		streamController := controllers.NewStreamController(
 			app,
-			chatService,
+			streamCommands,
+			sessionQueries,
 			attachmentService,
 			streamOpts...,
 		)

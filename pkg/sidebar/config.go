@@ -13,6 +13,25 @@ type TabGroupBuilder func(items []types.NavigationItem, localizer *i18n.Localize
 // BuildTabGroups is the global variable that users can override to customize tab grouping
 var BuildTabGroups TabGroupBuilder = DefaultTabGroupBuilder
 
+func AppendIfNotEmpty(groups *[]sidebar.TabGroup, group sidebar.TabGroup) {
+	if len(group.Items) == 0 {
+		return
+	}
+	*groups = append(*groups, group)
+}
+
+func NormalizeDefaultTab(groups []sidebar.TabGroup, preferred string) string {
+	if len(groups) == 0 {
+		return ""
+	}
+	for _, group := range groups {
+		if group.Value == preferred {
+			return preferred
+		}
+	}
+	return groups[0].Value
+}
+
 // DefaultTabGroupBuilder maintains current behavior (single "Core" tab)
 func DefaultTabGroupBuilder(items []types.NavigationItem, localizer *i18n.Localizer) sidebar.TabGroupCollection {
 	sidebarItems := []sidebar.Item{}
@@ -24,19 +43,21 @@ func DefaultTabGroupBuilder(items []types.NavigationItem, localizer *i18n.Locali
 			sidebarItems = append(sidebarItems, layouts.MapNavItemToSidebar(item))
 		}
 	}
+
+	groups := make([]sidebar.TabGroup, 0, 2)
+	AppendIfNotEmpty(&groups, sidebar.TabGroup{
+		Label: "Core",
+		Value: "core",
+		Items: sidebarItems,
+	})
+	AppendIfNotEmpty(&groups, sidebar.TabGroup{
+		Label: "CRM",
+		Value: "crm",
+		Items: crmItems,
+	})
+
 	return sidebar.TabGroupCollection{
-		Groups: []sidebar.TabGroup{
-			{
-				Label: "Core",
-				Value: "core",
-				Items: sidebarItems,
-			},
-			{
-				Label: "CRM",
-				Value: "crm",
-				Items: crmItems,
-			},
-		},
-		DefaultValue: "core",
+		Groups:       groups,
+		DefaultValue: NormalizeDefaultTab(groups, "core"),
 	}
 }

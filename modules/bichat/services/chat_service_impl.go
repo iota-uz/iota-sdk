@@ -3,22 +3,18 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
-	"mime"
-	"net/url"
-	"os"
-	"path"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	hitlsvc "github.com/iota-uz/iota-sdk/modules/bichat/services/hitl"
+	streamingsvc "github.com/iota-uz/iota-sdk/modules/bichat/services/streaming"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -26,119 +22,21 @@ import (
 const streamPersistenceTimeout = 10 * time.Second
 const titleGenerationFallbackTimeout = 15 * time.Second
 const streamSnapshotThrottle = 2 * time.Second
-
-// activeRun holds in-memory state for a streaming run so clients can resume.
-type activeRun struct {
-	runID       uuid.UUID
-	sessionID   uuid.UUID
-	cancel      context.CancelFunc
-	startedAt   time.Time
-	content     string
-	toolCalls   map[string]types.ToolCall
-	toolOrder   []string
-	artifactMap map[string]types.ToolArtifact
-	subscribers map[chan bichatservices.StreamChunk]struct{}
-	lastPersist time.Time
-	mu          sync.RWMutex
-}
-
-// runRegistry maps session and run ID to active runs.
-type runRegistry struct {
-	mu        sync.RWMutex
-	bySession map[uuid.UUID]*activeRun
-	byRun     map[uuid.UUID]*activeRun
-}
-
-func newRunRegistry() *runRegistry {
-	return &runRegistry{
-		bySession: make(map[uuid.UUID]*activeRun),
-		byRun:     make(map[uuid.UUID]*activeRun),
-	}
-}
-
-func (reg *runRegistry) add(run *activeRun) {
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-	reg.bySession[run.sessionID] = run
-	reg.byRun[run.runID] = run
-}
-
-func (reg *runRegistry) remove(runID uuid.UUID) {
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-	if r, ok := reg.byRun[runID]; ok {
-		delete(reg.bySession, r.sessionID)
-		delete(reg.byRun, runID)
-	}
-}
-
-func (reg *runRegistry) getBySession(sessionID uuid.UUID) *activeRun {
-	reg.mu.RLock()
-	defer reg.mu.RUnlock()
-	return reg.bySession[sessionID]
-}
-
-func (reg *runRegistry) getByRun(runID uuid.UUID) *activeRun {
-	reg.mu.RLock()
-	defer reg.mu.RUnlock()
-	return reg.byRun[runID]
-}
-
-func (r *activeRun) addSubscriber(ch chan bichatservices.StreamChunk) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.subscribers == nil {
-		r.subscribers = make(map[chan bichatservices.StreamChunk]struct{})
-	}
-	r.subscribers[ch] = struct{}{}
-}
-
-func (r *activeRun) removeSubscriber(ch chan bichatservices.StreamChunk) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.subscribers, ch)
-}
-
-func (r *activeRun) broadcast(chunk bichatservices.StreamChunk) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for ch := range r.subscribers {
-		select {
-		case ch <- chunk:
-		default:
-		}
-	}
-}
-
-func (r *activeRun) closeAllSubscribers() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for ch := range r.subscribers {
-		close(ch)
-	}
-	r.subscribers = nil
-}
-
-func (r *activeRun) snapshotMetadata() map[string]any {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	ordered := orderedToolCalls(r.toolCalls, r.toolOrder)
-	m := map[string]any{"tool_calls": ordered}
-	return m
-}
+const remoteResumePollInterval = time.Second
 
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
 type chatServiceImpl struct {
 	chatRepo           domain.ChatRepository
+	sessionAccess      domain.SessionAccessRepository
 	agentService       bichatservices.AgentService
 	model              agents.Model
 	titleService       TitleService
 	titleQueue         TitleJobQueue
-	runStore           generationRunStore
+	runState           *streamingsvc.RunStateManager
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
-	runRegistry        *runRegistry
+	runRegistry        *streamingsvc.RunRegistry
 }
 
 // NewChatService creates a production implementation of ChatService.
@@ -152,17 +50,42 @@ func NewChatService(
 	model agents.Model,
 	titleService TitleService,
 	titleQueue TitleJobQueue,
-) bichatservices.ChatService {
+) *chatServiceImpl {
+	runStore := newConfiguredGenerationRunStore()
+	accessRepo := chatRepo.(domain.SessionAccessRepository)
 	return &chatServiceImpl{
 		chatRepo:           chatRepo,
+		sessionAccess:      accessRepo,
 		agentService:       agentService,
 		model:              model,
 		titleService:       titleService,
-		titleQueue:         titleQueue,
-		runStore:           newConfiguredGenerationRunStore(),
+		titleQueue:         normalizeTitleJobQueue(titleQueue),
+		runState:           streamingsvc.NewRunStateManager(runStore),
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
-		runRegistry:        newRunRegistry(),
+		runRegistry:        streamingsvc.NewRunRegistry(),
 	}
+}
+
+func normalizeTitleJobQueue(queue TitleJobQueue) TitleJobQueue {
+	if queue == nil {
+		return nil
+	}
+
+	value := reflect.ValueOf(queue)
+	switch value.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		if value.IsNil() {
+			return nil
+		}
+	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.Array, reflect.String, reflect.Struct, reflect.UnsafePointer:
+		// No-op. Non-nil kinds that cannot represent nil values.
+	}
+
+	return queue
+}
+
+func isNilTitleJobQueue(queue TitleJobQueue) bool {
+	return normalizeTitleJobQueue(queue) == nil
 }
 
 func (s *chatServiceImpl) registerStreamCancel(sessionID uuid.UUID, cancel context.CancelFunc) {
@@ -198,13 +121,13 @@ func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUI
 func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UUID) (*bichatservices.StreamStatus, error) {
 	const op serrors.Op = "chatServiceImpl.GetStreamStatus"
 
-	if run := s.runRegistry.getBySession(sessionID); run != nil {
-		run.mu.RLock()
-		content := run.content
-		meta := run.snapshotMetadata()
-		runID := run.runID
-		startedAt := run.startedAt
-		run.mu.RUnlock()
+	if run := s.runRegistry.GetBySession(sessionID); run != nil {
+		run.Mu.RLock()
+		content := run.Content
+		runID := run.RunID
+		startedAt := run.StartedAt
+		run.Mu.RUnlock()
+		meta := run.SnapshotMetadata()
 		if startedAt.IsZero() {
 			startedAt = time.Now()
 		}
@@ -236,327 +159,233 @@ func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UU
 }
 
 func (s *chatServiceImpl) createRunState(ctx context.Context, run domain.GenerationRun) (bool, error) {
-	// true means run state is persisted in runStore; false means no state was persisted.
-	if s.runStore == nil {
-		return false, nil
-	}
-	if err := s.runStore.CreateRun(ctx, run); err != nil {
-		return false, err
-	}
-	return true, nil
+	return s.runState.CreateRunState(ctx, run)
 }
 
 func (s *chatServiceImpl) getPersistedRun(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
-	const op serrors.Op = "chatServiceImpl.getPersistedRun"
-	if s.runStore == nil {
-		return nil, domain.ErrNoActiveRun
-	}
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	return s.runStore.GetActiveRunBySession(ctx, tenantID, sessionID)
+	return s.runState.GetPersistedRun(ctx, sessionID)
+}
+
+func (s *chatServiceImpl) getPersistedRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
+	return s.runState.GetPersistedRunByID(ctx, runID)
 }
 
 func (s *chatServiceImpl) updateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
-	if s.runStore == nil {
-		return nil
-	}
-	return s.runStore.UpdateRunSnapshot(ctx, tenantID, sessionID, runID, partialContent, partialMetadata)
+	return s.runState.UpdateRunSnapshot(ctx, tenantID, sessionID, runID, partialContent, partialMetadata)
 }
 
 func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	if s.runStore == nil {
-		return nil
-	}
-	return s.runStore.CompleteRun(ctx, tenantID, sessionID, runID)
+	return s.runState.CompleteRunState(ctx, tenantID, sessionID, runID)
 }
 
 func (s *chatServiceImpl) cancelRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	if s.runStore == nil {
+	return s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
+}
+
+type asyncRunWorker func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun)
+
+func (s *chatServiceImpl) startAsyncRun(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	operation bichatservices.AsyncRunOperation,
+	prepare func(txCtx context.Context, session domain.Session) error,
+	worker asyncRunWorker,
+) (bichatservices.AsyncRunAccepted, error) {
+	const op serrors.Op = "chatServiceImpl.startAsyncRun"
+
+	var (
+		session         domain.Session
+		run             domain.GenerationRun
+		err             error
+		runStateCreated bool
+	)
+	err = s.withinTx(ctx, func(txCtx context.Context) error {
+		session, err = s.chatRepo.GetSession(txCtx, sessionID)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
+			SessionID: sessionID,
+			TenantID:  session.TenantID(),
+			UserID:    session.UserID(),
+		})
+		if err != nil {
+			return serrors.E(op, serrors.KindValidation, err)
+		}
+		runStateCreated, err = s.createRunState(txCtx, run)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		if prepare != nil {
+			if err := prepare(txCtx, session); err != nil {
+				return err
+			}
+		}
 		return nil
+	})
+	if err != nil {
+		if runStateCreated && run != nil && session != nil {
+			_ = s.cancelRunState(context.WithoutCancel(ctx), session.TenantID(), sessionID, run.ID())
+		}
+		return bichatservices.AsyncRunAccepted{}, serrors.E(op, err)
 	}
-	return s.runStore.CancelRun(ctx, tenantID, sessionID, runID)
+
+	processCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
+	s.registerStreamCancel(sessionID, cancelProcess)
+
+	active := streamingsvc.NewActiveRun(run.ID(), sessionID, cancelProcess, time.Now())
+	s.runRegistry.Add(active)
+
+	persistCtx := context.WithoutCancel(ctx)
+	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
+	go worker(processCtx, persistCtx, run.ID(), session, active)
+
+	return bichatservices.AsyncRunAccepted{
+		Accepted:  true,
+		Operation: operation,
+		SessionID: sessionID,
+		RunID:     run.ID(),
+		StartedAt: active.StartedAt,
+	}, nil
 }
 
 // ResumeStream attaches to an active run and streams snapshot then new chunks.
 func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID, runID uuid.UUID, onChunk func(bichatservices.StreamChunk)) error {
 	const op serrors.Op = "chatServiceImpl.ResumeStream"
 
-	run := s.runRegistry.getByRun(runID)
-	if run == nil {
+	run := s.runRegistry.GetByRun(runID)
+	if run != nil {
+		if run.SessionID != sessionID {
+			return serrors.E(op, serrors.KindValidation, "session id mismatch")
+		}
+
+		ch := make(chan bichatservices.StreamChunk, 256)
+		run.Mu.RLock()
+		partialContent := run.Content
+		run.Mu.RUnlock()
+		snap := bichatservices.StreamSnapshot{PartialContent: partialContent, PartialMetadata: run.SnapshotMetadata()}
+
+		onChunk(bichatservices.StreamChunk{
+			Type:      bichatservices.ChunkTypeSnapshot,
+			Snapshot:  &snap,
+			Timestamp: time.Now(),
+		})
+
+		run.AddSubscriber(ch)
+		defer run.RemoveSubscriber(ch)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case chunk, ok := <-ch:
+				if !ok {
+					return nil
+				}
+				onChunk(chunk)
+				if chunk.Type == bichatservices.ChunkTypeDone || chunk.Type == bichatservices.ChunkTypeError {
+					return nil
+				}
+			}
+		}
+	}
+
+	// Remote-node resume path: poll persisted run state by run id.
+	persisted, err := s.getPersistedRunByID(ctx, runID)
+	if err != nil {
+		if errors.Is(err, domain.ErrRunNotFound) || errors.Is(err, domain.ErrNoActiveRun) {
+			return bichatservices.ErrRunNotFoundOrFinished
+		}
+		return serrors.E(op, err)
+	}
+	if persisted == nil {
 		return bichatservices.ErrRunNotFoundOrFinished
 	}
-	if run.sessionID != sessionID {
+	if persisted.SessionID() != sessionID {
 		return serrors.E(op, serrors.KindValidation, "session id mismatch")
 	}
 
-	ch := make(chan bichatservices.StreamChunk, 256)
-	run.mu.RLock()
-	snap := bichatservices.StreamSnapshot{PartialContent: run.content, PartialMetadata: run.snapshotMetadata()}
-	run.mu.RUnlock()
-
+	lastContent := persisted.PartialContent()
+	lastMetadata := persisted.PartialMetadata()
 	onChunk(bichatservices.StreamChunk{
-		Type:      bichatservices.ChunkTypeSnapshot,
-		Snapshot:  &snap,
+		Type: bichatservices.ChunkTypeSnapshot,
+		Snapshot: &bichatservices.StreamSnapshot{
+			PartialContent:  lastContent,
+			PartialMetadata: lastMetadata,
+		},
 		Timestamp: time.Now(),
 	})
+	if persisted.Status() != domain.GenerationRunStatusStreaming {
+		if persisted.Status() == domain.GenerationRunStatusCancelled {
+			onChunk(streamingsvc.TerminalChunk(serrors.E(op, "generation cancelled"), 0))
+		} else {
+			onChunk(streamingsvc.TerminalChunk(nil, 0))
+		}
+		return nil
+	}
 
-	run.addSubscriber(ch)
-	defer run.removeSubscriber(ch)
+	ticker := time.NewTicker(remoteResumePollInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case chunk, ok := <-ch:
-			if !ok {
+		case <-ticker.C:
+			current, lookupErr := s.getPersistedRunByID(ctx, runID)
+			if lookupErr != nil {
+				if errors.Is(lookupErr, domain.ErrRunNotFound) || errors.Is(lookupErr, domain.ErrNoActiveRun) {
+					onChunk(streamingsvc.TerminalChunk(nil, 0))
+					return nil
+				}
+				return serrors.E(op, lookupErr)
+			}
+			if current == nil {
+				onChunk(streamingsvc.TerminalChunk(nil, 0))
 				return nil
 			}
-			onChunk(chunk)
-			if chunk.Type == bichatservices.ChunkTypeDone || chunk.Type == bichatservices.ChunkTypeError {
+			if current.SessionID() != sessionID {
+				return serrors.E(op, serrors.KindValidation, "session id mismatch")
+			}
+
+			currentContent := current.PartialContent()
+			currentMetadata := current.PartialMetadata()
+			contentChanged := currentContent != lastContent
+			metadataChanged := !reflect.DeepEqual(currentMetadata, lastMetadata)
+			if contentChanged || metadataChanged {
+				if contentChanged && !metadataChanged && strings.HasPrefix(currentContent, lastContent) {
+					delta := strings.TrimPrefix(currentContent, lastContent)
+					if delta != "" {
+						onChunk(bichatservices.StreamChunk{
+							Type:      bichatservices.ChunkTypeContent,
+							Content:   delta,
+							Timestamp: time.Now(),
+						})
+					}
+				} else {
+					onChunk(bichatservices.StreamChunk{
+						Type: bichatservices.ChunkTypeSnapshot,
+						Snapshot: &bichatservices.StreamSnapshot{
+							PartialContent:  currentContent,
+							PartialMetadata: currentMetadata,
+						},
+						Timestamp: time.Now(),
+					})
+				}
+				lastContent = currentContent
+				lastMetadata = currentMetadata
+			}
+
+			if current.Status() != domain.GenerationRunStatusStreaming {
+				if current.Status() == domain.GenerationRunStatusCancelled {
+					onChunk(streamingsvc.TerminalChunk(serrors.E(op, "generation cancelled"), 0))
+				} else {
+					onChunk(streamingsvc.TerminalChunk(nil, 0))
+				}
 				return nil
 			}
 		}
 	}
-}
-
-// CreateSession creates a new chat session.
-func (s *chatServiceImpl) CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.CreateSession"
-
-	session := domain.NewSession(
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(userID),
-		domain.WithTitle(title),
-	)
-	if err := s.chatRepo.CreateSession(ctx, session); err != nil {
-		return nil, serrors.E(op, err)
-	}
-	return session, nil
-}
-
-// GetSession retrieves a session by ID.
-func (s *chatServiceImpl) GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.GetSession"
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	return session, nil
-}
-
-// ListUserSessions lists all sessions for a user.
-func (s *chatServiceImpl) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.ListUserSessions"
-	sessions, err := s.chatRepo.ListUserSessions(ctx, userID, opts)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	return sessions, nil
-}
-
-// CountUserSessions returns the total number of sessions for a user matching the same filter as ListUserSessions.
-func (s *chatServiceImpl) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
-	const op serrors.Op = "chatServiceImpl.CountUserSessions"
-	count, err := s.chatRepo.CountUserSessions(ctx, userID, opts)
-	if err != nil {
-		return 0, serrors.E(op, err)
-	}
-	return count, nil
-}
-
-// ArchiveSession archives a session.
-func (s *chatServiceImpl) ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.ArchiveSession"
-
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	updated := session.UpdateStatus(domain.SessionStatusArchived)
-	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
-	}
-	return updated, nil
-}
-
-// UnarchiveSession unarchives a session.
-func (s *chatServiceImpl) UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.UnarchiveSession"
-
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	updated := session.UpdateStatus(domain.SessionStatusActive)
-	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
-	}
-	return updated, nil
-}
-
-// PinSession pins a session.
-func (s *chatServiceImpl) PinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.PinSession"
-
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	updated := session.UpdatePinned(true)
-	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
-	}
-	return updated, nil
-}
-
-// UnpinSession unpins a session.
-func (s *chatServiceImpl) UnpinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.UnpinSession"
-
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	updated := session.UpdatePinned(false)
-	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
-	}
-	return updated, nil
-}
-
-// UpdateSessionTitle updates the title of a session.
-func (s *chatServiceImpl) UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.UpdateSessionTitle"
-
-	if title == "" {
-		return nil, serrors.E(op, serrors.KindValidation, "title cannot be empty")
-	}
-
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	updated := session.UpdateTitle(title)
-	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
-	}
-	return updated, nil
-}
-
-// DeleteSession deletes a session and all its messages.
-func (s *chatServiceImpl) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
-	const op serrors.Op = "chatServiceImpl.DeleteSession"
-
-	// Repository handles cascade deletion of messages and attachments
-	err := s.chatRepo.DeleteSession(ctx, sessionID)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-
-	return nil
-}
-
-// ClearSessionHistory removes all messages/artifacts while preserving session metadata.
-func (s *chatServiceImpl) ClearSessionHistory(ctx context.Context, sessionID uuid.UUID) (bichatservices.ClearSessionHistoryResponse, error) {
-	const op serrors.Op = "chatServiceImpl.ClearSessionHistory"
-
-	var deletedMessages int64
-	var deletedArtifacts int64
-	err := s.withinTx(ctx, func(txCtx context.Context) error {
-		session, err := s.chatRepo.GetSession(txCtx, sessionID)
-		if err != nil {
-			return serrors.E(op, err)
-		}
-
-		deletedMessages, err = s.chatRepo.TruncateMessagesFrom(txCtx, sessionID, time.Unix(0, 0))
-		if err != nil {
-			return serrors.E(op, err)
-		}
-
-		deletedArtifacts, err = s.chatRepo.DeleteSessionArtifacts(txCtx, sessionID)
-		if err != nil {
-			return serrors.E(op, err)
-		}
-
-		updated := session.
-			UpdateLLMPreviousResponseID(nil).
-			UpdateUpdatedAt(time.Now())
-		if err := s.chatRepo.UpdateSession(txCtx, updated); err != nil {
-			return serrors.E(op, err)
-		}
-		return nil
-	})
-	if err != nil {
-		return bichatservices.ClearSessionHistoryResponse{}, err
-	}
-
-	return bichatservices.ClearSessionHistoryResponse{
-		Success:          true,
-		DeletedMessages:  deletedMessages,
-		DeletedArtifacts: deletedArtifacts,
-	}, nil
-}
-
-// CompactSessionHistory replaces full session history with a compacted summary turn.
-func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID uuid.UUID) (bichatservices.CompactSessionHistoryResponse, error) {
-	const op serrors.Op = "chatServiceImpl.CompactSessionHistory"
-
-	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, domain.ListOptions{
-		Limit:  5000,
-		Offset: 0,
-	})
-	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
-	}
-
-	summary, err := s.generateCompactionSummary(ctx, messages)
-	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
-	}
-
-	var deletedMessages int64
-	var deletedArtifacts int64
-	err = s.withinTx(ctx, func(txCtx context.Context) error {
-		session, err := s.chatRepo.GetSession(txCtx, sessionID)
-		if err != nil {
-			return serrors.E(op, err)
-		}
-
-		deletedMessages, err = s.chatRepo.TruncateMessagesFrom(txCtx, sessionID, time.Unix(0, 0))
-		if err != nil {
-			return serrors.E(op, err)
-		}
-
-		deletedArtifacts, err = s.chatRepo.DeleteSessionArtifacts(txCtx, sessionID)
-		if err != nil {
-			return serrors.E(op, err)
-		}
-
-		systemMsg := types.SystemMessage(summary, types.WithSessionID(sessionID))
-		if err := s.chatRepo.SaveMessage(txCtx, systemMsg); err != nil {
-			return serrors.E(op, err)
-		}
-
-		updated := session.
-			UpdateLLMPreviousResponseID(nil).
-			UpdateUpdatedAt(time.Now())
-		if err := s.chatRepo.UpdateSession(txCtx, updated); err != nil {
-			return serrors.E(op, err)
-		}
-		return nil
-	})
-	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, err
-	}
-
-	return bichatservices.CompactSessionHistoryResponse{
-		Success:          true,
-		Summary:          summary,
-		DeletedMessages:  deletedMessages,
-		DeletedArtifacts: deletedArtifacts,
-	}, nil
 }
 
 // SendMessage sends a message to a session and processes it with the agent.
@@ -567,26 +396,23 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	var session domain.Session
 	var err error
 
-	// Create user message
-	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
+	var authorUserID *int64
+	if req.UserID != 0 {
+		authorUserID = &req.UserID
+	}
+	userMsg, err := domain.NewUserMessage(domain.UserMessageSpec{
+		SessionID:    req.SessionID,
+		AuthorUserID: authorUserID,
+		Content:      req.Content,
+		Attachments:  req.Attachments,
+	})
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
 
 	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
 
-	// Convert attachments to domain attachments
-	domainAttachments := make([]domain.Attachment, len(req.Attachments))
-	for i, att := range req.Attachments {
-		attachmentOpts := []domain.AttachmentOption{
-			domain.WithAttachmentMessageID(userMsg.ID()),
-			domain.WithFileName(att.FileName()),
-			domain.WithMimeType(att.MimeType()),
-			domain.WithSizeBytes(att.SizeBytes()),
-			domain.WithFilePath(att.FilePath()),
-		}
-		if att.UploadID() != nil {
-			attachmentOpts = append(attachmentOpts, domain.WithUploadID(*att.UploadID()))
-		}
-		domainAttachments[i] = domain.NewAttachment(attachmentOpts...)
-	}
+	domainAttachments := cloneAttachmentsForMessage(userMsg.ID(), req.Attachments)
 
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err = s.chatRepo.GetSession(txCtx, req.SessionID)
@@ -605,21 +431,26 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 
 		for _, att := range domainAttachments {
 			msgID := userMsg.ID()
-			artifactOpts := []domain.ArtifactOption{
-				domain.WithArtifactTenantID(session.TenantID()),
-				domain.WithArtifactSessionID(session.ID()),
-				domain.WithArtifactMessageID(&msgID),
-				domain.WithArtifactType(domain.ArtifactTypeAttachment),
-				domain.WithArtifactName(att.FileName()),
-				domain.WithArtifactMimeType(att.MimeType()),
-				domain.WithArtifactURL(att.FilePath()),
-				domain.WithArtifactSizeBytes(att.SizeBytes()),
+			artifact := domain.ArtifactSpec{
+				TenantID:       session.TenantID(),
+				SessionID:      session.ID(),
+				MessageID:      &msgID,
+				Type:           domain.ArtifactTypeAttachment,
+				Name:           att.FileName(),
+				MimeType:       att.MimeType(),
+				URL:            att.FilePath(),
+				SizeBytes:      att.SizeBytes(),
+				Status:         domain.ArtifactStatusAvailable,
+				IdempotencyKey: "attachment:" + msgID.String() + ":" + att.FileName(),
 			}
 			if att.UploadID() != nil {
-				artifactOpts = append(artifactOpts, domain.WithArtifactUploadID(*att.UploadID()))
+				artifact.UploadID = att.UploadID()
 			}
-			artifact := domain.NewArtifact(artifactOpts...)
-			if err := s.chatRepo.SaveArtifact(txCtx, artifact); err != nil {
+			artifactEntity, err := domain.NewArtifactFromSpec(artifact)
+			if err != nil {
+				return serrors.E(op, serrors.KindValidation, err)
+			}
+			if err := s.chatRepo.SaveArtifact(txCtx, artifactEntity); err != nil {
 				return serrors.E(op, err)
 			}
 		}
@@ -671,24 +502,21 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var session domain.Session
 	var err error
 
-	// Create user message
-	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
-
-	// Convert attachments to domain attachments
-	domainAttachments := make([]domain.Attachment, len(req.Attachments))
-	for i, att := range req.Attachments {
-		attachmentOpts := []domain.AttachmentOption{
-			domain.WithAttachmentMessageID(userMsg.ID()),
-			domain.WithFileName(att.FileName()),
-			domain.WithMimeType(att.MimeType()),
-			domain.WithSizeBytes(att.SizeBytes()),
-			domain.WithFilePath(att.FilePath()),
-		}
-		if att.UploadID() != nil {
-			attachmentOpts = append(attachmentOpts, domain.WithUploadID(*att.UploadID()))
-		}
-		domainAttachments[i] = domain.NewAttachment(attachmentOpts...)
+	var authorUserID *int64
+	if req.UserID != 0 {
+		authorUserID = &req.UserID
 	}
+	userMsg, err := domain.NewUserMessage(domain.UserMessageSpec{
+		SessionID:    req.SessionID,
+		AuthorUserID: authorUserID,
+		Content:      req.Content,
+		Attachments:  req.Attachments,
+	})
+	if err != nil {
+		return serrors.E(op, serrors.KindValidation, err)
+	}
+
+	domainAttachments := cloneAttachmentsForMessage(userMsg.ID(), req.Attachments)
 
 	var run domain.GenerationRun
 	runStateCreated := false
@@ -699,11 +527,14 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			return serrors.E(op, err)
 		}
 
-		run = domain.NewGenerationRun(
-			domain.WithGenerationRunSessionID(req.SessionID),
-			domain.WithGenerationRunTenantID(session.TenantID()),
-			domain.WithGenerationRunUserID(session.UserID()),
-		)
+		run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
+			SessionID: req.SessionID,
+			TenantID:  session.TenantID(),
+			UserID:    session.UserID(),
+		})
+		if err != nil {
+			return serrors.E(op, serrors.KindValidation, err)
+		}
 		runStateCreated, err = s.createRunState(txCtx, run)
 		if err != nil {
 			return err
@@ -720,21 +551,26 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		for _, att := range domainAttachments {
 			msgID := userMsg.ID()
-			artifactOpts := []domain.ArtifactOption{
-				domain.WithArtifactTenantID(session.TenantID()),
-				domain.WithArtifactSessionID(session.ID()),
-				domain.WithArtifactMessageID(&msgID),
-				domain.WithArtifactType(domain.ArtifactTypeAttachment),
-				domain.WithArtifactName(att.FileName()),
-				domain.WithArtifactMimeType(att.MimeType()),
-				domain.WithArtifactURL(att.FilePath()),
-				domain.WithArtifactSizeBytes(att.SizeBytes()),
+			artifact := domain.ArtifactSpec{
+				TenantID:       session.TenantID(),
+				SessionID:      session.ID(),
+				MessageID:      &msgID,
+				Type:           domain.ArtifactTypeAttachment,
+				Name:           att.FileName(),
+				MimeType:       att.MimeType(),
+				URL:            att.FilePath(),
+				SizeBytes:      att.SizeBytes(),
+				Status:         domain.ArtifactStatusAvailable,
+				IdempotencyKey: "attachment:" + msgID.String() + ":" + att.FileName(),
 			}
 			if att.UploadID() != nil {
-				artifactOpts = append(artifactOpts, domain.WithArtifactUploadID(*att.UploadID()))
+				artifact.UploadID = att.UploadID()
 			}
-			artifact := domain.NewArtifact(artifactOpts...)
-			if err := s.chatRepo.SaveArtifact(txCtx, artifact); err != nil {
+			artifactEntity, err := domain.NewArtifactFromSpec(artifact)
+			if err != nil {
+				return serrors.E(op, serrors.KindValidation, err)
+			}
+			if err := s.chatRepo.SaveArtifact(txCtx, artifactEntity); err != nil {
 				return serrors.E(op, err)
 			}
 		}
@@ -761,26 +597,17 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		processCtx = bichatservices.WithReasoningEffort(processCtx, *req.ReasoningEffort)
 	}
 
-	active := &activeRun{
-		runID:       run.ID(),
-		sessionID:   req.SessionID,
-		cancel:      cancelProcess,
-		startedAt:   time.Now(),
-		toolCalls:   make(map[string]types.ToolCall),
-		toolOrder:   make([]string, 0),
-		artifactMap: make(map[string]types.ToolArtifact),
-		subscribers: make(map[chan bichatservices.StreamChunk]struct{}),
-	}
+	active := streamingsvc.NewActiveRun(run.ID(), req.SessionID, cancelProcess, time.Now())
 	primaryCh := make(chan bichatservices.StreamChunk, 256)
-	active.addSubscriber(primaryCh)
-	s.runRegistry.add(active)
+	active.AddSubscriber(primaryCh)
+	s.runRegistry.Add(active)
 
 	persistCtx := context.WithoutCancel(ctx)
 	// Stream finalization may outlive request-scoped middleware transactions.
 	// Clear TxKey so persistence always opens its own durable transaction.
 	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
 
-	go s.runStreamLoop(processCtx, persistCtx, run.ID(), req, userMsg, session, domainAttachments, startedAt, active)
+	go s.runStreamLoop(processCtx, persistCtx, run.ID(), req, session, domainAttachments, startedAt, active)
 
 	onChunk(bichatservices.StreamChunk{
 		Type:      bichatservices.ChunkTypeStreamStarted,
@@ -792,7 +619,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	for {
 		select {
 		case <-ctx.Done():
-			active.removeSubscriber(primaryCh)
+			active.RemoveSubscriber(primaryCh)
 			return nil
 		case chunk, ok := <-primaryCh:
 			if !ok {
@@ -823,31 +650,26 @@ func (s *chatServiceImpl) runStreamLoop(
 	persistCtx context.Context,
 	runID uuid.UUID,
 	req bichatservices.SendMessageRequest,
-	userMsg types.Message,
 	session domain.Session,
 	domainAttachments []domain.Attachment,
 	startedAt time.Time,
-	active *activeRun,
+	active *streamingsvc.ActiveRun,
 ) {
 	const op serrors.Op = "chatServiceImpl.runStreamLoop"
 	// Cleanup order matters: cancel first so generator work stops before closing
 	// subscriber channels and unregistering/removing run bookkeeping.
 	defer func() {
-		if active.cancel != nil {
-			active.cancel()
+		if active.Cancel != nil {
+			active.Cancel()
 		}
-		active.closeAllSubscribers()
-		s.runRegistry.remove(active.runID)
+		active.CloseAllSubscribers()
+		s.runRegistry.Remove(active.RunID)
 		s.unregisterStreamCancel(req.SessionID)
 	}()
 
 	gen, err := s.agentService.ProcessMessage(processCtx, req.SessionID, req.Content, domainAttachments)
 	if err != nil {
-		active.broadcast(bichatservices.StreamChunk{
-			Type:      bichatservices.ChunkTypeError,
-			Error:     err,
-			Timestamp: time.Now(),
-		})
+		active.Broadcast(streamingsvc.TerminalChunk(err, 0))
 		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 		return
 	}
@@ -873,11 +695,7 @@ func (s *chatServiceImpl) runStreamLoop(
 			break
 		}
 		if err != nil {
-			active.broadcast(bichatservices.StreamChunk{
-				Type:      bichatservices.ChunkTypeError,
-				Error:     err,
-				Timestamp: time.Now(),
-			})
+			active.Broadcast(streamingsvc.TerminalChunk(err, 0))
 			break
 		}
 
@@ -885,33 +703,37 @@ func (s *chatServiceImpl) runStreamLoop(
 
 		switch event.Type {
 		case agents.EventTypeContent:
-			active.mu.Lock()
-			active.content += event.Content
-			active.mu.Unlock()
+			active.Mu.Lock()
+			active.Content += event.Content
+			active.Mu.Unlock()
 			chunk.Type = bichatservices.ChunkTypeContent
 			chunk.Content = event.Content
-			active.broadcast(chunk)
+			active.Broadcast(chunk)
 
 		case agents.EventTypeToolStart:
-			recordToolEvent(active.toolCalls, &active.toolOrder, event.Tool)
+			active.Mu.Lock()
+			recordToolEvent(active.ToolCalls, &active.ToolOrder, event.Tool)
 			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
-				recordToolArtifacts(active.artifactMap, event.Tool.Artifacts)
+				recordToolArtifacts(active.ArtifactMap, event.Tool.Artifacts)
 			}
+			active.Mu.Unlock()
 			if event.Tool != nil {
 				chunk.Type = bichatservices.ChunkTypeToolStart
 				chunk.Tool = agentToolToServiceTool(event.Tool)
-				active.broadcast(chunk)
+				active.Broadcast(chunk)
 			}
 
 		case agents.EventTypeToolEnd:
-			recordToolEvent(active.toolCalls, &active.toolOrder, event.Tool)
+			active.Mu.Lock()
+			recordToolEvent(active.ToolCalls, &active.ToolOrder, event.Tool)
 			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
-				recordToolArtifacts(active.artifactMap, event.Tool.Artifacts)
+				recordToolArtifacts(active.ArtifactMap, event.Tool.Artifacts)
 			}
+			active.Mu.Unlock()
 			if event.Tool != nil {
 				chunk.Type = bichatservices.ChunkTypeToolEnd
 				chunk.Tool = agentToolToServiceTool(event.Tool)
-				active.broadcast(chunk)
+				active.Broadcast(chunk)
 			}
 
 		case agents.EventTypeInterrupt:
@@ -919,7 +741,7 @@ func (s *chatServiceImpl) runStreamLoop(
 				continue
 			}
 			pi := event.ParsedInterrupt
-			questions := agentQuestionsToServiceQuestions(pi.Questions)
+			questions := hitlsvc.AgentQuestionsToServiceQuestions(pi.Questions)
 			interrupt = &bichatservices.Interrupt{CheckpointID: pi.CheckpointID, Questions: questions}
 			interruptAgentName = pi.AgentName
 			if interruptAgentName == "" {
@@ -933,7 +755,7 @@ func (s *chatServiceImpl) runStreamLoop(
 				ProviderResponseID: pi.ProviderResponseID,
 				Questions:          questions,
 			}
-			active.broadcast(chunk)
+			active.Broadcast(chunk)
 
 		case agents.EventTypeDone:
 			providerResponseID = optionalStringPtr(event.ProviderResponseID)
@@ -950,10 +772,12 @@ func (s *chatServiceImpl) runStreamLoop(
 					thinking.WriteString(event.Result.Thinking)
 				}
 			}
-			recordToolArtifacts(active.artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
+			active.Mu.Lock()
+			recordToolArtifacts(active.ArtifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
+			active.Mu.Unlock()
 			if event.Usage != nil {
 				finalUsage = event.Usage
-				active.broadcast(bichatservices.StreamChunk{
+				active.Broadcast(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeUsage,
 					Usage:     event.Usage,
 					Timestamp: time.Now(),
@@ -968,49 +792,43 @@ func (s *chatServiceImpl) runStreamLoop(
 			}
 			chunk.Type = bichatservices.ChunkTypeThinking
 			chunk.Content = event.Content
-			active.broadcast(chunk)
+			active.Broadcast(chunk)
 
 		case agents.EventTypeError:
 			chunk.Type = bichatservices.ChunkTypeError
 			chunk.Error = event.Error
-			active.broadcast(chunk)
+			active.Broadcast(chunk)
 		}
 
-		if time.Since(active.lastPersist) >= streamSnapshotThrottle {
-			active.mu.RLock()
-			content := active.content
-			active.mu.RUnlock()
-			meta := active.snapshotMetadata()
+		active.Mu.RLock()
+		shouldPersistSnapshot := time.Since(active.LastPersist) >= streamSnapshotThrottle
+		content := active.Content
+		active.Mu.RUnlock()
+		if shouldPersistSnapshot {
+			meta := active.SnapshotMetadata()
 			_ = s.updateRunSnapshot(persistCtx, session.TenantID(), req.SessionID, runID, content, meta)
-			active.mu.Lock()
-			active.lastPersist = time.Now()
-			active.mu.Unlock()
+			active.Mu.Lock()
+			active.LastPersist = time.Now()
+			active.Mu.Unlock()
 		}
 	}
 
 	if processCtx.Err() != nil {
-		active.broadcast(bichatservices.StreamChunk{
-			Type:      bichatservices.ChunkTypeError,
-			Error:     serrors.E(op, processCtx.Err()),
-			Timestamp: time.Now(),
-		})
+		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, processCtx.Err()), 0))
 		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 		return
 	}
 
-	active.mu.RLock()
-	assistantContent := active.content
-	savedToolCalls := orderedToolCalls(active.toolCalls, active.toolOrder)
-	artifactMap := mapsValues(active.artifactMap)
-	active.mu.RUnlock()
+	active.Mu.RLock()
+	assistantContent := active.Content
+	savedToolCalls := orderedToolCalls(active.ToolCalls, active.ToolOrder)
+	artifactMap := mapsValues(active.ArtifactMap)
+	active.Mu.RUnlock()
 
 	if observationReason == "" && assistantContent == "" && len(savedToolCalls) == 0 {
 		observationReason = "empty_assistant_output"
 	}
-	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
-	if len(savedToolCalls) > 0 {
-		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
-	}
+	var assistantDebugTrace *types.DebugTrace
 	if debugTrace := buildDebugTrace(
 		req.SessionID,
 		traceID,
@@ -1027,16 +845,28 @@ func (s *chatServiceImpl) runStreamLoop(
 		assistantContent,
 		startedAt,
 	); debugTrace != nil {
-		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
+		assistantDebugTrace = debugTrace
 	}
+	var assistantQuestionData *types.QuestionData
 	if interrupt != nil {
-		qd, err := buildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
+		qd, err := hitlsvc.BuildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
 		if err == nil && qd != nil {
-			assistantMsgOpts = append(assistantMsgOpts, types.WithQuestionData(qd))
+			assistantQuestionData = qd
 		}
 	}
 
-	assistantMsg := types.AssistantMessage(assistantContent, assistantMsgOpts...)
+	assistantMsg, err := domain.NewAssistantMessage(domain.AssistantMessageSpec{
+		SessionID:    req.SessionID,
+		Content:      assistantContent,
+		ToolCalls:    savedToolCalls,
+		DebugTrace:   assistantDebugTrace,
+		QuestionData: assistantQuestionData,
+	})
+	if err != nil {
+		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, serrors.KindValidation, err), 0))
+		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
+		return
+	}
 	persistCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
 	defer persistCancel()
 
@@ -1047,20 +877,14 @@ func (s *chatServiceImpl) runStreamLoop(
 		if err := s.persistGeneratedArtifacts(txCtx, session, assistantMsg.ID(), artifactMap); err != nil {
 			return serrors.E(op, err)
 		}
-		session = session.
-			UpdateLLMPreviousResponseID(providerResponseID).
-			UpdateUpdatedAt(time.Now())
+		session = session.SetPreviousResponseID(providerResponseID, time.Now())
 		if err := s.chatRepo.UpdateSession(txCtx, session); err != nil {
 			return serrors.E(op, err)
 		}
 		return nil
 	})
 	if err != nil {
-		active.broadcast(bichatservices.StreamChunk{
-			Type:      bichatservices.ChunkTypeError,
-			Error:     err,
-			Timestamp: time.Now(),
-		})
+		active.Broadcast(streamingsvc.TerminalChunk(err, 0))
 		runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
 		defer runStateCancel()
 		_ = s.cancelRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
@@ -1071,1148 +895,9 @@ func (s *chatServiceImpl) runStreamLoop(
 	defer runStateCancel()
 	_ = s.completeRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 	if emitDoneChunk {
-		active.broadcast(bichatservices.StreamChunk{
-			Type:         bichatservices.ChunkTypeDone,
-			GenerationMs: generationMs,
-			Timestamp:    time.Now(),
-		})
+		active.Broadcast(streamingsvc.TerminalChunk(nil, generationMs))
 	}
 	if interrupt == nil {
 		s.maybeGenerateTitleAsync(persistCtx, req.SessionID)
 	}
-}
-
-func recordToolEvent(toolCalls map[string]types.ToolCall, toolOrder *[]string, tool *agents.ToolEvent) {
-	if tool == nil {
-		return
-	}
-
-	key := tool.CallID
-	if key == "" {
-		key = fmt.Sprintf("__unnamed_tool_%d", len(*toolOrder))
-	}
-
-	call, exists := toolCalls[key]
-	if !exists {
-		call = types.ToolCall{
-			ID:        key,
-			Name:      tool.Name,
-			Arguments: tool.Arguments,
-		}
-		*toolOrder = append(*toolOrder, key)
-	}
-
-	if call.ID == "" {
-		call.ID = key
-	}
-	if tool.Name != "" {
-		call.Name = tool.Name
-	}
-	if tool.Arguments != "" {
-		call.Arguments = tool.Arguments
-	}
-	if tool.Result != "" {
-		call.Result = tool.Result
-	}
-	if tool.Error != nil {
-		call.Error = tool.Error.Error()
-	}
-	if tool.DurationMs > 0 {
-		call.DurationMs = tool.DurationMs
-	}
-
-	toolCalls[key] = call
-}
-
-func recordToolArtifacts(artifactMap map[string]types.ToolArtifact, artifacts []types.ToolArtifact) {
-	for _, artifact := range artifacts {
-		key := toolArtifactDedupeKey(artifact)
-		if key == "" {
-			continue
-		}
-		artifactMap[key] = artifact
-	}
-}
-
-func collectCodeInterpreterArtifacts(
-	executions []types.CodeInterpreterResult,
-	annotations []types.FileAnnotation,
-) []types.ToolArtifact {
-	artifacts := make([]types.ToolArtifact, 0)
-	for _, execution := range executions {
-		for idx, output := range execution.Outputs {
-			if output.Type != "image" || strings.TrimSpace(output.URL) == "" {
-				continue
-			}
-			name := inferNameFromURL(output.URL)
-			if name == "" {
-				name = fmt.Sprintf("code-output-%d.png", idx+1)
-			}
-			artifacts = append(artifacts, types.ToolArtifact{
-				Type:     string(domain.ArtifactTypeCodeOutput),
-				Name:     name,
-				MimeType: inferMimeTypeFromName(name),
-				URL:      output.URL,
-				Metadata: map[string]any{
-					"container_id": execution.ContainerID,
-					"execution_id": execution.ID,
-				},
-			})
-		}
-	}
-	for _, annotation := range annotations {
-		name := strings.TrimSpace(annotation.Filename)
-		if name == "" {
-			name = "code-output"
-		}
-		artifacts = append(artifacts, types.ToolArtifact{
-			Type:     string(domain.ArtifactTypeCodeOutput),
-			Name:     name,
-			MimeType: inferMimeTypeFromName(name),
-			Metadata: map[string]any{
-				"annotation_type": annotation.Type,
-				"container_id":    annotation.ContainerID,
-				"file_id":         annotation.FileID,
-			},
-		})
-	}
-	return artifacts
-}
-
-func toolArtifactDedupeKey(artifact types.ToolArtifact) string {
-	parts := []string{
-		strings.TrimSpace(artifact.Type),
-		strings.TrimSpace(artifact.Name),
-		strings.TrimSpace(artifact.URL),
-	}
-	if len(parts[0]) == 0 && len(parts[1]) == 0 && len(parts[2]) == 0 {
-		return ""
-	}
-	return strings.Join(parts, "|")
-}
-
-func inferNameFromURL(rawURL string) string {
-	trimmed := strings.TrimSpace(rawURL)
-	if trimmed == "" {
-		return ""
-	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil {
-		return ""
-	}
-	base := path.Base(strings.TrimSpace(parsed.Path))
-	if base == "." || base == "/" {
-		return ""
-	}
-	return base
-}
-
-func inferMimeTypeFromName(name string) string {
-	ext := strings.ToLower(path.Ext(strings.TrimSpace(name)))
-	if ext == "" {
-		return ""
-	}
-	return mime.TypeByExtension(ext)
-}
-
-func mapsValues(in map[string]types.ToolArtifact) []types.ToolArtifact {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]types.ToolArtifact, 0, len(in))
-	for _, value := range in {
-		out = append(out, value)
-	}
-	return out
-}
-
-func (s *chatServiceImpl) withinTx(ctx context.Context, fn func(context.Context) error) error {
-	if _, err := composables.UsePool(ctx); errors.Is(err, composables.ErrNoPool) {
-		return fn(ctx)
-	}
-	return composables.InTx(ctx, fn)
-}
-
-func (s *chatServiceImpl) maybeReplaceHistoryFromMessage(
-	ctx context.Context,
-	session domain.Session,
-	replaceFromMessageID *uuid.UUID,
-) (domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.maybeReplaceHistoryFromMessage"
-
-	if replaceFromMessageID == nil {
-		return session, nil
-	}
-
-	msg, err := s.chatRepo.GetMessage(ctx, *replaceFromMessageID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	if msg.SessionID() != session.ID() {
-		return nil, serrors.E(op, serrors.KindValidation, "replaceFromMessageId does not belong to session")
-	}
-	if msg.Role() != types.RoleUser {
-		return nil, serrors.E(op, serrors.KindValidation, "replaceFromMessageId must point to a user message")
-	}
-
-	if _, err := s.chatRepo.TruncateMessagesFrom(ctx, session.ID(), msg.CreatedAt()); err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	updated := session.
-		UpdateLLMPreviousResponseID(nil).
-		UpdateUpdatedAt(time.Now())
-	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	return updated, nil
-}
-
-func orderedToolCalls(toolCalls map[string]types.ToolCall, toolOrder []string) []types.ToolCall {
-	if len(toolOrder) == 0 {
-		return nil
-	}
-
-	result := make([]types.ToolCall, 0, len(toolOrder))
-	for _, key := range toolOrder {
-		call, ok := toolCalls[key]
-		if !ok {
-			continue
-		}
-		result = append(result, call)
-	}
-
-	return result
-}
-
-func buildDebugTrace(
-	sessionID uuid.UUID,
-	traceID string,
-	toolCalls []types.ToolCall,
-	usage *types.DebugUsage,
-	generationMs int64,
-	thinking string,
-	observationReason string,
-	model string,
-	provider string,
-	requestID string,
-	finishReason string,
-	input string,
-	output string,
-	startedAt time.Time,
-) *types.DebugTrace {
-	debugTools := make([]types.DebugToolCall, 0, len(toolCalls))
-	for _, toolCall := range toolCalls {
-		debugTools = append(debugTools, types.DebugToolCall{
-			CallID:     toolCall.ID,
-			Name:       toolCall.Name,
-			Arguments:  toolCall.Arguments,
-			Result:     toolCall.Result,
-			Error:      toolCall.Error,
-			DurationMs: toolCall.DurationMs,
-		})
-	}
-
-	trimmedTraceID := strings.TrimSpace(traceID)
-	if trimmedTraceID == "" {
-		trimmedTraceID = sessionID.String()
-	}
-	traceURL := buildLangfuseTraceURL(trimmedTraceID)
-	obsReason := strings.TrimSpace(observationReason)
-
-	if startedAt.IsZero() {
-		startedAt = time.Now()
-	}
-	completedAt := startedAt
-	if generationMs > 0 {
-		completedAt = startedAt.Add(time.Duration(generationMs) * time.Millisecond)
-	}
-
-	attemptID := strings.TrimSpace(requestID)
-	if attemptID == "" {
-		attemptID = uuid.NewString()
-	}
-
-	attempt := types.DebugGeneration{
-		ID:                attemptID,
-		RequestID:         strings.TrimSpace(requestID),
-		Model:             strings.TrimSpace(model),
-		Provider:          strings.TrimSpace(provider),
-		FinishReason:      strings.TrimSpace(finishReason),
-		LatencyMs:         generationMs,
-		Input:             strings.TrimSpace(input),
-		Output:            strings.TrimSpace(output),
-		Thinking:          thinking,
-		ObservationReason: obsReason,
-		StartedAt:         startedAt.UTC().Format(time.RFC3339),
-		CompletedAt:       completedAt.UTC().Format(time.RFC3339),
-		ToolCalls:         debugTools,
-	}
-	if usage != nil {
-		attempt.PromptTokens = usage.PromptTokens
-		attempt.CompletionTokens = usage.CompletionTokens
-		attempt.TotalTokens = usage.TotalTokens
-		attempt.CachedTokens = usage.CachedTokens
-		attempt.Cost = usage.Cost
-	}
-
-	spans := make([]types.DebugSpan, 0, len(debugTools))
-	for _, tool := range debugTools {
-		status := "success"
-		outputValue := tool.Result
-		errorValue := ""
-		if strings.TrimSpace(tool.Error) != "" {
-			status = "error"
-			outputValue = ""
-			errorValue = tool.Error
-		}
-		spanID := strings.TrimSpace(tool.CallID)
-		if spanID == "" {
-			spanID = uuid.NewString()
-		}
-		spans = append(spans, types.DebugSpan{
-			ID:           spanID,
-			GenerationID: attemptID,
-			Name:         "tool.execute",
-			Type:         "tool",
-			Status:       status,
-			CallID:       tool.CallID,
-			ToolName:     tool.Name,
-			Input:        tool.Arguments,
-			Output:       outputValue,
-			Error:        errorValue,
-			DurationMs:   tool.DurationMs,
-			StartedAt:    completedAt.UTC().Format(time.RFC3339),
-			CompletedAt:  completedAt.UTC().Format(time.RFC3339),
-			Attributes: map[string]interface{}{
-				"tool_name": tool.Name,
-				"call_id":   tool.CallID,
-			},
-		})
-	}
-
-	events := make([]types.DebugEvent, 0, 1)
-	if obsReason != "" {
-		events = append(events, types.DebugEvent{
-			ID:        uuid.NewString(),
-			Name:      "observation",
-			Type:      "diagnostic",
-			Level:     "warning",
-			Reason:    obsReason,
-			Message:   obsReason,
-			Timestamp: completedAt.UTC().Format(time.RFC3339),
-		})
-	}
-
-	return &types.DebugTrace{
-		SchemaVersion:     "v2",
-		StartedAt:         startedAt.UTC().Format(time.RFC3339),
-		CompletedAt:       completedAt.UTC().Format(time.RFC3339),
-		Usage:             usage,
-		GenerationMs:      generationMs,
-		Tools:             debugTools,
-		Attempts:          []types.DebugGeneration{attempt},
-		Spans:             spans,
-		Events:            events,
-		TraceID:           trimmedTraceID,
-		TraceURL:          traceURL,
-		SessionID:         sessionID.String(),
-		Thinking:          thinking,
-		ObservationReason: obsReason,
-	}
-}
-
-func buildLangfuseTraceURL(traceID string) string {
-	trimmedTraceID := strings.TrimSpace(traceID)
-	if trimmedTraceID == "" {
-		return ""
-	}
-
-	baseURL := strings.TrimSpace(os.Getenv("LANGFUSE_BASE_URL"))
-	if baseURL == "" {
-		baseURL = strings.TrimSpace(os.Getenv("LANGFUSE_HOST"))
-	}
-	if baseURL == "" {
-		return ""
-	}
-
-	parsedBaseURL, err := url.Parse(baseURL)
-	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
-		return ""
-	}
-	if parsedBaseURL.Scheme != "http" && parsedBaseURL.Scheme != "https" {
-		return ""
-	}
-
-	parsedBaseURL.RawQuery = ""
-	parsedBaseURL.Fragment = ""
-	basePath := strings.TrimRight(parsedBaseURL.Path, "/")
-	rawPath := basePath + "/trace/" + url.PathEscape(trimmedTraceID)
-	parsedBaseURL.Path = basePath + "/trace/" + trimmedTraceID
-	parsedBaseURL.RawPath = rawPath
-	return parsedBaseURL.String()
-}
-
-func optionalStringPtr(value string) *string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
-// agentResult holds the collected output from processing an agent event generator.
-type agentResult struct {
-	content            string
-	toolCalls          []types.ToolCall
-	artifacts          []types.ToolArtifact
-	interrupt          *bichatservices.Interrupt
-	interruptAgentName string
-	providerResponseID *string
-	usage              *types.DebugUsage
-	traceID            string
-	requestID          string
-	model              string
-	provider           string
-	finishReason       string
-	thinking           string
-	observationReason  string
-	lastError          error
-}
-
-// consumeAgentEvents drains the generator and collects the result.
-// This is used by non-streaming callers (SendMessage, ResumeWithAnswer, RejectPendingQuestion).
-func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.ExecutorEvent]) (*agentResult, error) {
-	var content strings.Builder
-	toolCalls := make(map[string]types.ToolCall)
-	toolOrder := make([]string, 0)
-	artifactMap := make(map[string]types.ToolArtifact)
-	var interrupt *bichatservices.Interrupt
-	var interruptAgentName string
-	var providerResponseID *string
-	var finalUsage *types.DebugUsage
-	var traceID string
-	var requestID string
-	var model string
-	var provider string
-	var finishReason string
-	var thinking strings.Builder
-	var observationReason string
-	var lastError error
-
-	for {
-		event, err := gen.Next(ctx)
-		if errors.Is(err, types.ErrGeneratorDone) {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		switch event.Type {
-		case agents.EventTypeContent:
-			content.WriteString(event.Content)
-		case agents.EventTypeThinking:
-			if event.Content != "" {
-				thinking.WriteString(event.Content)
-			}
-			// Reasoning/thinking content from LLM; not appended to user-visible content
-		case agents.EventTypeToolStart, agents.EventTypeToolEnd:
-			recordToolEvent(toolCalls, &toolOrder, event.Tool)
-			if event.Tool != nil && len(event.Tool.Artifacts) > 0 {
-				recordToolArtifacts(artifactMap, event.Tool.Artifacts)
-			}
-		case agents.EventTypeInterrupt:
-			if event.ParsedInterrupt != nil {
-				pi := event.ParsedInterrupt
-				interrupt = &bichatservices.Interrupt{
-					CheckpointID: pi.CheckpointID,
-					Questions:    agentQuestionsToServiceQuestions(pi.Questions),
-				}
-				interruptAgentName = pi.AgentName
-				if interruptAgentName == "" {
-					interruptAgentName = "default-agent"
-				}
-				providerResponseID = optionalStringPtr(pi.ProviderResponseID)
-			}
-		case agents.EventTypeDone:
-			providerResponseID = optionalStringPtr(event.ProviderResponseID)
-			if event.Result != nil {
-				if event.Result.TraceID != "" {
-					traceID = event.Result.TraceID
-				}
-				requestID = event.Result.RequestID
-				model = event.Result.Model
-				provider = event.Result.Provider
-				finishReason = event.Result.FinishReason
-				if event.Result.Thinking != "" {
-					thinking.Reset()
-					thinking.WriteString(event.Result.Thinking)
-				}
-			}
-			if event.Usage != nil {
-				finalUsage = event.Usage
-			}
-			recordToolArtifacts(artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
-
-		case agents.EventTypeError:
-			var errDetail error
-			if event.Error != nil {
-				errDetail = event.Error
-			} else if event.Content != "" {
-				errDetail = fmt.Errorf("%s", event.Content)
-			} else {
-				errDetail = fmt.Errorf("agent error")
-			}
-			if event.ProviderResponseID != "" {
-				providerResponseID = optionalStringPtr(event.ProviderResponseID)
-				lastError = fmt.Errorf("providerResponseID=%s: %w", event.ProviderResponseID, errDetail)
-			} else {
-				lastError = errDetail
-			}
-		}
-	}
-
-	result := &agentResult{
-		content:            content.String(),
-		toolCalls:          orderedToolCalls(toolCalls, toolOrder),
-		artifacts:          mapsValues(artifactMap),
-		interrupt:          interrupt,
-		interruptAgentName: interruptAgentName,
-		providerResponseID: providerResponseID,
-		usage:              finalUsage,
-		traceID:            traceID,
-		requestID:          requestID,
-		model:              model,
-		provider:           provider,
-		finishReason:       finishReason,
-		thinking:           thinking.String(),
-		observationReason:  observationReason,
-		lastError:          lastError,
-	}
-	if result.observationReason == "" && strings.TrimSpace(result.content) == "" && len(result.toolCalls) == 0 {
-		result.observationReason = "empty_assistant_output"
-	}
-	if lastError != nil {
-		return result, lastError
-	}
-	return result, nil
-}
-
-// saveAgentResult builds and persists the assistant message and updates the session.
-func (s *chatServiceImpl) saveAgentResult(
-	ctx context.Context,
-	op serrors.Op,
-	session domain.Session,
-	sessionID uuid.UUID,
-	result *agentResult,
-	startedAt time.Time,
-	userInput string,
-) (types.Message, domain.Session, error) {
-	assistantMsgOpts := []types.MessageOption{types.WithSessionID(sessionID)}
-	if len(result.toolCalls) > 0 {
-		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(result.toolCalls...))
-	}
-	if debugTrace := buildDebugTrace(
-		sessionID,
-		result.traceID,
-		result.toolCalls,
-		result.usage,
-		time.Since(startedAt).Milliseconds(),
-		result.thinking,
-		result.observationReason,
-		result.model,
-		result.provider,
-		result.requestID,
-		result.finishReason,
-		userInput,
-		result.content,
-		startedAt,
-	); debugTrace != nil {
-		assistantMsgOpts = append(assistantMsgOpts, types.WithDebugTrace(debugTrace))
-	}
-
-	if result.interrupt != nil {
-		qd, err := buildQuestionData(result.interrupt.CheckpointID, result.interruptAgentName, result.interrupt.Questions)
-		if err != nil {
-			return nil, nil, serrors.E(op, err)
-		}
-		if qd != nil {
-			assistantMsgOpts = append(assistantMsgOpts, types.WithQuestionData(qd))
-		}
-	}
-
-	assistantMsg := types.AssistantMessage(result.content, assistantMsgOpts...)
-	if err := s.chatRepo.SaveMessage(ctx, assistantMsg); err != nil {
-		return nil, nil, serrors.E(op, err)
-	}
-	if err := s.persistGeneratedArtifacts(ctx, session, assistantMsg.ID(), result.artifacts); err != nil {
-		return nil, nil, serrors.E(op, err)
-	}
-
-	session = session.
-		UpdateLLMPreviousResponseID(result.providerResponseID).
-		UpdateUpdatedAt(time.Now())
-	if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
-		return nil, nil, serrors.E(op, err)
-	}
-
-	return assistantMsg, session, nil
-}
-
-func (s *chatServiceImpl) persistGeneratedArtifacts(
-	ctx context.Context,
-	session domain.Session,
-	messageID uuid.UUID,
-	artifacts []types.ToolArtifact,
-) error {
-	const op serrors.Op = "chatServiceImpl.persistGeneratedArtifacts"
-	if len(artifacts) == 0 {
-		return nil
-	}
-
-	for idx, artifact := range artifacts {
-		artifactType := strings.TrimSpace(artifact.Type)
-		if artifactType == "" {
-			artifactType = string(domain.ArtifactTypeCodeOutput)
-		}
-		name := strings.TrimSpace(artifact.Name)
-		if name == "" {
-			name = fmt.Sprintf("artifact-%d", idx+1)
-		}
-		mimeType := strings.TrimSpace(artifact.MimeType)
-		if mimeType == "" {
-			mimeType = inferMimeTypeFromName(name)
-		}
-		url := strings.TrimSpace(artifact.URL)
-
-		msgID := messageID
-		opts := []domain.ArtifactOption{
-			domain.WithArtifactTenantID(session.TenantID()),
-			domain.WithArtifactSessionID(session.ID()),
-			domain.WithArtifactMessageID(&msgID),
-			domain.WithArtifactType(domain.ArtifactType(artifactType)),
-			domain.WithArtifactName(name),
-			domain.WithArtifactDescription(strings.TrimSpace(artifact.Description)),
-			domain.WithArtifactMimeType(mimeType),
-			domain.WithArtifactURL(url),
-			domain.WithArtifactSizeBytes(artifact.SizeBytes),
-			domain.WithArtifactStatus(domain.ArtifactStatusAvailable),
-			domain.WithArtifactIdempotencyKey(fmt.Sprintf("assistant:%s:%s:%d", messageID.String(), artifactType, idx)),
-		}
-		if len(artifact.Metadata) > 0 {
-			opts = append(opts, domain.WithArtifactMetadata(artifact.Metadata))
-		}
-		if err := s.chatRepo.SaveArtifact(ctx, domain.NewArtifact(opts...)); err != nil {
-			return serrors.E(op, err)
-		}
-	}
-
-	return nil
-}
-
-// GetSessionMessages retrieves all messages for a session.
-func (s *chatServiceImpl) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
-	const op serrors.Op = "chatServiceImpl.GetSessionMessages"
-
-	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	return messages, nil
-}
-
-// ResumeWithAnswer resumes execution after user answers questions (HITL).
-func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservices.ResumeRequest) (*bichatservices.SendMessageResponse, error) {
-	const op serrors.Op = "chatServiceImpl.ResumeWithAnswer"
-	startedAt := time.Now()
-
-	// Get session
-	session, err := s.chatRepo.GetSession(ctx, req.SessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	// Get pending question message
-	pendingMsg, err := s.chatRepo.GetPendingQuestionMessage(ctx, req.SessionID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNoPendingQuestion) {
-			return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
-		}
-		return nil, serrors.E(op, err)
-	}
-	if pendingMsg == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
-	}
-
-	// Validate question data before resuming (defer mutation until resume succeeds)
-	qd := pendingMsg.QuestionData()
-	if qd == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "pending message has no question data")
-	}
-
-	canonicalCheckpointID := strings.TrimSpace(qd.CheckpointID)
-	if canonicalCheckpointID == "" {
-		return nil, serrors.E(op, serrors.KindValidation, "pending message has empty checkpoint id")
-	}
-	if requestedCheckpointID := strings.TrimSpace(req.CheckpointID); requestedCheckpointID != "" && requestedCheckpointID != canonicalCheckpointID {
-		configuration.Use().Logger().
-			WithField("session_id", req.SessionID.String()).
-			WithField("requested_checkpoint_id", requestedCheckpointID).
-			WithField("canonical_checkpoint_id", canonicalCheckpointID).
-			Warn("resume request checkpoint mismatch; using canonical checkpoint from pending question")
-	}
-
-	normalizedAnswerValues, answersMap := normalizeResumeAnswers(qd.Questions, req.Answers)
-	answeredQD, err := qd.Answer(normalizedAnswerValues)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	// Resume agent execution with answers
-	gen, err := s.agentService.ResumeWithAnswer(ctx, req.SessionID, canonicalCheckpointID, answersMap)
-	if err != nil {
-		if errors.Is(err, agents.ErrCheckpointNotFound) {
-			configuration.Use().Logger().
-				WithError(err).
-				WithField("session_id", req.SessionID.String()).
-				WithField("checkpoint_id", canonicalCheckpointID).
-				Warn("resume checkpoint missing; finalizing pending question as answered")
-
-			if txErr := s.withinTx(ctx, func(txCtx context.Context) error {
-				return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), answeredQD)
-			}); txErr != nil {
-				return nil, txErr
-			}
-
-			return &bichatservices.SendMessageResponse{
-				UserMessage:      nil,
-				AssistantMessage: nil,
-				Session:          session,
-				Interrupt:        nil,
-			}, nil
-		}
-		return nil, serrors.E(op, err)
-	}
-	defer gen.Close()
-
-	// Collect agent response
-	result, err := consumeAgentEvents(ctx, gen)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	var assistantMsg types.Message
-	err = s.withinTx(ctx, func(txCtx context.Context) error {
-		// Mark question as answered only after resume succeeds — prevents irreversible
-		// state drift if the provider returns a transient error, timeout, or bad checkpoint.
-		if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), answeredQD); err != nil {
-			return serrors.E(op, err)
-		}
-
-		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt, "")
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &bichatservices.SendMessageResponse{
-		UserMessage:      nil,
-		AssistantMessage: assistantMsg,
-		Session:          session,
-		Interrupt:        result.interrupt,
-	}, nil
-}
-
-// RejectPendingQuestion rejects a pending HITL question and resumes execution.
-// This marks the question data as rejected and tells the agent the user dismissed it.
-func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*bichatservices.SendMessageResponse, error) {
-	const op serrors.Op = "chatServiceImpl.RejectPendingQuestion"
-	startedAt := time.Now()
-
-	// Get session
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	// Get pending question message
-	pendingMsg, err := s.chatRepo.GetPendingQuestionMessage(ctx, sessionID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNoPendingQuestion) {
-			return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
-		}
-		return nil, serrors.E(op, err)
-	}
-	if pendingMsg == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "no pending question found for session")
-	}
-
-	// Validate question data before resuming (defer mutation until resume succeeds)
-	qd := pendingMsg.QuestionData()
-	if qd == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "pending message has no question data")
-	}
-
-	rejectedQD, err := qd.Reject()
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	// Resume agent with rejection signal
-	rejectionAnswers := map[string]types.Answer{
-		"__rejected__": types.NewAnswer("User dismissed the questions"),
-	}
-
-	gen, err := s.agentService.ResumeWithAnswer(ctx, sessionID, qd.CheckpointID, rejectionAnswers)
-	if err != nil {
-		if errors.Is(err, agents.ErrCheckpointNotFound) {
-			configuration.Use().Logger().
-				WithError(err).
-				WithField("session_id", sessionID.String()).
-				WithField("checkpoint_id", qd.CheckpointID).
-				Warn("reject checkpoint missing; finalizing pending question as rejected")
-
-			if txErr := s.withinTx(ctx, func(txCtx context.Context) error {
-				return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), rejectedQD)
-			}); txErr != nil {
-				return nil, txErr
-			}
-
-			return &bichatservices.SendMessageResponse{
-				UserMessage:      nil,
-				AssistantMessage: nil,
-				Session:          session,
-				Interrupt:        nil,
-			}, nil
-		}
-		return nil, serrors.E(op, err)
-	}
-	defer gen.Close()
-
-	// Collect agent response
-	result, err := consumeAgentEvents(ctx, gen)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	var assistantMsg types.Message
-	err = s.withinTx(ctx, func(txCtx context.Context) error {
-		// Mark question as rejected only after resume succeeds — prevents irreversible
-		// state drift if the provider returns a transient error, timeout, or bad checkpoint.
-		if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), rejectedQD); err != nil {
-			return serrors.E(op, err)
-		}
-
-		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, sessionID, result, startedAt, "")
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &bichatservices.SendMessageResponse{
-		UserMessage:      nil,
-		AssistantMessage: assistantMsg,
-		Session:          session,
-		Interrupt:        result.interrupt,
-	}, nil
-}
-
-// GenerateSessionTitle regenerates a session title explicitly.
-func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error {
-	const op serrors.Op = "chatServiceImpl.GenerateSessionTitle"
-
-	if s.titleService == nil {
-		return serrors.E(op, serrors.KindValidation, "title generation service is not configured")
-	}
-
-	return s.titleService.RegenerateSessionTitle(ctx, sessionID)
-}
-
-func (s *chatServiceImpl) generateCompactionSummary(ctx context.Context, messages []types.Message) (string, error) {
-	if len(messages) == 0 {
-		return "History compaction complete. No previous messages were available to summarize.", nil
-	}
-
-	var transcript strings.Builder
-	for _, msg := range messages {
-		if msg == nil {
-			continue
-		}
-		switch msg.Role() {
-		case types.RoleUser:
-			transcript.WriteString("User: ")
-		case types.RoleAssistant:
-			transcript.WriteString("Assistant: ")
-		case types.RoleSystem, types.RoleTool:
-			continue
-		default:
-			continue
-		}
-		transcript.WriteString(strings.TrimSpace(msg.Content()))
-		transcript.WriteString("\n")
-	}
-
-	if transcript.Len() == 0 {
-		return "History compaction complete. No user/assistant turns were available to summarize.", nil
-	}
-
-	prompt := fmt.Sprintf(
-		`Summarize this chat history into a compact state snapshot.
-Return markdown with these sections:
-1. Conversation Summary
-2. Key Facts and Decisions
-3. Open Questions or Follow-ups
-Keep it concise, factual, and preserve important numeric values.
-
-CHAT TRANSCRIPT:
-%s`,
-		transcript.String(),
-	)
-
-	if s.model == nil {
-		return "History compaction complete. A concise summary could not be generated because no model is configured.", nil
-	}
-
-	resp, err := s.model.Generate(ctx, agents.Request{
-		Messages: []types.Message{types.SystemMessage(prompt)},
-	}, agents.WithMaxTokens(700))
-	if err != nil {
-		return "History compaction complete. Summary generation failed, original history was compacted.", err
-	}
-
-	summary := strings.TrimSpace(resp.Message.Content())
-	if summary == "" {
-		return "History compaction complete. The model returned an empty summary.", nil
-	}
-
-	return summary, nil
-}
-
-// maybeGenerateTitleAsync enqueues durable title generation work.
-// If Redis enqueue fails, it falls back to immediate direct generation.
-func (s *chatServiceImpl) maybeGenerateTitleAsync(ctx context.Context, sessionID uuid.UUID) {
-	// Skip if no title service configured
-	if s.titleService == nil {
-		return
-	}
-
-	if s.titleQueue != nil {
-		tenantID, tenantErr := composables.UseTenantID(ctx)
-		if tenantErr == nil {
-			enqueueCtx := context.WithoutCancel(ctx)
-			enqueueErr := s.titleQueue.Enqueue(enqueueCtx, tenantID, sessionID)
-			if enqueueErr == nil {
-				return
-			}
-			configuration.Use().Logger().
-				WithError(enqueueErr).
-				WithField("session_id", sessionID.String()).
-				Warn("failed to enqueue title generation job, using sync fallback")
-		} else {
-			configuration.Use().Logger().
-				WithError(tenantErr).
-				WithField("session_id", sessionID.String()).
-				Warn("missing tenant context for title job enqueue, using sync fallback")
-		}
-	}
-
-	titleCtx := buildTitleGenerationContext(ctx)
-	titleCtx, cancel := context.WithTimeout(titleCtx, titleGenerationFallbackTimeout)
-	defer cancel()
-
-	if err := s.titleService.GenerateSessionTitle(titleCtx, sessionID); err != nil {
-		configuration.Use().Logger().
-			WithError(err).
-			WithField("session_id", sessionID.String()).
-			Warn("failed to auto-generate session title via sync fallback")
-	}
-}
-
-func buildTitleGenerationContext(ctx context.Context) context.Context {
-	titleCtx := context.Background()
-
-	if tenantID, err := composables.UseTenantID(ctx); err == nil {
-		titleCtx = composables.WithTenantID(titleCtx, tenantID)
-	}
-	if pool, err := composables.UsePool(ctx); err == nil {
-		titleCtx = composables.WithPool(titleCtx, pool)
-	}
-	if user, err := composables.UseUser(ctx); err == nil {
-		titleCtx = composables.WithUser(titleCtx, user)
-	}
-
-	return titleCtx
-}
-
-func normalizeResumeAnswers(
-	questions []types.QuestionDataItem,
-	rawAnswers map[string]string,
-) (map[string]string, map[string]types.Answer) {
-	normalizedValues := make(map[string]string, len(rawAnswers))
-	normalizedAnswers := make(map[string]types.Answer, len(rawAnswers))
-	questionsByID := make(map[string]types.QuestionDataItem, len(questions))
-	for _, q := range questions {
-		questionsByID[q.ID] = q
-	}
-
-	for questionID, answerValue := range rawAnswers {
-		question, ok := questionsByID[questionID]
-		if !ok {
-			trimmed := strings.TrimSpace(answerValue)
-			normalizedValues[questionID] = trimmed
-			normalizedAnswers[questionID] = types.NewAnswer(trimmed)
-			continue
-		}
-
-		if question.Type == "multiple_choice" {
-			parts := splitAnswerParts(answerValue)
-			if len(parts) == 0 {
-				trimmed := strings.TrimSpace(answerValue)
-				normalizedValues[questionID] = trimmed
-				normalizedAnswers[questionID] = types.NewAnswer(trimmed)
-				continue
-			}
-
-			canonicalParts := make([]string, 0, len(parts))
-			seen := make(map[string]struct{}, len(parts))
-			for _, part := range parts {
-				canonical := canonicalizeAnswerPart(part, question.Options)
-				if canonical == "" {
-					continue
-				}
-				if _, exists := seen[canonical]; exists {
-					continue
-				}
-				seen[canonical] = struct{}{}
-				canonicalParts = append(canonicalParts, canonical)
-			}
-
-			if len(canonicalParts) == 0 {
-				trimmed := strings.TrimSpace(answerValue)
-				normalizedValues[questionID] = trimmed
-				normalizedAnswers[questionID] = types.NewAnswer(trimmed)
-			} else if len(canonicalParts) == 1 {
-				normalizedValues[questionID] = canonicalParts[0]
-				normalizedAnswers[questionID] = types.NewAnswer(canonicalParts[0])
-			} else {
-				normalizedValues[questionID] = strings.Join(canonicalParts, ", ")
-				normalizedAnswers[questionID] = types.NewMultiAnswer(canonicalParts)
-			}
-			continue
-		}
-
-		canonical := canonicalizeAnswerPart(answerValue, question.Options)
-		normalizedValues[questionID] = canonical
-		normalizedAnswers[questionID] = types.NewAnswer(canonical)
-	}
-
-	return normalizedValues, normalizedAnswers
-}
-
-func splitAnswerParts(value string) []string {
-	parts := strings.Split(strings.TrimSpace(value), ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if trimmed == "" {
-			continue
-		}
-		result = append(result, trimmed)
-	}
-	return result
-}
-
-func canonicalizeAnswerPart(value string, options []types.QuestionDataOption) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-
-	for _, opt := range options {
-		if strings.EqualFold(strings.TrimSpace(opt.ID), trimmed) {
-			return opt.ID
-		}
-	}
-	for _, opt := range options {
-		if strings.EqualFold(strings.TrimSpace(opt.Label), trimmed) {
-			return opt.ID
-		}
-	}
-
-	return trimmed
-}
-
-// buildQuestionData converts agent interrupt questions to QuestionData for persistence.
-func buildQuestionData(checkpointID, agentName string, questions []bichatservices.Question) (*types.QuestionData, error) {
-	items := make([]types.QuestionDataItem, len(questions))
-	for i, q := range questions {
-		opts := make([]types.QuestionDataOption, len(q.Options))
-		for j, o := range q.Options {
-			opts[j] = types.QuestionDataOption{ID: o.ID, Label: o.Label}
-		}
-		qType := "single_choice"
-		if q.Type == bichatservices.QuestionTypeMultipleChoice {
-			qType = "multiple_choice"
-		}
-		items[i] = types.QuestionDataItem{
-			ID:      q.ID,
-			Text:    q.Text,
-			Type:    qType,
-			Options: opts,
-		}
-	}
-	qd, err := types.NewQuestionData(checkpointID, agentName, items)
-	if err != nil {
-		return nil, err
-	}
-	return qd, nil
-}
-
-// agentToolToServiceTool converts agents.ToolEvent to bichatservices.ToolEvent
-// for use in StreamChunk payloads.
-func agentToolToServiceTool(t *agents.ToolEvent) *bichatservices.ToolEvent {
-	if t == nil {
-		return nil
-	}
-	return &bichatservices.ToolEvent{
-		CallID:     t.CallID,
-		Name:       t.Name,
-		AgentName:  t.AgentName,
-		Arguments:  t.Arguments,
-		Result:     t.Result,
-		Error:      t.Error,
-		DurationMs: t.DurationMs,
-		Artifacts:  t.Artifacts,
-	}
-}
-
-// agentQuestionsToServiceQuestions converts agents.Question slice to bichatservices.Question slice.
-func agentQuestionsToServiceQuestions(qs []agents.Question) []bichatservices.Question {
-	if len(qs) == 0 {
-		return nil
-	}
-	out := make([]bichatservices.Question, len(qs))
-	for i, q := range qs {
-		opts := make([]bichatservices.QuestionOption, len(q.Options))
-		for j, o := range q.Options {
-			opts[j] = bichatservices.QuestionOption{ID: o.ID, Label: o.Label}
-		}
-		qt := bichatservices.QuestionTypeSingleChoice
-		if q.Type == agents.QuestionTypeMultipleChoice {
-			qt = bichatservices.QuestionTypeMultipleChoice
-		}
-		out[i] = bichatservices.Question{
-			ID:      q.ID,
-			Text:    q.Text,
-			Type:    qt,
-			Options: opts,
-		}
-	}
-	return out
 }

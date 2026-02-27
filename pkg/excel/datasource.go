@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -237,29 +239,48 @@ func convertPgxValue(val interface{}) interface{} {
 	case []byte:
 		return string(v)
 	case pgtype.Numeric:
-		if v.Valid {
-			float64Val, err := v.Float64Value()
-			if err != nil {
-				// If conversion fails, return 0 to avoid display issues
-				return 0.0
-			}
-			return float64Val.Float64
-		}
-		return nil
+		return convertPgxNumeric(v)
 	case *pgtype.Numeric:
-		if v != nil && v.Valid {
-			float64Val, err := v.Float64Value()
-			if err != nil {
-				// If conversion fails, return 0 to avoid display issues
-				return 0.0
-			}
-			return float64Val.Float64
+		if v == nil {
+			return nil
 		}
-		return nil
+		return convertPgxNumeric(*v)
 	default:
 		// Check for sql.Null types
 		return convertSQLValue(val)
 	}
+}
+
+func convertPgxNumeric(v pgtype.Numeric) interface{} {
+	if !v.Valid {
+		return nil
+	}
+
+	raw, err := v.Value()
+	if err != nil {
+		return nil
+	}
+
+	text, ok := raw.(string)
+	if !ok {
+		return raw
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+
+	// Keep decimals/scientific notation as text to avoid precision loss.
+	if strings.ContainsAny(text, ".eE") {
+		return text
+	}
+
+	// Integers are safe to keep numeric when they fit int64.
+	if iv, err := strconv.ParseInt(text, 10, 64); err == nil {
+		return iv
+	}
+
+	return text
 }
 
 // FunctionDataSource wraps a Go function as a DataSource

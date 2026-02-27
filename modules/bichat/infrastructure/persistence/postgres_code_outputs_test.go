@@ -18,10 +18,10 @@ func TestPostgresChatRepository_SaveMessage_WithCodeOutputs_RoundTrip(t *testing
 
 	repo := persistence.NewPostgresChatRepository()
 
-	session := domain.NewSession(
-		domain.WithTenantID(env.Tenant.ID),
-		domain.WithUserID(int64(env.User.ID())),
-		domain.WithTitle("Code Outputs"),
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Code Outputs"),
 	)
 	require.NoError(t, repo.CreateSession(env.Ctx, session))
 

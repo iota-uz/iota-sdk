@@ -33,6 +33,25 @@ type SessionRepository interface {
 	DeleteSession(ctx context.Context, id uuid.UUID) error
 }
 
+// SessionAccessRepository provides session sharing and access lookups.
+// Kept separate from ChatRepository to avoid forcing all test doubles to implement it.
+type SessionAccessRepository interface {
+	ListAccessibleSessionSummaries(ctx context.Context, userID int64, opts ListOptions) ([]SessionSummary, error)
+	CountAccessibleSessions(ctx context.Context, userID int64, opts ListOptions) (int, error)
+
+	ListAllSessionSummaries(ctx context.Context, requestingUserID int64, opts ListOptions, ownerUserID *int64) ([]SessionSummary, error)
+	CountAllSessions(ctx context.Context, opts ListOptions, ownerUserID *int64) (int, error)
+
+	ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64) (SessionAccess, error)
+	ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]SessionMember, error)
+	GetTenantUser(ctx context.Context, userID int64) (SessionUser, error)
+	UpsertSessionMember(ctx context.Context, command SessionMemberUpsert) error
+	RemoveSessionMember(ctx context.Context, command SessionMemberRemoval) error
+	CountSessionParticipants(ctx context.Context, sessionID uuid.UUID) (int, error)
+
+	ListTenantUsers(ctx context.Context) ([]SessionUser, error)
+}
+
 type MessageRepository interface {
 	SaveMessage(ctx context.Context, msg types.Message) error
 	GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error)
@@ -71,6 +90,8 @@ type GenerationRunRepository interface {
 	CreateRun(ctx context.Context, run GenerationRun) error
 	// GetActiveRunBySession returns the active (status=streaming) run for the session, or nil if none.
 	GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (GenerationRun, error)
+	// GetRunByID returns a run by id regardless of status.
+	GetRunByID(ctx context.Context, runID uuid.UUID) (GenerationRun, error)
 	// UpdateRunSnapshot updates partial_content and partial_metadata for the run.
 	UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error
 	// CompleteRun marks the run as completed.
@@ -84,6 +105,9 @@ var ErrActiveRunExists = errors.New("session already has an active generation ru
 
 // ErrNoActiveRun is returned by GetActiveRunBySession when the session has no active (streaming) run.
 var ErrNoActiveRun = errors.New("no active generation run for session")
+
+// ErrRunNotFound is returned when no generation run row exists for the given id.
+var ErrRunNotFound = errors.New("generation run not found")
 
 // ChatRepository defines the persistence interface for chat domain models.
 // All operations are tenant-scoped for multi-tenancy isolation.

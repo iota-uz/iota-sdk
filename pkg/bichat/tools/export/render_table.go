@@ -3,12 +3,13 @@ package export
 import (
 	"context"
 	"fmt"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
-	toolsql "github.com/iota-uz/iota-sdk/pkg/bichat/tools/sql"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	toolsql "github.com/iota-uz/iota-sdk/pkg/bichat/tools/sql"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
@@ -283,6 +284,8 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 			"columns":      output.Columns,
 			"headers":      output.Headers,
 			"column_types": output.ColumnTypes,
+			"rows":         output.Rows,
+			"row_count":    output.TotalRows,
 			"total_rows":   output.TotalRows,
 			"truncated":    output.Truncated,
 			"title":        output.Title,

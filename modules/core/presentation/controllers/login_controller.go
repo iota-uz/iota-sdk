@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -34,6 +35,19 @@ import (
 type LoginDTO struct {
 	Email    string `validate:"required"`
 	Password string `validate:"required"`
+}
+
+type MiddlewareChainCustomizer func(defaults []mux.MiddlewareFunc) []mux.MiddlewareFunc
+
+type LoginControllerOptions struct {
+	// LoginAccessCheck runs after successful authentication and before session creation.
+	LoginAccessCheck func(ctx context.Context, u coreuser.User) error
+	// CustomizeGetMiddlewares receives default middleware for /login GET and OAuth callback routes
+	// and returns the final chain.
+	CustomizeGetMiddlewares MiddlewareChainCustomizer
+	// CustomizePostMiddlewares receives default middleware for /login POST route
+	// and returns the final chain.
+	CustomizePostMiddlewares MiddlewareChainCustomizer
 }
 
 func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -63,12 +77,17 @@ func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func NewLoginController(app application.Application) application.Controller {
+func NewLoginController(app application.Application, opts ...*LoginControllerOptions) application.Controller {
+	options := &LoginControllerOptions{}
+	if len(opts) > 0 && opts[0] != nil {
+		options = opts[0]
+	}
 	return &LoginController{
 		app:            app,
 		authService:    app.Service(services.AuthService{}).(*services.AuthService),
 		sessionService: app.Service(services.SessionService{}).(*services.SessionService),
 		userService:    app.Service(services.UserService{}).(*services.UserService),
+		options:        options,
 	}
 }
 
@@ -89,6 +108,7 @@ type LoginController struct {
 	twoFactorService *twofactor.TwoFactorService
 	sessionService   *services.SessionService
 	userService      *services.UserService
+	options          *LoginControllerOptions
 }
 
 func (c *LoginController) Key() string {
@@ -96,20 +116,42 @@ func (c *LoginController) Key() string {
 }
 
 func (c *LoginController) Register(r *mux.Router) {
-	getRouter := r.PathPrefix("/").Subrouter()
-	getRouter.Use(
+	options := c.options
+	if options == nil {
+		options = &LoginControllerOptions{}
+	}
+
+	getMiddlewares := []mux.MiddlewareFunc{
 		middleware.ProvideLocalizer(c.app),
 		middleware.WithPageContext(),
-	)
+	}
+	if options.CustomizeGetMiddlewares != nil {
+		getMiddlewares = options.CustomizeGetMiddlewares(append([]mux.MiddlewareFunc(nil), getMiddlewares...))
+	}
+
+	getRouter := r.PathPrefix("/").Subrouter()
+	getRouter.Use(getMiddlewares...)
 	getRouter.HandleFunc("/login", c.Get).Methods(http.MethodGet)
 	getRouter.HandleFunc("/oauth/google/callback", c.GoogleCallback)
 
-	setRouter := r.PathPrefix("/login").Subrouter()
-	setRouter.Use(
+	postMiddlewares := []mux.MiddlewareFunc{
 		middleware.ProvideLocalizer(c.app),
 		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
-	)
+	}
+	if options.CustomizePostMiddlewares != nil {
+		postMiddlewares = options.CustomizePostMiddlewares(append([]mux.MiddlewareFunc(nil), postMiddlewares...))
+	}
+
+	setRouter := r.PathPrefix("/login").Subrouter()
+	setRouter.Use(postMiddlewares...)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
+}
+
+func (c *LoginController) runLoginAccessCheck(ctx context.Context, u coreuser.User) error {
+	if c.options == nil || c.options.LoginAccessCheck == nil {
+		return nil
+	}
+	return c.options.LoginAccessCheck(ctx, u)
 }
 
 func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +193,14 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		} else {
 			queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
 		}
+		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+		return
+	}
+
+	// Run optional login gate before creating the session cookie.
+	if err := c.runLoginAccessCheck(r.Context(), u); err != nil {
+		shared.SetFlash(w, "error", []byte(err.Error()))
+		queryParams.Set("error", err.Error())
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
@@ -324,6 +374,13 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		} else {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
 		}
+		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+		return
+	}
+
+	// Run optional login gate before creating the session cookie.
+	if err := c.runLoginAccessCheck(r.Context(), u); err != nil {
+		shared.SetFlash(w, "error", []byte(err.Error()))
 		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
 		return
 	}

@@ -21,10 +21,15 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 	filteredItems := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
 		if item.HasPermission(user) {
+			filteredChildren := filterItems(item.Children, user)
+			// If item originally had children but all were filtered out, skip it
+			if len(item.Children) > 0 && len(filteredChildren) == 0 {
+				continue
+			}
 			filteredItems = append(filteredItems, types.NavigationItem{
 				Name:        item.Name,
 				Href:        item.Href,
-				Children:    filterItems(item.Children, user),
+				Children:    filteredChildren,
 				Icon:        item.Icon,
 				Permissions: item.Permissions,
 				IsBeta:      item.IsBeta,
@@ -57,6 +62,17 @@ func getEnabledNavItems(items []types.NavigationItem) []types.NavigationItem {
 	return out
 }
 
+func normalizeTabGroups(collection sidebar.TabGroupCollection) sidebar.TabGroupCollection {
+	groups := make([]sidebar.TabGroup, 0, len(collection.Groups))
+	for _, group := range collection.Groups {
+		pkgsidebar.AppendIfNotEmpty(&groups, group)
+	}
+	return sidebar.TabGroupCollection{
+		Groups:       groups,
+		DefaultValue: pkgsidebar.NormalizeDefaultTab(groups, collection.DefaultValue),
+	}
+}
+
 // NavItemsWithInitialState provides navigation items and sidebar props.
 // initialState controls the server-side sidebar default (collapsed/expanded/auto).
 func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareFunc {
@@ -77,10 +93,13 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 					return
 				}
 				filtered := filterItems(app.NavItems(localizer), u)
+				if len(u.Roles()) == 0 {
+					filtered = []types.NavigationItem{}
+				}
 				enabledNavItems := getEnabledNavItems(filtered)
 
 				// Build sidebar props with configurable tab groups
-				tabGroups := pkgsidebar.BuildTabGroups(enabledNavItems, localizer)
+				tabGroups := normalizeTabGroups(pkgsidebar.BuildTabGroups(enabledNavItems, localizer))
 
 				sidebarProps := sidebar.Props{
 					Header:       layouts.DefaultSidebarHeader(),

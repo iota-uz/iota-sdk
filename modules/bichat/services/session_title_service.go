@@ -23,6 +23,7 @@ const (
 	titleGenFinalRetryTokens  = 80
 	titleGenTimeout           = 10 * time.Second
 	untitledChatTitle         = "Untitled Chat"
+	untitledSessionTitle      = "Untitled Session"
 )
 
 // SessionTitleMode controls generation behavior.
@@ -77,7 +78,7 @@ func (s *sessionTitleService) generate(ctx context.Context, sessionID uuid.UUID,
 	if err != nil {
 		return serrors.E(op, err, "failed to get session")
 	}
-	if mode == SessionTitleModeAuto && strings.TrimSpace(session.Title()) != "" {
+	if mode == SessionTitleModeAuto && hasCustomSessionTitle(session.Title()) {
 		return nil
 	}
 
@@ -109,6 +110,14 @@ func (s *sessionTitleService) generate(ctx context.Context, sessionID uuid.UUID,
 	}
 
 	return nil
+}
+
+func hasCustomSessionTitle(title string) bool {
+	trimmed := strings.TrimSpace(title)
+	if trimmed == "" {
+		return false
+	}
+	return trimmed != untitledSessionTitle && trimmed != untitledChatTitle
 }
 
 func (s *sessionTitleService) firstExchange(ctx context.Context, sessionID uuid.UUID) (string, string, error) {

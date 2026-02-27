@@ -108,12 +108,16 @@ func (a *BiChatApplet) Config() applets.Config {
 			if a.container == nil {
 				return nil
 			}
-			chatSvc := a.container.ChatService()
+			sessionCommands := a.container.SessionCommands()
+			sessionQueries := a.container.SessionQueries()
+			turnCommands := a.container.TurnCommands()
+			turnQueries := a.container.TurnQueries()
+			hitlCommands := a.container.HITLCommands()
 			artifactSvc := a.container.ArtifactService()
-			if chatSvc == nil || artifactSvc == nil {
+			if sessionCommands == nil || sessionQueries == nil || turnCommands == nil || turnQueries == nil || hitlCommands == nil || artifactSvc == nil {
 				return nil
 			}
-			cfg := bichatrpc.Router(chatSvc, artifactSvc).Config()
+			cfg := bichatrpc.Router(sessionCommands, sessionQueries, turnCommands, turnQueries, hitlCommands, artifactSvc).Config()
 			// Expose internal error details in development mode.
 			if configuration.Use().IsDev() {
 				t := true

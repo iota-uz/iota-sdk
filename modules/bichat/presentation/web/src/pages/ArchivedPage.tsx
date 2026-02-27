@@ -13,7 +13,7 @@ export default function ArchivedPage() {
     [navigate]
   )
 
-  const dataSource = useBiChatDataSource(onNavigateToSession)
+  const dataSource = useBiChatDataSource()
 
   return (
     <ArchivedChatList
@@ -24,4 +24,3 @@ export default function ArchivedPage() {
     />
   )
 }
-

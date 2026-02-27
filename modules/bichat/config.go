@@ -270,7 +270,12 @@ type ModuleConfig struct {
 // ServiceContainer holds built services created by ModuleConfig.BuildServices().
 // Use accessor methods to retrieve individual services.
 type ServiceContainer struct {
-	chatService       bichatservices.ChatService
+	sessionCommands   bichatservices.SessionCommands
+	sessionQueries    bichatservices.SessionQueries
+	turnCommands      bichatservices.TurnCommands
+	turnQueries       bichatservices.TurnQueries
+	streamCommands    bichatservices.StreamCommands
+	hitlCommands      bichatservices.HITLCommands
 	agentService      bichatservices.AgentService
 	attachmentService bichatservices.AttachmentService
 	artifactService   bichatservices.ArtifactService
@@ -280,8 +285,25 @@ type ServiceContainer struct {
 	logger            *logrus.Logger
 }
 
-// ChatService returns the ChatService.
-func (sc *ServiceContainer) ChatService() bichatservices.ChatService { return sc.chatService }
+// SessionCommands returns session mutating actions.
+func (sc *ServiceContainer) SessionCommands() bichatservices.SessionCommands {
+	return sc.sessionCommands
+}
+
+// SessionQueries returns session/access query actions.
+func (sc *ServiceContainer) SessionQueries() bichatservices.SessionQueries { return sc.sessionQueries }
+
+// TurnCommands returns non-streaming turn command actions.
+func (sc *ServiceContainer) TurnCommands() bichatservices.TurnCommands { return sc.turnCommands }
+
+// TurnQueries returns turn query actions.
+func (sc *ServiceContainer) TurnQueries() bichatservices.TurnQueries { return sc.turnQueries }
+
+// StreamCommands returns streaming turn actions.
+func (sc *ServiceContainer) StreamCommands() bichatservices.StreamCommands { return sc.streamCommands }
+
+// HITLCommands returns HITL command actions.
+func (sc *ServiceContainer) HITLCommands() bichatservices.HITLCommands { return sc.hitlCommands }
 
 // AgentService returns the AgentService.
 func (sc *ServiceContainer) AgentService() bichatservices.AgentService { return sc.agentService }

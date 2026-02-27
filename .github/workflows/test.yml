@@ -3,13 +3,68 @@ name: Test, lint & build
 on:
   push:
     branches:
+      - staging
       - main
   pull_request:
     branches:
+      - staging
       - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
 
 jobs:
+  changes:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'cmd/**'
+              - 'components/**'
+              - 'internal/**'
+              - 'modules/**'
+              - 'pkg/**'
+              - 'migrations/**'
+              - 'scripts/**'
+              - 'styles/**'
+              - 'ui/**'
+              - 'tools.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'go.work'
+              - 'Justfile'
+              - 'Dockerfile*'
+              - 'compose*.yml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/scripts/**'
+              - '.github/workflows/test.yml'
+            e2e:
+              - 'e2e/**'
+            docs:
+              - 'docs/**'
+
   security-gosec:
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.backend == 'true')
+    concurrency:
+      group: security-scan-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     name: Security Scan (gosec)
@@ -41,6 +96,13 @@ jobs:
         run: just gosec
 
   lint-and-format:
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.backend == 'true')
+    concurrency:
+      group: lint-and-format-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
     name: Code Quality & Formatting
@@ -59,7 +121,9 @@ jobs:
 
       - name: Install golangci-lint
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.1.6
+          if ! command -v golangci-lint >/dev/null; then
+            go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+          fi
           golangci-lint version
 
       - name: Install templ
@@ -168,7 +232,15 @@ jobs:
         run: just check lint
 
   test-unit-integration:
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.backend == 'true')
+    concurrency:
+      group: unit-integration-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 25
     name: Unit & Integration Tests
     env:
       GOPRIVATE: github.com/iota-uz/*
@@ -308,6 +380,13 @@ jobs:
         run: just db migrate down
 
   test-e2e:
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.e2e == 'true')
+    concurrency:
+      group: e2e-tests-${{ github.event.pull_request.number || github.ref }}-${{ matrix.shardIndex }}
+      cancel-in-progress: true
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 20
     name: E2E Tests (shard ${{ matrix.shard }})
@@ -512,6 +591,13 @@ jobs:
           retention-days: 7
 
   docs-build:
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.docs == 'true')
+    concurrency:
+      group: docs-build-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     name: Documentation Build
     runs-on: ubuntu-latest
     steps:

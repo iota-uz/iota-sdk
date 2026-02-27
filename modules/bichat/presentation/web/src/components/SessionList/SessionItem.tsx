@@ -7,8 +7,8 @@
 import { useRef, useState, memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion'
-import { Archive } from '@phosphor-icons/react'
-import { EditableText, type EditableTextRef } from '@iota-uz/sdk/bichat'
+import { Archive, UsersThree } from '@phosphor-icons/react'
+import { EditableText, type EditableTextRef, useTranslation } from '@iota-uz/sdk/bichat'
 import SessionMenu from './SessionMenu'
 import { sessionItemVariants } from '../../animations/variants'
 import type { ChatSession } from '../../utils/sessionGrouping'
@@ -27,6 +27,7 @@ interface SessionItemProps {
 const SessionItem = memo<SessionItemProps>(
   ({ session, isActive, onTogglePin, onRename, onArchive, onNavigate }) => {
     const editableTitleRef = useRef<EditableTextRef>(null)
+    const { t } = useTranslation()
     const [isDragging, setIsDragging] = useState(false)
     const dragX = useMotionValue(0)
     const archiveOpacity = useTransform(dragX, [-80, -40, 0], [1, 0.5, 0])
@@ -36,7 +37,15 @@ const SessionItem = memo<SessionItemProps>(
     const isTitleGenerating = !session.title
 
     // Generate title from session (use existing title or show generating state)
-    const displayTitle = isTitleGenerating ? 'Generating...' : (session.title ?? 'Untitled Chat')
+    const displayTitle = isTitleGenerating ? t('BiChat.Common.Generating') : (session.title ?? t('BiChat.Common.Untitled'))
+    const source = (session.access?.source ?? '').toLowerCase()
+    const isMemberSession = source === 'member'
+    const isGroupOrShared = Boolean(
+      session.isGroup ||
+        isMemberSession ||
+        (session.access?.role && session.access.role !== 'owner' && session.access.role !== 'read_all') ||
+        (session.memberCount !== undefined && session.memberCount > 1),
+    )
 
     const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
       setIsDragging(false)
@@ -94,15 +103,30 @@ const SessionItem = memo<SessionItemProps>(
             )}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <EditableText
-                  ref={editableTitleRef}
-                  value={displayTitle}
-                  onSave={onRename}
-                  maxLength={60}
-                  isLoading={isTitleGenerating}
-                  placeholder="Untitled Chat"
-                  size="sm"
-                />
+                {isGroupOrShared && (
+                  <UsersThree size={14} weight="duotone" className="text-primary-500 dark:text-primary-400 flex-shrink-0" />
+                )}
+                <div className="flex flex-col min-w-0 flex-1">
+                  <EditableText
+                    ref={editableTitleRef}
+                    value={displayTitle}
+                    onSave={onRename}
+                    maxLength={60}
+                    isLoading={isTitleGenerating}
+                    placeholder={t('BiChat.Common.Untitled')}
+                    size="sm"
+                  />
+                  {isGroupOrShared && (
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                      {session.isGroup ? t('BiChat.Sidebar.GroupChat') : t('BiChat.Sidebar.SharedWithYou')}
+                      {session.memberCount && session.memberCount > 0 && (
+                        <span className="inline-flex items-center ml-1 rounded-full bg-primary-50 dark:bg-primary-900/30 px-1.5 text-[10px] font-medium text-primary-600 dark:text-primary-400">
+                          {session.memberCount}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
               </div>
               <SessionMenu
                 isPinned={session.pinned || false}

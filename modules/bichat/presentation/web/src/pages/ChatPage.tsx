@@ -8,6 +8,7 @@ import {
 } from '@iota-uz/sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 import { useIotaContext } from '../contexts/IotaContext'
+import { useSessionEvents } from '../contexts/SessionEventContext'
 import EnhancedChartCard from '../components/charts/EnhancedChartCard'
 
 export default function ChatPage() {
@@ -15,17 +16,21 @@ export default function ChatPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const context = useIotaContext()
+  const sessionEvents = useSessionEvents()
 
   const readOnly = useMemo(() => {
     const params = new URLSearchParams(location.search)
     return params.get('readonly') === 'true'
   }, [location.search])
 
-  const onNavigateToSession = useCallback(
-    (sessionId: string) => navigate(`/session/${sessionId}`),
-    [navigate]
+  const onSessionCreated = useCallback(
+    (sessionId: string) => {
+      sessionEvents.notifySessionCreated(sessionId)
+      navigate(`/session/${sessionId}`)
+    },
+    [navigate, sessionEvents]
   )
-  const dataSource = useBiChatDataSource(onNavigateToSession)
+  const dataSource = useBiChatDataSource()
   const renderAssistantTurn = useCallback(
     (turn: ConversationTurn) => (
       <AssistantTurnView
@@ -73,6 +78,7 @@ export default function ChatPage() {
       readOnly={readOnly}
       rateLimiter={rateLimiter}
       renderAssistantTurn={renderAssistantTurn}
+      onSessionCreated={onSessionCreated}
       showArtifactsPanel
       artifactsPanelDefaultExpanded={false}
       artifactsPanelStorageKey="bichat.web.artifacts-panel.expanded"

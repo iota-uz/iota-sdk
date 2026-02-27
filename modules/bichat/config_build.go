@@ -87,6 +87,9 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	if err := c.Validate(); err != nil {
 		return nil, serrors.E(op, err)
 	}
+	if _, ok := c.ChatRepo.(domain.SessionAccessRepository); !ok {
+		return nil, serrors.E(op, serrors.KindValidation, "chat repository must implement SessionAccessRepository")
+	}
 
 	if err := c.resolveProjectPromptExtension(); err != nil {
 		return nil, serrors.E(op, err, "failed to resolve project prompt extension")
@@ -177,7 +180,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	attachmentService := services.NewAttachmentService(fileStorage)
 	artifactService := bichatservices.NewArtifactService(c.ChatRepo, fileStorage, attachmentService)
 
-	chatService := services.NewChatService(
+	chatServices := services.NewChatApplicationServices(
 		c.ChatRepo,
 		agentService,
 		c.Model,
@@ -186,7 +189,12 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	)
 
 	return &ServiceContainer{
-		chatService:       chatService,
+		sessionCommands:   chatServices.SessionCommands,
+		sessionQueries:    chatServices.SessionQueries,
+		turnCommands:      chatServices.TurnCommands,
+		turnQueries:       chatServices.TurnQueries,
+		streamCommands:    chatServices.StreamCommands,
+		hitlCommands:      chatServices.HITLCommands,
 		agentService:      agentService,
 		attachmentService: attachmentService,
 		artifactService:   artifactService,

@@ -39,7 +39,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
 	github.com/henomis/langfuse-go v0.0.3
-	github.com/iota-uz/applets v0.4.15-0.20260215190808-f1160e73f3f5
+	github.com/iota-uz/applets v0.4.27-0.20260226122532-103d868057aa
 	github.com/iota-uz/click v1.0.4
 	github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049
 	github.com/iota-uz/go-i18n/v2 v2.6.1
@@ -51,7 +51,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
-	github.com/lithammer/fuzzysearch v1.1.8
+	github.com/meilisearch/meilisearch-go v0.36.1
 	github.com/mileusna/useragent v1.3.5
 	github.com/openai/openai-go v1.3.0
 	github.com/openai/openai-go/v3 v3.18.0
@@ -95,6 +95,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/RoaringBitmap/roaring/v2 v2.4.5 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
+	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/antchfx/xpath v1.3.3 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.4 // indirect

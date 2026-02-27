@@ -57,11 +57,14 @@ func Execute(ctx context.Context, ds DataSource, dash Dashboard) *Results {
 
 			qStart := time.Now()
 			data, err := ds.Execute(ctx, query)
-
+			dur := time.Since(qStart)
+			if dur == 0 {
+				dur = 1
+			}
 			pr := &PanelResult{
 				Data:     data,
 				Error:    err,
-				Duration: time.Since(qStart),
+				Duration: dur,
 			}
 			if err != nil {
 				pr.Error = fmt.Errorf("panel %s: %w", id, err)
@@ -75,5 +78,8 @@ func Execute(ctx context.Context, ds DataSource, dash Dashboard) *Results {
 
 	wg.Wait()
 	res.Duration = time.Since(start)
+	if res.Duration == 0 {
+		res.Duration = 1
+	}
 	return res
 }

@@ -295,6 +295,7 @@ func (m *mockCheckpointer) LoadAndDelete(ctx context.Context, checkpointID strin
 
 // mockChatRepository is a test implementation of domain.ChatRepository
 type mockChatRepository struct {
+	mu          sync.RWMutex
 	sessions    map[uuid.UUID]domain.Session
 	messages    map[uuid.UUID][]types.Message
 	attachments map[uuid.UUID]domain.Attachment
@@ -311,11 +312,15 @@ func newMockChatRepository() *mockChatRepository {
 }
 
 func (m *mockChatRepository) CreateSession(ctx context.Context, session domain.Session) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.sessions[session.ID()] = session
 	return nil
 }
 
 func (m *mockChatRepository) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	session, exists := m.sessions[id]
 	if !exists {
 		return nil, errors.New("session not found")
@@ -324,32 +329,48 @@ func (m *mockChatRepository) GetSession(ctx context.Context, id uuid.UUID) (doma
 }
 
 func (m *mockChatRepository) UpdateSession(ctx context.Context, session domain.Session) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.sessions[session.ID()] = session
 	return nil
 }
 
 func (m *mockChatRepository) UpdateSessionTitle(ctx context.Context, id uuid.UUID, title string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	session, exists := m.sessions[id]
 	if !exists {
 		return errors.New("session not found")
 	}
-	m.sessions[id] = session.UpdateTitle(title)
+	renamed, err := session.Rename(title, time.Now())
+	if err != nil {
+		return err
+	}
+	m.sessions[id] = renamed
 	return nil
 }
 
 func (m *mockChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, id uuid.UUID, title string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	session, exists := m.sessions[id]
 	if !exists {
 		return false, errors.New("session not found")
 	}
-	if strings.TrimSpace(session.Title()) != "" {
+	if existing := strings.TrimSpace(session.Title()); existing != "" && existing != "Untitled Session" {
 		return false, nil
 	}
-	m.sessions[id] = session.UpdateTitle(title)
+	renamed, err := session.Rename(title, time.Now())
+	if err != nil {
+		return false, err
+	}
+	m.sessions[id] = renamed
 	return true, nil
 }
 
 func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	sessions := make([]domain.Session, 0, len(m.sessions))
 	for _, session := range m.sessions {
 		sessions = append(sessions, session)
@@ -358,22 +379,147 @@ func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64,
 }
 
 func (m *mockChatRepository) CountUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return len(m.sessions), nil
 }
 
+func (m *mockChatRepository) ListAccessibleSessionSummaries(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.SessionSummary, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	summaries := make([]domain.SessionSummary, 0, len(m.sessions))
+	for _, session := range m.sessions {
+		owner, err := domain.NewSessionUser(session.UserID(), "Owner", "User")
+		if err != nil {
+			return nil, err
+		}
+		role := domain.SessionMemberRoleViewer
+		source := domain.SessionAccessSourceMember
+		if session.UserID() == userID {
+			role = domain.SessionMemberRoleOwner
+			source = domain.SessionAccessSourceOwner
+		}
+		access, err := domain.NewSessionAccess(role, source)
+		if err != nil {
+			return nil, err
+		}
+		summary, err := domain.NewSessionSummary(domain.SessionSummarySpec{
+			Session:     session,
+			Owner:       owner,
+			Access:      access,
+			MemberCount: 1,
+		})
+		if err != nil {
+			return nil, err
+		}
+		summaries = append(summaries, summary)
+	}
+
+	return summaries, nil
+}
+
+func (m *mockChatRepository) CountAccessibleSessions(ctx context.Context, userID int64, opts domain.ListOptions) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.sessions), nil
+}
+
+func (m *mockChatRepository) ListAllSessionSummaries(ctx context.Context, requestingUserID int64, opts domain.ListOptions, ownerUserID *int64) ([]domain.SessionSummary, error) {
+	return m.ListAccessibleSessionSummaries(ctx, requestingUserID, opts)
+}
+
+func (m *mockChatRepository) CountAllSessions(ctx context.Context, opts domain.ListOptions, ownerUserID *int64) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.sessions), nil
+}
+
+func (m *mockChatRepository) ResolveSessionAccess(ctx context.Context, sessionID uuid.UUID, userID int64) (domain.SessionAccess, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return domain.SessionAccess{}, errors.New("session not found")
+	}
+	if session.UserID() == userID {
+		return domain.NewSessionAccess(domain.SessionMemberRoleOwner, domain.SessionAccessSourceOwner)
+	}
+	return domain.NewSessionAccess(domain.SessionMemberRoleViewer, domain.SessionAccessSourceMember)
+}
+
+func (m *mockChatRepository) ListSessionMembers(ctx context.Context, sessionID uuid.UUID) ([]domain.SessionMember, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return nil, errors.New("session not found")
+	}
+	user, err := domain.NewSessionUser(session.UserID(), "Owner", "User")
+	if err != nil {
+		return nil, err
+	}
+	member, err := domain.NewSessionMember(domain.SessionMemberSpec{
+		SessionID: sessionID,
+		User:      user,
+		Role:      domain.SessionMemberRoleEditor,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []domain.SessionMember{member}, nil
+}
+
+func (m *mockChatRepository) GetTenantUser(ctx context.Context, userID int64) (domain.SessionUser, error) {
+	return domain.NewSessionUser(userID, "Test", "User")
+}
+
+func (m *mockChatRepository) UpsertSessionMember(ctx context.Context, command domain.SessionMemberUpsert) error {
+	return nil
+}
+
+func (m *mockChatRepository) RemoveSessionMember(ctx context.Context, command domain.SessionMemberRemoval) error {
+	return nil
+}
+
+func (m *mockChatRepository) CountSessionParticipants(ctx context.Context, sessionID uuid.UUID) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, exists := m.sessions[sessionID]; !exists {
+		return 0, errors.New("session not found")
+	}
+	return 1, nil
+}
+
+func (m *mockChatRepository) ListTenantUsers(ctx context.Context) ([]domain.SessionUser, error) {
+	user, err := domain.NewSessionUser(1, "Test", "User")
+	if err != nil {
+		return nil, err
+	}
+	return []domain.SessionUser{user}, nil
+}
+
 func (m *mockChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.sessions, id)
 	delete(m.messages, id)
 	return nil
 }
 
 func (m *mockChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	sessionID := msg.SessionID()
 	m.messages[sessionID] = append(m.messages[sessionID], msg)
 	return nil
 }
 
 func (m *mockChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	for _, msgs := range m.messages {
 		for _, msg := range msgs {
 			if msg.ID() == id {
@@ -385,14 +531,18 @@ func (m *mockChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (type
 }
 
 func (m *mockChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	msgs, exists := m.messages[sessionID]
 	if !exists {
 		return []types.Message{}, nil
 	}
-	return msgs, nil
+	return append([]types.Message(nil), msgs...), nil
 }
 
 func (m *mockChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	messages := m.messages[sessionID]
 	filtered := make([]types.Message, 0, len(messages))
 	var deleted int64
@@ -408,11 +558,15 @@ func (m *mockChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID
 }
 
 func (m *mockChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.attachments[attachment.ID()] = attachment
 	return nil
 }
 
 func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (domain.Attachment, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	att, exists := m.attachments[id]
 	if !exists {
 		return nil, errors.New("attachment not found")
@@ -421,24 +575,35 @@ func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (d
 }
 
 func (m *mockChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]domain.Attachment, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	atts := make([]domain.Attachment, 0, len(m.attachments))
 	for _, att := range m.attachments {
+		if att.MessageID() != messageID {
+			continue
+		}
 		atts = append(atts, att)
 	}
 	return atts, nil
 }
 
 func (m *mockChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.attachments, id)
 	return nil
 }
 
 func (m *mockChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.artifacts[artifact.ID()] = artifact
 	return nil
 }
 
 func (m *mockChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	artifact, exists := m.artifacts[id]
 	if !exists {
 		return nil, errors.New("artifact not found")
@@ -447,6 +612,8 @@ func (m *mockChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (dom
 }
 
 func (m *mockChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	result := make([]domain.Artifact, 0)
 	for _, artifact := range m.artifacts {
 		if artifact.SessionID() == sessionID {
@@ -457,6 +624,8 @@ func (m *mockChatRepository) GetSessionArtifacts(ctx context.Context, sessionID 
 }
 
 func (m *mockChatRepository) DeleteSessionArtifacts(ctx context.Context, sessionID uuid.UUID) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var deleted int64
 	for id, artifact := range m.artifacts {
 		if artifact.SessionID() == sessionID {
@@ -468,6 +637,8 @@ func (m *mockChatRepository) DeleteSessionArtifacts(ctx context.Context, session
 }
 
 func (m *mockChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.artifacts, id)
 	return nil
 }
@@ -477,6 +648,8 @@ func (m *mockChatRepository) UpdateArtifact(ctx context.Context, id uuid.UUID, n
 }
 
 func (m *mockChatRepository) UpdateMessageQuestionData(ctx context.Context, msgID uuid.UUID, qd *types.QuestionData) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	msgs := m.messages
 	for sid, sessionMsgs := range msgs {
 		for i, msg := range sessionMsgs {
@@ -498,6 +671,8 @@ func (m *mockChatRepository) UpdateMessageQuestionData(ctx context.Context, msgI
 }
 
 func (m *mockChatRepository) GetPendingQuestionMessage(ctx context.Context, sessionID uuid.UUID) (types.Message, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	for _, msg := range m.messages[sessionID] {
 		if msg.HasPendingQuestion() {
 			return msg, nil
@@ -512,6 +687,10 @@ func (m *mockChatRepository) CreateRun(ctx context.Context, run domain.Generatio
 
 func (m *mockChatRepository) GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
 	return nil, domain.ErrNoActiveRun
+}
+
+func (m *mockChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
+	return nil, domain.ErrRunNotFound
 }
 
 func (m *mockChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
@@ -559,11 +738,11 @@ func TestProcessMessage_Success(t *testing.T) {
 	ctx = composables.WithTenantID(ctx, tenantID)
 
 	sessionID := uuid.New()
-	session := domain.NewSession(
-		domain.WithID(sessionID),
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(1),
-		domain.WithTitle("test"),
+	session := mustSession(t,
+		withSessionID(sessionID),
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(ctx, session))
 	content := "Hello, test agent!"
@@ -692,11 +871,11 @@ func TestProcessMessage_AppendsProjectPromptExtension(t *testing.T) {
 	ctx = composables.WithTenantID(ctx, tenantID)
 
 	sessionID := uuid.New()
-	session := domain.NewSession(
-		domain.WithID(sessionID),
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(1),
-		domain.WithTitle("test"),
+	session := mustSession(t,
+		withSessionID(sessionID),
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(ctx, session))
 
@@ -750,11 +929,11 @@ func TestProcessMessage_AppendsDebugPromptAfterProjectPromptExtension(t *testing
 	ctx = services.WithDebugMode(ctx, true)
 
 	sessionID := uuid.New()
-	session := domain.NewSession(
-		domain.WithID(sessionID),
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(1),
-		domain.WithTitle("test"),
+	session := mustSession(t,
+		withSessionID(sessionID),
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(ctx, session))
 
@@ -827,11 +1006,11 @@ Inspect schema and retry safely.
 	ctx = composables.WithTenantID(ctx, tenantID)
 
 	sessionID := uuid.New()
-	session := domain.NewSession(
-		domain.WithID(sessionID),
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(1),
-		domain.WithTitle("test"),
+	session := mustSession(t,
+		withSessionID(sessionID),
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(ctx, session))
 
@@ -894,11 +1073,11 @@ func TestProcessMessage_NoSkillsConfiguredDoesNotInjectReference(t *testing.T) {
 	ctx = composables.WithTenantID(ctx, tenantID)
 
 	sessionID := uuid.New()
-	session := domain.NewSession(
-		domain.WithID(sessionID),
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(1),
-		domain.WithTitle("test"),
+	session := mustSession(t,
+		withSessionID(sessionID),
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(ctx, session))
 
@@ -966,11 +1145,11 @@ func TestProcessMessage_InjectsRuntimeToolsIntoModelRequest(t *testing.T) {
 	ctx = composables.WithTenantID(ctx, tenantID)
 
 	sessionID := uuid.New()
-	session := domain.NewSession(
-		domain.WithID(sessionID),
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(1),
-		domain.WithTitle("test"),
+	session := mustSession(t,
+		withSessionID(sessionID),
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(ctx, session))
 
@@ -1064,12 +1243,12 @@ func TestProcessMessage_ForwardsSessionPreviousResponseID(t *testing.T) {
 	ctx = composables.WithTenantID(ctx, tenantID)
 
 	sessionID := uuid.New()
-	session := domain.NewSession(
-		domain.WithID(sessionID),
-		domain.WithTenantID(tenantID),
-		domain.WithUserID(1),
-		domain.WithTitle("continuity"),
-		domain.WithLLMPreviousResponseID("resp_prev_42"),
+	session := mustSession(t,
+		withSessionID(sessionID),
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("continuity"),
+		withSessionLLMPreviousResponseID("resp_prev_42"),
 	)
 	require.NoError(t, chatRepo.CreateSession(ctx, session))
 

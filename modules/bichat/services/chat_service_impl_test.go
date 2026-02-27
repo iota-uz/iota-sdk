@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,10 +25,10 @@ func TestChatService_UnarchiveSession(t *testing.T) {
 	chatRepo := newMockChatRepository()
 	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("t"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("t"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -49,12 +51,12 @@ func TestChatService_ClearSessionHistory(t *testing.T) {
 	chatRepo := newMockChatRepository()
 	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("keep me"),
-		domain.WithPinned(true),
-		domain.WithLLMPreviousResponseID("resp_prev_clear"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("keep me"),
+		withSessionPinned(true),
+		withSessionLLMPreviousResponseID("resp_prev_clear"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -103,11 +105,11 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 	model.response.Message = types.AssistantMessage("## Conversation Summary\nCompacted response")
 	svc := NewChatService(chatRepo, nil, model, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("to compact"),
-		domain.WithLLMPreviousResponseID("resp_prev_compact"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("to compact"),
+		withSessionLLMPreviousResponseID("resp_prev_compact"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -146,10 +148,10 @@ func TestChatService_CompactSessionHistory_EmptyHistory(t *testing.T) {
 	model := newMockModel()
 	svc := NewChatService(chatRepo, nil, model, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("empty"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("empty"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -171,13 +173,13 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("replace"),
-		domain.WithLLMPreviousResponseID("resp_prev_replace"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("replace"),
+		withSessionLLMPreviousResponseID("resp_prev_replace"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -224,12 +226,12 @@ func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *tes
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil).(*chatServiceImpl)
+	svc := NewChatService(chatRepo, nil, nil, nil, nil)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("replace"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("replace"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -246,10 +248,10 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("resume interrupt"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("resume interrupt"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -327,10 +329,10 @@ func TestChatService_ResumeWithAnswer_UsesCanonicalCheckpointAndNormalizesLabels
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("resume canonical checkpoint"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("resume canonical checkpoint"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -388,10 +390,10 @@ func TestChatService_ResumeWithAnswer_CheckpointNotFoundFinalizesAnswered(t *tes
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("resume stale checkpoint"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("resume stale checkpoint"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -445,10 +447,10 @@ func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("reject stale checkpoint"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("reject stale checkpoint"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -492,14 +494,313 @@ func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t
 	assert.False(t, messages[0].HasPendingQuestion())
 }
 
+func TestChatService_ResumeWithAnswer_TriggersTitleGenerationAfterCompletion(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("Untitled Session"),
+	)
+	require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
+
+	qd, err := types.NewQuestionData("cp-title-resume", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	agentSvc := &stubAgentService{
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	_, err = svc.ResumeWithAnswer(env.Ctx, bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-title-resume",
+		Answers: map[string]string{
+			"scope": "all",
+		},
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-titleService.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected title generation after HITL resume completion")
+	}
+}
+
+func TestChatService_ResumeWithAnswer_DoesNotTriggerTitleGenerationWhenInterruptContinues(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("Untitled Session"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-title-resume-continued", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	agentSvc := &stubAgentService{
+		resumeEvents: []agents.ExecutorEvent{
+			{
+				Type: agents.EventTypeInterrupt,
+				ParsedInterrupt: &agents.ParsedInterrupt{
+					CheckpointID: "cp-next-continued",
+					AgentName:    "ali",
+					Questions: []agents.Question{
+						{
+							ID:   "scope",
+							Text: "Scope?",
+							Type: agents.QuestionTypeSingleChoice,
+							Options: []agents.QuestionOption{
+								{ID: "sold", Label: "Sold only"},
+								{ID: "all", Label: "All policies"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	_, err = svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-title-resume-continued",
+		Answers: map[string]string{
+			"scope": "all",
+		},
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-titleService.called:
+		t.Fatal("did not expect title generation while HITL interrupt continues")
+	default:
+	}
+}
+
+func TestChatService_RejectPendingQuestion_TriggersTitleGenerationAfterCompletion(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("Untitled Session"),
+	)
+	require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
+
+	qd, err := types.NewQuestionData("cp-title-reject", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	agentSvc := &stubAgentService{
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	_, err = svc.RejectPendingQuestion(env.Ctx, session.ID())
+	require.NoError(t, err)
+
+	select {
+	case <-titleService.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected title generation after HITL reject completion")
+	}
+}
+
+func TestChatService_ResumeWithAnswerAsync_TriggersTitleGenerationAfterCompletion(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("Untitled Session"),
+	)
+	require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
+
+	qd, err := types.NewQuestionData("cp-title-resume-async", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(env.Ctx, pendingMsg))
+
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	agentSvc := &stubAgentService{
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	_, err = svc.ResumeWithAnswerAsync(env.Ctx, bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-title-resume-async",
+		Answers: map[string]string{
+			"scope": "all",
+		},
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-titleService.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected title generation after async HITL resume completion")
+	}
+}
+
+func TestChatService_RejectPendingQuestionAsync_TriggersTitleGenerationAfterCompletion(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("Untitled Session"),
+	)
+	require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
+
+	qd, err := types.NewQuestionData("cp-title-reject-async", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(env.Ctx, pendingMsg))
+
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	agentSvc := &stubAgentService{
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	_, err = svc.RejectPendingQuestionAsync(env.Ctx, session.ID())
+	require.NoError(t, err)
+
+	select {
+	case <-titleService.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected title generation after async HITL reject completion")
+	}
+}
+
 func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("Generating..."),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("Generating..."),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -558,10 +859,10 @@ func TestChatService_SendMessageStream_DoneEmittedAfterAssistantPersistence(t *t
 		mockChatRepository: baseRepo,
 		delay:              120 * time.Millisecond,
 	}
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("stream ordering"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("stream ordering"),
 	)
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 
@@ -607,10 +908,10 @@ func TestChatService_SendMessageStream_ClearsRequestTxForAsyncPersistence(t *tes
 
 	baseRepo := newMockChatRepository()
 	chatRepo := &assistantFailsWhenTxPresentRepo{mockChatRepository: baseRepo}
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("tx isolation"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("tx isolation"),
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 
@@ -757,6 +1058,35 @@ func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T
 	}
 }
 
+func TestChatService_MaybeGenerateTitleAsync_IgnoresNilWrappedQueue(t *testing.T) {
+	t.Parallel()
+
+	env := itf.Setup(
+		t,
+		itf.WithModules(modules.BuiltInModules...),
+	)
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	var queue *RedisTitleJobQueue
+	svc := &chatServiceImpl{
+		titleService: titleService,
+		titleQueue:   queue,
+	}
+
+	sessionID := uuid.New()
+	svc.maybeGenerateTitleAsync(env.Ctx, sessionID)
+
+	select {
+	case titleCtx := <-titleService.called:
+		gotTenantID, err := composables.UseTenantID(titleCtx)
+		require.NoError(t, err)
+		assert.Equal(t, env.Tenant.ID, gotTenantID)
+	default:
+		t.Fatal("expected sync fallback title generation to be invoked")
+	}
+}
+
 func TestChatService_GenerateSessionTitle_UsesRegenerationService(t *testing.T) {
 	t.Parallel()
 
@@ -842,10 +1172,10 @@ func TestChatService_SendMessageStream_ClientDisconnectStillPersistsAssistant(t 
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("stop test"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("stop test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 
@@ -902,10 +1232,10 @@ func TestChatService_SendMessageStream_StopGenerationDoesNotPersistAssistant(t *
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("stop test"),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("stop test"),
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 

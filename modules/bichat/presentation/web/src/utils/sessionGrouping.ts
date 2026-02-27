@@ -1,3 +1,5 @@
+import { SessionAccess, SessionUser } from '../rpc.generated'
+
 import { differenceInDays, startOfDay } from 'date-fns'
 
 /**
@@ -9,6 +11,10 @@ export interface ChatSession {
   createdAt: string
   updatedAt: string
   pinned?: boolean
+  isGroup?: boolean
+  memberCount?: number
+  owner?: SessionUser
+  access?: SessionAccess
 }
 
 /**

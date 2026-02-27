@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,10 +18,10 @@ func TestSessionTitleService_NoMessagesUsesDeterministicFallback(t *testing.T) {
 	service, err := NewSessionTitleService(model, chatRepo, nil)
 	require.NoError(t, err)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle(""),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle(""),
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 
@@ -43,10 +42,10 @@ func TestSessionTitleService_ModelFailureFallsBackToExtractedTitle(t *testing.T)
 	service, err := NewSessionTitleService(model, chatRepo, nil)
 	require.NoError(t, err)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle("   "),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("   "),
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 	require.NoError(t, chatRepo.SaveMessage(context.Background(), types.UserMessage("monthly revenue by region", types.WithSessionID(session.ID()))))
@@ -68,10 +67,10 @@ func TestSessionTitleService_NoUserMessageFallsBackToUntitled(t *testing.T) {
 	service, err := NewSessionTitleService(model, chatRepo, nil)
 	require.NoError(t, err)
 
-	session := domain.NewSession(
-		domain.WithTenantID(uuid.New()),
-		domain.WithUserID(1),
-		domain.WithTitle(""),
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle(""),
 	)
 	require.NoError(t, chatRepo.CreateSession(context.Background(), session))
 	require.NoError(t, chatRepo.SaveMessage(context.Background(), types.AssistantMessage("hello", types.WithSessionID(session.ID()))))

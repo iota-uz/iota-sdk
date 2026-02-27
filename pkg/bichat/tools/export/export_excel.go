@@ -3,9 +3,10 @@ package export
 import (
 	"context"
 	"fmt"
-	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"os"
 	"path/filepath"
+
+	tools "github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"

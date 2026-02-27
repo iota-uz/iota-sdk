@@ -2,6 +2,8 @@ package domain
 
 import (
 	"fmt"
+	"mime"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -74,6 +76,96 @@ type artifact struct {
 
 // ArtifactOption is a functional option for creating artifacts.
 type ArtifactOption func(*artifact)
+
+// ArtifactSpec validates artifact creation invariants.
+type ArtifactSpec struct {
+	ID             uuid.UUID
+	TenantID       uuid.UUID
+	SessionID      uuid.UUID
+	MessageID      *uuid.UUID
+	UploadID       *int64
+	Type           ArtifactType
+	Name           string
+	Description    string
+	MimeType       string
+	URL            string
+	SizeBytes      int64
+	Metadata       map[string]any
+	Status         ArtifactStatus
+	IdempotencyKey string
+	CreatedAt      time.Time
+}
+
+var (
+	ErrInvalidArtifact = fmt.Errorf("invalid artifact")
+)
+
+// NewArtifactFromSpec creates an artifact with normalized fields and strict invariants.
+func NewArtifactFromSpec(spec ArtifactSpec) (Artifact, error) {
+	if spec.TenantID == uuid.Nil || spec.SessionID == uuid.Nil {
+		return nil, ErrInvalidArtifact
+	}
+	artifactType := ArtifactType(strings.TrimSpace(string(spec.Type)))
+	if artifactType == "" {
+		artifactType = ArtifactTypeCodeOutput
+	}
+	if artifactType == ArtifactTypeAttachment && spec.UploadID == nil {
+		return nil, ErrInvalidArtifact
+	}
+
+	name := strings.TrimSpace(spec.Name)
+	if name == "" {
+		name = "artifact"
+	}
+	mimeType := strings.TrimSpace(spec.MimeType)
+	if mimeType == "" {
+		ext := strings.ToLower(path.Ext(name))
+		if ext != "" {
+			mimeType = mime.TypeByExtension(ext)
+		}
+	}
+
+	idempotency := strings.TrimSpace(spec.IdempotencyKey)
+	if spec.MessageID != nil && idempotency == "" {
+		return nil, ErrInvalidArtifact
+	}
+
+	id := spec.ID
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+	createdAt := spec.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
+	status := spec.Status
+	if status == "" {
+		status = ArtifactStatusAvailable
+	}
+
+	metadata := make(map[string]any)
+	for k, v := range spec.Metadata {
+		metadata[k] = v
+	}
+
+	return &artifact{
+		id:           id,
+		tenantID:     spec.TenantID,
+		sessionID:    spec.SessionID,
+		messageID:    spec.MessageID,
+		uploadID:     spec.UploadID,
+		artifactType: artifactType,
+		name:         name,
+		description:  strings.TrimSpace(spec.Description),
+		mimeType:     mimeType,
+		url:          strings.TrimSpace(spec.URL),
+		sizeBytes:    spec.SizeBytes,
+		metadata:     metadata,
+		status:       status,
+		idempotency:  idempotency,
+		createdAt:    createdAt,
+	}, nil
+}
 
 // NewArtifact creates a new artifact with the given options.
 func NewArtifact(opts ...ArtifactOption) Artifact {
