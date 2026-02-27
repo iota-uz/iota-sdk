@@ -11,11 +11,11 @@ The Core module provides foundational functionality for IOTA SDK platform. Every
 
 The Core module handles:
 - User authentication and authorization
-- Role-based access control (RBAC: %v", err)
+- Role-based access control (RBAC)
 - File uploads and management
 - Session management
 - Currency definitions
-- Tenant management (in multi-tenant mode: %v", err)
+- Tenant management (in multi-tenant mode)
 
 ## Key Concepts
 
@@ -47,7 +47,7 @@ Cookie-based session management:
 ### Upload
 
 File upload handling with:
-- Hash-based storage (deduplication: %v", err)
+- Hash-based storage (deduplication)
 - Size and type validation
 - Multiple upload support
 - Secure file serving
@@ -89,7 +89,7 @@ graph TB
 
 User management including:
 - Profile management
-- Password management (bcrypt hashed: %v", err)
+- Password management (bcrypt hashed)
 - Avatar uploads
 - Account blocking
 - UI language preferences
@@ -148,7 +148,7 @@ The Core module exposes GraphQL endpoints:
 | **User** | user, users | createUser, updateUser |
 | **Upload** | upload, uploads | createUpload |
 | **Auth** | me | login, logout |
-| **Session** | sessions | revokeSession |
+| **Session** | — | deleteSession(token: String!) |
 
 See [API Reference](/api/core) for detailed schema documentation.
 
@@ -164,7 +164,7 @@ Standard REST endpoints for form submissions:
 | `/users/:id` | PUT | Update user |
 | `/users/:id` | DELETE | Delete user |
 | `/login` | POST | Authenticate |
-| `/logout` | POST | End session |
+| `/logout` | GET | End session |
 
 ## Permissions
 
@@ -172,19 +172,19 @@ Standard REST endpoints for form submissions:
 
 | Permission | Description |
 |------------|-------------|
-| `users.view` | View user list and details |
-| `users.create` | Create new users |
-| `users.edit` | Modify existing users |
-| `users.delete` | Remove users |
-| `roles.view` | View roles |
-| `roles.create` | Create roles |
-| `roles.edit` | Modify roles |
-| `roles.delete` | Delete roles |
-| `uploads.view` | View uploads |
-| `uploads.create` | Upload files |
-| `uploads.delete` | Delete uploads |
-| `settings.view` | View settings |
-| `settings.edit` | Modify settings |
+| `User.Read` | View user list and details |
+| `User.Create` | Create new users |
+| `User.Update` | Modify existing users |
+| `User.Delete` | Remove users |
+| `Role.Read` | View roles |
+| `Role.Create` | Create roles |
+| `Role.Update` | Modify roles |
+| `Role.Delete` | Delete roles |
+| `Upload.Read` | View uploads |
+| `Upload.Create` | Upload files |
+| `Upload.Delete` | Delete uploads |
+| `Setting.Read` | View settings |
+| `Setting.Update` | Modify settings |
 
 ### Default Roles
 
@@ -247,14 +247,13 @@ Configure during registration:
 
 | Variable | Purpose |
 |----------|---------|
-| `SESSION_SECRET` | Session encryption key |
-| `SESSION_TIMEOUT` | Session duration |
+| `SESSION_DURATION` | Session duration |
 | `MAX_UPLOAD_SIZE` | File upload limit |
-| `UPLOAD_PATH` | File storage directory |
+| `UPLOADS_PATH` | File storage directory |
 
 ## Usage
 
-The Core module is automatically registered during application initialization. If needed, you can also manually call `app.RegisterCoreModule()` to explicitly register the module. The framework auto-registers this module by default, providing services used throughout the platform.
+The Core module is included in `BuiltInModules` and registered via `modules.Load(app, modules.BuiltInModules...)`. Do not call a separate register function; use `app.RegisterModule(module)` only when adding custom modules.
 
 ## Best Practices
 

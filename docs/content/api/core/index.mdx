@@ -124,12 +124,20 @@ Delete a user.
 deleteUser(id: ID!): Boolean!
 ```
 
-### createUpload
+### uploadFile
 
 Upload a new file.
 
 ```graphql
-createUpload(file: Upload!): Upload!
+uploadFile(file: File, opts: UploadFileOpts): Upload!
+```
+
+### uploadFileWithSlug
+
+Upload a file with a custom slug.
+
+```graphql
+uploadFileWithSlug(file: File, slug: String!, opts: UploadFileOpts): Upload!
 ```
 
 ### login
