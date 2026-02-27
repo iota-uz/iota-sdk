@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
@@ -121,8 +122,8 @@ func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, amount
 
 	apiClient := newApiClient(o.logger)
 
-	// ShopRefundId should be unique, using transaction ID with suffix for now
-	shopRefundId := fmt.Sprintf("ref_%s_%d", t.ID().String(), t.UpdatedAt().Unix())
+	// ShopRefundId should be unique, using transaction ID with nano timestamp for better uniqueness
+	shopRefundId := fmt.Sprintf("ref_%s_%d", t.ID().String(), time.Now().UnixNano())
 
 	req := octoapi.RefundRequest{
 		OctoShopId:      o.config.OctoShopID,
@@ -151,12 +152,13 @@ func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, amount
 		return nil, serrors.E(op, serrors.Internal, fmt.Sprintf("octo refund error: %s", resp.GetErrMessage()))
 	}
 
+	totalRefunded := octoDetails.RefundedSum() + amount
 	if resp.Data != nil {
-		octoDetails = octoDetails.SetRefundedSum(octoDetails.RefundedSum() + amount)
+		octoDetails = octoDetails.SetRefundedSum(totalRefunded)
 	}
 
 	newStatus := billing.PartiallyRefunded
-	if amount >= t.Amount().Quantity()-0.001 {
+	if totalRefunded >= t.Amount().Quantity()-0.001 {
 		newStatus = billing.Refunded
 	}
 

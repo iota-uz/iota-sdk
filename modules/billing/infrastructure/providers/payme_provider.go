@@ -184,6 +184,10 @@ func (p *paymeProvider) Refund(ctx context.Context, t billing.Transaction, amoun
 		return nil, serrors.E(op, serrors.Invalid, "partial refunds are not supported by this Payme implementation")
 	}
 
+	if amount > t.Amount().Quantity()+0.001 {
+		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid refund amount: %f. Amount exceeds transaction total: %f", amount, t.Amount().Quantity()))
+	}
+
 	var result struct {
 		CancelTime int64 `json:"cancel_time"`
 		State      int32 `json:"state"`
@@ -206,9 +210,10 @@ func (p *paymeProvider) Refund(ctx context.Context, t billing.Transaction, amoun
 }
 
 func toPaymeDetails(detailsObj details.Details) (details.PaymeDetails, error) {
+	const op serrors.Op = "toPaymeDetails"
 	paymeDetails, ok := detailsObj.(details.PaymeDetails)
 	if !ok {
-		return nil, serrors.E(serrors.Invalid, fmt.Sprintf("failed to cast details to PaymeDetails: invalid type %T", detailsObj))
+		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("failed to cast details to PaymeDetails: invalid type %T", detailsObj))
 	}
 	return paymeDetails, nil
 }

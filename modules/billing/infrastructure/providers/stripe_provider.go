@@ -144,6 +144,10 @@ func (s *stripeProvider) Refund(_ context.Context, t billing.Transaction, amount
 		return nil, serrors.E(op, serrors.Invalid, "refund amount must be positive")
 	}
 
+	if amount > t.Amount().Quantity()+0.001 {
+		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid refund amount: %f. Amount exceeds transaction total: %f", amount, t.Amount().Quantity()))
+	}
+
 	params := &stripe.RefundParams{
 		PaymentIntent: stripe.String(stripeDetails.PaymentIntentID()),
 		Amount:        stripe.Int64(int64(math.Round(amount * 100))),

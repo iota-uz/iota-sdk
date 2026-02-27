@@ -125,6 +125,14 @@ func (p *clickProvider) Refund(ctx context.Context, t billing.Transaction, amoun
 		return nil, serrors.E(op, err)
 	}
 
+	if amount <= 0 {
+		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid refund amount: %f. Amount must be positive", amount))
+	}
+
+	if amount > t.Amount().Quantity()+0.001 {
+		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid refund amount: %f. Amount exceeds transaction total: %f", amount, t.Amount().Quantity()))
+	}
+
 	if clickDetails.PaymentID() == 0 {
 		return nil, serrors.E(op, serrors.Invalid, "cannot refund: click payment_id not found in details")
 	}

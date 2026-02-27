@@ -19,6 +19,9 @@ type User struct {
 }
 
 func (u *User) Title() string {
+	if u == nil {
+		return "Unknown User"
+	}
 	firstName := strings.TrimSpace(u.FirstName)
 	lastName := strings.TrimSpace(u.LastName)
 

@@ -50,6 +50,7 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 	ctx := r.Context()
 	conf := configuration.Use()
 	if !isSameOrigin(r, conf) {
+		writeHeaders(w, nil)
 		w.WriteHeader(http.StatusForbidden)
 		gqlErr := gqlerror.Errorf("origin not allowed")
 		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
