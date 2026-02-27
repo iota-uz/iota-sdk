@@ -14,8 +14,8 @@ This module handles:
 - Multi-currency money accounts
 - Financial transaction recording
 - Counterparty (client/supplier) management
-- Debt tracking (receivables and payables: %v", err)
-- Financial reporting (Income Statement, Cashflow: %v", err)
+- Debt tracking (receivables and payables)
+- Financial reporting (Income Statement, Cashflow)
 
 ## Key Concepts
 
@@ -32,7 +32,7 @@ Financial accounts that hold funds:
 Income transactions representing money coming in:
 - Categorized by PaymentCategory
 - Linked to MoneyAccount
-- Can have attachments (documents, receipts: %v", err)
+- Can have attachments (documents, receipts)
 - Associated with Counterparty
 
 ### Expense
@@ -168,8 +168,8 @@ Outgoing transaction tracking:
 ### Categories
 
 Hierarchical categorization:
-- **Payment Categories** - Income types (Sales, Services, etc.: %v", err)
-- **Expense Categories** - Spending types (Rent, Salaries, etc.: %v", err)
+- **Payment Categories** - Income types (Sales, Services, etc.)
+- **Expense Categories** - Spending types (Rent, Salaries, etc.)
 - Nested categories supported
 
 ### Transactions
@@ -230,20 +230,7 @@ Individual account reports:
 
 ## API Reference
 
-### GraphQL Schema
-
-The Finance module exposes GraphQL endpoints for:
-
-| Entity | Queries | Mutations |
-|--------|---------|-----------|
-| **MoneyAccount** | account, accounts | createAccount, updateAccount |
-| **Payment** | payment, payments | createPayment, updatePayment |
-| **Expense** | expense, expenses | createExpense, updateExpense |
-| **Transaction** | transaction, transactions | createTransaction |
-| **Counterparty** | counterparty, counterparties | createCounterparty |
-| **Debt** | debt, debts | createDebt, updateDebt |
-
-See [API Reference](/api) for detailed schema.
+The Finance module does not register a GraphQL schema. It exposes **REST endpoints and server-rendered UI** only (e.g. `/finance/accounts`, `/finance/payments`, `/finance/expenses`). Use the Core and Warehouse modules for GraphQL APIs.
 
 ## Permissions
 
