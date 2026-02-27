@@ -286,18 +286,18 @@ func TestRolesController_Update_PermissionScenarios(t *testing.T) {
 
 			response.Assert(t).ExpectStatus(302)
 
-				updatedRole, err := roleRepository.GetByID(suite.Env().Ctx, createdRole.ID())
-				require.NoError(t, err)
+			updatedRole, err := roleRepository.GetByID(suite.Env().Ctx, createdRole.ID())
+			require.NoError(t, err)
 
-				assert.Equal(t, tc.formDescription, updatedRole.Description())
+			assert.Equal(t, tc.formDescription, updatedRole.Description())
 
-				actualPermissions := make([]string, 0, len(updatedRole.Permissions()))
+			actualPermissions := make([]string, 0, len(updatedRole.Permissions()))
 
-				for _, p := range updatedRole.Permissions() {
-					actualPermissions = append(actualPermissions, p.Name())
-				}
+			for _, p := range updatedRole.Permissions() {
+				actualPermissions = append(actualPermissions, p.Name())
+			}
 
-				assert.ElementsMatch(t, tc.expectedPermissions, actualPermissions)
-			})
-		}
+			assert.ElementsMatch(t, tc.expectedPermissions, actualPermissions)
+		})
 	}
+}
