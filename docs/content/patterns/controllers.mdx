@@ -412,10 +412,8 @@ func (c *ExpenseController) Delete(...) {
 	// ... deletion logic
 	
 	if htmx.IsHxRequest(r) {
-		// Return empty response with trigger
-		htmx.SetTrigger(w, "expenseDeleted", map[string]string{
-			"id": id.String(),
-		})
+		// Return empty response with trigger (detail is a string, e.g. ID or JSON)
+		htmx.SetTrigger(w, "expenseDeleted", id.String())
 	} else {
 		shared.Redirect(w, r, c.basePath)
 	}
@@ -599,31 +597,17 @@ func TestExpenseController_Create(t *testing.T) {
 	defer env.Teardown()
 
 	t.Run("create expense", func(t *testing.T) {
-		// Create test user with permissions
-		testUser := itf.User(permissions.ExpenseCreate)
-		ctx := composables.WithUser(env.Ctx, testUser)
-
-		// Create category and account first
-		category := createTestCategory(env.DB(), testUser.TenantID())
-		account := createTestAccount(env.DB(), testUser.TenantID())
-
-		// Submit form
-		resp := itf.DoRequest(itf.NewRequest(t, http.MethodPost, "/finance/expenses", 
-			strings.NewReader(url.Values{
-				"Amount":           {"100.00"},
-				"AccountID":        {account.ID.String()},
-				"CategoryID":       {category.ID.String()},
-				"Comment":          {"Test expense"},
-				"AccountingPeriod": {time.Now().Format("2006-01-02")},
-				"Date":             {time.Now().Format("2006-01-02")},
-			}.Encode()),
-			itf.WithCookies(cookies),
-			itf.WithHeader("Content-Type", "application/x-www-form-urlencoded"),
-		))
-
-		// Assert redirect
-		assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
-		assert.Contains(t, resp.Header.Get("Location"), "/finance/expenses")
+		suite := itf.HTTP(t, modules.BuiltInModules...)
+		// Create test user with permissions, category, account (e.g. via testkit seed or helpers)
+		// Submit form using suite POST + Form + Expect
+		suite.POST("/finance/expenses").Form(url.Values{
+			"Amount":           {"100.00"},
+			"AccountID":        {account.ID.String()},
+			"CategoryID":       {category.ID.String()},
+			"Comment":          {"Test expense"},
+			"AccountingPeriod": {time.Now().Format("2006-01-02")},
+			"Date":             {time.Now().Format("2006-01-02")},
+		}).Expect(t).Status(http.StatusSeeOther).RedirectTo("/finance/expenses")
 	})
 }
 ```
