@@ -53,9 +53,9 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Delete", func(t *testing.T) {
-			err := roleRepository.Delete(f.Ctx, 1)
+			err := roleRepository.Delete(f.Ctx, roleEntity.ID())
 			require.NoError(t, err)
-			_, err = roleRepository.GetByID(f.Ctx, 1)
+			_, err = roleRepository.GetByID(f.Ctx, roleEntity.ID())
 			require.Error(t, err)
 		},
 	)
@@ -130,19 +130,19 @@ func TestGormRoleRepository_CreatePermissionResolutionScenarios(t *testing.T) {
 						permission.WithModifier(permission.ModifierAll),
 					),
 				})
-			},
-			assertCreate: func(t *testing.T, createdRole role.Role) {
-				createdPermission := createdRole.Permissions()[0]
-				require.Len(t, createdRole.Permissions(), 1)
-				assert.Equal(t, legacyPermissionID, createdPermission.ID())
-				assert.Equal(t, permission.ActionUpdate, createdPermission.Action())
-			},
-			assertUpdate: func(t *testing.T, updatedRole role.Role) {
-				updatedPermission := updatedRole.Permissions()[0]
-				require.Len(t, updatedRole.Permissions(), 1)
-				assert.Equal(t, legacyPermissionID, updatedPermission.ID())
-				assert.Equal(t, permission.ActionDelete, updatedPermission.Action())
-			},
+				},
+				assertCreate: func(t *testing.T, createdRole role.Role) {
+					require.Len(t, createdRole.Permissions(), 1)
+					createdPermission := createdRole.Permissions()[0]
+					assert.Equal(t, legacyPermissionID, createdPermission.ID())
+					assert.Equal(t, permission.ActionUpdate, createdPermission.Action())
+				},
+				assertUpdate: func(t *testing.T, updatedRole role.Role) {
+					require.Len(t, updatedRole.Permissions(), 1)
+					updatedPermission := updatedRole.Permissions()[0]
+					assert.Equal(t, legacyPermissionID, updatedPermission.ID())
+					assert.Equal(t, permission.ActionDelete, updatedPermission.Action())
+				},
 		},
 	}
 

@@ -286,25 +286,18 @@ func TestRolesController_Update_PermissionScenarios(t *testing.T) {
 
 			response.Assert(t).ExpectStatus(302)
 
-			updatedRole, err := roleRepository.GetByID(suite.Env().Ctx, createdRole.ID())
-			require.NoError(t, err)
+				updatedRole, err := roleRepository.GetByID(suite.Env().Ctx, createdRole.ID())
+				require.NoError(t, err)
 
-			assert.Equal(t, tc.formDescription, updatedRole.Description())
+				assert.Equal(t, tc.formDescription, updatedRole.Description())
 
-			foundExpectedPermissions := map[string]bool{}
-			for _, permissionName := range tc.expectedPermissions {
-				foundExpectedPermissions[permissionName] = false
-			}
+				actualPermissions := make([]string, 0, len(updatedRole.Permissions()))
 
-			for _, p := range updatedRole.Permissions() {
-				if _, ok := foundExpectedPermissions[p.Name()]; ok {
-					foundExpectedPermissions[p.Name()] = true
+				for _, p := range updatedRole.Permissions() {
+					actualPermissions = append(actualPermissions, p.Name())
 				}
-			}
 
-			for permissionName, found := range foundExpectedPermissions {
-				assert.True(t, found, "expected role to include permission %q after update", permissionName)
-			}
-		})
+				assert.ElementsMatch(t, tc.expectedPermissions, actualPermissions)
+			})
+		}
 	}
-}

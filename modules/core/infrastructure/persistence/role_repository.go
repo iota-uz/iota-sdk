@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var (
@@ -36,7 +37,7 @@ const (
 			p.description,
 			rp.role_id
 		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1)`
-	roleCountQuery              = `SELECT COUNT(DISTINCT roles.id) FROM roles WHERE tenant_id = $1`
+	roleCountQuery              = `SELECT COUNT(DISTINCT r.id) FROM roles r WHERE r.tenant_id = $1`
 	roleInsertQuery             = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
 	roleUpdateQuery             = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
 	permissionUpsertByNameQuery = `
@@ -143,9 +144,14 @@ func (g *GormRoleRepository) Count(ctx context.Context, params *role.FindParams)
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	if params == nil {
 		var count int64
-		if err := tx.QueryRow(ctx, roleCountQuery).Scan(&count); err != nil {
+		if err := tx.QueryRow(ctx, roleCountQuery, tenantID.String()).Scan(&count); err != nil {
 			return 0, errors.Wrap(err, "failed to count roles")
 		}
 		return count, nil
@@ -249,18 +255,19 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 }
 
 func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.Role, error) {
+	op := serrors.Op("RoleRepository.Update")
 	dbRole, dbPermissions := toDBRole(data)
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, serrors.E(op, err)
 	}
 
 	dbRole.TenantID = tenantID.String()
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tx from ctx")
+		return nil, serrors.E(op, err)
 	}
 
 	updateTag, err := tx.Exec(
@@ -273,7 +280,7 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 		dbRole.TenantID,
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to update role")
+		return nil, serrors.E(op, err)
 	}
 	if updateTag.RowsAffected() == 0 {
 		return nil, ErrRoleNotFound
@@ -285,20 +292,20 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 		dbRole.ID,
 		dbRole.TenantID,
 	); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	for _, permission := range dbPermissions {
 		permissionID, err := g.upsertPermissionAndGetID(ctx, permission)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		if err := g.execQuery(ctx, roleInsertPermissionQuery,
 			dbRole.ID,
 			permissionID,
 			dbRole.TenantID,
 		); err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 	}
 	return g.GetByID(ctx, dbRole.ID)
@@ -415,9 +422,10 @@ func (g *GormRoleRepository) execQuery(ctx context.Context, query string, args .
 }
 
 func (g *GormRoleRepository) upsertPermissionAndGetID(ctx context.Context, permission *models.Permission) (string, error) {
+	op := serrors.Op("RoleRepository.upsertPermissionAndGetID")
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to get tx from ctx")
+		return "", serrors.E(op, err)
 	}
 
 	var permissionID string
@@ -431,7 +439,7 @@ func (g *GormRoleRepository) upsertPermissionAndGetID(ctx context.Context, permi
 		permission.Modifier,
 		permission.Description,
 	).Scan(&permissionID); err != nil {
-		return "", errors.Wrap(err, "failed to upsert permission by name")
+		return "", serrors.E(op, err)
 	}
 
 	return permissionID, nil
