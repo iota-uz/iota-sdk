@@ -29,12 +29,6 @@ func WithPageContext() mux.MiddlewareFunc {
 					Locale:    locale,
 				}
 				ctx := composables.WithPageCtx(r.Context(), pageCtx)
-				// Run host-defined access check after full page context is available
-				if UserAccessCheckFunc != nil {
-					if UserAccessCheckFunc(w, r.WithContext(ctx)) {
-						return
-					}
-				}
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)

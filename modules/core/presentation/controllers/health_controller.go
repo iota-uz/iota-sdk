@@ -12,19 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
-type HealthStatus string
-
-const (
-	HealthStatusHealthy   HealthStatus = "healthy"
-	HealthStatusUnhealthy HealthStatus = "unhealthy"
-	HealthStatusDegraded  HealthStatus = "degraded"
-	HealthStatusDown      HealthStatus = "down"
-)
-
-type HealthResponse struct {
-	Status HealthStatus `json:"status"`
-}
-
 func NewHealthController(app application.Application) application.Controller {
 	return &HealthController{
 		app: app,
@@ -47,25 +34,31 @@ func (c *HealthController) Register(r *mux.Router) {
 func (c *HealthController) Get(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
-	w.Header().Set("Content-Type", "application/json")
 
-	status := HealthStatusHealthy
+	w.Header().Set("Content-Type", "application/json")
+	status := "healthy"
 	httpStatus := http.StatusOK
 
 	if err := c.quickDBCheck(ctx); err != nil {
-		status = HealthStatusUnhealthy
+		status = "unhealthy"
 		httpStatus = http.StatusServiceUnavailable
 		logger.Warnf("Health check failed: %v", err)
 	}
 
-	w.WriteHeader(httpStatus)
+	spotlightCtx, spotlightCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer spotlightCancel()
+	if err := c.app.Spotlight().Readiness(spotlightCtx); err != nil {
+		status = "unhealthy"
+		httpStatus = http.StatusServiceUnavailable
+		logger.Warnf("Spotlight health check failed: %v", err)
+	}
 
-	if err := json.NewEncoder(w).Encode(HealthResponse{Status: status}); err != nil {
+	w.WriteHeader(httpStatus)
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": status}); err != nil {
 		logger.Errorf("Failed to write health response: %v", err)
 	}
 }
 
-// quickDBCheck performs a fast database ping for the health check.
 func (c *HealthController) quickDBCheck(ctx context.Context) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()

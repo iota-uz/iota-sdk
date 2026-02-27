@@ -57,7 +57,6 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.ProvideUser(),
 		middleware.ProvideLocalizer(g.app, middleware.LocaleOptions{AcceptLanguageHighPriority: true}),
-		middleware.WithPageContext(),
 	)
 
 	router.Handle("/query", srv)
