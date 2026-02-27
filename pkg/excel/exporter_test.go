@@ -225,59 +225,53 @@ func TestExcelExporter_ContextCancellation(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestExcelExporter_FormatsPgxNumericValues(t *testing.T) {
-	headers := []string{"Type", "Count", "Premium"}
-	var count pgtype.Numeric
-	var premium pgtype.Numeric
-	require.NoError(t, count.Scan("10844"))
-	require.NoError(t, premium.Scan("2387743666"))
+func TestExcelExporter_FormatsPgxNumericValues_Scenarios(t *testing.T) {
+	t.Parallel()
 
-	rows := [][]interface{}{
-		{"OSAGO", count, premium},
+	tests := []struct {
+		name     string
+		headers  []string
+		scan     string
+		cell     string
+		expected string
+	}{
+		{
+			name:     "integer_numeric_without_artifacts",
+			headers:  []string{"Type", "Count"},
+			scan:     "10844",
+			cell:     "B2",
+			expected: "10844",
+		},
+		{
+			name:     "decimal_numeric_without_artifacts",
+			headers:  []string{"Type", "Premium"},
+			scan:     "2387743666.1250",
+			cell:     "B2",
+			expected: "2387743666.1250",
+		},
 	}
 
-	ds := NewMockDataSource(headers, rows)
-	exporter := excel.NewExcelExporter(nil, nil)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var n pgtype.Numeric
+			require.NoError(t, n.Scan(tc.scan))
 
-	data, err := exporter.Export(context.Background(), ds)
-	require.NoError(t, err)
+			ds := NewMockDataSource(tc.headers, [][]interface{}{{"OSAGO", n}})
+			exporter := excel.NewExcelExporter(nil, nil)
 
-	f, err := excelize.OpenReader(bytes.NewReader(data))
-	require.NoError(t, err)
+			data, err := exporter.Export(context.Background(), ds)
+			require.NoError(t, err)
 
-	countCell, err := f.GetCellValue("TestSheet", "B2")
-	require.NoError(t, err)
-	assert.Equal(t, "10844", countCell)
-	assert.NotContains(t, countCell, "finite")
+			f, err := excelize.OpenReader(bytes.NewReader(data))
+			require.NoError(t, err)
 
-	premiumCell, err := f.GetCellValue("TestSheet", "C2")
-	require.NoError(t, err)
-	assert.Equal(t, "2387743666", premiumCell)
-	assert.NotContains(t, premiumCell, "finite")
-}
-
-func TestExcelExporter_FormatsPgxNumericDecimalWithoutArtifacts(t *testing.T) {
-	headers := []string{"Type", "Premium"}
-	var premium pgtype.Numeric
-	require.NoError(t, premium.Scan("2387743666.1250"))
-
-	rows := [][]interface{}{
-		{"OSAGO", premium},
+			got, err := f.GetCellValue("TestSheet", tc.cell)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
+			assert.NotContains(t, got, "finite")
+		})
 	}
-
-	ds := NewMockDataSource(headers, rows)
-	exporter := excel.NewExcelExporter(nil, nil)
-
-	data, err := exporter.Export(context.Background(), ds)
-	require.NoError(t, err)
-
-	f, err := excelize.OpenReader(bytes.NewReader(data))
-	require.NoError(t, err)
-
-	premiumCell, err := f.GetCellValue("TestSheet", "B2")
-	require.NoError(t, err)
-	assert.Equal(t, "2387743666.1250", premiumCell)
-	assert.NotContains(t, premiumCell, "finite")
 }
 
 // contextAwareDataSource is a DataSource that respects context cancellation

@@ -151,30 +151,40 @@ func (e *ExcelExporter) writeHeaders(f *excelize.File, sheet string, headers []s
 func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row []interface{}) error {
 	for i, value := range row {
 		cell, _ := excelize.CoordinatesToCellName(i+1, rowNum)
+		normalizedValue := convertPgxValue(value)
 
 		// Format value based on type
-		formattedValue := formatValue(value, e.options)
+		formattedValue := formatValue(normalizedValue, e.options)
 
 		if err := f.SetCellValue(sheet, cell, formattedValue); err != nil {
 			return err
 		}
 
 		// Set number format for specific types
-		switch formattedValue.(type) {
-		case time.Time:
-			applyCellNumFmt(f, sheet, cell, 22) // m/d/yy h:mm
+		switch normalizedValue.(type) {
+		case time.Time, *time.Time:
+			if err := applyCellNumFmt(f, sheet, cell, 22); err != nil { // m/d/yy h:mm
+				return err
+			}
 		case float64, float32:
-			applyCellNumFmt(f, sheet, cell, 2) // 0.00
+			if err := applyCellNumFmt(f, sheet, cell, 2); err != nil { // 0.00
+				return err
+			}
 		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-			applyCellNumFmt(f, sheet, cell, 1) // 0
+			if err := applyCellNumFmt(f, sheet, cell, 1); err != nil { // 0
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func applyCellNumFmt(f *excelize.File, sheet, cell string, numFmt int) {
-	style, _ := f.NewStyle(&excelize.Style{NumFmt: numFmt})
-	_ = f.SetCellStyle(sheet, cell, cell, style)
+func applyCellNumFmt(f *excelize.File, sheet, cell string, numFmt int) error {
+	style, err := f.NewStyle(&excelize.Style{NumFmt: numFmt})
+	if err != nil {
+		return err
+	}
+	return f.SetCellStyle(sheet, cell, cell, style)
 }
 
 // applyStyles applies styling to the Excel file

@@ -115,12 +115,20 @@ type ColumnOptions struct {
 }
 
 // formatValue formats a value based on its type
-func formatValue(val interface{}, _ *ExportOptions) interface{} {
+func formatValue(val interface{}, opts *ExportOptions) interface{} {
 	normalized := convertPgxValue(val)
 
 	switch v := normalized.(type) {
+	case time.Time:
+		if opts != nil && opts.DateTimeFormat != "" {
+			return v.Format(opts.DateTimeFormat)
+		}
+		return v
 	case *time.Time:
 		if v != nil {
+			if opts != nil && opts.DateTimeFormat != "" {
+				return v.Format(opts.DateTimeFormat)
+			}
 			return *v
 		}
 		return nil
