@@ -74,7 +74,7 @@ graph TB
 |----------|--------|---------|
 | `/bi-chat` | GET | Serves the React SPA |
 | `/bi-chat/stream` | POST | SSE streaming endpoint for agent responses |
-| `/rpc` | POST | Global applet RPC API for session management |
+| `/bi-chat/rpc` | POST | Applet RPC API for session management (when BiChat is mounted at `/bi-chat`) |
 
 ### RPC Procedures
 
@@ -277,7 +277,7 @@ Behavior:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | API key for OpenAI |
-| `OPENAI_MODEL` | No | Default model (defaults to `gpt-4o`) |
+| `OPENAI_MODEL` | No | Default model (defaults to `gpt-5.2`) |
 | `BICHAT_CONTEXT_WINDOW` | No | Max tokens for context (default: 200k) |
 | `BICHAT_KNOWLEDGE_DIR` | No | Path to static knowledge root (`tables/`, `queries/`, `business/`) |
 | `BICHAT_KB_INDEX_PATH` | No | Bleve index path for `kb_search` |

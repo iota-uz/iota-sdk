@@ -24,26 +24,16 @@ OIDC_CRYPTO_KEY=your-very-secure-random-key-here-32-chars-minimum
 DATABASE_URL=postgresql://user:password@localhost:5432/dbname
 ```
 
-### Optional Variables
+### Optional Variables (supported in central config)
 
 ```bash
 # Token lifetimes (defaults shown)
-OIDC_ACCESS_TOKEN_LIFETIME=3600          # 1 hour in seconds
-OIDC_ID_TOKEN_LIFETIME=3600              # 1 hour in seconds
-OIDC_REFRESH_TOKEN_LIFETIME=2592000      # 30 days in seconds
-OIDC_AUTH_CODE_LIFETIME=300              # 5 minutes in seconds
-
-# PKCE enforcement
-OIDC_REQUIRE_PKCE=true                   # Require PKCE for all clients
-
-# CORS settings
-OIDC_ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com
-
-# Rate limiting
-OIDC_RATE_LIMIT_ENABLED=true
-OIDC_RATE_LIMIT_REQUESTS=100
-OIDC_RATE_LIMIT_WINDOW=900               # 15 minutes in seconds
+OIDC_ACCESS_TOKEN_LIFETIME=1h            # 1 hour
+OIDC_ID_TOKEN_LIFETIME=1h                # 1 hour
+OIDC_REFRESH_TOKEN_LIFETIME=720h        # 30 days
 ```
+
+Other OIDC-related variables (e.g. `OIDC_AUTH_CODE_LIFETIME`, `OIDC_REQUIRE_PKCE`, `OIDC_ALLOWED_ORIGINS`, `OIDC_RATE_LIMIT_*`) are not present in the central `pkg/configuration` OIDCOptions; they may be used by other layers or not yet implemented.
 
 ## Crypto Key Generation
 

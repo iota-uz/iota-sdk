@@ -123,7 +123,11 @@ Secure testing API:
 |----------|--------|---------|
 | `/__test__/reset` | POST | Reset database |
 | `/__test__/populate` | POST | Custom data population |
-| `/__test__/seed` | POST | Predefined scenarios |
+| `/__test__/seed` | POST | Apply predefined scenario |
+| `/__test__/seed` | GET | List available seed scenarios |
+| `/__test__/otp/{userID}` | POST | Generate OTP for user |
+| `/__test__/otp/{userID}` | GET | Get OTP for user |
+| `/__test__/otp` | GET | Get OTP by identifier |
 | `/__test__/health` | GET | Health check |
 
 ### Database Reset
@@ -243,21 +247,7 @@ ENABLE_TEST_ENDPOINTS=true
 
 ⚠️ **Security Warning:** Never enable in production!
 
-### IP Whitelist
-
-Restrict access to specific IPs:
-
-```bash
-TEST_ENDPOINTS_ALLOWED_IPS=127.0.0.1,10.0.0.0/8
-```
-
-### Test Database
-
-Use separate database for testing:
-
-```bash
-TEST_DATABASE_URL=postgres://.../iota_sdk_test
-```
+The only test-related variable in the central configuration is **`ENABLE_TEST_ENDPOINTS`**. Variables such as `TEST_ENDPOINTS_ALLOWED_IPS` or `TEST_DATABASE_URL` may be used by specific test harnesses or CI; check your test setup for support.
 
 ## E2E Testing Integration
 
