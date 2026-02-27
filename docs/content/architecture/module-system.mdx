@@ -108,6 +108,7 @@ All modules implement the `application.Module` interface:
 ```mermaid
 classDiagram
     class Module {
+        +Name() string
         +Register(app Application) error
     }
     
@@ -285,20 +286,21 @@ Configuration can vary by environment:
 
 ## Built-in Modules
 
-Modules are loaded in `modules.BuiltInModules`:
+Modules are loaded from `modules.BuiltInModules` (see `modules/load.go`): **core**, **hrm**, **finance**, **projects**, **logging**, **warehouse**, **crm**, **website**, **billing**, **oidc**, **testkit**. BiChat and Superadmin are not in `BuiltInModules` (BiChat is conditionally loaded when configured; Superadmin is a separate `cmd/superadmin` application).
 
 ```mermaid
 graph LR
     A[Application] -->|Loads| B[Core]
-    A -->|Loads| C[Finance]
-    A -->|Loads| D[Warehouse]
-    A -->|Loads| E[CRM]
-    A -->|Loads| F[HRM]
-    A -->|Loads| G[Projects]
-    A -->|Loads| H[Billing]
-    A -->|Loads| I[BiChat]
-    A -->|Loads| J[Website]
-    A -->|Loads| K[Logging]
+    A -->|Loads| C[HRM]
+    A -->|Loads| D[Finance]
+    A -->|Loads| E[Projects]
+    A -->|Loads| F[Logging]
+    A -->|Loads| G[Warehouse]
+    A -->|Loads| H[CRM]
+    A -->|Loads| I[Website]
+    A -->|Loads| J[Billing]
+    A -->|Loads| K[OIDC]
+    A -->|Loads| L[Testkit]
 ```
 
 ## Next Steps
