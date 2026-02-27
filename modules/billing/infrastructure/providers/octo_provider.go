@@ -20,6 +20,7 @@ type OctoConfig struct {
 	NotifyURL  string
 }
 
+// NewOctoProvider creates a new Octo provider with the given configuration.
 func NewOctoProvider(
 	config OctoConfig,
 	logTransport *middleware.LogTransport,
@@ -35,10 +36,12 @@ type octoProvider struct {
 	logger *middleware.LogTransport
 }
 
+// Gateway returns the Octo gateway.
 func (o *octoProvider) Gateway() billing.Gateway {
 	return billing.Octo
 }
 
+// Create prepares a payment with Octo.
 func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
 	const op serrors.Op = "octoProvider.Create"
 	octoDetails, err := toOctoDetails(t.Details())
@@ -105,10 +108,12 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 	return t, nil
 }
 
+// Cancel fully refunds an Octo payment.
 func (o *octoProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
 	return o.Refund(ctx, t, t.Amount().Quantity())
 }
 
+// Refund processes a partial or full refund for Octo.
 func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, amount float64) (billing.Transaction, error) {
 	const op serrors.Op = "octoProvider.Refund"
 	octoDetails, err := toOctoDetails(t.Details())

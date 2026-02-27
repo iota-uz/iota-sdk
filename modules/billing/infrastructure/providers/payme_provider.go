@@ -23,6 +23,7 @@ type PaymeConfig struct {
 	User       string
 }
 
+// NewPaymeProvider creates a new Payme provider with the given configuration.
 func NewPaymeProvider(
 	config PaymeConfig,
 ) billing.Provider {
@@ -39,6 +40,7 @@ type paymeProvider struct {
 	httpClient *http.Client
 }
 
+// Gateway returns the Payme gateway.
 func (p *paymeProvider) Gateway() billing.Gateway {
 	return billing.Payme
 }
@@ -101,6 +103,7 @@ func (p *paymeProvider) doRequest(ctx context.Context, method string, params any
 	return nil
 }
 
+// Create generates a payment link for Payme.
 func (p *paymeProvider) Create(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
 	const op serrors.Op = "paymeProvider.Create"
 	paymeDetails, err := toPaymeDetails(t.Details())
@@ -136,6 +139,7 @@ func (p *paymeProvider) Create(_ context.Context, t billing.Transaction) (billin
 	return t, nil
 }
 
+// Cancel cancels a Payme transaction.
 func (p *paymeProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
 	const op serrors.Op = "paymeProvider.Cancel"
 	paymeDetails, err := toPaymeDetails(t.Details())
@@ -168,6 +172,7 @@ func (p *paymeProvider) Cancel(ctx context.Context, t billing.Transaction) (bill
 	return t.SetDetails(paymeDetails).SetStatus(billing.Canceled), nil
 }
 
+// Refund processes a full refund for Payme.
 func (p *paymeProvider) Refund(ctx context.Context, t billing.Transaction, amount float64) (billing.Transaction, error) {
 	const op serrors.Op = "paymeProvider.Refund"
 	paymeDetails, err := toPaymeDetails(t.Details())

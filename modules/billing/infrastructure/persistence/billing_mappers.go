@@ -81,6 +81,7 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			details.ClickWithSignString(d.SignString),
 			details.ClickWithErrorCode(d.ErrorCode),
 			details.ClickWithErrorNote(d.ErrorNote),
+			details.ClickWithRefundedSum(d.RefundedSum),
 			details.ClickWithLink(d.Link),
 			details.ClickWithParams(d.Params),
 		)
@@ -238,6 +239,7 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			SignString:        d.SignString(),
 			ErrorCode:         d.ErrorCode(),
 			ErrorNote:         d.ErrorNote(),
+			RefundedSum:       d.RefundedSum(),
 			Link:              d.Link(),
 			Params:            d.Params(),
 		})

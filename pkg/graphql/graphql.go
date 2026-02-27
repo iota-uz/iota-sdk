@@ -461,6 +461,8 @@ type Handler struct {
 	transports []graphql.Transport
 }
 
+// isSameOrigin checks if the request origin is allowed based on the configuration.
+// It allows the configured Origin, and common localhost variants in development mode.
 func isSameOrigin(r *http.Request, conf *configuration.Configuration) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {

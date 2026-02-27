@@ -22,6 +22,7 @@ type ClickConfig struct {
 	MerchantUserID int64
 }
 
+// NewClickProvider creates a new Click provider with the given configuration.
 func NewClickProvider(
 	config ClickConfig,
 ) billing.Provider {
@@ -41,10 +42,12 @@ type clickProvider struct {
 	apiClient *clickapi.APIClient
 }
 
+// Gateway returns the Click gateway.
 func (p *clickProvider) Gateway() billing.Gateway {
 	return billing.Click
 }
 
+// Create generates a payment link for Click.
 func (p *clickProvider) Create(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
 	const op serrors.Op = "clickProvider.Create"
 	if t.Amount().Currency() != billing.UZS {
@@ -86,6 +89,7 @@ func (p *clickProvider) Create(_ context.Context, t billing.Transaction) (billin
 	return t, nil
 }
 
+// Cancel reverses a Click payment.
 func (p *clickProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
 	const op serrors.Op = "clickProvider.Cancel"
 	clickDetails, err := toClickDetails(t.Details())
@@ -118,6 +122,7 @@ func (p *clickProvider) Cancel(ctx context.Context, t billing.Transaction) (bill
 	return t.SetStatus(billing.Canceled), nil
 }
 
+// Refund processes a partial or full refund for Click.
 func (p *clickProvider) Refund(ctx context.Context, t billing.Transaction, amount float64) (billing.Transaction, error) {
 	const op serrors.Op = "clickProvider.Refund"
 	clickDetails, err := toClickDetails(t.Details())
@@ -155,13 +160,16 @@ func (p *clickProvider) Refund(ctx context.Context, t billing.Transaction, amoun
 		return nil, serrors.E(op, serrors.Internal, fmt.Sprintf("click error: %d - %s", resp.GetErrorCode(), resp.GetErrorNote()))
 	}
 
+	totalRefunded := clickDetails.RefundedSum() + amount
+	clickDetails = clickDetails.SetRefundedSum(totalRefunded)
+
 	newStatus := billing.PartiallyRefunded
 	// Using a small epsilon for floating point comparison of currency values
-	if amount >= t.Amount().Quantity()-0.001 {
+	if totalRefunded >= t.Amount().Quantity()-0.001 {
 		newStatus = billing.Refunded
 	}
 
-	return t.SetStatus(newStatus), nil
+	return t.SetDetails(clickDetails).SetStatus(newStatus), nil
 }
 
 func toClickDetails(detailsObj details.Details) (details.ClickDetails, error) {

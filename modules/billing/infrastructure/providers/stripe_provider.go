@@ -18,6 +18,7 @@ type StripeConfig struct {
 	SecretKey string
 }
 
+// NewStripeProvider creates a new Stripe provider with the given configuration.
 func NewStripeProvider(
 	config StripeConfig,
 ) billing.Provider {
@@ -30,10 +31,12 @@ type stripeProvider struct {
 	config StripeConfig
 }
 
+// Gateway returns the Stripe gateway.
 func (s *stripeProvider) Gateway() billing.Gateway {
 	return billing.Stripe
 }
 
+// Create generates a Stripe checkout session.
 func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
 	const op serrors.Op = "stripeProvider.Create"
 	stripe.Key = s.config.SecretKey
@@ -96,6 +99,7 @@ func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billi
 	return t, nil
 }
 
+// Cancel expires a Stripe session or cancels a subscription.
 func (s *stripeProvider) Cancel(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
 	const op serrors.Op = "stripeProvider.Cancel"
 	stripe.Key = s.config.SecretKey
@@ -127,6 +131,7 @@ func (s *stripeProvider) Cancel(_ context.Context, t billing.Transaction) (billi
 	return nil, serrors.E(op, serrors.Invalid, "cannot cancel: neither subscription_id nor session_id found in stripe details")
 }
 
+// Refund processes a full or partial refund for Stripe.
 func (s *stripeProvider) Refund(_ context.Context, t billing.Transaction, amount float64) (billing.Transaction, error) {
 	const op serrors.Op = "stripeProvider.Refund"
 	stripe.Key = s.config.SecretKey

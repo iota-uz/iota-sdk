@@ -24,6 +24,8 @@ type ClickDetails interface {
 	ErrorCode() int32
 	ErrorNote() string
 
+	RefundedSum() float64
+
 	Link() string
 	Params() map[string]any
 
@@ -42,6 +44,8 @@ type ClickDetails interface {
 
 	SetErrorCode(errorCode int32) ClickDetails
 	SetErrorNote(errorNote string) ClickDetails
+
+	SetRefundedSum(refundedSum float64) ClickDetails
 
 	SetLink(link string) ClickDetails
 	SetParams(params map[string]any) ClickDetails

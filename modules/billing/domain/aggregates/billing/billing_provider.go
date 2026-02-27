@@ -15,10 +15,15 @@ const (
 	Integrator Gateway = "integrator"
 )
 
+// Provider is an interface that defines the methods that a payment provider must implement.
 type Provider interface {
+	// Gateway returns the gateway of the provider.
 	Gateway() Gateway
+	// Create creates a new transaction with the provider.
 	Create(ctx context.Context, t Transaction) (Transaction, error)
+	// Cancel cancels a transaction with the provider.
 	Cancel(ctx context.Context, t Transaction) (Transaction, error)
+	// Refund refunds a transaction with the provider.
 	Refund(ctx context.Context, t Transaction, quantity float64) (Transaction, error)
 }
 

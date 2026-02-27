@@ -31,6 +31,7 @@ type ClickDetails struct {
 	SignString        string         `json:"sign_string"`
 	ErrorCode         int32          `json:"error_code"`
 	ErrorNote         string         `json:"error_note"`
+	RefundedSum       float64        `json:"refunded_sum"`
 	Link              string         `json:"link"`
 	Params            map[string]any `json:"params"`
 }

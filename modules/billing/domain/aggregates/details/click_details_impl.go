@@ -86,6 +86,12 @@ func ClickWithParams(params map[string]any) ClickOption {
 	}
 }
 
+func ClickWithRefundedSum(refundedSum float64) ClickOption {
+	return func(d *clickDetails) {
+		d.refundedSum = refundedSum
+	}
+}
+
 // ---- Implementation ----
 
 func NewClickDetails(
@@ -103,6 +109,7 @@ func NewClickDetails(
 		paymentStatus:     0,
 		errorCode:         0,
 		errorNote:         "",
+		refundedSum:       0,
 		link:              "",
 		params:            map[string]any{},
 	}
@@ -128,6 +135,7 @@ type clickDetails struct {
 	signString        string
 	errorCode         int32
 	errorNote         string
+	refundedSum       float64
 	link              string
 	params            map[string]any
 }
@@ -182,6 +190,10 @@ func (d *clickDetails) ErrorCode() int32 {
 
 func (d *clickDetails) ErrorNote() string {
 	return d.errorNote
+}
+
+func (d *clickDetails) RefundedSum() float64 {
+	return d.refundedSum
 }
 
 func (d *clickDetails) Link() string {
@@ -261,6 +273,12 @@ func (d *clickDetails) SetErrorCode(errorCode int32) ClickDetails {
 func (d *clickDetails) SetErrorNote(errorNote string) ClickDetails {
 	result := *d
 	result.errorNote = errorNote
+	return &result
+}
+
+func (d *clickDetails) SetRefundedSum(refundedSum float64) ClickDetails {
+	result := *d
+	result.refundedSum = refundedSum
 	return &result
 }
 
