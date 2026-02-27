@@ -1,0 +1,26 @@
+package system_info
+
+import (
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+)
+
+templ Index(vm *viewmodels.SystemInfoViewModel, metricsPath string) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: "System Information"},
+	}) {
+		<div class="m-6">
+			<!-- Header -->
+			<h1 class="text-2xl font-medium mb-6">System Information</h1>
+			<!-- Auto-refreshing container with HTMX -->
+			<div
+				id="system-metrics-container"
+				hx-get={ metricsPath }
+				hx-trigger="every 5s"
+				hx-swap="innerHTML"
+			>
+				@MetricsPartial(vm)
+			</div>
+		</div>
+	}
+}
