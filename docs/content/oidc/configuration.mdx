@@ -135,6 +135,8 @@ OIDC module respects multi-tenant architecture:
 
 ## Security Best Practices
 
+Variables such as `OIDC_RATE_LIMIT_*`, `OIDC_ALLOWED_ORIGINS`, `OIDC_AUTH_CODE_LIFETIME`, and `OIDC_REQUIRE_PKCE` are not part of the central `pkg/configuration` OIDCOptions. They may be implemented by other layers or not yet functional—verify support in your deployment before relying on them.
+
 ### 1. Client Configuration
 
 **Public Clients (SPAs, Mobile Apps):**

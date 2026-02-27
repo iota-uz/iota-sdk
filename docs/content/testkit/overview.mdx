@@ -223,6 +223,35 @@ Apply a predefined scenario.
 }
 ```
 
+### GET /__test__/seed
+
+List available predefined seed scenarios.
+
+**Response:**
+```json
+{
+  "success": true,
+  "scenarios": [
+    { "name": "minimal", "description": "Basic setup with default tenant and test user" },
+    { "name": "finance", "description": "Finance module focused setup with accounts, categories, and sample transactions" },
+    { "name": "warehouse", "description": "Warehouse module setup with units, products, and inventory" },
+    { "name": "comprehensive", "description": "Full setup with data across all modules" }
+  ]
+}
+```
+
+### POST /__test__/otp/{userID}
+
+Generate OTP for a specific user (for test login flows).
+
+### GET /__test__/otp/{userID}
+
+Get current OTP for a specific user.
+
+### GET /__test__/otp
+
+Get OTP by identifier (e.g. query parameter such as email or phone).
+
 ### GET /__test__/health
 
 Health check for test infrastructure.
@@ -251,7 +280,7 @@ ENABLE_TEST_ENDPOINTS=true
 
 ⚠️ **Security Warning:** Never enable in production!
 
-The only test-related variable in the central configuration is **`ENABLE_TEST_ENDPOINTS`**. Variables such as `TEST_ENDPOINTS_ALLOWED_IPS` or `TEST_DATABASE_URL` may be used by specific test harnesses or CI; check your test setup for support.
+The only required central configuration variable for Testkit endpoint exposure is **`ENABLE_TEST_ENDPOINTS`**. Additional controls (e.g. IP allowlists or dedicated test DB routing via variables like `TEST_ENDPOINTS_ALLOWED_IPS` or `TEST_DATABASE_URL`) are deployment- or test-harness-specific and may not be enforced by the core module.
 
 ## E2E Testing Integration
 

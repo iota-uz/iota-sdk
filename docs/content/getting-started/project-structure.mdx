@@ -146,11 +146,10 @@ Each module owns its schema in `infrastructure/persistence/schema/`:
 
 ```
 modules/finance/infrastructure/persistence/schema/
-├── finance-schema.sql      # Table definitions
-└── finance-schema.sql      # Schema; migrations may live here or in a central migrations dir
+└── finance-schema.sql      # Table definitions
 ```
 
-Migrations are applied via `just db migrate up`.
+Migrations may be colocated with module schema files or placed in a central `migrations/` directory. Apply them via `just db migrate up`.
 
 ## Frontend Assets
 

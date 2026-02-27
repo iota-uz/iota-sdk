@@ -186,8 +186,8 @@ sequenceDiagram
     Admin->>Superadmin: Create tenant request
     Superadmin->>Superadmin: Validate subdomain
     Superadmin->>DB: Create tenant record
-    Superadmin->>DB: Run migrations if needed
-    Superadmin->>DB: Seed default data for tenant
+    Superadmin->>DB: Ensure global schema is up-to-date
+    Superadmin->>DB: Seed tenant-scoped default rows (tenant_id)
     Superadmin->>App: Register tenant
     Superadmin-->>Admin: Tenant ready
 ```

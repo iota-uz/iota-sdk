@@ -602,12 +602,13 @@ func TestExpenseController_Create(t *testing.T) {
 
 	t.Run("create expense", func(t *testing.T) {
 		suite := itf.HTTP(t, modules.BuiltInModules...)
-		// Create test user with permissions, category, account (e.g. via testkit seed or helpers)
-		// Submit form using suite POST + Form + Expect
+		// Create test account and category (e.g. via testkit seed or createTestAccount/createTestCategory helpers)
+		accountID := "00000000-0000-0000-0000-000000000001" // from fixture
+		categoryID := "00000000-0000-0000-0000-000000000002" // from fixture
 		suite.POST("/finance/expenses").Form(url.Values{
 			"Amount":           {"100.00"},
-			"AccountID":        {account.ID.String()},
-			"CategoryID":       {category.ID.String()},
+			"AccountID":        {accountID},
+			"CategoryID":       {categoryID},
 			"Comment":          {"Test expense"},
 			"AccountingPeriod": {time.Now().Format("2006-01-02")},
 			"Date":             {time.Now().Format("2006-01-02")},
