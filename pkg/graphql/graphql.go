@@ -50,11 +50,7 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 	ctx := r.Context()
 	conf := configuration.Use()
 	if !isSameOrigin(r, conf) {
-		writeHeaders(w, nil)
-		w.WriteHeader(http.StatusForbidden)
-		gqlErr := gqlerror.Errorf("origin not allowed")
-		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-		writeJson(w, resp)
+		sendErrorf(w, http.StatusForbidden, "origin not allowed")
 		return
 	}
 
@@ -80,22 +76,13 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		gqlErr := gqlerror.Errorf("could not read request body: %+v", err)
-		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-		writeJson(w, resp)
+		sendErrorf(w, http.StatusBadRequest, "could not read request body: %v", err)
 		return
 	}
 
 	bodyReader := bytes.NewReader(bodyBytes)
 	if err := jsonDecode(bodyReader, &params); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		gqlErr := gqlerror.Errorf(
-			"json request body could not be decoded: %+v body:%s",
-			err,
-			string(bodyBytes),
-		)
-		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-		writeJson(w, resp)
+		sendErrorf(w, http.StatusBadRequest, "json request body could not be decoded: %v body:%s", err, string(bodyBytes))
 		return
 	}
 
@@ -135,10 +122,7 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 		return
 	}
 
-	// Fallback to a generic error to avoid empty responses
-	gqlErr := gqlerror.Errorf("no executable schema matched the operation")
-	resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-	writeJson(w, resp)
+	sendErrorf(w, http.StatusBadRequest, "no executable schema matched the operation")
 }
 
 func shouldMergeIntrospection(params *graphql.RawParams, execsLen int) bool {
@@ -655,6 +639,7 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func sendError(w http.ResponseWriter, code int, errors ...*gqlerror.Error) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	b, err := json.Marshal(&graphql.Response{Errors: errors})
 	if err != nil {
