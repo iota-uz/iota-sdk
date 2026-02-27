@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/iota-uz/click"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type ClickConfig struct {
@@ -24,7 +26,9 @@ func NewClickProvider(
 	config ClickConfig,
 ) billing.Provider {
 	apiCfg := clickapi.NewConfiguration()
-	apiCfg.HTTPClient = &http.Client{}
+	apiCfg.HTTPClient = &http.Client{
+		Timeout: 30 * time.Second,
+	}
 	apiClient := clickapi.NewAPIClient(apiCfg)
 	return &clickProvider{
 		config:    config,
@@ -42,16 +46,17 @@ func (p *clickProvider) Gateway() billing.Gateway {
 }
 
 func (p *clickProvider) Create(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
+	const op serrors.Op = "clickProvider.Create"
 	if t.Amount().Currency() != billing.UZS {
-		return nil, fmt.Errorf("click can work only with UZS currency, provided: %s", t.Amount().Currency())
+		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("click can work only with UZS currency, provided: %s", t.Amount().Currency()))
 	}
 	if t.Status() != billing.Created {
-		return nil, fmt.Errorf("transaction status must be 'created', provided: %s", t.Status())
+		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("transaction status must be 'created', provided: %s", t.Status()))
 	}
 
 	clickDetails, err := toClickDetails(t.Details())
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	params := clickDetails.Params()
@@ -82,13 +87,14 @@ func (p *clickProvider) Create(_ context.Context, t billing.Transaction) (billin
 }
 
 func (p *clickProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
+	const op serrors.Op = "clickProvider.Cancel"
 	clickDetails, err := toClickDetails(t.Details())
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if clickDetails.PaymentID() == 0 {
-		return nil, fmt.Errorf("cannot cancel: click payment_id not found in details")
+		return nil, serrors.E(op, serrors.Invalid, "cannot cancel: click payment_id not found in details")
 	}
 
 	// Manual Basic Auth as ContextBasicAuth is missing from the SDK
@@ -102,24 +108,25 @@ func (p *clickProvider) Cancel(ctx context.Context, t billing.Transaction) (bill
 
 	resp, _, err := p.apiClient.PaymentAPI.ReversePayment(ctx, p.config.ServiceID, clickDetails.PaymentID()).Execute()
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if resp.GetErrorCode() != 0 {
-		return nil, fmt.Errorf("click error: %d - %s", resp.GetErrorCode(), resp.GetErrorNote())
+		return nil, serrors.E(op, serrors.Internal, fmt.Sprintf("click error: %d - %s", resp.GetErrorCode(), resp.GetErrorNote()))
 	}
 
 	return t.SetStatus(billing.Canceled), nil
 }
 
 func (p *clickProvider) Refund(ctx context.Context, t billing.Transaction, amount float64) (billing.Transaction, error) {
+	const op serrors.Op = "clickProvider.Refund"
 	clickDetails, err := toClickDetails(t.Details())
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if clickDetails.PaymentID() == 0 {
-		return nil, fmt.Errorf("cannot refund: click payment_id not found in details")
+		return nil, serrors.E(op, serrors.Invalid, "cannot refund: click payment_id not found in details")
 	}
 
 	// Manual Basic Auth
@@ -133,15 +140,16 @@ func (p *clickProvider) Refund(ctx context.Context, t billing.Transaction, amoun
 
 	resp, _, err := p.apiClient.PaymentAPI.PartialRefund(ctx, p.config.ServiceID, clickDetails.PaymentID(), amount).Execute()
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if resp.GetErrorCode() != 0 {
-		return nil, fmt.Errorf("click error: %d - %s", resp.GetErrorCode(), resp.GetErrorNote())
+		return nil, serrors.E(op, serrors.Internal, fmt.Sprintf("click error: %d - %s", resp.GetErrorCode(), resp.GetErrorNote()))
 	}
 
 	newStatus := billing.PartiallyRefunded
-	if amount >= t.Amount().Quantity() {
+	// Using a small epsilon for floating point comparison of currency values
+	if amount >= t.Amount().Quantity()-0.001 {
 		newStatus = billing.Refunded
 	}
 

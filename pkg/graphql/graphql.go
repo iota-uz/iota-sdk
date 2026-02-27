@@ -487,8 +487,21 @@ func isSameOrigin(r *http.Request, conf *configuration.Configuration) bool {
 	}
 
 	// Allow localhost in development
-	if conf.IsDev() && (origin == "http://localhost:"+fmt.Sprint(conf.ServerPort) || origin == "http://127.0.0.1:"+fmt.Sprint(conf.ServerPort)) {
-		return true
+	if conf.IsDev() {
+		port := fmt.Sprint(conf.ServerPort)
+		allowedLocalOrigins := []string{
+			"http://localhost:" + port,
+			"http://127.0.0.1:" + port,
+			"http://[::1]:" + port,
+			"https://localhost:" + port,
+			"https://127.0.0.1:" + port,
+			"https://[::1]:" + port,
+		}
+		for _, alo := range allowedLocalOrigins {
+			if origin == alo {
+				return true
+			}
+		}
 	}
 
 	return false

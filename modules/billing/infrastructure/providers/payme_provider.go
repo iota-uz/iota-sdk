@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	paymeapi "github.com/iota-uz/payme"
 )
 
@@ -25,8 +27,10 @@ func NewPaymeProvider(
 	config PaymeConfig,
 ) billing.Provider {
 	return &paymeProvider{
-		config:     config,
-		httpClient: &http.Client{},
+		config: config,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -40,6 +44,7 @@ func (p *paymeProvider) Gateway() billing.Gateway {
 }
 
 func (p *paymeProvider) doRequest(ctx context.Context, method string, params any, result any) error {
+	const op serrors.Op = "paymeProvider.doRequest"
 	payload := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
@@ -49,12 +54,12 @@ func (p *paymeProvider) doRequest(ctx context.Context, method string, params any
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return serrors.E(op, serrors.Internal, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.config.URL, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return serrors.E(op, serrors.Internal, err)
 	}
 
 	auth := base64.StdEncoding.EncodeToString([]byte(p.config.User + ":" + p.config.SecretKey))
@@ -63,12 +68,12 @@ func (p *paymeProvider) doRequest(ctx context.Context, method string, params any
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return err
+		return serrors.E(op, serrors.Internal, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return serrors.E(op, serrors.Internal, fmt.Errorf("unexpected status code: %d", resp.StatusCode))
 	}
 
 	var rpcResp struct {
@@ -80,24 +85,27 @@ func (p *paymeProvider) doRequest(ctx context.Context, method string, params any
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
-		return err
+		return serrors.E(op, serrors.Internal, err)
 	}
 
 	if rpcResp.Error != nil {
-		return fmt.Errorf("payme error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
+		return serrors.E(op, serrors.Internal, fmt.Errorf("payme error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message))
 	}
 
 	if result != nil {
-		return json.Unmarshal(rpcResp.Result, result)
+		if err := json.Unmarshal(rpcResp.Result, result); err != nil {
+			return serrors.E(op, serrors.Internal, err)
+		}
 	}
 
 	return nil
 }
 
 func (p *paymeProvider) Create(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
+	const op serrors.Op = "paymeProvider.Create"
 	paymeDetails, err := toPaymeDetails(t.Details())
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	params := paymeDetails.Params()
@@ -129,13 +137,14 @@ func (p *paymeProvider) Create(_ context.Context, t billing.Transaction) (billin
 }
 
 func (p *paymeProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
+	const op serrors.Op = "paymeProvider.Cancel"
 	paymeDetails, err := toPaymeDetails(t.Details())
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if paymeDetails.ID() == "" {
-		return nil, fmt.Errorf("cannot cancel: payme transaction id not found in details")
+		return nil, serrors.E(op, serrors.Invalid, "cannot cancel: payme transaction id not found in details")
 	}
 
 	var result struct {
@@ -149,7 +158,7 @@ func (p *paymeProvider) Cancel(ctx context.Context, t billing.Transaction) (bill
 	}
 
 	if err := p.doRequest(ctx, "CancelTransaction", params, &result); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	paymeDetails = paymeDetails.
@@ -159,14 +168,20 @@ func (p *paymeProvider) Cancel(ctx context.Context, t billing.Transaction) (bill
 	return t.SetDetails(paymeDetails).SetStatus(billing.Canceled), nil
 }
 
-func (p *paymeProvider) Refund(ctx context.Context, t billing.Transaction, _ float64) (billing.Transaction, error) {
+func (p *paymeProvider) Refund(ctx context.Context, t billing.Transaction, amount float64) (billing.Transaction, error) {
+	const op serrors.Op = "paymeProvider.Refund"
 	paymeDetails, err := toPaymeDetails(t.Details())
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if paymeDetails.ID() == "" {
-		return nil, fmt.Errorf("cannot refund: payme transaction id not found in details")
+		return nil, serrors.E(op, serrors.Invalid, "cannot refund: payme transaction id not found in details")
+	}
+
+	// Guard against partial refunds if unsupported
+	if amount < t.Amount().Quantity()-0.001 {
+		return nil, serrors.E(op, serrors.Invalid, "partial refunds are not supported by this Payme implementation")
 	}
 
 	var result struct {
@@ -180,7 +195,7 @@ func (p *paymeProvider) Refund(ctx context.Context, t billing.Transaction, _ flo
 	}
 
 	if err := p.doRequest(ctx, "CancelTransaction", params, &result); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	paymeDetails = paymeDetails.
@@ -193,7 +208,7 @@ func (p *paymeProvider) Refund(ctx context.Context, t billing.Transaction, _ flo
 func toPaymeDetails(detailsObj details.Details) (details.PaymeDetails, error) {
 	paymeDetails, ok := detailsObj.(details.PaymeDetails)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast details to PaymeDetails: invalid type %T", detailsObj)
+		return nil, serrors.E(serrors.Invalid, fmt.Sprintf("failed to cast details to PaymeDetails: invalid type %T", detailsObj))
 	}
 	return paymeDetails, nil
 }

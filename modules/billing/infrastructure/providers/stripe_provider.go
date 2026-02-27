@@ -3,9 +3,11 @@ package providers
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/checkout/session"
 	"github.com/stripe/stripe-go/v82/refund"
@@ -33,11 +35,12 @@ func (s *stripeProvider) Gateway() billing.Gateway {
 }
 
 func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
+	const op serrors.Op = "stripeProvider.Create"
 	stripe.Key = s.config.SecretKey
 
 	stripeDetails, err := toStripeDetails(t.Details())
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	lineItems := make([]*stripe.CheckoutSessionLineItemParams, len(stripeDetails.Items()))
@@ -77,7 +80,7 @@ func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billi
 
 	sess, err := session.New(params)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, serrors.Internal, err)
 	}
 
 	stripeDetails = stripeDetails.
@@ -94,11 +97,12 @@ func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billi
 }
 
 func (s *stripeProvider) Cancel(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
+	const op serrors.Op = "stripeProvider.Cancel"
 	stripe.Key = s.config.SecretKey
 
 	stripeDetails, err := toStripeDetails(t.Details())
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if stripeDetails.SubscriptionID() != "" {
@@ -107,7 +111,7 @@ func (s *stripeProvider) Cancel(_ context.Context, t billing.Transaction) (billi
 		}
 		_, err := subscription.Update(stripeDetails.SubscriptionID(), params)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, serrors.Internal, err)
 		}
 		return t.SetStatus(billing.Canceled), nil
 	}
@@ -115,37 +119,42 @@ func (s *stripeProvider) Cancel(_ context.Context, t billing.Transaction) (billi
 	if stripeDetails.SessionID() != "" {
 		_, err := session.Expire(stripeDetails.SessionID(), nil)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, serrors.Internal, err)
 		}
 		return t.SetStatus(billing.Canceled), nil
 	}
 
-	return nil, fmt.Errorf("cannot cancel: neither subscription_id nor session_id found in stripe details")
+	return nil, serrors.E(op, serrors.Invalid, "cannot cancel: neither subscription_id nor session_id found in stripe details")
 }
 
 func (s *stripeProvider) Refund(_ context.Context, t billing.Transaction, amount float64) (billing.Transaction, error) {
+	const op serrors.Op = "stripeProvider.Refund"
 	stripe.Key = s.config.SecretKey
 
 	stripeDetails, err := toStripeDetails(t.Details())
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if stripeDetails.PaymentIntentID() == "" {
-		return nil, fmt.Errorf("cannot refund: payment_intent_id not found in stripe details")
+		return nil, serrors.E(op, serrors.Invalid, "cannot refund: payment_intent_id not found in stripe details")
+	}
+
+	if amount <= 0 {
+		return nil, serrors.E(op, serrors.Invalid, "refund amount must be positive")
 	}
 
 	params := &stripe.RefundParams{
 		PaymentIntent: stripe.String(stripeDetails.PaymentIntentID()),
-		Amount:        stripe.Int64(int64(amount * 100)),
+		Amount:        stripe.Int64(int64(math.Round(amount * 100))),
 	}
 
 	_, err = refund.New(params)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, serrors.Internal, err)
 	}
 
-	if amount >= t.Amount().Quantity() {
+	if amount >= t.Amount().Quantity()-0.001 {
 		return t.SetStatus(billing.Refunded), nil
 	}
 
@@ -155,7 +164,7 @@ func (s *stripeProvider) Refund(_ context.Context, t billing.Transaction, amount
 func toStripeDetails(detailsObj details.Details) (details.StripeDetails, error) {
 	stripeDetails, ok := detailsObj.(details.StripeDetails)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast details to StripeDetails: invalid type %T", detailsObj)
+		return nil, serrors.E(serrors.Invalid, fmt.Sprintf("failed to cast details to StripeDetails: invalid type %T", detailsObj))
 	}
 	return stripeDetails, nil
 }

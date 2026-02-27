@@ -1,5 +1,7 @@
 package viewmodels
 
+import "strings"
+
 type Upload struct {
 	ID       string
 	URL      string
@@ -17,8 +19,23 @@ type User struct {
 }
 
 func (u *User) Title() string {
-	if u.FirstName == "" && u.LastName == "" {
+	firstName := strings.TrimSpace(u.FirstName)
+	lastName := strings.TrimSpace(u.LastName)
+
+	if firstName == "" && lastName == "" {
+		if u.ID == "" {
+			return "Unknown User"
+		}
 		return "User #" + u.ID
 	}
-	return u.FirstName + " " + u.LastName
+
+	if firstName == "" {
+		return lastName
+	}
+
+	if lastName == "" {
+		return firstName
+	}
+
+	return firstName + " " + lastName
 }
