@@ -252,7 +252,6 @@ func TestExcelExporter_FormatsPgxNumericValues_Scenarios(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var n pgtype.Numeric
 			require.NoError(t, n.Scan(tc.scan))
