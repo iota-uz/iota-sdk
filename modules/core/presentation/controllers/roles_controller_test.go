@@ -13,6 +13,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // createTestPermissionSchema creates an empty permission schema for testing
@@ -246,9 +248,7 @@ func TestRolesController_Update_PersistsSelectedPermissions(t *testing.T) {
 			role.WithPermissions([]permission.Permission{permissions.RoleRead}),
 		),
 	)
-	if err != nil {
-		t.Fatalf("failed to create role fixture: %v", err)
-	}
+	require.NoError(t, err)
 
 	response := suite.POST(fmt.Sprintf("/roles/%d", createdRole.ID())).
 		FormFields(map[string]interface{}{
@@ -260,13 +260,9 @@ func TestRolesController_Update_PersistsSelectedPermissions(t *testing.T) {
 	response.Assert(t).ExpectStatus(302)
 
 	updatedRole, err := roleRepository.GetByID(suite.Env().Ctx, createdRole.ID())
-	if err != nil {
-		t.Fatalf("failed to fetch updated role: %v", err)
-	}
+	require.NoError(t, err)
 
-	if updatedRole.Description() != "Updated description" {
-		t.Fatalf("expected updated description, got %q", updatedRole.Description())
-	}
+	assert.Equal(t, "Updated description", updatedRole.Description())
 
 	foundRoleUpdate := false
 	for _, p := range updatedRole.Permissions() {
@@ -276,7 +272,5 @@ func TestRolesController_Update_PersistsSelectedPermissions(t *testing.T) {
 		}
 	}
 
-	if !foundRoleUpdate {
-		t.Fatalf("expected role to include permission %q after update", permissions.RoleUpdate.Name())
-	}
+	assert.True(t, foundRoleUpdate, "expected role to include permission %q after update", permissions.RoleUpdate.Name())
 }

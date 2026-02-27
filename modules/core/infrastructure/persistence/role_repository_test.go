@@ -11,6 +11,8 @@ import (
 	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	warehousepermissions "github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGormRoleRepository_CRUD(t *testing.T) {
@@ -18,9 +20,7 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 
 	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
-	if err := permissionRepository.Save(f.Ctx, warehousepermissions.PositionCreate); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, permissionRepository.Save(f.Ctx, warehousepermissions.PositionCreate))
 
 	data := role.New(
 		"test",
@@ -28,28 +28,20 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 		role.WithPermissions([]permission.Permission{warehousepermissions.PositionCreate}),
 	)
 	roleEntity, err := roleRepository.Create(f.Ctx, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Run(
 		"Update", func(t *testing.T) {
 			updatedRole, err := roleRepository.Update(f.Ctx, roleEntity.SetName("updated"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if updatedRole.Name() != "updated" {
-				t.Errorf(
-					"expected %s, got %s",
-					"updated",
-					updatedRole.Name(),
-				)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, "updated", updatedRole.Name())
 
 			// updated_at can be the same or earlier due to timestamp precision/truncation.
 			// Ensure it's not meaningfully earlier.
 			if updatedRole.UpdatedAt().Before(roleEntity.UpdatedAt().Add(-time.Second)) {
-				t.Errorf(
+				assert.Failf(
+					t,
+					"updated_at drift",
 					"expected updated at to be after %v, got %v",
 					roleEntity.UpdatedAt(),
 					updatedRole.UpdatedAt(),
@@ -61,12 +53,10 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 	t.Run(
 		"Delete", func(t *testing.T) {
 			if err := roleRepository.Delete(f.Ctx, 1); err != nil {
-				t.Fatal(err)
+				require.NoError(t, err)
 			}
 			_, err := roleRepository.GetByID(f.Ctx, 1)
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
+			require.Error(t, err)
 		},
 	)
 }
@@ -91,17 +81,9 @@ func TestGormRoleRepository_CreateUpsertsMissingPermission(t *testing.T) {
 	)
 
 	createdRole, err := roleRepository.Create(f.Ctx, data)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(createdRole.Permissions()) != 1 {
-		t.Fatalf("expected 1 permission, got %d", len(createdRole.Permissions()))
-	}
-
-	if createdRole.Permissions()[0].Name() != customPermission.Name() {
-		t.Fatalf("expected permission name %s, got %s", customPermission.Name(), createdRole.Permissions()[0].Name())
-	}
+	require.NoError(t, err)
+	require.Len(t, createdRole.Permissions(), 1)
+	assert.Equal(t, customPermission.Name(), createdRole.Permissions()[0].Name())
 }
 
 func TestGormRoleRepository_CreateAndUpdateUseLegacyPermissionIDByName(t *testing.T) {
@@ -121,9 +103,7 @@ func TestGormRoleRepository_CreateAndUpdateUseLegacyPermissionIDByName(t *testin
 		permission.WithModifier(permission.ModifierAll),
 	)
 
-	if err := permissionRepository.Save(f.Ctx, legacyPermission); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, permissionRepository.Save(f.Ctx, legacyPermission))
 
 	createPermission := permission.New(
 		permission.WithID(uuid.New()),
@@ -141,22 +121,12 @@ func TestGormRoleRepository_CreateAndUpdateUseLegacyPermissionIDByName(t *testin
 			role.WithPermissions([]permission.Permission{createPermission}),
 		),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(createdRole.Permissions()) != 1 {
-		t.Fatalf("expected 1 permission after create, got %d", len(createdRole.Permissions()))
-	}
+	require.NoError(t, err)
+	require.Len(t, createdRole.Permissions(), 1)
 
 	createdPermission := createdRole.Permissions()[0]
-	if createdPermission.ID() != legacyID {
-		t.Fatalf("expected legacy permission ID %s, got %s", legacyID, createdPermission.ID())
-	}
-
-	if createdPermission.Action() != permission.ActionUpdate {
-		t.Fatalf("expected action %s, got %s", permission.ActionUpdate, createdPermission.Action())
-	}
+	assert.Equal(t, legacyID, createdPermission.ID())
+	assert.Equal(t, permission.ActionUpdate, createdPermission.Action())
 
 	updatePermission := permission.New(
 		permission.WithID(uuid.New()),
@@ -170,20 +140,10 @@ func TestGormRoleRepository_CreateAndUpdateUseLegacyPermissionIDByName(t *testin
 		f.Ctx,
 		createdRole.SetPermissions([]permission.Permission{updatePermission}),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(updatedRole.Permissions()) != 1 {
-		t.Fatalf("expected 1 permission after update, got %d", len(updatedRole.Permissions()))
-	}
+	require.NoError(t, err)
+	require.Len(t, updatedRole.Permissions(), 1)
 
 	updatedPermission := updatedRole.Permissions()[0]
-	if updatedPermission.ID() != legacyID {
-		t.Fatalf("expected legacy permission ID %s after update, got %s", legacyID, updatedPermission.ID())
-	}
-
-	if updatedPermission.Action() != permission.ActionDelete {
-		t.Fatalf("expected action %s after update, got %s", permission.ActionDelete, updatedPermission.Action())
-	}
+	assert.Equal(t, legacyID, updatedPermission.ID())
+	assert.Equal(t, permission.ActionDelete, updatedPermission.Action())
 }
