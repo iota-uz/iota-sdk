@@ -17,8 +17,18 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	opCreatePool         = serrors.Op("itf.createPool")
+	opSetupApplication   = serrors.Op("itf.setupApplication")
+	opResolveTenant      = serrors.Op("itf.resolveTenant")
+	opRunMigrationPolicy = serrors.Op("itf.runMigrationPolicy")
+	opOncePerHarnessSeed = serrors.Op("itf.seedOncePerHarness")
+	opSchemaReadiness    = serrors.Op("itf.schemaReadiness")
 )
 
 type ProvisioningMode string
@@ -139,11 +149,16 @@ type harnessState struct {
 
 type harnessManager struct {
 	mu      sync.Mutex
-	entries map[string]*harnessState
+	entries map[string]*managedHarnessState
+}
+
+type managedHarnessState struct {
+	state *harnessState
+	refs  int
 }
 
 var sharedHarnessManager = &harnessManager{
-	entries: map[string]*harnessState{},
+	entries: map[string]*managedHarnessState{},
 }
 
 func NewHarness(tb testing.TB, cfg HarnessConfig) Harness {
@@ -192,7 +207,7 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 			Tenant: h.state.tenant,
 			User:   h.cfg.Context.User,
 		}
-	default:
+	case IsolationRollback:
 		tx, err := h.state.pool.Begin(ctx)
 		if err != nil {
 			tb.Fatalf("failed to begin rollback scope transaction: %v", err)
@@ -225,6 +240,9 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 			Tenant: h.state.tenant,
 			User:   h.cfg.Context.User,
 		}
+	default:
+		tb.Fatalf("unsupported isolation mode: %s", h.cfg.Isolation.Mode)
+		return nil
 	}
 }
 
@@ -239,30 +257,36 @@ func (m *harnessManager) getOrCreate(key string, cfg HarnessConfig) (*harnessSta
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if state, ok := m.entries[key]; ok {
-		return state, nil
+	if entry, ok := m.entries[key]; ok {
+		entry.refs++
+		return entry.state, nil
 	}
 
 	state, err := createHarnessState(key, cfg, false)
 	if err != nil {
 		return nil, err
 	}
-	m.entries[key] = state
+	m.entries[key] = &managedHarnessState{state: state, refs: 1}
 	return state, nil
 }
 
 func (m *harnessManager) close(key string, cleanup CleanupMode) error {
 	m.mu.Lock()
-	state, ok := m.entries[key]
-	if ok {
-		delete(m.entries, key)
-	}
-	m.mu.Unlock()
-
+	entry, ok := m.entries[key]
 	if !ok {
+		m.mu.Unlock()
 		return nil
 	}
-	return state.close(cleanup)
+
+	entry.refs--
+	if entry.refs > 0 {
+		m.mu.Unlock()
+		return nil
+	}
+	delete(m.entries, key)
+	m.mu.Unlock()
+
+	return entry.state.close(cleanup)
 }
 
 func (s *harnessState) close(cleanup CleanupMode) error {
@@ -287,14 +311,22 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 
 	pool, err := newPoolWithConfig(DbOpts(dbName), cfg.Database.Pool)
 	if err != nil {
-		return nil, fmt.Errorf("create pool: %w", err)
+		DropDB(dbName)
+		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
 	app, err := SetupApplication(pool, cfg.Modules...)
 	if err != nil {
 		pool.Close()
 		DropDB(dbName)
-		return nil, fmt.Errorf("setup app: %w", err)
+		return nil, serrors.E(opSetupApplication, err, "setup application")
+	}
+
+	if err := runMigrationPolicy(context.Background(), pool, app, cfg.Migration); err != nil {
+		closeControllers(app.Controllers())
+		pool.Close()
+		DropDB(dbName)
+		return nil, serrors.E(opRunMigrationPolicy, err)
 	}
 
 	tenant, err := resolveTenant(context.Background(), pool, cfg.Context.TenantID)
@@ -302,17 +334,10 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		closeControllers(app.Controllers())
 		pool.Close()
 		DropDB(dbName)
-		return nil, fmt.Errorf("resolve tenant: %w", err)
+		return nil, serrors.E(opResolveTenant, err, "resolve tenant")
 	}
 
 	baseCtx := buildBaseContext(pool, app, tenant, cfg.Context)
-
-	if err := runMigrationPolicy(baseCtx, pool, app, cfg.Migration); err != nil {
-		closeControllers(app.Controllers())
-		pool.Close()
-		DropDB(dbName)
-		return nil, fmt.Errorf("migration policy: %w", err)
-	}
 
 	if cfg.Seed.Policy == SeedOncePerHarness && cfg.Seed.Run != nil {
 		if err := composables.InTx(baseCtx, func(seedCtx context.Context) error {
@@ -321,7 +346,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 			closeControllers(app.Controllers())
 			pool.Close()
 			DropDB(dbName)
-			return nil, fmt.Errorf("once-per-harness seed: %w", err)
+			return nil, serrors.E(opOncePerHarnessSeed, err, "once-per-harness seed")
 		}
 	}
 
@@ -337,6 +362,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 }
 
 func normalizeHarnessConfig(tb testing.TB, cfg HarnessConfig) HarnessConfig {
+	tb.Helper()
 	if cfg.Name == "" {
 		cfg.Name = "itf_harness_" + tb.Name()
 	}
@@ -368,7 +394,7 @@ func buildHarnessKey(cfg HarnessConfig) string {
 	}
 
 	return fmt.Sprintf(
-		"name=%s|mods=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s",
+		"name=%s|mods=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
 		moduleTypes,
 		cfg.Database.Provisioning,
@@ -376,7 +402,23 @@ func buildHarnessKey(cfg HarnessConfig) string {
 		cfg.Isolation.Mode,
 		cfg.Database.Cleanup,
 		cfg.Seed.Policy,
+		cfg.Database.Pool.MaxConns,
+		cfg.Database.Pool.MinConns,
+		cfg.Database.Pool.MaxConnLifetime,
+		cfg.Database.Pool.MaxConnIdleTime,
+		cfg.Isolation.Tx.LockTimeout,
+		cfg.Isolation.Tx.IdleInTxTimeout,
+		cfg.Isolation.Tx.StatementTimeout,
+		tenantID(cfg.Context.TenantID),
+		cfg.Context.Locales,
 	)
+}
+
+func tenantID(t *uuid.UUID) string {
+	if t == nil {
+		return ""
+	}
+	return t.String()
 }
 
 func buildDBName(base, key string, perTest bool) string {
@@ -390,10 +432,12 @@ func buildDBName(base, key string, perTest bool) string {
 
 func runMigrationPolicy(ctx context.Context, pool *pgxpool.Pool, app application.Application, cfg MigrationConfig) error {
 	switch cfg.Policy {
+	case MigrationApplyOnce:
+		return app.Migrations().Run()
 	case MigrationSkip:
 		return ensureSchemaReady(ctx, pool)
 	default:
-		return app.Migrations().Run()
+		return serrors.E(opRunMigrationPolicy, serrors.Invalid, "unsupported migration policy: %s", cfg.Policy)
 	}
 }
 
@@ -407,10 +451,10 @@ func ensureSchemaReady(ctx context.Context, pool *pgxpool.Pool) error {
 	`
 	var ok bool
 	if err := pool.QueryRow(ctx, query).Scan(&ok); err != nil {
-		return fmt.Errorf("schema readiness probe failed: %w", err)
+		return serrors.E(opSchemaReadiness, err, "schema readiness probe failed")
 	}
 	if !ok {
-		return fmt.Errorf("schema not ready: public.gorp_migrations is missing")
+		return serrors.E(opSchemaReadiness, serrors.KindValidation, "schema not ready: public.gorp_migrations is missing")
 	}
 	return nil
 }
@@ -468,14 +512,14 @@ func applyTxSettings(ctx context.Context, tx pgx.Tx, cfg TxConfig) error {
 		idleTimeout = 60 * time.Second
 	}
 
-	if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL lock_timeout = '%s'", lockTimeout)); err != nil {
+	if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL lock_timeout = '%d'", lockTimeout.Milliseconds())); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL idle_in_transaction_session_timeout = '%s'", idleTimeout)); err != nil {
+	if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL idle_in_transaction_session_timeout = '%d'", idleTimeout.Milliseconds())); err != nil {
 		return err
 	}
 	if cfg.StatementTimeout > 0 {
-		if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout = '%s'", cfg.StatementTimeout)); err != nil {
+		if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout = '%d'", cfg.StatementTimeout.Milliseconds())); err != nil {
 			return err
 		}
 	}

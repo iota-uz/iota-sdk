@@ -16,13 +16,7 @@ import (
 // Setup creates a new test harness with database and application setup
 func Setup(tb testing.TB, opts ...Option) *TestEnvironment {
 	tb.Helper()
-	return NewTestContext().applyOptions(opts...).Build(tb)
-}
-
-// HTTP creates a new test suite for HTTP handlers
-func HTTP(tb testing.TB, modules ...application.Module) *Suite {
-	tb.Helper()
-	return NewSuite(tb, modules...)
+	return newTestContext().applyOptions(opts...).Build(tb)
 }
 
 // Excel creates a new Excel file builder

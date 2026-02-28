@@ -244,7 +244,6 @@ testCases := itf.Cases(
 
 **Execution:**
 - `RunCases([]TestCase)`
-- `RunCase(TestCase)`
 
 ### Test Case Builders
 - `Cases(...*TestCaseBuilder) []TestCase`
@@ -258,12 +257,7 @@ testCases := itf.Cases(
 
 ### From Legacy ITF
 ```go
-// Old way
-suite := itf.HTTP(t, modules...)
-response := suite.GET("/test").Expect(t)
-assert.Equal(t, 200, response.Raw().StatusCode)
-
-// New way
+// Canonical way
 suite := itf.NewSuiteBuilder(t).
     WithModules(modules...).
     AsAdmin().
@@ -274,8 +268,8 @@ suite.GET("/test").
     ExpectOK()
 ```
 
-### Backwards Compatibility
-All existing ITF code continues to work without modification.
+### Compatibility Policy
+Canonical APIs are intentionally minimal. Legacy entry points are removed to keep behavior and migration explicit.
 
 ## Best Practices
 

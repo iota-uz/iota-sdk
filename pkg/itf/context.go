@@ -5,11 +5,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -30,8 +28,8 @@ type TestContext struct {
 	dbName  string
 }
 
-// New creates a new TestContext builder
-func NewTestContext() *TestContext {
+// newTestContext creates a new internal TestContext builder.
+func newTestContext() *TestContext {
 	return &TestContext{
 		ctx:     context.Background(),
 		modules: []application.Module{},
@@ -89,9 +87,6 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	})
 
 	scope := h.Scope(tb)
-	tb.Cleanup(func() {
-		_ = h.Close()
-	})
 
 	tc.ctx = scope.Ctx
 	tc.pool = scope.Pool
@@ -107,26 +102,6 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 		Tenant: scope.Tenant,
 		User:   tc.user,
 	}
-}
-
-func (tc *TestContext) buildContext() context.Context {
-	ctx := tc.ctx
-	ctx = composables.WithPool(ctx, tc.pool)
-	ctx = composables.WithTx(ctx, tc.tx)
-	ctx = composables.WithTenantID(ctx, tc.tenant.ID)
-	ctx = composables.WithParams(ctx, DefaultParams())
-
-	if tc.user != nil {
-		ctx = composables.WithUser(ctx, tc.user)
-	}
-
-	ctx = composables.WithSession(ctx, MockSession())
-
-	// Add localizer for service-layer tests that bypass HTTP middleware
-	localizer := i18n.NewLocalizer(tc.app.Bundle(), "en")
-	ctx = intl.WithLocalizer(ctx, localizer)
-
-	return ctx
 }
 
 // TestEnvironment contains all test dependencies
