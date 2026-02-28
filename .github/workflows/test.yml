@@ -87,11 +87,10 @@ jobs:
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.2
 
-      - name: Install just
-        env:
-          JUST_VERSION: 1.46.0
-          JUST_SHA256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
-          run: bash ./.github/scripts/install-just.sh
+        - name: Install just
+          uses: extractions/setup-just@v3
+          with:
+            just-version: "1.46.0"
 
       - name: Run gosec (production entrypoints)
         run: just gosec
@@ -152,11 +151,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pgformatter
 
-      - name: Install just
-        env:
-          JUST_VERSION: 1.46.0
-          JUST_SHA256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
-          run: bash ./.github/scripts/install-just.sh
+        - name: Install just
+          uses: extractions/setup-just@v3
+          with:
+            just-version: "1.46.0"
 
       - name: Download Go dependencies
         run: go mod download
@@ -296,11 +294,10 @@ jobs:
         with:
           go-version: "1.24.13"
 
-      - name: Install just
-        env:
-          JUST_VERSION: 1.46.0
-          JUST_SHA256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
-          run: bash ./.github/scripts/install-just.sh
+        - name: Install just
+          uses: extractions/setup-just@v3
+          with:
+            just-version: "1.46.0"
 
       - name: Install tools
         run: |
