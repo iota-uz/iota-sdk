@@ -97,7 +97,7 @@ jobs:
             version=$(just --version 2>/dev/null | awk '{print $2}')
             [ -n "$version" ] || return 1
             [ "$version" = "$JUST_VERSION" ] || [ "$(printf '%s\n%s\n' "$JUST_VERSION" "$version" | sort -V | head -n1)" = "$JUST_VERSION" ]
-          fi
+          }
 
           install_just() {
             echo "Downloading and installing just ${JUST_VERSION}."
@@ -199,7 +199,7 @@ jobs:
             version=$(just --version 2>/dev/null | awk '{print $2}')
             [ -n "$version" ] || return 1
             [ "$version" = "$JUST_VERSION" ] || [ "$(printf '%s\n%s\n' "$JUST_VERSION" "$version" | sort -V | head -n1)" = "$JUST_VERSION" ]
-          fi
+          }
 
           install_just() {
             echo "Downloading and installing just ${JUST_VERSION}."
