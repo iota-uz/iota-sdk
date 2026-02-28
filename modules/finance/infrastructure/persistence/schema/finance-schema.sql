@@ -65,8 +65,8 @@ CREATE TABLE transactions (
     amount bigint NOT NULL,
     origin_account_id uuid REFERENCES money_accounts (id) ON DELETE RESTRICT,
     destination_account_id uuid REFERENCES money_accounts (id) ON DELETE RESTRICT,
-    transaction_date date NOT NULL DEFAULT now()::date,
-    accounting_period date NOT NULL DEFAULT now()::date,
+    transaction_date date NOT NULL DEFAULT now() ::date,
+    accounting_period date NOT NULL DEFAULT now() ::date,
     transaction_type varchar(255) NOT NULL, -- income, expense, transfer, exchange
     comment text,
     -- Exchange operation fields
@@ -170,4 +170,3 @@ CREATE INDEX debts_settlement_transaction_id_idx ON debts (settlement_transactio
 CREATE INDEX debts_original_amount_currency_id_idx ON debts (original_amount_currency_id);
 
 CREATE INDEX debts_outstanding_currency_id_idx ON debts (outstanding_currency_id);
-

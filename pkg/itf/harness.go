@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -357,7 +358,7 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 	var closeErr error
 	s.closeOnce.Do(func() {
 		if s.app != nil {
-			closeControllers(s.app.Controllers())
+			closeErr = closeControllers(s.app.Controllers())
 		}
 		if s.pool != nil {
 			s.pool.Close()
@@ -391,17 +392,23 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	}
 
 	if err := runMigrationPolicy(context.Background(), pool, app, cfg.Migration); err != nil {
-		closeControllers(app.Controllers())
+		closeErr := closeControllers(app.Controllers())
 		pool.Close()
 		_ = DropDBE(dbName)
+		if closeErr != nil {
+			return nil, serrors.E(opRunMigrationPolicy, closeErr, "failed to close controllers before migration policy failure")
+		}
 		return nil, serrors.E(opRunMigrationPolicy, err)
 	}
 
 	tenant, err := resolveTenant(context.Background(), pool, cfg.Context.TenantID)
 	if err != nil {
-		closeControllers(app.Controllers())
+		closeErr := closeControllers(app.Controllers())
 		pool.Close()
 		_ = DropDBE(dbName)
+		if closeErr != nil {
+			return nil, serrors.E(opResolveTenant, closeErr, "failed to close controllers before tenant resolve failure")
+		}
 		return nil, serrors.E(opResolveTenant, err, "resolve tenant")
 	}
 
@@ -411,9 +418,12 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		if err := composables.InTx(baseCtx, func(seedCtx context.Context) error {
 			return cfg.Seed.Run(seedCtx, app)
 		}); err != nil {
-			closeControllers(app.Controllers())
+			closeErr := closeControllers(app.Controllers())
 			pool.Close()
 			_ = DropDBE(dbName)
+			if closeErr != nil {
+				return nil, serrors.E(opOncePerHarnessSeed, closeErr, "failed to close controllers before seed failure")
+			}
 			return nil, serrors.E(opOncePerHarnessSeed, err, "once-per-harness seed")
 		}
 	}
@@ -431,20 +441,27 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 
 func normalizeHarnessConfig(tb testing.TB, cfg HarnessConfig) HarnessConfig {
 	tb.Helper()
+	if cfg.Database.Provisioning == "" {
+		cfg.Database.Provisioning = ProvisioningSharedPerPackage
+	}
 	if cfg.Name == "" {
 		if cfg.Database.Provisioning == ProvisioningSharedPerPackage {
-			_, file, _, ok := runtime.Caller(2)
-			if ok {
-				cfg.Name = filepath.Base(filepath.Dir(file))
-			} else {
+			for depth := 2; depth < 10; depth++ {
+				_, file, _, ok := runtime.Caller(depth)
+				if !ok {
+					break
+				}
+				if !strings.Contains(file, "/pkg/itf/") && !strings.Contains(file, "/pkg/itf.go") {
+					cfg.Name = filepath.Base(filepath.Dir(file))
+					break
+				}
+			}
+			if cfg.Name == "" {
 				cfg.Name = "itf_harness_shared"
 			}
 		} else {
 			cfg.Name = "itf_harness_" + tb.Name()
 		}
-	}
-	if cfg.Database.Provisioning == "" {
-		cfg.Database.Provisioning = ProvisioningSharedPerPackage
 	}
 	if cfg.Database.Cleanup == "" {
 		cfg.Database.Cleanup = CleanupDropOnExit
@@ -471,7 +488,7 @@ func buildHarnessKey(cfg HarnessConfig) string {
 	}
 
 	return fmt.Sprintf(
-		"name=%s|mods=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
+		"name=%s|mods=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|user=%v|locales=%v",
 		cfg.Name,
 		moduleTypes,
 		cfg.Database.Provisioning,
@@ -487,6 +504,7 @@ func buildHarnessKey(cfg HarnessConfig) string {
 		cfg.Isolation.Tx.IdleInTxTimeout,
 		cfg.Isolation.Tx.StatementTimeout,
 		tenantID(cfg.Context.TenantID),
+		cfg.Context.User,
 		cfg.Context.Locales,
 	)
 }
@@ -514,7 +532,11 @@ func runMigrationPolicy(ctx context.Context, pool *pgxpool.Pool, app application
 	case MigrationSkip:
 		return ensureSchemaReady(ctx, pool)
 	default:
-		return serrors.E(opRunMigrationPolicy, serrors.Invalid, "unsupported migration policy: %s", cfg.Policy)
+		return serrors.E(
+			opRunMigrationPolicy,
+			serrors.Invalid,
+			fmt.Sprintf("unsupported migration policy: %s", cfg.Policy),
+		)
 	}
 }
 
@@ -630,12 +652,16 @@ func newPoolWithConfig(dbOpts string, cfg PoolConfig) (*pgxpool.Pool, error) {
 	return pgxpool.NewWithConfig(ctx, parsed)
 }
 
-func closeControllers(controllers []application.Controller) {
+func closeControllers(controllers []application.Controller) error {
+	var closeErr error
 	for _, controller := range controllers {
 		closer, ok := controller.(controllerCloser)
 		if !ok {
 			continue
 		}
-		_ = closer.Close()
+		if err := closer.Close(); err != nil && closeErr == nil {
+			closeErr = serrors.E("itf.closeControllers", err, "failed to close controller")
+		}
 	}
+	return closeErr
 }

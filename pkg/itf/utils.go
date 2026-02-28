@@ -291,8 +291,8 @@ func CreateDBE(name string) (err error) {
 }
 
 // DropDB drops a test database. Used for cleanup after tests to free disk space.
-func DropDB(name string) {
-	_ = dropDB(name)
+func DropDB(name string) error {
+	return dropDB(name)
 }
 
 func dropDB(name string) error {
