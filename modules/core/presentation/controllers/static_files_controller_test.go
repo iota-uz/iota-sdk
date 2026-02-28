@@ -26,9 +26,9 @@ func TestStaticFilesController_DirectoryListing_Returns404(t *testing.T) {
 	// Create a hashfs instance
 	fs := hashfs.NewFS(os.DirFS(tmpDir))
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}))
+	})).Build()
 	controller := controllers.NewStaticFilesController([]*hashfs.FS{fs})
 	suite.Register(controller)
 
@@ -50,9 +50,9 @@ func TestStaticFilesController_FileAccess_ReturnsFile(t *testing.T) {
 	// Create a hashfs instance
 	fs := hashfs.NewFS(os.DirFS(tmpDir))
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}))
+	})).Build()
 	controller := controllers.NewStaticFilesController([]*hashfs.FS{fs})
 	suite.Register(controller)
 
@@ -74,9 +74,9 @@ func TestStaticFilesController_NonExistentFile_Returns404(t *testing.T) {
 	// Create a hashfs instance
 	fs := hashfs.NewFS(os.DirFS(tmpDir))
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}))
+	})).Build()
 	controller := controllers.NewStaticFilesController([]*hashfs.FS{fs})
 	suite.Register(controller)
 
