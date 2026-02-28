@@ -168,5 +168,5 @@ func TestTenantIDHelper(t *testing.T) {
 
 	uid := uuid.New()
 	require.Equal(t, uid.String(), tenantID(&uid))
-	require.Equal(t, "", tenantID(nil))
+	require.Empty(t, tenantID(nil))
 }

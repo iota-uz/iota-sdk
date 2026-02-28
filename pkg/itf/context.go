@@ -146,16 +146,3 @@ func (te *TestEnvironment) TenantID() uuid.UUID {
 func (te *TestEnvironment) WithTx(ctx context.Context) context.Context {
 	return composables.WithTx(ctx, te.Tx)
 }
-
-func closeControllerResources(tb testing.TB, controllers []application.Controller) {
-	tb.Helper()
-	for _, controller := range controllers {
-		closer, ok := controller.(controllerCloser)
-		if !ok {
-			continue
-		}
-		if err := closer.Close(); err != nil {
-			tb.Logf("Warning: failed to close controller %T: %v", controller, err)
-		}
-	}
-}

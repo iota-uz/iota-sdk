@@ -203,9 +203,9 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)
@@ -243,9 +243,9 @@ func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)
@@ -261,9 +261,9 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)
@@ -307,9 +307,9 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)
@@ -350,9 +350,9 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)
@@ -387,9 +387,9 @@ func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)
@@ -405,9 +405,9 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)
@@ -445,9 +445,9 @@ func TestCounterpartiesController_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)
@@ -462,9 +462,9 @@ func TestCounterpartiesController_Create_InvalidTINValidationError(t *testing.T)
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)
@@ -498,9 +498,9 @@ func TestCounterpartiesController_Update_InvalidTINValidationError(t *testing.T)
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(adminUser)
 
 	controller := controllers.NewCounterpartiesController(suite.Env().App)

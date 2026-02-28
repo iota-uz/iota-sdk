@@ -5,7 +5,9 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -133,9 +135,12 @@ type Harness interface {
 }
 
 type harnessImpl struct {
-	cfg    HarnessConfig
-	state  *harnessState
-	shared bool
+	cfg      HarnessConfig
+	state    *harnessState
+	shared   bool
+	closed   bool
+	mu       sync.Mutex
+	closeErr error
 }
 
 type harnessState struct {
@@ -177,9 +182,7 @@ func NewHarness(tb testing.TB, cfg HarnessConfig) Harness {
 			tb.Fatalf("failed to create per-test harness: %v", err)
 		}
 		h := &harnessImpl{cfg: cfg, state: state, shared: false}
-		tb.Cleanup(func() {
-			_ = h.Close()
-		})
+		tb.Cleanup(func() { _ = h.Close() })
 		return h
 	}
 
@@ -188,13 +191,18 @@ func NewHarness(tb testing.TB, cfg HarnessConfig) Harness {
 		tb.Fatalf("failed to create shared harness: %v", err)
 	}
 
-	return &harnessImpl{cfg: cfg, state: state, shared: true}
+	h := &harnessImpl{cfg: cfg, state: state, shared: true}
+	tb.Cleanup(func() { _ = h.Close() })
+	return h
 }
 
 func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 	tb.Helper()
 
 	ctx := h.state.baseCtx
+	if h.cfg.Context.User != nil {
+		ctx = composables.WithUser(ctx, h.cfg.Context.User)
+	}
 	switch h.cfg.Isolation.Mode {
 	case IsolationCommitted:
 		if h.cfg.Seed.Policy == SeedPerTest && h.cfg.Seed.Run != nil {
@@ -251,10 +259,21 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 }
 
 func (h *harnessImpl) Close() error {
-	if h.shared {
-		return sharedHarnessManager.close(h.state.key, h.cfg.Database.Cleanup)
+	h.mu.Lock()
+	if h.closed {
+		err := h.closeErr
+		h.mu.Unlock()
+		return err
 	}
-	return h.state.close(h.cfg.Database.Cleanup)
+	h.closed = true
+	h.mu.Unlock()
+
+	if h.shared {
+		h.closeErr = sharedHarnessManager.close(h.state.key, h.cfg.Database.Cleanup)
+	} else {
+		h.closeErr = h.state.close(h.cfg.Database.Cleanup)
+	}
+	return h.closeErr
 }
 
 func (m *harnessManager) getOrCreate(key string, cfg HarnessConfig) (*harnessState, error) {
@@ -274,16 +293,28 @@ func (m *harnessManager) getOrCreate(key string, cfg HarnessConfig) (*harnessSta
 			return entry.state, nil
 		}
 
+		entry := &managedHarnessState{
+			refs:    1,
+			closing: true,
+			cond:    sync.NewCond(&m.mu),
+		}
+		m.entries[key] = entry
+		m.mu.Unlock()
+
 		state, err := createHarnessState(key, cfg, false)
+
+		m.mu.Lock()
 		if err != nil {
+			delete(m.entries, key)
+			entry.closing = false
+			entry.cond.Broadcast()
 			m.mu.Unlock()
 			return nil, err
 		}
-		m.entries[key] = &managedHarnessState{
-			state: state,
-			refs:  1,
-			cond:  sync.NewCond(&m.mu),
-		}
+
+		entry.state = state
+		entry.closing = false
+		entry.cond.Broadcast()
 		m.mu.Unlock()
 		return state, nil
 	}
@@ -401,7 +432,16 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 func normalizeHarnessConfig(tb testing.TB, cfg HarnessConfig) HarnessConfig {
 	tb.Helper()
 	if cfg.Name == "" {
-		cfg.Name = "itf_harness_" + tb.Name()
+		if cfg.Database.Provisioning == ProvisioningSharedPerPackage {
+			_, file, _, ok := runtime.Caller(2)
+			if ok {
+				cfg.Name = filepath.Base(filepath.Dir(file))
+			} else {
+				cfg.Name = "itf_harness_shared"
+			}
+		} else {
+			cfg.Name = "itf_harness_" + tb.Name()
+		}
 	}
 	if cfg.Database.Provisioning == "" {
 		cfg.Database.Provisioning = ProvisioningSharedPerPackage
@@ -525,10 +565,6 @@ func buildBaseContext(pool *pgxpool.Pool, app application.Application, tenant *c
 	ctx = composables.WithParams(ctx, DefaultParams())
 	ctx = composables.WithSession(ctx, MockSession())
 	ctx = context.WithValue(ctx, constants.AppKey, app)
-
-	if cfg.User != nil {
-		ctx = composables.WithUser(ctx, cfg.User)
-	}
 
 	locale := "en"
 	if len(cfg.Locales) > 0 && cfg.Locales[0] != "" {

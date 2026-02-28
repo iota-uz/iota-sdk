@@ -29,9 +29,9 @@ func TestProjectStageController_List_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -100,9 +100,9 @@ func TestProjectStageController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -158,9 +158,9 @@ func TestProjectStageController_ListByProject_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -246,9 +246,9 @@ func TestProjectStageController_ListByProject_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -265,9 +265,9 @@ func TestProjectStageController_GetNewDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -292,9 +292,9 @@ func TestProjectStageController_Create_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -354,9 +354,9 @@ func TestProjectStageController_Create_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -389,9 +389,9 @@ func TestProjectStageController_GetEditDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -453,9 +453,9 @@ func TestProjectStageController_GetEditDrawer_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -473,9 +473,9 @@ func TestProjectStageController_GetEditDrawer_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -492,9 +492,9 @@ func TestProjectStageController_Update_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -561,9 +561,9 @@ func TestProjectStageController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -630,9 +630,9 @@ func TestProjectStageController_Update_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -657,9 +657,9 @@ func TestProjectStageController_Update_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -682,9 +682,9 @@ func TestProjectStageController_Delete_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -747,9 +747,9 @@ func TestProjectStageController_Delete_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -767,9 +767,9 @@ func TestProjectStageController_Delete_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -786,9 +786,9 @@ func TestProjectStageController_Create_WithDates(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).
+	}), finance.NewModule(), projects.NewModule()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()

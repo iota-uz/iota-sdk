@@ -29,8 +29,10 @@ ITF provides:
 // Basic environment setup
 itf.Setup(tb testing.TB, opts ...Option) *TestEnvironment
 
-// HTTP suite with modules
-itf.HTTP(tb testing.TB, modules ...application.Module) *Suite
+// Suite with modules (canonical API)
+itf.NewSuiteBuilder(tb).
+    WithModules(modules ...application.Module).
+    Build()
 
 // Modern fluent builder (recommended)
 itf.NewSuiteBuilder(t) *SuiteBuilder
@@ -434,7 +436,9 @@ func TestServiceName_Method(t *testing.T) {
 
 ```go
 func TestControllerName_Get(t *testing.T) {
-    suite := itf.HTTP(t, module.NewModule(opts))
+    suite := itf.NewSuiteBuilder(t).
+        WithModules(module.NewModule(opts)).
+        Build()
     c := controllers.NewControllerName(suite.Env().App)
     suite.Register(c)
     suite.GET("/path").Assert(t).ExpectOK()

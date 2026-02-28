@@ -26,6 +26,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const (
+	opCreateDBE = serrors.Op("itf.CreateDB")
+	opDropDBE   = serrors.Op("itf.DropDB")
+)
+
 type TestFixtures struct {
 	SQLDB   *sql.DB
 	Pool    *pgxpool.Pool
@@ -277,7 +282,7 @@ func CreateDB(name string) {
 func CreateDBE(name string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("failed to create test database %q: %v", sanitizeDBName(name), r)
+			err = serrors.E(opCreateDBE, fmt.Errorf("failed to create test database %q: %v", sanitizeDBName(name), r))
 		}
 	}()
 
@@ -287,6 +292,10 @@ func CreateDBE(name string) (err error) {
 
 // DropDB drops a test database. Used for cleanup after tests to free disk space.
 func DropDB(name string) {
+	_ = dropDB(name)
+}
+
+func dropDB(name string) error {
 	sanitizedName := sanitizeDBName(name)
 
 	c := configuration.Use()
@@ -297,7 +306,7 @@ func DropDB(name string) {
 	db, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		log.Printf("[WARNING] Failed to open connection for DropDB: %v", err)
-		return
+		return err
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -316,20 +325,22 @@ func DropDB(name string) {
 
 	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
 	if err != nil {
-		log.Printf("[WARNING] Failed to drop database %s: %v", sanitizedName, err)
+		return err
 	}
+
+	return nil
 }
 
 // DropDBE drops a test database and returns an error instead of panicking.
 func DropDBE(name string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("failed to drop test database %q: %v", sanitizeDBName(name), r)
+			err = serrors.E(opDropDBE, fmt.Errorf("failed to drop test database %q: %v", sanitizeDBName(name), r))
 		}
 	}()
 
-	DropDB(name)
-	return nil
+	err = dropDB(name)
+	return err
 }
 
 func DbOpts(name string) string {
