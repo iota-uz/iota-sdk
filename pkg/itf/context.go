@@ -70,55 +70,41 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 		uniqueSuffix := uuid.New().String()[:8]
 		tc.dbName = tb.Name() + "_" + uniqueSuffix
 	}
-
-	// Create test database
-	CreateDB(tc.dbName)
-	tc.pool = NewPool(DbOpts(tc.dbName))
-
-	// Setup application
-	app, err := SetupApplication(tc.pool, tc.modules...)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	tc.app = app
-
-	// Create tenant
-	tenant, err := CreateTestTenant(tc.ctx, tc.pool)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	tc.tenant = tenant
-
-	// Begin transaction
-	tx, err := tc.pool.Begin(tc.ctx)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	tc.tx = tx
-
-	// Build context with all composables
-	tc.ctx = tc.buildContext()
-
-	// Setup cleanup - drop test database to free disk space
-	dbName := tc.dbName
-	tb.Cleanup(func() {
-		if err := tx.Rollback(tc.ctx); err != nil && err != pgx.ErrTxClosed {
-			tb.Logf("Warning: failed to rollback transaction: %v", err)
-		}
-		if tc.app != nil {
-			closeControllerResources(tb, tc.app.Controllers())
-		}
-		tc.pool.Close()
-		// Drop the test database to free disk space
-		DropDB(dbName)
+	h := NewHarness(tb, HarnessConfig{
+		Name:    tc.dbName,
+		Modules: tc.modules,
+		Database: DatabaseConfig{
+			Provisioning: ProvisioningPerTestDatabase,
+			Cleanup:      CleanupDropOnExit,
+		},
+		Migration: MigrationConfig{
+			Policy: MigrationApplyOnce,
+		},
+		Isolation: IsolationConfig{
+			Mode: IsolationRollback,
+		},
+		Context: ContextConfig{
+			User: tc.user,
+		},
 	})
 
+	scope := h.Scope(tb)
+	tb.Cleanup(func() {
+		_ = h.Close()
+	})
+
+	tc.ctx = scope.Ctx
+	tc.pool = scope.Pool
+	tc.tx = scope.Tx
+	tc.app = scope.App
+	tc.tenant = scope.Tenant
+
 	return &TestEnvironment{
-		Ctx:    tc.ctx,
-		Pool:   tc.pool,
-		Tx:     tc.tx,
-		App:    tc.app,
-		Tenant: tc.tenant,
+		Ctx:    scope.Ctx,
+		Pool:   scope.Pool,
+		Tx:     scope.Tx,
+		App:    scope.App,
+		Tenant: scope.Tenant,
 		User:   tc.user,
 	}
 }

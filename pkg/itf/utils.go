@@ -334,18 +334,6 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 		return nil, err
 	}
 
-	// Only run migrations if migrations directory exists
-	// In CI, migrations are applied via `make db migrate up` before tests run,
-	// so we skip re-running them to avoid "no such file" errors when tests
-	// run from subdirectories where migrations/ path doesn't resolve.
-	if _, err := os.Stat(conf.MigrationsDir); err == nil {
-		if err := app.Migrations().Run(); err != nil {
-			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "failed to run migrations")
-		}
-	} else if !os.IsNotExist(err) {
-		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "failed to stat migrations directory")
-	}
-
 	return app, nil
 }
 
