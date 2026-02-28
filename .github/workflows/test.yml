@@ -88,9 +88,34 @@ jobs:
         run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.2
 
       - name: Install just
-        uses: extractions/setup-just@v3
-        with:
-          just-version: '1.46.0'
+        run: |
+          if command -v just >/dev/null; then
+            just --version
+            exit 0
+          fi
+
+          echo "just is not installed. Trying apt fallback first."
+          if sudo apt-get update && sudo apt-get install -y just; then
+            just --version
+            exit 0
+          fi
+
+          echo "Fallback to GitHub release download with retries."
+          for attempt in 1 2 3; do
+            if curl -fsSL --retry 2 --retry-connrefused --retry-delay 5 \
+              -o /tmp/just.tar.gz https://github.com/casey/just/releases/download/1.46.0/just-1.46.0-x86_64-unknown-linux-musl.tar.gz; then
+              sudo tar -xzf /tmp/just.tar.gz -C /tmp
+              sudo install -m 755 /tmp/just /usr/local/bin/just
+              just --version
+              exit 0
+            fi
+
+            echo "Attempt $attempt to download just failed."
+            sleep $((attempt * 5))
+          done
+
+          echo "Failed to install just after retries."
+          exit 1
 
       - name: Run gosec (production entrypoints)
         run: just gosec
@@ -152,9 +177,34 @@ jobs:
           sudo apt-get install -y pgformatter
 
       - name: Install just
-        uses: extractions/setup-just@v3
-        with:
-          just-version: '1.46.0'
+        run: |
+          if command -v just >/dev/null; then
+            just --version
+            exit 0
+          fi
+
+          echo "just is not installed. Trying apt fallback first."
+          if sudo apt-get update && sudo apt-get install -y just; then
+            just --version
+            exit 0
+          fi
+
+          echo "Fallback to GitHub release download with retries."
+          for attempt in 1 2 3; do
+            if curl -fsSL --retry 2 --retry-connrefused --retry-delay 5 \
+              -o /tmp/just.tar.gz https://github.com/casey/just/releases/download/1.46.0/just-1.46.0-x86_64-unknown-linux-musl.tar.gz; then
+              sudo tar -xzf /tmp/just.tar.gz -C /tmp
+              sudo install -m 755 /tmp/just /usr/local/bin/just
+              just --version
+              exit 0
+            fi
+
+            echo "Attempt $attempt to download just failed."
+            sleep $((attempt * 5))
+          done
+
+          echo "Failed to install just after retries."
+          exit 1
 
       - name: Download Go dependencies
         run: go mod download
@@ -295,9 +345,34 @@ jobs:
           go-version: "1.24.13"
 
       - name: Install just
-        uses: extractions/setup-just@v3
-        with:
-          just-version: '1.46.0'
+        run: |
+          if command -v just >/dev/null; then
+            just --version
+            exit 0
+          fi
+
+          echo "just is not installed. Trying apt fallback first."
+          if sudo apt-get update && sudo apt-get install -y just; then
+            just --version
+            exit 0
+          fi
+
+          echo "Fallback to GitHub release download with retries."
+          for attempt in 1 2 3; do
+            if curl -fsSL --retry 2 --retry-connrefused --retry-delay 5 \
+              -o /tmp/just.tar.gz https://github.com/casey/just/releases/download/1.46.0/just-1.46.0-x86_64-unknown-linux-musl.tar.gz; then
+              sudo tar -xzf /tmp/just.tar.gz -C /tmp
+              sudo install -m 755 /tmp/just /usr/local/bin/just
+              just --version
+              exit 0
+            fi
+
+            echo "Attempt $attempt to download just failed."
+            sleep $((attempt * 5))
+          done
+
+          echo "Failed to install just after retries."
+          exit 1
 
       - name: Install tools
         run: |
