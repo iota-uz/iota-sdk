@@ -170,3 +170,4 @@ CREATE INDEX debts_settlement_transaction_id_idx ON debts (settlement_transactio
 CREATE INDEX debts_original_amount_currency_id_idx ON debts (original_amount_currency_id);
 
 CREATE INDEX debts_outstanding_currency_id_idx ON debts (outstanding_currency_id);
+

@@ -340,3 +340,4 @@ COMMENT ON TABLE bichat.events IS 'Point-in-time observability events linked to 
 COMMENT ON TABLE bichat.learnings IS 'Agent-captured learnings from SQL errors and user corrections';
 
 COMMENT ON TABLE bichat.validated_queries IS 'Proven SQL query patterns that answered prior questions';
+
