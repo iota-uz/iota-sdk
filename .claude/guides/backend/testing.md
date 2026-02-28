@@ -34,8 +34,7 @@ itf.NewSuiteBuilder(tb).
     WithModules(modules ...application.Module).
     Build()
 
-// Low-level harness API
-harness, _ := itf.NewHarness(tb, itf.HarnessConfig{
+harness := itf.NewHarness(tb, itf.HarnessConfig{
     Name: "my-harness",
     Modules: []application.Module{...},
     Database: itf.DatabaseConfig{...},
@@ -86,7 +85,6 @@ suite.Register(controller interface{ Register(*mux.Router) })
 suite.WithMiddleware(mw MiddlewareFunc)
 suite.BeforeEach(hook HookFunc)
 suite.Environment() *TestEnvironment
-suite.Env() *TestEnvironment // Alias
 
 // HTTP methods (PATCH not implemented)
 suite.GET(path string) *Request

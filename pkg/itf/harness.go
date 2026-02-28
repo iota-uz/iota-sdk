@@ -33,6 +33,7 @@ const (
 	opRunMigrationPolicy = serrors.Op("itf.runMigrationPolicy")
 	opOncePerHarnessSeed = serrors.Op("itf.seedOncePerHarness")
 	opDropDB             = serrors.Op("itf.dropDB")
+	opCloseControllers   = serrors.Op("itf.closeControllers")
 	opSchemaReadiness    = serrors.Op("itf.schemaReadiness")
 )
 
@@ -500,7 +501,9 @@ func inferSharedHarnessName() string {
 		}
 		dir := filepath.Dir(file)
 		if !strings.Contains(dir, "/pkg/itf") {
-			return filepath.Base(dir)
+			// Hash the caller path so different packages that share a folder name do not collide.
+			hash := sha1.Sum([]byte(dir))
+			return fmt.Sprintf("itf_harness_shared_%s", hex.EncodeToString(hash[:])[:8])
 		}
 	}
 }
@@ -512,7 +515,7 @@ func buildHarnessKey(cfg HarnessConfig) string {
 	}
 
 	return fmt.Sprintf(
-		"name=%s|mods=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|user=%v|locales=%v",
+		"name=%s|mods=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
 		moduleTypes,
 		cfg.Database.Provisioning,
@@ -528,7 +531,6 @@ func buildHarnessKey(cfg HarnessConfig) string {
 		cfg.Isolation.Tx.IdleInTxTimeout,
 		cfg.Isolation.Tx.StatementTimeout,
 		tenantID(cfg.Context.TenantID),
-		cfg.Context.User,
 		cfg.Context.Locales,
 	)
 }
@@ -684,7 +686,7 @@ func closeControllers(controllers []application.Controller) error {
 			continue
 		}
 		if err := closer.Close(); err != nil && closeErr == nil {
-			closeErr = serrors.E("itf.closeControllers", err, "failed to close controller")
+			closeErr = serrors.E(opCloseControllers, err, "failed to close controller")
 		}
 	}
 	return closeErr
