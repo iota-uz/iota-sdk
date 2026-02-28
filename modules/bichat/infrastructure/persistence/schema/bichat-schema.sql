@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS bichat.traces (
     generation_ms bigint NOT NULL DEFAULT 0,
     thinking text,
     observation_reason text,
-    metadata jsonb NOT NULL DEFAULT '{}' ::jsonb,
+    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW(),
     CONSTRAINT bichat_traces_status_check CHECK (status IN ('running', 'completed', 'error', 'interrupted'))
@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS bichat.generations (
     output_text text,
     thinking text,
     observation_reason text,
-    metadata jsonb NOT NULL DEFAULT '{}' ::jsonb,
+    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     started_at timestamptz,
     completed_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT NOW()
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS bichat.spans (
     output_text text,
     error_text text,
     duration_ms bigint NOT NULL DEFAULT 0,
-    attributes jsonb NOT NULL DEFAULT '{}' ::jsonb,
+    attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
     started_at timestamptz,
     completed_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT NOW()
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS bichat.events (
     reason text,
     span_external_id text,
     generation_external_id text,
-    attributes jsonb NOT NULL DEFAULT '{}' ::jsonb,
+    attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
     timestamp timestamptz,
     created_at timestamptz NOT NULL DEFAULT NOW()
 );
@@ -340,3 +340,4 @@ COMMENT ON TABLE bichat.events IS 'Point-in-time observability events linked to 
 COMMENT ON TABLE bichat.learnings IS 'Agent-captured learnings from SQL errors and user corrections';
 
 COMMENT ON TABLE bichat.validated_queries IS 'Proven SQL query patterns that answered prior questions';
+
