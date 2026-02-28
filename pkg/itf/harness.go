@@ -426,13 +426,23 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	}
 
 	if err := runMigrationPolicy(context.Background(), pool, app, cfg.Migration); err != nil {
+		combinedErr := serrors.E(opRunMigrationPolicy, err, "migration policy")
 		closeErr := closeControllers(app.Controllers())
 		pool.Close()
-		_ = DropDBE(dbName)
+		dropErr := DropDBE(dbName)
 		if closeErr != nil {
-			return nil, serrors.E(opRunMigrationPolicy, closeErr, "failed to close controllers before migration policy failure")
+			combinedErr = mergeCloseErrors(
+				combinedErr,
+				serrors.E(opRunMigrationPolicy, closeErr, "failed to close controllers after migration policy failure"),
+			)
 		}
-		return nil, serrors.E(opRunMigrationPolicy, err)
+		if dropErr != nil {
+			combinedErr = mergeCloseErrors(
+				combinedErr,
+				serrors.E(opDropDB, dropErr, "drop database after migration policy failure"),
+			)
+		}
+		return nil, combinedErr
 	}
 
 	tenant, err := resolveTenant(context.Background(), pool, cfg.Context.TenantID)

@@ -91,7 +91,7 @@ jobs:
         env:
           JUST_VERSION: 1.46.0
           JUST_SHA256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
-        run: ./.github/scripts/install-just.sh
+          run: bash ./.github/scripts/install-just.sh
 
       - name: Run gosec (production entrypoints)
         run: just gosec
@@ -156,7 +156,7 @@ jobs:
         env:
           JUST_VERSION: 1.46.0
           JUST_SHA256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
-        run: ./.github/scripts/install-just.sh
+          run: bash ./.github/scripts/install-just.sh
 
       - name: Download Go dependencies
         run: go mod download
@@ -300,7 +300,7 @@ jobs:
         env:
           JUST_VERSION: 1.46.0
           JUST_SHA256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
-        run: ./.github/scripts/install-just.sh
+          run: bash ./.github/scripts/install-just.sh
 
       - name: Install tools
         run: |
