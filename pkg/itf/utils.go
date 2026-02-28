@@ -273,6 +273,18 @@ func CreateDB(name string) {
 	}
 }
 
+// CreateDBE creates a test database and returns an error instead of panicking.
+func CreateDBE(name string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("failed to create test database %q: %v", sanitizeDBName(name), r)
+		}
+	}()
+
+	CreateDB(name)
+	return nil
+}
+
 // DropDB drops a test database. Used for cleanup after tests to free disk space.
 func DropDB(name string) {
 	sanitizedName := sanitizeDBName(name)
@@ -306,6 +318,18 @@ func DropDB(name string) {
 	if err != nil {
 		log.Printf("[WARNING] Failed to drop database %s: %v", sanitizedName, err)
 	}
+}
+
+// DropDBE drops a test database and returns an error instead of panicking.
+func DropDBE(name string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("failed to drop test database %q: %v", sanitizeDBName(name), r)
+		}
+	}()
+
+	DropDB(name)
+	return nil
 }
 
 func DbOpts(name string) string {

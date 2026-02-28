@@ -269,6 +269,7 @@ suite.GET("/test").
 ```
 
 ### Compatibility Policy
+
 Canonical APIs are intentionally minimal. Legacy entry points are removed to keep behavior and migration explicit.
 
 ## Best Practices
@@ -347,4 +348,4 @@ func TestUserController(t *testing.T) {
 }
 ```
 
-The ITF provides a comprehensive, fluent testing experience that reduces boilerplate while maintaining full compatibility with existing test suites.
+The ITF provides a comprehensive, fluent testing experience that reduces boilerplate and requires minimal migration from the legacy API to the new canonical entry points.

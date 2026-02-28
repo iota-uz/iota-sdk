@@ -23,11 +23,13 @@ import (
 )
 
 const (
+	opCreateDB           = serrors.Op("itf.createDB")
 	opCreatePool         = serrors.Op("itf.createPool")
 	opSetupApplication   = serrors.Op("itf.setupApplication")
 	opResolveTenant      = serrors.Op("itf.resolveTenant")
 	opRunMigrationPolicy = serrors.Op("itf.runMigrationPolicy")
 	opOncePerHarnessSeed = serrors.Op("itf.seedOncePerHarness")
+	opDropDB             = serrors.Op("itf.dropDB")
 	opSchemaReadiness    = serrors.Op("itf.schemaReadiness")
 )
 
@@ -153,8 +155,10 @@ type harnessManager struct {
 }
 
 type managedHarnessState struct {
-	state *harnessState
-	refs  int
+	state   *harnessState
+	refs    int
+	closing bool
+	cond    *sync.Cond
 }
 
 var sharedHarnessManager = &harnessManager{
@@ -255,19 +259,34 @@ func (h *harnessImpl) Close() error {
 
 func (m *harnessManager) getOrCreate(key string, cfg HarnessConfig) (*harnessState, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
-	if entry, ok := m.entries[key]; ok {
-		entry.refs++
-		return entry.state, nil
-	}
+	for {
+		if entry, ok := m.entries[key]; ok {
+			for entry.closing {
+				entry.cond.Wait()
+			}
+			if entry.state == nil {
+				delete(m.entries, key)
+				continue
+			}
+			entry.refs++
+			m.mu.Unlock()
+			return entry.state, nil
+		}
 
-	state, err := createHarnessState(key, cfg, false)
-	if err != nil {
-		return nil, err
+		state, err := createHarnessState(key, cfg, false)
+		if err != nil {
+			m.mu.Unlock()
+			return nil, err
+		}
+		m.entries[key] = &managedHarnessState{
+			state: state,
+			refs:  1,
+			cond:  sync.NewCond(&m.mu),
+		}
+		m.mu.Unlock()
+		return state, nil
 	}
-	m.entries[key] = &managedHarnessState{state: state, refs: 1}
-	return state, nil
 }
 
 func (m *harnessManager) close(key string, cleanup CleanupMode) error {
@@ -278,15 +297,29 @@ func (m *harnessManager) close(key string, cleanup CleanupMode) error {
 		return nil
 	}
 
+	for entry.closing {
+		entry.cond.Wait()
+	}
+
 	entry.refs--
 	if entry.refs > 0 {
 		m.mu.Unlock()
 		return nil
 	}
-	delete(m.entries, key)
+
+	entry.closing = true
 	m.mu.Unlock()
 
-	return entry.state.close(cleanup)
+	err := entry.state.close(cleanup)
+
+	m.mu.Lock()
+	delete(m.entries, key)
+	entry.state = nil
+	entry.closing = false
+	entry.cond.Broadcast()
+	m.mu.Unlock()
+
+	return err
 }
 
 func (s *harnessState) close(cleanup CleanupMode) error {
@@ -299,7 +332,9 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 			s.pool.Close()
 		}
 		if cleanup == CleanupDropOnExit {
-			DropDB(s.dbName)
+			if err := DropDBE(s.dbName); err != nil {
+				closeErr = serrors.E(opDropDB, err, "drop database on close")
+			}
 		}
 	})
 	return closeErr
@@ -307,25 +342,27 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 
 func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harnessState, error) {
 	dbName := buildDBName(cfg.Name, key, isPerTest)
-	CreateDB(dbName)
+	if err := CreateDBE(dbName); err != nil {
+		return nil, serrors.E(opCreateDB, err, "create database")
+	}
 
 	pool, err := newPoolWithConfig(DbOpts(dbName), cfg.Database.Pool)
 	if err != nil {
-		DropDB(dbName)
+		_ = DropDBE(dbName)
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
 	app, err := SetupApplication(pool, cfg.Modules...)
 	if err != nil {
 		pool.Close()
-		DropDB(dbName)
+		_ = DropDBE(dbName)
 		return nil, serrors.E(opSetupApplication, err, "setup application")
 	}
 
 	if err := runMigrationPolicy(context.Background(), pool, app, cfg.Migration); err != nil {
 		closeControllers(app.Controllers())
 		pool.Close()
-		DropDB(dbName)
+		_ = DropDBE(dbName)
 		return nil, serrors.E(opRunMigrationPolicy, err)
 	}
 
@@ -333,7 +370,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	if err != nil {
 		closeControllers(app.Controllers())
 		pool.Close()
-		DropDB(dbName)
+		_ = DropDBE(dbName)
 		return nil, serrors.E(opResolveTenant, err, "resolve tenant")
 	}
 
@@ -345,7 +382,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		}); err != nil {
 			closeControllers(app.Controllers())
 			pool.Close()
-			DropDB(dbName)
+			_ = DropDBE(dbName)
 			return nil, serrors.E(opOncePerHarnessSeed, err, "once-per-harness seed")
 		}
 	}
