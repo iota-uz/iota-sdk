@@ -3,6 +3,7 @@ package itf
 import (
 	"context"
 	"embed"
+	"errors"
 	"reflect"
 	"sync"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -29,11 +31,14 @@ func TestRunMigrationPolicy_Scenarios(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		policy        MigrationPolicy
-		expectErr     bool
-		expectErrKind serrors.Kind
-		expectCalled  bool
+		name             string
+		policy           MigrationPolicy
+		pool             schemaReadinessQuerier
+		expectErr        bool
+		expectErrKind    serrors.Kind
+		expectErrOp      serrors.Op
+		expectErrContext string
+		expectCalled     bool
 	}{
 		{
 			name:         "ApplyOnce_Migrates",
@@ -41,10 +46,36 @@ func TestRunMigrationPolicy_Scenarios(t *testing.T) {
 			expectCalled: true,
 		},
 		{
+			name:         "Skip_SchemaReady",
+			policy:       MigrationSkip,
+			pool:         fakeSchemaReadinessPool{row: fakeBoolRow{value: true}},
+			expectCalled: false,
+		},
+		{
+			name:             "Skip_MissingMigrationsTable",
+			policy:           MigrationSkip,
+			pool:             fakeSchemaReadinessPool{row: fakeBoolRow{value: false}},
+			expectErr:        true,
+			expectErrKind:    serrors.KindValidation,
+			expectErrOp:      opSchemaReadiness,
+			expectErrContext: "schema not ready",
+			expectCalled:     false,
+		},
+		{
+			name:             "Skip_ProbeError",
+			policy:           MigrationSkip,
+			pool:             fakeSchemaReadinessPool{row: fakeBoolRow{scanErr: errors.New("probe failed")}},
+			expectErr:        true,
+			expectErrOp:      opSchemaReadiness,
+			expectErrContext: "schema readiness probe failed",
+			expectCalled:     false,
+		},
+		{
 			name:          "UnsupportedPolicy_IsRejected",
 			policy:        MigrationPolicy("unsupported"),
 			expectErr:     true,
 			expectErrKind: serrors.Invalid,
+			expectErrOp:   opRunMigrationPolicy,
 			expectCalled:  false,
 		},
 	}
@@ -56,18 +87,54 @@ func TestRunMigrationPolicy_Scenarios(t *testing.T) {
 			migrations := &countingMigrationManager{}
 			app := &testApp{migrations: migrations}
 
-			err := runMigrationPolicy(context.Background(), nil, app, MigrationConfig{Policy: tt.policy})
+			err := runMigrationPolicy(context.Background(), tt.pool, app, MigrationConfig{Policy: tt.policy})
 			if !tt.expectErr {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
 				var serr *serrors.Error
 				require.ErrorAs(t, err, &serr)
-				assert.Equal(t, tt.expectErrKind, serr.Kind)
+				if tt.expectErrKind != serrors.Other {
+					assert.Equal(t, tt.expectErrKind, serr.Kind)
+				}
+				if tt.expectErrOp != "" {
+					assert.Equal(t, tt.expectErrOp, serr.Op)
+				}
+				if tt.expectErrContext != "" {
+					assert.Contains(t, serr.Error(), tt.expectErrContext)
+				}
 			}
 			assert.Equal(t, tt.expectCalled, migrations.RunCalled())
 		})
 	}
+}
+
+type fakeSchemaReadinessPool struct {
+	row pgx.Row
+}
+
+func (p fakeSchemaReadinessPool) QueryRow(_ context.Context, _ string, _ ...any) pgx.Row {
+	return p.row
+}
+
+type fakeBoolRow struct {
+	value   bool
+	scanErr error
+}
+
+func (r fakeBoolRow) Scan(dest ...any) error {
+	if r.scanErr != nil {
+		return r.scanErr
+	}
+	if len(dest) != 1 {
+		return errors.New("expected single destination")
+	}
+	b, ok := dest[0].(*bool)
+	if !ok {
+		return errors.New("destination must be *bool")
+	}
+	*b = r.value
+	return nil
 }
 
 func TestSharedHarnessManagerReferenceCounting(t *testing.T) {

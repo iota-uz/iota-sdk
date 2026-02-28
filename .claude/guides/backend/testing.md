@@ -29,22 +29,33 @@ ITF provides:
 // Basic environment setup
 itf.Setup(tb testing.TB, opts ...Option) *TestEnvironment
 
-// Suite with modules (canonical API, recommended for most tests)
+// NewSuiteBuilder (canonical, recommended for most tests)
 itf.NewSuiteBuilder(tb).
     WithModules(modules ...application.Module).
     Build()
 
+// Low-level harness (advanced use cases)
 harness := itf.NewHarness(tb, itf.HarnessConfig{
     Name: "my-harness",
     Modules: []application.Module{...},
     Database: itf.DatabaseConfig{...},
 })
 scope := harness.Scope(tb)
-defer harness.Close()
+// NewHarness registers cleanup automatically via tb.Cleanup.
+// Only call harness.Close() when you need early/manual teardown.
 
 // Database manager
 itf.NewDatabaseManager(t *testing.T) *DatabaseManager
 ```
+
+### Harness Architecture
+
+`HarnessConfig` + `itf.NewHarness(tb, cfg)` are the low-level primitives that power ITF setup.
+
+- `itf.Setup(...)` is the simplest entrypoint and uses the harness internally.
+- `itf.NewSuiteBuilder(...)` is the fluent, canonical API for most HTTP/integration tests.
+- `Harness.Scope(tb)` is useful for advanced cases where you need explicit scope control.
+- `Harness.Close()` is usually managed automatically by `tb.Cleanup`; call it directly only for early cleanup.
 
 ### Setup Options
 

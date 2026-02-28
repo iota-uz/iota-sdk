@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -167,6 +168,10 @@ type managedHarnessState struct {
 	refs    int
 	closing bool
 	cond    *sync.Cond
+}
+
+type schemaReadinessQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
 var sharedHarnessManager = &harnessManager{
@@ -375,18 +380,28 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 	var closeErr error
 	s.closeOnce.Do(func() {
 		if s.app != nil {
-			closeErr = closeControllers(s.app.Controllers())
+			closeErr = mergeCloseErrors(closeErr, closeControllers(s.app.Controllers()))
 		}
 		if s.pool != nil {
 			s.pool.Close()
 		}
 		if cleanup == CleanupDropOnExit {
 			if err := DropDBE(s.dbName); err != nil {
-				closeErr = serrors.E(opDropDB, err, "drop database on close")
+				closeErr = mergeCloseErrors(closeErr, serrors.E(opDropDB, err, "drop database on close"))
 			}
 		}
 	})
 	return closeErr
+}
+
+func mergeCloseErrors(existing, next error) error {
+	if next == nil {
+		return existing
+	}
+	if existing == nil {
+		return next
+	}
+	return errors.Join(existing, next)
 }
 
 func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harnessState, error) {
@@ -551,11 +566,14 @@ func buildDBName(base, key string, perTest bool) string {
 	return fmt.Sprintf("%s_%s", base, suffix)
 }
 
-func runMigrationPolicy(ctx context.Context, pool *pgxpool.Pool, app application.Application, cfg MigrationConfig) error {
+func runMigrationPolicy(ctx context.Context, pool schemaReadinessQuerier, app application.Application, cfg MigrationConfig) error {
 	switch cfg.Policy {
 	case MigrationApplyOnce:
 		return app.Migrations().Run()
 	case MigrationSkip:
+		if pool == nil {
+			return serrors.E(opSchemaReadiness, serrors.Invalid, "schema readiness requires a database pool")
+		}
 		return ensureSchemaReady(ctx, pool)
 	default:
 		return serrors.E(
@@ -566,7 +584,7 @@ func runMigrationPolicy(ctx context.Context, pool *pgxpool.Pool, app application
 	}
 }
 
-func ensureSchemaReady(ctx context.Context, pool *pgxpool.Pool) error {
+func ensureSchemaReady(ctx context.Context, pool schemaReadinessQuerier) error {
 	const query = `
 		SELECT EXISTS(
 			SELECT 1
@@ -685,8 +703,11 @@ func closeControllers(controllers []application.Controller) error {
 		if !ok {
 			continue
 		}
-		if err := closer.Close(); err != nil && closeErr == nil {
-			closeErr = serrors.E(opCloseControllers, err, "failed to close controller")
+		if err := closer.Close(); err != nil {
+			closeErr = mergeCloseErrors(
+				closeErr,
+				serrors.E(opCloseControllers, err, fmt.Sprintf("failed to close controller %T", controller)),
+			)
 		}
 	}
 	return closeErr

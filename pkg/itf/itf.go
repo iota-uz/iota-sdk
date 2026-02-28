@@ -19,6 +19,14 @@ func Setup(tb testing.TB, opts ...Option) *TestEnvironment {
 	return newTestContext().applyOptions(opts...).Build(tb)
 }
 
+// HTTP provides a quick HTTP suite bootstrap.
+//
+// Deprecated: use NewSuiteBuilder(tb).WithModules(...).Build() for new tests.
+func HTTP(tb testing.TB, modules ...application.Module) *Suite {
+	tb.Helper()
+	return NewSuite(tb, modules...)
+}
+
 // Excel creates a new Excel file builder
 func Excel() *TestExcelBuilder {
 	return NewTestExcelBuilder()

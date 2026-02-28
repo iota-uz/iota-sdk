@@ -182,7 +182,8 @@ BEGIN
             );
         END IF;
     END LOOP;
-END $$;
+END;
+$$;
 
 COMMENT ON SCHEMA analytics IS 'Denormalized views for BiChat query executor with automatic tenant isolation using current_setting(''app.tenant_id'', true)::UUID pattern.';
 
