@@ -29,16 +29,19 @@ ITF provides:
 // Basic environment setup
 itf.Setup(tb testing.TB, opts ...Option) *TestEnvironment
 
-// Suite with modules (canonical API)
+// Suite with modules (canonical API, recommended for most tests)
 itf.NewSuiteBuilder(tb).
     WithModules(modules ...application.Module).
     Build()
 
-// Modern fluent builder (recommended)
-itf.NewSuiteBuilder(t) *SuiteBuilder
-
-// Test context
-itf.NewTestContext() *TestContext
+// Low-level harness API
+harness, _ := itf.NewHarness(tb, itf.HarnessConfig{
+    Name: "my-harness",
+    Modules: []application.Module{...},
+    Database: itf.DatabaseConfig{...},
+})
+scope := harness.Scope(tb)
+defer harness.Close()
 
 // Database manager
 itf.NewDatabaseManager(t *testing.T) *DatabaseManager

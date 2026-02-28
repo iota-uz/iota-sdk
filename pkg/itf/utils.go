@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -147,21 +148,15 @@ const (
 	hashSuffixLength = 9
 )
 
+var nonIdentifierChars = regexp.MustCompile(`[^a-z0-9_]`)
+
 // sanitizeDBName replaces special characters in database names with underscores
 // and ensures the name doesn't exceed PostgreSQL's 63-character limit
 func sanitizeDBName(name string) string {
 	// Convert to lowercase (PostgreSQL convention)
 	sanitized := strings.ToLower(name)
 
-	// Replace special characters with underscores
-	sanitized = strings.ReplaceAll(sanitized, "/", "_")
-	sanitized = strings.ReplaceAll(sanitized, " ", "_")
-	sanitized = strings.ReplaceAll(sanitized, "-", "_")
-	sanitized = strings.ReplaceAll(sanitized, ".", "_")
-	sanitized = strings.ReplaceAll(sanitized, "(", "_")
-	sanitized = strings.ReplaceAll(sanitized, ")", "_")
-	sanitized = strings.ReplaceAll(sanitized, "[", "_")
-	sanitized = strings.ReplaceAll(sanitized, "]", "_")
+	sanitized = nonIdentifierChars.ReplaceAllString(sanitized, "_")
 
 	// Remove consecutive underscores
 	for strings.Contains(sanitized, "__") {
@@ -268,11 +263,11 @@ func CreateDB(name string) {
 			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf("CREATE DATABASE %s", sanitizedName))
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`CREATE DATABASE "%s"`, sanitizedName))
 	if err != nil {
 		panic(err)
 	}
@@ -292,7 +287,11 @@ func CreateDBE(name string) (err error) {
 
 // DropDB drops a test database. Used for cleanup after tests to free disk space.
 func DropDB(name string) error {
-	return dropDB(name)
+	if err := dropDB(name); err != nil {
+		log.Printf("[WARNING] DropDB failed: %v", err)
+		return err
+	}
+	return nil
 }
 
 func dropDB(name string) error {
@@ -315,15 +314,15 @@ func dropDB(name string) error {
 	}()
 
 	// Terminate any remaining connections to the database
-	terminateSQL := fmt.Sprintf(`
+	terminateSQL := `
 		SELECT pg_terminate_backend(pg_stat_activity.pid)
 		FROM pg_stat_activity
-		WHERE pg_stat_activity.datname = '%s'
+		WHERE pg_stat_activity.datname = $1
 		AND pid <> pg_backend_pid()
-	`, sanitizedName)
-	_, _ = db.ExecContext(context.Background(), terminateSQL)
+	`
+	_, _ = db.ExecContext(context.Background(), terminateSQL, sanitizedName)
 
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
 	if err != nil {
 		return err
 	}

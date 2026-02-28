@@ -19,6 +19,14 @@ func Setup(tb testing.TB, opts ...Option) *TestEnvironment {
 	return newTestContext().applyOptions(opts...).Build(tb)
 }
 
+// HTTP is deprecated. Use Setup(tb, WithModules(modules...)) instead.
+//
+// Deprecated: use Setup(tb, WithModules(...)) for new tests.
+func HTTP(tb testing.TB, modules ...application.Module) *TestEnvironment {
+	tb.Helper()
+	return Setup(tb, WithModules(modules...))
+}
+
 // Excel creates a new Excel file builder
 func Excel() *TestExcelBuilder {
 	return NewTestExcelBuilder()

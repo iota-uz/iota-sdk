@@ -136,12 +136,13 @@ type Harness interface {
 }
 
 type harnessImpl struct {
-	cfg      HarnessConfig
-	state    *harnessState
-	shared   bool
-	closed   bool
-	mu       sync.Mutex
-	closeErr error
+	cfg       HarnessConfig
+	state     *harnessState
+	shared    bool
+	closed    bool
+	mu        sync.Mutex
+	closeErr  error
+	closeDone chan struct{}
 }
 
 type harnessState struct {
@@ -262,19 +263,34 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 func (h *harnessImpl) Close() error {
 	h.mu.Lock()
 	if h.closed {
+		done := h.closeDone
+		h.mu.Unlock()
+		if done != nil {
+			<-done
+		}
+		h.mu.Lock()
 		err := h.closeErr
 		h.mu.Unlock()
 		return err
 	}
 	h.closed = true
+	done := make(chan struct{})
+	h.closeDone = done
 	h.mu.Unlock()
 
+	var err error
 	if h.shared {
-		h.closeErr = sharedHarnessManager.close(h.state.key, h.cfg.Database.Cleanup)
+		err = sharedHarnessManager.close(h.state.key, h.cfg.Database.Cleanup)
 	} else {
-		h.closeErr = h.state.close(h.cfg.Database.Cleanup)
+		err = h.state.close(h.cfg.Database.Cleanup)
 	}
-	return h.closeErr
+
+	h.mu.Lock()
+	h.closeErr = err
+	h.closeDone = nil
+	close(done)
+	h.mu.Unlock()
+	return err
 }
 
 func (m *harnessManager) getOrCreate(key string, cfg HarnessConfig) (*harnessState, error) {
@@ -380,7 +396,9 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 
 	pool, err := newPoolWithConfig(DbOpts(dbName), cfg.Database.Pool)
 	if err != nil {
-		_ = DropDBE(dbName)
+		if cleanupErr := DropDBE(dbName); cleanupErr != nil {
+			return nil, serrors.E(opCreatePool, cleanupErr, "cleanup database after pool creation failure")
+		}
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
@@ -446,16 +464,7 @@ func normalizeHarnessConfig(tb testing.TB, cfg HarnessConfig) HarnessConfig {
 	}
 	if cfg.Name == "" {
 		if cfg.Database.Provisioning == ProvisioningSharedPerPackage {
-			for depth := 2; depth < 10; depth++ {
-				_, file, _, ok := runtime.Caller(depth)
-				if !ok {
-					break
-				}
-				if !strings.Contains(file, "/pkg/itf/") && !strings.Contains(file, "/pkg/itf.go") {
-					cfg.Name = filepath.Base(filepath.Dir(file))
-					break
-				}
-			}
+			cfg.Name = inferSharedHarnessName()
 			if cfg.Name == "" {
 				cfg.Name = "itf_harness_shared"
 			}
@@ -479,6 +488,21 @@ func normalizeHarnessConfig(tb testing.TB, cfg HarnessConfig) HarnessConfig {
 		cfg.Context.Locales = []string{"en"}
 	}
 	return cfg
+}
+
+func inferSharedHarnessName() string {
+	const defaultName = "itf_harness_shared"
+
+	for depth := 2; ; depth++ {
+		_, file, _, ok := runtime.Caller(depth)
+		if !ok || file == "" {
+			return defaultName
+		}
+		dir := filepath.Dir(file)
+		if !strings.Contains(dir, "/pkg/itf") {
+			return filepath.Base(dir)
+		}
+	}
 }
 
 func buildHarnessKey(cfg HarnessConfig) string {

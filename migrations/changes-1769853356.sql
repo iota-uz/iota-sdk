@@ -125,7 +125,7 @@ BEGIN
         WHEN duplicate_object OR unique_violation THEN
             NULL;
     END;
-END
+END;
 $$;
 
 -- Grant USAGE on analytics and bichat schemas

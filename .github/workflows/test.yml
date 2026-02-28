@@ -88,47 +88,10 @@ jobs:
         run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.2
 
       - name: Install just
-        run: |
-          set -euo pipefail
-          JUST_VERSION="${JUST_VERSION:-1.46.0}"
-
-          is_just_supported() {
-            local version
-            version=$(just --version 2>/dev/null | awk '{print $2}')
-            [ -n "$version" ] || return 1
-            [ "$version" = "$JUST_VERSION" ] || [ "$(printf '%s\n%s\n' "$JUST_VERSION" "$version" | sort -V | head -n1)" = "$JUST_VERSION" ]
-          }
-
-          install_just() {
-            echo "Downloading and installing just ${JUST_VERSION}."
-            local tarball="/tmp/just-${JUST_VERSION}.tar.gz"
-            if ! curl -fsSL --retry 2 --retry-connrefused --retry-delay 5 \
-              -o "$tarball" "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz"; then
-              return 1
-            fi
-
-            sudo tar -xzf "$tarball" -C /tmp
-            sudo install -m 755 /tmp/just /usr/local/bin/just
-          }
-
-          if command -v just >/dev/null && is_just_supported; then
-            echo "Detected compatible just version:"
-            just --version
-            exit 0
-          fi
-
-          if ! install_just; then
-            echo "Failed to install just ${JUST_VERSION}."
-            exit 1
-          fi
-
-          if ! is_just_supported; then
-            echo "Installed just version is unsupported."
-            just --version || true
-            exit 1
-          fi
-
-          just --version
+        env:
+          JUST_VERSION: 1.46.0
+          JUST_SHA256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
+        run: ./.github/scripts/install-just.sh
 
       - name: Run gosec (production entrypoints)
         run: just gosec
@@ -190,47 +153,10 @@ jobs:
           sudo apt-get install -y pgformatter
 
       - name: Install just
-        run: |
-          set -euo pipefail
-          JUST_VERSION="${JUST_VERSION:-1.46.0}"
-
-          is_just_supported() {
-            local version
-            version=$(just --version 2>/dev/null | awk '{print $2}')
-            [ -n "$version" ] || return 1
-            [ "$version" = "$JUST_VERSION" ] || [ "$(printf '%s\n%s\n' "$JUST_VERSION" "$version" | sort -V | head -n1)" = "$JUST_VERSION" ]
-          }
-
-          install_just() {
-            echo "Downloading and installing just ${JUST_VERSION}."
-            local tarball="/tmp/just-${JUST_VERSION}.tar.gz"
-            if ! curl -fsSL --retry 2 --retry-connrefused --retry-delay 5 \
-              -o "$tarball" "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz"; then
-              return 1
-            fi
-
-            sudo tar -xzf "$tarball" -C /tmp
-            sudo install -m 755 /tmp/just /usr/local/bin/just
-          }
-
-          if command -v just >/dev/null && is_just_supported; then
-            echo "Detected compatible just version:"
-            just --version
-            exit 0
-          fi
-
-          if ! install_just; then
-            echo "Failed to install just ${JUST_VERSION}."
-            exit 1
-          fi
-
-          if ! is_just_supported; then
-            echo "Installed just version is unsupported."
-            just --version || true
-            exit 1
-          fi
-
-          just --version
+        env:
+          JUST_VERSION: 1.46.0
+          JUST_SHA256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
+        run: ./.github/scripts/install-just.sh
 
       - name: Download Go dependencies
         run: go mod download
@@ -371,47 +297,10 @@ jobs:
           go-version: "1.24.13"
 
       - name: Install just
-        run: |
-          set -euo pipefail
-          JUST_VERSION="${JUST_VERSION:-1.46.0}"
-
-          is_just_supported() {
-            local version
-            version=$(just --version 2>/dev/null | awk '{print $2}')
-            [ -n "$version" ] || return 1
-            [ "$version" = "$JUST_VERSION" ] || [ "$(printf '%s\n%s\n' "$JUST_VERSION" "$version" | sort -V | head -n1)" = "$JUST_VERSION" ]
-          }
-
-          install_just() {
-            echo "Downloading and installing just ${JUST_VERSION}."
-            local tarball="/tmp/just-${JUST_VERSION}.tar.gz"
-            if ! curl -fsSL --retry 2 --retry-connrefused --retry-delay 5 \
-              -o "$tarball" "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz"; then
-              return 1
-            fi
-
-            sudo tar -xzf "$tarball" -C /tmp
-            sudo install -m 755 /tmp/just /usr/local/bin/just
-          }
-
-          if command -v just >/dev/null && is_just_supported; then
-            echo "Detected compatible just version:"
-            just --version
-            exit 0
-          fi
-
-          if ! install_just; then
-            echo "Failed to install just ${JUST_VERSION}."
-            exit 1
-          fi
-
-          if ! is_just_supported; then
-            echo "Installed just version is unsupported."
-            just --version || true
-            exit 1
-          fi
-
-          just --version
+        env:
+          JUST_VERSION: 1.46.0
+          JUST_SHA256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
+        run: ./.github/scripts/install-just.sh
 
       - name: Install tools
         run: |
