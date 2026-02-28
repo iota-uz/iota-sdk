@@ -213,6 +213,8 @@ WHERE client_id = 'my-client';
 
 ### 4. Rate Limiting
 
+> **Note:** These variables are not part of central `pkg/configuration` and may require custom implementation.
+
 Protect endpoints from abuse:
 
 ```bash
@@ -226,6 +228,8 @@ OIDC_RATE_LIMIT_USERINFO=200     # per 15 min per token
 ```
 
 ### 5. CORS Configuration
+
+> **Note:** `OIDC_ALLOWED_ORIGINS` is not part of central `pkg/configuration` and may require custom implementation.
 
 Configure CORS for browser-based clients:
 

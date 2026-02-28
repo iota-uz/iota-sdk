@@ -245,7 +245,7 @@ Permissions are defined in `modules/finance/permissions/constants.go` (Resource.
 | `ExpenseCategory.Create`, `ExpenseCategory.Read`, `ExpenseCategory.Update`, `ExpenseCategory.Delete` | Expense categories |
 | `Debt.Create`, `Debt.Read`, `Debt.Update`, `Debt.Delete` | Debts |
 
-Money accounts and reports use route-level auth; there are no separate `money_accounts.*` or `reports.view` permission constants.
+Money accounts, reports, and payment-categories use route-level auth (e.g. `middleware.Authorize()`); there are no separate `money_accounts.*`, `reports.view`, or `PaymentCategory.*` permission constants.
 
 ## Integration with Other Modules
 

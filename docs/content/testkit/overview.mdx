@@ -60,17 +60,17 @@ graph TB
             E --> G[minimal]
             E --> H[finance]
             E --> I[warehouse]
-            E --> J[comprehensive]
+            E --> J1[comprehensive]
         end
     end
     
     subgraph "E2E Testing"
-        J[Playwright Tests]
+        J2[Playwright Tests]
         K[Test Fixtures]
         L[CI/CD Pipeline]
     end
     
-    J --> A
+    J2 --> A
     K --> A
     L --> A
 ```
@@ -126,8 +126,8 @@ Secure testing API:
 | `/__test__/populate` | POST | Custom data population |
 | `/__test__/seed` | POST | Apply predefined scenario |
 | `/__test__/seed` | GET | List available seed scenarios |
-| `/__test__/otp/{userID}` | POST | Generate OTP for user |
-| `/__test__/otp/{userID}` | GET | Get OTP for user |
+| `/__test__/otp/{'{userID}'}` | POST | Generate OTP for user |
+| `/__test__/otp/{'{userID}'}` | GET | Get OTP for user |
 | `/__test__/otp` | GET | Get OTP by identifier |
 | `/__test__/health` | GET | Health check |
 
@@ -240,11 +240,11 @@ List available predefined seed scenarios.
 }
 ```
 
-### POST /__test__/otp/{userID}
+### POST /__test__/otp/{'{userID}'}
 
 Generate OTP for a specific user (for test login flows).
 
-### GET /__test__/otp/{userID}
+### GET /__test__/otp/{'{userID}'}
 
 Get current OTP for a specific user.
 
@@ -296,7 +296,7 @@ test.beforeEach(async ({ request }) => {
 
 // Run scenarios
 test('user workflow', async ({ page }) => {
-  await seedDatabase(request, 'standard');
+  await seedDatabase(request, 'finance');
   // ... test steps
 });
 ```
@@ -359,17 +359,23 @@ Basic data for smoke tests:
 - 1 tenant
 - Basic roles/permissions
 
-### Standard Scenario
+### Finance Scenario
 
-Typical business setup:
-- Multiple users with roles
-- Sample clients/suppliers
-- Some transactions
-- Basic inventory
+Finance module focused setup:
+- Accounts and categories
+- Sample transactions
+- Basic financial reports data
 
-### Full Scenario
+### Warehouse Scenario
 
-Comprehensive dataset:
+Warehouse module setup:
+- Units and products
+- Inventory data
+- Stock movements
+
+### Comprehensive Scenario
+
+Full setup with data across all modules:
 - Many users across roles
 - Extensive transaction history
 - Full inventory catalog
