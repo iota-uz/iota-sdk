@@ -1,0 +1,124 @@
+---
+title: 'Subscription Package'
+description: 'Generic subscription and entitlement management for multi-tenant apps'
+---
+
+# Subscription Package
+
+`pkg/subscription` provides feature flags, entity limits, seat limits, grace periods, and Stripe entitlement sync for multi-tenant ERP applications.
+
+## Initialization
+
+```go
+import (
+  "github.com/iota-uz/iota-sdk/pkg/subscription"
+)
+
+cfg := subscription.Config{
+  DefaultTier: "FREE",
+  GracePeriodDays: 7,
+  LimitWarningThreshold: 0.8,
+  Cache: subscription.CacheConfig{
+    Type: "memory", // or "redis"
+    TTLMinutes: 5,
+    RedisURL: "redis://localhost:6379/0",
+  },
+  Tiers: []subscription.TierDefinition{
+    {
+      Tier: "FREE",
+      DisplayName: "Free",
+      Features: []string{"core_access"},
+      EntityLimits: map[string]int{"drivers": 50},
+    },
+    {
+      Tier: "PRO",
+      DisplayName: "Pro",
+      ParentTier: "FREE",
+      Features: []string{"shyona_access"},
+      EntityLimits: map[string]int{"drivers": -1},
+    },
+  },
+}
+
+svc, err := subscription.NewService(cfg, app.DB())
+if err != nil {
+  panic(err)
+}
+
+app.RegisterServices(svc)
+```
+
+## Middleware
+
+```go
+import submw "github.com/iota-uz/iota-sdk/pkg/subscription/middleware"
+
+router.Use(submw.RequireFeature(svc, "core_access"))
+router.Use(submw.RequireTier(svc, "BASIC", "PRO"))
+router.Use(submw.EnforceLimit(svc, "drivers"))
+```
+
+## Service-Layer Checks
+
+```go
+result, err := svc.CheckLimit(ctx, tenantID, "drivers")
+if err != nil {
+  return err
+}
+if !result.Allowed {
+  return subscription.ErrLimitExceeded{
+    EntityType: "drivers",
+    Current: result.Current,
+    Limit: result.Limit,
+  }
+}
+```
+
+## Stripe Webhook Sync
+
+Use `pkg/subscription/stripe` to process Stripe entitlement and billing lifecycle events:
+
+```go
+import substripe "github.com/iota-uz/iota-sdk/pkg/subscription/stripe"
+
+stripeSync := substripe.NewService(
+  substripe.Config{
+    SecretKey: stripeSecret,
+    GracePeriodDays: 7,
+    DefaultTier: "FREE",
+  },
+  subscriptionRepo,
+  svc, // cache invalidator
+  nil, // use default stripe client
+)
+```
+
+`stripeSync.HandleStripeEvent(ctx, event)` supports:
+- `entitlements.active_entitlement_summary.updated`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_succeeded`
+- `invoice.payment_failed`
+
+## UI Components
+
+Reusable Templ components live in `pkg/subscription/ui/components`:
+- `UsageBar`
+- `TierBadge`
+- `UpgradePrompt`
+- `LimitWarning`
+- `PlanComparison`
+
+## Testing
+
+Use `pkg/subscription/testing.NewMockEntitlementService()` in module tests.
+
+## Migration Notes
+
+Migration `migrations/changes-1772374064.sql` creates:
+- `subscription_entitlements`
+- `subscription_entity_counts`
+- `subscription_plans`
+
+The migration backfills every tenant with a default `FREE` entitlement row and initializes `current_seats` from the current tenant user count.

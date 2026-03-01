@@ -13,6 +13,7 @@ export default {
   projects: { display: 'hidden' },
   hrm: { display: 'hidden' },
   billing: { display: 'hidden' },
+  subscription: { display: 'hidden' },
   superadmin: { display: 'hidden' },
   bichat: { display: 'hidden' },
   modules: {
@@ -25,6 +26,7 @@ export default {
       projects: { title: 'Projects', href: '/projects' },
       hrm: { title: 'HRM', href: '/hrm' },
       billing: { title: 'Billing', href: '/billing' },
+      subscription: { title: 'Subscription', href: '/subscription' },
       superadmin: { title: 'SuperAdmin', href: '/superadmin' },
       bichat: { title: 'BiChat', href: '/bichat' }
     }

@@ -1,0 +1,28 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+)
+
+type UpgradePromptProps struct {
+	Title       string
+	Description string
+	Feature     string
+	UpgradeURL  string
+}
+
+templ UpgradePrompt(props UpgradePromptProps) {
+	@card.Card(card.Props{WrapperClass: "w-full border-warning", Class: "flex flex-col gap-3"}) {
+		<div class="text-lg font-semibold">{ props.Title }</div>
+		<div class="text-sm text-500">{ props.Description }</div>
+		if props.Feature != "" {
+			<div class="text-xs text-400">{ "Feature: " + props.Feature }</div>
+		}
+		<div class="pt-2">
+			@button.Primary(button.Props{Size: button.SizeSM, Href: props.UpgradeURL}) {
+				{ "Upgrade plan" }
+			}
+		</div>
+	}
+}
