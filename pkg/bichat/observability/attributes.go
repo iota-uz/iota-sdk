@@ -1,3 +1,4 @@
+// Package observability provides domain helpers and tracing support for BiChat events.
 package observability
 
 // AttributeKey represents a type-safe attribute key for observations.

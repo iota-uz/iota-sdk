@@ -1,3 +1,4 @@
+// Package showcase provides this package.
 package showcase
 
 import _ "embed"
@@ -53,7 +54,7 @@ var SpinnersComponentSource string
 //go:embed components/skeletons.templ
 var SkeletonsComponentSource string
 
-// Chart components
+// BarChartSource is a chart data source for the showcase page.
 //
 //go:embed components/charts/bar_chart.templ
 var BarChartSource string

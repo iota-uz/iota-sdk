@@ -1,3 +1,4 @@
+// Package excel provides this package.
 package excel
 
 import (

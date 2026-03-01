@@ -1,3 +1,4 @@
+// Package website provides this package.
 package website
 
 import (

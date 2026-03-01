@@ -1,3 +1,4 @@
+// Package controllers provides this package.
 package controllers
 
 import (
@@ -90,9 +91,9 @@ func (c *ChatController) Register(r *mux.Router) {
 
 func (c *ChatController) createTenantContext(tenantID uuid.UUID) context.Context {
 	ctx := context.Background()
-	ctxWithDb := composables.WithPool(ctx, c.app.DB())
+	ctxWithDB := composables.WithPool(ctx, c.app.DB())
 
-	tenant, err := c.tenantService.GetByID(ctxWithDb, tenantID)
+	tenant, err := c.tenantService.GetByID(ctxWithDB, tenantID)
 	if err != nil {
 		c.logger.WithError(err).WithField("tenantID", tenantID).Error("failed to get tenant")
 		return composables.WithPool(ctx, c.app.DB())
@@ -115,9 +116,9 @@ func (c *ChatController) onChatCreated(event *chat.CreatedEvent) {
 		tenantID = event.Result.TenantID()
 	}
 
-	ctxWithDb := c.createTenantContext(tenantID)
+	ctxWithDB := c.createTenantContext(tenantID)
 	chatViewModels, _, err := c.chatViewModelsWithTotal(
-		ctxWithDb,
+		ctxWithDB,
 		&chat.FindParams{
 			SortBy: chat.SortBy{
 				Fields: []chat.SortByField{
@@ -172,9 +173,9 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 		tenantID = event.Result.TenantID()
 	}
 
-	ctxWithDb := c.createTenantContext(tenantID)
+	ctxWithDB := c.createTenantContext(tenantID)
 	clientEntity, err := c.clientService.GetByID(
-		ctxWithDb,
+		ctxWithDB,
 		event.Result.ClientID(),
 	)
 	if err != nil {
@@ -183,7 +184,7 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 	}
 	config := configuration.Use()
 	chatViewModels, _, err := c.chatViewModelsWithTotal(
-		ctxWithDb,
+		ctxWithDB,
 		&chat.FindParams{
 			Offset: 0,
 			Limit:  config.PageSize,

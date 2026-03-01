@@ -19,8 +19,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
 )
 
-const dropTableSql = `DROP TABLE IF EXISTS _showcases`
-const createTableSql = `
+const dropTableSQL = `DROP TABLE IF EXISTS _showcases`
+const createTableSQL = `
 CREATE TABLE IF NOT EXISTS _showcases
 (
     _uuid      UUID PRIMARY KEY,
@@ -113,7 +113,7 @@ type ShowcaseEntity interface {
 	Entry() ShowcaseEntry
 }
 
-func showcaseWithUuid(uuid uuid.UUID) ShowCaseOption {
+func showcaseWithUUID(uuid uuid.UUID) ShowCaseOption {
 	return func(s *showcaseEntity) {
 		s.uuid = uuid
 	}
@@ -257,11 +257,11 @@ func (s *showcaseMapper) ToEntities(_ context.Context, values ...[]crud.FieldVal
 	for _, fvs := range values {
 		for _, fv := range fvs {
 			if fv.Field().Name() == _entry && fv.Value() != nil {
-				seId, err := fv.AsUUID()
+				seID, err := fv.AsUUID()
 				if err != nil {
 					return nil, err
 				}
-				entryIds = append(entryIds, seId)
+				entryIds = append(entryIds, seID)
 			}
 		}
 	}
@@ -283,7 +283,7 @@ func (s *showcaseMapper) ToEntities(_ context.Context, values ...[]crud.FieldVal
 				if err != nil {
 					return nil, err
 				}
-				opts = append(opts, showcaseWithUuid(uuidValue))
+				opts = append(opts, showcaseWithUUID(uuidValue))
 			case _string:
 				stringValue, err := fv.AsString()
 				if err != nil {
@@ -530,12 +530,12 @@ func InitCrudShowcase(app application.Application) {
 
 	ctx = composables.WithTx(ctx, tx)
 
-	_, err = tx.Exec(ctx, dropTableSql)
+	_, err = tx.Exec(ctx, dropTableSQL)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-	_, err = tx.Exec(ctx, createTableSql)
+	_, err = tx.Exec(ctx, createTableSQL)
 	if err != nil {
 		log.Fatal(err)
 		return

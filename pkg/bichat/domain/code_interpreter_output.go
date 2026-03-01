@@ -1,3 +1,4 @@
+// Package domain provides this package.
 package domain
 
 import (

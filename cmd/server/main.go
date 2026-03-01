@@ -101,7 +101,7 @@ func (h *sdkHostServices) ExtractPageLocale(ctx context.Context) language.Tag {
 	if pc == nil {
 		return language.English
 	}
-	p, ok := pc.(types.PageContextProvider)
+	p, ok := pc.(types.PageContext)
 	if !ok {
 		return language.English
 	}

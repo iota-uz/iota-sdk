@@ -1,3 +1,4 @@
+// Package hrm provides this package.
 package hrm
 
 import (

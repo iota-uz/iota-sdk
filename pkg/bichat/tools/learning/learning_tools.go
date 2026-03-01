@@ -1,3 +1,4 @@
+// Package learning provides this package.
 package learning
 
 import (

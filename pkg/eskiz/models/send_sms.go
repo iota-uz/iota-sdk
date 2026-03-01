@@ -1,3 +1,4 @@
+// Package models provides this package.
 package models
 
 type SendSMSOption func(s *sendSMS)

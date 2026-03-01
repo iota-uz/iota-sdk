@@ -1,3 +1,4 @@
+// Package category provides this package.
 package category
 
 import (

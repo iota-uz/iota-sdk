@@ -1,3 +1,4 @@
+// Package warehouse provides this package.
 package warehouse
 
 import (

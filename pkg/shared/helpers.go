@@ -1,3 +1,4 @@
+// Package shared provides this package.
 package shared
 
 import (

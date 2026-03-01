@@ -1,3 +1,4 @@
+// Package billing provides this package.
 package billing
 
 import (
@@ -72,7 +73,7 @@ func (m *Module) Register(app application.Application) error {
 		providers.OctoConfig{
 			OctoShopID: conf.Octo.OctoShopID,
 			OctoSecret: conf.Octo.OctoSecret,
-			NotifyURL:  conf.Octo.NotifyUrl,
+			NotifyURL:  conf.Octo.NotifyURL,
 		},
 		logTransport,
 	)

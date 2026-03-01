@@ -1,3 +1,4 @@
+// Package tax provides this package.
 package tax
 
 import (

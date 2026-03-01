@@ -1,3 +1,4 @@
+// Package dataset provides this package.
 package dataset
 
 import (

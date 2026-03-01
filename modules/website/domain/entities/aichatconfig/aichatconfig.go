@@ -1,3 +1,4 @@
+// Package aichatconfig provides this package.
 package aichatconfig
 
 import (

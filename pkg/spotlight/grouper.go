@@ -1,3 +1,4 @@
+// Package spotlight provides this package.
 package spotlight
 
 import (
@@ -17,7 +18,7 @@ func NewDefaultGrouper() *DefaultGrouper {
 	return &DefaultGrouper{}
 }
 
-// Expected entity types: route, page, navigation, quick_link, knowledge, kb, doc, docs,
+// Group returns the grouped entities for spotlight lookups.
 // user, group, role, client, project, order, report.
 func (g *DefaultGrouper) Group(_ context.Context, _ SearchRequest, hits []SearchHit) SearchResponse {
 	resp := SearchResponse{

@@ -1,3 +1,4 @@
+// Package sql provides this package.
 package sql
 
 import "github.com/iota-uz/iota-sdk/pkg/bichat/agents"

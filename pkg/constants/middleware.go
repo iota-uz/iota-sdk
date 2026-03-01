@@ -1,3 +1,4 @@
+// Package constants provides this package.
 package constants
 
 import "github.com/go-playground/validator/v10"

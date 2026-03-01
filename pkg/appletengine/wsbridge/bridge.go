@@ -1,3 +1,4 @@
+// Package wsbridge provides this package.
 package wsbridge
 
 import (

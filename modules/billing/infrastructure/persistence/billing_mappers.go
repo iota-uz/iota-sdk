@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -42,7 +43,7 @@ func ToDomainTransaction(dbRow *models.Transaction) (billing.Transaction, error)
 }
 
 func ToDBTransaction(entity billing.Transaction) (*models.Transaction, error) {
-	d, err := ToDbDetails(entity.Details())
+	d, err := ToDBDetails(entity.Details())
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize details: %w", err)
 	}
@@ -74,7 +75,7 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			details.ClickWithMerchantUserID(d.MerchantUserID),
 			details.ClickWithMerchantPrepareID(d.MerchantPrepareID),
 			details.ClickWithMerchantConfirmID(d.MerchantConfirmID),
-			details.ClickWithPayDocId(d.PayDocId),
+			details.ClickWithPayDocID(d.PayDocID),
 			details.ClickWithPaymentID(d.PaymentID),
 			details.ClickWithPaymentStatus(d.PaymentStatus),
 			details.ClickWithSignTime(d.SignTime),
@@ -122,9 +123,9 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			return nil, err
 		}
 		return details.NewOctoDetails(
-			d.ShopTransactionId,
-			details.OctoWithOctoShopId(d.OctoShopID),
-			details.OctoWithShopTransactionId(d.ShopTransactionId),
+			d.ShopTransactionID,
+			details.OctoWithOctoShopID(d.OctoShopID),
+			details.OctoWithShopTransactionID(d.ShopTransactionID),
 			details.OctoWithOctoPaymentUUID(d.OctoPaymentUUID),
 			details.OctoWithInitTime(d.InitTime),
 			details.OctoWithAutoCapture(d.AutoCapture),
@@ -139,9 +140,9 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			details.OctoWithRiskLevel(d.RiskLevel),
 			details.OctoWithRefundedSum(d.RefundedSum),
 			details.OctoWithTransferSum(d.TransferSum),
-			details.OctoWithReturnUrl(d.ReturnUrl),
-			details.OctoWithNotifyUrl(d.NotifyUrl),
-			details.OctoWithOctoPayUrl(d.OctoPayUrl),
+			details.OctoWithReturnURL(d.ReturnURL),
+			details.OctoWithNotifyURL(d.NotifyURL),
+			details.OctoWithOctoPayURL(d.OctoPayURL),
 			details.OctoWithSignature(d.Signature),
 			details.OctoWithHashKey(d.HashKey),
 			details.OctoWithPayedTime(d.PayedTime),
@@ -220,7 +221,7 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 	}
 }
 
-func ToDbDetails(data details.Details) (json.RawMessage, error) {
+func ToDBDetails(data details.Details) (json.RawMessage, error) {
 	switch d := data.(type) {
 	case details.ClickDetails:
 		return json.Marshal(&models.ClickDetails{
@@ -230,7 +231,7 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			MerchantTransID:   d.MerchantTransID(),
 			MerchantPrepareID: d.MerchantPrepareID(),
 			MerchantConfirmID: d.MerchantConfirmID(),
-			PayDocId:          d.PayDocId(),
+			PayDocID:          d.PayDocID(),
 			PaymentID:         d.PaymentID(),
 			PaymentStatus:     d.PaymentStatus(),
 			SignTime:          d.SignTime(),
@@ -269,8 +270,8 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 
 	case details.OctoDetails:
 		return json.Marshal(&models.OctoDetails{
-			OctoShopID:        d.OctoShopId(),
-			ShopTransactionId: d.ShopTransactionId(),
+			OctoShopID:        d.OctoShopID(),
+			ShopTransactionID: d.ShopTransactionID(),
 			OctoPaymentUUID:   d.OctoPaymentUUID(),
 			InitTime:          d.InitTime(),
 			AutoCapture:       d.AutoCapture(),
@@ -285,9 +286,9 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			RiskLevel:         d.RiskLevel(),
 			RefundedSum:       d.RefundedSum(),
 			TransferSum:       d.TransferSum(),
-			ReturnUrl:         d.ReturnUrl(),
-			NotifyUrl:         d.NotifyUrl(),
-			OctoPayUrl:        d.OctoPayUrl(),
+			ReturnURL:         d.ReturnURL(),
+			NotifyURL:         d.NotifyURL(),
+			OctoPayURL:        d.OctoPayURL(),
 			Signature:         d.Signature(),
 			HashKey:           d.HashKey(),
 			PayedTime:         d.PayedTime(),

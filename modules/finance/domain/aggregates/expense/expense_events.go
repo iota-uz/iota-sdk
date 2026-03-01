@@ -1,3 +1,4 @@
+// Package expense provides this package.
 package expense
 
 import (

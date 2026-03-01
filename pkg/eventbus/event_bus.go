@@ -1,3 +1,4 @@
+// Package eventbus provides this package.
 package eventbus
 
 import (

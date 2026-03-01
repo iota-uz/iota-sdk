@@ -1,3 +1,4 @@
+// Package dtos provides this package.
 package dtos
 
 // APIErrorResponse represents standardized API error responses

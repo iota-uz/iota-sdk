@@ -1,3 +1,4 @@
+// Package chart provides this package.
 package chart
 
 import (

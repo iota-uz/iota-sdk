@@ -1,3 +1,4 @@
+// Package tgserver provides this package.
 package tgserver
 
 import (

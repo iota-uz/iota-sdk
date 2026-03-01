@@ -1,3 +1,4 @@
+// Package session provides this package.
 package session
 
 import (
@@ -36,6 +37,6 @@ type Repository interface {
 	Update(ctx context.Context, user Session) error
 	UpdateStatus(ctx context.Context, id uint, status SessionStatus) error
 	Delete(ctx context.Context, token string) error
-	DeleteByUserId(ctx context.Context, userId uint) ([]Session, error)
+	DeleteByUserID(ctx context.Context, userID uint) ([]Session, error)
 	DeleteAllExceptToken(ctx context.Context, userID uint, exceptToken string) (int, error)
 }

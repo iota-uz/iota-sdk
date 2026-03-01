@@ -1,3 +1,4 @@
+// Package modules provides this package.
 package modules
 
 import (

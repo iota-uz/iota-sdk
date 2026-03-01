@@ -36,7 +36,7 @@ func getPermissionIds(permissions []*viewmodels.PermissionItem) []string {
 }
 
 type SharedProps struct {
-	PageContext types.PageContextProvider
+	PageContext types.PageContext
 	Label       string
 	Attrs       templ.Attributes
 	Error       string
@@ -89,7 +89,7 @@ func Permission(props SharedProps) templ.Component {
 }
 
 type PermissionSetProps struct {
-	PageContext  types.PageContextProvider
+	PageContext  types.PageContext
 	Set          *viewmodels.PermissionSetItem
 	ResourceName string
 	SetIndex     int
@@ -314,7 +314,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 }
 
 type ResourceGroupProps struct {
-	PageContext   types.PageContextProvider
+	PageContext   types.PageContext
 	ResourceGroup *viewmodels.ResourcePermissionGroup
 	GroupIndex    int
 }

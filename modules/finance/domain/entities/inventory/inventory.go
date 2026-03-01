@@ -1,3 +1,4 @@
+// Package inventory provides this package.
 package inventory
 
 import (
@@ -13,7 +14,7 @@ import (
 
 type Option func(i *inventory)
 
-// Option setters
+// WithID adds the inventory identifier option.
 func WithID(id uuid.UUID) Option {
 	return func(i *inventory) {
 		i.id = id

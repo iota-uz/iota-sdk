@@ -1,3 +1,4 @@
+// Package importpkg provides this package.
 package importpkg
 
 // BaseImportPageConfig provides default implementation
@@ -13,7 +14,7 @@ type BaseImportPageConfig struct {
 	HTMXConfig          HTMXConfig
 }
 
-// Implement ImportPageConfig interface
+// GetTitle returns the page title from the import configuration.
 func (c *BaseImportPageConfig) GetTitle() string               { return c.Title }
 func (c *BaseImportPageConfig) GetDescription() string         { return c.Description }
 func (c *BaseImportPageConfig) GetColumns() []ImportColumn     { return c.Columns }

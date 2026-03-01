@@ -1,3 +1,4 @@
+// Package testkit provides this package.
 package testkit
 
 import (

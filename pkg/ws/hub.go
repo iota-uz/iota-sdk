@@ -1,3 +1,4 @@
+// Package ws provides this package.
 package ws
 
 import (

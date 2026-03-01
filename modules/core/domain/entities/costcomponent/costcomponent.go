@@ -1,3 +1,4 @@
+// Package costcomponent provides this package.
 package costcomponent
 
 var (

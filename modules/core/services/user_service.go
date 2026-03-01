@@ -1,3 +1,4 @@
+// Package services provides this package.
 package services
 
 import (
@@ -293,7 +294,7 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 		}
 
 		// Delete all active sessions for the blocked user
-		if _, err := s.sessionService.DeleteByUserId(txCtx, userID); err != nil {
+		if _, err := s.sessionService.DeleteByUserID(txCtx, userID); err != nil {
 			return fmt.Errorf("failed to invalidate user sessions: %w", err)
 		}
 

@@ -1,3 +1,4 @@
+// Package oidc provides this package.
 package oidc
 
 import (
@@ -907,7 +908,15 @@ func (c *oidcClient) DevMode() bool {
 	return false
 }
 
+// RestrictAdditionalIdTokenScopes is the interface-compatible legacy spelling.
+//
+//nolint:staticcheck
 func (c *oidcClient) RestrictAdditionalIdTokenScopes() func(scopes []string) []string {
+	return c.RestrictAdditionalIDTokenScopes()
+}
+
+// RestrictAdditionalIDTokenScopes is the preferred form requested by Staticcheck.
+func (c *oidcClient) RestrictAdditionalIDTokenScopes() func(scopes []string) []string {
 	return func(scopes []string) []string {
 		return scopes
 	}

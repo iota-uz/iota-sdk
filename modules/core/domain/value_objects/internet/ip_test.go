@@ -10,10 +10,10 @@ func TestNewIP(t *testing.T) {
 	tests := []struct {
 		name        string
 		value       string
-		version     internet.IpVersion
+		version     internet.IPVersion
 		wantErr     bool
 		wantValue   string
-		wantVersion internet.IpVersion
+		wantVersion internet.IPVersion
 	}{
 		{
 			name:        "valid IPv4",
@@ -76,7 +76,7 @@ func TestIsValidIP(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   string
-		version internet.IpVersion
+		version internet.IPVersion
 		want    bool
 	}{
 		// IPv4 tests
@@ -141,7 +141,7 @@ func TestIPEdgeCases(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   string
-		version internet.IpVersion
+		version internet.IPVersion
 		wantErr bool
 	}{
 		{

@@ -1,3 +1,4 @@
+// Package providers provides this package.
 package providers
 
 import (
@@ -43,21 +44,21 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 		return nil, err
 	}
 
-	apiClient := newApiClient(o.logger)
+	apiClient := newAPIClient(o.logger)
 
 	initTime := t.CreatedAt().Format("2006-01-02 15:04:05")
 
 	req := octoapi.PreparePaymentRequest{
 		OctoShopId:        o.config.OctoShopID,
 		OctoSecret:        o.config.OctoSecret,
-		ShopTransactionId: octoDetails.ShopTransactionId(),
+		ShopTransactionId: octoDetails.ShopTransactionID(),
 		InitTime:          initTime,
 		AutoCapture:       octoDetails.AutoCapture(),
 		Test:              octoDetails.Test(),
 		TotalSum:          t.Amount().Quantity(),
 		Currency:          string(t.Amount().Currency()),
 		Description:       octoDetails.Description(),
-		ReturnUrl:         octoDetails.ReturnUrl(),
+		ReturnUrl:         octoDetails.ReturnURL(),
 		NotifyUrl:         o.config.NotifyURL,
 	}
 
@@ -82,8 +83,8 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 
 	octoDetails = octoDetails.
 		SetInitTime(initTime).
-		SetOctoShopId(o.config.OctoShopID).
-		SetNotifyUrl(o.config.NotifyURL)
+		SetOctoShopID(o.config.OctoShopID).
+		SetNotifyURL(o.config.NotifyURL)
 
 	if resp.GetError() != 0 {
 		octoDetails = octoDetails.
@@ -93,7 +94,7 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 		octoDetails = octoDetails.
 			SetOctoPaymentUUID(resp.Data.GetOctoPaymentUUID()).
 			SetStatus(resp.Data.GetStatus()).
-			SetOctoPayUrl(resp.Data.GetOctoPayUrl()).
+			SetOctoPayURL(resp.Data.GetOctoPayUrl()).
 			SetRefundedSum(resp.Data.GetRefundedSum())
 	}
 
@@ -115,10 +116,10 @@ func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, quanti
 // CheckStatus checks the current status of a transaction via Octo's API.
 // This is used after responding with capture to get the final transaction status.
 // Implements the billing.StatusChecker interface.
-func (o *octoProvider) CheckStatus(ctx context.Context, shopTransactionId string) (*billing.StatusCheckResult, error) {
-	apiClient := newApiClient(o.logger)
+func (o *octoProvider) CheckStatus(ctx context.Context, shopTransactionID string) (*billing.StatusCheckResult, error) {
+	apiClient := newAPIClient(o.logger)
 
-	req := octoapi.NewCheckStatusRequest(o.config.OctoShopID, o.config.OctoSecret, shopTransactionId)
+	req := octoapi.NewCheckStatusRequest(o.config.OctoShopID, o.config.OctoSecret, shopTransactionID)
 
 	resp, httpResp, err := apiClient.StatusAPI.
 		CheckStatus(ctx).
@@ -156,7 +157,7 @@ func toOctoDetails(detailsObj details.Details) (details.OctoDetails, error) {
 	return octoDetails, nil
 }
 
-func newApiClient(logTransport *middleware.LogTransport) *octoapi.APIClient {
+func newAPIClient(logTransport *middleware.LogTransport) *octoapi.APIClient {
 	configuration := octoapi.NewConfiguration()
 	configuration.HTTPClient = &http.Client{
 		Transport: logTransport,

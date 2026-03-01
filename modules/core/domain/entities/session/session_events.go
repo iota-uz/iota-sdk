@@ -1,3 +1,4 @@
+// Package session provides this package.
 package session
 
 func NewCreatedEvent(data Session) (*CreatedEvent, error) {

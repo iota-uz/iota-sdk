@@ -1,4 +1,5 @@
-package payment_category
+// Package paymentcategory provides this package.
+package paymentcategory
 
 import (
 	"context"

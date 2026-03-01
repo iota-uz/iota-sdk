@@ -1,3 +1,4 @@
+// Package sql provides this package.
 package sql
 
 import (
@@ -353,7 +354,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 	return tools.FormatStructuredResult(result, nil)
 }
 
-// validateReadOnlyQuery ensures the query is a SELECT statement.
+// ValidateReadOnlyQuery validates that the query is a SELECT statement.
 func ValidateReadOnlyQuery(query string) error {
 	tokens := tokenizeSQLForValidation(query)
 	if len(tokens) == 0 {

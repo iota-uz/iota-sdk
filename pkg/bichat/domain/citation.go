@@ -1,3 +1,4 @@
+// Package domain provides this package.
 package domain
 
 import "github.com/iota-uz/iota-sdk/pkg/bichat/types"

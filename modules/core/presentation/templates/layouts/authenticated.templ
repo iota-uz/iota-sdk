@@ -130,7 +130,7 @@ templ SidebarTrigger(class string) {
 	</button>
 }
 
-templ Navbar(pageCtx types.PageContextProvider, navbarLeft templ.Component) {
+templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-4 md:px-8 bg-surface-300 border-b-primary">
 		if navbarLeft != nil {
 			@navbarLeft

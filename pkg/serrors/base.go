@@ -1,3 +1,4 @@
+// Package serrors provides this package.
 package serrors
 
 import (

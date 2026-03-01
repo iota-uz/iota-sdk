@@ -1,3 +1,4 @@
+// Package chat provides this package.
 package chat
 
 import (

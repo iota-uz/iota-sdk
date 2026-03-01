@@ -1,3 +1,4 @@
+// Package internet provides this package.
 package internet
 
 import (
@@ -10,14 +11,14 @@ var (
 	ErrInvalidIP = errors.New("invalid email")
 )
 
-type IpVersion string
+type IPVersion string
 
 const (
-	IPv4 IpVersion = "IPv4"
-	IPv6 IpVersion = "IPv6"
+	IPv4 IPVersion = "IPv4"
+	IPv6 IPVersion = "IPv6"
 )
 
-func NewIP(v string, version IpVersion) (IP, error) {
+func NewIP(v string, version IPVersion) (IP, error) {
 	if !IsValidIP(v, version) {
 		return nil, ErrInvalidIP
 	}
@@ -29,14 +30,14 @@ func NewIP(v string, version IpVersion) (IP, error) {
 
 type ip struct {
 	value   string
-	version IpVersion
+	version IPVersion
 }
 
 func (i *ip) Value() string {
 	return i.value
 }
 
-func (i *ip) Version() IpVersion {
+func (i *ip) Version() IPVersion {
 	return i.version
 }
 
@@ -87,7 +88,7 @@ func isValidIPv6(value string) bool {
 	return true
 }
 
-func IsValidIP(value string, version IpVersion) bool {
+func IsValidIP(value string, version IPVersion) bool {
 	if version == IPv4 {
 		return isValidIPv4(value)
 	}

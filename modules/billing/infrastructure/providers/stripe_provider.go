@@ -1,3 +1,4 @@
+// Package providers provides this package.
 package providers
 
 import (

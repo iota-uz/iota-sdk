@@ -1,3 +1,4 @@
+// Package defaults provides this package.
 package defaults
 
 import (

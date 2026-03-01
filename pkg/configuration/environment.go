@@ -1,3 +1,4 @@
+// Package configuration provides this package.
 package configuration
 
 import (
@@ -128,7 +129,7 @@ type OctoOptions struct {
 	OctoShopID     int32  `env:"OCTO_SHOP_ID"`
 	OctoSecret     string `env:"OCTO_SECRET"`
 	OctoSecretHash string `env:"OCTO_SECRET_HASH"`
-	NotifyUrl      string `env:"OCTO_NOTIFY_URL"`
+	NotifyURL      string `env:"OCTO_NOTIFY_URL"`
 }
 
 type StripeOptions struct {
@@ -368,7 +369,7 @@ func (c *Configuration) load(envFiles []string) error {
 	return nil
 }
 
-// unload handles a graceful shutdown.
+// Unload releases all environment resources.
 func (c *Configuration) Unload() {
 	if c.logFile != nil {
 		if err := c.logFile.Close(); err != nil {

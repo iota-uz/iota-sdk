@@ -1,3 +1,4 @@
+// Package superadmin provides this package.
 package superadmin
 
 import (

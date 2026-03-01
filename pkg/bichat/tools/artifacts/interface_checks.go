@@ -1,3 +1,4 @@
+// Package artifacts provides this package.
 package artifacts
 
 import "github.com/iota-uz/iota-sdk/pkg/bichat/agents"

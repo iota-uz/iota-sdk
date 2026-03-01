@@ -1,3 +1,4 @@
+// Package mapping provides this package.
 package mapping
 
 import (

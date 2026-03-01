@@ -1,3 +1,4 @@
+// Package rag provides this package.
 package rag
 
 import (

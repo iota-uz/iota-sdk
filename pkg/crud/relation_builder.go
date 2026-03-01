@@ -1,3 +1,4 @@
+// Package crud provides this package.
 package crud
 
 // RelationBuilder provides a fluent API for declaring schema relations.
