@@ -62,6 +62,7 @@ func SeedSuperadmin(mods ...application.Module) error {
 			return coreseed.CreatePermissions(ctx, app, allPermissions)
 		},
 		coreseed.UserSeedFunc(superadminUser, allPermissions),
+		coreseed.CreateSubscriptionEntitlements,
 	)
 
 	// Create context with tenant ID (we use the default tenant)

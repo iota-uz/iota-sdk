@@ -55,22 +55,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_entitlements_subscription_id_
     ON subscription_entitlements (stripe_subscription_id)
     WHERE stripe_subscription_id IS NOT NULL;
 
-INSERT INTO subscription_entitlements (
-    tenant_id,
-    plan_id,
-    features,
-    entity_limits,
-    current_seats
-)
-SELECT
-    t.id,
-    'FREE',
-    '[]'::jsonb,
-    '{}'::jsonb,
-    COALESCE((SELECT COUNT(1) FROM users u WHERE u.tenant_id = t.id), 0)
-FROM tenants t
-ON CONFLICT (tenant_id) DO NOTHING;
-
 -- +migrate Down
 DROP INDEX IF EXISTS idx_subscription_entitlements_subscription_id_unique;
 DROP INDEX IF EXISTS idx_subscription_entitlements_customer_id_unique;
