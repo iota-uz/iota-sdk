@@ -14,8 +14,8 @@ This module handles:
 - Multi-currency money accounts
 - Financial transaction recording
 - Counterparty (client/supplier) management
-- Debt tracking (receivables and payables: %v", err)
-- Financial reporting (Income Statement, Cashflow: %v", err)
+- Debt tracking (receivables and payables)
+- Financial reporting (Income Statement, Cashflow)
 
 ## Key Concepts
 
@@ -32,7 +32,7 @@ Financial accounts that hold funds:
 Income transactions representing money coming in:
 - Categorized by PaymentCategory
 - Linked to MoneyAccount
-- Can have attachments (documents, receipts: %v", err)
+- Can have attachments (documents, receipts)
 - Associated with Counterparty
 
 ### Expense
@@ -168,8 +168,8 @@ Outgoing transaction tracking:
 ### Categories
 
 Hierarchical categorization:
-- **Payment Categories** - Income types (Sales, Services, etc.: %v", err)
-- **Expense Categories** - Spending types (Rent, Salaries, etc.: %v", err)
+- **Payment Categories** - Income types (Sales, Services, etc.)
+- **Expense Categories** - Spending types (Rent, Salaries, etc.)
 - Nested categories supported
 
 ### Transactions
@@ -230,43 +230,22 @@ Individual account reports:
 
 ## API Reference
 
-### GraphQL Schema
-
-The Finance module exposes GraphQL endpoints for:
-
-| Entity | Queries | Mutations |
-|--------|---------|-----------|
-| **MoneyAccount** | account, accounts | createAccount, updateAccount |
-| **Payment** | payment, payments | createPayment, updatePayment |
-| **Expense** | expense, expenses | createExpense, updateExpense |
-| **Transaction** | transaction, transactions | createTransaction |
-| **Counterparty** | counterparty, counterparties | createCounterparty |
-| **Debt** | debt, debts | createDebt, updateDebt |
-
-See [API Reference](/api) for detailed schema.
+The Finance module does not register a GraphQL schema. It exposes **REST endpoints and server-rendered UI** only. Main paths: `/finance/overview` (dashboard with payments/expenses tabs), `/finance/accounts`, `/finance/expenses`, `/finance/expense-categories`, `/finance/payment-categories`, `/finance/counterparties`, `/finance/inventory`, `/finance/debts`, `/finance/debt-aggregates`, `/finance/reports/income-statement`, `/finance/reports/cashflow`, and related CRUD. Use the Core and Warehouse modules for GraphQL APIs.
 
 ## Permissions
 
 ### Available Permissions
 
+Permissions are defined in `modules/finance/permissions/constants.go` (Resource.Action style):
+
 | Permission | Description |
 |------------|-------------|
-| `money_accounts.view` | View accounts |
-| `money_accounts.create` | Create accounts |
-| `money_accounts.edit` | Modify accounts |
-| `money_accounts.delete` | Delete accounts |
-| `payments.view` | View payments |
-| `payments.create` | Record payments |
-| `payments.edit` | Modify payments |
-| `payments.delete` | Delete payments |
-| `expenses.view` | View expenses |
-| `expenses.create` | Record expenses |
-| `expenses.edit` | Modify expenses |
-| `expenses.delete` | Delete expenses |
-| `debts.view` | View debts |
-| `debts.create` | Create debts |
-| `debts.edit` | Modify debts |
-| `reports.view` | Generate reports |
+| `Payment.Create`, `Payment.Read`, `Payment.Update`, `Payment.Delete` | Payments |
+| `Expense.Create`, `Expense.Read`, `Expense.Update`, `Expense.Delete` | Expenses |
+| `ExpenseCategory.Create`, `ExpenseCategory.Read`, `ExpenseCategory.Update`, `ExpenseCategory.Delete` | Expense categories |
+| `Debt.Create`, `Debt.Read`, `Debt.Update`, `Debt.Delete` | Debts |
+
+Money accounts, reports, and payment-categories use route-level auth (e.g. `middleware.Authorize()`); there are no separate `money_accounts.*`, `reports.view`, or `PaymentCategory.*` permission constants.
 
 ## Integration with Other Modules
 

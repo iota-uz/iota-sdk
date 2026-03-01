@@ -10,7 +10,7 @@ The Logging module provides comprehensive audit logging capabilities for trackin
 ## Purpose
 
 This module handles:
-- Authentication event logging (login/logout: %v", err)
+- Authentication event logging (login/logout)
 - User action auditing
 - Security event tracking
 - Compliance reporting
@@ -142,10 +142,10 @@ Log analysis tools:
 
 ## API Reference
 
-### REST Endpoints
+The Logging module does not register HTTP controllers. It provides **locale files and persistence schema** (migrations) only. Authentication and action logging behavior (e.g. middleware, storage) may be implemented by other modules or the application. The following endpoints are not part of the current Logging module implementation and are shown for conceptual reference only:
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
+| Endpoint | Method | Purpose (conceptual) |
+|----------|--------|----------------------|
 | `/logs/auth` | GET | Authentication logs |
 | `/logs/actions` | GET | Action audit logs |
 | `/logs/export` | POST | Export logs |

@@ -19,7 +19,7 @@ IOTA SDK is organized into **modules**. Each module represents a business domain
 - **CRM** - Customers, chats, relationships
 - **HRM** - Employees, positions
 
-### Domain-Driven Design (DDD: %v", err)
+### Domain-Driven Design (DDD)
 
 The SDK follows DDD principles with clear layer separation:
 
@@ -70,8 +70,8 @@ modules/mymodule/
 Modules register themselves with the application during startup:
 
 1. **Define the Module** - Implement the `application.Module` interface
-2. **Register Components** - Services, controllers, migrations
-3. **Load Module** - Add to `BuiltInModules` list
+2. **Register Components** - In your module's `Register(app)`, register services, controllers, nav items
+3. **Load Module** - Pass your module to `modules.Load(app, yourModule)` (built-in modules are already loaded via `modules.Load(app, modules.BuiltInModules...)`; do not edit `BuiltInModules` to add custom modules)
 
 ### Key Registration Steps
 
@@ -111,12 +111,12 @@ sequenceDiagram
 
 ### Data Flow
 
-1. **User** interacts with UI (HTMX-enhanced forms: %v", err)
+1. **User** interacts with UI (HTMX-enhanced forms)
 2. **Controller** receives request, validates input
 3. **Service** orchestrates business operations
 4. **Domain** entities enforce business rules
 5. **Repository** persists to database
-6. **Response** returns to user (HTML or JSON: %v", err)
+6. **Response** returns to user (HTML or JSON)
 
 ## Next Steps
 

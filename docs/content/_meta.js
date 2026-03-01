@@ -2,6 +2,8 @@ export default {
   index: 'Overview',
   'getting-started': 'Getting Started',
   architecture: 'Architecture',
+  patterns: 'Patterns',
+  development: 'Development',
   '-- Authentication': {
     type: 'separator',
     title: 'Authentication'
@@ -42,5 +44,10 @@ export default {
     title: 'Infrastructure'
   },
   logging: 'Logging',
-  testkit: 'Testkit'
+  testkit: 'Testkit',
+  '-- Meta': {
+    type: 'separator',
+    title: 'Meta'
+  },
+  changelog: 'Changelog'
 }
