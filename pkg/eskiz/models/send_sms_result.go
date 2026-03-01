@@ -3,7 +3,7 @@ package models
 import eskizapi "github.com/iota-uz/eskiz"
 
 type SendSMSResult interface {
-	Id() string
+	ID() string
 	Message() string
 	Status() string
 }
@@ -22,7 +22,7 @@ type sendSMSResult struct {
 	status  string
 }
 
-func (s *sendSMSResult) Id() string {
+func (s *sendSMSResult) ID() string {
 	return s.id
 }
 

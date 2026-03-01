@@ -47,7 +47,7 @@ func WithTenantID(tenantID uuid.UUID) Option {
 
 func WithIsCOGS(isCOGS bool) Option {
 	return func(e *expenseCategory) {
-		e.is_cogs = isCOGS
+		e.isCogs = isCOGS
 	}
 }
 
@@ -74,7 +74,7 @@ func New(
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "", // description is optional
-		is_cogs:     false,
+		isCogs:      false,
 		createdAt:   time.Now(),
 		updatedAt:   time.Now(),
 	}
@@ -89,7 +89,7 @@ type expenseCategory struct {
 	tenantID    uuid.UUID
 	name        string
 	description string
-	is_cogs     bool
+	isCogs      bool
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -111,7 +111,7 @@ func (e *expenseCategory) Description() string {
 }
 
 func (e *expenseCategory) IsCOGS() bool {
-	return e.is_cogs
+	return e.isCogs
 }
 
 func (e *expenseCategory) CreatedAt() time.Time {

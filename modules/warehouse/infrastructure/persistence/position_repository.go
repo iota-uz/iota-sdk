@@ -37,7 +37,7 @@ const (
 		wu.updated_at,
 		wu.tenant_id
 	FROM warehouse_positions wp JOIN warehouse_units wu ON wp.unit_id = wu.id`
-	selectPositionIdQuery     = `SELECT id FROM warehouse_positions`
+	selectPositionIDQuery     = `SELECT id FROM warehouse_positions`
 	countPositionQuery        = `SELECT COUNT(*) FROM warehouse_positions`
 	insertPositionQuery       = `INSERT INTO warehouse_positions (title, barcode, unit_id, created_at, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	insertPositionImageQuery  = `INSERT INTO warehouse_position_images (warehouse_position_id, upload_id) VALUES`
@@ -182,7 +182,7 @@ func (g *GormPositionRepository) GetAllPositionIds(ctx context.Context) ([]uint,
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	rows, err := pool.Query(ctx, selectPositionIdQuery+" WHERE tenant_id = $1", tenantID)
+	rows, err := pool.Query(ctx, selectPositionIDQuery+" WHERE tenant_id = $1", tenantID)
 	if err != nil {
 		return nil, err
 	}

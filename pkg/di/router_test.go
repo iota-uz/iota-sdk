@@ -48,8 +48,8 @@ func setupTestContext() context.Context {
 	ctx = intl.WithLocalizer(ctx, localizer)
 
 	// Add page context
-	//nolint:staticcheck // SA1019: Using PageContext for test fixtures is acceptable
-	pageCtx := &types.PageContext{}
+	// SA1019: Using PageContext for test fixtures is acceptable
+	pageCtx := &types.PageContext{} //nolint:staticcheck // compatibility coverage for legacy page context type
 	ctx = composables.WithPageCtx(ctx, pageCtx)
 
 	// Add app to context

@@ -217,8 +217,8 @@ func (s *Suite) setupMiddleware() {
 
 			localizer := i18n.NewLocalizer(s.env.App.Bundle(), "en")
 			parsedURL, _ := url.Parse(r.URL.Path)
-			//nolint:staticcheck // SA1019: Using PageContext for test fixtures is acceptable
-			ctx = composables.WithPageCtx(ctx, &types.PageContext{
+			// SA1019: Using PageContext for test fixtures is acceptable
+			ctx = composables.WithPageCtx(ctx, &types.PageContext{ //nolint:staticcheck // legacy compatibility path
 				Locale:    language.English,
 				URL:       parsedURL,
 				Localizer: localizer,

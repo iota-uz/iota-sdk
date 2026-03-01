@@ -22,8 +22,8 @@ func WithPageContext() mux.MiddlewareFunc {
 				if !ok {
 					panic("locale not found")
 				}
-				//nolint:staticcheck // SA1019: This is the legitimate factory for creating PageContext instances
-				pageCtx := &types.PageContext{
+				// SA1019: This is the legitimate factory for creating PageContext instances
+				pageCtx := &types.PageContext{ //nolint:staticcheck // legacy compatibility path
 					URL:       r.URL,
 					Localizer: localizer,
 					Locale:    locale,

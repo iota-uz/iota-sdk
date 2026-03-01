@@ -22,8 +22,8 @@ func NewErrOrderIsComplete(current Status) *OrderIsCompleteError {
 }
 
 func (e *OrderIsCompleteError) Localize(l *i18n.Localizer) string {
-	return l.MustLocalize(&i18n.LocalizeConfig{ //nolint:exhaustruct
-		DefaultMessage: &i18n.Message{ //nolint:exhaustruct
+	return l.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{
 			ID: "Errors." + e.Code,
 		},
 		TemplateData: map[string]interface{}{
@@ -48,8 +48,8 @@ func NewErrProductIsShipped(current product.Status) *ProductIsShippedError {
 }
 
 func (e *ProductIsShippedError) Localize(l *i18n.Localizer) string {
-	return l.MustLocalize(&i18n.LocalizeConfig{ //nolint:exhaustruct
-		DefaultMessage: &i18n.Message{ //nolint:exhaustruct
+	return l.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{
 			ID: "Errors." + e.Code,
 		},
 		TemplateData: map[string]interface{}{

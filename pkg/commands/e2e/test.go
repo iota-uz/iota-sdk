@@ -28,7 +28,7 @@ func Test() error {
 	}
 
 	// Check if server is already running
-	baseURL := "http://" + net.JoinHostPort(E2E_SERVER_HOST, E2E_SERVER_PORT)
+	baseURL := "http://" + net.JoinHostPort(E2EServerHost, E2EServerPort)
 	logger.Info("Checking if e2e server is running...", "url", baseURL)
 
 	// Try to connect to the server with timeout

@@ -947,8 +947,8 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 		cells = append(cells, table.Cell(actions.RenderRowActions(rowActions...), ""))
 	}
 
-	fetchUrl := fmt.Sprintf("%s/%v/details", c.basePath, primaryKey)
-	return table.Row(cells...).ApplyOpts(table.WithDrawer(fetchUrl)), nil
+	fetchURL := fmt.Sprintf("%s/%v/details", c.basePath, primaryKey)
+	return table.Row(cells...).ApplyOpts(table.WithDrawer(fetchURL)), nil
 }
 
 // buildHeaderActions creates header actions for the list view

@@ -42,7 +42,7 @@ func ToDomainTransaction(dbRow *models.Transaction) (billing.Transaction, error)
 }
 
 func ToDBTransaction(entity billing.Transaction) (*models.Transaction, error) {
-	d, err := ToDbDetails(entity.Details())
+	d, err := ToDBDetails(entity.Details())
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize details: %w", err)
 	}
@@ -220,7 +220,7 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 	}
 }
 
-func ToDbDetails(data details.Details) (json.RawMessage, error) {
+func ToDBDetails(data details.Details) (json.RawMessage, error) {
 	switch d := data.(type) {
 	case details.ClickDetails:
 		return json.Marshal(&models.ClickDetails{

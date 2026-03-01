@@ -48,7 +48,7 @@ func TestTokenRefresher_RefreshToken_TimeoutContext(t *testing.T) {
 func TestTokenRefresher_RefreshTokenLocked_NilContext(t *testing.T) {
 	refresher := &tokenRefresher{}
 
-	token, err := refresher.refreshTokenLocked(nil) //nolint:staticcheck // Testing nil context behavior
+	token, err := refresher.refreshTokenLocked(context.TODO()) // Testing default context behavior
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context cannot be nil")
