@@ -342,7 +342,7 @@ func (s *service) Reserve(_ context.Context, subject Subject, quota QuotaKey, am
 
 	limitDecision := s.evaluateLimitLocked(subject, quota)
 	if limitDecision.Limit >= 0 && limitDecision.Current+amount > limitDecision.Limit {
-		return Reservation{}, serrors.E(op, ErrLimitExceeded{
+		return Reservation{}, serrors.E(op, ErrLimitExceededError{
 			Quota:   quota,
 			Current: limitDecision.Current,
 			Limit:   limitDecision.Limit,
@@ -383,6 +383,7 @@ func (s *service) Commit(_ context.Context, reservationID string) error {
 		return serrors.E(op, ErrReservationNotFound)
 	}
 	switch reservation.Status {
+	case ReservationPending:
 	case ReservationCommitted:
 		return nil
 	case ReservationReleased, ReservationExpired:
@@ -470,14 +471,14 @@ func (s *service) evaluateLimitLocked(subject Subject, quota QuotaKey) LimitDeci
 			mode = QuotaModeAbsolute
 		}
 		switch mode {
+		case QuotaModeAbsolute:
+			limit = rule.Limit
 		case QuotaModeAdditive:
 			if limit < 0 || rule.Limit < 0 {
 				limit = -1
 				continue
 			}
 			limit += rule.Limit
-		default:
-			limit = rule.Limit
 		}
 	}
 
@@ -789,6 +790,8 @@ func effectivePriority(grant Grant) int {
 
 func kindPriority(kind GrantKind) int {
 	switch kind {
+	case GrantKindDefault:
+		return 100
 	case GrantKindDeny:
 		return 600
 	case GrantKindOverride:

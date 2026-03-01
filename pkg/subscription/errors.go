@@ -14,12 +14,12 @@ var (
 	ErrReservationNotFound = errors.New("subscription reservation not found")
 )
 
-type ErrLimitExceeded struct {
+type ErrLimitExceededError struct {
 	Quota   QuotaKey
 	Current int
 	Limit   int
 }
 
-func (e ErrLimitExceeded) Error() string {
+func (e ErrLimitExceededError) Error() string {
 	return fmt.Sprintf("quota exceeded for %s: %d/%d", e.Quota.String(), e.Current, e.Limit)
 }

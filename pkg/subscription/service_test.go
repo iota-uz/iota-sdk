@@ -137,7 +137,7 @@ func TestEngine_AddOnQuotaAndReservationLifecycle(t *testing.T) {
 
 	_, err = engine.Reserve(context.Background(), subject, quota, 5, "token-2")
 	require.Error(t, err)
-	var limitErr ErrLimitExceeded
+	var limitErr ErrLimitExceededError
 	require.ErrorAs(t, err, &limitErr)
 
 	require.NoError(t, engine.Release(context.Background(), reservation.ID))

@@ -382,7 +382,7 @@ func (r *Repository) IncrementEntityCountIfBelow(
 	ctx context.Context,
 	tenantID uuid.UUID,
 	entityType string,
-	max int,
+	maxCount int,
 ) (bool, error) {
 	const op serrors.Op = "SubscriptionRepository.IncrementEntityCountIfBelow"
 
@@ -404,7 +404,7 @@ func (r *Repository) IncrementEntityCountIfBelow(
 			RETURNING current_count
 		)
 		SELECT EXISTS(SELECT 1 FROM upsert)
-	`, tenantID, entityType, max).Scan(&ok)
+	`, tenantID, entityType, maxCount).Scan(&ok)
 	if err != nil {
 		return false, serrors.E(op, err)
 	}
@@ -433,7 +433,7 @@ func (r *Repository) DecrementEntityCount(ctx context.Context, tenantID uuid.UUI
 	return nil
 }
 
-func (r *Repository) AddSeatIfBelow(ctx context.Context, tenantID uuid.UUID, max int) (bool, error) {
+func (r *Repository) AddSeatIfBelow(ctx context.Context, tenantID uuid.UUID, maxCount int) (bool, error) {
 	const op serrors.Op = "SubscriptionRepository.AddSeatIfBelow"
 
 	db, err := r.getQueryer(ctx)
@@ -447,7 +447,7 @@ func (r *Repository) AddSeatIfBelow(ctx context.Context, tenantID uuid.UUID, max
 		    updated_at = NOW()
 		WHERE tenant_id = $1
 		  AND current_seats < $2
-	`, tenantID, max)
+	`, tenantID, maxCount)
 	if err != nil {
 		return false, serrors.E(op, err)
 	}

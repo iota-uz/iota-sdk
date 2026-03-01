@@ -199,7 +199,7 @@ func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
 	tenantID, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
-	max := 10
+	maxCount := 10
 	workers := 50
 	ctx := context.Background()
 	var succeeded atomic.Int64
@@ -210,7 +210,7 @@ func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
 	for range workers {
 		go func() {
 			defer wg.Done()
-			ok, incErr := repo.IncrementEntityCountIfBelow(ctx, tenantID, "drivers", max)
+			ok, incErr := repo.IncrementEntityCountIfBelow(ctx, tenantID, "drivers", maxCount)
 			if incErr != nil {
 				errCh <- incErr
 				return
@@ -228,6 +228,6 @@ func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
 
 	count, err := repo.GetEntityCount(ctx, tenantID, "drivers")
 	require.NoError(t, err)
-	assert.Equal(t, int64(max), succeeded.Load())
-	assert.Equal(t, max, count)
+	assert.Equal(t, int64(maxCount), succeeded.Load())
+	assert.Equal(t, maxCount, count)
 }
