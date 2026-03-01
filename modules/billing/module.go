@@ -103,6 +103,15 @@ func (m *Module) Register(app application.Application) error {
 	)
 
 	basePath := "/billing"
+	stripeHooks := make([]billing.StripeEventHook, 0)
+	for _, service := range app.Services() {
+		hook, ok := service.(billing.StripeEventHook)
+		if !ok {
+			continue
+		}
+		stripeHooks = append(stripeHooks, hook)
+	}
+
 	app.RegisterControllers(
 		controllers.NewClickController(
 			app,
@@ -124,6 +133,7 @@ func (m *Module) Register(app application.Application) error {
 			app,
 			conf.Stripe,
 			basePath+"/stripe",
+			stripeHooks...,
 		),
 	)
 

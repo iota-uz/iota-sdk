@@ -26,12 +26,14 @@ type StripeController struct {
 	stripe         configuration.StripeOptions
 	basePath       string
 	mutex          sync.Mutex
+	hooks          []billing.StripeEventHook
 }
 
 func NewStripeController(
 	app application.Application,
 	stripe configuration.StripeOptions,
 	basePath string,
+	hooks ...billing.StripeEventHook,
 ) application.Controller {
 	return &StripeController{
 		app:            app,
@@ -39,6 +41,7 @@ func NewStripeController(
 		stripe:         stripe,
 		basePath:       basePath,
 		mutex:          sync.Mutex{},
+		hooks:          hooks,
 	}
 }
 
@@ -94,8 +97,23 @@ func (c *StripeController) Handle(
 	default:
 		logger.WithField("event_type", event.Type).Info("Unhandled Stripe event type")
 	}
+	c.dispatchHooks(ctx, event, logger)
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (c *StripeController) dispatchHooks(ctx context.Context, event stripe.Event, logger *logrus.Entry) {
+	for idx, hook := range c.hooks {
+		if hook == nil {
+			continue
+		}
+		if err := hook.HandleStripeEvent(ctx, event); err != nil {
+			logger.WithError(err).WithFields(logrus.Fields{
+				"event_type": event.Type,
+				"hook_index": idx,
+			}).Warn("Stripe hook failed")
+		}
+	}
 }
 
 func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event stripe.Event, logger *logrus.Entry) {
