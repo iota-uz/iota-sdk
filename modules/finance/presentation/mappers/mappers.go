@@ -91,7 +91,7 @@ func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 		Comment:            entity.Comment(),
 		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
-		Attachments:        []*coreviewmodels.Upload{},
+		Attachments:        nil,
 	}
 }
 
@@ -110,7 +110,7 @@ func ExpenseToViewModel(entity expense.Expense) *viewmodels.Expense {
 		Date:               entity.Date().Format(time.RFC3339),
 		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
-		Attachments:        []*coreviewmodels.Upload{},
+		Attachments:        nil,
 	}
 }
 
@@ -236,11 +236,11 @@ func ToIncomeStatementViewModel(incomeStatement *value_objects.IncomeStatement) 
 		GrossProfit:             fmt.Sprintf("%.2f", incomeStatement.GrossProfit.AsMajorUnits()),
 		GrossProfitWithCurrency: incomeStatement.GrossProfit.Display(),
 		GrossProfitRatio:        incomeStatement.GrossProfitRatio,
-		MonthlyGrossProfit:      []viewmodels.MonthlyAmount{},
+		MonthlyGrossProfit:      nil,
 		NetProfit:               fmt.Sprintf("%.2f", incomeStatement.NetProfit.AsMajorUnits()),
 		NetProfitWithCurrency:   incomeStatement.NetProfit.Display(),
 		NetProfitRatio:          incomeStatement.NetProfitRatio,
-		MonthlyNetProfit:        []viewmodels.MonthlyAmount{},
+		MonthlyNetProfit:        nil,
 		IsProfit:                incomeStatement.IsProfit(),
 		Currency:                incomeStatement.Currency,
 		GeneratedAt:             incomeStatement.GeneratedAt.Format(time.RFC3339),
@@ -320,7 +320,7 @@ func toIncomeStatementSectionViewModel(section value_objects.IncomeStatementSect
 			Amount:             fmt.Sprintf("%.2f", item.Amount.AsMajorUnits()),
 			AmountWithCurrency: item.Amount.Display(),
 			Percentage:         item.Percentage,
-			MonthlyAmounts:     []viewmodels.MonthlyAmount{},
+			MonthlyAmounts:     nil,
 		})
 	}
 
@@ -330,7 +330,7 @@ func toIncomeStatementSectionViewModel(section value_objects.IncomeStatementSect
 		Subtotal:             fmt.Sprintf("%.2f", section.Subtotal.AsMajorUnits()),
 		SubtotalWithCurrency: section.Subtotal.Display(),
 		Percentage:           section.Percentage,
-		MonthlySubtotals:     []viewmodels.MonthlyAmount{},
+		MonthlySubtotals:     nil,
 	}
 }
 
@@ -562,7 +562,7 @@ func ToCashflowStatementViewModel(cashflowStatement *value_objects.CashflowState
 		TotalOutflowsWithCurrency:   cashflowStatement.TotalOutflows.Display(),
 		NetCashFlow:                 fmt.Sprintf("%.2f", cashflowStatement.NetCashFlow.AsMajorUnits()),
 		NetCashFlowWithCurrency:     cashflowStatement.NetCashFlow.Display(),
-		MonthlyNetCashFlow:          []viewmodels.MonthlyAmount{},
+		MonthlyNetCashFlow:          nil,
 		IsPositive:                  cashflowStatement.NetCashFlow.Amount() >= 0,
 		Currency:                    cashflowStatement.Currency,
 		GeneratedAt:                 time.Now().Format("2006-01-02 15:04:05"),
@@ -628,8 +628,8 @@ func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodel
 			AmountWithCurrency: item.Amount.Display(),
 			Percentage:         item.Percentage,
 			Count:              item.Count,
-			MonthlyAmounts:     []viewmodels.MonthlyAmount{},
-			MonthlyCounts:      []viewmodels.MonthlyCount{},
+			MonthlyAmounts:     nil,
+			MonthlyCounts:      nil,
 		})
 	}
 
@@ -642,8 +642,8 @@ func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodel
 			AmountWithCurrency: item.Amount.Display(),
 			Percentage:         item.Percentage,
 			Count:              item.Count,
-			MonthlyAmounts:     []viewmodels.MonthlyAmount{},
-			MonthlyCounts:      []viewmodels.MonthlyCount{},
+			MonthlyAmounts:     nil,
+			MonthlyCounts:      nil,
 		})
 	}
 
@@ -653,7 +653,7 @@ func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodel
 		Outflows:                outflowItems,
 		NetCashFlow:             fmt.Sprintf("%.2f", section.NetCashFlow.AsMajorUnits()),
 		NetCashFlowWithCurrency: section.NetCashFlow.Display(),
-		MonthlyNetCashFlow:      []viewmodels.MonthlyAmount{},
+		MonthlyNetCashFlow:      nil,
 	}
 }
 
