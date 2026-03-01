@@ -1,3 +1,4 @@
+// Package bridge adapts subscription policy evaluation to repository-backed storage.
 package bridge
 
 import (

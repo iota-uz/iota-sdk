@@ -1,3 +1,4 @@
+// Package stripe provides Stripe integration helpers for subscription synchronization.
 package stripe
 
 import (
