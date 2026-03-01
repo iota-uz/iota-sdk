@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -137,5 +140,46 @@ func BenchmarkNonDIRouter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		rr := httptest.NewRecorder()
 		NonDIHandler(rr, req)
+	}
+}
+
+func TestDIHandlerConcurrentRequests_NoDataRace(t *testing.T) {
+	handler := H(func(w http.ResponseWriter, r *http.Request, u user.User) {
+		_, _ = fmt.Fprintf(w, "Path: %s\n", r.URL.Path)
+		_, _ = fmt.Fprintf(w, "Fullname: %s %s\n", u.FirstName(), u.LastName())
+	})
+
+	const goroutines = 64
+	const requestsPerGoroutine = 50
+
+	var failed atomic.Int32
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for g := 0; g < goroutines; g++ {
+		go func(group int) {
+			defer wg.Done()
+			for i := 0; i < requestsPerGoroutine; i++ {
+				ctx := setupTestContext()
+				req := httptest.NewRequest(http.MethodGet, "/health", nil).WithContext(ctx)
+				rr := httptest.NewRecorder()
+				handler(rr, req)
+
+				if rr.Code != http.StatusOK {
+					failed.Add(1)
+					continue
+				}
+
+				body := rr.Body.String()
+				if !strings.Contains(body, "Fullname: John Doe") || !strings.Contains(body, "Path: /health") {
+					failed.Add(1)
+				}
+			}
+		}(g)
+	}
+
+	wg.Wait()
+	if got := failed.Load(); got != 0 {
+		t.Fatalf("expected 0 failed responses, got %d", got)
 	}
 }

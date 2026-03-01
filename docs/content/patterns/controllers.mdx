@@ -80,6 +80,8 @@ func (c *ExpenseController) Register(r *mux.Router) {
 }
 ```
 
+Some modules register a controller by having another controller call its `Register` on a sub-router (e.g. the Finance module mounts the expense controller under the financial overview router rather than registering it directly in `module.go`).
+
 ## Request Handlers
 
 ### List Handler with Pagination
@@ -412,10 +414,8 @@ func (c *ExpenseController) Delete(...) {
 	// ... deletion logic
 	
 	if htmx.IsHxRequest(r) {
-		// Return empty response with trigger
-		htmx.SetTrigger(w, "expenseDeleted", map[string]string{
-			"id": id.String(),
-		})
+		// Return empty response with JSON trigger payload
+		htmx.SetTrigger(w, "expenseDeleted", `{"id":"`+id.String()+`"}`)
 	} else {
 		shared.Redirect(w, r, c.basePath)
 	}
@@ -556,7 +556,9 @@ if errors.Is(err, persistence.ErrExpenseNotFound) {
 	return
 }
 
-// Forbidden - permission denied
+// Forbidden - permission denied (authenticated but not allowed)
+// Use composables.CanUser or strict checks (e.g. CanUserStrict) for resource-level auth.
+// The framework can render a dedicated forbidden page for HTML requests.
 if err := composables.CanUser(ctx, permission); err != nil {
 	http.Error(w, "Forbidden", http.StatusForbidden)
 	return
@@ -599,31 +601,18 @@ func TestExpenseController_Create(t *testing.T) {
 	defer env.Teardown()
 
 	t.Run("create expense", func(t *testing.T) {
-		// Create test user with permissions
-		testUser := itf.User(permissions.ExpenseCreate)
-		ctx := composables.WithUser(env.Ctx, testUser)
-
-		// Create category and account first
-		category := createTestCategory(env.DB(), testUser.TenantID())
-		account := createTestAccount(env.DB(), testUser.TenantID())
-
-		// Submit form
-		resp := itf.DoRequest(itf.NewRequest(t, http.MethodPost, "/finance/expenses", 
-			strings.NewReader(url.Values{
-				"Amount":           {"100.00"},
-				"AccountID":        {account.ID.String()},
-				"CategoryID":       {category.ID.String()},
-				"Comment":          {"Test expense"},
-				"AccountingPeriod": {time.Now().Format("2006-01-02")},
-				"Date":             {time.Now().Format("2006-01-02")},
-			}.Encode()),
-			itf.WithCookies(cookies),
-			itf.WithHeader("Content-Type", "application/x-www-form-urlencoded"),
-		))
-
-		// Assert redirect
-		assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
-		assert.Contains(t, resp.Header.Get("Location"), "/finance/expenses")
+		suite := itf.HTTP(t, modules.BuiltInModules...)
+		// Create test account and category in fixture data (replace with project IDs as needed)
+		accountID := "00000000-0000-0000-0000-000000000001"
+		categoryID := "00000000-0000-0000-0000-000000000002"
+		suite.POST("/finance/expenses").Form(url.Values{
+			"Amount":           {"100.00"},
+			"AccountID":        {accountID},
+			"CategoryID":       {categoryID},
+			"Comment":          {"Test expense"},
+			"AccountingPeriod": {time.Now().Format("2006-01-02")},
+			"Date":             {time.Now().Format("2006-01-02")},
+		}).Expect(t).Status(http.StatusSeeOther).RedirectTo("/finance/expenses")
 	})
 }
 ```

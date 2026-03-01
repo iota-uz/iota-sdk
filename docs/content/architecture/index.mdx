@@ -48,7 +48,7 @@ graph TB
 
 ## Design Principles
 
-### 1. Domain-Driven Design (DDD: %v", err)
+### 1. Domain-Driven Design (DDD)
 
 The codebase is organized around business domains rather than technical concerns. Each module represents a bounded context with its own:
 
@@ -107,7 +107,7 @@ sequenceDiagram
     participant DB as Database
     participant Web as Web Server
     
-    App->>Mod: Register(: %v", err)
+    App->>Mod: Register(app)
     Mod->>DB: Register Migrations
     Mod->>App: Register Services
     Mod->>App: Register Controllers
@@ -146,8 +146,8 @@ graph LR
 |-----------|-----------|---------|
 | Language | Go 1.24+ | Type-safe, performant |
 | Router | gorilla/mux | HTTP routing |
-| Database | PostgreSQL 17+ | ACID, JSON support |
-| ORM | sqlx | Structured queries |
+| Database | PostgreSQL 13+ | ACID, JSON support |
+| Data access | sqlx + pgx | Queries and driver |
 | GraphQL | gqlgen | API schema |
 | Validation | go-playground/validator | Input validation |
 | i18n | go-i18n | Localization |
@@ -209,7 +209,7 @@ sequenceDiagram
 
 For HTMX requests (AJAX), the flow is similar but:
 
-- Response is partial HTML (not full page: %v", err)
+- Response is partial HTML (not full page)
 - Triggers client-side updates via HTMX attributes
 - Supports out-of-band swaps for multiple elements
 

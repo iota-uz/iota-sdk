@@ -20,11 +20,10 @@ graph TB
         end
         
         subgraph "Data Layer"
-            DB[(PostgreSQL)]
-            SchemaA["Schema: tenant_a"]
-            SchemaB["Schema: tenant_b"]
-            SchemaC["Schema: tenant_c"]
+            DB[(PostgreSQL shared schema)]
+            TID[tenant_id row-level isolation]
         end
+        DB --> TID
     end
     
     UserA["User A<br/>tenant_a"] -->|Request| Middleware
@@ -32,10 +31,7 @@ graph TB
     UserC["User C<br/>tenant_c"] -->|Request| Middleware
     
     Middleware -->|Set Context| Context
-    Context -->|Query| DB
-    DB --> SchemaA
-    DB --> SchemaB
-    DB --> SchemaC
+    Context -->|Query with tenant_id| DB
 ```
 
 ## Tenant Identification
@@ -82,42 +78,16 @@ graph TD
 
 ## Data Isolation
 
-### Schema-Based Isolation
+### Row-Level Isolation
 
-Each tenant has a separate database schema:
+The platform uses a **shared database schema** with **row-level isolation** via `tenant_id`. All tenant-scoped tables include a `tenant_id` column, and queries add `WHERE tenant_id = ?` so each tenant only sees their own data. There are no per-tenant PostgreSQL schemas or `SET search_path` switching.
 
 ```mermaid
 graph TB
-    subgraph "PostgreSQL Database"
-        DB["Database: iota_sdk"]
-        
-        subgraph "Tenant A Schema"
-            A1[users]
-            A2[payments]
-            A3[products]
-        end
-        
-        subgraph "Tenant B Schema"
-            B1[users]
-            B2[payments]
-            B3[products]
-        end
-        
-        subgraph "Tenant C Schema"
-            C1[users]
-            C2[payments]
-            C3[products]
-        end
-        
-        DB --> A1
-        DB --> A2
-        DB --> A3
-        DB --> B1
-        DB --> B2
-        DB --> B3
-        DB --> C1
-        DB --> C2
-        DB --> C3
+    subgraph "PostgreSQL Database - shared schema"
+        T1[users + tenant_id]
+        T2[payments + tenant_id]
+        T3[products + tenant_id]
     end
 ```
 
@@ -215,9 +185,9 @@ sequenceDiagram
     
     Admin->>Superadmin: Create tenant request
     Superadmin->>Superadmin: Validate subdomain
-    Superadmin->>DB: Create schema
-    Superadmin->>DB: Run migrations
-    Superadmin->>DB: Seed default data
+    Superadmin->>DB: Create tenant record
+    Superadmin->>DB: Ensure global schema is up-to-date
+    Superadmin->>DB: Seed tenant-scoped default rows (tenant_id)
     Superadmin->>App: Register tenant
     Superadmin-->>Admin: Tenant ready
 ```
@@ -226,9 +196,9 @@ sequenceDiagram
 
 | Operation | Effect | Access |
 |-----------|--------|--------|
-| **Create** | New schema, migrations applied | Superadmin only |
+| **Create** | New tenant record, data isolation via tenant_id | Superadmin only |
 | **Suspend** | Block all access | Superadmin only |
-| **Delete** | Remove schema and data | Superadmin only |
+| **Delete** | Remove tenant data (row-level) | Superadmin only |
 | **Backup** | Export tenant data | Superadmin only |
 | **Settings** | Configure tenant | Tenant admin |
 
@@ -270,60 +240,40 @@ Each tenant can have different defaults:
 
 Tenants can customize:
 
-- Branding (logos, colors: %v", err)
-- Feature flags (enable/disable modules: %v", err)
-- Default settings (date formats, number formats: %v", err)
-- Custom fields (extend entities: %v", err)
+- Branding (logos, colors)
+- Feature flags (enable/disable modules)
+- Default settings (date formats, number formats)
+- Custom fields (extend entities)
 
 ## Implementation Details
 
-### Database Connection
+### Database and Migrations
 
-Single connection pool with schema switching:
+The implementation uses a **single shared schema** and one connection pool. Isolation is **row-level only** (all tenant-scoped tables have `tenant_id`; queries use `WHERE tenant_id = ?`). There is no per-tenant schema switching or `SET search_path`. Migrations are applied once to the shared schema; a single migration history table tracks applied versions.
 
 ```mermaid
 graph LR
-    A[Connection Pool] -->|SET search_path| B[Tenant A Schema]
-    A -->|SET search_path| C[Tenant B Schema]
-    A -->|SET search_path| D[Tenant C Schema]
-```
-
-### Migration Strategy
-
-Migrations run per-tenant:
-
-```mermaid
-graph TB
-    A[Migration File] -->|Apply| B[Tenant A Schema]
-    A -->|Apply| C[Tenant B Schema]
-    A -->|Apply| D[Tenant C Schema]
-    
-    B -->|Version| E[Schema Migrations Table]
-    C -->|Version| F[Schema Migrations Table]
-    D -->|Version| G[Schema Migrations Table]
+    A[Connection Pool] --> B[(Shared Schema)]
+    B --> C[tenant_id filter]
 ```
 
 ## Performance Considerations
 
 ### Connection Pooling
 
-- Shared pool across all tenants
-- Schema context set per query
-- No connection per tenant overhead
+- Single shared pool across all tenants
+- No per-tenant connection or schema context
 
 ### Query Optimization
 
-- Tenant ID in all indexes
-- Partitioning by tenant for large tables
-- Query plan caching per schema
+- Include `tenant_id` in indexes for tenant-scoped tables
+- Consider partitioning by `tenant_id` for tables that exceed measurable thresholds (for example, more than 100 million rows or 100GB) or when per-tenant query/maintenance latency degrades beyond acceptable limits
 
 ## Best Practices
 
-1. **Never Bypass Tenant Context** - Always use middleware
+1. **Never Bypass Tenant Context** - Always use middleware and include `tenant_id` in WHERE clauses
 2. **Test with Multiple Tenants** - Ensure isolation in tests
-3. **Monitor Per-Tenant** - Track usage and performance per tenant
-4. **Backup Individually** - Tenant-level backup/restore
-5. **Schema Migrations** - Test on all tenant schemas
+3. **Monitor Per-Tenant** - Track usage and performance per tenant where needed
 
 ## Next Steps
 

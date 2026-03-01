@@ -39,14 +39,14 @@ Individual inventory items:
 Units of measurement:
 - **Standard units** - Pieces, kilograms, liters, meters
 - **Conversions** - Unit conversion factors
-- **Symbol** - Display symbol (pcs, kg, L, m: %v", err)
+- **Symbol** - Display symbol (pcs, kg, L, m)
 
 ### Order
 
 Warehouse operations:
 - **Order items** - Products requested
 - **Status workflow** - Draft → Confirmed → Processing → Completed
-- **Types** - Inbound (receiving) or Outbound (shipping: %v", err)
+- **Types** - Inbound (receiving) or Outbound (shipping)
 - **Counterparty** - Client or supplier
 
 ## Architecture
@@ -139,7 +139,7 @@ Individual item tracking:
 ### Units
 
 Measurement management:
-- Define units (pcs, kg, m, L: %v", err)
+- Define units (pcs, kg, m, L)
 - Set conversion rates
 - Assign display symbols
 - Link to positions
@@ -194,21 +194,11 @@ See [API Reference](/api/warehouse) for detailed schema documentation.
 
 | Permission | Description |
 |------------|-------------|
-| `warehouse.positions.view` | View product catalog |
-| `warehouse.positions.create` | Create positions |
-| `warehouse.positions.edit` | Modify positions |
-| `warehouse.positions.delete` | Delete positions |
-| `warehouse.products.view` | View inventory |
-| `warehouse.products.create` | Add products |
-| `warehouse.products.edit` | Modify products |
-| `warehouse.products.delete` | Remove products |
-| `warehouse.orders.view` | View orders |
-| `warehouse.orders.create` | Create orders |
-| `warehouse.orders.edit` | Modify orders |
-| `warehouse.orders.process` | Process orders |
-| `warehouse.units.view` | View units |
-| `warehouse.units.manage` | Manage units |
-| `warehouse.inventory.view` | View inventory levels |
+| `Position.Read`, `Position.Create`, `Position.Update`, `Position.Delete` | Product catalog (positions) |
+| `Product.Read`, `Product.Create`, `Product.Update`, `Product.Delete` | Products |
+| `Order.Read`, `Order.Create`, `Order.Update`, `Order.Delete` | Orders |
+| `Unit.Read`, `Unit.Create`, `Unit.Update`, `Unit.Delete` | Units |
+| `Inventory.Read`, `Inventory.Create`, `Inventory.Update`, `Inventory.Delete` | Inventory |
 
 ## Integration with Other Modules
 

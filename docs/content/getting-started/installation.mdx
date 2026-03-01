@@ -71,31 +71,38 @@ cd docs && pnpm install && cd ..
 Create a `.env` file in the project root:
 
 ```bash
-# Database connection
-DATABASE_URL=postgres://postgres:password@localhost:5432/iota_sdk_dev?sslmode=disable
+# Database (connection string is built from these; DATABASE_URL is not used)
+DB_NAME=iota_sdk_dev
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
 
 # Application
-APP_ENV=development
-APP_PORT=3200
+GO_APP_ENV=development
+PORT=3200
 
-# Session
-SESSION_SECRET=your-random-secret-key-at-least-32-characters
+# Session (DB-backed; cookie name)
+SID_COOKIE_KEY=iota_sid
 
 # Optional: Test endpoints
 ENABLE_TEST_ENDPOINTS=true
 
-# Optional: Spotlight search (auto-enabled when MEILI_URL is set)
+# Optional: Spotlight search (global search + quick links; auto-enabled when MEILI_URL is set)
 MEILI_URL=http://localhost:7700
 MEILI_API_KEY=
 ```
 
-Spotlight initialization is automatic:
-- If `MEILI_URL` is set, Spotlight is initialized and health-checked.
-- If `MEILI_URL` is not set, Spotlight initialization is skipped.
+Spotlight provides in-app global search (keyboard shortcut) and quick links. Initialization is automatic:
+
+- If **`MEILI_URL`** is set, Spotlight uses Meilisearch: the service is initialized and health-checked at startup. **`MEILI_API_KEY`** is optional (leave empty for local dev; set it when Meilisearch requires authentication).
+- If **`MEILI_URL`** is not set, Spotlight is disabled (no search backend); quick links are still registered but search will not return Meilisearch-backed results.
+
+For full details (quick link API, translation keys), see [Spotlight](/advanced/spotlight).
 
 ### Configuration Files
 
-The SDK uses a configuration system located in `pkg/config/`. Key configuration areas:
+The SDK uses a configuration system located in `pkg/configuration/`. Key configuration areas:
 
 - **Database** - Connection pools and query timeouts
 - **Server** - Port, TLS settings, timeouts
@@ -129,7 +136,7 @@ The server will start on `http://localhost:3200` by default.
 Visit these URLs to verify:
 
 - `http://localhost:3200` - Main application
-- `http://localhost:3200/health` - Health check endpoint
+- `http://localhost:3200/health` - Liveness endpoint (returns JSON `{"status":"healthy"}`; checks DB and Spotlight)
 
 ## Next Steps
 
