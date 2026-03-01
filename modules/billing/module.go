@@ -7,6 +7,7 @@ import (
 	billingdom "github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/billing/infrastructure/providers"
+	"github.com/iota-uz/iota-sdk/modules/billing/ports"
 	"github.com/iota-uz/iota-sdk/modules/billing/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -15,12 +16,12 @@ import (
 )
 
 type Module struct {
-	stripeHooks []controllers.StripeEventHook
+	stripeHooks []ports.StripeEventHook
 }
 
 type Option func(*Module)
 
-func WithStripeEventHooks(hooks ...controllers.StripeEventHook) Option {
+func WithStripeEventHooks(hooks ...ports.StripeEventHook) Option {
 	return func(m *Module) {
 		for _, hook := range hooks {
 			if hook == nil {
@@ -125,7 +126,7 @@ func (m *Module) Register(app application.Application) error {
 	)
 
 	basePath := "/billing"
-	stripeHooks := append([]controllers.StripeEventHook{}, m.stripeHooks...)
+	stripeHooks := append([]ports.StripeEventHook{}, m.stripeHooks...)
 
 	app.RegisterControllers(
 		controllers.NewClickController(

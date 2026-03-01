@@ -176,3 +176,23 @@ func newSignedWebhookRequest(t *testing.T, secret string, payload map[string]any
 	req.Header.Set("Stripe-Signature", signed.Header)
 	return req
 }
+
+func TestCurrencyDivisor(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, float64(1), currencyDivisor("JPY"))
+	assert.Equal(t, float64(1000), currencyDivisor("KWD"))
+	assert.Equal(t, float64(100), currencyDivisor("USD"))
+}
+
+func TestTransactionLookupErrors(t *testing.T) {
+	t.Parallel()
+
+	notFoundErr := transactionNotFoundError("invoice_id", "in_123")
+	require.Error(t, notFoundErr)
+	assert.Contains(t, notFoundErr.Error(), "invoice_id=in_123")
+
+	unexpectedCountErr := unexpectedTransactionCountError("session_id", "cs_123", 1, 0)
+	require.Error(t, unexpectedCountErr)
+	assert.Contains(t, unexpectedCountErr.Error(), "expected 1 transaction(s)")
+}

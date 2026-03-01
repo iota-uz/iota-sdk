@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/iota-uz/iota-sdk/modules/billing/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/billing/ports"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v82"
 )
@@ -15,7 +15,7 @@ func (noopStripeHook) HandleStripeEvent(context.Context, stripe.Event) error {
 	return nil
 }
 
-var _ controllers.StripeEventHook = noopStripeHook{}
+var _ ports.StripeEventHook = noopStripeHook{}
 
 func TestNewModule_WithStripeEventHooks(t *testing.T) {
 	t.Parallel()

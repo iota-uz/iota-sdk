@@ -1,13 +1,7 @@
 package controllers
 
-import (
-	"context"
+import "github.com/iota-uz/iota-sdk/modules/billing/ports"
 
-	"github.com/stripe/stripe-go/v82"
-)
-
-// StripeEventHook allows non-billing components to observe raw Stripe events
-// received by the billing webhook controller.
-type StripeEventHook interface {
-	HandleStripeEvent(ctx context.Context, event stripe.Event) error
-}
+// StripeEventHook is a compatibility alias for ports.StripeEventHook.
+// Prefer importing github.com/iota-uz/iota-sdk/modules/billing/ports.
+type StripeEventHook = ports.StripeEventHook

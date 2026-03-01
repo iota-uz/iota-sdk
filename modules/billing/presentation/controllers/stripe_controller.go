@@ -4,6 +4,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
+	"github.com/iota-uz/iota-sdk/modules/billing/ports"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -26,7 +28,7 @@ type StripeController struct {
 	billingService *services.BillingService
 	stripe         configuration.StripeOptions
 	basePath       string
-	hooks          []StripeEventHook
+	hooks          []ports.StripeEventHook
 	hookQueue      chan stripe.Event
 }
 
@@ -34,7 +36,7 @@ func NewStripeController(
 	app application.Application,
 	stripeOpts configuration.StripeOptions,
 	basePath string,
-	hooks ...StripeEventHook,
+	hooks ...ports.StripeEventHook,
 ) application.Controller {
 	controller := &StripeController{
 		app:            app,
@@ -193,8 +195,16 @@ func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event st
 		},
 	)
 
-	if err != nil || len(entities) != 1 {
+	if err != nil {
 		logger.WithError(err).WithField("session_id", session.ID).Error("Failed to find transaction by session ID")
+		return err
+	}
+	if len(entities) != 1 {
+		err = unexpectedTransactionCountError("session_id", session.ID, 1, len(entities))
+		logger.WithError(err).WithFields(logrus.Fields{
+			"session_id": session.ID,
+			"count":      len(entities),
+		}).Error("Failed to find transaction by session ID")
 		return err
 	}
 
@@ -277,7 +287,12 @@ func (c *StripeController) handleInvoiceCreated(ctx context.Context, event strip
 			Value:    subscriptionID,
 		},
 	})
-	if err != nil || len(entities) == 0 {
+	if err != nil {
+		logger.WithError(err).WithField("subscription_id", subscriptionID).Error("Could not find previous transaction by subscription_id")
+		return err
+	}
+	if len(entities) == 0 {
+		err = transactionNotFoundError("subscription_id", subscriptionID)
 		logger.WithError(err).WithField("subscription_id", subscriptionID).Error("Could not find previous transaction by subscription_id")
 		return err
 	}
@@ -343,7 +358,12 @@ func (c *StripeController) invoicePaymentSucceeded(ctx context.Context, event st
 			Value:    invoice.ID,
 		},
 	})
-	if err != nil || len(entities) == 0 {
+	if err != nil {
+		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Could not find transaction by invoice_id")
+		return err
+	}
+	if len(entities) == 0 {
+		err = transactionNotFoundError("invoice_id", invoice.ID)
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Could not find transaction by invoice_id")
 		return err
 	}
@@ -407,7 +427,12 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 			Value:    invoice.ID,
 		},
 	})
-	if err != nil || len(entities) == 0 {
+	if err != nil {
+		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Could not find transaction by invoice_id")
+		return err
+	}
+	if len(entities) == 0 {
+		err = transactionNotFoundError("invoice_id", invoice.ID)
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Could not find transaction by invoice_id")
 		return err
 	}
@@ -452,13 +477,23 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 	return nil
 }
 
+func unexpectedTransactionCountError(field, value string, expected, got int) error {
+	return fmt.Errorf("expected %d transaction(s) for %s=%s, got %d", expected, field, value, got)
+}
+
+func transactionNotFoundError(field, value string) error {
+	return fmt.Errorf("transaction not found for %s=%s", field, value)
+}
+
 // currencyDivisor returns the smallest currency unit divisor.
-// Zero-decimal currencies (e.g. JPY, KRW) use 1; most others use 100.
+// Zero-decimal currencies (e.g. JPY, KRW) use 1; three-decimal currencies use 1000; most others use 100.
 func currencyDivisor(currency string) float64 {
 	switch strings.ToUpper(currency) {
 	case "BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA",
 		"PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF":
 		return 1
+	case "BHD", "JOD", "KWD", "OMR", "TND":
+		return 1000
 	default:
 		return 100
 	}
