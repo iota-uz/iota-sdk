@@ -64,9 +64,9 @@ sequenceDiagram
     participant Controller
     participant Templ
     
-    Browser->>HTMX: User action (hx-post: %v", err)
+    Browser->>HTMX: User action (hx-post, etc.)
     HTMX->>Controller: AJAX request + HX headers
-    Controller->>Controller: Check htmx.IsHxRequest(: %v", err)
+    Controller->>Controller: Check htmx.IsHxRequest(r)
     Controller->>Templ: Render partial template
     Templ-->>Controller: HTML fragment
     Controller-->>HTMX: HTML + HX-Trigger headers
@@ -188,7 +188,7 @@ graph LR
 
 ### Configuration
 
-Tailwind is configured in `web/src/css/tailwind.config.js`:
+Tailwind is configured at the repository root (`tailwind.config.js`) and per-applet (e.g. `modules/bichat/presentation/web/tailwind.config.js`). There is no `web/src/css/` path.
 
 - Custom colors for branding
 - Extended spacing scale
@@ -238,7 +238,7 @@ graph LR
 
 Minimal state in Alpine.js:
 
-- UI state (open/closed, selected tab: %v", err)
+- UI state (open/closed, selected tab)
 - Form draft state
 - Temporary user preferences
 

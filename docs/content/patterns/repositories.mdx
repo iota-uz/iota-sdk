@@ -127,13 +127,13 @@ func (g *PgExpenseCategoryRepository) queryCategories(
 	args ...interface{},
 ) ([]category.ExpenseCategory, error) {
 	// Get transaction from context
-	pool, err := composables.UseTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
 	// Execute query
-	rows, err := pool.Query(ctx, query, args...)
+	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}

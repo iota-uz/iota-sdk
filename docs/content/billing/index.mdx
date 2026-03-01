@@ -96,7 +96,7 @@ sequenceDiagram
     participant Database
     
     Client->>BillingService: Create payment request
-    BillingService->>Database: Create transaction (Pending: %v", err)
+    BillingService->>Database: Create transaction (Pending)
     BillingService->>Provider: Initialize payment
     Provider-->>BillingService: Payment URL/Token
     BillingService-->>Client: Redirect to payment
@@ -105,7 +105,7 @@ sequenceDiagram
     
     Provider->>Webhook: Payment completion
     Webhook->>BillingService: Process notification
-    BillingService->>Database: Update status (Completed: %v", err)
+    BillingService->>Database: Update status (Completed)
     BillingService->>BillingService: Publish event
 ```
 
@@ -146,14 +146,15 @@ Payment matching:
 
 ### REST Endpoints
 
+Webhook and provider endpoints (no `/webhooks` path segment):
+
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/billing/transactions` | GET | List transactions |
-| `/billing/transactions` | POST | Create transaction |
-| `/billing/webhooks/click` | POST | Click webhook |
-| `/billing/webhooks/payme` | POST | Payme webhook |
-| `/billing/webhooks/octo` | POST | Octo webhook |
-| `/billing/webhooks/stripe` | POST | Stripe webhook |
+| `/billing/click/prepare` | POST | Click prepare |
+| `/billing/click/complete` | POST | Click complete |
+| `/billing/payme` | POST | Payme webhook |
+| `/billing/octo` | POST | Octo webhook |
+| `/billing/stripe` | POST | Stripe webhook |
 
 ### Provider APIs
 
@@ -161,17 +162,11 @@ Each provider has specific integration endpoints for:
 - Payment initialization
 - Status checking
 - Refund processing
-- webhook configuration
+- Webhook Configuration
 
 ## Permissions
 
-| Permission | Description |
-|------------|-------------|
-| `billing.transactions.view` | View transactions |
-| `billing.transactions.create` | Create payments |
-| `billing.transactions.refund` | Process refunds |
-| `billing.providers.manage` | Configure providers |
-| `billing.webhooks.receive` | Webhook access |
+The Billing module currently does not define its own permissions in the RBAC schema; access to billing controllers is governed by application-level configuration and middleware.
 
 ## Integration
 

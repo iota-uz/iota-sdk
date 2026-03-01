@@ -1,0 +1,61 @@
+---
+title: 'Spotlight'
+description: 'Global search and quick links in IOTA SDK'
+---
+
+# Spotlight
+
+Spotlight is the in-app global search and quick-link system. It provides a search UI (typically triggered by keyboard shortcut) that indexes navigation targets, quick links, and other providers so users can jump to pages or run actions quickly.
+
+## Overview
+
+- **Search backend**: When **`MEILI_URL`** is set, Spotlight uses [Meilisearch](https://www.meilisearch.com/) for full-text search. When it is not set, the Spotlight service runs without a search engine (no-op); quick links are still registered but search results will not include Meilisearch-backed content.
+- **Quick links**: Modules register links via **`app.QuickLinks().Add(...)`** using **`spotlight.NewQuickLink(trKey, link)`**. These appear in Spotlight and are indexed (when Meilisearch is enabled) for search. The first argument is a **translation key** (e.g. `NavigationLinks.Expenses` or `Expenses.List.New`); the second is the **URL** (e.g. `/finance/expenses` or `/finance/expenses/new`).
+- **Other providers**: The framework and modules can register additional search providers (e.g. knowledge base, entities). Quick links are one built-in provider.
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| **`MEILI_URL`** | No | Meilisearch instance URL (e.g. `http://localhost:7700`). If set, Spotlight is enabled and health-checked at startup. |
+| **`MEILI_API_KEY`** | No | Meilisearch API key when the instance requires authentication. Leave empty for local dev without auth. |
+
+Defined in `pkg/configuration` and used in `pkg/application` when creating the Spotlight service and Meilisearch engine.
+
+## Registering Quick Links
+
+In your module's **`Register`**:
+
+```go
+import (
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+)
+
+func (m *Module) Register(app application.Application) error {
+	// ... register services, controllers ...
+
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink("NavigationLinks.Expenses", "/finance/expenses"),
+		spotlight.NewQuickLink("Expenses.List.New", "/finance/expenses/new"),
+	)
+	return nil
+}
+```
+
+- **First argument (`trKey`)**: Translation key for the link label. Use a key that exists in your module's locale files (e.g. `NavigationLinks.Expenses`, `Expenses.List.New`) so the label is localized.
+- **Second argument (`link`)**: Absolute path or URL for the quick link target.
+
+Quick links are registered on the application's **QuickLinks** provider; when Meilisearch is configured, they are indexed and searchable.
+
+## API Summary
+
+- **`app.QuickLinks()`** — returns the shared **`*spotlight.QuickLinks`** instance (same for all modules).
+- **`app.QuickLinks().Add(links ...*QuickLink)`** — appends one or more quick links.
+- **`spotlight.NewQuickLink(trKey, link string)`** — creates a quick link; both arguments are strings (translation key and URL).
+
+## See Also
+
+- [Installation](/getting-started/installation) — environment variables and optional Spotlight setup
+- [Module System](/architecture/module-system) — where `QuickLinks().Add()` fits in registration
+- [Module Development](/development/module-development) — example of adding quick links in a custom module
