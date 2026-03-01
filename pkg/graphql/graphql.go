@@ -48,6 +48,12 @@ func NewBaseServer(schema graphql.ExecutableSchema) *Handler {
 
 func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor) {
 	ctx := r.Context()
+	conf := configuration.Use()
+	if !isSameOrigin(r, conf) {
+		sendErrorf(w, http.StatusForbidden, "origin not allowed")
+		return
+	}
+
 	execs := ctx.Value(execsContextKey).([]*executor.Executor)
 	writeHeaders(w, h.ResponseHeaders)
 	params := pool.Get().(*graphql.RawParams)
@@ -70,22 +76,13 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		gqlErr := gqlerror.Errorf("could not read request body: %+v", err)
-		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-		writeJson(w, resp)
+		sendErrorf(w, http.StatusBadRequest, "could not read request body: %v", err)
 		return
 	}
 
 	bodyReader := bytes.NewReader(bodyBytes)
 	if err := jsonDecode(bodyReader, &params); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		gqlErr := gqlerror.Errorf(
-			"json request body could not be decoded: %+v body:%s",
-			err,
-			string(bodyBytes),
-		)
-		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-		writeJson(w, resp)
+		sendErrorf(w, http.StatusBadRequest, "json request body could not be decoded: %v body:%s", err, string(bodyBytes))
 		return
 	}
 
@@ -125,10 +122,7 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 		return
 	}
 
-	// Fallback to a generic error to avoid empty responses
-	gqlErr := gqlerror.Errorf("no executable schema matched the operation")
-	resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-	writeJson(w, resp)
+	sendErrorf(w, http.StatusBadRequest, "no executable schema matched the operation")
 }
 
 func shouldMergeIntrospection(params *graphql.RawParams, execsLen int) bool {
@@ -467,6 +461,39 @@ type Handler struct {
 	transports []graphql.Transport
 }
 
+// isSameOrigin checks if the request origin is allowed based on the configuration.
+// It allows the configured Origin, and common localhost variants in development mode.
+func isSameOrigin(r *http.Request, conf *configuration.Configuration) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	if origin == conf.Origin {
+		return true
+	}
+
+	// Allow localhost in development
+	if conf.IsDev() {
+		port := fmt.Sprint(conf.ServerPort)
+		allowedLocalOrigins := []string{
+			"http://localhost:" + port,
+			"http://127.0.0.1:" + port,
+			"http://[::1]:" + port,
+			"https://localhost:" + port,
+			"https://127.0.0.1:" + port,
+			"https://[::1]:" + port,
+		}
+		for _, alo := range allowedLocalOrigins {
+			if origin == alo {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func NewHandler(rootExecutor *executor.Executor) *Handler {
 	conf := configuration.Use()
 	server := &Handler{}
@@ -475,9 +502,8 @@ func NewHandler(rootExecutor *executor.Executor) *Handler {
 	server.AddTransport(transport.Websocket{
 		KeepAlivePingInterval: 10 * time.Second,
 		Upgrader: websocket.Upgrader{
-			// TODO: Add origin check
-			CheckOrigin: func(_ *http.Request) bool {
-				return true
+			CheckOrigin: func(r *http.Request) bool {
+				return isSameOrigin(r, conf)
 			},
 		},
 	})
@@ -615,6 +641,7 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func sendError(w http.ResponseWriter, code int, errors ...*gqlerror.Error) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	b, err := json.Marshal(&graphql.Response{Errors: errors})
 	if err != nil {

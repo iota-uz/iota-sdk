@@ -3,8 +3,6 @@ package viewmodels
 import (
 	"fmt"
 
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-
 	"github.com/iota-uz/go-i18n/v2/i18n"
 )
 
@@ -16,8 +14,8 @@ type Check struct {
 	Results    []*CheckResult
 	CreatedAt  string
 	FinishedAt string
-	CreatedBy  *viewmodels.User
-	FinishedBy *viewmodels.User
+	CreatedBy  *User
+	FinishedBy *User
 }
 
 type CheckResult struct {

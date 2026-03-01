@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
@@ -32,9 +31,9 @@ func ProductToViewModel(entity product.Product) *viewmodels.Product {
 }
 
 func PositionToViewModel(entity position.Position) *viewmodels.Position {
-	images := make([]*coreviewmodels.Upload, len(entity.Images()))
+	images := make([]*viewmodels.Upload, len(entity.Images()))
 	for i, img := range entity.Images() {
-		images[i] = mappers.UploadToViewModel(img)
+		images[i] = UploadToViewModel(img)
 	}
 	return &viewmodels.Position{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
@@ -48,7 +47,29 @@ func PositionToViewModel(entity position.Position) *viewmodels.Position {
 	}
 }
 
+func UploadToViewModel(entity position.Upload) *viewmodels.Upload {
+	return &viewmodels.Upload{
+		ID:       strconv.FormatUint(uint64(entity.ID()), 10),
+		URL:      entity.URL(),
+		Mimetype: entity.Mimetype(),
+		Size:     entity.Size(),
+		Hash:     entity.Hash(),
+		Slug:     entity.Slug(),
+	}
+}
+
+func UserToViewModel(entity inventory.User) *viewmodels.User {
+	return &viewmodels.User{
+		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
+		FirstName: entity.FirstName(),
+		LastName:  entity.LastName(),
+	}
+}
+
 func UnitToViewModel(entity *unit.Unit) *viewmodels.Unit {
+	if entity == nil {
+		return &viewmodels.Unit{}
+	}
 	return &viewmodels.Unit{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		Title:      entity.Title,
@@ -82,13 +103,13 @@ func OrderToViewModel(entity order.Order, inStockByPosition map[uint]int) *viewm
 }
 
 func CheckToViewModel(entity *inventory.Check) *viewmodels.Check {
-	var createdBy *coreviewmodels.User
+	var createdBy *viewmodels.User
 	if entity.CreatedBy != nil {
-		createdBy = mappers.UserToViewModel(entity.CreatedBy)
+		createdBy = UserToViewModel(entity.CreatedBy)
 	}
-	var finishedBy *coreviewmodels.User
+	var finishedBy *viewmodels.User
 	if entity.FinishedBy != nil {
-		finishedBy = mappers.UserToViewModel(entity.FinishedBy)
+		finishedBy = UserToViewModel(entity.FinishedBy)
 	}
 	finishedAt := ""
 	if !entity.FinishedAt.IsZero() {
@@ -109,12 +130,10 @@ func CheckToViewModel(entity *inventory.Check) *viewmodels.Check {
 }
 
 func CheckResultToViewModel(entity *inventory.CheckResult) *viewmodels.CheckResult {
-	// Note: Position in CheckResult is likely still a struct, not interface
-	// This would need to be updated if CheckResult is also refactored
 	var pos *viewmodels.Position
-	// if entity.Position != nil {
-	// 	pos = PositionToViewModel(entity.Position)
-	// }
+	if entity.Position != nil {
+		pos = PositionToViewModel(entity.Position)
+	}
 	return &viewmodels.CheckResult{
 		ID:               strconv.FormatUint(uint64(entity.ID), 10),
 		PositionID:       strconv.FormatUint(uint64(entity.PositionID), 10),
@@ -124,4 +143,17 @@ func CheckResultToViewModel(entity *inventory.CheckResult) *viewmodels.CheckResu
 		Difference:       strconv.FormatUint(uint64(entity.Difference), 10),
 		CreatedAt:        entity.CreatedAt.Format(time.RFC3339),
 	}
+}
+
+func UploadsToCoreViewItems(uploads []*viewmodels.Upload) []*coreviewmodels.Upload {
+	return mapping.MapViewModels(uploads, func(u *viewmodels.Upload) *coreviewmodels.Upload {
+		return &coreviewmodels.Upload{
+			ID:       u.ID,
+			URL:      u.URL,
+			Mimetype: u.Mimetype,
+			Size:     u.Size,
+			Hash:     u.Hash,
+			Slug:     u.Slug,
+		}
+	})
 }

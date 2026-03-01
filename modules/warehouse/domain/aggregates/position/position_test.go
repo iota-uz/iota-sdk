@@ -1,20 +1,16 @@
 package position
 
 import (
-	"net/url"
 	"testing"
 	"time"
 
-	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockUpload is a simple mock of upload.Upload for testing
+// mockUpload is a simple mock of Upload for testing
 type mockUpload struct {
 	id uint
 }
@@ -23,74 +19,24 @@ func (m *mockUpload) ID() uint {
 	return m.id
 }
 
-func (m *mockUpload) TenantID() uuid.UUID {
-	return uuid.Nil
-}
-
-func (m *mockUpload) Type() upload.UploadType {
-	return upload.UploadTypeImage
-}
-
-func (m *mockUpload) Hash() string {
-	return "hash"
-}
-
-func (m *mockUpload) Slug() string {
-	return "slug"
-}
-
-func (m *mockUpload) Path() string {
-	return "/path"
-}
-
-func (m *mockUpload) Name() string {
-	return "name"
-}
-
-func (m *mockUpload) Size() upload.Size {
-	return nil
-}
-
-func (m *mockUpload) IsImage() bool {
-	return true
-}
-
-func (m *mockUpload) PreviewURL() string {
+func (m *mockUpload) URL() string {
 	return ""
 }
 
-func (m *mockUpload) URL() *url.URL {
-	return nil
+func (m *mockUpload) Mimetype() string {
+	return ""
 }
 
-func (m *mockUpload) Mimetype() *mimetype.MIME {
-	return nil
+func (m *mockUpload) Size() string {
+	return ""
 }
 
-func (m *mockUpload) GeoPoint() geopoint.GeoPoint {
-	return nil
+func (m *mockUpload) Hash() string {
+	return ""
 }
 
-func (m *mockUpload) CreatedAt() time.Time {
-	return time.Now()
-}
-
-func (m *mockUpload) UpdatedAt() time.Time {
-	return time.Now()
-}
-
-func (m *mockUpload) SetHash(hash string) {}
-
-func (m *mockUpload) SetSlug(slug string) {}
-
-func (m *mockUpload) SetName(name string) {}
-
-func (m *mockUpload) SetSize(size upload.Size) {}
-
-func (m *mockUpload) SetGeoPoint(point geopoint.GeoPoint) {}
-
-func (m *mockUpload) SetID(id uint) {
-	m.id = id
+func (m *mockUpload) Slug() string {
+	return ""
 }
 
 func TestPosition_New_Success(t *testing.T) {
@@ -276,7 +222,7 @@ func TestPosition_SetImages_Immutability(t *testing.T) {
 	p := New("Test", "BAR001", WithID(1))
 	assert.Empty(t, p.Images())
 
-	images := []upload.Upload{
+	images := []Upload{
 		&mockUpload{id: 1},
 		&mockUpload{id: 2},
 	}
@@ -296,11 +242,11 @@ func TestPosition_SetImages_Immutability(t *testing.T) {
 func TestPosition_SetImages_ReplaceExisting(t *testing.T) {
 	t.Parallel()
 
-	images1 := []upload.Upload{
+	images1 := []Upload{
 		&mockUpload{id: 1},
 	}
 
-	images2 := []upload.Upload{
+	images2 := []Upload{
 		&mockUpload{id: 2},
 		&mockUpload{id: 3},
 	}
@@ -477,7 +423,7 @@ func TestPosition_ChainedSetters(t *testing.T) {
 
 	p := New("Original Title", "BAR001", WithID(1), WithTenantID(tenantID))
 
-	imageList := []upload.Upload{
+	imageList := []Upload{
 		&mockUpload{id: 1},
 	}
 
@@ -523,7 +469,7 @@ func TestPosition_AllFields_Preserved(t *testing.T) {
 	inStock := uint(100)
 	createdAt := time.Now().Add(-24 * time.Hour)
 	updatedAt := time.Now()
-	imageList := []upload.Upload{
+	imageList := []Upload{
 		&mockUpload{id: 1},
 	}
 
@@ -611,11 +557,11 @@ func TestPosition_EmptyImages(t *testing.T) {
 	assert.Empty(t, p.Images())
 
 	// Set to non-empty
-	images := []upload.Upload{&mockUpload{id: 1}}
+	images := []Upload{&mockUpload{id: 1}}
 	p2 := p.SetImages(images)
 	assert.Len(t, p2.Images(), 1)
 
 	// Set to empty
-	p3 := p2.SetImages([]upload.Upload{})
+	p3 := p2.SetImages([]Upload{})
 	assert.Empty(t, p3.Images())
 }

@@ -81,6 +81,7 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			details.ClickWithSignString(d.SignString),
 			details.ClickWithErrorCode(d.ErrorCode),
 			details.ClickWithErrorNote(d.ErrorNote),
+			details.ClickWithRefundedSum(d.RefundedSum),
 			details.ClickWithLink(d.Link),
 			details.ClickWithParams(d.Params),
 		)
@@ -174,6 +175,7 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			details.StripeWithBillingReason(d.BillingReason),
 			details.StripeWithSessionID(d.SessionID),
 			details.StripeWithInvoiceID(d.InvoiceID),
+			details.StripeWithPaymentIntentID(d.PaymentIntentID),
 			details.StripeWithSubscriptionID(d.SubscriptionID),
 			details.StripeWithCustomerID(d.CustomerID),
 			details.StripeWithItems(items),
@@ -237,6 +239,7 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			SignString:        d.SignString(),
 			ErrorCode:         d.ErrorCode(),
 			ErrorNote:         d.ErrorNote(),
+			RefundedSum:       d.RefundedSum(),
 			Link:              d.Link(),
 			Params:            d.Params(),
 		})
@@ -311,6 +314,7 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			SessionID:         d.SessionID(),
 			ClientReferenceID: d.ClientReferenceID(),
 			InvoiceID:         d.InvoiceID(),
+			PaymentIntentID:   d.PaymentIntentID(),
 			SubscriptionID:    d.SubscriptionID(),
 			CustomerID:        d.CustomerID(),
 			SubscriptionData:  nil,

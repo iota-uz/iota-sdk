@@ -31,6 +31,7 @@ type ClickDetails struct {
 	SignString        string         `json:"sign_string"`
 	ErrorCode         int32          `json:"error_code"`
 	ErrorNote         string         `json:"error_note"`
+	RefundedSum       float64        `json:"refunded_sum"`
 	Link              string         `json:"link"`
 	Params            map[string]any `json:"params"`
 }
@@ -108,6 +109,7 @@ type StripeDetails struct {
 	SessionID         string                  `json:"session_id"`
 	ClientReferenceID string                  `json:"client_reference_id"`
 	InvoiceID         string                  `json:"invoice_id"`
+	PaymentIntentID   string                  `json:"payment_intent_id"`
 	SubscriptionID    string                  `json:"subscription_id"`
 	CustomerID        string                  `json:"customer_id"`
 	SubscriptionData  *StripeSubscriptionData `json:"subscription_data"`

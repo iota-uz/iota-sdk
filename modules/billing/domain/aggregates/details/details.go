@@ -24,6 +24,8 @@ type ClickDetails interface {
 	ErrorCode() int32
 	ErrorNote() string
 
+	RefundedSum() float64
+
 	Link() string
 	Params() map[string]any
 
@@ -42,6 +44,8 @@ type ClickDetails interface {
 
 	SetErrorCode(errorCode int32) ClickDetails
 	SetErrorNote(errorNote string) ClickDetails
+
+	SetRefundedSum(refundedSum float64) ClickDetails
 
 	SetLink(link string) ClickDetails
 	SetParams(params map[string]any) ClickDetails
@@ -201,6 +205,7 @@ type StripeDetails interface {
 	ClientReferenceID() string
 
 	InvoiceID() string
+	PaymentIntentID() string
 	SubscriptionID() string
 	CustomerID() string
 
@@ -219,6 +224,7 @@ type StripeDetails interface {
 	SetClientReferenceID(clientReferenceID string) StripeDetails
 
 	SetInvoiceID(invoiceID string) StripeDetails
+	SetPaymentIntentID(paymentIntentID string) StripeDetails
 	SetSubscriptionID(subscriptionID string) StripeDetails
 	SetCustomerID(customerID string) StripeDetails
 
