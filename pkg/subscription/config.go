@@ -1,3 +1,4 @@
+// Package subscription provides policy evaluation, limits, and plan entitlements.
 package subscription
 
 import "time"

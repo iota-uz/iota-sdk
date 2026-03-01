@@ -139,7 +139,7 @@ func (e *Evaluator) EvaluateLimit(
 	planID, plan := e.resolvePlan(entitlement.PlanID)
 
 	limit := resolveLimit(entitlement, plan, quota)
-	current := 0
+	var current int
 	if strings.EqualFold(quota.Resource, "seats") {
 		current = entitlement.CurrentSeats
 	} else {
