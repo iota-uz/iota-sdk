@@ -1,3 +1,4 @@
+// Package project provides this package.
 package project
 
 import (

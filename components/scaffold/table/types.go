@@ -11,7 +11,7 @@ const (
 	QueryParamOrder  = "order"
 )
 
-// Re-export SortDirection from base package for backwards compatibility
+// SortDirection re-exports the base sort direction type.
 type SortDirection = base.SortDirection
 
 const (
@@ -36,7 +36,7 @@ const (
 	ScrollbarPositionBottom = base.ScrollbarPositionBottom
 )
 
-// Re-export function for backwards compatibility
+// ParseSortDirection parses sort direction from a string.
 func ParseSortDirection(value string) SortDirection {
 	return base.ParseSortDirection(value)
 }

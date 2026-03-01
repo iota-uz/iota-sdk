@@ -1,3 +1,4 @@
+// Package query provides this package.
 package query
 
 import (

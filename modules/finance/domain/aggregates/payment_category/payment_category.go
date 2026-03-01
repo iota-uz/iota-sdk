@@ -1,4 +1,5 @@
-package payment_category
+// Package paymentcategory provides this package.
+package paymentcategory
 
 import (
 	"time"
@@ -8,7 +9,7 @@ import (
 
 type Option func(p *paymentCategory)
 
-// Option setters
+// WithID adds the payment category identifier option.
 func WithID(id uuid.UUID) Option {
 	return func(p *paymentCategory) {
 		p.id = id
@@ -45,7 +46,7 @@ func WithTenantID(tenantID uuid.UUID) Option {
 	}
 }
 
-// Interface
+// PaymentCategory defines the payment category aggregate interface.
 type PaymentCategory interface {
 	ID() uuid.UUID
 	TenantID() uuid.UUID
@@ -58,7 +59,7 @@ type PaymentCategory interface {
 	UpdateDescription(description string) PaymentCategory
 }
 
-// Implementation
+// New creates a new payment category instance.
 func New(
 	name string,
 	opts ...Option,

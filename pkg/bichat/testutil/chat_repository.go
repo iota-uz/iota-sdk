@@ -1,3 +1,4 @@
+// Package testutil provides this package.
 package testutil
 
 import (

@@ -1,3 +1,4 @@
+// Package twofactor provides this package.
 package twofactor
 
 import (
@@ -7,7 +8,7 @@ import (
 	tf "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
-// Option is a functional option for configuring OTP
+// OTPOption is a functional option for configuring OTP.
 type OTPOption func(*otp)
 
 // --- Option setters ---

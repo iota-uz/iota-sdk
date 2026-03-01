@@ -1,3 +1,4 @@
+// Package finance provides this package.
 package finance
 
 import (

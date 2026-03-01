@@ -1,3 +1,4 @@
+// Package oidc provides this package.
 package oidc
 
 import (

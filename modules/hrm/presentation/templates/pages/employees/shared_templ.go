@@ -17,7 +17,7 @@ import (
 )
 
 type SharedProps struct {
-	types.PageContextProvider
+	types.PageContext
 	Employee *viewmodels.Employee
 	Errors   map[string]string
 }

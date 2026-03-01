@@ -1,3 +1,4 @@
+// Package e2e provides this package.
 package e2e
 
 import (

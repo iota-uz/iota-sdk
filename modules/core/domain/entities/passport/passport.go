@@ -1,3 +1,4 @@
+// Package passport provides this package.
 package passport
 
 import (

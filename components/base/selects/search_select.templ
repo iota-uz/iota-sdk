@@ -2,7 +2,6 @@ package selects
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type Value struct {
@@ -11,19 +10,17 @@ type Value struct {
 }
 
 type SearchSelectProps struct {
-	types.PageContextProvider
-	Label       string
-	Placeholder string
-	Value       string
-	Endpoint    string
-	Attrs       templ.Attributes
-	Name        string // Field name for the hidden input
+    Label       string
+    Placeholder string
+    Value       string
+    Endpoint    string
+    Attrs       templ.Attributes
+    Name        string // Field name for the hidden input
 }
 
 type SearchOptionsProps struct {
-	types.PageContextProvider
-	Options          []*Value
-	NothingFoundText string
+    Options          []*Value
+    NothingFoundText string
 }
 
 templ SearchOptions(props *SearchOptionsProps) {

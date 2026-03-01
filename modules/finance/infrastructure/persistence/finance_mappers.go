@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -121,7 +122,7 @@ func ToDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 	return dbPayment, dbTransaction
 }
 
-// TODO: populate user && account
+// ToDomainPayment maps a DB payment model into a domain payment.
 func ToDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transaction, attachments ...[]uint) (payment.Payment, error) {
 	t, err := ToDomainTransaction(dbTransaction)
 	if err != nil {

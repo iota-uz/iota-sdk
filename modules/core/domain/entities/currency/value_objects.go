@@ -1,3 +1,4 @@
+// Package currency provides this package.
 package currency
 
 import (
@@ -5,7 +6,7 @@ import (
 	"slices"
 )
 
-// TODO: make this private
+// Code represents a currency code.
 type Code string
 
 const (
@@ -34,7 +35,7 @@ func NewCode(value string) (Code, error) {
 	return c, nil
 }
 
-// TODO: make this private
+// Symbol identifies a currency symbol.
 type Symbol string
 
 const (

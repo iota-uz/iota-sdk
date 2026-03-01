@@ -1,3 +1,4 @@
+// Package counterparty provides this package.
 package counterparty
 
 import (

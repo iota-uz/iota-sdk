@@ -8,7 +8,7 @@ import (
 	"golang.org/x/text/language"
 )
 
-// PageContextProvider is an interface for managing page-level localization and metadata.
+// PageContext is an interface for managing page-level localization and metadata.
 // This interface enables child projects to extend PageContext behavior with custom fields
 // (tenant branding, feature flags, analytics) and override methods (custom translations, logging)
 // without modifying SDK code.
@@ -18,7 +18,7 @@ import (
 // Child projects can implement custom PageContext types by embedding the interface:
 //
 //	type CustomPageContext struct {
-//	    base types.PageContextProvider
+//	    base types.PageContext
 //	    TenantBranding BrandData
 //	    FeatureFlags   map[string]bool
 //	    Analytics      AnalyticsConfig
@@ -45,7 +45,7 @@ import (
 // - Custom fields and business logic
 // - Method overriding for enhanced functionality
 // - Backward compatibility with existing SDK code
-type PageContextProvider interface {
+type PageContext interface {
 	// T translates a message ID to the current locale with optional template data.
 	// If a prefix was set via Namespace(), it will be prepended to the message ID.
 	T(key string, args ...map[string]interface{}) string
@@ -53,9 +53,9 @@ type PageContextProvider interface {
 	// TSafe is like T but returns an empty string on error instead of panicking.
 	TSafe(key string, args ...map[string]interface{}) string
 
-	// Namespace returns a new PageContextProvider with the specified prefix.
+	// Namespace returns a new PageContext with the specified prefix.
 	// All translation calls on the returned context will be prefixed with the given namespace.
-	Namespace(prefix string) PageContextProvider
+	Namespace(prefix string) PageContext
 
 	// ToJSLocale converts the page locale to JavaScript-compatible locale string.
 	// This is useful for JavaScript APIs like toLocaleString() and Intl.NumberFormat().
@@ -79,12 +79,12 @@ type pageContext struct {
 	prefix    string
 }
 
-// Verify pageContext implements PageContextProvider interface at compile time.
-var _ PageContextProvider = (*pageContext)(nil)
+// Verify pageContext implements PageContext interface at compile time.
+var _ PageContext = (*pageContext)(nil)
 
 // NewPageContext creates a concrete page context implementation for SDK and child
 // project usage.
-func NewPageContext(locale language.Tag, pageURL *url.URL, localizer *i18n.Localizer) PageContextProvider {
+func NewPageContext(locale language.Tag, pageURL *url.URL, localizer *i18n.Localizer) PageContext {
 	return &pageContext{
 		locale:    locale,
 		url:       pageURL,
@@ -131,9 +131,9 @@ func (p *pageContext) TSafe(k string, args ...map[string]interface{}) string {
 	return result
 }
 
-// Namespace returns a new PageContextProvider with the specified prefix.
+// Namespace returns a new PageContext with the specified prefix.
 // All translation calls on the returned context will be prefixed with the given namespace.
-func (p *pageContext) Namespace(prefix string) PageContextProvider {
+func (p *pageContext) Namespace(prefix string) PageContext {
 	return &pageContext{
 		locale:    p.locale,
 		url:       p.url,

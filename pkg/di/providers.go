@@ -36,7 +36,7 @@ type loggerProvider struct{}
 type localeProvider struct{}
 
 func (p *pageContextProvider) Ok(t reflect.Type) bool {
-	pageCtxType := reflect.TypeOf((*types.PageContextProvider)(nil)).Elem()
+	pageCtxType := reflect.TypeOf((*types.PageContext)(nil)).Elem()
 	return t.Kind() == reflect.Interface && t.Implements(pageCtxType)
 }
 

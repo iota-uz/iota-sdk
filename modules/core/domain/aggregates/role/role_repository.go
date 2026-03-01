@@ -1,3 +1,4 @@
+// Package role provides this package.
 package role
 
 import (

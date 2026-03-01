@@ -1,3 +1,4 @@
+// Package providers provides this package.
 package providers
 
 import (
@@ -50,14 +51,14 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 	req := octoapi.PreparePaymentRequest{
 		OctoShopId:        o.config.OctoShopID,
 		OctoSecret:        o.config.OctoSecret,
-		ShopTransactionId: octoDetails.ShopTransactionId(),
+		ShopTransactionId: octoDetails.ShopTransactionID(),
 		InitTime:          initTime,
 		AutoCapture:       octoDetails.AutoCapture(),
 		Test:              octoDetails.Test(),
 		TotalSum:          t.Amount().Quantity(),
 		Currency:          string(t.Amount().Currency()),
 		Description:       octoDetails.Description(),
-		ReturnUrl:         octoDetails.ReturnUrl(),
+		ReturnUrl:         octoDetails.ReturnURL(),
 		NotifyUrl:         o.config.NotifyURL,
 	}
 
@@ -82,8 +83,8 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 
 	octoDetails = octoDetails.
 		SetInitTime(initTime).
-		SetOctoShopId(o.config.OctoShopID).
-		SetNotifyUrl(o.config.NotifyURL)
+		SetOctoShopID(o.config.OctoShopID).
+		SetNotifyURL(o.config.NotifyURL)
 
 	if resp.GetError() != 0 {
 		octoDetails = octoDetails.
@@ -93,7 +94,7 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 		octoDetails = octoDetails.
 			SetOctoPaymentUUID(resp.Data.GetOctoPaymentUUID()).
 			SetStatus(resp.Data.GetStatus()).
-			SetOctoPayUrl(resp.Data.GetOctoPayUrl()).
+			SetOctoPayURL(resp.Data.GetOctoPayUrl()).
 			SetRefundedSum(resp.Data.GetRefundedSum())
 	}
 

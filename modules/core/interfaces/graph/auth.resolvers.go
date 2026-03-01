@@ -1,3 +1,4 @@
+// Package graph provides this package.
 package graph
 
 // This file will be automatically regenerated based on the schema, any resolver implementations

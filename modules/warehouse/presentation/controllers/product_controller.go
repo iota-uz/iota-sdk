@@ -1,3 +1,4 @@
+// Package controllers provides this package.
 package controllers
 
 import (

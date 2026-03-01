@@ -1,3 +1,4 @@
+// Package models provides this package.
 package models
 
 import (
@@ -24,7 +25,7 @@ type ClickDetails struct {
 	MerchantTransID   string         `json:"merchant_trans_id"`
 	MerchantPrepareID int64          `json:"merchant_prepare_id"`
 	MerchantConfirmID int64          `json:"merchant_confirm_id"`
-	PayDocId          int64          `json:"pay_doc_id"`
+	PayDocID          int64          `json:"pay_doc_id"`
 	PaymentID         int64          `json:"payment_id"`
 	PaymentStatus     int32          `json:"payment_status"`
 	SignTime          string         `json:"sign_time"`
@@ -60,7 +61,7 @@ type PaymeDetails struct {
 
 type OctoDetails struct {
 	OctoShopID        int32   `json:"octo_shop_id"`
-	ShopTransactionId string  `json:"shop_transaction_id"`
+	ShopTransactionID string  `json:"shop_transaction_id"`
 	OctoPaymentUUID   string  `json:"octo_payment_uuid"`
 	InitTime          string  `json:"init_time"`
 	AutoCapture       bool    `json:"auto_capture"`
@@ -75,9 +76,9 @@ type OctoDetails struct {
 	RiskLevel         int32   `json:"risk_level"`
 	RefundedSum       float64 `json:"refunded_sum"`
 	TransferSum       float64 `json:"transfer_sum"`
-	ReturnUrl         string  `json:"return_url"`
-	NotifyUrl         string  `json:"notify_url"`
-	OctoPayUrl        string  `json:"octo_pay_url"`
+	ReturnURL         string  `json:"return_url"`
+	NotifyURL         string  `json:"notify_url"`
+	OctoPayURL        string  `json:"octo_pay_url"`
 	Signature         string  `json:"signature"`
 	HashKey           string  `json:"hash_key"`
 	PayedTime         string  `json:"payed_time"` //nolint:misspell // is used intentionally to match external API

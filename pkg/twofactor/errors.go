@@ -1,3 +1,4 @@
+// Package twofactor provides this package.
 package twofactor
 
 import "errors"

@@ -1,3 +1,4 @@
+// Package itf provides this package.
 package itf
 
 import (

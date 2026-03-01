@@ -1,3 +1,4 @@
+// Package models provides this package.
 package models
 
 import (
@@ -129,7 +130,7 @@ type SMSMeta struct {
 	Phone string `json:"phone"`
 }
 
-// TODO: store IP address & user agent
+// WebsiteMeta stores metadata for a website page.
 type WebsiteMeta struct {
 	Phone string `json:"phone"`
 	Email string `json:"email"`

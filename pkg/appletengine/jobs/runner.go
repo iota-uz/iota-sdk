@@ -1,3 +1,4 @@
+// Package jobs provides this package.
 package jobs
 
 import (

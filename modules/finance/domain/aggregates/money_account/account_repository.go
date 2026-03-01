@@ -1,3 +1,4 @@
+// Package moneyaccount provides this package.
 package moneyaccount
 
 import (

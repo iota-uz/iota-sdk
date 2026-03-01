@@ -20,7 +20,7 @@ import (
 )
 
 type ViewPageProps struct {
-	types.PageContextProvider
+	types.PageContext
 	Order     *viewmodels.Order
 	DeleteURL string
 }

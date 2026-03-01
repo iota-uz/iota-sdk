@@ -1,3 +1,4 @@
+// Package core provides this package.
 package core
 
 import (

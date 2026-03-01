@@ -1,3 +1,4 @@
+// Package tenant provides this package.
 package tenant
 
 import (

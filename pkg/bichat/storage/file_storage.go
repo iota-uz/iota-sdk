@@ -1,3 +1,4 @@
+// Package storage provides this package.
 package storage
 
 import (

@@ -1,3 +1,4 @@
+// Package general provides this package.
 package general
 
 import (

@@ -1,3 +1,4 @@
+// Package group provides this package.
 package group
 
 import (

@@ -1,3 +1,4 @@
+// Package js provides this package.
 package js
 
 import (

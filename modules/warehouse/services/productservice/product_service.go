@@ -1,3 +1,4 @@
+// Package productservice provides this package.
 package productservice
 
 import (

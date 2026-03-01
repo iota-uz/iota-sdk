@@ -1,3 +1,4 @@
+// Package entities provides this package.
 package entities
 
 // Analytics represents system-wide metrics for superadmin dashboard

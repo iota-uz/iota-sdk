@@ -1,3 +1,4 @@
+// Package hooks provides this package.
 package hooks
 
 import "context"

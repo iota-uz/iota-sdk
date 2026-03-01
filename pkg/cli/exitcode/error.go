@@ -1,3 +1,4 @@
+// Package exitcode provides this package.
 package exitcode
 
 import "fmt"

@@ -1,3 +1,4 @@
+// Package messagetemplate provides this package.
 package messagetemplate
 
 import (
@@ -40,8 +41,8 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (c *CreateDTO) ToEntity() MessageTemplate {
-	return New(c.Template)
+func (d *CreateDTO) ToEntity() MessageTemplate {
+	return New(d.Template)
 }
 
 type UpdateDTO struct {

@@ -44,7 +44,7 @@ func TestTransactionMapping(t *testing.T) {
 				details.ClickWithMerchantUserID(300),
 				details.ClickWithMerchantPrepareID(400),
 				details.ClickWithMerchantConfirmID(500),
-				details.ClickWithPayDocId(600),
+				details.ClickWithPayDocID(600),
 				details.ClickWithPaymentID(700),
 				details.ClickWithPaymentStatus(1),
 				details.ClickWithSignTime("2025-01-01 12:00:00"),
@@ -108,7 +108,7 @@ func TestTransactionMapping(t *testing.T) {
 			gateway: billing.Octo,
 			details: details.NewOctoDetails(
 				"test-1",
-				details.OctoWithOctoShopId(12345),
+				details.OctoWithOctoShopID(12345),
 				details.OctoWithOctoPaymentUUID("uuid-abc-123"),
 				details.OctoWithInitTime("2025-06-02T10:00:00Z"),
 				details.OctoWithAutoCapture(true),
@@ -123,9 +123,9 @@ func TestTransactionMapping(t *testing.T) {
 				details.OctoWithRiskLevel(2),
 				details.OctoWithRefundedSum(1.0),
 				details.OctoWithTransferSum(965.0),
-				details.OctoWithReturnUrl("https://example.com/return"),
-				details.OctoWithNotifyUrl("https://example.com/notify"),
-				details.OctoWithOctoPayUrl("https://octo.uz/pay/uuid-abc-123"),
+				details.OctoWithReturnURL("https://example.com/return"),
+				details.OctoWithNotifyURL("https://example.com/notify"),
+				details.OctoWithOctoPayURL("https://octo.uz/pay/uuid-abc-123"),
 				details.OctoWithSignature("F70F089D6EB66E34C8540149E32D0AC7C8A9500A"),
 				details.OctoWithHashKey("2135b7e1-15bc-4a3c-930d-85b5493053b4"),
 				details.OctoWithPayedTime("2025-06-02T10:01:00Z"),
@@ -135,8 +135,8 @@ func TestTransactionMapping(t *testing.T) {
 			validate: func(t *testing.T, d details.Details) {
 				t.Helper()
 				octo := d.(details.OctoDetails)
-				assert.Equal(t, int32(12345), octo.OctoShopId())
-				assert.Equal(t, "test-1", octo.ShopTransactionId())
+				assert.Equal(t, int32(12345), octo.OctoShopID())
+				assert.Equal(t, "test-1", octo.ShopTransactionID())
 				assert.Equal(t, "uuid-abc-123", octo.OctoPaymentUUID())
 				assert.Equal(t, "2025-06-02T10:00:00Z", octo.InitTime())
 				assert.True(t, octo.AutoCapture())
@@ -151,9 +151,9 @@ func TestTransactionMapping(t *testing.T) {
 				assert.Equal(t, int32(2), octo.RiskLevel())
 				assert.InEpsilon(t, 1.0, octo.RefundedSum(), 0.0001)
 				assert.InEpsilon(t, 965.0, octo.TransferSum(), 0.0001)
-				assert.Equal(t, "https://example.com/return", octo.ReturnUrl())
-				assert.Equal(t, "https://example.com/notify", octo.NotifyUrl())
-				assert.Equal(t, "https://octo.uz/pay/uuid-abc-123", octo.OctoPayUrl())
+				assert.Equal(t, "https://example.com/return", octo.ReturnURL())
+				assert.Equal(t, "https://example.com/notify", octo.NotifyURL())
+				assert.Equal(t, "https://octo.uz/pay/uuid-abc-123", octo.OctoPayURL())
 				assert.Equal(t, "F70F089D6EB66E34C8540149E32D0AC7C8A9500A", octo.Signature())
 				assert.Equal(t, "2135b7e1-15bc-4a3c-930d-85b5493053b4", octo.HashKey())
 				assert.Equal(t, "2025-06-02T10:01:00Z", octo.PayedTime())

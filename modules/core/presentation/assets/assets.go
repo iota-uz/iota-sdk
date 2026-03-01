@@ -1,3 +1,4 @@
+// Package assets provides this package.
 package assets
 
 import (

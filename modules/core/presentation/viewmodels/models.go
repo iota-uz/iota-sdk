@@ -1,3 +1,4 @@
+// Package viewmodels provides this package.
 package viewmodels
 
 type Currency struct {

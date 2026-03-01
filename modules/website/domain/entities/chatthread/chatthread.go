@@ -1,3 +1,4 @@
+// Package chatthread provides this package.
 package chatthread
 
 import (

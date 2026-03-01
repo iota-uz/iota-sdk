@@ -1,3 +1,4 @@
+// Package money provides this package.
 package money
 
 import (

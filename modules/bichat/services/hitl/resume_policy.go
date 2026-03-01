@@ -1,3 +1,4 @@
+// Package hitl provides this package.
 package hitl
 
 import "strings"

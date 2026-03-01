@@ -1,3 +1,4 @@
+// Package expense provides this package.
 package expense
 
 import (
@@ -12,7 +13,7 @@ import (
 
 type Option func(e *expense)
 
-// Option setters
+// WithID adds the expense identifier option.
 func WithID(id uuid.UUID) Option {
 	return func(e *expense) {
 		e.id = id
@@ -85,7 +86,7 @@ func WithAttachments(attachments []uint) Option {
 	}
 }
 
-// Interface
+// Expense represents an expense domain entity.
 type Expense interface {
 	ID() uuid.UUID
 	Amount() *money.Money
@@ -113,7 +114,7 @@ type Expense interface {
 	DetachFile(uploadID uint) (Expense, error)
 }
 
-// Implementation
+// New constructs a new expense entity.
 func New(
 	amount *money.Money,
 	account moneyaccount.Account,

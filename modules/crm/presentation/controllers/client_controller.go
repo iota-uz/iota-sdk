@@ -1,3 +1,4 @@
+// Package controllers provides this package.
 package controllers
 
 import (
@@ -726,7 +727,7 @@ func (c *ClientController) View(
 		return
 	}
 
-	hxCurrentURL, err := url.Parse(htmx.CurrentUrl(r))
+	hxCurrentURL, err := url.Parse(htmx.CurrentURL(r))
 	if err != nil {
 		logger.Errorf("Error parsing Hx-Current-URL: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

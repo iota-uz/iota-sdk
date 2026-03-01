@@ -1,3 +1,4 @@
+// Package permissions provides this package.
 package permissions
 
 import "github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
