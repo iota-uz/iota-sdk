@@ -384,8 +384,8 @@ Test in continuous integration:
 
 Protection in place:
 - **Environment flag** - Endpoints are only active when `ENABLE_TEST_ENDPOINTS=true`
-- **No production** - Test endpoints are disabled when running in production (or when CI env is set)
-- **Authentication** - Controllers may require a valid session depending on configuration
+- **Production guard** - The SDK refuses startup when `ENABLE_TEST_ENDPOINTS=true` in production (`GO_APP_ENV=production`) unless running under CI (GitHub Actions exception)
+- **Authentication** - Testkit controllers do not add dedicated session checks by default; protect these routes in your deployment and test harness as needed
 
 ### Safety Measures
 

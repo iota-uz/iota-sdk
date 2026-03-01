@@ -414,8 +414,8 @@ func (c *ExpenseController) Delete(...) {
 	// ... deletion logic
 	
 	if htmx.IsHxRequest(r) {
-		// Return empty response with trigger (detail is a string, e.g. ID or JSON)
-		htmx.SetTrigger(w, "expenseDeleted", id.String())
+		// Return empty response with JSON trigger payload
+		htmx.SetTrigger(w, "expenseDeleted", `{"id":"`+id.String()+`"}`)
 	} else {
 		shared.Redirect(w, r, c.basePath)
 	}
