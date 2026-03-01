@@ -89,13 +89,22 @@ func ToDomainClient(dbClient *models.Client) (client.Client, error) {
 
 func ToDBAuthRequest(ar authrequest.AuthRequest) *models.AuthRequest {
 	dbAR := &models.AuthRequest{
-		ID:           ar.ID().String(),
-		ClientID:     ar.ClientID(),
-		RedirectURI:  ar.RedirectURI(),
-		Scopes:       copySlice(ar.Scopes()),
-		ResponseType: ar.ResponseType(),
-		CreatedAt:    ar.CreatedAt(),
-		ExpiresAt:    ar.ExpiresAt(),
+		ID:                  ar.ID().String(),
+		ClientID:            ar.ClientID(),
+		RedirectURI:         ar.RedirectURI(),
+		Scopes:              copySlice(ar.Scopes()),
+		State:               sql.NullString{},
+		Nonce:               sql.NullString{},
+		ResponseType:        ar.ResponseType(),
+		CodeChallenge:       sql.NullString{},
+		CodeChallengeMethod: sql.NullString{},
+		UserID:              sql.NullInt64{},
+		TenantID:            sql.NullString{},
+		AuthTime:            sql.NullTime{},
+		CreatedAt:           ar.CreatedAt(),
+		ExpiresAt:           ar.ExpiresAt(),
+		Code:                sql.NullString{},
+		CodeUsedAt:          sql.NullTime{},
 	}
 
 	if ar.State() != nil {

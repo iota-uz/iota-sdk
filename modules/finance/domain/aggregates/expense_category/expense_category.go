@@ -74,6 +74,7 @@ func New(
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "", // description is optional
+		is_cogs:     false,
 		createdAt:   time.Now(),
 		updatedAt:   time.Now(),
 	}

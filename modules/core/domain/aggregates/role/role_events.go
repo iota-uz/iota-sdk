@@ -16,6 +16,7 @@ func NewCreatedEvent(ctx context.Context, data Role) (*CreatedEvent, error) {
 	return &CreatedEvent{
 		Session: sess,
 		Data:    data,
+		Result:  data,
 	}, nil
 }
 
@@ -27,6 +28,7 @@ func NewUpdatedEvent(ctx context.Context, data Role) (*UpdatedEvent, error) {
 	return &UpdatedEvent{
 		Session: sess,
 		Data:    data,
+		Result:  data,
 	}, nil
 }
 
@@ -37,6 +39,7 @@ func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 	}
 	return &DeletedEvent{
 		Session: sess,
+		Result:  nil,
 	}, nil
 }
 

@@ -5,6 +5,7 @@ import (
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -46,6 +47,7 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 func (d *CreateDTO) ToEntity() (*Unit, error) {
 	return &Unit{
 		ID:         0,
+		TenantID:   uuid.Nil,
 		Title:      d.Title,
 		ShortTitle: d.ShortTitle,
 		CreatedAt:  time.Now(),
@@ -56,6 +58,7 @@ func (d *CreateDTO) ToEntity() (*Unit, error) {
 func (d *UpdateDTO) ToEntity(id uint) (*Unit, error) {
 	return &Unit{
 		ID:         id,
+		TenantID:   uuid.Nil,
 		Title:      d.Title,
 		ShortTitle: d.ShortTitle,
 		CreatedAt:  time.Now(),

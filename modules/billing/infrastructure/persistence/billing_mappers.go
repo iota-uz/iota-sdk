@@ -299,8 +299,9 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 		items := make([]models.StripeItem, len(d.Items()))
 		for i, item := range d.Items() {
 			items[i] = models.StripeItem{
-				PriceID:  item.PriceID(),
-				Quantity: item.Quantity(),
+				PriceID:            item.PriceID(),
+				Quantity:           item.Quantity(),
+				AdjustableQuantity: nil,
 			}
 		}
 
@@ -312,6 +313,7 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			InvoiceID:         d.InvoiceID(),
 			SubscriptionID:    d.SubscriptionID(),
 			CustomerID:        d.CustomerID(),
+			SubscriptionData:  nil,
 			Items:             items,
 			SuccessURL:        d.SuccessURL(),
 			CancelURL:         d.CancelURL(),
