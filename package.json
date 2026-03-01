@@ -13,6 +13,8 @@
     "lint": "echo \"no lint\""
   },
   "devDependencies": {
+    "@tailwindcss/cli": "4.1.18",
+    "@tailwindcss/postcss": "4.1.18",
     "tailwindcss": "4.1.18"
   }
 }
