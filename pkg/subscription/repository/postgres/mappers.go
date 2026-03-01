@@ -1,3 +1,4 @@
+// Package postgres provides PostgreSQL persistence for subscriptions.
 package postgres
 
 import (

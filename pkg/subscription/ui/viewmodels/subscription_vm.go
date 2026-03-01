@@ -1,3 +1,4 @@
+// Package viewmodels contains subscription UI presentation models.
 package viewmodels
 
 import (

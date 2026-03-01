@@ -81,8 +81,7 @@ func (f *fakeRepo) setStripeRefs(tenantID uuid.UUID, customerID, subscriptionID 
 	f.stripeRefs[tenantID] = refs
 }
 func (f *fakeRepo) stripeRefsFor(tenantID uuid.UUID) *subrepo.StripeReferences {
-	refs, _ := f.stripeRefs[tenantID]
-	return refs
+	return f.stripeRefs[tenantID]
 }
 func (f *fakeRepo) FindTenantByStripeCustomer(_ context.Context, customerID string) (uuid.UUID, error) {
 	if f.findCustomerErr != nil {

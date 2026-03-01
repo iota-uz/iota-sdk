@@ -3,7 +3,6 @@ package postgres_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -106,7 +105,7 @@ func TestRepository_AddSeatIfBelow_EntitlementNotFound(t *testing.T) {
 	ok, err := repo.AddSeatIfBelow(f.Ctx, unknownTenantID, 2)
 	require.Error(t, err)
 	assert.False(t, ok)
-	assert.True(t, errors.Is(err, subrepo.ErrEntitlementNotFound))
+	assert.ErrorIs(t, err, subrepo.ErrEntitlementNotFound)
 }
 
 func TestRepository_FindByStripeRefs(t *testing.T) {

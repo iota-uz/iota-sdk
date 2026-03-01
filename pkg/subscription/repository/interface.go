@@ -1,3 +1,4 @@
+// Package repository defines persistence contracts and models for subscriptions.
 package repository
 
 import (
