@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/billing/ports"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/sirupsen/logrus"
@@ -29,7 +30,7 @@ func (h *testStripeHook) HandleStripeEvent(_ context.Context, _ stripe.Event) er
 	return h.err
 }
 
-var _ StripeEventHook = (*testStripeHook)(nil)
+var _ ports.StripeEventHook = (*testStripeHook)(nil)
 
 func TestStripeController_dispatchHooks(t *testing.T) {
 	t.Parallel()
@@ -38,7 +39,7 @@ func TestStripeController_dispatchHooks(t *testing.T) {
 	failHook := &testStripeHook{err: errors.New("hook failure")}
 
 	controller := &StripeController{
-		hooks: []StripeEventHook{okHook, failHook},
+		hooks: []ports.StripeEventHook{okHook, failHook},
 	}
 
 	event := stripe.Event{Type: "invoice.payment_succeeded"}
@@ -130,7 +131,7 @@ func TestStripeController_Handle_WebhookFlow(t *testing.T) {
 		controller := &StripeController{
 			billingService: &services.BillingService{},
 			stripe:         configuration.StripeOptions{SigningSecret: secret},
-			hooks:          []StripeEventHook{&testStripeHook{}},
+			hooks:          []ports.StripeEventHook{&testStripeHook{}},
 			hookQueue:      make(chan stripe.Event, 1),
 		}
 
