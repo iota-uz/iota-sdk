@@ -19,6 +19,7 @@ type MockEngine struct {
 	usageByKey   map[string]int
 	grants       map[string]subscription.Grant
 	reservations map[string]subscription.Reservation
+	nextResID    int64
 }
 
 func NewMockEngine() *MockEngine {
@@ -152,7 +153,13 @@ func (m *MockEngine) Reserve(_ context.Context, subject subscription.Subject, qu
 	defer m.mu.Unlock()
 
 	if existing, ok := m.reservations[token]; ok {
-		return existing, nil
+		if existing.Status == subscription.ReservationReleased || existing.Status == subscription.ReservationExpired {
+			delete(m.reservations, token)
+		} else if existing.Subject == subject.Ref() && existing.Quota == quota && existing.Amount == amount {
+			return existing, nil
+		} else {
+			return subscription.Reservation{}, fmt.Errorf("reservation token conflict")
+		}
 	}
 	limit, ok := m.limits[quota.Resource]
 	if !ok {
@@ -171,8 +178,9 @@ func (m *MockEngine) Reserve(_ context.Context, subject subscription.Subject, qu
 			Limit:   limit,
 		}
 	}
+	m.nextResID++
 	res := subscription.Reservation{
-		ID:      fmt.Sprintf("resv-%s", token),
+		ID:      fmt.Sprintf("resv-%d", m.nextResID),
 		Token:   token,
 		Subject: subject.Ref(),
 		Quota:   quota,

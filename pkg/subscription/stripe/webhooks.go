@@ -172,6 +172,12 @@ func (s *Service) handleInvoicePaymentFailed(ctx context.Context, event stripe.E
 }
 
 func extractSubscriptionID(invoice stripe.Invoice) string {
+	if invoice.Parent != nil &&
+		invoice.Parent.SubscriptionDetails != nil &&
+		invoice.Parent.SubscriptionDetails.Subscription != nil &&
+		invoice.Parent.SubscriptionDetails.Subscription.ID != "" {
+		return invoice.Parent.SubscriptionDetails.Subscription.ID
+	}
 	if invoice.Lines == nil || len(invoice.Lines.Data) == 0 {
 		return ""
 	}

@@ -207,7 +207,7 @@ func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
 	var wg sync.WaitGroup
 
 	wg.Add(workers)
-	for range workers {
+	for i := 0; i < workers; i++ {
 		go func() {
 			defer wg.Done()
 			ok, incErr := repo.IncrementEntityCountIfBelow(ctx, tenantID, "drivers", maxCount)
