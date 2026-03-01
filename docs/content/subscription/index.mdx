@@ -81,28 +81,25 @@ subject := subscription.Subject{
   ID: tenantID,
 }
 
+quota, err := subscription.NewQuotaKey("drivers", "", subscription.WindowNone)
+if err != nil {
+  return err
+}
+
 result, err := svc.EvaluateLimit(
   ctx,
   subject,
-  mustQuotaKey("drivers", "", subscription.WindowNone),
+  quota,
 )
 if err != nil {
   return err
 }
 if !result.Allowed {
   return subscription.LimitExceededError{
-    Quota: mustQuotaKey("drivers", "", subscription.WindowNone),
+    Quota: quota,
     Current: result.Current,
     Limit: result.Limit,
   }
-}
-
-func mustQuotaKey(resource, dimension string, window subscription.Window) subscription.QuotaKey {
-  key, err := subscription.NewQuotaKey(resource, dimension, window)
-  if err != nil {
-    panic(err)
-  }
-  return key
 }
 ```
 
@@ -155,5 +152,6 @@ Migration `migrations/changes-1772374064.sql` creates:
 - `subscription_entitlements`
 - `subscription_entity_counts`
 - `subscription_plans`
+- `subscription_webhook_events`
 
 The application seed flow backfills tenants with a default `FREE` entitlement row and initializes `current_seats` from the current tenant user count.

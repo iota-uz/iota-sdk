@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 type fakeRepository struct {
 	entitlements map[uuid.UUID]*subrepo.Entitlement
 	entityCounts map[string]int
+	getErr       error
 }
 
 func newFakeRepository() *fakeRepository {
@@ -25,6 +27,9 @@ func newFakeRepository() *fakeRepository {
 }
 
 func (f *fakeRepository) GetEntitlement(_ context.Context, tenantID uuid.UUID) (*subrepo.Entitlement, error) {
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
 	entitlement, ok := f.entitlements[tenantID]
 	if !ok {
 		return nil, subrepo.ErrEntitlementNotFound
@@ -166,6 +171,7 @@ func TestEvaluator_GracePeriodVisibleInDecisions(t *testing.T) {
 		GracePeriodEndsAt: &graceEndsAt,
 	}
 	repo.entityCounts["drivers"] = 1
+	now := graceEndsAt.Add(-time.Minute)
 
 	evaluator, err := NewEvaluator(subscription.Config{
 		DefaultPlan: "FREE",
@@ -176,7 +182,7 @@ func TestEvaluator_GracePeriodVisibleInDecisions(t *testing.T) {
 				EntityLimits: map[string]int{"drivers": 1},
 			},
 		},
-	}, repo)
+	}, repo, WithClock(func() time.Time { return now }))
 	require.NoError(t, err)
 
 	subject := subscription.Subject{Scope: subscription.ScopeTenant, ID: tenantID}
@@ -193,4 +199,30 @@ func TestEvaluator_GracePeriodVisibleInDecisions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, limitDecision.Reason, "grace period active")
 	assert.False(t, limitDecision.Allowed)
+}
+
+func TestEvaluator_MissingEntitlementWrappedErrorFallsBack(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepository()
+	repo.getErr = fmt.Errorf("wrapped: %w", subrepo.ErrEntitlementNotFound)
+	tenantID := uuid.New()
+
+	evaluator, err := NewEvaluator(subscription.Config{
+		DefaultPlan: "FREE",
+		Plans: []subscription.PlanDefinition{
+			{
+				PlanID:       "FREE",
+				Features:     []string{"core_access"},
+				EntityLimits: map[string]int{},
+			},
+		},
+	}, repo)
+	require.NoError(t, err)
+
+	subject := subscription.Subject{Scope: subscription.ScopeTenant, ID: tenantID}
+	decision, err := evaluator.EvaluateFeature(context.Background(), subject, "core_access")
+	require.NoError(t, err)
+	assert.True(t, decision.Allowed)
+	assert.Equal(t, "FREE", decision.PlanID)
 }

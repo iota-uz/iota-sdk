@@ -21,6 +21,7 @@ type entitlementModel struct {
 
 type planModel struct {
 	PlanID       string
+	ParentPlanID *string
 	Name         string
 	Description  string
 	PriceCents   int64

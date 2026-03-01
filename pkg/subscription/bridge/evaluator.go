@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -15,6 +16,10 @@ import (
 
 const decisionVersion = "policy"
 
+var _ subscription.FeatureEvaluator = (*Evaluator)(nil)
+var _ subscription.LimitEvaluator = (*Evaluator)(nil)
+var _ subscription.PlanResolver = (*Evaluator)(nil)
+
 type Evaluator struct {
 	repo        subrepo.Repository
 	plans       map[string]subscription.PlanDefinition
@@ -22,7 +27,17 @@ type Evaluator struct {
 	now         func() time.Time
 }
 
-func NewEvaluator(cfg subscription.Config, repo subrepo.Repository) (*Evaluator, error) {
+type Option func(*Evaluator)
+
+func WithClock(now func() time.Time) Option {
+	return func(e *Evaluator) {
+		if now != nil {
+			e.now = now
+		}
+	}
+}
+
+func NewEvaluator(cfg subscription.Config, repo subrepo.Repository, opts ...Option) (*Evaluator, error) {
 	const op serrors.Op = "SubscriptionBridge.NewEvaluator"
 
 	if repo == nil {
@@ -37,12 +52,18 @@ func NewEvaluator(cfg subscription.Config, repo subrepo.Repository) (*Evaluator,
 		defaultPlan = "FREE"
 	}
 
-	return &Evaluator{
+	evaluator := &Evaluator{
 		repo:        repo,
 		plans:       plans,
 		defaultPlan: defaultPlan,
 		now:         func() time.Time { return time.Now().UTC() },
-	}, nil
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(evaluator)
+		}
+	}
+	return evaluator, nil
 }
 
 func (e *Evaluator) CurrentPlan(ctx context.Context, subject subscription.Subject) (subscription.PlanInfo, error) {
@@ -167,7 +188,7 @@ func (e *Evaluator) entitlementForSubject(ctx context.Context, subject subscript
 	if err == nil {
 		return entitlement, nil
 	}
-	if err != nil && err != subrepo.ErrEntitlementNotFound {
+	if err != nil && !errors.Is(err, subrepo.ErrEntitlementNotFound) {
 		return nil, err
 	}
 

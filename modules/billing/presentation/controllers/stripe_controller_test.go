@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -57,7 +58,8 @@ func TestStripeController_Handle_WebhookFlow(t *testing.T) {
 
 	t.Run("returns 200 for valid signed event", func(t *testing.T) {
 		controller := &StripeController{
-			stripe: configuration.StripeOptions{SigningSecret: secret},
+			billingService: &services.BillingService{},
+			stripe:         configuration.StripeOptions{SigningSecret: secret},
 		}
 
 		eventPayload := map[string]any{
@@ -77,7 +79,8 @@ func TestStripeController_Handle_WebhookFlow(t *testing.T) {
 
 	t.Run("returns 400 for invalid signature", func(t *testing.T) {
 		controller := &StripeController{
-			stripe: configuration.StripeOptions{SigningSecret: secret},
+			billingService: &services.BillingService{},
+			stripe:         configuration.StripeOptions{SigningSecret: secret},
 		}
 
 		eventPayload := map[string]any{
@@ -100,7 +103,8 @@ func TestStripeController_Handle_WebhookFlow(t *testing.T) {
 
 	t.Run("returns 500 for handler error", func(t *testing.T) {
 		controller := &StripeController{
-			stripe: configuration.StripeOptions{SigningSecret: secret},
+			billingService: &services.BillingService{},
+			stripe:         configuration.StripeOptions{SigningSecret: secret},
 		}
 
 		// checkout.session.completed path attempts to unmarshal Data.Raw into
@@ -124,9 +128,10 @@ func TestStripeController_Handle_WebhookFlow(t *testing.T) {
 
 	t.Run("enqueues hook dispatch on valid event", func(t *testing.T) {
 		controller := &StripeController{
-			stripe:    configuration.StripeOptions{SigningSecret: secret},
-			hooks:     []StripeEventHook{&testStripeHook{}},
-			hookQueue: make(chan stripe.Event, 1),
+			billingService: &services.BillingService{},
+			stripe:         configuration.StripeOptions{SigningSecret: secret},
+			hooks:          []StripeEventHook{&testStripeHook{}},
+			hookQueue:      make(chan stripe.Event, 1),
 		}
 
 		eventPayload := map[string]any{

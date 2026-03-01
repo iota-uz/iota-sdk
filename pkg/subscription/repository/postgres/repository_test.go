@@ -122,16 +122,23 @@ func TestRepository_FindByStripeRefs(t *testing.T) {
 	now := time.Now().UTC()
 
 	err = repo.UpsertEntitlement(f.Ctx, &subrepo.Entitlement{
-		TenantID:             tenantID,
-		PlanID:               "FREE",
-		StripeCustomerID:     &customerID,
-		StripeSubscriptionID: &subscriptionID,
-		Features:             []string{},
-		EntityLimits:         map[string]int{},
-		CreatedAt:            now,
-		UpdatedAt:            now,
+		TenantID:     tenantID,
+		PlanID:       "FREE",
+		Features:     []string{},
+		EntityLimits: map[string]int{},
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	})
 	require.NoError(t, err)
+	require.NoError(t, repo.SetStripeReferences(f.Ctx, tenantID, &customerID, &subscriptionID))
+
+	refs, err := repo.GetStripeReferences(f.Ctx, tenantID)
+	require.NoError(t, err)
+	require.NotNil(t, refs)
+	require.NotNil(t, refs.CustomerID)
+	require.NotNil(t, refs.SubscriptionID)
+	assert.Equal(t, customerID, *refs.CustomerID)
+	assert.Equal(t, subscriptionID, *refs.SubscriptionID)
 
 	gotTenantByCustomer, err := repo.FindTenantByStripeCustomer(f.Ctx, customerID)
 	require.NoError(t, err)
@@ -184,17 +191,25 @@ func TestRepository_UpsertPlans_NilCollections(t *testing.T) {
 			Features:     nil,
 			EntityLimits: nil,
 		},
+		{
+			PlanID:       "PRO",
+			ParentPlanID: "FREE",
+			DisplayName:  "Pro",
+			Features:     nil,
+			EntityLimits: nil,
+		},
 	})
 	require.NoError(t, err)
 
 	var featuresRaw []byte
 	var limitsRaw []byte
 	var billingInterval string
+	var parentPlanID *string
 	err = f.Tx.QueryRow(f.Ctx, `
-		SELECT features, entity_limits, billing_interval
+		SELECT parent_plan_id, features, entity_limits, billing_interval
 		FROM subscription_plans
-		WHERE plan_id = 'FREE'
-	`).Scan(&featuresRaw, &limitsRaw, &billingInterval)
+		WHERE plan_id = 'PRO'
+	`).Scan(&parentPlanID, &featuresRaw, &limitsRaw, &billingInterval)
 	require.NoError(t, err)
 
 	var features []string
@@ -205,6 +220,8 @@ func TestRepository_UpsertPlans_NilCollections(t *testing.T) {
 	require.NoError(t, json.Unmarshal(limitsRaw, &limits))
 	assert.Empty(t, limits)
 	assert.Equal(t, "month", billingInterval)
+	require.NotNil(t, parentPlanID)
+	assert.Equal(t, "FREE", *parentPlanID)
 }
 
 func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {

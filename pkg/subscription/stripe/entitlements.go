@@ -87,15 +87,15 @@ func (s *Service) updateStripeRefs(ctx context.Context, tenantID uuid.UUID, cust
 		return nil
 	}
 	if customerPtr == nil || subscriptionPtr == nil {
-		existing, err := s.repo.GetEntitlement(ctx, tenantID)
+		existing, err := s.repo.GetStripeReferences(ctx, tenantID)
 		if err != nil {
 			return serrors.E(op, err)
 		}
 		if customerPtr == nil {
-			customerPtr = existing.StripeCustomerID
+			customerPtr = existing.CustomerID
 		}
 		if subscriptionPtr == nil {
-			subscriptionPtr = existing.StripeSubscriptionID
+			subscriptionPtr = existing.SubscriptionID
 		}
 	}
 	if customerPtr == nil && subscriptionPtr == nil {

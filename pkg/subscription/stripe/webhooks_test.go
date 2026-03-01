@@ -17,6 +17,7 @@ import (
 
 type fakeRepo struct {
 	entitlements        map[uuid.UUID]*subrepo.Entitlement
+	stripeRefs          map[uuid.UUID]*subrepo.StripeReferences
 	findCustomerErr     error
 	findSubscriptionErr error
 	seenEvents          map[string]time.Time
@@ -25,6 +26,7 @@ type fakeRepo struct {
 func newFakeRepo() *fakeRepo {
 	return &fakeRepo{
 		entitlements: map[uuid.UUID]*subrepo.Entitlement{},
+		stripeRefs:   map[uuid.UUID]*subrepo.StripeReferences{},
 		seenEvents:   map[string]time.Time{},
 	}
 }
@@ -43,20 +45,51 @@ func (f *fakeRepo) UpsertEntitlement(_ context.Context, entitlement *subrepo.Ent
 	return nil
 }
 func (f *fakeRepo) SetStripeReferences(_ context.Context, tenantID uuid.UUID, customerID, subscriptionID *string) error {
-	entry, ok := f.entitlements[tenantID]
-	if !ok {
+	if _, ok := f.entitlements[tenantID]; !ok {
 		return subrepo.ErrEntitlementNotFound
 	}
-	entry.StripeCustomerID = customerID
-	entry.StripeSubscriptionID = subscriptionID
+	refs := &subrepo.StripeReferences{TenantID: tenantID}
+	if existing, ok := f.stripeRefs[tenantID]; ok && existing != nil {
+		refs.SubscriptionEnds = existing.SubscriptionEnds
+	}
+	refs.CustomerID = customerID
+	refs.SubscriptionID = subscriptionID
+	f.stripeRefs[tenantID] = refs
 	return nil
+}
+func (f *fakeRepo) GetStripeReferences(_ context.Context, tenantID uuid.UUID) (*subrepo.StripeReferences, error) {
+	if _, ok := f.entitlements[tenantID]; !ok {
+		return nil, subrepo.ErrEntitlementNotFound
+	}
+	existing, ok := f.stripeRefs[tenantID]
+	if !ok || existing == nil {
+		return &subrepo.StripeReferences{TenantID: tenantID}, nil
+	}
+	copyEntry := *existing
+	return &copyEntry, nil
+}
+func (f *fakeRepo) setStripeRefs(tenantID uuid.UUID, customerID, subscriptionID string) {
+	refs := &subrepo.StripeReferences{
+		TenantID: tenantID,
+	}
+	if customerID != "" {
+		refs.CustomerID = &customerID
+	}
+	if subscriptionID != "" {
+		refs.SubscriptionID = &subscriptionID
+	}
+	f.stripeRefs[tenantID] = refs
+}
+func (f *fakeRepo) stripeRefsFor(tenantID uuid.UUID) *subrepo.StripeReferences {
+	refs, _ := f.stripeRefs[tenantID]
+	return refs
 }
 func (f *fakeRepo) FindTenantByStripeCustomer(_ context.Context, customerID string) (uuid.UUID, error) {
 	if f.findCustomerErr != nil {
 		return uuid.Nil, f.findCustomerErr
 	}
-	for tenantID, entry := range f.entitlements {
-		if entry.StripeCustomerID != nil && *entry.StripeCustomerID == customerID {
+	for tenantID, refs := range f.stripeRefs {
+		if refs != nil && refs.CustomerID != nil && *refs.CustomerID == customerID {
 			return tenantID, nil
 		}
 	}
@@ -66,8 +99,8 @@ func (f *fakeRepo) FindTenantByStripeSubscription(_ context.Context, subscriptio
 	if f.findSubscriptionErr != nil {
 		return uuid.Nil, f.findSubscriptionErr
 	}
-	for tenantID, entry := range f.entitlements {
-		if entry.StripeSubscriptionID != nil && *entry.StripeSubscriptionID == subscriptionID {
+	for tenantID, refs := range f.stripeRefs {
+		if refs != nil && refs.SubscriptionID != nil && *refs.SubscriptionID == subscriptionID {
 			return tenantID, nil
 		}
 	}
@@ -176,15 +209,14 @@ func TestHandleStripeEvent_InvoicePaymentFailedSetsGracePeriod(t *testing.T) {
 	customerID := "cus_123"
 	subscriptionID := "sub_123"
 	repo.entitlements[tenantID] = &subrepo.Entitlement{
-		TenantID:             tenantID,
-		PlanID:               "FREE",
-		StripeCustomerID:     &customerID,
-		StripeSubscriptionID: &subscriptionID,
-		Features:             []string{},
-		EntityLimits:         map[string]int{},
-		CreatedAt:            time.Now().UTC(),
-		UpdatedAt:            time.Now().UTC(),
+		TenantID:     tenantID,
+		PlanID:       "FREE",
+		Features:     []string{},
+		EntityLimits: map[string]int{},
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
 	}
+	repo.setStripeRefs(tenantID, customerID, subscriptionID)
 
 	payload := map[string]any{
 		"id": "in_123",
@@ -226,14 +258,14 @@ func TestHandleStripeEvent_DuplicateEventSkipped(t *testing.T) {
 	tenantID := uuid.New()
 	customerID := "cus_dupe"
 	repo.entitlements[tenantID] = &subrepo.Entitlement{
-		TenantID:         tenantID,
-		PlanID:           "FREE",
-		StripeCustomerID: &customerID,
-		Features:         []string{},
-		EntityLimits:     map[string]int{},
-		CreatedAt:        time.Now().UTC(),
-		UpdatedAt:        time.Now().UTC(),
+		TenantID:     tenantID,
+		PlanID:       "FREE",
+		Features:     []string{},
+		EntityLimits: map[string]int{},
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
 	}
+	repo.setStripeRefs(tenantID, customerID, "")
 
 	raw, err := json.Marshal(map[string]any{
 		"id": "in_duplicate",
@@ -309,14 +341,14 @@ func TestHandleStripeEvent_SubscriptionCreatedSetsRefs(t *testing.T) {
 
 	// Pre-seed an entitlement so ensureEntitlement is a no-op.
 	repo.entitlements[tenantID] = &subrepo.Entitlement{
-		TenantID:         tenantID,
-		PlanID:           "FREE",
-		StripeCustomerID: &customerID,
-		Features:         []string{},
-		EntityLimits:     map[string]int{},
-		CreatedAt:        time.Now().UTC(),
-		UpdatedAt:        time.Now().UTC(),
+		TenantID:     tenantID,
+		PlanID:       "FREE",
+		Features:     []string{},
+		EntityLimits: map[string]int{},
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
 	}
+	repo.setStripeRefs(tenantID, customerID, "")
 
 	// Build a stripe.Subscription JSON payload.
 	// resolveTenantID will pick up tenant_id from metadata first.
@@ -339,11 +371,12 @@ func TestHandleStripeEvent_SubscriptionCreatedSetsRefs(t *testing.T) {
 	err = service.HandleStripeEvent(context.Background(), event)
 	require.NoError(t, err)
 
-	got := repo.entitlements[tenantID]
-	require.NotNil(t, got.StripeCustomerID)
-	assert.Equal(t, customerID, *got.StripeCustomerID)
-	require.NotNil(t, got.StripeSubscriptionID)
-	assert.Equal(t, subscriptionID, *got.StripeSubscriptionID)
+	refs := repo.stripeRefsFor(tenantID)
+	require.NotNil(t, refs)
+	require.NotNil(t, refs.CustomerID)
+	assert.Equal(t, customerID, *refs.CustomerID)
+	require.NotNil(t, refs.SubscriptionID)
+	assert.Equal(t, subscriptionID, *refs.SubscriptionID)
 	assert.Positive(t, invalidator.calls)
 }
 
@@ -368,7 +401,6 @@ func TestHandleStripeEvent_InvoicePaymentSucceededClearsGrace(t *testing.T) {
 	repo.entitlements[tenantID] = &subrepo.Entitlement{
 		TenantID:          tenantID,
 		PlanID:            "FREE",
-		StripeCustomerID:  &customerID,
 		InGracePeriod:     true,
 		GracePeriodEndsAt: &graceEndsAt,
 		Features:          []string{},
@@ -376,9 +408,10 @@ func TestHandleStripeEvent_InvoicePaymentSucceededClearsGrace(t *testing.T) {
 		CreatedAt:         time.Now().UTC(),
 		UpdatedAt:         time.Now().UTC(),
 	}
+	repo.setStripeRefs(tenantID, customerID, "")
 
 	// Build a stripe.Invoice JSON payload.
-	// resolveTenantID will find the tenant via StripeCustomerID in the repo.
+	// resolveTenantID will find the tenant via stored stripe refs in the repo.
 	payload := map[string]any{
 		"id": "in_paid_123",
 		"customer": map[string]any{
@@ -442,16 +475,15 @@ func TestHandleStripeEvent_SubscriptionDeletedSetsGrace(t *testing.T) {
 
 	// Start with in_grace_period = false.
 	repo.entitlements[tenantID] = &subrepo.Entitlement{
-		TenantID:             tenantID,
-		PlanID:               "PRO",
-		StripeCustomerID:     &customerID,
-		StripeSubscriptionID: &subscriptionID,
-		InGracePeriod:        false,
-		Features:             []string{"core_access"},
-		EntityLimits:         map[string]int{},
-		CreatedAt:            time.Now().UTC(),
-		UpdatedAt:            time.Now().UTC(),
+		TenantID:      tenantID,
+		PlanID:        "PRO",
+		InGracePeriod: false,
+		Features:      []string{"core_access"},
+		EntityLimits:  map[string]int{},
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
 	}
+	repo.setStripeRefs(tenantID, customerID, subscriptionID)
 
 	// Build a stripe.Subscription JSON payload.
 	payload := map[string]any{

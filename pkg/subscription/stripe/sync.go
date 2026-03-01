@@ -67,11 +67,11 @@ func NewService(
 func (s *Service) RefreshTenant(ctx context.Context, tenantID uuid.UUID) error {
 	const op serrors.Op = "SubscriptionStripeService.RefreshTenant"
 
-	entitlement, err := s.repo.GetEntitlement(ctx, tenantID)
+	refs, err := s.repo.GetStripeReferences(ctx, tenantID)
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if entitlement.StripeCustomerID == nil || *entitlement.StripeCustomerID == "" {
+	if refs.CustomerID == nil || *refs.CustomerID == "" {
 		if s.invalidator != nil {
 			if err := s.invalidator.InvalidateCache(ctx, tenantID); err != nil {
 				return serrors.E(op, err)
@@ -80,7 +80,7 @@ func (s *Service) RefreshTenant(ctx context.Context, tenantID uuid.UUID) error {
 		return nil
 	}
 
-	features, err := s.client.ListActiveEntitlements(ctx, *entitlement.StripeCustomerID)
+	features, err := s.client.ListActiveEntitlements(ctx, *refs.CustomerID)
 	if err != nil {
 		return serrors.E(op, err)
 	}

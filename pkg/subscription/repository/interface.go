@@ -12,20 +12,24 @@ import (
 var ErrEntitlementNotFound = errors.New("subscription entitlement not found")
 
 type Entitlement struct {
-	TenantID              uuid.UUID
-	PlanID                string
-	StripeSubscriptionID  *string
-	StripeCustomerID      *string
-	Features              []string
-	EntityLimits          map[string]int
-	SeatLimit             *int
-	CurrentSeats          int
-	InGracePeriod         bool
-	GracePeriodEndsAt     *time.Time
-	LastSyncedAt          *time.Time
-	StripeSubscriptionEnd *time.Time
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	TenantID          uuid.UUID
+	PlanID            string
+	Features          []string
+	EntityLimits      map[string]int
+	SeatLimit         *int
+	CurrentSeats      int
+	InGracePeriod     bool
+	GracePeriodEndsAt *time.Time
+	LastSyncedAt      *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type StripeReferences struct {
+	TenantID         uuid.UUID
+	CustomerID       *string
+	SubscriptionID   *string
+	SubscriptionEnds *time.Time
 }
 
 type Repository interface {
@@ -51,6 +55,7 @@ type Repository interface {
 }
 
 type StripeRepository interface {
+	GetStripeReferences(ctx context.Context, tenantID uuid.UUID) (*StripeReferences, error)
 	SetStripeReferences(ctx context.Context, tenantID uuid.UUID, customerID, subscriptionID *string) error
 	FindTenantByStripeCustomer(ctx context.Context, customerID string) (uuid.UUID, error)
 	FindTenantByStripeSubscription(ctx context.Context, subscriptionID string) (uuid.UUID, error)

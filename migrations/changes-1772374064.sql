@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS subscription_entity_counts (
 CREATE TABLE IF NOT EXISTS subscription_plans (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     plan_id varchar(64) NOT NULL UNIQUE,
+    parent_plan_id varchar(64),
     name varchar(100) NOT NULL,
     description text,
     stripe_product_id varchar(255),

@@ -32,20 +32,17 @@ func toModel(entitlement *repository.Entitlement) (*entitlementModel, error) {
 	}
 
 	return &entitlementModel{
-		TenantID:              entitlement.TenantID.String(),
-		PlanID:                entitlement.PlanID,
-		StripeSubscriptionID:  entitlement.StripeSubscriptionID,
-		StripeCustomerID:      entitlement.StripeCustomerID,
-		Features:              features,
-		EntityLimits:          limits,
-		SeatLimit:             entitlement.SeatLimit,
-		CurrentSeats:          entitlement.CurrentSeats,
-		InGracePeriod:         entitlement.InGracePeriod,
-		GracePeriodEndsAt:     entitlement.GracePeriodEndsAt,
-		LastSyncedAt:          entitlement.LastSyncedAt,
-		StripeSubscriptionEnd: entitlement.StripeSubscriptionEnd,
-		CreatedAt:             entitlement.CreatedAt,
-		UpdatedAt:             entitlement.UpdatedAt,
+		TenantID:          entitlement.TenantID.String(),
+		PlanID:            entitlement.PlanID,
+		Features:          features,
+		EntityLimits:      limits,
+		SeatLimit:         entitlement.SeatLimit,
+		CurrentSeats:      entitlement.CurrentSeats,
+		InGracePeriod:     entitlement.InGracePeriod,
+		GracePeriodEndsAt: entitlement.GracePeriodEndsAt,
+		LastSyncedAt:      entitlement.LastSyncedAt,
+		CreatedAt:         entitlement.CreatedAt,
+		UpdatedAt:         entitlement.UpdatedAt,
 	}, nil
 }
 
@@ -72,20 +69,17 @@ func toDomain(model *entitlementModel) (*repository.Entitlement, error) {
 	}
 
 	return &repository.Entitlement{
-		TenantID:              tenantID,
-		PlanID:                model.PlanID,
-		StripeSubscriptionID:  model.StripeSubscriptionID,
-		StripeCustomerID:      model.StripeCustomerID,
-		Features:              features,
-		EntityLimits:          limits,
-		SeatLimit:             model.SeatLimit,
-		CurrentSeats:          model.CurrentSeats,
-		InGracePeriod:         model.InGracePeriod,
-		GracePeriodEndsAt:     model.GracePeriodEndsAt,
-		LastSyncedAt:          model.LastSyncedAt,
-		StripeSubscriptionEnd: model.StripeSubscriptionEnd,
-		CreatedAt:             model.CreatedAt,
-		UpdatedAt:             model.UpdatedAt,
+		TenantID:          tenantID,
+		PlanID:            model.PlanID,
+		Features:          features,
+		EntityLimits:      limits,
+		SeatLimit:         model.SeatLimit,
+		CurrentSeats:      model.CurrentSeats,
+		InGracePeriod:     model.InGracePeriod,
+		GracePeriodEndsAt: model.GracePeriodEndsAt,
+		LastSyncedAt:      model.LastSyncedAt,
+		CreatedAt:         model.CreatedAt,
+		UpdatedAt:         model.UpdatedAt,
 	}, nil
 }
 
@@ -106,8 +100,13 @@ func planToModel(plan subscription.PlanDefinition) (*planModel, error) {
 	if err != nil {
 		return nil, err
 	}
+	var parentPlanID *string
+	if plan.ParentPlanID != "" {
+		parentPlanID = &plan.ParentPlanID
+	}
 	return &planModel{
 		PlanID:       plan.PlanID,
+		ParentPlanID: parentPlanID,
 		Name:         plan.DisplayName,
 		Description:  plan.Description,
 		PriceCents:   plan.PriceCents,

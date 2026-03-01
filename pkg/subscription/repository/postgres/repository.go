@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,205 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	queryGetEntitlement = `
+		SELECT tenant_id, plan_id, features, entity_limits,
+		       seat_limit, current_seats, in_grace_period, grace_period_ends_at, last_synced_at,
+		       created_at, updated_at
+		FROM subscription_entitlements
+		WHERE tenant_id = $1
+	`
+
+	queryUpsertEntitlement = `
+		INSERT INTO subscription_entitlements (
+			tenant_id, plan_id, features, entity_limits,
+			seat_limit, current_seats, in_grace_period, grace_period_ends_at, last_synced_at,
+			created_at, updated_at
+		) VALUES (
+			$1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11
+		)
+		ON CONFLICT (tenant_id) DO UPDATE SET
+			plan_id = EXCLUDED.plan_id,
+			features = EXCLUDED.features,
+			entity_limits = EXCLUDED.entity_limits,
+			seat_limit = EXCLUDED.seat_limit,
+			current_seats = EXCLUDED.current_seats,
+			in_grace_period = EXCLUDED.in_grace_period,
+			grace_period_ends_at = EXCLUDED.grace_period_ends_at,
+			last_synced_at = EXCLUDED.last_synced_at,
+			updated_at = EXCLUDED.updated_at
+	`
+
+	querySetStripeReferences = `
+		UPDATE subscription_entitlements
+		SET stripe_customer_id = $2,
+		    stripe_subscription_id = $3,
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+	`
+
+	queryGetStripeReferences = `
+		SELECT stripe_customer_id, stripe_subscription_id, stripe_subscription_end
+		FROM subscription_entitlements
+		WHERE tenant_id = $1
+	`
+
+	queryFindTenantByStripeCustomer = `
+		SELECT tenant_id
+		FROM subscription_entitlements
+		WHERE stripe_customer_id = $1
+	`
+
+	queryFindTenantByStripeSubscription = `
+		SELECT tenant_id
+		FROM subscription_entitlements
+		WHERE stripe_subscription_id = $1
+	`
+
+	querySetGracePeriod = `
+		UPDATE subscription_entitlements
+		SET in_grace_period = $2,
+		    grace_period_ends_at = $3,
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+	`
+
+	querySetPlan = `
+		UPDATE subscription_entitlements
+		SET plan_id = $2,
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+	`
+
+	queryTouchSyncedAt = `
+		UPDATE subscription_entitlements
+		SET last_synced_at = $2,
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+	`
+
+	queryUpdateFeaturesAndSync = `
+		UPDATE subscription_entitlements
+		SET features = $2::jsonb,
+		    last_synced_at = $3,
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+	`
+
+	queryGetEntityCounts = `
+		SELECT entity_type, current_count
+		FROM subscription_entity_counts
+		WHERE tenant_id = $1
+	`
+
+	queryGetEntityCount = `
+		SELECT COALESCE((
+			SELECT current_count
+			FROM subscription_entity_counts
+			WHERE tenant_id = $1 AND entity_type = $2
+		), 0)
+	`
+
+	querySetEntityCount = `
+		INSERT INTO subscription_entity_counts (tenant_id, entity_type, current_count, updated_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (tenant_id, entity_type) DO UPDATE
+		SET current_count = EXCLUDED.current_count,
+		    updated_at = NOW()
+	`
+
+	queryIncrementEntityCount = `
+		INSERT INTO subscription_entity_counts (tenant_id, entity_type, current_count, updated_at)
+		VALUES ($1, $2, 1, NOW())
+		ON CONFLICT (tenant_id, entity_type) DO UPDATE
+		SET current_count = subscription_entity_counts.current_count + 1,
+		    updated_at = NOW()
+	`
+
+	queryIncrementEntityCountIfBelow = `
+		WITH upsert AS (
+			INSERT INTO subscription_entity_counts (tenant_id, entity_type, current_count, updated_at)
+			SELECT $1, $2, 1, NOW()
+			WHERE $3 > 0
+			ON CONFLICT (tenant_id, entity_type) DO UPDATE
+			SET current_count = subscription_entity_counts.current_count + 1,
+			    updated_at = NOW()
+			WHERE subscription_entity_counts.current_count < $3
+			RETURNING current_count
+		)
+		SELECT EXISTS(SELECT 1 FROM upsert)
+	`
+
+	queryDecrementEntityCount = `
+		INSERT INTO subscription_entity_counts (tenant_id, entity_type, current_count, updated_at)
+		VALUES ($1, $2, 0, NOW())
+		ON CONFLICT (tenant_id, entity_type) DO UPDATE
+		SET current_count = GREATEST(0, subscription_entity_counts.current_count - 1),
+		    updated_at = NOW()
+	`
+
+	queryAddSeatIfBelow = `
+		UPDATE subscription_entitlements
+		SET current_seats = current_seats + 1,
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+		  AND current_seats < $2
+	`
+
+	queryEntitlementExists = `
+		SELECT EXISTS(
+			SELECT 1
+			FROM subscription_entitlements
+			WHERE tenant_id = $1
+		)
+	`
+
+	queryIncrementSeat = `
+		UPDATE subscription_entitlements
+		SET current_seats = current_seats + 1,
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+	`
+
+	queryDecrementSeat = `
+		UPDATE subscription_entitlements
+		SET current_seats = GREATEST(0, current_seats - 1),
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+	`
+
+	queryUpsertPlan = `
+		INSERT INTO subscription_plans (
+			plan_id, parent_plan_id, name, description, price_cents, billing_interval,
+			features, entity_limits, seat_limit, display_order, is_active, is_public, updated_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, TRUE, TRUE, NOW()
+		)
+		ON CONFLICT (plan_id) DO UPDATE SET
+			parent_plan_id = EXCLUDED.parent_plan_id,
+			name = EXCLUDED.name,
+			description = EXCLUDED.description,
+			price_cents = EXCLUDED.price_cents,
+			billing_interval = EXCLUDED.billing_interval,
+			features = EXCLUDED.features,
+			entity_limits = EXCLUDED.entity_limits,
+			seat_limit = EXCLUDED.seat_limit,
+			display_order = EXCLUDED.display_order,
+			updated_at = NOW()
+	`
+
+	queryInsertWebhookEvent = `
+		INSERT INTO subscription_webhook_events (event_id, event_type, processed_at, expires_at)
+		VALUES ($1, $2, NOW(), NOW() + ($3 * INTERVAL '1 second'))
+		ON CONFLICT (event_id) DO NOTHING
+	`
+
+	queryDeleteExpiredWebhookEvents = `
+		DELETE FROM subscription_webhook_events
+		WHERE expires_at <= NOW()
+	`
+)
+
 type queryer interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -24,11 +224,16 @@ type queryer interface {
 }
 
 type Repository struct {
-	pool *pgxpool.Pool
+	pool                   *pgxpool.Pool
+	lastWebhookCleanupUnix atomic.Int64
+	webhookCleanupInterval time.Duration
 }
 
 func NewRepository(pool *pgxpool.Pool) repository.StripeAwareRepository {
-	return &Repository{pool: pool}
+	return &Repository{
+		pool:                   pool,
+		webhookCleanupInterval: 5 * time.Minute,
+	}
 }
 
 func (r *Repository) getQueryer(ctx context.Context) (queryer, error) {
@@ -51,17 +256,9 @@ func (r *Repository) GetEntitlement(ctx context.Context, tenantID uuid.UUID) (*r
 	}
 
 	var model entitlementModel
-	err = db.QueryRow(ctx, `
-		SELECT tenant_id, plan_id, stripe_subscription_id, stripe_customer_id, features, entity_limits,
-		       seat_limit, current_seats, in_grace_period, grace_period_ends_at, last_synced_at,
-		       stripe_subscription_end, created_at, updated_at
-		FROM subscription_entitlements
-		WHERE tenant_id = $1
-		`, tenantID).Scan(
+	err = db.QueryRow(ctx, queryGetEntitlement, tenantID).Scan(
 		&model.TenantID,
 		&model.PlanID,
-		&model.StripeSubscriptionID,
-		&model.StripeCustomerID,
 		&model.Features,
 		&model.EntityLimits,
 		&model.SeatLimit,
@@ -69,7 +266,6 @@ func (r *Repository) GetEntitlement(ctx context.Context, tenantID uuid.UUID) (*r
 		&model.InGracePeriod,
 		&model.GracePeriodEndsAt,
 		&model.LastSyncedAt,
-		&model.StripeSubscriptionEnd,
 		&model.CreatedAt,
 		&model.UpdatedAt,
 	)
@@ -107,32 +303,9 @@ func (r *Repository) UpsertEntitlement(ctx context.Context, entitlement *reposit
 		model.UpdatedAt = time.Now().UTC()
 	}
 
-	_, err = db.Exec(ctx, `
-		INSERT INTO subscription_entitlements (
-			tenant_id, plan_id, stripe_subscription_id, stripe_customer_id, features, entity_limits,
-			seat_limit, current_seats, in_grace_period, grace_period_ends_at, last_synced_at,
-			stripe_subscription_end, created_at, updated_at
-		) VALUES (
-			$1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14
-		)
-		ON CONFLICT (tenant_id) DO UPDATE SET
-			plan_id = EXCLUDED.plan_id,
-			stripe_subscription_id = EXCLUDED.stripe_subscription_id,
-			stripe_customer_id = EXCLUDED.stripe_customer_id,
-			features = EXCLUDED.features,
-			entity_limits = EXCLUDED.entity_limits,
-			seat_limit = EXCLUDED.seat_limit,
-			current_seats = EXCLUDED.current_seats,
-			in_grace_period = EXCLUDED.in_grace_period,
-			grace_period_ends_at = EXCLUDED.grace_period_ends_at,
-			last_synced_at = EXCLUDED.last_synced_at,
-			stripe_subscription_end = EXCLUDED.stripe_subscription_end,
-			updated_at = EXCLUDED.updated_at
-		`,
+	_, err = db.Exec(ctx, queryUpsertEntitlement,
 		model.TenantID,
 		model.PlanID,
-		model.StripeSubscriptionID,
-		model.StripeCustomerID,
 		model.Features,
 		model.EntityLimits,
 		model.SeatLimit,
@@ -140,7 +313,6 @@ func (r *Repository) UpsertEntitlement(ctx context.Context, entitlement *reposit
 		model.InGracePeriod,
 		model.GracePeriodEndsAt,
 		model.LastSyncedAt,
-		model.StripeSubscriptionEnd,
 		model.CreatedAt,
 		model.UpdatedAt,
 	)
@@ -159,13 +331,7 @@ func (r *Repository) SetStripeReferences(ctx context.Context, tenantID uuid.UUID
 		return serrors.E(op, err)
 	}
 
-	result, err := db.Exec(ctx, `
-		UPDATE subscription_entitlements
-		SET stripe_customer_id = $2,
-		    stripe_subscription_id = $3,
-		    updated_at = NOW()
-		WHERE tenant_id = $1
-	`, tenantID, customerID, subscriptionID)
+	result, err := db.Exec(ctx, querySetStripeReferences, tenantID, customerID, subscriptionID)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -173,6 +339,26 @@ func (r *Repository) SetStripeReferences(ctx context.Context, tenantID uuid.UUID
 		return repository.ErrEntitlementNotFound
 	}
 	return nil
+}
+
+func (r *Repository) GetStripeReferences(ctx context.Context, tenantID uuid.UUID) (*repository.StripeReferences, error) {
+	const op serrors.Op = "SubscriptionRepository.GetStripeReferences"
+
+	db, err := r.getQueryer(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	var refs repository.StripeReferences
+	refs.TenantID = tenantID
+	err = db.QueryRow(ctx, queryGetStripeReferences, tenantID).Scan(&refs.CustomerID, &refs.SubscriptionID, &refs.SubscriptionEnds)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, repository.ErrEntitlementNotFound
+		}
+		return nil, serrors.E(op, err)
+	}
+	return &refs, nil
 }
 
 func (r *Repository) FindTenantByStripeCustomer(ctx context.Context, customerID string) (uuid.UUID, error) {
@@ -184,7 +370,7 @@ func (r *Repository) FindTenantByStripeCustomer(ctx context.Context, customerID 
 	}
 
 	var tenantID uuid.UUID
-	err = db.QueryRow(ctx, `SELECT tenant_id FROM subscription_entitlements WHERE stripe_customer_id = $1`, customerID).Scan(&tenantID)
+	err = db.QueryRow(ctx, queryFindTenantByStripeCustomer, customerID).Scan(&tenantID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, repository.ErrEntitlementNotFound
@@ -203,7 +389,7 @@ func (r *Repository) FindTenantByStripeSubscription(ctx context.Context, subscri
 	}
 
 	var tenantID uuid.UUID
-	err = db.QueryRow(ctx, `SELECT tenant_id FROM subscription_entitlements WHERE stripe_subscription_id = $1`, subscriptionID).Scan(&tenantID)
+	err = db.QueryRow(ctx, queryFindTenantByStripeSubscription, subscriptionID).Scan(&tenantID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, repository.ErrEntitlementNotFound
@@ -220,13 +406,7 @@ func (r *Repository) SetGracePeriod(ctx context.Context, tenantID uuid.UUID, inG
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	result, err := db.Exec(ctx, `
-		UPDATE subscription_entitlements
-		SET in_grace_period = $2,
-		    grace_period_ends_at = $3,
-		    updated_at = NOW()
-		WHERE tenant_id = $1
-	`, tenantID, inGrace, endsAt)
+	result, err := db.Exec(ctx, querySetGracePeriod, tenantID, inGrace, endsAt)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -243,12 +423,7 @@ func (r *Repository) SetPlan(ctx context.Context, tenantID uuid.UUID, planID str
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	result, err := db.Exec(ctx, `
-			UPDATE subscription_entitlements
-			SET plan_id = $2,
-		    updated_at = NOW()
-		WHERE tenant_id = $1
-		`, tenantID, planID)
+	result, err := db.Exec(ctx, querySetPlan, tenantID, planID)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -265,12 +440,7 @@ func (r *Repository) TouchSyncedAt(ctx context.Context, tenantID uuid.UUID, sync
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	result, err := db.Exec(ctx, `
-		UPDATE subscription_entitlements
-		SET last_synced_at = $2,
-		    updated_at = NOW()
-		WHERE tenant_id = $1
-	`, tenantID, syncedAt.UTC())
+	result, err := db.Exec(ctx, queryTouchSyncedAt, tenantID, syncedAt.UTC())
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -293,13 +463,7 @@ func (r *Repository) UpdateFeaturesAndSync(ctx context.Context, tenantID uuid.UU
 		return serrors.E(op, err)
 	}
 
-	result, err := db.Exec(ctx, `
-		UPDATE subscription_entitlements
-		SET features = $2::jsonb,
-		    last_synced_at = $3,
-		    updated_at = NOW()
-		WHERE tenant_id = $1
-	`, tenantID, featuresJSON, syncedAt.UTC())
+	result, err := db.Exec(ctx, queryUpdateFeaturesAndSync, tenantID, featuresJSON, syncedAt.UTC())
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -317,11 +481,7 @@ func (r *Repository) GetEntityCounts(ctx context.Context, tenantID uuid.UUID) (m
 		return nil, serrors.E(op, err)
 	}
 
-	rows, err := db.Query(ctx, `
-		SELECT entity_type, current_count
-		FROM subscription_entity_counts
-		WHERE tenant_id = $1
-	`, tenantID)
+	rows, err := db.Query(ctx, queryGetEntityCounts, tenantID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -351,13 +511,7 @@ func (r *Repository) GetEntityCount(ctx context.Context, tenantID uuid.UUID, ent
 	}
 
 	var current int
-	err = db.QueryRow(ctx, `
-		SELECT COALESCE((
-			SELECT current_count
-			FROM subscription_entity_counts
-			WHERE tenant_id = $1 AND entity_type = $2
-		), 0)
-	`, tenantID, entityType).Scan(&current)
+	err = db.QueryRow(ctx, queryGetEntityCount, tenantID, entityType).Scan(&current)
 	if err != nil {
 		return 0, serrors.E(op, err)
 	}
@@ -375,13 +529,7 @@ func (r *Repository) SetEntityCount(ctx context.Context, tenantID uuid.UUID, ent
 		return serrors.E(op, err)
 	}
 
-	_, err = db.Exec(ctx, `
-		INSERT INTO subscription_entity_counts (tenant_id, entity_type, current_count, updated_at)
-		VALUES ($1, $2, $3, NOW())
-		ON CONFLICT (tenant_id, entity_type) DO UPDATE
-		SET current_count = EXCLUDED.current_count,
-		    updated_at = NOW()
-	`, tenantID, entityType, count)
+	_, err = db.Exec(ctx, querySetEntityCount, tenantID, entityType, count)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -396,13 +544,7 @@ func (r *Repository) IncrementEntityCount(ctx context.Context, tenantID uuid.UUI
 		return serrors.E(op, err)
 	}
 
-	_, err = db.Exec(ctx, `
-		INSERT INTO subscription_entity_counts (tenant_id, entity_type, current_count, updated_at)
-		VALUES ($1, $2, 1, NOW())
-		ON CONFLICT (tenant_id, entity_type) DO UPDATE
-		SET current_count = subscription_entity_counts.current_count + 1,
-		    updated_at = NOW()
-	`, tenantID, entityType)
+	_, err = db.Exec(ctx, queryIncrementEntityCount, tenantID, entityType)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -423,19 +565,7 @@ func (r *Repository) IncrementEntityCountIfBelow(
 	}
 
 	var ok bool
-	err = db.QueryRow(ctx, `
-		WITH upsert AS (
-			INSERT INTO subscription_entity_counts (tenant_id, entity_type, current_count, updated_at)
-			SELECT $1, $2, 1, NOW()
-			WHERE $3 > 0
-			ON CONFLICT (tenant_id, entity_type) DO UPDATE
-			SET current_count = subscription_entity_counts.current_count + 1,
-			    updated_at = NOW()
-			WHERE subscription_entity_counts.current_count < $3
-			RETURNING current_count
-		)
-		SELECT EXISTS(SELECT 1 FROM upsert)
-	`, tenantID, entityType, maxCount).Scan(&ok)
+	err = db.QueryRow(ctx, queryIncrementEntityCountIfBelow, tenantID, entityType, maxCount).Scan(&ok)
 	if err != nil {
 		return false, serrors.E(op, err)
 	}
@@ -451,13 +581,7 @@ func (r *Repository) DecrementEntityCount(ctx context.Context, tenantID uuid.UUI
 		return serrors.E(op, err)
 	}
 
-	_, err = db.Exec(ctx, `
-		INSERT INTO subscription_entity_counts (tenant_id, entity_type, current_count, updated_at)
-		VALUES ($1, $2, 0, NOW())
-		ON CONFLICT (tenant_id, entity_type) DO UPDATE
-		SET current_count = GREATEST(0, subscription_entity_counts.current_count - 1),
-		    updated_at = NOW()
-	`, tenantID, entityType)
+	_, err = db.Exec(ctx, queryDecrementEntityCount, tenantID, entityType)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -472,25 +596,13 @@ func (r *Repository) AddSeatIfBelow(ctx context.Context, tenantID uuid.UUID, max
 		return false, serrors.E(op, err)
 	}
 
-	result, err := db.Exec(ctx, `
-		UPDATE subscription_entitlements
-		SET current_seats = current_seats + 1,
-		    updated_at = NOW()
-		WHERE tenant_id = $1
-		  AND current_seats < $2
-	`, tenantID, maxCount)
+	result, err := db.Exec(ctx, queryAddSeatIfBelow, tenantID, maxCount)
 	if err != nil {
 		return false, serrors.E(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		var exists bool
-		existsErr := db.QueryRow(ctx, `
-			SELECT EXISTS(
-				SELECT 1
-				FROM subscription_entitlements
-				WHERE tenant_id = $1
-			)
-		`, tenantID).Scan(&exists)
+		existsErr := db.QueryRow(ctx, queryEntitlementExists, tenantID).Scan(&exists)
 		if existsErr != nil {
 			return false, serrors.E(op, existsErr)
 		}
@@ -510,12 +622,7 @@ func (r *Repository) IncrementSeat(ctx context.Context, tenantID uuid.UUID) erro
 		return serrors.E(op, err)
 	}
 
-	result, err := db.Exec(ctx, `
-		UPDATE subscription_entitlements
-		SET current_seats = current_seats + 1,
-		    updated_at = NOW()
-		WHERE tenant_id = $1
-	`, tenantID)
+	result, err := db.Exec(ctx, queryIncrementSeat, tenantID)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -533,12 +640,7 @@ func (r *Repository) DecrementSeat(ctx context.Context, tenantID uuid.UUID) erro
 		return serrors.E(op, err)
 	}
 
-	result, err := db.Exec(ctx, `
-		UPDATE subscription_entitlements
-		SET current_seats = GREATEST(0, current_seats - 1),
-		    updated_at = NOW()
-		WHERE tenant_id = $1
-	`, tenantID)
+	result, err := db.Exec(ctx, queryDecrementSeat, tenantID)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -591,24 +693,7 @@ func (r *Repository) upsertPlans(ctx context.Context, db queryer, plans []subscr
 		if m.Interval == "" {
 			m.Interval = "month"
 		}
-		_, err = db.Exec(ctx, `
-					INSERT INTO subscription_plans (
-						plan_id, name, description, price_cents, billing_interval,
-				features, entity_limits, seat_limit, display_order, is_active, is_public, updated_at
-			) VALUES (
-				$1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, TRUE, TRUE, NOW()
-				)
-					ON CONFLICT (plan_id) DO UPDATE SET
-					name = EXCLUDED.name,
-					description = EXCLUDED.description,
-					price_cents = EXCLUDED.price_cents,
-				billing_interval = EXCLUDED.billing_interval,
-				features = EXCLUDED.features,
-				entity_limits = EXCLUDED.entity_limits,
-				seat_limit = EXCLUDED.seat_limit,
-					display_order = EXCLUDED.display_order,
-					updated_at = NOW()
-			`, m.PlanID, m.Name, m.Description, m.PriceCents, m.Interval, m.Features, m.EntityLimits, m.SeatLimit, m.DisplayOrder)
+		_, err = db.Exec(ctx, queryUpsertPlan, m.PlanID, m.ParentPlanID, m.Name, m.Description, m.PriceCents, m.Interval, m.Features, m.EntityLimits, m.SeatLimit, m.DisplayOrder)
 		if err != nil {
 			return fmt.Errorf("upsert plan %s: %w", plan.PlanID, err)
 		}
@@ -636,21 +721,36 @@ func (r *Repository) TryMarkWebhookEventProcessed(
 		return false, serrors.E(op, err)
 	}
 
-	if _, err := db.Exec(ctx, `
-		DELETE FROM subscription_webhook_events
-		WHERE expires_at <= NOW()
-	`); err != nil {
+	if err := r.maybeCleanupExpiredWebhookEvents(ctx, db); err != nil {
 		return false, serrors.E(op, err)
 	}
 
-	result, err := db.Exec(ctx, `
-		INSERT INTO subscription_webhook_events (event_id, event_type, processed_at, expires_at)
-		VALUES ($1, $2, NOW(), NOW() + ($3 * INTERVAL '1 second'))
-		ON CONFLICT (event_id) DO NOTHING
-	`, eventID, eventType, int(ttl.Seconds()))
+	result, err := db.Exec(ctx, queryInsertWebhookEvent, eventID, eventType, int(ttl.Seconds()))
 	if err != nil {
 		return false, serrors.E(op, err)
 	}
 
 	return result.RowsAffected() > 0, nil
+}
+
+func (r *Repository) maybeCleanupExpiredWebhookEvents(ctx context.Context, db queryer) error {
+	interval := r.webhookCleanupInterval
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+
+	now := time.Now().UTC()
+	last := r.lastWebhookCleanupUnix.Load()
+	if last != 0 && now.Sub(time.Unix(last, 0)) < interval {
+		return nil
+	}
+	if !r.lastWebhookCleanupUnix.CompareAndSwap(last, now.Unix()) {
+		return nil
+	}
+
+	if _, err := db.Exec(ctx, queryDeleteExpiredWebhookEvents); err != nil {
+		r.lastWebhookCleanupUnix.Store(last)
+		return err
+	}
+	return nil
 }
