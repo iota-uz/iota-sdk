@@ -1,6 +1,7 @@
 package postgres_test
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -140,6 +141,7 @@ func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
 
 	max := 10
 	workers := 50
+	ctx := context.Background()
 	var succeeded atomic.Int64
 	errCh := make(chan error, workers)
 	var wg sync.WaitGroup
@@ -148,7 +150,7 @@ func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
 	for range workers {
 		go func() {
 			defer wg.Done()
-			ok, incErr := repo.IncrementEntityCountIfBelow(f.Ctx, tenantID, "drivers", max)
+			ok, incErr := repo.IncrementEntityCountIfBelow(ctx, tenantID, "drivers", max)
 			if incErr != nil {
 				errCh <- incErr
 				return
@@ -164,7 +166,7 @@ func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
 		require.NoError(t, incErr)
 	}
 
-	count, err := repo.GetEntityCount(f.Ctx, tenantID, "drivers")
+	count, err := repo.GetEntityCount(ctx, tenantID, "drivers")
 	require.NoError(t, err)
 	assert.Equal(t, int64(max), succeeded.Load())
 	assert.Equal(t, max, count)
