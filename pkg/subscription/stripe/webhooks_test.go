@@ -170,7 +170,7 @@ func TestHandleStripeEvent_InvoicePaymentFailedSetsGracePeriod(t *testing.T) {
 
 	assert.True(t, repo.entitlements[tenantID].InGracePeriod)
 	assert.NotNil(t, repo.entitlements[tenantID].GracePeriodEndsAt)
-	assert.Greater(t, invalidator.calls, 0)
+	assert.Positive(t, invalidator.calls)
 }
 
 func TestHandleStripeEvent_InvoicePaymentFailedPropagatesLookupError(t *testing.T) {

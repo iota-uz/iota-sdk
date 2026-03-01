@@ -292,9 +292,11 @@ func (s *service) EvaluateLimit(_ context.Context, subject Subject, quota QuotaK
 	if err := validateSubject(subject); err != nil {
 		return LimitDecision{}, serrors.E(op, err)
 	}
-	if err := validateQuota(quota); err != nil {
+	normalizedQuota, err := validateQuota(quota)
+	if err != nil {
 		return LimitDecision{}, serrors.E(op, err)
 	}
+	quota = normalizedQuota
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -308,9 +310,11 @@ func (s *service) Reserve(_ context.Context, subject Subject, quota QuotaKey, am
 	if err := validateSubject(subject); err != nil {
 		return Reservation{}, serrors.E(op, err)
 	}
-	if err := validateQuota(quota); err != nil {
+	normalizedQuota, err := validateQuota(quota)
+	if err != nil {
 		return Reservation{}, serrors.E(op, err)
 	}
+	quota = normalizedQuota
 	if amount <= 0 {
 		return Reservation{}, serrors.E(op, fmt.Errorf("reservation amount must be positive"))
 	}
@@ -326,6 +330,8 @@ func (s *service) Reserve(_ context.Context, subject Subject, quota QuotaKey, am
 	if existingID, ok := s.reservationByToken[token]; ok {
 		existing, exists := s.reservations[existingID]
 		if !exists {
+			delete(s.reservationByToken, token)
+		} else if existing.Status == ReservationReleased || existing.Status == ReservationExpired {
 			delete(s.reservationByToken, token)
 		} else if existing.Subject == subject.Ref() && existing.Quota == quota && existing.Amount == amount {
 			return cloneReservation(*existing), nil
@@ -415,6 +421,7 @@ func (s *service) Release(_ context.Context, reservationID string) error {
 	}
 	reservation.Status = ReservationReleased
 	reservation.ReleasedAt = &now
+	delete(s.reservationByToken, reservation.Token)
 	return nil
 }
 
@@ -424,9 +431,11 @@ func (s *service) SetUsage(_ context.Context, subject SubjectRef, quota QuotaKey
 	if err := validateSubjectRef(subject); err != nil {
 		return serrors.E(op, err)
 	}
-	if err := validateQuota(quota); err != nil {
+	normalizedQuota, err := validateQuota(quota)
+	if err != nil {
 		return serrors.E(op, err)
 	}
+	quota = normalizedQuota
 	if amount < 0 {
 		return serrors.E(op, fmt.Errorf("usage cannot be negative"))
 	}
@@ -606,6 +615,7 @@ func (s *service) cleanupExpiredReservationsLocked() {
 		if now.After(reservation.ExpiresAt) {
 			reservation.Status = ReservationExpired
 			reservation.ReleasedAt = &now
+			delete(s.reservationByToken, reservation.Token)
 		}
 	}
 }
@@ -805,14 +815,14 @@ func validateSubjectRef(subject SubjectRef) error {
 	return nil
 }
 
-func validateQuota(quota QuotaKey) error {
+func validateQuota(quota QuotaKey) (QuotaKey, error) {
 	if strings.TrimSpace(quota.Resource) == "" {
-		return ErrQuotaInvalid
+		return quota, ErrQuotaInvalid
 	}
 	if quota.Window == "" {
 		quota.Window = WindowNone
 	}
-	return nil
+	return quota, nil
 }
 
 func cloneGrant(grant Grant) Grant {

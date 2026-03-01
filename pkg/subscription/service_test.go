@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -137,7 +138,7 @@ func TestEngine_AddOnQuotaAndReservationLifecycle(t *testing.T) {
 	_, err = engine.Reserve(context.Background(), subject, quota, 5, "token-2")
 	require.Error(t, err)
 	var limitErr ErrLimitExceeded
-	assert.ErrorAs(t, err, &limitErr)
+	require.ErrorAs(t, err, &limitErr)
 
 	require.NoError(t, engine.Release(context.Background(), reservation.ID))
 	afterRelease, err := engine.EvaluateLimit(context.Background(), subject, quota)
@@ -164,4 +165,59 @@ func TestEngine_GlobalGrantInheritedByTenant(t *testing.T) {
 	decision, err := engine.EvaluateFeature(context.Background(), subject, "beta_ui")
 	require.NoError(t, err)
 	assert.True(t, decision.Allowed)
+}
+
+func TestEngine_EvaluateLimit_NormalizesWindow(t *testing.T) {
+	t.Parallel()
+
+	engine, err := NewService(Config{
+		DefaultPlan: "FREE",
+		Plans: []PlanDefinition{
+			{
+				PlanID: "FREE",
+				EntityLimits: map[string]int{
+					QuotaKey{Resource: "drivers", Window: WindowNone}.String(): 2,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	subject := Subject{Scope: ScopeTenant, ID: uuid.New()}
+	decision, err := engine.EvaluateLimit(context.Background(), subject, QuotaKey{Resource: "drivers"})
+	require.NoError(t, err)
+	assert.Equal(t, 2, decision.Limit)
+	assert.Equal(t, WindowNone, decision.Quota.Window)
+}
+
+func TestEngine_Reserve_ReusesTokenOnlyForActiveReservation(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	engine, err := NewService(
+		Config{
+			DefaultPlan:    "FREE",
+			ReservationTTL: time.Second,
+			Plans: []PlanDefinition{
+				{
+					PlanID:       "FREE",
+					EntityLimits: map[string]int{"drivers": 5},
+				},
+			},
+		},
+		WithClock(func() time.Time { return now }),
+	)
+	require.NoError(t, err)
+
+	subject := Subject{Scope: ScopeTenant, ID: uuid.New()}
+	quota := QuotaKey{Resource: "drivers"}
+
+	first, err := engine.Reserve(context.Background(), subject, quota, 1, "token-stable")
+	require.NoError(t, err)
+
+	now = now.Add(2 * time.Second)
+	second, err := engine.Reserve(context.Background(), subject, quota, 1, "token-stable")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, first.ID, second.ID)
 }

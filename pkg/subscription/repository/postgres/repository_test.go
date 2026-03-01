@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -128,6 +129,65 @@ func TestRepository_FindByStripeRefs(t *testing.T) {
 	unknownTenant, err := repo.FindTenantByStripeCustomer(f.Ctx, "cus_unknown")
 	require.Error(t, err)
 	assert.Equal(t, uuid.Nil, unknownTenant)
+}
+
+func TestRepository_UpsertEntitlement_NilCollections(t *testing.T) {
+	t.Parallel()
+
+	f := setupTest(t)
+	repo := subpostgres.NewRepository(f.Pool)
+
+	tenantID, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+
+	err = repo.UpsertEntitlement(f.Ctx, &subrepo.Entitlement{
+		TenantID:     tenantID,
+		PlanID:       "FREE",
+		Features:     nil,
+		EntityLimits: nil,
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
+	})
+	require.NoError(t, err)
+
+	got, err := repo.GetEntitlement(f.Ctx, tenantID)
+	require.NoError(t, err)
+	assert.Empty(t, got.Features)
+	assert.Empty(t, got.EntityLimits)
+}
+
+func TestRepository_UpsertPlans_NilCollections(t *testing.T) {
+	t.Parallel()
+
+	f := setupTest(t)
+	repo := subpostgres.NewRepository(f.Pool)
+
+	err := repo.UpsertPlans(f.Ctx, []subrepo.Plan{
+		{
+			PlanID:       "FREE",
+			DisplayName:  "Free",
+			Features:     nil,
+			EntityLimits: nil,
+		},
+	})
+	require.NoError(t, err)
+
+	var featuresRaw []byte
+	var limitsRaw []byte
+	err = f.Pool.QueryRow(f.Ctx, `
+		SELECT features, entity_limits
+		FROM subscription_plans
+		WHERE plan_id = 'FREE'
+	`).Scan(&featuresRaw, &limitsRaw)
+	require.NoError(t, err)
+
+	var features []string
+	require.NoError(t, json.Unmarshal(featuresRaw, &features))
+	assert.Empty(t, features)
+
+	var limits map[string]int
+	require.NoError(t, json.Unmarshal(limitsRaw, &limits))
+	assert.Empty(t, limits)
 }
 
 func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {

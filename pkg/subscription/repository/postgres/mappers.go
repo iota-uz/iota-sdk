@@ -2,17 +2,30 @@ package postgres
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/subscription/repository"
 )
 
 func toModel(entitlement *repository.Entitlement) (*entitlementModel, error) {
-	features, err := json.Marshal(entitlement.Features)
+	if entitlement == nil {
+		return nil, fmt.Errorf("entitlement is nil")
+	}
+
+	featuresValue := entitlement.Features
+	if featuresValue == nil {
+		featuresValue = []string{}
+	}
+	features, err := json.Marshal(featuresValue)
 	if err != nil {
 		return nil, err
 	}
-	limits, err := json.Marshal(entitlement.EntityLimits)
+	limitsValue := entitlement.EntityLimits
+	if limitsValue == nil {
+		limitsValue = map[string]int{}
+	}
+	limits, err := json.Marshal(limitsValue)
 	if err != nil {
 		return nil, err
 	}
@@ -72,11 +85,19 @@ func toDomain(model *entitlementModel) (*repository.Entitlement, error) {
 }
 
 func planToModel(plan repository.Plan) (*planModel, error) {
-	features, err := json.Marshal(plan.Features)
+	featuresValue := plan.Features
+	if featuresValue == nil {
+		featuresValue = []string{}
+	}
+	features, err := json.Marshal(featuresValue)
 	if err != nil {
 		return nil, err
 	}
-	limits, err := json.Marshal(plan.EntityLimits)
+	limitsValue := plan.EntityLimits
+	if limitsValue == nil {
+		limitsValue = map[string]int{}
+	}
+	limits, err := json.Marshal(limitsValue)
 	if err != nil {
 		return nil, err
 	}

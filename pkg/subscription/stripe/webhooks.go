@@ -168,7 +168,7 @@ func (s *Service) handleInvoicePaymentFailed(ctx context.Context, event stripe.E
 			return serrors.E(op, err)
 		}
 	}
-	return nil
+	return s.RefreshTenant(ctx, tenantID)
 }
 
 func extractSubscriptionID(invoice stripe.Invoice) string {

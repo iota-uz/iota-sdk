@@ -5,7 +5,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/stripe/stripe-go/v82"
-	"github.com/stripe/stripe-go/v82/entitlements/activeentitlement"
 )
 
 type EntitlementsClient interface {
@@ -13,15 +12,12 @@ type EntitlementsClient interface {
 }
 
 type client struct {
-	api activeentitlement.Client
+	api *stripe.Client
 }
 
 func NewClient(secretKey string) EntitlementsClient {
 	return &client{
-		api: activeentitlement.Client{
-			B:   stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{}),
-			Key: secretKey,
-		},
+		api: stripe.NewClient(secretKey),
 	}
 }
 
@@ -30,13 +26,13 @@ func (c *client) ListActiveEntitlements(ctx context.Context, customerID string) 
 
 	params := &stripe.EntitlementsActiveEntitlementListParams{}
 	params.Customer = stripe.String(customerID)
-	params.Context = ctx
 	params.AddExpand("data.feature")
 
-	iter := c.api.List(params)
 	features := make([]string, 0)
-	for iter.Next() {
-		current := iter.EntitlementsActiveEntitlement()
+	for current, iterErr := range c.api.V1EntitlementsActiveEntitlements.List(ctx, params) {
+		if iterErr != nil {
+			return nil, serrors.E(op, iterErr)
+		}
 		if current == nil {
 			continue
 		}
@@ -48,9 +44,6 @@ func (c *client) ListActiveEntitlements(ctx context.Context, customerID string) 
 			continue
 		}
 		features = append(features, lookupKey)
-	}
-	if err := iter.Err(); err != nil {
-		return nil, serrors.E(op, err)
 	}
 	return features, nil
 }

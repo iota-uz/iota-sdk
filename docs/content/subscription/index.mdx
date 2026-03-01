@@ -90,7 +90,7 @@ stripeSync := substripe.NewService(
     DefaultPlan: "FREE",
   },
   subscriptionRepo,
-  svc, // cache invalidator
+  nil, // cache invalidator (optional; implement stripe.CacheInvalidator if needed)
   nil, // use default stripe client
 )
 ```

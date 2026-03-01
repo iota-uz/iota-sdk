@@ -28,6 +28,7 @@ type StripeController struct {
 	basePath       string
 	mutex          sync.Mutex
 	hooks          []billing.StripeEventHook
+	hookSlots      chan struct{}
 }
 
 func NewStripeController(
@@ -43,6 +44,7 @@ func NewStripeController(
 		basePath:       basePath,
 		mutex:          sync.Mutex{},
 		hooks:          hooks,
+		hookSlots:      make(chan struct{}, 8),
 	}
 }
 
@@ -98,13 +100,29 @@ func (c *StripeController) Handle(
 	default:
 		logger.WithField("event_type", event.Type).Info("Unhandled Stripe event type")
 	}
+	c.dispatchHooksAsync(event, logger)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (c *StripeController) dispatchHooksAsync(event stripe.Event, logger *logrus.Entry) {
+	if len(c.hooks) == 0 {
+		return
+	}
+
+	select {
+	case c.hookSlots <- struct{}{}:
+	default:
+		logger.WithField("event_type", event.Type).Warn("Stripe hook queue is full; skipping hook dispatch")
+		return
+	}
+
 	go func(evt stripe.Event) {
+		defer func() { <-c.hookSlots }()
 		hookCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		c.dispatchHooks(hookCtx, evt, logger)
 	}(event)
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (c *StripeController) dispatchHooks(ctx context.Context, event stripe.Event, logger *logrus.Entry) {

@@ -33,6 +33,9 @@ type Service struct {
 }
 
 func NewService(cfg Config, repo subrepo.Repository, invalidator CacheInvalidator, client EntitlementsClient) *Service {
+	if repo == nil {
+		panic("subscription stripe service requires repository")
+	}
 	if cfg.GracePeriodDays <= 0 {
 		cfg.GracePeriodDays = 7
 	}
