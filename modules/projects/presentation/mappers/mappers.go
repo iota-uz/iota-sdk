@@ -1,3 +1,4 @@
+// Package mappers provides this package.
 package mappers
 
 import (
@@ -9,7 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
-// Project mappings
+// ProjectDomainToViewModel maps a project domain model to a view model.
 func ProjectDomainToViewModel(p project.Project) viewmodels.ProjectViewModel {
 	return viewmodels.ProjectViewModel{
 		ID:               p.ID().String(),
@@ -43,7 +44,7 @@ func ProjectViewModelToUpdateDTO(vm viewmodels.ProjectViewModel) dtos.ProjectUpd
 	}
 }
 
-// Project stage mappings
+// ProjectStageDomainToViewModel maps a project stage domain model to a view model.
 func ProjectStageDomainToViewModel(ps projectstage.ProjectStage) viewmodels.ProjectStageViewModel {
 	return viewmodels.ProjectStageViewModel{
 		ID:             ps.ID().String(),

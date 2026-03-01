@@ -1,3 +1,4 @@
+// Package runtime provides this package.
 package runtime
 
 import (

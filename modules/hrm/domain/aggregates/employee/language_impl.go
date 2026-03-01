@@ -1,3 +1,4 @@
+// Package employee provides this package.
 package employee
 
 type language struct {

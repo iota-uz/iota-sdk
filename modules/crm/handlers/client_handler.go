@@ -1,3 +1,4 @@
+// Package handlers provides this package.
 package handlers
 
 import (
@@ -37,10 +38,10 @@ func RegisterClientHandler(app application.Application) *ClientHandler {
 
 func (h *ClientHandler) createTenantContext(tenantID uuid.UUID) context.Context {
 	ctx := context.Background()
-	ctxWithDb := composables.WithPool(ctx, h.pool)
+	ctxWithDB := composables.WithPool(ctx, h.pool)
 	logger := configuration.Use().Logger()
 
-	tenant, err := h.tenantService.GetByID(ctxWithDb, tenantID)
+	tenant, err := h.tenantService.GetByID(ctxWithDB, tenantID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get tenant")
 		return composables.WithPool(ctx, h.pool)
@@ -60,8 +61,8 @@ func (h *ClientHandler) onCreated(event *client.CreatedEvent) {
 	logger := configuration.Use().Logger()
 
 	// Validate tenant exists before creating chat
-	ctxWithDb := composables.WithPool(context.Background(), h.pool)
-	if _, err := h.tenantService.GetByID(ctxWithDb, tenantID); err != nil {
+	ctxWithDB := composables.WithPool(context.Background(), h.pool)
+	if _, err := h.tenantService.GetByID(ctxWithDB, tenantID); err != nil {
 		logger.WithFields(logrus.Fields{
 			"tenant_id": tenantID,
 		}).WithError(err).Error("failed to get tenant")

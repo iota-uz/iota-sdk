@@ -1,3 +1,4 @@
+// Package services provides this package.
 package services
 
 import (
@@ -118,7 +119,7 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 	return createdEntity, nil
 }
 
-// Create creates a new chat
+// Save persists chat information.
 func (s *ChatService) Save(ctx context.Context, entity chat.Chat) (chat.Chat, error) {
 	createdEntity, err := s.repo.Save(ctx, entity)
 	if err != nil {

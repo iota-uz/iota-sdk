@@ -1,3 +1,4 @@
+// Package eval provides this package.
 package eval
 
 import "github.com/iota-uz/iota-sdk/pkg/bichat/testharness"

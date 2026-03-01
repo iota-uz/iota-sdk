@@ -1,3 +1,4 @@
+// Package authrequest provides this package.
 package authrequest
 
 import (

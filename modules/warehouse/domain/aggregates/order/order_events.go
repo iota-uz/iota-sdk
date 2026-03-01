@@ -1,3 +1,4 @@
+// Package order provides this package.
 package order
 
 import (

@@ -1,3 +1,4 @@
+// Package position provides this package.
 package position
 
 import (

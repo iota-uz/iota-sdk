@@ -1,3 +1,4 @@
+// Package commands provides this package.
 package commands
 
 import (

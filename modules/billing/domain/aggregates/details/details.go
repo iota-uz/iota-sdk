@@ -1,3 +1,4 @@
+// Package details provides this package.
 package details
 
 type Details interface {
@@ -14,7 +15,7 @@ type ClickDetails interface {
 	MerchantPrepareID() int64
 	MerchantConfirmID() int64
 
-	PayDocId() int64
+	PayDocID() int64
 	PaymentID() int64
 	PaymentStatus() int32
 
@@ -33,7 +34,7 @@ type ClickDetails interface {
 	SetMerchantPrepareID(merchantPrepareID int64) ClickDetails
 	SetMerchantConfirmID(merchantConfirmID int64) ClickDetails
 
-	SetPayDocId(payDocId int64) ClickDetails
+	SetPayDocID(payDocID int64) ClickDetails
 	SetPaymentID(paymentID int64) ClickDetails
 	SetPaymentStatus(paymentStatus int32) ClickDetails
 
@@ -103,8 +104,8 @@ type PaymeDetails interface {
 type OctoDetails interface {
 	Details
 
-	OctoShopId() int32
-	ShopTransactionId() string
+	OctoShopID() int32
+	ShopTransactionID() string
 	OctoPaymentUUID() string
 
 	InitTime() string
@@ -126,9 +127,9 @@ type OctoDetails interface {
 	RefundedSum() float64
 	TransferSum() float64
 
-	ReturnUrl() string
-	NotifyUrl() string
-	OctoPayUrl() string
+	ReturnURL() string
+	NotifyURL() string
+	OctoPayURL() string
 
 	Signature() string
 	HashKey() string
@@ -138,8 +139,8 @@ type OctoDetails interface {
 	Error() int32
 	ErrMessage() string
 
-	SetOctoShopId(octoShopId int32) OctoDetails
-	SetShopTransactionId(shopTransactionId string) OctoDetails
+	SetOctoShopID(octoShopID int32) OctoDetails
+	SetShopTransactionID(shopTransactionID string) OctoDetails
 	SetOctoPaymentUUID(octoPaymentUUID string) OctoDetails
 
 	SetInitTime(initTime string) OctoDetails
@@ -161,9 +162,9 @@ type OctoDetails interface {
 	SetRefundedSum(refundedSum float64) OctoDetails
 	SetTransferSum(transferSum float64) OctoDetails
 
-	SetReturnUrl(returnUrl string) OctoDetails
-	SetNotifyUrl(notifyUrl string) OctoDetails
-	SetOctoPayUrl(octoPayUrl string) OctoDetails
+	SetReturnURL(returnURL string) OctoDetails
+	SetNotifyURL(notifyURL string) OctoDetails
+	SetOctoPayURL(octoPayURL string) OctoDetails
 
 	SetSignature(signature string) OctoDetails
 	SetHashKey(hashKey string) OctoDetails

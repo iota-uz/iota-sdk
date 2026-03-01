@@ -1,3 +1,4 @@
+// Package geopoint provides this package.
 package geopoint
 
 import "fmt"

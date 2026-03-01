@@ -1,3 +1,4 @@
+// Package e2e provides this package.
 package e2e
 
 import (
@@ -30,18 +31,18 @@ func Create() error {
 	}()
 
 	// Drop existing e2e database if exists
-	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2E_DB_NAME))
+	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2EDBName))
 	if err != nil {
 		return fmt.Errorf("failed to drop existing e2e database: %w", err)
 	}
 
 	// Create new e2e database
-	_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", E2E_DB_NAME))
+	_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", E2EDBName))
 	if err != nil {
 		return fmt.Errorf("failed to create e2e database: %w", err)
 	}
 
-	conf.Logger().Info("Created e2e database", "database", E2E_DB_NAME)
+	conf.Logger().Info("Created e2e database", "database", E2EDBName)
 	return nil
 }
 
@@ -63,12 +64,12 @@ func Drop() error {
 	}()
 
 	// Drop e2e database
-	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2E_DB_NAME))
+	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2EDBName))
 	if err != nil {
 		return fmt.Errorf("failed to drop e2e database: %w", err)
 	}
 
-	conf.Logger().Info("Dropped e2e database", "database", E2E_DB_NAME)
+	conf.Logger().Info("Dropped e2e database", "database", E2EDBName)
 	return nil
 }
 
@@ -98,7 +99,7 @@ func Migrate() error {
 	}
 
 	// Set environment variable for e2e database
-	_ = os.Setenv("DB_NAME", E2E_DB_NAME)
+	_ = os.Setenv("DB_NAME", E2EDBName)
 
 	conf := configuration.Use()
 	pool, err := GetE2EPool()
@@ -199,7 +200,7 @@ func DatabaseExists() (bool, error) {
 	// Check if database exists
 	var exists bool
 	query := "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)"
-	err = conn.QueryRow(ctx, query, E2E_DB_NAME).Scan(&exists)
+	err = conn.QueryRow(ctx, query, E2EDBName).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check if database exists: %w", err)
 	}
@@ -213,7 +214,7 @@ func TruncateAllTables() error {
 	conf := configuration.Use()
 
 	// Set environment variable for e2e database
-	_ = os.Setenv("DB_NAME", E2E_DB_NAME)
+	_ = os.Setenv("DB_NAME", E2EDBName)
 
 	pool, err := GetE2EPool()
 	if err != nil {

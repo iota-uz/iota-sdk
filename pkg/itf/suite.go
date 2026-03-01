@@ -217,12 +217,7 @@ func (s *Suite) setupMiddleware() {
 
 			localizer := i18n.NewLocalizer(s.env.App.Bundle(), "en")
 			parsedURL, _ := url.Parse(r.URL.Path)
-			//nolint:staticcheck // SA1019: Using PageContext for test fixtures is acceptable
-			ctx = composables.WithPageCtx(ctx, &types.PageContext{
-				Locale:    language.English,
-				URL:       parsedURL,
-				Localizer: localizer,
-			})
+			ctx = composables.WithPageCtx(ctx, types.NewPageContext(language.English, parsedURL, localizer))
 
 			// Execute custom middleware functions
 			for _, mw := range s.middlewares {

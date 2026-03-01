@@ -1,3 +1,4 @@
+// Package client provides this package.
 package client
 
 import (

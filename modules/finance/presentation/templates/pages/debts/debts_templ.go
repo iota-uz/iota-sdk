@@ -22,7 +22,7 @@ import (
 )
 
 type IndexPageProps struct {
-	*types.PageContext
+	types.PageContext
 	Debts           []*viewmodels.Debt
 	PaginationState *pagination.State
 }

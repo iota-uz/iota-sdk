@@ -34,10 +34,10 @@ func TestIntegration_RealAPI(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	assert.NotEmpty(t, result.Id())
+	assert.NotEmpty(t, result.ID())
 	assert.NotEmpty(t, result.Message())
 	assert.NotEmpty(t, result.Status())
 
 	t.Logf("SMS sent successfully: ID=%s, Message=%s, Status=%s",
-		result.Id(), result.Message(), result.Status())
+		result.ID(), result.Message(), result.Status())
 }

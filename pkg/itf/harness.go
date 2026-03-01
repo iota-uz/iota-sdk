@@ -1,3 +1,4 @@
+// Package itf provides this package.
 package itf
 
 import (
@@ -19,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -404,13 +406,25 @@ func mergeCloseErrors(existing, next error) error {
 	return errors.Join(existing, next)
 }
 
+func harnessDBOpts(name string) string {
+	c := configuration.Use()
+	return fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
+		c.Database.Host,
+		c.Database.Port,
+		c.Database.User,
+		strings.ToLower(sanitizeDBName(name)),
+		c.Database.Password,
+	)
+}
+
 func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harnessState, error) {
 	dbName := buildDBName(cfg.Name, key, isPerTest)
 	if err := CreateDBE(dbName); err != nil {
 		return nil, serrors.E(opCreateDB, err, "create database")
 	}
 
-	pool, err := newPoolWithConfig(DbOpts(dbName), cfg.Database.Pool)
+	pool, err := newPoolWithConfig(harnessDBOpts(dbName), cfg.Database.Pool)
 	if err != nil {
 		if cleanupErr := DropDBE(dbName); cleanupErr != nil {
 			return nil, serrors.E(opCreatePool, cleanupErr, "cleanup database after pool creation failure")

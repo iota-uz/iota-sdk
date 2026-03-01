@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/finance/domain/value_objects"
+	valueobjects "github.com/iota-uz/iota-sdk/modules/finance/domain/value_objects"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -110,7 +110,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 		setupMocks                func(*mockFinancialReportsQueryRepository)
 		expectedError             bool
 		errorMessage              string
-		validateCashflowStatement func(*testing.T, *value_objects.CashflowStatement)
+		validateCashflowStatement func(*testing.T, *valueobjects.CashflowStatement)
 	}{
 		{
 			name: "Valid cashflow with inflows and outflows - balance reconciliation",
@@ -173,7 +173,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 				mockRepo.On("GetCashflowData", mock.Anything, accountID, startDate, endDate).Return(cashflowData, nil)
 			},
 			expectedError: false,
-			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+			validateCashflowStatement: func(t *testing.T, stmt *valueobjects.CashflowStatement) {
 				t.Helper()
 				// Verify basic properties
 				assert.Equal(t, accountID, stmt.AccountID)
@@ -230,7 +230,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 				mockRepo.On("GetCashflowData", mock.Anything, accountID, startDate, endDate).Return(cashflowData, nil)
 			},
 			expectedError: false,
-			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+			validateCashflowStatement: func(t *testing.T, stmt *valueobjects.CashflowStatement) {
 				t.Helper()
 				// With no transactions, starting and ending balance should be the same
 				assert.Equal(t, stmt.StartingBalance.Amount(), stmt.EndingBalance.Amount())
@@ -278,7 +278,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 				mockRepo.On("GetCashflowData", mock.Anything, accountID, startDate, endDate).Return(cashflowData, nil)
 			},
 			expectedError: false,
-			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+			validateCashflowStatement: func(t *testing.T, stmt *valueobjects.CashflowStatement) {
 				t.Helper()
 				// Net cashflow should equal total inflows
 				assert.Equal(t, stmt.TotalInflows.Amount(), stmt.NetCashFlow.Amount())
@@ -333,7 +333,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 				mockRepo.On("GetCashflowData", mock.Anything, accountID, startDate, endDate).Return(cashflowData, nil)
 			},
 			expectedError: false,
-			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+			validateCashflowStatement: func(t *testing.T, stmt *valueobjects.CashflowStatement) {
 				t.Helper()
 				// Net cashflow should be negative (outflows only)
 				assert.Equal(t, int64(-150000), stmt.NetCashFlow.Amount())
@@ -388,7 +388,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 				mockRepo.On("GetCashflowData", mock.Anything, accountID, startDate, endDate).Return(cashflowData, nil)
 			},
 			expectedError: false,
-			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+			validateCashflowStatement: func(t *testing.T, stmt *valueobjects.CashflowStatement) {
 				t.Helper()
 				// Starting from zero
 				assert.Equal(t, int64(0), stmt.StartingBalance.Amount())
@@ -432,7 +432,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 				mockRepo.On("GetCashflowData", mock.Anything, accountID, startDate, endDate).Return(cashflowData, nil)
 			},
 			expectedError: false,
-			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+			validateCashflowStatement: func(t *testing.T, stmt *valueobjects.CashflowStatement) {
 				t.Helper()
 				// Should handle zero totals gracefully
 				assert.NotNil(t, stmt)

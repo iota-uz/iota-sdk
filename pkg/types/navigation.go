@@ -1,3 +1,4 @@
+// Package types provides this package.
 package types
 
 import (

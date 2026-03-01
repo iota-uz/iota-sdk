@@ -1,3 +1,4 @@
+// Package crud provides this package.
 package crud
 
 import "time"

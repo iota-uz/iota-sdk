@@ -1,4 +1,5 @@
-package value_objects
+// Package valueobjects provides this package.
+package valueobjects
 
 import (
 	"time"

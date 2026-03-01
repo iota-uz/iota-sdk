@@ -1,3 +1,4 @@
+// Package charts provides this package.
 package charts
 
 // Common color constants used across charts

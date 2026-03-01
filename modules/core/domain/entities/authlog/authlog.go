@@ -1,3 +1,4 @@
+// Package authlog provides this package.
 package authlog
 
 import (

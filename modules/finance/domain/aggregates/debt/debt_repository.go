@@ -1,3 +1,4 @@
+// Package debt provides this package.
 package debt
 
 import (

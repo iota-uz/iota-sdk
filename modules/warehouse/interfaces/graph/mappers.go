@@ -1,3 +1,4 @@
+// Package graph provides this package.
 package graph
 
 import (
@@ -5,11 +6,31 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
 	model "github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph/mappers"
-	"github.com/iota-uz/iota-sdk/pkg/fp"
 )
 
-var (
-	ProductsToGraphModel           = fp.Map[product.Product, *model.Product](mappers.ProductToGraphModel)
-	ProductsToTags                 = fp.Map[product.Product, string](func(p product.Product) string { return p.Rfid() })
-	InventoryPositionsToGraphModel = fp.Map[*inventory.Position, *model.InventoryPosition](mappers.InventoryPositionToGraphModel)
-)
+func ProductsToGraphModel(domainProducts []product.Product) []*model.Product {
+	products := make([]*model.Product, 0, len(domainProducts))
+	for _, p := range domainProducts {
+		products = append(products, mappers.ProductToGraphModel(p))
+	}
+
+	return products
+}
+
+func ProductsToTags(domainProducts []product.Product) []string {
+	tags := make([]string, 0, len(domainProducts))
+	for _, p := range domainProducts {
+		tags = append(tags, p.Rfid())
+	}
+
+	return tags
+}
+
+func InventoryPositionsToGraphModel(positions []*inventory.Position) []*model.InventoryPosition {
+	inventoryPositions := make([]*model.InventoryPosition, 0, len(positions))
+	for _, pos := range positions {
+		inventoryPositions = append(inventoryPositions, mappers.InventoryPositionToGraphModel(pos))
+	}
+
+	return inventoryPositions
+}

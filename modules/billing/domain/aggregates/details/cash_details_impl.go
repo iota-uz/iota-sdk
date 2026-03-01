@@ -1,3 +1,4 @@
+// Package details provides this package.
 package details
 
 type CashOption func(d *cashDetails)

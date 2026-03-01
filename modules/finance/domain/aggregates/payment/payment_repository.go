@@ -1,3 +1,4 @@
+// Package payment provides this package.
 package payment
 
 import (

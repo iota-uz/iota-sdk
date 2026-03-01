@@ -1,3 +1,4 @@
+// Package spotlight provides this package.
 package spotlight
 
 func ToViewResponse(resp SearchResponse) ViewResponse {

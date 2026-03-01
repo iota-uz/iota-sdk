@@ -1,3 +1,4 @@
+// Package di provides this package.
 package di
 
 import (
@@ -112,21 +113,21 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 	}
 
 	// Precompute if we have direct HTTP injections
-	hasHttpRequestArg := make([]bool, numArgs)
-	hasHttpWriterArg := make([]bool, numArgs)
+	hasHTTPRequestArg := make([]bool, numArgs)
+	hasHTTPWriterArg := make([]bool, numArgs)
 	writerInterface := reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
 	resolvedProviders := make([]Provider, numArgs)
 
 	for i, argType := range argTypes {
 		// Check for direct *http.Request injection
 		if argType == reflect.TypeOf((*http.Request)(nil)) {
-			hasHttpRequestArg[i] = true
+			hasHTTPRequestArg[i] = true
 			continue
 		}
 
 		// Check for direct http.ResponseWriter injection
 		if argType == writerInterface || (argType.Kind() == reflect.Interface && writerInterface.Implements(argType)) {
-			hasHttpWriterArg[i] = true
+			hasHTTPWriterArg[i] = true
 			continue
 		}
 
@@ -146,12 +147,12 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 
 		// Handle direct HTTP injections
 		for i := 0; i < numArgs; i++ {
-			if hasHttpRequestArg[i] {
+			if hasHTTPRequestArg[i] {
 				args[i] = reflect.ValueOf(r)
 				continue
 			}
 
-			if hasHttpWriterArg[i] {
+			if hasHTTPWriterArg[i] {
 				args[i] = reflect.ValueOf(w)
 				continue
 			}
@@ -159,7 +160,7 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 
 		// For remaining args, use diContext to resolve them
 		for i := 0; i < numArgs; i++ {
-			if !hasHttpRequestArg[i] && !hasHttpWriterArg[i] {
+			if !hasHTTPRequestArg[i] && !hasHTTPWriterArg[i] {
 				value, err := resolvedProviders[i].Provide(argTypes[i], r.Context())
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)

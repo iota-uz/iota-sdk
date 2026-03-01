@@ -1,3 +1,4 @@
+// Package mappers provides this package.
 package mappers
 
 import (

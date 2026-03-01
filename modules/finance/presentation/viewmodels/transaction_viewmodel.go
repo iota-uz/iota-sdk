@@ -1,3 +1,4 @@
+// Package viewmodels provides this package.
 package viewmodels
 
 import "time"
@@ -17,7 +18,7 @@ type Category struct {
 	Type string // "expense" or "payment"
 }
 
-// Counterparty represents a counterparty in viewmodels
+// CounterpartyInfo represents counterparty data in view models.
 type CounterpartyInfo struct {
 	ID   string
 	Name string

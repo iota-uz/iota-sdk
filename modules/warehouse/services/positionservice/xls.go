@@ -1,3 +1,4 @@
+// Package positionservice provides this package.
 package positionservice
 
 import (

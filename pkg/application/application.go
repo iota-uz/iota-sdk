@@ -1,3 +1,4 @@
+// Package application provides this package.
 package application
 
 import (

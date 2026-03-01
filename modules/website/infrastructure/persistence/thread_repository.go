@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -36,11 +37,11 @@ func (r *ThreadRepository) GetByID(ctx context.Context, id uuid.UUID) (chatthrea
 }
 
 func (r *ThreadRepository) Save(ctx context.Context, thread chatthread.ChatThread) (chatthread.ChatThread, error) {
-	threadJson, err := json.Marshal(ToDBChatThread(thread))
+	threadJSON, err := json.Marshal(ToDBChatThread(thread))
 	if err != nil {
 		return nil, err
 	}
-	if err := r.redis.HSet(ctx, r.prefix, thread.ID().String(), threadJson).Err(); err != nil {
+	if err := r.redis.HSet(ctx, r.prefix, thread.ID().String(), threadJSON).Err(); err != nil {
 		return nil, err
 	}
 

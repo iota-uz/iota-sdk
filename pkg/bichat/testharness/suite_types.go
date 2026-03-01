@@ -1,3 +1,4 @@
+// Package testharness provides this package.
 package testharness
 
 type TestSuite struct {

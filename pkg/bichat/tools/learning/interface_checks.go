@@ -1,3 +1,4 @@
+// Package learning provides this package.
 package learning
 
 import "github.com/iota-uz/iota-sdk/pkg/bichat/agents"

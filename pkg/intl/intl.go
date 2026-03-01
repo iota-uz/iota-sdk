@@ -1,3 +1,4 @@
+// Package intl provides this package.
 package intl
 
 import (

@@ -1,3 +1,4 @@
+// Package streaming provides this package.
 package streaming
 
 import (

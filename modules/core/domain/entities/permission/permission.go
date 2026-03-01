@@ -1,3 +1,4 @@
+// Package permission provides this package.
 package permission
 
 import (
@@ -46,7 +47,7 @@ type permission struct {
 // Compile-time interface check
 var _ Permission = (*permission)(nil)
 
-// Constructor
+// New creates a new Permission with options.
 func New(opts ...Option) Permission {
 	p := &permission{
 		id:       uuid.New(),
@@ -64,7 +65,7 @@ func New(opts ...Option) Permission {
 // Option type
 type Option func(*permission)
 
-// Option functions
+// WithID sets the permission identifier.
 func WithID(id uuid.UUID) Option {
 	return func(p *permission) { p.id = id }
 }

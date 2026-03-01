@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -379,7 +380,7 @@ func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) authlog.AuthLog 
 	)
 }
 
-// Passport mappers
+// ToDomainPassport maps a passport database model to a domain model.
 func ToDomainPassport(dbPassport *models.Passport) (passport.Passport, error) {
 	id, err := uuid.Parse(dbPassport.ID)
 	if err != nil {

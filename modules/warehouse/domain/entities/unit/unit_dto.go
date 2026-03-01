@@ -1,3 +1,4 @@
+// Package unit provides this package.
 package unit
 
 import (

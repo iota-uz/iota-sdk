@@ -1,3 +1,4 @@
+// Package importpkg provides this package.
 package importpkg
 
 import (

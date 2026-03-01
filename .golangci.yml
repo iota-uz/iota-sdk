@@ -9,7 +9,6 @@ issues:
   exclude-files:
     - pkg/graphql/graphql.go
   exclude-dirs:
-    - pkg/fp
     - postgres-data
     - py-embed
     - docs

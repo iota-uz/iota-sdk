@@ -1,3 +1,4 @@
+// Package session provides this package.
 package session
 
 import (

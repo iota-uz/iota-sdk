@@ -1,3 +1,4 @@
+// Package services provides this package.
 package services
 
 import (
@@ -109,10 +110,10 @@ func (s *SessionService) Delete(ctx context.Context, token string) error {
 	return nil
 }
 
-func (s *SessionService) DeleteByUserId(ctx context.Context, userId uint) ([]session.Session, error) {
+func (s *SessionService) DeleteByUserID(ctx context.Context, userID uint) ([]session.Session, error) {
 	var deletedSessions []session.Session
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
-		if sessions, err := s.repo.DeleteByUserId(txCtx, userId); err != nil {
+		if sessions, err := s.repo.DeleteByUserID(txCtx, userID); err != nil {
 			return err
 		} else {
 			deletedSessions = sessions

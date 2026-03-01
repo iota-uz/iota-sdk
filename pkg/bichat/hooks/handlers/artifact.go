@@ -1,3 +1,4 @@
+// Package handlers provides BiChat hook event handlers.
 package handlers
 
 import (

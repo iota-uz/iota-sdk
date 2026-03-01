@@ -19,7 +19,7 @@ type sortFieldKey interface {
 	~int | ~string
 }
 
-// SortBy defines sorting criteria for queries with generic field type support.
+// SortByField defines sorting criteria for queries with generic field type support.
 // Use with OrderBy function to generate ORDER BY clauses.
 type SortByField[T sortFieldKey] struct {
 	// Field is a generic field type that implements the Column interface.

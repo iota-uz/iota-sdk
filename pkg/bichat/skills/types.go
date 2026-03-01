@@ -1,3 +1,4 @@
+// Package skills provides this package.
 package skills
 
 import "context"

@@ -1,3 +1,4 @@
+// Package viewmodels provides this package.
 package viewmodels
 
 import (
@@ -49,7 +50,7 @@ type SystemInfoMetrics struct {
 }
 
 type SystemInfoViewModel struct {
-	PageContext  types.PageContextProvider
+	PageContext  types.PageContext
 	Metrics      *SystemInfoMetrics
 	Capabilities []sdkhealth.Capability
 

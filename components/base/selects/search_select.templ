@@ -1,9 +1,6 @@
 package selects
 
-import (
-	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-)
+import "fmt"
 
 type Value struct {
 	Value string
@@ -11,7 +8,6 @@ type Value struct {
 }
 
 type SearchSelectProps struct {
-	*types.PageContext
 	Label       string
 	Placeholder string
 	Value       string
@@ -21,7 +17,6 @@ type SearchSelectProps struct {
 }
 
 type SearchOptionsProps struct {
-	*types.PageContext
 	Options          []*Value
 	NothingFoundText string
 }

@@ -1,3 +1,4 @@
+// Package codecs provides this package.
 package codecs
 
 import (

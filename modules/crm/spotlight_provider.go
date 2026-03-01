@@ -1,3 +1,4 @@
+// Package crm provides this package.
 package crm
 
 import (

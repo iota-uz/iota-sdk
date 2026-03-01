@@ -215,7 +215,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 		ctx := suite.Env().Ctx
 
 		// Delete all existing sessions for the user
-		_, err := sessionService.DeleteByUserId(ctx, suite.Env().User.ID())
+		_, err := sessionService.DeleteByUserID(ctx, suite.Env().User.ID())
 		if err != nil {
 			t.Fatalf("Failed to delete sessions: %v", err)
 		}
@@ -505,7 +505,7 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		config := configuration.Use()
 
 		// Delete all existing sessions first
-		_, err := sessionService.DeleteByUserId(ctx, suite.Env().User.ID())
+		_, err := sessionService.DeleteByUserID(ctx, suite.Env().User.ID())
 		if err != nil {
 			t.Fatalf("Failed to delete sessions: %v", err)
 		}

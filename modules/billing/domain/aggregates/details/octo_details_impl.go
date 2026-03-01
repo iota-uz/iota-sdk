@@ -1,16 +1,17 @@
+// Package details provides this package.
 package details
 
 type OctoOption func(d *octoDetails)
 
-func OctoWithOctoShopId(octoShopId int32) OctoOption {
+func OctoWithOctoShopID(octoShopID int32) OctoOption {
 	return func(d *octoDetails) {
-		d.octoShopId = octoShopId
+		d.octoShopID = octoShopID
 	}
 }
 
-func OctoWithShopTransactionId(shopTransactionId string) OctoOption {
+func OctoWithShopTransactionID(shopTransactionID string) OctoOption {
 	return func(d *octoDetails) {
-		d.shopTransactionId = shopTransactionId
+		d.shopTransactionID = shopTransactionID
 	}
 }
 
@@ -98,21 +99,21 @@ func OctoWithTransferSum(sum float64) OctoOption {
 	}
 }
 
-func OctoWithReturnUrl(url string) OctoOption {
+func OctoWithReturnURL(url string) OctoOption {
 	return func(d *octoDetails) {
-		d.returnUrl = url
+		d.returnURL = url
 	}
 }
 
-func OctoWithNotifyUrl(url string) OctoOption {
+func OctoWithNotifyURL(url string) OctoOption {
 	return func(d *octoDetails) {
-		d.notifyUrl = url
+		d.notifyURL = url
 	}
 }
 
-func OctoWithOctoPayUrl(url string) OctoOption {
+func OctoWithOctoPayURL(url string) OctoOption {
 	return func(d *octoDetails) {
-		d.octoPayUrl = url
+		d.octoPayURL = url
 	}
 }
 
@@ -147,12 +148,12 @@ func OctoWithErrMessage(msg string) OctoOption {
 }
 
 func NewOctoDetails(
-	shopTransactionId string,
+	shopTransactionID string,
 	opts ...OctoOption,
 ) OctoDetails {
 	d := &octoDetails{
-		octoShopId:        0,
-		shopTransactionId: shopTransactionId,
+		octoShopID:        0,
+		shopTransactionID: shopTransactionID,
 		octoPaymentUUID:   "",
 		initTime:          "",
 		autoCapture:       true,
@@ -167,9 +168,9 @@ func NewOctoDetails(
 		riskLevel:         0,
 		refundedSum:       0.0,
 		transferSum:       0.0,
-		returnUrl:         "",
-		notifyUrl:         "",
-		octoPayUrl:        "",
+		returnURL:         "",
+		notifyURL:         "",
+		octoPayURL:        "",
 		signature:         "",
 		hashKey:           "",
 		payedTime:         "",
@@ -185,8 +186,8 @@ func NewOctoDetails(
 }
 
 type octoDetails struct {
-	octoShopId        int32
-	shopTransactionId string
+	octoShopID        int32
+	shopTransactionID string
 	octoPaymentUUID   string
 	initTime          string
 	autoCapture       bool
@@ -201,9 +202,9 @@ type octoDetails struct {
 	riskLevel         int32
 	refundedSum       float64
 	transferSum       float64
-	returnUrl         string
-	notifyUrl         string
-	octoPayUrl        string
+	returnURL         string
+	notifyURL         string
+	octoPayURL        string
 	signature         string
 	hashKey           string
 	payedTime         string
@@ -211,12 +212,12 @@ type octoDetails struct {
 	errMessage        string
 }
 
-func (d *octoDetails) OctoShopId() int32 {
-	return d.octoShopId
+func (d *octoDetails) OctoShopID() int32 {
+	return d.octoShopID
 }
 
-func (d *octoDetails) ShopTransactionId() string {
-	return d.shopTransactionId
+func (d *octoDetails) ShopTransactionID() string {
+	return d.shopTransactionID
 }
 
 func (d *octoDetails) OctoPaymentUUID() string {
@@ -275,16 +276,16 @@ func (d *octoDetails) TransferSum() float64 {
 	return d.transferSum
 }
 
-func (d *octoDetails) ReturnUrl() string {
-	return d.returnUrl
+func (d *octoDetails) ReturnURL() string {
+	return d.returnURL
 }
 
-func (d *octoDetails) NotifyUrl() string {
-	return d.notifyUrl
+func (d *octoDetails) NotifyURL() string {
+	return d.notifyURL
 }
 
-func (d *octoDetails) OctoPayUrl() string {
-	return d.octoPayUrl
+func (d *octoDetails) OctoPayURL() string {
+	return d.octoPayURL
 }
 
 func (d *octoDetails) Signature() string {
@@ -307,15 +308,15 @@ func (d *octoDetails) ErrMessage() string {
 	return d.errMessage
 }
 
-func (d *octoDetails) SetOctoShopId(octoShopId int32) OctoDetails {
+func (d *octoDetails) SetOctoShopID(octoShopID int32) OctoDetails {
 	result := *d
-	result.octoShopId = octoShopId
+	result.octoShopID = octoShopID
 	return &result
 }
 
-func (d *octoDetails) SetShopTransactionId(shopTransactionId string) OctoDetails {
+func (d *octoDetails) SetShopTransactionID(shopTransactionID string) OctoDetails {
 	result := *d
-	result.shopTransactionId = shopTransactionId
+	result.shopTransactionID = shopTransactionID
 	return &result
 }
 
@@ -403,21 +404,21 @@ func (d *octoDetails) SetTransferSum(transferSum float64) OctoDetails {
 	return &result
 }
 
-func (d *octoDetails) SetReturnUrl(returnUrl string) OctoDetails {
+func (d *octoDetails) SetReturnURL(returnURL string) OctoDetails {
 	result := *d
-	result.returnUrl = returnUrl
+	result.returnURL = returnURL
 	return &result
 }
 
-func (d *octoDetails) SetNotifyUrl(notifyUrl string) OctoDetails {
+func (d *octoDetails) SetNotifyURL(notifyURL string) OctoDetails {
 	result := *d
-	result.notifyUrl = notifyUrl
+	result.notifyURL = notifyURL
 	return &result
 }
 
-func (d *octoDetails) SetOctoPayUrl(octoPayUrl string) OctoDetails {
+func (d *octoDetails) SetOctoPayURL(octoPayURL string) OctoDetails {
 	result := *d
-	result.octoPayUrl = octoPayUrl
+	result.octoPayURL = octoPayURL
 	return &result
 }
 

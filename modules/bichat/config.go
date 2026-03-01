@@ -1,3 +1,4 @@
+// Package bichat implements domain and application configuration for BiChat module services.
 package bichat
 
 import (

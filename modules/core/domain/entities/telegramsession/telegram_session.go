@@ -1,3 +1,4 @@
+// Package telegramsession provides this package.
 package telegramsession
 
 import "time"

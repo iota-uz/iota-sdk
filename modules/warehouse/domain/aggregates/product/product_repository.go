@@ -1,3 +1,4 @@
+// Package product provides this package.
 package product
 
 import "context"

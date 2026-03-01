@@ -72,12 +72,12 @@ func TestExtractPrefixedFields(t *testing.T) {
 
 		// vt__id should match "vt"
 		// vt__vg__id should ALSO match "vt" (preserving nested prefix for cascading)
-		vtIdField := NewIntField("vt__id")
-		vtVgIdField := NewIntField("vt__vg__id")
+		vtIDField := NewIntField("vt__id")
+		vtVgIDField := NewIntField("vt__vg__id")
 
 		fvs := []FieldValue{
-			vtIdField.Value(5),
-			vtVgIdField.Value(10),
+			vtIDField.Value(5),
+			vtVgIDField.Value(10),
 		}
 
 		// Extract with "vt" prefix - gets both vt__id and vt__vg__id (nested preserved)
@@ -121,15 +121,15 @@ func TestExtractPrefixedFields_NestedPrefix(t *testing.T) {
 
 	// Create fields simulating a query result with nested prefixes
 	// vt__id, vt__name, vt__vg__id, vt__vg__name
-	vtIdField := NewIntField("vt__id")
+	vtIDField := NewIntField("vt__id")
 	vtNameField := NewStringField("vt__name")
-	vtVgIdField := NewIntField("vt__vg__id")
+	vtVgIDField := NewIntField("vt__vg__id")
 	vtVgNameField := NewStringField("vt__vg__name")
 
 	fvs := []FieldValue{
-		vtIdField.Value(1),
+		vtIDField.Value(1),
 		vtNameField.Value("type1"),
-		vtVgIdField.Value(2),
+		vtVgIDField.Value(2),
 		vtVgNameField.Value("group1"),
 	}
 
@@ -188,13 +188,13 @@ func TestExtractNonPrefixedFields(t *testing.T) {
 
 		idField := NewIntField("id")
 		nameField := NewStringField("name")
-		vtIdField := NewIntField("vt__id")
+		vtIDField := NewIntField("vt__id")
 		vtNameField := NewStringField("vt__name")
 
 		fvs := []FieldValue{
 			idField.Value(1),
 			nameField.Value("Car"),
-			vtIdField.Value(5),
+			vtIDField.Value(5),
 			vtNameField.Value("Sedan"),
 		}
 
@@ -214,11 +214,11 @@ func TestExtractNonPrefixedFields(t *testing.T) {
 	t.Run("handles all prefixed fields", func(t *testing.T) {
 		t.Parallel()
 
-		vtIdField := NewIntField("vt__id")
+		vtIDField := NewIntField("vt__id")
 		vtNameField := NewStringField("vt__name")
 
 		fvs := []FieldValue{
-			vtIdField.Value(5),
+			vtIDField.Value(5),
 			vtNameField.Value("Sedan"),
 		}
 
@@ -239,11 +239,11 @@ func TestExtractNonPrefixedFields(t *testing.T) {
 		t.Parallel()
 
 		// vehicle_type_id has underscores but no double underscore
-		vehicleTypeIdField := NewIntField("vehicle_type_id")
+		vehicleTypeIDField := NewIntField("vehicle_type_id")
 		createdAtField := NewTimestampField("created_at")
 
 		fvs := []FieldValue{
-			vehicleTypeIdField.Value(5),
+			vehicleTypeIDField.Value(5),
 			createdAtField.Value(nil),
 		}
 
