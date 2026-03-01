@@ -113,31 +113,3 @@ func planToModel(plan repository.Plan) (*planModel, error) {
 		DisplayOrder: plan.DisplayOrder,
 	}, nil
 }
-
-func planToDomain(model *planModel) (*repository.Plan, error) {
-	features := make([]string, 0)
-	if len(model.Features) > 0 {
-		if err := json.Unmarshal(model.Features, &features); err != nil {
-			return nil, err
-		}
-	}
-
-	limits := make(map[string]int)
-	if len(model.EntityLimits) > 0 {
-		if err := json.Unmarshal(model.EntityLimits, &limits); err != nil {
-			return nil, err
-		}
-	}
-
-	return &repository.Plan{
-		PlanID:       model.PlanID,
-		DisplayName:  model.Name,
-		Description:  model.Description,
-		PriceCents:   model.PriceCents,
-		Interval:     model.Interval,
-		Features:     features,
-		EntityLimits: limits,
-		SeatLimit:    model.SeatLimit,
-		DisplayOrder: model.DisplayOrder,
-	}, nil
-}

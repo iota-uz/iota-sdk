@@ -118,7 +118,15 @@ func (c *StripeController) dispatchHooksAsync(event stripe.Event, logger *logrus
 	}
 
 	go func(evt stripe.Event) {
-		defer func() { <-c.hookSlots }()
+		defer func() {
+			if rec := recover(); rec != nil {
+				logger.WithFields(logrus.Fields{
+					"event_type": evt.Type,
+					"panic":      rec,
+				}).Error("Stripe hook dispatch panicked")
+			}
+			<-c.hookSlots
+		}()
 		hookCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		c.dispatchHooks(hookCtx, evt, logger)

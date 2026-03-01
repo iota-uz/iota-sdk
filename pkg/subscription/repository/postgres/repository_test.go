@@ -174,7 +174,7 @@ func TestRepository_UpsertPlans_NilCollections(t *testing.T) {
 
 	var featuresRaw []byte
 	var limitsRaw []byte
-	err = f.Pool.QueryRow(f.Ctx, `
+	err = f.Tx.QueryRow(f.Ctx, `
 		SELECT features, entity_limits
 		FROM subscription_plans
 		WHERE plan_id = 'FREE'

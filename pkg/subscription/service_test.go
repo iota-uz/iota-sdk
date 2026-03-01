@@ -221,3 +221,35 @@ func TestEngine_Reserve_ReusesTokenOnlyForActiveReservation(t *testing.T) {
 
 	assert.NotEqual(t, first.ID, second.ID)
 }
+
+func TestEngine_Reserve_DropsStaleCommittedTokenAfterRetention(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	engine, err := NewService(
+		Config{
+			DefaultPlan:    "FREE",
+			ReservationTTL: time.Second,
+			Plans: []PlanDefinition{
+				{
+					PlanID:       "FREE",
+					EntityLimits: map[string]int{"drivers": 5},
+				},
+			},
+		},
+		WithClock(func() time.Time { return now }),
+	)
+	require.NoError(t, err)
+
+	subject := Subject{Scope: ScopeTenant, ID: uuid.New()}
+	quota := QuotaKey{Resource: "drivers"}
+
+	first, err := engine.Reserve(context.Background(), subject, quota, 1, "token-committed")
+	require.NoError(t, err)
+	require.NoError(t, engine.Commit(context.Background(), first.ID))
+
+	now = now.Add(2 * time.Second)
+	second, err := engine.Reserve(context.Background(), subject, quota, 1, "token-committed")
+	require.NoError(t, err)
+	assert.NotEqual(t, first.ID, second.ID)
+}

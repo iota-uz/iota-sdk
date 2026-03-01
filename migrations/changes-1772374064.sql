@@ -48,8 +48,12 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
 );
 
 CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_plan_id ON subscription_entitlements (plan_id);
-CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_customer_id ON subscription_entitlements (stripe_customer_id);
-CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_subscription_id ON subscription_entitlements (stripe_subscription_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_entitlements_customer_id_unique
+    ON subscription_entitlements (stripe_customer_id)
+    WHERE stripe_customer_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_entitlements_subscription_id_unique
+    ON subscription_entitlements (stripe_subscription_id)
+    WHERE stripe_subscription_id IS NOT NULL;
 
 INSERT INTO subscription_entitlements (
     tenant_id,
@@ -68,8 +72,8 @@ FROM tenants t
 ON CONFLICT (tenant_id) DO NOTHING;
 
 -- +migrate Down
-DROP INDEX IF EXISTS idx_subscription_entitlements_subscription_id;
-DROP INDEX IF EXISTS idx_subscription_entitlements_customer_id;
+DROP INDEX IF EXISTS idx_subscription_entitlements_subscription_id_unique;
+DROP INDEX IF EXISTS idx_subscription_entitlements_customer_id_unique;
 DROP INDEX IF EXISTS idx_subscription_entitlements_plan_id;
 
 DROP TABLE IF EXISTS subscription_plans;

@@ -2,11 +2,9 @@ package subscription
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -96,8 +94,4 @@ func (c *RedisCache) Set(ctx context.Context, key string, value []byte, ttl time
 
 func (c *RedisCache) Delete(ctx context.Context, key string) error {
 	return c.client.Del(ctx, key).Err()
-}
-
-func tenantCacheKey(tenantID uuid.UUID) string {
-	return fmt.Sprintf("subscription:tenant:%s", tenantID.String())
 }

@@ -608,14 +608,25 @@ func (s *service) pendingUsageLocked(subject SubjectRef, quota QuotaKey) int {
 
 func (s *service) cleanupExpiredReservationsLocked() {
 	now := s.now()
-	for _, reservation := range s.reservations {
-		if reservation.Status != ReservationPending {
-			continue
-		}
-		if now.After(reservation.ExpiresAt) {
-			reservation.Status = ReservationExpired
-			reservation.ReleasedAt = &now
-			delete(s.reservationByToken, reservation.Token)
+	retentionCutoff := now.Add(-s.cfg.ReservationTTL)
+	for reservationID, reservation := range s.reservations {
+		switch reservation.Status {
+		case ReservationPending:
+			if now.After(reservation.ExpiresAt) {
+				reservation.Status = ReservationExpired
+				reservation.ReleasedAt = &now
+				delete(s.reservationByToken, reservation.Token)
+			}
+		case ReservationCommitted:
+			if reservation.CommittedAt != nil && reservation.CommittedAt.Before(retentionCutoff) {
+				delete(s.reservationByToken, reservation.Token)
+				delete(s.reservations, reservationID)
+			}
+		case ReservationReleased, ReservationExpired:
+			if reservation.ReleasedAt != nil && reservation.ReleasedAt.Before(retentionCutoff) {
+				delete(s.reservationByToken, reservation.Token)
+				delete(s.reservations, reservationID)
+			}
 		}
 	}
 }
