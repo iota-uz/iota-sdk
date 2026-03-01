@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	subrepo "github.com/iota-uz/iota-sdk/pkg/subscription/repository"
@@ -19,6 +20,23 @@ func (s *Service) HandleStripeEvent(ctx context.Context, event stripe.Event) err
 		"event_type":           event.Type,
 		"webhook_events_total": total,
 	}).Info("Subscription Stripe webhook received")
+
+	if event.ID != "" {
+		fresh, err := s.repo.TryMarkWebhookEventProcessed(ctx, event.ID, string(event.Type), 24*time.Hour)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		if !fresh {
+			dedupTotal := s.webhookDup.Add(1)
+			logrus.WithFields(logrus.Fields{
+				"event_id":               event.ID,
+				"event_type":             event.Type,
+				"webhook_dedup_hits":     dedupTotal,
+				"subscription_component": "stripe_sync",
+			}).Info("Duplicate Stripe webhook skipped")
+			return nil
+		}
+	}
 
 	switch string(event.Type) {
 	case "entitlements.active_entitlement_summary.updated":
@@ -82,6 +100,10 @@ func (s *Service) handleSubscriptionEvent(ctx context.Context, event stripe.Even
 		return serrors.E(op, err)
 	}
 
+	if err := s.ensureEntitlement(ctx, tenantID); err != nil {
+		return serrors.E(op, err)
+	}
+
 	if err := s.updateStripeRefs(ctx, tenantID, customerID, sub.ID); err != nil {
 		if !errors.Is(err, subrepo.ErrEntitlementNotFound) {
 			return serrors.E(op, err)
@@ -127,6 +149,10 @@ func (s *Service) handleInvoicePaymentSucceeded(ctx context.Context, event strip
 		return serrors.E(op, err)
 	}
 
+	if err := s.ensureEntitlement(ctx, tenantID); err != nil {
+		return serrors.E(op, err)
+	}
+
 	if err := s.setGracePeriod(ctx, tenantID, false); err != nil {
 		return serrors.E(op, err)
 	}
@@ -157,6 +183,10 @@ func (s *Service) handleInvoicePaymentFailed(ctx context.Context, event stripe.E
 		if errors.Is(err, subrepo.ErrEntitlementNotFound) {
 			return nil
 		}
+		return serrors.E(op, err)
+	}
+
+	if err := s.ensureEntitlement(ctx, tenantID); err != nil {
 		return serrors.E(op, err)
 	}
 

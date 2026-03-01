@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/subscription"
 	subrepo "github.com/iota-uz/iota-sdk/pkg/subscription/repository"
 	subpostgres "github.com/iota-uz/iota-sdk/pkg/subscription/repository/postgres"
 	"github.com/stretchr/testify/assert"
@@ -94,6 +96,19 @@ func TestRepository_EntityCountsAndSeats(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestRepository_AddSeatIfBelow_EntitlementNotFound(t *testing.T) {
+	t.Parallel()
+
+	f := setupTest(t)
+	repo := subpostgres.NewRepository(f.Pool)
+
+	unknownTenantID := uuid.New()
+	ok, err := repo.AddSeatIfBelow(f.Ctx, unknownTenantID, 2)
+	require.Error(t, err)
+	assert.False(t, ok)
+	assert.True(t, errors.Is(err, subrepo.ErrEntitlementNotFound))
+}
+
 func TestRepository_FindByStripeRefs(t *testing.T) {
 	t.Parallel()
 
@@ -162,7 +177,7 @@ func TestRepository_UpsertPlans_NilCollections(t *testing.T) {
 	f := setupTest(t)
 	repo := subpostgres.NewRepository(f.Pool)
 
-	err := repo.UpsertPlans(f.Ctx, []subrepo.Plan{
+	err := repo.UpsertPlans(f.Ctx, []subscription.PlanDefinition{
 		{
 			PlanID:       "FREE",
 			DisplayName:  "Free",
@@ -174,11 +189,12 @@ func TestRepository_UpsertPlans_NilCollections(t *testing.T) {
 
 	var featuresRaw []byte
 	var limitsRaw []byte
+	var billingInterval string
 	err = f.Tx.QueryRow(f.Ctx, `
-		SELECT features, entity_limits
+		SELECT features, entity_limits, billing_interval
 		FROM subscription_plans
 		WHERE plan_id = 'FREE'
-	`).Scan(&featuresRaw, &limitsRaw)
+	`).Scan(&featuresRaw, &limitsRaw, &billingInterval)
 	require.NoError(t, err)
 
 	var features []string
@@ -188,6 +204,7 @@ func TestRepository_UpsertPlans_NilCollections(t *testing.T) {
 	var limits map[string]int
 	require.NoError(t, json.Unmarshal(limitsRaw, &limits))
 	assert.Empty(t, limits)
+	assert.Equal(t, "month", billingInterval)
 }
 
 func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
@@ -230,4 +247,19 @@ func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(maxCount), succeeded.Load())
 	assert.Equal(t, maxCount, count)
+}
+
+func TestRepository_TryMarkWebhookEventProcessed_Deduplicates(t *testing.T) {
+	t.Parallel()
+
+	f := setupTest(t)
+	repo := subpostgres.NewRepository(f.Pool)
+
+	first, err := repo.TryMarkWebhookEventProcessed(f.Ctx, "evt_1", "invoice.payment_failed", 24*time.Hour)
+	require.NoError(t, err)
+	assert.True(t, first)
+
+	second, err := repo.TryMarkWebhookEventProcessed(f.Ctx, "evt_1", "invoice.payment_failed", 24*time.Hour)
+	require.NoError(t, err)
+	assert.False(t, second)
 }

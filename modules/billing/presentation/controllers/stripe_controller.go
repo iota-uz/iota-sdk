@@ -25,7 +25,7 @@ type StripeController struct {
 	billingService *services.BillingService
 	stripe         configuration.StripeOptions
 	basePath       string
-	hooks          []billing.StripeEventHook
+	hooks          []StripeEventHook
 	hookQueue      chan stripe.Event
 }
 
@@ -33,7 +33,7 @@ func NewStripeController(
 	app application.Application,
 	stripeOpts configuration.StripeOptions,
 	basePath string,
-	hooks ...billing.StripeEventHook,
+	hooks ...StripeEventHook,
 ) application.Controller {
 	controller := &StripeController{
 		app:            app,

@@ -2,6 +2,7 @@ package stripe
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -24,20 +25,26 @@ type Config struct {
 
 type Service struct {
 	cfg         Config
-	repo        subrepo.Repository
+	repo        subrepo.StripeAwareRepository
 	client      EntitlementsClient
 	invalidator CacheInvalidator
 	now         func() time.Time
 	webhookSeen atomic.Uint64
+	webhookDup  atomic.Uint64
 	graceFlips  atomic.Uint64
 }
 
-func NewService(cfg Config, repo subrepo.Repository, invalidator CacheInvalidator, client EntitlementsClient) *Service {
+func NewService(
+	cfg Config,
+	repo subrepo.StripeAwareRepository,
+	invalidator CacheInvalidator,
+	client EntitlementsClient,
+) (*Service, error) {
 	if repo == nil {
-		panic("subscription stripe service requires repository")
+		return nil, fmt.Errorf("subscription stripe service requires repository")
 	}
 	if client == nil && cfg.SecretKey == "" {
-		panic("subscription stripe service requires secret key when client is nil")
+		return nil, fmt.Errorf("subscription stripe service requires secret key when client is nil")
 	}
 	if cfg.GracePeriodDays <= 0 {
 		cfg.GracePeriodDays = 7
@@ -54,7 +61,7 @@ func NewService(cfg Config, repo subrepo.Repository, invalidator CacheInvalidato
 		client:      client,
 		invalidator: invalidator,
 		now:         func() time.Time { return time.Now().UTC() },
-	}
+	}, nil
 }
 
 func (s *Service) RefreshTenant(ctx context.Context, tenantID uuid.UUID) error {
@@ -80,10 +87,7 @@ func (s *Service) RefreshTenant(ctx context.Context, tenantID uuid.UUID) error {
 	sort.Strings(features)
 
 	now := s.now()
-	entitlement.Features = features
-	entitlement.LastSyncedAt = &now
-	entitlement.UpdatedAt = now
-	if err := s.repo.UpsertEntitlement(ctx, entitlement); err != nil {
+	if err := s.repo.UpdateFeaturesAndSync(ctx, tenantID, features, now); err != nil {
 		return serrors.E(op, err)
 	}
 

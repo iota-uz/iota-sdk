@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,11 +18,16 @@ const (
 	ScopeProject Scope = "project"
 )
 
+// SubjectRef is a compact identifier for grant ownership and usage keys.
+// Use SubjectRef in storage/indexing and Subject for runtime policy evaluation.
 type SubjectRef struct {
 	Scope Scope
 	ID    uuid.UUID
 }
 
+// Subject carries full evaluation context for policy checks.
+// It includes the concrete subject and optional parent references that inherit
+// grants (for example, user -> team -> tenant -> global).
 type Subject struct {
 	Scope   Scope
 	ID      uuid.UUID
@@ -40,17 +46,22 @@ type FeatureKey string
 type Window string
 
 const (
-	WindowNone  Window = "none"
-	WindowHour  Window = "hour"
-	WindowDay   Window = "day"
-	WindowWeek  Window = "week"
-	WindowMonth Window = "month"
+	WindowNone Window = "none"
 )
 
 type QuotaKey struct {
 	Resource  string
 	Dimension string
 	Window    Window
+}
+
+// NewQuotaKey constructs and validates a quota key.
+func NewQuotaKey(resource, dimension string, window Window) (QuotaKey, error) {
+	return validateQuota(QuotaKey{
+		Resource:  strings.TrimSpace(resource),
+		Dimension: strings.TrimSpace(dimension),
+		Window:    window,
+	})
 }
 
 func (q QuotaKey) String() string {
@@ -89,11 +100,15 @@ type QuotaRule struct {
 }
 
 type Grant struct {
-	ID        string
-	Kind      GrantKind
-	Subject   SubjectRef
-	PlanID    string
-	Features  map[FeatureKey]GrantEffect
+	ID       string
+	Kind     GrantKind
+	Subject  SubjectRef
+	PlanID   string
+	Features map[FeatureKey]GrantEffect
+	// Quotas maps a quota key string to a rule. The key is either the full
+	// QuotaKey.String() value ("resource|dimension|window") for dimension-aware
+	// lookups, or just the resource name for dimension-less quotas. See
+	// matchQuotaRule in subscription.go for the lookup priority.
 	Quotas    map[string]QuotaRule
 	Priority  int
 	Version   int

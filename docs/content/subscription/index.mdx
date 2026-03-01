@@ -51,6 +51,28 @@ router.Use(subscription.RequirePlan(svc, "FREE", "PRO"))
 router.Use(subscription.EnforceLimit(svc, "drivers"))
 ```
 
+## Repository-Backed Middleware Bridge
+
+For Stripe-driven entitlement changes that are written to PostgreSQL, use the
+bridge evaluator so middleware reads current repository state instead of only
+in-memory grants:
+
+```go
+import (
+  "github.com/iota-uz/iota-sdk/pkg/subscription"
+  subbridge "github.com/iota-uz/iota-sdk/pkg/subscription/bridge"
+)
+
+repoEvaluator, err := subbridge.NewEvaluator(cfg, subscriptionRepo)
+if err != nil {
+  panic(err)
+}
+
+router.Use(subscription.RequireFeature(repoEvaluator, "core_access"))
+router.Use(subscription.RequirePlan(repoEvaluator, "FREE", "PRO"))
+router.Use(subscription.EnforceLimit(repoEvaluator, "drivers"))
+```
+
 ## Service-Layer Checks
 
 ```go
@@ -62,17 +84,25 @@ subject := subscription.Subject{
 result, err := svc.EvaluateLimit(
   ctx,
   subject,
-  subscription.QuotaKey{Resource: "drivers", Window: subscription.WindowNone},
+  mustQuotaKey("drivers", "", subscription.WindowNone),
 )
 if err != nil {
   return err
 }
 if !result.Allowed {
   return subscription.LimitExceededError{
-    Quota: subscription.QuotaKey{Resource: "drivers", Window: subscription.WindowNone},
+    Quota: mustQuotaKey("drivers", "", subscription.WindowNone),
     Current: result.Current,
     Limit: result.Limit,
   }
+}
+
+func mustQuotaKey(resource, dimension string, window subscription.Window) subscription.QuotaKey {
+  key, err := subscription.NewQuotaKey(resource, dimension, window)
+  if err != nil {
+    panic(err)
+  }
+  return key
 }
 ```
 

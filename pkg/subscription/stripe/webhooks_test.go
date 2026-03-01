@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/subscription"
 	subrepo "github.com/iota-uz/iota-sdk/pkg/subscription/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,10 +19,14 @@ type fakeRepo struct {
 	entitlements        map[uuid.UUID]*subrepo.Entitlement
 	findCustomerErr     error
 	findSubscriptionErr error
+	seenEvents          map[string]time.Time
 }
 
 func newFakeRepo() *fakeRepo {
-	return &fakeRepo{entitlements: map[uuid.UUID]*subrepo.Entitlement{}}
+	return &fakeRepo{
+		entitlements: map[uuid.UUID]*subrepo.Entitlement{},
+		seenEvents:   map[string]time.Time{},
+	}
 }
 
 func (f *fakeRepo) GetEntitlement(_ context.Context, tenantID uuid.UUID) (*subrepo.Entitlement, error) {
@@ -86,6 +91,15 @@ func (f *fakeRepo) SetPlan(_ context.Context, tenantID uuid.UUID, planID string)
 	return nil
 }
 func (f *fakeRepo) TouchSyncedAt(_ context.Context, _ uuid.UUID, _ time.Time) error { return nil }
+func (f *fakeRepo) UpdateFeaturesAndSync(_ context.Context, tenantID uuid.UUID, features []string, syncedAt time.Time) error {
+	entry, ok := f.entitlements[tenantID]
+	if !ok {
+		return subrepo.ErrEntitlementNotFound
+	}
+	entry.Features = features
+	entry.LastSyncedAt = &syncedAt
+	return nil
+}
 func (f *fakeRepo) GetEntityCounts(_ context.Context, _ uuid.UUID) (map[string]int, error) {
 	return map[string]int{}, nil
 }
@@ -101,9 +115,31 @@ func (f *fakeRepo) DecrementEntityCount(_ context.Context, _ uuid.UUID, _ string
 func (f *fakeRepo) AddSeatIfBelow(_ context.Context, _ uuid.UUID, _ int) (bool, error) {
 	return false, nil
 }
-func (f *fakeRepo) IncrementSeat(_ context.Context, _ uuid.UUID) error    { return nil }
-func (f *fakeRepo) DecrementSeat(_ context.Context, _ uuid.UUID) error    { return nil }
-func (f *fakeRepo) UpsertPlans(_ context.Context, _ []subrepo.Plan) error { return nil }
+func (f *fakeRepo) IncrementSeat(_ context.Context, _ uuid.UUID) error                   { return nil }
+func (f *fakeRepo) DecrementSeat(_ context.Context, _ uuid.UUID) error                   { return nil }
+func (f *fakeRepo) UpsertPlans(_ context.Context, _ []subscription.PlanDefinition) error { return nil }
+func (f *fakeRepo) TryMarkWebhookEventProcessed(_ context.Context, eventID, _ string, ttl time.Duration) (bool, error) {
+	if eventID == "" {
+		return true, nil
+	}
+
+	now := time.Now().UTC()
+	for id, expiresAt := range f.seenEvents {
+		if !expiresAt.After(now) {
+			delete(f.seenEvents, id)
+		}
+	}
+
+	if _, exists := f.seenEvents[eventID]; exists {
+		return false, nil
+	}
+
+	if ttl <= 0 {
+		ttl = 24 * time.Hour
+	}
+	f.seenEvents[eventID] = now.Add(ttl)
+	return true, nil
+}
 
 type fakeClient struct {
 	features []string
@@ -128,12 +164,13 @@ func TestHandleStripeEvent_InvoicePaymentFailedSetsGracePeriod(t *testing.T) {
 
 	repo := newFakeRepo()
 	invalidator := &fakeInvalidator{}
-	service := NewService(
+	service, err := NewService(
 		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
 		repo,
 		invalidator,
 		fakeClient{features: []string{"core_access"}},
 	)
+	require.NoError(t, err)
 
 	tenantID := uuid.New()
 	customerID := "cus_123"
@@ -173,18 +210,68 @@ func TestHandleStripeEvent_InvoicePaymentFailedSetsGracePeriod(t *testing.T) {
 	assert.Positive(t, invalidator.calls)
 }
 
+func TestHandleStripeEvent_DuplicateEventSkipped(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepo()
+	invalidator := &fakeInvalidator{}
+	service, err := NewService(
+		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
+		repo,
+		invalidator,
+		fakeClient{features: []string{"core_access"}},
+	)
+	require.NoError(t, err)
+
+	tenantID := uuid.New()
+	customerID := "cus_dupe"
+	repo.entitlements[tenantID] = &subrepo.Entitlement{
+		TenantID:         tenantID,
+		PlanID:           "FREE",
+		StripeCustomerID: &customerID,
+		Features:         []string{},
+		EntityLimits:     map[string]int{},
+		CreatedAt:        time.Now().UTC(),
+		UpdatedAt:        time.Now().UTC(),
+	}
+
+	raw, err := json.Marshal(map[string]any{
+		"id": "in_duplicate",
+		"customer": map[string]any{
+			"id": customerID,
+		},
+	})
+	require.NoError(t, err)
+
+	event := stripe.Event{
+		ID:   "evt_duplicate_1",
+		Type: "invoice.payment_failed",
+		Data: &stripe.EventData{Raw: raw},
+	}
+
+	err = service.HandleStripeEvent(context.Background(), event)
+	require.NoError(t, err)
+	firstCalls := invalidator.calls
+	require.Positive(t, firstCalls)
+
+	err = service.HandleStripeEvent(context.Background(), event)
+	require.NoError(t, err)
+	assert.Equal(t, firstCalls, invalidator.calls)
+}
+
 func TestHandleStripeEvent_InvoicePaymentFailedPropagatesLookupError(t *testing.T) {
 	t.Parallel()
 
 	expectedErr := errors.New("lookup failure")
 	repo := newFakeRepo()
 	repo.findCustomerErr = expectedErr
-	service := NewService(
+	service, svcErr := NewService(
 		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
 		repo,
 		&fakeInvalidator{},
 		fakeClient{features: []string{"core_access"}},
 	)
+	require.NoError(t, svcErr)
 
 	raw, err := json.Marshal(map[string]any{
 		"id": "in_456",
@@ -203,18 +290,207 @@ func TestHandleStripeEvent_InvoicePaymentFailedPropagatesLookupError(t *testing.
 	assert.ErrorIs(t, err, expectedErr)
 }
 
+func TestHandleStripeEvent_SubscriptionCreatedSetsRefs(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepo()
+	invalidator := &fakeInvalidator{}
+	service, err := NewService(
+		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
+		repo,
+		invalidator,
+		fakeClient{features: []string{"core_access"}},
+	)
+	require.NoError(t, err)
+
+	tenantID := uuid.New()
+	customerID := "cus_sub_created"
+	subscriptionID := "sub_created_123"
+
+	// Pre-seed an entitlement so ensureEntitlement is a no-op.
+	repo.entitlements[tenantID] = &subrepo.Entitlement{
+		TenantID:         tenantID,
+		PlanID:           "FREE",
+		StripeCustomerID: &customerID,
+		Features:         []string{},
+		EntityLimits:     map[string]int{},
+		CreatedAt:        time.Now().UTC(),
+		UpdatedAt:        time.Now().UTC(),
+	}
+
+	// Build a stripe.Subscription JSON payload.
+	// resolveTenantID will pick up tenant_id from metadata first.
+	payload := map[string]any{
+		"id": subscriptionID,
+		"customer": map[string]any{
+			"id": customerID,
+		},
+		"metadata": map[string]any{
+			"tenant_id": tenantID.String(),
+		},
+	}
+	raw, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	event := stripe.Event{
+		Type: "customer.subscription.created",
+		Data: &stripe.EventData{Raw: raw},
+	}
+	err = service.HandleStripeEvent(context.Background(), event)
+	require.NoError(t, err)
+
+	got := repo.entitlements[tenantID]
+	require.NotNil(t, got.StripeCustomerID)
+	assert.Equal(t, customerID, *got.StripeCustomerID)
+	require.NotNil(t, got.StripeSubscriptionID)
+	assert.Equal(t, subscriptionID, *got.StripeSubscriptionID)
+	assert.Positive(t, invalidator.calls)
+}
+
+func TestHandleStripeEvent_InvoicePaymentSucceededClearsGrace(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepo()
+	invalidator := &fakeInvalidator{}
+	service, err := NewService(
+		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
+		repo,
+		invalidator,
+		fakeClient{features: []string{"core_access"}},
+	)
+	require.NoError(t, err)
+
+	tenantID := uuid.New()
+	customerID := "cus_inv_paid"
+	graceEndsAt := time.Now().Add(24 * time.Hour).UTC()
+
+	// Start with in_grace_period = true.
+	repo.entitlements[tenantID] = &subrepo.Entitlement{
+		TenantID:          tenantID,
+		PlanID:            "FREE",
+		StripeCustomerID:  &customerID,
+		InGracePeriod:     true,
+		GracePeriodEndsAt: &graceEndsAt,
+		Features:          []string{},
+		EntityLimits:      map[string]int{},
+		CreatedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	// Build a stripe.Invoice JSON payload.
+	// resolveTenantID will find the tenant via StripeCustomerID in the repo.
+	payload := map[string]any{
+		"id": "in_paid_123",
+		"customer": map[string]any{
+			"id": customerID,
+		},
+	}
+	raw, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	event := stripe.Event{
+		Type: "invoice.payment_succeeded",
+		Data: &stripe.EventData{Raw: raw},
+	}
+	err = service.HandleStripeEvent(context.Background(), event)
+	require.NoError(t, err)
+
+	assert.False(t, repo.entitlements[tenantID].InGracePeriod)
+	assert.Positive(t, invalidator.calls)
+}
+
+func TestHandleStripeEvent_UnknownEventTypeIgnored(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepo()
+	service, err := NewService(
+		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
+		repo,
+		&fakeInvalidator{},
+		fakeClient{features: []string{}},
+	)
+	require.NoError(t, err)
+
+	// An event type the handler does not recognise should be a no-op.
+	raw, err := json.Marshal(map[string]any{"id": "prod_xyz"})
+	require.NoError(t, err)
+
+	event := stripe.Event{
+		Type: "product.created",
+		Data: &stripe.EventData{Raw: raw},
+	}
+	err = service.HandleStripeEvent(context.Background(), event)
+	require.NoError(t, err)
+}
+
+func TestHandleStripeEvent_SubscriptionDeletedSetsGrace(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepo()
+	invalidator := &fakeInvalidator{}
+	service, err := NewService(
+		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
+		repo,
+		invalidator,
+		fakeClient{features: []string{"core_access"}},
+	)
+	require.NoError(t, err)
+
+	tenantID := uuid.New()
+	customerID := "cus_sub_deleted"
+	subscriptionID := "sub_deleted_456"
+
+	// Start with in_grace_period = false.
+	repo.entitlements[tenantID] = &subrepo.Entitlement{
+		TenantID:             tenantID,
+		PlanID:               "PRO",
+		StripeCustomerID:     &customerID,
+		StripeSubscriptionID: &subscriptionID,
+		InGracePeriod:        false,
+		Features:             []string{"core_access"},
+		EntityLimits:         map[string]int{},
+		CreatedAt:            time.Now().UTC(),
+		UpdatedAt:            time.Now().UTC(),
+	}
+
+	// Build a stripe.Subscription JSON payload.
+	payload := map[string]any{
+		"id": subscriptionID,
+		"customer": map[string]any{
+			"id": customerID,
+		},
+		"metadata": map[string]any{
+			"tenant_id": tenantID.String(),
+		},
+	}
+	raw, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	event := stripe.Event{
+		Type: "customer.subscription.deleted",
+		Data: &stripe.EventData{Raw: raw},
+	}
+	err = service.HandleStripeEvent(context.Background(), event)
+	require.NoError(t, err)
+
+	assert.True(t, repo.entitlements[tenantID].InGracePeriod)
+	assert.NotNil(t, repo.entitlements[tenantID].GracePeriodEndsAt)
+	assert.Positive(t, invalidator.calls)
+}
+
 func TestRefreshTenant_NoCustomerPropagatesInvalidationError(t *testing.T) {
 	t.Parallel()
 
 	repo := newFakeRepo()
 	expectedErr := errors.New("cache unavailable")
 	invalidator := &fakeInvalidator{err: expectedErr}
-	service := NewService(
+	service, svcErr := NewService(
 		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
 		repo,
 		invalidator,
 		fakeClient{features: []string{"core_access"}},
 	)
+	require.NoError(t, svcErr)
 
 	tenantID := uuid.New()
 	repo.entitlements[tenantID] = &subrepo.Entitlement{

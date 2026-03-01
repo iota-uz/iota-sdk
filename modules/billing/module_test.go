@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	billingdom "github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
+	"github.com/iota-uz/iota-sdk/modules/billing/presentation/controllers"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v82"
 )
@@ -15,7 +15,7 @@ func (noopStripeHook) HandleStripeEvent(context.Context, stripe.Event) error {
 	return nil
 }
 
-var _ billingdom.StripeEventHook = noopStripeHook{}
+var _ controllers.StripeEventHook = noopStripeHook{}
 
 func TestNewModule_WithStripeEventHooks(t *testing.T) {
 	t.Parallel()

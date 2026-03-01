@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/subscription"
 	"github.com/iota-uz/iota-sdk/pkg/subscription/repository"
 )
 
@@ -88,7 +89,7 @@ func toDomain(model *entitlementModel) (*repository.Entitlement, error) {
 	}, nil
 }
 
-func planToModel(plan repository.Plan) (*planModel, error) {
+func planToModel(plan subscription.PlanDefinition) (*planModel, error) {
 	featuresValue := plan.Features
 	if featuresValue == nil {
 		featuresValue = []string{}

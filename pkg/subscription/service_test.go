@@ -137,7 +137,7 @@ func TestEngine_AddOnQuotaAndReservationLifecycle(t *testing.T) {
 
 	_, err = engine.Reserve(context.Background(), subject, quota, 5, "token-2")
 	require.Error(t, err)
-	var limitErr ErrLimitExceededError
+	var limitErr LimitExceededError
 	require.ErrorAs(t, err, &limitErr)
 
 	require.NoError(t, engine.Release(context.Background(), reservation.ID))
@@ -252,4 +252,142 @@ func TestEngine_Reserve_DropsStaleCommittedTokenAfterRetention(t *testing.T) {
 	second, err := engine.Reserve(context.Background(), subject, quota, 1, "token-committed")
 	require.NoError(t, err)
 	assert.NotEqual(t, first.ID, second.ID)
+}
+
+func TestEngine_EvaluateFeature_UnknownFeature(t *testing.T) {
+	t.Parallel()
+
+	engine, err := NewService(Config{
+		DefaultPlan: "FREE",
+		Plans: []PlanDefinition{
+			{
+				PlanID:   "FREE",
+				Features: []string{"core_access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	subject := Subject{Scope: ScopeTenant, ID: uuid.New()}
+	require.NoError(t, engine.AssignPlan(context.Background(), subject.Ref(), "FREE"))
+
+	decision, err := engine.EvaluateFeature(context.Background(), subject, FeatureKey("unknown_feature"))
+	require.NoError(t, err)
+	assert.False(t, decision.Allowed)
+}
+
+func TestEngine_Reserve_ExpiredReservation(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	engine, err := NewService(
+		Config{
+			DefaultPlan:    "FREE",
+			ReservationTTL: time.Second,
+			Plans: []PlanDefinition{
+				{
+					PlanID:       "FREE",
+					EntityLimits: map[string]int{"drivers": 2},
+				},
+			},
+		},
+		WithClock(func() time.Time { return now }),
+	)
+	require.NoError(t, err)
+
+	subject := Subject{Scope: ScopeTenant, ID: uuid.New()}
+	quota := QuotaKey{Resource: "drivers"}
+
+	// Reserve up to the limit; the reservation is pending (not committed).
+	_, err = engine.Reserve(context.Background(), subject, quota, 2, "tok-expiring")
+	require.NoError(t, err)
+
+	// Advance the clock past the TTL so the pending reservation expires.
+	now = now.Add(2 * time.Second)
+
+	// The expired reservation must not count toward usage, so this must succeed.
+	_, err = engine.Reserve(context.Background(), subject, quota, 2, "tok-after-expiry")
+	require.NoError(t, err)
+}
+
+func TestEngine_Reserve_TokenConflict(t *testing.T) {
+	t.Parallel()
+
+	engine, err := NewService(Config{
+		DefaultPlan: "FREE",
+		Plans: []PlanDefinition{
+			{
+				PlanID:       "FREE",
+				EntityLimits: map[string]int{"drivers": 10, "vehicles": 10},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	subject := Subject{Scope: ScopeTenant, ID: uuid.New()}
+	quotaDrivers := QuotaKey{Resource: "drivers"}
+	quotaVehicles := QuotaKey{Resource: "vehicles"}
+
+	// First reservation claims token "tok-1" for "drivers".
+	_, err = engine.Reserve(context.Background(), subject, quotaDrivers, 1, "tok-1")
+	require.NoError(t, err)
+
+	// Reusing the same token for a different quota must return a conflict error.
+	_, err = engine.Reserve(context.Background(), subject, quotaVehicles, 1, "tok-1")
+	require.Error(t, err)
+}
+
+func TestEngine_EvaluateLimit_UnlimitedQuota(t *testing.T) {
+	t.Parallel()
+
+	// A plan that defines no limit for "api_calls" leaves the quota unlimited.
+	engine, err := NewService(Config{
+		DefaultPlan: "FREE",
+		Plans: []PlanDefinition{
+			{
+				PlanID:       "FREE",
+				EntityLimits: map[string]int{},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	subject := Subject{Scope: ScopeTenant, ID: uuid.New()}
+	decision, err := engine.EvaluateLimit(context.Background(), subject, QuotaKey{Resource: "api_calls"})
+	require.NoError(t, err)
+	assert.True(t, decision.Allowed)
+	assert.Equal(t, -1, decision.Limit)
+	assert.Equal(t, -1, decision.Remaining)
+}
+
+func TestEngine_CurrentPlan_UnknownSubject(t *testing.T) {
+	t.Parallel()
+
+	engine, err := NewService(Config{
+		DefaultPlan: "FREE",
+		Plans: []PlanDefinition{
+			{
+				PlanID:      "FREE",
+				DisplayName: "Free Plan",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// A subject with no assigned plan must fall back to the configured default.
+	subject := Subject{Scope: ScopeTenant, ID: uuid.New()}
+	info, err := engine.CurrentPlan(context.Background(), subject)
+	require.NoError(t, err)
+	assert.Equal(t, "FREE", info.ID)
+}
+
+func TestNewQuotaKey_Validation(t *testing.T) {
+	t.Parallel()
+
+	valid, err := NewQuotaKey("drivers", "", WindowNone)
+	require.NoError(t, err)
+	assert.Equal(t, "drivers", valid.Resource)
+
+	_, err = NewQuotaKey("bad|resource", "", WindowNone)
+	require.Error(t, err)
 }

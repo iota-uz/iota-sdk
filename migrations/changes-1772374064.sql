@@ -1,8 +1,7 @@
 -- +migrate Up
 CREATE TABLE IF NOT EXISTS subscription_entitlements (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id uuid NOT NULL UNIQUE REFERENCES tenants (id) ON DELETE CASCADE,
-    plan_id varchar(20) NOT NULL DEFAULT 'FREE',
+    tenant_id uuid PRIMARY KEY REFERENCES tenants (id) ON DELETE CASCADE,
+    plan_id varchar(64) NOT NULL DEFAULT 'FREE',
     stripe_subscription_id varchar(255),
     stripe_customer_id varchar(255),
     features jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -21,15 +20,13 @@ CREATE TABLE IF NOT EXISTS subscription_entity_counts (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     entity_type varchar(50) NOT NULL,
     current_count int NOT NULL DEFAULT 0,
-    period_start date,
-    period_end date,
     updated_at timestamptz NOT NULL DEFAULT NOW(),
     PRIMARY KEY (tenant_id, entity_type)
 );
 
 CREATE TABLE IF NOT EXISTS subscription_plans (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    plan_id varchar(20) NOT NULL UNIQUE,
+    plan_id varchar(64) NOT NULL UNIQUE,
     name varchar(100) NOT NULL,
     description text,
     stripe_product_id varchar(255),
@@ -47,6 +44,13 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
     updated_at timestamptz NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS subscription_webhook_events (
+    event_id varchar(255) PRIMARY KEY,
+    event_type varchar(100) NOT NULL,
+    processed_at timestamptz NOT NULL DEFAULT NOW(),
+    expires_at timestamptz NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_plan_id ON subscription_entitlements (plan_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_entitlements_customer_id_unique
     ON subscription_entitlements (stripe_customer_id)
@@ -54,12 +58,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_entitlements_customer_id_uniq
 CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_entitlements_subscription_id_unique
     ON subscription_entitlements (stripe_subscription_id)
     WHERE stripe_subscription_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_subscription_webhook_events_expires_at
+    ON subscription_webhook_events (expires_at);
 
 -- +migrate Down
+DROP INDEX IF EXISTS idx_subscription_webhook_events_expires_at;
 DROP INDEX IF EXISTS idx_subscription_entitlements_subscription_id_unique;
 DROP INDEX IF EXISTS idx_subscription_entitlements_customer_id_unique;
 DROP INDEX IF EXISTS idx_subscription_entitlements_plan_id;
 
+DROP TABLE IF EXISTS subscription_webhook_events;
 DROP TABLE IF EXISTS subscription_plans;
 DROP TABLE IF EXISTS subscription_entity_counts;
 DROP TABLE IF EXISTS subscription_entitlements;

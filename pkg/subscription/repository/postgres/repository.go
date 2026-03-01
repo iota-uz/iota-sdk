@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/subscription"
 	"github.com/iota-uz/iota-sdk/pkg/subscription/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,7 +27,7 @@ type Repository struct {
 	pool *pgxpool.Pool
 }
 
-func NewRepository(pool *pgxpool.Pool) repository.Repository {
+func NewRepository(pool *pgxpool.Pool) repository.StripeAwareRepository {
 	return &Repository{pool: pool}
 }
 
@@ -278,6 +280,35 @@ func (r *Repository) TouchSyncedAt(ctx context.Context, tenantID uuid.UUID, sync
 	return nil
 }
 
+func (r *Repository) UpdateFeaturesAndSync(ctx context.Context, tenantID uuid.UUID, features []string, syncedAt time.Time) error {
+	const op serrors.Op = "SubscriptionRepository.UpdateFeaturesAndSync"
+
+	db, err := r.getQueryer(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	featuresJSON, err := json.Marshal(features)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	result, err := db.Exec(ctx, `
+		UPDATE subscription_entitlements
+		SET features = $2::jsonb,
+		    last_synced_at = $3,
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+	`, tenantID, featuresJSON, syncedAt.UTC())
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if result.RowsAffected() == 0 {
+		return repository.ErrEntitlementNotFound
+	}
+	return nil
+}
+
 func (r *Repository) GetEntityCounts(ctx context.Context, tenantID uuid.UUID) (map[string]int, error) {
 	const op serrors.Op = "SubscriptionRepository.GetEntityCounts"
 
@@ -452,6 +483,20 @@ func (r *Repository) AddSeatIfBelow(ctx context.Context, tenantID uuid.UUID, max
 		return false, serrors.E(op, err)
 	}
 	if result.RowsAffected() == 0 {
+		var exists bool
+		existsErr := db.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1
+				FROM subscription_entitlements
+				WHERE tenant_id = $1
+			)
+		`, tenantID).Scan(&exists)
+		if existsErr != nil {
+			return false, serrors.E(op, existsErr)
+		}
+		if !exists {
+			return false, repository.ErrEntitlementNotFound
+		}
 		return false, nil
 	}
 	return true, nil
@@ -503,7 +548,7 @@ func (r *Repository) DecrementSeat(ctx context.Context, tenantID uuid.UUID) erro
 	return nil
 }
 
-func (r *Repository) UpsertPlans(ctx context.Context, plans []repository.Plan) error {
+func (r *Repository) UpsertPlans(ctx context.Context, plans []subscription.PlanDefinition) error {
 	const op serrors.Op = "SubscriptionRepository.UpsertPlans"
 
 	if tx, err := composables.UseTx(ctx); err == nil {
@@ -537,11 +582,14 @@ func (r *Repository) UpsertPlans(ctx context.Context, plans []repository.Plan) e
 	return nil
 }
 
-func (r *Repository) upsertPlans(ctx context.Context, db queryer, plans []repository.Plan) error {
+func (r *Repository) upsertPlans(ctx context.Context, db queryer, plans []subscription.PlanDefinition) error {
 	for _, plan := range plans {
 		m, err := planToModel(plan)
 		if err != nil {
 			return err
+		}
+		if m.Interval == "" {
+			m.Interval = "month"
 		}
 		_, err = db.Exec(ctx, `
 					INSERT INTO subscription_plans (
@@ -566,4 +614,43 @@ func (r *Repository) upsertPlans(ctx context.Context, db queryer, plans []reposi
 		}
 	}
 	return nil
+}
+
+func (r *Repository) TryMarkWebhookEventProcessed(
+	ctx context.Context,
+	eventID,
+	eventType string,
+	ttl time.Duration,
+) (bool, error) {
+	const op serrors.Op = "SubscriptionRepository.TryMarkWebhookEventProcessed"
+
+	if eventID == "" {
+		return true, nil
+	}
+	if ttl <= 0 {
+		ttl = 24 * time.Hour
+	}
+
+	db, err := r.getQueryer(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	if _, err := db.Exec(ctx, `
+		DELETE FROM subscription_webhook_events
+		WHERE expires_at <= NOW()
+	`); err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	result, err := db.Exec(ctx, `
+		INSERT INTO subscription_webhook_events (event_id, event_type, processed_at, expires_at)
+		VALUES ($1, $2, NOW(), NOW() + ($3 * INTERVAL '1 second'))
+		ON CONFLICT (event_id) DO NOTHING
+	`, eventID, eventType, int(ttl.Seconds()))
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	return result.RowsAffected() > 0, nil
 }

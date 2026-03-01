@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/subscription"
 )
 
 var ErrEntitlementNotFound = errors.New("subscription entitlement not found")
@@ -27,27 +28,13 @@ type Entitlement struct {
 	UpdatedAt             time.Time
 }
 
-type Plan struct {
-	PlanID       string
-	DisplayName  string
-	Description  string
-	PriceCents   int64
-	Interval     string
-	Features     []string
-	EntityLimits map[string]int
-	SeatLimit    *int
-	DisplayOrder int
-}
-
 type Repository interface {
 	GetEntitlement(ctx context.Context, tenantID uuid.UUID) (*Entitlement, error)
 	UpsertEntitlement(ctx context.Context, entitlement *Entitlement) error
-	SetStripeReferences(ctx context.Context, tenantID uuid.UUID, customerID, subscriptionID *string) error
-	FindTenantByStripeCustomer(ctx context.Context, customerID string) (uuid.UUID, error)
-	FindTenantByStripeSubscription(ctx context.Context, subscriptionID string) (uuid.UUID, error)
 	SetGracePeriod(ctx context.Context, tenantID uuid.UUID, inGrace bool, endsAt *time.Time) error
 	SetPlan(ctx context.Context, tenantID uuid.UUID, planID string) error
 	TouchSyncedAt(ctx context.Context, tenantID uuid.UUID, syncedAt time.Time) error
+	UpdateFeaturesAndSync(ctx context.Context, tenantID uuid.UUID, features []string, syncedAt time.Time) error
 
 	GetEntityCounts(ctx context.Context, tenantID uuid.UUID) (map[string]int, error)
 	GetEntityCount(ctx context.Context, tenantID uuid.UUID, entityType string) (int, error)
@@ -60,5 +47,17 @@ type Repository interface {
 	IncrementSeat(ctx context.Context, tenantID uuid.UUID) error
 	DecrementSeat(ctx context.Context, tenantID uuid.UUID) error
 
-	UpsertPlans(ctx context.Context, plans []Plan) error
+	UpsertPlans(ctx context.Context, plans []subscription.PlanDefinition) error
+}
+
+type StripeRepository interface {
+	SetStripeReferences(ctx context.Context, tenantID uuid.UUID, customerID, subscriptionID *string) error
+	FindTenantByStripeCustomer(ctx context.Context, customerID string) (uuid.UUID, error)
+	FindTenantByStripeSubscription(ctx context.Context, subscriptionID string) (uuid.UUID, error)
+	TryMarkWebhookEventProcessed(ctx context.Context, eventID, eventType string, ttl time.Duration) (bool, error)
+}
+
+type StripeAwareRepository interface {
+	Repository
+	StripeRepository
 }
