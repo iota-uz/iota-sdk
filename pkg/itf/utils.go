@@ -1,3 +1,4 @@
+// Package itf provides this package.
 package itf
 
 import (
@@ -79,7 +80,7 @@ func NewDatabaseManager(t *testing.T) *DatabaseManager {
 
 	dbName := t.Name()
 	CreateDB(dbName)
-	pool := NewPool(DbOpts(dbName))
+	pool := NewPool(DBOpts(dbName))
 
 	dm := &DatabaseManager{
 		pool:   pool,
@@ -342,7 +343,7 @@ func DropDBE(name string) (err error) {
 	return err
 }
 
-func DbOpts(name string) string {
+func DBOpts(name string) string {
 	sanitizedName := sanitizeDBName(name)
 
 	c := configuration.Use()
