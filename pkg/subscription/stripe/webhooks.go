@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	subrepo "github.com/iota-uz/iota-sdk/pkg/subscription/repository"
 	"github.com/sirupsen/logrus"
@@ -88,8 +87,8 @@ func (s *Service) handleSubscriptionEvent(ctx context.Context, event stripe.Even
 			return serrors.E(op, err)
 		}
 	}
-	if tier, ok := sub.Metadata["tier"]; ok && tier != "" {
-		if err := s.repo.SetTier(ctx, tenantID, tier); err != nil {
+	if planID, ok := sub.Metadata["plan_id"]; ok && planID != "" {
+		if err := s.repo.SetPlan(ctx, tenantID, planID); err != nil {
 			if !errors.Is(err, subrepo.ErrEntitlementNotFound) {
 				return serrors.E(op, err)
 			}
@@ -170,21 +169,6 @@ func (s *Service) handleInvoicePaymentFailed(ctx context.Context, event stripe.E
 		}
 	}
 	return nil
-}
-
-func (s *Service) tenantFromMetadata(metadata map[string]string) (uuid.UUID, bool) {
-	if metadata == nil {
-		return uuid.Nil, false
-	}
-	raw, ok := metadata["tenant_id"]
-	if !ok || raw == "" {
-		return uuid.Nil, false
-	}
-	tenantID, err := uuid.Parse(raw)
-	if err != nil {
-		return uuid.Nil, false
-	}
-	return tenantID, true
 }
 
 func extractSubscriptionID(invoice stripe.Invoice) string {

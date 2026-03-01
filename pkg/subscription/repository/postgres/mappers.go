@@ -19,7 +19,7 @@ func toModel(entitlement *repository.Entitlement) (*entitlementModel, error) {
 
 	return &entitlementModel{
 		TenantID:              entitlement.TenantID.String(),
-		Tier:                  entitlement.Tier,
+		PlanID:                entitlement.PlanID,
 		StripeSubscriptionID:  entitlement.StripeSubscriptionID,
 		StripeCustomerID:      entitlement.StripeCustomerID,
 		Features:              features,
@@ -55,7 +55,7 @@ func toDomain(model *entitlementModel) (*repository.Entitlement, error) {
 
 	return &repository.Entitlement{
 		TenantID:              tenantID,
-		Tier:                  model.Tier,
+		PlanID:                model.PlanID,
 		StripeSubscriptionID:  model.StripeSubscriptionID,
 		StripeCustomerID:      model.StripeCustomerID,
 		Features:              features,
@@ -81,7 +81,7 @@ func planToModel(plan repository.Plan) (*planModel, error) {
 		return nil, err
 	}
 	return &planModel{
-		Tier:         plan.Tier,
+		PlanID:       plan.PlanID,
 		Name:         plan.DisplayName,
 		Description:  plan.Description,
 		PriceCents:   plan.PriceCents,
@@ -90,5 +90,33 @@ func planToModel(plan repository.Plan) (*planModel, error) {
 		EntityLimits: limits,
 		SeatLimit:    plan.SeatLimit,
 		DisplayOrder: plan.DisplayOrder,
+	}, nil
+}
+
+func planToDomain(model *planModel) (*repository.Plan, error) {
+	features := make([]string, 0)
+	if len(model.Features) > 0 {
+		if err := json.Unmarshal(model.Features, &features); err != nil {
+			return nil, err
+		}
+	}
+
+	limits := make(map[string]int)
+	if len(model.EntityLimits) > 0 {
+		if err := json.Unmarshal(model.EntityLimits, &limits); err != nil {
+			return nil, err
+		}
+	}
+
+	return &repository.Plan{
+		PlanID:       model.PlanID,
+		DisplayName:  model.Name,
+		Description:  model.Description,
+		PriceCents:   model.PriceCents,
+		Interval:     model.Interval,
+		Features:     features,
+		EntityLimits: limits,
+		SeatLimit:    model.SeatLimit,
+		DisplayOrder: model.DisplayOrder,
 	}, nil
 }

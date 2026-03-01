@@ -5,6 +5,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/subscription"
 )
 
-func RequireFeature(svc subscription.EntitlementService, feature string) mux.MiddlewareFunc {
+func RequireFeature(svc subscription.Engine, feature subscription.FeatureKey) mux.MiddlewareFunc {
 	return subscription.RequireFeature(svc, feature)
 }

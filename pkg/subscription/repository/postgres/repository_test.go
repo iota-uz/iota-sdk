@@ -27,7 +27,7 @@ func TestRepository_EntitlementCRUD(t *testing.T) {
 	now := time.Now().UTC()
 	entitlement := &subrepo.Entitlement{
 		TenantID:      tenantID,
-		Tier:          "PRO",
+		PlanID:        "PRO",
 		Features:      []string{"core_access", "shyona_access"},
 		EntityLimits:  map[string]int{"drivers": 10},
 		SeatLimit:     &seatLimit,
@@ -42,7 +42,7 @@ func TestRepository_EntitlementCRUD(t *testing.T) {
 
 	got, err := repo.GetEntitlement(f.Ctx, tenantID)
 	require.NoError(t, err)
-	assert.Equal(t, "PRO", got.Tier)
+	assert.Equal(t, "PRO", got.PlanID)
 	assert.Equal(t, 1, got.CurrentSeats)
 	assert.Contains(t, got.Features, "shyona_access")
 	assert.Equal(t, 10, got.EntityLimits["drivers"])
@@ -59,7 +59,7 @@ func TestRepository_EntityCountsAndSeats(t *testing.T) {
 
 	err = repo.UpsertEntitlement(f.Ctx, &subrepo.Entitlement{
 		TenantID:     tenantID,
-		Tier:         "FREE",
+		PlanID:       "FREE",
 		Features:     []string{},
 		EntityLimits: map[string]int{},
 		CurrentSeats: 0,
@@ -70,6 +70,8 @@ func TestRepository_EntityCountsAndSeats(t *testing.T) {
 
 	err = repo.SetEntityCount(f.Ctx, tenantID, "drivers", 1)
 	require.NoError(t, err)
+	err = repo.SetEntityCount(f.Ctx, tenantID, "drivers", -1)
+	require.Error(t, err)
 	err = repo.IncrementEntityCount(f.Ctx, tenantID, "drivers")
 	require.NoError(t, err)
 	err = repo.DecrementEntityCount(f.Ctx, tenantID, "drivers")
@@ -104,7 +106,7 @@ func TestRepository_FindByStripeRefs(t *testing.T) {
 
 	err = repo.UpsertEntitlement(f.Ctx, &subrepo.Entitlement{
 		TenantID:             tenantID,
-		Tier:                 "FREE",
+		PlanID:               "FREE",
 		StripeCustomerID:     &customerID,
 		StripeSubscriptionID: &subscriptionID,
 		Features:             []string{},

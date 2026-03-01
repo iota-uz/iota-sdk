@@ -92,7 +92,7 @@ func UsageBar(props UsageBarProps) templ.Component {
 			} else {
 				templ_7745c5c3_Err = base.Progress(base.ProgressProps{
 					Value:       uint(props.Current),
-					Target:      uint(props.Limit),
+					Target:      uint(max(props.Limit, 1)),
 					ValueLabel:  fmt.Sprintf("%d", props.Current),
 					TargetLabel: fmt.Sprintf("%d", props.Limit),
 				}).Render(ctx, templ_7745c5c3_Buffer)

@@ -22,7 +22,7 @@ templ UsageBar(props UsageBarProps) {
 			} else {
 				@base.Progress(base.ProgressProps{
 					Value:       uint(props.Current),
-					Target:      uint(props.Limit),
+					Target:      uint(max(props.Limit, 1)),
 					ValueLabel:  fmt.Sprintf("%d", props.Current),
 					TargetLabel: fmt.Sprintf("%d", props.Limit),
 				})

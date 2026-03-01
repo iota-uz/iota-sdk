@@ -4,7 +4,7 @@ import "time"
 
 type entitlementModel struct {
 	TenantID              string
-	Tier                  string
+	PlanID                string
 	StripeSubscriptionID  *string
 	StripeCustomerID      *string
 	Features              []byte
@@ -20,7 +20,7 @@ type entitlementModel struct {
 }
 
 type planModel struct {
-	Tier         string
+	PlanID       string
 	Name         string
 	Description  string
 	PriceCents   int64

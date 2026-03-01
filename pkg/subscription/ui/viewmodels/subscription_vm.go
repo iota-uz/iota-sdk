@@ -8,7 +8,7 @@ import (
 )
 
 type PlanViewModel struct {
-	Tier         string
+	PlanID       string
 	DisplayName  string
 	Description  string
 	PriceLabel   string
@@ -18,40 +18,44 @@ type PlanViewModel struct {
 	DisplayOrder int
 }
 
-func FromTierDefinitions(tiers []subscription.TierDefinition) []PlanViewModel {
-	plans := make([]PlanViewModel, 0, len(tiers))
-	for _, tier := range tiers {
-		features := append([]string{}, tier.Features...)
+func FromPlanDefinitions(definitions []subscription.PlanDefinition) []PlanViewModel {
+	plans := make([]PlanViewModel, 0, len(definitions))
+	for _, definition := range definitions {
+		features := append([]string{}, definition.Features...)
 		sort.Strings(features)
 		priceLabel := "$0"
-		if tier.PriceCents > 0 {
-			priceLabel = fmt.Sprintf("$%.2f/%s", float64(tier.PriceCents)/100.0, tier.Interval)
+		if definition.PriceCents > 0 {
+			if definition.Interval == "" {
+				priceLabel = fmt.Sprintf("$%.2f", float64(definition.PriceCents)/100.0)
+			} else {
+				priceLabel = fmt.Sprintf("$%.2f/%s", float64(definition.PriceCents)/100.0, definition.Interval)
+			}
 		}
 		seatLabel := "Unlimited"
-		if tier.SeatLimit != nil {
-			seatLabel = fmt.Sprintf("%d", *tier.SeatLimit)
+		if definition.SeatLimit != nil && *definition.SeatLimit >= 0 {
+			seatLabel = fmt.Sprintf("%d", *definition.SeatLimit)
 		}
 
-		limits := make(map[string]int, len(tier.EntityLimits))
-		for key, value := range tier.EntityLimits {
+		limits := make(map[string]int, len(definition.EntityLimits))
+		for key, value := range definition.EntityLimits {
 			limits[key] = value
 		}
 
 		plans = append(plans, PlanViewModel{
-			Tier:         tier.Tier,
-			DisplayName:  tier.DisplayName,
-			Description:  tier.Description,
+			PlanID:       definition.PlanID,
+			DisplayName:  definition.DisplayName,
+			Description:  definition.Description,
 			PriceLabel:   priceLabel,
 			Features:     features,
 			EntityLimits: limits,
 			SeatLabel:    seatLabel,
-			DisplayOrder: tier.DisplayOrder,
+			DisplayOrder: definition.DisplayOrder,
 		})
 	}
 
 	sort.SliceStable(plans, func(i, j int) bool {
 		if plans[i].DisplayOrder == plans[j].DisplayOrder {
-			return plans[i].Tier < plans[j].Tier
+			return plans[i].PlanID < plans[j].PlanID
 		}
 		return plans[i].DisplayOrder < plans[j].DisplayOrder
 	})

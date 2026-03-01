@@ -12,7 +12,7 @@ var ErrEntitlementNotFound = errors.New("subscription entitlement not found")
 
 type Entitlement struct {
 	TenantID              uuid.UUID
-	Tier                  string
+	PlanID                string
 	StripeSubscriptionID  *string
 	StripeCustomerID      *string
 	Features              []string
@@ -28,7 +28,7 @@ type Entitlement struct {
 }
 
 type Plan struct {
-	Tier         string
+	PlanID       string
 	DisplayName  string
 	Description  string
 	PriceCents   int64
@@ -46,7 +46,7 @@ type Repository interface {
 	FindTenantByStripeCustomer(ctx context.Context, customerID string) (uuid.UUID, error)
 	FindTenantByStripeSubscription(ctx context.Context, subscriptionID string) (uuid.UUID, error)
 	SetGracePeriod(ctx context.Context, tenantID uuid.UUID, inGrace bool, endsAt *time.Time) error
-	SetTier(ctx context.Context, tenantID uuid.UUID, tier string) error
+	SetPlan(ctx context.Context, tenantID uuid.UUID, planID string) error
 	TouchSyncedAt(ctx context.Context, tenantID uuid.UUID, syncedAt time.Time) error
 
 	GetEntityCounts(ctx context.Context, tenantID uuid.UUID) (map[string]int, error)

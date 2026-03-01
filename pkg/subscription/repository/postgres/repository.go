@@ -50,14 +50,14 @@ func (r *Repository) GetEntitlement(ctx context.Context, tenantID uuid.UUID) (*r
 
 	var model entitlementModel
 	err = db.QueryRow(ctx, `
-		SELECT tenant_id, tier, stripe_subscription_id, stripe_customer_id, features, entity_limits,
+		SELECT tenant_id, plan_id, stripe_subscription_id, stripe_customer_id, features, entity_limits,
 		       seat_limit, current_seats, in_grace_period, grace_period_ends_at, last_synced_at,
 		       stripe_subscription_end, created_at, updated_at
 		FROM subscription_entitlements
 		WHERE tenant_id = $1
-	`, tenantID).Scan(
+		`, tenantID).Scan(
 		&model.TenantID,
-		&model.Tier,
+		&model.PlanID,
 		&model.StripeSubscriptionID,
 		&model.StripeCustomerID,
 		&model.Features,
@@ -107,14 +107,14 @@ func (r *Repository) UpsertEntitlement(ctx context.Context, entitlement *reposit
 
 	_, err = db.Exec(ctx, `
 		INSERT INTO subscription_entitlements (
-			tenant_id, tier, stripe_subscription_id, stripe_customer_id, features, entity_limits,
+			tenant_id, plan_id, stripe_subscription_id, stripe_customer_id, features, entity_limits,
 			seat_limit, current_seats, in_grace_period, grace_period_ends_at, last_synced_at,
 			stripe_subscription_end, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14
 		)
 		ON CONFLICT (tenant_id) DO UPDATE SET
-			tier = EXCLUDED.tier,
+			plan_id = EXCLUDED.plan_id,
 			stripe_subscription_id = EXCLUDED.stripe_subscription_id,
 			stripe_customer_id = EXCLUDED.stripe_customer_id,
 			features = EXCLUDED.features,
@@ -126,9 +126,9 @@ func (r *Repository) UpsertEntitlement(ctx context.Context, entitlement *reposit
 			last_synced_at = EXCLUDED.last_synced_at,
 			stripe_subscription_end = EXCLUDED.stripe_subscription_end,
 			updated_at = EXCLUDED.updated_at
-	`,
+		`,
 		model.TenantID,
-		model.Tier,
+		model.PlanID,
 		model.StripeSubscriptionID,
 		model.StripeCustomerID,
 		model.Features,
@@ -234,19 +234,19 @@ func (r *Repository) SetGracePeriod(ctx context.Context, tenantID uuid.UUID, inG
 	return nil
 }
 
-func (r *Repository) SetTier(ctx context.Context, tenantID uuid.UUID, tier string) error {
-	const op serrors.Op = "SubscriptionRepository.SetTier"
+func (r *Repository) SetPlan(ctx context.Context, tenantID uuid.UUID, planID string) error {
+	const op serrors.Op = "SubscriptionRepository.SetPlan"
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
 		return serrors.E(op, err)
 	}
 	result, err := db.Exec(ctx, `
-		UPDATE subscription_entitlements
-		SET tier = $2,
+			UPDATE subscription_entitlements
+			SET plan_id = $2,
 		    updated_at = NOW()
 		WHERE tenant_id = $1
-	`, tenantID, tier)
+		`, tenantID, planID)
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -335,6 +335,9 @@ func (r *Repository) GetEntityCount(ctx context.Context, tenantID uuid.UUID, ent
 
 func (r *Repository) SetEntityCount(ctx context.Context, tenantID uuid.UUID, entityType string, count int) error {
 	const op serrors.Op = "SubscriptionRepository.SetEntityCount"
+	if count < 0 {
+		return serrors.E(op, fmt.Errorf("count must be non-negative"))
+	}
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
@@ -503,36 +506,63 @@ func (r *Repository) DecrementSeat(ctx context.Context, tenantID uuid.UUID) erro
 func (r *Repository) UpsertPlans(ctx context.Context, plans []repository.Plan) error {
 	const op serrors.Op = "SubscriptionRepository.UpsertPlans"
 
-	db, err := r.getQueryer(ctx)
+	if tx, err := composables.UseTx(ctx); err == nil {
+		if err := r.upsertPlans(ctx, tx, plans); err != nil {
+			return serrors.E(op, err)
+		}
+		return nil
+	}
+
+	if r.pool == nil {
+		return serrors.E(op, composables.ErrNoPool)
+	}
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return serrors.E(op, err)
 	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
+	if err := r.upsertPlans(ctx, tx, plans); err != nil {
+		return serrors.E(op, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return serrors.E(op, err)
+	}
+	committed = true
+	return nil
+}
+
+func (r *Repository) upsertPlans(ctx context.Context, db queryer, plans []repository.Plan) error {
 	for _, plan := range plans {
 		m, err := planToModel(plan)
 		if err != nil {
-			return serrors.E(op, err)
+			return err
 		}
 		_, err = db.Exec(ctx, `
-			INSERT INTO subscription_plans (
-				tier, name, description, price_cents, billing_interval,
+					INSERT INTO subscription_plans (
+						plan_id, name, description, price_cents, billing_interval,
 				features, entity_limits, seat_limit, display_order, is_active, is_public, updated_at
 			) VALUES (
 				$1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, TRUE, TRUE, NOW()
-			)
-			ON CONFLICT (tier) DO UPDATE SET
-				name = EXCLUDED.name,
-				description = EXCLUDED.description,
-				price_cents = EXCLUDED.price_cents,
+				)
+					ON CONFLICT (plan_id) DO UPDATE SET
+					name = EXCLUDED.name,
+					description = EXCLUDED.description,
+					price_cents = EXCLUDED.price_cents,
 				billing_interval = EXCLUDED.billing_interval,
 				features = EXCLUDED.features,
 				entity_limits = EXCLUDED.entity_limits,
 				seat_limit = EXCLUDED.seat_limit,
-				display_order = EXCLUDED.display_order,
-				updated_at = NOW()
-		`, m.Tier, m.Name, m.Description, m.PriceCents, m.Interval, m.Features, m.EntityLimits, m.SeatLimit, m.DisplayOrder)
+					display_order = EXCLUDED.display_order,
+					updated_at = NOW()
+			`, m.PlanID, m.Name, m.Description, m.PriceCents, m.Interval, m.Features, m.EntityLimits, m.SeatLimit, m.DisplayOrder)
 		if err != nil {
-			return serrors.E(op, fmt.Errorf("upsert plan %s: %w", plan.Tier, err))
+			return fmt.Errorf("upsert plan %s: %w", plan.PlanID, err)
 		}
 	}
 	return nil

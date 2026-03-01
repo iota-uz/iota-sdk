@@ -15,32 +15,25 @@ import (
 )
 
 cfg := subscription.Config{
-  DefaultTier: "FREE",
-  GracePeriodDays: 7,
-  LimitWarningThreshold: 0.8,
-  Cache: subscription.CacheConfig{
-    Type: "memory", // or "redis"
-    TTLMinutes: 5,
-    RedisURL: "redis://localhost:6379/0",
-  },
-  Tiers: []subscription.TierDefinition{
+  DefaultPlan: "FREE",
+  Plans: []subscription.PlanDefinition{
     {
-      Tier: "FREE",
+      PlanID: "FREE",
       DisplayName: "Free",
       Features: []string{"core_access"},
       EntityLimits: map[string]int{"drivers": 50},
     },
     {
-      Tier: "PRO",
+      PlanID: "PRO",
       DisplayName: "Pro",
-      ParentTier: "FREE",
+      ParentPlanID: "FREE",
       Features: []string{"shyona_access"},
       EntityLimits: map[string]int{"drivers": -1},
     },
   },
 }
 
-svc, err := subscription.NewService(cfg, app.DB())
+svc, err := subscription.NewService(cfg)
 if err != nil {
   panic(err)
 }
@@ -54,20 +47,29 @@ app.RegisterServices(svc)
 import submw "github.com/iota-uz/iota-sdk/pkg/subscription/middleware"
 
 router.Use(submw.RequireFeature(svc, "core_access"))
-router.Use(submw.RequireTier(svc, "BASIC", "PRO"))
+router.Use(submw.RequirePlan(svc, "BASIC", "PRO"))
 router.Use(submw.EnforceLimit(svc, "drivers"))
 ```
 
 ## Service-Layer Checks
 
 ```go
-result, err := svc.CheckLimit(ctx, tenantID, "drivers")
+subject := subscription.Subject{
+  Scope: subscription.ScopeTenant,
+  ID: tenantID,
+}
+
+result, err := svc.EvaluateLimit(
+  ctx,
+  subject,
+  subscription.QuotaKey{Resource: "drivers", Window: subscription.WindowNone},
+)
 if err != nil {
   return err
 }
 if !result.Allowed {
   return subscription.ErrLimitExceeded{
-    EntityType: "drivers",
+    Quota: subscription.QuotaKey{Resource: "drivers", Window: subscription.WindowNone},
     Current: result.Current,
     Limit: result.Limit,
   }
@@ -85,7 +87,7 @@ stripeSync := substripe.NewService(
   substripe.Config{
     SecretKey: stripeSecret,
     GracePeriodDays: 7,
-    DefaultTier: "FREE",
+    DefaultPlan: "FREE",
   },
   subscriptionRepo,
   svc, // cache invalidator
@@ -105,14 +107,14 @@ stripeSync := substripe.NewService(
 
 Reusable Templ components live in `pkg/subscription/ui/components`:
 - `UsageBar`
-- `TierBadge`
+- `PlanBadge`
 - `UpgradePrompt`
 - `LimitWarning`
 - `PlanComparison`
 
 ## Testing
 
-Use `pkg/subscription/testing.NewMockEntitlementService()` in module tests.
+Use `pkg/subscription/testing.NewMockEngine()` in module tests.
 
 ## Migration Notes
 

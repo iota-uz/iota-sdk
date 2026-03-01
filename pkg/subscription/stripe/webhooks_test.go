@@ -3,6 +3,7 @@ package stripe
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -14,7 +15,9 @@ import (
 )
 
 type fakeRepo struct {
-	entitlements map[uuid.UUID]*subrepo.Entitlement
+	entitlements        map[uuid.UUID]*subrepo.Entitlement
+	findCustomerErr     error
+	findSubscriptionErr error
 }
 
 func newFakeRepo() *fakeRepo {
@@ -44,6 +47,9 @@ func (f *fakeRepo) SetStripeReferences(_ context.Context, tenantID uuid.UUID, cu
 	return nil
 }
 func (f *fakeRepo) FindTenantByStripeCustomer(_ context.Context, customerID string) (uuid.UUID, error) {
+	if f.findCustomerErr != nil {
+		return uuid.Nil, f.findCustomerErr
+	}
 	for tenantID, entry := range f.entitlements {
 		if entry.StripeCustomerID != nil && *entry.StripeCustomerID == customerID {
 			return tenantID, nil
@@ -52,6 +58,9 @@ func (f *fakeRepo) FindTenantByStripeCustomer(_ context.Context, customerID stri
 	return uuid.Nil, subrepo.ErrEntitlementNotFound
 }
 func (f *fakeRepo) FindTenantByStripeSubscription(_ context.Context, subscriptionID string) (uuid.UUID, error) {
+	if f.findSubscriptionErr != nil {
+		return uuid.Nil, f.findSubscriptionErr
+	}
 	for tenantID, entry := range f.entitlements {
 		if entry.StripeSubscriptionID != nil && *entry.StripeSubscriptionID == subscriptionID {
 			return tenantID, nil
@@ -68,12 +77,12 @@ func (f *fakeRepo) SetGracePeriod(_ context.Context, tenantID uuid.UUID, inGrace
 	entry.GracePeriodEndsAt = endsAt
 	return nil
 }
-func (f *fakeRepo) SetTier(_ context.Context, tenantID uuid.UUID, tier string) error {
+func (f *fakeRepo) SetPlan(_ context.Context, tenantID uuid.UUID, planID string) error {
 	entry, ok := f.entitlements[tenantID]
 	if !ok {
 		return subrepo.ErrEntitlementNotFound
 	}
-	entry.Tier = tier
+	entry.PlanID = planID
 	return nil
 }
 func (f *fakeRepo) TouchSyncedAt(_ context.Context, _ uuid.UUID, _ time.Time) error { return nil }
@@ -106,11 +115,12 @@ func (f fakeClient) ListActiveEntitlements(_ context.Context, _ string) ([]strin
 
 type fakeInvalidator struct {
 	calls int
+	err   error
 }
 
 func (f *fakeInvalidator) InvalidateCache(_ context.Context, _ uuid.UUID) error {
 	f.calls++
-	return nil
+	return f.err
 }
 
 func TestHandleStripeEvent_InvoicePaymentFailedSetsGracePeriod(t *testing.T) {
@@ -119,7 +129,7 @@ func TestHandleStripeEvent_InvoicePaymentFailedSetsGracePeriod(t *testing.T) {
 	repo := newFakeRepo()
 	invalidator := &fakeInvalidator{}
 	service := NewService(
-		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultTier: "FREE"},
+		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
 		repo,
 		invalidator,
 		fakeClient{features: []string{"core_access"}},
@@ -130,7 +140,7 @@ func TestHandleStripeEvent_InvoicePaymentFailedSetsGracePeriod(t *testing.T) {
 	subscriptionID := "sub_123"
 	repo.entitlements[tenantID] = &subrepo.Entitlement{
 		TenantID:             tenantID,
-		Tier:                 "FREE",
+		PlanID:               "FREE",
 		StripeCustomerID:     &customerID,
 		StripeSubscriptionID: &subscriptionID,
 		Features:             []string{},
@@ -161,4 +171,60 @@ func TestHandleStripeEvent_InvoicePaymentFailedSetsGracePeriod(t *testing.T) {
 	assert.True(t, repo.entitlements[tenantID].InGracePeriod)
 	assert.NotNil(t, repo.entitlements[tenantID].GracePeriodEndsAt)
 	assert.Greater(t, invalidator.calls, 0)
+}
+
+func TestHandleStripeEvent_InvoicePaymentFailedPropagatesLookupError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("lookup failure")
+	repo := newFakeRepo()
+	repo.findCustomerErr = expectedErr
+	service := NewService(
+		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
+		repo,
+		&fakeInvalidator{},
+		fakeClient{features: []string{"core_access"}},
+	)
+
+	raw, err := json.Marshal(map[string]any{
+		"id": "in_456",
+		"customer": map[string]any{
+			"id": "cus_error",
+		},
+	})
+	require.NoError(t, err)
+
+	event := stripe.Event{
+		Type: "invoice.payment_failed",
+		Data: &stripe.EventData{Raw: raw},
+	}
+	err = service.HandleStripeEvent(context.Background(), event)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, expectedErr)
+}
+
+func TestRefreshTenant_NoCustomerPropagatesInvalidationError(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepo()
+	expectedErr := errors.New("cache unavailable")
+	invalidator := &fakeInvalidator{err: expectedErr}
+	service := NewService(
+		Config{SecretKey: "sk_test", GracePeriodDays: 7, DefaultPlan: "FREE"},
+		repo,
+		invalidator,
+		fakeClient{features: []string{"core_access"}},
+	)
+
+	tenantID := uuid.New()
+	repo.entitlements[tenantID] = &subrepo.Entitlement{
+		TenantID:  tenantID,
+		PlanID:    "FREE",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	err := service.RefreshTenant(context.Background(), tenantID)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, expectedErr)
 }

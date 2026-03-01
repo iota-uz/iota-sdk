@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
@@ -97,7 +98,11 @@ func (c *StripeController) Handle(
 	default:
 		logger.WithField("event_type", event.Type).Info("Unhandled Stripe event type")
 	}
-	c.dispatchHooks(ctx, event, logger)
+	go func(evt stripe.Event) {
+		hookCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		c.dispatchHooks(hookCtx, evt, logger)
+	}(event)
 
 	w.WriteHeader(http.StatusOK)
 }

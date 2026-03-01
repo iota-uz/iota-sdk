@@ -11,12 +11,12 @@ import templruntime "github.com/a-h/templ/runtime"
 import "strings"
 import basebadge "github.com/iota-uz/iota-sdk/components/base/badge"
 
-type TierBadgeProps struct {
-	Tier string
+type PlanBadgeProps struct {
+	PlanID string
 }
 
-func badgeVariant(tier string) basebadge.Variant {
-	switch strings.ToUpper(tier) {
+func badgeVariant(planID string) basebadge.Variant {
+	switch strings.ToUpper(planID) {
 	case "PRO", "ENTERPRISE":
 		return basebadge.VariantGreen
 	case "BASIC", "STANDARD":
@@ -26,7 +26,7 @@ func badgeVariant(tier string) basebadge.Variant {
 	}
 }
 
-func TierBadge(props TierBadgeProps) templ.Component {
+func PlanBadge(props PlanBadgeProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -64,9 +64,9 @@ func TierBadge(props TierBadgeProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(strings.ToUpper(props.Tier))
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(strings.ToUpper(props.PlanID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/subscription/ui/components/tier_badge.templ`, Line: 23, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/subscription/ui/components/plan_badge.templ`, Line: 23, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -78,7 +78,7 @@ func TierBadge(props TierBadgeProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = basebadge.New(basebadge.Props{Variant: badgeVariant(props.Tier), Size: basebadge.SizeNormal}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = basebadge.New(basebadge.Props{Variant: badgeVariant(props.PlanID), Size: basebadge.SizeNormal}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

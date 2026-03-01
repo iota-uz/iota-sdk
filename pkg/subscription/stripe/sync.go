@@ -19,7 +19,7 @@ type CacheInvalidator interface {
 type Config struct {
 	SecretKey       string
 	GracePeriodDays int
-	DefaultTier     string
+	DefaultPlan     string
 }
 
 type Service struct {
@@ -36,8 +36,8 @@ func NewService(cfg Config, repo subrepo.Repository, invalidator CacheInvalidato
 	if cfg.GracePeriodDays <= 0 {
 		cfg.GracePeriodDays = 7
 	}
-	if cfg.DefaultTier == "" {
-		cfg.DefaultTier = "FREE"
+	if cfg.DefaultPlan == "" {
+		cfg.DefaultPlan = "FREE"
 	}
 	if client == nil {
 		client = NewClient(cfg.SecretKey)
@@ -60,7 +60,9 @@ func (s *Service) RefreshTenant(ctx context.Context, tenantID uuid.UUID) error {
 	}
 	if entitlement.StripeCustomerID == nil || *entitlement.StripeCustomerID == "" {
 		if s.invalidator != nil {
-			_ = s.invalidator.InvalidateCache(ctx, tenantID)
+			if err := s.invalidator.InvalidateCache(ctx, tenantID); err != nil {
+				return serrors.E(op, err)
+			}
 		}
 		return nil
 	}
@@ -89,13 +91,15 @@ func (s *Service) RefreshTenant(ctx context.Context, tenantID uuid.UUID) error {
 }
 
 func (s *Service) setGracePeriod(ctx context.Context, tenantID uuid.UUID, active bool) error {
+	const op serrors.Op = "SubscriptionStripeService.setGracePeriod"
+
 	var endsAt *time.Time
 	if active {
 		t := s.now().AddDate(0, 0, s.cfg.GracePeriodDays)
 		endsAt = &t
 	}
 	if err := s.repo.SetGracePeriod(ctx, tenantID, active, endsAt); err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	total := s.graceFlips.Add(1)
 	logrus.WithFields(logrus.Fields{
@@ -107,7 +111,7 @@ func (s *Service) setGracePeriod(ctx context.Context, tenantID uuid.UUID, active
 	}).Info("Subscription grace period state changed")
 	if s.invalidator != nil {
 		if err := s.invalidator.InvalidateCache(ctx, tenantID); err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 	}
 	return nil

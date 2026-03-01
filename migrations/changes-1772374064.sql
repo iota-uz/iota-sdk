@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS subscription_entitlements (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL UNIQUE REFERENCES tenants (id) ON DELETE CASCADE,
-    tier varchar(20) NOT NULL DEFAULT 'FREE',
+    plan_id varchar(20) NOT NULL DEFAULT 'FREE',
     stripe_subscription_id varchar(255),
     stripe_customer_id varchar(255),
     features jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS subscription_entity_counts (
 
 CREATE TABLE IF NOT EXISTS subscription_plans (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    tier varchar(20) NOT NULL UNIQUE,
+    plan_id varchar(20) NOT NULL UNIQUE,
     name varchar(100) NOT NULL,
     description text,
     stripe_product_id varchar(255),
@@ -47,15 +47,13 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
     updated_at timestamptz NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_tenant_id ON subscription_entitlements (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_tier ON subscription_entitlements (tier);
+CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_plan_id ON subscription_entitlements (plan_id);
 CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_customer_id ON subscription_entitlements (stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_subscription_id ON subscription_entitlements (stripe_subscription_id);
-CREATE INDEX IF NOT EXISTS idx_subscription_entity_counts_tenant_id ON subscription_entity_counts (tenant_id);
 
 INSERT INTO subscription_entitlements (
     tenant_id,
-    tier,
+    plan_id,
     features,
     entity_limits,
     current_seats
@@ -70,11 +68,9 @@ FROM tenants t
 ON CONFLICT (tenant_id) DO NOTHING;
 
 -- +migrate Down
-DROP INDEX IF EXISTS idx_subscription_entity_counts_tenant_id;
 DROP INDEX IF EXISTS idx_subscription_entitlements_subscription_id;
 DROP INDEX IF EXISTS idx_subscription_entitlements_customer_id;
-DROP INDEX IF EXISTS idx_subscription_entitlements_tier;
-DROP INDEX IF EXISTS idx_subscription_entitlements_tenant_id;
+DROP INDEX IF EXISTS idx_subscription_entitlements_plan_id;
 
 DROP TABLE IF EXISTS subscription_plans;
 DROP TABLE IF EXISTS subscription_entity_counts;

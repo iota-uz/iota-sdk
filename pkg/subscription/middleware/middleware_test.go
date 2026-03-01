@@ -16,7 +16,7 @@ import (
 func TestRequireFeature(t *testing.T) {
 	t.Parallel()
 
-	mockSvc := subtesting.NewMockEntitlementService()
+	mockSvc := subtesting.NewMockEngine()
 	mockSvc.SetFeature("shyona_access", false)
 
 	mw := submw.RequireFeature(mockSvc, "shyona_access")
@@ -34,7 +34,7 @@ func TestRequireFeature(t *testing.T) {
 func TestRequireFeature_HTMXTrigger(t *testing.T) {
 	t.Parallel()
 
-	mockSvc := subtesting.NewMockEntitlementService()
+	mockSvc := subtesting.NewMockEngine()
 	mockSvc.SetFeature("export_pdf", false)
 
 	mw := submw.RequireFeature(mockSvc, "export_pdf")
@@ -55,7 +55,7 @@ func TestRequireFeature_HTMXTrigger(t *testing.T) {
 func TestEnforceLimit_ReturnsTooManyRequests(t *testing.T) {
 	t.Parallel()
 
-	mockSvc := subtesting.NewMockEntitlementService()
+	mockSvc := subtesting.NewMockEngine()
 	mockSvc.SetLimit("drivers", 1)
 	mockSvc.SetCurrentCount("drivers", 1)
 

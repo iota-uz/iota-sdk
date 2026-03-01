@@ -2,12 +2,16 @@ package stripe
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/subscription/repository"
 )
 
 func (s *Service) resolveTenantID(ctx context.Context, metadata map[string]string, customerID, subscriptionID string) (uuid.UUID, error) {
+	const op serrors.Op = "SubscriptionStripeService.resolveTenantID"
+
 	if metadata != nil {
 		if tenantRaw, ok := metadata["tenant_id"]; ok && tenantRaw != "" {
 			tenantID, err := uuid.Parse(tenantRaw)
@@ -21,17 +25,25 @@ func (s *Service) resolveTenantID(ctx context.Context, metadata map[string]strin
 		if err == nil {
 			return tenantID, nil
 		}
+		if !errors.Is(err, repository.ErrEntitlementNotFound) {
+			return uuid.Nil, serrors.E(op, err)
+		}
 	}
 	if subscriptionID != "" {
 		tenantID, err := s.repo.FindTenantByStripeSubscription(ctx, subscriptionID)
 		if err == nil {
 			return tenantID, nil
 		}
+		if !errors.Is(err, repository.ErrEntitlementNotFound) {
+			return uuid.Nil, serrors.E(op, err)
+		}
 	}
 	return uuid.Nil, repository.ErrEntitlementNotFound
 }
 
 func (s *Service) updateStripeRefs(ctx context.Context, tenantID uuid.UUID, customerID, subscriptionID string) error {
+	const op serrors.Op = "SubscriptionStripeService.updateStripeRefs"
+
 	var customerPtr *string
 	if customerID != "" {
 		customerPtr = &customerID
@@ -44,10 +56,12 @@ func (s *Service) updateStripeRefs(ctx context.Context, tenantID uuid.UUID, cust
 		return nil
 	}
 	if err := s.repo.SetStripeReferences(ctx, tenantID, customerPtr, subscriptionPtr); err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	if s.invalidator != nil {
-		return s.invalidator.InvalidateCache(ctx, tenantID)
+		if err := s.invalidator.InvalidateCache(ctx, tenantID); err != nil {
+			return serrors.E(op, err)
+		}
 	}
 	return nil
 }

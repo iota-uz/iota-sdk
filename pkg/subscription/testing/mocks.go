@@ -2,216 +2,214 @@ package testing
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"sync"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/subscription"
 )
 
-type MockEntitlementService struct {
-	mu          sync.RWMutex
-	tier        string
-	features    map[string]bool
-	limits      map[string]int
-	counts      map[string]int
-	seatLimit   *int
-	currentSeat int
+type MockEngine struct {
+	mu sync.RWMutex
+
+	plan         string
+	features     map[subscription.FeatureKey]bool
+	limits       map[string]int
+	counts       map[string]int
+	usageByKey   map[string]int
+	grants       map[string]subscription.Grant
+	reservations map[string]subscription.Reservation
 }
 
-func NewMockEntitlementService() *MockEntitlementService {
-	return &MockEntitlementService{
-		tier:     "FREE",
-		features: map[string]bool{},
-		limits:   map[string]int{},
-		counts:   map[string]int{},
+func NewMockEngine() *MockEngine {
+	return &MockEngine{
+		plan:         "FREE",
+		features:     map[subscription.FeatureKey]bool{},
+		limits:       map[string]int{},
+		counts:       map[string]int{},
+		usageByKey:   map[string]int{},
+		grants:       map[string]subscription.Grant{},
+		reservations: map[string]subscription.Reservation{},
 	}
 }
 
-func (m *MockEntitlementService) SetTier(tier string) {
+func (m *MockEngine) SetPlan(planID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.tier = tier
+	m.plan = planID
 }
 
-func (m *MockEntitlementService) SetFeature(feature string, enabled bool) {
+func (m *MockEngine) SetFeature(feature string, enabled bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.features[feature] = enabled
+	m.features[subscription.FeatureKey(feature)] = enabled
 }
 
-func (m *MockEntitlementService) SetLimit(entityType string, limit int) {
+func (m *MockEngine) SetLimit(entityType string, limit int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.limits[entityType] = limit
 }
 
-func (m *MockEntitlementService) SetCurrentCount(entityType string, count int) {
+func (m *MockEngine) SetCurrentCount(entityType string, count int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.counts[entityType] = count
 }
 
-func (m *MockEntitlementService) SetSeatLimit(limit *int) {
+func (m *MockEngine) UpsertGrant(_ context.Context, grant subscription.Grant) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.seatLimit = limit
+	m.grants[grant.ID] = grant
+	return nil
 }
 
-func (m *MockEntitlementService) HasFeature(_ context.Context, _ uuid.UUID, feature string) (bool, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.features[feature], nil
+func (m *MockEngine) RevokeGrant(_ context.Context, grantID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.grants, grantID)
+	return nil
 }
 
-func (m *MockEntitlementService) HasFeatures(_ context.Context, _ uuid.UUID, features ...string) (map[string]bool, error) {
+func (m *MockEngine) ListGrants(_ context.Context, _ subscription.SubjectRef) ([]subscription.Grant, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	out := make(map[string]bool, len(features))
-	for _, feature := range features {
-		out[feature] = m.features[feature]
+	out := make([]subscription.Grant, 0, len(m.grants))
+	for _, grant := range m.grants {
+		out = append(out, grant)
 	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
 }
 
-func (m *MockEntitlementService) GetFeatures(_ context.Context, _ uuid.UUID) ([]string, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	out := make([]string, 0, len(m.features))
-	for key, enabled := range m.features {
-		if enabled {
-			out = append(out, key)
-		}
-	}
-	return out, nil
+func (m *MockEngine) AssignPlan(_ context.Context, _ subscription.SubjectRef, planID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.plan = planID
+	return nil
 }
 
-func (m *MockEntitlementService) CheckLimit(_ context.Context, _ uuid.UUID, entityType string) (*subscription.LimitResult, error) {
+func (m *MockEngine) CurrentPlan(_ context.Context, _ subscription.Subject) (subscription.PlanInfo, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	limit, ok := m.limits[entityType]
+	return subscription.PlanInfo{
+		ID:          m.plan,
+		DisplayName: m.plan,
+	}, nil
+}
+
+func (m *MockEngine) EvaluateFeature(_ context.Context, subject subscription.Subject, feature subscription.FeatureKey) (subscription.Decision, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return subscription.Decision{
+		Allowed: m.features[feature],
+		Subject: subject.Ref(),
+		Feature: feature,
+		PlanID:  m.plan,
+		Reason:  "mock decision",
+		Version: "mock",
+	}, nil
+}
+
+func (m *MockEngine) EvaluateLimit(_ context.Context, subject subscription.Subject, quota subscription.QuotaKey) (subscription.LimitDecision, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	limit, ok := m.limits[quota.Resource]
 	if !ok {
 		limit = -1
 	}
-	current := m.counts[entityType]
-	if limit < 0 {
-		return &subscription.LimitResult{Allowed: true, Current: current, Limit: -1}, nil
+	current := m.counts[quota.Resource]
+	allowed := limit < 0 || current < limit
+	remaining := -1
+	if limit >= 0 {
+		remaining = max(limit-current, 0)
 	}
-	return &subscription.LimitResult{
-		Allowed:    current < limit,
-		Current:    current,
-		Limit:      limit,
-		Percentage: float64(current) / float64(limit),
+
+	return subscription.LimitDecision{
+		Allowed:   allowed,
+		Subject:   subject.Ref(),
+		Quota:     quota,
+		Current:   current,
+		Limit:     limit,
+		Remaining: remaining,
+		PlanID:    m.plan,
+		Reason:    "mock decision",
+		Version:   "mock",
 	}, nil
 }
 
-func (m *MockEntitlementService) GetLimits(_ context.Context, _ uuid.UUID) (map[string]subscription.Limit, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	out := make(map[string]subscription.Limit, len(m.limits))
-	for entityType, max := range m.limits {
-		current := m.counts[entityType]
-		percentage := 0.0
-		if max > 0 {
-			percentage = float64(current) / float64(max)
+func (m *MockEngine) Reserve(_ context.Context, subject subscription.Subject, quota subscription.QuotaKey, amount int, token string) (subscription.Reservation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if existing, ok := m.reservations[token]; ok {
+		return existing, nil
+	}
+	limit, ok := m.limits[quota.Resource]
+	if !ok {
+		limit = -1
+	}
+	current := m.counts[quota.Resource]
+	if limit >= 0 && current+amount > limit {
+		return subscription.Reservation{}, subscription.ErrLimitExceeded{
+			Quota:   quota,
+			Current: current,
+			Limit:   limit,
 		}
-		out[entityType] = subscription.Limit{
-			EntityType:  entityType,
-			Current:     current,
-			Max:         max,
-			IsUnlimited: max < 0,
-			Percentage:  percentage,
+	}
+	res := subscription.Reservation{
+		ID:      fmt.Sprintf("resv-%s", token),
+		Token:   token,
+		Subject: subject.Ref(),
+		Quota:   quota,
+		Amount:  amount,
+		Status:  subscription.ReservationPending,
+	}
+	m.reservations[token] = res
+	m.counts[quota.Resource] = current + amount
+	return res, nil
+}
+
+func (m *MockEngine) Commit(_ context.Context, reservationID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for token, reservation := range m.reservations {
+		if reservation.ID != reservationID {
+			continue
 		}
+		reservation.Status = subscription.ReservationCommitted
+		m.reservations[token] = reservation
+		return nil
 	}
-	return out, nil
+	return subscription.ErrReservationNotFound
 }
 
-func (m *MockEntitlementService) IncrementCount(_ context.Context, _ uuid.UUID, entityType string) error {
+func (m *MockEngine) Release(_ context.Context, reservationID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.counts[entityType]++
-	return nil
-}
-
-func (m *MockEntitlementService) DecrementCount(_ context.Context, _ uuid.UUID, entityType string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.counts[entityType] > 0 {
-		m.counts[entityType]--
+	for token, reservation := range m.reservations {
+		if reservation.ID != reservationID {
+			continue
+		}
+		reservation.Status = subscription.ReservationReleased
+		m.reservations[token] = reservation
+		return nil
 	}
-	return nil
+	return subscription.ErrReservationNotFound
 }
 
-func (m *MockEntitlementService) SetCount(_ context.Context, _ uuid.UUID, entityType string, count int) error {
+func (m *MockEngine) SetUsage(_ context.Context, subject subscription.SubjectRef, quota subscription.QuotaKey, amount int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.counts[entityType] = count
+	key := usageKey(subject, quota)
+	m.usageByKey[key] = amount
+	m.counts[quota.Resource] = amount
 	return nil
 }
 
-func (m *MockEntitlementService) CheckSeatLimit(_ context.Context, _ uuid.UUID) (*subscription.LimitResult, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if m.seatLimit == nil {
-		return &subscription.LimitResult{Allowed: true, Current: m.currentSeat, Limit: -1}, nil
-	}
-	return &subscription.LimitResult{
-		Allowed:    m.currentSeat < *m.seatLimit,
-		Current:    m.currentSeat,
-		Limit:      *m.seatLimit,
-		Percentage: float64(m.currentSeat) / float64(*m.seatLimit),
-	}, nil
+func usageKey(subject subscription.SubjectRef, quota subscription.QuotaKey) string {
+	return fmt.Sprintf("%s|%s|%s|%s", subject.Scope, subject.ID.String(), quota.Resource, quota.Window)
 }
 
-func (m *MockEntitlementService) AddSeat(_ context.Context, _ uuid.UUID) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.currentSeat++
-	return nil
-}
-
-func (m *MockEntitlementService) RemoveSeat(_ context.Context, _ uuid.UUID) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.currentSeat > 0 {
-		m.currentSeat--
-	}
-	return nil
-}
-
-func (m *MockEntitlementService) GetTier(_ context.Context, _ uuid.UUID) (*subscription.TierInfo, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return &subscription.TierInfo{
-		Tier:      m.tier,
-		Features:  []string{},
-		Limits:    m.limits,
-		SeatLimit: m.seatLimit,
-	}, nil
-}
-
-func (m *MockEntitlementService) GetAllTiers(_ context.Context) ([]subscription.TierDefinition, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return []subscription.TierDefinition{{Tier: m.tier, DisplayName: m.tier}}, nil
-}
-
-func (m *MockEntitlementService) IsInGracePeriod(_ context.Context, _ uuid.UUID) (bool, *time.Time, error) {
-	return false, nil, nil
-}
-
-func (m *MockEntitlementService) StartGracePeriod(_ context.Context, _ uuid.UUID) error {
-	return nil
-}
-
-func (m *MockEntitlementService) ClearGracePeriod(_ context.Context, _ uuid.UUID) error {
-	return nil
-}
-
-func (m *MockEntitlementService) RefreshEntitlements(_ context.Context, _ uuid.UUID) error {
-	return nil
-}
-
-func (m *MockEntitlementService) InvalidateCache(_ context.Context, _ uuid.UUID) error {
-	return nil
-}
+var _ subscription.Engine = (*MockEngine)(nil)
