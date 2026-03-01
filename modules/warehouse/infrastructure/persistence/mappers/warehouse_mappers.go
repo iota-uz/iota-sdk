@@ -122,6 +122,7 @@ func ToDBPosition(entity position.Position) (*models.WarehousePosition, []*model
 		Title:     entity.Title(),
 		Barcode:   entity.Barcode(),
 		UnitID:    mapping.ValueToSQLNullInt32(int32(entity.UnitID())),
+		Images:    nil,
 		CreatedAt: entity.CreatedAt(),
 		UpdatedAt: entity.UpdatedAt(),
 	}
@@ -160,6 +161,8 @@ func ToDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 		FinishedAt:   mapping.Value(dbInventoryCheck.FinishedAt),
 		FinishedByID: mapping.Value(dbInventoryCheck.FinishedByID),
 		CreatedByID:  dbInventoryCheck.CreatedByID,
+		CreatedBy:    nil,
+		FinishedBy:   nil,
 	}
 	if dbInventoryCheck.CreatedBy != nil {
 		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy, nil, nil, []uuid.UUID{}, nil)
@@ -180,7 +183,9 @@ func ToDBInventoryCheckResult(result *inventory.CheckResult) (*models.InventoryC
 	return &models.InventoryCheckResult{
 		ID:               result.ID,
 		TenantID:         result.TenantID.String(),
+		InventoryCheckID: 0,
 		PositionID:       result.PositionID,
+		Position:         nil,
 		ExpectedQuantity: result.ExpectedQuantity,
 		ActualQuantity:   result.ActualQuantity,
 		Difference:       result.Difference,
@@ -201,6 +206,7 @@ func ToDomainInventoryCheckResult(result *models.InventoryCheckResult) (*invento
 		ID:         result.ID,
 		TenantID:   tenantID,
 		PositionID: result.PositionID,
+		Position:   nil,
 		// Position:         pos,
 		ExpectedQuantity: result.ExpectedQuantity,
 		ActualQuantity:   result.ActualQuantity,
@@ -224,5 +230,7 @@ func ToDBInventoryCheck(check *inventory.Check) (*models.InventoryCheck, error) 
 		FinishedAt:   mapping.Pointer(check.FinishedAt),
 		FinishedByID: mapping.Pointer(check.FinishedByID),
 		CreatedByID:  check.CreatedByID,
+		CreatedBy:    nil,
+		FinishedBy:   nil,
 	}, nil
 }

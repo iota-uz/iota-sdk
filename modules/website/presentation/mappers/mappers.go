@@ -16,5 +16,6 @@ func AIConfigToViewModel(config aichatconfig.AIConfig) *viewmodels.AIConfig {
 		BaseURL:      config.BaseURL(),
 		CreatedAt:    config.CreatedAt().Format("2006-01-02 15:04:05"),
 		UpdatedAt:    config.UpdatedAt().Format("2006-01-02 15:04:05"),
+		IsDefault:    config.IsDefault(),
 	}
 }

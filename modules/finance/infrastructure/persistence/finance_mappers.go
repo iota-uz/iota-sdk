@@ -100,6 +100,8 @@ func ToDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 		OriginAccountID:      mapping.UUIDToSQLNullString(uuid.Nil),
 		DestinationAccountID: mapping.UUIDToSQLNullString(entity.Account().ID()),
 		TransactionType:      string(transaction.Deposit),
+		ExchangeRate:         sql.NullFloat64{},
+		DestinationAmount:    sql.NullInt64{},
 		CreatedAt:            entity.CreatedAt(),
 	}
 	var categoryID uuid.UUID

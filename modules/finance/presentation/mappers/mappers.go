@@ -91,6 +91,7 @@ func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 		Comment:            entity.Comment(),
 		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
+		Attachments:        []*coreviewmodels.Upload{},
 	}
 }
 
@@ -109,6 +110,7 @@ func ExpenseToViewModel(entity expense.Expense) *viewmodels.Expense {
 		Date:               entity.Date().Format(time.RFC3339),
 		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
+		Attachments:        []*coreviewmodels.Upload{},
 	}
 }
 
@@ -148,14 +150,22 @@ func InventoryToViewModel(entity inventory.Inventory) *viewmodels.Inventory {
 func TransactionToViewModel(entity transaction.Transaction) *viewmodels.Transaction {
 	amount := entity.Amount()
 	vm := &viewmodels.Transaction{
-		ID:                 entity.ID().String(),
-		Amount:             fmt.Sprintf("%.2f", amount.AsMajorUnits()),
-		AmountWithCurrency: amount.Display(),
-		TransactionDate:    entity.TransactionDate(),
-		AccountingPeriod:   entity.AccountingPeriod(),
-		TransactionType:    string(entity.TransactionType()),
-		Comment:            entity.Comment(),
-		CreatedAt:          entity.CreatedAt(),
+		ID:                            entity.ID().String(),
+		Amount:                        fmt.Sprintf("%.2f", amount.AsMajorUnits()),
+		AmountWithCurrency:            amount.Display(),
+		TransactionDate:               entity.TransactionDate(),
+		AccountingPeriod:              entity.AccountingPeriod(),
+		TransactionType:               string(entity.TransactionType()),
+		TypeBadgeClass:                "",
+		Comment:                       entity.Comment(),
+		CreatedAt:                     entity.CreatedAt(),
+		OriginAccount:                 nil,
+		DestinationAccount:            nil,
+		ExchangeRate:                  "",
+		DestinationAmount:             "",
+		DestinationAmountWithCurrency: "",
+		Category:                      nil,
+		Counterparty:                  nil,
 	}
 
 	// Set type badge class
@@ -192,6 +202,7 @@ func TransactionToListItem(vm *viewmodels.Transaction) *viewmodels.TransactionLi
 		ID:                 vm.ID,
 		Amount:             vm.Amount,
 		AmountWithCurrency: vm.AmountWithCurrency,
+		Account:            nil,
 		TransactionDate:    vm.TransactionDate,
 		TransactionType:    vm.TransactionType,
 		TypeBadgeClass:     vm.TypeBadgeClass,
@@ -225,9 +236,11 @@ func ToIncomeStatementViewModel(incomeStatement *value_objects.IncomeStatement) 
 		GrossProfit:             fmt.Sprintf("%.2f", incomeStatement.GrossProfit.AsMajorUnits()),
 		GrossProfitWithCurrency: incomeStatement.GrossProfit.Display(),
 		GrossProfitRatio:        incomeStatement.GrossProfitRatio,
+		MonthlyGrossProfit:      []viewmodels.MonthlyAmount{},
 		NetProfit:               fmt.Sprintf("%.2f", incomeStatement.NetProfit.AsMajorUnits()),
 		NetProfitWithCurrency:   incomeStatement.NetProfit.Display(),
 		NetProfitRatio:          incomeStatement.NetProfitRatio,
+		MonthlyNetProfit:        []viewmodels.MonthlyAmount{},
 		IsProfit:                incomeStatement.IsProfit(),
 		Currency:                incomeStatement.Currency,
 		GeneratedAt:             incomeStatement.GeneratedAt.Format(time.RFC3339),
@@ -307,6 +320,7 @@ func toIncomeStatementSectionViewModel(section value_objects.IncomeStatementSect
 			Amount:             fmt.Sprintf("%.2f", item.Amount.AsMajorUnits()),
 			AmountWithCurrency: item.Amount.Display(),
 			Percentage:         item.Percentage,
+			MonthlyAmounts:     []viewmodels.MonthlyAmount{},
 		})
 	}
 
@@ -316,6 +330,7 @@ func toIncomeStatementSectionViewModel(section value_objects.IncomeStatementSect
 		Subtotal:             fmt.Sprintf("%.2f", section.Subtotal.AsMajorUnits()),
 		SubtotalWithCurrency: section.Subtotal.Display(),
 		Percentage:           section.Percentage,
+		MonthlySubtotals:     []viewmodels.MonthlyAmount{},
 	}
 }
 
@@ -547,6 +562,7 @@ func ToCashflowStatementViewModel(cashflowStatement *value_objects.CashflowState
 		TotalOutflowsWithCurrency:   cashflowStatement.TotalOutflows.Display(),
 		NetCashFlow:                 fmt.Sprintf("%.2f", cashflowStatement.NetCashFlow.AsMajorUnits()),
 		NetCashFlowWithCurrency:     cashflowStatement.NetCashFlow.Display(),
+		MonthlyNetCashFlow:          []viewmodels.MonthlyAmount{},
 		IsPositive:                  cashflowStatement.NetCashFlow.Amount() >= 0,
 		Currency:                    cashflowStatement.Currency,
 		GeneratedAt:                 time.Now().Format("2006-01-02 15:04:05"),
@@ -612,6 +628,8 @@ func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodel
 			AmountWithCurrency: item.Amount.Display(),
 			Percentage:         item.Percentage,
 			Count:              item.Count,
+			MonthlyAmounts:     []viewmodels.MonthlyAmount{},
+			MonthlyCounts:      []viewmodels.MonthlyCount{},
 		})
 	}
 
@@ -624,6 +642,8 @@ func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodel
 			AmountWithCurrency: item.Amount.Display(),
 			Percentage:         item.Percentage,
 			Count:              item.Count,
+			MonthlyAmounts:     []viewmodels.MonthlyAmount{},
+			MonthlyCounts:      []viewmodels.MonthlyCount{},
 		})
 	}
 
@@ -633,6 +653,7 @@ func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodel
 		Outflows:                outflowItems,
 		NetCashFlow:             fmt.Sprintf("%.2f", section.NetCashFlow.AsMajorUnits()),
 		NetCashFlowWithCurrency: section.NetCashFlow.Display(),
+		MonthlyNetCashFlow:      []viewmodels.MonthlyAmount{},
 	}
 }
 
@@ -921,6 +942,8 @@ func DebtToViewModel(entity debt.Debt, counterpartyName string) *viewmodels.Debt
 		OutstandingAmount:             fmt.Sprintf("%.2f", outstandingAmount.AsMajorUnits()),
 		OutstandingAmountWithCurrency: outstandingAmount.Display(),
 		Description:                   entity.Description(),
+		DueDate:                       "",
+		SettlementTransactionID:       "",
 		CreatedAt:                     entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:                     entity.UpdatedAt().Format(time.RFC3339),
 	}

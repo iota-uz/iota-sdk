@@ -64,14 +64,15 @@ func New(
 	opts ...Option,
 ) Counterparty {
 	c := &counterparty{
-		id:        uuid.New(),
-		tenantID:  uuid.Nil,
-		tin:       tax.NilTin,
-		name:      name,
-		partyType: partyType,
-		legalType: legalType,
-		createdAt: time.Now(),
-		updatedAt: time.Now(),
+		id:           uuid.New(),
+		tenantID:     uuid.Nil,
+		tin:          tax.NilTin,
+		name:         name,
+		partyType:    partyType,
+		legalType:    legalType,
+		legalAddress: "",
+		createdAt:    time.Now(),
+		updatedAt:    time.Now(),
 	}
 
 	for _, opt := range opts {

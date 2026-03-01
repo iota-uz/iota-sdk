@@ -154,7 +154,10 @@ func StripeSubscriptionDataWithTrialPeriodDays(trialPeriodDays int64) StripeSubs
 func NewStripeSubscriptionData(
 	opts ...StripeSubscriptionDataOption,
 ) StripeSubscriptionData {
-	sd := &stripeSubscriptionData{}
+	sd := &stripeSubscriptionData{
+		description:     "",
+		trialPeriodDays: 0,
+	}
 
 	for _, opt := range opts {
 		opt(sd)
@@ -182,6 +185,17 @@ func NewStripeDetails(
 ) *stripeDetails {
 	d := &stripeDetails{
 		clientReferenceID: clientReferenceID,
+		mode:              "",
+		billingReason:     "",
+		sessionID:         "",
+		invoiceID:         "",
+		subscriptionID:    "",
+		customerID:        "",
+		items:             []StripeItem{},
+		subscriptionData:  nil,
+		successURL:        "",
+		cancelURL:         "",
+		url:               "",
 	}
 	for _, opt := range opts {
 		opt(d)

@@ -64,6 +64,9 @@ type AuthLog interface {
 // New creates a new AuthLog with required fields
 func New(ip, userAgent string, opts ...Option) AuthLog {
 	a := &authLog{
+		id:        0,
+		tenantID:  uuid.Nil,
+		userID:    0,
 		ip:        ip,
 		userAgent: userAgent,
 		createdAt: time.Now(),

@@ -197,11 +197,12 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 
 func toDBPermission(entity permission.Permission) *models.Permission {
 	return &models.Permission{
-		ID:       entity.ID().String(),
-		Name:     entity.Name(),
-		Resource: string(entity.Resource()),
-		Action:   string(entity.Action()),
-		Modifier: string(entity.Modifier()),
+		ID:          entity.ID().String(),
+		Name:        entity.Name(),
+		Resource:    string(entity.Resource()),
+		Action:      string(entity.Action()),
+		Modifier:    string(entity.Modifier()),
+		Description: sql.NullString{},
 	}
 }
 
@@ -247,7 +248,7 @@ func ToDBUpload(upload upload.Upload) *models.Upload {
 		Mimetype:  upload.Mimetype().String(),
 		CreatedAt: upload.CreatedAt(),
 		UpdatedAt: upload.UpdatedAt(),
-		GeoPoint:  &models.Point{},
+		GeoPoint:  &models.Point{X: 0, Y: 0},
 	}
 	if point := upload.GeoPoint(); point != nil {
 		model.GeoPoint = &models.Point{
