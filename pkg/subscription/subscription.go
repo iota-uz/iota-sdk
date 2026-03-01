@@ -14,16 +14,35 @@ import (
 
 const decisionSchemaVersion = "policy"
 
+// FeatureEvaluator evaluates whether a subject has access to a feature.
+type FeatureEvaluator interface {
+	EvaluateFeature(ctx context.Context, subject Subject, feature FeatureKey) (Decision, error)
+}
+
+// LimitEvaluator evaluates whether a subject is within a quota limit.
+type LimitEvaluator interface {
+	EvaluateLimit(ctx context.Context, subject Subject, quota QuotaKey) (LimitDecision, error)
+}
+
+// PlanResolver resolves the current plan for a subject.
+type PlanResolver interface {
+	CurrentPlan(ctx context.Context, subject Subject) (PlanInfo, error)
+}
+
+// Engine is the full subscription policy engine. It composes the three narrow
+// read interfaces (FeatureEvaluator, LimitEvaluator, PlanResolver) together
+// with write operations for grant management, plan assignment, reservations,
+// and usage tracking.
 type Engine interface {
+	FeatureEvaluator
+	LimitEvaluator
+	PlanResolver
+
 	UpsertGrant(ctx context.Context, grant Grant) error
 	RevokeGrant(ctx context.Context, grantID string) error
 	ListGrants(ctx context.Context, subject SubjectRef) ([]Grant, error)
 
 	AssignPlan(ctx context.Context, subject SubjectRef, planID string) error
-	CurrentPlan(ctx context.Context, subject Subject) (PlanInfo, error)
-
-	EvaluateFeature(ctx context.Context, subject Subject, feature FeatureKey) (Decision, error)
-	EvaluateLimit(ctx context.Context, subject Subject, quota QuotaKey) (LimitDecision, error)
 
 	Reserve(ctx context.Context, subject Subject, quota QuotaKey, amount int, token string) (Reservation, error)
 	Commit(ctx context.Context, reservationID string) error
@@ -53,29 +72,31 @@ type service struct {
 	grants          map[string]Grant
 	grantsBySubject map[string]map[string]struct{}
 
-	usage              map[string]int
-	reservations       map[string]*Reservation
-	reservationByToken map[string]string
+	usage                      map[string]int
+	reservations               map[string]*Reservation
+	reservationByToken         map[string]string
+	reservationsBySubjectQuota map[string]map[string]struct{}
 }
 
 func NewService(cfg Config, opts ...Option) (Engine, error) {
 	const op serrors.Op = "SubscriptionEngine.NewService"
 
 	cfg = cfg.normalized()
-	plans, err := resolvePlans(cfg)
+	plans, err := ResolvePlans(cfg)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
 
 	svc := &service{
-		cfg:                cfg,
-		now:                func() time.Time { return time.Now().UTC() },
-		plans:              plans,
-		grants:             make(map[string]Grant),
-		grantsBySubject:    make(map[string]map[string]struct{}),
-		usage:              make(map[string]int),
-		reservations:       make(map[string]*Reservation),
-		reservationByToken: make(map[string]string),
+		cfg:                        cfg,
+		now:                        func() time.Time { return time.Now().UTC() },
+		plans:                      plans,
+		grants:                     make(map[string]Grant),
+		grantsBySubject:            make(map[string]map[string]struct{}),
+		usage:                      make(map[string]int),
+		reservations:               make(map[string]*Reservation),
+		reservationByToken:         make(map[string]string),
+		reservationsBySubjectQuota: make(map[string]map[string]struct{}),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -342,7 +363,7 @@ func (s *service) Reserve(_ context.Context, subject Subject, quota QuotaKey, am
 
 	limitDecision := s.evaluateLimitLocked(subject, quota)
 	if limitDecision.Limit >= 0 && limitDecision.Current+amount > limitDecision.Limit {
-		return Reservation{}, serrors.E(op, ErrLimitExceededError{
+		return Reservation{}, serrors.E(op, LimitExceededError{
 			Quota:   quota,
 			Current: limitDecision.Current,
 			Limit:   limitDecision.Limit,
@@ -363,6 +384,11 @@ func (s *service) Reserve(_ context.Context, subject Subject, quota QuotaKey, am
 
 	s.reservations[reservation.ID] = &reservation
 	s.reservationByToken[token] = reservation.ID
+	sqKey := reservationSubjectQuotaKey(reservation.Subject, reservation.Quota)
+	if s.reservationsBySubjectQuota[sqKey] == nil {
+		s.reservationsBySubjectQuota[sqKey] = map[string]struct{}{}
+	}
+	s.reservationsBySubjectQuota[sqKey][reservation.ID] = struct{}{}
 	return cloneReservation(reservation), nil
 }
 
@@ -423,6 +449,7 @@ func (s *service) Release(_ context.Context, reservationID string) error {
 	reservation.Status = ReservationReleased
 	reservation.ReleasedAt = &now
 	delete(s.reservationByToken, reservation.Token)
+	s.detachReservationIndexLocked(reservationID, reservation.Subject, reservation.Quota)
 	return nil
 }
 
@@ -495,6 +522,8 @@ func (s *service) evaluateLimitLocked(subject Subject, quota QuotaKey) LimitDeci
 		allowed = current < limit
 		if allowed {
 			reason = "within quota"
+		} else if current == limit {
+			reason = "at quota limit"
 		} else {
 			reason = "quota exceeded"
 		}
@@ -528,8 +557,16 @@ func (s *service) resolvePlanLocked(subject Subject) (string, PlanDefinition, De
 
 	plan, ok := s.plans[s.cfg.DefaultPlan]
 	if !ok {
-		for planID, fallback := range s.plans {
-			return planID, fallback, DecisionSource{
+		// Map iteration is non-deterministic; sort plan IDs and pick the
+		// lexicographically first one so the result is stable across runs.
+		planIDs := make([]string, 0, len(s.plans))
+		for planID := range s.plans {
+			planIDs = append(planIDs, planID)
+		}
+		sort.Strings(planIDs)
+		if len(planIDs) > 0 {
+			firstID := planIDs[0]
+			return firstID, s.plans[firstID], DecisionSource{
 				GrantID:  "plan:fallback",
 				Kind:     GrantKindDefault,
 				Priority: kindPriority(GrantKindDefault),
@@ -593,18 +630,37 @@ func (s *service) currentUsageLocked(subject SubjectRef, quota QuotaKey) int {
 func (s *service) pendingUsageLocked(subject SubjectRef, quota QuotaKey) int {
 	total := 0
 	now := s.now()
-	for _, reservation := range s.reservations {
+	sqKey := reservationSubjectQuotaKey(subject, quota)
+	for resID := range s.reservationsBySubjectQuota[sqKey] {
+		reservation, ok := s.reservations[resID]
+		if !ok {
+			continue
+		}
 		if reservation.Status != ReservationPending {
 			continue
 		}
 		if now.After(reservation.ExpiresAt) {
 			continue
 		}
-		if reservation.Subject == subject && reservation.Quota == quota {
-			total += reservation.Amount
-		}
+		total += reservation.Amount
 	}
 	return total
+}
+
+func reservationSubjectQuotaKey(subject SubjectRef, quota QuotaKey) string {
+	return fmt.Sprintf("%s|%s", subjectRefKey(subject), quota.String())
+}
+
+func (s *service) detachReservationIndexLocked(
+	reservationID string,
+	subject SubjectRef,
+	quota QuotaKey,
+) {
+	sqKey := reservationSubjectQuotaKey(subject, quota)
+	delete(s.reservationsBySubjectQuota[sqKey], reservationID)
+	if len(s.reservationsBySubjectQuota[sqKey]) == 0 {
+		delete(s.reservationsBySubjectQuota, sqKey)
+	}
 }
 
 func (s *service) cleanupExpiredReservationsLocked() {
@@ -617,16 +673,19 @@ func (s *service) cleanupExpiredReservationsLocked() {
 				reservation.Status = ReservationExpired
 				reservation.ReleasedAt = &now
 				delete(s.reservationByToken, reservation.Token)
+				s.detachReservationIndexLocked(reservationID, reservation.Subject, reservation.Quota)
 			}
 		case ReservationCommitted:
 			if reservation.CommittedAt != nil && reservation.CommittedAt.Before(retentionCutoff) {
 				delete(s.reservationByToken, reservation.Token)
 				delete(s.reservations, reservationID)
+				s.detachReservationIndexLocked(reservationID, reservation.Subject, reservation.Quota)
 			}
 		case ReservationReleased, ReservationExpired:
 			if reservation.ReleasedAt != nil && reservation.ReleasedAt.Before(retentionCutoff) {
 				delete(s.reservationByToken, reservation.Token)
 				delete(s.reservations, reservationID)
+				s.detachReservationIndexLocked(reservationID, reservation.Subject, reservation.Quota)
 			}
 		}
 	}
@@ -651,9 +710,12 @@ func (s *service) detachGrantLocked(subject SubjectRef, grantID string) {
 	}
 }
 
-func resolvePlans(cfg Config) (map[string]PlanDefinition, error) {
+// ResolvePlans builds effective plan definitions, including inherited features
+// and limits from parent plans.
+func ResolvePlans(cfg Config) (map[string]PlanDefinition, error) {
 	const op serrors.Op = "SubscriptionEngine.resolvePlans"
 
+	cfg = cfg.normalized()
 	byPlan := make(map[string]PlanDefinition, len(cfg.Plans))
 	for _, plan := range cfg.Plans {
 		if strings.TrimSpace(plan.PlanID) == "" {
@@ -759,6 +821,9 @@ func planLimitForQuota(plan PlanDefinition, quota QuotaKey) (int, bool) {
 	return 0, false
 }
 
+// matchQuotaRule looks up a quota rule from a grant. It first tries the full
+// quota key (resource|dimension|window) and falls back to the bare resource
+// name, mirroring the two-level lookup in planLimitForQuota.
 func matchQuotaRule(grant Grant, quota QuotaKey) (QuotaRule, bool) {
 	if grant.Quotas == nil {
 		return QuotaRule{}, false
@@ -835,6 +900,11 @@ func validateSubjectRef(subject SubjectRef) error {
 func validateQuota(quota QuotaKey) (QuotaKey, error) {
 	if strings.TrimSpace(quota.Resource) == "" {
 		return quota, ErrQuotaInvalid
+	}
+	// The '|' character is the separator used in QuotaKey.String() and in
+	// subjectRefKey; reject it to prevent ambiguous keys.
+	if strings.ContainsRune(quota.Resource, '|') || strings.ContainsRune(quota.Dimension, '|') {
+		return quota, fmt.Errorf("%w: resource and dimension must not contain '|'", ErrQuotaInvalid)
 	}
 	if quota.Window == "" {
 		quota.Window = WindowNone

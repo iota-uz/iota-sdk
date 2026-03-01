@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func RequireFeature(engine Engine, feature FeatureKey) mux.MiddlewareFunc {
+func RequireFeature(engine FeatureEvaluator, feature FeatureKey) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			subject, err := tenantSubjectFromContext(r)
@@ -46,7 +46,7 @@ func RequireFeature(engine Engine, feature FeatureKey) mux.MiddlewareFunc {
 	}
 }
 
-func RequirePlan(engine Engine, allowedPlans ...string) mux.MiddlewareFunc {
+func RequirePlan(engine PlanResolver, allowedPlans ...string) mux.MiddlewareFunc {
 	allowed := make(map[string]struct{}, len(allowedPlans))
 	for _, planID := range allowedPlans {
 		allowed[planID] = struct{}{}
@@ -88,7 +88,7 @@ func RequirePlan(engine Engine, allowedPlans ...string) mux.MiddlewareFunc {
 	}
 }
 
-func EnforceLimit(engine Engine, entityType string) mux.MiddlewareFunc {
+func EnforceLimit(engine LimitEvaluator, entityType string) mux.MiddlewareFunc {
 	quota := QuotaKey{
 		Resource: entityType,
 		Window:   WindowNone,

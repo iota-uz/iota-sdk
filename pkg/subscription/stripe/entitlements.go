@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/subscription/repository"
+	"github.com/sirupsen/logrus"
 )
 
 func (s *Service) resolveTenantID(ctx context.Context, metadata map[string]string, customerID, subscriptionID string) (uuid.UUID, error) {
@@ -39,6 +40,36 @@ func (s *Service) resolveTenantID(ctx context.Context, metadata map[string]strin
 		}
 	}
 	return uuid.Nil, repository.ErrEntitlementNotFound
+}
+
+// ensureEntitlement creates a default entitlement for the tenant if one does
+// not already exist. This is needed when a Stripe webhook arrives before the
+// seed has run for a tenant (e.g. checkout completed before first login).
+func (s *Service) ensureEntitlement(ctx context.Context, tenantID uuid.UUID) error {
+	const op serrors.Op = "SubscriptionStripeService.ensureEntitlement"
+
+	_, err := s.repo.GetEntitlement(ctx, tenantID)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, repository.ErrEntitlementNotFound) {
+		return serrors.E(op, err)
+	}
+
+	now := s.now()
+	if err := s.repo.UpsertEntitlement(ctx, &repository.Entitlement{
+		TenantID:     tenantID,
+		PlanID:       s.cfg.DefaultPlan,
+		Features:     []string{},
+		EntityLimits: map[string]int{},
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}); err != nil {
+		return serrors.E(op, err)
+	}
+
+	logrus.WithField("tenant_id", tenantID.String()).Info("Auto-provisioned default subscription entitlement")
+	return nil
 }
 
 func (s *Service) updateStripeRefs(ctx context.Context, tenantID uuid.UUID, customerID, subscriptionID string) error {

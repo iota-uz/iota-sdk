@@ -172,7 +172,7 @@ func (m *MockEngine) Reserve(_ context.Context, subject subscription.Subject, qu
 	}
 	current += m.pendingAmount(subject.Ref(), quota)
 	if limit >= 0 && current+amount > limit {
-		return subscription.Reservation{}, subscription.ErrLimitExceededError{
+		return subscription.Reservation{}, subscription.LimitExceededError{
 			Quota:   quota,
 			Current: current,
 			Limit:   limit,

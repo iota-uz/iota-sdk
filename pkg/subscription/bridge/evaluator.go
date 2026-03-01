@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -29,16 +28,19 @@ func NewEvaluator(cfg subscription.Config, repo subrepo.Repository) (*Evaluator,
 	if repo == nil {
 		return nil, serrors.E(op, fmt.Errorf("repository is required"))
 	}
-	cfg = normalizeConfig(cfg)
-	plans, err := resolvePlans(cfg)
+	plans, err := subscription.ResolvePlans(cfg)
 	if err != nil {
 		return nil, serrors.E(op, err)
+	}
+	defaultPlan := cfg.DefaultPlan
+	if strings.TrimSpace(defaultPlan) == "" {
+		defaultPlan = "FREE"
 	}
 
 	return &Evaluator{
 		repo:        repo,
 		plans:       plans,
-		defaultPlan: cfg.DefaultPlan,
+		defaultPlan: defaultPlan,
 		now:         func() time.Time { return time.Now().UTC() },
 	}, nil
 }
@@ -243,106 +245,4 @@ func inGrace(entitlement *subrepo.Entitlement, now time.Time) bool {
 		return true
 	}
 	return now.Before(*entitlement.GracePeriodEndsAt)
-}
-
-func normalizeConfig(cfg subscription.Config) subscription.Config {
-	out := cfg
-	if out.DefaultPlan == "" {
-		out.DefaultPlan = "FREE"
-	}
-	return out
-}
-
-func resolvePlans(cfg subscription.Config) (map[string]subscription.PlanDefinition, error) {
-	plans := make(map[string]subscription.PlanDefinition, len(cfg.Plans))
-	for _, plan := range cfg.Plans {
-		if strings.TrimSpace(plan.PlanID) == "" {
-			continue
-		}
-		if plan.EntityLimits == nil {
-			plan.EntityLimits = map[string]int{}
-		}
-		plans[plan.PlanID] = plan
-	}
-	if _, ok := plans[cfg.DefaultPlan]; !ok {
-		plans[cfg.DefaultPlan] = subscription.PlanDefinition{
-			PlanID:       cfg.DefaultPlan,
-			DisplayName:  cfg.DefaultPlan,
-			EntityLimits: map[string]int{},
-			Features:     []string{},
-		}
-	}
-
-	resolved := make(map[string]subscription.PlanDefinition, len(plans))
-	visiting := make(map[string]bool, len(plans))
-
-	var dfs func(string) (subscription.PlanDefinition, error)
-	dfs = func(planID string) (subscription.PlanDefinition, error) {
-		if plan, ok := resolved[planID]; ok {
-			return plan, nil
-		}
-		if visiting[planID] {
-			return subscription.PlanDefinition{}, fmt.Errorf("plan inheritance cycle detected: %s", planID)
-		}
-
-		current, ok := plans[planID]
-		if !ok {
-			return subscription.PlanDefinition{}, fmt.Errorf("plan not found: %s", planID)
-		}
-		visiting[planID] = true
-
-		featureSet := map[string]struct{}{}
-		limits := map[string]int{}
-		var seatLimit *int
-		if current.ParentPlanID != "" {
-			parent, err := dfs(current.ParentPlanID)
-			if err != nil {
-				return subscription.PlanDefinition{}, err
-			}
-			for _, feature := range parent.Features {
-				featureSet[feature] = struct{}{}
-			}
-			for key, value := range parent.EntityLimits {
-				limits[key] = value
-			}
-			if parent.SeatLimit != nil {
-				parentLimit := *parent.SeatLimit
-				seatLimit = &parentLimit
-			}
-		}
-		for _, feature := range current.Features {
-			featureSet[feature] = struct{}{}
-		}
-		for key, value := range current.EntityLimits {
-			limits[key] = value
-		}
-		if current.SeatLimit != nil {
-			currentLimit := *current.SeatLimit
-			seatLimit = &currentLimit
-		}
-
-		features := make([]string, 0, len(featureSet))
-		for feature := range featureSet {
-			features = append(features, feature)
-		}
-		sort.Strings(features)
-
-		merged := current
-		merged.PlanID = planID
-		merged.Features = features
-		merged.EntityLimits = limits
-		merged.SeatLimit = seatLimit
-
-		visiting[planID] = false
-		resolved[planID] = merged
-		return merged, nil
-	}
-
-	for planID := range plans {
-		if _, err := dfs(planID); err != nil {
-			return nil, err
-		}
-	}
-
-	return resolved, nil
 }
