@@ -1,6 +1,6 @@
 package fp
 
-// Allow to transform a function that receives 2 params in a sequence of unary functions
+// Curry2 Allow to transform a function that receives 2 params in a sequence of unary functions
 func Curry2[T1, T2, R any](fn func(T1, T2) R) func(T1) func(T2) R {
 	return func(t1 T1) func(T2) R {
 		return func(t2 T2) R {
@@ -9,7 +9,7 @@ func Curry2[T1, T2, R any](fn func(T1, T2) R) func(T1) func(T2) R {
 	}
 }
 
-// Allow to transform a function that receives 3 params in a sequence of unary functions
+// Curry3 Allow to transform a function that receives 3 params in a sequence of unary functions
 func Curry3[T1, T2, T3, R any](fn func(T1, T2, T3) R) func(T1) func(T2) func(T3) R {
 	return func(t1 T1) func(T2) func(T3) R {
 		return func(t2 T2) func(T3) R {
@@ -20,7 +20,7 @@ func Curry3[T1, T2, T3, R any](fn func(T1, T2, T3) R) func(T1) func(T2) func(T3)
 	}
 }
 
-// Allow to transform a function that receives 4 params in a sequence of unary functions
+// Curry4 Allow to transform a function that receives 4 params in a sequence of unary functions
 func Curry4[T1, T2, T3, T4, R any](fn func(T1, T2, T3, T4) R) func(T1) func(T2) func(T3) func(T4) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) R {
 		return func(t2 T2) func(T3) func(T4) R {
@@ -33,7 +33,7 @@ func Curry4[T1, T2, T3, T4, R any](fn func(T1, T2, T3, T4) R) func(T1) func(T2) 
 	}
 }
 
-// Allow to transform a function that receives 5 params in a sequence of unary functions
+// Curry5 Allow to transform a function that receives 5 params in a sequence of unary functions
 func Curry5[T1, T2, T3, T4, T5, R any](fn func(T1, T2, T3, T4, T5) R) func(T1) func(T2) func(T3) func(T4) func(T5) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) R {
@@ -48,7 +48,7 @@ func Curry5[T1, T2, T3, T4, T5, R any](fn func(T1, T2, T3, T4, T5) R) func(T1) f
 	}
 }
 
-// Allow to transform a function that receives 6 params in a sequence of unary functions
+// Curry6 Allow to transform a function that receives 6 params in a sequence of unary functions
 func Curry6[T1, T2, T3, T4, T5, T6, R any](fn func(T1, T2, T3, T4, T5, T6) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) R {
@@ -65,7 +65,7 @@ func Curry6[T1, T2, T3, T4, T5, T6, R any](fn func(T1, T2, T3, T4, T5, T6) R) fu
 	}
 }
 
-// Allow to transform a function that receives 7 params in a sequence of unary functions
+// Curry7 Allow to transform a function that receives 7 params in a sequence of unary functions
 func Curry7[T1, T2, T3, T4, T5, T6, T7, R any](fn func(T1, T2, T3, T4, T5, T6, T7) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) R {
@@ -84,7 +84,7 @@ func Curry7[T1, T2, T3, T4, T5, T6, T7, R any](fn func(T1, T2, T3, T4, T5, T6, T
 	}
 }
 
-// Allow to transform a function that receives 8 params in a sequence of unary functions
+// Curry8 Allow to transform a function that receives 8 params in a sequence of unary functions
 func Curry8[T1, T2, T3, T4, T5, T6, T7, T8, R any](fn func(T1, T2, T3, T4, T5, T6, T7, T8) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) R {
@@ -105,7 +105,7 @@ func Curry8[T1, T2, T3, T4, T5, T6, T7, T8, R any](fn func(T1, T2, T3, T4, T5, T
 	}
 }
 
-// Allow to transform a function that receives 9 params in a sequence of unary functions
+// Curry9 Allow to transform a function that receives 9 params in a sequence of unary functions
 func Curry9[T1, T2, T3, T4, T5, T6, T7, T8, T9, R any](fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) R {
@@ -128,7 +128,7 @@ func Curry9[T1, T2, T3, T4, T5, T6, T7, T8, T9, R any](fn func(T1, T2, T3, T4, T
 	}
 }
 
-// Allow to transform a function that receives 10 params in a sequence of unary functions
+// Curry10 Allow to transform a function that receives 10 params in a sequence of unary functions
 func Curry10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R any](fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) R {
@@ -153,7 +153,7 @@ func Curry10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R any](fn func(T1, T2, T3,
 	}
 }
 
-// Allow to transform a function that receives 11 params in a sequence of unary functions
+// Curry11 Allow to transform a function that receives 11 params in a sequence of unary functions
 func Curry11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R any](fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) R {
@@ -180,7 +180,7 @@ func Curry11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R any](fn func(T1, T2
 	}
 }
 
-// Allow to transform a function that receives 12 params in a sequence of unary functions
+// Curry12 Allow to transform a function that receives 12 params in a sequence of unary functions
 func Curry12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R any](fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) R {
@@ -209,7 +209,7 @@ func Curry12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R any](fn func(T
 	}
 }
 
-// Allow to transform a function that receives 13 params in a sequence of unary functions
+// Curry13 Allow to transform a function that receives 13 params in a sequence of unary functions
 func Curry13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, R any](fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) R {
@@ -240,7 +240,7 @@ func Curry13[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, R any](fn f
 	}
 }
 
-// Allow to transform a function that receives 14 params in a sequence of unary functions
+// Curry14 Allow to transform a function that receives 14 params in a sequence of unary functions
 func Curry14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, R any](fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) func(T14) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) func(T14) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) func(T14) R {
@@ -273,7 +273,7 @@ func Curry14[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, R any]
 	}
 }
 
-// Allow to transform a function that receives 15 params in a sequence of unary functions
+// Curry15 Allow to transform a function that receives 15 params in a sequence of unary functions
 func Curry15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, R any](fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) func(T14) func(T15) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) func(T14) func(T15) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) func(T14) func(T15) R {
@@ -308,7 +308,7 @@ func Curry15[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, R
 	}
 }
 
-// Allow to transform a function that receives 16 params in a sequence of unary functions
+// Curry16 Allow to transform a function that receives 16 params in a sequence of unary functions
 func Curry16[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, R any](fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16) R) func(T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) func(T14) func(T15) func(T16) R {
 	return func(t1 T1) func(T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) func(T14) func(T15) func(T16) R {
 		return func(t2 T2) func(T3) func(T4) func(T5) func(T6) func(T7) func(T8) func(T9) func(T10) func(T11) func(T12) func(T13) func(T14) func(T15) func(T16) R {
