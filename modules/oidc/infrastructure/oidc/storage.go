@@ -908,13 +908,15 @@ func (c *oidcClient) DevMode() bool {
 	return false
 }
 
-// RestrictAdditionalIDTokenScopes returns a scope filter that does not alter scopes.
-func (c *oidcClient) RestrictAdditionalIDTokenScopes() func(scopes []string) []string {
-	return c.RestrictAdditionalIdTokenScopes()
+// RestrictAdditionalIdTokenScopes is the interface-compatible legacy spelling.
+//
+//nolint:staticcheck
+func (c *oidcClient) RestrictAdditionalIdTokenScopes() func(scopes []string) []string {
+	return c.RestrictAdditionalIDTokenScopes()
 }
 
-//lint:ignore ST1003 method name required by the op.Client interface
-func (c *oidcClient) RestrictAdditionalIdTokenScopes() func(scopes []string) []string {
+// RestrictAdditionalIDTokenScopes is the preferred form requested by Staticcheck.
+func (c *oidcClient) RestrictAdditionalIDTokenScopes() func(scopes []string) []string {
 	return func(scopes []string) []string {
 		return scopes
 	}
