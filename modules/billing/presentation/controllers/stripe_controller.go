@@ -212,8 +212,9 @@ func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event st
 
 	stripeDetails, ok := entity.Details().(details.StripeDetails)
 	if !ok {
-		logger.Error("Details is not of type StripeDetails")
-		return nil
+		err = invalidStripeDetailsTypeError(entity.Details())
+		logger.WithError(err).Error("Details is not of type StripeDetails")
+		return err
 	}
 
 	if session.Customer != nil {
@@ -300,8 +301,9 @@ func (c *StripeController) handleInvoiceCreated(ctx context.Context, event strip
 	prevEntity := entities[0]
 	prevDetails, ok := prevEntity.Details().(details.StripeDetails)
 	if !ok {
-		logger.Error("Previous details is not of type StripeDetails")
-		return nil
+		err = invalidStripeDetailsTypeError(prevEntity.Details())
+		logger.WithError(err).Error("Previous details is not of type StripeDetails")
+		return err
 	}
 
 	clientRef := prevDetails.ClientReferenceID()
@@ -372,8 +374,9 @@ func (c *StripeController) invoicePaymentSucceeded(ctx context.Context, event st
 
 	stripeDetails, ok := entity.Details().(details.StripeDetails)
 	if !ok {
-		logger.Error("Details is not of type StripeDetails")
-		return nil
+		err = invalidStripeDetailsTypeError(entity.Details())
+		logger.WithError(err).Error("Details is not of type StripeDetails")
+		return err
 	}
 
 	stripeDetails = stripeDetails.
@@ -441,8 +444,9 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 
 	stripeDetails, ok := entity.Details().(details.StripeDetails)
 	if !ok {
-		logger.Error("Details is not of type StripeDetails")
-		return nil
+		err = invalidStripeDetailsTypeError(entity.Details())
+		logger.WithError(err).Error("Details is not of type StripeDetails")
+		return err
 	}
 
 	stripeDetails = stripeDetails.
@@ -483,6 +487,10 @@ func unexpectedTransactionCountError(field, value string, expected, got int) err
 
 func transactionNotFoundError(field, value string) error {
 	return fmt.Errorf("transaction not found for %s=%s", field, value)
+}
+
+func invalidStripeDetailsTypeError(details any) error {
+	return fmt.Errorf("expected StripeDetails, got %T", details)
 }
 
 // currencyDivisor returns the smallest currency unit divisor.
