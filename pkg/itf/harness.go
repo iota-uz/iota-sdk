@@ -1,3 +1,4 @@
+// Package itf provides this package.
 package itf
 
 import (
@@ -410,7 +411,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opCreateDB, err, "create database")
 	}
 
-	pool, err := newPoolWithConfig(DbOpts(dbName), cfg.Database.Pool)
+	pool, err := newPoolWithConfig(DBOpts(dbName), cfg.Database.Pool)
 	if err != nil {
 		if cleanupErr := DropDBE(dbName); cleanupErr != nil {
 			return nil, serrors.E(opCreatePool, cleanupErr, "cleanup database after pool creation failure")

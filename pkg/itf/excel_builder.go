@@ -1,3 +1,4 @@
+// Package itf provides this package.
 package itf
 
 import (
@@ -107,7 +108,7 @@ func (b *TestExcelBuilder) BuildBytes(t *testing.T) []byte {
 	return content
 }
 
-// BuildEmpty creates an empty Excel file
+// BuildEmptyExcel creates an empty Excel file.
 func BuildEmptyExcel(t *testing.T) string {
 	t.Helper()
 

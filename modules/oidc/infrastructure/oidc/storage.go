@@ -1,3 +1,4 @@
+// Package oidc provides this package.
 package oidc
 
 import (
@@ -907,6 +908,12 @@ func (c *oidcClient) DevMode() bool {
 	return false
 }
 
+// RestrictAdditionalIDTokenScopes returns a scope filter that does not alter scopes.
+func (c *oidcClient) RestrictAdditionalIDTokenScopes() func(scopes []string) []string {
+	return c.RestrictAdditionalIdTokenScopes()
+}
+
+//lint:ignore ST1003 method name required by the op.Client interface
 func (c *oidcClient) RestrictAdditionalIdTokenScopes() func(scopes []string) []string {
 	return func(scopes []string) []string {
 		return scopes
