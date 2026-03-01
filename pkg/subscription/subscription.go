@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	subpostgres "github.com/iota-uz/iota-sdk/pkg/subscription/repository/postgres"
 	substripe "github.com/iota-uz/iota-sdk/pkg/subscription/stripe"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 	"github.com/stripe/stripe-go/v82"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -111,6 +113,9 @@ type service struct {
 	syncer        StripeSyncer
 	stripeHandler StripeEventHandler
 	now           func() time.Time
+	cacheHits     atomic.Uint64
+	cacheMisses   atomic.Uint64
+	graceUpdates  atomic.Uint64
 }
 
 func NewService(cfg Config, db *pgxpool.Pool, opts ...Option) (EntitlementService, error) {
@@ -196,8 +201,20 @@ func (s *service) loadCachedEntitlement(ctx context.Context, tenantID uuid.UUID)
 		return nil, err
 	}
 	if !ok {
+		misses := s.cacheMisses.Add(1)
+		logrus.WithFields(logrus.Fields{
+			"tenant_id":          tenantID.String(),
+			"cache_miss_total":   misses,
+			"cache_lookup_scope": "subscription_entitlements",
+		}).Debug("Subscription cache miss")
 		return nil, nil
 	}
+	hits := s.cacheHits.Add(1)
+	logrus.WithFields(logrus.Fields{
+		"tenant_id":          tenantID.String(),
+		"cache_hit_total":    hits,
+		"cache_lookup_scope": "subscription_entitlements",
+	}).Debug("Subscription cache hit")
 	var entry cachedEntitlement
 	if err := json.Unmarshal(payload, &entry); err != nil {
 		return nil, err

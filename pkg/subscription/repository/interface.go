@@ -53,6 +53,7 @@ type Repository interface {
 	GetEntityCount(ctx context.Context, tenantID uuid.UUID, entityType string) (int, error)
 	SetEntityCount(ctx context.Context, tenantID uuid.UUID, entityType string, count int) error
 	IncrementEntityCount(ctx context.Context, tenantID uuid.UUID, entityType string) error
+	IncrementEntityCountIfBelow(ctx context.Context, tenantID uuid.UUID, entityType string, max int) (bool, error)
 	DecrementEntityCount(ctx context.Context, tenantID uuid.UUID, entityType string) error
 
 	AddSeatIfBelow(ctx context.Context, tenantID uuid.UUID, max int) (bool, error)

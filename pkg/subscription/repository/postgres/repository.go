@@ -375,6 +375,40 @@ func (r *Repository) IncrementEntityCount(ctx context.Context, tenantID uuid.UUI
 	return nil
 }
 
+func (r *Repository) IncrementEntityCountIfBelow(
+	ctx context.Context,
+	tenantID uuid.UUID,
+	entityType string,
+	max int,
+) (bool, error) {
+	const op serrors.Op = "SubscriptionRepository.IncrementEntityCountIfBelow"
+
+	db, err := r.getQueryer(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	var ok bool
+	err = db.QueryRow(ctx, `
+		WITH upsert AS (
+			INSERT INTO subscription_entity_counts (tenant_id, entity_type, current_count, updated_at)
+			SELECT $1, $2, 1, NOW()
+			WHERE $3 > 0
+			ON CONFLICT (tenant_id, entity_type) DO UPDATE
+			SET current_count = subscription_entity_counts.current_count + 1,
+			    updated_at = NOW()
+			WHERE subscription_entity_counts.current_count < $3
+			RETURNING current_count
+		)
+		SELECT EXISTS(SELECT 1 FROM upsert)
+	`, tenantID, entityType, max).Scan(&ok)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	return ok, nil
+}
+
 func (r *Repository) DecrementEntityCount(ctx context.Context, tenantID uuid.UUID, entityType string) error {
 	const op serrors.Op = "SubscriptionRepository.DecrementEntityCount"
 

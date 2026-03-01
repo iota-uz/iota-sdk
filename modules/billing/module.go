@@ -14,6 +14,20 @@ import (
 )
 
 type Module struct {
+	stripeHooks []billing.StripeEventHook
+}
+
+type Option func(*Module)
+
+func WithStripeEventHooks(hooks ...billing.StripeEventHook) Option {
+	return func(m *Module) {
+		for _, hook := range hooks {
+			if hook == nil {
+				continue
+			}
+			m.stripeHooks = append(m.stripeHooks, hook)
+		}
+	}
 }
 
 //go:embed presentation/locales/*.json
@@ -22,8 +36,15 @@ var LocaleFiles embed.FS
 //go:embed infrastructure/persistence/schema/billing-schema.sql
 var migrationFiles embed.FS
 
-func NewModule() application.Module {
-	return &Module{}
+func NewModule(opts ...Option) application.Module {
+	module := &Module{}
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(module)
+	}
+	return module
 }
 
 // Register initializes the billing module and registers all services and controllers.
@@ -103,14 +124,7 @@ func (m *Module) Register(app application.Application) error {
 	)
 
 	basePath := "/billing"
-	stripeHooks := make([]billing.StripeEventHook, 0)
-	for _, service := range app.Services() {
-		hook, ok := service.(billing.StripeEventHook)
-		if !ok {
-			continue
-		}
-		stripeHooks = append(stripeHooks, hook)
-	}
+	stripeHooks := append([]billing.StripeEventHook{}, m.stripeHooks...)
 
 	app.RegisterControllers(
 		controllers.NewClickController(

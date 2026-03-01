@@ -8,11 +8,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	subrepo "github.com/iota-uz/iota-sdk/pkg/subscription/repository"
+	"github.com/sirupsen/logrus"
 	"github.com/stripe/stripe-go/v82"
 )
 
 func (s *Service) HandleStripeEvent(ctx context.Context, event stripe.Event) error {
 	const op serrors.Op = "SubscriptionStripeService.HandleStripeEvent"
+	total := s.webhookSeen.Add(1)
+	logrus.WithFields(logrus.Fields{
+		"event_id":             event.ID,
+		"event_type":           event.Type,
+		"webhook_events_total": total,
+	}).Info("Subscription Stripe webhook received")
 
 	switch string(event.Type) {
 	case "entitlements.active_entitlement_summary.updated":

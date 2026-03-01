@@ -85,7 +85,10 @@ func (f *fakeRepo) GetEntityCount(_ context.Context, _ uuid.UUID, _ string) (int
 }
 func (f *fakeRepo) SetEntityCount(_ context.Context, _ uuid.UUID, _ string, _ int) error { return nil }
 func (f *fakeRepo) IncrementEntityCount(_ context.Context, _ uuid.UUID, _ string) error  { return nil }
-func (f *fakeRepo) DecrementEntityCount(_ context.Context, _ uuid.UUID, _ string) error  { return nil }
+func (f *fakeRepo) IncrementEntityCountIfBelow(_ context.Context, _ uuid.UUID, _ string, _ int) (bool, error) {
+	return false, nil
+}
+func (f *fakeRepo) DecrementEntityCount(_ context.Context, _ uuid.UUID, _ string) error { return nil }
 func (f *fakeRepo) AddSeatIfBelow(_ context.Context, _ uuid.UUID, _ int) (bool, error) {
 	return false, nil
 }

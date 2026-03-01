@@ -129,6 +129,17 @@ func (f *fakeRepo) IncrementEntityCount(_ context.Context, tenantID uuid.UUID, e
 	return nil
 }
 
+func (f *fakeRepo) IncrementEntityCountIfBelow(_ context.Context, tenantID uuid.UUID, entityType string, max int) (bool, error) {
+	if _, ok := f.counts[tenantID]; !ok {
+		f.counts[tenantID] = map[string]int{}
+	}
+	if max <= 0 || f.counts[tenantID][entityType] >= max {
+		return false, nil
+	}
+	f.counts[tenantID][entityType]++
+	return true, nil
+}
+
 func (f *fakeRepo) DecrementEntityCount(_ context.Context, tenantID uuid.UUID, entityType string) error {
 	if _, ok := f.counts[tenantID]; !ok {
 		f.counts[tenantID] = map[string]int{}

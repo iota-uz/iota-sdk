@@ -65,14 +65,32 @@ func (s *service) GetLimits(ctx context.Context, tenantID uuid.UUID) (map[string
 }
 
 func (s *service) IncrementCount(ctx context.Context, tenantID uuid.UUID, entityType string) error {
-	result, err := s.CheckLimit(ctx, tenantID, entityType)
+	state, err := s.entitlementState(ctx, tenantID)
 	if err != nil {
 		return err
 	}
-	if !result.Allowed {
-		return ErrLimitExceeded{EntityType: entityType, Current: result.Current, Limit: result.Limit}
+
+	limit, ok := state.EntityLimits[entityType]
+	if !ok {
+		limit = -1
 	}
-	return s.repo.IncrementEntityCount(ctx, tenantID, entityType)
+	if limit < 0 {
+		return s.repo.IncrementEntityCount(ctx, tenantID, entityType)
+	}
+
+	applied, err := s.repo.IncrementEntityCountIfBelow(ctx, tenantID, entityType, limit)
+	if err != nil {
+		return err
+	}
+	if applied {
+		return nil
+	}
+
+	current, err := s.repo.GetEntityCount(ctx, tenantID, entityType)
+	if err != nil {
+		current = limit
+	}
+	return ErrLimitExceeded{EntityType: entityType, Current: current, Limit: limit}
 }
 
 func (s *service) DecrementCount(ctx context.Context, tenantID uuid.UUID, entityType string) error {

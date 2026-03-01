@@ -12,11 +12,17 @@ type EntitlementsClient interface {
 	ListActiveEntitlements(ctx context.Context, customerID string) ([]string, error)
 }
 
-type client struct{}
+type client struct {
+	api activeentitlement.Client
+}
 
 func NewClient(secretKey string) EntitlementsClient {
-	stripe.Key = secretKey
-	return &client{}
+	return &client{
+		api: activeentitlement.Client{
+			B:   stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{}),
+			Key: secretKey,
+		},
+	}
 }
 
 func (c *client) ListActiveEntitlements(ctx context.Context, customerID string) ([]string, error) {
@@ -27,7 +33,7 @@ func (c *client) ListActiveEntitlements(ctx context.Context, customerID string) 
 	params.Context = ctx
 	params.AddExpand("data.feature")
 
-	iter := activeentitlement.List(params)
+	iter := c.api.List(params)
 	features := make([]string, 0)
 	for iter.Next() {
 		current := iter.EntitlementsActiveEntitlement()

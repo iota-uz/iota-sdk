@@ -1,6 +1,8 @@
 package postgres_test
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -123,4 +125,45 @@ func TestRepository_FindByStripeRefs(t *testing.T) {
 	unknownTenant, err := repo.FindTenantByStripeCustomer(f.Ctx, "cus_unknown")
 	require.Error(t, err)
 	assert.Equal(t, uuid.Nil, unknownTenant)
+}
+
+func TestRepository_IncrementEntityCountIfBelow_Concurrent(t *testing.T) {
+	t.Parallel()
+
+	f := setupTest(t)
+	repo := subpostgres.NewRepository(f.Pool)
+
+	tenantID, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+
+	max := 10
+	workers := 50
+	var succeeded atomic.Int64
+	errCh := make(chan error, workers)
+	var wg sync.WaitGroup
+
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			ok, incErr := repo.IncrementEntityCountIfBelow(f.Ctx, tenantID, "drivers", max)
+			if incErr != nil {
+				errCh <- incErr
+				return
+			}
+			if ok {
+				succeeded.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for incErr := range errCh {
+		require.NoError(t, incErr)
+	}
+
+	count, err := repo.GetEntityCount(f.Ctx, tenantID, "drivers")
+	require.NoError(t, err)
+	assert.Equal(t, int64(max), succeeded.Load())
+	assert.Equal(t, max, count)
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 func (s *service) HasFeature(ctx context.Context, tenantID uuid.UUID, feature string) (bool, error) {
@@ -96,6 +97,14 @@ func (s *service) StartGracePeriod(ctx context.Context, tenantID uuid.UUID) erro
 	if err := s.repo.SetGracePeriod(ctx, tenantID, true, &graceEndsAt); err != nil {
 		return err
 	}
+	total := s.graceUpdates.Add(1)
+	logrus.WithFields(logrus.Fields{
+		"tenant_id":              tenantID.String(),
+		"in_grace_period":        true,
+		"grace_period_ends_at":   graceEndsAt,
+		"grace_updates_total":    total,
+		"subscription_component": "service",
+	}).Info("Subscription grace period updated")
 	return s.InvalidateCache(ctx, tenantID)
 }
 
@@ -103,6 +112,13 @@ func (s *service) ClearGracePeriod(ctx context.Context, tenantID uuid.UUID) erro
 	if err := s.repo.SetGracePeriod(ctx, tenantID, false, nil); err != nil {
 		return err
 	}
+	total := s.graceUpdates.Add(1)
+	logrus.WithFields(logrus.Fields{
+		"tenant_id":              tenantID.String(),
+		"in_grace_period":        false,
+		"grace_updates_total":    total,
+		"subscription_component": "service",
+	}).Info("Subscription grace period updated")
 	return s.InvalidateCache(ctx, tenantID)
 }
 

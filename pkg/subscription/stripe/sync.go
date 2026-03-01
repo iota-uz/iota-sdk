@@ -3,11 +3,13 @@ package stripe
 import (
 	"context"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	subrepo "github.com/iota-uz/iota-sdk/pkg/subscription/repository"
+	"github.com/sirupsen/logrus"
 )
 
 type CacheInvalidator interface {
@@ -26,6 +28,8 @@ type Service struct {
 	client      EntitlementsClient
 	invalidator CacheInvalidator
 	now         func() time.Time
+	webhookSeen atomic.Uint64
+	graceFlips  atomic.Uint64
 }
 
 func NewService(cfg Config, repo subrepo.Repository, invalidator CacheInvalidator, client EntitlementsClient) *Service {
@@ -93,6 +97,14 @@ func (s *Service) setGracePeriod(ctx context.Context, tenantID uuid.UUID, active
 	if err := s.repo.SetGracePeriod(ctx, tenantID, active, endsAt); err != nil {
 		return err
 	}
+	total := s.graceFlips.Add(1)
+	logrus.WithFields(logrus.Fields{
+		"tenant_id":                 tenantID.String(),
+		"in_grace_period":           active,
+		"grace_transition_total":    total,
+		"subscription_component":    "stripe_sync",
+		"configured_grace_day_span": s.cfg.GracePeriodDays,
+	}).Info("Subscription grace period state changed")
 	if s.invalidator != nil {
 		if err := s.invalidator.InvalidateCache(ctx, tenantID); err != nil {
 			return err
