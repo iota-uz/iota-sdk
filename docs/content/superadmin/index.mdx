@@ -165,7 +165,7 @@ The SuperAdmin app (separate binary, port 4000) registers (all protected by `Req
 | `/superadmin/tenants/{id}/users` | GET | List users for a tenant |
 | `/superadmin/tenants/{id}/users/{userId}/reset-password` | POST | Reset user password |
 
-There are no GET-by-id, PUT update, or suspend routes in the current implementation. If suspend or delete are enabled in your deployment, they are handled outside the REST routes documented above. Access is enforced by the superadmin role (e.g. `RequireSuperAdmin()` middleware), not by RBAC permission constants like `superadmin.tenants.view`.
+There is no tenant GET-by-id, PUT update, or suspend route in the current implementation. If suspend/delete behavior exists in your deployment, it is handled outside these REST routes. Access is enforced by `RequireSuperAdmin()` middleware (not RBAC constants like `superadmin.tenants.view`), and tenant users listing remains available via `/superadmin/tenants/{id}/users`.
 
 ## Security
 

@@ -267,7 +267,7 @@ graph LR
 ### Query Optimization
 
 - Include `tenant_id` in indexes for tenant-scoped tables
-- Consider partitioning by `tenant_id` for very large tables
+- Consider partitioning by `tenant_id` for tables that exceed measurable thresholds (for example, more than 100 million rows or 100GB) or when per-tenant query/maintenance latency degrades beyond acceptable limits
 
 ## Best Practices
 

@@ -147,7 +147,7 @@ The Core module exposes GraphQL endpoints:
 | Type | Queries | Mutations |
 |------|---------|-----------|
 | **User** | user, users | (use REST /users for create/update/delete) |
-| **Upload** | uploads(filter: UploadFilter!) | uploadFile, uploadFileWithSlug, deleteUpload |
+| **Upload** | upload, uploads | uploadFile, uploadFileWithSlug |
 | **Auth** | — | authenticate(email!, password!) → Session! (logout via REST GET /logout) |
 | **Session** | — | deleteSession(token: String!) (resolver may be unimplemented) |
 

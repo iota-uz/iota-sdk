@@ -242,15 +242,66 @@ List available predefined seed scenarios.
 
 ### POST /__test__/otp/{'{userID}'}
 
-Generate OTP for a specific user (for test login flows).
+Generate a one-time password for a specific user.
+
+**Path parameters:**
+
+- `userID` (UUID or email identifier)
+
+**Request body (JSON):**
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "otp": "123456",
+  "userID": "user-id"
+}
+```
 
 ### GET /__test__/otp/{'{userID}'}
 
-Get current OTP for a specific user.
+Retrieve the current OTP for a specific user.
+
+**Path parameters:**
+
+- `userID` (UUID or email identifier)
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "otp": "123456",
+  "userID": "user-id"
+}
+```
 
 ### GET /__test__/otp
 
-Get OTP by identifier (e.g. query parameter such as email or phone).
+Get OTP by identifier.
+
+**Query parameters (one of):**
+
+- `userID` (UUID)
+- `email` (string)
+- `phone` (string)
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "otp": "123456"
+}
+```
 
 ### GET /__test__/health
 
@@ -295,7 +346,7 @@ test.beforeEach(async ({ request }) => {
 });
 
 // Run scenarios
-test('user workflow', async ({ page }) => {
+test('user workflow', async ({ page, request }) => {
   await seedDatabase(request, 'finance');
   // ... test steps
 });
