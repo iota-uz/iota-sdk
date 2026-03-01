@@ -290,7 +290,6 @@ func TestStripeController_Handle_Returns500_OnLookupFailures(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -352,7 +351,6 @@ func TestCurrencyDivisor_Scenarios(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.InDelta(t, tt.want, currencyDivisor(tt.currency), 0)
@@ -386,7 +384,6 @@ func TestTransactionLookupErrors_Scenarios(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Error(t, tt.err)
