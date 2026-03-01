@@ -52,9 +52,11 @@ type Project interface {
 // New creates a new Project with required fields
 func New(name string, opts ...Option) Project {
 	p := &project{
-		name:      name,
-		createdAt: time.Now(),
-		updatedAt: time.Now(),
+		id:          0,
+		name:        name,
+		description: "",
+		createdAt:   time.Now(),
+		updatedAt:   time.Now(),
 	}
 	for _, opt := range opts {
 		opt(p)

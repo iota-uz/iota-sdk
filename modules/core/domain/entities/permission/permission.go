@@ -49,7 +49,11 @@ var _ Permission = (*permission)(nil)
 // Constructor
 func New(opts ...Option) Permission {
 	p := &permission{
-		id: uuid.New(),
+		id:       uuid.New(),
+		name:     "",
+		resource: "",
+		action:   "",
+		modifier: "",
 	}
 	for _, opt := range opts {
 		opt(p)

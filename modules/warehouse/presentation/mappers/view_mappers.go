@@ -77,6 +77,7 @@ func OrderToViewModel(entity order.Order, inStockByPosition map[uint]int) *viewm
 			return OrderItemToViewModel(e, inStockByPosition[e.Position().ID()])
 		}),
 		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt: entity.UpdatedAt().Format(time.RFC3339),
 	}
 }
 
@@ -89,12 +90,19 @@ func CheckToViewModel(entity *inventory.Check) *viewmodels.Check {
 	if entity.FinishedBy != nil {
 		finishedBy = mappers.UserToViewModel(entity.FinishedBy)
 	}
+	finishedAt := ""
+	if !entity.FinishedAt.IsZero() {
+		finishedAt = entity.FinishedAt.Format(time.RFC3339)
+	}
+
 	return &viewmodels.Check{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
+		Type:       "",
 		Name:       entity.Name,
 		Results:    mapping.MapViewModels(entity.Results, CheckResultToViewModel),
 		Status:     string(entity.Status),
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
+		FinishedAt: finishedAt,
 		CreatedBy:  createdBy,
 		FinishedBy: finishedBy,
 	}

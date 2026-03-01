@@ -79,9 +79,10 @@ func New(
 	opts ...Option,
 ) Transaction {
 	t := &transaction{
-		id:      uuid.Nil,
-		status:  Created,
-		gateway: gateway,
+		id:       uuid.Nil,
+		tenantID: uuid.Nil,
+		status:   Created,
+		gateway:  gateway,
 		amount: &amount{
 			quantity: quantity,
 			currency: currency,
