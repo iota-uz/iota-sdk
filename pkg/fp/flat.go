@@ -1,6 +1,6 @@
 package fp
 
-// Returns a new array with all sub-array elements concatenated into it recursively up to the specified depth.
+// Flat Returns a new array with all sub-array elements concatenated into it recursively up to the specified depth.
 func Flat[T any](xs [][]T) []T {
 	n := 0
 	for _, item := range xs {

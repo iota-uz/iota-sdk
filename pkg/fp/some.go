@@ -1,6 +1,6 @@
 package fp
 
-// Determines whether the specified callback function returns true for any element of an array.
+// Some Determines whether the specified callback function returns true for any element of an array.
 func Some[T any](predicate func(T) bool) func([]T) bool {
 	return func(xs []T) bool {
 		for _, x := range xs {
@@ -13,7 +13,7 @@ func Some[T any](predicate func(T) bool) func([]T) bool {
 	}
 }
 
-// See Some but callback receives index of element.
+// SomeWithIndex See Some but callback receives index of element.
 func SomeWithIndex[T any](predicate func(T, int) bool) func([]T) bool {
 	return func(xs []T) bool {
 		for i, x := range xs {
@@ -26,7 +26,7 @@ func SomeWithIndex[T any](predicate func(T, int) bool) func([]T) bool {
 	}
 }
 
-// Like Some but callback receives index of element and the whole array.
+// SomeWithSlice Like Some but callback receives index of element and the whole array.
 func SomeWithSlice[T any](predicate func(T, int, []T) bool) func([]T) bool {
 	return func(xs []T) bool {
 		for i, x := range xs {
