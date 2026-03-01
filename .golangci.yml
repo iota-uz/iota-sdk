@@ -46,12 +46,6 @@ linters:
       checks:
         - "all"
         - "-SA4023"  # Allow "always true" comparisons for build-tagged nil checks
-        - "-ST1000"  # Package comment style issues are currently tolerated in legacy packages
-        - "-ST1003"  # Legacy acronym/casing names are currently tolerated
-        - "-ST1016"  # Legacy receiver-name inconsistencies are currently tolerated
-        - "-ST1020"  # Legacy doc comment wording style is currently tolerated
-        - "-ST1021"  # Legacy exported-type comment wording style is currently tolerated
-        - "-ST1022"  # Legacy exported-var comment wording style is currently tolerated
   exclusions:
     rules:
       - path-except: "modules/.*/(domain/(entities|aggregates)/.*|infrastructure/persistence/.*_mappers\\.go|infrastructure/persistence/mappers/.*\\.go|presentation/mappers/.*\\.go)"
