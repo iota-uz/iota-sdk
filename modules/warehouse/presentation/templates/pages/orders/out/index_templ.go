@@ -5,11 +5,11 @@ package orderout
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import templruntime "github.com/a-h/templ/runtime"
-
 import (
 	"fmt"
+
+	"github.com/a-h/templ"
+	templruntime "github.com/a-h/templ/runtime"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
@@ -20,7 +20,7 @@ import (
 )
 
 type PageProps struct {
-	*types.PageContext
+	types.PageContextProvider
 	Errors   map[string]string
 	SaveURL  string
 	ItemsURL string

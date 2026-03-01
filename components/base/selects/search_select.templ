@@ -11,7 +11,7 @@ type Value struct {
 }
 
 type SearchSelectProps struct {
-	*types.PageContext
+	types.PageContextProvider
 	Label       string
 	Placeholder string
 	Value       string
@@ -21,7 +21,7 @@ type SearchSelectProps struct {
 }
 
 type SearchOptionsProps struct {
-	*types.PageContext
+	types.PageContextProvider
 	Options          []*Value
 	NothingFoundText string
 }

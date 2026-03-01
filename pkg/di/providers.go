@@ -36,9 +36,8 @@ type loggerProvider struct{}
 type localeProvider struct{}
 
 func (p *pageContextProvider) Ok(t reflect.Type) bool {
-	// SA1019: DI provider needs to check PageContext type for backward compatibility
-	pageCtxType := reflect.TypeOf((*types.PageContext)(nil)) //nolint:staticcheck // legacy provider path
-	return t == pageCtxType || (t.Kind() == reflect.Interface && pageCtxType.Implements(t))
+	pageCtxType := reflect.TypeOf((*types.PageContextProvider)(nil)).Elem()
+	return t.Kind() == reflect.Interface && t.Implements(pageCtxType)
 }
 
 func (p *pageContextProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {

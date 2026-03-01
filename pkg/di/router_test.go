@@ -48,9 +48,7 @@ func setupTestContext() context.Context {
 	ctx = intl.WithLocalizer(ctx, localizer)
 
 	// Add page context
-	// SA1019: Using PageContext for test fixtures is acceptable
-	pageCtx := &types.PageContext{} //nolint:staticcheck // compatibility coverage for legacy page context type
-	ctx = composables.WithPageCtx(ctx, pageCtx)
+	ctx = composables.WithPageCtx(ctx, types.NewPageContext(language.English, nil, localizer))
 
 	// Add app to context
 	app := &mockApp{}

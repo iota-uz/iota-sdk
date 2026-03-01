@@ -12,7 +12,7 @@ import (
 )
 
 type ViewPageProps struct {
-	*types.PageContext
+	types.PageContextProvider
 	Order     *viewmodels.Order
 	DeleteURL string
 }
@@ -75,13 +75,13 @@ templ View(props *ViewPageProps) {
 			@card.Card(card.Props{WrapperClass: "m-6"}) {
 				<div class="mb-2">
 					<h1 class="text-2xl text-gray-950">
-						{ props.Order.LocalizedTitle(props.Localizer) }
+						{ props.Order.LocalizedTitle(props.GetLocalizer()) }
 					</h1>
 				</div>
 				<p>
 					{ pageCtx.T("WarehouseOrders.View.Status") }:
 					<b>
-						{ props.Order.LocalizedStatus(props.Localizer) }
+						{ props.Order.LocalizedStatus(props.GetLocalizer()) }
 					</b>
 				</p>
 				<p x-data="relativeformat">

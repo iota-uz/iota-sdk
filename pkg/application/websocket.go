@@ -156,12 +156,7 @@ func (h *huber) ForEach(channel string, f WsCallback) error {
 		}
 		localizer := i18n.NewLocalizer(h.bundle, string(usr.UILanguage()))
 		connCtx := intl.WithLocalizer(ctx, localizer)
-		// SA1019: Using PageContext for WebSocket connection context is acceptable
-		connCtx = composables.WithPageCtx(connCtx, &types.PageContext{ //nolint:staticcheck // backward compatibility with legacy page context storage
-			URL:       MustParseURL("/"),
-			Locale:    language.English,
-			Localizer: localizer,
-		})
+		connCtx = composables.WithPageCtx(connCtx, types.NewPageContext(language.English, MustParseURL("/"), localizer))
 		if err := f(connCtx, &connection{
 			user: usr,
 			conn: conn,

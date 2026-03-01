@@ -14,7 +14,7 @@ import (
 )
 
 type IndexPageProps struct {
-	*types.PageContext
+	types.PageContextProvider
 	Debts           []*viewmodels.Debt
 	PaginationState *pagination.State
 }
