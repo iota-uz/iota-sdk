@@ -1,5 +1,5 @@
 name: Setup TailwindCSS
-description: Install TailwindCSS via pnpm (Tailwind v4)
+description: Install TailwindCSS via pnpm (Tailwind v4 + @tailwindcss/cli)
 
 runs:
   using: composite
