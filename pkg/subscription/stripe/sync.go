@@ -36,6 +36,9 @@ func NewService(cfg Config, repo subrepo.Repository, invalidator CacheInvalidato
 	if repo == nil {
 		panic("subscription stripe service requires repository")
 	}
+	if client == nil && cfg.SecretKey == "" {
+		panic("subscription stripe service requires secret key when client is nil")
+	}
 	if cfg.GracePeriodDays <= 0 {
 		cfg.GracePeriodDays = 7
 	}

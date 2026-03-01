@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -29,17 +30,31 @@ func NewMemoryCache() *MemoryCache {
 }
 
 func (c *MemoryCache) Get(_ context.Context, key string) ([]byte, bool, error) {
+	now := time.Now()
+
 	c.mu.RLock()
 	entry, ok := c.items[key]
 	c.mu.RUnlock()
 	if !ok {
 		return nil, false, nil
 	}
-	if !entry.expiresAt.IsZero() && time.Now().After(entry.expiresAt) {
+
+	if !entry.expiresAt.IsZero() && now.After(entry.expiresAt) {
 		c.mu.Lock()
-		delete(c.items, key)
+		latest, exists := c.items[key]
+		if !exists {
+			c.mu.Unlock()
+			return nil, false, nil
+		}
+		if !latest.expiresAt.IsZero() && now.After(latest.expiresAt) {
+			delete(c.items, key)
+			c.mu.Unlock()
+			return nil, false, nil
+		}
+		out := make([]byte, len(latest.value))
+		copy(out, latest.value)
 		c.mu.Unlock()
-		return nil, false, nil
+		return out, true, nil
 	}
 	out := make([]byte, len(entry.value))
 	copy(out, entry.value)
@@ -70,28 +85,42 @@ type RedisCache struct {
 }
 
 func NewRedisCache(redisURL string) (*RedisCache, error) {
+	const op serrors.Op = "SubscriptionCache.NewRedisCache"
+
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	return &RedisCache{client: redis.NewClient(opts)}, nil
 }
 
 func (c *RedisCache) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	const op serrors.Op = "SubscriptionCache.Get"
+
 	value, err := c.client.Get(ctx, key).Bytes()
 	if err == redis.Nil {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, err
+		return nil, false, serrors.E(op, err)
 	}
 	return value, true, nil
 }
 
 func (c *RedisCache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
-	return c.client.Set(ctx, key, value, ttl).Err()
+	const op serrors.Op = "SubscriptionCache.Set"
+
+	if err := c.client.Set(ctx, key, value, ttl).Err(); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func (c *RedisCache) Delete(ctx context.Context, key string) error {
-	return c.client.Del(ctx, key).Err()
+	const op serrors.Op = "SubscriptionCache.Delete"
+
+	if err := c.client.Del(ctx, key).Err(); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }

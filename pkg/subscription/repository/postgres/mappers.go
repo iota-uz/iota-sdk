@@ -49,6 +49,10 @@ func toModel(entitlement *repository.Entitlement) (*entitlementModel, error) {
 }
 
 func toDomain(model *entitlementModel) (*repository.Entitlement, error) {
+	if model == nil {
+		return nil, fmt.Errorf("entitlement model is nil")
+	}
+
 	tenantID, err := uuid.Parse(model.TenantID)
 	if err != nil {
 		return nil, err

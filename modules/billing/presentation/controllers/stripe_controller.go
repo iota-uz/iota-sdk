@@ -29,23 +29,27 @@ type StripeController struct {
 	mutex          sync.Mutex
 	hooks          []billing.StripeEventHook
 	hookSlots      chan struct{}
+	hookQueue      chan stripe.Event
 }
 
 func NewStripeController(
 	app application.Application,
-	stripe configuration.StripeOptions,
+	stripeOpts configuration.StripeOptions,
 	basePath string,
 	hooks ...billing.StripeEventHook,
 ) application.Controller {
-	return &StripeController{
+	controller := &StripeController{
 		app:            app,
 		billingService: app.Service(services.BillingService{}).(*services.BillingService),
-		stripe:         stripe,
+		stripe:         stripeOpts,
 		basePath:       basePath,
 		mutex:          sync.Mutex{},
 		hooks:          hooks,
 		hookSlots:      make(chan struct{}, 8),
+		hookQueue:      make(chan stripe.Event, 64),
 	}
+	controller.startHookWorkers()
+	return controller
 }
 
 func (c *StripeController) Register(r *mux.Router) {
@@ -110,18 +114,40 @@ func (c *StripeController) dispatchHooksAsync(event stripe.Event, logger *logrus
 		return
 	}
 
-	select {
-	case c.hookSlots <- struct{}{}:
-	default:
-		logger.WithField("event_type", event.Type).Warn("Stripe hook queue is full; skipping hook dispatch")
+	const enqueueRetryCount = 3
+	for range enqueueRetryCount {
+		select {
+		case c.hookQueue <- event:
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	logger.WithField("event_type", event.Type).Warn("Stripe hook queue is full after retries; dropping hook dispatch")
+}
+
+func (c *StripeController) startHookWorkers() {
+	if len(c.hooks) == 0 {
 		return
 	}
 
-	go func(evt stripe.Event) {
+	for range cap(c.hookSlots) {
+		go func() {
+			for evt := range c.hookQueue {
+				c.hookSlots <- struct{}{}
+				c.runHookDispatch(evt)
+			}
+		}()
+	}
+}
+
+func (c *StripeController) runHookDispatch(event stripe.Event) {
+	logger := logrus.WithField("component", "billing_stripe_webhook")
+	defer func() {
 		defer func() {
 			if rec := recover(); rec != nil {
 				logger.WithFields(logrus.Fields{
-					"event_type": evt.Type,
+					"event_type": event.Type,
 					"panic":      rec,
 				}).Error("Stripe hook dispatch panicked")
 			}
@@ -129,8 +155,8 @@ func (c *StripeController) dispatchHooksAsync(event stripe.Event, logger *logrus
 		}()
 		hookCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		c.dispatchHooks(hookCtx, evt, logger)
-	}(event)
+		c.dispatchHooks(hookCtx, event, logger)
+	}()
 }
 
 func (c *StripeController) dispatchHooks(ctx context.Context, event stripe.Event, logger *logrus.Entry) {

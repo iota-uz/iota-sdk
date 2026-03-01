@@ -71,11 +71,14 @@ func (m *MockEngine) RevokeGrant(_ context.Context, grantID string) error {
 	return nil
 }
 
-func (m *MockEngine) ListGrants(_ context.Context, _ subscription.SubjectRef) ([]subscription.Grant, error) {
+func (m *MockEngine) ListGrants(_ context.Context, subject subscription.SubjectRef) ([]subscription.Grant, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	out := make([]subscription.Grant, 0, len(m.grants))
 	for _, grant := range m.grants {
+		if grant.Subject != subject {
+			continue
+		}
 		out = append(out, grant)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].ID < out[j].ID })
@@ -119,7 +122,12 @@ func (m *MockEngine) EvaluateLimit(_ context.Context, subject subscription.Subje
 	if !ok {
 		limit = -1
 	}
-	current := m.counts[quota.Resource] + m.pendingAmount(quota.Resource)
+	key := usageKey(subject.Ref(), quota)
+	current := m.usageByKey[key]
+	if current == 0 {
+		current = m.counts[quota.Resource]
+	}
+	current += m.pendingAmount(subject.Ref(), quota)
 	allowed := limit < 0 || current < limit
 	remaining := -1
 	if limit >= 0 {
@@ -150,7 +158,12 @@ func (m *MockEngine) Reserve(_ context.Context, subject subscription.Subject, qu
 	if !ok {
 		limit = -1
 	}
-	current := m.counts[quota.Resource] + m.pendingAmount(quota.Resource)
+	key := usageKey(subject.Ref(), quota)
+	current := m.usageByKey[key]
+	if current == 0 {
+		current = m.counts[quota.Resource]
+	}
+	current += m.pendingAmount(subject.Ref(), quota)
 	if limit >= 0 && current+amount > limit {
 		return subscription.Reservation{}, subscription.ErrLimitExceededError{
 			Quota:   quota,
@@ -178,6 +191,8 @@ func (m *MockEngine) Commit(_ context.Context, reservationID string) error {
 			continue
 		}
 		if reservation.Status == subscription.ReservationPending {
+			key := usageKey(reservation.Subject, reservation.Quota)
+			m.usageByKey[key] += reservation.Amount
 			m.counts[reservation.Quota.Resource] += reservation.Amount
 		}
 		reservation.Status = subscription.ReservationCommitted
@@ -195,8 +210,10 @@ func (m *MockEngine) Release(_ context.Context, reservationID string) error {
 			continue
 		}
 		if reservation.Status == subscription.ReservationCommitted {
-			current := m.counts[reservation.Quota.Resource]
-			m.counts[reservation.Quota.Resource] = max(current-reservation.Amount, 0)
+			key := usageKey(reservation.Subject, reservation.Quota)
+			current := m.usageByKey[key]
+			m.usageByKey[key] = max(current-reservation.Amount, 0)
+			m.counts[reservation.Quota.Resource] = max(m.counts[reservation.Quota.Resource]-reservation.Amount, 0)
 		}
 		reservation.Status = subscription.ReservationReleased
 		m.reservations[token] = reservation
@@ -218,10 +235,12 @@ func usageKey(subject subscription.SubjectRef, quota subscription.QuotaKey) stri
 	return fmt.Sprintf("%s|%s|%s|%s", subject.Scope, subject.ID.String(), quota.Resource, quota.Window)
 }
 
-func (m *MockEngine) pendingAmount(resource string) int {
+func (m *MockEngine) pendingAmount(subject subscription.SubjectRef, quota subscription.QuotaKey) int {
 	total := 0
 	for _, reservation := range m.reservations {
-		if reservation.Status == subscription.ReservationPending && reservation.Quota.Resource == resource {
+		if reservation.Status == subscription.ReservationPending &&
+			reservation.Subject == subject &&
+			reservation.Quota == quota {
 			total += reservation.Amount
 		}
 	}

@@ -823,6 +823,9 @@ func validateSubjectRef(subject SubjectRef) error {
 	if subject.Scope == "" {
 		return ErrSubjectRequired
 	}
+	if subject.Scope == ScopeGlobal && subject.ID != uuid.Nil {
+		return ErrSubjectRequired
+	}
 	if subject.Scope != ScopeGlobal && subject.ID == uuid.Nil {
 		return ErrSubjectRequired
 	}

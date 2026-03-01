@@ -44,11 +44,11 @@ app.RegisterServices(svc)
 ## Middleware
 
 ```go
-import submw "github.com/iota-uz/iota-sdk/pkg/subscription/middleware"
+import "github.com/iota-uz/iota-sdk/pkg/subscription"
 
-router.Use(submw.RequireFeature(svc, "core_access"))
-router.Use(submw.RequirePlan(svc, "BASIC", "PRO"))
-router.Use(submw.EnforceLimit(svc, "drivers"))
+router.Use(subscription.RequireFeature(svc, subscription.FeatureKey("core_access")))
+router.Use(subscription.RequirePlan(svc, "FREE", "PRO"))
+router.Use(subscription.EnforceLimit(svc, "drivers"))
 ```
 
 ## Service-Layer Checks
@@ -68,7 +68,7 @@ if err != nil {
   return err
 }
 if !result.Allowed {
-  return subscription.ErrLimitExceeded{
+  return subscription.ErrLimitExceededError{
     Quota: subscription.QuotaKey{Resource: "drivers", Window: subscription.WindowNone},
     Current: result.Current,
     Limit: result.Limit,
