@@ -1,3 +1,4 @@
+// Package testing provides fixtures and mocks for subscription package tests.
 package testing
 
 import "github.com/iota-uz/iota-sdk/pkg/subscription"
