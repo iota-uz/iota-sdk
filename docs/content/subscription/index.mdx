@@ -68,7 +68,7 @@ if err != nil {
   return err
 }
 if !result.Allowed {
-  return subscription.ErrLimitExceededError{
+  return subscription.LimitExceededError{
     Quota: subscription.QuotaKey{Resource: "drivers", Window: subscription.WindowNone},
     Current: result.Current,
     Limit: result.Limit,
@@ -83,7 +83,7 @@ Use `pkg/subscription/stripe` to process Stripe entitlement and billing lifecycl
 ```go
 import substripe "github.com/iota-uz/iota-sdk/pkg/subscription/stripe"
 
-stripeSync := substripe.NewService(
+stripeSync, err := substripe.NewService(
   substripe.Config{
     SecretKey: stripeSecret,
     GracePeriodDays: 7,
@@ -93,6 +93,9 @@ stripeSync := substripe.NewService(
   nil, // cache invalidator (optional; implement stripe.CacheInvalidator if needed)
   nil, // use default stripe client
 )
+if err != nil {
+  panic(err)
+}
 ```
 
 `stripeSync.HandleStripeEvent(ctx, event)` supports:

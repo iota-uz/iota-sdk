@@ -26,7 +26,7 @@ FROM tenants t
 ON CONFLICT (tenant_id) DO NOTHING;
 `
 
-func CreateSubscriptionEntitlements(ctx context.Context, app application.Application) error {
+func CreateSubscriptionEntitlements(ctx context.Context, _ application.Application) error {
 	conf := configuration.Use()
 	db, err := composables.UseTx(ctx)
 	if err != nil {
