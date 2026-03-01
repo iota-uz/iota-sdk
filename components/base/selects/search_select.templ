@@ -1,8 +1,6 @@
 package selects
 
-import (
-	"fmt"
-)
+import "fmt"
 
 type Value struct {
 	Value string
@@ -10,17 +8,17 @@ type Value struct {
 }
 
 type SearchSelectProps struct {
-    Label       string
-    Placeholder string
-    Value       string
-    Endpoint    string
-    Attrs       templ.Attributes
-    Name        string // Field name for the hidden input
+	Label       string
+	Placeholder string
+	Value       string
+	Endpoint    string
+	Attrs       templ.Attributes
+	Name        string // Field name for the hidden input
 }
 
 type SearchOptionsProps struct {
-    Options          []*Value
-    NothingFoundText string
+	Options          []*Value
+	NothingFoundText string
 }
 
 templ SearchOptions(props *SearchOptionsProps) {
