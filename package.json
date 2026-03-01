@@ -10,11 +10,20 @@
   },
   "scripts": {
     "build": "echo \"Canonical @iota-uz/sdk package is maintained in ../applets\"",
+    "build:css": "node scripts/build-tailwind-css.mjs --minify",
+    "build:css:watch": "node scripts/build-tailwind-css.mjs --watch",
     "lint": "echo \"no lint\""
   },
   "devDependencies": {
     "@tailwindcss/cli": "4.1.18",
     "@tailwindcss/postcss": "4.1.18",
     "tailwindcss": "4.1.18"
+  },
+  "pnpm": {
+    "overrides": {
+      "@tailwindcss/cli": "4.1.18",
+      "@tailwindcss/postcss": "4.1.18",
+      "tailwindcss": "4.1.18"
+    }
   }
 }

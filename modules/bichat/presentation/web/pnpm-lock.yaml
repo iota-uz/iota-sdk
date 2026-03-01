@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@tailwindcss/cli': 4.1.18
+  '@tailwindcss/postcss': 4.1.18
+  tailwindcss: 4.1.18
+
 importers:
 
   .:

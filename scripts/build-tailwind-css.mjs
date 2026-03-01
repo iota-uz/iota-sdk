@@ -1,4 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -6,19 +7,50 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
 
-const inputPath = path.join(repoRoot, "styles/tailwind/input.css");
-const generatedPath = path.join(repoRoot, "styles/tailwind/main.generated.css");
+const argv = process.argv.slice(2);
+const options = {
+  clean: false,
+  configPath: "styles/tailwind/pipeline.config.json",
+  generateOnly: false,
+  minify: false,
+  tailwindArgs: [],
+};
 
-const sourceGlobs = [
-  "../../cmd/**/*.{go,templ,html,js,ts,tsx}",
-  "../../components/**/*.{go,templ,html,js,ts,tsx}",
-  "../../modules/**/*.{go,templ,html,js,ts,tsx}",
-  "../../pkg/**/*.{go,templ,html,js,ts,tsx}",
-];
+for (let i = 0; i < argv.length; i += 1) {
+  const arg = argv[i];
 
-function buildSourceBlock() {
-  const lines = sourceGlobs
-    .map((glob) => `@source "${glob}";`)
+  if (arg === "--clean") {
+    options.clean = true;
+    continue;
+  }
+
+  if (arg === "--generate-only") {
+    options.generateOnly = true;
+    continue;
+  }
+
+  if (arg === "--minify") {
+    options.minify = true;
+    continue;
+  }
+
+  if (arg === "--config") {
+    const configPath = argv[i + 1];
+    if (!configPath) {
+      throw new Error("Missing value for --config");
+    }
+    options.configPath = configPath;
+    i += 1;
+    continue;
+  }
+
+  options.tailwindArgs.push(arg);
+}
+
+function createSourceBlock(sources) {
+  const stableSources = [...new Set(sources)].sort();
+  const lines = stableSources
+    .map((source) => `@source "${source}";`)
     .join("\n");
 
   return [
@@ -28,19 +60,92 @@ function buildSourceBlock() {
   ].join("\n");
 }
 
+function removeGeneratedSourceBlock(css) {
+  return css.replace(
+    /\/\* AUTO-GENERATED SOURCES START \*\/[\s\S]*?\/\* AUTO-GENERATED SOURCES END \*\/\n?/g,
+    "",
+  );
+}
+
+async function loadPipelineConfig(configPath) {
+  const resolvedPath = path.resolve(repoRoot, configPath);
+  const content = await readFile(resolvedPath, "utf8");
+  const config = JSON.parse(content);
+
+  return {
+    generated: path.resolve(repoRoot, config.generated),
+    input: path.resolve(repoRoot, config.input),
+    output: path.resolve(repoRoot, config.output),
+    sources: Array.isArray(config.sources) ? config.sources : [],
+  };
+}
+
+async function generateInputFile(config) {
+  const baseInput = await readFile(config.input, "utf8");
+  const sourceBlock = createSourceBlock(config.sources);
+  const normalizedInput = removeGeneratedSourceBlock(baseInput).trimEnd();
+  const output = `${normalizedInput}\n\n${sourceBlock}\n`;
+
+  await writeFile(config.generated, output, "utf8");
+}
+
+function runTailwind(config) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      "exec",
+      "tailwindcss",
+      "--input",
+      path.relative(repoRoot, config.generated),
+      "--output",
+      path.relative(repoRoot, config.output),
+      ...options.tailwindArgs,
+    ];
+
+    if (options.minify) {
+      args.push("--minify");
+    }
+
+    const child = spawn("pnpm", args, {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`tailwindcss exited with code ${code}`));
+    });
+  });
+}
+
+async function cleanFiles(config) {
+  await Promise.all([
+    rm(config.generated, { force: true }),
+    rm(config.output, { force: true }),
+  ]);
+}
+
 async function run() {
-  const input = await readFile(inputPath, "utf8");
-  const sourceBlock = buildSourceBlock();
+  const config = await loadPipelineConfig(options.configPath);
 
-  const withoutGeneratedBlock = input
-    .replace(/\/\* AUTO-GENERATED SOURCES START \*\/[\s\S]*?\/\* AUTO-GENERATED SOURCES END \*\/\n?/g, "")
-    .trimEnd();
+  if (options.clean) {
+    await cleanFiles(config);
+    return;
+  }
 
-  const output = `${withoutGeneratedBlock}\n\n${sourceBlock}\n`;
-  await writeFile(generatedPath, output, "utf8");
+  await generateInputFile(config);
+
+  if (options.generateOnly) {
+    return;
+  }
+
+  await runTailwind(config);
 }
 
 run().catch((error) => {
-  console.error("Failed to generate Tailwind input:", error);
+  console.error("Failed to build Tailwind CSS:", error);
   process.exitCode = 1;
 });

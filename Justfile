@@ -4,10 +4,6 @@ set dotenv-load
 DEV_COMPOSE_FILE := "compose.dev.yml"
 TESTING_COMPOSE_FILE := "compose.testing.yml"
 
-TAILWIND_INPUT := "styles/tailwind/input.css"
-TAILWIND_GENERATED_INPUT := "styles/tailwind/main.generated.css"
-TAILWIND_OUTPUT := "modules/core/presentation/assets/css/main.min.css"
-
 GO_TEST_TAG := "dev"
 
 [default]
@@ -227,13 +223,12 @@ coverage-report:
 [group("assets")]
 [doc("Build Tailwind CSS. Extra arguments are passed to `tailwindcss`")]
 css *args="":
-  node scripts/build-tailwind-css.mjs
-  pnpm exec tailwindcss --input {{TAILWIND_GENERATED_INPUT}} --output {{TAILWIND_OUTPUT}} --minify {{args}}
+  node scripts/build-tailwind-css.mjs --minify {{args}}
 
 [group("assets")]
 [doc("Remove generated CSS file")]
 css-clean:
-  rm -rf {{TAILWIND_OUTPUT}}
+  node scripts/build-tailwind-css.mjs --clean
 
 [group("e2e")]
 [doc("E2E commands (test|reset|seed|migrate|status|run|ci|dev|clean)")]
