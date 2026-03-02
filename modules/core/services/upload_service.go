@@ -4,9 +4,11 @@ package services
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -141,12 +143,31 @@ func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO
 	return entities, nil
 }
 
+func (s *UploadService) GetDownloadURL(ctx context.Context, entity upload.Upload) (string, error) {
+	if entity == nil {
+		return "", errors.New("upload is nil")
+	}
+	return s.GetDownloadURLByPath(ctx, entity.Path())
+}
+
+func (s *UploadService) GetDownloadURLByPath(ctx context.Context, storagePath string) (string, error) {
+	conf := configuration.Use()
+	ttlSeconds := conf.UploadS3PresignTTL
+	if ttlSeconds <= 0 {
+		ttlSeconds = 300
+	}
+	return s.storage.PresignGetURL(ctx, storagePath, time.Duration(ttlSeconds)*time.Second)
+}
+
 func (s *UploadService) Delete(ctx context.Context, id uint) (upload.Upload, error) {
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	if err := s.storage.Delete(ctx, entity.Path()); err != nil {
 		return nil, err
 	}
 	deletedEvent, err := upload.NewDeletedEvent(ctx, entity)

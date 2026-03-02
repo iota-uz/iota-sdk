@@ -2,15 +2,9 @@ package services_test
 
 import (
 	"context"
-	"testing"
-
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-
 	"fmt"
 	"net/url"
+	"testing"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -22,6 +16,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock dependencies
@@ -129,6 +127,11 @@ func (m *MockUploadStorage) Open(ctx context.Context, path string) ([]byte, erro
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]byte), args.Error(1)
+}
+
+func (m *MockUploadStorage) PresignGetURL(ctx context.Context, path string, ttl time.Duration) (string, error) {
+	args := m.Called(ctx, path, ttl)
+	return args.String(0), args.Error(1)
 }
 
 type MockUpload struct {

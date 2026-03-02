@@ -186,9 +186,15 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
+	downloadURL, err := uploadService.GetDownloadURL(r.Context(), uploadEntity)
+	if err != nil {
+		c.writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	response := UploadAPIResponse{
 		ID:   uploadEntity.ID(),
-		URL:  uploadEntity.URL().String(),
+		URL:  downloadURL,
 		Hash: uploadEntity.Hash(),
 		Path: uploadEntity.Path(),
 		Name: uploadEntity.Name(),

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -50,12 +51,17 @@ func (c *UploadController) Register(r *mux.Router) {
 	router.Use(middleware.ProvideLocalizer(c.app))
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
+	prefix := path.Join("/", conf.UploadsPath, "/")
+	if strings.EqualFold(strings.TrimSpace(conf.UploadStorageBackend), "s3") {
+		r.PathPrefix(prefix).Handler(http.HandlerFunc(c.ServeUploadByPath))
+		return
+	}
+
 	workDir, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
 	fullPath := filepath.Join(workDir, conf.UploadsPath)
-	prefix := path.Join("/", conf.UploadsPath, "/")
 	neuteredFS := multifs.NewNeuteredFileSystem(http.Dir(fullPath))
 	r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.FileServer(neuteredFS)))
 }
@@ -137,4 +143,24 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templ.Handler(components.UploadTarget(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *UploadController) ServeUploadByPath(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, "/") {
+		http.NotFound(w, r)
+		return
+	}
+
+	pathOnly := strings.TrimPrefix(r.URL.Path, "/")
+	if strings.TrimSpace(pathOnly) == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	downloadURL, err := c.uploadService.GetDownloadURLByPath(r.Context(), pathOnly)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	http.Redirect(w, r, downloadURL, http.StatusSeeOther)
 }
