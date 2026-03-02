@@ -257,7 +257,7 @@ _e2e-test:
 
 [group("e2e")]
 _e2e-reset:
-  go run cmd/command/main.go e2e reset
+  go run cmd/command/main.go e2e reset --force --yes
 
 [group("e2e")]
 _e2e-seed:
@@ -279,7 +279,7 @@ _e2e-ci:
 
 [group("e2e")]
 _e2e-clean:
-  go run cmd/command/main.go e2e drop
+  go run cmd/command/main.go e2e drop --force --yes
 
 [group("e2e")]
 _e2e-dev:

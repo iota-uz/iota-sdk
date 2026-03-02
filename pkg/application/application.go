@@ -112,6 +112,12 @@ type ApplicationOptions struct {
 	Bundle             *i18n.Bundle
 	Huber              Huber
 	SupportedLanguages []string
+	// StartBackgroundWorkers controls startup workers in application.New.
+	// Default is true unless BackgroundWorkersConfigured is set.
+	StartBackgroundWorkers bool
+	// BackgroundWorkersConfigured allows preserving default behavior (true)
+	// when callers do not set StartBackgroundWorkers explicitly.
+	BackgroundWorkersConfigured bool
 }
 
 func LoadBundle() *i18n.Bundle {
@@ -176,8 +182,16 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight.DefaultServiceConfig(),
 		serviceOpts...,
 	)
-	if err := spotlightService.Start(initCtx); err != nil {
-		return nil, fmt.Errorf("start spotlight service: %w", err)
+	startBackgroundWorkers := true
+	if opts.BackgroundWorkersConfigured {
+		startBackgroundWorkers = opts.StartBackgroundWorkers
+	}
+	if startBackgroundWorkers {
+		if err := spotlightService.Start(initCtx); err != nil {
+			return nil, fmt.Errorf("start spotlight service: %w", err)
+		}
+	} else if opts.Logger != nil {
+		opts.Logger.Info("background workers disabled for this application instance")
 	}
 	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)

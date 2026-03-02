@@ -9,14 +9,35 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
+	"github.com/iota-uz/iota-sdk/pkg/commands/safety"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/jackc/pgx/v5"
 )
 
 // Create drops and creates an empty e2e database
-func Create() error {
+func Create(opts safety.RunOptions) error {
 	ctx := context.Background()
 	conf := configuration.Use()
+	originalDBName := conf.Database.Name
+	conf.Database.Name = E2EDBName
+	defer func() { conf.Database.Name = originalDBName }()
+
+	pool, poolErr := GetE2EPool()
+	if poolErr == nil {
+		defer pool.Close()
+	}
+	preflight, err := safety.RunPreflight(ctx, pool, safety.OperationE2ECreate)
+	if err != nil {
+		return fmt.Errorf("failed to run e2e create preflight: %w", err)
+	}
+	safety.PrintPreflight(os.Stdout, preflight, opts)
+	if err := safety.EnforceSafety(opts, preflight, os.Stdin, os.Stdout); err != nil {
+		return err
+	}
+	if opts.DryRun {
+		safety.PrintOutcomeSummary(os.Stdout, "e2e create", false, true)
+		return nil
+	}
 
 	// Connect directly to postgres database
 	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
@@ -43,13 +64,34 @@ func Create() error {
 	}
 
 	conf.Logger().Info("Created e2e database", "database", E2EDBName)
+	safety.PrintOutcomeSummary(os.Stdout, "e2e create", true, false)
 	return nil
 }
 
 // Drop removes the e2e database
-func Drop() error {
+func Drop(opts safety.RunOptions) error {
 	ctx := context.Background()
 	conf := configuration.Use()
+	originalDBName := conf.Database.Name
+	conf.Database.Name = E2EDBName
+	defer func() { conf.Database.Name = originalDBName }()
+
+	pool, poolErr := GetE2EPool()
+	if poolErr == nil {
+		defer pool.Close()
+	}
+	preflight, err := safety.RunPreflight(ctx, pool, safety.OperationE2EDrop)
+	if err != nil {
+		return fmt.Errorf("failed to run e2e drop preflight: %w", err)
+	}
+	safety.PrintPreflight(os.Stdout, preflight, opts)
+	if err := safety.EnforceSafety(opts, preflight, os.Stdin, os.Stdout); err != nil {
+		return err
+	}
+	if opts.DryRun {
+		safety.PrintOutcomeSummary(os.Stdout, "e2e drop", false, true)
+		return nil
+	}
 
 	// Connect directly to postgres database
 	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
@@ -70,6 +112,7 @@ func Drop() error {
 	}
 
 	conf.Logger().Info("Dropped e2e database", "database", E2EDBName)
+	safety.PrintOutcomeSummary(os.Stdout, "e2e drop", true, false)
 	return nil
 }
 
@@ -143,7 +186,10 @@ func Setup() error {
 	} else {
 		conf.Logger().Info("E2E database does not exist, creating fresh database...")
 		// Database doesn't exist, create it
-		if err := Create(); err != nil {
+		if err := Create(safety.RunOptions{
+			Force: true,
+			Yes:   true,
+		}); err != nil {
 			return err
 		}
 		// Apply migrations for new database
@@ -153,7 +199,9 @@ func Setup() error {
 	}
 
 	// Always seed with fresh test data
-	if err := Seed(); err != nil {
+	if err := Seed(safety.RunOptions{
+		Yes: true,
+	}); err != nil {
 		return err
 	}
 
@@ -162,21 +210,51 @@ func Setup() error {
 }
 
 // Reset drops and recreates the e2e database with fresh data
-func Reset() error {
+func Reset(opts safety.RunOptions) error {
 	conf := configuration.Use()
 	conf.Logger().Info("Resetting e2e database...")
 
-	if err := Create(); err != nil { // This drops and recreates
+	ctx := context.Background()
+	originalDBName := conf.Database.Name
+	conf.Database.Name = E2EDBName
+	defer func() { conf.Database.Name = originalDBName }()
+
+	pool, poolErr := GetE2EPool()
+	if poolErr == nil {
+		defer pool.Close()
+	}
+	preflight, err := safety.RunPreflight(ctx, pool, safety.OperationE2EReset)
+	if err != nil {
+		return fmt.Errorf("failed to run e2e reset preflight: %w", err)
+	}
+	safety.PrintPreflight(os.Stdout, preflight, opts)
+	if err := safety.EnforceSafety(opts, preflight, os.Stdin, os.Stdout); err != nil {
+		return err
+	}
+	if opts.DryRun {
+		safety.PrintOutcomeSummary(os.Stdout, "e2e reset", false, true)
+		return nil
+	}
+
+	createOpts := opts
+	createOpts.DryRun = false
+	createOpts.Yes = true
+	createOpts.Force = true
+	if err := Create(createOpts); err != nil { // This drops and recreates
 		return err
 	}
 	if err := Migrate(); err != nil {
 		return err
 	}
-	if err := Seed(); err != nil {
+	seedOpts := opts
+	seedOpts.DryRun = false
+	seedOpts.Yes = true
+	if err := Seed(seedOpts); err != nil {
 		return err
 	}
 
 	conf.Logger().Info("E2E database reset complete!")
+	safety.PrintOutcomeSummary(os.Stdout, "e2e reset", true, false)
 	return nil
 }
 

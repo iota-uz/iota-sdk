@@ -3,6 +3,7 @@ package commands
 
 import (
 	"github.com/iota-uz/iota-sdk/pkg/commands/e2e"
+	"github.com/iota-uz/iota-sdk/pkg/commands/safety"
 	"github.com/spf13/cobra"
 )
 
@@ -34,36 +35,48 @@ func NewE2ECommand() *cobra.Command {
 }
 
 func newE2EResetCmd() *cobra.Command {
-	return &cobra.Command{
+	var opts safety.RunOptions
+	cmd := &cobra.Command{
 		Use:   "reset",
 		Short: "Drop and recreate database with fresh data",
 		Long:  `Completely resets the e2e database by dropping it, recreating it, running migrations, and seeding fresh test data.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return e2e.Reset()
+			return e2e.Reset(opts)
 		},
 	}
+	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Skip interactive confirmations")
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "Allow destructive operations (or use SEED_FORCE=1)")
+	return cmd
 }
 
 func newE2ECreateCmd() *cobra.Command {
-	return &cobra.Command{
+	var opts safety.RunOptions
+	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create empty e2e database",
 		Long:  `Creates an empty e2e database without running migrations or seeding data.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return e2e.Create()
+			return e2e.Create(opts)
 		},
 	}
+	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Skip interactive confirmations")
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "Allow destructive operations (or use SEED_FORCE=1)")
+	return cmd
 }
 
 func newE2EDropCmd() *cobra.Command {
-	return &cobra.Command{
+	var opts safety.RunOptions
+	cmd := &cobra.Command{
 		Use:   "drop",
 		Short: "Drop e2e database",
 		Long:  `Completely removes the e2e database and all its data.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return e2e.Drop()
+			return e2e.Drop(opts)
 		},
 	}
+	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Skip interactive confirmations")
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "Allow destructive operations (or use SEED_FORCE=1)")
+	return cmd
 }
 
 func newE2EMigrateCmd() *cobra.Command {
@@ -78,14 +91,19 @@ func newE2EMigrateCmd() *cobra.Command {
 }
 
 func newE2ESeedCmd() *cobra.Command {
-	return &cobra.Command{
+	var opts safety.RunOptions
+	cmd := &cobra.Command{
 		Use:   "seed",
 		Short: "Seed existing e2e database with test data",
 		Long:  `Populates the existing e2e database with test data required for end-to-end testing.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return e2e.Seed()
+			return e2e.Seed(opts)
 		},
 	}
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Print actions without mutating data")
+	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Skip interactive confirmations")
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "Allow destructive safeguards to be bypassed when needed")
+	return cmd
 }
 
 func newE2ETestCmd() *cobra.Command {
