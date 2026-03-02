@@ -112,12 +112,7 @@ type ApplicationOptions struct {
 	Bundle             *i18n.Bundle
 	Huber              Huber
 	SupportedLanguages []string
-	// StartBackgroundWorkers controls startup workers in application.New.
-	// Default is true unless BackgroundWorkersConfigured is set.
-	StartBackgroundWorkers bool
-	// BackgroundWorkersConfigured allows preserving default behavior (true)
-	// when callers do not set StartBackgroundWorkers explicitly.
-	BackgroundWorkersConfigured bool
+	RuntimeProfile     RuntimeProfile
 }
 
 func LoadBundle() *i18n.Bundle {
@@ -156,6 +151,9 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("application options are required")
 	}
+	if opts.RuntimeProfile == "" {
+		return nil, fmt.Errorf("runtime profile is required (server|cli)")
+	}
 	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer initCancel()
 
@@ -182,16 +180,13 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight.DefaultServiceConfig(),
 		serviceOpts...,
 	)
-	startBackgroundWorkers := true
-	if opts.BackgroundWorkersConfigured {
-		startBackgroundWorkers = opts.StartBackgroundWorkers
-	}
+	startBackgroundWorkers := opts.RuntimeProfile == RuntimeProfileServer
 	if startBackgroundWorkers {
 		if err := spotlightService.Start(initCtx); err != nil {
 			return nil, fmt.Errorf("start spotlight service: %w", err)
 		}
 	} else if opts.Logger != nil {
-		opts.Logger.Info("background workers disabled for this application instance")
+		opts.Logger.Infof("background workers disabled for runtime profile: %s", opts.RuntimeProfile)
 	}
 	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)

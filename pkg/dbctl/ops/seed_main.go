@@ -1,10 +1,8 @@
-// Package e2e provides this package.
-package e2e
+package ops
 
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -16,32 +14,38 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
-// SeedRaw populates the e2e database with test data.
-func SeedRaw() error {
-	_ = os.Setenv("DB_NAME", E2EDBName)
+func SeedMainOperation() OperationSpec {
+	return OperationSpec{
+		Name: "seed.main",
+		Kind: OperationKindSeed,
+		Steps: []StepSpec{{
+			ID:          "seed_main_dataset",
+			Description: "Seed default tenant, users, permissions, and website defaults",
+			TxMode:      TxModeNone,
+			Handler: func(ctx context.Context, _ *ExecutionContext) error {
+				return runMainSeed(ctx)
+			},
+		}},
+	}
+}
 
-	conf := configuration.Use()
-	ctx := context.Background()
-
-	pool, err := GetE2EPool()
+func runMainSeed(ctx context.Context) error {
+	app, pool, err := common.NewApplicationWithDefaultsAndOptions(common.AppBuildOptions{
+		RuntimeProfile: application.RuntimeProfileCLI,
+	}, modules.BuiltInModules...)
 	if err != nil {
-		return fmt.Errorf("failed to connect to e2e database: %w", err)
+		return fmt.Errorf("initialize application: %w", err)
 	}
 	defer pool.Close()
 
-	app, err := common.NewApplication(pool, modules.BuiltInModules...)
-	if err != nil {
-		return fmt.Errorf("failed to create application: %w", err)
-	}
 	app.RegisterNavItems(modules.NavLinks...)
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 
 	seeder := application.NewSeeder()
@@ -52,7 +56,7 @@ func SeedRaw() error {
 		user.UILanguageEN,
 	).SetPassword("TestPass123!")
 	if err != nil {
-		return fmt.Errorf("failed to create test user: %w", err)
+		return fmt.Errorf("create test user: %w", err)
 	}
 
 	defaultTenant := &composables.Tenant{
@@ -85,22 +89,13 @@ func SeedRaw() error {
 		)),
 	)
 
-	ctxWithTenant := composables.WithTenantID(
-		composables.WithTx(ctx, tx),
-		defaultTenant.ID,
-	)
-
+	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, app); err != nil {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			return fmt.Errorf("rollback failed: %w (original error: %w)", rollbackErr, err)
-		}
-		return err
+		_ = tx.Rollback(ctx)
+		return fmt.Errorf("seed main dataset: %w", err)
 	}
-
 	if err := tx.Commit(ctxWithTenant); err != nil {
-		return err
+		return fmt.Errorf("commit seed main transaction: %w", err)
 	}
-
-	conf.Logger().Info("Seeded e2e database with test data")
 	return nil
 }

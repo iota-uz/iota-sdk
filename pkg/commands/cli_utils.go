@@ -7,15 +7,12 @@ import (
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/commands/safety"
 )
 
-// NewUtilityCommands creates all utility commands (check_tr_keys, seed, seed_superadmin)
+// NewUtilityCommands creates utility commands.
 func NewUtilityCommands() []*cobra.Command {
 	return []*cobra.Command{
 		newCheckTrKeysCmd(),
-		newSeedCmd(),
-		newSeedSuperadminCmd(),
 	}
 }
 
@@ -33,36 +30,4 @@ func newCheckTrKeysCmd() *cobra.Command {
 			return CheckTrKeys(nil, allModules...)
 		},
 	}
-}
-
-func newSeedCmd() *cobra.Command {
-	var opts safety.RunOptions
-	cmd := &cobra.Command{
-		Use:   "seed",
-		Short: "Seed the main database with initial data",
-		Long:  `Populates the main database with initial seed data including default tenant, users, permissions, and configuration.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return SeedDatabase(opts, modules.BuiltInModules...)
-		},
-	}
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Print actions without mutating data")
-	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Skip interactive confirmations")
-	cmd.Flags().BoolVar(&opts.Force, "force", false, "Acknowledge high-risk/destructive operations (or use SEED_FORCE=1)")
-	return cmd
-}
-
-func newSeedSuperadminCmd() *cobra.Command {
-	var opts safety.RunOptions
-	cmd := &cobra.Command{
-		Use:   "seed_superadmin",
-		Short: "Seed the database with a superadmin user",
-		Long:  `Creates a superadmin user with full permissions for accessing the Super Admin dashboard.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return SeedSuperadmin(opts, modules.BuiltInModules...)
-		},
-	}
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Print actions without mutating data")
-	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Skip interactive confirmations")
-	cmd.Flags().BoolVar(&opts.Force, "force", false, "Acknowledge high-risk/destructive operations (or use SEED_FORCE=1)")
-	return cmd
 }

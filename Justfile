@@ -130,7 +130,7 @@ _db-reset:
 
 [group("db")]
 _db-seed:
-  go run cmd/command/main.go seed
+  go run cmd/command/main.go dbctl apply seed.main --yes --approve-ticket local-dev
 
 [group("db")]
 _db-migrate direction:
@@ -257,11 +257,11 @@ _e2e-test:
 
 [group("e2e")]
 _e2e-reset:
-  go run cmd/command/main.go e2e reset --force --yes
+  go run cmd/command/main.go dbctl apply db.e2e.reset --yes --approve-ticket local-dev
 
 [group("e2e")]
 _e2e-seed:
-  go run cmd/command/main.go e2e seed
+  go run cmd/command/main.go dbctl apply seed.e2e --yes --approve-ticket local-dev
 
 [group("e2e")]
 _e2e-migrate direction:
@@ -279,7 +279,7 @@ _e2e-ci:
 
 [group("e2e")]
 _e2e-clean:
-  go run cmd/command/main.go e2e drop --force --yes
+  go run cmd/command/main.go dbctl apply db.e2e.drop --yes --approve-ticket local-dev
 
 [group("e2e")]
 _e2e-dev:
@@ -348,7 +348,7 @@ _superadmin-dev:
 
 [group("superadmin")]
 _superadmin-seed:
-  LOG_LEVEL=info go run cmd/command/main.go seed_superadmin
+  LOG_LEVEL=info go run cmd/command/main.go dbctl apply seed.superadmin --yes --approve-ticket local-dev
 
 [group("tools")]
 [doc("sdk-tools commands (install|test|help)")]

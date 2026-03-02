@@ -16,11 +16,10 @@ func TestNew_DisableBackgroundWorkersLogsDisabledMessage(t *testing.T) {
 	logger.SetLevel(logrus.InfoLevel)
 
 	app, err := New(&ApplicationOptions{
-		Bundle:                      LoadBundle(),
-		Logger:                      logger,
-		SupportedLanguages:          []string{"en"},
-		StartBackgroundWorkers:      false,
-		BackgroundWorkersConfigured: true,
+		Bundle:             LoadBundle(),
+		Logger:             logger,
+		SupportedLanguages: []string{"en"},
+		RuntimeProfile:     RuntimeProfileCLI,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, app)

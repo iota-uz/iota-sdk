@@ -1,0 +1,61 @@
+---
+title: 'DBCTL Operations'
+description: 'Policy-first seed and database operations'
+---
+
+# DBCTL Operations
+
+`dbctl` is the only supported interface for seed/e2e database workflows.
+
+## Plan and apply
+
+```bash
+# Inspect execution graph and policy decision
+command dbctl plan seed.main --yes --approve-ticket local-dev
+
+# Execute seed
+command dbctl apply seed.main --yes --approve-ticket local-dev
+
+# E2E destructive reset
+command dbctl apply db.e2e.reset --yes --approve-ticket local-dev
+```
+
+## Policy
+
+A policy file is required at `.dbctl/policy.yaml` (or pass `--policy`).
+
+`dbctl apply` fails when:
+
+- policy file is missing/invalid
+- target host is not allowed for environment
+- destructive operation is not permitted
+- required confirmations (`--yes`, `--approve-ticket`) are missing
+
+## Observability and history
+
+```bash
+# policy/target diagnostics
+command dbctl doctor
+
+# recent run records
+command dbctl history --limit 20
+```
+
+## Credential bootstrap artifacts
+
+Seed operations create bootstrap artifacts instead of printing plaintext passwords.
+
+```bash
+command dbctl credentials show <run-id>
+command dbctl credentials show <run-id> --reveal
+```
+
+## Removed legacy commands
+
+The following command families are removed:
+
+- `command seed`
+- `command seed_superadmin`
+- `command e2e seed|create|drop|reset`
+
+Use `dbctl` operations instead.

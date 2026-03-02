@@ -14,7 +14,7 @@ import (
 )
 
 type AppBuildOptions struct {
-	StartBackgroundWorkers bool
+	RuntimeProfile application.RuntimeProfile
 }
 
 // GetDatabasePool creates a database connection pool with the specified database name
@@ -49,7 +49,7 @@ func GetDefaultDatabasePool() (*pgxpool.Pool, error) {
 // NewApplication creates a new application with consistent setup patterns
 func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
 	return NewApplicationWithOptions(pool, AppBuildOptions{
-		StartBackgroundWorkers: false,
+		RuntimeProfile: application.RuntimeProfileCLI,
 	}, mods...)
 }
 
@@ -58,16 +58,18 @@ func NewApplicationWithOptions(
 	opts AppBuildOptions,
 	mods ...application.Module,
 ) (application.Application, error) {
+	if opts.RuntimeProfile == "" {
+		return nil, fmt.Errorf("runtime profile is required")
+	}
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 
 	app, err := application.New(&application.ApplicationOptions{
-		Pool:                        pool,
-		Bundle:                      bundle,
-		EventBus:                    eventbus.NewEventPublisher(conf.Logger()),
-		Logger:                      conf.Logger(),
-		StartBackgroundWorkers:      opts.StartBackgroundWorkers,
-		BackgroundWorkersConfigured: true,
+		Pool:           pool,
+		Bundle:         bundle,
+		EventBus:       eventbus.NewEventPublisher(conf.Logger()),
+		Logger:         conf.Logger(),
+		RuntimeProfile: opts.RuntimeProfile,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize application: %w", err)
@@ -83,7 +85,7 @@ func NewApplicationWithOptions(
 // NewApplicationWithDefaults creates an application with default database and built-in modules
 func NewApplicationWithDefaults(mods ...application.Module) (application.Application, *pgxpool.Pool, error) {
 	return NewApplicationWithDefaultsAndOptions(AppBuildOptions{
-		StartBackgroundWorkers: false,
+		RuntimeProfile: application.RuntimeProfileCLI,
 	}, mods...)
 }
 

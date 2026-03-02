@@ -1,73 +1,20 @@
 ---
-title: 'Seeding & Safety'
-description: 'Safe seed and e2e DB workflows for local development'
+title: 'Seeding (Legacy)'
+description: 'Legacy command migration to dbctl'
 ---
 
-# Seeding & Safety
+# Seeding (Legacy)
 
-Use these commands to seed local data with explicit safety checks.
+Legacy seed/e2e commands were removed in the dbctl cutover.
 
-## Main Database Seed
-
-```bash
-# Preview what would happen
-just db seed -- --dry-run
-
-# Run with explicit confirmation for risky targets
-just db seed -- --yes
-
-# Superadmin seed
-just superadmin seed -- --dry-run
-just superadmin seed -- --yes
-```
-
-Seed commands print a preflight banner with:
-
-- Environment and DB target (`host`, `port`, `name`, `user`, password redacted)
-- Whether DB looks local
-- Whether DB already has data
-- Risk warnings and planned actions
-
-## E2E Database Commands
-
-Destructive e2e operations require explicit force.
+Use `/getting-started/dbctl` for all seed and e2e database workflows.
 
 ```bash
-# Required for destructive operations
-command e2e reset --force --yes
-command e2e drop --force --yes
-command e2e create --force --yes
+# Plan
+command dbctl plan seed.main --yes --approve-ticket local-dev
 
-# Seed preview
-command e2e seed --dry-run
+# Apply
+command dbctl apply seed.main --yes --approve-ticket local-dev
+command dbctl apply seed.superadmin --yes --approve-ticket local-dev
+command dbctl apply db.e2e.reset --yes --approve-ticket local-dev
 ```
-
-You can also set `SEED_FORCE=1` instead of passing `--force`.
-
-## Fresh DB vs Restored Backup
-
-## Fresh Local DB
-
-1. Start local database services.
-2. Run migrations.
-3. Run `just db seed -- --yes`.
-
-## Restored/Non-Empty DB
-
-If the DB is non-empty or looks like a backup, seed commands warn and require explicit confirmation.
-Use `--dry-run` first to inspect actions before mutation.
-
-## Credential Output
-
-Seed output always includes a credential summary with status:
-
-- `created_now`
-- `already_existed (seed skipped/left unchanged)`
-- Dry-run variants: `would_create` / `would_keep_existing`
-
-Default credentials are visible in command output for seeded accounts (for example, test and superadmin users).
-
-## CI and Non-TTY Behavior
-
-In non-interactive environments, high-risk operations are blocked unless you pass `--yes`.
-Destructive e2e commands are blocked unless you pass `--force` (or `SEED_FORCE=1`).

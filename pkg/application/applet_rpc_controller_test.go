@@ -82,7 +82,7 @@ func (h *rpcTestHostServices) ExtractPageLocale(context.Context) language.Tag {
 }
 
 func TestCreateAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
 
@@ -139,7 +139,7 @@ files = "local"
 secrets = "env"
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
 
@@ -183,7 +183,7 @@ files = "local"
 secrets = "env"
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
 
@@ -226,7 +226,7 @@ files = "local"
 secrets = "env"
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
 
@@ -267,7 +267,7 @@ files = "local"
 secrets = "env"
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
 
@@ -299,7 +299,7 @@ files = "local"
 secrets = "env"
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
 
@@ -331,7 +331,7 @@ files = "local"
 secrets = "env"
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
 
@@ -368,7 +368,7 @@ secrets = "postgres"
 master_key_file = %q
 `, masterKeyFile))
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
 
@@ -400,7 +400,7 @@ files = "postgres"
 secrets = "env"
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
 
@@ -435,7 +435,7 @@ secrets = "env"
 required = ["OPENAI_API_KEY"]
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
 
@@ -473,7 +473,7 @@ access_key_env = "APPLET_S3_ACCESS_KEY"
 secret_key_env = "APPLET_S3_SECRET_KEY"
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
 
@@ -496,7 +496,7 @@ base_path = "/demo"
 hosts = ["demo.example.com"]
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
 
@@ -542,7 +542,7 @@ files = "local"
 secrets = "env"
 `)
 
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}, RuntimeProfile: RuntimeProfileCLI})
 	require.NoError(t, err)
 	require.NoError(t, app.RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
 
