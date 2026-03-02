@@ -112,6 +112,7 @@ type ApplicationOptions struct {
 	Bundle             *i18n.Bundle
 	Huber              Huber
 	SupportedLanguages []string
+	RuntimeProfile     RuntimeProfile
 }
 
 func LoadBundle() *i18n.Bundle {
@@ -150,6 +151,9 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("application options are required")
 	}
+	if opts.RuntimeProfile == "" {
+		return nil, fmt.Errorf("runtime profile is required (server|cli)")
+	}
 	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer initCancel()
 
@@ -176,8 +180,13 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight.DefaultServiceConfig(),
 		serviceOpts...,
 	)
-	if err := spotlightService.Start(initCtx); err != nil {
-		return nil, fmt.Errorf("start spotlight service: %w", err)
+	startBackgroundWorkers := opts.RuntimeProfile == RuntimeProfileServer
+	if startBackgroundWorkers {
+		if err := spotlightService.Start(initCtx); err != nil {
+			return nil, fmt.Errorf("start spotlight service: %w", err)
+		}
+	} else if opts.Logger != nil {
+		opts.Logger.Infof("background workers disabled for runtime profile: %s", opts.RuntimeProfile)
 	}
 	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)

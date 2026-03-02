@@ -1,0 +1,19 @@
+environments:
+  development:
+    allowed_hosts:
+      - localhost
+      - 127.0.0.1
+      - ::1
+      - db
+      - postgres
+    allow_destructive: true
+    require_yes: true
+    require_ticket: false
+  production:
+    allowed_hosts: []
+    allow_destructive: false
+    require_yes: true
+    require_ticket: true
+credentials:
+  emission: token_only
+  token_ttl_seconds: 3600

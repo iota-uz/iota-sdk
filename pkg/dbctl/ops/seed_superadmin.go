@@ -1,40 +1,49 @@
-// Package commands provides this package.
-package commands
+package ops
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
-// SeedSuperadmin seeds the database with a superadmin user
-func SeedSuperadmin(mods ...application.Module) error {
-	conf := configuration.Use()
-	ctx := context.Background()
+func SeedSuperadminOperation() OperationSpec {
+	return OperationSpec{
+		Name: "seed.superadmin",
+		Kind: OperationKindSeed,
+		Steps: []StepSpec{{
+			ID:          "seed_superadmin_dataset",
+			Description: "Seed default tenant and superadmin account",
+			TxMode:      TxModeNone,
+			Handler: func(ctx context.Context, _ *ExecutionContext) error {
+				return runSuperadminSeed(ctx)
+			},
+		}},
+	}
+}
 
-	app, pool, err := common.NewApplicationWithDefaults(mods...)
+func runSuperadminSeed(ctx context.Context) error {
+	app, pool, err := common.NewApplicationWithDefaultsAndOptions(common.AppBuildOptions{
+		RuntimeProfile: application.RuntimeProfileCLI,
+	}, modules.BuiltInModules...)
 	if err != nil {
-		return fmt.Errorf("failed to initialize application: %w", err)
+		return fmt.Errorf("initialize application: %w", err)
 	}
 	defer pool.Close()
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 
-	seeder := application.NewSeeder()
-
-	// Create superadmin user with all permissions
 	superadminUser, err := user.New(
 		"Super",
 		"Admin",
@@ -43,10 +52,9 @@ func SeedSuperadmin(mods ...application.Module) error {
 		user.WithType(user.TypeSuperAdmin),
 	).SetPassword("SuperAdmin123!")
 	if err != nil {
-		return fmt.Errorf("failed to create superadmin user: %w", err)
+		return fmt.Errorf("create superadmin user: %w", err)
 	}
 
-	// Add default tenant to context
 	defaultTenant := &composables.Tenant{
 		ID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 		Name:   "Default",
@@ -54,8 +62,7 @@ func SeedSuperadmin(mods ...application.Module) error {
 	}
 
 	allPermissions := defaults.AllPermissions()
-
-	// Register seeder functions
+	seeder := application.NewSeeder()
 	seeder.Register(
 		coreseed.CreateDefaultTenant,
 		coreseed.CreateCurrencies,
@@ -66,25 +73,13 @@ func SeedSuperadmin(mods ...application.Module) error {
 		coreseed.CreateSubscriptionEntitlements,
 	)
 
-	// Create context with tenant ID (we use the default tenant)
-	ctxWithTenant := composables.WithTenantID(
-		composables.WithTx(ctx, tx),
-		defaultTenant.ID,
-	)
-
+	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, app); err != nil {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			return fmt.Errorf("rollback failed: %w (original error: %w)", rollbackErr, err)
-		}
-		return fmt.Errorf("failed to seed superadmin: %w", err)
+		_ = tx.Rollback(ctx)
+		return fmt.Errorf("seed superadmin dataset: %w", err)
 	}
-
 	if err := tx.Commit(ctxWithTenant); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return fmt.Errorf("commit superadmin seed transaction: %w", err)
 	}
-
-	conf.Logger().Info("Superadmin user seeded successfully!")
-	conf.Logger().Info("Email: admin@superadmin.local")
-	conf.Logger().Info("Password: SuperAdmin123!")
 	return nil
 }

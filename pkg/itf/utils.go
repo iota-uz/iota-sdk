@@ -357,10 +357,11 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		Bundle:   bundle,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
+		Pool:           pool,
+		Bundle:         bundle,
+		EventBus:       eventbus.NewEventPublisher(conf.Logger()),
+		Logger:         conf.Logger(),
+		RuntimeProfile: application.RuntimeProfileCLI,
 	})
 	if err != nil {
 		return nil, err
@@ -377,10 +378,11 @@ func GetTestContext() *TestFixtures {
 	pool := NewPool(conf.Database.Opts)
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		Bundle:   bundle,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
+		Pool:           pool,
+		Bundle:         bundle,
+		EventBus:       eventbus.NewEventPublisher(conf.Logger()),
+		Logger:         conf.Logger(),
+		RuntimeProfile: application.RuntimeProfileCLI,
 	})
 	if err != nil {
 		panic(err)

@@ -1,5 +1,4 @@
-// Package commands provides this package.
-package commands
+package ops
 
 import (
 	"context"
@@ -15,18 +14,30 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
-// SeedDatabase seeds the main database with initial data
-func SeedDatabase(mods ...application.Module) error {
-	conf := configuration.Use()
-	ctx := context.Background()
+func SeedMainOperation() OperationSpec {
+	return OperationSpec{
+		Name: "seed.main",
+		Kind: OperationKindSeed,
+		Steps: []StepSpec{{
+			ID:          "seed_main_dataset",
+			Description: "Seed default tenant, users, permissions, and website defaults",
+			TxMode:      TxModeNone,
+			Handler: func(ctx context.Context, _ *ExecutionContext) error {
+				return runMainSeed(ctx)
+			},
+		}},
+	}
+}
 
-	app, pool, err := common.NewApplicationWithDefaults(mods...)
+func runMainSeed(ctx context.Context) error {
+	app, pool, err := common.NewApplicationWithDefaultsAndOptions(common.AppBuildOptions{
+		RuntimeProfile: application.RuntimeProfileCLI,
+	}, modules.BuiltInModules...)
 	if err != nil {
-		return fmt.Errorf("failed to initialize application: %w", err)
+		return fmt.Errorf("initialize application: %w", err)
 	}
 	defer pool.Close()
 
@@ -34,12 +45,10 @@ func SeedDatabase(mods ...application.Module) error {
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 
 	seeder := application.NewSeeder()
-
-	// Create test user
 	usr, err := user.New(
 		"Test",
 		"User",
@@ -47,10 +56,9 @@ func SeedDatabase(mods ...application.Module) error {
 		user.UILanguageEN,
 	).SetPassword("TestPass123!")
 	if err != nil {
-		return fmt.Errorf("failed to create test user: %w", err)
+		return fmt.Errorf("create test user: %w", err)
 	}
 
-	// Add default tenant to context
 	defaultTenant := &composables.Tenant{
 		ID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 		Name:   "Default",
@@ -81,22 +89,13 @@ func SeedDatabase(mods ...application.Module) error {
 		)),
 	)
 
-	ctxWithTenant := composables.WithTenantID(
-		composables.WithTx(ctx, tx),
-		defaultTenant.ID,
-	)
-
+	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, app); err != nil {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			return fmt.Errorf("rollback failed: %w (original error: %w)", rollbackErr, err)
-		}
-		return fmt.Errorf("failed to seed database: %w", err)
+		_ = tx.Rollback(ctx)
+		return fmt.Errorf("seed main dataset: %w", err)
 	}
-
 	if err := tx.Commit(ctxWithTenant); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return fmt.Errorf("commit seed main transaction: %w", err)
 	}
-
-	conf.Logger().Info("Database seeded successfully!")
 	return nil
 }

@@ -20,9 +20,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
-// Seed populates the e2e database with test data
-func Seed() error {
-	// Set environment variable for e2e database
+// SeedRaw populates the e2e database with test data.
+func SeedRaw() error {
 	_ = os.Setenv("DB_NAME", E2EDBName)
 
 	conf := configuration.Use()
@@ -46,8 +45,6 @@ func Seed() error {
 	}
 
 	seeder := application.NewSeeder()
-
-	// Create test user
 	usr, err := user.New(
 		"Test",
 		"User",
@@ -58,7 +55,6 @@ func Seed() error {
 		return fmt.Errorf("failed to create test user: %w", err)
 	}
 
-	// Add default tenant to context
 	defaultTenant := &composables.Tenant{
 		ID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 		Name:   "Default",

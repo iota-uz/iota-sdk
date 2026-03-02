@@ -13,6 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type AppBuildOptions struct {
+	RuntimeProfile application.RuntimeProfile
+}
+
 // GetDatabasePool creates a database connection pool with the specified database name
 func GetDatabasePool(ctx context.Context, dbName string) (*pgxpool.Pool, error) {
 	conf := configuration.Use()
@@ -44,14 +48,28 @@ func GetDefaultDatabasePool() (*pgxpool.Pool, error) {
 
 // NewApplication creates a new application with consistent setup patterns
 func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
+	return NewApplicationWithOptions(pool, AppBuildOptions{
+		RuntimeProfile: application.RuntimeProfileCLI,
+	}, mods...)
+}
+
+func NewApplicationWithOptions(
+	pool *pgxpool.Pool,
+	opts AppBuildOptions,
+	mods ...application.Module,
+) (application.Application, error) {
+	if opts.RuntimeProfile == "" {
+		return nil, fmt.Errorf("runtime profile is required")
+	}
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 
 	app, err := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		Bundle:   bundle,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
+		Pool:           pool,
+		Bundle:         bundle,
+		EventBus:       eventbus.NewEventPublisher(conf.Logger()),
+		Logger:         conf.Logger(),
+		RuntimeProfile: opts.RuntimeProfile,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize application: %w", err)
@@ -66,12 +84,21 @@ func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application
 
 // NewApplicationWithDefaults creates an application with default database and built-in modules
 func NewApplicationWithDefaults(mods ...application.Module) (application.Application, *pgxpool.Pool, error) {
+	return NewApplicationWithDefaultsAndOptions(AppBuildOptions{
+		RuntimeProfile: application.RuntimeProfileCLI,
+	}, mods...)
+}
+
+func NewApplicationWithDefaultsAndOptions(
+	opts AppBuildOptions,
+	mods ...application.Module,
+) (application.Application, *pgxpool.Pool, error) {
 	pool, err := GetDefaultDatabasePool()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	app, err := NewApplication(pool, mods...)
+	app, err := NewApplicationWithOptions(pool, opts, mods...)
 	if err != nil {
 		pool.Close()
 		return nil, nil, err
