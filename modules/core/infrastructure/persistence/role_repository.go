@@ -45,7 +45,8 @@ const (
 		INSERT INTO permissions (id, name, resource, action, modifier, description)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (name) DO UPDATE
-		SET resource = EXCLUDED.resource,
+		SET id = EXCLUDED.id,
+		    resource = EXCLUDED.resource,
 		    action = EXCLUDED.action,
 		    modifier = EXCLUDED.modifier,
 		    description = EXCLUDED.description
