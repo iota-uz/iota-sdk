@@ -259,6 +259,41 @@ func TestRolesController_Update_PermissionScenarios(t *testing.T) {
 			formPermissionIDs:   []string{permissions.RoleUpdate.ID().String()},
 			expectedPermissions: []string{permissions.RoleUpdate.Name()},
 		},
+		{
+			name:               "AddMultiplePermissions",
+			roleName:           "Controller Add Multiple Role",
+			initialDescription: "Initial description",
+			initialPermissions: []permission.Permission{permissions.RoleRead},
+			formDescription:    "Updated description",
+			formPermissionIDs: []string{
+				permissions.RoleRead.ID().String(),
+				permissions.RoleCreate.ID().String(),
+				permissions.RoleUpdate.ID().String(),
+			},
+			expectedPermissions: []string{
+				permissions.RoleRead.Name(),
+				permissions.RoleCreate.Name(),
+				permissions.RoleUpdate.Name(),
+			},
+		},
+		{
+			name:                "RemoveAllPermissions",
+			roleName:            "Controller Remove All Role",
+			initialDescription:  "Initial description",
+			initialPermissions:  []permission.Permission{permissions.RoleRead, permissions.RoleUpdate},
+			formDescription:     "Updated description",
+			formPermissionIDs:   []string{},
+			expectedPermissions: []string{},
+		},
+		{
+			name:                "KeepSamePermissions",
+			roleName:            "Controller Keep Same Role",
+			initialDescription:  "Initial description",
+			initialPermissions:  []permission.Permission{permissions.RoleRead, permissions.RoleUpdate},
+			formDescription:     "Updated description",
+			formPermissionIDs:   []string{permissions.RoleRead.ID().String(), permissions.RoleUpdate.ID().String()},
+			expectedPermissions: []string{permissions.RoleRead.Name(), permissions.RoleUpdate.Name()},
+		},
 	}
 
 	for _, tc := range cases {
