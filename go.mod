@@ -3,6 +3,7 @@ module github.com/iota-uz/iota-sdk
 go 1.24.10
 
 require (
+	filippo.io/csrf v0.2.1
 	github.com/99designs/gqlgen v0.17.57
 	github.com/BurntSushi/toml v1.5.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2

@@ -263,6 +263,10 @@ type Configuration struct {
 	// Session ID cookie key
 	SidCookieKey        string `env:"SID_COOKIE_KEY" envDefault:"sid"`
 	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
+	// Allowed origins for CORS and CSRF (full URLs, e.g. "http://localhost:3000").
+	// Used by CORS middleware as-is, and by CSRF middleware after normalizing scheme-qualified origins.
+	// Origin from config is always trusted for CSRF in addition to this list.
+	AllowedOrigins []string `env:"ALLOWED_ORIGINS" envDefault:"http://localhost:3000"`
 
 	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"`
 
