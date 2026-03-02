@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -126,29 +128,62 @@ func (m *uploadStorageMock) PresignGetURL(ctx context.Context, fileName string, 
 	return args.String(0), args.Error(1)
 }
 
-func TestUploadService_GetDownloadURLByPath(t *testing.T) {
+func TestUploadService_GetDownloadURLByPath_Scenarios(t *testing.T) {
 	t.Parallel()
 
-	repo := &uploadRepoMock{}
-	storage := &uploadStorageMock{}
-	svc := services.NewUploadService(repo, storage, eventbus.NewEventPublisher(logrus.New()))
+	tests := []struct {
+		name          string
+		path          string
+		setup         func(storage *uploadStorageMock)
+		expectedURL   string
+		expectedError bool
+	}{
+		{
+			name: "success",
+			path: "uploads/a.txt",
+			setup: func(storage *uploadStorageMock) {
+				storage.On("PresignGetURL", mock.Anything, "uploads/a.txt", mock.MatchedBy(func(ttl time.Duration) bool {
+					return ttl > 0
+				})).Return("https://example.test/presigned", nil).Once()
+			},
+			expectedURL: "https://example.test/presigned",
+		},
+		{
+			name: "storage_error",
+			path: "uploads/a.txt",
+			setup: func(storage *uploadStorageMock) {
+				storage.On("PresignGetURL", mock.Anything, "uploads/a.txt", mock.Anything).Return("", errors.New("presign failed")).Once()
+			},
+			expectedError: true,
+		},
+	}
 
-	storage.On("PresignGetURL", mock.Anything, "uploads/a.txt", mock.MatchedBy(func(ttl time.Duration) bool {
-		return ttl > 0
-	})).Return("https://example.test/presigned", nil).Once()
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	got, err := svc.GetDownloadURLByPath(context.Background(), "uploads/a.txt")
-	require.NoError(t, err)
-	require.Equal(t, "https://example.test/presigned", got)
-	storage.AssertExpectations(t)
+			repo := &uploadRepoMock{}
+			storage := &uploadStorageMock{}
+			svc := services.NewUploadService(repo, storage, eventbus.NewEventPublisher(logrus.New()))
+			tc.setup(storage)
+
+			got, err := svc.GetDownloadURLByPath(context.Background(), tc.path)
+			if tc.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedURL, got)
+			}
+
+			repo.AssertExpectations(t)
+			storage.AssertExpectations(t)
+		})
+	}
 }
 
-func TestUploadService_Delete_RemovesStorageObject(t *testing.T) {
+func TestUploadService_Delete_Scenarios(t *testing.T) {
 	t.Parallel()
-
-	repo := &uploadRepoMock{}
-	storage := &uploadStorageMock{}
-	svc := services.NewUploadService(repo, storage, eventbus.NewEventPublisher(logrus.New()))
 
 	entity := upload.NewWithID(
 		12,
@@ -164,13 +199,59 @@ func TestUploadService_Delete_RemovesStorageObject(t *testing.T) {
 		time.Now(),
 	)
 
-	repo.On("GetByID", mock.Anything, uint(12)).Return(entity, nil).Once()
-	repo.On("Delete", mock.Anything, uint(12)).Return(nil).Once()
-	storage.On("Delete", mock.Anything, "uploads/doc.pdf").Return(nil).Once()
+	tests := []struct {
+		name          string
+		setup         func(repo *uploadRepoMock, storage *uploadStorageMock)
+		expectedID    uint
+		expectedError bool
+	}{
+		{
+			name: "success",
+			setup: func(repo *uploadRepoMock, storage *uploadStorageMock) {
+				repo.On("GetByID", mock.Anything, uint(12)).Return(entity, nil).Once()
+				storage.On("Delete", mock.Anything, "uploads/doc.pdf").Return(nil).Once()
+				repo.On("Delete", mock.Anything, uint(12)).Return(nil).Once()
+			},
+			expectedID: 12,
+		},
+		{
+			name: "repo_get_error",
+			setup: func(repo *uploadRepoMock, storage *uploadStorageMock) {
+				repo.On("GetByID", mock.Anything, uint(12)).Return(nil, errors.New("not found")).Once()
+			},
+			expectedError: true,
+		},
+		{
+			name: "storage_error",
+			setup: func(repo *uploadRepoMock, storage *uploadStorageMock) {
+				repo.On("GetByID", mock.Anything, uint(12)).Return(entity, nil).Once()
+				storage.On("Delete", mock.Anything, "uploads/doc.pdf").Return(errors.New("storage failed")).Once()
+			},
+			expectedError: true,
+		},
+	}
 
-	deleted, err := svc.Delete(context.Background(), 12)
-	require.NoError(t, err)
-	require.Equal(t, uint(12), deleted.ID())
-	repo.AssertExpectations(t)
-	storage.AssertExpectations(t)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo := &uploadRepoMock{}
+			storage := &uploadStorageMock{}
+			svc := services.NewUploadService(repo, storage, eventbus.NewEventPublisher(logrus.New()))
+			tc.setup(repo, storage)
+
+			deleted, err := svc.Delete(context.Background(), 12)
+			if tc.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, deleted)
+				assert.Equal(t, tc.expectedID, deleted.ID())
+			}
+
+			repo.AssertExpectations(t)
+			storage.AssertExpectations(t)
+		})
+	}
 }

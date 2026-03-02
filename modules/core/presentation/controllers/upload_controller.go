@@ -146,18 +146,44 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UploadController) ServeUploadByPath(w http.ResponseWriter, r *http.Request) {
+	conf := configuration.Use()
+	prefix := path.Join("/", conf.UploadsPath, "/")
+
 	if strings.HasSuffix(r.URL.Path, "/") {
 		http.NotFound(w, r)
 		return
 	}
 
-	pathOnly := strings.TrimPrefix(r.URL.Path, "/")
-	if strings.TrimSpace(pathOnly) == "" {
+	if !strings.HasPrefix(r.URL.Path, prefix) {
 		http.NotFound(w, r)
 		return
 	}
 
-	downloadURL, err := c.uploadService.GetDownloadURLByPath(r.Context(), pathOnly)
+	trimmed := strings.TrimPrefix(r.URL.Path, prefix)
+	if strings.TrimSpace(trimmed) == "" {
+		http.NotFound(w, r)
+		return
+	}
+	if strings.Contains(trimmed, "..") {
+		http.NotFound(w, r)
+		return
+	}
+
+	normalized := path.Clean("/" + trimmed)
+	normalized = strings.TrimPrefix(normalized, "/")
+	if normalized == "" || strings.Contains(normalized, "..") {
+		http.NotFound(w, r)
+		return
+	}
+
+	basePath := strings.Trim(path.Clean("/"+conf.UploadsPath), "/")
+	storagePath := path.Join(basePath, normalized)
+	if !strings.HasPrefix(storagePath, basePath+"/") {
+		http.NotFound(w, r)
+		return
+	}
+
+	downloadURL, err := c.uploadService.GetDownloadURLByPath(r.Context(), storagePath)
 	if err != nil {
 		http.NotFound(w, r)
 		return

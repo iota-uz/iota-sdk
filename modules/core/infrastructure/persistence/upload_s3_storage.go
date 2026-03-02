@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type s3Client interface {
@@ -35,6 +36,8 @@ type S3Storage struct {
 }
 
 func NewS3Storage() (*S3Storage, error) {
+	const op serrors.Op = "persistence.NewS3Storage"
+
 	conf := configuration.Use()
 
 	bucket := strings.TrimSpace(conf.UploadS3Bucket)
@@ -44,13 +47,13 @@ func NewS3Storage() (*S3Storage, error) {
 	secretKey := strings.TrimSpace(conf.UploadS3SecretKey)
 
 	if bucket == "" {
-		return nil, fmt.Errorf("UPLOAD_S3_BUCKET is required")
+		return nil, serrors.E(op, serrors.Invalid, "UPLOAD_S3_BUCKET is required")
 	}
 	if region == "" {
 		region = "us-east-1"
 	}
 	if accessKey == "" || secretKey == "" {
-		return nil, fmt.Errorf("UPLOAD_S3_ACCESS_KEY and UPLOAD_S3_SECRET_KEY are required")
+		return nil, serrors.E(op, serrors.Invalid, "UPLOAD_S3_ACCESS_KEY and UPLOAD_S3_SECRET_KEY are required")
 	}
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(
@@ -59,7 +62,7 @@ func NewS3Storage() (*S3Storage, error) {
 		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("load aws config: %w", err)
+		return nil, serrors.E(op, fmt.Errorf("load aws config: %w", err))
 	}
 
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
@@ -77,55 +80,91 @@ func NewS3Storage() (*S3Storage, error) {
 }
 
 func (s *S3Storage) Open(ctx context.Context, fileName string) ([]byte, error) {
-	key := normalizeS3Key(fileName)
+	const op serrors.Op = "persistence.S3Storage.Open"
+	key, err := normalizeS3Key(fileName)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 	res, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	defer func() { _ = res.Body.Close() }()
 
-	return io.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return body, nil
 }
 
 func (s *S3Storage) Save(ctx context.Context, fileName string, b []byte) error {
-	key := normalizeS3Key(fileName)
-	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+	const op serrors.Op = "persistence.S3Storage.Save"
+	key, err := normalizeS3Key(fileName)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
 		Body:   bytes.NewReader(b),
 	})
-	return err
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func (s *S3Storage) Rename(ctx context.Context, oldPath, newPath string) error {
-	sourceKey := normalizeS3Key(oldPath)
-	targetKey := normalizeS3Key(newPath)
+	const op serrors.Op = "persistence.S3Storage.Rename"
+	sourceKey, err := normalizeS3Key(oldPath)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	targetKey, err := normalizeS3Key(newPath)
+	if err != nil {
+		return serrors.E(op, err)
+	}
 
-	_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+	_, err = s.client.CopyObject(ctx, &s3.CopyObjectInput{
 		Bucket:     aws.String(s.bucket),
 		CopySource: aws.String(s.bucket + "/" + sourceKey),
 		Key:        aws.String(targetKey),
 	})
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
-	return s.Delete(ctx, sourceKey)
+	if err := s.Delete(ctx, sourceKey); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func (s *S3Storage) Delete(ctx context.Context, fileName string) error {
-	key := normalizeS3Key(fileName)
-	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+	const op serrors.Op = "persistence.S3Storage.Delete"
+	key, err := normalizeS3Key(fileName)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	_, err = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
 	})
-	return err
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func (s *S3Storage) PresignGetURL(ctx context.Context, fileName string, ttl time.Duration) (string, error) {
-	key := normalizeS3Key(fileName)
+	const op serrors.Op = "persistence.S3Storage.PresignGetURL"
+	key, err := normalizeS3Key(fileName)
+	if err != nil {
+		return "", serrors.E(op, err)
+	}
 	req, err := s.presign.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
@@ -133,16 +172,20 @@ func (s *S3Storage) PresignGetURL(ctx context.Context, fileName string, ttl time
 		po.Expires = ttl
 	})
 	if err != nil {
-		return "", err
+		return "", serrors.E(op, err)
 	}
 	return req.URL, nil
 }
 
-func normalizeS3Key(fileName string) string {
+func normalizeS3Key(fileName string) (string, error) {
 	cleaned := strings.TrimSpace(fileName)
 	cleaned = strings.TrimPrefix(cleaned, "/")
 	cleaned = path.Clean("/" + cleaned)
-	return strings.TrimPrefix(cleaned, "/")
+	cleaned = strings.TrimPrefix(cleaned, "/")
+	if cleaned == "" || cleaned == "." {
+		return "", fmt.Errorf("invalid s3 object key for %q", fileName)
+	}
+	return cleaned, nil
 }
 
 func normalizeS3Endpoint(endpoint string, secure bool) string {

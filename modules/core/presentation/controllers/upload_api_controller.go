@@ -4,6 +4,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -188,8 +189,8 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	// Build response
 	downloadURL, err := uploadService.GetDownloadURL(r.Context(), uploadEntity)
 	if err != nil {
-		c.writeJSONError(w, http.StatusInternalServerError, err.Error())
-		return
+		log.Printf("upload created but failed to build download URL: upload_id=%d error=%v", uploadEntity.ID(), err)
+		downloadURL = uploadEntity.URL().String()
 	}
 
 	response := UploadAPIResponse{

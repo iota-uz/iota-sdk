@@ -2,6 +2,7 @@ package controllers_test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
@@ -169,4 +171,20 @@ func TestUploadController_NonExistentFile_Returns404(t *testing.T) {
 	// Test that non-existent file returns 404
 	urlPath := "/" + uploadsPath + "/" + testSubDir + "/nonexistent.txt"
 	suite.GET(urlPath).Expect(t).Status(http.StatusNotFound)
+}
+
+func TestUploadController_S3Route_TraversalPath_Returns404(t *testing.T) {
+	conf := configuration.Use()
+	prevUploadsPath := conf.UploadsPath
+	conf.UploadsPath = "test-uploads"
+	t.Cleanup(func() {
+		conf.UploadsPath = prevUploadsPath
+	})
+
+	controller := &controllers.UploadController{}
+	req := httptest.NewRequest(http.MethodGet, "/test-uploads/../secrets.txt", nil)
+	rec := httptest.NewRecorder()
+
+	controller.ServeUploadByPath(rec, req)
+	require.Equal(t, http.StatusNotFound, rec.Code)
 }
