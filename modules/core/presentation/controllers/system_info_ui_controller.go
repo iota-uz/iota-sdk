@@ -73,8 +73,10 @@ func (c *HealthUIController) Register(r *mux.Router) {
 		middleware.ProvideDynamicLogo(c.app),
 	)
 
+	subRouter.HandleFunc("", di.H(c.Index)).Methods(http.MethodGet)
 	subRouter.HandleFunc("/", di.H(c.Index)).Methods(http.MethodGet)
 	subRouter.HandleFunc("/metrics", di.H(c.MetricsPartial)).Methods(http.MethodGet)
+	subRouter.HandleFunc("/metrics/", di.H(c.MetricsPartial)).Methods(http.MethodGet)
 }
 
 // Index renders the full system info page.
