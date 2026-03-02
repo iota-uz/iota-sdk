@@ -1,3 +1,4 @@
+// Package exportconfig provides this package.
 package exportconfig
 
 import (

@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var (
@@ -36,13 +38,33 @@ const (
 			p.description,
 			rp.role_id
 		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1)`
-	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles WHERE tenant_id = $1`
-	roleInsertQuery            = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
-	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
-	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
-	roleInsertPermissionQuery  = `
+	roleCountQuery              = `SELECT COUNT(DISTINCT r.id) FROM roles r WHERE r.tenant_id = $1`
+	roleInsertQuery             = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
+	roleUpdateQuery             = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
+	permissionUpsertByNameQuery = `
+		INSERT INTO permissions (id, name, resource, action, modifier, description)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (name) DO UPDATE
+		SET resource = EXCLUDED.resource,
+		    action = EXCLUDED.action,
+		    modifier = EXCLUDED.modifier,
+		    description = EXCLUDED.description
+		RETURNING id`
+	roleDeletePermissionsQuery = `
+		DELETE FROM role_permissions rp
+		USING roles r
+		WHERE rp.role_id = r.id
+		  AND r.id = $1
+		  AND r.tenant_id = $2`
+	roleInsertPermissionQuery = `
 		INSERT INTO role_permissions (role_id, permission_id)
-		VALUES ($1, $2)
+		SELECT $1, $2
+		WHERE EXISTS (
+			SELECT 1
+			FROM roles r
+			WHERE r.id = $1
+			  AND r.tenant_id = $3
+		)
 		ON CONFLICT (role_id, permission_id) DO NOTHING`
 	roleDeleteQuery = `DELETE FROM roles WHERE id = $1 AND tenant_id = $2`
 )
@@ -123,9 +145,14 @@ func (g *GormRoleRepository) Count(ctx context.Context, params *role.FindParams)
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	if params == nil {
 		var count int64
-		if err := tx.QueryRow(ctx, roleCountQuery).Scan(&count); err != nil {
+		if err := tx.QueryRow(ctx, roleCountQuery, tenantID.String()).Scan(&count); err != nil {
 			return 0, errors.Wrap(err, "failed to count roles")
 		}
 		return count, nil
@@ -213,9 +240,14 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 	}
 
 	for _, permission := range permissions {
+		permissionID, err := g.upsertPermissionAndGetID(ctx, permission)
+		if err != nil {
+			return nil, err
+		}
 		if err := g.execQuery(ctx, roleInsertPermissionQuery,
 			id,
-			permission.ID,
+			permissionID,
+			entity.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -224,16 +256,22 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 }
 
 func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.Role, error) {
+	op := serrors.Op("RoleRepository.Update")
 	dbRole, dbPermissions := toDBRole(data)
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, serrors.E(op, err)
 	}
 
 	dbRole.TenantID = tenantID.String()
 
-	if err := g.execQuery(
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	updateTag, err := tx.Exec(
 		ctx,
 		roleUpdateQuery,
 		dbRole.Name,
@@ -241,20 +279,34 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 		dbRole.UpdatedAt,
 		dbRole.ID,
 		dbRole.TenantID,
-	); err != nil {
-		return nil, err
+	)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if updateTag.RowsAffected() == 0 {
+		return nil, ErrRoleNotFound
 	}
 
-	if err := g.execQuery(ctx, roleDeletePermissionsQuery, dbRole.ID); err != nil {
-		return nil, err
+	if err := g.execQuery(
+		ctx,
+		roleDeletePermissionsQuery,
+		dbRole.ID,
+		dbRole.TenantID,
+	); err != nil {
+		return nil, serrors.E(op, err)
 	}
 
 	for _, permission := range dbPermissions {
+		permissionID, err := g.upsertPermissionAndGetID(ctx, permission)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
 		if err := g.execQuery(ctx, roleInsertPermissionQuery,
 			dbRole.ID,
-			permission.ID,
+			permissionID,
+			dbRole.TenantID,
 		); err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 	}
 	return g.GetByID(ctx, dbRole.ID)
@@ -266,7 +318,7 @@ func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
 		return errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	if err := g.execQuery(ctx, roleDeletePermissionsQuery, id); err != nil {
+	if err := g.execQuery(ctx, roleDeletePermissionsQuery, id, tenantID.String()); err != nil {
 		return err
 	}
 	return g.execQuery(ctx, roleDeleteQuery, id, tenantID)
@@ -368,4 +420,28 @@ func (g *GormRoleRepository) execQuery(ctx context.Context, query string, args .
 	}
 	_, err = tx.Exec(ctx, query, args...)
 	return err
+}
+
+func (g *GormRoleRepository) upsertPermissionAndGetID(ctx context.Context, permission *models.Permission) (string, error) {
+	op := serrors.Op("RoleRepository.upsertPermissionAndGetID")
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return "", serrors.E(op, err)
+	}
+
+	var permissionID string
+	if err := tx.QueryRow(
+		ctx,
+		permissionUpsertByNameQuery,
+		permission.ID,
+		permission.Name,
+		permission.Resource,
+		permission.Action,
+		permission.Modifier,
+		permission.Description,
+	).Scan(&permissionID); err != nil {
+		return "", serrors.E(op, err)
+	}
+
+	return permissionID, nil
 }

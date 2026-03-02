@@ -1,3 +1,4 @@
+// Package agents provides this package.
 package agents
 
 // OpenAI model specs. Context and pricing from platform.openai.com/docs/models.

@@ -1,3 +1,4 @@
+// Package eskiz provides this package.
 package eskiz
 
 import (

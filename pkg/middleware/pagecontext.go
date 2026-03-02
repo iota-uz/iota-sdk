@@ -22,19 +22,7 @@ func WithPageContext() mux.MiddlewareFunc {
 				if !ok {
 					panic("locale not found")
 				}
-				//nolint:staticcheck // SA1019: This is the legitimate factory for creating PageContext instances
-				pageCtx := &types.PageContext{
-					URL:       r.URL,
-					Localizer: localizer,
-					Locale:    locale,
-				}
-				ctx := composables.WithPageCtx(r.Context(), pageCtx)
-				// Run host-defined access check after full page context is available
-				if UserAccessCheckFunc != nil {
-					if UserAccessCheckFunc(w, r.WithContext(ctx)) {
-						return
-					}
-				}
+				ctx := composables.WithPageCtx(r.Context(), types.NewPageContext(locale, r.URL, localizer))
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)

@@ -1,3 +1,4 @@
+// Package kb provides this package.
 package kb
 
 import "time"

@@ -9,7 +9,6 @@ issues:
   exclude-files:
     - pkg/graphql/graphql.go
   exclude-dirs:
-    - pkg/fp
     - postgres-data
     - py-embed
     - docs
@@ -34,14 +33,27 @@ output:
     - severity
     - file
 
-linters-settings:
-  staticcheck:
-    checks:
-      - "all"
-      - "-SA4023"  # Allow "always true" comparisons for build-tagged nil checks
-
-
 linters:
+  settings:
+    exhaustruct:
+      include:
+        - "^github\\.com/iota-uz/iota-sdk/modules/.*"
+      exclude:
+        - ".*LocalizeConfig$"
+        - ".*i18n\\.Message$"
+        - ".*url\\.URL$"
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA4023"  # Allow "always true" comparisons for build-tagged nil checks
+  exclusions:
+    rules:
+      - path-except: "modules/.*/(domain/(entities|aggregates)/.*|infrastructure/persistence/.*_mappers\\.go|infrastructure/persistence/mappers/.*\\.go|presentation/mappers/.*\\.go)"
+        linters:
+          - exhaustruct
+      - path: ".*_test\\.go"
+        linters:
+          - exhaustruct
   enable:
     - asasalint
     - asciicheck
@@ -59,6 +71,7 @@ linters:
     - errchkjson
     - errname
     - exhaustive
+    - exhaustruct
     - fatcontext
     - forbidigo
     #    - gci
@@ -122,4 +135,3 @@ linters:
     - wastedassign
     - whitespace
     - zerologlint
-

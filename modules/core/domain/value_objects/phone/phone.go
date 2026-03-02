@@ -1,3 +1,4 @@
+// Package phone provides this package.
 package phone
 
 import (

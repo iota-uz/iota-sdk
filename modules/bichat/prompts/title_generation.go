@@ -1,3 +1,4 @@
+// Package prompts provides this package.
 package prompts
 
 import (

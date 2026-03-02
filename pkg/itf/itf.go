@@ -1,3 +1,4 @@
+// Package itf provides this package.
 package itf
 
 import (
@@ -16,10 +17,12 @@ import (
 // Setup creates a new test harness with database and application setup
 func Setup(tb testing.TB, opts ...Option) *TestEnvironment {
 	tb.Helper()
-	return NewTestContext().applyOptions(opts...).Build(tb)
+	return newTestContext().applyOptions(opts...).Build(tb)
 }
 
-// HTTP creates a new test suite for HTTP handlers
+// HTTP provides a quick HTTP suite bootstrap.
+//
+// Deprecated: use NewSuiteBuilder(tb).WithModules(...).Build() for new tests.
 func HTTP(tb testing.TB, modules ...application.Module) *Suite {
 	tb.Helper()
 	return NewSuite(tb, modules...)

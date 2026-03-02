@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 func setupTest(t *testing.T) *itf.TestEnvironment {
 	t.Helper()
 
-	suite := itf.HTTP(t, modules.BuiltInModules...)
+	suite := itf.NewSuiteBuilder(t).WithModules(modules.BuiltInModules...).Build()
 	suite.AsUser(itf.User(permissions.PositionCreate, permissions.PositionRead, permissions.ProductCreate, permissions.ProductRead, permissions.UnitCreate, permissions.UnitRead))
 	return suite.Environment()
 }

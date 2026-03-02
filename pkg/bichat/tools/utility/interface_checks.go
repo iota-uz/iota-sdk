@@ -1,3 +1,4 @@
+// Package utility provides this package.
 package utility
 
 import "github.com/iota-uz/iota-sdk/pkg/bichat/agents"

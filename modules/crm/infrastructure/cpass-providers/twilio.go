@@ -1,3 +1,4 @@
+// Package cpassproviders provides this package.
 package cpassproviders
 
 import (
@@ -113,7 +114,7 @@ func (s *TwilioProvider) Transport() chat.Transport {
 	return chat.SMSTransport
 }
 
-// SendMessage sends a message using Twilio
+// Send sends a message using Twilio.
 func (s *TwilioProvider) Send(ctx context.Context, msg chat.Message) error {
 	params := &twilioApi.CreateMessageParams{}
 	params.SetBody(msg.Message())

@@ -1,3 +1,4 @@
+// Package inventory provides this package.
 package inventory
 
 import (

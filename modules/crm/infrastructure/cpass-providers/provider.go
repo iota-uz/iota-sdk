@@ -1,3 +1,4 @@
+// Package cpassproviders provides this package.
 package cpassproviders
 
 import (

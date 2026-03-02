@@ -1,3 +1,4 @@
+// Package employee provides this package.
 package employee
 
 import (
@@ -129,6 +130,8 @@ func NewWithID(
 		pin:             pin,
 		language:        language,
 		avatarID:        0,
+		passport:        nil,
+		birthDate:       time.Time{},
 		hireDate:        hireDate,
 		resignationDate: nil,
 		notes:           "",
@@ -164,6 +167,8 @@ func New(
 		pin:             pin,
 		language:        language,
 		avatarID:        0,
+		passport:        nil,
+		birthDate:       time.Time{},
 		hireDate:        hireDate,
 		resignationDate: nil,
 		notes:           "",

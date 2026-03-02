@@ -1,3 +1,4 @@
+// Package authrequest provides this package.
 package authrequest
 
 import (
@@ -121,13 +122,22 @@ func New(
 ) AuthRequest {
 	now := time.Now()
 	a := &authRequest{
-		id:           uuid.New(),
-		clientID:     clientID,
-		redirectURI:  redirectURI,
-		scopes:       scopes,
-		responseType: responseType,
-		createdAt:    now,
-		expiresAt:    now.Add(5 * time.Minute), // 5-minute TTL by default
+		id:                  uuid.New(),
+		clientID:            clientID,
+		redirectURI:         redirectURI,
+		scopes:              scopes,
+		state:               nil,
+		nonce:               nil,
+		responseType:        responseType,
+		codeChallenge:       nil,
+		codeChallengeMethod: nil,
+		userID:              nil,
+		tenantID:            nil,
+		authTime:            nil,
+		createdAt:           now,
+		expiresAt:           now.Add(5 * time.Minute), // 5-minute TTL by default
+		code:                nil,
+		codeUsedAt:          nil,
 	}
 	for _, opt := range opts {
 		opt(a)

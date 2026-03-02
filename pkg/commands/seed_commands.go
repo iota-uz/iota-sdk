@@ -1,3 +1,4 @@
+// Package commands provides this package.
 package commands
 
 import (
@@ -71,6 +72,7 @@ func SeedDatabase(mods ...application.Module) error {
 			user.UILanguageEN,
 			user.WithTenantID(defaultTenant.ID),
 		), allPermissions),
+		coreseed.CreateSubscriptionEntitlements,
 		websiteseed.AIChatConfigSeedFunc(aichatconfig.MustNew(
 			"gemma-12b-it",
 			aichatconfig.AIModelTypeOpenAI,

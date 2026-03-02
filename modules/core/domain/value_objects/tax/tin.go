@@ -1,3 +1,4 @@
+// Package tax provides this package.
 package tax
 
 import (
@@ -12,7 +13,7 @@ var (
 	ErrInvalidTin = errors.New("invalid Tin")
 )
 
-// Specific TIN validation error types for better error handling
+// TinValidationError provides a specific TIN validation error.
 type TinValidationError struct {
 	Country country2.Country
 	Reason  string

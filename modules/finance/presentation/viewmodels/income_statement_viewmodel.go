@@ -1,3 +1,4 @@
+// Package viewmodels provides this package.
 package viewmodels
 
 // IncomeStatementLineItem represents a single line item in the income statement

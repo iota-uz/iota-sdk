@@ -1,3 +1,4 @@
+// Package internet provides this package.
 package internet
 
 type Email interface {
@@ -8,5 +9,5 @@ type Email interface {
 
 type IP interface {
 	Value() string
-	Version() IpVersion
+	Version() IPVersion
 }

@@ -1,3 +1,4 @@
+// Package sidebar provides this package.
 package sidebar
 
 import (

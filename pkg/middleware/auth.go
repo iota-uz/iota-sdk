@@ -1,3 +1,4 @@
+// Package middleware provides this package.
 package middleware
 
 import (
@@ -17,11 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
-
-// UserAccessCheckFunc is called by WithPageContext after user context setup.
-// If it returns true, the request is blocked and the function must write the response.
-// Host applications can use it to enforce access policies (for example, blocking zero-role users).
-var UserAccessCheckFunc func(w http.ResponseWriter, r *http.Request) (blocked bool)
 
 func getToken(r *http.Request) (string, error) {
 	conf := configuration.Use()

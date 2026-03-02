@@ -1,3 +1,4 @@
+// Package eskiz provides this package.
 package eskiz
 
 type ConfigOption func(s *config)
@@ -6,14 +7,14 @@ type Config interface {
 	URL() string
 	Email() string
 	Password() string
-	CallbackUrl() string
+	CallbackURL() string
 	MaxMessageSize() int
 }
 
-// WithCallbackUrl sets the callback URL for SMS notifications
-func WithCallbackUrl(url string) ConfigOption {
+// WithCallbackURL sets the callback URL for SMS notifications
+func WithCallbackURL(url string) ConfigOption {
 	return func(c *config) {
-		c.callbackUrl = url
+		c.callbackURL = url
 	}
 }
 
@@ -48,7 +49,7 @@ type config struct {
 	url            string
 	email          string
 	password       string
-	callbackUrl    string
+	callbackURL    string
 	maxMessageSize int
 }
 
@@ -64,8 +65,8 @@ func (c *config) Password() string {
 	return c.password
 }
 
-func (c *config) CallbackUrl() string {
-	return c.callbackUrl
+func (c *config) CallbackURL() string {
+	return c.callbackURL
 }
 
 func (c *config) MaxMessageSize() int {

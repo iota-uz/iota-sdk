@@ -36,11 +36,11 @@ End-to-end test support:
 
 ### Test Scenarios
 
-Predefined test data sets:
-- **Minimal** - Basic data for smoke tests
-- **Standard** - Typical business scenario
-- **Full** - Comprehensive dataset
-- **Custom** - User-defined scenarios
+Predefined test data sets (from `GetAvailableScenarios()`):
+- **minimal** - Basic setup with default tenant and test user
+- **finance** - Finance module focused setup with accounts, categories, and sample transactions
+- **warehouse** - Warehouse module setup with units, products, and inventory
+- **comprehensive** - Full setup with data across all modules
 
 ## Architecture
 
@@ -57,19 +57,20 @@ graph TB
         end
         
         subgraph "Test Scenarios"
-            E --> G[Minimal Scenario]
-            E --> H[Standard Scenario]
-            E --> I[Full Scenario]
+            E --> G[minimal]
+            E --> H[finance]
+            E --> I[warehouse]
+            E --> J1[comprehensive]
         end
     end
     
     subgraph "E2E Testing"
-        J[Playwright Tests]
+        J2[Playwright Tests]
         K[Test Fixtures]
         L[CI/CD Pipeline]
     end
     
-    J --> A
+    J2 --> A
     K --> A
     L --> A
 ```
@@ -123,7 +124,11 @@ Secure testing API:
 |----------|--------|---------|
 | `/__test__/reset` | POST | Reset database |
 | `/__test__/populate` | POST | Custom data population |
-| `/__test__/seed` | POST | Predefined scenarios |
+| `/__test__/seed` | POST | Apply predefined scenario |
+| `/__test__/seed` | GET | List available seed scenarios |
+| `/__test__/otp/{'{userID}'}` | POST | Generate OTP for user |
+| `/__test__/otp/{'{userID}'}` | GET | Get OTP for user |
+| `/__test__/otp` | GET | Get OTP by identifier |
 | `/__test__/health` | GET | Health check |
 
 ### Database Reset
@@ -136,11 +141,11 @@ Clean state for testing:
 
 ### Data Seeding
 
-Predefined test scenarios:
-- **Minimal** - Just enough to start
-- **Standard** - Typical business data
-- **Full** - Comprehensive dataset
-- **Custom** - Your own scenario
+Predefined test scenarios (POST `/__test__/seed` with JSON body `{ "scenario": "minimal" }`):
+- **minimal** - Basic setup with default tenant and test user
+- **finance** - Finance-focused data
+- **warehouse** - Warehouse-focused data
+- **comprehensive** - Data across all modules
 
 ### Custom Population
 
@@ -154,17 +159,17 @@ Flexible data insertion:
 
 ### POST /__test__/reset
 
-Reset database to clean state:
+Reset database to clean state.
 
-**Query Parameters:**
-- `reseedMinimal` (boolean) - Seed minimal data after reset
+**Request body (JSON):**
+- `reseedMinimal` (boolean, optional) - If true, seed minimal data after reset
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "tables_truncated": 45,
-  "migrations_applied": 12
+  "success": true,
+  "message": "Database reset successfully",
+  "reseedMinimal": true
 }
 ```
 
@@ -204,30 +209,113 @@ Populate with custom data:
 
 ### POST /__test__/seed
 
-Apply predefined scenario:
+Apply a predefined scenario.
 
-**Query Parameters:**
-- `scenario` (string) - `minimal`, `standard`, or `full`
+**Request body (JSON):**
+- `scenario` (string, optional) - One of: `minimal`, `finance`, `warehouse`, `comprehensive`. Default: `minimal`.
 
 **Response:**
 ```json
 {
+  "success": true,
+  "message": "Scenario seeded successfully",
+  "scenario": "minimal"
+}
+```
+
+### GET /__test__/seed
+
+List available predefined seed scenarios.
+
+**Response:**
+```json
+{
+  "success": true,
+  "scenarios": [
+    { "name": "minimal", "description": "Basic setup with default tenant and test user" },
+    { "name": "finance", "description": "Finance module focused setup with accounts, categories, and sample transactions" },
+    { "name": "warehouse", "description": "Warehouse module setup with units, products, and inventory" },
+    { "name": "comprehensive", "description": "Full setup with data across all modules" }
+  ]
+}
+```
+
+### POST /__test__/otp/{'{userID}'}
+
+Generate a one-time password for a specific user.
+
+**Path parameters:**
+
+- `userID` (UUID or email identifier)
+
+**Request body (JSON):**
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response:**
+
+```json
+{
   "status": "success",
-  "scenario": "standard",
-  "records_created": 150
+  "otp": "123456",
+  "userID": "user-id"
+}
+```
+
+### GET /__test__/otp/{'{userID}'}
+
+Retrieve the current OTP for a specific user.
+
+**Path parameters:**
+
+- `userID` (UUID or email identifier)
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "otp": "123456",
+  "userID": "user-id"
+}
+```
+
+### GET /__test__/otp
+
+Get OTP by identifier.
+
+**Query parameters (one of):**
+
+- `userID` (UUID)
+- `email` (string)
+- `phone` (string)
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "otp": "123456"
 }
 ```
 
 ### GET /__test__/health
 
-System health check:
+Health check for test infrastructure.
 
 **Response:**
 ```json
 {
-  "status": "healthy",
-  "database": "connected",
-  "timestamp": "2026-01-31T12:00:00Z"
+  "success": true,
+  "message": "Test endpoints are healthy",
+  "config": {
+    "enableTestEndpoints": true,
+    "environment": "development"
+  }
 }
 ```
 
@@ -243,21 +331,7 @@ ENABLE_TEST_ENDPOINTS=true
 
 ⚠️ **Security Warning:** Never enable in production!
 
-### IP Whitelist
-
-Restrict access to specific IPs:
-
-```bash
-TEST_ENDPOINTS_ALLOWED_IPS=127.0.0.1,10.0.0.0/8
-```
-
-### Test Database
-
-Use separate database for testing:
-
-```bash
-TEST_DATABASE_URL=postgres://.../iota_sdk_test
-```
+The only required central configuration variable for Testkit endpoint exposure is **`ENABLE_TEST_ENDPOINTS`**. Additional controls (e.g. IP allowlists or dedicated test DB routing via variables like `TEST_ENDPOINTS_ALLOWED_IPS` or `TEST_DATABASE_URL`) are deployment- or test-harness-specific and may not be enforced by the core module.
 
 ## E2E Testing Integration
 
@@ -272,8 +346,8 @@ test.beforeEach(async ({ request }) => {
 });
 
 // Run scenarios
-test('user workflow', async ({ page }) => {
-  await seedDatabase(request, 'standard');
+test('user workflow', async ({ page, request }) => {
+  await seedDatabase(request, 'finance');
   // ... test steps
 });
 ```
@@ -298,28 +372,25 @@ Test in continuous integration:
     just e2e ci
   env:
     ENABLE_TEST_ENDPOINTS: true
-    DATABASE_URL: postgres://localhost/iota_sdk_test
+    # SDK server uses DB_NAME, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD (not DATABASE_URL)
+    DB_NAME: iota_sdk_test
+    DB_HOST: localhost
+    DB_PORT: 5432
 ```
 
 ## Security
 
 ### Endpoint Protection
 
-Multiple layers of protection:
-
-1. **Environment flag** - Must be explicitly enabled
-2. **IP whitelisting** - Restrict source IPs
-3. **No production** - Detect and block production mode
-4. **Authentication** - Require valid session
-5. **Rate limiting** - Prevent abuse
+Protection in place:
+- **Environment flag** - Endpoints are only active when `ENABLE_TEST_ENDPOINTS=true`
+- **Production guard** - The SDK refuses startup when `ENABLE_TEST_ENDPOINTS=true` in production (`GO_APP_ENV=production`) unless running under CI (GitHub Actions exception)
+- **Authentication** - Testkit controllers do not add dedicated session checks by default; protect these routes in your deployment and test harness as needed
 
 ### Safety Measures
 
-Prevent accidental damage:
-- **Non-production detection** - Check APP_ENV
-- **Database name check** - Ensure test DB suffix
-- **Warning headers** - Response warnings
-- **Audit logging** - Log all test endpoint access
+- **Non-production detection** - Check `GO_APP_ENV` (and CI env vars) before enabling test endpoints
+- Use a dedicated test database; avoid pointing at production
 
 ## Best Practices
 
@@ -339,17 +410,23 @@ Basic data for smoke tests:
 - 1 tenant
 - Basic roles/permissions
 
-### Standard Scenario
+### Finance Scenario
 
-Typical business setup:
-- Multiple users with roles
-- Sample clients/suppliers
-- Some transactions
-- Basic inventory
+Finance module focused setup:
+- Accounts and categories
+- Sample transactions
+- Basic financial reports data
 
-### Full Scenario
+### Warehouse Scenario
 
-Comprehensive dataset:
+Warehouse module setup:
+- Units and products
+- Inventory data
+- Stock movements
+
+### Comprehensive Scenario
+
+Full setup with data across all modules:
 - Many users across roles
 - Extensive transaction history
 - Full inventory catalog

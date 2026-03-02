@@ -1,3 +1,4 @@
+// Package twofactor provides this package.
 package twofactor
 
 import (
@@ -54,6 +55,7 @@ type RecoveryCode interface {
 // NewRecoveryCode creates a new RecoveryCode with required fields
 func NewRecoveryCode(userID uint, codeHash string, tenantID uuid.UUID, opts ...RecoveryCodeOption) RecoveryCode {
 	r := &recoveryCode{
+		id:        0,
 		userID:    userID,
 		codeHash:  codeHash,
 		tenantID:  tenantID,

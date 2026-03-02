@@ -58,8 +58,8 @@ Before running E2E tests, ensure you have:
 
 4. **Go server** running on port 3201
    ```bash
-   # From project root
-   go run cmd/app/main.go
+   # From project root (or use: just e2e dev)
+   go run cmd/server/main.go
    ```
 
 ## Installation
@@ -99,7 +99,7 @@ This will install:
 3. **Start the Go server:**
    ```bash
    # From project root, in another terminal
-   go run cmd/app/main.go
+   go run cmd/server/main.go
    ```
 
 4. **Run all tests:**
@@ -506,7 +506,7 @@ import {
 **Problem**: Tests fail with "net::ERR_CONNECTION_REFUSED"
 
 **Solutions:**
-1. Start Go server: `go run cmd/app/main.go`
+1. Start Go server: `go run cmd/server/main.go`
 2. Verify server is on port 3201: `lsof -i :3201`
 3. Check `BASE_URL` in `.env.e2e` matches server URL
 

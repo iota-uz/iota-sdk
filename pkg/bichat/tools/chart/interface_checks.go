@@ -1,3 +1,4 @@
+// Package chart provides this package.
 package chart
 
 import "github.com/iota-uz/iota-sdk/pkg/bichat/agents"

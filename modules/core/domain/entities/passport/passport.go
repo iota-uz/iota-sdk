@@ -1,3 +1,4 @@
+// Package passport provides this package.
 package passport
 
 import (
@@ -129,10 +130,26 @@ func WithRemarks(remarks string) Option {
 
 func New(series, number string, opts ...Option) Passport {
 	p := &passport{
-		id:     uuid.New(),
-		series: series,
-		number: number,
-		gender: general.NilGender,
+		id:                  uuid.New(),
+		tenantID:            uuid.Nil,
+		firstName:           "",
+		lastName:            "",
+		middleName:          "",
+		gender:              general.NilGender,
+		birthDate:           time.Time{},
+		birthPlace:          "",
+		nationality:         "",
+		passportType:        "",
+		series:              series,
+		number:              number,
+		issuedAt:            time.Time{},
+		issuedBy:            "",
+		issuingCountry:      "",
+		expiresAt:           time.Time{},
+		machineReadableZone: "",
+		biometricData:       map[string]interface{}{},
+		signatureImage:      nil,
+		remarks:             "",
 	}
 	for _, opt := range opts {
 		opt(p)

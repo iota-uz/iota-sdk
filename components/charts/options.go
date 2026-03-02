@@ -1,3 +1,4 @@
+// Package charts provides this package.
 package charts
 
 // ChartOption is a function that modifies chart options
@@ -37,7 +38,7 @@ func WithLegendHidden() ChartOption {
 	}
 }
 
-// WithTitle sets the chart title
+// WithChartTitle sets the chart title.
 func WithChartTitle(title string) ChartOption {
 	return func(opts *ChartOptions) {
 		opts.Title = &TitleConfig{

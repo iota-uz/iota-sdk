@@ -29,18 +29,33 @@ ITF provides:
 // Basic environment setup
 itf.Setup(tb testing.TB, opts ...Option) *TestEnvironment
 
-// HTTP suite with modules
-itf.HTTP(tb testing.TB, modules ...application.Module) *Suite
+// NewSuiteBuilder (canonical, recommended for most tests)
+itf.NewSuiteBuilder(tb).
+    WithModules(modules ...application.Module).
+    Build()
 
-// Modern fluent builder (recommended)
-itf.NewSuiteBuilder(t) *SuiteBuilder
-
-// Test context
-itf.NewTestContext() *TestContext
+// Low-level harness (advanced use cases)
+harness := itf.NewHarness(tb, itf.HarnessConfig{
+    Name: "my-harness",
+    Modules: []application.Module{...},
+    Database: itf.DatabaseConfig{...},
+})
+scope := harness.Scope(tb)
+// NewHarness registers cleanup automatically via tb.Cleanup.
+// Only call harness.Close() when you need early/manual teardown.
 
 // Database manager
 itf.NewDatabaseManager(t *testing.T) *DatabaseManager
 ```
+
+### Harness Architecture
+
+`HarnessConfig` + `itf.NewHarness(tb, cfg)` are the low-level primitives that power ITF setup.
+
+- `itf.Setup(...)` is the simplest entrypoint and uses the harness internally.
+- `itf.NewSuiteBuilder(...)` is the fluent, canonical API for most HTTP/integration tests.
+- `Harness.Scope(tb)` is useful for advanced cases where you need explicit scope control.
+- `Harness.Close()` is usually managed automatically by `tb.Cleanup`; call it directly only for early cleanup.
 
 ### Setup Options
 
@@ -81,7 +96,6 @@ suite.Register(controller interface{ Register(*mux.Router) })
 suite.WithMiddleware(mw MiddlewareFunc)
 suite.BeforeEach(hook HookFunc)
 suite.Environment() *TestEnvironment
-suite.Env() *TestEnvironment // Alias
 
 // HTTP methods (PATCH not implemented)
 suite.GET(path string) *Request
@@ -434,7 +448,9 @@ func TestServiceName_Method(t *testing.T) {
 
 ```go
 func TestControllerName_Get(t *testing.T) {
-    suite := itf.HTTP(t, module.NewModule(opts))
+    suite := itf.NewSuiteBuilder(t).
+        WithModules(module.NewModule(opts)).
+        Build()
     c := controllers.NewControllerName(suite.Env().App)
     suite.Register(c)
     suite.GET("/path").Assert(t).ExpectOK()

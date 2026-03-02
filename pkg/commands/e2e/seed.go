@@ -1,3 +1,4 @@
+// Package e2e provides this package.
 package e2e
 
 import (
@@ -22,7 +23,7 @@ import (
 // Seed populates the e2e database with test data
 func Seed() error {
 	// Set environment variable for e2e database
-	_ = os.Setenv("DB_NAME", E2E_DB_NAME)
+	_ = os.Setenv("DB_NAME", E2EDBName)
 
 	conf := configuration.Use()
 	ctx := context.Background()
@@ -79,6 +80,7 @@ func Seed() error {
 			user.UILanguageEN,
 			user.WithTenantID(defaultTenant.ID),
 		), allPermissions),
+		coreseed.CreateSubscriptionEntitlements,
 		websiteseed.AIChatConfigSeedFunc(aichatconfig.MustNew(
 			"gemma-12b-it",
 			aichatconfig.AIModelTypeOpenAI,

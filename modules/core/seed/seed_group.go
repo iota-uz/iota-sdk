@@ -1,3 +1,4 @@
+// Package seed provides this package.
 package seed
 
 import (

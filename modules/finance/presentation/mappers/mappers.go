@@ -1,3 +1,4 @@
+// Package mappers provides this package.
 package mappers
 
 import (
@@ -10,7 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
-	"github.com/iota-uz/iota-sdk/modules/finance/domain/value_objects"
+	valueobjects "github.com/iota-uz/iota-sdk/modules/finance/domain/value_objects"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -91,6 +92,7 @@ func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 		Comment:            entity.Comment(),
 		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
+		Attachments:        nil,
 	}
 }
 
@@ -109,6 +111,7 @@ func ExpenseToViewModel(entity expense.Expense) *viewmodels.Expense {
 		Date:               entity.Date().Format(time.RFC3339),
 		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
+		Attachments:        nil,
 	}
 }
 
@@ -148,14 +151,22 @@ func InventoryToViewModel(entity inventory.Inventory) *viewmodels.Inventory {
 func TransactionToViewModel(entity transaction.Transaction) *viewmodels.Transaction {
 	amount := entity.Amount()
 	vm := &viewmodels.Transaction{
-		ID:                 entity.ID().String(),
-		Amount:             fmt.Sprintf("%.2f", amount.AsMajorUnits()),
-		AmountWithCurrency: amount.Display(),
-		TransactionDate:    entity.TransactionDate(),
-		AccountingPeriod:   entity.AccountingPeriod(),
-		TransactionType:    string(entity.TransactionType()),
-		Comment:            entity.Comment(),
-		CreatedAt:          entity.CreatedAt(),
+		ID:                            entity.ID().String(),
+		Amount:                        fmt.Sprintf("%.2f", amount.AsMajorUnits()),
+		AmountWithCurrency:            amount.Display(),
+		TransactionDate:               entity.TransactionDate(),
+		AccountingPeriod:              entity.AccountingPeriod(),
+		TransactionType:               string(entity.TransactionType()),
+		TypeBadgeClass:                "",
+		Comment:                       entity.Comment(),
+		CreatedAt:                     entity.CreatedAt(),
+		OriginAccount:                 nil,
+		DestinationAccount:            nil,
+		ExchangeRate:                  "",
+		DestinationAmount:             "",
+		DestinationAmountWithCurrency: "",
+		Category:                      nil,
+		Counterparty:                  nil,
 	}
 
 	// Set type badge class
@@ -192,6 +203,7 @@ func TransactionToListItem(vm *viewmodels.Transaction) *viewmodels.TransactionLi
 		ID:                 vm.ID,
 		Amount:             vm.Amount,
 		AmountWithCurrency: vm.AmountWithCurrency,
+		Account:            nil,
 		TransactionDate:    vm.TransactionDate,
 		TransactionType:    vm.TransactionType,
 		TypeBadgeClass:     vm.TypeBadgeClass,
@@ -211,7 +223,7 @@ func TransactionToListItem(vm *viewmodels.Transaction) *viewmodels.TransactionLi
 }
 
 // ToIncomeStatementViewModel converts domain income statement to viewmodel
-func ToIncomeStatementViewModel(incomeStatement *value_objects.IncomeStatement) *viewmodels.IncomeStatement {
+func ToIncomeStatementViewModel(incomeStatement *valueobjects.IncomeStatement) *viewmodels.IncomeStatement {
 	months := generateMonthlyHeaders(incomeStatement.StartDate, incomeStatement.EndDate)
 
 	return &viewmodels.IncomeStatement{
@@ -225,9 +237,11 @@ func ToIncomeStatementViewModel(incomeStatement *value_objects.IncomeStatement) 
 		GrossProfit:             fmt.Sprintf("%.2f", incomeStatement.GrossProfit.AsMajorUnits()),
 		GrossProfitWithCurrency: incomeStatement.GrossProfit.Display(),
 		GrossProfitRatio:        incomeStatement.GrossProfitRatio,
+		MonthlyGrossProfit:      nil,
 		NetProfit:               fmt.Sprintf("%.2f", incomeStatement.NetProfit.AsMajorUnits()),
 		NetProfitWithCurrency:   incomeStatement.NetProfit.Display(),
 		NetProfitRatio:          incomeStatement.NetProfitRatio,
+		MonthlyNetProfit:        nil,
 		IsProfit:                incomeStatement.IsProfit(),
 		Currency:                incomeStatement.Currency,
 		GeneratedAt:             incomeStatement.GeneratedAt.Format(time.RFC3339),
@@ -236,7 +250,7 @@ func ToIncomeStatementViewModel(incomeStatement *value_objects.IncomeStatement) 
 
 // ToIncomeStatementViewModelWithMonthlyData converts domain income statement to viewmodel with monthly breakdown
 func ToIncomeStatementViewModelWithMonthlyData(
-	incomeStatement *value_objects.IncomeStatement,
+	incomeStatement *valueobjects.IncomeStatement,
 	monthlyIncomeData []query.MonthlyReportLineItem,
 	monthlyExpenseData []query.MonthlyReportLineItem,
 ) *viewmodels.IncomeStatement {
@@ -297,7 +311,7 @@ func ToIncomeStatementResponseDTO(vm *viewmodels.IncomeStatement) *dtos.IncomeSt
 }
 
 // toIncomeStatementSectionViewModel converts domain section to viewmodel
-func toIncomeStatementSectionViewModel(section value_objects.IncomeStatementSection) viewmodels.IncomeStatementSection {
+func toIncomeStatementSectionViewModel(section valueobjects.IncomeStatementSection) viewmodels.IncomeStatementSection {
 	lineItems := make([]viewmodels.IncomeStatementLineItem, 0, len(section.LineItems))
 
 	for _, item := range section.LineItems {
@@ -307,6 +321,7 @@ func toIncomeStatementSectionViewModel(section value_objects.IncomeStatementSect
 			Amount:             fmt.Sprintf("%.2f", item.Amount.AsMajorUnits()),
 			AmountWithCurrency: item.Amount.Display(),
 			Percentage:         item.Percentage,
+			MonthlyAmounts:     nil,
 		})
 	}
 
@@ -316,12 +331,13 @@ func toIncomeStatementSectionViewModel(section value_objects.IncomeStatementSect
 		Subtotal:             fmt.Sprintf("%.2f", section.Subtotal.AsMajorUnits()),
 		SubtotalWithCurrency: section.Subtotal.Display(),
 		Percentage:           section.Percentage,
+		MonthlySubtotals:     nil,
 	}
 }
 
 // toIncomeStatementSectionViewModelWithMonthlyData converts domain section to viewmodel with real monthly data
 func toIncomeStatementSectionViewModelWithMonthlyData(
-	section value_objects.IncomeStatementSection,
+	section valueobjects.IncomeStatementSection,
 	monthlyDataMap map[string]map[string]*money.Money,
 	startDate, endDate time.Time,
 ) viewmodels.IncomeStatementSection {
@@ -518,7 +534,7 @@ func calculateMonthlyGrossProfit(
 }
 
 // ToCashflowStatementViewModel converts domain cashflow statement to viewmodel
-func ToCashflowStatementViewModel(cashflowStatement *value_objects.CashflowStatement, accountName *string) *viewmodels.CashflowStatement {
+func ToCashflowStatementViewModel(cashflowStatement *valueobjects.CashflowStatement, accountName *string) *viewmodels.CashflowStatement {
 	months := generateMonthlyHeaders(cashflowStatement.StartDate, cashflowStatement.EndDate)
 
 	accountDisplayName := "Unknown Account"
@@ -547,6 +563,7 @@ func ToCashflowStatementViewModel(cashflowStatement *value_objects.CashflowState
 		TotalOutflowsWithCurrency:   cashflowStatement.TotalOutflows.Display(),
 		NetCashFlow:                 fmt.Sprintf("%.2f", cashflowStatement.NetCashFlow.AsMajorUnits()),
 		NetCashFlowWithCurrency:     cashflowStatement.NetCashFlow.Display(),
+		MonthlyNetCashFlow:          nil,
 		IsPositive:                  cashflowStatement.NetCashFlow.Amount() >= 0,
 		Currency:                    cashflowStatement.Currency,
 		GeneratedAt:                 time.Now().Format("2006-01-02 15:04:05"),
@@ -555,7 +572,7 @@ func ToCashflowStatementViewModel(cashflowStatement *value_objects.CashflowState
 
 // ToCashflowStatementViewModelWithMonthlyData converts domain cashflow statement to viewmodel with monthly breakdown
 func ToCashflowStatementViewModelWithMonthlyData(
-	cashflowStatement *value_objects.CashflowStatement,
+	cashflowStatement *valueobjects.CashflowStatement,
 	accountName string,
 	monthlyInflows []query.MonthlyCashflowLineItem,
 	monthlyOutflows []query.MonthlyCashflowLineItem,
@@ -602,7 +619,7 @@ func ToCashflowStatementViewModelWithMonthlyData(
 }
 
 // toCashflowSectionViewModel converts domain cashflow section to viewmodel
-func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodels.CashflowSection {
+func toCashflowSectionViewModel(section valueobjects.CashflowSection) viewmodels.CashflowSection {
 	inflowItems := make([]viewmodels.CashflowLineItem, 0, len(section.Inflows))
 	for _, item := range section.Inflows {
 		inflowItems = append(inflowItems, viewmodels.CashflowLineItem{
@@ -612,6 +629,8 @@ func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodel
 			AmountWithCurrency: item.Amount.Display(),
 			Percentage:         item.Percentage,
 			Count:              item.Count,
+			MonthlyAmounts:     nil,
+			MonthlyCounts:      nil,
 		})
 	}
 
@@ -624,6 +643,8 @@ func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodel
 			AmountWithCurrency: item.Amount.Display(),
 			Percentage:         item.Percentage,
 			Count:              item.Count,
+			MonthlyAmounts:     nil,
+			MonthlyCounts:      nil,
 		})
 	}
 
@@ -633,12 +654,13 @@ func toCashflowSectionViewModel(section value_objects.CashflowSection) viewmodel
 		Outflows:                outflowItems,
 		NetCashFlow:             fmt.Sprintf("%.2f", section.NetCashFlow.AsMajorUnits()),
 		NetCashFlowWithCurrency: section.NetCashFlow.Display(),
+		MonthlyNetCashFlow:      nil,
 	}
 }
 
 // toCashflowSectionViewModelWithMonthlyData converts domain cashflow section to viewmodel with monthly breakdown
 func toCashflowSectionViewModelWithMonthlyData(
-	section value_objects.CashflowSection,
+	section valueobjects.CashflowSection,
 	inflowMonthlyMap map[string]map[string]*money.Money,
 	inflowCountMap map[string]map[string]int,
 	outflowMonthlyMap map[string]map[string]*money.Money,
@@ -746,7 +768,7 @@ func calculateMonthlyNetCashflow(
 func calculateSectionMonthlyNetCashflow(
 	inflowMap map[string]map[string]*money.Money,
 	outflowMap map[string]map[string]*money.Money,
-	section value_objects.CashflowSection,
+	section valueobjects.CashflowSection,
 	startDate, endDate time.Time,
 ) []viewmodels.MonthlyAmount {
 	months := generateMonthlyHeaders(startDate, endDate)
@@ -844,7 +866,7 @@ func toMonthlyAmounts(monthlyData map[string]*money.Money, startDate, endDate ti
 }
 
 // ToCashflowStatementResponseDTO converts cashflow statement to response DTO for JSON API
-func ToCashflowStatementResponseDTO(cashflowStatement *value_objects.CashflowStatement, accountName string) *dtos.CashflowStatementResponseDTO {
+func ToCashflowStatementResponseDTO(cashflowStatement *valueobjects.CashflowStatement, accountName string) *dtos.CashflowStatementResponseDTO {
 	return &dtos.CashflowStatementResponseDTO{
 		ID:                          uuid.New().String(),
 		AccountID:                   cashflowStatement.AccountID.String(),
@@ -872,7 +894,7 @@ func ToCashflowStatementResponseDTO(cashflowStatement *value_objects.CashflowSta
 }
 
 // toCashflowSectionDTO converts cashflow section to DTO
-func toCashflowSectionDTO(section value_objects.CashflowSection) dtos.CashflowSectionDTO {
+func toCashflowSectionDTO(section valueobjects.CashflowSection) dtos.CashflowSectionDTO {
 	inflowItems := make([]dtos.CashflowLineItemDTO, 0, len(section.Inflows))
 	for _, item := range section.Inflows {
 		inflowItems = append(inflowItems, dtos.CashflowLineItemDTO{
@@ -921,6 +943,8 @@ func DebtToViewModel(entity debt.Debt, counterpartyName string) *viewmodels.Debt
 		OutstandingAmount:             fmt.Sprintf("%.2f", outstandingAmount.AsMajorUnits()),
 		OutstandingAmountWithCurrency: outstandingAmount.Display(),
 		Description:                   entity.Description(),
+		DueDate:                       "",
+		SettlementTransactionID:       "",
 		CreatedAt:                     entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:                     entity.UpdatedAt().Format(time.RFC3339),
 	}

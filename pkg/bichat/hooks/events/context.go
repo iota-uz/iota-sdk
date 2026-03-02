@@ -1,3 +1,4 @@
+// Package events provides this package.
 package events
 
 import (

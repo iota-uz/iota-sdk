@@ -1,3 +1,4 @@
+// Package debt provides this package.
 package debt
 
 import (
@@ -10,7 +11,7 @@ import (
 
 type Option func(d *debt)
 
-// Option setters
+// WithID adds the debt identifier option.
 func WithID(id uuid.UUID) Option {
 	return func(d *debt) {
 		d.id = id
@@ -226,7 +227,7 @@ func (d *debt) UpdatedAt() time.Time {
 	return d.updatedAt
 }
 
-// CounterpartyAggregate functional options
+// CounterpartyAggregateOption configures a counterparty aggregate.
 type CounterpartyAggregateOption func(ca *counterpartyAggregate)
 
 func WithAggCounterpartyID(id uuid.UUID) CounterpartyAggregateOption {

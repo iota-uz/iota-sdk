@@ -67,6 +67,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/components/loaders", di.H(c.Loaders)).Methods(http.MethodGet)
 	router.HandleFunc("/components/charts", di.H(c.Charts)).Methods(http.MethodGet)
 	router.HandleFunc("/components/tooltips", di.H(c.Tooltips)).Methods(http.MethodGet)
+	router.HandleFunc("/components/subscription", di.H(c.Subscription)).Methods(http.MethodGet)
 	router.HandleFunc("/lens", di.H(c.Lens)).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/403", di.H(c.Error403Page)).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/404", di.H(c.Error404Page)).Methods(http.MethodGet)
@@ -94,6 +95,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 				sidebar.NewLink(fmt.Sprintf("%s/components/loaders", c.basePath), "Loaders", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/tooltips", c.basePath), "Tooltips", nil),
+				sidebar.NewLink(fmt.Sprintf("%s/components/subscription", c.basePath), "Subscription", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/kanban", c.basePath), "Kanban", nil),
 			},
@@ -199,6 +201,17 @@ func (c *ShowcaseController) Tooltips(
 		SidebarProps: c.getSidebarProps(),
 	}
 	templ.Handler(showcase.TooltipsPage(props)).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Subscription(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	props := showcase.IndexPageProps{
+		SidebarProps: c.getSidebarProps(),
+	}
+	templ.Handler(showcase.SubscriptionPage(props)).ServeHTTP(w, r)
 }
 
 func (c *ShowcaseController) Lens(

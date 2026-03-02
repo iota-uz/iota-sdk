@@ -1,3 +1,4 @@
+// Package inventory provides this package.
 package inventory
 
 import (
@@ -25,6 +26,8 @@ type Check struct {
 
 func (c *Check) AddResult(positionID uint, expected, actual int) {
 	c.Results = append(c.Results, &CheckResult{
+		ID:               0,
+		Position:         nil,
 		PositionID:       positionID,
 		TenantID:         c.TenantID,
 		ExpectedQuantity: expected,

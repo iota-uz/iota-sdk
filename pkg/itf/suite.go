@@ -56,7 +56,7 @@ func NewSuite(tb testing.TB, modules ...application.Module) *Suite {
 		beforeEach:  make([]HookFunc, 0),
 	}
 
-	s.env = NewTestContext().WithModules(modules...).Build(tb)
+	s.env = newTestContext().WithModules(modules...).Build(tb)
 	s.router = mux.NewRouter()
 	s.setupMiddleware()
 
@@ -217,12 +217,7 @@ func (s *Suite) setupMiddleware() {
 
 			localizer := i18n.NewLocalizer(s.env.App.Bundle(), "en")
 			parsedURL, _ := url.Parse(r.URL.Path)
-			//nolint:staticcheck // SA1019: Using PageContext for test fixtures is acceptable
-			ctx = composables.WithPageCtx(ctx, &types.PageContext{
-				Locale:    language.English,
-				URL:       parsedURL,
-				Localizer: localizer,
-			})
+			ctx = composables.WithPageCtx(ctx, types.NewPageContext(language.English, parsedURL, localizer))
 
 			// Execute custom middleware functions
 			for _, mw := range s.middlewares {
@@ -726,43 +721,6 @@ func (s *Suite) RunCases(cases []TestCase) {
 			// Execute assertions
 			tc.Assert(t, response)
 		})
-	}
-}
-
-// RunCase executes a single test case (helper for single case testing)
-func (s *Suite) RunCase(tc TestCase) {
-	s.t.Helper()
-	s.RunCases([]TestCase{tc})
-}
-
-// Legacy HTTP method shortcuts for backward compatibility
-// Note: These are deprecated in favor of the new TestCaseBuilder pattern in case_builder.go
-
-// TestGET creates a basic GET request for legacy tests
-func (s *Suite) TestGET(path string) func(suite *Suite) *Request {
-	return func(suite *Suite) *Request {
-		return suite.GET(path)
-	}
-}
-
-// TestPOST creates a basic POST request for legacy tests
-func (s *Suite) TestPOST(path string) func(suite *Suite) *Request {
-	return func(suite *Suite) *Request {
-		return suite.POST(path)
-	}
-}
-
-// TestPUT creates a basic PUT request for legacy tests
-func (s *Suite) TestPUT(path string) func(suite *Suite) *Request {
-	return func(suite *Suite) *Request {
-		return suite.PUT(path)
-	}
-}
-
-// TestDELETE creates a basic DELETE request for legacy tests
-func (s *Suite) TestDELETE(path string) func(suite *Suite) *Request {
-	return func(suite *Suite) *Request {
-		return suite.DELETE(path)
 	}
 }
 

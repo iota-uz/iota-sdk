@@ -1,3 +1,4 @@
+// Package category provides this package.
 package category
 
 import (
@@ -21,6 +22,7 @@ func NewCreatedEvent(ctx context.Context, data ExpenseCategory) (*CreatedEvent, 
 		Sender:  sender,
 		Session: sess,
 		Data:    data,
+		Result:  data,
 	}, nil
 }
 
@@ -37,6 +39,7 @@ func NewUpdatedEvent(ctx context.Context, data ExpenseCategory) (*UpdatedEvent, 
 		Sender:  sender,
 		Session: sess,
 		Data:    data,
+		Result:  data,
 	}, nil
 }
 
@@ -52,6 +55,7 @@ func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 	return &DeletedEvent{
 		Sender:  sender,
 		Session: sess,
+		Result:  nil,
 	}, nil
 }
 

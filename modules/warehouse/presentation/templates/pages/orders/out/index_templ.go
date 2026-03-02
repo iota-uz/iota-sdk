@@ -20,7 +20,7 @@ import (
 )
 
 type PageProps struct {
-	*types.PageContext
+	types.PageContext
 	Errors   map[string]string
 	SaveURL  string
 	ItemsURL string

@@ -1,3 +1,4 @@
+// Package htmx provides this package.
 package htmx
 
 import (
@@ -32,13 +33,13 @@ func Location(w http.ResponseWriter, path, target string) {
 	}
 }
 
-// PushUrl sets the HX-Push-Url header to push a new URL into the browser history stack.
-func PushUrl(w http.ResponseWriter, url string) {
+// PushURL sets the HX-Push-Url header to push a new URL into the browser history stack.
+func PushURL(w http.ResponseWriter, url string) {
 	w.Header().Add("Hx-Push-Url", url)
 }
 
-// ReplaceUrl sets the HX-Replace-Url header to replace the current URL in the browser location bar.
-func ReplaceUrl(w http.ResponseWriter, url string) {
+// ReplaceURL sets the HX-Replace-Url header to replace the current URL in the browser location bar.
+func ReplaceURL(w http.ResponseWriter, url string) {
 	w.Header().Add("Hx-Replace-Url", url)
 }
 
@@ -52,7 +53,7 @@ func Reswap(w http.ResponseWriter, swapStyle string) {
 	w.Header().Add("Hx-Reswap", swapStyle)
 }
 
-// Trigger sets the HX-Trigger header to trigger client-side events.
+// SetTrigger sets the HX-Trigger header to trigger client-side events.
 func SetTrigger(w http.ResponseWriter, event, detail string) {
 	if detail == "" {
 		w.Header().Add("Hx-Trigger", event)
@@ -101,8 +102,8 @@ func Target(r *http.Request) string {
 	return r.Header.Get("Hx-Target")
 }
 
-// CurrentUrl retrieves the current URL of the browser from the HX-Current-URL request header.
-func CurrentUrl(r *http.Request) string {
+// CurrentURL retrieves the current URL of the browser from the HX-Current-URL request header.
+func CurrentURL(r *http.Request) string {
 	return r.Header.Get("Hx-Current-Url")
 }
 

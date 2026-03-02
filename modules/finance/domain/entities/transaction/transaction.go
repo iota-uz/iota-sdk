@@ -1,3 +1,4 @@
+// Package transaction provides this package.
 package transaction
 
 import (
@@ -9,7 +10,7 @@ import (
 
 type Option func(t *transaction)
 
-// Option setters
+// WithID adds the transaction identifier option.
 func WithID(id uuid.UUID) Option {
 	return func(t *transaction) {
 		t.id = id

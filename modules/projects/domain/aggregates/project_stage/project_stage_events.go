@@ -1,3 +1,4 @@
+// Package projectstage provides this package.
 package projectstage
 
 import (

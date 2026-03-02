@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -100,6 +101,8 @@ func ToDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 		OriginAccountID:      mapping.UUIDToSQLNullString(uuid.Nil),
 		DestinationAccountID: mapping.UUIDToSQLNullString(entity.Account().ID()),
 		TransactionType:      string(transaction.Deposit),
+		ExchangeRate:         sql.NullFloat64{},
+		DestinationAmount:    sql.NullInt64{},
 		CreatedAt:            entity.CreatedAt(),
 	}
 	var categoryID uuid.UUID
@@ -119,7 +122,7 @@ func ToDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 	return dbPayment, dbTransaction
 }
 
-// TODO: populate user && account
+// ToDomainPayment maps a DB payment model into a domain payment.
 func ToDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transaction, attachments ...[]uint) (payment.Payment, error) {
 	t, err := ToDomainTransaction(dbTransaction)
 	if err != nil {

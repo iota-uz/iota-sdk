@@ -1,3 +1,4 @@
+// Package export provides this package.
 package export
 
 import "github.com/iota-uz/iota-sdk/pkg/bichat/agents"

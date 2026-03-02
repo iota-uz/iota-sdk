@@ -1,3 +1,4 @@
+// Package configuration provides this package.
 package configuration
 
 import (
@@ -128,7 +129,7 @@ type OctoOptions struct {
 	OctoShopID     int32  `env:"OCTO_SHOP_ID"`
 	OctoSecret     string `env:"OCTO_SECRET"`
 	OctoSecretHash string `env:"OCTO_SECRET_HASH"`
-	NotifyUrl      string `env:"OCTO_NOTIFY_URL"`
+	NotifyURL      string `env:"OCTO_NOTIFY_URL"`
 }
 
 type StripeOptions struct {
@@ -272,10 +273,6 @@ type Configuration struct {
 	// Test endpoints - only enable in test environment
 	EnableTestEndpoints bool `env:"ENABLE_TEST_ENDPOINTS" envDefault:"false"`
 
-	// Health endpoint mode - when false, returns simple {status: "healthy"} response
-	// When true, returns detailed health checks with database, system metrics
-	HealthDetailed bool `env:"HEALTH_DETAILED" envDefault:"false"`
-
 	logFile *os.File
 	logger  *logrus.Logger
 }
@@ -376,7 +373,7 @@ func (c *Configuration) load(envFiles []string) error {
 	return nil
 }
 
-// unload handles a graceful shutdown.
+// Unload releases all environment resources.
 func (c *Configuration) Unload() {
 	if c.logFile != nil {
 		if err := c.logFile.Close(); err != nil {

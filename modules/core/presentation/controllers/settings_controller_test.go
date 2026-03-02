@@ -33,9 +33,9 @@ const PngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkY
 
 func setupSettingsControllerTest(t *testing.T) (*itf.Suite, *services.TenantService, *services.UploadService) {
 	t.Helper()
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
+	}), finance.NewModule()).Build().
 		AsUser(user.New("Test", "User", internet.MustParseEmail("test@example.com"), user.UILanguageEN))
 
 	suite.WithMiddleware(func(ctx context.Context, r *http.Request) context.Context {

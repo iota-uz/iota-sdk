@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -371,7 +372,6 @@ var (
 	ErrTenantUserNotFound = errors.New("tenant user not found")
 )
 
-// PostgresChatRepository implements ChatRepository using PostgreSQL.
 // ChatRepoOption configures PostgresChatRepository.
 type ChatRepoOption func(*PostgresChatRepository)
 

@@ -1,3 +1,4 @@
+// Package logging provides this package.
 package logging
 
 import (
@@ -26,5 +27,5 @@ func (m *Module) Register(app application.Application) error {
 }
 
 func (m *Module) Name() string {
-	return "crm"
+	return "logging"
 }

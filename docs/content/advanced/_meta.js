@@ -1,3 +1,5 @@
 export default {
-  overview: 'Overview'
+  overview: 'Overview',
+  spotlight: 'Spotlight',
+  'twofactor-encryption': 'TOTP Secret Encryption'
 }

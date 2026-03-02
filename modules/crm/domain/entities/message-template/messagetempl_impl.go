@@ -1,3 +1,4 @@
+// Package messagetemplate provides this package.
 package messagetemplate
 
 import "time"

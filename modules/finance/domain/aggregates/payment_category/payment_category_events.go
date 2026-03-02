@@ -1,4 +1,5 @@
-package payment_category
+// Package paymentcategory provides this package.
+package paymentcategory
 
 import (
 	"context"
@@ -21,6 +22,7 @@ func NewCreatedEvent(ctx context.Context, data PaymentCategory) (*CreatedEvent, 
 		Sender:  sender,
 		Session: sess,
 		Data:    data,
+		Result:  data,
 	}, nil
 }
 
@@ -37,6 +39,7 @@ func NewUpdatedEvent(ctx context.Context, data PaymentCategory) (*UpdatedEvent, 
 		Sender:  sender,
 		Session: sess,
 		Data:    data,
+		Result:  data,
 	}, nil
 }
 
@@ -52,6 +55,7 @@ func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 	return &DeletedEvent{
 		Sender:  sender,
 		Session: sess,
+		Result:  nil,
 	}, nil
 }
 

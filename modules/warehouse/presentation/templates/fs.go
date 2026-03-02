@@ -1,3 +1,4 @@
+// Package templates provides this package.
 package templates
 
 import "embed"

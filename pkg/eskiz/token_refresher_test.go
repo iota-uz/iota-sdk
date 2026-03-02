@@ -1,3 +1,4 @@
+// Package eskiz provides tests for token refresh behavior and concurrency guarantees.
 package eskiz
 
 import (
@@ -45,13 +46,13 @@ func TestTokenRefresher_RefreshToken_TimeoutContext(t *testing.T) {
 	assert.Empty(t, token)
 }
 
-func TestTokenRefresher_RefreshTokenLocked_NilContext(t *testing.T) {
+func TestTokenRefresher_RefreshTokenLocked_MissingClient(t *testing.T) {
 	refresher := &tokenRefresher{}
 
-	token, err := refresher.refreshTokenLocked(nil) //nolint:staticcheck // Testing nil context behavior
+	token, err := refresher.refreshTokenLocked(context.TODO())
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "context cannot be nil")
+	assert.Contains(t, err.Error(), "client is not initialized")
 	assert.Empty(t, token)
 }
 

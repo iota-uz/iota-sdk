@@ -1,3 +1,4 @@
+// Package token provides this package.
 package token
 
 import (

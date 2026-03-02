@@ -1,3 +1,4 @@
+// Package rbac provides this package.
 package rbac
 
 import (

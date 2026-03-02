@@ -1,3 +1,4 @@
+// Package crud provides this package.
 package crud
 
 import (
@@ -37,7 +38,7 @@ func (f *entityFieldBase) Value(value any) FieldValue {
 	}
 }
 
-// Type assertion methods - EntityField doesn't support casting to other field types
+// AsStringField casts an entity field to a string field when possible.
 func (f *entityFieldBase) AsStringField() (StringField, error)     { return nil, ErrFieldTypeMismatch }
 func (f *entityFieldBase) AsIntField() (IntField, error)           { return nil, ErrFieldTypeMismatch }
 func (f *entityFieldBase) AsBoolField() (BoolField, error)         { return nil, ErrFieldTypeMismatch }
@@ -114,8 +115,10 @@ func (f *EntityField[T]) InitialValue(ctx context.Context) any { return f.base.I
 func (f *EntityField[T]) RendererType() string                 { return f.base.RendererType() }
 func (f *EntityField[T]) LocalizationKey() string              { return f.base.LocalizationKey() }
 
-// Type assertion methods - EntityField doesn't support casting to other field types
-func (f *EntityField[T]) AsStringField() (StringField, error)       { return nil, ErrFieldTypeMismatch }
+// AsStringField returns an error when casting to a StringField is not possible.
+func (f *EntityField[T]) AsStringField() (StringField, error) { return nil, ErrFieldTypeMismatch }
+
+// AsIntField returns an error when casting to an IntField is not possible.
 func (f *EntityField[T]) AsIntField() (IntField, error)             { return nil, ErrFieldTypeMismatch }
 func (f *EntityField[T]) AsBoolField() (BoolField, error)           { return nil, ErrFieldTypeMismatch }
 func (f *EntityField[T]) AsFloatField() (FloatField, error)         { return nil, ErrFieldTypeMismatch }

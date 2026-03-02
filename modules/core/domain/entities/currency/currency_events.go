@@ -1,3 +1,4 @@
+// Package currency provides this package.
 package currency
 
 import (
@@ -21,6 +22,7 @@ func NewCreatedEvent(ctx context.Context, data CreateDTO) (*CreatedEvent, error)
 		Sender:  sender,
 		Session: sess,
 		Data:    data,
+		Result:  nil,
 	}, nil
 }
 
@@ -37,6 +39,7 @@ func NewUpdatedEvent(ctx context.Context, data UpdateDTO) (*UpdatedEvent, error)
 		Sender:  sender,
 		Session: sess,
 		Data:    data,
+		Result:  nil,
 	}, nil
 }
 
@@ -52,6 +55,7 @@ func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 	return &DeletedEvent{
 		Sender:  sender,
 		Session: sess,
+		Result:  nil,
 	}, nil
 }
 

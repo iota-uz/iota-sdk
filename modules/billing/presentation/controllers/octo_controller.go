@@ -1,3 +1,4 @@
+// Package controllers provides this package.
 package controllers
 
 import (
@@ -406,7 +407,7 @@ func (c *OctoController) checkAndUpdateStatusAsync(
 		Info("Checking payment status after delay")
 
 	// Create API client
-	apiClient := c.newApiClient()
+	apiClient := c.newAPIClient()
 
 	// Create check status request
 	req := octoapi.NewCheckStatusRequest(
@@ -477,8 +478,8 @@ func (c *OctoController) checkAndUpdateStatusAsync(
 	}
 }
 
-// newApiClient creates a new Octo API client
-func (c *OctoController) newApiClient() *octoapi.APIClient {
+// newAPIClient creates a new Octo API client
+func (c *OctoController) newAPIClient() *octoapi.APIClient {
 	configuration := octoapi.NewConfiguration()
 	configuration.HTTPClient = &http.Client{
 		Transport: c.logTransport,

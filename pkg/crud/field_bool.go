@@ -1,3 +1,4 @@
+// Package crud provides this package.
 package crud
 
 type BoolField interface {

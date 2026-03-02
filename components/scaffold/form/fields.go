@@ -14,7 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-// --- FieldType enumerates supported input types ---
+// FieldType enumerates supported input types.
 type FieldType string
 
 const (

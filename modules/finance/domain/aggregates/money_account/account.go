@@ -1,3 +1,4 @@
+// Package moneyaccount provides this package.
 package moneyaccount
 
 import (
@@ -14,7 +15,7 @@ import (
 
 type Option func(a *account)
 
-// Option setters
+// WithID adds the money account identifier option.
 func WithID(id uuid.UUID) Option {
 	return func(a *account) {
 		a.id = id

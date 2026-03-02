@@ -90,7 +90,7 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v3
         with:
-          just-version: '1.46.0'
+          just-version: "1.46.0"
 
       - name: Run gosec (production entrypoints)
         run: just gosec
@@ -154,7 +154,7 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v3
         with:
-          just-version: '1.46.0'
+          just-version: "1.46.0"
 
       - name: Download Go dependencies
         run: go mod download
@@ -297,7 +297,7 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v3
         with:
-          just-version: '1.46.0'
+          just-version: "1.46.0"
 
       - name: Install tools
         run: |

@@ -1,3 +1,4 @@
+// Package useragent provides this package.
 package useragent
 
 import (
