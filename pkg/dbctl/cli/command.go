@@ -2,11 +2,14 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
+	"github.com/iota-uz/iota-sdk/pkg/dbctl/credentials"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/execution"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/persistence"
@@ -162,6 +165,7 @@ func newCredentialsCommand() *cobra.Command {
 
 func newCredentialShowCommand() *cobra.Command {
 	var reveal bool
+	var policyPath string
 	cmd := &cobra.Command{
 		Use:   "show <run-id>",
 		Short: "Show credential bootstrap artifact for a run",
@@ -180,14 +184,45 @@ func newCredentialShowCommand() *cobra.Command {
 			if artifact == nil {
 				return fmt.Errorf("no credential artifact found")
 			}
+			var bootstrap credentials.BootstrapArtifact
+			if err := json.Unmarshal([]byte(artifact.PayloadJSON), &bootstrap); err != nil {
+				return fmt.Errorf("parse bootstrap artifact payload: %w", err)
+			}
+
+			fmt.Printf("run_id: %s\n", artifact.RunID)
+			fmt.Printf("token_id: %s\n", bootstrap.TokenID)
+			fmt.Printf("subject: %s\n", bootstrap.Subject)
+			fmt.Printf("expires_at: %s\n", bootstrap.ExpiresAt.Format(time.RFC3339))
 			if !reveal {
-				fmt.Printf("artifact: %s\n", artifact.PayloadJSON)
+				fmt.Println("secret: [hidden] use --reveal when policy allows")
 				return nil
 			}
-			fmt.Printf("artifact (revealed): %s\n", artifact.PayloadJSON)
+
+			cfg, _, err := policy.Load(policyPath)
+			if err != nil {
+				return err
+			}
+			if !allowsReveal(cfg.Credentials.Emission) {
+				return fmt.Errorf("credential reveal is disabled by policy (emission=%s)", cfg.Credentials.Emission)
+			}
+			if strings.TrimSpace(bootstrap.Secret) == "" {
+				fmt.Println("secret: [not available in artifact]")
+				return nil
+			}
+			fmt.Printf("secret: %s\n", bootstrap.Secret)
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&reveal, "reveal", false, "Reveal secret fields when policy allows")
+	cmd.Flags().StringVar(&policyPath, "policy", "", "Path to policy file (default .dbctl/policy.yaml)")
 	return cmd
+}
+
+func allowsReveal(emission string) bool {
+	switch strings.TrimSpace(strings.ToLower(emission)) {
+	case "masked":
+		return true
+	default:
+		return false
+	}
 }
