@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/iota-uz/click"
+	clickapi "github.com/iota-uz/click"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
