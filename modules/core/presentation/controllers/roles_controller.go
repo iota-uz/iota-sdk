@@ -148,19 +148,6 @@ func (c *RolesController) GetEdit(
 		return
 	}
 
-func (c *RolesController) List(
-	r *http.Request,
-	w http.ResponseWriter,
-	logger *logrus.Entry,
-	roleService *services.RoleService,
-) {
-	if err := composables.CanUser(r.Context(), permissions.RoleRead); err != nil {
-		RenderForbidden(w, r)
-		return
-	}
-	params := composables.UsePaginated(r)
-	search := r.URL.Query().Get("name")
-
 	roleEntity, err := roleService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving role: %v", err)
