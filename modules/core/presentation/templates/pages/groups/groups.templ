@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -150,15 +151,17 @@ templ GroupsContent(props *IndexPageProps) {
 						"@click": "$dispatch('open-group-filters')",
 					},
 				})
-				@button.Primary(button.Props{
-					Size: button.SizeNormal,
-					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-					Attrs: templ.Attributes{
-						"type":   "button",
-						"x-data": "",
-						"@click": "$dispatch('new-group')",
-					},
-				})
+				if composables.CanUser(ctx, permissions.GroupCreate) == nil {
+					@button.Primary(button.Props{
+						Size: button.SizeNormal,
+						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"x-data": "",
+							"@click": "$dispatch('new-group')",
+						},
+					})
+				}
 			</div>
 		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
@@ -184,16 +187,18 @@ templ GroupsContent(props *IndexPageProps) {
 				</div>
 				<div class="hidden md:flex gap-3">
 					@filters.CreatedAt()
-					@button.Primary(button.Props{
-						Size: button.SizeNormal,
-						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-						Attrs: templ.Attributes{
-							"type":   "button",
-							"x-data": "",
-							"@click": "$dispatch('new-group')",
-						},
-					}) {
-						{ pageCtx.T("Groups.List.New") }
+					if composables.CanUser(ctx, permissions.GroupCreate) == nil {
+						@button.Primary(button.Props{
+							Size: button.SizeNormal,
+							Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+							Attrs: templ.Attributes{
+								"type":   "button",
+								"x-data": "",
+								"@click": "$dispatch('new-group')",
+							},
+						}) {
+							{ pageCtx.T("Groups.List.New") }
+						}
 					}
 				</div>
 			</form>

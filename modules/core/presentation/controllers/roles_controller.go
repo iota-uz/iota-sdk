@@ -6,6 +6,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
@@ -147,6 +148,19 @@ func (c *RolesController) GetEdit(
 		return
 	}
 
+func (c *RolesController) List(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	roleService *services.RoleService,
+) {
+	if err := composables.CanUser(r.Context(), permissions.RoleRead); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
+	params := composables.UsePaginated(r)
+	search := r.URL.Query().Get("name")
+
 	roleEntity, err := roleService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving role: %v", err)
@@ -174,6 +188,11 @@ func (c *RolesController) Delete(
 		return
 	}
 
+	if err := composables.CanUser(r.Context(), permissions.RoleDelete); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
+
 	if err := roleService.Delete(r.Context(), id); err != nil {
 		logger.Errorf("Error deleting role: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -192,6 +211,11 @@ func (c *RolesController) Update(
 	if err != nil {
 		logger.Errorf("Error parsing role ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := composables.CanUser(r.Context(), permissions.RoleUpdate); err != nil {
+		RenderForbidden(w, r)
 		return
 	}
 
@@ -240,6 +264,10 @@ func (c *RolesController) GetNew(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.RoleCreate); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	props := &roles.CreateFormProps{
 		Role:                   &viewmodels.Role{},
 		ModulePermissionGroups: c.modulePermissionGroups(),
@@ -254,6 +282,10 @@ func (c *RolesController) Create(
 	logger *logrus.Entry,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.RoleCreate); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	dto, err := composables.UseForm(&dtos.CreateRoleDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
