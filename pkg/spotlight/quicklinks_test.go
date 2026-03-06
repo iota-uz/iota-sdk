@@ -205,13 +205,10 @@ func TestQuickLinks_FilterAuthorized_RestrictedByPermission(t *testing.T) {
 		Permissions: []string{"other.permission"},
 	}
 
-	// User with permission can see both
+	// User with permission can see both public and restricted
 	for _, hit := range hits {
-		if hit.Document.Access.Visibility == VisibilityPublic {
-			require.True(t, canReadPolicy(hit.Document.Access, principalWithPermission))
-		} else {
-			require.True(t, canReadPolicy(hit.Document.Access, principalWithPermission))
-		}
+		require.True(t, canReadPolicy(hit.Document.Access, principalWithPermission),
+			"user with permission should be able to read %s visibility", hit.Document.Access.Visibility)
 	}
 
 	// User without permission can only see public
@@ -254,4 +251,35 @@ func TestQuickLinkBuilder_DefaultRestrictedVisibility(t *testing.T) {
 	require.Empty(t, link.access.AllowedPermissions)
 	require.Empty(t, link.access.AllowedRoles)
 	require.Empty(t, link.access.AllowedUsers)
+}
+
+func TestQuickLinks_RestrictedNoConfigFiltersAll(t *testing.T) {
+	tenantID := uuid.New()
+	ql := NewQuickLinks(nil, nil)
+	ql.Add(
+		NewQuickLinkBuilder("restricted.no.config", "/restricted").Build(),
+	)
+
+	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+		TenantID: tenantID,
+		Language: "en",
+	})
+	require.NoError(t, err)
+	require.Len(t, docs, 1)
+
+	require.Equal(t, VisibilityRestricted, docs[0].Access.Visibility)
+	require.Empty(t, docs[0].Access.AllowedPermissions)
+	require.Empty(t, docs[0].Access.AllowedRoles)
+	require.Empty(t, docs[0].Access.AllowedUsers)
+
+	adminPrincipal := Principal{UserID: "1", Roles: []string{"admin"}, Permissions: []string{"all"}}
+	regularPrincipal := Principal{UserID: "2", Roles: []string{"user"}, Permissions: []string{"read"}}
+	emptyPrincipal := Principal{UserID: "3"}
+
+	require.False(t, canReadPolicy(docs[0].Access, adminPrincipal),
+		"restricted link with no allowed config should be inaccessible even to admin")
+	require.False(t, canReadPolicy(docs[0].Access, regularPrincipal),
+		"restricted link with no allowed config should be inaccessible to regular user")
+	require.False(t, canReadPolicy(docs[0].Access, emptyPrincipal),
+		"restricted link with no allowed config should be inaccessible to user with no roles/permissions")
 }

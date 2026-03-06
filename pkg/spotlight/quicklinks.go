@@ -10,6 +10,8 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 )
 
+const searchTextDelimiter = " | "
+
 type QuickLink struct {
 	trKey     string
 	link      string
@@ -171,7 +173,7 @@ func (ql *QuickLinks) resolveAllTranslations(trKey string) (string, string) {
 	if len(translations) == 0 {
 		return title, title
 	}
-	return title, strings.Join(translations, " | ")
+	return title, strings.Join(translations, searchTextDelimiter)
 }
 
 func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]SearchDocument, error) {
@@ -185,7 +187,7 @@ func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]S
 
 		// Include keywords in searchable body
 		if len(item.keywords) > 0 {
-			body = body + " | " + strings.Join(item.keywords, " | ")
+			body = body + searchTextDelimiter + strings.Join(item.keywords, searchTextDelimiter)
 		}
 
 		out = append(out, SearchDocument{
