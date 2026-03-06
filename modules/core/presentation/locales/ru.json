@@ -427,13 +427,7 @@
     "Superadmin": "Суперадмин",
     "Testkit": "Тестовый набор",
     "Warehouse": "Склад",
-    "Website": "Веб-сайт",
-    "Insurance": "Страхование",
-    "Claim": "Претензии",
-    "EDO": "ЭДО",
-    "Custom": "Настройки EAI",
-    "System": "Система",
-    "Reserve": "Резервы"
+    "Website": "Веб-сайт"
   },
   "NavigationLinks": {
     "Dashboard": "Панель управления",
@@ -693,14 +687,6 @@
       "PayoutManage": {
         "Label": "Управление выплатами",
         "_Description": "Полное управление выплатами"
-      },
-      "CRMChatsView": {
-        "Label": "Просмотр чатов",
-        "_Description": "Просмотр чатов CRM"
-      },
-      "CRMPoliciesView": {
-        "Label": "Просмотр полисов",
-        "_Description": "Просмотр полисов CRM"
       }
     },
     "Pipeline": {
@@ -711,14 +697,6 @@
       "PipelineManage": {
         "Label": "Управление воронками",
         "_Description": "Полное управление воронками"
-      },
-      "LookupView": {
-        "Label": "Просмотр справочников",
-        "_Description": "Просмотр справочников андеррайтинга"
-      },
-      "LookupManage": {
-        "Label": "Управление справочниками",
-        "_Description": "Управление справочниками андеррайтинга"
       }
     },
     "HRM": {
@@ -743,22 +721,6 @@
       "Export": {
         "Label": "Экспорт данных",
         "_Description": "Экспорт данных чата"
-      },
-      "PlaygroundView": {
-        "Label": "Доступ к Песочнице",
-        "_Description": "Использование интерфейса песочницы AI Chat"
-      },
-      "LogsView": {
-        "Label": "Просмотр Логов",
-        "_Description": "Просмотр логов разговоров AI Chat"
-      },
-      "ConfigView": {
-        "Label": "Просмотр Конфигурации",
-        "_Description": "Просмотр настроек конфигурации AI Chat"
-      },
-      "EvalView": {
-        "Label": "Просмотр Оценки",
-        "_Description": "Просмотр тестов оценки AI Chat"
       }
     },
     "Website": {
@@ -767,158 +729,8 @@
         "_Description": "Только просмотр информации о веб-сайте"
       },
       "WebsiteManage": {
-        "Label": "Управление сайтом",
-        "_Description": "Полное управление сайтом"
-      }
-    },
-    "Insurance": {
-      "PolicyReissueManage": {
-        "Label": "Перевыпуск полисов",
-        "_Description": "Перевыпуск страховых полисов"
-      },
-      "ProductView": {
-        "Label": "Просмотр продуктов",
-        "_Description": "Просмотр страховых продуктов"
-      },
-      "ProductManage": {
-        "Label": "Управление продуктами",
-        "_Description": "Полное управление продуктами"
-      },
-      "AgencyView": {
-        "Label": "Просмотр агентств",
-        "_Description": "Просмотр страховых агентств"
-      },
-      "AgencyManage": {
-        "Label": "Управление агентствами",
-        "_Description": "Полное управление агентствами"
-      },
-      "IntegratorView": {
-        "Label": "Просмотр интеграторов",
-        "_Description": "Просмотр интеграторов"
-      },
-      "IntegratorManage": {
-        "Label": "Управление интеграторами",
-        "_Description": "Полное управление интеграторами"
-      },
-      "PortfolioPoliciesExportManage": {
-        "Label": "Экспорт полисов",
-        "_Description": "Экспорт данных полисов портфеля"
-      },
-      "PortfolioAdmissionsExportManage": {
-        "Label": "Экспорт поступлений",
-        "_Description": "Экспорт данных поступлений портфеля"
-      },
-      "PortfolioContractsExportManage": {
-        "Label": "Экспорт договоров",
-        "_Description": "Экспорт данных договоров портфеля"
-      },
-      "PortfolioView": {
-        "Label": "Просмотр портфеля",
-        "_Description": "Просмотр страхового портфеля"
-      },
-      "SalesReportView": {
-        "Label": "Отчёт по продажам",
-        "_Description": "Просмотр отчёта по продажам"
-      },
-      "OsagoReportView": {
-        "Label": "Отчёт ОСАГО",
-        "_Description": "Просмотр отчёта ОСАГО"
-      },
-      "LookupView": {
-        "Label": "Просмотр справочников",
-        "_Description": "Просмотр страховых справочников"
-      },
-      "LookupManage": {
-        "Label": "Управление справочниками",
-        "_Description": "Управление страховыми справочниками"
-      },
-      "LookupOrganizationView": {
-        "Label": "Просмотр организаций",
-        "_Description": "Просмотр организаций"
-      },
-      "LookupOrganizationManage": {
-        "Label": "Управление организациями",
-        "_Description": "Управление организациями"
-      },
-      "LookupVehicleView": {
-        "Label": "Просмотр транспорта",
-        "_Description": "Просмотр транспортных средств"
-      },
-      "LookupVehicleManage": {
-        "Label": "Управление транспортом",
-        "_Description": "Управление транспортными средствами"
-      },
-      "LookupPersonView": {
-        "Label": "Просмотр физлиц",
-        "_Description": "Просмотр физических лиц"
-      },
-      "LookupPersonManage": {
-        "Label": "Управление физлицами",
-        "_Description": "Управление физическими лицами"
-      },
-      "LookupRealEstateView": {
-        "Label": "Просмотр недвижимости",
-        "_Description": "Просмотр недвижимости"
-      },
-      "LookupRealEstateManage": {
-        "Label": "Управление недвижимостью",
-        "_Description": "Управление недвижимостью"
-      },
-      "ClaimView": {
-        "Label": "Просмотр претензий",
-        "_Description": "Просмотр страховых претензий"
-      },
-      "ClaimManage": {
-        "Label": "Управление претензиями",
-        "_Description": "Полное управление претензиями"
-      },
-      "ClaimsReportView": {
-        "Label": "Отчёт по претензиям",
-        "_Description": "Просмотр отчёта по претензиям"
-      },
-      "LookupDecisionView": {
-        "Label": "Просмотр решений",
-        "_Description": "Просмотр решений по претензиям"
-      },
-      "LookupDecisionManage": {
-        "Label": "Управление решениями",
-        "_Description": "Управление решениями по претензиям"
-      },
-      "ReserveView": {
-        "Label": "Просмотр резервов",
-        "_Description": "Просмотр страховых резервов"
-      }
-    },
-    "EDO": {
-      "DocumentView": {
-        "Label": "Просмотр документов",
-        "_Description": "Просмотр документов ЭДО"
-      },
-      "DocumentManage": {
-        "Label": "Управление документами",
-        "_Description": "Полное управление документами"
-      }
-    },
-    "Custom": {
-      "DashboardView": {
-        "Label": "Просмотр панели",
-        "_Description": "Просмотр панели EAI"
-      },
-      "LookupsView": {
-        "Label": "Просмотр справочников",
-        "_Description": "Просмотр справочников EAI"
-      },
-      "LookupsManage": {
-        "Label": "Управление справочниками",
-        "_Description": "Управление справочниками EAI"
-      },
-      "SettingsView": {
-        "Label": "Просмотр настроек",
-        "_Description": "Просмотр настроек EAI"
-      },
-      "SystemView": {
-        "Label": "Просмотр системы",
-        "_Description": "Просмотр системной информации"
+        "Label": "Управление веб-сайтом",
+        "_Description": "Полное управление веб-сайтом"
       }
     }
   },
@@ -1014,38 +826,7 @@
     "payout_request": "Запросить вывод",
     "pipeline": "Воронка",
     "website": "Веб-сайт",
-    "session": "Сессии",
-    "bichat_playground": "Песочница",
-    "bichat_logs": "Логи",
-    "bichat_config": "Конфигурация",
-    "bichat_eval": "Оценка",
-    "crm_chats": "Чаты",
-    "crm_policies": "Полисы",
-    "insurance_product": "Продукты",
-    "insurance_agency": "Агентства",
-    "insurance_integrator": "Интеграторы",
-    "insurance_portfolio": "Портфель",
-    "insurance_sales_report": "Отчёт по продажам",
-    "insurance_osago_report": "Отчёт ОСАГО",
-    "insurance_lookup": "Справочники",
-    "insurance_organization": "Организации",
-    "insurance_vehicle": "Транспорт",
-    "insurance_person": "Физлица",
-    "insurance_real_estate": "Недвижимость",
-    "insurance_policy_reissue": "Перевыпуск полисов",
-    "insurance_portfolio_policies_export": "Экспорт полисов",
-    "insurance_portfolio_admissions_export": "Экспорт поступлений",
-    "insurance_portfolio_contracts_export": "Экспорт договоров",
-    "claim": "Претензии",
-    "claims_report": "Отчёт по претензиям",
-    "claim_decision": "Решения по претензиям",
-    "edo_document": "Документы",
-    "custom_dashboard": "Панель",
-    "custom_lookups": "Справочники",
-    "custom_settings": "Настройки",
-    "logsys_system": "Система",
-    "reserve": "Резервы",
-    "underwriting_lookup": "Справочники"
+    "session": "Сессии"
   },
   "Roles": {
     "Meta": {
