@@ -24,6 +24,8 @@ Defined in `pkg/configuration` and used in `pkg/application` when creating the S
 
 ## Registering Quick Links
 
+### Basic Quick Links (Public)
+
 In your module's **`Register`**:
 
 ```go
@@ -48,11 +50,93 @@ func (m *Module) Register(app application.Application) error {
 
 Quick links are registered on the application's **QuickLinks** provider; when Meilisearch is configured, they are indexed and searchable.
 
+### Quick Links with RBAC
+
+Use `QuickLinkBuilder` to create quick links with access control. This ensures links are only visible to users with the appropriate permissions, roles, or user IDs.
+
+```go
+import (
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+)
+
+func (m *Module) Register(app application.Application) error {
+	app.QuickLinks().Add(
+		// Require specific permissions
+		spotlight.NewQuickLinkBuilder("NavigationLinks.AdminPanel", "/admin").
+			WithPermissions("admin.panel.view").
+			Build(),
+
+		// Require specific roles
+		spotlight.NewQuickLinkBuilder("NavigationLinks.Reports", "/reports").
+			WithRoles("manager", "admin").
+			Build(),
+
+		// Restrict to specific users
+		spotlight.NewQuickLinkBuilder("NavigationLinks.Private", "/private").
+			WithUsers("user-42").
+			Build(),
+
+		// Owner-only visibility
+		spotlight.NewQuickLinkBuilder("NavigationLinks.MyDashboard", "/my-dashboard").
+			WithOwner("owner-id").
+			Build(),
+
+		// Explicitly public (equivalent to NewQuickLink)
+		spotlight.NewQuickLinkBuilder("NavigationLinks.Help", "/help").
+			Public().
+			Build(),
+	)
+	return nil
+}
+```
+
+**Note**: `NewQuickLink(trKey, link)` creates a **public** link for backward compatibility. Use `NewQuickLinkBuilder` when you need RBAC controls.
+
+### Quick Links with Search Keywords
+
+Add keywords/aliases to quick links to improve searchability. Keywords are indexed and searchable but not displayed in the UI.
+
+```go
+app.QuickLinks().Add(
+	spotlight.NewQuickLinkBuilder("NavigationLinks.Expenses", "/finance/expenses").
+		Public().
+		WithKeywords("costs", "spending", "outflows", "money out").
+		Build(),
+)
+```
+
+Users can now search for "costs" or "spending" and find the Expenses link even if those words aren't in the translation.
+
+### Combining RBAC and Keywords
+
+```go
+app.QuickLinks().Add(
+	spotlight.NewQuickLinkBuilder("NavigationLinks.FinancialReports", "/finance/reports").
+		WithPermissions("finance.reports.view").
+		WithKeywords("PnL", "profit and loss", "income statement").
+		Build(),
+)
+```
+
 ## API Summary
+
+### Basic API
 
 - **`app.QuickLinks()`** — returns the shared **`*spotlight.QuickLinks`** instance (same for all modules).
 - **`app.QuickLinks().Add(links ...*QuickLink)`** — appends one or more quick links.
-- **`spotlight.NewQuickLink(trKey, link string)`** — creates a quick link; both arguments are strings (translation key and URL).
+- **`spotlight.NewQuickLink(trKey, link string)`** — creates a **public** quick link; both arguments are strings (translation key and URL).
+
+### Builder API (RBAC and Keywords)
+
+- **`spotlight.NewQuickLinkBuilder(trKey, link string)`** — creates a builder with **restricted** visibility by default.
+- **`.WithPermissions(permissions ...string)`** — requires users to have any of the specified permissions.
+- **`.WithRoles(roles ...string)`** — requires users to have any of the specified roles.
+- **`.WithUsers(userIDs ...string)`** — restricts access to the specified user IDs.
+- **`.WithOwner(ownerID string)`** — restricts access to the owner with the given ID.
+- **`.WithAccess(policy AccessPolicy)`** — sets a custom access policy.
+- **`.Public()`** — makes the link visible to everyone.
+- **`.WithKeywords(keywords ...string)`** — adds searchable keywords/aliases.
+- **`.Build()`** — returns the configured `*QuickLink`.
 
 ## See Also
 
