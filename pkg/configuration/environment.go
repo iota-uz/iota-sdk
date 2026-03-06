@@ -245,6 +245,15 @@ type Configuration struct {
 	SocketAddress           string        `env:"-"`
 	OpenAIKey               string        `env:"OPENAI_KEY"`
 	UploadsPath             string        `env:"UPLOADS_PATH" envDefault:"static"`
+	UploadStorageBackend    string        `env:"UPLOAD_STORAGE_BACKEND" envDefault:"fs"`
+	UploadS3Bucket          string        `env:"UPLOAD_S3_BUCKET"`
+	UploadS3Region          string        `env:"UPLOAD_S3_REGION" envDefault:"us-east-1"`
+	UploadS3Endpoint        string        `env:"UPLOAD_S3_ENDPOINT"`
+	UploadS3AccessKey       string        `env:"UPLOAD_S3_ACCESS_KEY"`
+	UploadS3SecretKey       string        `env:"UPLOAD_S3_SECRET_KEY"`
+	UploadS3Secure          bool          `env:"UPLOAD_S3_SECURE" envDefault:"false"`
+	UploadS3ForcePathStyle  bool          `env:"UPLOAD_S3_FORCE_PATH_STYLE" envDefault:"true"`
+	UploadS3PresignTTL      int           `env:"UPLOAD_S3_PRESIGN_TTL_SECONDS" envDefault:"300"`
 	Domain                  string        `env:"DOMAIN" envDefault:"localhost"`
 	Origin                  string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
 	BiChatKnowledgeDir      string        `env:"BICHAT_KNOWLEDGE_DIR"`

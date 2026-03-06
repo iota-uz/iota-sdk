@@ -4,11 +4,14 @@ package core
 import (
 	"embed"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -65,7 +68,7 @@ func (m *Module) Register(app application.Application) error {
 
 	_ = MigrationFiles
 	app.RegisterLocaleFiles(&LocaleFiles)
-	fsStorage, err := persistence.NewFSStorage()
+	uploadStorage, err := m.newUploadStorage()
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -90,7 +93,7 @@ func (m *Module) Register(app application.Application) error {
 
 	// Create services
 	tenantService := services.NewTenantService(tenantRepo)
-	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
+	uploadService := services.NewUploadService(uploadRepo, uploadStorage, app.EventPublisher())
 	sessionService := services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher())
 
 	app.RegisterServices(
@@ -270,4 +273,16 @@ func uploadAPIControllerOpts(opts *ModuleOptions) []controllers.UploadAPIControl
 		result = append(result, controllers.WithDefaultTenantID(opts.DefaultTenantID))
 	}
 	return result
+}
+
+func (m *Module) newUploadStorage() (upload.Storage, error) {
+	conf := configuration.Use()
+	switch strings.ToLower(strings.TrimSpace(conf.UploadStorageBackend)) {
+	case "", "fs":
+		return persistence.NewFSStorage()
+	case "s3":
+		return persistence.NewS3Storage()
+	default:
+		return nil, fmt.Errorf("unsupported upload storage backend: %s", conf.UploadStorageBackend)
+	}
 }
