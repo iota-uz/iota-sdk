@@ -427,7 +427,13 @@
     "Superadmin": "超级管理员",
     "Testkit": "测试套件",
     "Warehouse": "仓库",
-    "Website": "网站"
+    "Website": "网站",
+    "Insurance": "保险",
+    "Claim": "索赔",
+    "EDO": "电子文档",
+    "Custom": "EAI 设置",
+    "System": "系统",
+    "Reserve": "储备"
   },
   "NavigationLinks": {
     "Dashboard": "仪表板",
@@ -725,6 +731,22 @@
       "Export": {
         "Label": "导出数据",
         "_Description": "导出聊天数据"
+      },
+      "PlaygroundView": {
+        "Label": "访问测试场",
+        "_Description": "使用 AI Chat 测试场界面"
+      },
+      "LogsView": {
+        "Label": "查看日志",
+        "_Description": "查看 AI Chat 对话日志"
+      },
+      "ConfigView": {
+        "Label": "查看配置",
+        "_Description": "查看 AI Chat 配置设置"
+      },
+      "EvalView": {
+        "Label": "查看评估",
+        "_Description": "查看 AI Chat 评估测试"
       }
     },
     "Website": {
@@ -830,7 +852,38 @@
     "payout_request": "支付请求",
     "pipeline": "管道",
     "website": "网站",
-    "session": "会话"
+    "session": "会话",
+    "bichat_playground": "测试场",
+    "bichat_logs": "日志",
+    "bichat_config": "配置",
+    "bichat_eval": "评估",
+    "crm_chats": "聊天",
+    "crm_policies": "保单",
+    "insurance_product": "产品",
+    "insurance_agency": "代理",
+    "insurance_integrator": "集成商",
+    "insurance_portfolio": "投资组合",
+    "insurance_sales_report": "销售报告",
+    "insurance_osago_report": "OSAGO 报告",
+    "insurance_lookup": "查找",
+    "insurance_organization": "组织",
+    "insurance_vehicle": "车辆",
+    "insurance_person": "个人",
+    "insurance_real_estate": "房地产",
+    "insurance_policy_reissue": "保单重新签发",
+    "insurance_portfolio_policies_export": "保单导出",
+    "insurance_portfolio_admissions_export": "入账导出",
+    "insurance_portfolio_contracts_export": "合同导出",
+    "claim": "索赔",
+    "claims_report": "索赔报告",
+    "claim_decision": "索赔决定",
+    "edo_document": "文件",
+    "custom_dashboard": "仪表板",
+    "custom_lookups": "查找",
+    "custom_settings": "设置",
+    "logsys_system": "系统",
+    "reserve": "储备",
+    "underwriting_lookup": "查找"
   },
   "Roles": {
     "Meta": {

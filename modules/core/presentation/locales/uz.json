@@ -427,7 +427,13 @@
     "Superadmin": "Super administrator",
     "Testkit": "Test to'plami",
     "Warehouse": "Ombor",
-    "Website": "Veb-sayt"
+    "Website": "Veb-sayt",
+    "Insurance": "Sug'urta",
+    "Claim": "Da'volar",
+    "EDO": "EHJ",
+    "Custom": "EAI Sozlamalar",
+    "System": "Tizim",
+    "Reserve": "Zaxiralar"
   },
   "NavigationLinks": {
     "Dashboard": "Boshqaruv paneli",
@@ -721,6 +727,22 @@
       "Export": {
         "Label": "Ma'lumotlarni eksport qilish",
         "_Description": "Chat ma'lumotlarini eksport qilish"
+      },
+      "PlaygroundView": {
+        "Label": "Sinov maydoniga kirish",
+        "_Description": "AI Chat sinov maydonidan foydalanish"
+      },
+      "LogsView": {
+        "Label": "Loglarni ko'rish",
+        "_Description": "AI Chat suhbat loglarini ko'rish"
+      },
+      "ConfigView": {
+        "Label": "Konfiguratsiyani ko'rish",
+        "_Description": "AI Chat konfiguratsiya sozlamalarini ko'rish"
+      },
+      "EvalView": {
+        "Label": "Baholashni ko'rish",
+        "_Description": "AI Chat baholash testlarini ko'rish"
       }
     },
     "Website": {
@@ -826,7 +848,38 @@
     "payout_request": "To'lov so'rovi",
     "pipeline": "Quvur liniyasi",
     "website": "Veb-sayt",
-    "session": "Seanslar"
+    "session": "Seanslar",
+    "bichat_playground": "Sinov maydoni",
+    "bichat_logs": "Loglar",
+    "bichat_config": "Konfiguratsiya",
+    "bichat_eval": "Baholash",
+    "crm_chats": "Chatlar",
+    "crm_policies": "Polislar",
+    "insurance_product": "Mahsulotlar",
+    "insurance_agency": "Agentliklar",
+    "insurance_integrator": "Integratorlar",
+    "insurance_portfolio": "Portfel",
+    "insurance_sales_report": "Savdo hisoboti",
+    "insurance_osago_report": "OSAGO hisoboti",
+    "insurance_lookup": "Ma'lumotnomalar",
+    "insurance_organization": "Tashkilotlar",
+    "insurance_vehicle": "Transport",
+    "insurance_person": "Jismoniy shaxslar",
+    "insurance_real_estate": "Ko'chmas mulk",
+    "insurance_policy_reissue": "Polisni qayta chiqarish",
+    "insurance_portfolio_policies_export": "Polislar eksporti",
+    "insurance_portfolio_admissions_export": "Qabul eksporti",
+    "insurance_portfolio_contracts_export": "Shartnomalar eksporti",
+    "claim": "Da'volar",
+    "claims_report": "Da'volar hisoboti",
+    "claim_decision": "Da'vo qarorlari",
+    "edo_document": "Hujjatlar",
+    "custom_dashboard": "Boshqaruv paneli",
+    "custom_lookups": "Ma'lumotnomalar",
+    "custom_settings": "Sozlamalar",
+    "logsys_system": "Tizim",
+    "reserve": "Zaxiralar",
+    "underwriting_lookup": "Ma'lumotnomalar"
   },
   "Roles": {
     "Meta": {

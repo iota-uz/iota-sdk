@@ -427,7 +427,13 @@
     "Superadmin": "Super Admin",
     "Testkit": "Test Kit",
     "Warehouse": "Warehouse",
-    "Website": "Website"
+    "Website": "Website",
+    "Insurance": "Insurance",
+    "Claim": "Claims",
+    "EDO": "EDO",
+    "Custom": "EAI Settings",
+    "System": "System",
+    "Reserve": "Reserves"
   },
   "NavigationLinks": {
     "Dashboard": "Dashboard",
@@ -686,17 +692,33 @@
       },
       "PayoutManage": {
         "Label": "Manage Payouts",
-        "_Description": "Full payout management capabilities"
+        "_Description": "Full payout management"
+      },
+      "CRMChatsView": {
+        "Label": "View Chats",
+        "_Description": "View CRM chats"
+      },
+      "CRMPoliciesView": {
+        "Label": "View Policies",
+        "_Description": "View CRM policies"
       }
     },
     "Pipeline": {
       "PipelineView": {
         "Label": "View Pipelines",
-        "_Description": "View pipeline information only"
+        "_Description": "View pipeline information"
       },
       "PipelineManage": {
         "Label": "Manage Pipelines",
-        "_Description": "Full pipeline management capabilities"
+        "_Description": "Full pipeline management"
+      },
+      "LookupView": {
+        "Label": "View Lookups",
+        "_Description": "View pipeline lookups"
+      },
+      "LookupManage": {
+        "Label": "Manage Lookups",
+        "_Description": "Manage pipeline lookups"
       }
     },
     "HRM": {
@@ -721,6 +743,22 @@
       "Export": {
         "Label": "Export Data",
         "_Description": "Export chat data"
+      },
+      "PlaygroundView": {
+        "Label": "Access Playground",
+        "_Description": "Use the AI Chat playground interface"
+      },
+      "LogsView": {
+        "Label": "View Logs",
+        "_Description": "View AI Chat conversation logs"
+      },
+      "ConfigView": {
+        "Label": "View Configuration",
+        "_Description": "View AI Chat configuration settings"
+      },
+      "EvalView": {
+        "Label": "View Evaluation",
+        "_Description": "View AI Chat evaluation tests"
       }
     },
     "Website": {
@@ -730,7 +768,157 @@
       },
       "WebsiteManage": {
         "Label": "Manage Website",
-        "_Description": "Full website management capabilities"
+        "_Description": "Full website management"
+      }
+    },
+    "Insurance": {
+      "PolicyReissueManage": {
+        "Label": "Reissue Policies",
+        "_Description": "Reissue insurance policies"
+      },
+      "ProductView": {
+        "Label": "View Products",
+        "_Description": "View insurance products"
+      },
+      "ProductManage": {
+        "Label": "Manage Products",
+        "_Description": "Full product management"
+      },
+      "AgencyView": {
+        "Label": "View Agencies",
+        "_Description": "View insurance agencies"
+      },
+      "AgencyManage": {
+        "Label": "Manage Agencies",
+        "_Description": "Full agency management"
+      },
+      "IntegratorView": {
+        "Label": "View Integrators",
+        "_Description": "View integrators"
+      },
+      "IntegratorManage": {
+        "Label": "Manage Integrators",
+        "_Description": "Full integrator management"
+      },
+      "PortfolioPoliciesExportManage": {
+        "Label": "Export Policies",
+        "_Description": "Export portfolio policies data"
+      },
+      "PortfolioAdmissionsExportManage": {
+        "Label": "Export Admissions",
+        "_Description": "Export portfolio admissions data"
+      },
+      "PortfolioContractsExportManage": {
+        "Label": "Export Contracts",
+        "_Description": "Export portfolio contracts data"
+      },
+      "PortfolioView": {
+        "Label": "View Portfolio",
+        "_Description": "View insurance portfolio"
+      },
+      "SalesReportView": {
+        "Label": "View Sales Report",
+        "_Description": "View sales report"
+      },
+      "OsagoReportView": {
+        "Label": "View OSAGO Report",
+        "_Description": "View OSAGO report"
+      },
+      "LookupView": {
+        "Label": "View Lookups",
+        "_Description": "View insurance lookups"
+      },
+      "LookupManage": {
+        "Label": "Manage Lookups",
+        "_Description": "Manage insurance lookups"
+      },
+      "LookupOrganizationView": {
+        "Label": "View Organizations",
+        "_Description": "View organizations"
+      },
+      "LookupOrganizationManage": {
+        "Label": "Manage Organizations",
+        "_Description": "Manage organizations"
+      },
+      "LookupVehicleView": {
+        "Label": "View Vehicles",
+        "_Description": "View vehicles"
+      },
+      "LookupVehicleManage": {
+        "Label": "Manage Vehicles",
+        "_Description": "Manage vehicles"
+      },
+      "LookupPersonView": {
+        "Label": "View Persons",
+        "_Description": "View persons"
+      },
+      "LookupPersonManage": {
+        "Label": "Manage Persons",
+        "_Description": "Manage persons"
+      },
+      "LookupRealEstateView": {
+        "Label": "View Real Estate",
+        "_Description": "View real estate"
+      },
+      "LookupRealEstateManage": {
+        "Label": "Manage Real Estate",
+        "_Description": "Manage real estate"
+      },
+      "ClaimView": {
+        "Label": "View Claims",
+        "_Description": "View insurance claims"
+      },
+      "ClaimManage": {
+        "Label": "Manage Claims",
+        "_Description": "Full claims management"
+      },
+      "ClaimsReportView": {
+        "Label": "View Claims Report",
+        "_Description": "View claims report"
+      },
+      "LookupDecisionView": {
+        "Label": "View Decisions",
+        "_Description": "View claim decisions"
+      },
+      "LookupDecisionManage": {
+        "Label": "Manage Decisions",
+        "_Description": "Manage claim decisions"
+      },
+      "ReserveView": {
+        "Label": "View Reserves",
+        "_Description": "View insurance reserves"
+      }
+    },
+    "EDO": {
+      "DocumentView": {
+        "Label": "View Documents",
+        "_Description": "View EDO documents"
+      },
+      "DocumentManage": {
+        "Label": "Manage Documents",
+        "_Description": "Full document management"
+      }
+    },
+    "Custom": {
+      "DashboardView": {
+        "Label": "View Dashboard",
+        "_Description": "View EAI dashboard"
+      },
+      "LookupsView": {
+        "Label": "View Lookups",
+        "_Description": "View EAI lookups"
+      },
+      "LookupsManage": {
+        "Label": "Manage Lookups",
+        "_Description": "Manage EAI lookups"
+      },
+      "SettingsView": {
+        "Label": "View Settings",
+        "_Description": "View EAI settings"
+      },
+      "SystemView": {
+        "Label": "View System",
+        "_Description": "View system information"
       }
     }
   },
@@ -826,7 +1014,38 @@
     "payout_request": "Payout Request",
     "pipeline": "Pipeline",
     "website": "Website",
-    "session": "Sessions"
+    "session": "Sessions",
+    "bichat_playground": "Playground",
+    "bichat_logs": "Logs",
+    "bichat_config": "Configuration",
+    "bichat_eval": "Evaluation",
+    "crm_chats": "Chats",
+    "crm_policies": "Policies",
+    "insurance_product": "Products",
+    "insurance_agency": "Agencies",
+    "insurance_integrator": "Integrators",
+    "insurance_portfolio": "Portfolio",
+    "insurance_sales_report": "Sales Report",
+    "insurance_osago_report": "OSAGO Report",
+    "insurance_lookup": "Lookups",
+    "insurance_organization": "Organizations",
+    "insurance_vehicle": "Vehicles",
+    "insurance_person": "Persons",
+    "insurance_real_estate": "Real Estate",
+    "insurance_policy_reissue": "Policy Reissue",
+    "insurance_portfolio_policies_export": "Policies Export",
+    "insurance_portfolio_admissions_export": "Admissions Export",
+    "insurance_portfolio_contracts_export": "Contracts Export",
+    "claim": "Claims",
+    "claims_report": "Claims Report",
+    "claim_decision": "Claim Decisions",
+    "edo_document": "Documents",
+    "custom_dashboard": "Dashboard",
+    "custom_lookups": "Lookups",
+    "custom_settings": "Settings",
+    "logsys_system": "System",
+    "reserve": "Reserves",
+    "underwriting_lookup": "Lookups"
   },
   "Roles": {
     "Meta": {
