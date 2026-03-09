@@ -56,6 +56,56 @@ func TestExecuteReusesDatasetAcrossPanels(t *testing.T) {
 	require.Equal(t, int32(1), ds.calls.Load())
 }
 
+func TestBuildPlanStagesOnlyRequiredDatasets(t *testing.T) {
+	t.Parallel()
+
+	spec := lens.Dashboard("planned", "Planned",
+		lens.Row(
+			panel.Bar("sales", "Sales", "daily_sales").Build(),
+		),
+	).WithDatasets(
+		lens.StaticDataset("source_lookup", mustFrameSet(t, "source_lookup")),
+		lens.DatasetSpec{
+			Name:       "daily_sales",
+			Kind:       lens.DatasetKindTransform,
+			DependsOn:  []string{"raw_sales", "source_lookup"},
+			Transforms: nil,
+		},
+		lens.QueryDataset("raw_sales", "primary", "select 1"),
+		lens.StaticDataset("unused_dataset", mustFrameSet(t, "unused_dataset")),
+	)
+
+	plan, err := BuildPlan(spec)
+	require.NoError(t, err)
+	require.Len(t, plan.DatasetStages, 2)
+	require.ElementsMatch(t, []string{"raw_sales", "source_lookup"}, plan.DatasetStages[0].Datasets)
+	require.Equal(t, []string{"daily_sales"}, plan.DatasetStages[1].Datasets)
+	require.NotContains(t, plan.DatasetStages[0].Datasets, "unused_dataset")
+	require.Equal(t, []string{"sales"}, plan.Panels)
+}
+
+func TestExecuteSkipsUnusedDatasets(t *testing.T) {
+	t.Parallel()
+
+	ds := &stubDataSource{}
+	spec := lens.Dashboard("planned", "Planned",
+		lens.Row(
+			panel.Bar("sales", "Sales", "shared-data").Build(),
+		),
+	).WithDatasets(
+		lens.QueryDataset("shared-data", "primary", "select 1"),
+		lens.QueryDataset("unused-data", "primary", "select 2"),
+	)
+
+	result, err := Execute(context.Background(), spec, Runtime{
+		DataSources: map[string]datasource.DataSource{"primary": ds},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), ds.calls.Load())
+	require.Contains(t, result.Datasets, "shared-data")
+	require.NotContains(t, result.Datasets, "unused-data")
+}
+
 func TestValidateRejectsDatasetCycles(t *testing.T) {
 	t.Parallel()
 
@@ -224,24 +274,6 @@ func TestValidateAllowsUngroupedTimeSeriesPanels(t *testing.T) {
 	}
 
 	require.NoError(t, Validate(spec))
-}
-
-func TestExecuteDatasetWaiterHonorsContextCancellation(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	state := executorState{
-		results: map[string]*DatasetResult{},
-		waiters: map[string]*datasetPromise{
-			"shared": {ready: make(chan struct{})},
-		},
-	}
-
-	frames, err := state.executeDataset(ctx, "shared")
-	require.Nil(t, frames)
-	require.ErrorIs(t, err, context.Canceled)
 }
 
 func mustFrameSet(t *testing.T, name string) *frame.FrameSet {

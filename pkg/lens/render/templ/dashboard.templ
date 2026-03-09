@@ -1,8 +1,11 @@
 package templ
 
 import (
+	"strings"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	apex "github.com/iota-uz/iota-sdk/pkg/lens/render/apex"
@@ -10,8 +13,12 @@ import (
 )
 
 templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
+	{{ filters := filter.Build(spec.Variables, nil) }}
+	if result != nil {
+		{{ filters = filterModel(result) }}
+	}
 	<div class="space-y-6">
-		@FilterBar(spec, result)
+		@FilterBar(filters)
 		for _, row := range spec.Rows {
 			<div class={ "grid grid-cols-12 gap-4", row.Class }>
 				for _, panelSpec := range row.Panels {
@@ -22,60 +29,64 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 	</div>
 }
 
-templ FilterBar(spec lens.DashboardSpec, result *runtime.DashboardResult) {
-	if len(spec.Variables) == 0 {
+templ FilterBar(model filter.Model) {
+	if len(model.Inputs) == 0 {
 		{{ return }}
-	}
-	{{ values := map[string]any{} }}
-	if result != nil {
-		{{ values = result.Variables }}
 	}
 	<form class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
 		<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-			for _, variable := range spec.Variables {
+			for _, input := range model.Inputs {
 				<div class="space-y-2">
-					<label class="text-sm font-medium text-gray-700">{ variable.Label }</label>
-					switch variable.Kind {
+					<label class="text-sm font-medium text-gray-700">{ input.Label }</label>
+					switch input.Kind {
 						case lens.VariableDateRange:
-							{{ current, _ := variableValue(values, variable.Name).(lens.DateRangeValue) }}
-							<div class="grid gap-2 md:grid-cols-2">
-								<input type="date" name={ variable.Name + "_start" } value={ formatDate(current.Start) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
-								<input type="date" name={ variable.Name + "_end" } value={ formatDate(current.End) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							<div class="space-y-2" x-data={ "{ dateMode: '" + input.DateRange.Mode + "' }" }>
+								<select name={ input.Name } x-model="dateMode" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+									<option value="default">Default range</option>
+									<option value="bounded">Custom range</option>
+									if input.DateRange.AllowAllTime {
+										<option value="all">All time</option>
+									}
+								</select>
+								<div class="grid gap-2 md:grid-cols-2" x-show="dateMode === 'bounded'">
+									<input type="date" name={ input.Name + "_start" } value={ input.DateRange.Start } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+									<input type="date" name={ input.Name + "_end" } value={ input.DateRange.End } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+								</div>
 							</div>
 						case lens.VariableToggle:
 							<label class="inline-flex items-center gap-2 text-sm text-gray-600">
-								<input type="checkbox" name={ variable.Name } value="true" checked?={ variableBool(values, variable.Name) }/>
-								<span>{ variable.Description }</span>
+								<input type="checkbox" name={ input.Name } value="true" checked?={ input.Checked }/>
+								<span>{ input.Description }</span>
 							</label>
 						case lens.VariableSingleSelect:
-							if len(variable.Options) > 0 {
-								<select name={ variable.Name } class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
-									if !variable.Required {
+							if len(input.Options) > 0 {
+								<select name={ input.Name } class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+									if !input.Required {
 										<option value="">All</option>
 									}
-									for _, option := range variable.Options {
-										<option value={ option.Value } selected?={ variableString(values, variable.Name) == option.Value }>{ option.Label }</option>
+									for _, option := range input.Options {
+										<option value={ option.Value } selected?={ option.Selected }>{ option.Label }</option>
 									}
 								</select>
 							} else {
-								<input type="text" name={ variable.Name } value={ variableString(values, variable.Name) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+								<input type="text" name={ input.Name } value={ input.Value } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
 							}
 						case lens.VariableMultiSelect:
-							if len(variable.Options) > 0 {
-								<select name={ variable.Name } multiple class="min-h-32 rounded-lg border border-gray-300 px-3 py-2 text-sm">
-									for _, option := range variable.Options {
-										<option value={ option.Value } selected?={ variableMultiSelected(values, variable.Name, option.Value) }>{ option.Label }</option>
+							if len(input.Options) > 0 {
+								<select name={ input.Name } multiple class="min-h-32 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+									for _, option := range input.Options {
+										<option value={ option.Value } selected?={ option.Selected }>{ option.Label }</option>
 									}
 								</select>
 							} else {
-								<input type="text" name={ variable.Name } value={ formatVariableValue(variableValue(values, variable.Name)) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+								<input type="text" name={ input.Name } value={ strings.Join(input.Values, ",") } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
 							}
 						case lens.VariableNumber:
-							<input type="number" step="any" name={ variable.Name } value={ variableString(values, variable.Name) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							<input type="number" step="any" name={ input.Name } value={ input.Value } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
 						case lens.VariableText:
-							<input type="text" name={ variable.Name } value={ variableString(values, variable.Name) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							<input type="text" name={ input.Name } value={ input.Value } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
 						default:
-							<input type="text" name={ variable.Name } value={ formatVariableValue(variableValue(values, variable.Name)) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							<input type="text" name={ input.Name } value={ input.Value } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
 					}
 				</div>
 			}

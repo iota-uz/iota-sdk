@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 
 	templpkg "github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -90,13 +90,6 @@ func statRow(result *runtime.PanelResult) map[string]any {
 	return rows[0]
 }
 
-func formatDate(value *time.Time) string {
-	if value == nil {
-		return ""
-	}
-	return value.Format("2006-01-02")
-}
-
 func formatValue(value any, spec *format.Spec, locale, timezone string) string {
 	if spec != nil {
 		return format.Apply(spec, value, locale, timezone)
@@ -116,66 +109,11 @@ func formatValue(value any, spec *format.Spec, locale, timezone string) string {
 	}
 }
 
-func formatVariableValue(value any) string {
-	switch v := value.(type) {
-	case nil:
-		return ""
-	case []string:
-		return strings.Join(v, ",")
-	default:
-		return fmt.Sprint(v)
+func filterModel(result *runtime.DashboardResult) filter.Model {
+	if result == nil {
+		return filter.Model{}
 	}
-}
-
-func variableValue(values map[string]any, name string) any {
-	if values == nil {
-		return nil
-	}
-	return values[name]
-}
-
-func variableBool(values map[string]any, name string) bool {
-	value, ok := values[name]
-	if !ok || value == nil {
-		return false
-	}
-	switch v := value.(type) {
-	case bool:
-		return v
-	case string:
-		return v == "true" || v == "1" || v == "on"
-	default:
-		return false
-	}
-}
-
-func variableString(values map[string]any, name string) string {
-	value := variableValue(values, name)
-	if value == nil {
-		return ""
-	}
-	return fmt.Sprint(value)
-}
-
-func variableMultiSelected(values map[string]any, name, option string) bool {
-	value := variableValue(values, name)
-	switch current := value.(type) {
-	case []string:
-		for _, item := range current {
-			if item == option {
-				return true
-			}
-		}
-	case []any:
-		for _, item := range current {
-			if fmt.Sprint(item) == option {
-				return true
-			}
-		}
-	case string:
-		return current == option
-	}
-	return false
+	return result.Filters
 }
 
 func actionURL(spec *action.Spec, row map[string]any, variables map[string]any) string {

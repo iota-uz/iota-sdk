@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,40 +87,17 @@ func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 	require.Contains(t, onClick.Call, "#report")
 }
 
-func TestVariableBoolHandlesMissingAndTruthyValues(t *testing.T) {
+func TestFilterModelReturnsDashboardFilters(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		vars map[string]any
-		want bool
-	}{
-		{name: "missing_map", vars: nil, want: false},
-		{name: "string_false", vars: map[string]any{"enabled": "false"}, want: false},
-		{name: "string_true", vars: map[string]any{"enabled": "true"}, want: true},
-		{name: "bool_true", vars: map[string]any{"enabled": true}, want: true},
-	}
+	model := filterModel(&runtime.DashboardResult{
+		Filters: filter.Model{
+			Inputs: []filter.Input{{Name: "range"}},
+		},
+	})
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tc.want, variableBool(tc.vars, "enabled"))
-		})
-	}
-}
-
-func TestVariableMultiSelectedHandlesMultipleShapes(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, variableMultiSelected(map[string]any{
-		"products": []string{"osago", "travel"},
-	}, "products", "travel"))
-	require.True(t, variableMultiSelected(map[string]any{
-		"products": []any{"osago", "travel"},
-	}, "products", "osago"))
-	require.False(t, variableMultiSelected(map[string]any{
-		"products": "osago",
-	}, "products", "travel"))
+	require.Len(t, model.Inputs, 1)
+	require.Equal(t, "range", model.Inputs[0].Name)
 }
 
 func TestFormatValueReturnsEmptyStringForNil(t *testing.T) {

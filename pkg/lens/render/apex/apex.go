@@ -34,18 +34,6 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 	fr := panelResult.Frames.Primary()
 	rows := fr.Rows()
 	fields := panelSpec.Fields
-	if fields.Label == "" {
-		fields.Label = "label"
-	}
-	if fields.Value == "" {
-		fields.Value = "value"
-	}
-	if fields.Series == "" {
-		fields.Series = "series"
-	}
-	if fields.Category == "" {
-		fields.Category = "category"
-	}
 
 	switch panelSpec.Kind {
 	case panel.KindPie, panel.KindDonut, panel.KindGauge:
