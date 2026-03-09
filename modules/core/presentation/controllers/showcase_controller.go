@@ -22,14 +22,17 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type ShowcaseController struct {
 	app      application.Application
 	basePath string
-	ds       lens.DataSource
+	ds       *lenspostgres.DataSource
 }
 
 func NewShowcaseController(app application.Application) application.Controller {
@@ -219,33 +222,33 @@ func (c *ShowcaseController) Lens(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	dash := lens.NewDashboard("IOTA SDK Core Analytics",
-		lens.NewRow(
-			lens.Line("user-registrations", "User Registrations Over Time").
-				Query("SELECT DATE(created_at) as label, COUNT(*)::float as value FROM users WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label").
-				Span(6).Build(),
-			lens.Bar("user-languages", "User Interface Languages").
-				Query("SELECT ui_language as label, COUNT(*)::float as value FROM users GROUP BY ui_language ORDER BY value DESC").
-				Span(6).Build(),
+	dash := lens.Dashboard("sdk-core-analytics", "IOTA SDK Core Analytics",
+		lens.Row(
+			panel.TimeSeries("user-registrations", "User Registrations Over Time", "user-registrations").Span(6).Build(),
+			panel.Bar("user-languages", "User Interface Languages", "user-languages").Span(6).Build(),
 		),
-		lens.NewRow(
-			lens.Pie("user-types", "User Type Distribution").
-				Query("SELECT type as label, COUNT(*)::float as value FROM users GROUP BY type").
-				Legend().Span(4).Build(),
-			lens.Gauge("session-activity", "Active Sessions").
-				Query("SELECT COUNT(*)::float as value FROM sessions WHERE expires_at > NOW()").
-				Colors("#f59e0b").Span(4).Build(),
-			lens.Table("recent-users", "Recently Registered Users").
-				Query("SELECT first_name, last_name, email, ui_language, created_at FROM users ORDER BY created_at DESC LIMIT 10").
-				Span(4).Build(),
+		lens.Row(
+			panel.Pie("user-types", "User Type Distribution", "user-types").Legend().Span(4).Build(),
+			panel.Gauge("session-activity", "Active Sessions", "session-activity").Span(4).Build(),
+			panel.Table("recent-users", "Recently Registered Users", "recent-users").Span(4).Build(),
 		),
+	).WithDatasets(
+		lens.QueryDataset("user-registrations", "primary", "SELECT DATE(created_at) as label, COUNT(*)::float8 as value FROM users WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label"),
+		lens.QueryDataset("user-languages", "primary", "SELECT ui_language as label, COUNT(*)::float8 as value FROM users GROUP BY ui_language ORDER BY value DESC"),
+		lens.QueryDataset("user-types", "primary", "SELECT type as label, COUNT(*)::float8 as value FROM users GROUP BY type"),
+		lens.QueryDataset("session-activity", "primary", "SELECT COUNT(*)::float8 as value FROM sessions WHERE expires_at > NOW()"),
+		lens.QueryDataset("recent-users", "primary", "SELECT first_name, last_name, email, ui_language, created_at FROM users ORDER BY created_at DESC LIMIT 10"),
 	)
 
-	var results *lens.Results
+	var results *runtime.DashboardResult
 	if c.ds != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		results = lens.Execute(ctx, c.ds, dash)
+		results, _ = runtime.Execute(ctx, dash, runtime.Runtime{
+			DataSources: map[string]datasource.DataSource{
+				"primary": c.ds,
+			},
+		})
 	}
 
 	props := showcase.LensPageProps{
