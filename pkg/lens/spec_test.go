@@ -1,12 +1,15 @@
-package lens
+package lens_test
 
-import "testing"
+import (
+	"testing"
+
+	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
+	"github.com/stretchr/testify/require"
+)
 
 func TestStaticDatasetAllowsNilFrameSet(t *testing.T) {
 	t.Parallel()
 
-	spec := StaticDataset("empty", nil)
-	if spec.Static == nil {
-		t.Fatal("expected nil static frameset to become an empty frameset")
-	}
+	spec := lensbuild.StaticDataset("empty", nil)
+	require.NotNil(t, spec.Static, "expected nil static frameset to become an empty frameset")
 }

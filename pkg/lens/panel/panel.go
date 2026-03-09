@@ -2,6 +2,8 @@
 package panel
 
 import (
+	"strings"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
@@ -26,9 +28,27 @@ const (
 )
 
 type TableColumn struct {
-	Field     string
+	Field     FieldRef
 	Label     string
 	Formatter *format.Spec
+}
+
+type FieldRef string
+
+const (
+	DefaultLabelField    FieldRef = "label"
+	DefaultValueField    FieldRef = "value"
+	DefaultSeriesField   FieldRef = "series"
+	DefaultCategoryField FieldRef = "category"
+	DefaultIDField       FieldRef = "id"
+)
+
+func (f FieldRef) Name() string {
+	return string(f)
+}
+
+func (f FieldRef) Empty() bool {
+	return strings.TrimSpace(f.Name()) == ""
 }
 
 type Spec struct {
@@ -52,13 +72,13 @@ type Spec struct {
 }
 
 type FieldMapping struct {
-	Label     string
-	Value     string
-	Series    string
-	Category  string
-	ID        string
-	StartTime string
-	EndTime   string
+	Label     FieldRef
+	Value     FieldRef
+	Series    FieldRef
+	Category  FieldRef
+	ID        FieldRef
+	StartTime FieldRef
+	EndTime   FieldRef
 }
 
 type Plugin interface {
@@ -115,30 +135,34 @@ func newBuilder(kind Kind, id, title, dataset string) *Builder {
 			Dataset: dataset,
 			Span:    6,
 			Fields: FieldMapping{
-				Label:    "label",
-				Value:    "value",
-				Series:   "series",
-				Category: "category",
-				ID:       "id",
+				Label:    DefaultLabelField,
+				Value:    DefaultValueField,
+				Series:   DefaultSeriesField,
+				Category: DefaultCategoryField,
+				ID:       DefaultIDField,
 			},
 		},
 	}
 }
 
-func (b *Builder) Span(span int) *Builder             { b.spec.Span = span; return b }
-func (b *Builder) Height(height string) *Builder      { b.spec.Height = height; return b }
-func (b *Builder) Colors(colors ...string) *Builder   { b.spec.Colors = colors; return b }
-func (b *Builder) Legend() *Builder                   { b.spec.ShowLegend = true; return b }
-func (b *Builder) Format(spec format.Spec) *Builder   { b.spec.Formatter = &spec; return b }
-func (b *Builder) Action(spec action.Spec) *Builder   { b.spec.Action = &spec; return b }
-func (b *Builder) Description(text string) *Builder   { b.spec.Description = text; return b }
-func (b *Builder) ClassName(name string) *Builder     { b.spec.ClassName = name; return b }
-func (b *Builder) LabelField(name string) *Builder    { b.spec.Fields.Label = name; return b }
-func (b *Builder) ValueField(name string) *Builder    { b.spec.Fields.Value = name; return b }
-func (b *Builder) SeriesField(name string) *Builder   { b.spec.Fields.Series = name; return b }
-func (b *Builder) CategoryField(name string) *Builder { b.spec.Fields.Category = name; return b }
-func (b *Builder) StartField(name string) *Builder    { b.spec.Fields.StartTime = name; return b }
-func (b *Builder) EndField(name string) *Builder      { b.spec.Fields.EndTime = name; return b }
+func (b *Builder) Span(span int) *Builder           { b.spec.Span = span; return b }
+func (b *Builder) Height(height string) *Builder    { b.spec.Height = height; return b }
+func (b *Builder) Colors(colors ...string) *Builder { b.spec.Colors = colors; return b }
+func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; return b }
+func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
+func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
+func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
+func (b *Builder) ClassName(name string) *Builder   { b.spec.ClassName = name; return b }
+func (b *Builder) Fields(mapping FieldMapping) *Builder {
+	b.spec.Fields = mapping
+	return b
+}
+func (b *Builder) LabelField(name FieldRef) *Builder    { b.spec.Fields.Label = name; return b }
+func (b *Builder) ValueField(name FieldRef) *Builder    { b.spec.Fields.Value = name; return b }
+func (b *Builder) SeriesField(name FieldRef) *Builder   { b.spec.Fields.Series = name; return b }
+func (b *Builder) CategoryField(name FieldRef) *Builder { b.spec.Fields.Category = name; return b }
+func (b *Builder) StartField(name FieldRef) *Builder    { b.spec.Fields.StartTime = name; return b }
+func (b *Builder) EndField(name FieldRef) *Builder      { b.spec.Fields.EndTime = name; return b }
 func (b *Builder) Columns(columns ...TableColumn) *Builder {
 	b.spec.Columns = columns
 	return b
@@ -148,3 +172,42 @@ func (b *Builder) Transforms(specs ...transform.Spec) *Builder {
 	return b
 }
 func (b *Builder) Build() Spec { return b.spec }
+
+func Ref(name string) FieldRef {
+	return FieldRef(name)
+}
+
+// Label marks the field used for display labels in panel mappings.
+func Label(name string) FieldRef {
+	return Ref(name)
+}
+
+// Value marks the primary numeric field used for panel values.
+func Value(name string) FieldRef {
+	return Ref(name)
+}
+
+// Series marks the field used to split grouped chart series.
+func Series(name string) FieldRef {
+	return Ref(name)
+}
+
+// Category marks the field used for chart buckets or x-axis categories.
+func Category(name string) FieldRef {
+	return Ref(name)
+}
+
+// ID marks an identifier field used in actions or row navigation.
+func ID(name string) FieldRef {
+	return Ref(name)
+}
+
+// StartTime marks the field used for interval start timestamps.
+func StartTime(name string) FieldRef {
+	return Ref(name)
+}
+
+// EndTime marks the field used for interval end timestamps.
+func EndTime(name string) FieldRef {
+	return Ref(name)
+}

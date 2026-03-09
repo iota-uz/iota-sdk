@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,10 +16,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"golang.org/x/sync/errgroup"
 )
 
 type DatasetResult struct {
@@ -40,12 +43,24 @@ type PanelResult struct {
 type DashboardResult struct {
 	Spec      lens.DashboardSpec
 	Variables map[string]any
+	Filters   filter.Model
+	Plan      ExecutionPlan
 	Datasets  map[string]*DatasetResult
 	Panels    map[string]*PanelResult
 	Locale    string
 	Timezone  string
 	StartedAt time.Time
 	Duration  time.Duration
+}
+
+type ExecutionPlan struct {
+	DatasetStages []ExecutionStage
+	Panels        []string
+}
+
+type ExecutionStage struct {
+	Level    int
+	Datasets []string
 }
 
 type Runtime struct {
@@ -100,10 +115,16 @@ func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*Dashboa
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
+	internalPlan, err := compileExecutionPlan(spec)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 
 	result := &DashboardResult{
 		Spec:      spec,
 		Variables: variables,
+		Filters:   filter.Build(spec.Variables, variables),
+		Plan:      internalPlan.view,
 		Datasets:  make(map[string]*DatasetResult, len(spec.Datasets)),
 		Panels:    make(map[string]*PanelResult),
 		Locale:    rt.Locale,
@@ -111,20 +132,17 @@ func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*Dashboa
 		StartedAt: startedAt,
 	}
 
-	state := executorState{
+	state := plannedExecutor{
 		spec:      spec,
 		runtime:   rt,
 		variables: variables,
-		results:   result.Datasets,
-		waiters:   make(map[string]*datasetPromise),
 	}
 
-	for _, row := range spec.Rows {
-		for _, panelSpec := range row.Panels {
-			if err := state.executePanel(ctx, panelSpec, result.Panels); err != nil {
-				return nil, serrors.E(op, err)
-			}
-		}
+	if err := state.executeDatasets(ctx, internalPlan.datasetStages, result.Datasets); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if err := state.executePanels(ctx, internalPlan.panels, result.Datasets, result.Panels); err != nil {
+		return nil, serrors.E(op, err)
 	}
 	result.Duration = time.Since(startedAt)
 	return result, nil
@@ -134,132 +152,199 @@ func Run(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardRe
 	return Execute(ctx, spec, rt)
 }
 
-type executorState struct {
+type plannedExecutor struct {
 	spec      lens.DashboardSpec
 	runtime   Runtime
 	variables map[string]any
-	results   map[string]*DatasetResult
-	waiters   map[string]*datasetPromise
-	mu        sync.Mutex
 }
 
-type datasetPromise struct {
-	ready chan struct{}
+type executionPlan struct {
+	view          ExecutionPlan
+	datasetStages [][]lens.DatasetSpec
+	panels        []panel.Spec
 }
 
-func (s *executorState) executePanel(ctx context.Context, panelSpec panel.Spec, results map[string]*PanelResult) error {
-	start := time.Now()
-	if panelSpec.Kind == panel.KindTabs || panelSpec.Kind == panel.KindGrid || panelSpec.Kind == panel.KindSplit || panelSpec.Kind == panel.KindRepeat {
-		for _, child := range panelSpec.Children {
-			if err := s.executePanel(ctx, child, results); err != nil {
-				return err
-			}
-		}
-		results[panelSpec.ID] = &PanelResult{
-			Panel:     panelSpec,
-			Duration:  time.Since(start),
-			Locale:    s.runtime.Locale,
-			Timezone:  s.runtime.Timezone,
-			Variables: s.variables,
-		}
-		return nil
+func BuildPlan(spec lens.DashboardSpec) (ExecutionPlan, error) {
+	op := serrors.Op("lens/runtime.BuildPlan")
+	if err := Validate(spec); err != nil {
+		return ExecutionPlan{}, serrors.E(op, err)
 	}
-	frames, err := s.executeDataset(ctx, panelSpec.Dataset)
-	if err == nil && len(panelSpec.Transforms) > 0 {
-		frames, err = transform.Apply(frames, map[string]*frame.FrameSet{panelSpec.Dataset: frames}, panelSpec.Transforms)
+	plan, err := compileExecutionPlan(spec)
+	if err != nil {
+		return ExecutionPlan{}, serrors.E(op, err)
 	}
-	results[panelSpec.ID] = &PanelResult{
-		Panel:     panelSpec,
-		Frames:    frames,
-		Duration:  time.Since(start),
-		Error:     err,
-		Locale:    s.runtime.Locale,
-		Timezone:  s.runtime.Timezone,
-		Variables: s.variables,
+	return plan.view, nil
+}
+
+func compileExecutionPlan(spec lens.DashboardSpec) (executionPlan, error) {
+	datasets := indexDatasets(spec.Datasets)
+	required := requiredDatasetNames(spec)
+	stageMap := make(map[int][]string)
+	depthMemo := make(map[string]int, len(required))
+	visiting := make(map[string]bool, len(required))
+	for _, name := range required {
+		depth, err := datasetDepth(name, datasets, depthMemo, visiting)
+		if err != nil {
+			return executionPlan{}, err
+		}
+		stageMap[depth] = append(stageMap[depth], name)
+	}
+
+	depths := make([]int, 0, len(stageMap))
+	for depth := range stageMap {
+		depths = append(depths, depth)
+	}
+	slices.Sort(depths)
+
+	view := ExecutionPlan{
+		DatasetStages: make([]ExecutionStage, 0, len(depths)),
+		Panels:        make([]string, 0),
+	}
+	internal := executionPlan{
+		view:          view,
+		datasetStages: make([][]lens.DatasetSpec, 0, len(depths)),
+		panels:        collectPanels(spec.Rows),
+	}
+	for _, panelSpec := range internal.panels {
+		internal.view.Panels = append(internal.view.Panels, panelSpec.ID)
+	}
+	for _, depth := range depths {
+		names := append([]string(nil), stageMap[depth]...)
+		slices.Sort(names)
+		stage := ExecutionStage{Level: depth, Datasets: append([]string(nil), names...)}
+		internal.view.DatasetStages = append(internal.view.DatasetStages, stage)
+
+		specs := make([]lens.DatasetSpec, 0, len(names))
+		for _, name := range names {
+			specs = append(specs, datasets[name])
+		}
+		internal.datasetStages = append(internal.datasetStages, specs)
+	}
+	return internal, nil
+}
+
+func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.DatasetSpec, results map[string]*DatasetResult) error {
+	for _, stage := range stages {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		stageResults := make(map[string]*DatasetResult, len(stage))
+		var mu sync.Mutex
+		group, groupCtx := errgroup.WithContext(ctx)
+		for _, datasetSpec := range stage {
+			group.Go(func() error {
+				start := time.Now()
+				frames, err := s.executeDatasetSpec(groupCtx, datasetSpec, results)
+				mu.Lock()
+				stageResults[datasetSpec.Name] = &DatasetResult{
+					Frames:   frames,
+					Duration: time.Since(start),
+					Error:    err,
+				}
+				mu.Unlock()
+				if err := groupCtx.Err(); err != nil {
+					return err
+				}
+				return nil
+			})
+		}
+		if err := group.Wait(); err != nil {
+			return err
+		}
+		for name, result := range stageResults {
+			results[name] = result
+		}
 	}
 	return nil
 }
 
-func (s *executorState) executeDataset(ctx context.Context, name string) (*frame.FrameSet, error) {
-	s.mu.Lock()
-	if existing, ok := s.results[name]; ok {
-		s.mu.Unlock()
-		return existing.Frames, existing.Error
-	}
-	if waiter, ok := s.waiters[name]; ok {
-		s.mu.Unlock()
-		select {
-		case <-waiter.ready:
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		existing := s.results[name]
-		return existing.Frames, existing.Error
-	}
-	waiter := &datasetPromise{ready: make(chan struct{})}
-	s.waiters[name] = waiter
-	s.mu.Unlock()
+func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec, datasets map[string]*DatasetResult, results map[string]*PanelResult) error {
+	var mu sync.Mutex
+	group, groupCtx := errgroup.WithContext(ctx)
+	for _, panelSpec := range panels {
+		group.Go(func() error {
+			start := time.Now()
+			panelResult := &PanelResult{
+				Panel:     panelSpec,
+				Duration:  time.Since(start),
+				Locale:    s.runtime.Locale,
+				Timezone:  s.runtime.Timezone,
+				Variables: s.variables,
+			}
+			if isCompositePanel(panelSpec.Kind) {
+				mu.Lock()
+				results[panelSpec.ID] = panelResult
+				mu.Unlock()
+				return nil
+			}
 
-	defer func() {
-		s.mu.Lock()
-		close(waiter.ready)
-		delete(s.waiters, name)
-		s.mu.Unlock()
-	}()
-
-	spec, ok := s.findDataset(name)
-	if !ok {
-		err := fmt.Errorf("dataset %q not found", name)
-		s.mu.Lock()
-		s.results[name] = &DatasetResult{Error: err}
-		s.mu.Unlock()
-		return nil, err
+			datasetResult, ok := datasets[panelSpec.Dataset]
+			if !ok {
+				panelResult.Error = fmt.Errorf("dataset %q not found", panelSpec.Dataset)
+			} else if datasetResult.Error != nil {
+				panelResult.Error = datasetResult.Error
+			} else {
+				panelResult.Frames = datasetResult.Frames
+				if len(panelSpec.Transforms) > 0 {
+					panelResult.Frames, panelResult.Error = transform.Apply(
+						datasetResult.Frames,
+						map[string]*frame.FrameSet{panelSpec.Dataset: datasetResult.Frames},
+						panelSpec.Transforms,
+					)
+				}
+				if panelResult.Error == nil {
+					panelResult.Error = validatePanelFrames(panelSpec, panelResult.Frames)
+				}
+			}
+			panelResult.Duration = time.Since(start)
+			mu.Lock()
+			results[panelSpec.ID] = panelResult
+			mu.Unlock()
+			if err := groupCtx.Err(); err != nil {
+				return err
+			}
+			return nil
+		})
 	}
+	return group.Wait()
+}
 
-	start := time.Now()
-	var (
-		frames *frame.FrameSet
-		err    error
-	)
+func (s *plannedExecutor) executeDatasetSpec(ctx context.Context, spec lens.DatasetSpec, results map[string]*DatasetResult) (*frame.FrameSet, error) {
 	switch spec.Kind {
 	case lens.DatasetKindStatic:
 		if spec.Static == nil {
-			err = fmt.Errorf("dataset %q is missing static frames", spec.Name)
-			break
+			return nil, fmt.Errorf("dataset %q is missing static frames", spec.Name)
 		}
-		frames = spec.Static.Clone()
+		frames := spec.Static.Clone()
+		if len(spec.Transforms) == 0 {
+			return frames, nil
+		}
+		deps, err := resolveDependencyFrames(spec.Name, spec.DependsOn, results)
+		if err != nil {
+			return nil, err
+		}
+		return transform.Apply(frames, deps, spec.Transforms)
 	case lens.DatasetKindQuery:
-		frames, err = s.runQueryDataset(ctx, spec)
+		frames, err := s.runQueryDataset(ctx, spec)
+		if err != nil {
+			return nil, err
+		}
+		if len(spec.Transforms) == 0 {
+			return frames, nil
+		}
+		deps, depErr := resolveDependencyFrames(spec.Name, spec.DependsOn, results)
+		if depErr != nil {
+			return nil, depErr
+		}
+		return transform.Apply(frames, deps, spec.Transforms)
 	case lens.DatasetKindTransform, lens.DatasetKindJoin, lens.DatasetKindUnion, lens.DatasetKindFormula:
-		frames, err = s.runDerivedDataset(ctx, spec)
+		return s.runDerivedDataset(spec, results)
 	default:
-		err = fmt.Errorf("unsupported dataset kind %q", spec.Kind)
+		return nil, fmt.Errorf("unsupported dataset kind %q", spec.Kind)
 	}
-	if err == nil && len(spec.Transforms) > 0 && (spec.Kind == lens.DatasetKindStatic || spec.Kind == lens.DatasetKindQuery) {
-		deps := make(map[string]*frame.FrameSet, len(spec.DependsOn))
-		for _, dep := range spec.DependsOn {
-			depFrames, depErr := s.executeDataset(ctx, dep)
-			if depErr != nil {
-				err = fmt.Errorf("dataset %q dependency %q failed: %w", spec.Name, dep, depErr)
-				break
-			}
-			if depFrames != nil {
-				deps[dep] = depFrames
-			}
-		}
-		if err == nil {
-			frames, err = transform.Apply(frames, deps, spec.Transforms)
-		}
-	}
-	s.mu.Lock()
-	s.results[name] = &DatasetResult{Frames: frames, Duration: time.Since(start), Error: err}
-	s.mu.Unlock()
-	return frames, err
 }
 
-func (s *executorState) runQueryDataset(ctx context.Context, spec lens.DatasetSpec) (*frame.FrameSet, error) {
+func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.DatasetSpec) (*frame.FrameSet, error) {
 	ds, ok := s.runtime.DataSources[spec.Source]
 	if !ok {
 		return nil, fmt.Errorf("datasource %q not configured", spec.Source)
@@ -285,32 +370,129 @@ func (s *executorState) runQueryDataset(ctx context.Context, spec lens.DatasetSp
 	return frames, nil
 }
 
-func (s *executorState) runDerivedDataset(ctx context.Context, spec lens.DatasetSpec) (*frame.FrameSet, error) {
+func (s *plannedExecutor) runDerivedDataset(spec lens.DatasetSpec, results map[string]*DatasetResult) (*frame.FrameSet, error) {
 	if len(spec.DependsOn) == 0 {
 		return nil, fmt.Errorf("dataset %q has no dependencies", spec.Name)
 	}
-	base, err := s.executeDataset(ctx, spec.DependsOn[0])
+	baseResult, ok := results[spec.DependsOn[0]]
+	if !ok {
+		return nil, fmt.Errorf("dataset %q dependency %q not found", spec.Name, spec.DependsOn[0])
+	}
+	if baseResult.Error != nil {
+		return nil, fmt.Errorf("dataset %q dependency %q failed: %w", spec.Name, spec.DependsOn[0], baseResult.Error)
+	}
+	deps, err := resolveDependencyFrames(spec.Name, spec.DependsOn, results)
 	if err != nil {
 		return nil, err
 	}
-	deps := make(map[string]*frame.FrameSet, len(spec.DependsOn))
-	for _, dep := range spec.DependsOn {
-		frames, depErr := s.executeDataset(ctx, dep)
-		if depErr != nil {
-			return nil, depErr
-		}
-		deps[dep] = frames
-	}
-	return transform.Apply(base, deps, spec.Transforms)
+	return transform.Apply(baseResult.Frames, deps, spec.Transforms)
 }
 
-func (s *executorState) findDataset(name string) (lens.DatasetSpec, bool) {
-	for _, dataset := range s.spec.Datasets {
-		if dataset.Name == name {
-			return dataset, true
+func indexDatasets(specs []lens.DatasetSpec) map[string]lens.DatasetSpec {
+	datasets := make(map[string]lens.DatasetSpec, len(specs))
+	for _, dataset := range specs {
+		datasets[dataset.Name] = dataset
+	}
+	return datasets
+}
+
+func requiredDatasetNames(spec lens.DashboardSpec) []string {
+	datasets := indexDatasets(spec.Datasets)
+	seen := make(map[string]struct{})
+	for _, panelSpec := range collectPanels(spec.Rows) {
+		if isCompositePanel(panelSpec.Kind) || strings.TrimSpace(panelSpec.Dataset) == "" {
+			continue
+		}
+		markRequiredDataset(panelSpec.Dataset, datasets, seen)
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	return names
+}
+
+func markRequiredDataset(name string, datasets map[string]lens.DatasetSpec, seen map[string]struct{}) {
+	if name == "" {
+		return
+	}
+	if _, ok := seen[name]; ok {
+		return
+	}
+	seen[name] = struct{}{}
+	spec, ok := datasets[name]
+	if !ok {
+		return
+	}
+	for _, dep := range spec.DependsOn {
+		markRequiredDataset(dep, datasets, seen)
+	}
+}
+
+func datasetDepth(name string, datasets map[string]lens.DatasetSpec, memo map[string]int, visiting map[string]bool) (int, error) {
+	if depth, ok := memo[name]; ok {
+		return depth, nil
+	}
+	if visiting[name] {
+		return 0, fmt.Errorf("dataset cycle detected at %s", name)
+	}
+	spec, ok := datasets[name]
+	if !ok {
+		return 0, fmt.Errorf("dataset %q not found", name)
+	}
+	visiting[name] = true
+	defer delete(visiting, name)
+	maxDepth := 0
+	for _, dep := range spec.DependsOn {
+		depth, err := datasetDepth(dep, datasets, memo, visiting)
+		if err != nil {
+			return 0, err
+		}
+		if depth+1 > maxDepth {
+			maxDepth = depth + 1
 		}
 	}
-	return lens.DatasetSpec{}, false
+	memo[name] = maxDepth
+	return maxDepth, nil
+}
+
+func collectPanels(rows []lens.RowSpec) []panel.Spec {
+	panels := make([]panel.Spec, 0)
+	for _, row := range rows {
+		for _, panelSpec := range row.Panels {
+			panels = append(panels, flattenPanel(panelSpec)...)
+		}
+	}
+	return panels
+}
+
+func flattenPanel(spec panel.Spec) []panel.Spec {
+	panels := []panel.Spec{spec}
+	for _, child := range spec.Children {
+		panels = append(panels, flattenPanel(child)...)
+	}
+	return panels
+}
+
+func isCompositePanel(kind panel.Kind) bool {
+	return kind == panel.KindTabs || kind == panel.KindGrid || kind == panel.KindSplit || kind == panel.KindRepeat
+}
+
+func resolveDependencyFrames(name string, dependencies []string, results map[string]*DatasetResult) (map[string]*frame.FrameSet, error) {
+	deps := make(map[string]*frame.FrameSet, len(dependencies))
+	for _, dep := range dependencies {
+		result, ok := results[dep]
+		if !ok {
+			return nil, fmt.Errorf("dataset %q dependency %q not found", name, dep)
+		}
+		if result.Error != nil {
+			return nil, fmt.Errorf("dataset %q dependency %q failed: %w", name, dep, result.Error)
+		}
+		if result.Frames != nil {
+			deps[dep] = result.Frames
+		}
+	}
+	return deps, nil
 }
 
 func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, error) {
@@ -343,7 +525,7 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 			}
 		case lens.VariableMultiSelect:
 			if raw := rt.Request[spec.Name]; len(raw) > 0 {
-				values[spec.Name] = append([]string(nil), raw...)
+				values[spec.Name] = splitMultiSelectValues(raw)
 			} else {
 				values[spec.Name] = spec.Default
 			}
@@ -356,6 +538,23 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 		}
 	}
 	return values, nil
+}
+
+func splitMultiSelectValues(raw []string) []string {
+	values := make([]string, 0, len(raw))
+	for _, item := range raw {
+		for _, candidate := range strings.Split(item, ",") {
+			trimmed := strings.TrimSpace(candidate)
+			if trimmed == "" {
+				continue
+			}
+			values = append(values, trimmed)
+		}
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	return values
 }
 
 func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeValue {
@@ -527,21 +726,21 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	if _, ok := datasets[spec.Dataset]; !ok {
 		return fmt.Errorf("panel %s references missing dataset %s", spec.ID, spec.Dataset)
 	}
-	if spec.Kind != panel.KindTable && strings.TrimSpace(spec.Fields.Value) == "" {
+	if spec.Kind != panel.KindTable && spec.Fields.Value.Empty() {
 		return fmt.Errorf("panel %s is missing value field", spec.ID)
 	}
 	switch spec.Kind {
 	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		// These panel kinds do not require label/category validation here.
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
-		if strings.TrimSpace(spec.Fields.Label) == "" && strings.TrimSpace(spec.Fields.Category) == "" {
+		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
 			return fmt.Errorf("panel %s requires label or category field", spec.ID)
 		}
 	case panel.KindStackedBar, panel.KindTimeSeries:
-		if strings.TrimSpace(spec.Fields.Category) == "" {
+		if spec.Fields.Category.Empty() {
 			return fmt.Errorf("panel %s requires category field", spec.ID)
 		}
-		if spec.Kind == panel.KindStackedBar && strings.TrimSpace(spec.Fields.Series) == "" {
+		if spec.Kind == panel.KindStackedBar && spec.Fields.Series.Empty() {
 			return fmt.Errorf("panel %s requires series field", spec.ID)
 		}
 	}
@@ -572,6 +771,78 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		}
 	}
 	return nil
+}
+
+func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
+	if frames == nil || frames.Primary() == nil {
+		return nil
+	}
+	primary := frames.Primary()
+	required := requiredPanelFields(spec)
+	for _, field := range required {
+		if field.Empty() {
+			continue
+		}
+		if _, ok := primary.Field(field.Name()); !ok {
+			return fmt.Errorf("panel %s is missing field %q in dataset %s", spec.ID, field.Name(), spec.Dataset)
+		}
+	}
+	if spec.Kind == panel.KindTable {
+		for _, column := range spec.Columns {
+			if column.Field.Empty() {
+				return fmt.Errorf("panel %s has table column without field reference", spec.ID)
+			}
+			if _, ok := primary.Field(column.Field.Name()); !ok {
+				return fmt.Errorf("panel %s is missing table column field %q in dataset %s", spec.ID, column.Field.Name(), spec.Dataset)
+			}
+		}
+	}
+	if spec.Action != nil {
+		for _, param := range spec.Action.Params {
+			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, param.Source); err != nil {
+				return err
+			}
+		}
+		for _, source := range spec.Action.Payload {
+			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, source); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func requiredPanelFields(spec panel.Spec) []panel.FieldRef {
+	switch spec.Kind {
+	case panel.KindStat:
+		return []panel.FieldRef{spec.Fields.Value}
+	case panel.KindTimeSeries:
+		return []panel.FieldRef{spec.Fields.Category, spec.Fields.Value}
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+		fields := []panel.FieldRef{spec.Fields.Value}
+		if !spec.Fields.Label.Empty() {
+			fields = append(fields, spec.Fields.Label)
+		}
+		if !spec.Fields.Category.Empty() {
+			fields = append(fields, spec.Fields.Category)
+		}
+		return fields
+	case panel.KindStackedBar:
+		return []panel.FieldRef{spec.Fields.Category, spec.Fields.Series, spec.Fields.Value}
+	case panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+		return nil
+	}
+	return nil
+}
+
+func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, source action.ValueSource) error {
+	if source.Kind != action.SourceField {
+		return nil
+	}
+	if _, ok := primary.Field(source.Name); ok {
+		return nil
+	}
+	return fmt.Errorf("panel %s action references missing field %q in dataset %s", panelID, source.Name, dataset)
 }
 
 func validateValueSource(panelID, name string, source action.ValueSource) error {

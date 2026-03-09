@@ -34,26 +34,14 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 	fr := panelResult.Frames.Primary()
 	rows := fr.Rows()
 	fields := panelSpec.Fields
-	if fields.Label == "" {
-		fields.Label = "label"
-	}
-	if fields.Value == "" {
-		fields.Value = "value"
-	}
-	if fields.Series == "" {
-		fields.Series = "series"
-	}
-	if fields.Category == "" {
-		fields.Category = "category"
-	}
 
 	switch panelSpec.Kind {
 	case panel.KindPie, panel.KindDonut, panel.KindGauge:
 		labels := make([]string, 0, len(rows))
 		values := make([]any, 0, len(rows))
 		for _, row := range rows {
-			labels = append(labels, fmt.Sprint(row[fields.Label]))
-			values = append(values, numericValue(row[fields.Value]))
+			labels = append(labels, displayValue(firstNonEmpty(row[fields.Label.Name()], row[fields.Category.Name()])))
+			values = append(values, numericValue(row[fields.Value.Name()]))
 		}
 		options.Labels = labels
 		options.Series = values
@@ -76,7 +64,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 			}
 		}
 	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-		if hasSeries(rows, fields.Series) {
+		if hasSeries(rows, fields.Series.Name()) {
 			categories, series := groupedSeries(rows, fields)
 			options.Series = series
 			options.XAxis = charts.XAxisConfig{Categories: categories}
@@ -84,8 +72,8 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 			categories := make([]string, 0, len(rows))
 			values := make([]any, 0, len(rows))
 			for _, row := range rows {
-				categories = append(categories, displayValue(row[fields.Label]))
-				values = append(values, numericValue(row[fields.Value]))
+				categories = append(categories, displayValue(firstNonEmpty(row[fields.Label.Name()], row[fields.Category.Name()])))
+				values = append(values, numericValue(row[fields.Value.Name()]))
 			}
 			options.Series = []charts.Series{{Name: panelSpec.Title, Data: values}}
 			options.XAxis = charts.XAxisConfig{Categories: categories}
@@ -168,7 +156,7 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		let nextURL = %s;
 		const payload = {};
 		const params = new URLSearchParams();
-	`, rowsJSON, variablesJSON, fields.Category, fields.Label, fields.StartTime, fields.Series, urlJSON)
+	`, rowsJSON, variablesJSON, fields.Category.Name(), fields.Label.Name(), fields.StartTime.Name(), fields.Series.Name(), urlJSON)
 	for idx, param := range spec.Params {
 		expr := actionValueJS(param.Source, fields)
 		js += fmt.Sprintf("const paramValue%d = %s;\nif (paramValue%d !== undefined) { params.append(%q, paramValue%d); payload[%q] = paramValue%d; }\n", idx, expr, idx, param.Name, idx, param.Name, idx)
@@ -205,9 +193,9 @@ func actionValueJS(source action.ValueSource, fields panel.FieldMapping) string 
 func pointValueJS(name string, fields panel.FieldMapping) string {
 	switch name {
 	case "label":
-		return fmt.Sprintf("row[%q] || row[%q] || categoryName", fields.Label, fields.Category)
+		return fmt.Sprintf("row[%q] || row[%q] || categoryName", fields.Label.Name(), fields.Category.Name())
 	case "value":
-		return fmt.Sprintf("row[%q]", fields.Value)
+		return fmt.Sprintf("row[%q]", fields.Value.Name())
 	case "series":
 		return "seriesName"
 	case "category":
@@ -305,8 +293,8 @@ func groupedSeries(rows []map[string]any, fields panel.FieldMapping) ([]string, 
 	seriesSeen := map[string]bool{}
 	index := map[string]map[string]float64{}
 	for _, row := range rows {
-		category := displayValue(firstNonEmpty(row[fields.Category], row[fields.Label]))
-		series := displayValue(row[fields.Series])
+		category := displayValue(firstNonEmpty(row[fields.Category.Name()], row[fields.Label.Name()]))
+		series := displayValue(row[fields.Series.Name()])
 		if !categorySeen[category] {
 			categorySeen[category] = true
 			categoryOrder = append(categoryOrder, category)
@@ -318,7 +306,7 @@ func groupedSeries(rows []map[string]any, fields panel.FieldMapping) ([]string, 
 		if _, ok := index[series]; !ok {
 			index[series] = make(map[string]float64)
 		}
-		index[series][category] = numericValue(row[fields.Value])
+		index[series][category] = numericValue(row[fields.Value.Name()])
 	}
 	series := make([]charts.Series, 0, len(seriesOrder))
 	for _, name := range seriesOrder {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -46,6 +47,7 @@ type DataSource struct {
 	pool           *pgxpool.Pool
 	timeout        time.Duration
 	requiredParams []string
+	txMu           sync.Mutex
 }
 
 func New(cfg Config) (*DataSource, error) {
@@ -107,10 +109,17 @@ func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*fra
 	}
 
 	var executor queryer
+	useTx := false
 	if tx, err := composables.UseTx(queryCtx); err == nil {
 		executor = tx
+		useTx = true
 	} else {
 		executor = d.pool
+	}
+
+	if useTx {
+		d.txMu.Lock()
+		defer d.txMu.Unlock()
 	}
 
 	rows, err := executor.Query(queryCtx, applyMaxRows(req.Text, req.MaxRows), args)

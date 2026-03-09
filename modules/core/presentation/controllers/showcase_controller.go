@@ -23,6 +23,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
@@ -225,17 +226,17 @@ func (c *ShowcaseController) Lens(
 	logger *logrus.Entry,
 ) {
 	params := tenantParams(r)
-	dash := lens.Dashboard("sdk-core-analytics", "IOTA SDK Core Analytics",
-		lens.Row(
+	dash := lensbuild.Dashboard("sdk-core-analytics", "IOTA SDK Core Analytics",
+		lensbuild.Row(
 			panel.TimeSeries("user-registrations", "User Registrations Over Time", "user-registrations").Span(6).Build(),
 			panel.Bar("user-languages", "User Interface Languages", "user-languages").Span(6).Build(),
 		),
-		lens.Row(
+		lensbuild.Row(
 			panel.Pie("user-types", "User Type Distribution", "user-types").Legend().Span(4).Build(),
 			panel.Gauge("session-activity", "Active Sessions", "session-activity").Span(4).Build(),
 			panel.Table("recent-users", "Recently Registered Users", "recent-users").Span(4).Build(),
 		),
-	).WithDatasets(
+	).Datasets(
 		queryDatasetWithParams(
 			"user-registrations",
 			"SELECT DATE(created_at) as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id AND created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label",
@@ -261,7 +262,7 @@ func (c *ShowcaseController) Lens(
 			"SELECT first_name, last_name, email, ui_language, created_at FROM users WHERE tenant_id = @tenant_id ORDER BY created_at DESC LIMIT 10",
 			params,
 		),
-	)
+	).Build()
 
 	var results *runtime.DashboardResult
 	if params == nil {
@@ -300,7 +301,7 @@ func tenantParams(r *http.Request) map[string]lens.ParamValue {
 }
 
 func queryDatasetWithParams(name, text string, params map[string]lens.ParamValue) lens.DatasetSpec {
-	spec := lens.QueryDataset(name, "primary", text)
+	spec := lensbuild.QueryDataset(name, "primary", text)
 	if spec.Query != nil {
 		spec.Query.Params = params
 	}
