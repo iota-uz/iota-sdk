@@ -88,6 +88,65 @@ func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 	require.Contains(t, onClick.Call, "#report")
 }
 
+func TestRowActionOnClick(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		spec      *action.Spec
+		row       map[string]any
+		variables map[string]any
+		assert    func(t *testing.T, script string)
+	}{
+		{
+			name: "returns empty script for nil action",
+			assert: func(t *testing.T, script string) {
+				t.Helper()
+				require.Empty(t, script)
+			},
+		},
+		{
+			name: "builds navigate click handler",
+			spec: &action.Spec{
+				Kind: action.KindNavigate,
+				URL:  "/contracts",
+				Params: []action.Param{
+					action.FieldParam("product", "product_id"),
+				},
+			},
+			row: map[string]any{"product_id": "osago"},
+			assert: func(t *testing.T, script string) {
+				t.Helper()
+				require.Contains(t, script, "window.location.href")
+				require.Contains(t, script, "/contracts?product=osago")
+			},
+		},
+		{
+			name: "reuses htmx click handler",
+			spec: &action.Spec{
+				Kind:   action.KindHtmxSwap,
+				URL:    "/contracts",
+				Target: "#report",
+				Params: []action.Param{
+					action.LiteralParam("scope", "daily"),
+				},
+			},
+			assert: func(t *testing.T, script string) {
+				t.Helper()
+				require.Contains(t, script, "htmx.ajax")
+				require.Contains(t, script, "#report")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			script := rowActionOnClick(tt.spec, tt.row, tt.variables)
+			tt.assert(t, script.Call)
+		})
+	}
+}
+
 func TestFilterModel_Scenarios(t *testing.T) {
 	t.Parallel()
 

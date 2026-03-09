@@ -2,7 +2,6 @@
 package apex
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -133,7 +133,10 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 
 	switch panelSpec.Kind {
 	case panel.KindPie, panel.KindDonut, panel.KindGauge:
-		options.Grid = &charts.GridConfig{BorderColor: "transparent"}
+		if options.Grid == nil {
+			options.Grid = &charts.GridConfig{}
+		}
+		options.Grid.BorderColor = "transparent"
 		options.XAxis.Labels = nil
 		options.XAxis.AxisBorder = nil
 		options.XAxis.AxisTicks = nil
@@ -200,26 +203,35 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 }
 
 func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, variables map[string]any) templ.JSExpression {
-	rowsJSON := rowsToJSON(fr.Rows())
-	urlJSON := fmt.Sprintf("%q", spec.URL)
-	variablesJSON := rowsToJSON([]map[string]any{{"variables": variables}})
 	method := spec.Method
 	if method == "" {
 		method = "GET"
 	}
+	configJS := js.MustToJS(chartActionConfig{
+		Rows:           fr.Rows(),
+		Variables:      variables,
+		URL:            spec.URL,
+		Method:         method,
+		Target:         spec.Target,
+		Event:          spec.Event,
+		CategoryField:  fields.Category.Name(),
+		LabelField:     fields.Label.Name(),
+		StartTimeField: fields.StartTime.Name(),
+		SeriesField:    fields.Series.Name(),
+	})
 	var actionJS string
 	switch spec.Kind {
 	case action.KindNavigate:
 		actionJS = "window.location.href = nextURL;"
 	case action.KindHtmxSwap:
-		target := spec.Target
-		actionJS = fmt.Sprintf("htmx.ajax(%q, nextURL, {target: %q, swap: 'innerHTML'});", method, target)
+		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {target: cfg.target, swap: 'innerHTML'});"
 	case action.KindEmitEvent:
-		actionJS = fmt.Sprintf("document.dispatchEvent(new CustomEvent(%q, {detail: payload}));", spec.Event)
+		actionJS = "document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));"
 	}
 	js := fmt.Sprintf(`function(event, chartContext, opts) {
-		const rows = %s;
-		const variables = ((%s)[0] || {}).variables || {};
+		const cfg = %s;
+		const rows = cfg.rows || [];
+		const variables = cfg.variables || {};
 		const config = chartContext.w.config;
 		const categories = (config.xaxis && config.xaxis.categories) ? config.xaxis.categories : [];
 		const seriesName = config.series && config.series[opts.seriesIndex] ? config.series[opts.seriesIndex].name : '';
@@ -246,17 +258,17 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		};
 		let row = rows[opts.dataPointIndex] || {};
 		const groupedMatch = rows.find(function(item) {
-			const categoryValue = item[%q] || item[%q] || item[%q];
-			const seriesValue = item[%q] || '';
+			const categoryValue = item[cfg.categoryField] || item[cfg.labelField] || item[cfg.startTimeField];
+			const seriesValue = item[cfg.seriesField] || '';
 			return normalizeCategoryValue(categoryValue) === normalizeCategoryValue(categoryName) && String(seriesValue) === String(seriesName);
 		});
 		if (groupedMatch) {
 			row = groupedMatch;
 		}
-		let nextURL = %s;
+		let nextURL = cfg.url;
 		const payload = {};
 		const params = new URLSearchParams();
-	`, rowsJSON, variablesJSON, fields.Category.Name(), fields.Label.Name(), fields.StartTime.Name(), fields.Series.Name(), urlJSON)
+	`, configJS)
 	for idx, param := range spec.Params {
 		expr := actionValueJS(param.Source, fields)
 		js += fmt.Sprintf("const paramValue%d = %s;\nif (paramValue%d !== undefined) { params.append(%q, paramValue%d); payload[%q] = paramValue%d; }\n", idx, expr, idx, param.Name, idx, param.Name, idx)
@@ -284,7 +296,7 @@ func actionValueJS(source action.ValueSource, fields panel.FieldMapping) string 
 	case action.SourceVariable:
 		return fmt.Sprintf("resolveValue(variables[%q], %s)", source.Name, jsFallbackLiteral(source.Fallback))
 	case action.SourceLiteral:
-		return jsLiteral(source.Value)
+		return js.MustToJS(source.Value)
 	default:
 		return "undefined"
 	}
@@ -309,23 +321,20 @@ func jsFallbackLiteral(value any) string {
 	if value == nil {
 		return "undefined"
 	}
-	return jsLiteral(value)
+	return js.MustToJS(value)
 }
 
-func jsLiteral(value any) string {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return "undefined"
-	}
-	return string(encoded)
-}
-
-func rowsToJSON(rows []map[string]any) string {
-	payload, err := json.Marshal(rows)
-	if err != nil {
-		return "[]"
-	}
-	return string(payload)
+type chartActionConfig struct {
+	Rows           []map[string]any `json:"rows"`
+	Variables      map[string]any   `json:"variables"`
+	URL            string           `json:"url"`
+	Method         string           `json:"method,omitempty"`
+	Target         string           `json:"target,omitempty"`
+	Event          string           `json:"event,omitempty"`
+	CategoryField  string           `json:"categoryField"`
+	LabelField     string           `json:"labelField"`
+	StartTimeField string           `json:"startTimeField"`
+	SeriesField    string           `json:"seriesField"`
 }
 
 func chartType(kind panel.Kind) charts.ChartType {

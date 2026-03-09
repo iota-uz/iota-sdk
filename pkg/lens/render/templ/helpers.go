@@ -1,13 +1,13 @@
 package templ
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
 
 	templpkg "github.com/a-h/templ"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
@@ -167,14 +167,10 @@ func actionOnClick(spec *action.Spec, row map[string]any, variables map[string]a
 		if method == "" {
 			method = "GET"
 		}
-		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%q, %q, {target: %q, swap: 'innerHTML'});", method, href, spec.Target))
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
 	case action.KindEmitEvent:
 		payload := actionPayload(spec, row, variables)
-		encoded, err := json.Marshal(payload)
-		if err != nil {
-			return templpkg.ComponentScript{}
-		}
-		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); document.dispatchEvent(new CustomEvent(%q, {detail: %s}));", spec.Event, encoded))
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); document.dispatchEvent(new CustomEvent(%s, {detail: %s}));", js.MustToJS(spec.Event), js.MustToJS(payload)))
 	default:
 		return templpkg.ComponentScript{}
 	}
@@ -191,7 +187,14 @@ func rowActionOnClick(spec *action.Spec, row map[string]any, variables map[strin
 	if href == "" {
 		return templpkg.ComponentScript{}
 	}
-	return templpkg.JSUnsafeFuncCall(fmt.Sprintf("window.location.href = %q;", href))
+	return templpkg.JSUnsafeFuncCall(fmt.Sprintf("window.location.href = %s;", js.MustToJS(href)))
+}
+
+func stopPropagationScript(script templpkg.ComponentScript) templpkg.ComponentScript {
+	if script.Call == "" {
+		return templpkg.JSUnsafeFuncCall("event.stopPropagation();")
+	}
+	return templpkg.JSUnsafeFuncCall("event.stopPropagation(); " + script.Call)
 }
 
 func actionPayload(spec *action.Spec, row map[string]any, variables map[string]any) map[string]any {
@@ -270,6 +273,22 @@ func containsQuery(raw string) bool {
 		}
 	}
 	return false
+}
+
+func dateRangeState(input filter.Input) string {
+	return js.MustToJS(struct {
+		DateMode string `json:"dateMode"`
+	}{
+		DateMode: input.DateRange.Mode,
+	})
+}
+
+func tabsState(spec panel.Spec) string {
+	return js.MustToJS(struct {
+		ActiveTab string `json:"activeTab"`
+	}{
+		ActiveTab: defaultTab(spec),
+	})
 }
 
 func panelIcon(kind panel.Kind) templpkg.Component {

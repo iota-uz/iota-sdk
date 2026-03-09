@@ -68,7 +68,7 @@ func TestBuildActionJSHonorsFallbacks(t *testing.T) {
 		nil,
 	))
 
-	require.Contains(t, js, `resolveValue(row["product_id"], "default-product")`)
+	require.Contains(t, js, `resolveValue(row["product_id"], 'default-product')`)
 	require.Contains(t, js, `resolveValue(variables["active_only"], true)`)
 }
 
