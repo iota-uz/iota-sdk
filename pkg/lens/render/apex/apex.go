@@ -2,6 +2,7 @@
 package apex
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/components/charts"
-	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -141,7 +141,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		options.XAxis.AxisBorder = nil
 		options.XAxis.AxisTicks = nil
 		options.YAxis = nil
-	default:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
@@ -207,7 +207,7 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	if method == "" {
 		method = "GET"
 	}
-	configJS := js.MustToJS(chartActionConfig{
+	configJS := mustJSONJS(chartActionConfig{
 		Rows:           fr.Rows(),
 		Variables:      variables,
 		URL:            spec.URL,
@@ -296,7 +296,7 @@ func actionValueJS(source action.ValueSource, fields panel.FieldMapping) string 
 	case action.SourceVariable:
 		return fmt.Sprintf("resolveValue(variables[%q], %s)", source.Name, jsFallbackLiteral(source.Fallback))
 	case action.SourceLiteral:
-		return js.MustToJS(source.Value)
+		return mustJSONJS(source.Value)
 	default:
 		return "undefined"
 	}
@@ -321,7 +321,15 @@ func jsFallbackLiteral(value any) string {
 	if value == nil {
 		return "undefined"
 	}
-	return js.MustToJS(value)
+	return mustJSONJS(value)
+}
+
+func mustJSONJS(value any) string {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return "null"
+	}
+	return string(encoded)
 }
 
 type chartActionConfig struct {

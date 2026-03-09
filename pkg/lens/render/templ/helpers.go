@@ -1,6 +1,7 @@
 package templ
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -170,24 +171,14 @@ func actionOnClick(spec *action.Spec, row map[string]any, variables map[string]a
 		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
 	case action.KindEmitEvent:
 		payload := actionPayload(spec, row, variables)
-		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); document.dispatchEvent(new CustomEvent(%s, {detail: %s}));", js.MustToJS(spec.Event), js.MustToJS(payload)))
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			return templpkg.ComponentScript{}
+		}
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); document.dispatchEvent(new CustomEvent(%s, {detail: %s}));", js.MustToJS(spec.Event), encoded))
 	default:
 		return templpkg.ComponentScript{}
 	}
-}
-
-func rowActionOnClick(spec *action.Spec, row map[string]any, variables map[string]any) templpkg.ComponentScript {
-	if spec == nil {
-		return templpkg.ComponentScript{}
-	}
-	if onClick := actionOnClick(spec, row, variables); onClick.Call != "" {
-		return onClick
-	}
-	href := actionURL(spec, row, variables)
-	if href == "" {
-		return templpkg.ComponentScript{}
-	}
-	return templpkg.JSUnsafeFuncCall(fmt.Sprintf("window.location.href = %s;", js.MustToJS(href)))
 }
 
 func stopPropagationScript(script templpkg.ComponentScript) templpkg.ComponentScript {

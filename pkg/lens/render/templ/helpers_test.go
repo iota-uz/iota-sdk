@@ -3,6 +3,7 @@ package templ
 import (
 	urlpkg "net/url"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
@@ -71,6 +72,24 @@ func TestActionOnClickSupportsEmitEventFallbacks(t *testing.T) {
 	require.Contains(t, onClick.Call, "default-product")
 }
 
+func TestActionOnClickPreservesTimePayloadValues(t *testing.T) {
+	t.Parallel()
+
+	timestamp := time.Date(2026, 3, 9, 0, 0, 0, 0, time.UTC)
+	onClick := actionOnClick(&action.Spec{
+		Kind:  action.KindEmitEvent,
+		Event: "lens:drilldown",
+		Payload: map[string]action.ValueSource{
+			"from": {
+				Kind:  action.SourceLiteral,
+				Value: timestamp,
+			},
+		},
+	}, nil, nil)
+
+	require.Contains(t, onClick.Call, "2026-03-09T00:00:00Z")
+}
+
 func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 	t.Parallel()
 
@@ -86,65 +105,6 @@ func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 	require.Contains(t, onClick.Call, "htmx.ajax")
 	require.Contains(t, onClick.Call, "/contracts?scope=daily")
 	require.Contains(t, onClick.Call, "#report")
-}
-
-func TestRowActionOnClick(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		spec      *action.Spec
-		row       map[string]any
-		variables map[string]any
-		assert    func(t *testing.T, script string)
-	}{
-		{
-			name: "returns empty script for nil action",
-			assert: func(t *testing.T, script string) {
-				t.Helper()
-				require.Empty(t, script)
-			},
-		},
-		{
-			name: "builds navigate click handler",
-			spec: &action.Spec{
-				Kind: action.KindNavigate,
-				URL:  "/contracts",
-				Params: []action.Param{
-					action.FieldParam("product", "product_id"),
-				},
-			},
-			row: map[string]any{"product_id": "osago"},
-			assert: func(t *testing.T, script string) {
-				t.Helper()
-				require.Contains(t, script, "window.location.href")
-				require.Contains(t, script, "/contracts?product=osago")
-			},
-		},
-		{
-			name: "reuses htmx click handler",
-			spec: &action.Spec{
-				Kind:   action.KindHtmxSwap,
-				URL:    "/contracts",
-				Target: "#report",
-				Params: []action.Param{
-					action.LiteralParam("scope", "daily"),
-				},
-			},
-			assert: func(t *testing.T, script string) {
-				t.Helper()
-				require.Contains(t, script, "htmx.ajax")
-				require.Contains(t, script, "#report")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			script := rowActionOnClick(tt.spec, tt.row, tt.variables)
-			tt.assert(t, script.Call)
-		})
-	}
 }
 
 func TestFilterModel_Scenarios(t *testing.T) {

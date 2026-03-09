@@ -255,62 +255,31 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 				for _, row := range rows {
 					{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
 					{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
-					{{ rowClick := rowActionOnClick(spec.Action, row, result.Variables) }}
-					if rowClick.Call != "" {
-						<tr
-							class="cursor-pointer transition-colors hover:bg-gray-50/60"
-							onclick={ rowClick }
-						>
-							for i, column := range columns {
-								<td class="whitespace-nowrap px-4 py-2 text-gray-600">
-									if i == 0 && rowHref != "" {
-										<a
-											href={ templ.SafeURL(rowHref) }
-											onclick={ stopPropagationScript(rowOnClick) }
-											class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
-										>
-											{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-										</a>
-									} else if i == 0 && rowOnClick.Call != "" {
-										<button
-											type="button"
-											onclick={ stopPropagationScript(rowOnClick) }
-											class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
-										>
-											{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-										</button>
-									} else {
+					<tr class="transition-colors hover:bg-gray-50/60">
+						for i, column := range columns {
+							<td class="whitespace-nowrap px-4 py-2 text-gray-600">
+								if i == 0 && rowHref != "" {
+									<a
+										href={ templ.URL(rowHref) }
+										onclick={ stopPropagationScript(rowOnClick) }
+										class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+									>
 										{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-									}
-								</td>
-							}
-						</tr>
-					} else {
-						<tr class="transition-colors hover:bg-gray-50/60">
-							for i, column := range columns {
-								<td class="whitespace-nowrap px-4 py-2 text-gray-600">
-									if i == 0 && rowHref != "" {
-										<a
-											href={ templ.SafeURL(rowHref) }
-											class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
-										>
-											{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-										</a>
-									} else if i == 0 && rowOnClick.Call != "" {
-										<button
-											type="button"
-											onclick={ rowOnClick }
-											class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
-										>
-											{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-										</button>
-									} else {
+									</a>
+								} else if i == 0 && rowOnClick.Call != "" {
+									<button
+										type="button"
+										onclick={ rowOnClick }
+										class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+									>
 										{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-									}
-								</td>
-							}
-						</tr>
-					}
+									</button>
+								} else {
+									{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+								}
+							</td>
+						}
+					</tr>
 				}
 			</tbody>
 		</table>
