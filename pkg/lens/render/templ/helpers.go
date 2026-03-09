@@ -7,6 +7,8 @@ import (
 	"time"
 
 	templpkg "github.com/a-h/templ"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
@@ -166,17 +168,24 @@ func actionOnClick(spec *action.Spec, row map[string]any, variables map[string]a
 		if method == "" {
 			method = "GET"
 		}
-		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%q, %q, {target: %q, swap: 'innerHTML'});", method, href, spec.Target))
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
 	case action.KindEmitEvent:
 		payload := actionPayload(spec, row, variables)
 		encoded, err := json.Marshal(payload)
 		if err != nil {
 			return templpkg.ComponentScript{}
 		}
-		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); document.dispatchEvent(new CustomEvent(%q, {detail: %s}));", spec.Event, encoded))
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); document.dispatchEvent(new CustomEvent(%s, {detail: %s}));", js.MustToJS(spec.Event), encoded))
 	default:
 		return templpkg.ComponentScript{}
 	}
+}
+
+func stopPropagationScript(script templpkg.ComponentScript) templpkg.ComponentScript {
+	if script.Call == "" {
+		return templpkg.JSUnsafeFuncCall("event.stopPropagation();")
+	}
+	return templpkg.JSUnsafeFuncCall("event.stopPropagation(); " + script.Call)
 }
 
 func actionPayload(spec *action.Spec, row map[string]any, variables map[string]any) map[string]any {
@@ -255,4 +264,63 @@ func containsQuery(raw string) bool {
 		}
 	}
 	return false
+}
+
+func dateRangeState(input filter.Input) string {
+	return js.MustToJS(struct {
+		DateMode string `json:"dateMode"`
+	}{
+		DateMode: input.DateRange.Mode,
+	})
+}
+
+func tabsState(spec panel.Spec) string {
+	return js.MustToJS(struct {
+		ActiveTab string `json:"activeTab"`
+	}{
+		ActiveTab: defaultTab(spec),
+	})
+}
+
+func panelIcon(kind panel.Kind) templpkg.Component {
+	iconProps := icons.Props{Size: "16"}
+	switch kind {
+	case panel.KindTimeSeries:
+		return icons.ChartLine(iconProps)
+	case panel.KindBar, panel.KindStackedBar, panel.KindHorizontalBar:
+		return icons.ChartBar(iconProps)
+	case panel.KindPie, panel.KindDonut:
+		return icons.ChartPie(iconProps)
+	case panel.KindGauge:
+		return icons.Gauge(iconProps)
+	case panel.KindTable:
+		return icons.Table(iconProps)
+	case panel.KindStat:
+		return icons.HashStraight(iconProps)
+	case panel.KindTabs:
+		return icons.Tabs(iconProps)
+	case panel.KindGrid:
+		return icons.Rows(iconProps)
+	case panel.KindSplit:
+		return icons.Rows(iconProps)
+	case panel.KindRepeat:
+		return icons.Copy(iconProps)
+	default:
+		return icons.Question(iconProps)
+	}
+}
+
+func panelBodyClass(spec panel.Spec) string {
+	switch spec.Kind {
+	case panel.KindStat:
+		return "flex-1 px-5 py-2.5"
+	case panel.KindTable:
+		return "flex-1 p-4"
+	case panel.KindTabs:
+		return "flex-1 px-5 py-3"
+	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+		return "flex-1 p-3"
+	default:
+		return "flex-1 p-3"
+	}
 }

@@ -18,6 +18,11 @@ import (
 )
 
 func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.ChartOptions {
+	fontFamily := "'Inter', 'Helvetica Neue', Arial, sans-serif"
+	axisFontSize := "11px"
+	axisColor := "#9ca3af" // gray-400
+	gridColor := "#f0f0f3" // subtle neutral grid
+
 	options := charts.ChartOptions{
 		Chart: charts.ChartConfig{
 			Type:    chartType(panelSpec.Kind),
@@ -27,6 +32,36 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		},
 		DataLabels: &charts.DataLabels{Enabled: false},
 		Colors:     panelColors(panelSpec),
+		Grid: &charts.GridConfig{
+			BorderColor: gridColor,
+			Padding:     &charts.Padding{Top: mapping.Pointer(4), Right: mapping.Pointer(12), Bottom: mapping.Pointer(0), Left: mapping.Pointer(12)},
+		},
+		Tooltip: &charts.TooltipConfig{
+			Theme: mapping.Pointer("dark"),
+			Style: &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
+		},
+		XAxis: charts.XAxisConfig{
+			Labels: &charts.XAxisLabelsConfig{
+				Style: &charts.XAxisLabelStyleConfig{
+					FontSize:   &axisFontSize,
+					FontFamily: &fontFamily,
+					Colors:     axisColor,
+				},
+			},
+			AxisBorder: &charts.XAxisBorderConfig{Show: mapping.Pointer(false)},
+			AxisTicks:  &charts.XAxisTicksConfig{Show: mapping.Pointer(false)},
+		},
+		YAxis: []charts.YAxisConfig{
+			{
+				Labels: &charts.YAxisLabelsConfig{
+					Style: &charts.YAxisLabelStyleConfig{
+						FontSize:   &axisFontSize,
+						FontFamily: &fontFamily,
+						Colors:     axisColor,
+					},
+				},
+			},
+		},
 	}
 	if panelResult == nil || panelResult.Frames == nil || panelResult.Frames.Primary() == nil {
 		return options
@@ -46,10 +81,26 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		options.Labels = labels
 		options.Series = values
 		if panelSpec.Kind == panel.KindDonut {
-			size := "70%"
+			size := "72%"
 			position := charts.LegendPositionBottom
-			options.Legend = &charts.LegendConfig{Position: &position}
+			legendFontSize := "11px"
+			options.Legend = &charts.LegendConfig{
+				Position:   &position,
+				FontSize:   &legendFontSize,
+				FontFamily: &fontFamily,
+				ItemMargin: &charts.LegendItemMargin{Horizontal: mapping.Pointer(6), Vertical: mapping.Pointer(2)},
+			}
 			options.PlotOptions = &charts.PlotOptions{Pie: &charts.PieDonutConfig{Donut: &charts.DonutSpecifics{Size: &size}}}
+		}
+		if panelSpec.Kind == panel.KindPie {
+			position := charts.LegendPositionBottom
+			legendFontSize := "11px"
+			options.Legend = &charts.LegendConfig{
+				Position:   &position,
+				FontSize:   &legendFontSize,
+				FontFamily: &fontFamily,
+				ItemMargin: &charts.LegendItemMargin{Horizontal: mapping.Pointer(6), Vertical: mapping.Pointer(2)},
+			}
 		}
 		if panelSpec.Kind == panel.KindGauge {
 			startAngle := -135
@@ -67,7 +118,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		if hasSeries(rows, fields.Series.Name()) {
 			categories, series := groupedSeries(rows, fields)
 			options.Series = series
-			options.XAxis = charts.XAxisConfig{Categories: categories}
+			options.XAxis.Categories = categories
 		} else {
 			categories := make([]string, 0, len(rows))
 			values := make([]any, 0, len(rows))
@@ -76,22 +127,74 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 				values = append(values, numericValue(row[fields.Value.Name()]))
 			}
 			options.Series = []charts.Series{{Name: panelSpec.Title, Data: values}}
-			options.XAxis = charts.XAxisConfig{Categories: categories}
+			options.XAxis.Categories = categories
 		}
+	}
+
+	switch panelSpec.Kind {
+	case panel.KindPie, panel.KindDonut, panel.KindGauge:
+		if options.Grid == nil {
+			options.Grid = &charts.GridConfig{}
+		}
+		options.Grid.BorderColor = "transparent"
+		options.XAxis.Labels = nil
+		options.XAxis.AxisBorder = nil
+		options.XAxis.AxisTicks = nil
+		options.YAxis = nil
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
 		horizontal := true
-		options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{Horizontal: &horizontal, BorderRadius: 8}}
+		options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{Horizontal: &horizontal, BorderRadius: 4, ColumnWidth: "50%"}}
 	}
-	if panelSpec.Kind == panel.KindBar || panelSpec.Kind == panel.KindStackedBar || panelSpec.Kind == panel.KindTimeSeries {
+	if panelSpec.Kind == panel.KindBar || panelSpec.Kind == panel.KindStackedBar {
 		if options.PlotOptions == nil {
-			options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{BorderRadius: 4}}
+			options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{BorderRadius: 4, ColumnWidth: "48%"}}
+		}
+	}
+	if panelSpec.Kind == panel.KindTimeSeries {
+		curve := charts.StrokeCurveSmooth
+		options.Stroke = &charts.StrokeConfig{
+			Curve:   curve,
+			Width:   2,
+			LineCap: charts.StrokeLineCapRound,
+		}
+		options.Markers = &charts.MarkersConfig{
+			Size:        0,
+			StrokeWidth: 0,
+			Hover:       &charts.MarkerHover{SizeOffset: mapping.Pointer(5)},
+		}
+		options.Fill = &charts.FillConfig{
+			Type:    "gradient",
+			Opacity: 1,
+			Gradient: &charts.FillGradient{
+				ShadeIntensity: mapping.Pointer(1.0),
+				OpacityFrom:    mapping.Pointer(0.25),
+				OpacityTo:      mapping.Pointer(0.05),
+				Stops:          []float64{0, 90, 100},
+			},
 		}
 	}
 	if panelSpec.ShowLegend {
 		position := charts.LegendPositionBottom
-		options.Legend = &charts.LegendConfig{Position: &position, Show: mapping.Pointer(true)}
+		legendFontSize := "11px"
+		if options.Legend == nil {
+			options.Legend = &charts.LegendConfig{}
+		}
+		options.Legend.Show = mapping.Pointer(true)
+		if options.Legend.Position == nil {
+			options.Legend.Position = &position
+		}
+		if options.Legend.FontSize == nil {
+			options.Legend.FontSize = &legendFontSize
+		}
+		if options.Legend.FontFamily == nil {
+			options.Legend.FontFamily = &fontFamily
+		}
+		if options.Legend.ItemMargin == nil {
+			options.Legend.ItemMargin = &charts.LegendItemMargin{Horizontal: mapping.Pointer(8), Vertical: mapping.Pointer(2)}
+		}
 	}
 	if panelSpec.Action != nil {
 		options.Chart.Events = &charts.ChartEvents{DataPointSelection: buildActionJS(panelSpec.Action, fr, fields, panelResult.Variables)}
@@ -100,26 +203,35 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 }
 
 func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, variables map[string]any) templ.JSExpression {
-	rowsJSON := rowsToJSON(fr.Rows())
-	urlJSON := fmt.Sprintf("%q", spec.URL)
-	variablesJSON := rowsToJSON([]map[string]any{{"variables": variables}})
 	method := spec.Method
 	if method == "" {
 		method = "GET"
 	}
+	configJS := mustJSONJS(chartActionConfig{
+		Rows:           fr.Rows(),
+		Variables:      variables,
+		URL:            spec.URL,
+		Method:         method,
+		Target:         spec.Target,
+		Event:          spec.Event,
+		CategoryField:  fields.Category.Name(),
+		LabelField:     fields.Label.Name(),
+		StartTimeField: fields.StartTime.Name(),
+		SeriesField:    fields.Series.Name(),
+	})
 	var actionJS string
 	switch spec.Kind {
 	case action.KindNavigate:
 		actionJS = "window.location.href = nextURL;"
 	case action.KindHtmxSwap:
-		target := spec.Target
-		actionJS = fmt.Sprintf("htmx.ajax(%q, nextURL, {target: %q, swap: 'innerHTML'});", method, target)
+		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {target: cfg.target, swap: 'innerHTML'});"
 	case action.KindEmitEvent:
-		actionJS = fmt.Sprintf("document.dispatchEvent(new CustomEvent(%q, {detail: payload}));", spec.Event)
+		actionJS = "document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));"
 	}
 	js := fmt.Sprintf(`function(event, chartContext, opts) {
-		const rows = %s;
-		const variables = ((%s)[0] || {}).variables || {};
+		const cfg = %s;
+		const rows = cfg.rows || [];
+		const variables = cfg.variables || {};
 		const config = chartContext.w.config;
 		const categories = (config.xaxis && config.xaxis.categories) ? config.xaxis.categories : [];
 		const seriesName = config.series && config.series[opts.seriesIndex] ? config.series[opts.seriesIndex].name : '';
@@ -146,17 +258,17 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		};
 		let row = rows[opts.dataPointIndex] || {};
 		const groupedMatch = rows.find(function(item) {
-			const categoryValue = item[%q] || item[%q] || item[%q];
-			const seriesValue = item[%q] || '';
+			const categoryValue = item[cfg.categoryField] || item[cfg.labelField] || item[cfg.startTimeField];
+			const seriesValue = item[cfg.seriesField] || '';
 			return normalizeCategoryValue(categoryValue) === normalizeCategoryValue(categoryName) && String(seriesValue) === String(seriesName);
 		});
 		if (groupedMatch) {
 			row = groupedMatch;
 		}
-		let nextURL = %s;
+		let nextURL = cfg.url;
 		const payload = {};
 		const params = new URLSearchParams();
-	`, rowsJSON, variablesJSON, fields.Category.Name(), fields.Label.Name(), fields.StartTime.Name(), fields.Series.Name(), urlJSON)
+	`, configJS)
 	for idx, param := range spec.Params {
 		expr := actionValueJS(param.Source, fields)
 		js += fmt.Sprintf("const paramValue%d = %s;\nif (paramValue%d !== undefined) { params.append(%q, paramValue%d); payload[%q] = paramValue%d; }\n", idx, expr, idx, param.Name, idx, param.Name, idx)
@@ -184,7 +296,7 @@ func actionValueJS(source action.ValueSource, fields panel.FieldMapping) string 
 	case action.SourceVariable:
 		return fmt.Sprintf("resolveValue(variables[%q], %s)", source.Name, jsFallbackLiteral(source.Fallback))
 	case action.SourceLiteral:
-		return jsLiteral(source.Value)
+		return mustJSONJS(source.Value)
 	default:
 		return "undefined"
 	}
@@ -209,23 +321,28 @@ func jsFallbackLiteral(value any) string {
 	if value == nil {
 		return "undefined"
 	}
-	return jsLiteral(value)
+	return mustJSONJS(value)
 }
 
-func jsLiteral(value any) string {
+func mustJSONJS(value any) string {
 	encoded, err := json.Marshal(value)
 	if err != nil {
-		return "undefined"
+		return "null"
 	}
 	return string(encoded)
 }
 
-func rowsToJSON(rows []map[string]any) string {
-	payload, err := json.Marshal(rows)
-	if err != nil {
-		return "[]"
-	}
-	return string(payload)
+type chartActionConfig struct {
+	Rows           []map[string]any `json:"rows"`
+	Variables      map[string]any   `json:"variables"`
+	URL            string           `json:"url"`
+	Method         string           `json:"method,omitempty"`
+	Target         string           `json:"target,omitempty"`
+	Event          string           `json:"event,omitempty"`
+	CategoryField  string           `json:"categoryField"`
+	LabelField     string           `json:"labelField"`
+	StartTimeField string           `json:"startTimeField"`
+	SeriesField    string           `json:"seriesField"`
 }
 
 func chartType(kind panel.Kind) charts.ChartType {
@@ -257,17 +374,17 @@ func panelColors(panelSpec panel.Spec) []string {
 	}
 	switch panelSpec.Kind {
 	case panel.KindTimeSeries:
-		return []string{"#0f766e"}
+		return []string{"#3b82f6"} // blue-500 — consistent primary
 	case panel.KindStackedBar:
-		return []string{"#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"}
+		return []string{"#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#6366f1", "#14b8a6"}
 	case panel.KindPie, panel.KindDonut:
-		return []string{"#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"}
+		return []string{"#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#6366f1", "#14b8a6"}
 	case panel.KindGauge:
-		return []string{"#f59e0b"}
+		return []string{"#3b82f6"} // blue-500 — unified accent
 	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-		return []string{"#2563eb"}
+		return []string{"#3b82f6"} // blue-500
 	}
-	return []string{"#2563eb"}
+	return []string{"#3b82f6"}
 }
 
 func hasSeries(rows []map[string]any, field string) bool {

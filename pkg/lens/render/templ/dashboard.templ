@@ -17,10 +17,10 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 	if result != nil {
 		{{ filters = filterModel(result) }}
 	}
-	<div class="space-y-6">
+	<div class="space-y-5">
 		@FilterBar(filters)
 		for _, row := range spec.Rows {
-			<div class={ "grid grid-cols-12 gap-4", row.Class }>
+			<div class={ "grid grid-cols-12 gap-5", row.Class }>
 				for _, panelSpec := range row.Panels {
 					@Panel(panelSpec, result)
 				}
@@ -33,34 +33,45 @@ templ FilterBar(model filter.Model) {
 	if len(model.Inputs) == 0 {
 		{{ return }}
 	}
-	<form class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-		<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+	<form class="rounded-xl border border-gray-200/80 bg-white shadow-sm">
+		<div class="flex items-center justify-between px-5 py-2.5">
+			<div class="flex items-center gap-2">
+				<div class="text-gray-400">
+					@icons.Funnel(icons.Props{Size: "15"})
+				</div>
+				<span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Filters</span>
+			</div>
+			<button type="submit" class="rounded-md bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:ring-offset-1 active:bg-blue-800">
+				Apply
+			</button>
+		</div>
+		<div class="grid gap-x-4 gap-y-3 border-t border-gray-100 px-5 py-4 md:grid-cols-2 xl:grid-cols-4">
 			for _, input := range model.Inputs {
-				<div class="space-y-2">
-					<label class="text-sm font-medium text-gray-700">{ input.Label }</label>
+				<div class="space-y-1.5">
+					<label class="text-[11px] font-medium uppercase tracking-wide text-gray-400">{ input.Label }</label>
 					switch input.Kind {
 						case lens.VariableDateRange:
-							<div class="space-y-2" x-data={ "{ dateMode: '" + input.DateRange.Mode + "' }" }>
-								<select name={ input.Name } x-model="dateMode" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+							<div class="space-y-2" x-data={ dateRangeState(input) }>
+								<select name={ input.Name } x-model="dateMode" class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
 									<option value="default">Default range</option>
 									<option value="bounded">Custom range</option>
 									if input.DateRange.AllowAllTime {
 										<option value="all">All time</option>
 									}
 								</select>
-								<div class="grid gap-2 md:grid-cols-2" x-show="dateMode === 'bounded'">
-									<input type="date" name={ input.Name + "_start" } value={ input.DateRange.Start } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
-									<input type="date" name={ input.Name + "_end" } value={ input.DateRange.End } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+								<div class="grid gap-2 md:grid-cols-2" x-show="dateMode === 'bounded'" x-transition>
+									<input type="date" name={ input.Name + "_start" } value={ input.DateRange.Start } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+									<input type="date" name={ input.Name + "_end" } value={ input.DateRange.End } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 								</div>
 							</div>
 						case lens.VariableToggle:
-							<label class="inline-flex items-center gap-2 text-sm text-gray-600">
-								<input type="checkbox" name={ input.Name } value="true" checked?={ input.Checked }/>
+							<label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 transition hover:bg-gray-100">
+								<input type="checkbox" name={ input.Name } value="true" checked?={ input.Checked } class="rounded border-gray-300 text-blue-600 focus:ring-blue-200"/>
 								<span>{ input.Description }</span>
 							</label>
 						case lens.VariableSingleSelect:
 							if len(input.Options) > 0 {
-								<select name={ input.Name } class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+								<select name={ input.Name } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
 									if !input.Required {
 										<option value="">All</option>
 									}
@@ -69,24 +80,24 @@ templ FilterBar(model filter.Model) {
 									}
 								</select>
 							} else {
-								<input type="text" name={ input.Name } value={ input.Value } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+								<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 							}
 						case lens.VariableMultiSelect:
 							if len(input.Options) > 0 {
-								<select name={ input.Name } multiple class="min-h-32 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+								<select name={ input.Name } multiple class="min-h-32 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
 									for _, option := range input.Options {
 										<option value={ option.Value } selected?={ option.Selected }>{ option.Label }</option>
 									}
 								</select>
 							} else {
-								<input type="text" name={ input.Name } value={ strings.Join(input.Values, ",") } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+								<input type="text" name={ input.Name } value={ strings.Join(input.Values, ",") } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 							}
 						case lens.VariableNumber:
-							<input type="number" step="any" name={ input.Name } value={ input.Value } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							<input type="number" step="any" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 						case lens.VariableText:
-							<input type="text" name={ input.Name } value={ input.Value } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 						default:
-							<input type="text" name={ input.Name } value={ input.Value } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 					}
 				</div>
 			}
@@ -97,19 +108,25 @@ templ FilterBar(model filter.Model) {
 templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
 	{{ currentPanel := panelResult(result, spec.ID) }}
 	<div class={ spanClass(spec.Span), spec.ClassName }>
-		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-			<div class="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3">
-				<div>
-					<h3 class="text-sm font-semibold text-gray-800">{ spec.Title }</h3>
-					if spec.Description != "" {
-						<p class="mt-1 text-xs text-gray-500">{ spec.Description }</p>
-					}
+		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200/80 bg-white shadow-sm">
+			if spec.Title != "" || (spec.Description != "" && spec.Kind != panel.KindStat) {
+				<div class="flex items-center justify-between border-b border-gray-100 px-5 py-2.5">
+					<div class="flex items-center gap-2 min-w-0">
+						<div class="flex-shrink-0 text-gray-400">
+							@panelIcon(spec.Kind)
+						</div>
+						<div class="min-w-0">
+							if spec.Title != "" {
+								<h3 class="truncate text-xs font-semibold text-gray-600">{ spec.Title }</h3>
+							}
+							if spec.Description != "" && spec.Kind != panel.KindStat {
+								<p class="mt-0.5 truncate text-[11px] text-gray-400">{ spec.Description }</p>
+							}
+						</div>
+					</div>
 				</div>
-				if spec.Kind == panel.KindTabs {
-					<div class="text-xs text-gray-500">Tabs</div>
-				}
-			</div>
-			<div class="flex-1 p-4">
+			}
+			<div class={ panelBodyClass(spec) }>
 				switch spec.Kind {
 					case panel.KindTabs:
 						@TabsPanel(spec, result)
@@ -128,7 +145,7 @@ templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
 }
 
 templ CompositePanel(spec panel.Spec, result *runtime.DashboardResult) {
-	<div class="grid grid-cols-12 gap-4">
+	<div class="grid grid-cols-12 gap-5">
 		for _, child := range spec.Children {
 			@Panel(child, result)
 		}
@@ -136,19 +153,25 @@ templ CompositePanel(spec panel.Spec, result *runtime.DashboardResult) {
 }
 
 templ TabsPanel(spec panel.Spec, result *runtime.DashboardResult) {
-	<div class="space-y-4" x-data={ "{ activeTab: '" + defaultTab(spec) + "' }" }>
-		<div class="flex flex-wrap gap-2">
+	<div x-data={ tabsState(spec) }>
+		<div class="mb-4 flex flex-wrap gap-0.5 border-b border-gray-100">
 			for _, child := range spec.Children {
 				<button
 					type="button"
-					class="rounded-full border border-gray-200 px-3 py-1.5 text-sm text-gray-600 transition-colors"
+					class="relative px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 transition-colors hover:text-gray-600"
 					@click={ "activeTab = '" + child.ID + "'" }
-					:class={ "{ 'border-blue-200 bg-blue-50 text-blue-700': activeTab === '" + child.ID + "' }" }
-				>{ child.Title }</button>
+					:class={ "{ '!text-blue-600': activeTab === '" + child.ID + "' }" }
+				>
+					{ child.Title }
+					<span
+						class="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-blue-600 transition-opacity"
+						:class={ "{ 'opacity-100': activeTab === '" + child.ID + "', 'opacity-0': activeTab !== '" + child.ID + "' }" }
+					></span>
+				</button>
 			}
 		</div>
 		for _, child := range spec.Children {
-			<div x-show={ "activeTab === '" + child.ID + "'" }>
+			<div x-show={ "activeTab === '" + child.ID + "'" } x-transition.opacity.duration.150ms>
 				{{ childPanel := panelResult(result, child.ID) }}
 				if child.Kind == panel.KindTable {
 					@TablePanel(child, childPanel)
@@ -172,40 +195,25 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 	{{ href := actionURL(spec.Action, row, result.Variables) }}
 	{{ onClick := actionOnClick(spec.Action, row, result.Variables) }}
 	if href != "" {
-		<a href={ templ.URL(href) } onclick={ onClick } class="block h-full transition hover:opacity-95">
-			<div class="flex h-full items-center justify-between rounded-xl bg-gradient-to-br from-slate-50 to-white p-4">
-				<div>
-					<div class="text-3xl font-bold text-gray-900">{ value }</div>
-					<div class="mt-1 text-sm text-gray-500">{ spec.Description }</div>
-				</div>
-				<div class="rounded-full bg-blue-50 p-3 text-blue-600">
-					@icons.ChartLine(icons.Props{Size: "22"})
-				</div>
-			</div>
+		<a href={ templ.URL(href) } onclick={ onClick } class="group block h-full transition-opacity hover:opacity-90">
+			@statContent(value, spec.Description)
 		</a>
 	} else if onClick.Call != "" {
-		<button type="button" onclick={ onClick } class="block h-full w-full text-left transition hover:opacity-95">
-			<div class="flex h-full items-center justify-between rounded-xl bg-gradient-to-br from-slate-50 to-white p-4">
-				<div>
-					<div class="text-3xl font-bold text-gray-900">{ value }</div>
-					<div class="mt-1 text-sm text-gray-500">{ spec.Description }</div>
-				</div>
-				<div class="rounded-full bg-blue-50 p-3 text-blue-600">
-					@icons.ChartLine(icons.Props{Size: "22"})
-				</div>
-			</div>
+		<button type="button" onclick={ onClick } class="group block h-full w-full text-left transition-opacity hover:opacity-90">
+			@statContent(value, spec.Description)
 		</button>
 	} else {
-		<div class="flex h-full items-center justify-between rounded-xl bg-gradient-to-br from-slate-50 to-white p-4">
-			<div>
-				<div class="text-3xl font-bold text-gray-900">{ value }</div>
-				<div class="mt-1 text-sm text-gray-500">{ spec.Description }</div>
-			</div>
-			<div class="rounded-full bg-blue-50 p-3 text-blue-600">
-				@icons.ChartLine(icons.Props{Size: "22"})
-			</div>
-		</div>
+		@statContent(value, spec.Description)
 	}
+}
+
+templ statContent(value, description string) {
+	<div class="flex h-full flex-col justify-center">
+		<div class="text-[28px] font-bold tabular-nums leading-tight tracking-tight text-gray-900">{ value }</div>
+		if description != "" {
+			<div class="mt-1.5 text-[11px] font-medium text-gray-400">{ description }</div>
+		}
+	</div>
 }
 
 templ ChartPanel(spec panel.Spec, result *runtime.PanelResult) {
@@ -218,7 +226,7 @@ templ ChartPanel(spec panel.Spec, result *runtime.PanelResult) {
 		{{ return }}
 	}
 	@charts.Chart(charts.Props{
-		Class:   "w-full h-full min-h-[260px]",
+		Class:   "w-full h-full min-h-[240px]",
 		Options: apex.Options(spec, result),
 	})
 }
@@ -235,25 +243,37 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 	{{ rows := result.Frames.Primary().Rows() }}
 	{{ columns := tableColumns(spec, result) }}
 	<div class="overflow-auto">
-		<table class="min-w-full text-sm">
+		<table class="min-w-full w-full text-[13px]">
 			<thead>
-				<tr class="border-b border-gray-200 bg-gray-50">
+				<tr class="border-b border-gray-200/80">
 					for _, column := range columns {
-						<th class="px-3 py-2 text-left font-semibold text-gray-600">{ column.Label }</th>
+						<th class="sticky top-0 whitespace-nowrap bg-gray-50/80 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">{ column.Label }</th>
 					}
 				</tr>
 			</thead>
-			<tbody class="divide-y divide-gray-100">
+			<tbody class="divide-y divide-gray-100/80">
 				for _, row := range rows {
 					{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
 					{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
-					<tr class={ "hover:bg-gray-50", templ.KV("cursor-pointer", rowHref != "" || rowOnClick.Call != "") }>
+					<tr class="transition-colors hover:bg-gray-50/60">
 						for i, column := range columns {
-							<td class="px-3 py-2 text-gray-700">
-								if rowHref != "" && i == 0 {
-									<a href={ templ.URL(rowHref) } onclick={ rowOnClick } class="font-medium text-blue-600 hover:underline">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</a>
-								} else if rowOnClick.Call != "" && i == 0 {
-									<button type="button" onclick={ rowOnClick } class="font-medium text-left text-blue-600 hover:underline">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</button>
+							<td class="whitespace-nowrap px-4 py-2 text-gray-600">
+								if i == 0 && rowHref != "" {
+									<a
+										href={ templ.URL(rowHref) }
+										onclick={ stopPropagationScript(rowOnClick) }
+										class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+									>
+										{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+									</a>
+								} else if i == 0 && rowOnClick.Call != "" {
+									<button
+										type="button"
+										onclick={ rowOnClick }
+										class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+									>
+										{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+									</button>
 								} else {
 									{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
 								}
@@ -267,13 +287,25 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 }
 
 templ EmptyState() {
-	<div class="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500">
-		No data available
+	<div class="flex min-h-[180px] flex-col items-center justify-center gap-2.5 text-center">
+		<div class="rounded-lg bg-gray-50 p-2.5 text-gray-300">
+			@icons.ChartBar(icons.Props{Size: "20"})
+		</div>
+		<div>
+			<p class="text-[13px] font-medium text-gray-400">No data available</p>
+			<p class="mt-0.5 text-[11px] text-gray-300">Try adjusting your filters</p>
+		</div>
 	</div>
 }
 
 templ ErrorState(result *runtime.PanelResult) {
-	<div class="flex min-h-[220px] items-center justify-center rounded-xl border border-red-100 bg-red-50 text-sm text-red-600">
-		Unable to render panel
+	<div class="flex min-h-[180px] flex-col items-center justify-center gap-2.5 text-center">
+		<div class="rounded-lg bg-red-50 p-2.5 text-red-300">
+			@icons.WarningCircle(icons.Props{Size: "20"})
+		</div>
+		<div>
+			<p class="text-[13px] font-medium text-red-400">Unable to load data</p>
+			<p class="mt-0.5 text-[11px] text-gray-400">An error occurred while rendering this panel</p>
+		</div>
 	</div>
 }

@@ -3,6 +3,7 @@ package templ
 import (
 	urlpkg "net/url"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
@@ -69,6 +70,24 @@ func TestActionOnClickSupportsEmitEventFallbacks(t *testing.T) {
 
 	require.Contains(t, onClick.Call, "lens:drilldown")
 	require.Contains(t, onClick.Call, "default-product")
+}
+
+func TestActionOnClickPreservesTimePayloadValues(t *testing.T) {
+	t.Parallel()
+
+	timestamp := time.Date(2026, 3, 9, 0, 0, 0, 0, time.UTC)
+	onClick := actionOnClick(&action.Spec{
+		Kind:  action.KindEmitEvent,
+		Event: "lens:drilldown",
+		Payload: map[string]action.ValueSource{
+			"from": {
+				Kind:  action.SourceLiteral,
+				Value: timestamp,
+			},
+		},
+	}, nil, nil)
+
+	require.Contains(t, onClick.Call, "2026-03-09T00:00:00Z")
 }
 
 func TestActionOnClickSupportsHtmxSwap(t *testing.T) {

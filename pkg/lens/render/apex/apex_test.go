@@ -2,6 +2,7 @@ package apex
 
 import (
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
@@ -29,6 +30,27 @@ func TestBuildActionJSNormalizesTimeCategories(t *testing.T) {
 
 	require.Contains(t, js, "normalizeCategoryValue")
 	require.Contains(t, js, "toISOString().slice(0, 10)")
+}
+
+func TestBuildActionJSPreservesTimeValuesInConfig(t *testing.T) {
+	t.Parallel()
+
+	timestamp := time.Date(2026, 3, 9, 0, 0, 0, 0, time.UTC)
+	fr, err := frame.New("sales",
+		frame.Field{Name: "category", Type: frame.FieldTypeTime, Values: []any{timestamp}},
+		frame.Field{Name: "series", Type: frame.FieldTypeString, Values: []any{"Revenue"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	js := string(buildActionJS(
+		&action.Spec{Kind: action.KindNavigate, URL: "/reports"},
+		fr,
+		panel.FieldMapping{Category: "category", Series: "series", Value: "value"},
+		map[string]any{"from": timestamp},
+	))
+
+	require.Contains(t, js, `"2026-03-09T00:00:00Z"`)
 }
 
 func TestBuildActionJSHonorsFallbacks(t *testing.T) {
