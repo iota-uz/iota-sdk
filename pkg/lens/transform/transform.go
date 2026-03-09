@@ -1,3 +1,4 @@
+// Package transform defines Lens frame transformation specs and helpers.
 package transform
 
 import (
