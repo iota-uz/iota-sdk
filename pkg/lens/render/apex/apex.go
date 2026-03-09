@@ -18,6 +18,11 @@ import (
 )
 
 func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.ChartOptions {
+	fontFamily := "'Inter', 'Helvetica Neue', Arial, sans-serif"
+	axisFontSize := "11px"
+	axisColor := "#9ca3af" // gray-400
+	gridColor := "#f0f0f3" // subtle neutral grid
+
 	options := charts.ChartOptions{
 		Chart: charts.ChartConfig{
 			Type:    chartType(panelSpec.Kind),
@@ -27,6 +32,36 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		},
 		DataLabels: &charts.DataLabels{Enabled: false},
 		Colors:     panelColors(panelSpec),
+		Grid: &charts.GridConfig{
+			BorderColor: gridColor,
+			Padding:     &charts.Padding{Top: intPtr(4), Right: intPtr(12), Bottom: intPtr(0), Left: intPtr(12)},
+		},
+		Tooltip: &charts.TooltipConfig{
+			Theme: strPtr("dark"),
+			Style: &charts.TooltipStyleConfig{FontSize: strPtr("12px"), FontFamily: &fontFamily},
+		},
+		XAxis: charts.XAxisConfig{
+			Labels: &charts.XAxisLabelsConfig{
+				Style: &charts.XAxisLabelStyleConfig{
+					FontSize:   &axisFontSize,
+					FontFamily: &fontFamily,
+					Colors:     axisColor,
+				},
+			},
+			AxisBorder: &charts.XAxisBorderConfig{Show: boolPtr(false)},
+			AxisTicks:  &charts.XAxisTicksConfig{Show: boolPtr(false)},
+		},
+		YAxis: []charts.YAxisConfig{
+			{
+				Labels: &charts.YAxisLabelsConfig{
+					Style: &charts.YAxisLabelStyleConfig{
+						FontSize:   &axisFontSize,
+						FontFamily: &fontFamily,
+						Colors:     axisColor,
+					},
+				},
+			},
+		},
 	}
 	if panelResult == nil || panelResult.Frames == nil || panelResult.Frames.Primary() == nil {
 		return options
@@ -46,10 +81,26 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		options.Labels = labels
 		options.Series = values
 		if panelSpec.Kind == panel.KindDonut {
-			size := "70%"
+			size := "72%"
 			position := charts.LegendPositionBottom
-			options.Legend = &charts.LegendConfig{Position: &position}
+			legendFontSize := "11px"
+			options.Legend = &charts.LegendConfig{
+				Position:   &position,
+				FontSize:   &legendFontSize,
+				FontFamily: &fontFamily,
+				ItemMargin: &charts.LegendItemMargin{Horizontal: intPtr(6), Vertical: intPtr(2)},
+			}
 			options.PlotOptions = &charts.PlotOptions{Pie: &charts.PieDonutConfig{Donut: &charts.DonutSpecifics{Size: &size}}}
+		}
+		if panelSpec.Kind == panel.KindPie {
+			position := charts.LegendPositionBottom
+			legendFontSize := "11px"
+			options.Legend = &charts.LegendConfig{
+				Position:   &position,
+				FontSize:   &legendFontSize,
+				FontFamily: &fontFamily,
+				ItemMargin: &charts.LegendItemMargin{Horizontal: intPtr(6), Vertical: intPtr(2)},
+			}
 		}
 		if panelSpec.Kind == panel.KindGauge {
 			startAngle := -135
@@ -67,7 +118,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		if hasSeries(rows, fields.Series.Name()) {
 			categories, series := groupedSeries(rows, fields)
 			options.Series = series
-			options.XAxis = charts.XAxisConfig{Categories: categories}
+			options.XAxis.Categories = categories
 		} else {
 			categories := make([]string, 0, len(rows))
 			values := make([]any, 0, len(rows))
@@ -76,22 +127,62 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 				values = append(values, numericValue(row[fields.Value.Name()]))
 			}
 			options.Series = []charts.Series{{Name: panelSpec.Title, Data: values}}
-			options.XAxis = charts.XAxisConfig{Categories: categories}
+			options.XAxis.Categories = categories
 		}
+	}
+
+	switch panelSpec.Kind {
+	case panel.KindPie, panel.KindDonut, panel.KindGauge:
+		options.Grid = &charts.GridConfig{BorderColor: "transparent"}
+		options.XAxis.Labels = nil
+		options.XAxis.AxisBorder = nil
+		options.XAxis.AxisTicks = nil
+		options.YAxis = nil
+	default:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
 		horizontal := true
-		options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{Horizontal: &horizontal, BorderRadius: 8}}
+		options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{Horizontal: &horizontal, BorderRadius: 4, ColumnWidth: "50%"}}
 	}
-	if panelSpec.Kind == panel.KindBar || panelSpec.Kind == panel.KindStackedBar || panelSpec.Kind == panel.KindTimeSeries {
+	if panelSpec.Kind == panel.KindBar || panelSpec.Kind == panel.KindStackedBar {
 		if options.PlotOptions == nil {
-			options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{BorderRadius: 4}}
+			options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{BorderRadius: 4, ColumnWidth: "48%"}}
+		}
+	}
+	if panelSpec.Kind == panel.KindTimeSeries {
+		curve := charts.StrokeCurveSmooth
+		options.Stroke = &charts.StrokeConfig{
+			Curve:   curve,
+			Width:   2,
+			LineCap: charts.StrokeLineCapRound,
+		}
+		options.Markers = &charts.MarkersConfig{
+			Size:        0,
+			StrokeWidth: 0,
+			Hover:       &charts.MarkerHover{SizeOffset: intPtr(5)},
+		}
+		options.Fill = &charts.FillConfig{
+			Type:    "gradient",
+			Opacity: 1,
+			Gradient: &charts.FillGradient{
+				ShadeIntensity: float64Ptr(1),
+				OpacityFrom:    float64Ptr(0.25),
+				OpacityTo:      float64Ptr(0.05),
+				Stops:          []float64{0, 90, 100},
+			},
 		}
 	}
 	if panelSpec.ShowLegend {
 		position := charts.LegendPositionBottom
-		options.Legend = &charts.LegendConfig{Position: &position, Show: mapping.Pointer(true)}
+		legendFontSize := "11px"
+		options.Legend = &charts.LegendConfig{
+			Position:   &position,
+			Show:       mapping.Pointer(true),
+			FontSize:   &legendFontSize,
+			FontFamily: &fontFamily,
+			ItemMargin: &charts.LegendItemMargin{Horizontal: intPtr(8), Vertical: intPtr(2)},
+		}
 	}
 	if panelSpec.Action != nil {
 		options.Chart.Events = &charts.ChartEvents{DataPointSelection: buildActionJS(panelSpec.Action, fr, fields, panelResult.Variables)}
@@ -257,17 +348,17 @@ func panelColors(panelSpec panel.Spec) []string {
 	}
 	switch panelSpec.Kind {
 	case panel.KindTimeSeries:
-		return []string{"#0f766e"}
+		return []string{"#3b82f6"} // blue-500 — consistent primary
 	case panel.KindStackedBar:
-		return []string{"#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"}
+		return []string{"#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#6366f1", "#14b8a6"}
 	case panel.KindPie, panel.KindDonut:
-		return []string{"#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"}
+		return []string{"#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#6366f1", "#14b8a6"}
 	case panel.KindGauge:
-		return []string{"#f59e0b"}
+		return []string{"#3b82f6"} // blue-500 — unified accent
 	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-		return []string{"#2563eb"}
+		return []string{"#3b82f6"} // blue-500
 	}
-	return []string{"#2563eb"}
+	return []string{"#3b82f6"}
 }
 
 func hasSeries(rows []map[string]any, field string) bool {
@@ -386,3 +477,8 @@ func displayValue(value any) string {
 		return fmt.Sprint(v)
 	}
 }
+
+func strPtr(s string) *string       { return &s }
+func intPtr(i int) *int             { return &i }
+func boolPtr(b bool) *bool          { return &b }
+func float64Ptr(f float64) *float64 { return &f }

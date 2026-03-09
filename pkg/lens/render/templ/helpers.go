@@ -7,6 +7,7 @@ import (
 	"time"
 
 	templpkg "github.com/a-h/templ"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
@@ -255,4 +256,39 @@ func containsQuery(raw string) bool {
 		}
 	}
 	return false
+}
+
+func panelIcon(kind panel.Kind) templpkg.Component {
+	iconProps := icons.Props{Size: "16"}
+	switch kind {
+	case panel.KindTimeSeries:
+		return icons.ChartLine(iconProps)
+	case panel.KindBar, panel.KindStackedBar, panel.KindHorizontalBar:
+		return icons.ChartBar(iconProps)
+	case panel.KindPie, panel.KindDonut:
+		return icons.ChartPie(iconProps)
+	case panel.KindGauge:
+		return icons.Gauge(iconProps)
+	case panel.KindTable:
+		return icons.Table(iconProps)
+	case panel.KindStat:
+		return icons.HashStraight(iconProps)
+	case panel.KindTabs:
+		return icons.Tabs(iconProps)
+	default:
+		return icons.ChartBar(iconProps)
+	}
+}
+
+func panelBodyClass(spec panel.Spec) string {
+	switch spec.Kind {
+	case panel.KindStat:
+		return "flex-1 px-5 py-2.5"
+	case panel.KindTable:
+		return "flex-1 p-4"
+	case panel.KindTabs:
+		return "flex-1 px-5 py-3"
+	default:
+		return "flex-1 p-3"
+	}
 }
