@@ -44,6 +44,13 @@ func TestValidateQueryRejectsSelectInto(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestValidateQueryRejectsCommentSplitWriteKeywords(t *testing.T) {
+	t.Parallel()
+
+	err := validateQuery("SE/* hidden */LECT 1; DE/* hidden */LETE FROM users")
+	require.Error(t, err)
+}
+
 func TestValidateParamsRequiresConfiguredParams(t *testing.T) {
 	t.Parallel()
 

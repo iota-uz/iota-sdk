@@ -47,6 +47,33 @@ templ FilterBar(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 								<input type="checkbox" name={ variable.Name } value="true" checked?={ variableBool(values, variable.Name) }/>
 								<span>{ variable.Description }</span>
 							</label>
+						case lens.VariableSingleSelect:
+							if len(variable.Options) > 0 {
+								<select name={ variable.Name } class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+									if !variable.Required {
+										<option value="">All</option>
+									}
+									for _, option := range variable.Options {
+										<option value={ option.Value } selected?={ variableString(values, variable.Name) == option.Value }>{ option.Label }</option>
+									}
+								</select>
+							} else {
+								<input type="text" name={ variable.Name } value={ variableString(values, variable.Name) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							}
+						case lens.VariableMultiSelect:
+							if len(variable.Options) > 0 {
+								<select name={ variable.Name } multiple class="min-h-32 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+									for _, option := range variable.Options {
+										<option value={ option.Value } selected?={ variableMultiSelected(values, variable.Name, option.Value) }>{ option.Label }</option>
+									}
+								</select>
+							} else {
+								<input type="text" name={ variable.Name } value={ formatVariableValue(variableValue(values, variable.Name)) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							}
+						case lens.VariableNumber:
+							<input type="number" step="any" name={ variable.Name } value={ variableString(values, variable.Name) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+						case lens.VariableText:
+							<input type="text" name={ variable.Name } value={ variableString(values, variable.Name) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
 						default:
 							<input type="text" name={ variable.Name } value={ formatVariableValue(variableValue(values, variable.Name)) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
 					}

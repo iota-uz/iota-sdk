@@ -290,16 +290,11 @@ func sanitizeSQL(query string) string {
 			if ch == '\n' {
 				inLineComment = false
 				b.WriteByte(ch)
-			} else {
-				b.WriteByte(' ')
 			}
 		case inBlockComment:
 			if ch == '*' && next == '/' {
 				inBlockComment = false
-				b.WriteString("  ")
 				i++
-			} else {
-				b.WriteByte(' ')
 			}
 		case inSingleQuote:
 			if ch == '\'' {

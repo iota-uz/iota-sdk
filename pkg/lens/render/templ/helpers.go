@@ -149,6 +149,35 @@ func variableBool(values map[string]any, name string) bool {
 	}
 }
 
+func variableString(values map[string]any, name string) string {
+	value := variableValue(values, name)
+	if value == nil {
+		return ""
+	}
+	return fmt.Sprint(value)
+}
+
+func variableMultiSelected(values map[string]any, name, option string) bool {
+	value := variableValue(values, name)
+	switch current := value.(type) {
+	case []string:
+		for _, item := range current {
+			if item == option {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range current {
+			if fmt.Sprint(item) == option {
+				return true
+			}
+		}
+	case string:
+		return current == option
+	}
+	return false
+}
+
 func actionURL(spec *action.Spec, row map[string]any, variables map[string]any) string {
 	if spec == nil {
 		return ""

@@ -107,6 +107,20 @@ func TestVariableBoolHandlesMissingAndTruthyValues(t *testing.T) {
 	}
 }
 
+func TestVariableMultiSelectedHandlesMultipleShapes(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, variableMultiSelected(map[string]any{
+		"products": []string{"osago", "travel"},
+	}, "products", "travel"))
+	require.True(t, variableMultiSelected(map[string]any{
+		"products": []any{"osago", "travel"},
+	}, "products", "osago"))
+	require.False(t, variableMultiSelected(map[string]any{
+		"products": "osago",
+	}, "products", "travel"))
+}
+
 func TestFormatValueReturnsEmptyStringForNil(t *testing.T) {
 	t.Parallel()
 
