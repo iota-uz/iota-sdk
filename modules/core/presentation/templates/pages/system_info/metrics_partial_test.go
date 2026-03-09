@@ -1,4 +1,4 @@
-//lint:ignore ST1003 package name follows directory naming
+//nolint:staticcheck // ST1003 package name follows directory naming
 package system_info
 
 import (
