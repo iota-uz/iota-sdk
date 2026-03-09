@@ -155,6 +155,8 @@ func actionURL(spec *action.Spec, row map[string]any, variables map[string]any) 
 	}
 	switch spec.Kind {
 	case action.KindNavigate, action.KindHtmxSwap:
+	case action.KindEmitEvent:
+		return ""
 	default:
 		return ""
 	}
@@ -186,6 +188,8 @@ func actionOnClick(spec *action.Spec, row map[string]any, variables map[string]a
 		return templpkg.ComponentScript{}
 	}
 	switch spec.Kind {
+	case action.KindNavigate:
+		return templpkg.ComponentScript{}
 	case action.KindHtmxSwap:
 		href := actionURL(spec, row, variables)
 		if href == "" {
