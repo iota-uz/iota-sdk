@@ -30,6 +30,13 @@ func TestValidateQueryAllowsIdentifiersContainingForbiddenWords(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestValidateQueryAllowsIntoIdentifierOutsideSelectInto(t *testing.T) {
+	t.Parallel()
+
+	err := validateQuery("WITH into AS (SELECT 1 AS value) SELECT value FROM into")
+	require.NoError(t, err)
+}
+
 func TestValidateQueryRejectsSelectInto(t *testing.T) {
 	t.Parallel()
 

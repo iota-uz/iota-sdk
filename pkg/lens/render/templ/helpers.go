@@ -1,11 +1,13 @@
 package templ
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
+	templpkg "github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -148,7 +150,12 @@ func variableBool(values map[string]any, name string) bool {
 }
 
 func actionURL(spec *action.Spec, row map[string]any, variables map[string]any) string {
-	if spec == nil || spec.Kind != action.KindNavigate {
+	if spec == nil {
+		return ""
+	}
+	switch spec.Kind {
+	case action.KindNavigate, action.KindHtmxSwap:
+	default:
 		return ""
 	}
 	nextURL := spec.URL
@@ -172,6 +179,48 @@ func actionURL(spec *action.Spec, row map[string]any, variables map[string]any) 
 		separator = "&"
 	}
 	return nextURL + separator + query
+}
+
+func actionOnClick(spec *action.Spec, row map[string]any, variables map[string]any) templpkg.ComponentScript {
+	if spec == nil {
+		return templpkg.ComponentScript{}
+	}
+	switch spec.Kind {
+	case action.KindHtmxSwap:
+		href := actionURL(spec, row, variables)
+		if href == "" {
+			return templpkg.ComponentScript{}
+		}
+		method := spec.Method
+		if method == "" {
+			method = "GET"
+		}
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%q, %q, {target: %q, swap: 'innerHTML'});", method, href, spec.Target))
+	case action.KindEmitEvent:
+		payload := actionPayload(spec, row, variables)
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			return templpkg.ComponentScript{}
+		}
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); document.dispatchEvent(new CustomEvent(%q, {detail: %s}));", spec.Event, encoded))
+	default:
+		return templpkg.ComponentScript{}
+	}
+}
+
+func actionPayload(spec *action.Spec, row map[string]any, variables map[string]any) map[string]any {
+	if spec == nil || len(spec.Payload) == 0 {
+		return nil
+	}
+	payload := make(map[string]any, len(spec.Payload))
+	for key, source := range spec.Payload {
+		value, ok := actionValue(source, row, variables)
+		if !ok {
+			continue
+		}
+		payload[key] = value
+	}
+	return payload
 }
 
 func actionValue(source action.ValueSource, row map[string]any, variables map[string]any) (any, bool) {

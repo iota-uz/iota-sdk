@@ -114,6 +114,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, variables map[string]any) templ.JSExpression {
 	rowsJSON := rowsToJSON(fr.Rows())
 	urlJSON := fmt.Sprintf("%q", spec.URL)
+	variablesJSON := rowsToJSON([]map[string]any{{"variables": variables}})
 	method := spec.Method
 	if method == "" {
 		method = "GET"
@@ -130,6 +131,7 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	}
 	js := fmt.Sprintf(`function(event, chartContext, opts) {
 		const rows = %s;
+		const variables = ((%s)[0] || {}).variables || {};
 		const config = chartContext.w.config;
 		const categories = (config.xaxis && config.xaxis.categories) ? config.xaxis.categories : [];
 		const seriesName = config.series && config.series[opts.seriesIndex] ? config.series[opts.seriesIndex].name : '';
@@ -148,6 +150,12 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			}
 			return stringValue;
 		};
+		const resolveValue = function(value, fallbackValue) {
+			if (value === undefined || value === null || value === '') {
+				return fallbackValue;
+			}
+			return value;
+		};
 		let row = rows[opts.dataPointIndex] || {};
 		const groupedMatch = rows.find(function(item) {
 			const categoryValue = item[%q] || item[%q] || item[%q];
@@ -160,52 +168,16 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		let nextURL = %s;
 		const payload = {};
 		const params = new URLSearchParams();
-	`, rowsJSON, fields.Category, fields.Label, fields.StartTime, fields.Series, urlJSON)
-	for _, param := range spec.Params {
-		switch param.Source.Kind {
-		case action.SourceField:
-			js += fmt.Sprintf("if (row[%q] !== undefined && row[%q] !== null) { params.append(%q, row[%q]); payload[%q] = row[%q]; }\n", param.Source.Name, param.Source.Name, param.Name, param.Source.Name, param.Name, param.Source.Name)
-		case action.SourcePoint:
-			switch param.Source.Name {
-			case "label":
-				js += fmt.Sprintf("if ((row[%q] || row[%q] || categoryName) !== undefined && (row[%q] || row[%q] || categoryName) !== null && (row[%q] || row[%q] || categoryName) !== '') { params.append(%q, row[%q] || row[%q] || categoryName); payload[%q] = row[%q] || row[%q] || categoryName; }\n", fields.Label, fields.Category, fields.Label, fields.Category, fields.Label, fields.Category, param.Name, fields.Label, fields.Category, param.Name, fields.Label, fields.Category)
-			case "value":
-				js += fmt.Sprintf("if (row[%q] !== undefined && row[%q] !== null) { params.append(%q, row[%q]); payload[%q] = row[%q]; }\n", fields.Value, fields.Value, param.Name, fields.Value, param.Name, fields.Value)
-			case "series":
-				js += fmt.Sprintf("if (seriesName) { params.append(%q, seriesName); payload[%q] = seriesName; }\n", param.Name, param.Name)
-			case "category":
-				js += fmt.Sprintf("if (categoryName) { params.append(%q, categoryName); payload[%q] = categoryName; }\n", param.Name, param.Name)
-			}
-		case action.SourceVariable:
-			if value, ok := variables[param.Source.Name]; ok && value != nil && fmt.Sprint(value) != "" {
-				js += fmt.Sprintf("params.append(%q, %q); payload[%q] = %q;\n", param.Name, fmt.Sprint(value), param.Name, fmt.Sprint(value))
-			}
-		case action.SourceLiteral:
-			js += fmt.Sprintf("params.append(%q, %q); payload[%q] = %q;\n", param.Name, fmt.Sprint(param.Source.Value), param.Name, fmt.Sprint(param.Source.Value))
-		}
+	`, rowsJSON, variablesJSON, fields.Category, fields.Label, fields.StartTime, fields.Series, urlJSON)
+	for idx, param := range spec.Params {
+		expr := actionValueJS(param.Source, fields)
+		js += fmt.Sprintf("const paramValue%d = %s;\nif (paramValue%d !== undefined) { params.append(%q, paramValue%d); payload[%q] = paramValue%d; }\n", idx, expr, idx, param.Name, idx, param.Name, idx)
 	}
+	payloadIndex := 0
 	for key, source := range spec.Payload {
-		switch source.Kind {
-		case action.SourceField:
-			js += fmt.Sprintf("if (row[%q] !== undefined && row[%q] !== null) { payload[%q] = row[%q]; }\n", source.Name, source.Name, key, source.Name)
-		case action.SourcePoint:
-			switch source.Name {
-			case "label":
-				js += fmt.Sprintf("payload[%q] = row[%q] || row[%q] || categoryName;\n", key, fields.Label, fields.Category)
-			case "value":
-				js += fmt.Sprintf("payload[%q] = row[%q];\n", key, fields.Value)
-			case "series":
-				js += fmt.Sprintf("payload[%q] = seriesName;\n", key)
-			case "category":
-				js += fmt.Sprintf("payload[%q] = categoryName;\n", key)
-			}
-		case action.SourceVariable:
-			if value, ok := variables[source.Name]; ok && value != nil {
-				js += fmt.Sprintf("payload[%q] = %q;\n", key, fmt.Sprint(value))
-			}
-		case action.SourceLiteral:
-			js += fmt.Sprintf("payload[%q] = %q;\n", key, fmt.Sprint(source.Value))
-		}
+		expr := actionValueJS(source, fields)
+		js += fmt.Sprintf("const payloadValue%d = %s;\nif (payloadValue%d !== undefined) { payload[%q] = payloadValue%d; }\n", payloadIndex, expr, payloadIndex, key, payloadIndex)
+		payloadIndex++
 	}
 	js += `const query = params.toString();
 		if (query) {
@@ -213,6 +185,51 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		}
 	` + actionJS + `}`
 	return templ.JSExpression(js)
+}
+
+func actionValueJS(source action.ValueSource, fields panel.FieldMapping) string {
+	switch source.Kind {
+	case action.SourceField:
+		return fmt.Sprintf("resolveValue(row[%q], %s)", source.Name, jsFallbackLiteral(source.Fallback))
+	case action.SourcePoint:
+		return fmt.Sprintf("resolveValue(%s, %s)", pointValueJS(source.Name, fields), jsFallbackLiteral(source.Fallback))
+	case action.SourceVariable:
+		return fmt.Sprintf("resolveValue(variables[%q], %s)", source.Name, jsFallbackLiteral(source.Fallback))
+	case action.SourceLiteral:
+		return jsLiteral(source.Value)
+	default:
+		return "undefined"
+	}
+}
+
+func pointValueJS(name string, fields panel.FieldMapping) string {
+	switch name {
+	case "label":
+		return fmt.Sprintf("row[%q] || row[%q] || categoryName", fields.Label, fields.Category)
+	case "value":
+		return fmt.Sprintf("row[%q]", fields.Value)
+	case "series":
+		return "seriesName"
+	case "category":
+		return "categoryName"
+	default:
+		return fmt.Sprintf("row[%q]", name)
+	}
+}
+
+func jsFallbackLiteral(value any) string {
+	if value == nil {
+		return "undefined"
+	}
+	return jsLiteral(value)
+}
+
+func jsLiteral(value any) string {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return "undefined"
+	}
+	return string(encoded)
 }
 
 func rowsToJSON(rows []map[string]any) string {

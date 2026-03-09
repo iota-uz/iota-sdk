@@ -322,8 +322,12 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 		case lens.VariableDateRange:
 			values[spec.Name] = resolveDateRange(spec, rt.Request)
 		case lens.VariableToggle:
-			raw := rt.Request.Get(spec.Name)
-			values[spec.Name] = raw == "true" || raw == "1"
+			raw := strings.TrimSpace(rt.Request.Get(spec.Name))
+			if raw == "" {
+				values[spec.Name] = spec.Default
+				continue
+			}
+			values[spec.Name] = raw == "true" || raw == "1" || raw == "on"
 		case lens.VariableNumber:
 			if raw := rt.Request.Get(spec.Name); raw != "" {
 				parsed, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
@@ -525,7 +529,7 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		if strings.TrimSpace(spec.Fields.Category) == "" {
 			return fmt.Errorf("panel %s requires category field", spec.ID)
 		}
-		if strings.TrimSpace(spec.Fields.Series) == "" {
+		if spec.Kind == panel.KindStackedBar && strings.TrimSpace(spec.Fields.Series) == "" {
 			return fmt.Errorf("panel %s requires series field", spec.ID)
 		}
 	}

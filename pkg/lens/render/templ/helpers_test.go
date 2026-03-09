@@ -33,6 +33,58 @@ func TestActionURLIncludesVariableParams(t *testing.T) {
 	require.Equal(t, "report", parsed.Query().Get("scope"))
 }
 
+func TestActionURLSupportsHtmxActions(t *testing.T) {
+	t.Parallel()
+
+	url := actionURL(&action.Spec{
+		Kind: action.KindHtmxSwap,
+		URL:  "/contracts",
+		Params: []action.Param{
+			action.FieldParam("product", "product_id"),
+		},
+	}, map[string]any{
+		"product_id": "osago",
+	}, nil)
+
+	require.Equal(t, "/contracts?product=osago", url)
+}
+
+func TestActionOnClickSupportsEmitEventFallbacks(t *testing.T) {
+	t.Parallel()
+
+	onClick := actionOnClick(&action.Spec{
+		Kind:  action.KindEmitEvent,
+		Event: "lens:drilldown",
+		Payload: map[string]action.ValueSource{
+			"product": {
+				Kind:     action.SourceField,
+				Name:     "product_id",
+				Fallback: "default-product",
+			},
+		},
+	}, map[string]any{}, nil)
+
+	require.Contains(t, onClick.Call, "lens:drilldown")
+	require.Contains(t, onClick.Call, "default-product")
+}
+
+func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
+	t.Parallel()
+
+	onClick := actionOnClick(&action.Spec{
+		Kind:   action.KindHtmxSwap,
+		URL:    "/contracts",
+		Target: "#report",
+		Params: []action.Param{
+			action.LiteralParam("scope", "daily"),
+		},
+	}, nil, nil)
+
+	require.Contains(t, onClick.Call, "htmx.ajax")
+	require.Contains(t, onClick.Call, "/contracts?scope=daily")
+	require.Contains(t, onClick.Call, "#report")
+}
+
 func TestVariableBoolHandlesMissingAndTruthyValues(t *testing.T) {
 	t.Parallel()
 

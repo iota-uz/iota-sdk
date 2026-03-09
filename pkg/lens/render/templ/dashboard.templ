@@ -132,8 +132,9 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 	{{ value := formatValue(statRawValue(spec, result), spec.Formatter, result.Locale, result.Timezone) }}
 	{{ row := statRow(result) }}
 	{{ href := actionURL(spec.Action, row, result.Variables) }}
+	{{ onClick := actionOnClick(spec.Action, row, result.Variables) }}
 	if href != "" {
-		<a href={ templ.URL(href) } class="block h-full transition hover:opacity-95">
+		<a href={ templ.URL(href) } onclick={ onClick } class="block h-full transition hover:opacity-95">
 			<div class="flex h-full items-center justify-between rounded-xl bg-gradient-to-br from-slate-50 to-white p-4">
 				<div>
 					<div class="text-3xl font-bold text-gray-900">{ value }</div>
@@ -144,6 +145,18 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 				</div>
 			</div>
 		</a>
+	} else if onClick.Call != "" {
+		<button type="button" onclick={ onClick } class="block h-full w-full text-left transition hover:opacity-95">
+			<div class="flex h-full items-center justify-between rounded-xl bg-gradient-to-br from-slate-50 to-white p-4">
+				<div>
+					<div class="text-3xl font-bold text-gray-900">{ value }</div>
+					<div class="mt-1 text-sm text-gray-500">{ spec.Description }</div>
+				</div>
+				<div class="rounded-full bg-blue-50 p-3 text-blue-600">
+					@icons.ChartLine(icons.Props{Size: "22"})
+				</div>
+			</div>
+		</button>
 	} else {
 		<div class="flex h-full items-center justify-between rounded-xl bg-gradient-to-br from-slate-50 to-white p-4">
 			<div>
@@ -195,11 +208,14 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 			<tbody class="divide-y divide-gray-100">
 				for _, row := range rows {
 					{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
-					<tr class={ "hover:bg-gray-50", templ.KV("cursor-pointer", rowHref != "") }>
+					{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
+					<tr class={ "hover:bg-gray-50", templ.KV("cursor-pointer", rowHref != "" || rowOnClick.Call != "") }>
 						for i, column := range columns {
 							<td class="px-3 py-2 text-gray-700">
 								if rowHref != "" && i == 0 {
-									<a href={ templ.URL(rowHref) } class="font-medium text-blue-600 hover:underline">{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }</a>
+									<a href={ templ.URL(rowHref) } onclick={ rowOnClick } class="font-medium text-blue-600 hover:underline">{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }</a>
+								} else if rowOnClick.Call != "" && i == 0 {
+									<button type="button" onclick={ rowOnClick } class="font-medium text-left text-blue-600 hover:underline">{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }</button>
 								} else {
 									{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }
 								}

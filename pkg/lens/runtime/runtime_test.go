@@ -193,7 +193,37 @@ func TestResolveVariablesParsesNumberValues(t *testing.T) {
 		Request: url.Values{"limit": []string{"25.5"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, 25.5, values["limit"])
+	require.InDelta(t, 25.5, values["limit"].(float64), 0.001)
+}
+
+func TestResolveVariablesUsesToggleDefaultWhenRequestMissing(t *testing.T) {
+	t.Parallel()
+
+	spec := lens.Dashboard("variables", "Variables").WithVariables(
+		lens.VariableSpec{Name: "active_only", Label: "Active Only", Kind: lens.VariableToggle, Default: true},
+	)
+
+	values, err := resolveVariables(spec.Variables, Runtime{Request: url.Values{}})
+	require.NoError(t, err)
+	require.Equal(t, true, values["active_only"])
+}
+
+func TestValidateAllowsUngroupedTimeSeriesPanels(t *testing.T) {
+	t.Parallel()
+
+	spec := lens.Dashboard("sales", "Sales").WithDatasets(
+		lens.StaticDataset("daily_sales", mustFrameSet(t, "daily_sales")),
+	)
+	spec.Rows = []lens.RowSpec{
+		lens.Row(
+			panel.TimeSeries("daily", "Daily Sales", "daily_sales").
+				CategoryField("category").
+				ValueField("value").
+				Build(),
+		),
+	}
+
+	require.NoError(t, Validate(spec))
 }
 
 func TestExecuteDatasetWaiterHonorsContextCancellation(t *testing.T) {

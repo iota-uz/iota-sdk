@@ -138,7 +138,8 @@ func TransformDataset(name string, dependsOn []string, transforms ...transform.S
 
 func StaticDataset(name string, set *frame.FrameSet) DatasetSpec {
 	if set == nil {
-		return DatasetSpec{Name: name, Kind: DatasetKindStatic}
+		empty, _ := frame.NewFrameSet()
+		return DatasetSpec{Name: name, Kind: DatasetKindStatic, Static: empty}
 	}
 	return DatasetSpec{Name: name, Kind: DatasetKindStatic, Static: set.Clone()}
 }

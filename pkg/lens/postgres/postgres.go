@@ -31,7 +31,6 @@ var (
 		regexp.MustCompile(`\bREVOKE\b`),
 		regexp.MustCompile(`\bCOPY\b`),
 		regexp.MustCompile(`\bCALL\b`),
-		regexp.MustCompile(`\bINTO\b`),
 	}
 )
 
@@ -163,7 +162,70 @@ func validateQuery(query string) error {
 			return fmt.Errorf("only read-only SELECT queries are allowed")
 		}
 	}
+	if containsSelectInto(sanitized) {
+		return fmt.Errorf("only read-only SELECT queries are allowed")
+	}
 	return nil
+}
+
+func containsSelectInto(query string) bool {
+	depth := 0
+	inSelect := false
+	seenFrom := false
+	prevToken := ""
+
+	for i := 0; i < len(query); {
+		switch ch := query[i]; {
+		case ch == '(':
+			depth++
+			i++
+			continue
+		case ch == ')':
+			if depth > 0 {
+				depth--
+			}
+			i++
+			continue
+		case !isIdentifierByte(ch):
+			i++
+			continue
+		}
+
+		start := i
+		for i < len(query) && isIdentifierByte(query[i]) {
+			i++
+		}
+		token := query[start:i]
+		if depth != 0 {
+			continue
+		}
+
+		switch token {
+		case "SELECT":
+			inSelect = true
+			seenFrom = false
+		case "FROM":
+			if inSelect {
+				seenFrom = true
+			}
+		case "UNION", "INTERSECT", "EXCEPT":
+			inSelect = false
+			seenFrom = false
+		case "INTO":
+			if inSelect && !seenFrom && prevToken != "AS" {
+				return true
+			}
+		}
+		prevToken = token
+	}
+
+	return false
+}
+
+func isIdentifierByte(ch byte) bool {
+	return ch == '_' ||
+		(ch >= 'A' && ch <= 'Z') ||
+		(ch >= '0' && ch <= '9')
 }
 
 func inferType(oid uint32) frame.FieldType {
