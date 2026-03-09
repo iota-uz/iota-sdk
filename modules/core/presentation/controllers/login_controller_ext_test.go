@@ -155,7 +155,7 @@ func TestGetRenderModes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			controller := &LoginController{options: tc.makeOptions()}
 			req := httptest.NewRequest(http.MethodGet, "/login", nil)
-			req = req.WithContext(withLocalizer(t, req.Context(), `{"Login":{"Meta":{"Title":"Login"}}}`))
+			req = req.WithContext(withLocalizer(t, req.Context(), `{"Login":{"Meta":{"Title":"Login"},"Login":"Log in","LoginWithGoogle":"Log in with Google"}}`))
 			w := httptest.NewRecorder()
 
 			controller.Get(w, req)
