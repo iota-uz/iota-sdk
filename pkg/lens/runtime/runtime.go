@@ -232,7 +232,6 @@ func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.D
 		var mu sync.Mutex
 		group, groupCtx := errgroup.WithContext(ctx)
 		for _, datasetSpec := range stage {
-			datasetSpec := datasetSpec
 			group.Go(func() error {
 				start := time.Now()
 				frames, err := s.executeDatasetSpec(groupCtx, datasetSpec, results)
@@ -263,7 +262,6 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 	var mu sync.Mutex
 	group, groupCtx := errgroup.WithContext(ctx)
 	for _, panelSpec := range panels {
-		panelSpec := panelSpec
 		group.Go(func() error {
 			start := time.Now()
 			panelResult := &PanelResult{
@@ -831,9 +829,10 @@ func requiredPanelFields(spec panel.Spec) []panel.FieldRef {
 		return fields
 	case panel.KindStackedBar:
 		return []panel.FieldRef{spec.Fields.Category, spec.Fields.Series, spec.Fields.Value}
-	default:
+	case panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return nil
 	}
+	return nil
 }
 
 func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, source action.ValueSource) error {

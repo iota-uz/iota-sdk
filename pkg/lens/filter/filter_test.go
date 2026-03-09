@@ -35,6 +35,7 @@ func TestBuild_Scenarios(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, model Model) {
+				t.Helper()
 				require.Len(t, model.Inputs, 1)
 				assert.Equal(t, "all", model.Inputs[0].DateRange.Mode)
 				assert.True(t, model.Inputs[0].DateRange.AllowAllTime)
@@ -56,6 +57,7 @@ func TestBuild_Scenarios(t *testing.T) {
 				"range": lens.DateRangeValue{Mode: " all "},
 			},
 			assert: func(t *testing.T, model Model) {
+				t.Helper()
 				require.Len(t, model.Inputs, 1)
 				assert.Equal(t, "default", model.Inputs[0].DateRange.Mode)
 			},
@@ -68,6 +70,7 @@ func TestBuild_Scenarios(t *testing.T) {
 			},
 			values: nil,
 			assert: func(t *testing.T, model Model) {
+				t.Helper()
 				require.Len(t, model.Inputs, 2)
 				assert.True(t, model.Inputs[0].Checked)
 				assert.Equal(t, "25.5", model.Inputs[1].Value)
@@ -90,6 +93,7 @@ func TestBuild_Scenarios(t *testing.T) {
 				"products": []string{"travel"},
 			},
 			assert: func(t *testing.T, model Model) {
+				t.Helper()
 				require.Len(t, model.Inputs, 1)
 				assert.Equal(t, []string{"travel"}, model.Inputs[0].Values)
 				assert.False(t, model.Inputs[0].Options[0].Selected)
@@ -107,6 +111,7 @@ func TestBuild_Scenarios(t *testing.T) {
 				"limit":       25.5,
 			},
 			assert: func(t *testing.T, model Model) {
+				t.Helper()
 				require.Len(t, model.Inputs, 2)
 				assert.True(t, model.Inputs[0].Checked)
 				assert.Equal(t, "25.5", model.Inputs[1].Value)
@@ -115,7 +120,6 @@ func TestBuild_Scenarios(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			model := Build(tt.specs, tt.values)
 			tt.assert(t, model)

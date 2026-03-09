@@ -86,7 +86,7 @@ func buildInput(spec lens.VariableSpec, value any) Input {
 		input.Checked = asBool(value)
 	case lens.VariableMultiSelect:
 		input.Values = asStrings(value)
-	default:
+	case lens.VariableSingleSelect, lens.VariableText, lens.VariableNumber:
 		input.Value = asString(value)
 	}
 	return input

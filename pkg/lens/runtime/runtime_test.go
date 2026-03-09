@@ -94,7 +94,6 @@ func TestBuildPlan_Scenarios(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			plan, err := BuildPlan(tt.spec)
 			require.NoError(t, err)
@@ -130,7 +129,6 @@ func TestExecute_Scenarios(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ds := &stubDataSource{}
 			result, err := Execute(context.Background(), tt.spec, Runtime{
