@@ -32,6 +32,24 @@ func TestBuildNormalizesDateRangeAndAllTime(t *testing.T) {
 	require.Equal(t, "2026-03-09", model.Inputs[0].DateRange.End)
 }
 
+func TestBuildClampsAllTimeWhenVariableDisallowsIt(t *testing.T) {
+	t.Parallel()
+
+	model := Build([]lens.VariableSpec{
+		{
+			Name:         "range",
+			Label:        "Range",
+			Kind:         lens.VariableDateRange,
+			AllowAllTime: false,
+		},
+	}, map[string]any{
+		"range": lens.DateRangeValue{Mode: " all "},
+	})
+
+	require.Len(t, model.Inputs, 1)
+	require.Equal(t, "default", model.Inputs[0].DateRange.Mode)
+}
+
 func TestBuildNormalizesOptionSelection(t *testing.T) {
 	t.Parallel()
 

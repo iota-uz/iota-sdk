@@ -95,8 +95,12 @@ func buildDateRange(spec lens.VariableSpec, value any) DateRange {
 	if !ok {
 		current = lens.DateRangeValue{Mode: "default"}
 	}
+	mode := normalizeDateRangeMode(current.Mode)
+	if mode == "all" && !spec.AllowAllTime {
+		mode = "default"
+	}
 	return DateRange{
-		Mode:         normalizeDateRangeMode(current.Mode),
+		Mode:         mode,
 		AllowAllTime: spec.AllowAllTime,
 		Start:        formatDate(current.Start),
 		End:          formatDate(current.End),
@@ -111,9 +115,10 @@ func formatDate(value *time.Time) string {
 }
 
 func normalizeDateRangeMode(mode string) string {
-	switch strings.TrimSpace(mode) {
+	normalized := strings.TrimSpace(mode)
+	switch normalized {
 	case "all", "bounded", "default":
-		return mode
+		return normalized
 	default:
 		return "default"
 	}
