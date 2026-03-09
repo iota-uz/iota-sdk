@@ -104,6 +104,7 @@ func TestFilterModel_Scenarios(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, model filter.Model) {
+				t.Helper()
 				assert.Len(t, model.Inputs, 1)
 				assert.Equal(t, "range", model.Inputs[0].Name)
 			},
@@ -112,6 +113,7 @@ func TestFilterModel_Scenarios(t *testing.T) {
 			name:   "returns empty model for nil result",
 			result: nil,
 			assert: func(t *testing.T, model filter.Model) {
+				t.Helper()
 				assert.Empty(t, model.Inputs)
 			},
 		},

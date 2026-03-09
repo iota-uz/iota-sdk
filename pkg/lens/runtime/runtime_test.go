@@ -84,6 +84,7 @@ func TestBuildPlan_Scenarios(t *testing.T) {
 				lensbuild.StaticDataset("unused_dataset", mustFrameSet(t, "unused_dataset")),
 			).Build(),
 			assert: func(t *testing.T, plan ExecutionPlan) {
+				t.Helper()
 				assert.Len(t, plan.DatasetStages, 2)
 				assert.ElementsMatch(t, []string{"raw_sales", "source_lookup"}, plan.DatasetStages[0].Datasets)
 				assert.Equal(t, []string{"daily_sales"}, plan.DatasetStages[1].Datasets)
@@ -121,6 +122,7 @@ func TestExecute_Scenarios(t *testing.T) {
 				lensbuild.QueryDataset("unused-data", "primary", "select 2"),
 			).Build(),
 			assert: func(t *testing.T, result *DashboardResult, ds *stubDataSource) {
+				t.Helper()
 				assert.Equal(t, int32(1), ds.calls.Load())
 				assert.Contains(t, result.Datasets, "shared-data")
 				assert.NotContains(t, result.Datasets, "unused-data")
