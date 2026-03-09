@@ -206,8 +206,12 @@ func coerceTime(value any, timezone string) (time.Time, bool) {
 		}
 		return applyTimezone(*v, timezone), true
 	case string:
-		for _, layout := range []string{time.RFC3339, "2006-01-02", "2006-01-02 15:04:05"} {
-			parsed, err := time.Parse(layout, strings.TrimSpace(v))
+		trimmed := strings.TrimSpace(v)
+		if parsed, err := time.Parse(time.RFC3339, trimmed); err == nil {
+			return applyTimezone(parsed, timezone), true
+		}
+		for _, layout := range []string{"2006-01-02", "2006-01-02 15:04:05"} {
+			parsed, err := parseTimeInLocation(layout, trimmed, timezone)
 			if err == nil {
 				return applyTimezone(parsed, timezone), true
 			}
@@ -271,4 +275,15 @@ func applyTimezone(value time.Time, timezone string) time.Time {
 		return value
 	}
 	return value.In(location)
+}
+
+func parseTimeInLocation(layout, value, timezone string) (time.Time, error) {
+	if timezone == "" {
+		return time.Parse(layout, value)
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return time.Parse(layout, value)
+	}
+	return time.ParseInLocation(layout, value, location)
 }

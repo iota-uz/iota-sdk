@@ -1,8 +1,6 @@
 package templ
 
 import (
-	"fmt"
-
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
@@ -26,7 +24,7 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 
 templ FilterBar(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 	if len(spec.Variables) == 0 {
-		return
+		{{ return }}
 	}
 	{{ values := map[string]any{} }}
 	if result != nil {
@@ -50,7 +48,7 @@ templ FilterBar(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 								<span>{ variable.Description }</span>
 							</label>
 						default:
-							<input type="text" name={ variable.Name } value={ fmt.Sprint(variableValue(values, variable.Name)) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
+							<input type="text" name={ variable.Name } value={ formatVariableValue(variableValue(values, variable.Name)) } class="rounded-lg border border-gray-300 px-3 py-2 text-sm"/>
 					}
 				</div>
 			}
@@ -129,7 +127,7 @@ templ TabsPanel(spec panel.Spec, result *runtime.DashboardResult) {
 templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 	if result == nil || result.Error != nil {
 		@ErrorState(result)
-		return
+		{{ return }}
 	}
 	{{ value := formatValue(statRawValue(spec, result), spec.Formatter, result.Locale, result.Timezone) }}
 	{{ row := statRow(result) }}
@@ -162,11 +160,11 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 templ ChartPanel(spec panel.Spec, result *runtime.PanelResult) {
 	if result == nil || result.Error != nil {
 		@ErrorState(result)
-		return
+		{{ return }}
 	}
 	if result.Frames == nil || result.Frames.Primary() == nil || result.Frames.Primary().RowCount == 0 {
 		@EmptyState()
-		return
+		{{ return }}
 	}
 	@charts.Chart(charts.Props{
 		Class:   "w-full h-full min-h-[260px]",
@@ -177,11 +175,11 @@ templ ChartPanel(spec panel.Spec, result *runtime.PanelResult) {
 templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 	if result == nil || result.Error != nil {
 		@ErrorState(result)
-		return
+		{{ return }}
 	}
 	if result.Frames == nil || result.Frames.Primary() == nil || result.Frames.Primary().RowCount == 0 {
 		@EmptyState()
-		return
+		{{ return }}
 	}
 	{{ rows := result.Frames.Primary().Rows() }}
 	{{ columns := tableColumns(spec, result) }}
@@ -222,10 +220,6 @@ templ EmptyState() {
 
 templ ErrorState(result *runtime.PanelResult) {
 	<div class="flex min-h-[220px] items-center justify-center rounded-xl border border-red-100 bg-red-50 text-sm text-red-600">
-		if result != nil && result.Error != nil {
-			{ result.Error.Error() }
-		} else {
-			Unable to render panel
-		}
+		Unable to render panel
 	</div>
 }

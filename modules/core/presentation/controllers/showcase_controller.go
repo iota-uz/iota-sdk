@@ -33,7 +33,7 @@ import (
 type ShowcaseController struct {
 	app      application.Application
 	basePath string
-	ds       *lenspostgres.DataSource
+	ds       datasource.DataSource
 }
 
 func NewShowcaseController(app application.Application) application.Controller {

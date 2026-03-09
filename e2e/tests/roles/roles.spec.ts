@@ -12,8 +12,10 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
 	const response = await page.evaluate(async () => {
 		const form = document.getElementById('delete-form');
 		if (!form) throw new Error('#delete-form not found in DOM');
+		if (!(form instanceof HTMLFormElement)) throw new Error('#delete-form is not a form');
 		const endpoint = form.getAttribute('hx-delete');
 		if (!endpoint) throw new Error('#delete-form is missing hx-delete');
+		const formData = new FormData(form);
 
 		const res = await fetch(endpoint, {
 			method: 'DELETE',
@@ -22,6 +24,7 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
 				'HX-Request': 'true',
 				'X-Requested-With': 'XMLHttpRequest',
 			},
+			body: formData,
 		});
 
 		return {
@@ -38,17 +41,9 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
 }
 
 async function ensureRolesListVisible(page: Page): Promise<void> {
-	try {
-		await page.waitForURL(/\/roles$/, { timeout: 15000 });
-	} catch (error) {
-		const isTimeout = error instanceof Error && (error.name === 'TimeoutError' || error.message.includes('Timeout'));
-		if (!isTimeout) {
-			console.error('ensureRolesListVisible waitForURL failed:', error);
-			throw error;
-		}
-		await page.goto('/roles', { waitUntil: 'domcontentloaded' });
-	}
+	await page.waitForURL(/\/roles$/, { timeout: 15000 });
 	await expect(page).toHaveURL(/\/roles$/);
+	await expect(page.locator('tbody')).toBeVisible({ timeout: 15000 });
 }
 
 test.describe('role management flows', () => {

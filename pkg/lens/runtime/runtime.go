@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -323,13 +324,24 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 		case lens.VariableToggle:
 			raw := rt.Request.Get(spec.Name)
 			values[spec.Name] = raw == "true" || raw == "1"
+		case lens.VariableNumber:
+			if raw := rt.Request.Get(spec.Name); raw != "" {
+				parsed, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+				if err != nil {
+					values[spec.Name] = spec.Default
+				} else {
+					values[spec.Name] = parsed
+				}
+			} else {
+				values[spec.Name] = spec.Default
+			}
 		case lens.VariableMultiSelect:
 			if raw := rt.Request[spec.Name]; len(raw) > 0 {
 				values[spec.Name] = append([]string(nil), raw...)
 			} else {
 				values[spec.Name] = spec.Default
 			}
-		case lens.VariableSingleSelect, lens.VariableText, lens.VariableNumber:
+		case lens.VariableSingleSelect, lens.VariableText:
 			if raw := rt.Request.Get(spec.Name); raw != "" {
 				values[spec.Name] = raw
 			} else {
@@ -424,6 +436,8 @@ func Validate(spec lens.DashboardSpec) error {
 			}
 		case lens.DatasetKindTransform, lens.DatasetKindJoin, lens.DatasetKindUnion, lens.DatasetKindFormula:
 			// Derived dataset kinds are validated through dependency graph checks below.
+		default:
+			return fmt.Errorf("dataset %s has unsupported kind %q", dataset.Name, dataset.Kind)
 		}
 		if _, exists := datasets[dataset.Name]; exists {
 			return fmt.Errorf("duplicate dataset %s", dataset.Name)
@@ -488,6 +502,8 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		return nil
 	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindTable, panel.KindGauge:
 		// Leaf panels continue through dataset and field validation below.
+	default:
+		return fmt.Errorf("panel %s has unsupported kind %q", spec.ID, spec.Kind)
 	}
 	if spec.Dataset == "" {
 		return fmt.Errorf("panel %s is missing dataset", spec.ID)
@@ -517,6 +533,11 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		return fmt.Errorf("panel %s action requires url", spec.ID)
 	}
 	if spec.Action != nil {
+		switch spec.Action.Kind {
+		case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent:
+		default:
+			return fmt.Errorf("panel %s action has unsupported kind %q", spec.ID, spec.Action.Kind)
+		}
 		if spec.Action.Kind == action.KindEmitEvent && strings.TrimSpace(spec.Action.Event) == "" {
 			return fmt.Errorf("panel %s emit event action requires event name", spec.ID)
 		}

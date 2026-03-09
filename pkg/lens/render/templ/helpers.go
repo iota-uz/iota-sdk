@@ -3,6 +3,7 @@ package templ
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
@@ -108,6 +109,17 @@ func formatValue(value any, spec *format.Spec, locale, timezone string) string {
 		return fmt.Sprintf("%.2f", v)
 	case float32:
 		return fmt.Sprintf("%.2f", v)
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+func formatVariableValue(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case []string:
+		return strings.Join(v, ",")
 	default:
 		return fmt.Sprint(v)
 	}

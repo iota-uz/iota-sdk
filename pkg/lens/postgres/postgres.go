@@ -31,6 +31,7 @@ var (
 		regexp.MustCompile(`\bREVOKE\b`),
 		regexp.MustCompile(`\bCOPY\b`),
 		regexp.MustCompile(`\bCALL\b`),
+		regexp.MustCompile(`\bINTO\b`),
 	}
 )
 

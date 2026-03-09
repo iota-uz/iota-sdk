@@ -29,3 +29,10 @@ func TestValidateQueryAllowsIdentifiersContainingForbiddenWords(t *testing.T) {
 	err := validateQuery("SELECT update_log, delete_requests FROM audit_report")
 	require.NoError(t, err)
 }
+
+func TestValidateQueryRejectsSelectInto(t *testing.T) {
+	t.Parallel()
+
+	err := validateQuery("SELECT * INTO backup_table FROM contracts")
+	require.Error(t, err)
+}

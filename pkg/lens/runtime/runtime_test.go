@@ -182,6 +182,20 @@ func TestResolveVariablesPreservesAllMultiSelectValues(t *testing.T) {
 	require.Equal(t, []string{"osago", "travel"}, values["products"])
 }
 
+func TestResolveVariablesParsesNumberValues(t *testing.T) {
+	t.Parallel()
+
+	spec := lens.Dashboard("variables", "Variables").WithVariables(
+		lens.VariableSpec{Name: "limit", Label: "Limit", Kind: lens.VariableNumber, Default: 10.0},
+	)
+
+	values, err := resolveVariables(spec.Variables, Runtime{
+		Request: url.Values{"limit": []string{"25.5"}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 25.5, values["limit"])
+}
+
 func TestExecuteDatasetWaiterHonorsContextCancellation(t *testing.T) {
 	t.Parallel()
 

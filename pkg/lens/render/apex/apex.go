@@ -270,7 +270,11 @@ func hasSeries(rows []map[string]any, field string) bool {
 		return false
 	}
 	for _, row := range rows {
-		if value, ok := row[field]; ok && fmt.Sprint(value) != "" {
+		value, ok := row[field]
+		if !ok || value == nil {
+			continue
+		}
+		if strings.TrimSpace(fmt.Sprint(value)) != "" {
 			return true
 		}
 	}

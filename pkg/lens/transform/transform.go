@@ -345,6 +345,8 @@ func matches(row map[string]any, predicates []Predicate) bool {
 			if toFloat(left) > toFloat(predicate.Value) {
 				return false
 			}
+		default:
+			return false
 		}
 	}
 	return true
@@ -593,7 +595,7 @@ func join(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *JoinCon
 		key := joinKey(row, cfg.On)
 		index[key] = append(index[key], row)
 	}
-	out, err := frame.New(left.Name)
+	out, err := frame.New(left.Name, joinFields(left, right, cfg.Other)...)
 	if err != nil {
 		return nil, err
 	}
@@ -630,6 +632,27 @@ func join(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *JoinCon
 		return nil, err
 	}
 	return frame.NewFrameSet(out)
+}
+
+func joinFields(left, right *frame.Frame, other string) []frame.Field {
+	fields := make([]frame.Field, 0, len(left.Fields)+len(right.Fields))
+	seen := make(map[string]struct{}, len(left.Fields)+len(right.Fields))
+	for _, field := range left.Fields {
+		cloned := field.Clone()
+		cloned.Values = nil
+		fields = append(fields, cloned)
+		seen[field.Name] = struct{}{}
+	}
+	for _, field := range right.Fields {
+		cloned := field.Clone()
+		cloned.Values = nil
+		if _, exists := seen[cloned.Name]; exists {
+			cloned.Name = other + "_" + cloned.Name
+		}
+		seen[cloned.Name] = struct{}{}
+		fields = append(fields, cloned)
+	}
+	return fields
 }
 
 func formula(primary *frame.FrameSet, cfg *Formula) (*frame.FrameSet, error) {
@@ -1059,11 +1082,19 @@ func toFloat(value any) float64 {
 		return float64(v)
 	case int:
 		return float64(v)
+	case int8:
+		return float64(v)
+	case int16:
+		return float64(v)
 	case int64:
 		return float64(v)
 	case int32:
 		return float64(v)
 	case uint:
+		return float64(v)
+	case uint8:
+		return float64(v)
+	case uint16:
 		return float64(v)
 	case uint64:
 		return float64(v)
