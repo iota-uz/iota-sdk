@@ -176,12 +176,21 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 	if panelSpec.ShowLegend {
 		position := charts.LegendPositionBottom
 		legendFontSize := "11px"
-		options.Legend = &charts.LegendConfig{
-			Position:   &position,
-			Show:       mapping.Pointer(true),
-			FontSize:   &legendFontSize,
-			FontFamily: &fontFamily,
-			ItemMargin: &charts.LegendItemMargin{Horizontal: intPtr(8), Vertical: intPtr(2)},
+		if options.Legend == nil {
+			options.Legend = &charts.LegendConfig{}
+		}
+		options.Legend.Show = mapping.Pointer(true)
+		if options.Legend.Position == nil {
+			options.Legend.Position = &position
+		}
+		if options.Legend.FontSize == nil {
+			options.Legend.FontSize = &legendFontSize
+		}
+		if options.Legend.FontFamily == nil {
+			options.Legend.FontFamily = &fontFamily
+		}
+		if options.Legend.ItemMargin == nil {
+			options.Legend.ItemMargin = &charts.LegendItemMargin{Horizontal: intPtr(8), Vertical: intPtr(2)}
 		}
 	}
 	if panelSpec.Action != nil {

@@ -255,13 +255,15 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 				for _, row := range rows {
 					{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
 					{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
-					<tr class="transition-colors hover:bg-gray-50/60">
+					{{ rowClick := rowActionOnClick(spec.Action, row, result.Variables) }}
+					<tr
+						class={ "transition-colors hover:bg-gray-50/60", templ.KV("cursor-pointer", rowHref != "" || rowOnClick.Call != "" || rowClick.Call != "") }
+						onclick={ rowClick }
+					>
 						for i, column := range columns {
 							<td class="whitespace-nowrap px-4 py-2 text-gray-600">
-								if rowHref != "" && i == 0 {
-									<a href={ templ.URL(rowHref) } onclick={ rowOnClick } class="cursor-pointer font-medium text-gray-800 hover:text-blue-600">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</a>
-								} else if rowOnClick.Call != "" && i == 0 {
-									<button type="button" onclick={ rowOnClick } class="cursor-pointer font-medium text-left text-gray-800 hover:text-blue-600">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</button>
+								if (rowHref != "" || rowOnClick.Call != "" || rowClick.Call != "") && i == 0 {
+									<span class="font-medium text-gray-800">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</span>
 								} else {
 									{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
 								}

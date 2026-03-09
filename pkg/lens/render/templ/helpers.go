@@ -180,6 +180,20 @@ func actionOnClick(spec *action.Spec, row map[string]any, variables map[string]a
 	}
 }
 
+func rowActionOnClick(spec *action.Spec, row map[string]any, variables map[string]any) templpkg.ComponentScript {
+	if spec == nil {
+		return templpkg.ComponentScript{}
+	}
+	if onClick := actionOnClick(spec, row, variables); onClick.Call != "" {
+		return onClick
+	}
+	href := actionURL(spec, row, variables)
+	if href == "" {
+		return templpkg.ComponentScript{}
+	}
+	return templpkg.JSUnsafeFuncCall(fmt.Sprintf("window.location.href = %q;", href))
+}
+
 func actionPayload(spec *action.Spec, row map[string]any, variables map[string]any) map[string]any {
 	if spec == nil || len(spec.Payload) == 0 {
 		return nil
@@ -281,8 +295,9 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 		return icons.Rows(iconProps)
 	case panel.KindRepeat:
 		return icons.Copy(iconProps)
+	default:
+		return icons.Question(iconProps)
 	}
-	panic("unreachable panel kind")
 }
 
 func panelBodyClass(spec panel.Spec) string {
@@ -295,6 +310,7 @@ func panelBodyClass(spec panel.Spec) string {
 		return "flex-1 px-5 py-3"
 	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return "flex-1 p-3"
+	default:
+		return "flex-1 p-3"
 	}
-	panic("unreachable panel kind")
 }
