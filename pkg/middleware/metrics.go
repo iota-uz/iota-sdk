@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bufio"
+	"crypto/subtle"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,13 +11,19 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // MetricsOptions configures the Prometheus metrics middleware.
 type MetricsOptions struct {
-	AuthToken string // required bearer token for /metrics endpoint
+	AuthToken string             // required bearer token for /metrics endpoint
+	Pool      *pgxpool.Pool      // optional — registers pgxpool connection-pool collector
+	Hub       application.Huber  // optional — registers websocket_connections_active gauge
+	Registry  prometheus.Registerer // optional — custom registerer (defaults to a new registry that also collects Go/process metrics)
+	Gatherer  prometheus.Gatherer   // optional — custom gatherer (must match Registry if provided)
 }
 
 // Metrics holds Prometheus collectors and the metrics HTTP handler.
@@ -28,17 +35,31 @@ type Metrics struct {
 	authToken        string
 }
 
-// NewMetrics creates a new Metrics instance, registers collectors with
-// prometheus.DefaultRegisterer, and builds a promhttp handler backed by
-// prometheus.DefaultGatherer.
+// NewMetrics creates a new Metrics instance and registers collectors.
+// It panics if opts.AuthToken is empty.
 func NewMetrics(opts MetricsOptions) *Metrics {
+	if opts.AuthToken == "" {
+		panic("MetricsOptions.AuthToken must be set")
+	}
+
+	registry := opts.Registry
+	gatherer := opts.Gatherer
+	if registry == nil {
+		r := prometheus.NewRegistry()
+		// Include default Go runtime and process metrics.
+		r.MustRegister(prometheus.NewGoCollector())
+		r.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+		registry = r
+		gatherer = r
+	}
+
 	requestDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "http_request_duration_seconds",
 			Help:    "Duration of HTTP requests in seconds.",
 			Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
 		},
-		[]string{"method", "route", "status_code", "host"},
+		[]string{"method", "route", "status_code"},
 	)
 
 	requestsTotal := prometheus.NewCounterVec(
@@ -46,7 +67,7 @@ func NewMetrics(opts MetricsOptions) *Metrics {
 			Name: "http_requests_total",
 			Help: "Total number of HTTP requests.",
 		},
-		[]string{"method", "route", "status_code", "host"},
+		[]string{"method", "route", "status_code"},
 	)
 
 	requestsInFlight := prometheus.NewGauge(
@@ -56,13 +77,27 @@ func NewMetrics(opts MetricsOptions) *Metrics {
 		},
 	)
 
-	prometheus.DefaultRegisterer.MustRegister(
+	registry.MustRegister(
 		requestDuration,
 		requestsTotal,
 		requestsInFlight,
 	)
 
-	metricsHandler := promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{})
+	if opts.Pool != nil {
+		registry.MustRegister(NewPgxPoolCollector(opts.Pool))
+	}
+
+	if opts.Hub != nil {
+		registry.MustRegister(prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{
+				Name: "websocket_connections_active",
+				Help: "Number of currently active WebSocket connections.",
+			},
+			func() float64 { return float64(opts.Hub.ConnectionCount()) },
+		))
+	}
+
+	metricsHandler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 
 	return &Metrics{
 		requestDuration:  requestDuration,
@@ -106,10 +141,9 @@ func (m *Metrics) Middleware() mux.MiddlewareFunc {
 
 			statusCode := strconv.Itoa(wrappedWriter.Status())
 			method := r.Method
-			host := r.Host
 
-			m.requestDuration.WithLabelValues(method, route, statusCode, host).Observe(duration)
-			m.requestsTotal.WithLabelValues(method, route, statusCode, host).Inc()
+			m.requestDuration.WithLabelValues(method, route, statusCode).Observe(duration)
+			m.requestsTotal.WithLabelValues(method, route, statusCode).Inc()
 		})
 	}
 }
@@ -118,7 +152,8 @@ func (m *Metrics) Middleware() mux.MiddlewareFunc {
 func (m *Metrics) serveMetrics(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	const prefix = "Bearer "
-	if !strings.HasPrefix(authHeader, prefix) || authHeader[len(prefix):] != m.authToken {
+	if !strings.HasPrefix(authHeader, prefix) ||
+		subtle.ConstantTimeCompare([]byte(authHeader[len(prefix):]), []byte(m.authToken)) != 1 {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
