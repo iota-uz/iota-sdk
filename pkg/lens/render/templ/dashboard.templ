@@ -109,14 +109,16 @@ templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
 	{{ currentPanel := panelResult(result, spec.ID) }}
 	<div class={ spanClass(spec.Span), spec.ClassName }>
 		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200/80 bg-white shadow-sm">
-			if spec.Title != "" {
+			if spec.Title != "" || (spec.Description != "" && spec.Kind != panel.KindStat) {
 				<div class="flex items-center justify-between border-b border-gray-100 px-5 py-2.5">
 					<div class="flex items-center gap-2 min-w-0">
 						<div class="flex-shrink-0 text-gray-400">
 							@panelIcon(spec.Kind)
 						</div>
 						<div class="min-w-0">
-							<h3 class="truncate text-xs font-semibold text-gray-600">{ spec.Title }</h3>
+							if spec.Title != "" {
+								<h3 class="truncate text-xs font-semibold text-gray-600">{ spec.Title }</h3>
+							}
 							if spec.Description != "" && spec.Kind != panel.KindStat {
 								<p class="mt-0.5 truncate text-[11px] text-gray-400">{ spec.Description }</p>
 							}
@@ -240,8 +242,8 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 	}
 	{{ rows := result.Frames.Primary().Rows() }}
 	{{ columns := tableColumns(spec, result) }}
-	<div class="-mx-4 -mb-4 overflow-auto">
-		<table class="min-w-full text-[13px]">
+	<div class="overflow-auto">
+		<table class="min-w-full w-full text-[13px]">
 			<thead>
 				<tr class="border-b border-gray-200/80">
 					for _, column := range columns {
@@ -253,13 +255,13 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 				for _, row := range rows {
 					{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
 					{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
-					<tr class={ "transition-colors hover:bg-gray-50/60", templ.KV("cursor-pointer", rowHref != "" || rowOnClick.Call != "") }>
+					<tr class="transition-colors hover:bg-gray-50/60">
 						for i, column := range columns {
 							<td class="whitespace-nowrap px-4 py-2 text-gray-600">
 								if rowHref != "" && i == 0 {
-									<a href={ templ.URL(rowHref) } onclick={ rowOnClick } class="font-medium text-gray-800 hover:text-blue-600">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</a>
+									<a href={ templ.URL(rowHref) } onclick={ rowOnClick } class="cursor-pointer font-medium text-gray-800 hover:text-blue-600">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</a>
 								} else if rowOnClick.Call != "" && i == 0 {
-									<button type="button" onclick={ rowOnClick } class="font-medium text-left text-gray-800 hover:text-blue-600">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</button>
+									<button type="button" onclick={ rowOnClick } class="cursor-pointer font-medium text-left text-gray-800 hover:text-blue-600">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</button>
 								} else {
 									{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
 								}

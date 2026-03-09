@@ -275,8 +275,12 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 		return icons.HashStraight(iconProps)
 	case panel.KindTabs:
 		return icons.Tabs(iconProps)
-	case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-		return icons.ChartBar(iconProps)
+	case panel.KindGrid:
+		return icons.Rows(iconProps)
+	case panel.KindSplit:
+		return icons.Rows(iconProps)
+	case panel.KindRepeat:
+		return icons.Copy(iconProps)
 	}
 	panic("unreachable panel kind")
 }
