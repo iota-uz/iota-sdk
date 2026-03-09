@@ -34,11 +34,11 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		Colors:     panelColors(panelSpec),
 		Grid: &charts.GridConfig{
 			BorderColor: gridColor,
-			Padding:     &charts.Padding{Top: intPtr(4), Right: intPtr(12), Bottom: intPtr(0), Left: intPtr(12)},
+			Padding:     &charts.Padding{Top: mapping.Pointer(4), Right: mapping.Pointer(12), Bottom: mapping.Pointer(0), Left: mapping.Pointer(12)},
 		},
 		Tooltip: &charts.TooltipConfig{
-			Theme: strPtr("dark"),
-			Style: &charts.TooltipStyleConfig{FontSize: strPtr("12px"), FontFamily: &fontFamily},
+			Theme: mapping.Pointer("dark"),
+			Style: &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
 		},
 		XAxis: charts.XAxisConfig{
 			Labels: &charts.XAxisLabelsConfig{
@@ -48,8 +48,8 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 					Colors:     axisColor,
 				},
 			},
-			AxisBorder: &charts.XAxisBorderConfig{Show: boolPtr(false)},
-			AxisTicks:  &charts.XAxisTicksConfig{Show: boolPtr(false)},
+			AxisBorder: &charts.XAxisBorderConfig{Show: mapping.Pointer(false)},
+			AxisTicks:  &charts.XAxisTicksConfig{Show: mapping.Pointer(false)},
 		},
 		YAxis: []charts.YAxisConfig{
 			{
@@ -88,7 +88,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 				Position:   &position,
 				FontSize:   &legendFontSize,
 				FontFamily: &fontFamily,
-				ItemMargin: &charts.LegendItemMargin{Horizontal: intPtr(6), Vertical: intPtr(2)},
+				ItemMargin: &charts.LegendItemMargin{Horizontal: mapping.Pointer(6), Vertical: mapping.Pointer(2)},
 			}
 			options.PlotOptions = &charts.PlotOptions{Pie: &charts.PieDonutConfig{Donut: &charts.DonutSpecifics{Size: &size}}}
 		}
@@ -99,7 +99,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 				Position:   &position,
 				FontSize:   &legendFontSize,
 				FontFamily: &fontFamily,
-				ItemMargin: &charts.LegendItemMargin{Horizontal: intPtr(6), Vertical: intPtr(2)},
+				ItemMargin: &charts.LegendItemMargin{Horizontal: mapping.Pointer(6), Vertical: mapping.Pointer(2)},
 			}
 		}
 		if panelSpec.Kind == panel.KindGauge {
@@ -138,7 +138,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		options.XAxis.AxisBorder = nil
 		options.XAxis.AxisTicks = nil
 		options.YAxis = nil
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	default:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
@@ -160,15 +160,15 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		options.Markers = &charts.MarkersConfig{
 			Size:        0,
 			StrokeWidth: 0,
-			Hover:       &charts.MarkerHover{SizeOffset: intPtr(5)},
+			Hover:       &charts.MarkerHover{SizeOffset: mapping.Pointer(5)},
 		}
 		options.Fill = &charts.FillConfig{
 			Type:    "gradient",
 			Opacity: 1,
 			Gradient: &charts.FillGradient{
-				ShadeIntensity: float64Ptr(1),
-				OpacityFrom:    float64Ptr(0.25),
-				OpacityTo:      float64Ptr(0.05),
+				ShadeIntensity: mapping.Pointer(1.0),
+				OpacityFrom:    mapping.Pointer(0.25),
+				OpacityTo:      mapping.Pointer(0.05),
 				Stops:          []float64{0, 90, 100},
 			},
 		}
@@ -190,7 +190,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 			options.Legend.FontFamily = &fontFamily
 		}
 		if options.Legend.ItemMargin == nil {
-			options.Legend.ItemMargin = &charts.LegendItemMargin{Horizontal: intPtr(8), Vertical: intPtr(2)}
+			options.Legend.ItemMargin = &charts.LegendItemMargin{Horizontal: mapping.Pointer(8), Vertical: mapping.Pointer(2)}
 		}
 	}
 	if panelSpec.Action != nil {
@@ -486,8 +486,3 @@ func displayValue(value any) string {
 		return fmt.Sprint(v)
 	}
 }
-
-func strPtr(s string) *string       { return &s }
-func intPtr(i int) *int             { return &i }
-func boolPtr(b bool) *bool          { return &b }
-func float64Ptr(f float64) *float64 { return &f }
