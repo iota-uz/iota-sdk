@@ -54,3 +54,9 @@ func TestVariableBoolHandlesMissingAndTruthyValues(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatValueReturnsEmptyStringForNil(t *testing.T) {
+	t.Parallel()
+
+	require.Empty(t, formatValue(nil, nil, "", ""))
+}

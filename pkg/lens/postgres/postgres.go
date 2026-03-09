@@ -4,6 +4,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +14,24 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var (
+	leadingSQLKeywordPattern = regexp.MustCompile(`^[\s(]*([A-Z]+)\b`)
+	forbiddenSQLPatterns     = []*regexp.Regexp{
+		regexp.MustCompile(`\bINSERT\b`),
+		regexp.MustCompile(`\bUPDATE\b`),
+		regexp.MustCompile(`\bDELETE\b`),
+		regexp.MustCompile(`\bMERGE\b`),
+		regexp.MustCompile(`\bCREATE\b`),
+		regexp.MustCompile(`\bALTER\b`),
+		regexp.MustCompile(`\bDROP\b`),
+		regexp.MustCompile(`\bTRUNCATE\b`),
+		regexp.MustCompile(`\bGRANT\b`),
+		regexp.MustCompile(`\bREVOKE\b`),
+		regexp.MustCompile(`\bCOPY\b`),
+		regexp.MustCompile(`\bCALL\b`),
+	}
 )
 
 type Config struct {
@@ -128,32 +147,18 @@ func validateQuery(query string) error {
 	if trimmed == "" {
 		return fmt.Errorf("query is required")
 	}
-	sanitized := sanitizeSQL(trimmed)
-	tokens := sqlTokens(sanitized)
-	if len(tokens) == 0 {
+	sanitized := strings.ToUpper(sanitizeSQL(trimmed))
+	matches := leadingSQLKeywordPattern.FindStringSubmatch(sanitized)
+	if len(matches) < 2 {
 		return fmt.Errorf("query is required")
 	}
-	switch tokens[0] {
+	switch matches[1] {
 	case "SELECT", "WITH":
 	default:
 		return fmt.Errorf("only SELECT and WITH queries are allowed")
 	}
-	forbidden := map[string]struct{}{
-		"INSERT":   {},
-		"UPDATE":   {},
-		"DELETE":   {},
-		"MERGE":    {},
-		"CREATE":   {},
-		"ALTER":    {},
-		"DROP":     {},
-		"TRUNCATE": {},
-		"GRANT":    {},
-		"REVOKE":   {},
-		"COPY":     {},
-		"CALL":     {},
-	}
-	for _, token := range tokens {
-		if _, blocked := forbidden[token]; blocked {
+	for _, pattern := range forbiddenSQLPatterns {
+		if pattern.MatchString(sanitized) {
 			return fmt.Errorf("only read-only SELECT queries are allowed")
 		}
 	}
@@ -179,7 +184,9 @@ func applyMaxRows(query string, maxRows int) string {
 	if maxRows <= 0 {
 		return query
 	}
-	return fmt.Sprintf("SELECT * FROM (%s) AS lens_query LIMIT %d", query, maxRows)
+	trimmed := strings.TrimSpace(query)
+	trimmed = strings.TrimSuffix(trimmed, ";")
+	return fmt.Sprintf("SELECT * FROM (%s) AS lens_query LIMIT %d", trimmed, maxRows)
 }
 
 func sanitizeSQL(query string) string {
@@ -246,10 +253,4 @@ func sanitizeSQL(query string) string {
 		}
 	}
 	return b.String()
-}
-
-func sqlTokens(query string) []string {
-	return strings.FieldsFunc(strings.ToUpper(query), func(r rune) bool {
-		return r < 'A' || r > 'Z'
-	})
 }

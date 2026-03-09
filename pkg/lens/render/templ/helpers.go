@@ -98,6 +98,9 @@ func formatValue(value any, spec *format.Spec, locale, timezone string) string {
 	if spec != nil {
 		return format.Apply(spec, value, locale, timezone)
 	}
+	if value == nil {
+		return ""
+	}
 	switch v := value.(type) {
 	case time.Time:
 		return v.Format("2006-01-02")

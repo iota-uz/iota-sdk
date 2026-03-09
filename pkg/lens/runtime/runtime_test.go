@@ -163,6 +163,25 @@ func TestValidateRejectsMissingActionFieldSource(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestResolveVariablesPreservesAllMultiSelectValues(t *testing.T) {
+	t.Parallel()
+
+	spec := lens.Dashboard("variables", "Variables").WithVariables(
+		lens.VariableSpec{
+			Name:    "products",
+			Label:   "Products",
+			Kind:    lens.VariableMultiSelect,
+			Default: []string{"default"},
+		},
+	)
+
+	values, err := resolveVariables(spec.Variables, Runtime{
+		Request: url.Values{"products": []string{"osago", "travel"}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"osago", "travel"}, values["products"])
+}
+
 func TestExecuteDatasetWaiterHonorsContextCancellation(t *testing.T) {
 	t.Parallel()
 

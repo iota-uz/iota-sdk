@@ -20,4 +20,12 @@ func TestApplyMaxRowsWrapsQuery(t *testing.T) {
 
 	require.Equal(t, "SELECT 1", applyMaxRows("SELECT 1", 0))
 	require.Equal(t, "SELECT * FROM (SELECT 1) AS lens_query LIMIT 25", applyMaxRows("SELECT 1", 25))
+	require.Equal(t, "SELECT * FROM (SELECT 1) AS lens_query LIMIT 25", applyMaxRows(" SELECT 1; ", 25))
+}
+
+func TestValidateQueryAllowsIdentifiersContainingForbiddenWords(t *testing.T) {
+	t.Parallel()
+
+	err := validateQuery("SELECT update_log, delete_requests FROM audit_report")
+	require.NoError(t, err)
 }

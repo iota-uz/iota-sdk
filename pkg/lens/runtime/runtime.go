@@ -323,7 +323,13 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 		case lens.VariableToggle:
 			raw := rt.Request.Get(spec.Name)
 			values[spec.Name] = raw == "true" || raw == "1"
-		case lens.VariableSingleSelect, lens.VariableMultiSelect, lens.VariableText, lens.VariableNumber:
+		case lens.VariableMultiSelect:
+			if raw := rt.Request[spec.Name]; len(raw) > 0 {
+				values[spec.Name] = append([]string(nil), raw...)
+			} else {
+				values[spec.Name] = spec.Default
+			}
+		case lens.VariableSingleSelect, lens.VariableText, lens.VariableNumber:
 			if raw := rt.Request.Get(spec.Name); raw != "" {
 				values[spec.Name] = raw
 			} else {
