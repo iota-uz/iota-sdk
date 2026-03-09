@@ -1,4 +1,4 @@
-//lint:file-ignore ST1003 package name follows directory naming
+//lint:ignore ST1003 package name follows directory naming
 package system_info
 
 import (
