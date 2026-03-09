@@ -218,10 +218,30 @@ func coerceDuration(value any) (time.Duration, bool) {
 	switch v := value.(type) {
 	case time.Duration:
 		return v, true
+	case int8:
+		return time.Duration(v) * time.Second, true
+	case int16:
+		return time.Duration(v) * time.Second, true
 	case int:
+		return time.Duration(v) * time.Second, true
+	case int32:
 		return time.Duration(v) * time.Second, true
 	case int64:
 		return time.Duration(v) * time.Second, true
+	case uint:
+		return time.Duration(v) * time.Second, true
+	case uint8:
+		return time.Duration(v) * time.Second, true
+	case uint16:
+		return time.Duration(v) * time.Second, true
+	case uint32:
+		return time.Duration(v) * time.Second, true
+	case uint64:
+		return time.Duration(v) * time.Second, true
+	case uintptr:
+		return time.Duration(v) * time.Second, true
+	case float32:
+		return time.Duration(float64(v) * float64(time.Second)), true
 	case float64:
 		return time.Duration(v * float64(time.Second)), true
 	case string:

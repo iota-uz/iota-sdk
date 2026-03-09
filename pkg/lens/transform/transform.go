@@ -1012,9 +1012,9 @@ func joinKey(row map[string]any, keys []string) string {
 }
 
 func compare(left, right any) int {
-	leftFloat, leftIsFloat := left.(float64)
-	rightFloat, rightIsFloat := right.(float64)
-	if leftIsFloat && rightIsFloat {
+	if isNumeric(left) && isNumeric(right) {
+		leftFloat := toFloat(left)
+		rightFloat := toFloat(right)
 		switch {
 		case leftFloat < rightFloat:
 			return -1
@@ -1033,6 +1033,20 @@ func compare(left, right any) int {
 		return 1
 	default:
 		return 0
+	}
+}
+
+func isNumeric(value any) bool {
+	switch value.(type) {
+	case float64, float32,
+		int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64:
+		return true
+	case string, []byte:
+		_, err := strconv.ParseFloat(strings.TrimSpace(fmt.Sprint(value)), 64)
+		return err == nil
+	default:
+		return false
 	}
 }
 

@@ -27,9 +27,10 @@ type DataSource struct {
 }
 
 func New(cfg Config) (*DataSource, error) {
+	op := serrors.Op("lens/postgres.New")
 	poolCfg, err := pgxpool.ParseConfig(cfg.ConnectionString)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	if cfg.MaxConnections > 0 {
 		poolCfg.MaxConns = cfg.MaxConnections
@@ -39,7 +40,7 @@ func New(cfg Config) (*DataSource, error) {
 	}
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	timeout := cfg.QueryTimeout
 	if timeout == 0 {
@@ -97,19 +98,19 @@ func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*fra
 
 	fr, err := frame.New(req.Source, fields...)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	for rows.Next() {
 		values, valueErr := rows.Values()
 		if valueErr != nil {
-			return nil, valueErr
+			return nil, serrors.E(op, valueErr)
 		}
 		row := make(map[string]any, len(fields))
 		for i, field := range fields {
 			row[field.Name] = values[i]
 		}
 		if err := fr.AppendRow(row); err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -123,18 +124,43 @@ func validateQuery(query string) error {
 	if trimmed == "" {
 		return fmt.Errorf("query is required")
 	}
-	upper := strings.ToUpper(trimmed)
-	if strings.HasPrefix(upper, "SELECT ") || strings.HasPrefix(upper, "WITH ") {
-		return nil
+	sanitized := sanitizeSQL(trimmed)
+	tokens := sqlTokens(sanitized)
+	if len(tokens) == 0 {
+		return fmt.Errorf("query is required")
 	}
-	return fmt.Errorf("only SELECT and WITH queries are allowed")
+	switch tokens[0] {
+	case "SELECT", "WITH":
+	default:
+		return fmt.Errorf("only SELECT and WITH queries are allowed")
+	}
+	forbidden := map[string]struct{}{
+		"INSERT":   {},
+		"UPDATE":   {},
+		"DELETE":   {},
+		"MERGE":    {},
+		"CREATE":   {},
+		"ALTER":    {},
+		"DROP":     {},
+		"TRUNCATE": {},
+		"GRANT":    {},
+		"REVOKE":   {},
+		"COPY":     {},
+		"CALL":     {},
+	}
+	for _, token := range tokens {
+		if _, blocked := forbidden[token]; blocked {
+			return fmt.Errorf("only read-only SELECT queries are allowed")
+		}
+	}
+	return nil
 }
 
 func inferType(oid uint32) frame.FieldType {
 	switch oid {
 	case 25, 1043, 1042:
 		return frame.FieldTypeString
-	case 21, 23, 20, 700, 701, 1700:
+	case 21, 23, 20, 700, 701, 1700: // 1700 = PostgreSQL numeric/decimal
 		return frame.FieldTypeNumber
 	case 16:
 		return frame.FieldTypeBoolean
@@ -143,4 +169,76 @@ func inferType(oid uint32) frame.FieldType {
 	default:
 		return frame.FieldTypeUnknown
 	}
+}
+
+func sanitizeSQL(query string) string {
+	var b strings.Builder
+	b.Grow(len(query))
+	inSingleQuote := false
+	inDoubleQuote := false
+	inLineComment := false
+	inBlockComment := false
+
+	for i := 0; i < len(query); i++ {
+		ch := query[i]
+		next := byte(0)
+		if i+1 < len(query) {
+			next = query[i+1]
+		}
+		switch {
+		case inLineComment:
+			if ch == '\n' {
+				inLineComment = false
+				b.WriteByte(ch)
+			} else {
+				b.WriteByte(' ')
+			}
+		case inBlockComment:
+			if ch == '*' && next == '/' {
+				inBlockComment = false
+				b.WriteString("  ")
+				i++
+			} else {
+				b.WriteByte(' ')
+			}
+		case inSingleQuote:
+			if ch == '\'' {
+				if next == '\'' {
+					b.WriteString("  ")
+					i++
+					continue
+				}
+				inSingleQuote = false
+			}
+			b.WriteByte(' ')
+		case inDoubleQuote:
+			if ch == '"' {
+				inDoubleQuote = false
+			}
+			b.WriteByte(' ')
+		case ch == '-' && next == '-':
+			inLineComment = true
+			b.WriteString("  ")
+			i++
+		case ch == '/' && next == '*':
+			inBlockComment = true
+			b.WriteString("  ")
+			i++
+		case ch == '\'':
+			inSingleQuote = true
+			b.WriteByte(' ')
+		case ch == '"':
+			inDoubleQuote = true
+			b.WriteByte(' ')
+		default:
+			b.WriteByte(ch)
+		}
+	}
+	return b.String()
+}
+
+func sqlTokens(query string) []string {
+	return strings.FieldsFunc(strings.ToUpper(query), func(r rune) bool {
+		return !(r >= 'A' && r <= 'Z')
+	})
 }

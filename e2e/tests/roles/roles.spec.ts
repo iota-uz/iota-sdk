@@ -40,7 +40,12 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
 async function ensureRolesListVisible(page: Page): Promise<void> {
 	try {
 		await page.waitForURL(/\/roles$/, { timeout: 15000 });
-	} catch {
+	} catch (error) {
+		const isTimeout = error instanceof Error && (error.name === 'TimeoutError' || error.message.includes('Timeout'));
+		if (!isTimeout) {
+			console.error('ensureRolesListVisible waitForURL failed:', error);
+			throw error;
+		}
 		await page.goto('/roles', { waitUntil: 'domcontentloaded' });
 	}
 	await expect(page).toHaveURL(/\/roles$/);

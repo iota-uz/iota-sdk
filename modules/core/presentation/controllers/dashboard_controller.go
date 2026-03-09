@@ -39,7 +39,7 @@ func NewDashboardController(app application.Application) application.Controller 
 
 type DashboardController struct {
 	app application.Application
-	ds  *lenspostgres.DataSource
+	ds  datasource.DataSource
 }
 
 func (c *DashboardController) createFinanceDashboard(tenantID string) lens.DashboardSpec {

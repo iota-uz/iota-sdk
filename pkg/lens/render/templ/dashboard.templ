@@ -77,6 +77,8 @@ templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
 				switch spec.Kind {
 					case panel.KindTabs:
 						@TabsPanel(spec, result)
+					case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+						@CompositePanel(spec, result)
 					case panel.KindTable:
 						@TablePanel(spec, currentPanel)
 					case panel.KindStat:
@@ -86,6 +88,14 @@ templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
 				}
 			</div>
 		</div>
+	</div>
+}
+
+templ CompositePanel(spec panel.Spec, result *runtime.DashboardResult) {
+	<div class="grid grid-cols-12 gap-4">
+		for _, child := range spec.Children {
+			@Panel(child, result)
+		}
 	</div>
 }
 

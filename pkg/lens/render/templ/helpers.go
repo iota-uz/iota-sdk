@@ -173,6 +173,21 @@ func actionValue(source action.ValueSource, row map[string]any, variables map[st
 			return nil, false
 		}
 		return value, true
+	case action.SourcePoint:
+		if row == nil {
+			if source.Fallback != nil {
+				return source.Fallback, true
+			}
+			return nil, false
+		}
+		value, ok := row[source.Name]
+		if !ok || value == nil || fmt.Sprint(value) == "" {
+			if source.Fallback != nil {
+				return source.Fallback, true
+			}
+			return nil, false
+		}
+		return value, true
 	case action.SourceLiteral:
 		if source.Value == nil {
 			return nil, false

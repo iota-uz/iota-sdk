@@ -232,11 +232,18 @@ func (s *executorState) executeDataset(ctx context.Context, name string) (*frame
 	if err == nil && len(spec.Transforms) > 0 && (spec.Kind == lens.DatasetKindStatic || spec.Kind == lens.DatasetKindQuery) {
 		deps := make(map[string]*frame.FrameSet, len(spec.DependsOn))
 		for _, dep := range spec.DependsOn {
-			if depFrames, depErr := s.executeDataset(ctx, dep); depErr == nil && depFrames != nil {
+			depFrames, depErr := s.executeDataset(ctx, dep)
+			if depErr != nil {
+				err = fmt.Errorf("dataset %q dependency %q failed: %w", spec.Name, dep, depErr)
+				break
+			}
+			if depFrames != nil {
 				deps[dep] = depFrames
 			}
 		}
-		frames, err = transform.Apply(frames, deps, spec.Transforms)
+		if err == nil {
+			frames, err = transform.Apply(frames, deps, spec.Transforms)
+		}
 	}
 	s.mu.Lock()
 	s.results[name] = &DatasetResult{Frames: frames, Duration: time.Since(start), Error: err}
@@ -493,6 +500,12 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		return fmt.Errorf("panel %s action requires url", spec.ID)
 	}
 	if spec.Action != nil {
+		if spec.Action.Kind == action.KindEmitEvent && strings.TrimSpace(spec.Action.Event) == "" {
+			return fmt.Errorf("panel %s emit event action requires event name", spec.ID)
+		}
+		if spec.Action.Kind == action.KindHtmxSwap && strings.TrimSpace(spec.Action.Target) == "" {
+			return fmt.Errorf("panel %s htmx action requires target", spec.ID)
+		}
 		for _, param := range spec.Action.Params {
 			if err := validateValueSource(spec.ID, param.Name, param.Source); err != nil {
 				return err

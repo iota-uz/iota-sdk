@@ -237,53 +237,35 @@ func (c *ShowcaseController) Lens(
 	).WithDatasets(
 		queryDatasetWithParams(
 			"user-registrations",
-			tenantAwareQuery(
-				params,
-				"SELECT DATE(created_at) as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id AND created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label",
-				"SELECT DATE(created_at) as label, COUNT(*)::float8 as value FROM users WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label",
-			),
+			"SELECT DATE(created_at) as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id AND created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label",
 			params,
 		),
 		queryDatasetWithParams(
 			"user-languages",
-			tenantAwareQuery(
-				params,
-				"SELECT ui_language as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id GROUP BY ui_language ORDER BY value DESC",
-				"SELECT ui_language as label, COUNT(*)::float8 as value FROM users GROUP BY ui_language ORDER BY value DESC",
-			),
+			"SELECT ui_language as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id GROUP BY ui_language ORDER BY value DESC",
 			params,
 		),
 		queryDatasetWithParams(
 			"user-types",
-			tenantAwareQuery(
-				params,
-				"SELECT type as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id GROUP BY type",
-				"SELECT type as label, COUNT(*)::float8 as value FROM users GROUP BY type",
-			),
+			"SELECT type as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id GROUP BY type",
 			params,
 		),
 		queryDatasetWithParams(
 			"session-activity",
-			tenantAwareQuery(
-				params,
-				"SELECT COUNT(*)::float8 as value FROM sessions WHERE tenant_id = @tenant_id AND expires_at > NOW()",
-				"SELECT COUNT(*)::float8 as value FROM sessions WHERE expires_at > NOW()",
-			),
+			"SELECT COUNT(*)::float8 as value FROM sessions WHERE tenant_id = @tenant_id AND expires_at > NOW()",
 			params,
 		),
 		queryDatasetWithParams(
 			"recent-users",
-			tenantAwareQuery(
-				params,
-				"SELECT first_name, last_name, email, ui_language, created_at FROM users WHERE tenant_id = @tenant_id ORDER BY created_at DESC LIMIT 10",
-				"SELECT first_name, last_name, email, ui_language, created_at FROM users ORDER BY created_at DESC LIMIT 10",
-			),
+			"SELECT first_name, last_name, email, ui_language, created_at FROM users WHERE tenant_id = @tenant_id ORDER BY created_at DESC LIMIT 10",
 			params,
 		),
 	)
 
 	var results *runtime.DashboardResult
-	if c.ds != nil {
+	if params == nil {
+		logger.Warn("skipping lens showcase dashboard execution because tenant context is missing")
+	} else if c.ds != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 		executed, err := runtime.Execute(ctx, dash, runtime.Runtime{
@@ -322,13 +304,6 @@ func queryDatasetWithParams(name, text string, params map[string]lens.ParamValue
 		spec.Query.Params = params
 	}
 	return spec
-}
-
-func tenantAwareQuery(params map[string]lens.ParamValue, scoped, fallback string) string {
-	if params == nil {
-		return fallback
-	}
-	return scoped
 }
 
 func (c *ShowcaseController) Error403Page(
