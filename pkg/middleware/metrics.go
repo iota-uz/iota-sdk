@@ -19,9 +19,9 @@ import (
 
 // MetricsOptions configures the Prometheus metrics middleware.
 type MetricsOptions struct {
-	AuthToken string             // required bearer token for /metrics endpoint
-	Pool      *pgxpool.Pool      // optional — registers pgxpool connection-pool collector
-	Hub       application.Huber  // optional — registers websocket_connections_active gauge
+	AuthToken string                // required bearer token for /metrics endpoint
+	Pool      *pgxpool.Pool         // optional — registers pgxpool connection-pool collector
+	Hub       application.Huber     // optional — registers websocket_connections_active gauge
 	Registry  prometheus.Registerer // optional — custom registerer (defaults to a new registry that also collects Go/process metrics)
 	Gatherer  prometheus.Gatherer   // optional — custom gatherer (must match Registry if provided)
 }
