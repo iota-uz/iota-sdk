@@ -91,15 +91,16 @@ templ Index(p *LoginProps) {
 	for _, method := range p.Methods {
 		if method.ID == "password" {
 			{{ hasPasswordMethod = true }}
-			continue
+		} else {
+			{{ hasExternalMethod = true }}
 		}
-		{{ hasExternalMethod = true }}
 	}
 	@layouts.Base(&layouts.BaseProps{Title: pageCtx.T("Login.Meta.Title"), WebsocketURL: "/ws"}) {
 		<div class="flex flex-col h-screen overflow-y-auto">
 			@Header(p.Logo)
 			<div class="flex-1 flex items-center justify-center">
 				<form class="mx-4 max-w-md w-full p-6 md:p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]" method="post">
+					@composables.CSRFTokenField()
 					<div class="text-center">
 						<h1 class="text-2xl text-100">
 							{ pageCtx.T("Login.WelcomeBack") }
@@ -109,23 +110,22 @@ templ Index(p *LoginProps) {
 					<hr class="border border-primary"/>
 					if hasExternalMethod {
 						for _, method := range p.Methods {
-							if method.ID == "password" {
-								continue
-							}
-							{{ attrs := templ.Attributes{"type": "button"} }}
-							for key, value := range method.Attributes {
-								{{ attrs[key] = value }}
-							}
-							@button.Secondary(button.Props{
-								Size:  button.SizeNormal,
-								Class: "justify-center items-center gap-3",
-								Href:  method.Href,
-								Attrs: attrs,
-							}) {
-								if method.Icon != nil {
-									@method.Icon
+							if method.ID != "password" {
+								{{ attrs := templ.Attributes{"type": "button"} }}
+								for key, value := range method.Attributes {
+									{{ attrs[key] = value }}
 								}
-								{ method.Label }
+								@button.Secondary(button.Props{
+									Size:  button.SizeNormal,
+									Class: "justify-center items-center gap-3",
+									Href:  method.Href,
+									Attrs: attrs,
+								}) {
+									if method.Icon != nil {
+										@method.Icon
+									}
+									{ method.Label }
+								}
 							}
 						}
 						if hasPasswordMethod {

@@ -35,4 +35,5 @@ type LoginPageViewModel struct {
 	ErrorMessage string
 	Email        string
 	Methods      []LoginMethod
+	Logo         templ.Component
 }

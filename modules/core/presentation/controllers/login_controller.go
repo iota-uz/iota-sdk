@@ -3,8 +3,6 @@ package controllers
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -264,12 +262,19 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if len(methods) == 0 {
+		http.Error(w, "no login methods configured", http.StatusInternalServerError)
+		return
+	}
+
+	logoComponent, _ := composables.UseLogo(r.Context())
 
 	viewModel := LoginPageViewModel{
 		ErrorsMap:    errorsMap,
 		Email:        email,
 		ErrorMessage: string(errorMessage),
 		Methods:      methods,
+		Logo:         logoComponent,
 	}
 
 	if renderer := c.optionsOrDefault().Renderer; renderer != nil {
@@ -285,13 +290,12 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *LoginController) renderDefaultLogin(w http.ResponseWriter, r *http.Request, vm LoginPageViewModel) error {
-	logoComponent, _ := composables.UseLogo(r.Context())
 	return login.Index(&login.LoginProps{
 		ErrorsMap:    vm.ErrorsMap,
 		Email:        vm.Email,
 		ErrorMessage: vm.ErrorMessage,
 		Methods:      toTemplateLoginMethods(vm.Methods),
-		Logo:         logoComponent,
+		Logo:         vm.Logo,
 	}).Render(r.Context(), w)
 }
 
@@ -547,7 +551,11 @@ func (c *LoginController) requiresTwoFactor(
 		UserAgent: userAgent,
 		Timestamp: time.Now(),
 	}
-	return c.twoFactorPolicy.Requires(ctx, attempt)
+	policyRequires2FA, err := c.twoFactorPolicy.Requires(ctx, attempt)
+	if err != nil {
+		return false, err
+	}
+	return requires2FA || policyRequires2FA, nil
 }
 
 func (c *LoginController) sessionCookie(token string, expiresAt time.Time) *http.Cookie {
@@ -565,50 +573,7 @@ func (c *LoginController) sessionCookie(token string, expiresAt time.Time) *http
 }
 
 func (c *LoginController) createSessionForUser(ctx context.Context, u coreuser.User) (session.Session, error) {
-	ctx = composables.WithTenantID(ctx, u.TenantID())
-
-	ip, ok := composables.UseIP(ctx)
-	if !ok {
-		ip = "0.0.0.0"
-	}
-
-	userAgent, ok := composables.UseUserAgent(ctx)
-	if !ok {
-		userAgent = "Unknown"
-	}
-
-	token, err := newSessionToken()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := c.userService.UpdateLastLogin(ctx, u.ID()); err != nil {
-		return nil, err
-	}
-	if err := c.userService.UpdateLastAction(ctx, u.ID()); err != nil {
-		return nil, err
-	}
-
-	dto := &session.CreateDTO{
-		Token:     token,
-		UserID:    u.ID(),
-		TenantID:  u.TenantID(),
-		IP:        ip,
-		UserAgent: userAgent,
-	}
-	if err := c.sessionService.Create(ctx, dto); err != nil {
-		return nil, err
-	}
-
-	return dto.ToEntity(), nil
-}
-
-func newSessionToken() (string, error) {
-	bytes := make([]byte, 24)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(bytes), nil
+	return c.authService.CreateSession(ctx, u)
 }
 
 func userIDToNamespacedUUID(tenantID uuid.UUID, userID uint) uuid.UUID {

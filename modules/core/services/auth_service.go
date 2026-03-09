@@ -240,6 +240,11 @@ func (s *AuthService) newSessionToken() (string, error) {
 	return encoded, nil
 }
 
+// CreateSession creates a new session for an already-authenticated user.
+func (s *AuthService) CreateSession(ctx context.Context, u user.User) (session.Session, error) {
+	return s.authenticate(ctx, u, "")
+}
+
 func (s *AuthService) authenticate(ctx context.Context, u user.User, audience session.SessionAudience) (session.Session, error) {
 	logger := configuration.Use().Logger()
 	logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)

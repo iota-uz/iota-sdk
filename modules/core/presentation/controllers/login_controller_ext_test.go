@@ -20,6 +20,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
 
@@ -46,124 +48,190 @@ func (errorPolicy) Requires(ctx context.Context, attempt pkgtwofactor.AuthAttemp
 	return false, errors.New("boom")
 }
 
-func TestBuildLoginMethods_Order(t *testing.T) {
+func TestBuildLoginMethodsOrder(t *testing.T) {
 	includeGoogle := false
-	controller := &LoginController{
-		options: &LoginControllerOptions{
-			IncludeGoogleMethod: &includeGoogle,
-			MethodProviders: []LoginMethodProvider{
-				stubMethodProvider{id: "eimzo", method: &LoginMethod{ID: "eimzo", Label: "E-IMZO"}},
-				stubMethodProvider{id: "otp", method: &LoginMethod{ID: "otp", Label: "OTP"}},
+	includePassword := false
+
+	tests := []struct {
+		name          string
+		options       *LoginControllerOptions
+		localizerJSON string
+		wantIDs       []string
+	}{
+		{
+			name: "default password and providers",
+			options: &LoginControllerOptions{
+				IncludeGoogleMethod: &includeGoogle,
+				MethodProviders: []LoginMethodProvider{
+					stubMethodProvider{id: "eimzo", method: &LoginMethod{ID: "eimzo", Label: "E-IMZO"}},
+					stubMethodProvider{id: "otp", method: &LoginMethod{ID: "otp", Label: "OTP"}},
+				},
 			},
+			localizerJSON: `{"Login":{"Login":"Log in"}}`,
+			wantIDs:       []string{"password", "eimzo", "otp"},
+		},
+		{
+			name: "external method ID is trimmed",
+			options: &LoginControllerOptions{
+				IncludePasswordMethod: &includePassword,
+				IncludeGoogleMethod:   &includeGoogle,
+				MethodProviders: []LoginMethodProvider{
+					stubMethodProvider{id: "provider-1", method: &LoginMethod{ID: "  external-id  ", Label: "External"}},
+				},
+			},
+			localizerJSON: `{"Login":{}}`,
+			wantIDs:       []string{"external-id"},
+		},
+		{
+			name: "no methods configured",
+			options: &LoginControllerOptions{
+				IncludePasswordMethod: boolPtr(false),
+				IncludeGoogleMethod:   boolPtr(false),
+				MethodProviders:       []LoginMethodProvider{},
+			},
+			localizerJSON: `{"Login":{}}`,
+			wantIDs:       []string{},
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
-	req = req.WithContext(withLocalizer(t, req.Context(), `{"Login":{"Login":"Log in"}}`))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := &LoginController{options: tc.options}
+			req := httptest.NewRequest(http.MethodGet, "/login", nil)
+			req = req.WithContext(withLocalizer(t, req.Context(), tc.localizerJSON))
 
-	methods, err := controller.buildLoginMethods(httptest.NewRecorder(), req)
-	if err != nil {
-		t.Fatalf("build methods: %v", err)
-	}
+			methods, err := controller.buildLoginMethods(httptest.NewRecorder(), req)
+			require.NoError(t, err)
 
-	if len(methods) != 3 {
-		t.Fatalf("expected 3 methods, got %d", len(methods))
-	}
-	if methods[0].ID != "password" || methods[1].ID != "eimzo" || methods[2].ID != "otp" {
-		t.Fatalf("unexpected method order: %#v", methods)
+			gotIDs := make([]string, 0, len(methods))
+			for _, method := range methods {
+				gotIDs = append(gotIDs, method.ID)
+			}
+
+			assert.Equal(t, tc.wantIDs, gotIDs)
+		})
 	}
 }
 
-func TestGet_UsesCustomRenderer(t *testing.T) {
+func TestGetRenderModes(t *testing.T) {
 	includePassword := false
 	includeGoogle := false
 
-	controller := &LoginController{
-		options: &LoginControllerOptions{
-			IncludePasswordMethod: &includePassword,
-			IncludeGoogleMethod:   &includeGoogle,
-			Renderer: func(ctx context.Context, vm LoginPageViewModel) templ.Component {
-				return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-					_, err := io.WriteString(w, "custom-renderer")
-					return err
-				})
+	tests := []struct {
+		name         string
+		makeOptions  func() *LoginControllerOptions
+		expectStatus int
+		expectedBody string
+	}{
+		{
+			name: "custom renderer renders custom output",
+			makeOptions: func() *LoginControllerOptions {
+				return &LoginControllerOptions{
+					Renderer: func(ctx context.Context, vm LoginPageViewModel) templ.Component {
+						return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+							_, err := w.Write([]byte("custom-renderer"))
+							return err
+						})
+					},
+				}
 			},
+			expectStatus: http.StatusOK,
+			expectedBody: "custom-renderer",
+		},
+		{
+			name: "no login methods configured returns server error",
+			makeOptions: func() *LoginControllerOptions {
+				return &LoginControllerOptions{
+					IncludePasswordMethod: &includePassword,
+					IncludeGoogleMethod:   &includeGoogle,
+				}
+			},
+			expectStatus: http.StatusInternalServerError,
+			expectedBody: "no login methods configured\n",
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
-	req = req.WithContext(withLocalizer(t, req.Context(), `{"Login":{"Meta":{"Title":"Login"}}}`))
-	w := httptest.NewRecorder()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := &LoginController{options: tc.makeOptions()}
+			req := httptest.NewRequest(http.MethodGet, "/login", nil)
+			req = req.WithContext(withLocalizer(t, req.Context(), `{"Login":{"Meta":{"Title":"Login"}}}`))
+			w := httptest.NewRecorder()
 
-	controller.Get(w, req)
+			controller.Get(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-	if body := w.Body.String(); body != "custom-renderer" {
-		t.Fatalf("unexpected renderer body: %q", body)
+			assert.Equal(t, tc.expectStatus, w.Code)
+			assert.Equal(t, tc.expectedBody, w.Body.String())
+		})
 	}
 }
 
-func TestFinalizeAuthenticatedUser_AccessCheckRedirects(t *testing.T) {
-	controller := &LoginController{
-		options: &LoginControllerOptions{
-			LoginAccessCheck: func(ctx context.Context, u coreuser.User) error {
-				return errors.New("blocked")
+func TestFinalizeAuthenticatedSessionAndUserRedirects(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func() *LoginController
+		location string
+	}{
+		{
+			name: "access check blocks user",
+			setup: func() *LoginController {
+				return &LoginController{
+					options: &LoginControllerOptions{
+						LoginAccessCheck: func(ctx context.Context, u coreuser.User) error {
+							return errors.New("blocked")
+						},
+					},
+				}
 			},
+			location: "/login?next=%2Fdashboard",
+		},
+		{
+			name: "policy errors redirect to login",
+			setup: func() *LoginController {
+				return &LoginController{
+					twoFactorPolicy: errorPolicy{},
+				}
+			},
+			location: "/login?next=%2Fdashboard",
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
-	w := httptest.NewRecorder()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := tc.setup()
 
-	controller.FinalizeAuthenticatedUser(w, req, mustTestUser(t), pkgtwofactor.AuthMethodExternal, "/dashboard")
+			req := httptest.NewRequest(http.MethodGet, "/login", nil)
+			if tc.name == "policy errors redirect to login" {
+				ctx := withLocalizer(t, req.Context(), `{"Errors":{"Internal":"Internal error"}}`)
+				ctx = context.WithValue(ctx, constants.LoggerKey, logrus.New().WithField("test", true))
+				req = req.WithContext(ctx)
+			}
 
-	if w.Code != http.StatusFound {
-		t.Fatalf("expected redirect, got %d", w.Code)
-	}
-	if location := w.Header().Get("Location"); location != "/login?next=%2Fdashboard" {
-		t.Fatalf("unexpected redirect location: %s", location)
+			w := httptest.NewRecorder()
+			controller.finalizeAuthenticatedSession(
+				w,
+				req,
+				mustTestUser(t),
+				session.New("token", 1, uuid.New(), "127.0.0.1", "test-agent"),
+				pkgtwofactor.AuthMethodExternal,
+				"/dashboard",
+				tc.location,
+			)
+
+			assert.Equal(t, http.StatusFound, w.Code)
+			assert.Equal(t, tc.location, w.Header().Get("Location"))
+		})
 	}
 }
 
-func TestFinalizeAuthenticatedSession_PolicyErrorRedirects(t *testing.T) {
-	controller := &LoginController{
-		twoFactorPolicy: errorPolicy{},
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
-	ctx := withLocalizer(t, req.Context(), `{"Errors":{"Internal":"Internal error"}}`)
-	ctx = context.WithValue(ctx, constants.LoggerKey, logrus.New().WithField("test", true))
-	req = req.WithContext(ctx)
-
-	sess := session.New("token", 1, uuid.New(), "127.0.0.1", "test-agent")
-	w := httptest.NewRecorder()
-
-	controller.finalizeAuthenticatedSession(
-		w,
-		req,
-		mustTestUser(t),
-		sess,
-		pkgtwofactor.AuthMethodExternal,
-		"/dashboard",
-		"/login?next=%2Fdashboard",
-	)
-
-	if w.Code != http.StatusFound {
-		t.Fatalf("expected redirect, got %d", w.Code)
-	}
-	if location := w.Header().Get("Location"); location != "/login?next=%2Fdashboard" {
-		t.Fatalf("unexpected redirect location: %s", location)
-	}
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 func mustTestUser(t *testing.T) coreuser.User {
 	t.Helper()
 	email, err := internet.NewEmail("user@example.com")
-	if err != nil {
-		t.Fatalf("create email: %v", err)
-	}
+	require.NoError(t, err)
 	return coreuser.New(
 		"John",
 		"Doe",

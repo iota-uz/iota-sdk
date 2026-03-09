@@ -1,9 +1,27 @@
 package twofactor
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestAuthMethodExternalValue(t *testing.T) {
-	if AuthMethodExternal != AuthMethod("external") {
-		t.Fatalf("unexpected external auth method value: %s", AuthMethodExternal)
+	tests := []struct {
+		name string
+		got  AuthMethod
+		want AuthMethod
+	}{
+		{
+			name: "external method value",
+			got:  AuthMethodExternal,
+			want: AuthMethod("external"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.got)
+		})
 	}
 }
