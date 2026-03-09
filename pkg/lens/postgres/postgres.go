@@ -239,6 +239,6 @@ func sanitizeSQL(query string) string {
 
 func sqlTokens(query string) []string {
 	return strings.FieldsFunc(strings.ToUpper(query), func(r rune) bool {
-		return !(r >= 'A' && r <= 'Z')
+		return r < 'A' || r > 'Z'
 	})
 }

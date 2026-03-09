@@ -74,7 +74,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 				},
 			}
 		}
-	default:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		if hasSeries(rows, fields.Series) {
 			categories, series := groupedSeries(rows, fields)
 			options.Series = series
@@ -119,13 +119,13 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	}
 	var actionJS string
 	switch spec.Kind {
+	case action.KindNavigate:
+		actionJS = "window.location.href = nextURL;"
 	case action.KindHtmxSwap:
 		target := spec.Target
 		actionJS = fmt.Sprintf("htmx.ajax(%q, nextURL, {target: %q, swap: 'innerHTML'});", method, target)
 	case action.KindEmitEvent:
 		actionJS = fmt.Sprintf("document.dispatchEvent(new CustomEvent(%q, {detail: payload}));", spec.Event)
-	default:
-		actionJS = "window.location.href = nextURL;"
 	}
 	js := fmt.Sprintf(`function(event, chartContext, opts) {
 		const rows = %s;
@@ -218,9 +218,10 @@ func chartType(kind panel.Kind) charts.ChartType {
 		return charts.DonutChartType
 	case panel.KindGauge:
 		return charts.RadialBarChartType
-	default:
+	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return charts.BarChartType
 	}
+	return charts.BarChartType
 }
 
 func panelHeight(panelSpec panel.Spec) string {
@@ -243,9 +244,10 @@ func panelColors(panelSpec panel.Spec) []string {
 		return []string{"#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"}
 	case panel.KindGauge:
 		return []string{"#f59e0b"}
-	default:
+	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return []string{"#2563eb"}
 	}
+	return []string{"#2563eb"}
 }
 
 func hasSeries(rows []map[string]any, field string) bool {

@@ -168,7 +168,7 @@ type Plugin interface {
 
 func Apply(primary *frame.FrameSet, deps map[string]*frame.FrameSet, specs []Spec) (*frame.FrameSet, error) {
 	if primary == nil {
-		return nil, nil
+		return &frame.FrameSet{}, nil
 	}
 	current := primary.Clone()
 	var err error
@@ -404,6 +404,8 @@ func cast(primary *frame.FrameSet, types map[string]frame.FieldType) (*frame.Fra
 			for idx, value := range fr.Fields[i].Values {
 				fr.Fields[i].Values[idx] = fmt.Sprint(value)
 			}
+		case frame.FieldTypeBoolean, frame.FieldTypeTime, frame.FieldTypeUnknown, frame.FieldTypeLocalized:
+			// Keep existing values; only number and string casts currently coerce payloads.
 		}
 	}
 	return next, nil
@@ -446,19 +448,19 @@ func sortRows(primary *frame.FrameSet, fields []SortField) (*frame.FrameSet, err
 	return frame.NewFrameSet(next)
 }
 
-func limit(primary *frame.FrameSet, max int) (*frame.FrameSet, error) {
-	if max <= 0 {
+func limit(primary *frame.FrameSet, limitValue int) (*frame.FrameSet, error) {
+	if limitValue <= 0 {
 		return primary.Clone(), nil
 	}
 	fr := primary.Primary()
-	if fr == nil || fr.RowCount <= max {
+	if fr == nil || fr.RowCount <= limitValue {
 		return primary.Clone(), nil
 	}
 	next := fr.Clone()
 	for i := range next.Fields {
-		next.Fields[i].Values = next.Fields[i].Values[:max]
+		next.Fields[i].Values = next.Fields[i].Values[:limitValue]
 	}
-	next.RowCount = max
+	next.RowCount = limitValue
 	return frame.NewFrameSet(next)
 }
 
@@ -527,23 +529,23 @@ func aggregateRows(rows []map[string]any, agg Aggregate) any {
 		}
 		return total / float64(len(rows))
 	case "min":
-		min := 0.0
+		minValue := 0.0
 		for i, row := range rows {
 			value := toFloat(row[agg.Field])
-			if i == 0 || value < min {
-				min = value
+			if i == 0 || value < minValue {
+				minValue = value
 			}
 		}
-		return min
+		return minValue
 	case "max":
-		max := 0.0
+		maxValue := 0.0
 		for i, row := range rows {
 			value := toFloat(row[agg.Field])
-			if i == 0 || value > max {
-				max = value
+			if i == 0 || value > maxValue {
+				maxValue = value
 			}
 		}
-		return max
+		return maxValue
 	default:
 		return 0.0
 	}
@@ -767,7 +769,6 @@ func pivot(primary *frame.FrameSet, cfg *PivotConfig) (*frame.FrameSet, error) {
 		return primary.Clone(), nil
 	}
 	rows := fr.Rows()
-	seriesNames := make([]string, 0)
 	seriesSeen := map[string]bool{}
 	grouped := map[string]map[string]any{}
 	for _, row := range rows {
@@ -775,7 +776,6 @@ func pivot(primary *frame.FrameSet, cfg *PivotConfig) (*frame.FrameSet, error) {
 		series := fmt.Sprint(row[cfg.SeriesField])
 		if !seriesSeen[series] {
 			seriesSeen[series] = true
-			seriesNames = append(seriesNames, series)
 		}
 		if _, ok := grouped[category]; !ok {
 			grouped[category] = map[string]any{cfg.CategoryField: category}
@@ -918,9 +918,9 @@ func ageRange(primary *frame.FrameSet, cfg *AgeRangeConfig) (*frame.FrameSet, er
 		out.Fields = append(out.Fields, frame.Field{Name: cfg.MaxAs, Type: frame.FieldTypeNumber, Role: frame.RoleLinkParam})
 	}
 	for _, row := range fr.Rows() {
-		min, max := parseAgeRange(fmt.Sprint(row[cfg.Field]))
-		row[cfg.MinAs] = min
-		row[cfg.MaxAs] = max
+		minAge, maxAge := parseAgeRange(fmt.Sprint(row[cfg.Field]))
+		row[cfg.MinAs] = minAge
+		row[cfg.MaxAs] = maxAge
 		if err := out.AppendRow(row); err != nil {
 			return nil, err
 		}
@@ -1125,14 +1125,14 @@ func bucketGranularity(row map[string]any, cfg *BucketBoundsConfig) string {
 
 func parseAgeRange(raw string) (int, int) {
 	if strings.HasSuffix(raw, "+") {
-		min, _ := strconv.Atoi(strings.TrimSuffix(raw, "+"))
-		return min, 999
+		minAge, _ := strconv.Atoi(strings.TrimSuffix(raw, "+"))
+		return minAge, 999
 	}
 	parts := strings.Split(raw, "-")
 	if len(parts) != 2 {
 		return 0, 0
 	}
-	min, _ := strconv.Atoi(parts[0])
-	max, _ := strconv.Atoi(parts[1])
-	return min, max
+	minAge, _ := strconv.Atoi(parts[0])
+	maxAge, _ := strconv.Atoi(parts[1])
+	return minAge, maxAge
 }

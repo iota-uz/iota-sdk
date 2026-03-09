@@ -1,3 +1,4 @@
+// Package panel defines Lens dashboard panel specs and builders.
 package panel
 
 import (

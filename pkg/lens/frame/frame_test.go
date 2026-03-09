@@ -19,6 +19,7 @@ func TestFrameBehaviors_Scenarios(t *testing.T) {
 		{
 			name: "normalize_rejects_uneven_fields",
 			run: func(t *testing.T) {
+				t.Helper()
 				fr := &Frame{
 					Name: "broken",
 					Fields: []Field{
@@ -33,6 +34,7 @@ func TestFrameBehaviors_Scenarios(t *testing.T) {
 		{
 			name: "rows_round_trip",
 			run: func(t *testing.T) {
+				t.Helper()
 				fr, err := New("report",
 					Field{Name: "label", Values: []any{"one", "two"}},
 					Field{Name: "value", Values: []any{1.0, 2.0}},
@@ -43,13 +45,14 @@ func TestFrameBehaviors_Scenarios(t *testing.T) {
 				rows := fr.Rows()
 				require.Len(t, rows, 2)
 				assert.Equal(t, "one", rows[0]["label"])
-				assert.Equal(t, 2.0, rows[1]["value"])
+				assert.InDelta(t, 2.0, rows[1]["value"].(float64), 0.001)
 				assert.Equal(t, now.Add(time.Hour), rows[1]["at"])
 			},
 		},
 		{
 			name: "long_series_preserves_extra_fields",
 			run: func(t *testing.T) {
+				t.Helper()
 				set, err := LongSeries("sales",
 					LongSeriesRow{
 						Category: "2026-01-01",
@@ -73,6 +76,7 @@ func TestFrameBehaviors_Scenarios(t *testing.T) {
 		{
 			name: "append_strict_requires_declared_fields",
 			run: func(t *testing.T) {
+				t.Helper()
 				builder := NewBuilder("strict").
 					String("label", RoleDimension).
 					Number("value", RoleMetric)
@@ -85,7 +89,6 @@ func TestFrameBehaviors_Scenarios(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tc.run(t)

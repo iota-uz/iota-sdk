@@ -85,7 +85,7 @@ func TestMoneyScaleAndAgeRangeTransforms(t *testing.T) {
 
 	rows := next.Primary().Rows()
 	require.Len(t, rows, 1)
-	require.Equal(t, 123.45, rows[0]["amount"])
+	require.InDelta(t, 123.45, rows[0]["amount"].(float64), 0.001)
 	require.Equal(t, 65, rows[0]["age_min"])
 	require.Equal(t, 999, rows[0]["age_max"])
 }

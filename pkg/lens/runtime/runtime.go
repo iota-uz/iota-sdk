@@ -318,7 +318,7 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 		case lens.VariableToggle:
 			raw := rt.Request.Get(spec.Name)
 			values[spec.Name] = raw == "true" || raw == "1"
-		default:
+		case lens.VariableSingleSelect, lens.VariableMultiSelect, lens.VariableText, lens.VariableNumber:
 			if raw := rt.Request.Get(spec.Name); raw != "" {
 				values[spec.Name] = raw
 			} else {
@@ -411,6 +411,8 @@ func Validate(spec lens.DashboardSpec) error {
 			if strings.TrimSpace(dataset.Query.Text) == "" {
 				return fmt.Errorf("dataset %s is missing query text", dataset.Name)
 			}
+		case lens.DatasetKindTransform, lens.DatasetKindJoin, lens.DatasetKindUnion, lens.DatasetKindFormula:
+			// Derived dataset kinds are validated through dependency graph checks below.
 		}
 		if _, exists := datasets[dataset.Name]; exists {
 			return fmt.Errorf("duplicate dataset %s", dataset.Name)
@@ -473,6 +475,8 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 			}
 		}
 		return nil
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindTable, panel.KindGauge:
+		// Leaf panels continue through dataset and field validation below.
 	}
 	if spec.Dataset == "" {
 		return fmt.Errorf("panel %s is missing dataset", spec.ID)
@@ -484,6 +488,8 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		return fmt.Errorf("panel %s is missing value field", spec.ID)
 	}
 	switch spec.Kind {
+	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+		// These panel kinds do not require label/category validation here.
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		if strings.TrimSpace(spec.Fields.Label) == "" && strings.TrimSpace(spec.Fields.Category) == "" {
 			return fmt.Errorf("panel %s requires label or category field", spec.ID)

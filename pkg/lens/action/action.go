@@ -1,3 +1,4 @@
+// Package action defines panel actions and action value sources for Lens dashboards.
 package action
 
 type Kind string
