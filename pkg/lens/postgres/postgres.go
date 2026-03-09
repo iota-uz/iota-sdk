@@ -39,11 +39,13 @@ type Config struct {
 	MaxConnections   int32
 	MinConnections   int32
 	QueryTimeout     time.Duration
+	RequiredParams   []string
 }
 
 type DataSource struct {
-	pool    *pgxpool.Pool
-	timeout time.Duration
+	pool           *pgxpool.Pool
+	timeout        time.Duration
+	requiredParams []string
 }
 
 func New(cfg Config) (*DataSource, error) {
@@ -69,7 +71,11 @@ func New(cfg Config) (*DataSource, error) {
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}
-	return &DataSource{pool: pool, timeout: timeout}, nil
+	return &DataSource{
+		pool:           pool,
+		timeout:        timeout,
+		requiredParams: append([]string(nil), cfg.RequiredParams...),
+	}, nil
 }
 
 func NewFromPool(pool *pgxpool.Pool) *DataSource {
@@ -87,6 +93,9 @@ func (d *DataSource) Capabilities() datasource.CapabilitySet {
 func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
 	op := serrors.Op("lens/postgres.Run")
 	if err := validateQuery(req.Text); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if err := validateParams(req.Params, d.requiredParams); err != nil {
 		return nil, serrors.E(op, err)
 	}
 	queryCtx, cancel := context.WithTimeout(ctx, d.timeout)
@@ -140,6 +149,16 @@ func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*fra
 		return nil, serrors.E(op, err)
 	}
 	return frame.NewFrameSet(fr)
+}
+
+func validateParams(params map[string]any, required []string) error {
+	for _, name := range required {
+		value, ok := params[name]
+		if !ok || value == nil || strings.TrimSpace(fmt.Sprint(value)) == "" {
+			return fmt.Errorf("missing required query param %q", name)
+		}
+	}
+	return nil
 }
 
 func validateQuery(query string) error {

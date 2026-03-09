@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type DatasetResult struct {
@@ -87,8 +88,9 @@ func (m *memoryCache) Set(key string, value *frame.FrameSet) {
 }
 
 func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardResult, error) {
+	op := serrors.Op("lens/runtime.Execute")
 	if err := Validate(spec); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	startedAt := time.Now()
 	if rt.Cache == nil {
@@ -96,7 +98,7 @@ func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*Dashboa
 	}
 	variables, err := resolveVariables(spec.Variables, rt)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	result := &DashboardResult{
@@ -120,7 +122,7 @@ func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*Dashboa
 	for _, row := range spec.Rows {
 		for _, panelSpec := range row.Panels {
 			if err := state.executePanel(ctx, panelSpec, result.Panels); err != nil {
-				return nil, err
+				return nil, serrors.E(op, err)
 			}
 		}
 	}
@@ -418,33 +420,43 @@ func queryCacheKey(req datasource.QueryRequest) string {
 }
 
 func Validate(spec lens.DashboardSpec) error {
+	op := serrors.Op("lens/runtime.Validate")
+	invalid := func(format string, args ...any) error {
+		return serrors.E(op, fmt.Errorf(format, args...))
+	}
+	wrap := func(err error) error {
+		if err == nil {
+			return nil
+		}
+		return serrors.E(op, err)
+	}
 	datasets := make(map[string]lens.DatasetSpec, len(spec.Datasets))
 	for _, dataset := range spec.Datasets {
 		if dataset.Name == "" {
-			return fmt.Errorf("dataset name is required")
+			return invalid("dataset name is required")
 		}
 		switch dataset.Kind {
 		case lens.DatasetKindStatic:
 			if dataset.Static == nil {
-				return fmt.Errorf("dataset %s is missing static frames", dataset.Name)
+				return invalid("dataset %s is missing static frames", dataset.Name)
 			}
 		case lens.DatasetKindQuery:
 			if dataset.Query == nil {
-				return fmt.Errorf("dataset %s is missing query spec", dataset.Name)
+				return invalid("dataset %s is missing query spec", dataset.Name)
 			}
 			if strings.TrimSpace(dataset.Source) == "" {
-				return fmt.Errorf("dataset %s is missing datasource", dataset.Name)
+				return invalid("dataset %s is missing datasource", dataset.Name)
 			}
 			if strings.TrimSpace(dataset.Query.Text) == "" {
-				return fmt.Errorf("dataset %s is missing query text", dataset.Name)
+				return invalid("dataset %s is missing query text", dataset.Name)
 			}
 		case lens.DatasetKindTransform, lens.DatasetKindJoin, lens.DatasetKindUnion, lens.DatasetKindFormula:
 			// Derived dataset kinds are validated through dependency graph checks below.
 		default:
-			return fmt.Errorf("dataset %s has unsupported kind %q", dataset.Name, dataset.Kind)
+			return invalid("dataset %s has unsupported kind %q", dataset.Name, dataset.Kind)
 		}
 		if _, exists := datasets[dataset.Name]; exists {
-			return fmt.Errorf("duplicate dataset %s", dataset.Name)
+			return invalid("duplicate dataset %s", dataset.Name)
 		}
 		datasets[dataset.Name] = dataset
 	}
@@ -456,16 +468,16 @@ func Validate(spec lens.DashboardSpec) error {
 			return nil
 		}
 		if visiting[name] {
-			return fmt.Errorf("dataset cycle detected at %s", name)
+			return invalid("dataset cycle detected at %s", name)
 		}
 		visiting[name] = true
 		dataset, ok := datasets[name]
 		if !ok {
-			return fmt.Errorf("dataset %s not found", name)
+			return invalid("dataset %s not found", name)
 		}
 		for _, dep := range dataset.DependsOn {
 			if err := visit(dep); err != nil {
-				return err
+				return wrap(err)
 			}
 		}
 		visiting[name] = false
@@ -474,14 +486,14 @@ func Validate(spec lens.DashboardSpec) error {
 	}
 	for name := range datasets {
 		if err := visit(name); err != nil {
-			return err
+			return wrap(err)
 		}
 	}
 	panelIDs := make(map[string]struct{})
 	for _, row := range spec.Rows {
 		for _, panelSpec := range row.Panels {
 			if err := validatePanel(panelSpec, datasets, panelIDs); err != nil {
-				return err
+				return wrap(err)
 			}
 		}
 	}

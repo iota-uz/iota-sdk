@@ -43,3 +43,16 @@ func TestValidateQueryRejectsSelectInto(t *testing.T) {
 	err := validateQuery("SELECT * INTO backup_table FROM contracts")
 	require.Error(t, err)
 }
+
+func TestValidateParamsRequiresConfiguredParams(t *testing.T) {
+	t.Parallel()
+
+	err := validateParams(map[string]any{
+		"tenant_id": "tenant-1",
+	}, []string{"tenant_id"})
+	require.NoError(t, err)
+
+	err = validateParams(map[string]any{}, []string{"tenant_id"})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "tenant_id")
+}

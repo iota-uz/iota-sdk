@@ -43,6 +43,7 @@ func NewShowcaseController(app application.Application) application.Controller {
 		MaxConnections:   5,
 		MinConnections:   1,
 		QueryTimeout:     30 * time.Second,
+		RequiredParams:   []string{"tenant_id"},
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for showcase: %v", err)
