@@ -53,3 +53,10 @@ func TestApplySupportsMonthLabelDurationAndLocalizedString(t *testing.T) {
 	require.Equal(t, "2m0s", Apply(&durationSpec, 120, "", ""))
 	require.Equal(t, "Pending", Apply(&localizedSpec, "pending", "", ""))
 }
+
+func TestApplyFormatsNilAsEmptyString(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "", Apply(nil, nil, "", ""))
+	require.Equal(t, "", Apply(&Spec{Kind: KindInteger}, nil, "", ""))
+}

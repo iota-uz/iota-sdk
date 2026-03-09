@@ -84,7 +84,7 @@ func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*fra
 		executor = d.pool
 	}
 
-	rows, err := executor.Query(queryCtx, req.Text, args)
+	rows, err := executor.Query(queryCtx, applyMaxRows(req.Text, req.MaxRows), args)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -172,6 +172,13 @@ func inferType(oid uint32) frame.FieldType {
 	default:
 		return frame.FieldTypeUnknown
 	}
+}
+
+func applyMaxRows(query string, maxRows int) string {
+	if maxRows <= 0 {
+		return query
+	}
+	return fmt.Sprintf("SELECT * FROM (%s) AS lens_query LIMIT %d", query, maxRows)
 }
 
 func sanitizeSQL(query string) string {

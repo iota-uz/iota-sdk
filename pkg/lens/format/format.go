@@ -125,6 +125,9 @@ func Apply(spec *Spec, value any, locale, timezone string) string {
 }
 
 func defaultFormat(value any) string {
+	if value == nil {
+		return ""
+	}
 	switch v := value.(type) {
 	case time.Time:
 		return v.Format("2006-01-02")

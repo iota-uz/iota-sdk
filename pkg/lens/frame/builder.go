@@ -100,6 +100,7 @@ func (b *Builder) Append(row Row) error {
 				Type:   InferFieldType(row[name]),
 				Role:   RoleDimension,
 				Labels: map[string]string{},
+				Values: make([]any, b.frame.RowCount),
 			})
 			b.order = append(b.order, name)
 		}
@@ -134,6 +135,7 @@ func (b *Builder) field(name string, fieldType FieldType, role FieldRole) *Build
 		Type:   fieldType,
 		Role:   role,
 		Labels: map[string]string{},
+		Values: make([]any, b.frame.RowCount),
 	})
 	return b
 }

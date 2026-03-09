@@ -114,3 +114,20 @@ func TestInferFieldTypeSupportsPointerTime(t *testing.T) {
 	now := time.Now().UTC()
 	require.Equal(t, FieldTypeTime, InferFieldType(&now))
 }
+
+func TestBuilderAppendBackfillsLateFields(t *testing.T) {
+	t.Parallel()
+
+	builder := NewBuilder("late-fields")
+
+	require.NoError(t, builder.Append(Row{"label": "Revenue"}))
+	require.NoError(t, builder.Append(Row{"label": "Expenses", "value": 12.5}))
+
+	set, err := builder.FrameSet()
+	require.NoError(t, err)
+
+	rows := set.Primary().Rows()
+	require.Len(t, rows, 2)
+	require.Nil(t, rows[0]["value"])
+	require.Equal(t, 12.5, rows[1]["value"])
+}
