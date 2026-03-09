@@ -1,3 +1,4 @@
+// Package runtime validates and executes Lens dashboard specs.
 package runtime
 
 import (

@@ -57,6 +57,6 @@ func TestApplySupportsMonthLabelDurationAndLocalizedString(t *testing.T) {
 func TestApplyFormatsNilAsEmptyString(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, "", Apply(nil, nil, "", ""))
-	require.Equal(t, "", Apply(&Spec{Kind: KindInteger}, nil, "", ""))
+	require.Empty(t, Apply(nil, nil, "", ""))
+	require.Empty(t, Apply(&Spec{Kind: KindInteger}, nil, "", ""))
 }

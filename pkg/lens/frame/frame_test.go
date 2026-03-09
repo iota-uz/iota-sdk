@@ -129,5 +129,5 @@ func TestBuilderAppendBackfillsLateFields(t *testing.T) {
 	rows := set.Primary().Rows()
 	require.Len(t, rows, 2)
 	require.Nil(t, rows[0]["value"])
-	require.Equal(t, 12.5, rows[1]["value"])
+	require.InDelta(t, 12.5, rows[1]["value"].(float64), 0.001)
 }

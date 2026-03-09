@@ -1,3 +1,4 @@
+// Package apex renders Lens panel results into ApexCharts options.
 package apex
 
 import (

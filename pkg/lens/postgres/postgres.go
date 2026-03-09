@@ -1,3 +1,4 @@
+// Package postgres provides a PostgreSQL-backed Lens datasource implementation.
 package postgres
 
 import (
