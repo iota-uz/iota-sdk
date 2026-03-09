@@ -284,6 +284,9 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 						panelSpec.Transforms,
 					)
 				}
+				if panelResult.Error == nil {
+					panelResult.Error = validatePanelFrames(panelSpec, panelResult.Frames)
+				}
 			}
 			panelResult.Duration = time.Since(start)
 			mu.Lock()
@@ -695,21 +698,21 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	if _, ok := datasets[spec.Dataset]; !ok {
 		return fmt.Errorf("panel %s references missing dataset %s", spec.ID, spec.Dataset)
 	}
-	if spec.Kind != panel.KindTable && strings.TrimSpace(spec.Fields.Value) == "" {
+	if spec.Kind != panel.KindTable && spec.Fields.Value.Empty() {
 		return fmt.Errorf("panel %s is missing value field", spec.ID)
 	}
 	switch spec.Kind {
 	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		// These panel kinds do not require label/category validation here.
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
-		if strings.TrimSpace(spec.Fields.Label) == "" && strings.TrimSpace(spec.Fields.Category) == "" {
+		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
 			return fmt.Errorf("panel %s requires label or category field", spec.ID)
 		}
 	case panel.KindStackedBar, panel.KindTimeSeries:
-		if strings.TrimSpace(spec.Fields.Category) == "" {
+		if spec.Fields.Category.Empty() {
 			return fmt.Errorf("panel %s requires category field", spec.ID)
 		}
-		if spec.Kind == panel.KindStackedBar && strings.TrimSpace(spec.Fields.Series) == "" {
+		if spec.Kind == panel.KindStackedBar && spec.Fields.Series.Empty() {
 			return fmt.Errorf("panel %s requires series field", spec.ID)
 		}
 	}
@@ -740,6 +743,77 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		}
 	}
 	return nil
+}
+
+func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
+	if frames == nil || frames.Primary() == nil {
+		return nil
+	}
+	primary := frames.Primary()
+	required := requiredPanelFields(spec)
+	for _, field := range required {
+		if field.Empty() {
+			continue
+		}
+		if _, ok := primary.Field(field.Name()); !ok {
+			return fmt.Errorf("panel %s is missing field %q in dataset %s", spec.ID, field.Name(), spec.Dataset)
+		}
+	}
+	if spec.Kind == panel.KindTable {
+		for _, column := range spec.Columns {
+			if column.Field.Empty() {
+				return fmt.Errorf("panel %s has table column without field reference", spec.ID)
+			}
+			if _, ok := primary.Field(column.Field.Name()); !ok {
+				return fmt.Errorf("panel %s is missing table column field %q in dataset %s", spec.ID, column.Field.Name(), spec.Dataset)
+			}
+		}
+	}
+	if spec.Action != nil {
+		for _, param := range spec.Action.Params {
+			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, param.Source); err != nil {
+				return err
+			}
+		}
+		for _, source := range spec.Action.Payload {
+			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, source); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func requiredPanelFields(spec panel.Spec) []panel.FieldRef {
+	switch spec.Kind {
+	case panel.KindStat:
+		return []panel.FieldRef{spec.Fields.Value}
+	case panel.KindTimeSeries:
+		return []panel.FieldRef{spec.Fields.Category, spec.Fields.Value}
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+		fields := []panel.FieldRef{spec.Fields.Value}
+		if !spec.Fields.Label.Empty() {
+			fields = append(fields, spec.Fields.Label)
+		}
+		if !spec.Fields.Category.Empty() {
+			fields = append(fields, spec.Fields.Category)
+		}
+		return fields
+	case panel.KindStackedBar:
+		return []panel.FieldRef{spec.Fields.Category, spec.Fields.Series, spec.Fields.Value}
+	default:
+		return nil
+	}
+}
+
+func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, source action.ValueSource) error {
+	if source.Kind != action.SourceField {
+		return nil
+	}
+	if _, ok := primary.Field(source.Name); ok {
+		return nil
+	}
+	return fmt.Errorf("panel %s action references missing field %q in dataset %s", panelID, source.Name, dataset)
 }
 
 func validateValueSource(panelID, name string, source action.ValueSource) error {

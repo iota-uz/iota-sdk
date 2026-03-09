@@ -251,11 +251,11 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 						for i, column := range columns {
 							<td class="px-3 py-2 text-gray-700">
 								if rowHref != "" && i == 0 {
-									<a href={ templ.URL(rowHref) } onclick={ rowOnClick } class="font-medium text-blue-600 hover:underline">{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }</a>
+									<a href={ templ.URL(rowHref) } onclick={ rowOnClick } class="font-medium text-blue-600 hover:underline">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</a>
 								} else if rowOnClick.Call != "" && i == 0 {
-									<button type="button" onclick={ rowOnClick } class="font-medium text-left text-blue-600 hover:underline">{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }</button>
+									<button type="button" onclick={ rowOnClick } class="font-medium text-left text-blue-600 hover:underline">{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }</button>
 								} else {
-									{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }
+									{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
 								}
 							</td>
 						}

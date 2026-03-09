@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
@@ -45,29 +46,29 @@ type DashboardController struct {
 }
 
 func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.DashboardSpec {
-	return lens.Dashboard("finance-overview", "Finance Overview",
-		lens.Row(
+	return lensbuild.Dashboard("finance-overview", "Finance Overview",
+		lensbuild.Row(
 			panel.Stat("total-balance", "Total Balance", "total-balance").Span(3).Build(),
 			panel.Stat("monthly-expenses", "Monthly Expenses", "monthly-expenses").Span(3).Build(),
 			panel.Stat("monthly-income", "Monthly Income", "monthly-income").Span(3).Build(),
 			panel.Stat("transaction-count", "Transactions This Month", "transaction-count").Span(3).Build(),
 		),
-		lens.Row(
+		lensbuild.Row(
 			panel.Bar("monthly-expenses-chart", "Monthly Expenses Chart", "monthly-expenses-chart").Span(6).Build(),
 			panel.StackedBar("monthly-expenses-by-category", "Monthly Expenses by Category", "monthly-expenses-by-category").Legend().Span(6).Build(),
 		),
-		lens.Row(
+		lensbuild.Row(
 			panel.Bar("account-balances", "Account Balances", "account-balances").Span(12).Build(),
 		),
-		lens.Row(
+		lensbuild.Row(
 			panel.TimeSeries("revenue-trend", "Revenue Trend", "revenue-trend").Span(6).Build(),
 			panel.Bar("top-counterparties", "Top Counterparties", "top-counterparties").Span(6).Build(),
 		),
-		lens.Row(
+		lensbuild.Row(
 			panel.Gauge("expense-budget-usage", "Monthly Budget Usage", "expense-budget-usage").Span(4).Build(),
 			panel.Table("recent-transactions", "Recent Transactions", "recent-transactions").Span(8).Build(),
 		),
-	).WithDatasets(
+	).Datasets(
 		queryDataset("total-balance", `SELECT COALESCE(SUM(ma.balance), 0)::float8 / 100.0 as value
 			FROM money_accounts ma
 			WHERE ma.tenant_id = @tenant_id`, tenantID),
@@ -162,7 +163,7 @@ func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.Da
 			AND (c.id IS NULL OR c.tenant_id = @tenant_id)
 			ORDER BY t.transaction_date DESC, t.created_at DESC
 			LIMIT 20`, tenantID),
-	)
+	).Build()
 }
 
 func (c *DashboardController) Key() string {
@@ -218,7 +219,7 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func queryDataset(name, text string, tenantID uuid.UUID) lens.DatasetSpec {
-	spec := lens.QueryDataset(name, "primary", text)
+	spec := lensbuild.QueryDataset(name, "primary", text)
 	if spec.Query != nil {
 		spec.Query.Params = map[string]lens.ParamValue{
 			"tenant_id": {Literal: tenantID},

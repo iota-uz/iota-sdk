@@ -62,7 +62,7 @@ func tableColumns(spec panel.Spec, result *runtime.PanelResult) []panel.TableCol
 	}
 	columns := make([]panel.TableColumn, 0, len(result.Frames.Primary().Fields))
 	for _, field := range result.Frames.Primary().Fields {
-		columns = append(columns, panel.TableColumn{Field: field.Name, Label: field.Name})
+		columns = append(columns, panel.TableColumn{Field: panel.Ref(field.Name), Label: field.Name})
 	}
 	return columns
 }
@@ -73,10 +73,10 @@ func statRawValue(spec panel.Spec, result *runtime.PanelResult) any {
 	}
 	rows := result.Frames.Primary().Rows()
 	fieldName := spec.Fields.Value
-	if fieldName == "" {
-		fieldName = "value"
+	if fieldName.Empty() {
+		fieldName = panel.DefaultValueField
 	}
-	return rows[0][fieldName]
+	return rows[0][fieldName.Name()]
 }
 
 func statRow(result *runtime.PanelResult) map[string]any {

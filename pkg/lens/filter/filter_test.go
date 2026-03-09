@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +16,7 @@ func TestBuildNormalizesDateRangeAndAllTime(t *testing.T) {
 	end := time.Date(2026, time.March, 9, 23, 59, 59, 0, time.UTC)
 
 	model := Build([]lens.VariableSpec{
-		lens.DateRangeVariable("range", "Range", 24*time.Hour),
+		lensbuild.DateRangeVariable("range", "Range", 24*time.Hour),
 	}, map[string]any{
 		"range": lens.DateRangeValue{
 			Mode:  "all",
