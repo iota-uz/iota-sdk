@@ -52,7 +52,7 @@ func progressBar(percent float64) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(fmt.Sprintf("width: %d%%", viewmodels.PercentWidth(percent)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 19, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 19, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -70,7 +70,7 @@ func progressBar(percent float64) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(fmt.Sprintf("width: %d%%", viewmodels.PercentWidth(percent)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 24, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 24, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -88,7 +88,7 @@ func progressBar(percent float64) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(fmt.Sprintf("width: %d%%", viewmodels.PercentWidth(percent)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 29, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 29, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -205,7 +205,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.Hostname)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 60, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 60, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -218,7 +218,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedUptime)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 64, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 64, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -231,7 +231,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.CurrentTime.Format("2006-01-02 15:04:05"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 68, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 68, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -244,7 +244,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.Timezone)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 69, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 69, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -257,7 +257,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.TimezoneOffset)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 69, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 69, Col: 93}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -282,7 +282,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.Environment)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 74, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 74, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -335,7 +335,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedCPUPercent)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 91, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 91, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -348,7 +348,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(vm.Metrics.NumCPU))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 92, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 92, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -399,7 +399,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedMemoryPercent)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 103, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 103, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -412,7 +412,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedUsedMemory)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 104, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 104, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -425,7 +425,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedTotalMemory)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 104, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 104, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -476,7 +476,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedDiskPercent)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 115, Col: 80}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 115, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -489,7 +489,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedDiskUsed)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 116, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 116, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -502,7 +502,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedDiskTotal)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 116, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 116, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -553,7 +553,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.GoVersion)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 136, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 136, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -566,7 +566,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.GOOS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 140, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 140, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -579,7 +579,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.GOARCH)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 140, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 140, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -592,7 +592,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(vm.Metrics.NumCPU))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 144, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 144, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -605,7 +605,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(vm.Metrics.NumGoroutines))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 148, Col: 80}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 148, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
@@ -652,7 +652,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatUint(uint64(vm.Metrics.NumGC), 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 163, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 163, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 			if templ_7745c5c3_Err != nil {
@@ -665,7 +665,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatUint(vm.Metrics.LastPauseNs/1000000, 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 167, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 167, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
@@ -678,7 +678,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.2f", vm.Metrics.GCCPUFraction*100))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 171, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 171, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -725,7 +725,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedHeapAlloc)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 186, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 186, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -738,7 +738,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(vm.FormattedHeapSys)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 190, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 190, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
@@ -785,7 +785,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var40 string
 			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatInt(int64(vm.Metrics.PoolTotalConns), 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 210, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 210, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
@@ -798,7 +798,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var41 string
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatInt(int64(vm.Metrics.PoolMaxConns), 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 210, Col: 130}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 210, Col: 130}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
@@ -811,7 +811,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var42 string
 			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.0f", vm.PoolUtilPercent))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 211, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 211, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 			if templ_7745c5c3_Err != nil {
@@ -832,7 +832,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var43 string
 			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatInt(int64(vm.Metrics.PoolActiveConns), 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 218, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 218, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 			if templ_7745c5c3_Err != nil {
@@ -845,7 +845,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var44 string
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatInt(int64(vm.Metrics.PoolIdleConns), 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 222, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 222, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
@@ -858,7 +858,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatInt(vm.Metrics.PoolAcquireCount, 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 226, Col: 92}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 226, Col: 92}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
@@ -871,7 +871,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatInt(vm.Metrics.PoolAcquireDuration.Milliseconds(), 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 230, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 230, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -918,7 +918,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.Version)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 245, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 245, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -931,7 +931,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.BranchName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 249, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 249, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -941,12 +941,12 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if vm.Metrics.GitCommit != "unknown" && len(vm.Metrics.GitCommit) > 0 {
+			if vm.Metrics.GitCommit != "unknown" && len(vm.Metrics.GitCommit) > 0 && len(vm.Metrics.GitCommitURL) > 0 {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var50 templ.SafeURL = templ.URL("https://github.com/iota-uz/iota-sdk/commit/" + vm.Metrics.GitCommit)
+				var templ_7745c5c3_Var50 templ.SafeURL = templ.URL(vm.Metrics.GitCommitURL)
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var50)))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -959,7 +959,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					var templ_7745c5c3_Var51 string
 					templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.GitCommit[:8])
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 261, Col: 36}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 261, Col: 36}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 					if templ_7745c5c3_Err != nil {
@@ -969,7 +969,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					var templ_7745c5c3_Var52 string
 					templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.GitCommit)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 263, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 263, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 					if templ_7745c5c3_Err != nil {
@@ -988,7 +988,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 				var templ_7745c5c3_Var53 string
 				templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.GitCommit)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 267, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 267, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 				if templ_7745c5c3_Err != nil {
@@ -1006,7 +1006,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.BuildTime)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 272, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 272, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
@@ -1019,7 +1019,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var55 string
 			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.BuildEnvironment)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 276, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 276, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {
@@ -1032,7 +1032,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			var templ_7745c5c3_Var56 string
 			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Metrics.BuildGoVersion)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 280, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 280, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 			if templ_7745c5c3_Err != nil {
@@ -1085,7 +1085,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					var templ_7745c5c3_Var58 string
 					templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(capability.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 295, Col: 68}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 295, Col: 68}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 					if templ_7745c5c3_Err != nil {
@@ -1270,7 +1270,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 						var templ_7745c5c3_Var66 string
 						templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(capability.Message)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 330, Col: 63}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `metrics_partial.templ`, Line: 330, Col: 63}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 						if templ_7745c5c3_Err != nil {

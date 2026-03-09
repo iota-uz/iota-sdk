@@ -250,9 +250,9 @@ templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
 						</div>
 						<div class="flex justify-between">
 							<span class="text-200">Git Commit</span>
-							if vm.Metrics.GitCommit != "unknown" && len(vm.Metrics.GitCommit) > 0 {
+							if vm.Metrics.GitCommit != "unknown" && len(vm.Metrics.GitCommit) > 0 && len(vm.Metrics.GitCommitURL) > 0 {
 								<a
-									href={ templ.URL("https://github.com/iota-uz/iota-sdk/commit/" + vm.Metrics.GitCommit) }
+									href={ templ.URL(vm.Metrics.GitCommitURL) }
 									target="_blank"
 									rel="noopener noreferrer"
 									class="font-mono text-xs text-blue hover:underline"
