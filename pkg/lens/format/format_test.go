@@ -4,26 +4,34 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestApplyParsesNumericStrings(t *testing.T) {
+func TestApplyParsesNumericStrings_Scenarios(t *testing.T) {
 	t.Parallel()
 
-	count := Count()
-	money := MoneyCompact("UZS")
-	percent := Percent(1)
+	cases := []struct {
+		name     string
+		spec     Spec
+		input    any
+		expected string
+	}{
+		{name: "count", spec: Count(), input: "42", expected: "42"},
+		{name: "money_compact", spec: MoneyCompact("UZS"), input: "12500", expected: "12.50K UZS"},
+		{name: "percent", spec: Percent(1), input: "7.5", expected: "7.5%"},
+		{name: "invalid_count_string", spec: Count(), input: "abc", expected: "abc"},
+		{name: "empty_count_string", spec: Count(), input: "", expected: ""},
+		{name: "unsupported_kind", spec: Spec{Kind: Kind("unsupported")}, input: "42", expected: "42"},
+	}
 
-	require.Equal(t, "42", Apply(&count, "42", "", ""))
-	require.Equal(t, "12.50K UZS", Apply(&money, "12500", "", ""))
-	require.Equal(t, "7.5%", Apply(&percent, "7.5", "", ""))
-}
-
-func TestApplyFallsBackForInvalidNumericStrings(t *testing.T) {
-	t.Parallel()
-
-	count := Count()
-	require.Equal(t, "nope", Apply(&count, "nope", "", ""))
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.expected, Apply(&tc.spec, tc.input, "", ""))
+		})
+	}
 }
 
 func TestApplyFormatsDatesInTimezone(t *testing.T) {

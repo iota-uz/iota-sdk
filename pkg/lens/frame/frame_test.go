@@ -66,21 +66,61 @@ func TestBuilderLongSeriesPreservesExtraFields(t *testing.T) {
 func TestBuilderAppendStrictRequiresDeclaredFields(t *testing.T) {
 	t.Parallel()
 
-	builder := NewBuilder("strict").
-		String("label", RoleDimension).
-		Number("value", RoleMetric)
+	tests := []struct {
+		name string
+		row  Row
+	}{
+		{
+			name: "missing declared field",
+			row:  Row{"label": "Revenue"},
+		},
+		{
+			name: "unexpected extra field",
+			row:  Row{"label": "Revenue", "value": 12.5, "extra": "nope"},
+		},
+	}
 
-	err := builder.AppendStrict(Row{"label": "Revenue"})
-	require.Error(t, err)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			builder := NewBuilder("strict").
+				String("label", RoleDimension).
+				Number("value", RoleMetric)
+
+			err := builder.AppendStrict(tt.row)
+			require.Error(t, err)
+		})
+	}
 }
 
-func TestBuilderAppendStrictRejectsUnexpectedFields(t *testing.T) {
+func TestFieldCloneCopiesNestedValues(t *testing.T) {
 	t.Parallel()
 
-	builder := NewBuilder("strict").
-		String("label", RoleDimension).
-		Number("value", RoleMetric)
+	field := Field{
+		Name: "payload",
+		Values: []any{
+			map[string]any{
+				"product": "osago",
+				"meta":    []any{"a", "b"},
+			},
+		},
+	}
 
-	err := builder.AppendStrict(Row{"label": "Revenue", "value": 12.5, "extra": "nope"})
-	require.Error(t, err)
+	cloned := field.Clone()
+	clonedMap := cloned.Values[0].(map[string]any)
+	clonedMap["product"] = "kasko"
+	clonedMap["meta"].([]any)[0] = "changed"
+
+	originalMap := field.Values[0].(map[string]any)
+	require.Equal(t, "osago", originalMap["product"])
+	require.Equal(t, "a", originalMap["meta"].([]any)[0])
+}
+
+func TestInferFieldTypeSupportsPointerTime(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	require.Equal(t, FieldTypeTime, InferFieldType(&now))
 }

@@ -149,15 +149,24 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	for _, param := range spec.Params {
 		switch param.Source.Kind {
 		case action.SourceField:
-			js += fmt.Sprintf("if (row[%q] !== undefined && row[%q] !== null) { params.append(%q, row[%q]); }\n", param.Source.Name, param.Source.Name, param.Name, param.Source.Name)
+			js += fmt.Sprintf("if (row[%q] !== undefined && row[%q] !== null) { params.append(%q, row[%q]); payload[%q] = row[%q]; }\n", param.Source.Name, param.Source.Name, param.Name, param.Source.Name, param.Name, param.Source.Name)
 		case action.SourcePoint:
-			js += fmt.Sprintf("if (%q === 'label') { params.append(%q, row[%q] || row[%q]); }\n", param.Source.Name, param.Name, fields.Label, fields.Category)
+			switch param.Source.Name {
+			case "label":
+				js += fmt.Sprintf("if ((row[%q] || row[%q] || categoryName) !== undefined && (row[%q] || row[%q] || categoryName) !== null && (row[%q] || row[%q] || categoryName) !== '') { params.append(%q, row[%q] || row[%q] || categoryName); payload[%q] = row[%q] || row[%q] || categoryName; }\n", fields.Label, fields.Category, fields.Label, fields.Category, fields.Label, fields.Category, param.Name, fields.Label, fields.Category, param.Name, fields.Label, fields.Category)
+			case "value":
+				js += fmt.Sprintf("if (row[%q] !== undefined && row[%q] !== null) { params.append(%q, row[%q]); payload[%q] = row[%q]; }\n", fields.Value, fields.Value, param.Name, fields.Value, param.Name, fields.Value)
+			case "series":
+				js += fmt.Sprintf("if (seriesName) { params.append(%q, seriesName); payload[%q] = seriesName; }\n", param.Name, param.Name)
+			case "category":
+				js += fmt.Sprintf("if (categoryName) { params.append(%q, categoryName); payload[%q] = categoryName; }\n", param.Name, param.Name)
+			}
 		case action.SourceVariable:
 			if value, ok := variables[param.Source.Name]; ok && value != nil && fmt.Sprint(value) != "" {
-				js += fmt.Sprintf("params.append(%q, %q);\n", param.Name, fmt.Sprint(value))
+				js += fmt.Sprintf("params.append(%q, %q); payload[%q] = %q;\n", param.Name, fmt.Sprint(value), param.Name, fmt.Sprint(value))
 			}
 		case action.SourceLiteral:
-			js += fmt.Sprintf("params.append(%q, %q);\n", param.Name, fmt.Sprint(param.Source.Value))
+			js += fmt.Sprintf("params.append(%q, %q); payload[%q] = %q;\n", param.Name, fmt.Sprint(param.Source.Value), param.Name, fmt.Sprint(param.Source.Value))
 		}
 	}
 	for key, source := range spec.Payload {
@@ -286,7 +295,10 @@ func groupedSeries(rows []map[string]any, fields panel.FieldMapping) ([]string, 
 
 func firstNonEmpty(values ...any) any {
 	for _, value := range values {
-		if displayValue(value) != "" {
+		if value == nil {
+			continue
+		}
+		if strings.TrimSpace(displayValue(value)) != "" {
 			return value
 		}
 	}

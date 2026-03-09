@@ -88,7 +88,7 @@ func TestDateRangeVariableSupportsAllTimeAndDefaults(t *testing.T) {
 	require.Equal(t, "all", allRange.Mode)
 }
 
-func TestValidateRejectsDuplicateDatasetsAndPanels(t *testing.T) {
+func TestValidateRejectsDuplicatePanels(t *testing.T) {
 	t.Parallel()
 
 	spec := lens.Dashboard("duplicates", "Duplicates",
@@ -97,7 +97,26 @@ func TestValidateRejectsDuplicateDatasetsAndPanels(t *testing.T) {
 				LabelField("label").
 				ValueField("value").
 				Build(),
-			panel.Bar("same", "Panel 2", "dataset-a").
+			panel.Bar("same", "Panel 2", "dataset-b").
+				LabelField("label").
+				ValueField("value").
+				Build(),
+		),
+	).WithDatasets(
+		lens.StaticDataset("dataset-a", mustFrameSet(t, "dataset-a")),
+		lens.StaticDataset("dataset-b", mustFrameSet(t, "dataset-b")),
+	)
+
+	err := Validate(spec)
+	require.Error(t, err)
+}
+
+func TestValidateRejectsDuplicateDatasets(t *testing.T) {
+	t.Parallel()
+
+	spec := lens.Dashboard("duplicate-datasets", "Duplicate Datasets",
+		lens.Row(
+			panel.Bar("panel-a", "Panel 1", "dataset-a").
 				LabelField("label").
 				ValueField("value").
 				Build(),

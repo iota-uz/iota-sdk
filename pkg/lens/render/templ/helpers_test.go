@@ -36,8 +36,22 @@ func TestActionURLIncludesVariableParams(t *testing.T) {
 func TestVariableBoolHandlesMissingAndTruthyValues(t *testing.T) {
 	t.Parallel()
 
-	require.False(t, variableBool(nil, "enabled"))
-	require.False(t, variableBool(map[string]any{"enabled": "false"}, "enabled"))
-	require.True(t, variableBool(map[string]any{"enabled": "true"}, "enabled"))
-	require.True(t, variableBool(map[string]any{"enabled": true}, "enabled"))
+	cases := []struct {
+		name string
+		vars map[string]any
+		want bool
+	}{
+		{name: "missing_map", vars: nil, want: false},
+		{name: "string_false", vars: map[string]any{"enabled": "false"}, want: false},
+		{name: "string_true", vars: map[string]any{"enabled": "true"}, want: true},
+		{name: "bool_true", vars: map[string]any{"enabled": true}, want: true},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, variableBool(tc.vars, "enabled"))
+		})
+	}
 }

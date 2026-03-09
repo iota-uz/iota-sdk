@@ -2,6 +2,7 @@ package frame
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"time"
 )
@@ -29,21 +30,27 @@ const (
 )
 
 type Field struct {
-	Name          string
-	Type          FieldType
-	Role          FieldRole
-	Labels        map[string]string
+	Name   string
+	Type   FieldType
+	Role   FieldRole
+	Labels map[string]string
+	// Values are expected to hold scalar/value-like cells (numbers, strings, bools, time values).
+	// Nested mutable reference types should be normalized by callers before storing in a frame.
 	Values        []any
 	FormatterHint string
 }
 
+// Clone duplicates the field metadata and cell slice. Nested map/slice cell values are copied
+// recursively so cloned frames cannot mutate the original frame state.
 func (f Field) Clone() Field {
 	labels := make(map[string]string, len(f.Labels))
 	for k, v := range f.Labels {
 		labels[k] = v
 	}
 	values := make([]any, len(f.Values))
-	copy(values, f.Values)
+	for i, value := range f.Values {
+		values[i] = cloneValue(value)
+	}
 	return Field{
 		Name:          f.Name,
 		Type:          f.Type,
@@ -215,6 +222,16 @@ func (fs *FrameSet) Primary() *Frame {
 }
 
 func InferFieldType(value any) FieldType {
+	for value != nil {
+		rv := reflect.ValueOf(value)
+		if rv.Kind() != reflect.Pointer {
+			break
+		}
+		if rv.IsNil() {
+			return FieldTypeUnknown
+		}
+		value = rv.Elem().Interface()
+	}
 	switch value.(type) {
 	case string:
 		return FieldTypeString
@@ -226,5 +243,24 @@ func InferFieldType(value any) FieldType {
 		return FieldTypeNumber
 	default:
 		return FieldTypeUnknown
+	}
+}
+
+func cloneValue(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		cloned := make(map[string]any, len(v))
+		for key, item := range v {
+			cloned[key] = cloneValue(item)
+		}
+		return cloned
+	case []any:
+		cloned := make([]any, len(v))
+		for i, item := range v {
+			cloned[i] = cloneValue(item)
+		}
+		return cloned
+	default:
+		return v
 	}
 }

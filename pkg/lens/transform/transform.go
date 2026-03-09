@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type Kind string
@@ -181,6 +182,7 @@ func Apply(primary *frame.FrameSet, deps map[string]*frame.FrameSet, specs []Spe
 }
 
 func applyOne(primary *frame.FrameSet, deps map[string]*frame.FrameSet, spec Spec) (*frame.FrameSet, error) {
+	op := serrors.Op("lens/transform.applyOne")
 	switch spec.Kind {
 	case KindFilterRows:
 		return filterRows(primary, spec.Predicates)
@@ -223,7 +225,7 @@ func applyOne(primary *frame.FrameSet, deps map[string]*frame.FrameSet, spec Spe
 	case KindFilterZeroSeries:
 		return filterZeroSeries(primary, spec.FilterZeroSeries)
 	default:
-		return nil, fmt.Errorf("unsupported transform kind %q", spec.Kind)
+		return nil, serrors.E(op, fmt.Errorf("unsupported transform kind %q", spec.Kind))
 	}
 }
 
@@ -487,9 +489,6 @@ func groupBy(primary *frame.FrameSet, fields []string, aggregates []Aggregate) (
 	if err != nil {
 		return nil, err
 	}
-	for key := range groups {
-		_ = key
-	}
 	for _, grp := range groups {
 		row := make(map[string]any, len(fields)+len(aggregates))
 		for _, field := range fields {
@@ -586,20 +585,32 @@ func join(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *JoinCon
 	right := rightSet.Primary()
 	rows := left.Rows()
 	rightRows := right.Rows()
-	index := make(map[string]map[string]any, len(rightRows))
+	index := make(map[string][]map[string]any, len(rightRows))
 	for _, row := range rightRows {
-		index[joinKey(row, cfg.On)] = row
+		key := joinKey(row, cfg.On)
+		index[key] = append(index[key], row)
 	}
 	out, err := frame.New(left.Name)
 	if err != nil {
 		return nil, err
 	}
+	how := strings.ToLower(strings.TrimSpace(cfg.How))
+	if how == "" {
+		how = "left"
+	}
 	for _, row := range rows {
-		merged := make(map[string]any, len(row)+len(right.Fields))
-		for k, v := range row {
-			merged[k] = v
+		matches := index[joinKey(row, cfg.On)]
+		if len(matches) == 0 {
+			if how == "inner" {
+				continue
+			}
+			if err := out.AppendRow(cloneRow(row)); err != nil {
+				return nil, err
+			}
+			continue
 		}
-		if match, ok := index[joinKey(row, cfg.On)]; ok {
+		for _, match := range matches {
+			merged := cloneRow(row)
 			for k, v := range match {
 				if _, exists := merged[k]; exists {
 					merged[cfg.Other+"_"+k] = v
@@ -607,9 +618,9 @@ func join(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *JoinCon
 				}
 				merged[k] = v
 			}
-		}
-		if err := out.AppendRow(merged); err != nil {
-			return nil, err
+			if err := out.AppendRow(merged); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if err := out.Normalize(); err != nil {
@@ -866,6 +877,9 @@ func lookup(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *Looku
 		index[key] = row
 	}
 	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
 	out := &frame.Frame{Name: fr.Name, Fields: cloneSchema(fr.Fields)}
 	for _, as := range cfg.Fields {
 		if _, ok := out.Field(as); !ok {
@@ -1040,9 +1054,29 @@ func toFloat(value any) float64 {
 		return float64(v)
 	case uint32:
 		return float64(v)
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err == nil {
+			return parsed
+		}
+		return 0
+	case []byte:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(string(v)), 64)
+		if err == nil {
+			return parsed
+		}
+		return 0
 	default:
 		return 0
 	}
+}
+
+func cloneRow(row map[string]any) map[string]any {
+	cloned := make(map[string]any, len(row))
+	for k, v := range row {
+		cloned[k] = v
+	}
+	return cloned
 }
 
 func computeBucketBounds(raw any, granularity string) (string, string) {

@@ -25,11 +25,26 @@ func (c CapabilitySet) Has(cap Capability) bool {
 	return c[cap]
 }
 
+type TimeRangeMode string
+
+const (
+	TimeRangeModeDefault  TimeRangeMode = "default"
+	TimeRangeModeBounded  TimeRangeMode = "bounded"
+	TimeRangeModeAll      TimeRangeMode = "all"
+	TimeRangeModeRelative TimeRangeMode = "relative"
+)
+
 type TimeRange struct {
 	Start *time.Time
 	End   *time.Time
-	Mode  string
+	Mode  TimeRangeMode
 }
+
+type QueryKind string
+
+const (
+	QueryKindRaw QueryKind = "raw"
+)
 
 type QueryRequest struct {
 	Source    string
@@ -38,7 +53,7 @@ type QueryRequest struct {
 	TimeRange TimeRange
 	Timezone  string
 	MaxRows   int
-	Kind      string
+	Kind      QueryKind
 	Labels    map[string]string
 }
 

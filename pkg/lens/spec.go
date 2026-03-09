@@ -77,7 +77,7 @@ type ParamValue struct {
 type QuerySpec struct {
 	Text    string
 	Params  map[string]ParamValue
-	Kind    string
+	Kind    datasource.QueryKind
 	MaxRows int
 }
 
@@ -121,7 +121,7 @@ func QueryDataset(name, source, text string, transforms ...transform.Spec) Datas
 		Name:       name,
 		Kind:       DatasetKindQuery,
 		Source:     source,
-		Query:      &QuerySpec{Text: text},
+		Query:      &QuerySpec{Text: text, Kind: datasource.QueryKindRaw},
 		Transforms: transforms,
 	}
 }
@@ -159,6 +159,6 @@ func ResolveTimeRange(value any) datasource.TimeRange {
 	return datasource.TimeRange{
 		Start: dateRange.Start,
 		End:   dateRange.End,
-		Mode:  dateRange.Mode,
+		Mode:  datasource.TimeRangeMode(dateRange.Mode),
 	}
 }
