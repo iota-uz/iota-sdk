@@ -506,6 +506,8 @@ jobs:
         run: just css
 
       - name: Setup E2E database
+        env:
+          DB_NAME: iota_erp_e2e
         run: |
           just e2e reset
 
@@ -514,6 +516,7 @@ jobs:
         working-directory: e2e
 
       - name: Cache Playwright browsers
+        id: playwright-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
@@ -521,8 +524,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
+      - name: Install Playwright system dependencies
+        run: npx playwright install-deps chromium
+        working-directory: e2e
+
       - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
         working-directory: e2e
 
       - name: Start Go Server
