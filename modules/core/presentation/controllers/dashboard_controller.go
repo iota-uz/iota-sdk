@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
@@ -42,7 +43,7 @@ type DashboardController struct {
 	ds  datasource.DataSource
 }
 
-func (c *DashboardController) createFinanceDashboard(tenantID string) lens.DashboardSpec {
+func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.DashboardSpec {
 	return lens.Dashboard("finance-overview", "Finance Overview",
 		lens.Row(
 			panel.Stat("total-balance", "Total Balance", "total-balance").Span(3).Build(),
@@ -188,7 +189,7 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "tenant not found", http.StatusBadRequest)
 		return
 	}
-	dash := c.createFinanceDashboard(tenantID.String())
+	dash := c.createFinanceDashboard(tenantID)
 
 	var results *runtime.DashboardResult
 	if c.ds != nil {
@@ -215,7 +216,7 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(dashboard.Index(props)).ServeHTTP(w, r)
 }
 
-func queryDataset(name, text, tenantID string) lens.DatasetSpec {
+func queryDataset(name, text string, tenantID uuid.UUID) lens.DatasetSpec {
 	spec := lens.QueryDataset(name, "primary", text)
 	if spec.Query != nil {
 		spec.Query.Params = map[string]lens.ParamValue{

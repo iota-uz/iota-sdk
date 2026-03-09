@@ -28,6 +28,9 @@ type DataSource struct {
 
 func New(cfg Config) (*DataSource, error) {
 	op := serrors.Op("lens/postgres.New")
+	if strings.TrimSpace(cfg.ConnectionString) == "" {
+		return nil, serrors.E(op, fmt.Errorf("connection string is required"))
+	}
 	poolCfg, err := pgxpool.ParseConfig(cfg.ConnectionString)
 	if err != nil {
 		return nil, serrors.E(op, err)

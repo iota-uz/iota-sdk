@@ -184,7 +184,11 @@ func (s *executorState) executeDataset(ctx context.Context, name string) (*frame
 	}
 	if waiter, ok := s.waiters[name]; ok {
 		s.mu.Unlock()
-		<-waiter.ready
+		select {
+		case <-waiter.ready:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		existing := s.results[name]

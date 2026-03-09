@@ -135,7 +135,7 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 	{{ row := statRow(result) }}
 	{{ href := actionURL(spec.Action, row, result.Variables) }}
 	if href != "" {
-		<a href={ templ.SafeURL(href) } class="block h-full transition hover:opacity-95">
+		<a href={ templ.URL(href) } class="block h-full transition hover:opacity-95">
 			<div class="flex h-full items-center justify-between rounded-xl bg-gradient-to-br from-slate-50 to-white p-4">
 				<div>
 					<div class="text-3xl font-bold text-gray-900">{ value }</div>
@@ -201,7 +201,7 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 						for i, column := range columns {
 							<td class="px-3 py-2 text-gray-700">
 								if rowHref != "" && i == 0 {
-									<a href={ templ.SafeURL(rowHref) } class="font-medium text-blue-600 hover:underline">{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }</a>
+									<a href={ templ.URL(rowHref) } class="font-medium text-blue-600 hover:underline">{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }</a>
 								} else {
 									{ formatValue(row[column.Field], column.Formatter, result.Locale, result.Timezone) }
 								}

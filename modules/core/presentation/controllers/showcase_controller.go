@@ -294,7 +294,7 @@ func tenantParams(r *http.Request) map[string]lens.ParamValue {
 		return nil
 	}
 	return map[string]lens.ParamValue{
-		"tenant_id": {Literal: tenantID.String()},
+		"tenant_id": {Literal: tenantID},
 	}
 }
 

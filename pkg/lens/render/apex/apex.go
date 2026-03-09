@@ -133,11 +133,25 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		const categories = (config.xaxis && config.xaxis.categories) ? config.xaxis.categories : [];
 		const seriesName = config.series && config.series[opts.seriesIndex] ? config.series[opts.seriesIndex].name : '';
 		const categoryName = categories[opts.dataPointIndex] || '';
+		const normalizeCategoryValue = function(value) {
+			if (value === undefined || value === null || value === '') {
+				return '';
+			}
+			const stringValue = String(value);
+			if (/^\d{4}-\d{2}-\d{2}$/.test(stringValue)) {
+				return stringValue;
+			}
+			const parsed = new Date(stringValue);
+			if (!Number.isNaN(parsed.getTime())) {
+				return parsed.toISOString().slice(0, 10);
+			}
+			return stringValue;
+		};
 		let row = rows[opts.dataPointIndex] || {};
 		const groupedMatch = rows.find(function(item) {
 			const categoryValue = item[%q] || item[%q] || item[%q];
 			const seriesValue = item[%q] || '';
-			return categoryValue === categoryName && seriesValue === seriesName;
+			return normalizeCategoryValue(categoryValue) === normalizeCategoryValue(categoryName) && String(seriesValue) === String(seriesName);
 		});
 		if (groupedMatch) {
 			row = groupedMatch;

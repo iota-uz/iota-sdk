@@ -163,6 +163,24 @@ func TestValidateRejectsMissingActionFieldSource(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestExecuteDatasetWaiterHonorsContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	state := executorState{
+		results: map[string]*DatasetResult{},
+		waiters: map[string]*datasetPromise{
+			"shared": {ready: make(chan struct{})},
+		},
+	}
+
+	frames, err := state.executeDataset(ctx, "shared")
+	require.Nil(t, frames)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func mustFrameSet(t *testing.T, name string) *frame.FrameSet {
 	t.Helper()
 
