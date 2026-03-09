@@ -275,9 +275,10 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 		return icons.HashStraight(iconProps)
 	case panel.KindTabs:
 		return icons.Tabs(iconProps)
-	default:
+	case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return icons.ChartBar(iconProps)
 	}
+	panic("unreachable panel kind")
 }
 
 func panelBodyClass(spec panel.Spec) string {
@@ -288,7 +289,8 @@ func panelBodyClass(spec panel.Spec) string {
 		return "flex-1 p-4"
 	case panel.KindTabs:
 		return "flex-1 px-5 py-3"
-	default:
+	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return "flex-1 p-3"
 	}
+	panic("unreachable panel kind")
 }

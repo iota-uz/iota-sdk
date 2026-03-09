@@ -138,7 +138,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		options.XAxis.AxisBorder = nil
 		options.XAxis.AxisTicks = nil
 		options.YAxis = nil
-	default:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
