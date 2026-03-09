@@ -3,11 +3,12 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestMetrics(t *testing.T, token string) (*Metrics, *prometheus.Registry) {
@@ -47,61 +48,53 @@ func metricsHandler(m *Metrics) http.Handler {
 	return m.Middleware()(inner)
 }
 
-func TestServeMetrics_ValidToken(t *testing.T) {
-	m, _ := newTestMetrics(t, "secret-token")
-	handler := metricsHandler(m)
-
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	req.Header.Set("Authorization", "Bearer secret-token")
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rr.Code)
+func TestServeMetrics_Auth(t *testing.T) {
+	tests := []struct {
+		name       string
+		authHeader string
+		wantStatus int
+		wantBody   string // substring to assert in body (empty = skip)
+	}{
+		{
+			name:       "valid token",
+			authHeader: "Bearer secret-token",
+			wantStatus: http.StatusOK,
+			wantBody:   "http_requests_in_flight",
+		},
+		{
+			name:       "invalid token",
+			authHeader: "Bearer wrong-token",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "missing header",
+			authHeader: "",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "empty bearer value",
+			authHeader: "Bearer ",
+			wantStatus: http.StatusUnauthorized,
+		},
 	}
-	if !strings.Contains(rr.Body.String(), "http_requests_in_flight") {
-		t.Fatal("expected prometheus metrics output")
-	}
-}
 
-func TestServeMetrics_InvalidToken(t *testing.T) {
-	m, _ := newTestMetrics(t, "secret-token")
-	handler := metricsHandler(m)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, _ := newTestMetrics(t, "secret-token")
+			handler := metricsHandler(m)
 
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	req.Header.Set("Authorization", "Bearer wrong-token")
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
+			req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", rr.Code)
-	}
-}
-
-func TestServeMetrics_MissingHeader(t *testing.T) {
-	m, _ := newTestMetrics(t, "secret-token")
-	handler := metricsHandler(m)
-
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", rr.Code)
-	}
-}
-
-func TestServeMetrics_EmptyBearerValue(t *testing.T) {
-	m, _ := newTestMetrics(t, "secret-token")
-	handler := metricsHandler(m)
-
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	req.Header.Set("Authorization", "Bearer ")
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for empty bearer, got %d", rr.Code)
+			require.Equal(t, tt.wantStatus, rr.Code)
+			if tt.wantBody != "" {
+				assert.Contains(t, rr.Body.String(), tt.wantBody)
+			}
+		})
 	}
 }
 

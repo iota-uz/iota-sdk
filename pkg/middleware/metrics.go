@@ -44,13 +44,22 @@ func NewMetrics(opts MetricsOptions) *Metrics {
 
 	registry := opts.Registry
 	gatherer := opts.Gatherer
-	if registry == nil {
+	switch {
+	case registry == nil && gatherer == nil:
 		r := prometheus.NewRegistry()
 		// Include default Go runtime and process metrics.
 		r.MustRegister(prometheus.NewGoCollector())
 		r.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 		registry = r
 		gatherer = r
+	case registry != nil && gatherer == nil:
+		g, ok := registry.(prometheus.Gatherer)
+		if !ok {
+			panic("MetricsOptions.Gatherer must be set when Registry does not implement prometheus.Gatherer")
+		}
+		gatherer = g
+	case registry == nil && gatherer != nil:
+		panic("MetricsOptions.Registry must be set when Gatherer is provided")
 	}
 
 	requestDuration := prometheus.NewHistogramVec(

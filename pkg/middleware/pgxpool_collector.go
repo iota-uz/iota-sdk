@@ -32,6 +32,9 @@ type pgxPoolCollector struct {
 // connection-pool statistics. Register it with prometheus.DefaultRegisterer
 // (or any custom registry).
 func NewPgxPoolCollector(pool *pgxpool.Pool) prometheus.Collector {
+	if pool == nil {
+		panic("NewPgxPoolCollector: pool must not be nil")
+	}
 	return &pgxPoolCollector{
 		pool: pool,
 		acquiredConns: prometheus.NewDesc(
