@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	showcase "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
@@ -222,6 +223,7 @@ func (c *ShowcaseController) Lens(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
+	params := tenantParams(r)
 	dash := lens.Dashboard("sdk-core-analytics", "IOTA SDK Core Analytics",
 		lens.Row(
 			panel.TimeSeries("user-registrations", "User Registrations Over Time", "user-registrations").Span(6).Build(),
@@ -233,22 +235,67 @@ func (c *ShowcaseController) Lens(
 			panel.Table("recent-users", "Recently Registered Users", "recent-users").Span(4).Build(),
 		),
 	).WithDatasets(
-		lens.QueryDataset("user-registrations", "primary", "SELECT DATE(created_at) as label, COUNT(*)::float8 as value FROM users WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label"),
-		lens.QueryDataset("user-languages", "primary", "SELECT ui_language as label, COUNT(*)::float8 as value FROM users GROUP BY ui_language ORDER BY value DESC"),
-		lens.QueryDataset("user-types", "primary", "SELECT type as label, COUNT(*)::float8 as value FROM users GROUP BY type"),
-		lens.QueryDataset("session-activity", "primary", "SELECT COUNT(*)::float8 as value FROM sessions WHERE expires_at > NOW()"),
-		lens.QueryDataset("recent-users", "primary", "SELECT first_name, last_name, email, ui_language, created_at FROM users ORDER BY created_at DESC LIMIT 10"),
+		queryDatasetWithParams(
+			"user-registrations",
+			tenantAwareQuery(
+				params,
+				"SELECT DATE(created_at) as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id AND created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label",
+				"SELECT DATE(created_at) as label, COUNT(*)::float8 as value FROM users WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label",
+			),
+			params,
+		),
+		queryDatasetWithParams(
+			"user-languages",
+			tenantAwareQuery(
+				params,
+				"SELECT ui_language as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id GROUP BY ui_language ORDER BY value DESC",
+				"SELECT ui_language as label, COUNT(*)::float8 as value FROM users GROUP BY ui_language ORDER BY value DESC",
+			),
+			params,
+		),
+		queryDatasetWithParams(
+			"user-types",
+			tenantAwareQuery(
+				params,
+				"SELECT type as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id GROUP BY type",
+				"SELECT type as label, COUNT(*)::float8 as value FROM users GROUP BY type",
+			),
+			params,
+		),
+		queryDatasetWithParams(
+			"session-activity",
+			tenantAwareQuery(
+				params,
+				"SELECT COUNT(*)::float8 as value FROM sessions WHERE tenant_id = @tenant_id AND expires_at > NOW()",
+				"SELECT COUNT(*)::float8 as value FROM sessions WHERE expires_at > NOW()",
+			),
+			params,
+		),
+		queryDatasetWithParams(
+			"recent-users",
+			tenantAwareQuery(
+				params,
+				"SELECT first_name, last_name, email, ui_language, created_at FROM users WHERE tenant_id = @tenant_id ORDER BY created_at DESC LIMIT 10",
+				"SELECT first_name, last_name, email, ui_language, created_at FROM users ORDER BY created_at DESC LIMIT 10",
+			),
+			params,
+		),
 	)
 
 	var results *runtime.DashboardResult
 	if c.ds != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		results, _ = runtime.Execute(ctx, dash, runtime.Runtime{
+		executed, err := runtime.Execute(ctx, dash, runtime.Runtime{
 			DataSources: map[string]datasource.DataSource{
 				"primary": c.ds,
 			},
 		})
+		if err != nil {
+			logger.WithError(err).Error("failed to execute lens showcase dashboard")
+		} else {
+			results = executed
+		}
 	}
 
 	props := showcase.LensPageProps{
@@ -257,6 +304,31 @@ func (c *ShowcaseController) Lens(
 		Results:      results,
 	}
 	templ.Handler(showcase.LensPage(props)).ServeHTTP(w, r)
+}
+
+func tenantParams(r *http.Request) map[string]lens.ParamValue {
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return nil
+	}
+	return map[string]lens.ParamValue{
+		"tenant_id": {Literal: tenantID.String()},
+	}
+}
+
+func queryDatasetWithParams(name, text string, params map[string]lens.ParamValue) lens.DatasetSpec {
+	spec := lens.QueryDataset(name, "primary", text)
+	if spec.Query != nil {
+		spec.Query.Params = params
+	}
+	return spec
+}
+
+func tenantAwareQuery(params map[string]lens.ParamValue, scoped, fallback string) string {
+	if params == nil {
+		return fallback
+	}
+	return scoped
 }
 
 func (c *ShowcaseController) Error403Page(

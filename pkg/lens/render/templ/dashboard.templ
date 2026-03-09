@@ -5,9 +5,9 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/charts"
-	apex "github.com/iota-uz/iota-sdk/pkg/lens/render/apex"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	apex "github.com/iota-uz/iota-sdk/pkg/lens/render/apex"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
 
@@ -59,6 +59,7 @@ templ FilterBar(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 }
 
 templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
+	{{ currentPanel := panelResult(result, spec.ID) }}
 	<div class={ spanClass(spec.Span), spec.ClassName }>
 		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 			<div class="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3">
@@ -77,11 +78,11 @@ templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
 					case panel.KindTabs:
 						@TabsPanel(spec, result)
 					case panel.KindTable:
-						@TablePanel(spec, result.Panels[spec.ID])
+						@TablePanel(spec, currentPanel)
 					case panel.KindStat:
-						@StatPanel(spec, result.Panels[spec.ID])
+						@StatPanel(spec, currentPanel)
 					default:
-						@ChartPanel(spec, result.Panels[spec.ID])
+						@ChartPanel(spec, currentPanel)
 				}
 			</div>
 		</div>
@@ -102,12 +103,13 @@ templ TabsPanel(spec panel.Spec, result *runtime.DashboardResult) {
 		</div>
 		for _, child := range spec.Children {
 			<div x-show={ "activeTab === '" + child.ID + "'" }>
+				{{ childPanel := panelResult(result, child.ID) }}
 				if child.Kind == panel.KindTable {
-					@TablePanel(child, result.Panels[child.ID])
+					@TablePanel(child, childPanel)
 				} else if child.Kind == panel.KindStat {
-					@StatPanel(child, result.Panels[child.ID])
+					@StatPanel(child, childPanel)
 				} else {
-					@ChartPanel(child, result.Panels[child.ID])
+					@ChartPanel(child, childPanel)
 				}
 			</div>
 		}

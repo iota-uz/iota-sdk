@@ -61,35 +61,63 @@ func Apply(spec *Spec, value any, locale, timezone string) string {
 	}
 	switch spec.Kind {
 	case KindMoney:
-		number := toFloat(value)
+		number, ok := coerceNumber(value)
+		if !ok {
+			return defaultFormat(value)
+		}
 		return fmt.Sprintf("%.*f %s", spec.Precision, number, spec.Currency)
 	case KindAbbreviatedMoney:
-		number := toFloat(value)
+		number, ok := coerceNumber(value)
+		if !ok {
+			return defaultFormat(value)
+		}
 		return fmt.Sprintf("%s %s", abbreviate(number, spec.Precision), spec.Currency)
 	case KindInteger:
-		return fmt.Sprintf("%.0f", math.Round(toFloat(value)))
+		number, ok := coerceNumber(value)
+		if !ok {
+			return defaultFormat(value)
+		}
+		return fmt.Sprintf("%.0f", math.Round(number))
 	case KindPercent:
+		number, ok := coerceNumber(value)
+		if !ok {
+			return defaultFormat(value)
+		}
 		precision := spec.Precision
 		if precision < 0 {
 			precision = 0
 		}
-		return fmt.Sprintf("%.*f%%", precision, toFloat(value))
+		return fmt.Sprintf("%.*f%%", precision, number)
 	case KindDate:
 		layout := spec.Layout
 		if layout == "" {
 			layout = "2006-01-02"
 		}
-		switch v := value.(type) {
-		case time.Time:
-			return v.Format(layout)
-		case *time.Time:
-			if v == nil {
-				return ""
-			}
-			return v.Format(layout)
-		default:
-			return fmt.Sprint(value)
+		timestamp, ok := coerceTime(value, timezone)
+		if !ok {
+			return defaultFormat(value)
 		}
+		return timestamp.Format(layout)
+	case KindMonthLabel:
+		timestamp, ok := coerceTime(value, timezone)
+		if !ok {
+			return defaultFormat(value)
+		}
+		return timestamp.Format("Jan 2006")
+	case KindDuration:
+		duration, ok := coerceDuration(value)
+		if !ok {
+			return defaultFormat(value)
+		}
+		return duration.String()
+	case KindLocalizedString:
+		if text, ok := value.(string); ok {
+			if localized, exists := spec.Dictionary[text]; exists {
+				return localized
+			}
+			return text
+		}
+		return defaultFormat(value)
 	default:
 		return defaultFormat(value)
 	}
@@ -127,39 +155,96 @@ func abbreviate(value float64, precision int) string {
 	}
 }
 
-func toFloat(value any) float64 {
+func coerceNumber(value any) (float64, bool) {
 	switch v := value.(type) {
 	case float64:
-		return v
+		return v, true
 	case float32:
-		return float64(v)
+		return float64(v), true
 	case int:
-		return float64(v)
+		return float64(v), true
 	case int8:
-		return float64(v)
+		return float64(v), true
 	case int16:
-		return float64(v)
+		return float64(v), true
 	case int32:
-		return float64(v)
+		return float64(v), true
 	case int64:
-		return float64(v)
+		return float64(v), true
 	case uint:
-		return float64(v)
+		return float64(v), true
 	case uint8:
-		return float64(v)
+		return float64(v), true
 	case uint16:
-		return float64(v)
+		return float64(v), true
 	case uint32:
-		return float64(v)
+		return float64(v), true
 	case uint64:
-		return float64(v)
+		return float64(v), true
 	case string:
 		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
 		if err == nil {
-			return parsed
+			return parsed, true
 		}
-		return 0
+		return 0, false
 	default:
-		return 0
+		return 0, false
 	}
+}
+
+func coerceTime(value any, timezone string) (time.Time, bool) {
+	switch v := value.(type) {
+	case time.Time:
+		return applyTimezone(v, timezone), true
+	case *time.Time:
+		if v == nil {
+			return time.Time{}, false
+		}
+		return applyTimezone(*v, timezone), true
+	case string:
+		for _, layout := range []string{time.RFC3339, "2006-01-02", "2006-01-02 15:04:05"} {
+			parsed, err := time.Parse(layout, strings.TrimSpace(v))
+			if err == nil {
+				return applyTimezone(parsed, timezone), true
+			}
+		}
+		return time.Time{}, false
+	default:
+		return time.Time{}, false
+	}
+}
+
+func coerceDuration(value any) (time.Duration, bool) {
+	switch v := value.(type) {
+	case time.Duration:
+		return v, true
+	case int:
+		return time.Duration(v) * time.Second, true
+	case int64:
+		return time.Duration(v) * time.Second, true
+	case float64:
+		return time.Duration(v * float64(time.Second)), true
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if duration, err := time.ParseDuration(trimmed); err == nil {
+			return duration, true
+		}
+		if seconds, err := strconv.ParseFloat(trimmed, 64); err == nil {
+			return time.Duration(seconds * float64(time.Second)), true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
+}
+
+func applyTimezone(value time.Time, timezone string) time.Time {
+	if timezone == "" {
+		return value
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return value
+	}
+	return value.In(location)
 }

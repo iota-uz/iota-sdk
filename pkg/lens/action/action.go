@@ -86,9 +86,8 @@ func VariableParam(name, variable string) Param {
 	return Param{
 		Name: name,
 		Source: ValueSource{
-			Kind:  SourceVariable,
-			Name:  variable,
-			Value: variable,
+			Kind: SourceVariable,
+			Name: variable,
 		},
 	}
 }

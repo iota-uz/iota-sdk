@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -216,6 +217,10 @@ func (s *executorState) executeDataset(ctx context.Context, name string) (*frame
 	)
 	switch spec.Kind {
 	case lens.DatasetKindStatic:
+		if spec.Static == nil {
+			err = fmt.Errorf("dataset %q is missing static frames", spec.Name)
+			break
+		}
 		frames = spec.Static.Clone()
 	case lens.DatasetKindQuery:
 		frames, err = s.runQueryDataset(ctx, spec)
@@ -224,7 +229,7 @@ func (s *executorState) executeDataset(ctx context.Context, name string) (*frame
 	default:
 		err = fmt.Errorf("unsupported dataset kind %q", spec.Kind)
 	}
-	if err == nil && len(spec.Transforms) > 0 {
+	if err == nil && len(spec.Transforms) > 0 && (spec.Kind == lens.DatasetKindStatic || spec.Kind == lens.DatasetKindQuery) {
 		deps := make(map[string]*frame.FrameSet, len(spec.DependsOn))
 		for _, dep := range spec.DependsOn {
 			if depFrames, depErr := s.executeDataset(ctx, dep); depErr == nil && depFrames != nil {
@@ -249,7 +254,7 @@ func (s *executorState) runQueryDataset(ctx context.Context, spec lens.DatasetSp
 		Text:      spec.Query.Text,
 		Params:    resolveParams(spec.Query.Params, s.variables),
 		Timezone:  s.runtime.Timezone,
-		TimeRange: resolveDatasetTimeRange(s.variables),
+		TimeRange: resolveDatasetTimeRange(s.spec.Variables, s.variables),
 		MaxRows:   spec.Query.MaxRows,
 		Kind:      spec.Query.Kind,
 	}
@@ -328,7 +333,7 @@ func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeV
 		start, startErr := time.Parse("2006-01-02", startRaw)
 		end, endErr := time.Parse("2006-01-02", endRaw)
 		if startErr == nil && endErr == nil {
-			end = end.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+			end = end.Add(24*time.Hour - time.Nanosecond)
 			return lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end}
 		}
 	}
@@ -355,8 +360,12 @@ func resolveParams(specs map[string]lens.ParamValue, variables map[string]any) m
 	return out
 }
 
-func resolveDatasetTimeRange(variables map[string]any) datasource.TimeRange {
-	for _, value := range variables {
+func resolveDatasetTimeRange(specs []lens.VariableSpec, variables map[string]any) datasource.TimeRange {
+	for _, spec := range specs {
+		value, ok := variables[spec.Name]
+		if !ok {
+			continue
+		}
 		if timeRange := lens.ResolveTimeRange(value); timeRange.Mode != "" {
 			return timeRange
 		}
@@ -365,7 +374,11 @@ func resolveDatasetTimeRange(variables map[string]any) datasource.TimeRange {
 }
 
 func queryCacheKey(req datasource.QueryRequest) string {
-	payload, _ := json.Marshal(req)
+	payload, err := json.Marshal(req)
+	if err != nil {
+		sum := sha256.Sum256([]byte(fmt.Sprintf("%#v", req)))
+		return fmt.Sprintf("%x", sum[:16])
+	}
 	sum := sha256.Sum256(payload)
 	return fmt.Sprintf("%x", sum[:16])
 }
@@ -375,6 +388,22 @@ func Validate(spec lens.DashboardSpec) error {
 	for _, dataset := range spec.Datasets {
 		if dataset.Name == "" {
 			return fmt.Errorf("dataset name is required")
+		}
+		switch dataset.Kind {
+		case lens.DatasetKindStatic:
+			if dataset.Static == nil {
+				return fmt.Errorf("dataset %s is missing static frames", dataset.Name)
+			}
+		case lens.DatasetKindQuery:
+			if dataset.Query == nil {
+				return fmt.Errorf("dataset %s is missing query spec", dataset.Name)
+			}
+			if strings.TrimSpace(dataset.Source) == "" {
+				return fmt.Errorf("dataset %s is missing datasource", dataset.Name)
+			}
+			if strings.TrimSpace(dataset.Query.Text) == "" {
+				return fmt.Errorf("dataset %s is missing query text", dataset.Name)
+			}
 		}
 		if _, exists := datasets[dataset.Name]; exists {
 			return fmt.Errorf("duplicate dataset %s", dataset.Name)
@@ -460,15 +489,36 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 			return fmt.Errorf("panel %s requires series field", spec.ID)
 		}
 	}
-	if spec.Action != nil && strings.TrimSpace(spec.Action.URL) == "" && spec.Action.Kind != "emit_event" {
+	if spec.Action != nil && strings.TrimSpace(spec.Action.URL) == "" && spec.Action.Kind != action.KindEmitEvent {
 		return fmt.Errorf("panel %s action requires url", spec.ID)
 	}
 	if spec.Action != nil {
 		for _, param := range spec.Action.Params {
-			if param.Source.Kind == "field" && strings.TrimSpace(param.Source.Name) == "" {
-				return fmt.Errorf("panel %s action param %s requires source field", spec.ID, param.Name)
+			if err := validateValueSource(spec.ID, param.Name, param.Source); err != nil {
+				return err
 			}
 		}
+		for name, source := range spec.Action.Payload {
+			if err := validateValueSource(spec.ID, name, source); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateValueSource(panelID, name string, source action.ValueSource) error {
+	switch source.Kind {
+	case action.SourceField, action.SourceVariable, action.SourcePoint:
+		if strings.TrimSpace(source.Name) == "" {
+			return fmt.Errorf("panel %s action value %s requires source name", panelID, name)
+		}
+	case action.SourceLiteral:
+		if source.Value == nil {
+			return fmt.Errorf("panel %s action value %s requires literal value", panelID, name)
+		}
+	default:
+		return fmt.Errorf("panel %s action value %s has unsupported source kind %q", panelID, name, source.Kind)
 	}
 	return nil
 }

@@ -73,3 +73,14 @@ func TestBuilderAppendStrictRequiresDeclaredFields(t *testing.T) {
 	err := builder.AppendStrict(Row{"label": "Revenue"})
 	require.Error(t, err)
 }
+
+func TestBuilderAppendStrictRejectsUnexpectedFields(t *testing.T) {
+	t.Parallel()
+
+	builder := NewBuilder("strict").
+		String("label", RoleDimension).
+		Number("value", RoleMetric)
+
+	err := builder.AppendStrict(Row{"label": "Revenue", "value": 12.5, "extra": "nope"})
+	require.Error(t, err)
+}

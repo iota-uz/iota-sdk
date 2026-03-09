@@ -3,11 +3,13 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -59,6 +61,10 @@ func (d *DataSource) Capabilities() datasource.CapabilitySet {
 }
 
 func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
+	op := serrors.Op("lens/postgres.Run")
+	if err := validateQuery(req.Text); err != nil {
+		return nil, serrors.E(op, err)
+	}
 	queryCtx, cancel := context.WithTimeout(ctx, d.timeout)
 	defer cancel()
 
@@ -76,7 +82,7 @@ func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*fra
 
 	rows, err := executor.Query(queryCtx, req.Text, args)
 	if err != nil {
-		return nil, fmt.Errorf("lens/postgres: %w", err)
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -107,12 +113,21 @@ func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*fra
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if err := fr.Normalize(); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	return frame.NewFrameSet(fr)
+}
+
+func validateQuery(query string) error {
+	trimmed := strings.TrimSpace(query)
+	if trimmed == "" {
+		return fmt.Errorf("query is required")
+	}
+	upper := strings.ToUpper(trimmed)
+	if strings.HasPrefix(upper, "SELECT ") || strings.HasPrefix(upper, "WITH ") {
+		return nil
+	}
+	return fmt.Errorf("only SELECT and WITH queries are allowed")
 }
 
 func inferType(oid uint32) frame.FieldType {

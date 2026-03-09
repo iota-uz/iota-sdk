@@ -1,6 +1,7 @@
 package apex
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -159,6 +160,29 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			js += fmt.Sprintf("params.append(%q, %q);\n", param.Name, fmt.Sprint(param.Source.Value))
 		}
 	}
+	for key, source := range spec.Payload {
+		switch source.Kind {
+		case action.SourceField:
+			js += fmt.Sprintf("if (row[%q] !== undefined && row[%q] !== null) { payload[%q] = row[%q]; }\n", source.Name, source.Name, key, source.Name)
+		case action.SourcePoint:
+			switch source.Name {
+			case "label":
+				js += fmt.Sprintf("payload[%q] = row[%q] || row[%q] || categoryName;\n", key, fields.Label, fields.Category)
+			case "value":
+				js += fmt.Sprintf("payload[%q] = row[%q];\n", key, fields.Value)
+			case "series":
+				js += fmt.Sprintf("payload[%q] = seriesName;\n", key)
+			case "category":
+				js += fmt.Sprintf("payload[%q] = categoryName;\n", key)
+			}
+		case action.SourceVariable:
+			if value, ok := variables[source.Name]; ok && value != nil {
+				js += fmt.Sprintf("payload[%q] = %q;\n", key, fmt.Sprint(value))
+			}
+		case action.SourceLiteral:
+			js += fmt.Sprintf("payload[%q] = %q;\n", key, fmt.Sprint(source.Value))
+		}
+	}
 	js += `const query = params.toString();
 		if (query) {
 			nextURL = nextURL + (nextURL.includes('?') ? '&' : '?') + query;
@@ -168,25 +192,11 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 }
 
 func rowsToJSON(rows []map[string]any) string {
-	var b strings.Builder
-	b.WriteString("[")
-	for i, row := range rows {
-		if i > 0 {
-			b.WriteString(",")
-		}
-		b.WriteString("{")
-		first := true
-		for key, value := range row {
-			if !first {
-				b.WriteString(",")
-			}
-			first = false
-			b.WriteString(fmt.Sprintf("%q:%q", key, displayValue(value)))
-		}
-		b.WriteString("}")
+	payload, err := json.Marshal(rows)
+	if err != nil {
+		return "[]"
 	}
-	b.WriteString("]")
-	return b.String()
+	return string(payload)
 }
 
 func chartType(kind panel.Kind) charts.ChartType {
@@ -318,9 +328,21 @@ func numericValue(value any) float64 {
 
 func displayValue(value any) string {
 	switch v := value.(type) {
+	case nil:
+		return ""
 	case string:
 		return v
+	case *string:
+		if v == nil {
+			return ""
+		}
+		return *v
 	case time.Time:
+		return v.Format("2006-01-02")
+	case *time.Time:
+		if v == nil {
+			return ""
+		}
 		return v.Format("2006-01-02")
 	default:
 		return fmt.Sprint(v)

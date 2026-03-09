@@ -136,7 +136,7 @@ func TransformDataset(name string, dependsOn []string, transforms ...transform.S
 }
 
 func StaticDataset(name string, set *frame.FrameSet) DatasetSpec {
-	return DatasetSpec{Name: name, Kind: DatasetKindStatic, Static: set}
+	return DatasetSpec{Name: name, Kind: DatasetKindStatic, Static: set.Clone()}
 }
 
 func DateRangeVariable(name, label string, defaultDuration time.Duration) VariableSpec {

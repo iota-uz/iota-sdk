@@ -111,6 +111,20 @@ func TestValidateRejectsDuplicateDatasetsAndPanels(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestValidateRejectsMissingStaticFramesAndQuerySpec(t *testing.T) {
+	t.Parallel()
+
+	staticErr := Validate(lens.Dashboard("static", "Static").WithDatasets(
+		lens.DatasetSpec{Name: "missing-static", Kind: lens.DatasetKindStatic},
+	))
+	require.Error(t, staticErr)
+
+	queryErr := Validate(lens.Dashboard("query", "Query").WithDatasets(
+		lens.DatasetSpec{Name: "missing-query", Kind: lens.DatasetKindQuery, Source: "primary"},
+	))
+	require.Error(t, queryErr)
+}
+
 func TestValidateRejectsMissingActionFieldSource(t *testing.T) {
 	t.Parallel()
 

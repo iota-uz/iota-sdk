@@ -43,6 +43,13 @@ func defaultTab(spec panel.Spec) string {
 	return spec.Children[0].ID
 }
 
+func panelResult(result *runtime.DashboardResult, panelID string) *runtime.PanelResult {
+	if result == nil || result.Panels == nil {
+		return nil
+	}
+	return result.Panels[panelID]
+}
+
 func tableColumns(spec panel.Spec, result *runtime.PanelResult) []panel.TableColumn {
 	if len(spec.Columns) > 0 {
 		return spec.Columns

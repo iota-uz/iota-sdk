@@ -159,7 +159,21 @@ func (b *Builder) AppendStrict(row Row) error {
 			return fmt.Errorf("row missing field %q", name)
 		}
 	}
+	for name := range row {
+		if !containsField(b.order, name) {
+			return fmt.Errorf("row has unexpected field %q", name)
+		}
+	}
 	return b.Append(row)
+}
+
+func containsField(fields []string, name string) bool {
+	for _, field := range fields {
+		if field == name {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedMissingFields(fields []Field, row Row) []string {
