@@ -165,9 +165,13 @@ type executionPlan struct {
 }
 
 func BuildPlan(spec lens.DashboardSpec) (ExecutionPlan, error) {
+	op := serrors.Op("lens/runtime.BuildPlan")
+	if err := Validate(spec); err != nil {
+		return ExecutionPlan{}, serrors.E(op, err)
+	}
 	plan, err := compileExecutionPlan(spec)
 	if err != nil {
-		return ExecutionPlan{}, err
+		return ExecutionPlan{}, serrors.E(op, err)
 	}
 	return plan.view, nil
 }
@@ -221,6 +225,9 @@ func compileExecutionPlan(spec lens.DashboardSpec) (executionPlan, error) {
 
 func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.DatasetSpec, results map[string]*DatasetResult) error {
 	for _, stage := range stages {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		stageResults := make(map[string]*DatasetResult, len(stage))
 		var mu sync.Mutex
 		group, groupCtx := errgroup.WithContext(ctx)
@@ -236,6 +243,9 @@ func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.D
 					Error:    err,
 				}
 				mu.Unlock()
+				if err := groupCtx.Err(); err != nil {
+					return err
+				}
 				return nil
 			})
 		}
@@ -251,7 +261,7 @@ func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.D
 
 func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec, datasets map[string]*DatasetResult, results map[string]*PanelResult) error {
 	var mu sync.Mutex
-	group, _ := errgroup.WithContext(ctx)
+	group, groupCtx := errgroup.WithContext(ctx)
 	for _, panelSpec := range panels {
 		panelSpec := panelSpec
 		group.Go(func() error {
@@ -292,6 +302,9 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 			mu.Lock()
 			results[panelSpec.ID] = panelResult
 			mu.Unlock()
+			if err := groupCtx.Err(); err != nil {
+				return err
+			}
 			return nil
 		})
 	}
@@ -514,7 +527,7 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 			}
 		case lens.VariableMultiSelect:
 			if raw := rt.Request[spec.Name]; len(raw) > 0 {
-				values[spec.Name] = append([]string(nil), raw...)
+				values[spec.Name] = splitMultiSelectValues(raw)
 			} else {
 				values[spec.Name] = spec.Default
 			}
@@ -527,6 +540,23 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 		}
 	}
 	return values, nil
+}
+
+func splitMultiSelectValues(raw []string) []string {
+	values := make([]string, 0, len(raw))
+	for _, item := range raw {
+		for _, candidate := range strings.Split(item, ",") {
+			trimmed := strings.TrimSpace(candidate)
+			if trimmed == "" {
+				continue
+			}
+			values = append(values, trimmed)
+		}
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	return values
 }
 
 func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeValue {

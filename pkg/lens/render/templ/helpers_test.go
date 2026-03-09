@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,17 +88,43 @@ func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 	require.Contains(t, onClick.Call, "#report")
 }
 
-func TestFilterModelReturnsDashboardFilters(t *testing.T) {
+func TestFilterModel_Scenarios(t *testing.T) {
 	t.Parallel()
 
-	model := filterModel(&runtime.DashboardResult{
-		Filters: filter.Model{
-			Inputs: []filter.Input{{Name: "range"}},
+	tests := []struct {
+		name   string
+		result *runtime.DashboardResult
+		assert func(t *testing.T, model filter.Model)
+	}{
+		{
+			name: "returns dashboard filters",
+			result: &runtime.DashboardResult{
+				Filters: filter.Model{
+					Inputs: []filter.Input{{Name: "range"}},
+				},
+			},
+			assert: func(t *testing.T, model filter.Model) {
+				assert.Len(t, model.Inputs, 1)
+				assert.Equal(t, "range", model.Inputs[0].Name)
+			},
 		},
-	})
+		{
+			name:   "returns empty model for nil result",
+			result: nil,
+			assert: func(t *testing.T, model filter.Model) {
+				assert.Empty(t, model.Inputs)
+			},
+		},
+	}
 
-	require.Len(t, model.Inputs, 1)
-	require.Equal(t, "range", model.Inputs[0].Name)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			model := filterModel(tt.result)
+			require.NotNil(t, &model)
+			tt.assert(t, model)
+		})
+	}
 }
 
 func TestFormatValueReturnsEmptyStringForNil(t *testing.T) {

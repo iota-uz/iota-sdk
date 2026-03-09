@@ -42,9 +42,32 @@ type DateRange struct {
 func Build(specs []lens.VariableSpec, values map[string]any) Model {
 	inputs := make([]Input, 0, len(specs))
 	for _, spec := range specs {
-		inputs = append(inputs, buildInput(spec, values[spec.Name]))
+		value, ok := values[spec.Name]
+		if !ok || value == nil {
+			value = defaultValue(spec)
+		}
+		inputs = append(inputs, buildInput(spec, value))
 	}
 	return Model{Inputs: inputs}
+}
+
+func defaultValue(spec lens.VariableSpec) any {
+	if spec.Kind != lens.VariableDateRange {
+		return spec.Default
+	}
+	if value, ok := spec.Default.(lens.DateRangeValue); ok {
+		return value
+	}
+	if spec.DefaultDuration <= 0 {
+		return spec.Default
+	}
+	now := time.Now().UTC()
+	start := now.Add(-spec.DefaultDuration)
+	return lens.DateRangeValue{
+		Mode:  "default",
+		Start: &start,
+		End:   &now,
+	}
 }
 
 func buildInput(spec lens.VariableSpec, value any) Input {

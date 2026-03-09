@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,54 +58,89 @@ func TestExecuteReusesDatasetAcrossPanels(t *testing.T) {
 	require.Equal(t, int32(1), ds.calls.Load())
 }
 
-func TestBuildPlanStagesOnlyRequiredDatasets(t *testing.T) {
+func TestBuildPlan_Scenarios(t *testing.T) {
 	t.Parallel()
 
-	spec := lensbuild.Dashboard("planned", "Planned",
-		lensbuild.Row(
-			panel.Bar("sales", "Sales", "daily_sales").Build(),
-		),
-	).Datasets(
-		lensbuild.StaticDataset("source_lookup", mustFrameSet(t, "source_lookup")),
-		lens.DatasetSpec{
-			Name:       "daily_sales",
-			Kind:       lens.DatasetKindTransform,
-			DependsOn:  []string{"raw_sales", "source_lookup"},
-			Transforms: nil,
+	tests := []struct {
+		name   string
+		spec   lens.DashboardSpec
+		assert func(t *testing.T, plan ExecutionPlan)
+	}{
+		{
+			name: "includes only required datasets",
+			spec: lensbuild.Dashboard("planned", "Planned",
+				lensbuild.Row(
+					panel.Bar("sales", "Sales", "daily_sales").Build(),
+				),
+			).Datasets(
+				lensbuild.StaticDataset("source_lookup", mustFrameSet(t, "source_lookup")),
+				lens.DatasetSpec{
+					Name:       "daily_sales",
+					Kind:       lens.DatasetKindTransform,
+					DependsOn:  []string{"raw_sales", "source_lookup"},
+					Transforms: nil,
+				},
+				lensbuild.QueryDataset("raw_sales", "primary", "select 1"),
+				lensbuild.StaticDataset("unused_dataset", mustFrameSet(t, "unused_dataset")),
+			).Build(),
+			assert: func(t *testing.T, plan ExecutionPlan) {
+				assert.Len(t, plan.DatasetStages, 2)
+				assert.ElementsMatch(t, []string{"raw_sales", "source_lookup"}, plan.DatasetStages[0].Datasets)
+				assert.Equal(t, []string{"daily_sales"}, plan.DatasetStages[1].Datasets)
+				assert.NotContains(t, plan.DatasetStages[0].Datasets, "unused_dataset")
+				assert.Equal(t, []string{"sales"}, plan.Panels)
+			},
 		},
-		lensbuild.QueryDataset("raw_sales", "primary", "select 1"),
-		lensbuild.StaticDataset("unused_dataset", mustFrameSet(t, "unused_dataset")),
-	).Build()
+	}
 
-	plan, err := BuildPlan(spec)
-	require.NoError(t, err)
-	require.Len(t, plan.DatasetStages, 2)
-	require.ElementsMatch(t, []string{"raw_sales", "source_lookup"}, plan.DatasetStages[0].Datasets)
-	require.Equal(t, []string{"daily_sales"}, plan.DatasetStages[1].Datasets)
-	require.NotContains(t, plan.DatasetStages[0].Datasets, "unused_dataset")
-	require.Equal(t, []string{"sales"}, plan.Panels)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := BuildPlan(tt.spec)
+			require.NoError(t, err)
+			tt.assert(t, plan)
+		})
+	}
 }
 
-func TestExecuteSkipsUnusedDatasets(t *testing.T) {
+func TestExecute_Scenarios(t *testing.T) {
 	t.Parallel()
 
-	ds := &stubDataSource{}
-	spec := lensbuild.Dashboard("planned", "Planned",
-		lensbuild.Row(
-			panel.Bar("sales", "Sales", "shared-data").Build(),
-		),
-	).Datasets(
-		lensbuild.QueryDataset("shared-data", "primary", "select 1"),
-		lensbuild.QueryDataset("unused-data", "primary", "select 2"),
-	).Build()
+	tests := []struct {
+		name   string
+		spec   lens.DashboardSpec
+		assert func(t *testing.T, result *DashboardResult, ds *stubDataSource)
+	}{
+		{
+			name: "skips unused datasets",
+			spec: lensbuild.Dashboard("planned", "Planned",
+				lensbuild.Row(
+					panel.Bar("sales", "Sales", "shared-data").Build(),
+				),
+			).Datasets(
+				lensbuild.QueryDataset("shared-data", "primary", "select 1"),
+				lensbuild.QueryDataset("unused-data", "primary", "select 2"),
+			).Build(),
+			assert: func(t *testing.T, result *DashboardResult, ds *stubDataSource) {
+				assert.Equal(t, int32(1), ds.calls.Load())
+				assert.Contains(t, result.Datasets, "shared-data")
+				assert.NotContains(t, result.Datasets, "unused-data")
+			},
+		},
+	}
 
-	result, err := Execute(context.Background(), spec, Runtime{
-		DataSources: map[string]datasource.DataSource{"primary": ds},
-	})
-	require.NoError(t, err)
-	require.Equal(t, int32(1), ds.calls.Load())
-	require.Contains(t, result.Datasets, "shared-data")
-	require.NotContains(t, result.Datasets, "unused-data")
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ds := &stubDataSource{}
+			result, err := Execute(context.Background(), tt.spec, Runtime{
+				DataSources: map[string]datasource.DataSource{"primary": ds},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			tt.assert(t, result, ds)
+		})
+	}
 }
 
 func TestValidateRejectsDatasetCycles(t *testing.T) {
@@ -251,6 +287,25 @@ func TestResolveVariablesPreservesAllMultiSelectValues(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"osago", "travel"}, values["products"])
+}
+
+func TestResolveVariablesSplitsCommaSeparatedMultiSelectValues(t *testing.T) {
+	t.Parallel()
+
+	spec := lensbuild.Dashboard("variables", "Variables").Variables(
+		lens.VariableSpec{
+			Name:    "products",
+			Label:   "Products",
+			Kind:    lens.VariableMultiSelect,
+			Default: []string{"default"},
+		},
+	).Build()
+
+	values, err := resolveVariables(spec.Variables, Runtime{
+		Request: url.Values{"products": []string{"osago, travel", "kasko"}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"osago", "travel", "kasko"}, values["products"])
 }
 
 func TestResolveVariablesParsesNumberValues(t *testing.T) {
