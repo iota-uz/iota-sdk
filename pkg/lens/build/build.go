@@ -2,6 +2,7 @@
 package build
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
@@ -74,7 +75,10 @@ func TransformDataset(name string, dependsOn []string, transforms ...transform.S
 
 func StaticDataset(name string, set *frame.FrameSet) lens.DatasetSpec {
 	if set == nil {
-		empty, _ := frame.NewFrameSet()
+		empty, err := frame.NewFrameSet()
+		if err != nil {
+			panic(fmt.Sprintf("unexpected error creating empty frameset: %v", err))
+		}
 		return lens.DatasetSpec{Name: name, Kind: lens.DatasetKindStatic, Static: empty}
 	}
 	return lens.DatasetSpec{Name: name, Kind: lens.DatasetKindStatic, Static: set.Clone()}

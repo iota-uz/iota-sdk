@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,4 +70,52 @@ func TestBuildActionJSHonorsFallbacks(t *testing.T) {
 
 	require.Contains(t, js, `resolveValue(row["product_id"], "default-product")`)
 	require.Contains(t, js, `resolveValue(variables["active_only"], true)`)
+}
+
+func TestOptionsFallsBackToCategoryForPieLabels(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("sales",
+		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"OSAGO", "Travel"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0, 18.0}},
+	)
+	require.NoError(t, err)
+
+	options := Options(
+		panel.Pie("sales-by-product", "Sales by Product", "sales").
+			CategoryField("category").
+			ValueField("value").
+			Build(),
+		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
+	)
+
+	require.Equal(t, []string{"OSAGO", "Travel"}, options.Labels)
+}
+
+func TestOptionsFallsBackToCategoryForUngroupedBarCategories(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("sales",
+		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"March", "April"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0, 18.0}},
+	)
+	require.NoError(t, err)
+
+	options := Options(
+		panel.Bar("sales-by-month", "Sales by Month", "sales").
+			CategoryField("category").
+			ValueField("value").
+			Build(),
+		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
+	)
+
+	require.Equal(t, []string{"March", "April"}, options.XAxis.Categories)
+}
+
+func mustFrameSet(t *testing.T, fr *frame.Frame) *frame.FrameSet {
+	t.Helper()
+
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+	return set
 }

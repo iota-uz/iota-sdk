@@ -177,30 +177,37 @@ func Ref(name string) FieldRef {
 	return FieldRef(name)
 }
 
+// Label marks the field used for display labels in panel mappings.
 func Label(name string) FieldRef {
 	return Ref(name)
 }
 
+// Value marks the primary numeric field used for panel values.
 func Value(name string) FieldRef {
 	return Ref(name)
 }
 
+// Series marks the field used to split grouped chart series.
 func Series(name string) FieldRef {
 	return Ref(name)
 }
 
+// Category marks the field used for chart buckets or x-axis categories.
 func Category(name string) FieldRef {
 	return Ref(name)
 }
 
+// ID marks an identifier field used in actions or row navigation.
 func ID(name string) FieldRef {
 	return Ref(name)
 }
 
+// StartTime marks the field used for interval start timestamps.
 func StartTime(name string) FieldRef {
 	return Ref(name)
 }
 
+// EndTime marks the field used for interval end timestamps.
 func EndTime(name string) FieldRef {
 	return Ref(name)
 }

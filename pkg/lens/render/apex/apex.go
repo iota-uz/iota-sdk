@@ -40,7 +40,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 		labels := make([]string, 0, len(rows))
 		values := make([]any, 0, len(rows))
 		for _, row := range rows {
-			labels = append(labels, fmt.Sprint(row[fields.Label.Name()]))
+			labels = append(labels, displayValue(firstNonEmpty(row[fields.Label.Name()], row[fields.Category.Name()])))
 			values = append(values, numericValue(row[fields.Value.Name()]))
 		}
 		options.Labels = labels
@@ -72,7 +72,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 			categories := make([]string, 0, len(rows))
 			values := make([]any, 0, len(rows))
 			for _, row := range rows {
-				categories = append(categories, displayValue(row[fields.Label.Name()]))
+				categories = append(categories, displayValue(firstNonEmpty(row[fields.Label.Name()], row[fields.Category.Name()])))
 				values = append(values, numericValue(row[fields.Value.Name()]))
 			}
 			options.Series = []charts.Series{{Name: panelSpec.Title, Data: values}}
