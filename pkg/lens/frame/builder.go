@@ -1,3 +1,4 @@
+// Package frame provides typed columnar frames and builders for Lens datasets.
 package frame
 
 import (

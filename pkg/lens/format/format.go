@@ -1,3 +1,4 @@
+// Package format defines Lens formatter specs and value formatting helpers.
 package format
 
 import (

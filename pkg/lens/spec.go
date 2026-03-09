@@ -1,3 +1,4 @@
+// Package lens defines dashboard specs, datasets, variables, and helpers for Lens.
 package lens
 
 import (

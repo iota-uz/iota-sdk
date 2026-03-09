@@ -1,7 +1,6 @@
 package apex
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
@@ -27,6 +26,6 @@ func TestBuildActionJSNormalizesTimeCategories(t *testing.T) {
 		nil,
 	))
 
-	require.True(t, strings.Contains(js, "normalizeCategoryValue"))
-	require.True(t, strings.Contains(js, "toISOString().slice(0, 10)"))
+	require.Contains(t, js, "normalizeCategoryValue")
+	require.Contains(t, js, "toISOString().slice(0, 10)")
 }
