@@ -14,16 +14,18 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // MetricsOptions configures the Prometheus metrics middleware.
 type MetricsOptions struct {
-	AuthToken string                // required bearer token for /metrics endpoint
-	Pool      *pgxpool.Pool         // optional — registers pgxpool connection-pool collector
-	Hub       application.Huber     // optional — registers websocket_connections_active gauge
-	Registry  prometheus.Registerer // optional — custom registerer (defaults to a new registry that also collects Go/process metrics)
-	Gatherer  prometheus.Gatherer   // optional — custom gatherer (must match Registry if provided)
+	AuthToken   string                // required bearer token for /metrics endpoint
+	Pool        *pgxpool.Pool         // optional — registers pgxpool connection-pool collector
+	Hub         application.Huber     // optional — registers websocket_connections_active gauge
+	Registry    prometheus.Registerer // optional — custom registerer (defaults to a new registry that also collects Go/process metrics)
+	Gatherer    prometheus.Gatherer   // optional — custom gatherer (must match Registry if provided)
+	ConstLabels prometheus.Labels     // optional — applied to every exported metric for service scoping
 }
 
 // Metrics holds Prometheus collectors and the metrics HTTP handler.
@@ -48,8 +50,8 @@ func NewMetrics(opts MetricsOptions) *Metrics {
 	case registry == nil && gatherer == nil:
 		r := prometheus.NewRegistry()
 		// Include default Go runtime and process metrics.
-		r.MustRegister(prometheus.NewGoCollector())
-		r.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+		r.MustRegister(collectors.NewGoCollector())
+		r.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 		registry = r
 		gatherer = r
 	case registry != nil && gatherer == nil:
@@ -64,25 +66,28 @@ func NewMetrics(opts MetricsOptions) *Metrics {
 
 	requestDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
-			Help:    "Duration of HTTP requests in seconds.",
-			Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+			Name:        "http_request_duration_seconds",
+			Help:        "Duration of HTTP requests in seconds.",
+			Buckets:     []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+			ConstLabels: cloneLabels(opts.ConstLabels),
 		},
 		[]string{"method", "route", "status_code"},
 	)
 
 	requestsTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Total number of HTTP requests.",
+			Name:        "http_requests_total",
+			Help:        "Total number of HTTP requests.",
+			ConstLabels: cloneLabels(opts.ConstLabels),
 		},
 		[]string{"method", "route", "status_code"},
 	)
 
 	requestsInFlight := prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "http_requests_in_flight",
-			Help: "Number of HTTP requests currently being served.",
+			Name:        "http_requests_in_flight",
+			Help:        "Number of HTTP requests currently being served.",
+			ConstLabels: cloneLabels(opts.ConstLabels),
 		},
 	)
 
@@ -93,14 +98,15 @@ func NewMetrics(opts MetricsOptions) *Metrics {
 	)
 
 	if opts.Pool != nil {
-		registry.MustRegister(NewPgxPoolCollector(opts.Pool))
+		registry.MustRegister(NewPgxPoolCollector(opts.Pool, opts.ConstLabels))
 	}
 
 	if opts.Hub != nil {
 		registry.MustRegister(prometheus.NewGaugeFunc(
 			prometheus.GaugeOpts{
-				Name: "websocket_connections_active",
-				Help: "Number of currently active WebSocket connections.",
+				Name:        "websocket_connections_active",
+				Help:        "Number of currently active WebSocket connections.",
+				ConstLabels: cloneLabels(opts.ConstLabels),
 			},
 			func() float64 { return float64(opts.Hub.ConnectionCount()) },
 		))
@@ -115,6 +121,19 @@ func NewMetrics(opts MetricsOptions) *Metrics {
 		metricsHandler:   metricsHandler,
 		authToken:        opts.AuthToken,
 	}
+}
+
+func cloneLabels(labels prometheus.Labels) prometheus.Labels {
+	if len(labels) == 0 {
+		return nil
+	}
+
+	cloned := make(prometheus.Labels, len(labels))
+	for key, value := range labels {
+		cloned[key] = value
+	}
+
+	return cloned
 }
 
 // Middleware returns a mux.MiddlewareFunc that:
