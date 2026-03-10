@@ -17,6 +17,11 @@ type statusCaptureWriter struct {
 }
 
 func (w *statusCaptureWriter) WriteHeader(code int) {
+	// Always forward 1xx informational responses without latching.
+	if code < 200 {
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
 	if !w.statusWritten {
 		w.statusCode = code
 		w.statusWritten = true
