@@ -39,6 +39,50 @@ func TestNewMetrics_MultipleCalls(t *testing.T) {
 	}
 }
 
+func TestNewMetrics_AppliesConstLabels(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := NewMetrics(MetricsOptions{
+		AuthToken:   "token",
+		Registry:    reg,
+		Gatherer:    reg,
+		ConstLabels: prometheus.Labels{"service": "eai-back"},
+	})
+
+	router := mux.NewRouter()
+	router.Use(m.Middleware())
+	router.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != "http_requests_total" {
+			continue
+		}
+
+		require.NotEmpty(t, family.GetMetric())
+		foundServiceLabel := false
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "service" && label.GetValue() == "eai-back" {
+					foundServiceLabel = true
+				}
+			}
+		}
+		assert.True(t, foundServiceLabel, "expected const service label on http_requests_total")
+		return
+	}
+
+	t.Fatal("http_requests_total metric family not found")
+}
+
 // metricsHandler wraps the middleware around a no-op handler so /metrics interception
 // works without depending on gorilla/mux route matching.
 func metricsHandler(m *Metrics) http.Handler {

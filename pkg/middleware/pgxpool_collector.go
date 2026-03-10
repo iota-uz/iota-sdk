@@ -8,7 +8,8 @@ import (
 // pgxPoolCollector implements prometheus.Collector by snapshotting
 // pgxpool.Pool.Stat() on each scrape.
 type pgxPoolCollector struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	labels prometheus.Labels
 
 	// Gauges (point-in-time snapshot)
 	acquiredConns *prometheus.Desc
@@ -31,71 +32,74 @@ type pgxPoolCollector struct {
 // NewPgxPoolCollector returns a prometheus.Collector that exports pgxpool
 // connection-pool statistics. Register it with prometheus.DefaultRegisterer
 // (or any custom registry).
-func NewPgxPoolCollector(pool *pgxpool.Pool) prometheus.Collector {
+func NewPgxPoolCollector(pool *pgxpool.Pool, constLabels prometheus.Labels) prometheus.Collector {
 	if pool == nil {
 		panic("NewPgxPoolCollector: pool must not be nil")
 	}
+
+	labels := cloneLabels(constLabels)
 	return &pgxPoolCollector{
-		pool: pool,
+		pool:   pool,
+		labels: labels,
 		acquiredConns: prometheus.NewDesc(
 			"pgxpool_acquired_conns",
 			"Number of currently acquired connections in the pool.",
-			nil, nil,
+			nil, labels,
 		),
 		idleConns: prometheus.NewDesc(
 			"pgxpool_idle_conns",
 			"Number of currently idle connections in the pool.",
-			nil, nil,
+			nil, labels,
 		),
 		totalConns: prometheus.NewDesc(
 			"pgxpool_total_conns",
 			"Total number of connections currently in the pool.",
-			nil, nil,
+			nil, labels,
 		),
 		maxConns: prometheus.NewDesc(
 			"pgxpool_max_conns",
 			"Maximum number of connections allowed in the pool.",
-			nil, nil,
+			nil, labels,
 		),
 		constructingConns: prometheus.NewDesc(
 			"pgxpool_constructing_conns",
 			"Number of connections currently being established.",
-			nil, nil,
+			nil, labels,
 		),
 		acquireCount: prometheus.NewDesc(
 			"pgxpool_acquire_count_total",
 			"Cumulative count of successful connection acquisitions from the pool.",
-			nil, nil,
+			nil, labels,
 		),
 		acquireDuration: prometheus.NewDesc(
 			"pgxpool_acquire_duration_seconds_total",
 			"Total time spent acquiring connections from the pool, in seconds.",
-			nil, nil,
+			nil, labels,
 		),
 		emptyAcquireCount: prometheus.NewDesc(
 			"pgxpool_empty_acquire_count_total",
 			"Cumulative count of acquires that had to create a new connection because the pool was empty.",
-			nil, nil,
+			nil, labels,
 		),
 		canceledAcquireCount: prometheus.NewDesc(
 			"pgxpool_canceled_acquire_count_total",
 			"Cumulative count of acquires that were canceled by the caller.",
-			nil, nil,
+			nil, labels,
 		),
 		newConns: prometheus.NewDesc(
 			"pgxpool_new_conns_total",
 			"Cumulative count of new connections opened by the pool.",
-			nil, nil,
+			nil, labels,
 		),
 		maxLifetimeDestroyCount: prometheus.NewDesc(
 			"pgxpool_max_lifetime_destroy_count_total",
 			"Cumulative count of connections destroyed because they exceeded max lifetime.",
-			nil, nil,
+			nil, labels,
 		),
 		maxIdleDestroyCount: prometheus.NewDesc(
 			"pgxpool_max_idle_destroy_count_total",
 			"Cumulative count of connections destroyed because they exceeded max idle time.",
-			nil, nil,
+			nil, labels,
 		),
 	}
 }
