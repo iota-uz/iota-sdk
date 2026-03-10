@@ -15,6 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testStreamActivityReporter struct {
+	activeSubscribers int
+}
+
+func (t testStreamActivityReporter) ActiveSubscribers() int {
+	return t.activeSubscribers
+}
+
 func newTestMetrics(t *testing.T, token string) (*Metrics, *prometheus.Registry) {
 	t.Helper()
 	reg := prometheus.NewRegistry()
@@ -244,6 +252,27 @@ func TestMetricsResponseWriter_HijackMarksSwitchingProtocols(t *testing.T) {
 	_, _, err := w.Hijack()
 	require.NoError(t, err)
 	require.Equal(t, http.StatusSwitchingProtocols, w.Status())
+}
+
+func TestNewMetrics_RegistersBiChatStreamSubscriberGauge(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	NewMetrics(MetricsOptions{
+		AuthToken:      "token",
+		Registry:       reg,
+		Gatherer:       reg,
+		ConstLabels:    prometheus.Labels{"service": "eai-back"},
+		StreamActivity: testStreamActivityReporter{activeSubscribers: 3},
+	})
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	gaugeFamily := findMetricFamily(t, families, "bichat_stream_subscribers_active")
+	require.Len(t, gaugeFamily.GetMetric(), 1)
+	assert.InEpsilon(t, 3.0, gaugeFamily.GetMetric()[0].GetGauge().GetValue(), 1e-9)
+	assert.True(t, labelsMatch(gaugeFamily.GetMetric()[0].GetLabel(), map[string]string{
+		"service": "eai-back",
+	}))
 }
 
 func findMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {

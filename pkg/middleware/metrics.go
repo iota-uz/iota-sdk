@@ -17,12 +17,13 @@ import (
 
 // MetricsOptions configures the Prometheus metrics middleware.
 type MetricsOptions struct {
-	AuthToken   string                // required bearer token for /metrics endpoint
-	Pool        *pgxpool.Pool         // optional — registers pgxpool connection-pool collector
-	Hub         application.Huber     // optional — registers websocket_connections_active gauge
-	Registry    prometheus.Registerer // optional — custom registerer (defaults to a new registry that also collects Go/process metrics)
-	Gatherer    prometheus.Gatherer   // optional — custom gatherer (must match Registry if provided)
-	ConstLabels prometheus.Labels     // optional — applied to every exported metric for service scoping
+	AuthToken      string                 // required bearer token for /metrics endpoint
+	Pool           *pgxpool.Pool          // optional — registers pgxpool connection-pool collector
+	Hub            application.Huber      // optional — registers websocket_connections_active gauge
+	StreamActivity StreamActivityReporter // optional — registers active BiChat stream subscriber gauge
+	Registry       prometheus.Registerer  // optional — custom registerer (defaults to a new registry that also collects Go/process metrics)
+	Gatherer       prometheus.Gatherer    // optional — custom gatherer (must match Registry if provided)
+	ConstLabels    prometheus.Labels      // optional — applied to every exported metric for service scoping
 }
 
 // Metrics holds Prometheus collectors and the metrics HTTP handler.
@@ -32,6 +33,11 @@ type Metrics struct {
 	requestsInFlight prometheus.Gauge
 	metricsHandler   http.Handler
 	authToken        string
+}
+
+// StreamActivityReporter exposes read-only counters for long-lived app streams such as BiChat SSE.
+type StreamActivityReporter interface {
+	ActiveSubscribers() int
 }
 
 // NewMetrics creates a new Metrics instance and registers collectors.
@@ -106,6 +112,17 @@ func NewMetrics(opts MetricsOptions) *Metrics {
 				ConstLabels: cloneLabels(opts.ConstLabels),
 			},
 			func() float64 { return float64(opts.Hub.ConnectionCount()) },
+		))
+	}
+
+	if opts.StreamActivity != nil {
+		registry.MustRegister(prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{
+				Name:        "bichat_stream_subscribers_active",
+				Help:        "Number of currently active BiChat stream subscribers.",
+				ConstLabels: cloneLabels(opts.ConstLabels),
+			},
+			func() float64 { return float64(opts.StreamActivity.ActiveSubscribers()) },
 		))
 	}
 

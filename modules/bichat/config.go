@@ -280,6 +280,7 @@ type ServiceContainer struct {
 	agentService      bichatservices.AgentService
 	attachmentService bichatservices.AttachmentService
 	artifactService   bichatservices.ArtifactService
+	observability     *services.StreamObservability
 	titleService      services.TitleService
 	titleJobQueue     *services.RedisTitleJobQueue
 	titleQueueConfig  *TitleQueueConfig
@@ -317,6 +318,11 @@ func (sc *ServiceContainer) AttachmentService() bichatservices.AttachmentService
 // ArtifactService returns the ArtifactService.
 func (sc *ServiceContainer) ArtifactService() bichatservices.ArtifactService {
 	return sc.artifactService
+}
+
+// StreamObservability returns read-only counters for active BiChat stream state.
+func (sc *ServiceContainer) StreamObservability() *services.StreamObservability {
+	return sc.observability
 }
 
 // NewTitleJobWorker builds a Redis-backed title generation worker when queueing is enabled.

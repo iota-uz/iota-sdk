@@ -79,3 +79,50 @@ func TestActiveRun_ConcurrentAddRemove(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestRunRegistry_ActiveCounters(t *testing.T) {
+	reg := NewRunRegistry()
+
+	first := NewActiveRun(uuid.New(), uuid.New(), context.CancelFunc(func() {}), time.Now())
+	second := NewActiveRun(uuid.New(), uuid.New(), context.CancelFunc(func() {}), time.Now())
+	firstChA := make(chan bichatservices.StreamChunk, 1)
+	firstChB := make(chan bichatservices.StreamChunk, 1)
+	secondCh := make(chan bichatservices.StreamChunk, 1)
+
+	first.AddSubscriber(firstChA)
+	first.AddSubscriber(firstChB)
+	second.AddSubscriber(secondCh)
+
+	reg.Add(first)
+	reg.Add(second)
+
+	require.Equal(t, 2, reg.ActiveRuns())
+	require.Equal(t, 3, reg.ActiveSubscribers())
+
+	first.RemoveSubscriber(firstChA)
+	require.Equal(t, 2, reg.ActiveRuns())
+	require.Equal(t, 2, reg.ActiveSubscribers())
+
+	reg.Remove(first.RunID)
+	require.Equal(t, 1, reg.ActiveRuns())
+	require.Equal(t, 1, reg.ActiveSubscribers())
+}
+
+func TestRunRegistry_ActiveCountersAfterReplacingSessionRun(t *testing.T) {
+	reg := NewRunRegistry()
+	sessionID := uuid.New()
+
+	replacedCanceled := false
+	first := NewActiveRun(uuid.New(), sessionID, func() { replacedCanceled = true }, time.Now())
+	second := NewActiveRun(uuid.New(), sessionID, context.CancelFunc(func() {}), time.Now())
+	first.AddSubscriber(make(chan bichatservices.StreamChunk, 1))
+	first.AddSubscriber(make(chan bichatservices.StreamChunk, 1))
+	second.AddSubscriber(make(chan bichatservices.StreamChunk, 1))
+
+	reg.Add(first)
+	reg.Add(second)
+
+	require.True(t, replacedCanceled, "expected previous run to be canceled when session run is replaced")
+	require.Equal(t, 1, reg.ActiveRuns())
+	require.Equal(t, 1, reg.ActiveSubscribers())
+}
