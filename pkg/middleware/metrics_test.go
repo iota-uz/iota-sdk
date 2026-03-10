@@ -269,7 +269,7 @@ func TestNewMetrics_RegistersBiChatStreamSubscriberGauge(t *testing.T) {
 
 	gaugeFamily := findMetricFamily(t, families, "bichat_stream_subscribers_active")
 	require.Len(t, gaugeFamily.GetMetric(), 1)
-	assert.Equal(t, 3.0, gaugeFamily.GetMetric()[0].GetGauge().GetValue())
+	assert.InEpsilon(t, 3.0, gaugeFamily.GetMetric()[0].GetGauge().GetValue(), 1e-9)
 	assert.True(t, labelsMatch(gaugeFamily.GetMetric()[0].GetLabel(), map[string]string{
 		"service": "eai-back",
 	}))
