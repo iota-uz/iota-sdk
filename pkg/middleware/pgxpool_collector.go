@@ -8,8 +8,7 @@ import (
 // pgxPoolCollector implements prometheus.Collector by snapshotting
 // pgxpool.Pool.Stat() on each scrape.
 type pgxPoolCollector struct {
-	pool   *pgxpool.Pool
-	labels prometheus.Labels
+	pool *pgxpool.Pool
 
 	// Gauges (point-in-time snapshot)
 	acquiredConns *prometheus.Desc
@@ -39,8 +38,7 @@ func NewPgxPoolCollector(pool *pgxpool.Pool, constLabels prometheus.Labels) prom
 
 	labels := cloneLabels(constLabels)
 	return &pgxPoolCollector{
-		pool:   pool,
-		labels: labels,
+		pool: pool,
 		acquiredConns: prometheus.NewDesc(
 			"pgxpool_acquired_conns",
 			"Number of currently acquired connections in the pool.",

@@ -1,12 +1,16 @@
 package middleware
 
 import (
+	"bufio"
+	"bytes"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,19 +27,18 @@ func newTestMetrics(t *testing.T, token string) (*Metrics, *prometheus.Registry)
 }
 
 func TestNewMetrics_PanicsOnEmptyToken(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic for empty AuthToken")
-		}
-	}()
-	NewMetrics(MetricsOptions{AuthToken: ""})
+	require.Panics(t, func() {
+		NewMetrics(MetricsOptions{AuthToken: ""})
+	})
 }
 
 func TestNewMetrics_MultipleCalls(t *testing.T) {
 	// Verify that creating multiple Metrics instances doesn't panic
 	// (each uses its own registry).
 	for i := 0; i < 3; i++ {
-		newTestMetrics(t, "token")
+		assert.NotPanics(t, func() {
+			newTestMetrics(t, "token")
+		})
 	}
 }
 
@@ -80,7 +83,7 @@ func TestNewMetrics_AppliesConstLabels(t *testing.T) {
 		return
 	}
 
-	t.Fatal("http_requests_total metric family not found")
+	require.Fail(t, "http_requests_total metric family not found")
 }
 
 // metricsHandler wraps the middleware around a no-op handler so /metrics interception
@@ -149,35 +152,50 @@ func TestMiddleware_RecordsMetrics(t *testing.T) {
 	router.HandleFunc("/api/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	})
+	handler := m.Middleware()(router)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusCreated, rr.Code)
 
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d", rr.Code)
-	}
-
-	// Verify metrics were recorded.
 	families, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("gather: %v", err)
-	}
+	require.NoError(t, err)
 
-	found := map[string]bool{
-		"http_requests_total":           false,
-		"http_request_duration_seconds": false,
-	}
-	for _, f := range families {
-		if _, ok := found[f.GetName()]; ok {
-			found[f.GetName()] = true
-		}
-	}
-	for name, ok := range found {
-		if !ok {
-			t.Errorf("metric %q not found after request", name)
-		}
-	}
+	httpRequestsTotal := findMetricFamily(t, families, "http_requests_total")
+	assertMetricWithLabels(t, httpRequestsTotal, map[string]string{
+		"method":      http.MethodPost,
+		"route":       "/api/test",
+		"status_code": "201",
+	})
+
+	req404 := httptest.NewRequest(http.MethodGet, "/missing", nil)
+	rr404 := httptest.NewRecorder()
+	handler.ServeHTTP(rr404, req404)
+	require.Equal(t, http.StatusNotFound, rr404.Code)
+
+	families, err = reg.Gather()
+	require.NoError(t, err)
+
+	httpRequestsTotal = findMetricFamily(t, families, "http_requests_total")
+	assertMetricWithLabels(t, httpRequestsTotal, map[string]string{
+		"method":      http.MethodGet,
+		"route":       "unmatched",
+		"status_code": "404",
+	})
+
+	httpRequestDuration := findMetricFamily(t, families, "http_request_duration_seconds")
+	require.NotNil(t, httpRequestDuration)
+	assertMetricWithLabels(t, httpRequestDuration, map[string]string{
+		"method":      http.MethodPost,
+		"route":       "/api/test",
+		"status_code": "201",
+	})
+	assertMetricWithLabels(t, httpRequestDuration, map[string]string{
+		"method":      http.MethodGet,
+		"route":       "unmatched",
+		"status_code": "404",
+	})
 }
 
 func TestMiddleware_NoHostLabel(t *testing.T) {
@@ -191,41 +209,89 @@ func TestMiddleware_NoHostLabel(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rr.Code)
-	}
+	require.Equal(t, http.StatusOK, rr.Code)
 
 	families, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("gather: %v", err)
-	}
+	require.NoError(t, err)
 
 	for _, f := range families {
-		if f.GetName() == "http_requests_total" {
-			for _, m := range f.GetMetric() {
-				for _, lp := range m.GetLabel() {
-					if lp.GetName() == "host" {
-						t.Fatal("unexpected 'host' label found on http_requests_total")
-					}
-				}
+		if f.GetName() != "http_requests_total" {
+			continue
+		}
+
+		for _, metric := range f.GetMetric() {
+			for _, lp := range metric.GetLabel() {
+				require.NotEqual(t, "host", lp.GetName())
 			}
 		}
 	}
 }
 
 func TestMetricsResponseWriter_DefaultStatus(t *testing.T) {
-	w := &metricsResponseWriter{ResponseWriter: httptest.NewRecorder()}
-	if w.Status() != http.StatusOK {
-		t.Fatalf("default status should be 200, got %d", w.Status())
-	}
+	w := wrapMetricsResponseWriter(httptest.NewRecorder())
+	require.Equal(t, http.StatusOK, w.Status(), "default status should be 200")
 }
 
 func TestMetricsResponseWriter_WriteHeaderIdempotent(t *testing.T) {
-	w := &metricsResponseWriter{ResponseWriter: httptest.NewRecorder()}
+	w := wrapMetricsResponseWriter(httptest.NewRecorder())
 	w.WriteHeader(http.StatusNotFound)
 	w.WriteHeader(http.StatusOK) // should be ignored
-	if w.Status() != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d", w.Status())
+	require.Equal(t, http.StatusNotFound, w.Status(), "WriteHeader should be idempotent")
+}
+
+func TestMetricsResponseWriter_HijackMarksSwitchingProtocols(t *testing.T) {
+	w := wrapMetricsResponseWriter(&hijackableResponseWriter{ResponseWriter: httptest.NewRecorder()})
+	_, _, err := w.Hijack()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusSwitchingProtocols, w.Status())
+}
+
+func findMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
+	t.Helper()
+
+	for _, family := range families {
+		if family.GetName() == name {
+			return family
+		}
 	}
+
+	require.FailNowf(t, "metric family missing", "expected metric family %s", name)
+	return nil
+}
+
+func assertMetricWithLabels(t *testing.T, family *dto.MetricFamily, labels map[string]string) {
+	t.Helper()
+
+	for _, metric := range family.GetMetric() {
+		if labelsMatch(metric.GetLabel(), labels) {
+			return
+		}
+	}
+
+	require.FailNowf(t, "metric series missing", "expected %s series with labels %v", family.GetName(), labels)
+}
+
+func labelsMatch(labelPairs []*dto.LabelPair, expected map[string]string) bool {
+	found := make(map[string]string, len(labelPairs))
+	for _, pair := range labelPairs {
+		found[pair.GetName()] = pair.GetValue()
+	}
+
+	for key, value := range expected {
+		if found[key] != value {
+			return false
+		}
+	}
+
+	return true
+}
+
+type hijackableResponseWriter struct {
+	http.ResponseWriter
+}
+
+func (w *hijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	serverConn, clientConn := net.Pipe()
+	_ = clientConn.Close()
+	return serverConn, bufio.NewReadWriter(bufio.NewReader(bytes.NewReader(nil)), bufio.NewWriter(&bytes.Buffer{})), nil
 }

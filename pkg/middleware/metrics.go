@@ -1,10 +1,7 @@
 package middleware
 
 import (
-	"bufio"
 	"crypto/subtle"
-	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -152,9 +149,7 @@ func (m *Metrics) Middleware() mux.MiddlewareFunc {
 			m.requestsInFlight.Inc()
 			defer m.requestsInFlight.Dec()
 
-			wrappedWriter := &metricsResponseWriter{
-				ResponseWriter: w,
-			}
+			wrappedWriter := wrapMetricsResponseWriter(w)
 
 			start := time.Now()
 			next.ServeHTTP(wrappedWriter, r)
@@ -192,47 +187,14 @@ func (m *Metrics) serveMetrics(w http.ResponseWriter, r *http.Request) {
 // the status code. It implements http.Flusher and http.Hijacker for SSE and
 // WebSocket compatibility.
 type metricsResponseWriter struct {
-	http.ResponseWriter
-	statusCode    int
-	statusWritten bool
-}
-
-func (w *metricsResponseWriter) WriteHeader(code int) {
-	if !w.statusWritten {
-		w.statusCode = code
-		w.statusWritten = true
-		w.ResponseWriter.WriteHeader(code)
-	}
-}
-
-// Status returns the HTTP status code written to the response.
-// Defaults to 200 if WriteHeader was never called explicitly.
-func (w *metricsResponseWriter) Status() int {
-	if w.statusCode == 0 {
-		return http.StatusOK
-	}
-	return w.statusCode
+	*statusCaptureWriter
 }
 
 func (w *metricsResponseWriter) Write(b []byte) (int, error) {
-	if !w.statusWritten {
-		w.statusCode = http.StatusOK
-		w.statusWritten = true
-	}
-	return w.ResponseWriter.Write(b)
+	w.markStatus(http.StatusOK)
+	return w.statusCaptureWriter.ResponseWriter.Write(b)
 }
 
-// Flush implements http.Flusher for SSE compatibility.
-func (w *metricsResponseWriter) Flush() {
-	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
-}
-
-// Hijack implements http.Hijacker for WebSocket compatibility.
-func (w *metricsResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
-		return hijacker.Hijack()
-	}
-	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker")
+func wrapMetricsResponseWriter(w http.ResponseWriter) *metricsResponseWriter {
+	return &metricsResponseWriter{statusCaptureWriter: wrapStatusCaptureWriter(w)}
 }

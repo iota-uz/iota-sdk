@@ -2,14 +2,11 @@
 package middleware
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"encoding/xml"
-	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"runtime/debug"
@@ -47,52 +44,20 @@ func DefaultLoggerOptions() LoggerOptions {
 }
 
 type responseCaptureWriter struct {
-	http.ResponseWriter
-	statusCode    int
-	statusWritten bool
-	body          *bytes.Buffer
-}
-
-func (w *responseCaptureWriter) WriteHeader(code int) {
-	if !w.statusWritten {
-		w.statusCode = code
-		w.statusWritten = true
-		w.ResponseWriter.WriteHeader(code)
-	}
-}
-
-// Status returns the HTTP status code
-func (w *responseCaptureWriter) Status() int {
-	if w.statusCode == 0 {
-		return http.StatusOK
-	}
-	return w.statusCode
+	*statusCaptureWriter
+	body *bytes.Buffer
 }
 
 func (w *responseCaptureWriter) Write(b []byte) (int, error) {
+	w.markStatus(http.StatusOK)
 	w.body.Write(b)
-	return w.ResponseWriter.Write(b)
-}
-
-func (w *responseCaptureWriter) Flush() {
-	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
-}
-
-func (w *responseCaptureWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
-		return hijacker.Hijack()
-	}
-	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker")
+	return w.statusCaptureWriter.ResponseWriter.Write(b)
 }
 
 func wrapResponseWriter(w http.ResponseWriter) *responseCaptureWriter {
 	return &responseCaptureWriter{
-		ResponseWriter: w,
-		statusCode:     0,
-		statusWritten:  false,
-		body:           &bytes.Buffer{},
+		statusCaptureWriter: wrapStatusCaptureWriter(w),
+		body:                &bytes.Buffer{},
 	}
 }
 
