@@ -121,8 +121,8 @@ func TestMiddleware_RecordsMetrics(t *testing.T) {
 	}
 
 	found := map[string]bool{
-		"http_requests_total":            false,
-		"http_request_duration_seconds":  false,
+		"http_requests_total":           false,
+		"http_request_duration_seconds": false,
 	}
 	for _, f := range families {
 		if _, ok := found[f.GetName()]; ok {
