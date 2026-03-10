@@ -192,7 +192,7 @@ type metricsResponseWriter struct {
 
 func (w *metricsResponseWriter) Write(b []byte) (int, error) {
 	w.markStatus(http.StatusOK)
-	return w.statusCaptureWriter.ResponseWriter.Write(b)
+	return w.ResponseWriter.Write(b)
 }
 
 func wrapMetricsResponseWriter(w http.ResponseWriter) *metricsResponseWriter {

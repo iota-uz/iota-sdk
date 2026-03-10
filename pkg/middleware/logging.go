@@ -51,7 +51,7 @@ type responseCaptureWriter struct {
 func (w *responseCaptureWriter) Write(b []byte) (int, error) {
 	w.markStatus(http.StatusOK)
 	w.body.Write(b)
-	return w.statusCaptureWriter.ResponseWriter.Write(b)
+	return w.ResponseWriter.Write(b)
 }
 
 func wrapResponseWriter(w http.ResponseWriter) *responseCaptureWriter {
