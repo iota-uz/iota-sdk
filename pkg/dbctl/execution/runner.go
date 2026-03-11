@@ -10,14 +10,10 @@ import (
 	"io"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/dbctl/credentials"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
-	"github.com/iota-uz/iota-sdk/pkg/dbctl/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -84,8 +80,6 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 			Yes:            opts.Yes,
 		},
 		Pool:       pool,
-		Policy:     cfg,
-		PolicyHash: policy.HashPolicy(payload),
 		PolicyPath: opts.PolicyPath,
 	}
 	for _, cond := range spec.Preconditions {
@@ -96,7 +90,7 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 			return nil, fmt.Errorf("precondition %s failed: %w", cond.ID, err)
 		}
 	}
-	return &PlanResult{RunContext: *execCtx.Run, Spec: spec, PolicyHash: execCtx.PolicyHash}, nil
+	return &PlanResult{RunContext: *execCtx.Run, Spec: spec, PolicyHash: policy.HashPolicy(payload)}, nil
 }
 
 func Apply(ctx context.Context, opts RunOptions) error {
@@ -115,47 +109,13 @@ func Apply(ctx context.Context, opts RunOptions) error {
 	}
 	defer pool.Close()
 
-	cfg, payload, err := policy.Load(opts.PolicyPath)
-	if err != nil {
-		return err
-	}
-	repo := persistence.New(pool)
-	if err := repo.EnsureTables(ctx); err != nil {
-		return err
-	}
-
-	runID := uuid.NewString()
-	actor := strings.TrimSpace(opts.Actor)
-	if actor == "" {
-		actor = os.Getenv("USER")
-		if actor == "" {
-			actor = "unknown"
-		}
-	}
 	targetFP := fingerprint(plan.RunContext.Target)
-	run := persistence.RunRecord{
-		ID:                runID,
-		Operation:         plan.Spec.Name,
-		Mode:              string(opts.Mode),
-		StartedAt:         time.Now().UTC(),
-		Actor:             actor,
-		Status:            "running",
-		TargetFingerprint: targetFP,
-		PolicyHash:        policy.HashPolicy(payload),
-	}
-	if err := repo.InsertRun(ctx, run); err != nil {
-		return err
-	}
-
 	lock, locked, lockErr := acquireRunLock(ctx, pool, plan.Spec.Name, targetFP)
 	if lockErr != nil {
 		return lockErr
 	}
 	if !locked {
-		err := fmt.Errorf("failed to acquire run lock for operation")
-		errText := err.Error()
-		_ = repo.UpdateRunStatus(ctx, runID, "failed", &errText)
-		return err
+		return fmt.Errorf("failed to acquire run lock for operation")
 	}
 	defer releaseRunLock(ctx, lock)
 
@@ -167,31 +127,19 @@ func Apply(ctx context.Context, opts RunOptions) error {
 			PolicyDecision: plan.RunContext.PolicyDecision,
 			ApproveTicket:  opts.ApproveTicket,
 			Yes:            opts.Yes,
-			RunID:          runID,
 		},
 		Pool:       pool,
-		Policy:     cfg,
-		PolicyHash: plan.PolicyHash,
 		JSONOutput: opts.JSONOutput,
 		PolicyPath: opts.PolicyPath,
 	}
 
 	for _, step := range plan.Spec.Steps {
 		Emit(opts.Out, opts.JSONOutput, Event{Type: "step_start", Operation: plan.Spec.Name, StepID: step.ID, Message: step.Description})
-		startedAt := time.Now().UTC()
-		_ = repo.UpsertStep(ctx, persistence.StepRecord{RunID: runID, StepID: step.ID, Status: "running", StartedAt: startedAt})
-
 		stepErr := runStep(ctx, execCtx, step)
 		if stepErr != nil {
-			errText := stepErr.Error()
-			finished := time.Now().UTC()
-			_ = repo.UpsertStep(ctx, persistence.StepRecord{RunID: runID, StepID: step.ID, Status: "failed", StartedAt: startedAt, FinishedAt: &finished, Error: &errText})
-			_ = repo.UpdateRunStatus(ctx, runID, "failed", &errText)
 			Emit(opts.Out, opts.JSONOutput, Event{Type: "step_end", Operation: plan.Spec.Name, StepID: step.ID, Status: "failed", Message: stepErr.Error()})
 			return stepErr
 		}
-		finished := time.Now().UTC()
-		_ = repo.UpsertStep(ctx, persistence.StepRecord{RunID: runID, StepID: step.ID, Status: "succeeded", StartedAt: startedAt, FinishedAt: &finished})
 		Emit(opts.Out, opts.JSONOutput, Event{Type: "step_end", Operation: plan.Spec.Name, StepID: step.ID, Status: "succeeded", Message: "step completed"})
 	}
 
@@ -200,34 +148,12 @@ func Apply(ctx context.Context, opts RunOptions) error {
 			continue
 		}
 		if err := cond.Check(ctx, execCtx); err != nil {
-			errText := err.Error()
-			_ = repo.UpdateRunStatus(ctx, runID, "failed", &errText)
 			return fmt.Errorf("postcondition %s failed: %w", cond.ID, err)
 		}
 	}
 
-	if strings.HasPrefix(plan.Spec.Name, "seed.") {
-		if err := createBootstrapArtifact(ctx, repo, execCtx); err != nil {
-			Emit(opts.Out, opts.JSONOutput, Event{Type: "summary", Operation: plan.Spec.Name, Status: "warning", Message: "failed to create bootstrap artifact"})
-		}
-	}
-
-	_ = repo.UpdateRunStatus(ctx, runID, "succeeded", nil)
 	Emit(opts.Out, opts.JSONOutput, Event{Type: "summary", Operation: plan.Spec.Name, Status: "succeeded", Message: "run completed"})
 	return nil
-}
-
-func createBootstrapArtifact(ctx context.Context, repo *persistence.Repository, execCtx *ops.ExecutionContext) error {
-	includeSecret := execCtx.Run.PolicyDecision.CredentialEmission != "token_only"
-	artifact, err := credentials.NewBootstrapArtifact(execCtx.Run.Operation, time.Duration(execCtx.Policy.Credentials.TokenTTLSecond)*time.Second, includeSecret)
-	if err != nil {
-		return err
-	}
-	payload, err := artifact.JSON()
-	if err != nil {
-		return err
-	}
-	return repo.InsertArtifact(ctx, execCtx.Run.RunID, "credential_bootstrap", payload)
 }
 
 func runStep(ctx context.Context, execCtx *ops.ExecutionContext, step ops.StepSpec) error {

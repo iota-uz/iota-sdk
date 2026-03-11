@@ -31,23 +31,11 @@ A policy file is required at `.dbctl/policy.yaml` (or pass `--policy`).
 - destructive operation is not permitted
 - required confirmations (`--yes`, `--approve-ticket`) are missing
 
-## Observability and history
+## Diagnostics
 
 ```bash
 # policy/target diagnostics
 command dbctl doctor
-
-# recent run records
-command dbctl history --limit 20
-```
-
-## Credential bootstrap artifacts
-
-Seed operations create bootstrap artifacts instead of printing plaintext passwords.
-
-```bash
-command dbctl credentials show <run-id>
-command dbctl credentials show <run-id> --reveal
 ```
 
 ## Removed legacy commands

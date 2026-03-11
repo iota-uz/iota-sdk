@@ -2,7 +2,6 @@ package policy
 
 type Config struct {
 	Environments map[string]EnvironmentPolicy `yaml:"environments"`
-	Credentials  CredentialPolicy             `yaml:"credentials"`
 }
 
 type EnvironmentPolicy struct {
@@ -10,11 +9,6 @@ type EnvironmentPolicy struct {
 	AllowDestructive bool     `yaml:"allow_destructive"`
 	RequireYes       bool     `yaml:"require_yes"`
 	RequireTicket    bool     `yaml:"require_ticket"`
-}
-
-type CredentialPolicy struct {
-	Emission       string `yaml:"emission"`
-	TokenTTLSecond int    `yaml:"token_ttl_seconds"`
 }
 
 type Target struct {
@@ -26,12 +20,11 @@ type Target struct {
 }
 
 type Decision struct {
-	Allowed            bool
-	RequireYes         bool
-	RequireTicket      bool
-	AllowDestructive   bool
-	CredentialEmission string
-	Reasons            []string
+	Allowed          bool
+	RequireYes       bool
+	RequireTicket    bool
+	AllowDestructive bool
+	Reasons          []string
 }
 
 func (d Decision) Denied(reason string) Decision {

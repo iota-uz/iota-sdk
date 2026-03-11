@@ -1,10 +1,6 @@
 package policy
 
-import (
-	"os"
-	"path/filepath"
-	"testing"
-)
+import "testing"
 
 func TestEvaluate_DeniesHostNotAllowed(t *testing.T) {
 	cfg := Config{
@@ -14,7 +10,6 @@ func TestEvaluate_DeniesHostNotAllowed(t *testing.T) {
 				AllowDestructive: true,
 			},
 		},
-		Credentials: CredentialPolicy{Emission: "token_only"},
 	}
 
 	decision := Evaluate(cfg, Target{Environment: "development", Host: "prod.db.local"}, false)
@@ -31,7 +26,6 @@ func TestEvaluate_DeniesDestructiveWhenForbidden(t *testing.T) {
 				AllowDestructive: false,
 			},
 		},
-		Credentials: CredentialPolicy{Emission: "token_only"},
 	}
 
 	decision := Evaluate(cfg, Target{Environment: "development", Host: "localhost"}, true)
@@ -50,7 +44,6 @@ func TestEvaluate_RequiresYesAndTicket(t *testing.T) {
 				RequireTicket:    true,
 			},
 		},
-		Credentials: CredentialPolicy{Emission: "masked"},
 	}
 
 	decision := Evaluate(cfg, Target{Environment: "development", Host: "localhost"}, false)
@@ -62,30 +55,5 @@ func TestEvaluate_RequiresYesAndTicket(t *testing.T) {
 	}
 	if !decision.RequireTicket {
 		t.Fatalf("expected require ticket to be true")
-	}
-	if decision.CredentialEmission != "masked" {
-		t.Fatalf("expected credential emission to be masked, got %q", decision.CredentialEmission)
-	}
-}
-
-func TestLoad_RejectsUnsupportedCredentialEmission(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, "policy.yaml")
-	payload := []byte(`
-environments:
-  development:
-    allowed_hosts: ["localhost"]
-    allow_destructive: true
-credentials:
-  emission: typo
-`)
-	if err := os.WriteFile(path, payload, 0o600); err != nil {
-		t.Fatalf("write policy file: %v", err)
-	}
-
-	if _, _, err := Load(path); err == nil {
-		t.Fatal("expected Load to reject unknown credentials.emission")
 	}
 }

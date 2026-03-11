@@ -61,7 +61,6 @@ type RunContext struct {
 	PolicyDecision policy.Decision
 	ApproveTicket  string
 	Yes            bool
-	RunID          string
 }
 
 type ExecutionContext struct {
@@ -69,8 +68,6 @@ type ExecutionContext struct {
 	Pool       *pgxpool.Pool
 	App        application.Application
 	Tx         pgx.Tx
-	Policy     policy.Config
-	PolicyHash string
 	JSONOutput bool
 	PolicyPath string
 }

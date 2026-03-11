@@ -13,11 +13,6 @@ import (
 
 const defaultPolicyPath = ".dbctl/policy.yaml"
 
-var allowedCredentialEmission = map[string]struct{}{
-	"masked":     {},
-	"token_only": {},
-}
-
 func Load(path string) (Config, []byte, error) {
 	if strings.TrimSpace(path) == "" {
 		path = defaultPolicyPath
@@ -32,15 +27,6 @@ func Load(path string) (Config, []byte, error) {
 	}
 	if len(cfg.Environments) == 0 {
 		return Config{}, nil, fmt.Errorf("policy has no environments")
-	}
-	if strings.TrimSpace(cfg.Credentials.Emission) == "" {
-		cfg.Credentials.Emission = "token_only"
-	}
-	if _, ok := allowedCredentialEmission[cfg.Credentials.Emission]; !ok {
-		return Config{}, nil, fmt.Errorf("unsupported credentials.emission %q", cfg.Credentials.Emission)
-	}
-	if cfg.Credentials.TokenTTLSecond <= 0 {
-		cfg.Credentials.TokenTTLSecond = 3600
 	}
 	return cfg, payload, nil
 }
@@ -57,8 +43,7 @@ func Evaluate(cfg Config, target Target, destructive bool) Decision {
 	}
 	ep, ok := cfg.Environments[env]
 	decision := Decision{
-		Allowed:            true,
-		CredentialEmission: cfg.Credentials.Emission,
+		Allowed: true,
 	}
 	if !ok {
 		return decision.Denied(fmt.Sprintf("no policy configured for environment %q", env))
