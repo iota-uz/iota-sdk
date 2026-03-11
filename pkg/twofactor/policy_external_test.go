@@ -3,10 +3,10 @@ package twofactor
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestAuthMethodExternalValue(t *testing.T) {
+func TestAuthMethodExternalValue_Scenario(t *testing.T) {
 	tests := []struct {
 		name string
 		got  AuthMethod
@@ -21,7 +21,7 @@ func TestAuthMethodExternalValue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, tc.got)
+			require.Equal(t, tc.want, tc.got)
 		})
 	}
 }

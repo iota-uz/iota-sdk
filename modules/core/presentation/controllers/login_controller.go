@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -128,7 +129,7 @@ func (c *LoginController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix("/").Subrouter()
 	getRouter.Use(c.GetMiddlewares()...)
 	getRouter.HandleFunc("/login", c.Get).Methods(http.MethodGet)
-	getRouter.HandleFunc("/oauth/google/callback", c.GoogleCallback)
+	getRouter.HandleFunc("/oauth/google/callback", c.GoogleCallback).Methods(http.MethodGet)
 
 	postRouter := r.PathPrefix("/login").Subrouter()
 	postRouter.Use(c.PostMiddlewares()...)
@@ -262,10 +263,6 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if len(methods) == 0 {
-		http.Error(w, "no login methods configured", http.StatusInternalServerError)
-		return
-	}
 
 	logoComponent, _ := composables.UseLogo(r.Context())
 
@@ -278,9 +275,13 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if renderer := c.optionsOrDefault().Renderer; renderer != nil {
-		if err := renderer(r.Context(), viewModel).Render(r.Context(), w); err != nil {
+		if err := c.renderLoginComponent(w, r, renderer(r.Context(), viewModel)); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+		return
+	}
+	if len(methods) == 0 {
+		http.Error(w, "no login methods configured", http.StatusInternalServerError)
 		return
 	}
 
@@ -290,13 +291,18 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *LoginController) renderDefaultLogin(w http.ResponseWriter, r *http.Request, vm LoginPageViewModel) error {
-	return login.Index(&login.LoginProps{
+	return c.renderLoginComponent(w, r, login.Index(&login.LoginProps{
 		ErrorsMap:    vm.ErrorsMap,
 		Email:        vm.Email,
 		ErrorMessage: vm.ErrorMessage,
 		Methods:      toTemplateLoginMethods(vm.Methods),
 		Logo:         vm.Logo,
-	}).Render(r.Context(), w)
+	}))
+}
+
+func (c *LoginController) renderLoginComponent(w http.ResponseWriter, r *http.Request, component interface{ Render(context.Context, io.Writer) error }) error {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return component.Render(r.Context(), w)
 }
 
 func toTemplateLoginMethods(methods []LoginMethod) []login.LoginMethod {
@@ -358,18 +364,23 @@ func (c *LoginController) buildLoginMethods(w http.ResponseWriter, r *http.Reque
 			continue
 		}
 
-		method.ID = strings.TrimSpace(method.ID)
-		if method.ID == "" {
+		builtMethod := *method
+		builtMethod.ID = strings.TrimSpace(builtMethod.ID)
+		if builtMethod.ID == "" {
 			composables.UseLogger(r.Context()).Warn("login method provider returned empty method id", "provider", provider.ID())
 			continue
 		}
-		if _, ok := seen[method.ID]; ok {
-			composables.UseLogger(r.Context()).Warn("login method provider returned duplicate method id", "provider", provider.ID(), "method", method.ID)
+		if builtMethod.Href != "" && !security.IsValidRedirect(builtMethod.Href) {
+			composables.UseLogger(r.Context()).Warn("login method provider returned invalid method href", "provider", provider.ID(), "method", builtMethod.ID, "href", builtMethod.Href)
+			continue
+		}
+		if _, ok := seen[builtMethod.ID]; ok {
+			composables.UseLogger(r.Context()).Warn("login method provider returned duplicate method id", "provider", provider.ID(), "method", builtMethod.ID)
 			continue
 		}
 
-		methods = append(methods, *method)
-		seen[method.ID] = struct{}{}
+		methods = append(methods, builtMethod)
+		seen[builtMethod.ID] = struct{}{}
 	}
 
 	return methods, nil

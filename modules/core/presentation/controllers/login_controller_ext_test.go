@@ -124,9 +124,11 @@ func TestGetRenderModes(t *testing.T) {
 		expectedBody string
 	}{
 		{
-			name: "custom renderer renders custom output",
+			name: "custom renderer handles empty methods",
 			makeOptions: func() *LoginControllerOptions {
 				return &LoginControllerOptions{
+					IncludePasswordMethod: &includePassword,
+					IncludeGoogleMethod:   &includeGoogle,
 					Renderer: func(ctx context.Context, vm LoginPageViewModel) templ.Component {
 						return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
 							_, err := w.Write([]byte("custom-renderer"))
@@ -168,9 +170,11 @@ func TestGetRenderModes(t *testing.T) {
 
 func TestFinalizeAuthenticatedSessionAndUserRedirects(t *testing.T) {
 	tests := []struct {
-		name     string
-		setup    func() *LoginController
-		location string
+		name         string
+		setup        func() *LoginController
+		setupRequest func(t *testing.T, req *http.Request) *http.Request
+		invoke       func(controller *LoginController, w http.ResponseWriter, req *http.Request, u coreuser.User)
+		location     string
 	}{
 		{
 			name: "access check blocks user",
@@ -183,6 +187,15 @@ func TestFinalizeAuthenticatedSessionAndUserRedirects(t *testing.T) {
 					},
 				}
 			},
+			invoke: func(controller *LoginController, w http.ResponseWriter, req *http.Request, u coreuser.User) {
+				controller.FinalizeAuthenticatedUser(
+					w,
+					req,
+					u,
+					pkgtwofactor.AuthMethodExternal,
+					"/dashboard",
+				)
+			},
 			location: "/login?next=%2Fdashboard",
 		},
 		{
@@ -191,6 +204,23 @@ func TestFinalizeAuthenticatedSessionAndUserRedirects(t *testing.T) {
 				return &LoginController{
 					twoFactorPolicy: errorPolicy{},
 				}
+			},
+			setupRequest: func(t *testing.T, req *http.Request) *http.Request {
+				t.Helper()
+				ctx := withLocalizer(t, req.Context(), `{"Errors":{"Internal":"Internal error"}}`)
+				ctx = context.WithValue(ctx, constants.LoggerKey, logrus.New().WithField("test", true))
+				return req.WithContext(ctx)
+			},
+			invoke: func(controller *LoginController, w http.ResponseWriter, req *http.Request, u coreuser.User) {
+				controller.finalizeAuthenticatedSession(
+					w,
+					req,
+					u,
+					session.New("token", 1, uuid.New(), "127.0.0.1", "test-agent"),
+					pkgtwofactor.AuthMethodExternal,
+					"/dashboard",
+					"/login?next=%2Fdashboard",
+				)
 			},
 			location: "/login?next=%2Fdashboard",
 		},
@@ -201,22 +231,12 @@ func TestFinalizeAuthenticatedSessionAndUserRedirects(t *testing.T) {
 			controller := tc.setup()
 
 			req := httptest.NewRequest(http.MethodGet, "/login", nil)
-			if tc.name == "policy errors redirect to login" {
-				ctx := withLocalizer(t, req.Context(), `{"Errors":{"Internal":"Internal error"}}`)
-				ctx = context.WithValue(ctx, constants.LoggerKey, logrus.New().WithField("test", true))
-				req = req.WithContext(ctx)
+			if tc.setupRequest != nil {
+				req = tc.setupRequest(t, req)
 			}
 
 			w := httptest.NewRecorder()
-			controller.finalizeAuthenticatedSession(
-				w,
-				req,
-				mustTestUser(t),
-				session.New("token", 1, uuid.New(), "127.0.0.1", "test-agent"),
-				pkgtwofactor.AuthMethodExternal,
-				"/dashboard",
-				tc.location,
-			)
+			tc.invoke(controller, w, req, mustTestUser(t))
 
 			assert.Equal(t, http.StatusFound, w.Code)
 			assert.Equal(t, tc.location, w.Header().Get("Location"))
