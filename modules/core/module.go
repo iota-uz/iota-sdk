@@ -92,8 +92,6 @@ func (m *Module) Register(app application.Application) error {
 	tenantService := services.NewTenantService(tenantRepo)
 	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
 	sessionService := services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher())
-	authService := services.NewAuthService(app)
-	authFlowService := services.NewAuthFlowService(authService, sessionService)
 
 	app.RegisterServices(
 		uploadService,
@@ -104,6 +102,9 @@ func (m *Module) Register(app application.Application) error {
 		sessionService,
 		services.NewExcelExportService(app.DB(), uploadService),
 	)
+
+	authService := services.NewAuthService(app)
+	authFlowService := services.NewAuthFlowService(authService, sessionService)
 	// Create 2FA service with configuration
 	conf := configuration.Use()
 
