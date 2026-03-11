@@ -1,6 +1,10 @@
 package execution
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestControlDatabaseName(t *testing.T) {
 	t.Parallel()
@@ -20,9 +24,7 @@ func TestControlDatabaseName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := controlDatabaseName(tt.operation); got != tt.want {
-				t.Fatalf("controlDatabaseName(%q) = %q, want %q", tt.operation, got, tt.want)
-			}
+			require.Equal(t, tt.want, controlDatabaseName(tt.operation), "operation=%s", tt.operation)
 		})
 	}
 }

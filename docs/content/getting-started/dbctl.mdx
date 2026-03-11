@@ -13,11 +13,14 @@ description: 'Policy-first seed and database operations'
 # Inspect execution graph and policy decision
 command dbctl plan seed.main --yes --approve-ticket local-dev
 
+# Preview execution without mutating state
+command dbctl apply seed.main --dry-run --yes --approve-ticket local-dev
+
 # Execute seed
 command dbctl apply seed.main --yes --approve-ticket local-dev
 
 # E2E destructive reset
-command dbctl apply db.e2e.reset --yes --approve-ticket local-dev
+command dbctl apply db.e2e.reset --force --yes --approve-ticket local-dev
 ```
 
 ## Defaults
@@ -28,7 +31,7 @@ command dbctl apply db.e2e.reset --yes --approve-ticket local-dev
 
 - target host is not allowed for environment
 - destructive operation is not permitted
-- required confirmations (`--yes`, `--approve-ticket`) are missing
+- required confirmations (`--yes`, `--approve-ticket`, `--force` for destructive operations) are missing
 
 ## Diagnostics
 

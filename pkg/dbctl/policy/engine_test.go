@@ -1,6 +1,10 @@
 package policy
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestLoad_UsesBuiltInDefaultsWhenPathEmpty(t *testing.T) {
 	t.Parallel()
@@ -80,5 +84,29 @@ func TestEvaluate_RequiresYesAndTicket(t *testing.T) {
 	}
 	if !decision.RequireTicket {
 		t.Fatalf("expected require ticket to be true")
+	}
+}
+
+func TestEvaluate_DeniesEmptyEnvironment(t *testing.T) {
+	cfg := DefaultConfig()
+
+	decision := Evaluate(cfg, Target{Environment: "", Host: "localhost"}, true)
+	if decision.Allowed {
+		t.Fatal("expected empty environment to be denied")
+	}
+}
+
+func TestLoad_RejectsUnknownFields(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yaml")
+	payload := []byte("environments:\n  development:\n    allowed_hosts:\n      - localhost\n    require_tikcet: true\n")
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	if _, _, err := Load(path); err == nil {
+		t.Fatal("expected strict YAML parsing to reject unknown fields")
 	}
 }

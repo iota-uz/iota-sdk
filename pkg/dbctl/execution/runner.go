@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,6 +23,8 @@ type RunOptions struct {
 	Operation     string
 	Mode          ops.ExecutionMode
 	Yes           bool
+	Force         bool
+	DryRun        bool
 	ApproveTicket string
 	JSONOutput    bool
 	PolicyPath    string
@@ -41,8 +44,9 @@ type runLock struct {
 }
 
 func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
+	const op serrors.Op = "dbctl.execution.Plan"
 	if strings.TrimSpace(opts.Operation) == "" {
-		return nil, fmt.Errorf("operation is required")
+		return nil, serrors.E(op, serrors.Invalid, "operation is required")
 	}
 	spec, err := ops.Get(opts.Operation)
 	if err != nil {
@@ -55,18 +59,21 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	target := resolveTarget()
 	decision := policy.Evaluate(cfg, target, spec.Kind == ops.OperationKindDestructive)
 	if !decision.Allowed {
-		return nil, fmt.Errorf("policy denied operation: %s", strings.Join(decision.Reasons, "; "))
+		return nil, serrors.E(op, serrors.PermissionDenied, "policy denied operation: "+strings.Join(decision.Reasons, "; "))
 	}
 	if decision.RequireYes && !opts.Yes {
-		return nil, fmt.Errorf("policy requires --yes confirmation")
+		return nil, serrors.E(op, serrors.Invalid, "policy requires --yes confirmation")
 	}
 	if decision.RequireTicket && strings.TrimSpace(opts.ApproveTicket) == "" {
-		return nil, fmt.Errorf("policy requires --approve-ticket")
+		return nil, serrors.E(op, serrors.Invalid, "policy requires --approve-ticket")
+	}
+	if spec.Kind == ops.OperationKindDestructive && !opts.Force {
+		return nil, serrors.E(op, serrors.Invalid, "destructive operations require --force confirmation")
 	}
 
 	pool, err := getControlDatabasePool(ctx, opts.Operation)
 	if err != nil {
-		return nil, fmt.Errorf("open database pool: %w", err)
+		return nil, serrors.E(op, err, "open database pool")
 	}
 	defer pool.Close()
 
@@ -78,6 +85,7 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 			PolicyDecision: decision,
 			ApproveTicket:  opts.ApproveTicket,
 			Yes:            opts.Yes,
+			Force:          opts.Force,
 		},
 		Pool:       pool,
 		PolicyPath: opts.PolicyPath,
@@ -87,13 +95,14 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 			continue
 		}
 		if err := cond.Check(ctx, execCtx); err != nil {
-			return nil, fmt.Errorf("precondition %s failed: %w", cond.ID, err)
+			return nil, serrors.E(op, err, "precondition "+cond.ID+" failed")
 		}
 	}
 	return &PlanResult{RunContext: *execCtx.Run, Spec: spec, PolicyHash: policy.HashPolicy(payload)}, nil
 }
 
 func Apply(ctx context.Context, opts RunOptions) error {
+	const op serrors.Op = "dbctl.execution.Apply"
 	if opts.Out == nil {
 		opts.Out = os.Stdout
 	}
@@ -102,10 +111,35 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		return err
 	}
 	Emit(opts.Out, opts.JSONOutput, Event{Type: "preflight", Operation: plan.Spec.Name, Message: "plan completed"})
+	Emit(opts.Out, opts.JSONOutput, Event{
+		Type:      "safety_banner",
+		Operation: plan.Spec.Name,
+		Message:   fmt.Sprintf("target env=%s host=%s db=%s steps=%d", plan.RunContext.Target.Environment, plan.RunContext.Target.Host, plan.RunContext.Target.Name, len(plan.Spec.Steps)),
+		Payload: map[string]any{
+			"target":          plan.RunContext.Target,
+			"planned_actions": stepSummaries(plan.Spec),
+			"force":           opts.Force,
+			"dry_run":         opts.DryRun,
+		},
+	})
+	if opts.DryRun {
+		Emit(opts.Out, opts.JSONOutput, Event{
+			Type:      "end_summary",
+			Operation: plan.Spec.Name,
+			Status:    "dry-run",
+			Message:   "dry-run preview completed",
+			Payload: map[string]any{
+				"target":          plan.RunContext.Target,
+				"planned_actions": stepSummaries(plan.Spec),
+				"final_status":    "dry-run",
+			},
+		})
+		return nil
+	}
 
 	pool, err := getControlDatabasePool(ctx, opts.Operation)
 	if err != nil {
-		return fmt.Errorf("open database pool: %w", err)
+		return serrors.E(op, err, "open database pool")
 	}
 	defer pool.Close()
 
@@ -115,7 +149,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		return lockErr
 	}
 	if !locked {
-		return fmt.Errorf("failed to acquire run lock for operation")
+		return serrors.E(op, "failed to acquire run lock for operation")
 	}
 	defer releaseRunLock(ctx, lock)
 
@@ -127,6 +161,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 			PolicyDecision: plan.RunContext.PolicyDecision,
 			ApproveTicket:  opts.ApproveTicket,
 			Yes:            opts.Yes,
+			Force:          opts.Force,
 		},
 		Pool:       pool,
 		JSONOutput: opts.JSONOutput,
@@ -148,10 +183,21 @@ func Apply(ctx context.Context, opts RunOptions) error {
 			continue
 		}
 		if err := cond.Check(ctx, execCtx); err != nil {
-			return fmt.Errorf("postcondition %s failed: %w", cond.ID, err)
+			return serrors.E(op, err, "postcondition "+cond.ID+" failed")
 		}
 	}
 
+	Emit(opts.Out, opts.JSONOutput, Event{
+		Type:      "end_summary",
+		Operation: plan.Spec.Name,
+		Status:    "succeeded",
+		Message:   "run completed",
+		Payload: map[string]any{
+			"target":          plan.RunContext.Target,
+			"planned_actions": stepSummaries(plan.Spec),
+			"final_status":    "succeeded",
+		},
+	})
 	Emit(opts.Out, opts.JSONOutput, Event{Type: "summary", Operation: plan.Spec.Name, Status: "succeeded", Message: "run completed"})
 	return nil
 }
@@ -163,7 +209,7 @@ func runStep(ctx context.Context, execCtx *ops.ExecutionContext, step ops.StepSp
 	switch step.TxMode {
 	case ops.TxModeNone:
 		return step.Handler(ctx, execCtx)
-	case ops.TxModeOwnTx, ops.TxModeSingleTx:
+	case ops.TxModeOwnTx:
 		tx, err := execCtx.Pool.Begin(ctx)
 		if err != nil {
 			return err
@@ -182,6 +228,18 @@ func runStep(ctx context.Context, execCtx *ops.ExecutionContext, step ops.StepSp
 	default:
 		return fmt.Errorf("unknown tx mode: %s", step.TxMode)
 	}
+}
+
+func stepSummaries(spec ops.OperationSpec) []map[string]string {
+	steps := make([]map[string]string, 0, len(spec.Steps))
+	for _, step := range spec.Steps {
+		steps = append(steps, map[string]string{
+			"id":          step.ID,
+			"description": step.Description,
+			"tx_mode":     string(step.TxMode),
+		})
+	}
+	return steps
 }
 
 func resolveTarget() policy.Target {

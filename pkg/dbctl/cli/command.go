@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/execution"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/spf13/cobra"
 )
 
@@ -26,6 +27,8 @@ func NewCommand() *cobra.Command {
 func newPlanCommand() *cobra.Command {
 	var jsonOutput bool
 	var yes bool
+	var force bool
+	var dryRun bool
 	var ticket string
 	cmd := &cobra.Command{
 		Use:   "plan <operation>",
@@ -39,6 +42,8 @@ func newPlanCommand() *cobra.Command {
 				Operation:     args[0],
 				Mode:          ops.ExecutionModePlan,
 				Yes:           yes,
+				Force:         force,
+				DryRun:        dryRun,
 				ApproveTicket: ticket,
 				JSONOutput:    jsonOutput,
 			})
@@ -59,7 +64,9 @@ func newPlanCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Emit JSON events")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview actions without executing")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements")
+	cmd.Flags().BoolVar(&force, "force", false, "Confirm destructive intent")
 	cmd.Flags().StringVar(&ticket, "approve-ticket", "", "Change request ticket required by policy")
 	return cmd
 }
@@ -67,6 +74,8 @@ func newPlanCommand() *cobra.Command {
 func newApplyCommand() *cobra.Command {
 	var jsonOutput bool
 	var yes bool
+	var force bool
+	var dryRun bool
 	var ticket string
 	var actor string
 	cmd := &cobra.Command{
@@ -78,6 +87,8 @@ func newApplyCommand() *cobra.Command {
 				Operation:     args[0],
 				Mode:          ops.ExecutionModeApply,
 				Yes:           yes,
+				Force:         force,
+				DryRun:        dryRun,
 				ApproveTicket: ticket,
 				JSONOutput:    jsonOutput,
 				Actor:         actor,
@@ -86,7 +97,9 @@ func newApplyCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Emit JSON events")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview actions without executing")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements")
+	cmd.Flags().BoolVar(&force, "force", false, "Confirm destructive intent")
 	cmd.Flags().StringVar(&ticket, "approve-ticket", "", "Change request ticket required by policy")
 	cmd.Flags().StringVar(&actor, "actor", "", "Actor identifier for audit logs")
 	return cmd
@@ -99,6 +112,7 @@ func newDoctorCommand() *cobra.Command {
 		Use:   "doctor",
 		Short: "Validate dbctl policy and target resolution",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			const op serrors.Op = "dbctl.cli.doctor"
 			out := cmd.OutOrStdout()
 			cfg, payload, err := policy.Load("")
 			if err != nil {
@@ -111,7 +125,7 @@ func newDoctorCommand() *cobra.Command {
 				ApproveTicket: ticket,
 			})
 			if err != nil {
-				return fmt.Errorf("doctor failed: %w", err)
+				return serrors.E(op, err)
 			}
 			_, _ = fmt.Fprintf(out, "policy hash: %s\n", policy.HashPolicy(payload))
 			_, _ = fmt.Fprintf(out, "policy envs: %d\n", len(cfg.Environments))

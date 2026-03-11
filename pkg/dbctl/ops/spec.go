@@ -20,9 +20,8 @@ const (
 type TxMode string
 
 const (
-	TxModeNone     TxMode = "none"
-	TxModeSingleTx TxMode = "single_tx"
-	TxModeOwnTx    TxMode = "own_tx"
+	TxModeNone  TxMode = "none"
+	TxModeOwnTx TxMode = "own_tx"
 )
 
 type ExecutionMode string
@@ -61,6 +60,7 @@ type RunContext struct {
 	PolicyDecision policy.Decision
 	ApproveTicket  string
 	Yes            bool
+	Force          bool
 }
 
 type ExecutionContext struct {

@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -32,24 +34,27 @@ func DefaultConfig() Config {
 }
 
 func Load(path string) (Config, []byte, error) {
+	const op serrors.Op = "dbctl.policy.Load"
 	if strings.TrimSpace(path) == "" {
 		cfg := DefaultConfig()
 		payload, err := json.Marshal(cfg)
 		if err != nil {
-			return Config{}, nil, fmt.Errorf("marshal default policy: %w", err)
+			return Config{}, nil, serrors.E(op, err, "marshal default policy")
 		}
 		return cfg, payload, nil
 	}
 	payload, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
-		return Config{}, nil, fmt.Errorf("load policy file %s: %w", path, err)
+		return Config{}, nil, serrors.E(op, err, "load policy file")
 	}
 	var cfg Config
-	if err := yaml.Unmarshal(payload, &cfg); err != nil {
-		return Config{}, nil, fmt.Errorf("parse policy file %s: %w", path, err)
+	decoder := yaml.NewDecoder(bytes.NewReader(payload))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&cfg); err != nil {
+		return Config{}, nil, serrors.E(op, err, "parse policy file")
 	}
 	if len(cfg.Environments) == 0 {
-		return Config{}, nil, fmt.Errorf("policy has no environments")
+		return Config{}, nil, serrors.E(op, serrors.KindValidation, "policy has no environments")
 	}
 	return cfg, payload, nil
 }
@@ -61,9 +66,6 @@ func HashPolicy(payload []byte) string {
 
 func Evaluate(cfg Config, target Target, destructive bool) Decision {
 	env := strings.TrimSpace(target.Environment)
-	if env == "" {
-		env = "development"
-	}
 	ep, ok := cfg.Environments[env]
 	decision := Decision{
 		Allowed: true,
