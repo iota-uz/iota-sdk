@@ -135,19 +135,21 @@ func (d *SeedDeps) Invoke(ctx context.Context, fn interface{}) error {
 }
 
 func (d *SeedDeps) providersForInvocation() []di.Provider {
-	providers := make([]di.Provider, 0, len(d.providers)+3)
-	if d != nil {
-		if d.Pool != nil {
-			providers = append(providers, di.ValueProvider(d.Pool))
-		}
-		if d.EventBus != nil {
-			providers = append(providers, di.ValueProvider(d.EventBus))
-		}
-		if d.Logger != nil {
-			providers = append(providers, di.ValueProvider(d.Logger))
-		}
-		providers = append(providers, d.providers...)
+	if d == nil {
+		return nil
 	}
+
+	providers := make([]di.Provider, 0, len(d.providers)+3)
+	if d.Pool != nil {
+		providers = append(providers, di.ValueProvider(d.Pool))
+	}
+	if d.EventBus != nil {
+		providers = append(providers, di.ValueProvider(d.EventBus))
+	}
+	if d.Logger != nil {
+		providers = append(providers, di.ValueProvider(d.Logger))
+	}
+	providers = append(providers, d.providers...)
 	return providers
 }
 

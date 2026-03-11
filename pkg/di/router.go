@@ -34,7 +34,6 @@ func H(handler interface{}, customProviders ...Provider) http.HandlerFunc {
 
 // DIContext holds context for dependency injection
 type DIContext struct {
-	customProviders  []Provider
 	allProviders     []Provider
 	matchedProviders map[reflect.Type]Provider
 	mu               sync.RWMutex
