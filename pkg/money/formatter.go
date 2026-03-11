@@ -3,6 +3,7 @@ package money
 
 import (
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 )
@@ -50,6 +51,40 @@ func (f *Formatter) Format(amount int64) string {
 
 	// Add minus sign for negative amount.
 	if amount < 0 {
+		sa = "-" + sa
+	}
+
+	return sa
+}
+
+// FormatBigInt returns string of formatted *big.Int using given currency template.
+func (f *Formatter) FormatBigInt(amount *big.Int) string {
+	if amount == nil {
+		amount = big.NewInt(0)
+	}
+
+	negative := amount.Sign() < 0
+	absAmount := new(big.Int).Abs(amount)
+
+	sa := absAmount.String()
+
+	if len(sa) <= f.Fraction {
+		sa = strings.Repeat("0", f.Fraction-len(sa)+1) + sa
+	}
+
+	if f.Thousand != "" {
+		for i := len(sa) - f.Fraction - 3; i > 0; i -= 3 {
+			sa = sa[:i] + f.Thousand + sa[i:]
+		}
+	}
+
+	if f.Fraction > 0 {
+		sa = sa[:len(sa)-f.Fraction] + f.Decimal + sa[len(sa)-f.Fraction:]
+	}
+	sa = strings.Replace(f.Template, "1", sa, 1)
+	sa = strings.Replace(sa, "$", f.Grapheme, 1)
+
+	if negative {
 		sa = "-" + sa
 	}
 
@@ -112,6 +147,59 @@ func (f *Formatter) FormatCompact(amount int64, decimals int) string {
 	return result
 }
 
+// FormatCompactBigInt returns a compactly formatted string for large *big.Int monetary values.
+func (f *Formatter) FormatCompactBigInt(amount *big.Int, decimals int) string {
+	if amount == nil {
+		amount = big.NewInt(0)
+	}
+	if decimals <= 0 {
+		decimals = 1
+	}
+
+	negative := amount.Sign() < 0
+	absAmount := new(big.Int).Abs(amount)
+	majorUnits := f.ToMajorUnitsBigFloat(absAmount)
+
+	var value *big.Float
+	var suffix string
+
+	billion := new(big.Float).SetFloat64(1_000_000_000)
+	million := new(big.Float).SetFloat64(1_000_000)
+	tenThousand := new(big.Float).SetFloat64(10_000)
+	thousand := new(big.Float).SetFloat64(1_000)
+
+	switch {
+	case majorUnits.Cmp(billion) >= 0:
+		value = new(big.Float).Quo(majorUnits, billion)
+		suffix = "B"
+	case majorUnits.Cmp(million) >= 0:
+		value = new(big.Float).Quo(majorUnits, million)
+		suffix = "M"
+	case majorUnits.Cmp(tenThousand) >= 0:
+		value = new(big.Float).Quo(majorUnits, thousand)
+		suffix = "K"
+	case majorUnits.Cmp(thousand) >= 0:
+		value = new(big.Float).Quo(majorUnits, thousand)
+		suffix = "K"
+	default:
+		return f.FormatBigInt(amount)
+	}
+
+	f64, _ := value.Float64()
+	formattedValue := strconv.FormatFloat(f64, 'f', decimals, 64)
+	if decimals == 1 {
+		formattedValue = strings.TrimSuffix(formattedValue, ".0")
+	}
+
+	result := formattedValue + suffix + " " + f.Grapheme
+
+	if negative {
+		result = "-" + result
+	}
+
+	return result
+}
+
 // ToMajorUnits returns float64 representing the value in sub units using the currency data
 func (f *Formatter) ToMajorUnits(amount int64) float64 {
 	if f.Fraction == 0 {
@@ -121,6 +209,19 @@ func (f *Formatter) ToMajorUnits(amount int64) float64 {
 	return float64(amount) / float64(math.Pow10(f.Fraction))
 }
 
+// ToMajorUnitsBigFloat returns *big.Float representing the value in major units.
+func (f *Formatter) ToMajorUnitsBigFloat(amount *big.Int) *big.Float {
+	if amount == nil {
+		return new(big.Float)
+	}
+	bf := new(big.Float).SetInt(amount)
+	if f.Fraction == 0 {
+		return bf
+	}
+	divisor := new(big.Float).SetFloat64(math.Pow10(f.Fraction))
+	return new(big.Float).Quo(bf, divisor)
+}
+
 // abs return absolute value of given integer.
 func (f Formatter) abs(amount int64) int64 {
 	if amount < 0 {
@@ -128,4 +229,12 @@ func (f Formatter) abs(amount int64) int64 {
 	}
 
 	return amount
+}
+
+// absBigInt return absolute value of given *big.Int.
+func (f Formatter) absBigInt(amount *big.Int) *big.Int {
+	if amount == nil {
+		return big.NewInt(0)
+	}
+	return new(big.Int).Abs(amount)
 }

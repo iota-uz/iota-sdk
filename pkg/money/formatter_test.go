@@ -1,6 +1,7 @@
 package money
 
 import (
+	"math/big"
 	"testing"
 )
 
@@ -238,5 +239,190 @@ func TestFormatter_ToMajorUnits(t *testing.T) {
 		if r != tc.expected {
 			t.Errorf("Expected %d formatted to major units to be %f got %f", tc.amount, tc.expected, r)
 		}
+	}
+}
+
+func TestFormatBigInt_Thousands(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "$", "1 $")
+	bi := new(big.Int)
+	bi.SetString("123456789", 10)
+	result := formatter.FormatBigInt(bi)
+	expected := "1,234,567.89 $"
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+}
+
+func TestFormatBigInt_Negative(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "$", "1 $")
+	bi := new(big.Int)
+	bi.SetString("-123456789", 10)
+	result := formatter.FormatBigInt(bi)
+	expected := "-1,234,567.89 $"
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+}
+
+func TestFormatBigInt_CurrencyTemplate(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "£", "$1")
+	bi := new(big.Int)
+	bi.SetString("123456789", 10)
+	result := formatter.FormatBigInt(bi)
+	expected := "£1,234,567.89"
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+}
+
+func TestFormatBigInt_VeryLargeValue(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "$", "1 $")
+	bi := new(big.Int)
+	bi.SetString("99999999999999999999", 10)
+	result := formatter.FormatBigInt(bi)
+	if result == "" {
+		t.Error("Expected non-empty result for very large value")
+	}
+}
+
+func TestFormatCompactBigInt(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "UZS", "1 $")
+	bi := new(big.Int)
+	bi.SetString("100000000000000000000", 10) // huge value
+	result := formatter.FormatCompactBigInt(bi, 1)
+	if result == "" {
+		t.Error("Expected non-empty result for big compact format")
+	}
+}
+
+func TestToMajorUnitsBigFloat(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "$", "1 $")
+	bi := new(big.Int)
+	bi.SetString("12345", 10)
+	result := formatter.ToMajorUnitsBigFloat(bi)
+
+	expected := new(big.Float).SetFloat64(123.45)
+	// Compare with small tolerance
+	diff := new(big.Float).Sub(result, expected)
+	abs := new(big.Float).Abs(diff)
+	tolerance := new(big.Float).SetFloat64(0.001)
+	if abs.Cmp(tolerance) > 0 {
+		t.Errorf("Expected ~123.45, got %s", result.String())
+	}
+}
+
+func TestToMajorUnitsBigFloat_NoFraction(t *testing.T) {
+	formatter := NewFormatter(0, ".", ",", "NT$", "$1")
+	bi := new(big.Int)
+	bi.SetString("12345", 10)
+	result := formatter.ToMajorUnitsBigFloat(bi)
+
+	expected := new(big.Float).SetFloat64(12345)
+	if result.Cmp(expected) != 0 {
+		t.Errorf("Expected 12345, got %s", result.String())
+	}
+}
+
+func TestToMajorUnitsBigFloat_Nil(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "$", "1 $")
+	result := formatter.ToMajorUnitsBigFloat(nil)
+	if result == nil {
+		t.Error("Expected non-nil result for nil input")
+	}
+}
+
+func TestFormatBigInt_Nil(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "$", "1 $")
+	result := formatter.FormatBigInt(nil)
+	expected := "0.00 $"
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+}
+
+func TestFormatBigInt_ZeroFraction(t *testing.T) {
+	formatter := NewFormatter(0, ".", ",", "NT$", "$1")
+	bi := new(big.Int)
+	bi.SetString("1234567", 10)
+	result := formatter.FormatBigInt(bi)
+	expected := "NT$1,234,567"
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+}
+
+func TestFormatCompactBigInt_Small(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "UZS", "1 $")
+	bi := big.NewInt(123) // small value, should fall back to FormatBigInt
+	result := formatter.FormatCompactBigInt(bi, 1)
+	expected := "1.23 UZS"
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+}
+
+func TestFormatCompactBigInt_Billions(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "UZS", "1 $")
+	bi := new(big.Int)
+	bi.SetString("1200000000000", 10) // 12 billion major units with fraction=2
+	result := formatter.FormatCompactBigInt(bi, 1)
+	if result == "" {
+		t.Error("Expected non-empty result for billions")
+	}
+}
+
+func TestFormatCompactBigInt_Negative(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "UZS", "1 $")
+	bi := new(big.Int)
+	bi.SetString("-100000000", 10)
+	result := formatter.FormatCompactBigInt(bi, 1)
+	if result == "" {
+		t.Error("Expected non-empty result for negative big compact")
+	}
+	if result[0] != '-' {
+		t.Errorf("Expected negative prefix, got %s", result)
+	}
+}
+
+func TestFormatCompactBigInt_Nil(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "UZS", "1 $")
+	result := formatter.FormatCompactBigInt(nil, 1)
+	// nil treated as 0, should use FormatBigInt fallback
+	if result == "" {
+		t.Error("Expected non-empty result for nil")
+	}
+}
+
+func TestAbsBigInt(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "$", "1 $")
+	result := formatter.absBigInt(big.NewInt(-42))
+	if result.Int64() != 42 {
+		t.Errorf("Expected 42, got %d", result.Int64())
+	}
+
+	result = formatter.absBigInt(nil)
+	if result.Int64() != 0 {
+		t.Errorf("Expected 0 for nil, got %d", result.Int64())
+	}
+}
+
+func TestFormatCompactBigInt_Thousands(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "UZS", "1 $")
+	bi := big.NewInt(1234000) // 12,340.00 major units -> 12.3K
+	result := formatter.FormatCompactBigInt(bi, 1)
+	expected := "12.3K UZS"
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+}
+
+func TestFormatCompactBigInt_Millions(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "UZS", "1 $")
+	bi := new(big.Int)
+	bi.SetString("125000000", 10) // 1,250,000.00 major units -> 1.2M
+	result := formatter.FormatCompactBigInt(bi, 1)
+	expected := "1.2M UZS"
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
 	}
 }
