@@ -4,18 +4,19 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	lensui "github.com/iota-uz/iota-sdk/pkg/lens/ui"
+	lensrender "github.com/iota-uz/iota-sdk/pkg/lens/render/templ"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
 
 type IndexPageProps struct {
-	Dashboard lens.Dashboard
-	Results   *lens.Results
+	Dashboard lens.DashboardSpec
+	Results   *runtime.DashboardResult
 }
 
 templ DashboardContent(props *IndexPageProps) {
 	<div class="m-6">
 		if props.Results != nil {
-			@lensui.Dashboard(props.Dashboard, props.Results)
+			@lensrender.Dashboard(props.Dashboard, props.Results)
 		} else {
 			<div class="p-8 text-center">
 				<p class="text-gray-600">No database connection available</p>

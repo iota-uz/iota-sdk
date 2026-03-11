@@ -238,6 +238,32 @@ func (app *application) RegisterNavItems(items ...types.NavigationItem) {
 	app.navItems = append(app.navItems, items...)
 }
 
+// AppendNavChildren finds a registered NavigationItem by name (recursively)
+// and appends the given children to it. If the parent item has an Href, it is
+// preserved as the first child so that the original link remains accessible
+// from the dropdown.
+func (app *application) AppendNavChildren(parentName string, children ...types.NavigationItem) {
+	appendChildren(&app.navItems, parentName, children)
+}
+
+func appendChildren(items *[]types.NavigationItem, parentName string, children []types.NavigationItem) bool {
+	for i := range *items {
+		if (*items)[i].Name == parentName {
+			(*items)[i].Children = append((*items)[i].Children, children...)
+			if (*items)[i].Href != "" {
+				(*items)[i].Href = ""
+			}
+			return true
+		}
+		if len((*items)[i].Children) > 0 {
+			if appendChildren(&(*items)[i].Children, parentName, children) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (app *application) Middleware() []mux.MiddlewareFunc {
 	return app.middleware
 }

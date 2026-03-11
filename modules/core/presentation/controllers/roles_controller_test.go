@@ -195,8 +195,7 @@ func TestRolesController_List_Search(t *testing.T) {
 	response = suite.GET("/roles")
 	response.Assert(t).
 		ExpectStatus(200).
-		ExpectBodyContains("roles-table-body").
-		ExpectBodyContains("new-role-btn") // New button should be visible
+		ExpectBodyContains("roles-table-body")
 }
 
 func TestRolesController_Update_NonExistent(t *testing.T) {

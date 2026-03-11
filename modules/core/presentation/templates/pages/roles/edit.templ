@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -106,28 +107,32 @@ templ EditForm(props *EditFormProps) {
 			x-data
 			class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
-			@button.Danger(button.Props{
-				Disabled: !props.Role.CanDelete,
-				Size:     button.SizeMD,
-				Attrs: templ.Attributes{
-					"type":         "button",
-					"@click":       "$dispatch('open-delete-role-confirmation')",
-					"id":           "delete-role-btn",
-					"data-test-id": "delete-role-btn",
-				},
-			}) {
-				{ pageCtx.T("Delete") }
+			if composables.CanUser(ctx, permissions.RoleDelete) == nil {
+				@button.Danger(button.Props{
+					Disabled: !props.Role.CanDelete,
+					Size:     button.SizeMD,
+					Attrs: templ.Attributes{
+						"type":         "button",
+						"@click":       "$dispatch('open-delete-role-confirmation')",
+						"id":           "delete-role-btn",
+						"data-test-id": "delete-role-btn",
+					},
+				}) {
+					{ pageCtx.T("Delete") }
+				}
 			}
-			@button.Primary(button.Props{
-				Disabled: !props.Role.CanUpdate,
-				Size:     button.SizeMD,
-				Attrs: templ.Attributes{
-					"type":         "submit",
-					"id":           "save-btn",
-					"data-test-id": "save-role-btn",
-				},
-			}) {
-				{ pageCtx.T("Save") }
+			if composables.CanUser(ctx, permissions.RoleUpdate) == nil {
+				@button.Primary(button.Props{
+					Disabled: !props.Role.CanUpdate,
+					Size:     button.SizeMD,
+					Attrs: templ.Attributes{
+						"type":         "submit",
+						"id":           "save-btn",
+						"data-test-id": "save-role-btn",
+					},
+				}) {
+					{ pageCtx.T("Save") }
+				}
 			}
 		</div>
 	</form>
