@@ -23,9 +23,6 @@ func TestLoad_UsesBuiltInDefaultsWhenPathEmpty(t *testing.T) {
 	if !dev.AllowDestructive {
 		t.Fatal("expected development to allow destructive operations")
 	}
-	if !dev.RequireYes {
-		t.Fatal("expected development to require yes")
-	}
 }
 
 func TestEvaluate_DeniesHostNotAllowed(t *testing.T) {
@@ -60,13 +57,12 @@ func TestEvaluate_DeniesDestructiveWhenForbidden(t *testing.T) {
 	}
 }
 
-func TestEvaluate_RequiresYes(t *testing.T) {
+func TestEvaluate_AllowsNonDestructiveOperation(t *testing.T) {
 	cfg := Config{
 		Environments: map[string]EnvironmentPolicy{
 			"development": {
 				AllowedHosts:     []string{"localhost"},
 				AllowDestructive: true,
-				RequireYes:       true,
 			},
 		},
 	}
@@ -74,9 +70,6 @@ func TestEvaluate_RequiresYes(t *testing.T) {
 	decision := Evaluate(cfg, Target{Environment: "development", Host: "localhost"}, false)
 	if !decision.Allowed {
 		t.Fatalf("expected policy to allow operation")
-	}
-	if !decision.RequireYes {
-		t.Fatalf("expected require yes to be true")
 	}
 }
 
@@ -94,7 +87,7 @@ func TestLoad_RejectsUnknownFields(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "policy.yaml")
-	payload := []byte("environments:\n  development:\n    allowed_hosts:\n      - localhost\n    require_tikcet: true\n")
+	payload := []byte("environments:\n  development:\n    allowed_hosts:\n      - localhost\n    require_yes: true\n")
 	if err := os.WriteFile(path, payload, 0o600); err != nil {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}

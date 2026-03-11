@@ -20,12 +20,10 @@ func DefaultConfig() Config {
 			"development": {
 				AllowedHosts:     []string{"localhost", "127.0.0.1", "::1", "db", "postgres"},
 				AllowDestructive: true,
-				RequireYes:       true,
 			},
 			"production": {
 				AllowedHosts:     []string{},
 				AllowDestructive: false,
-				RequireYes:       true,
 			},
 		},
 	}
@@ -71,8 +69,6 @@ func Evaluate(cfg Config, target Target, destructive bool) Decision {
 	if !ok {
 		return decision.Denied(fmt.Sprintf("no policy configured for environment %q", env))
 	}
-
-	decision.RequireYes = ep.RequireYes
 	decision.AllowDestructive = ep.AllowDestructive
 
 	if !hostAllowed(ep.AllowedHosts, target.Host) {

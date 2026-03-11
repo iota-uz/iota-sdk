@@ -27,7 +27,6 @@ func NewCommand() *cobra.Command {
 func newPlanCommand() *cobra.Command {
 	var jsonOutput bool
 	var yes bool
-	var force bool
 	var dryRun bool
 	cmd := &cobra.Command{
 		Use:   "plan <operation>",
@@ -41,7 +40,6 @@ func newPlanCommand() *cobra.Command {
 				Operation:  args[0],
 				Mode:       ops.ExecutionModePlan,
 				Yes:        yes,
-				Force:      force,
 				DryRun:     dryRun,
 				JSONOutput: jsonOutput,
 			})
@@ -63,15 +61,13 @@ func newPlanCommand() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Emit JSON events")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview actions without executing")
-	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements")
-	cmd.Flags().BoolVar(&force, "force", false, "Confirm destructive intent")
+	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive intent when required")
 	return cmd
 }
 
 func newApplyCommand() *cobra.Command {
 	var jsonOutput bool
 	var yes bool
-	var force bool
 	var dryRun bool
 	var actor string
 	cmd := &cobra.Command{
@@ -83,7 +79,6 @@ func newApplyCommand() *cobra.Command {
 				Operation:  args[0],
 				Mode:       ops.ExecutionModeApply,
 				Yes:        yes,
-				Force:      force,
 				DryRun:     dryRun,
 				JSONOutput: jsonOutput,
 				Actor:      actor,
@@ -93,8 +88,7 @@ func newApplyCommand() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Emit JSON events")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview actions without executing")
-	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements")
-	cmd.Flags().BoolVar(&force, "force", false, "Confirm destructive intent")
+	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive intent when required")
 	cmd.Flags().StringVar(&actor, "actor", "", "Actor identifier for audit logs")
 	return cmd
 }
@@ -125,6 +119,6 @@ func newDoctorCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements when policy requires it")
+	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive intent when required")
 	return cmd
 }

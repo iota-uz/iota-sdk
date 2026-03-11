@@ -59,7 +59,6 @@ type RunContext struct {
 	Target         policy.Target
 	PolicyDecision policy.Decision
 	Yes            bool
-	Force          bool
 }
 
 type ExecutionContext struct {

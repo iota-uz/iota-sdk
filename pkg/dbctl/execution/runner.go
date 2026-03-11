@@ -23,7 +23,6 @@ type RunOptions struct {
 	Operation  string
 	Mode       ops.ExecutionMode
 	Yes        bool
-	Force      bool
 	DryRun     bool
 	JSONOutput bool
 	PolicyPath string
@@ -60,11 +59,8 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	if !decision.Allowed {
 		return nil, serrors.E(op, serrors.PermissionDenied, "policy denied operation: "+strings.Join(decision.Reasons, "; "))
 	}
-	if decision.RequireYes && !opts.Yes {
-		return nil, serrors.E(op, serrors.Invalid, "policy requires --yes confirmation")
-	}
-	if spec.Kind == ops.OperationKindDestructive && !opts.Force {
-		return nil, serrors.E(op, serrors.Invalid, "destructive operations require --force confirmation")
+	if spec.Kind == ops.OperationKindDestructive && !opts.Yes {
+		return nil, serrors.E(op, serrors.Invalid, "destructive operations require --yes confirmation")
 	}
 
 	pool, err := getControlDatabasePool(ctx, opts.Operation)
@@ -80,7 +76,6 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 			Target:         target,
 			PolicyDecision: decision,
 			Yes:            opts.Yes,
-			Force:          opts.Force,
 		},
 		Pool:       pool,
 		PolicyPath: opts.PolicyPath,
@@ -113,7 +108,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		Payload: map[string]any{
 			"target":          plan.RunContext.Target,
 			"planned_actions": stepSummaries(plan.Spec),
-			"force":           opts.Force,
+			"confirmed":       opts.Yes,
 			"dry_run":         opts.DryRun,
 		},
 	})
@@ -155,7 +150,6 @@ func Apply(ctx context.Context, opts RunOptions) error {
 			Target:         plan.RunContext.Target,
 			PolicyDecision: plan.RunContext.PolicyDecision,
 			Yes:            opts.Yes,
-			Force:          opts.Force,
 		},
 		Pool:       pool,
 		JSONOutput: opts.JSONOutput,
