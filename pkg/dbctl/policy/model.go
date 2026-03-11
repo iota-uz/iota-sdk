@@ -8,7 +8,6 @@ type EnvironmentPolicy struct {
 	AllowedHosts     []string `yaml:"allowed_hosts" json:"allowed_hosts"`
 	AllowDestructive bool     `yaml:"allow_destructive" json:"allow_destructive"`
 	RequireYes       bool     `yaml:"require_yes" json:"require_yes"`
-	RequireTicket    bool     `yaml:"require_ticket" json:"require_ticket"`
 }
 
 type Target struct {
@@ -22,7 +21,6 @@ type Target struct {
 type Decision struct {
 	Allowed          bool
 	RequireYes       bool
-	RequireTicket    bool
 	AllowDestructive bool
 	Reasons          []string
 }

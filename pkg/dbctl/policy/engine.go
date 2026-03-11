@@ -21,13 +21,11 @@ func DefaultConfig() Config {
 				AllowedHosts:     []string{"localhost", "127.0.0.1", "::1", "db", "postgres"},
 				AllowDestructive: true,
 				RequireYes:       true,
-				RequireTicket:    false,
 			},
 			"production": {
 				AllowedHosts:     []string{},
 				AllowDestructive: false,
 				RequireYes:       true,
-				RequireTicket:    true,
 			},
 		},
 	}
@@ -75,7 +73,6 @@ func Evaluate(cfg Config, target Target, destructive bool) Decision {
 	}
 
 	decision.RequireYes = ep.RequireYes
-	decision.RequireTicket = ep.RequireTicket
 	decision.AllowDestructive = ep.AllowDestructive
 
 	if !hostAllowed(ep.AllowedHosts, target.Host) {

@@ -20,16 +20,15 @@ import (
 )
 
 type RunOptions struct {
-	Operation     string
-	Mode          ops.ExecutionMode
-	Yes           bool
-	Force         bool
-	DryRun        bool
-	ApproveTicket string
-	JSONOutput    bool
-	PolicyPath    string
-	Actor         string
-	Out           io.Writer
+	Operation  string
+	Mode       ops.ExecutionMode
+	Yes        bool
+	Force      bool
+	DryRun     bool
+	JSONOutput bool
+	PolicyPath string
+	Actor      string
+	Out        io.Writer
 }
 
 type PlanResult struct {
@@ -64,9 +63,6 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	if decision.RequireYes && !opts.Yes {
 		return nil, serrors.E(op, serrors.Invalid, "policy requires --yes confirmation")
 	}
-	if decision.RequireTicket && strings.TrimSpace(opts.ApproveTicket) == "" {
-		return nil, serrors.E(op, serrors.Invalid, "policy requires --approve-ticket")
-	}
 	if spec.Kind == ops.OperationKindDestructive && !opts.Force {
 		return nil, serrors.E(op, serrors.Invalid, "destructive operations require --force confirmation")
 	}
@@ -83,7 +79,6 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 			ExecutionMode:  opts.Mode,
 			Target:         target,
 			PolicyDecision: decision,
-			ApproveTicket:  opts.ApproveTicket,
 			Yes:            opts.Yes,
 			Force:          opts.Force,
 		},
@@ -159,7 +154,6 @@ func Apply(ctx context.Context, opts RunOptions) error {
 			ExecutionMode:  opts.Mode,
 			Target:         plan.RunContext.Target,
 			PolicyDecision: plan.RunContext.PolicyDecision,
-			ApproveTicket:  opts.ApproveTicket,
 			Yes:            opts.Yes,
 			Force:          opts.Force,
 		},

@@ -58,7 +58,6 @@ type RunContext struct {
 	ExecutionMode  ExecutionMode
 	Target         policy.Target
 	PolicyDecision policy.Decision
-	ApproveTicket  string
 	Yes            bool
 	Force          bool
 }

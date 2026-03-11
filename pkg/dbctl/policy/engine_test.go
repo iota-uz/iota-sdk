@@ -26,9 +26,6 @@ func TestLoad_UsesBuiltInDefaultsWhenPathEmpty(t *testing.T) {
 	if !dev.RequireYes {
 		t.Fatal("expected development to require yes")
 	}
-	if dev.RequireTicket {
-		t.Fatal("expected development not to require ticket")
-	}
 }
 
 func TestEvaluate_DeniesHostNotAllowed(t *testing.T) {
@@ -63,14 +60,13 @@ func TestEvaluate_DeniesDestructiveWhenForbidden(t *testing.T) {
 	}
 }
 
-func TestEvaluate_RequiresYesAndTicket(t *testing.T) {
+func TestEvaluate_RequiresYes(t *testing.T) {
 	cfg := Config{
 		Environments: map[string]EnvironmentPolicy{
 			"development": {
 				AllowedHosts:     []string{"localhost"},
 				AllowDestructive: true,
 				RequireYes:       true,
-				RequireTicket:    true,
 			},
 		},
 	}
@@ -81,9 +77,6 @@ func TestEvaluate_RequiresYesAndTicket(t *testing.T) {
 	}
 	if !decision.RequireYes {
 		t.Fatalf("expected require yes to be true")
-	}
-	if !decision.RequireTicket {
-		t.Fatalf("expected require ticket to be true")
 	}
 }
 

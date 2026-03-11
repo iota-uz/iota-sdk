@@ -29,7 +29,6 @@ func newPlanCommand() *cobra.Command {
 	var yes bool
 	var force bool
 	var dryRun bool
-	var ticket string
 	cmd := &cobra.Command{
 		Use:   "plan <operation>",
 		Short: "Evaluate policy and print execution plan",
@@ -39,13 +38,12 @@ func newPlanCommand() *cobra.Command {
 			defer cancel()
 			out := cmd.OutOrStdout()
 			plan, err := execution.Plan(ctx, execution.RunOptions{
-				Operation:     args[0],
-				Mode:          ops.ExecutionModePlan,
-				Yes:           yes,
-				Force:         force,
-				DryRun:        dryRun,
-				ApproveTicket: ticket,
-				JSONOutput:    jsonOutput,
+				Operation:  args[0],
+				Mode:       ops.ExecutionModePlan,
+				Yes:        yes,
+				Force:      force,
+				DryRun:     dryRun,
+				JSONOutput: jsonOutput,
 			})
 			if err != nil {
 				return err
@@ -67,7 +65,6 @@ func newPlanCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview actions without executing")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements")
 	cmd.Flags().BoolVar(&force, "force", false, "Confirm destructive intent")
-	cmd.Flags().StringVar(&ticket, "approve-ticket", "", "Change request ticket required by policy")
 	return cmd
 }
 
@@ -76,7 +73,6 @@ func newApplyCommand() *cobra.Command {
 	var yes bool
 	var force bool
 	var dryRun bool
-	var ticket string
 	var actor string
 	cmd := &cobra.Command{
 		Use:   "apply <operation>",
@@ -84,15 +80,14 @@ func newApplyCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execution.Apply(cmd.Context(), execution.RunOptions{
-				Operation:     args[0],
-				Mode:          ops.ExecutionModeApply,
-				Yes:           yes,
-				Force:         force,
-				DryRun:        dryRun,
-				ApproveTicket: ticket,
-				JSONOutput:    jsonOutput,
-				Actor:         actor,
-				Out:           os.Stdout,
+				Operation:  args[0],
+				Mode:       ops.ExecutionModeApply,
+				Yes:        yes,
+				Force:      force,
+				DryRun:     dryRun,
+				JSONOutput: jsonOutput,
+				Actor:      actor,
+				Out:        os.Stdout,
 			})
 		},
 	}
@@ -100,14 +95,12 @@ func newApplyCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview actions without executing")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements")
 	cmd.Flags().BoolVar(&force, "force", false, "Confirm destructive intent")
-	cmd.Flags().StringVar(&ticket, "approve-ticket", "", "Change request ticket required by policy")
 	cmd.Flags().StringVar(&actor, "actor", "", "Actor identifier for audit logs")
 	return cmd
 }
 
 func newDoctorCommand() *cobra.Command {
 	var yes bool
-	var ticket string
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Validate dbctl policy and target resolution",
@@ -119,10 +112,9 @@ func newDoctorCommand() *cobra.Command {
 				return err
 			}
 			targetPlan, err := execution.Plan(cmd.Context(), execution.RunOptions{
-				Operation:     "seed.main",
-				Mode:          ops.ExecutionModePlan,
-				Yes:           yes,
-				ApproveTicket: ticket,
+				Operation: "seed.main",
+				Mode:      ops.ExecutionModePlan,
+				Yes:       yes,
 			})
 			if err != nil {
 				return serrors.E(op, err)
@@ -134,6 +126,5 @@ func newDoctorCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements when policy requires it")
-	cmd.Flags().StringVar(&ticket, "approve-ticket", "", "Change request ticket required by policy")
 	return cmd
 }
