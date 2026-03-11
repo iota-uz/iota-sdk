@@ -68,7 +68,7 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 		return nil, fmt.Errorf("policy requires --approve-ticket")
 	}
 
-	pool, err := common.GetDefaultDatabasePool()
+	pool, err := getControlDatabasePool(ctx, opts.Operation)
 	if err != nil {
 		return nil, fmt.Errorf("open database pool: %w", err)
 	}
@@ -109,7 +109,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 	}
 	Emit(opts.Out, opts.JSONOutput, Event{Type: "preflight", Operation: plan.Spec.Name, Message: "plan completed"})
 
-	pool, err := common.GetDefaultDatabasePool()
+	pool, err := getControlDatabasePool(ctx, opts.Operation)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}
@@ -281,6 +281,19 @@ func advisoryKey(parts ...string) int64 {
 		_, _ = h.Write([]byte(p))
 	}
 	return int64(h.Sum64())
+}
+
+func getControlDatabasePool(ctx context.Context, operation string) (*pgxpool.Pool, error) {
+	return common.GetDatabasePool(ctx, controlDatabaseName(operation))
+}
+
+func controlDatabaseName(operation string) string {
+	switch operation {
+	case "db.e2e.create", "db.e2e.drop", "db.e2e.reset":
+		return "postgres"
+	default:
+		return ""
+	}
 }
 
 func acquireRunLock(ctx context.Context, pool *pgxpool.Pool, operation, targetFP string) (*runLock, bool, error) {
