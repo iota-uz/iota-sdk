@@ -97,6 +97,7 @@ func (m *Module) Register(app application.Application) error {
 		agentService := container.AgentService()
 		attachmentService := container.AttachmentService()
 		artifactService := container.ArtifactService()
+		streamObservability := container.StreamObservability()
 		app.RegisterServices(
 			sessionCommands,
 			sessionQueries,
@@ -107,6 +108,7 @@ func (m *Module) Register(app application.Application) error {
 			agentService,
 			attachmentService,
 			artifactService,
+			streamObservability,
 		)
 
 		if m.titleWorker == nil {

@@ -105,9 +105,14 @@ type LokiOptions struct {
 }
 
 type OpenTelemetryOptions struct {
-	Enabled     bool   `env:"OTEL_ENABLED" envDefault:"false"`
-	TempoURL    string `env:"OTEL_TEMPO_URL" envDefault:"localhost:4318"`
-	ServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"sdk"`
+	TempoURL    string `env:"OTEL_TEMPO_URL"`
+	ServiceName string `env:"OTEL_SERVICE_NAME"`
+}
+
+// IsConfigured returns true when both TempoURL and ServiceName are set.
+// This makes OpenTelemetry enablement implicit — no explicit flag needed.
+func (o *OpenTelemetryOptions) IsConfigured() bool {
+	return o.TempoURL != "" && o.ServiceName != ""
 }
 
 type ClickOptions struct {

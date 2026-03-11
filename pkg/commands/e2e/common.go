@@ -4,6 +4,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
@@ -15,6 +16,10 @@ const (
 	E2EServerPort = "3201"
 	E2EServerHost = "localhost"
 )
+
+func ensureE2EDatabaseEnv() {
+	_ = os.Setenv("DB_NAME", E2EDBName)
+}
 
 // GetE2EPool creates a database connection pool for e2e tests
 func GetE2EPool() (*pgxpool.Pool, error) {

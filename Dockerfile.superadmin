@@ -3,7 +3,7 @@ FROM golang:1.24.10-alpine AS base
 ARG JUST_VERSION=1.46.0
 
 RUN apk update && apk upgrade
-RUN apk add --no-cache git curl bash ca-certificates && update-ca-certificates && \
+RUN apk add --no-cache tzdata git curl bash ca-certificates && update-ca-certificates && \
     arch="$(apk --print-arch)" && \
     case "$arch" in \
       x86_64) target="x86_64-unknown-linux-musl" ;; \
