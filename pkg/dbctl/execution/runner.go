@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -30,6 +29,7 @@ type RunOptions struct {
 	PolicyPath    string
 	Actor         string
 	Out           io.Writer
+	Host          Host
 }
 
 type PlanResult struct {
@@ -48,7 +48,8 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	if strings.TrimSpace(opts.Operation) == "" {
 		return nil, serrors.E(op, serrors.Invalid, "operation is required")
 	}
-	spec, err := ops.Get(opts.Operation)
+	host := resolveHost(opts.Host)
+	spec, err := host.LookupOperation(opts.Operation)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,10 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	target := resolveTarget()
+	target, err := host.ResolveTarget(ctx, opts.Operation)
+	if err != nil {
+		return nil, serrors.E(op, err, "resolve target")
+	}
 	decision := policy.Evaluate(cfg, target, spec.Kind == ops.OperationKindDestructive)
 	if !decision.Allowed {
 		return nil, serrors.E(op, serrors.PermissionDenied, "policy denied operation: "+strings.Join(decision.Reasons, "; "))
@@ -71,7 +75,7 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 		return nil, serrors.E(op, serrors.Invalid, "destructive operations require --force confirmation")
 	}
 
-	pool, err := getControlDatabasePool(ctx, opts.Operation)
+	pool, err := getControlDatabasePool(ctx, host, opts.Operation)
 	if err != nil {
 		return nil, serrors.E(op, err, "open database pool")
 	}
@@ -106,6 +110,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 	if opts.Out == nil {
 		opts.Out = os.Stdout
 	}
+	host := resolveHost(opts.Host)
 	plan, err := Plan(ctx, opts)
 	if err != nil {
 		return err
@@ -137,7 +142,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		return nil
 	}
 
-	pool, err := getControlDatabasePool(ctx, opts.Operation)
+	pool, err := getControlDatabasePool(ctx, host, opts.Operation)
 	if err != nil {
 		return serrors.E(op, err, "open database pool")
 	}
@@ -242,17 +247,6 @@ func stepSummaries(spec ops.OperationSpec) []map[string]string {
 	return steps
 }
 
-func resolveTarget() policy.Target {
-	conf := configuration.Use()
-	return policy.Target{
-		Environment: strings.TrimSpace(conf.GoAppEnvironment),
-		Host:        strings.TrimSpace(conf.Database.Host),
-		Port:        strings.TrimSpace(conf.Database.Port),
-		Name:        strings.TrimSpace(conf.Database.Name),
-		User:        strings.TrimSpace(conf.Database.User),
-	}
-}
-
 func fingerprint(target policy.Target) string {
 	raw := strings.Join([]string{target.Environment, target.Host, target.Port, target.Name, target.User}, "|")
 	sum := sha256.Sum256([]byte(raw))
@@ -267,17 +261,8 @@ func advisoryKey(parts ...string) int64 {
 	return int64(h.Sum64())
 }
 
-func getControlDatabasePool(ctx context.Context, operation string) (*pgxpool.Pool, error) {
-	return common.GetDatabasePool(ctx, controlDatabaseName(operation))
-}
-
-func controlDatabaseName(operation string) string {
-	switch operation {
-	case "db.e2e.create", "db.e2e.drop", "db.e2e.reset":
-		return "postgres"
-	default:
-		return ""
-	}
+func getControlDatabasePool(ctx context.Context, host Host, operation string) (*pgxpool.Pool, error) {
+	return common.GetDatabasePool(ctx, host.ControlDatabaseName(operation))
 }
 
 func acquireRunLock(ctx context.Context, pool *pgxpool.Pool, operation, targetFP string) (*runLock, bool, error) {

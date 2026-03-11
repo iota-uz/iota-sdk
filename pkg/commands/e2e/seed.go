@@ -36,6 +36,9 @@ func SeedRaw() error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	seedDeps := &application.SeedDeps{
 		Pool:     pool,
@@ -89,9 +92,6 @@ func SeedRaw() error {
 	)
 
 	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			return fmt.Errorf("rollback failed: %w (original error: %w)", rollbackErr, err)
-		}
 		return err
 	}
 

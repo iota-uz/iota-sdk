@@ -11,48 +11,67 @@ import (
 )
 
 func TestSeeder_SeedRunsFuncsInOrder(t *testing.T) {
-	seeder := NewSeeder()
-	calls := make([]string, 0, 2)
-	deps := &SeedDeps{Logger: logrus.New()}
-
-	seeder.Register(
-		Seed(func(ctx context.Context, logger logrus.FieldLogger) error {
-			calls = append(calls, "first")
-			require.NotNil(t, logger)
-			return nil
-		}),
-		Seed(func(ctx context.Context, logger logrus.FieldLogger) error {
-			calls = append(calls, "second")
-			require.NotNil(t, logger)
-			return nil
-		}),
-	)
-
-	err := seeder.Seed(context.Background(), deps)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"first", "second"}, calls)
-}
-
-func TestSeeder_SeedStopsOnError(t *testing.T) {
-	seeder := NewSeeder()
 	expectedErr := errors.New("boom")
-	calls := make([]string, 0, 2)
-	deps := &SeedDeps{Logger: logrus.New()}
+	tests := []struct {
+		name     string
+		wantErr  error
+		want     []string
+		register func(t *testing.T, seeder Seeder, calls *[]string)
+	}{
+		{
+			name: "runs funcs in order",
+			want: []string{"first", "second"},
+			register: func(t *testing.T, seeder Seeder, calls *[]string) {
+				seeder.Register(
+					Seed(func(ctx context.Context, logger logrus.FieldLogger) error {
+						*calls = append(*calls, "first")
+						require.NotNil(t, logger)
+						return nil
+					}),
+					Seed(func(ctx context.Context, logger logrus.FieldLogger) error {
+						*calls = append(*calls, "second")
+						require.NotNil(t, logger)
+						return nil
+					}),
+				)
+			},
+		},
+		{
+			name:    "stops on error",
+			wantErr: expectedErr,
+			want:    []string{"first"},
+			register: func(t *testing.T, seeder Seeder, calls *[]string) {
+				seeder.Register(
+					Seed(func(ctx context.Context, logger logrus.FieldLogger) error {
+						*calls = append(*calls, "first")
+						return expectedErr
+					}),
+					Seed(func(ctx context.Context, logger logrus.FieldLogger) error {
+						*calls = append(*calls, "second")
+						return nil
+					}),
+				)
+			},
+		},
+	}
 
-	seeder.Register(
-		Seed(func(ctx context.Context, logger logrus.FieldLogger) error {
-			calls = append(calls, "first")
-			return expectedErr
-		}),
-		Seed(func(ctx context.Context, logger logrus.FieldLogger) error {
-			calls = append(calls, "second")
-			return nil
-		}),
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seeder := NewSeeder()
+			calls := make([]string, 0, 2)
+			deps := &SeedDeps{Logger: logrus.New()}
 
-	err := seeder.Seed(context.Background(), deps)
-	require.ErrorIs(t, err, expectedErr)
-	assert.Equal(t, []string{"first"}, calls)
+			tt.register(t, seeder, &calls)
+
+			err := seeder.Seed(context.Background(), deps)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, calls)
+		})
+	}
 }
 
 func TestSeedDeps_InvokeUsesRegisteredValues(t *testing.T) {

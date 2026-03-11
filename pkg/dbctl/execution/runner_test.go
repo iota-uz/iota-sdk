@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,20 @@ func TestControlDatabaseName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tt.want, controlDatabaseName(tt.operation), "operation=%s", tt.operation)
+			host := DefaultHost{}
+			require.Equal(t, tt.want, host.ControlDatabaseName(tt.operation), "operation=%s", tt.operation)
 		})
 	}
+}
+
+func TestResolveTarget_UsesE2EDatabaseNameForE2EOperations(t *testing.T) {
+	host := DefaultHost{}
+
+	target, err := host.ResolveTarget(context.Background(), "db.e2e.reset")
+	require.NoError(t, err)
+	require.Equal(t, "iota_erp_e2e", target.Name)
+
+	target, err = host.ResolveTarget(context.Background(), "seed.e2e")
+	require.NoError(t, err)
+	require.Equal(t, "iota_erp_e2e", target.Name)
 }

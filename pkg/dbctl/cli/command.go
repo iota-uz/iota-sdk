@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/execution"
@@ -13,18 +12,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewCommand() *cobra.Command {
+func NewCommand(options ...Option) *cobra.Command {
+	cfg := commandOptions{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
 	cmd := &cobra.Command{
 		Use:   "dbctl",
 		Short: "Policy-driven DB operations engine",
 	}
-	cmd.AddCommand(newPlanCommand())
-	cmd.AddCommand(newApplyCommand())
-	cmd.AddCommand(newDoctorCommand())
+	cmd.AddCommand(newPlanCommand(cfg))
+	cmd.AddCommand(newApplyCommand(cfg))
+	cmd.AddCommand(newDoctorCommand(cfg))
 	return cmd
 }
 
-func newPlanCommand() *cobra.Command {
+func newPlanCommand(cfg commandOptions) *cobra.Command {
 	var jsonOutput bool
 	var yes bool
 	var force bool
@@ -46,12 +49,13 @@ func newPlanCommand() *cobra.Command {
 				DryRun:        dryRun,
 				ApproveTicket: ticket,
 				JSONOutput:    jsonOutput,
+				Host:          cfg.host,
 			})
 			if err != nil {
 				return err
 			}
 			if jsonOutput {
-				execution.Emit(os.Stdout, true, execution.Event{Type: "summary", Operation: plan.Spec.Name, Status: "planned", Payload: plan})
+				execution.Emit(out, true, execution.Event{Type: "summary", Operation: plan.Spec.Name, Status: "planned", Payload: plan})
 				return nil
 			}
 			_, _ = fmt.Fprintf(out, "Operation: %s\n", plan.Spec.Name)
@@ -71,7 +75,7 @@ func newPlanCommand() *cobra.Command {
 	return cmd
 }
 
-func newApplyCommand() *cobra.Command {
+func newApplyCommand(cfg commandOptions) *cobra.Command {
 	var jsonOutput bool
 	var yes bool
 	var force bool
@@ -92,7 +96,8 @@ func newApplyCommand() *cobra.Command {
 				ApproveTicket: ticket,
 				JSONOutput:    jsonOutput,
 				Actor:         actor,
-				Out:           os.Stdout,
+				Out:           cmd.OutOrStdout(),
+				Host:          cfg.host,
 			})
 		},
 	}
@@ -105,7 +110,7 @@ func newApplyCommand() *cobra.Command {
 	return cmd
 }
 
-func newDoctorCommand() *cobra.Command {
+func newDoctorCommand(options commandOptions) *cobra.Command {
 	var yes bool
 	var ticket string
 	cmd := &cobra.Command{
@@ -114,7 +119,7 @@ func newDoctorCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			const op serrors.Op = "dbctl.cli.doctor"
 			out := cmd.OutOrStdout()
-			cfg, payload, err := policy.Load("")
+			policyCfg, payload, err := policy.Load("")
 			if err != nil {
 				return err
 			}
@@ -123,12 +128,13 @@ func newDoctorCommand() *cobra.Command {
 				Mode:          ops.ExecutionModePlan,
 				Yes:           yes,
 				ApproveTicket: ticket,
+				Host:          options.host,
 			})
 			if err != nil {
 				return serrors.E(op, err)
 			}
 			_, _ = fmt.Fprintf(out, "policy hash: %s\n", policy.HashPolicy(payload))
-			_, _ = fmt.Fprintf(out, "policy envs: %d\n", len(cfg.Environments))
+			_, _ = fmt.Fprintf(out, "policy envs: %d\n", len(policyCfg.Environments))
 			_, _ = fmt.Fprintf(out, "resolved target: env=%s host=%s db=%s\n", targetPlan.RunContext.Target.Environment, targetPlan.RunContext.Target.Host, targetPlan.RunContext.Target.Name)
 			return nil
 		},

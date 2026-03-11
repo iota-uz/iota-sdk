@@ -126,6 +126,9 @@ func Setup() error {
 		if err := TruncateAllTables(); err != nil {
 			return fmt.Errorf("failed to truncate tables: %w", err)
 		}
+		if err := Migrate(); err != nil {
+			return err
+		}
 	} else {
 		conf.Logger().Info("E2E database does not exist, creating fresh database...")
 		if err := CreateRaw(); err != nil {
