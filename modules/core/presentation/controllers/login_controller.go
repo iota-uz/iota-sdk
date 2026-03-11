@@ -3,7 +3,6 @@ package controllers
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -12,10 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
@@ -93,17 +90,16 @@ func NewLoginController(app application.Application, opts ...*LoginControllerOpt
 		options = opts[0]
 	}
 	return &LoginController{
-		app:            app,
-		authService:    app.Service(services.AuthService{}).(*services.AuthService),
-		sessionService: app.Service(services.SessionService{}).(*services.SessionService),
-		userService:    app.Service(services.UserService{}).(*services.UserService),
-		options:        options,
+		app:             app,
+		authService:     app.Service(services.AuthService{}).(*services.AuthService),
+		authFlowService: app.Service(services.AuthFlowService{}).(*services.AuthFlowService),
+		options:         options,
 	}
 }
 
 // SetTwoFactorPolicy sets the 2FA policy for the controller.
 func (c *LoginController) SetTwoFactorPolicy(policy pkgtwofactor.TwoFactorPolicy) {
-	c.twoFactorPolicy = policy
+	c.authFlowService.SetTwoFactorPolicy(policy)
 }
 
 // SetTwoFactorService sets the 2FA service for the controller.
@@ -114,10 +110,8 @@ func (c *LoginController) SetTwoFactorService(service *twofactor.TwoFactorServic
 type LoginController struct {
 	app              application.Application
 	authService      *services.AuthService
-	twoFactorPolicy  pkgtwofactor.TwoFactorPolicy
+	authFlowService  *services.AuthFlowService
 	twoFactorService *twofactor.TwoFactorService
-	sessionService   *services.SessionService
-	userService      *services.UserService
 	options          *LoginControllerOptions
 }
 
@@ -216,7 +210,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	u, sess, err := c.authService.AuthenticateGoogle(r.Context(), code)
+	authResult, err := c.authFlowService.AuthenticateGoogle(r.Context(), code)
 	if err != nil {
 		if errors.Is(err, persistence.ErrUserNotFound) {
 			queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.UserNotFound"))
@@ -227,22 +221,18 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := c.runLoginAccessCheck(r.Context(), u); err != nil {
-		shared.SetFlash(w, "error", []byte(err.Error()))
-		queryParams.Set("error", err.Error())
-		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+	loginRedirectURL := fmt.Sprintf("/login?%s", queryParams.Encode())
+	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
+		NextURL:          nextURL,
+		ErrorRedirectURL: loginRedirectURL,
+		AccessCheck:      c.runLoginAccessCheck,
+	})
+	if err != nil {
+		c.handleFinalizeError(w, r, loginRedirectURL, err)
 		return
 	}
 
-	c.finalizeAuthenticatedSession(
-		w,
-		r,
-		u,
-		sess,
-		pkgtwofactor.AuthMethodOAuth,
-		nextURL,
-		fmt.Sprintf("/login?%s", queryParams.Encode()),
-	)
+	c.applyFinalizeResult(w, r, finalizeResult)
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
@@ -427,7 +417,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, sess, err := c.authService.Authenticate(r.Context(), dto.Email, dto.Password)
+	authResult, err := c.authFlowService.AuthenticatePassword(r.Context(), dto.Email, dto.Password)
 	if err != nil {
 		logger.Error("POST /login: InTx failed", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {
@@ -441,21 +431,18 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.runLoginAccessCheck(r.Context(), u); err != nil {
-		shared.SetFlash(w, "error", []byte(err.Error()))
-		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+	loginRedirectURL := fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL))
+	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
+		NextURL:          postLoginRedirectURL,
+		ErrorRedirectURL: loginRedirectURL,
+		AccessCheck:      c.runLoginAccessCheck,
+	})
+	if err != nil {
+		c.handleFinalizeError(w, r, loginRedirectURL, err)
 		return
 	}
 
-	c.finalizeAuthenticatedSession(
-		w,
-		r,
-		u,
-		sess,
-		pkgtwofactor.AuthMethodPassword,
-		postLoginRedirectURL,
-		fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)),
-	)
+	c.applyFinalizeResult(w, r, finalizeResult)
 }
 
 // FinalizeAuthenticatedUser creates a session for an already-authenticated user and applies
@@ -470,125 +457,49 @@ func (c *LoginController) FinalizeAuthenticatedUser(
 	validatedNextURL := security.GetValidatedRedirect(nextURL)
 	loginRedirectURL := fmt.Sprintf("/login?next=%s", url.QueryEscape(validatedNextURL))
 
-	if err := c.runLoginAccessCheck(r.Context(), u); err != nil {
-		shared.SetFlash(w, "error", []byte(err.Error()))
-		http.Redirect(w, r, loginRedirectURL, http.StatusFound)
-		return
-	}
-
-	sess, err := c.createSessionForUser(r.Context(), u)
+	finalizeResult, err := c.authFlowService.FinalizeAuthenticatedUser(r.Context(), u, method, services.FinalizeAuthenticationOptions{
+		NextURL:          validatedNextURL,
+		ErrorRedirectURL: loginRedirectURL,
+		AccessCheck:      c.runLoginAccessCheck,
+	})
 	if err != nil {
-		composables.UseLogger(r.Context()).Error("failed to create session during finalize login", "error", err)
-		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
-		http.Redirect(w, r, loginRedirectURL, http.StatusFound)
+		c.handleFinalizeError(w, r, loginRedirectURL, err)
 		return
 	}
 
-	c.finalizeAuthenticatedSession(w, r, u, sess, method, validatedNextURL, loginRedirectURL)
+	c.applyFinalizeResult(w, r, finalizeResult)
 }
 
-func (c *LoginController) finalizeAuthenticatedSession(
+func (c *LoginController) handleFinalizeError(
 	w http.ResponseWriter,
 	r *http.Request,
-	u coreuser.User,
-	sess session.Session,
-	method pkgtwofactor.AuthMethod,
-	nextURL string,
-	loginErrorRedirectURL string,
+	redirectURL string,
+	err error,
 ) {
-	validatedNextURL := security.GetValidatedRedirect(nextURL)
-	if strings.TrimSpace(loginErrorRedirectURL) == "" {
-		loginErrorRedirectURL = fmt.Sprintf("/login?next=%s", url.QueryEscape(validatedNextURL))
-	}
-
-	requires2FA, err := c.requiresTwoFactor(r.Context(), u, method)
-	if err != nil {
-		composables.UseLogger(r.Context()).Error("failed to evaluate 2FA policy", "method", method, "error", err)
-		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
-		http.Redirect(w, r, loginErrorRedirectURL, http.StatusFound)
+	var userVisibleErr *services.UserVisibleError
+	if errors.As(err, &userVisibleErr) && strings.TrimSpace(userVisibleErr.Message) != "" {
+		shared.SetFlash(w, "error", []byte(userVisibleErr.Message))
+		http.Redirect(w, r, redirectURL, http.StatusFound)
 		return
 	}
 
-	if requires2FA {
-		pendingSession := session.New(
-			sess.Token(),
-			sess.UserID(),
-			sess.TenantID(),
-			sess.IP(),
-			sess.UserAgent(),
-			session.WithStatus(session.StatusPending2FA),
-			session.WithAudience(sess.Audience()),
-			session.WithExpiresAt(time.Now().Add(10*time.Minute)),
-			session.WithCreatedAt(sess.CreatedAt()),
-		)
-		if err := c.sessionService.Update(r.Context(), pendingSession); err != nil {
-			composables.UseLogger(r.Context()).Error("failed to update session to pending 2FA", "method", method, "error", err)
-			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
-			http.Redirect(w, r, loginErrorRedirectURL, http.StatusFound)
-			return
-		}
+	composables.UseLogger(r.Context()).Error("failed to finalize login", "error", err)
+	shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
 
-		http.SetCookie(w, c.sessionCookie(pendingSession.Token(), pendingSession.ExpiresAt()))
-		if u.Has2FAEnabled() {
-			http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(validatedNextURL)), http.StatusFound)
-			return
-		}
-
-		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(validatedNextURL)), http.StatusFound)
+func (c *LoginController) applyFinalizeResult(
+	w http.ResponseWriter,
+	r *http.Request,
+	result *services.FinalizeAuthenticationResult,
+) {
+	if result == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 
-	http.SetCookie(w, c.sessionCookie(sess.Token(), sess.ExpiresAt()))
-	http.Redirect(w, r, validatedNextURL, http.StatusFound)
-}
-
-func (c *LoginController) requiresTwoFactor(
-	ctx context.Context,
-	u coreuser.User,
-	method pkgtwofactor.AuthMethod,
-) (bool, error) {
-	requires2FA := u.Has2FAEnabled()
-	if c.twoFactorPolicy == nil {
-		return requires2FA, nil
+	if result.Cookie != nil {
+		http.SetCookie(w, result.Cookie)
 	}
-
-	ip, _ := composables.UseIP(ctx)
-	userAgent, _ := composables.UseUserAgent(ctx)
-
-	attempt := pkgtwofactor.AuthAttempt{
-		UserID:    userIDToNamespacedUUID(u.TenantID(), u.ID()),
-		Method:    method,
-		IPAddress: ip,
-		UserAgent: userAgent,
-		Timestamp: time.Now(),
-	}
-	policyRequires2FA, err := c.twoFactorPolicy.Requires(ctx, attempt)
-	if err != nil {
-		return false, err
-	}
-	return requires2FA || policyRequires2FA, nil
-}
-
-func (c *LoginController) sessionCookie(token string, expiresAt time.Time) *http.Cookie {
-	conf := configuration.Use()
-	return &http.Cookie{
-		Name:     conf.SidCookieKey,
-		Value:    token,
-		Expires:  expiresAt,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
-		Path:     "/",
-	}
-}
-
-func (c *LoginController) createSessionForUser(ctx context.Context, u coreuser.User) (session.Session, error) {
-	return c.authService.CreateSession(ctx, u)
-}
-
-func userIDToNamespacedUUID(tenantID uuid.UUID, userID uint) uuid.UUID {
-	var userIDData [8]byte
-	binary.LittleEndian.PutUint64(userIDData[:], uint64(userID))
-	return uuid.NewSHA1(tenantID, userIDData[:])
+	http.Redirect(w, r, result.RedirectURL, http.StatusFound)
 }

@@ -92,6 +92,8 @@ func (m *Module) Register(app application.Application) error {
 	tenantService := services.NewTenantService(tenantRepo)
 	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
 	sessionService := services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher())
+	authService := services.NewAuthService(app)
+	authFlowService := services.NewAuthFlowService(authService, sessionService)
 
 	app.RegisterServices(
 		uploadService,
@@ -189,7 +191,8 @@ func (m *Module) Register(app application.Application) error {
 	}
 
 	app.RegisterServices(
-		services.NewAuthService(app),
+		authService,
+		authFlowService,
 		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
 		services.NewRoleService(roleRepo, app.EventPublisher()),
 		tenantService,
