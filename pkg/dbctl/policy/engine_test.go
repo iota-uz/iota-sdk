@@ -87,7 +87,7 @@ func TestLoad_RejectsUnknownFields(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "policy.yaml")
-	payload := []byte("environments:\n  development:\n    allowed_hosts:\n      - localhost\n    require_yes: true\n")
+	payload := []byte("environments:\n  development:\n    allowed_hosts:\n      - localhost\n    unknown_flag: true\n")
 	if err := os.WriteFile(path, payload, 0o600); err != nil {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
