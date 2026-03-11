@@ -35,6 +35,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -162,8 +163,14 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts.Logger != nil {
 		serviceOpts = append(serviceOpts, spotlight.WithLogger(opts.Logger))
 	}
+	startBackgroundWorkers := opts.RuntimeProfile == RuntimeProfileServer
 	cfg := configuration.Use()
-	if cfg.MeiliURL == "" {
+	if !startBackgroundWorkers {
+		engine = spotlight.NewNoopEngine()
+		if opts.Logger != nil {
+			opts.Logger.Infof("background workers disabled for runtime profile: %s", opts.RuntimeProfile)
+		}
+	} else if cfg.MeiliURL == "" {
 		if opts.Logger != nil {
 			opts.Logger.Info("spotlight disabled: MEILI_URL not set")
 		}
@@ -180,13 +187,10 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight.DefaultServiceConfig(),
 		serviceOpts...,
 	)
-	startBackgroundWorkers := opts.RuntimeProfile == RuntimeProfileServer
 	if startBackgroundWorkers {
 		if err := spotlightService.Start(initCtx); err != nil {
-			return nil, fmt.Errorf("start spotlight service: %w", err)
+			return nil, serrors.E(serrors.Op("application.New.startSpotlightService"), err)
 		}
-	} else if opts.Logger != nil {
-		opts.Logger.Infof("background workers disabled for runtime profile: %s", opts.RuntimeProfile)
 	}
 	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)
@@ -245,6 +249,32 @@ func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationIt
 
 func (app *application) RegisterNavItems(items ...types.NavigationItem) {
 	app.navItems = append(app.navItems, items...)
+}
+
+// AppendNavChildren finds a registered NavigationItem by name (recursively)
+// and appends the given children to it. If the parent item has an Href, it is
+// preserved as the first child so that the original link remains accessible
+// from the dropdown.
+func (app *application) AppendNavChildren(parentName string, children ...types.NavigationItem) {
+	appendChildren(&app.navItems, parentName, children)
+}
+
+func appendChildren(items *[]types.NavigationItem, parentName string, children []types.NavigationItem) bool {
+	for i := range *items {
+		if (*items)[i].Name == parentName {
+			(*items)[i].Children = append((*items)[i].Children, children...)
+			if (*items)[i].Href != "" {
+				(*items)[i].Href = ""
+			}
+			return true
+		}
+		if len((*items)[i].Children) > 0 {
+			if appendChildren(&(*items)[i].Children, parentName, children) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (app *application) Middleware() []mux.MiddlewareFunc {

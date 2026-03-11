@@ -47,6 +47,9 @@ func runMainSeed(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	seeder := application.NewSeeder()
 	usr, err := user.New(
@@ -91,7 +94,6 @@ func runMainSeed(ctx context.Context) error {
 
 	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, app); err != nil {
-		_ = tx.Rollback(ctx)
 		return fmt.Errorf("seed main dataset: %w", err)
 	}
 	if err := tx.Commit(ctxWithTenant); err != nil {

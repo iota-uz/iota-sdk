@@ -13,6 +13,11 @@ import (
 
 const defaultPolicyPath = ".dbctl/policy.yaml"
 
+var allowedCredentialEmission = map[string]struct{}{
+	"masked":     {},
+	"token_only": {},
+}
+
 func Load(path string) (Config, []byte, error) {
 	if strings.TrimSpace(path) == "" {
 		path = defaultPolicyPath
@@ -30,6 +35,9 @@ func Load(path string) (Config, []byte, error) {
 	}
 	if strings.TrimSpace(cfg.Credentials.Emission) == "" {
 		cfg.Credentials.Emission = "token_only"
+	}
+	if _, ok := allowedCredentialEmission[cfg.Credentials.Emission]; !ok {
+		return Config{}, nil, fmt.Errorf("unsupported credentials.emission %q", cfg.Credentials.Emission)
 	}
 	if cfg.Credentials.TokenTTLSecond <= 0 {
 		cfg.Credentials.TokenTTLSecond = 3600

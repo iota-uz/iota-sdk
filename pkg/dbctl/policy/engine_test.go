@@ -1,6 +1,10 @@
 package policy
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestEvaluate_DeniesHostNotAllowed(t *testing.T) {
 	cfg := Config{
@@ -61,5 +65,27 @@ func TestEvaluate_RequiresYesAndTicket(t *testing.T) {
 	}
 	if decision.CredentialEmission != "masked" {
 		t.Fatalf("expected credential emission to be masked, got %q", decision.CredentialEmission)
+	}
+}
+
+func TestLoad_RejectsUnsupportedCredentialEmission(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yaml")
+	payload := []byte(`
+environments:
+  development:
+    allowed_hosts: ["localhost"]
+    allow_destructive: true
+credentials:
+  emission: typo
+`)
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		t.Fatalf("write policy file: %v", err)
+	}
+
+	if _, _, err := Load(path); err == nil {
+		t.Fatal("expected Load to reject unknown credentials.emission")
 	}
 }

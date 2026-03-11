@@ -84,8 +84,15 @@ func E2EResetOperation() OperationSpec {
 		},
 		Postconditions: []Condition{{
 			ID:          "ensure_seed_complete",
-			Description: "Ensure reset chain completes without errors",
+			Description: "Ensure the e2e database exists after reset",
 			Check: func(_ context.Context, _ *ExecutionContext) error {
+				exists, err := commande2e.DatabaseExists()
+				if err != nil {
+					return err
+				}
+				if !exists {
+					return fmt.Errorf("e2e database does not exist after reset")
+				}
 				return nil
 			},
 		}},

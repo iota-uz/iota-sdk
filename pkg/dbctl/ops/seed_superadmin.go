@@ -43,6 +43,9 @@ func runSuperadminSeed(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	superadminUser, err := user.New(
 		"Super",
@@ -75,7 +78,6 @@ func runSuperadminSeed(ctx context.Context) error {
 
 	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, app); err != nil {
-		_ = tx.Rollback(ctx)
 		return fmt.Errorf("seed superadmin dataset: %w", err)
 	}
 	if err := tx.Commit(ctxWithTenant); err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -151,6 +152,9 @@ func (r *Repository) LatestArtifact(ctx context.Context, runID, artifactType str
 	if r == nil || r.pool == nil {
 		return nil, nil
 	}
+	if _, err := uuid.Parse(runID); err != nil {
+		return nil, fmt.Errorf("parse run id %q: %w", runID, err)
+	}
 	var rec ArtifactRecord
 	err := r.pool.QueryRow(ctx, `
 		SELECT run_id::text, artifact_type, payload_json::text, created_at
@@ -163,7 +167,7 @@ func (r *Repository) LatestArtifact(ctx context.Context, runID, artifactType str
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("query latest artifact for run %s: %w", runID, err)
 	}
 	return &rec, nil
 }

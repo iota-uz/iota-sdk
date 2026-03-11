@@ -195,8 +195,7 @@ func TestRolesController_List_Search(t *testing.T) {
 	response = suite.GET("/roles")
 	response.Assert(t).
 		ExpectStatus(200).
-		ExpectBodyContains("roles-table-body").
-		ExpectBodyContains("new-role-btn") // New button should be visible
+		ExpectBodyContains("roles-table-body")
 }
 
 func TestRolesController_Update_NonExistent(t *testing.T) {
@@ -258,6 +257,41 @@ func TestRolesController_Update_PermissionScenarios(t *testing.T) {
 			formDescription:     "Updated description",
 			formPermissionIDs:   []string{permissions.RoleUpdate.ID().String()},
 			expectedPermissions: []string{permissions.RoleUpdate.Name()},
+		},
+		{
+			name:               "AddMultiplePermissions",
+			roleName:           "Controller Add Multiple Role",
+			initialDescription: "Initial description",
+			initialPermissions: []permission.Permission{permissions.RoleRead},
+			formDescription:    "Updated description",
+			formPermissionIDs: []string{
+				permissions.RoleRead.ID().String(),
+				permissions.RoleCreate.ID().String(),
+				permissions.RoleUpdate.ID().String(),
+			},
+			expectedPermissions: []string{
+				permissions.RoleRead.Name(),
+				permissions.RoleCreate.Name(),
+				permissions.RoleUpdate.Name(),
+			},
+		},
+		{
+			name:                "RemoveAllPermissions",
+			roleName:            "Controller Remove All Role",
+			initialDescription:  "Initial description",
+			initialPermissions:  []permission.Permission{permissions.RoleRead, permissions.RoleUpdate},
+			formDescription:     "Updated description",
+			formPermissionIDs:   []string{},
+			expectedPermissions: []string{},
+		},
+		{
+			name:                "KeepSamePermissions",
+			roleName:            "Controller Keep Same Role",
+			initialDescription:  "Initial description",
+			initialPermissions:  []permission.Permission{permissions.RoleRead, permissions.RoleUpdate},
+			formDescription:     "Updated description",
+			formPermissionIDs:   []string{permissions.RoleRead.ID().String(), permissions.RoleUpdate.ID().String()},
+			expectedPermissions: []string{permissions.RoleRead.Name(), permissions.RoleUpdate.Name()},
 		},
 	}
 

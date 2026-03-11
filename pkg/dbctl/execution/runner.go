@@ -39,6 +39,11 @@ type PlanResult struct {
 	PolicyHash string
 }
 
+type runLock struct {
+	conn *pgxpool.Conn
+	key  int64
+}
+
 func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	if strings.TrimSpace(opts.Operation) == "" {
 		return nil, fmt.Errorf("operation is required")
@@ -142,7 +147,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		return err
 	}
 
-	locked, lockErr := acquireRunLock(ctx, pool, plan.Spec.Name, targetFP)
+	lock, locked, lockErr := acquireRunLock(ctx, pool, plan.Spec.Name, targetFP)
 	if lockErr != nil {
 		return lockErr
 	}
@@ -152,7 +157,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		_ = repo.UpdateRunStatus(ctx, runID, "failed", &errText)
 		return err
 	}
-	defer releaseRunLock(ctx, pool, plan.Spec.Name, targetFP)
+	defer releaseRunLock(ctx, lock)
 
 	execCtx := &ops.ExecutionContext{
 		Run: &ops.RunContext{
@@ -278,22 +283,32 @@ func advisoryKey(parts ...string) int64 {
 	return int64(h.Sum64())
 }
 
-func acquireRunLock(ctx context.Context, pool *pgxpool.Pool, operation, targetFP string) (bool, error) {
+func acquireRunLock(ctx context.Context, pool *pgxpool.Pool, operation, targetFP string) (*runLock, bool, error) {
 	if pool == nil {
-		return false, errors.New("nil pool for lock acquisition")
+		return nil, false, errors.New("nil pool for lock acquisition")
+	}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("acquire advisory lock connection: %w", err)
 	}
 	key := advisoryKey(operation, targetFP)
 	var locked bool
-	if err := pool.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", key).Scan(&locked); err != nil {
-		return false, fmt.Errorf("acquire advisory lock: %w", err)
+	if err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", key).Scan(&locked); err != nil {
+		conn.Release()
+		return nil, false, fmt.Errorf("acquire advisory lock: %w", err)
 	}
-	return locked, nil
+	if !locked {
+		conn.Release()
+		return nil, false, nil
+	}
+	return &runLock{conn: conn, key: key}, true, nil
 }
 
-func releaseRunLock(ctx context.Context, pool *pgxpool.Pool, operation, targetFP string) {
-	if pool == nil {
+func releaseRunLock(ctx context.Context, lock *runLock) {
+	if lock == nil || lock.conn == nil {
 		return
 	}
-	key := advisoryKey(operation, targetFP)
-	_, _ = pool.Exec(ctx, "SELECT pg_advisory_unlock($1)", key)
+	defer lock.conn.Release()
+	var unlocked bool
+	_ = lock.conn.QueryRow(ctx, "SELECT pg_advisory_unlock($1)", lock.key).Scan(&unlocked)
 }

@@ -106,6 +106,8 @@ func newApplyCommand() *cobra.Command {
 
 func newDoctorCommand() *cobra.Command {
 	var policyPath string
+	var yes bool
+	var ticket string
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Validate dbctl policy and target resolution",
@@ -114,7 +116,13 @@ func newDoctorCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			targetPlan, err := execution.Plan(cmd.Context(), execution.RunOptions{Operation: "seed.main", Mode: ops.ExecutionModePlan, Yes: true, PolicyPath: policyPath})
+			targetPlan, err := execution.Plan(cmd.Context(), execution.RunOptions{
+				Operation:     "seed.main",
+				Mode:          ops.ExecutionModePlan,
+				Yes:           yes,
+				ApproveTicket: ticket,
+				PolicyPath:    policyPath,
+			})
 			if err != nil {
 				return fmt.Errorf("doctor failed: %w", err)
 			}
@@ -125,6 +133,8 @@ func newDoctorCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&policyPath, "policy", "", "Path to policy file (default .dbctl/policy.yaml)")
+	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements when policy requires it")
+	cmd.Flags().StringVar(&ticket, "approve-ticket", "", "Change request ticket required by policy")
 	return cmd
 }
 

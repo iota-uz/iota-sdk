@@ -16,6 +16,7 @@ import (
 // CreateRaw drops and recreates the e2e database.
 func CreateRaw() error {
 	ctx := context.Background()
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 
 	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
@@ -46,6 +47,7 @@ func CreateRaw() error {
 // DropRaw removes the e2e database.
 func DropRaw() error {
 	ctx := context.Background()
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 
 	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
@@ -91,7 +93,7 @@ func Migrate() error {
 		return fmt.Errorf("failed to change to project root: %w", err)
 	}
 
-	_ = os.Setenv("DB_NAME", E2EDBName)
+	ensureE2EDatabaseEnv()
 
 	conf := configuration.Use()
 	pool, err := GetE2EPool()
@@ -116,6 +118,7 @@ func Migrate() error {
 
 // Setup performs a complete e2e database setup.
 func Setup() error {
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 	conf.Logger().Info("Setting up e2e database...")
 
@@ -149,6 +152,7 @@ func Setup() error {
 
 // ResetRaw drops, recreates, migrates, and seeds the e2e database.
 func ResetRaw() error {
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 	conf.Logger().Info("Resetting e2e database...")
 
@@ -166,9 +170,15 @@ func ResetRaw() error {
 	return nil
 }
 
+// Reset drops and recreates the e2e database with fresh data.
+func Reset() error {
+	return ResetRaw()
+}
+
 // DatabaseExists checks if the e2e database exists.
 func DatabaseExists() (bool, error) {
 	ctx := context.Background()
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 
 	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
@@ -195,9 +205,8 @@ func DatabaseExists() (bool, error) {
 // TruncateAllTables clears all data from the e2e database while preserving connections.
 func TruncateAllTables() error {
 	ctx := context.Background()
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
-
-	_ = os.Setenv("DB_NAME", E2EDBName)
 
 	pool, err := GetE2EPool()
 	if err != nil {

@@ -72,7 +72,6 @@ templ PermissionSet(props PermissionSetProps) {
 				Checked:      props.Set.Checked,
 				Attrs: templ.Attributes{
 					"name": fmt.Sprintf("Permissions[%s]", props.Set.Permissions[0].ID),
-					"form": "save-form",
 				},
 			})
 			if props.Set.Description != "" {
@@ -133,7 +132,6 @@ templ PermissionSet(props PermissionSetProps) {
 								Checked:      perm.Checked,
 								Attrs: templ.Attributes{
 									"name":               fmt.Sprintf("Permissions[%s]", perm.ID),
-									"form":               "save-form",
 									"@change":            "updateState()",
 									"data-permission-id": perm.ID,
 								},
