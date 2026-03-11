@@ -257,7 +257,7 @@ _e2e-test:
 
 [group("e2e")]
 _e2e-reset:
-  go run cmd/command/main.go dbctl apply db.e2e.reset --yes --approve-ticket local-dev
+  go run cmd/command/main.go dbctl apply db.e2e.reset --force --yes --approve-ticket local-dev
 
 [group("e2e")]
 _e2e-seed:
