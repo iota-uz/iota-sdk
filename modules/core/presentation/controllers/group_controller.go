@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/groups"
@@ -177,6 +178,10 @@ func (c *GroupsController) Groups(
 	logger *logrus.Entry,
 	groupQueryService *services.GroupQueryService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupRead); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
@@ -252,6 +257,10 @@ func (c *GroupsController) GetEdit(
 	groupQueryService *services.GroupQueryService,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupRead); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	idStr := mux.Vars(r)["id"]
 
 	roles, err := roleService.GetAll(r.Context())
@@ -304,6 +313,10 @@ func (c *GroupsController) GetNew(
 	logger *logrus.Entry,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupCreate); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving roles: %v", err)
@@ -326,6 +339,10 @@ func (c *GroupsController) Create(
 	groupService *services.GroupService,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupCreate); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	dto, err := composables.UseForm(&dtos.CreateGroupDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -404,6 +421,10 @@ func (c *GroupsController) Update(
 	groupService *services.GroupService,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupUpdate); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -490,6 +511,10 @@ func (c *GroupsController) Delete(
 	w http.ResponseWriter,
 	groupService *services.GroupService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupDelete); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {

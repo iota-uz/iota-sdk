@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -275,12 +276,14 @@ templ UsersContent(props *IndexPageProps) {
 			</div>
 			<div class="hidden md:flex gap-3">
 				@filters.CreatedAt()
-				@button.Primary(button.Props{
-					Size: button.SizeNormal,
-					Href: "/users/new",
-					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-				}) {
-					{ pageCtx.T("Users.List.New") }
+				if composables.CanUser(ctx, permissions.UserCreate) == nil {
+					@button.Primary(button.Props{
+						Size: button.SizeNormal,
+						Href: "/users/new",
+						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+					}) {
+						{ pageCtx.T("Users.List.New") }
+					}
 				}
 			</div>
 		</form>
@@ -314,11 +317,13 @@ templ Index(props *IndexPageProps) {
 							"@click": "$dispatch('open-user-filters')",
 						},
 					})
-					@button.Primary(button.Props{
-						Size: button.SizeNormal,
-						Href: "/users/new",
-						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-					})
+					if composables.CanUser(ctx, permissions.UserCreate) == nil {
+						@button.Primary(button.Props{
+							Size: button.SizeNormal,
+							Href: "/users/new",
+							Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+						})
+					}
 				</div>
 			</div>
 			<div class="mt-5 flex space-x-5">
