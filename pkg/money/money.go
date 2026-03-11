@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // Injection points for backward compatibility.
@@ -36,12 +38,14 @@ func bigIntFromFloat(f float64) *big.Int {
 	return bi
 }
 
+const opUnmarshalJSON = serrors.Op("money.defaultUnmarshalJSON")
+
 func defaultUnmarshalJSON(m *Money, b []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.UseNumber()
 	data := make(map[string]interface{})
 	if err := dec.Decode(&data); err != nil {
-		return err
+		return serrors.E(opUnmarshalJSON, err)
 	}
 
 	var amount *big.Int
@@ -53,14 +57,14 @@ func defaultUnmarshalJSON(m *Money, b []byte) error {
 				// Try parsing as float
 				f, err := v.Float64()
 				if err != nil {
-					return ErrInvalidJSONUnmarshal
+					return serrors.E(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
 				}
 				amount = bigIntFromFloat(f)
 			}
 		case float64:
 			amount = bigIntFromFloat(v)
 		default:
-			return ErrInvalidJSONUnmarshal
+			return serrors.E(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
 		}
 	}
 
@@ -70,7 +74,7 @@ func defaultUnmarshalJSON(m *Money, b []byte) error {
 		case string:
 			currency = v
 		default:
-			return ErrInvalidJSONUnmarshal
+			return serrors.E(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
 		}
 	}
 
@@ -138,10 +142,22 @@ func NewFromFloat(amount float64, code string) *Money {
 
 // NewFromBigInt creates and returns new instance of Money from a *big.Int (minor units).
 func NewFromBigInt(amount *big.Int, code string) *Money {
+	a := big.NewInt(0)
+	if amount != nil {
+		a = new(big.Int).Set(amount)
+	}
 	return &Money{
-		amount:   new(big.Int).Set(amount), // copy to avoid sharing
+		amount:   a,
 		currency: newCurrency(code).get(),
 	}
+}
+
+// amountOrZero returns the given big.Int, or zero if it is nil.
+func amountOrZero(a *big.Int) *big.Int {
+	if a == nil {
+		return big.NewInt(0)
+	}
+	return a
 }
 
 // Currency returns the currency used by Money.
@@ -186,7 +202,7 @@ func (m *Money) assertSameCurrency(om *Money) error {
 }
 
 func (m *Money) compare(om *Money) int {
-	return m.amount.Cmp(om.amount)
+	return amountOrZero(m.amount).Cmp(amountOrZero(om.amount))
 }
 
 // Equals checks equality between two Money types.
@@ -303,7 +319,7 @@ func (m *Money) Multiply(muls ...int64) *Money {
 		panic("At least one multiplier is required to multiply")
 	}
 
-	result := new(big.Int).Set(m.amount)
+	result := new(big.Int).Set(amountOrZero(m.amount))
 	for _, mul := range muls {
 		result.Mul(result, big.NewInt(mul))
 	}
@@ -324,19 +340,20 @@ func (m *Money) Split(n int) ([]*Money, error) {
 		return nil, errors.New("split must be higher than zero")
 	}
 
-	a := mutate.calc.divide(m.amount, int64(n))
+	amt := amountOrZero(m.amount)
+	a := mutate.calc.divide(amt, int64(n))
 	ms := make([]*Money, n)
 
 	for i := 0; i < n; i++ {
 		ms[i] = &Money{amount: new(big.Int).Set(a), currency: m.currency}
 	}
 
-	r := mutate.calc.modulus(m.amount, int64(n))
+	r := mutate.calc.modulus(amt, int64(n))
 	l := new(big.Int).Abs(r)
 	// Add leftovers to the first parties.
 
 	v := big.NewInt(1)
-	if m.amount.Sign() < 0 {
+	if amt.Sign() < 0 {
 		v = big.NewInt(-1)
 	}
 	for p := 0; l.Sign() != 0; p++ {
@@ -367,11 +384,12 @@ func (m *Money) Allocate(rs ...int) ([]*Money, error) {
 		sum += int64(r)
 	}
 
+	amt := amountOrZero(m.amount)
 	total := big.NewInt(0)
 	ms := make([]*Money, 0, len(rs))
 	for _, r := range rs {
 		party := &Money{
-			amount:   mutate.calc.allocate(m.amount, int64(r), sum),
+			amount:   mutate.calc.allocate(amt, int64(r), sum),
 			currency: m.currency,
 		}
 
@@ -386,7 +404,7 @@ func (m *Money) Allocate(rs ...int) ([]*Money, error) {
 	}
 
 	// Calculate leftover value and divide to first parties.
-	lo := new(big.Int).Sub(m.amount, total)
+	lo := new(big.Int).Sub(amt, total)
 	sub := big.NewInt(1)
 	if lo.Sign() < 0 {
 		sub = big.NewInt(-1)
@@ -426,8 +444,12 @@ func (m *Money) DisplayCompact(decimals ...int) string {
 
 // AsMajorUnits lets represent Money struct as subunits (float64) in given Currency value
 func (m *Money) AsMajorUnits() float64 {
+	if m.amount == nil {
+		return 0
+	}
 	c := m.currency.get()
-	return c.Formatter().ToMajorUnits(m.Amount())
+	v, _ := c.Formatter().ToMajorUnitsBigFloat(m.amount).Float64()
+	return v
 }
 
 // UnmarshalJSON is implementation of json.Unmarshaller

@@ -9,6 +9,9 @@ import (
 	"math/big"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
@@ -1090,616 +1093,303 @@ func TestMoney_USDSpace_CompactDisplay(t *testing.T) {
 
 // --- New big.Int tests ---
 
-func TestNewFromBigInt(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("38499843389614000000", 10) // > MaxInt64
-	m := NewFromBigInt(bi, UZS)
+func TestMoney_BigInt_Construction(t *testing.T) {
+	t.Run("NewFromBigInt stores copy", func(t *testing.T) {
+		bi := setBigInt("38499843389614000000")
+		m := NewFromBigInt(bi, UZS)
+		require.Equal(t, 0, m.BigAmount().Cmp(bi), "expected BigAmount to equal %s", bi)
 
-	if m.BigAmount().Cmp(bi) != 0 {
-		t.Errorf("Expected BigAmount to equal %s, got %s", bi.String(), m.BigAmount().String())
-	}
+		// Verify it's a copy
+		bi.SetInt64(0)
+		assert.NotEqual(t, 0, m.BigAmount().Sign(), "NewFromBigInt should store a copy, not a reference")
+	})
 
-	// Verify it's a copy
-	bi.SetInt64(0)
-	if m.BigAmount().Sign() == 0 {
-		t.Error("Expected NewFromBigInt to store a copy, not a reference")
-	}
+	t.Run("NewFromBigInt nil safety", func(t *testing.T) {
+		m := NewFromBigInt(nil, EUR)
+		assert.Equal(t, int64(0), m.Amount())
+	})
+
+	t.Run("NewFromFloat large value no overflow", func(t *testing.T) {
+		m := NewFromFloat(384998433896140.00, UZS)
+		expected := setBigInt("38499843389614000")
+		assert.Equal(t, 0, m.BigAmount().Cmp(expected), "expected %s, got %s", expected, m.BigAmount())
+	})
+
+	t.Run("NewFromFloat real-world QANOT SHARQ", func(t *testing.T) {
+		m := NewFromFloat(3849984338961.40, UZS)
+		assert.True(t, m.IsPositive(), "expected positive value for large UZS amount")
+	})
+
+	t.Run("Amount returns int64 when fits", func(t *testing.T) {
+		m := New(42, EUR)
+		assert.Equal(t, int64(42), m.Amount())
+	})
+
+	t.Run("Amount returns MaxInt64 on overflow", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("99999999999999999999"), EUR)
+		assert.Equal(t, int64(math.MaxInt64), m.Amount())
+	})
+
+	t.Run("Amount returns MinInt64 on negative overflow", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("-99999999999999999999"), EUR)
+		assert.Equal(t, int64(math.MinInt64), m.Amount())
+	})
+
+	t.Run("Amount nil returns zero", func(t *testing.T) {
+		m := &Money{}
+		assert.Equal(t, int64(0), m.Amount())
+	})
+
+	t.Run("BigAmount exact value", func(t *testing.T) {
+		bi := setBigInt("38499843389614000000")
+		m := NewFromBigInt(bi, UZS)
+		assert.Equal(t, 0, m.BigAmount().Cmp(bi))
+	})
+
+	t.Run("BigAmount nil safety", func(t *testing.T) {
+		m := &Money{}
+		result := m.BigAmount()
+		require.NotNil(t, result, "BigAmount should not return nil for zero-value Money")
+		assert.Equal(t, 0, result.Sign())
+	})
+
+	t.Run("BigAmount returns copy", func(t *testing.T) {
+		m := New(100, EUR)
+		a := m.BigAmount()
+		a.SetInt64(999)
+		assert.Equal(t, int64(100), m.Amount(), "BigAmount should return a copy")
+	})
 }
 
-func TestNewFromFloat_LargeValue_NoOverflow(t *testing.T) {
-	// 384998433896140.00 UZS -> minor units = 38499843389614000
-	m := NewFromFloat(384998433896140.00, UZS)
-	expected := new(big.Int)
-	expected.SetString("38499843389614000", 10)
-
-	if m.BigAmount().Cmp(expected) != 0 {
-		t.Errorf("Expected BigAmount %s, got %s", expected.String(), m.BigAmount().String())
-	}
-}
-
-func TestNewFromFloat_384Quadrillion_UZS(t *testing.T) {
-	// 384_998_433_896_140 UZS (in major units), fraction=2
-	// This is the real-world case from QANOT SHARQ
-	amount := 3849984338961.40 // in UZS major units
-	m := NewFromFloat(amount, UZS)
-
-	// Should not overflow - the value should be positive and large
-	if !m.IsPositive() {
-		t.Error("Expected positive value for large UZS amount")
-	}
-}
-
-func TestAmount_ReturnsInt64_WhenFits(t *testing.T) {
-	m := New(42, EUR)
-	if m.Amount() != 42 {
-		t.Errorf("Expected 42, got %d", m.Amount())
-	}
-}
-
-func TestAmount_ReturnsMaxInt64_WhenOverflow(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("99999999999999999999", 10) // > MaxInt64
-	m := NewFromBigInt(bi, EUR)
-
-	if m.Amount() != math.MaxInt64 {
-		t.Errorf("Expected MaxInt64, got %d", m.Amount())
-	}
-}
-
-func TestAmount_ReturnsMinInt64_WhenNegativeOverflow(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("-99999999999999999999", 10) // < MinInt64
-	m := NewFromBigInt(bi, EUR)
-
-	if m.Amount() != math.MinInt64 {
-		t.Errorf("Expected MinInt64, got %d", m.Amount())
-	}
-}
-
-func TestBigAmount_ExactValue(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("38499843389614000000", 10)
-	m := NewFromBigInt(bi, UZS)
-
-	if m.BigAmount().Cmp(bi) != 0 {
-		t.Errorf("Expected %s, got %s", bi.String(), m.BigAmount().String())
-	}
-}
-
-func TestBigAmount_NilSafety(t *testing.T) {
-	m := &Money{}
-	result := m.BigAmount()
-	if result == nil {
-		t.Fatal("BigAmount should not return nil for zero-value Money")
-	}
-	if result.Sign() != 0 {
-		t.Errorf("Expected 0 for nil amount, got %s", result.String())
-	}
-}
-
-func TestBigAmount_ReturnsCopy(t *testing.T) {
-	m := New(100, EUR)
-	a := m.BigAmount()
-	a.SetInt64(999)
-	if m.Amount() != 100 {
-		t.Error("BigAmount should return a copy, not a reference")
-	}
-}
-
-func TestAdd_BigValues(t *testing.T) {
-	bi1 := new(big.Int)
-	bi1.SetString("99999999999999999999", 10)
-	bi2 := new(big.Int)
-	bi2.SetString("1", 10)
-
-	m1 := NewFromBigInt(bi1, EUR)
-	m2 := NewFromBigInt(bi2, EUR)
-	r, err := m1.Add(m2)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := new(big.Int)
-	expected.SetString("100000000000000000000", 10)
-	if r.BigAmount().Cmp(expected) != 0 {
-		t.Errorf("Expected %s, got %s", expected.String(), r.BigAmount().String())
-	}
-}
-
-func TestSubtract_BigValues(t *testing.T) {
-	bi1 := new(big.Int)
-	bi1.SetString("100000000000000000000", 10)
-	bi2 := new(big.Int)
-	bi2.SetString("1", 10)
-
-	m1 := NewFromBigInt(bi1, EUR)
-	m2 := NewFromBigInt(bi2, EUR)
-	r, err := m1.Subtract(m2)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := new(big.Int)
-	expected.SetString("99999999999999999999", 10)
-	if r.BigAmount().Cmp(expected) != 0 {
-		t.Errorf("Expected %s, got %s", expected.String(), r.BigAmount().String())
-	}
-}
-
-func TestMultiply_BigValues(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("10000000000000000000", 10)
-	m := NewFromBigInt(bi, EUR)
-	r := m.Multiply(10)
-
-	expected := new(big.Int)
-	expected.SetString("100000000000000000000", 10)
-	if r.BigAmount().Cmp(expected) != 0 {
-		t.Errorf("Expected %s, got %s", expected.String(), r.BigAmount().String())
-	}
-}
-
-func TestMultiply_OverflowInt64_StillCorrect(t *testing.T) {
-	m := New(math.MaxInt64, EUR)
-	r := m.Multiply(2)
-
-	expected := new(big.Int).Mul(big.NewInt(math.MaxInt64), big.NewInt(2))
-	if r.BigAmount().Cmp(expected) != 0 {
-		t.Errorf("Expected %s, got %s", expected.String(), r.BigAmount().String())
-	}
-}
-
-func TestSplit_BigValues(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("100000000000000000001", 10)
-	m := NewFromBigInt(bi, EUR)
-
-	parts, err := m.Split(3)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Sum of parts should equal original
-	total := big.NewInt(0)
-	for _, p := range parts {
-		total.Add(total, p.BigAmount())
-	}
-	if total.Cmp(bi) != 0 {
-		t.Errorf("Sum of split parts %s != original %s", total.String(), bi.String())
-	}
-}
-
-func TestAllocate_BigValues(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("100000000000000000001", 10)
-	m := NewFromBigInt(bi, EUR)
-
-	parts, err := m.Allocate(50, 50)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	total := big.NewInt(0)
-	for _, p := range parts {
-		total.Add(total, p.BigAmount())
-	}
-	if total.Cmp(bi) != 0 {
-		t.Errorf("Sum of allocated parts %s != original %s", total.String(), bi.String())
-	}
-}
-
-func TestCompare_BigValues(t *testing.T) {
-	bi1 := new(big.Int)
-	bi1.SetString("99999999999999999999", 10)
-	bi2 := new(big.Int)
-	bi2.SetString("100000000000000000000", 10)
-
-	m1 := NewFromBigInt(bi1, EUR)
-	m2 := NewFromBigInt(bi2, EUR)
-
-	r, err := m1.Compare(m2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r != -1 {
-		t.Errorf("Expected -1, got %d", r)
-	}
-}
-
-func TestEquals_BigValues(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("99999999999999999999", 10)
-
-	m1 := NewFromBigInt(bi, EUR)
-	m2 := NewFromBigInt(new(big.Int).Set(bi), EUR)
-
-	eq, err := m1.Equals(m2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !eq {
-		t.Error("Expected equal big values to be equal")
-	}
-}
-
-func TestGreaterThan_BigValues(t *testing.T) {
-	bi1 := new(big.Int)
-	bi1.SetString("100000000000000000000", 10)
-	bi2 := new(big.Int)
-	bi2.SetString("99999999999999999999", 10)
-
-	m1 := NewFromBigInt(bi1, EUR)
-	m2 := NewFromBigInt(bi2, EUR)
-
-	gt, err := m1.GreaterThan(m2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !gt {
-		t.Error("Expected m1 > m2")
-	}
-}
-
-func TestLessThan_BigValues(t *testing.T) {
-	bi1 := new(big.Int)
-	bi1.SetString("99999999999999999999", 10)
-	bi2 := new(big.Int)
-	bi2.SetString("100000000000000000000", 10)
-
-	m1 := NewFromBigInt(bi1, EUR)
-	m2 := NewFromBigInt(bi2, EUR)
-
-	lt, err := m1.LessThan(m2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !lt {
-		t.Error("Expected m1 < m2")
-	}
-}
-
-func TestIsZero_NilAmount(t *testing.T) {
-	m := &Money{}
-	if !m.IsZero() {
-		t.Error("Expected nil amount to be zero")
-	}
-}
-
-func TestIsPositive_BigValue(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("99999999999999999999", 10)
-	m := NewFromBigInt(bi, EUR)
-	if !m.IsPositive() {
-		t.Error("Expected big positive value to be positive")
-	}
-}
-
-func TestIsNegative_BigValue(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("-99999999999999999999", 10)
-	m := NewFromBigInt(bi, EUR)
-	if !m.IsNegative() {
-		t.Error("Expected big negative value to be negative")
-	}
-}
-
-func TestAbsolute_BigValue(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("-99999999999999999999", 10)
-	m := NewFromBigInt(bi, EUR)
-	abs := m.Absolute()
-
-	expected := new(big.Int)
-	expected.SetString("99999999999999999999", 10)
-	if abs.BigAmount().Cmp(expected) != 0 {
-		t.Errorf("Expected %s, got %s", expected.String(), abs.BigAmount().String())
-	}
-}
-
-func TestNegative_BigValue(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("99999999999999999999", 10)
-	m := NewFromBigInt(bi, EUR)
-	neg := m.Negative()
-
-	expected := new(big.Int)
-	expected.SetString("-99999999999999999999", 10)
-	if neg.BigAmount().Cmp(expected) != 0 {
-		t.Errorf("Expected %s, got %s", expected.String(), neg.BigAmount().String())
-	}
-}
-
-func TestRound_BigValue(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("99999999999999999975", 10) // last two digits: 75 > 50
-	m := NewFromBigInt(bi, EUR)              // EUR fraction = 2
-	rounded := m.Round()
-
-	expected := new(big.Int)
-	expected.SetString("100000000000000000000", 10)
-	if rounded.BigAmount().Cmp(expected) != 0 {
-		t.Errorf("Expected %s, got %s", expected.String(), rounded.BigAmount().String())
-	}
-}
-
-func TestDisplay_BigValue(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("1234567890123456789", 10)
-	m := NewFromBigInt(bi, USD)
-	display := m.Display()
-
-	// Should contain some reasonable formatting without panic
-	if display == "" {
-		t.Error("Display should not return empty string for big value")
-	}
-}
-
-func TestDisplayCompact_BigValue(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("100000000000000000000", 10)
-	m := NewFromBigInt(bi, USD)
-	compact := m.DisplayCompact(1)
-
-	if compact == "" {
-		t.Error("DisplayCompact should not return empty string for big value")
-	}
-}
-
-func TestAsMajorUnits_BigValue(t *testing.T) {
-	// For values that fit in int64, AsMajorUnits should work fine
-	m := New(100, USD)
-	if m.AsMajorUnits() != 1.0 {
-		t.Errorf("Expected 1.0, got %f", m.AsMajorUnits())
-	}
-}
-
-func TestMarshalJSON_BigValue(t *testing.T) {
-	// Reset to default
-	MarshalJSON = defaultMarshalJSON
-
-	bi := new(big.Int)
-	bi.SetString("99999999999999999999", 10)
-	m := NewFromBigInt(bi, USD)
-
-	b, err := json.Marshal(m)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := `{"amount":99999999999999999999,"currency":"USD"}`
-	if string(b) != expected {
-		t.Errorf("Expected %s, got %s", expected, string(b))
-	}
-}
-
-func TestUnmarshalJSON_BigValue(t *testing.T) {
-	UnmarshalJSON = defaultUnmarshalJSON
-
-	given := `{"amount": 99999999999999999999, "currency":"USD"}`
-	var m Money
-	err := json.Unmarshal([]byte(given), &m)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := new(big.Int)
-	expected.SetString("99999999999999999999", 10)
-	if m.BigAmount().Cmp(expected) != 0 {
-		t.Errorf("Expected %s, got %s", expected.String(), m.BigAmount().String())
-	}
-}
-
-func TestMarshalJSON_BackwardCompatible(t *testing.T) {
-	MarshalJSON = defaultMarshalJSON
-
-	m := New(12345, USD)
-	b, err := json.Marshal(m)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := `{"amount":12345,"currency":"USD"}`
-	if string(b) != expected {
-		t.Errorf("Expected %s, got %s", expected, string(b))
-	}
-}
-
-func TestUnmarshalJSON_BackwardCompatible(t *testing.T) {
-	UnmarshalJSON = defaultUnmarshalJSON
-
-	given := `{"amount": 12345, "currency":"USD"}`
-	var m Money
-	err := json.Unmarshal([]byte(given), &m)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if m.Amount() != 12345 {
-		t.Errorf("Expected 12345, got %d", m.Amount())
-	}
-	if m.Currency().Code != USD {
-		t.Errorf("Expected USD, got %s", m.Currency().Code)
-	}
-}
-
-func TestJSON_RoundTrip_SmallValue(t *testing.T) {
-	MarshalJSON = defaultMarshalJSON
-	UnmarshalJSON = defaultUnmarshalJSON
-
-	original := New(42, EUR)
-	b, err := json.Marshal(original)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var restored Money
-	err = json.Unmarshal(b, &restored)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if restored.Amount() != original.Amount() {
-		t.Errorf("Round trip failed: expected %d, got %d", original.Amount(), restored.Amount())
-	}
-}
-
-func TestJSON_RoundTrip_BigValue(t *testing.T) {
-	MarshalJSON = defaultMarshalJSON
-	UnmarshalJSON = defaultUnmarshalJSON
-
-	bi := new(big.Int)
-	bi.SetString("99999999999999999999", 10)
-	original := NewFromBigInt(bi, EUR)
-
-	b, err := json.Marshal(original)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var restored Money
-	err = json.Unmarshal(b, &restored)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if restored.BigAmount().Cmp(original.BigAmount()) != 0 {
-		t.Errorf("Round trip failed: expected %s, got %s", original.BigAmount().String(), restored.BigAmount().String())
-	}
-}
-
-func TestJSON_RoundTrip_NegativeBigValue(t *testing.T) {
-	MarshalJSON = defaultMarshalJSON
-	UnmarshalJSON = defaultUnmarshalJSON
-
-	bi := new(big.Int)
-	bi.SetString("-99999999999999999999", 10)
-	original := NewFromBigInt(bi, EUR)
-
-	b, err := json.Marshal(original)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var restored Money
-	err = json.Unmarshal(b, &restored)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if restored.BigAmount().Cmp(original.BigAmount()) != 0 {
-		t.Errorf("Round trip failed: expected %s, got %s", original.BigAmount().String(), restored.BigAmount().String())
-	}
-}
-
-func TestMultiply_PanicOnEmpty(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Expected panic when calling Multiply with no args")
+func TestMoney_BigInt_Arithmetic(t *testing.T) {
+	t.Run("Add big values", func(t *testing.T) {
+		m1 := NewFromBigInt(setBigInt("99999999999999999999"), EUR)
+		m2 := NewFromBigInt(big.NewInt(1), EUR)
+		r, err := m1.Add(m2)
+		require.NoError(t, err)
+		assert.Equal(t, 0, r.BigAmount().Cmp(setBigInt("100000000000000000000")))
+	})
+
+	t.Run("Subtract big values", func(t *testing.T) {
+		m1 := NewFromBigInt(setBigInt("100000000000000000000"), EUR)
+		m2 := NewFromBigInt(big.NewInt(1), EUR)
+		r, err := m1.Subtract(m2)
+		require.NoError(t, err)
+		assert.Equal(t, 0, r.BigAmount().Cmp(setBigInt("99999999999999999999")))
+	})
+
+	t.Run("Multiply big values", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("10000000000000000000"), EUR)
+		r := m.Multiply(10)
+		assert.Equal(t, 0, r.BigAmount().Cmp(setBigInt("100000000000000000000")))
+	})
+
+	t.Run("Multiply overflow int64 still correct", func(t *testing.T) {
+		m := New(math.MaxInt64, EUR)
+		r := m.Multiply(2)
+		expected := new(big.Int).Mul(big.NewInt(math.MaxInt64), big.NewInt(2))
+		assert.Equal(t, 0, r.BigAmount().Cmp(expected))
+	})
+
+	t.Run("Multiply panic on empty", func(t *testing.T) {
+		assert.Panics(t, func() {
+			New(100, EUR).Multiply()
+		})
+	})
+
+	t.Run("Split big values sums to original", func(t *testing.T) {
+		bi := setBigInt("100000000000000000001")
+		m := NewFromBigInt(bi, EUR)
+		parts, err := m.Split(3)
+		require.NoError(t, err)
+
+		total := big.NewInt(0)
+		for _, p := range parts {
+			total.Add(total, p.BigAmount())
 		}
-	}()
-	m := New(100, EUR)
-	m.Multiply()
-}
+		assert.Equal(t, 0, total.Cmp(bi), "sum of split parts %s != original %s", total, bi)
+	})
 
-func TestDisplay_BigValue_UsesFormatBigInt(t *testing.T) {
-	// Value that doesn't fit in int64 should use FormatBigInt path
-	bi := new(big.Int)
-	bi.SetString("12345678901234567890", 10)
-	m := NewFromBigInt(bi, USD)
-	display := m.Display()
-	if display == "" {
-		t.Error("Expected non-empty display for big value")
-	}
-	// Should contain the grapheme
-	if !contains(display, "$") {
-		t.Errorf("Expected display to contain $, got %s", display)
-	}
-}
+	t.Run("Allocate big values sums to original", func(t *testing.T) {
+		bi := setBigInt("100000000000000000001")
+		m := NewFromBigInt(bi, EUR)
+		parts, err := m.Allocate(50, 50)
+		require.NoError(t, err)
 
-func TestDisplayCompact_BigValue_UsesFormatCompactBigInt(t *testing.T) {
-	bi := new(big.Int)
-	bi.SetString("12345678901234567890", 10)
-	m := NewFromBigInt(bi, USD)
-	compact := m.DisplayCompact(2)
-	if compact == "" {
-		t.Error("Expected non-empty compact display for big value")
-	}
-}
-
-func TestAmount_NilAmount(t *testing.T) {
-	m := &Money{}
-	if m.Amount() != 0 {
-		t.Errorf("Expected 0 for nil amount, got %d", m.Amount())
-	}
-}
-
-func TestUnmarshalJSON_FloatAmount(t *testing.T) {
-	// Test float64 path in unmarshal (when UseNumber is not available)
-	UnmarshalJSON = defaultUnmarshalJSON
-	given := `{"amount": 123.0, "currency":"USD"}`
-	var m Money
-	err := json.Unmarshal([]byte(given), &m)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m.Amount() != 123 {
-		t.Errorf("Expected 123, got %d", m.Amount())
-	}
-}
-
-func TestUnmarshalJSON_FloatNumberString(t *testing.T) {
-	// Test json.Number that is a float (not integer parseable by big.Int)
-	UnmarshalJSON = defaultUnmarshalJSON
-	given := `{"amount": 123.7, "currency":"USD"}`
-	var m Money
-	err := json.Unmarshal([]byte(given), &m)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m.Amount() != 123 {
-		t.Errorf("Expected 123, got %d", m.Amount())
-	}
-}
-
-func TestAllocate_NegativeRatio(t *testing.T) {
-	m := New(100, EUR)
-	_, err := m.Allocate(-1)
-	if err == nil {
-		t.Error("Expected error for negative ratio")
-	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
+		total := big.NewInt(0)
+		for _, p := range parts {
+			total.Add(total, p.BigAmount())
 		}
-	}
-	return false
+		assert.Equal(t, 0, total.Cmp(bi), "sum of allocated parts %s != original %s", total, bi)
+	})
 }
 
-func TestJSON_RoundTrip_Zero(t *testing.T) {
+func TestMoney_BigInt_Comparison(t *testing.T) {
+	small := setBigInt("99999999999999999999")
+	large := setBigInt("100000000000000000000")
+
+	t.Run("Compare", func(t *testing.T) {
+		r, err := NewFromBigInt(small, EUR).Compare(NewFromBigInt(large, EUR))
+		require.NoError(t, err)
+		assert.Equal(t, -1, r)
+	})
+
+	t.Run("Equals", func(t *testing.T) {
+		eq, err := NewFromBigInt(small, EUR).Equals(NewFromBigInt(new(big.Int).Set(small), EUR))
+		require.NoError(t, err)
+		assert.True(t, eq)
+	})
+
+	t.Run("GreaterThan", func(t *testing.T) {
+		gt, err := NewFromBigInt(large, EUR).GreaterThan(NewFromBigInt(small, EUR))
+		require.NoError(t, err)
+		assert.True(t, gt)
+	})
+
+	t.Run("LessThan", func(t *testing.T) {
+		lt, err := NewFromBigInt(small, EUR).LessThan(NewFromBigInt(large, EUR))
+		require.NoError(t, err)
+		assert.True(t, lt)
+	})
+
+	t.Run("IsZero nil amount", func(t *testing.T) {
+		assert.True(t, (&Money{}).IsZero())
+	})
+
+	t.Run("IsPositive big value", func(t *testing.T) {
+		assert.True(t, NewFromBigInt(small, EUR).IsPositive())
+	})
+
+	t.Run("IsNegative big value", func(t *testing.T) {
+		assert.True(t, NewFromBigInt(setBigInt("-99999999999999999999"), EUR).IsNegative())
+	})
+}
+
+func TestMoney_BigInt_Formatting(t *testing.T) {
+	t.Run("Display big value", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("1234567890123456789"), USD)
+		display := m.Display()
+		assert.NotEmpty(t, display)
+		assert.Contains(t, display, "$")
+	})
+
+	t.Run("DisplayCompact big value", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("100000000000000000000"), USD)
+		compact := m.DisplayCompact(1)
+		assert.NotEmpty(t, compact)
+		assert.NotContains(t, compact, "Inf")
+	})
+
+	t.Run("DisplayCompact with decimals", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("12345678901234567890"), USD)
+		compact := m.DisplayCompact(2)
+		assert.NotEmpty(t, compact)
+	})
+
+	t.Run("AsMajorUnits small value", func(t *testing.T) {
+		m := New(100, USD)
+		assert.Equal(t, 1.0, m.AsMajorUnits())
+	})
+
+	t.Run("AsMajorUnits nil amount", func(t *testing.T) {
+		m := &Money{}
+		assert.Equal(t, 0.0, m.AsMajorUnits())
+	})
+}
+
+func TestMoney_BigInt_Operations(t *testing.T) {
+	t.Run("Absolute big value", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("-99999999999999999999"), EUR)
+		abs := m.Absolute()
+		assert.Equal(t, 0, abs.BigAmount().Cmp(setBigInt("99999999999999999999")))
+	})
+
+	t.Run("Negative big value", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("99999999999999999999"), EUR)
+		neg := m.Negative()
+		assert.Equal(t, 0, neg.BigAmount().Cmp(setBigInt("-99999999999999999999")))
+	})
+
+	t.Run("Round big value", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("99999999999999999975"), EUR)
+		rounded := m.Round()
+		assert.Equal(t, 0, rounded.BigAmount().Cmp(setBigInt("100000000000000000000")))
+	})
+}
+
+func TestMoney_JSON_RoundTrip(t *testing.T) {
 	MarshalJSON = defaultMarshalJSON
 	UnmarshalJSON = defaultUnmarshalJSON
 
-	original := New(0, EUR)
+	tests := []struct {
+		name       string
+		original   *Money
+		expectedBI *big.Int
+	}{
+		{"small value", New(42, EUR), big.NewInt(42)},
+		{"big value", NewFromBigInt(setBigInt("99999999999999999999"), EUR), setBigInt("99999999999999999999")},
+		{"negative big value", NewFromBigInt(setBigInt("-99999999999999999999"), EUR), setBigInt("-99999999999999999999")},
+		{"zero", New(0, EUR), big.NewInt(0)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := json.Marshal(tt.original)
+			require.NoError(t, err)
 
-	b, err := json.Marshal(original)
-	if err != nil {
-		t.Fatal(err)
+			var restored Money
+			err = json.Unmarshal(b, &restored)
+			require.NoError(t, err)
+			assert.Equal(t, 0, restored.BigAmount().Cmp(tt.expectedBI),
+				"round trip failed: expected %s, got %s", tt.expectedBI, restored.BigAmount())
+		})
 	}
 
-	var restored Money
-	err = json.Unmarshal(b, &restored)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Run("marshal big value format", func(t *testing.T) {
+		m := NewFromBigInt(setBigInt("99999999999999999999"), USD)
+		b, err := json.Marshal(m)
+		require.NoError(t, err)
+		assert.Equal(t, `{"amount":99999999999999999999,"currency":"USD"}`, string(b))
+	})
 
-	if restored.Amount() != 0 {
-		t.Errorf("Round trip failed: expected 0, got %d", restored.Amount())
-	}
+	t.Run("marshal backward compatible", func(t *testing.T) {
+		m := New(12345, USD)
+		b, err := json.Marshal(m)
+		require.NoError(t, err)
+		assert.Equal(t, `{"amount":12345,"currency":"USD"}`, string(b))
+	})
+
+	t.Run("unmarshal big value", func(t *testing.T) {
+		var m Money
+		err := json.Unmarshal([]byte(`{"amount": 99999999999999999999, "currency":"USD"}`), &m)
+		require.NoError(t, err)
+		assert.Equal(t, 0, m.BigAmount().Cmp(setBigInt("99999999999999999999")))
+	})
+
+	t.Run("unmarshal backward compatible", func(t *testing.T) {
+		var m Money
+		err := json.Unmarshal([]byte(`{"amount": 12345, "currency":"USD"}`), &m)
+		require.NoError(t, err)
+		assert.Equal(t, int64(12345), m.Amount())
+		assert.Equal(t, USD, m.Currency().Code)
+	})
+
+	t.Run("unmarshal float amount", func(t *testing.T) {
+		var m Money
+		err := json.Unmarshal([]byte(`{"amount": 123.0, "currency":"USD"}`), &m)
+		require.NoError(t, err)
+		assert.Equal(t, int64(123), m.Amount())
+	})
+
+	t.Run("unmarshal float number string", func(t *testing.T) {
+		var m Money
+		err := json.Unmarshal([]byte(`{"amount": 123.7, "currency":"USD"}`), &m)
+		require.NoError(t, err)
+		assert.Equal(t, int64(123), m.Amount())
+	})
+
+	t.Run("allocate negative ratio", func(t *testing.T) {
+		m := New(100, EUR)
+		_, err := m.Allocate(-1)
+		assert.Error(t, err)
+	})
 }
