@@ -8,7 +8,10 @@ import (
 )
 
 func setBigInt(s string) *big.Int {
-	n, _ := new(big.Int).SetString(s, 10)
+	n, ok := new(big.Int).SetString(s, 10)
+	if !ok {
+		panic("invalid big.Int string: " + s)
+	}
 	return n
 }
 
