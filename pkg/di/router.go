@@ -7,17 +7,28 @@ import (
 	"net/http"
 	"reflect"
 	"sync"
+
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 // Invoke creates a generic DI function that can be used for any function type
 func Invoke(ctx context.Context, fn interface{}, customProviders ...Provider) ([]reflect.Value, error) {
-	diContext := NewDIContext(customProviders...)
+	allProviders := append([]Provider{}, customProviders...)
+	allProviders = append(allProviders, BuiltinProviders()...)
+	return InvokeWithProviders(ctx, fn, allProviders...)
+}
+
+// InvokeWithProviders creates a generic DI function that resolves dependencies using only the given providers.
+func InvokeWithProviders(ctx context.Context, fn interface{}, providers ...Provider) ([]reflect.Value, error) {
+	diContext := NewDIContextWithProviders(providers...)
 	return diContext.Invoke(ctx, fn)
 }
 
 // H creates a dependency injection HTTP handler
 func H(handler interface{}, customProviders ...Provider) http.HandlerFunc {
-	diContext := NewDIContext(customProviders...)
+	allProviders := append([]Provider{}, customProviders...)
+	allProviders = append(allProviders, BuiltinProviders()...)
+	diContext := NewDIContextWithProviders(allProviders...)
 	return createHandlerFunc(diContext, handler)
 }
 
@@ -33,10 +44,13 @@ type DIContext struct {
 func NewDIContext(customProviders ...Provider) *DIContext {
 	allProviders := append([]Provider{}, customProviders...)
 	allProviders = append(allProviders, BuiltinProviders()...)
+	return NewDIContextWithProviders(allProviders...)
+}
 
+// NewDIContextWithProviders creates a new DIContext that uses exactly the given providers.
+func NewDIContextWithProviders(providers ...Provider) *DIContext {
 	return &DIContext{
-		customProviders:  customProviders,
-		allProviders:     allProviders,
+		allProviders:     append([]Provider{}, providers...),
 		matchedProviders: make(map[reflect.Type]Provider),
 	}
 }
@@ -69,11 +83,33 @@ func (d *DIContext) resolveProvider(argType reflect.Type) (Provider, error) {
 
 // provideValue resolves a single dependency value for a given type
 func (d *DIContext) provideValue(argType reflect.Type, ctx context.Context) (reflect.Value, error) {
+	if argType == reflect.TypeOf((*context.Context)(nil)).Elem() {
+		return reflect.ValueOf(ctx), nil
+	}
 	provider, err := d.resolveProvider(argType)
 	if err != nil {
+		if value, ok := provideAppValue(argType, ctx); ok {
+			return value, nil
+		}
 		return reflect.Value{}, err
 	}
 	return provider.Provide(argType, ctx)
+}
+
+func provideAppValue(argType reflect.Type, ctx context.Context) (reflect.Value, bool) {
+	rawApp := ctx.Value(constants.AppKey)
+	if rawApp == nil {
+		return reflect.Value{}, false
+	}
+	value := reflect.ValueOf(rawApp)
+	valueType := value.Type()
+	if valueType.AssignableTo(argType) {
+		return value, true
+	}
+	if argType.Kind() == reflect.Interface && valueType.Implements(argType) {
+		return value, true
+	}
+	return reflect.Value{}, false
 }
 
 // Invoke resolves dependencies and calls the provided function with the given context
@@ -133,11 +169,7 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 
 		provider, err := diContext.resolveProvider(argType)
 		if err != nil {
-			// Return a handler that will return an error for this specific type
-			errorMsg := err.Error()
-			return func(w http.ResponseWriter, r *http.Request) {
-				http.Error(w, errorMsg, http.StatusInternalServerError)
-			}
+			continue
 		}
 		resolvedProviders[i] = provider
 	}
@@ -161,7 +193,15 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 		// For remaining args, use diContext to resolve them
 		for i := 0; i < numArgs; i++ {
 			if !hasHTTPRequestArg[i] && !hasHTTPWriterArg[i] {
-				value, err := resolvedProviders[i].Provide(argTypes[i], r.Context())
+				var (
+					value reflect.Value
+					err   error
+				)
+				if resolvedProviders[i] != nil {
+					value, err = resolvedProviders[i].Provide(argTypes[i], r.Context())
+				} else {
+					value, err = diContext.provideValue(argTypes[i], r.Context())
+				}
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return

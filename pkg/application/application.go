@@ -33,6 +33,7 @@ import (
 	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
 	appletenginewsbridge "github.com/iota-uz/iota-sdk/pkg/appletengine/wsbridge"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -98,6 +99,75 @@ func (s *seeder) Seed(ctx context.Context, deps *SeedDeps) error {
 
 func (s *seeder) Register(seedFuncs ...SeedFunc) {
 	s.seedFuncs = append(s.seedFuncs, seedFuncs...)
+}
+
+func Seed(fn interface{}) SeedFunc {
+	if err := validateSeedSignature(fn); err != nil {
+		panic(err)
+	}
+	return func(ctx context.Context, deps *SeedDeps) error {
+		if deps == nil {
+			return fmt.Errorf("seed deps are required")
+		}
+		return deps.Invoke(ctx, fn)
+	}
+}
+
+func (d *SeedDeps) Invoke(ctx context.Context, fn interface{}) error {
+	if d == nil {
+		return fmt.Errorf("seed deps are required")
+	}
+	results, err := di.InvokeWithProviders(ctx, fn, d.providersForInvocation()...)
+	if err != nil {
+		return err
+	}
+	if len(results) != 1 {
+		return fmt.Errorf("seed function must return exactly one value")
+	}
+	if results[0].IsNil() {
+		return nil
+	}
+	resultErr, ok := results[0].Interface().(error)
+	if !ok {
+		return fmt.Errorf("seed function must return an error")
+	}
+	return resultErr
+}
+
+func (d *SeedDeps) providersForInvocation() []di.Provider {
+	providers := make([]di.Provider, 0, len(d.providers)+3)
+	if d != nil {
+		if d.Pool != nil {
+			providers = append(providers, di.ValueProvider(d.Pool))
+		}
+		if d.EventBus != nil {
+			providers = append(providers, di.ValueProvider(d.EventBus))
+		}
+		if d.Logger != nil {
+			providers = append(providers, di.ValueProvider(d.Logger))
+		}
+		providers = append(providers, d.providers...)
+	}
+	return providers
+}
+
+func validateSeedSignature(fn interface{}) error {
+	if fn == nil {
+		return fmt.Errorf("seed function is required")
+	}
+	fnType := reflect.TypeOf(fn)
+	if fnType.Kind() != reflect.Func {
+		return fmt.Errorf("seed function must be a function, got %s", fnType.Kind())
+	}
+	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
+	if fnType.NumIn() == 0 || fnType.In(0) != contextType {
+		return fmt.Errorf("seed function must accept context.Context as the first argument")
+	}
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if fnType.NumOut() != 1 || !fnType.Out(0).Implements(errorType) {
+		return fmt.Errorf("seed function must return exactly one error")
+	}
+	return nil
 }
 
 // ---- Applet Registry implementation ----

@@ -10,8 +10,8 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -30,10 +30,16 @@ type Provider interface {
 type pageContextProvider struct{}
 type localizerProvider struct{}
 type userProvider struct{}
-type appProvider struct{}
 type serviceProvider struct{}
 type loggerProvider struct{}
 type localeProvider struct{}
+type valueProvider struct {
+	value reflect.Value
+}
+
+type serviceContainer interface {
+	Services() map[reflect.Type]interface{}
+}
 
 func (p *pageContextProvider) Ok(t reflect.Type) bool {
 	pageCtxType := reflect.TypeOf((*types.PageContext)(nil)).Elem()
@@ -70,30 +76,20 @@ func (p *userProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Val
 	return reflect.ValueOf(u), nil
 }
 
-func (p *appProvider) Ok(t reflect.Type) bool {
-	appType := reflect.TypeOf((*application.Application)(nil)).Elem()
-	return t.Implements(appType)
-}
-
-func (p *appProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	app, err := application.UseApp(ctx)
-	if err != nil {
-		return reflect.Value{}, err
-	}
-	return reflect.ValueOf(app), nil
-}
-
 func (p *serviceProvider) Ok(t reflect.Type) bool {
 	// Basic check: must be a pointer type for services
 	return t.Kind() == reflect.Ptr
 }
 
 func (p *serviceProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	app, err := application.UseApp(ctx)
-	if err != nil {
-		return reflect.Value{}, err
+	rawApp := ctx.Value(constants.AppKey)
+	if rawApp == nil {
+		return reflect.Value{}, fmt.Errorf("app not found in context")
 	}
-
+	app, ok := rawApp.(serviceContainer)
+	if !ok {
+		return reflect.Value{}, fmt.Errorf("app does not expose services")
+	}
 	if service, exists := app.Services()[t.Elem()]; exists {
 		return reflect.ValueOf(service), nil
 	}
@@ -121,6 +117,28 @@ func (p *localeProvider) Provide(t reflect.Type, ctx context.Context) (reflect.V
 	return reflect.ValueOf(l), nil
 }
 
+func ValueProvider(value interface{}) Provider {
+	if value == nil {
+		panic("value is required")
+	}
+	return &valueProvider{value: reflect.ValueOf(value)}
+}
+
+func (p *valueProvider) Ok(t reflect.Type) bool {
+	valueType := p.value.Type()
+	if valueType.AssignableTo(t) {
+		return true
+	}
+	return t.Kind() == reflect.Interface && valueType.Implements(t)
+}
+
+func (p *valueProvider) Provide(t reflect.Type, _ context.Context) (reflect.Value, error) {
+	if !p.Ok(t) {
+		return reflect.Value{}, fmt.Errorf("value provider does not support type: %v", t)
+	}
+	return p.value, nil
+}
+
 // BuiltinProviders returns the list of built-in providers
 func BuiltinProviders() []Provider {
 	return []Provider{
@@ -128,7 +146,6 @@ func BuiltinProviders() []Provider {
 		&pageContextProvider{},
 		&localizerProvider{},
 		&userProvider{},
-		&appProvider{},
 		&serviceProvider{},
 		&localeProvider{},
 	}

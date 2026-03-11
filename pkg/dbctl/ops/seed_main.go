@@ -54,6 +54,8 @@ func runMainSeed(ctx context.Context) error {
 		EventBus: eventbus.NewEventPublisher(conf.Logger()),
 		Logger:   conf.Logger(),
 	}
+	coreseed.RegisterProviders(seedDeps)
+	websiteseed.RegisterProviders(seedDeps)
 	seeder := application.NewSeeder()
 	usr, err := user.New(
 		"Test",
@@ -75,9 +77,7 @@ func runMainSeed(ctx context.Context) error {
 	seeder.Register(
 		coreseed.CreateDefaultTenant,
 		coreseed.CreateCurrencies,
-		func(ctx context.Context, deps *application.SeedDeps) error {
-			return coreseed.CreatePermissions(ctx, deps, allPermissions)
-		},
+		coreseed.CreatePermissions(allPermissions),
 		coreseed.UserSeedFunc(usr, allPermissions),
 		coreseed.UserSeedFunc(user.New(
 			"AI",

@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -13,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -32,21 +32,26 @@ func UserSeedFunc(usr user.User, permissions []permission.Permission) applicatio
 		user:        usr,
 		permissions: permissions,
 	}
-	return s.CreateUser
+	return application.Seed(s.CreateUser)
 }
 
-func (s *userSeeder) CreateUser(ctx context.Context, deps *application.SeedDeps) error {
+func (s *userSeeder) CreateUser(
+	ctx context.Context,
+	roleRepository role.Repository,
+	userRepository user.Repository,
+	logger logrus.FieldLogger,
+) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get tenant from context")
 	}
 
-	r, err := s.getOrCreateRole(ctx, deps)
+	r, err := s.getOrCreateRole(ctx, roleRepository, logger)
 	if err != nil {
 		return err
 	}
 
-	_, err = s.getOrCreateUser(ctx, r, tenantID)
+	_, err = s.getOrCreateUser(ctx, userRepository, r, tenantID, logger)
 	if err != nil {
 		return err
 	}
@@ -54,8 +59,11 @@ func (s *userSeeder) CreateUser(ctx context.Context, deps *application.SeedDeps)
 	return nil
 }
 
-func (s *userSeeder) getOrCreateRole(ctx context.Context, _ *application.SeedDeps) (role.Role, error) {
-	roleRepository := persistence.NewRoleRepository()
+func (s *userSeeder) getOrCreateRole(
+	ctx context.Context,
+	roleRepository role.Repository,
+	logger logrus.FieldLogger,
+) (role.Role, error) {
 	matches, err := roleRepository.GetPaginated(ctx, &role.FindParams{
 		Filters: []role.Filter{
 			{
@@ -67,7 +75,6 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, _ *application.SeedDep
 	if err != nil {
 		return nil, err
 	}
-	logger := configuration.Use().Logger()
 	if len(matches) > 0 {
 		logger.Infof("Role %s already exists", adminRoleName)
 		return matches[0], nil
@@ -89,15 +96,17 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, _ *application.SeedDep
 	return roleRepository.Create(ctx, newRole)
 }
 
-func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role, tenantID uuid.UUID) (user.User, error) {
-	uploadRepository := persistence.NewUploadRepository()
-	userRepository := persistence.NewUserRepository(uploadRepository)
+func (s *userSeeder) getOrCreateUser(
+	ctx context.Context,
+	userRepository user.Repository,
+	r role.Role,
+	tenantID uuid.UUID,
+	logger logrus.FieldLogger,
+) (user.User, error) {
 	foundUser, err := userRepository.GetByEmail(ctx, s.user.Email().Value())
 	if err != nil && !errors.Is(err, persistence.ErrUserNotFound) {
 		return nil, err
 	}
-
-	logger := configuration.Use().Logger()
 	if foundUser != nil {
 		logger.Infof("User %s already exists", s.user.Email().Value())
 		return foundUser, nil

@@ -70,13 +70,12 @@ func runSuperadminSeed(ctx context.Context) error {
 		EventBus: eventbus.NewEventPublisher(conf.Logger()),
 		Logger:   conf.Logger(),
 	}
+	coreseed.RegisterProviders(seedDeps)
 	seeder := application.NewSeeder()
 	seeder.Register(
 		coreseed.CreateDefaultTenant,
 		coreseed.CreateCurrencies,
-		func(ctx context.Context, deps *application.SeedDeps) error {
-			return coreseed.CreatePermissions(ctx, deps, allPermissions)
-		},
+		coreseed.CreatePermissions(allPermissions),
 		coreseed.UserSeedFunc(superadminUser, allPermissions),
 		coreseed.CreateSubscriptionEntitlements,
 	)

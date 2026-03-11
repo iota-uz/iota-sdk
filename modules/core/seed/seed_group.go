@@ -5,19 +5,12 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/sirupsen/logrus"
 )
 
 func GroupsSeedFunc(groups ...group.Group) application.SeedFunc {
-	return func(ctx context.Context, _ *application.SeedDeps) error {
-		logger := configuration.Use().Logger()
-		groupRepository := persistence.NewGroupRepository(
-			persistence.NewUserRepository(persistence.NewUploadRepository()),
-			persistence.NewRoleRepository(),
-		)
-
+	return application.Seed(func(ctx context.Context, groupRepository group.Repository, logger logrus.FieldLogger) error {
 		for _, g := range groups {
 			if exists, err := groupRepository.Exists(ctx, g.ID()); err != nil {
 				logger.Errorf("Failed to check if group %s exists: %v", g.Name(), err)
@@ -32,5 +25,5 @@ func GroupsSeedFunc(groups ...group.Group) application.SeedFunc {
 			logger.Infof("Group %s saved", g.Name())
 		}
 		return nil
-	}
+	})
 }
