@@ -1,3 +1,4 @@
+// Package persistence stores dbctl execution history and artifacts.
 package persistence
 
 import (
@@ -10,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var ErrArtifactNotFound = errors.New("dbctl artifact not found")
 
 type Repository struct {
 	pool *pgxpool.Pool
@@ -150,7 +153,7 @@ func (r *Repository) ListRuns(ctx context.Context, limit int) ([]RunRecord, erro
 
 func (r *Repository) LatestArtifact(ctx context.Context, runID, artifactType string) (*ArtifactRecord, error) {
 	if r == nil || r.pool == nil {
-		return nil, nil
+		return nil, ErrArtifactNotFound
 	}
 	if _, err := uuid.Parse(runID); err != nil {
 		return nil, fmt.Errorf("parse run id %q: %w", runID, err)
@@ -165,7 +168,7 @@ func (r *Repository) LatestArtifact(ctx context.Context, runID, artifactType str
 	`, runID, artifactType).Scan(&rec.RunID, &rec.ArtifactType, &rec.PayloadJSON, &rec.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
+			return nil, ErrArtifactNotFound
 		}
 		return nil, fmt.Errorf("query latest artifact for run %s: %w", runID, err)
 	}

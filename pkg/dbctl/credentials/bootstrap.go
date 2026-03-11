@@ -1,3 +1,4 @@
+// Package credentials defines credential bootstrap artifacts for dbctl runs.
 package credentials
 
 import (

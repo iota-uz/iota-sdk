@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -42,6 +43,7 @@ func newPlanCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
+			out := cmd.OutOrStdout()
 			plan, err := execution.Plan(ctx, execution.RunOptions{
 				Operation:     args[0],
 				Mode:          ops.ExecutionModePlan,
@@ -57,11 +59,11 @@ func newPlanCommand() *cobra.Command {
 				execution.Emit(os.Stdout, true, execution.Event{Type: "summary", Operation: plan.Spec.Name, Status: "planned", Payload: plan})
 				return nil
 			}
-			fmt.Printf("Operation: %s\n", plan.Spec.Name)
-			fmt.Printf("Kind: %s\n", plan.Spec.Kind)
-			fmt.Printf("Policy hash: %s\n", plan.PolicyHash)
+			_, _ = fmt.Fprintf(out, "Operation: %s\n", plan.Spec.Name)
+			_, _ = fmt.Fprintf(out, "Kind: %s\n", plan.Spec.Kind)
+			_, _ = fmt.Fprintf(out, "Policy hash: %s\n", plan.PolicyHash)
 			for _, step := range plan.Spec.Steps {
-				fmt.Printf("- %s: %s [%s]\n", step.ID, step.Description, step.TxMode)
+				_, _ = fmt.Fprintf(out, "- %s: %s [%s]\n", step.ID, step.Description, step.TxMode)
 			}
 			return nil
 		},
@@ -112,6 +114,7 @@ func newDoctorCommand() *cobra.Command {
 		Use:   "doctor",
 		Short: "Validate dbctl policy and target resolution",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
 			cfg, payload, err := policy.Load(policyPath)
 			if err != nil {
 				return err
@@ -126,9 +129,9 @@ func newDoctorCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("doctor failed: %w", err)
 			}
-			fmt.Printf("policy hash: %s\n", policy.HashPolicy(payload))
-			fmt.Printf("policy envs: %d\n", len(cfg.Environments))
-			fmt.Printf("resolved target: env=%s host=%s db=%s\n", targetPlan.RunContext.Target.Environment, targetPlan.RunContext.Target.Host, targetPlan.RunContext.Target.Name)
+			_, _ = fmt.Fprintf(out, "policy hash: %s\n", policy.HashPolicy(payload))
+			_, _ = fmt.Fprintf(out, "policy envs: %d\n", len(cfg.Environments))
+			_, _ = fmt.Fprintf(out, "resolved target: env=%s host=%s db=%s\n", targetPlan.RunContext.Target.Environment, targetPlan.RunContext.Target.Host, targetPlan.RunContext.Target.Name)
 			return nil
 		},
 	}
@@ -144,6 +147,7 @@ func newHistoryCommand() *cobra.Command {
 		Use:   "history",
 		Short: "Show recent dbctl run history",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
 			pool, err := common.GetDefaultDatabasePool()
 			if err != nil {
 				return err
@@ -158,7 +162,7 @@ func newHistoryCommand() *cobra.Command {
 				return err
 			}
 			for _, run := range runs {
-				fmt.Printf("%s %s %s %s\n", run.StartedAt.Format(time.RFC3339), run.Operation, run.Status, run.ID)
+				_, _ = fmt.Fprintf(out, "%s %s %s %s\n", run.StartedAt.Format(time.RFC3339), run.Operation, run.Status, run.ID)
 			}
 			return nil
 		},
@@ -181,6 +185,7 @@ func newCredentialShowCommand() *cobra.Command {
 		Short: "Show credential bootstrap artifact for a run",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
 			pool, err := common.GetDefaultDatabasePool()
 			if err != nil {
 				return err
@@ -189,22 +194,22 @@ func newCredentialShowCommand() *cobra.Command {
 			repo := persistence.New(pool)
 			artifact, err := repo.LatestArtifact(cmd.Context(), args[0], "credential_bootstrap")
 			if err != nil {
+				if errors.Is(err, persistence.ErrArtifactNotFound) {
+					return fmt.Errorf("no credential artifact found")
+				}
 				return err
-			}
-			if artifact == nil {
-				return fmt.Errorf("no credential artifact found")
 			}
 			var bootstrap credentials.BootstrapArtifact
 			if err := json.Unmarshal([]byte(artifact.PayloadJSON), &bootstrap); err != nil {
 				return fmt.Errorf("parse bootstrap artifact payload: %w", err)
 			}
 
-			fmt.Printf("run_id: %s\n", artifact.RunID)
-			fmt.Printf("token_id: %s\n", bootstrap.TokenID)
-			fmt.Printf("subject: %s\n", bootstrap.Subject)
-			fmt.Printf("expires_at: %s\n", bootstrap.ExpiresAt.Format(time.RFC3339))
+			_, _ = fmt.Fprintf(out, "run_id: %s\n", artifact.RunID)
+			_, _ = fmt.Fprintf(out, "token_id: %s\n", bootstrap.TokenID)
+			_, _ = fmt.Fprintf(out, "subject: %s\n", bootstrap.Subject)
+			_, _ = fmt.Fprintf(out, "expires_at: %s\n", bootstrap.ExpiresAt.Format(time.RFC3339))
 			if !reveal {
-				fmt.Println("secret: [hidden] use --reveal when policy allows")
+				_, _ = fmt.Fprintln(out, "secret: [hidden] use --reveal when policy allows")
 				return nil
 			}
 
@@ -216,10 +221,10 @@ func newCredentialShowCommand() *cobra.Command {
 				return fmt.Errorf("credential reveal is disabled by policy (emission=%s)", cfg.Credentials.Emission)
 			}
 			if strings.TrimSpace(bootstrap.Secret) == "" {
-				fmt.Println("secret: [not available in artifact]")
+				_, _ = fmt.Fprintln(out, "secret: [not available in artifact]")
 				return nil
 			}
-			fmt.Printf("secret: %s\n", bootstrap.Secret)
+			_, _ = fmt.Fprintf(out, "secret: %s\n", bootstrap.Secret)
 			return nil
 		},
 	}

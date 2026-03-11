@@ -23,7 +23,11 @@ func Emit(out io.Writer, jsonOutput bool, event Event) {
 	}
 	event.Time = time.Now().UTC()
 	if jsonOutput {
-		payload, _ := json.Marshal(event)
+		payload, err := json.Marshal(event)
+		if err != nil {
+			_, _ = fmt.Fprintf(out, "[error] marshal event: %v\n", err)
+			return
+		}
 		_, _ = fmt.Fprintln(out, string(payload))
 		return
 	}

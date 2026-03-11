@@ -1,3 +1,4 @@
+// Package persistence stores dbctl execution history and artifacts.
 package persistence
 
 import "time"
