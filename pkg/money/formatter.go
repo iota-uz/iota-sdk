@@ -185,8 +185,7 @@ func (f *Formatter) FormatCompactBigInt(amount *big.Int, decimals int) string {
 		return f.FormatBigInt(amount)
 	}
 
-	f64, _ := value.Float64()
-	formattedValue := strconv.FormatFloat(f64, 'f', decimals, 64)
+	formattedValue := value.Text('f', decimals)
 	if decimals == 1 {
 		formattedValue = strings.TrimSuffix(formattedValue, ".0")
 	}
