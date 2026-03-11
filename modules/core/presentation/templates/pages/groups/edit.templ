@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -53,45 +54,49 @@ templ EditForm(props *EditFormProps) {
 		<div
 			class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
-			<form
-				id="delete-form"
-				hx-delete={ fmt.Sprintf("/groups/%s", props.Group.ID) }
-				hx-trigger="submit"
-				hx-indicator="#delete-group-btn"
-			>
-				@button.Danger(button.Props{
-					Disabled: !props.Group.CanDelete,
-					Size:     button.SizeMD,
-					Class:    "justify-center",
-					Attrs: templ.Attributes{
-						"type": "submit",
-						"id":   "delete-group-btn",
-					},
-				}) {
-					{ pageCtx.T("Delete") }
-				}
-			</form>
-			<form
-				id="save-form"
-				method="post"
-				hx-post={ fmt.Sprintf("/groups/%s", props.Group.ID) }
-				hx-indicator="#save-btn"
-				hx-target="#edit-content"
-				hx-swap="outerHTML"
-			>
-				@button.Primary(button.Props{
-					Disabled: !props.Group.CanUpdate,
-					Size:     button.SizeMD,
-					Class:    "bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
-					Attrs: templ.Attributes{
-						"name":  "_action",
-						"value": "save",
-						"id":    "save-btn",
-					},
-				}) {
-					{ pageCtx.T("Save") }
-				}
-			</form>
+			if composables.CanUser(ctx, permissions.GroupDelete) == nil {
+				<form
+					id="delete-form"
+					hx-delete={ fmt.Sprintf("/groups/%s", props.Group.ID) }
+					hx-trigger="submit"
+					hx-indicator="#delete-group-btn"
+				>
+					@button.Danger(button.Props{
+						Disabled: !props.Group.CanDelete,
+						Size:     button.SizeMD,
+						Class:    "justify-center",
+						Attrs: templ.Attributes{
+							"type": "submit",
+							"id":   "delete-group-btn",
+						},
+					}) {
+						{ pageCtx.T("Delete") }
+					}
+				</form>
+			}
+			if composables.CanUser(ctx, permissions.GroupUpdate) == nil {
+				<form
+					id="save-form"
+					method="post"
+					hx-post={ fmt.Sprintf("/groups/%s", props.Group.ID) }
+					hx-indicator="#save-btn"
+					hx-target="#edit-content"
+					hx-swap="outerHTML"
+				>
+					@button.Primary(button.Props{
+						Disabled: !props.Group.CanUpdate,
+						Size:     button.SizeMD,
+						Class:    "bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
+						Attrs: templ.Attributes{
+							"name":  "_action",
+							"value": "save",
+							"id":    "save-btn",
+						},
+					}) {
+						{ pageCtx.T("Save") }
+					}
+				</form>
+			}
 		</div>
 	</div>
 }

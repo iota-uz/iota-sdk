@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -106,15 +107,17 @@ templ RolesContent(props *IndexPageProps) {
 						"value": props.Search,
 					},
 				})
-				@button.Primary(button.Props{
-					Size: button.SizeNormal,
-					Href: "/roles/new",
-					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-					Attrs: templ.Attributes{
-						"data-test-id": "new-role-btn",
-					},
-				}) {
-					{ pageCtx.T("Roles.List.New") }
+				if composables.CanUser(ctx, permissions.RoleCreate) == nil {
+					@button.Primary(button.Props{
+						Size: button.SizeNormal,
+						Href: "/roles/new",
+						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+						Attrs: templ.Attributes{
+							"data-test-id": "new-role-btn",
+						},
+					}) {
+						{ pageCtx.T("Roles.List.New") }
+					}
 				}
 			</form>
 			@RolesTable(props)
