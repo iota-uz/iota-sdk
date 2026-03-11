@@ -292,24 +292,9 @@ func TestFormatCompactBigInt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			formatter := NewFormatter(tt.frac, ".", ",", tt.grapheme, "1 $")
 			result := formatter.FormatCompactBigInt(tt.amount, tt.decimals)
-			assert.NotEmpty(t, result)
 			assert.NotContains(t, result, "Inf", "result must not contain Inf")
 			assert.NotContains(t, result, "NaN", "result must not contain NaN")
-			if tt.expected != "" {
-				assert.Equal(t, tt.expected, result)
-			}
-			// Verify suffix is valid for compact results
-			if tt.amount != nil && tt.amount.Sign() != 0 {
-				hasValidSuffix := assert.Condition(t, func() bool {
-					for _, suffix := range []string{"K ", "M ", "B ", "T ", tt.grapheme} {
-						if len(result) > len(suffix) {
-							_ = suffix
-						}
-					}
-					return true
-				})
-				_ = hasValidSuffix
-			}
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -334,7 +319,7 @@ func TestToMajorUnitsBigFloat(t *testing.T) {
 			diff := new(big.Float).Sub(result, expected)
 			abs := new(big.Float).Abs(diff)
 			tolerance := new(big.Float).SetFloat64(0.001)
-			assert.True(t, abs.Cmp(tolerance) <= 0, "expected ~%s, got %s", tt.expectStr, result.String())
+			assert.LessOrEqual(t, abs.Cmp(tolerance), 0, "expected ~%s, got %s", tt.expectStr, result.String())
 		})
 	}
 }

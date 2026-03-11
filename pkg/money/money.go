@@ -471,7 +471,7 @@ func (m Money) MarshalJSON() ([]byte, error) {
 // If compare moneys from distinct currency, return (m.amount, ErrCurrencyMismatch)
 func (m *Money) Compare(om *Money) (int, error) {
 	if err := m.assertSameCurrency(om); err != nil {
-		return int(m.Amount()), err
+		return 0, err
 	}
 
 	return m.compare(om), nil

@@ -1222,6 +1222,12 @@ func TestMoney_BigInt_Arithmetic(t *testing.T) {
 		}
 		assert.Equal(t, 0, total.Cmp(bi), "sum of allocated parts %s != original %s", total, bi)
 	})
+
+	t.Run("allocate negative ratio", func(t *testing.T) {
+		m := New(100, EUR)
+		_, err := m.Allocate(-1)
+		assert.Error(t, err)
+	})
 }
 
 func TestMoney_BigInt_Comparison(t *testing.T) {
@@ -1268,32 +1274,29 @@ func TestMoney_BigInt_Comparison(t *testing.T) {
 func TestMoney_BigInt_Formatting(t *testing.T) {
 	t.Run("Display big value", func(t *testing.T) {
 		m := NewFromBigInt(setBigInt("1234567890123456789"), USD)
-		display := m.Display()
-		assert.NotEmpty(t, display)
-		assert.Contains(t, display, "$")
+		assert.Equal(t, "$12,345,678,901,234,567.89", m.Display())
 	})
 
 	t.Run("DisplayCompact big value", func(t *testing.T) {
 		m := NewFromBigInt(setBigInt("100000000000000000000"), USD)
 		compact := m.DisplayCompact(1)
-		assert.NotEmpty(t, compact)
+		assert.Equal(t, "1000000000B $", compact)
 		assert.NotContains(t, compact, "Inf")
 	})
 
 	t.Run("DisplayCompact with decimals", func(t *testing.T) {
 		m := NewFromBigInt(setBigInt("12345678901234567890"), USD)
-		compact := m.DisplayCompact(2)
-		assert.NotEmpty(t, compact)
+		assert.Equal(t, "123456789.01B $", m.DisplayCompact(2))
 	})
 
 	t.Run("AsMajorUnits small value", func(t *testing.T) {
 		m := New(100, USD)
-		assert.Equal(t, 1.0, m.AsMajorUnits())
+		assert.InDelta(t, 1.0, m.AsMajorUnits(), 1e-9)
 	})
 
 	t.Run("AsMajorUnits nil amount", func(t *testing.T) {
 		m := &Money{}
-		assert.Equal(t, 0.0, m.AsMajorUnits())
+		assert.InDelta(t, 0.0, m.AsMajorUnits(), 1e-9)
 	})
 }
 
@@ -1348,14 +1351,14 @@ func TestMoney_JSON_RoundTrip(t *testing.T) {
 		m := NewFromBigInt(setBigInt("99999999999999999999"), USD)
 		b, err := json.Marshal(m)
 		require.NoError(t, err)
-		assert.Equal(t, `{"amount":99999999999999999999,"currency":"USD"}`, string(b))
+		assert.JSONEq(t, `{"amount":99999999999999999999,"currency":"USD"}`, string(b))
 	})
 
 	t.Run("marshal backward compatible", func(t *testing.T) {
 		m := New(12345, USD)
 		b, err := json.Marshal(m)
 		require.NoError(t, err)
-		assert.Equal(t, `{"amount":12345,"currency":"USD"}`, string(b))
+		assert.JSONEq(t, `{"amount":12345,"currency":"USD"}`, string(b))
 	})
 
 	t.Run("unmarshal big value", func(t *testing.T) {
@@ -1385,11 +1388,5 @@ func TestMoney_JSON_RoundTrip(t *testing.T) {
 		err := json.Unmarshal([]byte(`{"amount": 123.7, "currency":"USD"}`), &m)
 		require.NoError(t, err)
 		assert.Equal(t, int64(123), m.Amount())
-	})
-
-	t.Run("allocate negative ratio", func(t *testing.T) {
-		m := New(100, EUR)
-		_, err := m.Allocate(-1)
-		assert.Error(t, err)
 	})
 }
