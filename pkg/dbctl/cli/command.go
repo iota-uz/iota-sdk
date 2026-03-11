@@ -27,7 +27,6 @@ func newPlanCommand() *cobra.Command {
 	var jsonOutput bool
 	var yes bool
 	var ticket string
-	var policyPath string
 	cmd := &cobra.Command{
 		Use:   "plan <operation>",
 		Short: "Evaluate policy and print execution plan",
@@ -42,7 +41,6 @@ func newPlanCommand() *cobra.Command {
 				Yes:           yes,
 				ApproveTicket: ticket,
 				JSONOutput:    jsonOutput,
-				PolicyPath:    policyPath,
 			})
 			if err != nil {
 				return err
@@ -63,7 +61,6 @@ func newPlanCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Emit JSON events")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements")
 	cmd.Flags().StringVar(&ticket, "approve-ticket", "", "Change request ticket required by policy")
-	cmd.Flags().StringVar(&policyPath, "policy", "", "Path to policy file (default .dbctl/policy.yaml)")
 	return cmd
 }
 
@@ -71,7 +68,6 @@ func newApplyCommand() *cobra.Command {
 	var jsonOutput bool
 	var yes bool
 	var ticket string
-	var policyPath string
 	var actor string
 	cmd := &cobra.Command{
 		Use:   "apply <operation>",
@@ -84,7 +80,6 @@ func newApplyCommand() *cobra.Command {
 				Yes:           yes,
 				ApproveTicket: ticket,
 				JSONOutput:    jsonOutput,
-				PolicyPath:    policyPath,
 				Actor:         actor,
 				Out:           os.Stdout,
 			})
@@ -93,13 +88,11 @@ func newApplyCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Emit JSON events")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements")
 	cmd.Flags().StringVar(&ticket, "approve-ticket", "", "Change request ticket required by policy")
-	cmd.Flags().StringVar(&policyPath, "policy", "", "Path to policy file (default .dbctl/policy.yaml)")
 	cmd.Flags().StringVar(&actor, "actor", "", "Actor identifier for audit logs")
 	return cmd
 }
 
 func newDoctorCommand() *cobra.Command {
-	var policyPath string
 	var yes bool
 	var ticket string
 	cmd := &cobra.Command{
@@ -107,7 +100,7 @@ func newDoctorCommand() *cobra.Command {
 		Short: "Validate dbctl policy and target resolution",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			cfg, payload, err := policy.Load(policyPath)
+			cfg, payload, err := policy.Load("")
 			if err != nil {
 				return err
 			}
@@ -116,7 +109,6 @@ func newDoctorCommand() *cobra.Command {
 				Mode:          ops.ExecutionModePlan,
 				Yes:           yes,
 				ApproveTicket: ticket,
-				PolicyPath:    policyPath,
 			})
 			if err != nil {
 				return fmt.Errorf("doctor failed: %w", err)
@@ -127,7 +119,6 @@ func newDoctorCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&policyPath, "policy", "", "Path to policy file (default .dbctl/policy.yaml)")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Acknowledge confirmation requirements when policy requires it")
 	cmd.Flags().StringVar(&ticket, "approve-ticket", "", "Change request ticket required by policy")
 	return cmd

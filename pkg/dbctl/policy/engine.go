@@ -3,6 +3,7 @@ package policy
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,11 +12,33 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defaultPolicyPath = ".dbctl/policy.yaml"
+func DefaultConfig() Config {
+	return Config{
+		Environments: map[string]EnvironmentPolicy{
+			"development": {
+				AllowedHosts:     []string{"localhost", "127.0.0.1", "::1", "db", "postgres"},
+				AllowDestructive: true,
+				RequireYes:       true,
+				RequireTicket:    false,
+			},
+			"production": {
+				AllowedHosts:     []string{},
+				AllowDestructive: false,
+				RequireYes:       true,
+				RequireTicket:    true,
+			},
+		},
+	}
+}
 
 func Load(path string) (Config, []byte, error) {
 	if strings.TrimSpace(path) == "" {
-		path = defaultPolicyPath
+		cfg := DefaultConfig()
+		payload, err := json.Marshal(cfg)
+		if err != nil {
+			return Config{}, nil, fmt.Errorf("marshal default policy: %w", err)
+		}
+		return cfg, payload, nil
 	}
 	payload, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {

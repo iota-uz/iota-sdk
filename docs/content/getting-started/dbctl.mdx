@@ -20,13 +20,12 @@ command dbctl apply seed.main --yes --approve-ticket local-dev
 command dbctl apply db.e2e.reset --yes --approve-ticket local-dev
 ```
 
-## Policy
+## Defaults
 
-A policy file is required at `.dbctl/policy.yaml` (or pass `--policy`).
+`dbctl` uses built-in safety defaults. No `.dbctl/policy.yaml` file is required.
 
 `dbctl apply` fails when:
 
-- policy file is missing/invalid
 - target host is not allowed for environment
 - destructive operation is not permitted
 - required confirmations (`--yes`, `--approve-ticket`) are missing
