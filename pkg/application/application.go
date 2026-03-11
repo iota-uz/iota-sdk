@@ -35,7 +35,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -86,11 +85,11 @@ type seeder struct {
 	seedFuncs []SeedFunc
 }
 
-func (s *seeder) Seed(ctx context.Context, app Application) error {
+func (s *seeder) Seed(ctx context.Context, deps *SeedDeps) error {
 	conf := configuration.Use()
 	for _, seedFunc := range s.seedFuncs {
 		conf.Logger().Infof("Seeding %s", reflect.TypeOf(seedFunc).Name())
-		if err := seedFunc(ctx, app); err != nil {
+		if err := seedFunc(ctx, deps); err != nil {
 			return err
 		}
 	}
@@ -113,7 +112,6 @@ type ApplicationOptions struct {
 	Bundle             *i18n.Bundle
 	Huber              Huber
 	SupportedLanguages []string
-	RuntimeProfile     RuntimeProfile
 }
 
 func LoadBundle() *i18n.Bundle {
@@ -152,34 +150,17 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("application options are required")
 	}
-	if opts.RuntimeProfile == "" {
-		return nil, fmt.Errorf("runtime profile is required (server|cli)")
-	}
-	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer initCancel()
 
 	var engine spotlight.IndexEngine
 	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
 	if opts.Logger != nil {
 		serviceOpts = append(serviceOpts, spotlight.WithLogger(opts.Logger))
 	}
-	startBackgroundWorkers := opts.RuntimeProfile == RuntimeProfileServer
 	cfg := configuration.Use()
-	if !startBackgroundWorkers {
-		engine = spotlight.NewNoopEngine()
-		if opts.Logger != nil {
-			opts.Logger.Infof("background workers disabled for runtime profile: %s", opts.RuntimeProfile)
-		}
-	} else if cfg.MeiliURL == "" {
-		if opts.Logger != nil {
-			opts.Logger.Info("spotlight disabled: MEILI_URL not set")
-		}
+	if cfg.MeiliURL == "" {
 		engine = spotlight.NewNoopEngine()
 	} else {
 		engine = spotlight.NewMeilisearchEngine(cfg.MeiliURL, cfg.MeiliAPIKey)
-		if err := engine.Health(initCtx); err != nil {
-			return nil, fmt.Errorf("spotlight preflight check: %w", err)
-		}
 	}
 	spotlightService := spotlight.NewService(
 		engine,
@@ -187,11 +168,6 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight.DefaultServiceConfig(),
 		serviceOpts...,
 	)
-	if startBackgroundWorkers {
-		if err := spotlightService.Start(initCtx); err != nil {
-			return nil, serrors.E(serrors.Op("application.New.startSpotlightService"), err)
-		}
-	}
 	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)
 

@@ -10,7 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
-func CreateCurrencies(ctx context.Context, app application.Application) error {
+func CreateCurrencies(ctx context.Context, _ *application.SeedDeps) error {
 	conf := configuration.Use()
 	currencyRepository := persistence.NewCurrencyRepository()
 

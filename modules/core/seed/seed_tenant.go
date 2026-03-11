@@ -11,7 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
-func CreateDefaultTenant(ctx context.Context, app application.Application) error {
+func CreateDefaultTenant(ctx context.Context, _ *application.SeedDeps) error {
 	conf := configuration.Use()
 	logger := conf.Logger()
 	tenantRepository := persistence.NewTenantRepository()

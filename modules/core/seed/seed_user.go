@@ -35,13 +35,13 @@ func UserSeedFunc(usr user.User, permissions []permission.Permission) applicatio
 	return s.CreateUser
 }
 
-func (s *userSeeder) CreateUser(ctx context.Context, app application.Application) error {
+func (s *userSeeder) CreateUser(ctx context.Context, deps *application.SeedDeps) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get tenant from context")
 	}
 
-	r, err := s.getOrCreateRole(ctx, app)
+	r, err := s.getOrCreateRole(ctx, deps)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (s *userSeeder) CreateUser(ctx context.Context, app application.Application
 	return nil
 }
 
-func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Application) (role.Role, error) {
+func (s *userSeeder) getOrCreateRole(ctx context.Context, _ *application.SeedDeps) (role.Role, error) {
 	roleRepository := persistence.NewRoleRepository()
 	matches, err := roleRepository.GetPaginated(ctx, &role.FindParams{
 		Filters: []role.Filter{

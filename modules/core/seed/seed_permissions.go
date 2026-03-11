@@ -10,7 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
-func CreatePermissions(ctx context.Context, app application.Application, permissions []permission.Permission) error {
+func CreatePermissions(ctx context.Context, _ *application.SeedDeps, permissions []permission.Permission) error {
 	conf := configuration.Use()
 	permissionRepository := persistence.NewPermissionRepository()
 

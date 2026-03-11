@@ -7,17 +7,16 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	websiteseed "github.com/iota-uz/iota-sdk/modules/website/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 // SeedRaw populates the e2e database with test data.
@@ -33,17 +32,16 @@ func SeedRaw() error {
 	}
 	defer pool.Close()
 
-	app, err := common.NewApplication(pool, modules.BuiltInModules...)
-	if err != nil {
-		return fmt.Errorf("failed to create application: %w", err)
-	}
-	app.RegisterNavItems(modules.NavLinks...)
-
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
+	seedDeps := &application.SeedDeps{
+		Pool:     pool,
+		EventBus: eventbus.NewEventPublisher(conf.Logger()),
+		Logger:   conf.Logger(),
+	}
 	seeder := application.NewSeeder()
 	usr, err := user.New(
 		"Test",
@@ -65,8 +63,8 @@ func SeedRaw() error {
 	seeder.Register(
 		coreseed.CreateDefaultTenant,
 		coreseed.CreateCurrencies,
-		func(ctx context.Context, app application.Application) error {
-			return coreseed.CreatePermissions(ctx, app, allPermissions)
+		func(ctx context.Context, deps *application.SeedDeps) error {
+			return coreseed.CreatePermissions(ctx, deps, allPermissions)
 		},
 		coreseed.UserSeedFunc(usr, allPermissions),
 		coreseed.UserSeedFunc(user.New(
@@ -90,7 +88,7 @@ func SeedRaw() error {
 		defaultTenant.ID,
 	)
 
-	if err := seeder.Seed(ctxWithTenant, app); err != nil {
+	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
 		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
 			return fmt.Errorf("rollback failed: %w (original error: %w)", rollbackErr, err)
 		}

@@ -7,8 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/iota-uz/iota-sdk/modules"
-	"github.com/iota-uz/iota-sdk/pkg/commands/common"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/jackc/pgx/v5"
 )
@@ -102,12 +101,7 @@ func Migrate() error {
 	}
 	defer pool.Close()
 
-	app, err := common.NewApplication(pool, modules.BuiltInModules...)
-	if err != nil {
-		return fmt.Errorf("failed to create application: %w", err)
-	}
-
-	migrations := app.Migrations()
+	migrations := application.NewMigrationManager(pool)
 	if err := migrations.Run(); err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}

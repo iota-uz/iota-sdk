@@ -147,7 +147,6 @@ func TestApplication_RegisterApplet(t *testing.T) {
 		app, err := New(&ApplicationOptions{
 			Bundle:             LoadBundle(),
 			SupportedLanguages: []string{"en"},
-			RuntimeProfile:     RuntimeProfileCLI,
 		})
 		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}
@@ -165,7 +164,6 @@ func TestApplication_RegisterApplet(t *testing.T) {
 		app, err := New(&ApplicationOptions{
 			Bundle:             LoadBundle(),
 			SupportedLanguages: []string{"en"},
-			RuntimeProfile:     RuntimeProfileCLI,
 		})
 		require.NoError(t, err)
 		applet1 := &mockApplet{name: "dup", basePath: "/path1"}
@@ -187,7 +185,6 @@ func TestApplication_AppletRegistry(t *testing.T) {
 		app, err := New(&ApplicationOptions{
 			Bundle:             LoadBundle(),
 			SupportedLanguages: []string{"en"},
-			RuntimeProfile:     RuntimeProfileCLI,
 		})
 		require.NoError(t, err)
 
@@ -204,7 +201,6 @@ func TestApplication_AppletRegistry(t *testing.T) {
 		app, err := New(&ApplicationOptions{
 			Bundle:             LoadBundle(),
 			SupportedLanguages: []string{"en"},
-			RuntimeProfile:     RuntimeProfileCLI,
 		})
 		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}

@@ -11,7 +11,7 @@ import (
 )
 
 func GroupsSeedFunc(groups ...group.Group) application.SeedFunc {
-	return func(ctx context.Context, app application.Application) error {
+	return func(ctx context.Context, _ *application.SeedDeps) error {
 		logger := configuration.Use().Logger()
 		groupRepository := persistence.NewGroupRepository(
 			persistence.NewUserRepository(persistence.NewUploadRepository()),

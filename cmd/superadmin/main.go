@@ -62,11 +62,10 @@ func main() {
 	}
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
-		Pool:           pool,
-		Bundle:         bundle,
-		EventBus:       eventbus.NewEventPublisher(logger),
-		Logger:         logger,
-		RuntimeProfile: application.RuntimeProfileServer,
+		Pool:     pool,
+		Bundle:   bundle,
+		EventBus: eventbus.NewEventPublisher(logger),
+		Logger:   logger,
 		Huber: application.NewHub(&application.HuberOptions{
 			Pool:           pool,
 			Logger:         logger,
@@ -156,6 +155,9 @@ func main() {
 	app.RegisterControllers(
 		controllers.NewStaticFilesController(app.HashFsAssets()),
 	)
+	if err := app.Spotlight().Start(context.Background()); err != nil {
+		log.Fatalf("failed to start spotlight service: %v", err)
+	}
 
 	options := &server.DefaultOptions{
 		Logger:        logger,

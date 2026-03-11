@@ -4,6 +4,7 @@ package application
 import (
 	"context"
 	"embed"
+	"fmt"
 	"reflect"
 
 	"github.com/iota-uz/applets"
@@ -65,11 +66,52 @@ type Application interface {
 }
 
 type Seeder interface {
-	Seed(ctx context.Context, app Application) error
+	Seed(ctx context.Context, deps *SeedDeps) error
 	Register(funcs ...SeedFunc)
 }
 
-type SeedFunc func(ctx context.Context, app Application) error
+type SeedFunc func(ctx context.Context, deps *SeedDeps) error
+
+type SeedDeps struct {
+	Pool     *pgxpool.Pool
+	EventBus eventbus.EventBus
+	Logger   logrus.FieldLogger
+	Services map[reflect.Type]interface{}
+}
+
+func (d *SeedDeps) RegisterServices(services ...interface{}) {
+	if d == nil {
+		panic("seed deps are required")
+	}
+	if d.Services == nil {
+		d.Services = make(map[reflect.Type]interface{}, len(services))
+	}
+	for _, service := range services {
+		serviceType := reflect.TypeOf(service)
+		if serviceType == nil {
+			panic("service type is required")
+		}
+		d.Services[serviceType] = service
+	}
+}
+
+func (d *SeedDeps) Service(service interface{}) interface{} {
+	serviceType := reflect.TypeOf(service)
+	if serviceType == nil {
+		panic("service type is required")
+	}
+	if d == nil {
+		panic("seed deps are required")
+	}
+	if d.Services == nil {
+		panic("seed deps services are not configured")
+	}
+	svc, exists := d.Services[serviceType]
+	if !exists {
+		panic(fmt.Sprintf("service %s not found", serviceType.Name()))
+	}
+	return svc
+}
 
 type Controller interface {
 	Register(r *mux.Router)

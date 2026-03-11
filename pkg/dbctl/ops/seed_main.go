@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
@@ -14,7 +13,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 func SeedMainOperation() OperationSpec {
@@ -33,15 +34,11 @@ func SeedMainOperation() OperationSpec {
 }
 
 func runMainSeed(ctx context.Context) error {
-	app, pool, err := common.NewApplicationWithDefaultsAndOptions(common.AppBuildOptions{
-		RuntimeProfile: application.RuntimeProfileCLI,
-	}, modules.BuiltInModules...)
+	pool, err := common.GetDefaultDatabasePool()
 	if err != nil {
-		return fmt.Errorf("initialize application: %w", err)
+		return fmt.Errorf("initialize database pool: %w", err)
 	}
 	defer pool.Close()
-
-	app.RegisterNavItems(modules.NavLinks...)
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -51,6 +48,12 @@ func runMainSeed(ctx context.Context) error {
 		_ = tx.Rollback(ctx)
 	}()
 
+	conf := configuration.Use()
+	seedDeps := &application.SeedDeps{
+		Pool:     pool,
+		EventBus: eventbus.NewEventPublisher(conf.Logger()),
+		Logger:   conf.Logger(),
+	}
 	seeder := application.NewSeeder()
 	usr, err := user.New(
 		"Test",
@@ -72,8 +75,8 @@ func runMainSeed(ctx context.Context) error {
 	seeder.Register(
 		coreseed.CreateDefaultTenant,
 		coreseed.CreateCurrencies,
-		func(ctx context.Context, app application.Application) error {
-			return coreseed.CreatePermissions(ctx, app, allPermissions)
+		func(ctx context.Context, deps *application.SeedDeps) error {
+			return coreseed.CreatePermissions(ctx, deps, allPermissions)
 		},
 		coreseed.UserSeedFunc(usr, allPermissions),
 		coreseed.UserSeedFunc(user.New(
@@ -93,7 +96,7 @@ func runMainSeed(ctx context.Context) error {
 	)
 
 	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, tx), defaultTenant.ID)
-	if err := seeder.Seed(ctxWithTenant, app); err != nil {
+	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
 		return fmt.Errorf("seed main dataset: %w", err)
 	}
 	if err := tx.Commit(ctxWithTenant); err != nil {
