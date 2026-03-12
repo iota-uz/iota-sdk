@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // ManagerRegistry collects named Manager instances so that multiple modules
@@ -38,10 +39,11 @@ func NewManagerRegistry() ManagerRegistry {
 // Register adds a manager under the given name. Returns an error if a manager
 // with the same name is already registered.
 func (r *managerRegistry) Register(name string, m Manager) error {
+	const op serrors.Op = "periodics.managerRegistry.Register"
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, exists := r.managers[name]; exists {
-		return fmt.Errorf("periodic task manager with name '%s' is already registered", name)
+		return serrors.E(op, fmt.Errorf("periodic task manager with name '%s' is already registered", name))
 	}
 	r.managers[name] = m
 	return nil

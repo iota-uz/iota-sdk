@@ -198,11 +198,14 @@ func (mc *MetricsCollector) Subscribe() (<-chan TaskMetricEvent, func()) {
 	mc.subscribers[id] = ch
 	mc.subMu.Unlock()
 
+	var once sync.Once
 	unsubscribe := func() {
-		mc.subMu.Lock()
-		delete(mc.subscribers, id)
-		mc.subMu.Unlock()
-		close(ch)
+		once.Do(func() {
+			mc.subMu.Lock()
+			delete(mc.subscribers, id)
+			mc.subMu.Unlock()
+			close(ch)
+		})
 	}
 
 	return ch, unsubscribe
