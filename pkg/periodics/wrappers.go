@@ -48,8 +48,8 @@ func RetryWrapper(maxRetries int, initialDelay time.Duration, logger *logrus.Log
 					return
 				}
 
-				// Calculate delay with exponential backoff
-				delay := time.Duration(attempt) * initialDelay
+				// Calculate delay with exponential backoff (2^(attempt-1) * initialDelay)
+				delay := initialDelay * (1 << (attempt - 1))
 				logger.WithFields(logrus.Fields{
 					"attempt": attempt,
 					"delay":   delay,
@@ -63,7 +63,10 @@ func RetryWrapper(maxRetries int, initialDelay time.Duration, logger *logrus.Log
 	}
 }
 
-// TimeoutWrapper creates a JobWrapper that cancels jobs after a specified timeout
+// TimeoutWrapper creates a JobWrapper that cancels jobs after a specified timeout.
+// Note: On timeout, the job goroutine is NOT cancelled and will continue running in the background
+// until it completes naturally. This is a known limitation since Go goroutines are not preemptible.
+// A warning is logged if the timed-out goroutine eventually completes.
 func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrapper {
 	return func(j cron.Job) cron.Job {
 		return cron.FuncJob(func() {
@@ -72,6 +75,7 @@ func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrappe
 
 			done := make(chan struct{})
 			var jobPanic interface{}
+			timedOut := make(chan struct{})
 
 			go func() {
 				defer func() {
@@ -79,6 +83,12 @@ func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrappe
 						jobPanic = r
 					}
 					close(done)
+					// Warn if the wrapper already timed out
+					select {
+					case <-timedOut:
+						logger.Warn("Job goroutine completed after timeout")
+					default:
+					}
 				}()
 				j.Run()
 			}()
@@ -89,9 +99,8 @@ func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrappe
 					panic(jobPanic) // Re-panic to let Recover wrapper handle it
 				}
 			case <-ctx.Done():
+				close(timedOut)
 				logger.WithField("timeout", timeout).Error("Job execution timed out")
-				// Note: We can't actually cancel the job goroutine, but we can log the timeout
-				// The job will continue running in the background
 			}
 		})
 	}

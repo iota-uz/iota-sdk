@@ -24,17 +24,42 @@ type TaskMetrics struct {
 
 // MetricsCollector collects and manages metrics for periodic tasks
 type MetricsCollector struct {
-	metrics map[string]*TaskMetrics
-	mu      sync.RWMutex
-	logger  *logrus.Logger
+	metrics         map[string]*TaskMetrics
+	mu              sync.RWMutex
+	logger          *logrus.Logger
+	alertThreshold  float64 // success rate percentage below which alerts are triggered (default 80)
+	minRunsForAlert int64   // minimum total runs before alerting on low success rate (default 10)
+}
+
+// MetricsCollectorOption is a functional option for configuring MetricsCollector
+type MetricsCollectorOption func(*MetricsCollector)
+
+// WithAlertThreshold sets the success rate threshold (percentage) below which alerts are triggered
+func WithAlertThreshold(threshold float64) MetricsCollectorOption {
+	return func(mc *MetricsCollector) {
+		mc.alertThreshold = threshold
+	}
+}
+
+// WithMinRunsForAlert sets the minimum number of total runs before alerting on low success rate
+func WithMinRunsForAlert(minRuns int64) MetricsCollectorOption {
+	return func(mc *MetricsCollector) {
+		mc.minRunsForAlert = minRuns
+	}
 }
 
 // NewMetricsCollector creates a new metrics collector
-func NewMetricsCollector(logger *logrus.Logger) *MetricsCollector {
-	return &MetricsCollector{
-		metrics: make(map[string]*TaskMetrics),
-		logger:  logger,
+func NewMetricsCollector(logger *logrus.Logger, opts ...MetricsCollectorOption) *MetricsCollector {
+	mc := &MetricsCollector{
+		metrics:         make(map[string]*TaskMetrics),
+		logger:          logger,
+		alertThreshold:  80,
+		minRunsForAlert: 10,
 	}
+	for _, opt := range opts {
+		opt(mc)
+	}
+	return mc
 }
 
 // RecordTaskStart records when a task starts execution
@@ -61,6 +86,7 @@ func (mc *MetricsCollector) RecordTaskSuccess(taskName string, duration time.Dur
 
 	metrics := mc.metrics[taskName]
 	if metrics == nil {
+		mc.logger.WithField("task", taskName).Warn("RecordTaskSuccess: metrics not initialized for task")
 		return
 	}
 
@@ -93,6 +119,7 @@ func (mc *MetricsCollector) RecordTaskFailure(taskName string, duration time.Dur
 
 	metrics := mc.metrics[taskName]
 	if metrics == nil {
+		mc.logger.WithField("task", taskName).Warn("RecordTaskFailure: metrics not initialized for task")
 		return
 	}
 
@@ -114,11 +141,12 @@ func (mc *MetricsCollector) RecordTaskFailure(taskName string, duration time.Dur
 	}).Error("Periodic task failed")
 
 	// Alert if success rate drops below threshold
-	if metrics.TotalRuns >= 10 && successRate < 80 {
+	if metrics.TotalRuns >= mc.minRunsForAlert && successRate < mc.alertThreshold {
 		mc.logger.WithFields(logrus.Fields{
 			"task":         taskName,
 			"success_rate": successRate,
-		}).Warn("Periodic task success rate is below acceptable threshold (80%)")
+			"threshold":    mc.alertThreshold,
+		}).Warn("Periodic task success rate is below acceptable threshold")
 	}
 }
 

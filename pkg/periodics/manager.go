@@ -87,37 +87,14 @@ func (m *manager) Start() error {
 	m.cron.Start()
 	m.logger.WithField("tasks_count", len(m.tasks)).Info("Periodic task manager started")
 
-	// Execute tasks that should run on startup
+	// Execute tasks that should run on startup using the same wrapper chain as cron
 	for _, task := range m.tasks {
 		if task.RunOnStart() {
-			go func(t PeriodicTask) {
-				// Recover from panics to prevent crashing the entire application
-				defer func() {
-					if r := recover(); r != nil {
-						m.logger.WithFields(logrus.Fields{
-							"task":  t.Name(),
-							"panic": r,
-						}).Error("Panic recovered in periodic task startup")
-					}
-				}()
-
-				taskName := t.Name()
+			executor := m.buildWrappedExecutor(task)
+			go func(taskName string, exec func()) {
 				m.logger.WithField("task", taskName).Info("Running periodic task on startup")
-
-				ctx := context.Background()
-				ctx = composables.WithPool(ctx, m.pool)
-				ctx = composables.WithTenantID(ctx, m.tenantID)
-				ctx = context.WithValue(ctx, constants.LoggerKey, m.logger.WithField("task", taskName))
-
-				if err := t.Execute(ctx); err != nil {
-					m.logger.WithFields(logrus.Fields{
-						"task":  taskName,
-						"error": err,
-					}).Error("Periodic task failed on startup")
-				} else {
-					m.logger.WithField("task", taskName).Info("Periodic task completed successfully on startup")
-				}
-			}(task)
+				exec()
+			}(task.Name(), executor)
 		}
 	}
 
@@ -168,8 +145,9 @@ func (m *manager) GetEntries() []cron.Entry {
 	return m.cron.Entries()
 }
 
-// addTaskToCron adds a single task to the cron scheduler
-func (m *manager) addTaskToCron(task PeriodicTask) error {
+// buildWrappedExecutor creates a fully wrapped execution function for a task.
+// Both addTaskToCron and startup use this to ensure the same wrapper chain is applied.
+func (m *manager) buildWrappedExecutor(task PeriodicTask) func() {
 	config := task.Config()
 	taskName := task.Name()
 
@@ -201,8 +179,8 @@ func (m *manager) addTaskToCron(task PeriodicTask) error {
 
 	// Create the job that will execute the task
 	job := cron.FuncJob(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
-		defer cancel()
+		// No context.WithTimeout here — TimeoutWrapper already handles it
+		ctx := context.Background()
 
 		// Add database pool, tenant ID, and logger to context for task execution
 		ctx = composables.WithPool(ctx, m.pool)
@@ -210,24 +188,28 @@ func (m *manager) addTaskToCron(task PeriodicTask) error {
 		ctx = context.WithValue(ctx, constants.LoggerKey, m.logger.WithField("task", taskName))
 
 		if err := task.Execute(ctx); err != nil {
-			m.logger.WithFields(logrus.Fields{
-				"task":  taskName,
-				"error": err,
-			}).Error("Periodic task failed")
+			panic(fmt.Errorf("task execution failed: %w", err))
 		}
 	})
 
 	// Wrap the job with the chain
 	wrappedJob := chain.Then(job)
 
+	return wrappedJob.Run
+}
+
+// addTaskToCron adds a single task to the cron scheduler
+func (m *manager) addTaskToCron(task PeriodicTask) error {
+	executor := m.buildWrappedExecutor(task)
+
 	// Add to cron
-	entryID, err := m.cron.AddJob(task.Schedule(), wrappedJob)
+	entryID, err := m.cron.AddJob(task.Schedule(), cron.FuncJob(executor))
 	if err != nil {
 		return fmt.Errorf("failed to schedule task: %w", err)
 	}
 
 	m.logger.WithFields(logrus.Fields{
-		"task":     taskName,
+		"task":     task.Name(),
 		"schedule": task.Schedule(),
 		"entry_id": entryID,
 	}).Info("Periodic task scheduled")
