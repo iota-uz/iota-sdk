@@ -12,14 +12,10 @@ func GetManager(app application.Application) Manager {
 	managerType := reflect.TypeOf((*Manager)(nil)).Elem()
 	services := app.Services()
 
-	var found Manager
 	for _, service := range services {
 		if reflect.TypeOf(service).Implements(managerType) {
-			if found != nil {
-				return found // Return first found, ignore duplicates
-			}
-			found = service.(Manager)
+			return service.(Manager)
 		}
 	}
-	return found
+	return nil
 }

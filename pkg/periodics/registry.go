@@ -2,7 +2,9 @@ package periodics
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -33,6 +35,8 @@ func NewManagerRegistry() ManagerRegistry {
 	}
 }
 
+// Register adds a manager under the given name. Returns an error if a manager
+// with the same name is already registered.
 func (r *managerRegistry) Register(name string, m Manager) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -43,25 +47,25 @@ func (r *managerRegistry) Register(name string, m Manager) error {
 	return nil
 }
 
+// StopAll stops all registered managers gracefully, aggregating any errors.
 func (r *managerRegistry) StopAll(ctx context.Context) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var lastErr error
+	var errs []error
 	for name, m := range r.managers {
 		if err := m.Stop(ctx); err != nil {
-			lastErr = fmt.Errorf("failed to stop manager '%s': %w", name, err)
+			errs = append(errs, fmt.Errorf("failed to stop manager '%s': %w", name, err))
 		}
 	}
-	return lastErr
+	return errors.Join(errs...)
 }
 
+// All returns a copy of every registered manager keyed by name.
 func (r *managerRegistry) All() map[string]Manager {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make(map[string]Manager, len(r.managers))
-	for k, v := range r.managers {
-		result[k] = v
-	}
+	maps.Copy(result, r.managers)
 	return result
 }
 

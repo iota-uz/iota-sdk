@@ -277,9 +277,25 @@ func (m *manager) LogHealthReport() {
 }
 
 // AddDisabledTaskInfo registers metadata for a disabled task so it appears in monitoring.
+// It silently ignores duplicates and conflicts with already-enabled tasks.
 func (m *manager) AddDisabledTaskInfo(name, schedule string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Check for conflict with enabled tasks
+	if _, exists := m.tasks[name]; exists {
+		m.logger.WithField("task", name).Warn("AddDisabledTaskInfo called for an already-enabled task, ignoring")
+		return
+	}
+
+	// Check for duplicate in disabled tasks
+	for _, dt := range m.disabledTasks {
+		if dt.Name == name {
+			m.logger.WithField("task", name).Warn("AddDisabledTaskInfo called with duplicate name, ignoring")
+			return
+		}
+	}
+
 	m.disabledTasks = append(m.disabledTasks, RegisteredTask{
 		Name:     name,
 		Schedule: schedule,
