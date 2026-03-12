@@ -1,3 +1,6 @@
+// Package periodics provides a reusable periodic task manager built on robfig/cron v3.
+// It supports cron-based scheduling, retry with exponential backoff, timeout,
+// skip-if-running, metrics collection, and health reporting.
 package periodics
 
 import (
