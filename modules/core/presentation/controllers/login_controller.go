@@ -447,6 +447,9 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 
 // FinalizeAuthenticatedUser creates a session for an already-authenticated user and applies
 // login access checks, 2FA policy, pending-2FA handling, and cookie issuance.
+//
+// The route calling this must include GetMiddlewares() or PostMiddlewares() so that an i18n
+// localizer is present in the request context; without it, error-path translations will panic.
 func (c *LoginController) FinalizeAuthenticatedUser(
 	w http.ResponseWriter,
 	r *http.Request,

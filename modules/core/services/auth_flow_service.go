@@ -218,6 +218,8 @@ func (s *AuthFlowService) requiresTwoFactor(
 		return false, err
 	}
 
+	// Intentional OR: policies can tighten (add) the 2FA requirement but cannot relax it.
+	// A user with 2FA already enabled always goes through 2FA regardless of policy result.
 	return requires2FA || policyRequires2FA, nil
 }
 
