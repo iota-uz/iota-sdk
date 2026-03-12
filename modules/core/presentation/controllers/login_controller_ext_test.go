@@ -14,10 +14,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
@@ -38,6 +41,12 @@ func (s stubMethodProvider) RegisterRoutes(r *mux.Router, c LoginFlowHandler) {
 
 func (s stubMethodProvider) BuildMethod(ctx context.Context, r *http.Request) (*LoginMethod, error) {
 	return s.method, nil
+}
+
+type errorPolicy struct{}
+
+func (errorPolicy) Requires(ctx context.Context, attempt pkgtwofactor.AuthAttempt) (bool, error) {
+	return false, errors.New("boom")
 }
 
 func TestBuildLoginMethodsOrder(t *testing.T) {
@@ -160,28 +169,83 @@ func TestGetRenderModes(t *testing.T) {
 	}
 }
 
-func TestFinalizeAuthenticatedUser_AccessCheckBlocked(t *testing.T) {
-	// Access check runs before session creation in FinalizeAuthentication, so authService
-	// and sessionService can be nil — the function returns early when the check fails.
-	authFlowService := services.NewAuthFlowService(nil, nil)
-	controller := &LoginController{
-		authFlowService: authFlowService,
-		options: &LoginControllerOptions{
-			LoginAccessCheck: func(ctx context.Context, u coreuser.User) error {
-				return errors.New("blocked")
+func TestFinalizeAuthenticatedSessionAndUserRedirects(t *testing.T) {
+	tests := []struct {
+		name         string
+		setup        func() *LoginController
+		setupRequest func(t *testing.T, req *http.Request) *http.Request
+		invoke       func(controller *LoginController, w http.ResponseWriter, req *http.Request, u coreuser.User)
+		location     string
+	}{
+		{
+			name: "access check blocks user",
+			setup: func() *LoginController {
+				return &LoginController{
+					authFlowService: services.NewAuthFlowService(nil, nil),
+					options: &LoginControllerOptions{
+						LoginAccessCheck: func(ctx context.Context, u coreuser.User) error {
+							return errors.New("blocked")
+						},
+					},
+				}
 			},
+			invoke: func(controller *LoginController, w http.ResponseWriter, req *http.Request, u coreuser.User) {
+				controller.FinalizeAuthenticatedUser(
+					w,
+					req,
+					u,
+					pkgtwofactor.AuthMethodExternal,
+					"/dashboard",
+				)
+			},
+			location: "/login?next=%2Fdashboard",
+		},
+		{
+			name: "policy errors redirect to login",
+			setup: func() *LoginController {
+				authFlowService := services.NewAuthFlowService(nil, nil)
+				authFlowService.SetTwoFactorPolicy(errorPolicy{})
+				return &LoginController{authFlowService: authFlowService}
+			},
+			setupRequest: func(t *testing.T, req *http.Request) *http.Request {
+				t.Helper()
+				ctx := withLocalizer(t, req.Context(), `{"Errors":{"Internal":"Internal error"}}`)
+				ctx = context.WithValue(ctx, constants.LoggerKey, logrus.New().WithField("test", true))
+				return req.WithContext(ctx)
+			},
+			invoke: func(controller *LoginController, w http.ResponseWriter, req *http.Request, u coreuser.User) {
+				controller.FinalizeAuthentication(
+					w,
+					req,
+					&services.AuthenticationResult{
+						User:            u,
+						Session:         session.New("token", 1, uuid.New(), "127.0.0.1", "test-agent"),
+						Method:          pkgtwofactor.AuthMethodExternal,
+						AuthenticatorID: string(pkgtwofactor.AuthMethodExternal),
+					},
+					"/dashboard",
+				)
+			},
+			location: "/login?next=%2Fdashboard",
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
-	w := httptest.NewRecorder()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := tc.setup()
 
-	controller.FinalizeAuthenticatedUser(w, req, mustTestUser(t), pkgtwofactor.AuthMethodExternal, "/dashboard")
+			req := httptest.NewRequest(http.MethodGet, "/login", nil)
+			if tc.setupRequest != nil {
+				req = tc.setupRequest(t, req)
+			}
 
-	assert.Equal(t, http.StatusFound, w.Code)
-	// Redirect URL is constructed from nextURL by the controller, not passed in directly —
-	// this verifies the URL-construction logic is non-circular.
-	assert.Equal(t, "/login?next=%2Fdashboard", w.Header().Get("Location"))
+			w := httptest.NewRecorder()
+			tc.invoke(controller, w, req, mustTestUser(t))
+
+			assert.Equal(t, http.StatusFound, w.Code)
+			assert.Equal(t, tc.location, w.Header().Get("Location"))
+		})
+	}
 }
 
 func boolPtr(value bool) *bool {

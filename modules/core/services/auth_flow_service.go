@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/security"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
@@ -79,28 +80,30 @@ func (s *AuthFlowService) AuthenticatePassword(
 	email string,
 	password string,
 ) (*AuthenticationResult, error) {
-	u, sess, err := s.authService.Authenticate(ctx, email, password)
+	const op serrors.Op = "core.AuthFlowService.AuthenticatePassword"
+
+	u, err := s.authService.VerifyPassword(ctx, email, password)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	return &AuthenticationResult{
 		User:            u,
-		Session:         sess,
 		Method:          pkgtwofactor.AuthMethodPassword,
 		AuthenticatorID: "password",
 	}, nil
 }
 
 func (s *AuthFlowService) AuthenticateGoogle(ctx context.Context, code string) (*AuthenticationResult, error) {
-	u, sess, err := s.authService.AuthenticateGoogle(ctx, code)
+	const op serrors.Op = "core.AuthFlowService.AuthenticateGoogle"
+
+	u, err := s.authService.VerifyGoogle(ctx, code)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	return &AuthenticationResult{
 		User:            u,
-		Session:         sess,
 		Method:          pkgtwofactor.AuthMethodOAuth,
 		AuthenticatorID: "google",
 	}, nil
@@ -124,21 +127,20 @@ func (s *AuthFlowService) FinalizeAuthentication(
 	auth *AuthenticationResult,
 	opts FinalizeAuthenticationOptions,
 ) (*FinalizeAuthenticationResult, error) {
+	const op serrors.Op = "core.AuthFlowService.FinalizeAuthentication"
+
 	if auth == nil || auth.User == nil {
-		return nil, errors.New("authentication result is required")
+		return nil, serrors.E(op, serrors.Invalid, errors.New("authentication result is required"))
 	}
 
 	validatedNextURL := security.GetValidatedRedirect(opts.NextURL)
-	errorRedirectURL := strings.TrimSpace(opts.ErrorRedirectURL)
-	if errorRedirectURL == "" {
-		errorRedirectURL = fmt.Sprintf("/login?next=%s", url.QueryEscape(validatedNextURL))
-	}
+	_ = strings.TrimSpace(opts.ErrorRedirectURL)
 
 	if opts.AccessCheck != nil {
 		if err := opts.AccessCheck(ctx, auth.User); err != nil {
 			return nil, &UserVisibleError{
 				Message: err.Error(),
-				Err:     err,
+				Err:     serrors.E(op, err),
 			}
 		}
 	}
@@ -147,14 +149,14 @@ func (s *AuthFlowService) FinalizeAuthentication(
 	if sess == nil {
 		createdSession, err := s.authService.CreateSession(ctx, auth.User)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		sess = createdSession
 	}
 
 	requires2FA, err := s.requiresTwoFactor(ctx, auth)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if requires2FA {
@@ -170,7 +172,7 @@ func (s *AuthFlowService) FinalizeAuthentication(
 			session.WithCreatedAt(sess.CreatedAt()),
 		)
 		if err := s.sessionService.Update(ctx, pendingSession); err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 
 		redirectURL := fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(validatedNextURL))
@@ -194,6 +196,8 @@ func (s *AuthFlowService) requiresTwoFactor(
 	ctx context.Context,
 	auth *AuthenticationResult,
 ) (bool, error) {
+	const op serrors.Op = "core.AuthFlowService.requiresTwoFactor"
+
 	if auth.SatisfiesTwoFactor {
 		return false, nil
 	}
@@ -215,7 +219,7 @@ func (s *AuthFlowService) requiresTwoFactor(
 	}
 	policyRequires2FA, err := s.twoFactorPolicy.Requires(ctx, attempt)
 	if err != nil {
-		return false, err
+		return false, serrors.E(op, err)
 	}
 
 	// Intentional OR: policies can tighten (add) the 2FA requirement but cannot relax it.

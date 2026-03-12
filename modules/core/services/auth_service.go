@@ -82,21 +82,7 @@ func NewAuthService(app application.Application, opts ...AuthServiceOption) *Aut
 }
 
 func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user.User, session.Session, error) {
-	// Use code to get token and get user info from Google.
-	token, err := s.oAuthConfig.Exchange(ctx, code)
-	if err != nil {
-		return nil, nil, err
-	}
-	client := s.oAuthConfig.Client(ctx, token)
-	svc, err := people.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, nil, err
-	}
-	p, err := svc.People.Get("people/me").PersonFields("emailAddresses,names").Do()
-	if err != nil {
-		return nil, nil, err
-	}
-	u, err := s.usersService.GetByEmail(ctx, p.EmailAddresses[0].Value)
+	u, err := s.VerifyGoogle(ctx, code)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -109,21 +95,7 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user
 
 // AuthenticateGoogleWithAudience authenticates a user via Google OAuth and creates a session with a specific audience
 func (s *AuthService) AuthenticateGoogleWithAudience(ctx context.Context, code string, audience session.SessionAudience) (user.User, session.Session, error) {
-	// Use code to get token and get user info from Google.
-	token, err := s.oAuthConfig.Exchange(ctx, code)
-	if err != nil {
-		return nil, nil, err
-	}
-	client := s.oAuthConfig.Client(ctx, token)
-	svc, err := people.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, nil, err
-	}
-	p, err := svc.People.Get("people/me").PersonFields("emailAddresses,names").Do()
-	if err != nil {
-		return nil, nil, err
-	}
-	u, err := s.usersService.GetByEmail(ctx, p.EmailAddresses[0].Value)
+	u, err := s.VerifyGoogle(ctx, code)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -357,15 +329,10 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 	logger := configuration.Use().Logger()
 	logger.Infof("Authentication attempt for email: %s", email)
 
-	u, err := s.usersService.GetByEmail(ctx, email)
+	u, err := s.VerifyPassword(ctx, email, password)
 	if err != nil {
-		logger.Errorf("Failed to get user by email: %v", err)
+		logger.Errorf("Failed to verify credentials: %v", err)
 		return nil, nil, err
-	}
-
-	if !u.CheckPassword(password) {
-		logger.Errorf("Invalid password for user: %s", email)
-		return nil, nil, composables.ErrInvalidPassword
 	}
 
 	logger.Infof("User authenticated, creating session for user ID: %d", u.ID())
@@ -384,15 +351,10 @@ func (s *AuthService) AuthenticateWithAudience(ctx context.Context, email, passw
 	logger := configuration.Use().Logger()
 	logger.Infof("Authentication attempt for email: %s, audience: %s", email, audience)
 
-	u, err := s.usersService.GetByEmail(ctx, email)
+	u, err := s.VerifyPassword(ctx, email, password)
 	if err != nil {
-		logger.Errorf("Failed to get user by email: %v", err)
+		logger.Errorf("Failed to verify credentials: %v", err)
 		return nil, nil, err
-	}
-
-	if !u.CheckPassword(password) {
-		logger.Errorf("Invalid password for user: %s", email)
-		return nil, nil, composables.ErrInvalidPassword
 	}
 
 	sess, err := s.authenticate(ctx, u, audience)
@@ -420,6 +382,35 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		Path:     "/",
 	}
 	return cookie, nil
+}
+
+func (s *AuthService) VerifyGoogle(ctx context.Context, code string) (user.User, error) {
+	// Use code to get token and get user info from Google.
+	token, err := s.oAuthConfig.Exchange(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	client := s.oAuthConfig.Client(ctx, token)
+	svc, err := people.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, err
+	}
+	p, err := svc.People.Get("people/me").PersonFields("emailAddresses,names").Do()
+	if err != nil {
+		return nil, err
+	}
+	return s.usersService.GetByEmail(ctx, p.EmailAddresses[0].Value)
+}
+
+func (s *AuthService) VerifyPassword(ctx context.Context, email, password string) (user.User, error) {
+	u, err := s.usersService.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if !u.CheckPassword(password) {
+		return nil, composables.ErrInvalidPassword
+	}
+	return u, nil
 }
 
 func generateStateOauthCookie() (*http.Cookie, error) {

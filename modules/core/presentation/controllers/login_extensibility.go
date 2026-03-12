@@ -8,6 +8,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
@@ -22,6 +23,12 @@ type LoginFlowHandler interface {
 		r *http.Request,
 		u coreuser.User,
 		method pkgtwofactor.AuthMethod,
+		nextURL string,
+	)
+	FinalizeAuthentication(
+		w http.ResponseWriter,
+		r *http.Request,
+		auth *coreservices.AuthenticationResult,
 		nextURL string,
 	)
 }

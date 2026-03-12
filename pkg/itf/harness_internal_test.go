@@ -192,17 +192,19 @@ type testApp struct {
 	migrations application.MigrationManager
 }
 
-func (a *testApp) DB() *pgxpool.Pool                                         { return nil }
-func (a *testApp) EventPublisher() eventbus.EventBus                         { return nil }
-func (a *testApp) Controllers() []application.Controller                     { return nil }
-func (a *testApp) Middleware() []mux.MiddlewareFunc                          { return nil }
-func (a *testApp) Assets() []*embed.FS                                       { return nil }
-func (a *testApp) HashFsAssets() []*hashfs.FS                                { return nil }
-func (a *testApp) Websocket() application.Huber                              { return nil }
-func (a *testApp) Spotlight() spotlight.Service                              { return nil }
-func (a *testApp) QuickLinks() *spotlight.QuickLinks                         { return nil }
-func (a *testApp) NavItems(*i18n.Localizer) []types.NavigationItem           { return nil }
-func (a *testApp) RegisterNavItems(items ...types.NavigationItem)            {}
+func (a *testApp) DB() *pgxpool.Pool                               { return nil }
+func (a *testApp) EventPublisher() eventbus.EventBus               { return nil }
+func (a *testApp) Controllers() []application.Controller           { return nil }
+func (a *testApp) Middleware() []mux.MiddlewareFunc                { return nil }
+func (a *testApp) Assets() []*embed.FS                             { return nil }
+func (a *testApp) HashFsAssets() []*hashfs.FS                      { return nil }
+func (a *testApp) Websocket() application.Huber                    { return nil }
+func (a *testApp) Spotlight() spotlight.Service                    { return nil }
+func (a *testApp) QuickLinks() *spotlight.QuickLinks               { return nil }
+func (a *testApp) NavItems(*i18n.Localizer) []types.NavigationItem { return nil }
+func (a *testApp) RegisterNavItems(items ...types.NavigationItem)  {}
+func (a *testApp) AppendNavChildren(parentName string, children ...types.NavigationItem) {
+}
 func (a *testApp) RegisterControllers(controllers ...application.Controller) {}
 func (a *testApp) RegisterHashFsAssets(fs ...*hashfs.FS)                     {}
 func (a *testApp) RegisterAssets(fs ...*embed.FS)                            {}

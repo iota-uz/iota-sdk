@@ -290,7 +290,9 @@ func (c *LoginController) renderDefaultLogin(w http.ResponseWriter, r *http.Requ
 	}))
 }
 
-func (c *LoginController) renderLoginComponent(w http.ResponseWriter, r *http.Request, component interface{ Render(context.Context, io.Writer) error }) error {
+func (c *LoginController) renderLoginComponent(w http.ResponseWriter, r *http.Request, component interface {
+	Render(context.Context, io.Writer) error
+}) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	return component.Render(r.Context(), w)
 }
@@ -327,17 +329,18 @@ func (c *LoginController) buildLoginMethods(w http.ResponseWriter, r *http.Reque
 	if c.includeGoogleMethod() && configuration.Use().Google.IsConfigured() {
 		codeURL, err := c.authService.GoogleAuthenticate(w)
 		if err != nil {
-			return nil, err
+			composables.UseLogger(r.Context()).Error("failed to build google login method", "error", err)
+		} else {
+			method := LoginMethod{
+				ID:      "google",
+				Label:   intl.MustT(r.Context(), "Login.LoginWithGoogle"),
+				Href:    codeURL,
+				Variant: "oauth-google",
+				Icon:    login.GoogleIcon(),
+			}
+			methods = append(methods, method)
+			seen[method.ID] = struct{}{}
 		}
-		method := LoginMethod{
-			ID:      "google",
-			Label:   intl.MustT(r.Context(), "Login.LoginWithGoogle"),
-			Href:    codeURL,
-			Variant: "oauth-google",
-			Icon:    login.GoogleIcon(),
-		}
-		methods = append(methods, method)
-		seen[method.ID] = struct{}{}
 	}
 
 	for _, provider := range c.optionsOrDefault().MethodProviders {
@@ -457,10 +460,23 @@ func (c *LoginController) FinalizeAuthenticatedUser(
 	method pkgtwofactor.AuthMethod,
 	nextURL string,
 ) {
+	c.FinalizeAuthentication(w, r, &services.AuthenticationResult{
+		User:            u,
+		Method:          method,
+		AuthenticatorID: string(method),
+	}, nextURL)
+}
+
+func (c *LoginController) FinalizeAuthentication(
+	w http.ResponseWriter,
+	r *http.Request,
+	authResult *services.AuthenticationResult,
+	nextURL string,
+) {
 	validatedNextURL := security.GetValidatedRedirect(nextURL)
 	loginRedirectURL := fmt.Sprintf("/login?next=%s", url.QueryEscape(validatedNextURL))
 
-	finalizeResult, err := c.authFlowService.FinalizeAuthenticatedUser(r.Context(), u, method, services.FinalizeAuthenticationOptions{
+	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
 		NextURL:          validatedNextURL,
 		ErrorRedirectURL: loginRedirectURL,
 		AccessCheck:      c.runLoginAccessCheck,
