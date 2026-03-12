@@ -2,7 +2,7 @@ package ops
 
 import (
 	"context"
-	"fmt"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 func SeedSuperadminOperation() OperationSpec {
@@ -32,19 +33,25 @@ func SeedSuperadminOperation() OperationSpec {
 }
 
 func runSuperadminSeed(ctx context.Context) error {
+	const op serrors.Op = "dbctl.ops.runSuperadminSeed"
 	pool, err := common.GetDefaultDatabasePool()
 	if err != nil {
-		return fmt.Errorf("initialize database pool: %w", err)
+		return serrors.E(op, err, "initialize database pool")
 	}
 	defer pool.Close()
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
+		return serrors.E(op, err, "begin transaction")
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
 	}()
+
+	superadminPassword := os.Getenv("SUPERADMIN_PASSWORD")
+	if superadminPassword == "" {
+		return serrors.E(op, serrors.Invalid, "SUPERADMIN_PASSWORD is required for seed.superadmin")
+	}
 
 	superadminUser, err := user.New(
 		"Super",
@@ -52,9 +59,9 @@ func runSuperadminSeed(ctx context.Context) error {
 		internet.MustParseEmail("admin@superadmin.local"),
 		user.UILanguageEN,
 		user.WithType(user.TypeSuperAdmin),
-	).SetPassword("SuperAdmin123!")
+	).SetPassword(superadminPassword)
 	if err != nil {
-		return fmt.Errorf("create superadmin user: %w", err)
+		return serrors.E(op, err, "create superadmin user")
 	}
 
 	defaultTenant := &composables.Tenant{
@@ -82,10 +89,10 @@ func runSuperadminSeed(ctx context.Context) error {
 
 	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
-		return fmt.Errorf("seed superadmin dataset: %w", err)
+		return serrors.E(op, err, "seed superadmin dataset")
 	}
 	if err := tx.Commit(ctxWithTenant); err != nil {
-		return fmt.Errorf("commit superadmin seed transaction: %w", err)
+		return serrors.E(op, err, "commit superadmin seed transaction")
 	}
 	return nil
 }

@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/execution"
@@ -28,6 +27,7 @@ func newPlanCommand() *cobra.Command {
 	var jsonOutput bool
 	var yes bool
 	var dryRun bool
+	var policyPath string
 	cmd := &cobra.Command{
 		Use:   "plan <operation>",
 		Short: "Evaluate policy and print execution plan",
@@ -42,12 +42,13 @@ func newPlanCommand() *cobra.Command {
 				Yes:        yes,
 				DryRun:     dryRun,
 				JSONOutput: jsonOutput,
+				PolicyPath: policyPath,
 			})
 			if err != nil {
 				return err
 			}
 			if jsonOutput {
-				execution.Emit(os.Stdout, true, execution.Event{Type: "summary", Operation: plan.Spec.Name, Status: "planned", Payload: plan})
+				execution.Emit(out, true, execution.Event{Type: "summary", Operation: plan.Spec.Name, Status: "planned", Payload: plan})
 				return nil
 			}
 			_, _ = fmt.Fprintf(out, "Operation: %s\n", plan.Spec.Name)
@@ -62,6 +63,7 @@ func newPlanCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Emit JSON events")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview actions without executing")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive intent when required")
+	cmd.Flags().StringVar(&policyPath, "policy-path", "", "Path to an optional dbctl policy file")
 	return cmd
 }
 
@@ -70,6 +72,7 @@ func newApplyCommand() *cobra.Command {
 	var yes bool
 	var dryRun bool
 	var actor string
+	var policyPath string
 	cmd := &cobra.Command{
 		Use:   "apply <operation>",
 		Short: "Execute operation through policy-checked runner",
@@ -81,8 +84,9 @@ func newApplyCommand() *cobra.Command {
 				Yes:        yes,
 				DryRun:     dryRun,
 				JSONOutput: jsonOutput,
+				PolicyPath: policyPath,
 				Actor:      actor,
-				Out:        os.Stdout,
+				Out:        cmd.OutOrStdout(),
 			})
 		},
 	}
@@ -90,11 +94,12 @@ func newApplyCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview actions without executing")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive intent when required")
 	cmd.Flags().StringVar(&actor, "actor", "", "Actor identifier for audit logs")
+	cmd.Flags().StringVar(&policyPath, "policy-path", "", "Path to an optional dbctl policy file")
 	return cmd
 }
 
 func newDoctorCommand() *cobra.Command {
-	var yes bool
+	var policyPath string
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Validate dbctl policy and target resolution",
@@ -106,19 +111,25 @@ func newDoctorCommand() *cobra.Command {
 				return err
 			}
 			targetPlan, err := execution.Plan(cmd.Context(), execution.RunOptions{
-				Operation: "seed.main",
-				Mode:      ops.ExecutionModePlan,
-				Yes:       yes,
+				Operation:  "seed.main",
+				Mode:       ops.ExecutionModePlan,
+				PolicyPath: policyPath,
 			})
 			if err != nil {
 				return serrors.E(op, err)
 			}
 			_, _ = fmt.Fprintf(out, "policy hash: %s\n", policy.HashPolicy(payload))
 			_, _ = fmt.Fprintf(out, "policy envs: %d\n", len(cfg.Environments))
-			_, _ = fmt.Fprintf(out, "resolved target: env=%s host=%s db=%s\n", targetPlan.RunContext.Target.Environment, targetPlan.RunContext.Target.Host, targetPlan.RunContext.Target.Name)
+			_, _ = fmt.Fprintf(out, "resolved target: env=%s host=%s:%s user=%s db=%s\n",
+				targetPlan.RunContext.Target.Environment,
+				targetPlan.RunContext.Target.Host,
+				targetPlan.RunContext.Target.Port,
+				targetPlan.RunContext.Target.User,
+				targetPlan.RunContext.Target.Name,
+			)
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive intent when required")
+	cmd.Flags().StringVar(&policyPath, "policy-path", "", "Path to an optional dbctl policy file")
 	return cmd
 }

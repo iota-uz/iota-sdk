@@ -131,9 +131,9 @@ func Setup() error {
 		if err := CreateRaw(); err != nil {
 			return err
 		}
-		if err := Migrate(); err != nil {
-			return err
-		}
+	}
+	if err := Migrate(); err != nil {
+		return err
 	}
 
 	if err := SeedRaw(); err != nil {

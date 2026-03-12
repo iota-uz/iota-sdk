@@ -26,6 +26,7 @@ command dbctl apply db.e2e.reset --yes
 ## Defaults
 
 `dbctl` uses built-in safety defaults. No `.dbctl/policy.yaml` file is required.
+If you need to override those defaults, pass `--policy-path /path/to/policy.yaml`.
 
 `dbctl apply` fails when:
 
@@ -38,6 +39,14 @@ command dbctl apply db.e2e.reset --yes
 ```bash
 # policy/target diagnostics
 command dbctl doctor
+```
+
+## Seed superadmin
+
+`seed.superadmin` requires `SUPERADMIN_PASSWORD` to be set explicitly before apply:
+
+```bash
+SUPERADMIN_PASSWORD='<secure-password>' command dbctl apply seed.superadmin
 ```
 
 ## Removed legacy commands

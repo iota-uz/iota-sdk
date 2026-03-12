@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
+	"github.com/iota-uz/iota-sdk/pkg/commands/e2e"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
@@ -54,7 +55,7 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	target := resolveTarget()
+	target := resolveTarget(opts.Operation)
 	decision := policy.Evaluate(cfg, target, spec.Kind == ops.OperationKindDestructive)
 	if !decision.Allowed {
 		return nil, serrors.E(op, serrors.PermissionDenied, "policy denied operation: "+strings.Join(decision.Reasons, "; "))
@@ -104,7 +105,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 	Emit(opts.Out, opts.JSONOutput, Event{
 		Type:      "safety_banner",
 		Operation: plan.Spec.Name,
-		Message:   fmt.Sprintf("target env=%s host=%s db=%s steps=%d", plan.RunContext.Target.Environment, plan.RunContext.Target.Host, plan.RunContext.Target.Name, len(plan.Spec.Steps)),
+		Message:   fmt.Sprintf("target env=%s host=%s:%s user=%s db=%s steps=%d", plan.RunContext.Target.Environment, plan.RunContext.Target.Host, plan.RunContext.Target.Port, plan.RunContext.Target.User, plan.RunContext.Target.Name, len(plan.Spec.Steps)),
 		Payload: map[string]any{
 			"target":          plan.RunContext.Target,
 			"planned_actions": stepSummaries(plan.Spec),
@@ -230,15 +231,24 @@ func stepSummaries(spec ops.OperationSpec) []map[string]string {
 	return steps
 }
 
-func resolveTarget() policy.Target {
+func resolveTarget(operation string) policy.Target {
 	conf := configuration.Use()
+	databaseName := strings.TrimSpace(conf.Database.Name)
+	if isE2EOperation(operation) {
+		databaseName = e2e.E2EDBName
+	}
 	return policy.Target{
 		Environment: strings.TrimSpace(conf.GoAppEnvironment),
 		Host:        strings.TrimSpace(conf.Database.Host),
 		Port:        strings.TrimSpace(conf.Database.Port),
-		Name:        strings.TrimSpace(conf.Database.Name),
+		Name:        databaseName,
 		User:        strings.TrimSpace(conf.Database.User),
 	}
+}
+
+func isE2EOperation(operation string) bool {
+	op := strings.TrimSpace(operation)
+	return strings.HasPrefix(op, "db.e2e.") || op == "seed.e2e"
 }
 
 func fingerprint(target policy.Target) string {
