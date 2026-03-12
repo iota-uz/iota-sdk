@@ -3,6 +3,7 @@ package periodics
 import (
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -30,6 +31,10 @@ type MetricsCollector struct {
 	logger          *logrus.Logger
 	alertThreshold  float64 // success rate percentage below which alerts are triggered (default 80)
 	minRunsForAlert int64   // minimum total runs before alerting on low success rate (default 10)
+
+	subMu       sync.RWMutex
+	subscribers map[uint64]chan TaskMetricEvent
+	nextSubID   atomic.Uint64
 }
 
 // MetricsCollectorOption is a functional option for configuring MetricsCollector
@@ -61,6 +66,7 @@ func NewMetricsCollector(logger *logrus.Logger, opts ...MetricsCollectorOption) 
 		logger:          logger,
 		alertThreshold:  80,
 		minRunsForAlert: 10,
+		subscribers:     make(map[uint64]chan TaskMetricEvent),
 	}
 	for _, opt := range opts {
 		opt(mc)
@@ -71,7 +77,6 @@ func NewMetricsCollector(logger *logrus.Logger, opts ...MetricsCollectorOption) 
 // RecordTaskStart records when a task starts execution
 func (mc *MetricsCollector) RecordTaskStart(taskName string) {
 	mc.mu.Lock()
-	defer mc.mu.Unlock()
 
 	if mc.metrics[taskName] == nil {
 		mc.metrics[taskName] = &TaskMetrics{
@@ -83,15 +88,24 @@ func (mc *MetricsCollector) RecordTaskStart(taskName string) {
 	metrics.IsRunning = true
 	metrics.LastRun = time.Now()
 	metrics.TotalRuns++
+
+	metricsCopy := *metrics
+	mc.mu.Unlock()
+
+	mc.notifySubscribers(TaskMetricEvent{
+		TaskName:  taskName,
+		EventType: "start",
+		Metrics:   &metricsCopy,
+	})
 }
 
 // RecordTaskSuccess records when a task completes successfully
 func (mc *MetricsCollector) RecordTaskSuccess(taskName string, duration time.Duration) {
 	mc.mu.Lock()
-	defer mc.mu.Unlock()
 
 	metrics := mc.metrics[taskName]
 	if metrics == nil {
+		mc.mu.Unlock()
 		mc.logger.WithField("task", taskName).Warn("RecordTaskSuccess: metrics not initialized for task")
 		return
 	}
@@ -116,15 +130,24 @@ func (mc *MetricsCollector) RecordTaskSuccess(taskName string, duration time.Dur
 		"total_runs":    metrics.TotalRuns,
 		"success_rate":  float64(metrics.SuccessfulRuns) / float64(metrics.TotalRuns) * 100,
 	}).Info("Periodic task completed successfully")
+
+	metricsCopy := *metrics
+	mc.mu.Unlock()
+
+	mc.notifySubscribers(TaskMetricEvent{
+		TaskName:  taskName,
+		EventType: "success",
+		Metrics:   &metricsCopy,
+	})
 }
 
 // RecordTaskFailure records when a task fails
 func (mc *MetricsCollector) RecordTaskFailure(taskName string, duration time.Duration, err error) {
 	mc.mu.Lock()
-	defer mc.mu.Unlock()
 
 	metrics := mc.metrics[taskName]
 	if metrics == nil {
+		mc.mu.Unlock()
 		mc.logger.WithField("task", taskName).Warn("RecordTaskFailure: metrics not initialized for task")
 		return
 	}
@@ -153,6 +176,49 @@ func (mc *MetricsCollector) RecordTaskFailure(taskName string, duration time.Dur
 			"success_rate": successRate,
 			"threshold":    mc.alertThreshold,
 		}).Warn("Periodic task success rate is below acceptable threshold")
+	}
+
+	metricsCopy := *metrics
+	mc.mu.Unlock()
+
+	mc.notifySubscribers(TaskMetricEvent{
+		TaskName:  taskName,
+		EventType: "failure",
+		Metrics:   &metricsCopy,
+	})
+}
+
+// Subscribe returns a channel that receives TaskMetricEvent notifications
+// and an unsubscribe function. The channel is buffered (cap 50).
+func (mc *MetricsCollector) Subscribe() (<-chan TaskMetricEvent, func()) {
+	ch := make(chan TaskMetricEvent, 50)
+	id := mc.nextSubID.Add(1)
+
+	mc.subMu.Lock()
+	mc.subscribers[id] = ch
+	mc.subMu.Unlock()
+
+	unsubscribe := func() {
+		mc.subMu.Lock()
+		delete(mc.subscribers, id)
+		mc.subMu.Unlock()
+		close(ch)
+	}
+
+	return ch, unsubscribe
+}
+
+// notifySubscribers sends event to all subscribers non-blocking.
+func (mc *MetricsCollector) notifySubscribers(event TaskMetricEvent) {
+	mc.subMu.RLock()
+	defer mc.subMu.RUnlock()
+
+	for _, ch := range mc.subscribers {
+		select {
+		case ch <- event:
+		default:
+			// Drop if subscriber is slow
+		}
 	}
 }
 

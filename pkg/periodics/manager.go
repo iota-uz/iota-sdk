@@ -266,6 +266,12 @@ func (m *manager) GetTaskScheduleInfo() map[string]TaskScheduleInfo {
 	return result
 }
 
+// SubscribeMetrics returns a channel that receives events when task metrics change,
+// and an unsubscribe function to stop receiving events and close the channel.
+func (m *manager) SubscribeMetrics() (<-chan TaskMetricEvent, func()) {
+	return m.metrics.Subscribe()
+}
+
 // GetMetrics returns performance metrics for all tasks
 func (m *manager) GetMetrics() map[string]*TaskMetrics {
 	return m.metrics.GetMetrics()

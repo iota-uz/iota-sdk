@@ -79,12 +79,23 @@ type Manager interface {
 	// GetTaskScheduleInfo returns scheduling information for all tasks, keyed by task name.
 	// Added to support correct next/prev run correlation without relying on map iteration order.
 	GetTaskScheduleInfo() map[string]TaskScheduleInfo
+
+	// SubscribeMetrics returns a channel that receives events when task metrics change,
+	// and an unsubscribe function to stop receiving events and close the channel.
+	SubscribeMetrics() (<-chan TaskMetricEvent, func())
 }
 
 // TaskScheduleInfo provides scheduling information for a specific task.
 type TaskScheduleInfo struct {
 	Next time.Time
 	Prev time.Time
+}
+
+// TaskMetricEvent is emitted when a task's metrics change.
+type TaskMetricEvent struct {
+	TaskName  string
+	EventType string // "start", "success", "failure"
+	Metrics   *TaskMetrics
 }
 
 // TaskConfig holds configuration for a periodic task.
