@@ -16,24 +16,26 @@ import (
 
 // manager implements the Manager interface
 type manager struct {
-	cron     *cron.Cron
-	logger   *logrus.Logger
-	metrics  *MetricsCollector
-	pool     *pgxpool.Pool
-	tenantID uuid.UUID
-	mu       sync.RWMutex
-	tasks    map[string]PeriodicTask
+	cron         *cron.Cron
+	logger       *logrus.Logger
+	metrics      *MetricsCollector
+	pool         *pgxpool.Pool
+	tenantID     uuid.UUID
+	mu           sync.RWMutex
+	tasks        map[string]PeriodicTask
+	taskEntryIDs map[string]cron.EntryID
 }
 
 // NewManager creates a new periodic task manager
 func NewManager(logger *logrus.Logger, pool *pgxpool.Pool, tenantID uuid.UUID) Manager {
 	return &manager{
-		cron:     nil, // Will be initialized in Start()
-		logger:   logger,
-		metrics:  NewMetricsCollector(logger),
-		pool:     pool,
-		tenantID: tenantID,
-		tasks:    make(map[string]PeriodicTask),
+		cron:         nil, // Will be initialized in Start()
+		logger:       logger,
+		metrics:      NewMetricsCollector(logger),
+		pool:         pool,
+		tenantID:     tenantID,
+		tasks:        make(map[string]PeriodicTask),
+		taskEntryIDs: make(map[string]cron.EntryID),
 	}
 }
 
@@ -225,6 +227,8 @@ func (m *manager) addTaskToCron(task PeriodicTask) error {
 		return fmt.Errorf("failed to schedule task: %w", err)
 	}
 
+	m.taskEntryIDs[task.Name()] = entryID
+
 	m.logger.WithFields(logrus.Fields{
 		"task":     task.Name(),
 		"schedule": task.Schedule(),
@@ -232,6 +236,33 @@ func (m *manager) addTaskToCron(task PeriodicTask) error {
 	}).Info("Periodic task scheduled")
 
 	return nil
+}
+
+// GetTaskScheduleInfo returns scheduling information for all tasks, keyed by task name.
+func (m *manager) GetTaskScheduleInfo() map[string]TaskScheduleInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[string]TaskScheduleInfo)
+	if m.cron == nil {
+		return result
+	}
+
+	entries := m.cron.Entries()
+	entryMap := make(map[cron.EntryID]cron.Entry)
+	for _, e := range entries {
+		entryMap[e.ID] = e
+	}
+
+	for taskName, entryID := range m.taskEntryIDs {
+		if e, ok := entryMap[entryID]; ok {
+			result[taskName] = TaskScheduleInfo{
+				Next: e.Next,
+				Prev: e.Prev,
+			}
+		}
+	}
+	return result
 }
 
 // GetMetrics returns performance metrics for all tasks
@@ -242,4 +273,20 @@ func (m *manager) GetMetrics() map[string]*TaskMetrics {
 // LogHealthReport logs a health report for all tasks
 func (m *manager) LogHealthReport() {
 	m.metrics.LogHealthReport()
+}
+
+// GetRegisteredTasks returns information about all registered tasks
+func (m *manager) GetRegisteredTasks() []RegisteredTask {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	tasks := make([]RegisteredTask, 0, len(m.tasks))
+	for _, task := range m.tasks {
+		tasks = append(tasks, RegisteredTask{
+			Name:       task.Name(),
+			Schedule:   task.Schedule(),
+			RunOnStart: task.RunOnStart(),
+		})
+	}
+	return tasks
 }

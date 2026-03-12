@@ -38,6 +38,13 @@ type Entry struct {
 	Prev time.Time
 }
 
+// RegisteredTask describes a task that has been added to a Manager.
+type RegisteredTask struct {
+	Name       string
+	Schedule   string
+	RunOnStart bool
+}
+
 // Manager manages periodic tasks using cron
 type Manager interface {
 	// AddTask registers a periodic task
@@ -60,6 +67,19 @@ type Manager interface {
 
 	// LogHealthReport logs a health report for all tasks
 	LogHealthReport()
+
+	// GetRegisteredTasks returns information about all registered tasks.
+	GetRegisteredTasks() []RegisteredTask
+
+	// GetTaskScheduleInfo returns scheduling information for all tasks, keyed by task name.
+	// Added to support correct next/prev run correlation without relying on map iteration order.
+	GetTaskScheduleInfo() map[string]TaskScheduleInfo
+}
+
+// TaskScheduleInfo provides scheduling information for a specific task.
+type TaskScheduleInfo struct {
+	Next time.Time
+	Prev time.Time
 }
 
 // TaskConfig holds configuration for a periodic task.
