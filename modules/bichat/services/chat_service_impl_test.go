@@ -494,6 +494,143 @@ func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t
 	assert.False(t, messages[0].HasPendingQuestion())
 }
 
+func TestChatService_ResumeWithAnswerAsync_PersistsSubmittedStateBeforeWorkerCompletes(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("resume async submitted"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-async-submit", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+	agentSvc := &stubAgentService{
+		resumeStarted: started,
+		resumeRelease: release,
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	_, err = svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-async-submit",
+		Answers: map[string]string{
+			"scope": "all",
+		},
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected async resume worker to start")
+	}
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	updatedQuestionData := messages[0].QuestionData()
+	require.NotNil(t, updatedQuestionData)
+	assert.Equal(t, types.QuestionStatusAnswerSubmitted, updatedQuestionData.Status)
+	assert.Equal(t, "all", updatedQuestionData.Answers["scope"])
+	assert.False(t, messages[0].HasPendingQuestion())
+	_, err = chatRepo.GetPendingQuestionMessage(t.Context(), session.ID())
+	assert.ErrorIs(t, err, domain.ErrNoPendingQuestion)
+
+	close(release)
+}
+
+func TestChatService_RejectPendingQuestionAsync_PersistsSubmittedStateBeforeWorkerCompletes(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("reject async submitted"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-async-reject", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	pendingMsg := types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), pendingMsg))
+
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+	agentSvc := &stubAgentService{
+		resumeStarted: started,
+		resumeRelease: release,
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	_, err = svc.RejectPendingQuestionAsync(t.Context(), session.ID())
+	require.NoError(t, err)
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected async reject worker to start")
+	}
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	updatedQuestionData := messages[0].QuestionData()
+	require.NotNil(t, updatedQuestionData)
+	assert.Equal(t, types.QuestionStatusRejectSubmitted, updatedQuestionData.Status)
+	assert.False(t, messages[0].HasPendingQuestion())
+	_, err = chatRepo.GetPendingQuestionMessage(t.Context(), session.ID())
+	assert.ErrorIs(t, err, domain.ErrNoPendingQuestion)
+
+	close(release)
+}
+
 func TestChatService_ResumeWithAnswer_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
@@ -957,6 +1094,8 @@ type stubAgentService struct {
 	resumeErr        error
 	resumeCheckpoint string
 	resumeAnswers    map[string]types.Answer
+	resumeStarted    chan struct{}
+	resumeRelease    <-chan struct{}
 }
 
 func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UUID, content string, attachments []domain.Attachment) (types.Generator[agents.ExecutorEvent], error) {
@@ -994,6 +1133,19 @@ func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.
 	}
 	evs := append([]agents.ExecutorEvent{}, s.resumeEvents...)
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
+		if s.resumeStarted != nil {
+			select {
+			case s.resumeStarted <- struct{}{}:
+			default:
+			}
+		}
+		if s.resumeRelease != nil {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-s.resumeRelease:
+			}
+		}
 		for _, ev := range evs {
 			if !yield(ev) {
 				return nil

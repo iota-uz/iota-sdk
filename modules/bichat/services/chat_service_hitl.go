@@ -147,10 +147,11 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 	const op serrors.Op = "chatServiceImpl.ResumeWithAnswerAsync"
 
 	var (
-		pendingMsgID         uuid.UUID
-		resolvedCheckpointID string
-		answersMap           map[string]types.Answer
-		answeredQuestionData *types.QuestionData
+		pendingMsgID          uuid.UUID
+		resolvedCheckpointID  string
+		answersMap            map[string]types.Answer
+		submittedQuestionData *types.QuestionData
+		answeredQuestionData  *types.QuestionData
 	)
 	return s.startAsyncRun(
 		ctx,
@@ -190,13 +191,17 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			if err != nil {
 				return serrors.E(op, serrors.KindValidation, err)
 			}
-			answeredQuestionData, err = qd.Answer(normalizedAnswerValues)
+			submittedQuestionData, err = qd.SubmitAnswers(normalizedAnswerValues)
+			if err != nil {
+				return serrors.E(op, err)
+			}
+			answeredQuestionData, err = submittedQuestionData.Answer(normalizedAnswerValues)
 			if err != nil {
 				return serrors.E(op, err)
 			}
 			pendingMsgID = pendingMsg.ID()
 			answersMap = normalizedAnswersMap
-			return nil
+			return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, submittedQuestionData)
 		},
 		func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun) {
 			defer func() {
@@ -403,10 +408,11 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 	const op serrors.Op = "chatServiceImpl.RejectPendingQuestionAsync"
 
 	var (
-		pendingMsgID         uuid.UUID
-		checkpointID         string
-		rejectedQuestionData *types.QuestionData
-		rejectionAnswers     = map[string]types.Answer{
+		pendingMsgID          uuid.UUID
+		checkpointID          string
+		submittedQuestionData *types.QuestionData
+		rejectedQuestionData  *types.QuestionData
+		rejectionAnswers      = map[string]types.Answer{
 			"__rejected__": types.NewAnswer("User dismissed the questions"),
 		}
 	)
@@ -432,13 +438,17 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 				return serrors.E(op, serrors.KindValidation, "pending message has no question data")
 			}
 
-			rejectedQuestionData, err = qd.Reject()
+			submittedQuestionData, err = qd.SubmitReject()
+			if err != nil {
+				return serrors.E(op, err)
+			}
+			rejectedQuestionData, err = submittedQuestionData.Reject()
 			if err != nil {
 				return serrors.E(op, err)
 			}
 			pendingMsgID = pendingMsg.ID()
 			checkpointID = qd.CheckpointID
-			return nil
+			return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, submittedQuestionData)
 		},
 		func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun) {
 			defer func() {
