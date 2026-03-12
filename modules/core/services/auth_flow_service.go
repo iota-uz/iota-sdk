@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,9 +31,8 @@ type AuthenticationResult struct {
 }
 
 type FinalizeAuthenticationOptions struct {
-	NextURL          string
-	ErrorRedirectURL string
-	AccessCheck      LoginAccessChecker
+	NextURL     string
+	AccessCheck LoginAccessChecker
 }
 
 type FinalizeAuthenticationResult struct {
@@ -134,7 +132,6 @@ func (s *AuthFlowService) FinalizeAuthentication(
 	}
 
 	validatedNextURL := security.GetValidatedRedirect(opts.NextURL)
-	_ = strings.TrimSpace(opts.ErrorRedirectURL)
 
 	if opts.AccessCheck != nil {
 		if err := opts.AccessCheck(ctx, auth.User); err != nil {

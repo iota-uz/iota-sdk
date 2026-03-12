@@ -111,7 +111,10 @@ templ Index(p *LoginProps) {
 					if hasExternalMethod {
 						for _, method := range p.Methods {
 							if method.ID != "password" {
-								{{ attrs := templ.Attributes{"type": "button"} }}
+								{{ attrs := templ.Attributes{} }}
+								if method.Href == "" {
+									{{ attrs["type"] = "button" }}
+								}
 								for key, value := range method.Attributes {
 									{{ attrs[key] = value }}
 								}

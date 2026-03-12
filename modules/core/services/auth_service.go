@@ -20,6 +20,8 @@ import (
 	"google.golang.org/api/people/v1"
 )
 
+var ErrGoogleEmailNotFound = errors.New("google account email not found")
+
 // IPBindingMode defines how strictly IP addresses are validated for sessions
 type IPBindingMode string
 
@@ -398,6 +400,9 @@ func (s *AuthService) VerifyGoogle(ctx context.Context, code string) (user.User,
 	p, err := svc.People.Get("people/me").PersonFields("emailAddresses,names").Do()
 	if err != nil {
 		return nil, err
+	}
+	if len(p.EmailAddresses) == 0 || p.EmailAddresses[0] == nil || p.EmailAddresses[0].Value == "" {
+		return nil, ErrGoogleEmailNotFound
 	}
 	return s.usersService.GetByEmail(ctx, p.EmailAddresses[0].Value)
 }

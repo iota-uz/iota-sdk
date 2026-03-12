@@ -223,9 +223,8 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 
 	loginRedirectURL := fmt.Sprintf("/login?%s", queryParams.Encode())
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
-		NextURL:          nextURL,
-		ErrorRedirectURL: loginRedirectURL,
-		AccessCheck:      c.runLoginAccessCheck,
+		NextURL:     nextURL,
+		AccessCheck: c.runLoginAccessCheck,
 	})
 	if err != nil {
 		c.handleFinalizeError(w, r, loginRedirectURL, err)
@@ -436,9 +435,8 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 
 	loginRedirectURL := fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL))
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
-		NextURL:          postLoginRedirectURL,
-		ErrorRedirectURL: loginRedirectURL,
-		AccessCheck:      c.runLoginAccessCheck,
+		NextURL:     postLoginRedirectURL,
+		AccessCheck: c.runLoginAccessCheck,
 	})
 	if err != nil {
 		c.handleFinalizeError(w, r, loginRedirectURL, err)
@@ -477,9 +475,8 @@ func (c *LoginController) FinalizeAuthentication(
 	loginRedirectURL := fmt.Sprintf("/login?next=%s", url.QueryEscape(validatedNextURL))
 
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
-		NextURL:          validatedNextURL,
-		ErrorRedirectURL: loginRedirectURL,
-		AccessCheck:      c.runLoginAccessCheck,
+		NextURL:     validatedNextURL,
+		AccessCheck: c.runLoginAccessCheck,
 	})
 	if err != nil {
 		c.handleFinalizeError(w, r, loginRedirectURL, err)
