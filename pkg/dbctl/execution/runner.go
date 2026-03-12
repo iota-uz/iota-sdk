@@ -193,7 +193,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 
 func runStep(ctx context.Context, execCtx *ops.ExecutionContext, step ops.StepSpec) error {
 	if step.Handler == nil {
-		return nil
+		return errors.New("step handler is nil")
 	}
 	switch step.TxMode {
 	case ops.TxModeNone:

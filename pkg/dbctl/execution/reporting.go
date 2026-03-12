@@ -31,9 +31,16 @@ func Emit(out io.Writer, jsonOutput bool, event Event) {
 		_, _ = fmt.Fprintln(out, string(payload))
 		return
 	}
-	line := fmt.Sprintf("[%s] %s", event.Type, event.Message)
-	if event.StepID != "" {
+	var line string
+	switch {
+	case event.StepID != "" && event.Message != "":
 		line = fmt.Sprintf("[%s] (%s) %s", event.Type, event.StepID, event.Message)
+	case event.StepID != "":
+		line = fmt.Sprintf("[%s] (%s)", event.Type, event.StepID)
+	case event.Message != "":
+		line = fmt.Sprintf("[%s] %s", event.Type, event.Message)
+	default:
+		line = fmt.Sprintf("[%s]", event.Type)
 	}
 	_, _ = fmt.Fprintln(out, line)
 }

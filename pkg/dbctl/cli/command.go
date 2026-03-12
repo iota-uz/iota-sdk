@@ -78,7 +78,9 @@ func newApplyCommand() *cobra.Command {
 		Short: "Execute operation through policy-checked runner",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execution.Apply(cmd.Context(), execution.RunOptions{
+			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
+			defer cancel()
+			return execution.Apply(ctx, execution.RunOptions{
 				Operation:  args[0],
 				Mode:       ops.ExecutionModeApply,
 				Yes:        yes,
