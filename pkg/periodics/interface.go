@@ -43,6 +43,7 @@ type RegisteredTask struct {
 	Name       string
 	Schedule   string
 	RunOnStart bool
+	Enabled    bool
 }
 
 // Manager manages periodic tasks using cron
@@ -68,8 +69,12 @@ type Manager interface {
 	// LogHealthReport logs a health report for all tasks
 	LogHealthReport()
 
-	// GetRegisteredTasks returns information about all registered tasks.
+	// GetRegisteredTasks returns information about all registered tasks (both enabled and disabled).
 	GetRegisteredTasks() []RegisteredTask
+
+	// AddDisabledTaskInfo registers metadata for a disabled task so it appears in monitoring
+	// without being scheduled for execution.
+	AddDisabledTaskInfo(name, schedule string)
 
 	// GetTaskScheduleInfo returns scheduling information for all tasks, keyed by task name.
 	// Added to support correct next/prev run correlation without relying on map iteration order.

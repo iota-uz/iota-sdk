@@ -16,14 +16,15 @@ import (
 
 // manager implements the Manager interface
 type manager struct {
-	cron         *cron.Cron
-	logger       *logrus.Logger
-	metrics      *MetricsCollector
-	pool         *pgxpool.Pool
-	tenantID     uuid.UUID
-	mu           sync.RWMutex
-	tasks        map[string]PeriodicTask
-	taskEntryIDs map[string]cron.EntryID
+	cron          *cron.Cron
+	logger        *logrus.Logger
+	metrics       *MetricsCollector
+	pool          *pgxpool.Pool
+	tenantID      uuid.UUID
+	mu            sync.RWMutex
+	tasks         map[string]PeriodicTask
+	taskEntryIDs  map[string]cron.EntryID
+	disabledTasks []RegisteredTask
 }
 
 // NewManager creates a new periodic task manager
@@ -275,18 +276,31 @@ func (m *manager) LogHealthReport() {
 	m.metrics.LogHealthReport()
 }
 
-// GetRegisteredTasks returns information about all registered tasks
+// AddDisabledTaskInfo registers metadata for a disabled task so it appears in monitoring.
+func (m *manager) AddDisabledTaskInfo(name, schedule string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.disabledTasks = append(m.disabledTasks, RegisteredTask{
+		Name:     name,
+		Schedule: schedule,
+		Enabled:  false,
+	})
+}
+
+// GetRegisteredTasks returns information about all registered tasks (both enabled and disabled).
 func (m *manager) GetRegisteredTasks() []RegisteredTask {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	tasks := make([]RegisteredTask, 0, len(m.tasks))
+	tasks := make([]RegisteredTask, 0, len(m.tasks)+len(m.disabledTasks))
 	for _, task := range m.tasks {
 		tasks = append(tasks, RegisteredTask{
 			Name:       task.Name(),
 			Schedule:   task.Schedule(),
 			RunOnStart: task.RunOnStart(),
+			Enabled:    true,
 		})
 	}
+	tasks = append(tasks, m.disabledTasks...)
 	return tasks
 }
