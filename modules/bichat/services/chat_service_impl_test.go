@@ -631,6 +631,236 @@ func TestChatService_RejectPendingQuestionAsync_PersistsSubmittedStateBeforeWork
 	close(release)
 }
 
+func TestChatService_ResumeWithAnswerAsync_ReusesExistingRunForDuplicateAnswers(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("resume async idempotent"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-async-idempotent-answer", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)))
+
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+	agentSvc := &stubAgentService{
+		resumeStarted: started,
+		resumeRelease: release,
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	firstAccepted, err := svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-async-idempotent-answer",
+		Answers: map[string]string{
+			"scope": "all",
+		},
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected async resume worker to start")
+	}
+
+	secondAccepted, err := svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-async-idempotent-answer",
+		Answers: map[string]string{
+			"scope": "all",
+		},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, firstAccepted.RunID, secondAccepted.RunID)
+	assert.Equal(t, 1, agentSvc.resumeCalls)
+
+	close(release)
+}
+
+func TestChatService_RejectPendingQuestionAsync_ReusesExistingRunForDuplicateReject(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("reject async idempotent"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-async-idempotent-reject", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)))
+
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+	agentSvc := &stubAgentService{
+		resumeStarted: started,
+		resumeRelease: release,
+		resumeEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeDone},
+		},
+	}
+
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	firstAccepted, err := svc.RejectPendingQuestionAsync(t.Context(), session.ID())
+	require.NoError(t, err)
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected async reject worker to start")
+	}
+
+	secondAccepted, err := svc.RejectPendingQuestionAsync(t.Context(), session.ID())
+	require.NoError(t, err)
+
+	assert.Equal(t, firstAccepted.RunID, secondAccepted.RunID)
+	assert.Equal(t, 1, agentSvc.resumeCalls)
+
+	close(release)
+}
+
+func TestChatService_ResumeWithAnswerAsync_MarksFailureStateWhenWorkerFails(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("resume async failure"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-async-failure-answer", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)))
+
+	agentSvc := &stubAgentService{resumeErr: assert.AnError}
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+
+	_, err = svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-async-failure-answer",
+		Answers: map[string]string{
+			"scope": "all",
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		messages, messagesErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+		if messagesErr != nil || len(messages) == 0 || messages[0].QuestionData() == nil {
+			return false
+		}
+		return messages[0].QuestionData().Status == types.QuestionStatusAnswerFailed
+	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestChatService_RejectPendingQuestionAsync_MarksFailureStateWhenWorkerFails(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("reject async failure"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	qd, err := types.NewQuestionData("cp-async-failure-reject", "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(qd),
+	)))
+
+	agentSvc := &stubAgentService{resumeErr: assert.AnError}
+	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+
+	_, err = svc.RejectPendingQuestionAsync(t.Context(), session.ID())
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		messages, messagesErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+		if messagesErr != nil || len(messages) == 0 || messages[0].QuestionData() == nil {
+			return false
+		}
+		return messages[0].QuestionData().Status == types.QuestionStatusRejectFailed
+	}, 2*time.Second, 20*time.Millisecond)
+}
+
 func TestChatService_ResumeWithAnswer_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
@@ -1092,6 +1322,7 @@ type stubAgentService struct {
 	processStreamErr error
 	resumeEvents     []agents.ExecutorEvent
 	resumeErr        error
+	resumeCalls      int
 	resumeCheckpoint string
 	resumeAnswers    map[string]types.Answer
 	resumeStarted    chan struct{}
@@ -1119,6 +1350,7 @@ func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UU
 }
 
 func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.UUID, checkpointID string, answers map[string]types.Answer) (types.Generator[agents.ExecutorEvent], error) {
+	s.resumeCalls++
 	s.resumeCheckpoint = checkpointID
 	if answers != nil {
 		s.resumeAnswers = make(map[string]types.Answer, len(answers))

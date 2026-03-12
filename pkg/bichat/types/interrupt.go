@@ -95,6 +95,8 @@ const (
 	QuestionStatusPending         QuestionStatus = "PENDING"
 	QuestionStatusAnswerSubmitted QuestionStatus = "ANSWER_SUBMITTED"
 	QuestionStatusRejectSubmitted QuestionStatus = "REJECT_SUBMITTED"
+	QuestionStatusAnswerFailed    QuestionStatus = "ANSWER_RESUME_FAILED"
+	QuestionStatusRejectFailed    QuestionStatus = "REJECT_RESUME_FAILED"
 	QuestionStatusAnswered        QuestionStatus = "ANSWERED"
 	QuestionStatusRejected        QuestionStatus = "REJECTED"
 )
@@ -220,7 +222,9 @@ func (qd *QuestionData) normalizeAnswers(answers map[string]string) (map[string]
 
 // SubmitAnswers durably records validated answers while the continuation run is still pending.
 func (qd *QuestionData) SubmitAnswers(answers map[string]string) (*QuestionData, error) {
-	if qd.Status != QuestionStatusPending {
+	switch qd.Status {
+	case QuestionStatusPending, QuestionStatusAnswerFailed, QuestionStatusRejectFailed:
+	default:
 		return nil, fmt.Errorf("%w: cannot submit answers from status %q", ErrInvalidQuestionTransition, qd.Status)
 	}
 	normalized, err := qd.normalizeAnswers(answers)
@@ -254,11 +258,14 @@ func (qd *QuestionData) Answer(answers map[string]string) (*QuestionData, error)
 // SubmitReject durably records that the user rejected the pending question
 // while the continuation run is still pending.
 func (qd *QuestionData) SubmitReject() (*QuestionData, error) {
-	if qd.Status != QuestionStatusPending {
+	switch qd.Status {
+	case QuestionStatusPending, QuestionStatusAnswerFailed, QuestionStatusRejectFailed:
+	default:
 		return nil, fmt.Errorf("%w: cannot submit rejection from status %q", ErrInvalidQuestionTransition, qd.Status)
 	}
 	next := *qd
 	next.Status = QuestionStatusRejectSubmitted
+	next.Answers = nil
 	return &next, nil
 }
 
@@ -271,10 +278,44 @@ func (qd *QuestionData) Reject() (*QuestionData, error) {
 	}
 	next := *qd
 	next.Status = QuestionStatusRejected
+	next.Answers = nil
 	return &next, nil
 }
 
 // IsPending returns true if the question is in pending state.
 func (qd *QuestionData) IsPending() bool {
 	return qd != nil && qd.Status == QuestionStatusPending
+}
+
+// IsOpen returns true when the question should still be visible to the user.
+func (qd *QuestionData) IsOpen() bool {
+	if qd == nil {
+		return false
+	}
+	switch qd.Status {
+	case QuestionStatusPending, QuestionStatusAnswerSubmitted, QuestionStatusRejectSubmitted, QuestionStatusAnswerFailed, QuestionStatusRejectFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// MarkAnswerResumeFailed keeps the question visible after a failed answer continuation.
+func (qd *QuestionData) MarkAnswerResumeFailed() (*QuestionData, error) {
+	if qd.Status != QuestionStatusAnswerSubmitted {
+		return nil, fmt.Errorf("%w: cannot mark answer resume failed from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	next := *qd
+	next.Status = QuestionStatusAnswerFailed
+	return &next, nil
+}
+
+// MarkRejectResumeFailed keeps the question visible after a failed reject continuation.
+func (qd *QuestionData) MarkRejectResumeFailed() (*QuestionData, error) {
+	if qd.Status != QuestionStatusRejectSubmitted {
+		return nil, fmt.Errorf("%w: cannot mark reject resume failed from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	next := *qd
+	next.Status = QuestionStatusRejectFailed
+	return &next, nil
 }
