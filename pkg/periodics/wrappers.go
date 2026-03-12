@@ -3,14 +3,25 @@ package periodics
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 )
 
+// noopLogger returns a logger that discards all output
+func noopLogger() *logrus.Logger {
+	l := logrus.New()
+	l.SetOutput(io.Discard)
+	return l
+}
+
 // RetryWrapper creates a JobWrapper that retries failed jobs with exponential backoff
 func RetryWrapper(maxRetries int, initialDelay time.Duration, logger *logrus.Logger) cron.JobWrapper {
+	if logger == nil {
+		logger = noopLogger()
+	}
 	return func(j cron.Job) cron.Job {
 		return cron.FuncJob(func() {
 			var lastErr error
@@ -68,13 +79,16 @@ func RetryWrapper(maxRetries int, initialDelay time.Duration, logger *logrus.Log
 // until it completes naturally. This is a known limitation since Go goroutines are not preemptible.
 // A warning is logged if the timed-out goroutine eventually completes.
 func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrapper {
+	if logger == nil {
+		logger = noopLogger()
+	}
 	return func(j cron.Job) cron.Job {
 		return cron.FuncJob(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
 			done := make(chan struct{})
-			var jobPanic interface{}
+			var jobPanic any
 			timedOut := make(chan struct{})
 
 			go func() {
@@ -108,6 +122,9 @@ func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrappe
 
 // LoggingWrapper creates a JobWrapper that logs job execution details
 func LoggingWrapper(taskName string, logger *logrus.Logger) cron.JobWrapper {
+	if logger == nil {
+		logger = noopLogger()
+	}
 	return func(j cron.Job) cron.Job {
 		return cron.FuncJob(func() {
 			start := time.Now()
@@ -136,6 +153,9 @@ func LoggingWrapper(taskName string, logger *logrus.Logger) cron.JobWrapper {
 
 // MetricsWrapper creates a JobWrapper that collects metrics
 func MetricsWrapper(taskName string, collector *MetricsCollector) cron.JobWrapper {
+	if collector == nil {
+		return func(j cron.Job) cron.Job { return j }
+	}
 	return func(j cron.Job) cron.Job {
 		return cron.FuncJob(func() {
 			collector.RecordTaskStart(taskName)

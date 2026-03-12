@@ -66,8 +66,9 @@ type Manager interface {
 // Zero-value fields will be filled with defaults from DefaultTaskConfig().
 // Use pointers for bool fields that need explicit false vs unset distinction.
 type TaskConfig struct {
-	// MaxRetries is the maximum number of retry attempts on failure (default: 3)
-	MaxRetries int
+	// MaxRetries is the maximum number of retry attempts on failure (default: 3).
+	// Use a pointer to distinguish unset (nil → default 3) from explicit 0 (no retries).
+	MaxRetries *int
 
 	// RetryDelay is the initial delay between retries, exponentially increased (default: 1s)
 	RetryDelay time.Duration
@@ -76,25 +77,30 @@ type TaskConfig struct {
 	Timeout time.Duration
 
 	// EnableSkipIfRunning skips execution if previous instance is still running.
-	// Use a pointer to distinguish between unset (nil → default true) and explicit false.
+	// Use a pointer to distinguish unset (nil → default true) from explicit false.
 	EnableSkipIfRunning *bool
 }
 
+// IntPtr returns a pointer to the given int value, useful for setting TaskConfig.MaxRetries
+func IntPtr(v int) *int { return &v }
+
+// BoolPtr returns a pointer to the given bool value, useful for setting TaskConfig.EnableSkipIfRunning
+func BoolPtr(v bool) *bool { return &v }
+
 // DefaultTaskConfig returns a default configuration for periodic tasks
 func DefaultTaskConfig() TaskConfig {
-	skipIfRunning := true
 	return TaskConfig{
-		MaxRetries:          3,
+		MaxRetries:          IntPtr(3),
 		RetryDelay:          time.Second,
 		Timeout:             5 * time.Minute,
-		EnableSkipIfRunning: &skipIfRunning,
+		EnableSkipIfRunning: BoolPtr(true),
 	}
 }
 
-// mergeWithDefaults fills zero-value fields in cfg with values from DefaultTaskConfig()
+// mergeWithDefaults fills nil/zero-value fields in cfg with values from DefaultTaskConfig()
 func mergeWithDefaults(cfg TaskConfig) TaskConfig {
 	defaults := DefaultTaskConfig()
-	if cfg.MaxRetries == 0 {
+	if cfg.MaxRetries == nil {
 		cfg.MaxRetries = defaults.MaxRetries
 	}
 	if cfg.RetryDelay == 0 {

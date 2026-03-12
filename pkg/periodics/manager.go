@@ -92,6 +92,14 @@ func (m *manager) Start() error {
 		if task.RunOnStart() {
 			executor := m.buildWrappedExecutor(task)
 			go func(taskName string, exec func()) {
+				defer func() {
+					if r := recover(); r != nil {
+						m.logger.WithFields(logrus.Fields{
+							"task":  taskName,
+							"panic": r,
+						}).Error("Startup task panicked")
+					}
+				}()
 				m.logger.WithField("task", taskName).Info("Running periodic task on startup")
 				exec()
 			}(task.Name(), executor)
@@ -175,7 +183,7 @@ func (m *manager) buildWrappedExecutor(task PeriodicTask) func() {
 	wrappers = append(wrappers, TimeoutWrapper(config.Timeout, m.logger))
 
 	// Add retry wrapper
-	wrappers = append(wrappers, RetryWrapper(config.MaxRetries, config.RetryDelay, m.logger))
+	wrappers = append(wrappers, RetryWrapper(*config.MaxRetries, config.RetryDelay, m.logger))
 
 	// Add metrics wrapper
 	wrappers = append(wrappers, MetricsWrapper(taskName, m.metrics))

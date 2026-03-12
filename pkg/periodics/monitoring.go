@@ -1,6 +1,7 @@
 package periodics
 
 import (
+	"io"
 	"sync"
 	"time"
 
@@ -48,8 +49,13 @@ func WithMinRunsForAlert(minRuns int64) MetricsCollectorOption {
 	}
 }
 
-// NewMetricsCollector creates a new metrics collector
+// NewMetricsCollector creates a new metrics collector.
+// If logger is nil, a default no-op logger is used.
 func NewMetricsCollector(logger *logrus.Logger, opts ...MetricsCollectorOption) *MetricsCollector {
+	if logger == nil {
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
+	}
 	mc := &MetricsCollector{
 		metrics:         make(map[string]*TaskMetrics),
 		logger:          logger,
@@ -192,9 +198,9 @@ func (mc *MetricsCollector) LogHealthReport() {
 		switch {
 		case metrics.IsRunning:
 			status = "RUNNING"
-		case successRate >= 95:
+		case successRate >= mc.alertThreshold+(100-mc.alertThreshold)/2:
 			status = "HEALTHY"
-		case successRate >= 80:
+		case successRate >= mc.alertThreshold:
 			status = "WARNING"
 		default:
 			status = "CRITICAL"
