@@ -23,6 +23,9 @@ const (
 
 	// AuthMethodOAuth indicates authentication via OAuth provider.
 	AuthMethodOAuth AuthMethod = "oauth"
+
+	// AuthMethodExternal indicates authentication via an external/custom provider.
+	AuthMethodExternal AuthMethod = "external"
 )
 
 // Method represents a two-factor authentication method.
