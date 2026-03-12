@@ -38,6 +38,14 @@ type Entry struct {
 	Prev time.Time
 }
 
+// RegisteredTask describes a task that has been added to a Manager.
+type RegisteredTask struct {
+	Name       string
+	Schedule   string
+	RunOnStart bool
+	Enabled    bool
+}
+
 // Manager manages periodic tasks using cron
 type Manager interface {
 	// AddTask registers a periodic task
@@ -60,6 +68,34 @@ type Manager interface {
 
 	// LogHealthReport logs a health report for all tasks
 	LogHealthReport()
+
+	// GetRegisteredTasks returns information about all registered tasks (both enabled and disabled).
+	GetRegisteredTasks() []RegisteredTask
+
+	// AddDisabledTaskInfo registers metadata for a disabled task so it appears in monitoring
+	// without being scheduled for execution.
+	AddDisabledTaskInfo(name, schedule string)
+
+	// GetTaskScheduleInfo returns scheduling information for all tasks, keyed by task name.
+	// Added to support correct next/prev run correlation without relying on map iteration order.
+	GetTaskScheduleInfo() map[string]TaskScheduleInfo
+
+	// SubscribeMetrics returns a channel that receives events when task metrics change,
+	// and an unsubscribe function to stop receiving events and close the channel.
+	SubscribeMetrics() (<-chan TaskMetricEvent, func())
+}
+
+// TaskScheduleInfo provides scheduling information for a specific task.
+type TaskScheduleInfo struct {
+	Next time.Time
+	Prev time.Time
+}
+
+// TaskMetricEvent is emitted when a task's metrics change.
+type TaskMetricEvent struct {
+	TaskName  string
+	EventType string // "start", "success", "failure"
+	Metrics   *TaskMetrics
 }
 
 // TaskConfig holds configuration for a periodic task.
