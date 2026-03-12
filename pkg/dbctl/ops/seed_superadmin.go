@@ -9,7 +9,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
@@ -24,29 +23,16 @@ func SeedSuperadminOperation() OperationSpec {
 		Steps: []StepSpec{{
 			ID:          "seed_superadmin_dataset",
 			Description: "Seed default tenant and superadmin account",
-			TxMode:      TxModeNone,
-			Handler: func(ctx context.Context, _ *ExecutionContext) error {
-				return runSuperadminSeed(ctx)
+			TxMode:      TxModeOwnTx,
+			Handler: func(ctx context.Context, e *ExecutionContext) error {
+				return runSuperadminSeed(ctx, e)
 			},
 		}},
 	}
 }
 
-func runSuperadminSeed(ctx context.Context) error {
+func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 	const op serrors.Op = "dbctl.ops.runSuperadminSeed"
-	pool, err := common.GetDefaultDatabasePool()
-	if err != nil {
-		return serrors.E(op, err, "initialize database pool")
-	}
-	defer pool.Close()
-
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		return serrors.E(op, err, "begin transaction")
-	}
-	defer func() {
-		_ = tx.Rollback(ctx)
-	}()
 
 	superadminPassword := os.Getenv("SUPERADMIN_PASSWORD")
 	if superadminPassword == "" {
@@ -73,7 +59,7 @@ func runSuperadminSeed(ctx context.Context) error {
 	allPermissions := defaults.AllPermissions()
 	conf := configuration.Use()
 	seedDeps := &application.SeedDeps{
-		Pool:     pool,
+		Pool:     e.Pool,
 		EventBus: eventbus.NewEventPublisher(conf.Logger()),
 		Logger:   conf.Logger(),
 	}
@@ -87,12 +73,9 @@ func runSuperadminSeed(ctx context.Context) error {
 		coreseed.CreateSubscriptionEntitlements,
 	)
 
-	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, tx), defaultTenant.ID)
+	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, e.Tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
 		return serrors.E(op, err, "seed superadmin dataset")
-	}
-	if err := tx.Commit(ctxWithTenant); err != nil {
-		return serrors.E(op, err, "commit superadmin seed transaction")
 	}
 	return nil
 }

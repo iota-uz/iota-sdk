@@ -11,7 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	websiteseed "github.com/iota-uz/iota-sdk/modules/website/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
@@ -25,32 +24,18 @@ func SeedMainOperation() OperationSpec {
 		Steps: []StepSpec{{
 			ID:          "seed_main_dataset",
 			Description: "Seed default tenant, users, permissions, and website defaults",
-			TxMode:      TxModeNone,
-			Handler: func(ctx context.Context, _ *ExecutionContext) error {
-				return runMainSeed(ctx)
+			TxMode:      TxModeOwnTx,
+			Handler: func(ctx context.Context, e *ExecutionContext) error {
+				return runMainSeed(ctx, e)
 			},
 		}},
 	}
 }
 
-func runMainSeed(ctx context.Context) error {
-	pool, err := common.GetDefaultDatabasePool()
-	if err != nil {
-		return fmt.Errorf("initialize database pool: %w", err)
-	}
-	defer pool.Close()
-
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback(ctx)
-	}()
-
+func runMainSeed(ctx context.Context, e *ExecutionContext) error {
 	conf := configuration.Use()
 	seedDeps := &application.SeedDeps{
-		Pool:     pool,
+		Pool:     e.Pool,
 		EventBus: eventbus.NewEventPublisher(conf.Logger()),
 		Logger:   conf.Logger(),
 	}
@@ -95,12 +80,9 @@ func runMainSeed(ctx context.Context) error {
 		)),
 	)
 
-	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, tx), defaultTenant.ID)
+	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, e.Tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
 		return fmt.Errorf("seed main dataset: %w", err)
-	}
-	if err := tx.Commit(ctxWithTenant); err != nil {
-		return fmt.Errorf("commit seed main transaction: %w", err)
 	}
 	return nil
 }

@@ -101,6 +101,12 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 	s.seedFuncs = append(s.seedFuncs, seedFuncs...)
 }
 
+// Seed wraps a function into a SeedFunc using dependency injection. The function
+// must accept context.Context as the first argument and return exactly one error.
+// Additional parameters are resolved from the SeedDeps provider registry.
+//
+// Seed panics if fn has an invalid signature. Call it at package init time or
+// during registration so signature errors surface at startup, not at seed time.
 func Seed(fn interface{}) SeedFunc {
 	if err := validateSeedSignature(fn); err != nil {
 		panic(err)
