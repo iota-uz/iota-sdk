@@ -36,10 +36,11 @@ type BaseTaskConfig struct {
 
 // ToTaskConfig converts BaseTaskConfig to TaskConfig
 func (c BaseTaskConfig) ToTaskConfig() TaskConfig {
+	skip := c.EnableSkipIfRunning
 	return TaskConfig{
 		MaxRetries:          c.MaxRetries,
 		RetryDelay:          c.RetryDelay,
 		Timeout:             c.Timeout,
-		EnableSkipIfRunning: c.EnableSkipIfRunning,
+		EnableSkipIfRunning: &skip,
 	}
 }

@@ -133,22 +133,31 @@ func (m *manager) IsRunning() bool {
 	return m.cron != nil
 }
 
-// GetEntries returns all registered cron entries
-func (m *manager) GetEntries() []cron.Entry {
+// GetEntries returns all registered scheduled entries
+func (m *manager) GetEntries() []Entry {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if m.cron == nil {
-		return []cron.Entry{}
+		return []Entry{}
 	}
 
-	return m.cron.Entries()
+	cronEntries := m.cron.Entries()
+	entries := make([]Entry, len(cronEntries))
+	for i, e := range cronEntries {
+		entries[i] = Entry{
+			ID:   int(e.ID),
+			Next: e.Next,
+			Prev: e.Prev,
+		}
+	}
+	return entries
 }
 
 // buildWrappedExecutor creates a fully wrapped execution function for a task.
 // Both addTaskToCron and startup use this to ensure the same wrapper chain is applied.
 func (m *manager) buildWrappedExecutor(task PeriodicTask) func() {
-	config := task.Config()
+	config := mergeWithDefaults(task.Config())
 	taskName := task.Name()
 
 	// Create the job wrapper chain
@@ -158,7 +167,7 @@ func (m *manager) buildWrappedExecutor(task PeriodicTask) func() {
 	}
 
 	// Add skip if running wrapper (if enabled)
-	if config.EnableSkipIfRunning {
+	if config.EnableSkipIfRunning != nil && *config.EnableSkipIfRunning {
 		wrappers = append(wrappers, cron.SkipIfStillRunning(cron.VerbosePrintfLogger(m.logger)))
 	}
 
