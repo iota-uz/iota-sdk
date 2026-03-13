@@ -30,6 +30,7 @@ type DatePickerProps struct {
 	MinDate      string   `json:"minDate"`
 	MaxDate      string   `json:"maxDate"`
 	Selected     []string `json:"selected"`
+	AllowInput   bool     `json:"allowInput,omitempty"`
 	Locale       string   `json:"locale"`
 	Name         string   `json:"-"`
 	EndName      string   `json:"-"`

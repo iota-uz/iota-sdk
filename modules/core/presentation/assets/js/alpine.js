@@ -510,6 +510,7 @@ let datePicker = ({
   maxDate = '',
   selectorType = 'day',
   selected = [],
+  allowInput = false,
 } = {}) => ({
   selected: [],
   localeMap: {
@@ -555,6 +556,7 @@ let datePicker = ({
     let self = this;
     flatpickr(this.$refs.input, {
       altInput: true,
+      allowInput,
       static: true,
       altInputClass: "form-control-input input outline-none w-full",
       altFormat: labelFormat,
