@@ -47,6 +47,9 @@
     "InlineQuestion": {
       "InputNeeded": "需要输入",
       "WaitingForDetails": "正在等待助手的提问详情...",
+      "AnswerSubmitted": "答案已提交",
+      "DismissalSubmitted": "已关闭该请求",
+      "ResumeInProgress": "正在继续处理",
       "Next": "下一步",
       "Back": "返回",
       "OtherOption": "其他",

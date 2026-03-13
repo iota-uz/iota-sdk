@@ -37,10 +37,10 @@ templ Content[C Card](cfg *Config[C]) {
 		</div>
 		<div class="flex bg-gray-200 rounded-lg h-full overflow-hidden">
 			<div class="w-full overflow-x-auto overscroll-x-contain [touch-action:pan-x_pinch-zoom] [-webkit-overflow-scrolling:touch]">
-			<ol
-				class="flex w-max min-w-full divide-x divide-gray-300"
-				x-sort.ghost
-				x-sort:config="{
+				<ol
+					class="flex w-max min-w-full divide-x divide-gray-300"
+					x-sort.ghost
+					x-sort:config="{
 					delayOnTouchOnly: true,
 					delay: 150,
 					touchStartThreshold: 8,
@@ -53,19 +53,19 @@ templ Content[C Card](cfg *Config[C]) {
 						$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
 					}
 				}"
-			>
-				for _, c := range cfg.Board.Columns() {
-					<li data-col-key={ c.Key() } x-sort:item class="flex w-72 shrink-0 flex-col gap-2 p-3">
-						<header class="font-medium">
-							@c.Title()
-						</header>
-						<ol
-							class="flex min-h-6 flex-col gap-2"
-							id={ ColumnCardsTargetID(c.Key()) }
-							data-col-key={ c.Key() }
-							x-sort.ghost
-							x-sort:group="cards"
-							x-sort:config="{
+				>
+					for _, c := range cfg.Board.Columns() {
+						<li data-col-key={ c.Key() } x-sort:item class="flex w-72 shrink-0 flex-col gap-2 p-3">
+							<header class="font-medium">
+								@c.Title()
+							</header>
+							<ol
+								class="flex min-h-6 flex-col gap-2"
+								id={ ColumnCardsTargetID(c.Key()) }
+								data-col-key={ c.Key() }
+								x-sort.ghost
+								x-sort:group="cards"
+								x-sort:config="{
 								delayOnTouchOnly: true,
 								delay: 150,
 								touchStartThreshold: 8,
@@ -79,12 +79,12 @@ templ Content[C Card](cfg *Config[C]) {
 								})
 								$nextTick(() => htmx.trigger('#card-trigger', 'cardChanged'));
 							}}"
-						>
-							@ColumnCards(cfg, c, currentParams)
-						</ol>
-					</li>
-				}
-			</ol>
+							>
+								@ColumnCards(cfg, c, currentParams)
+							</ol>
+						</li>
+					}
+				</ol>
 			</div>
 		</div>
 	</div>

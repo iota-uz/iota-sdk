@@ -19,6 +19,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func mustQuestionData(t *testing.T, checkpointID string) *types.QuestionData {
+	t.Helper()
+
+	qd, err := types.NewQuestionData(checkpointID, "ali", []types.QuestionDataItem{
+		{
+			ID:   "scope",
+			Text: "Scope?",
+			Type: "single_choice",
+			Options: []types.QuestionDataOption{
+				{ID: "sold", Label: "Sold only"},
+				{ID: "all", Label: "All policies"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	return qd
+}
+
 func TestChatService_UnarchiveSession(t *testing.T) {
 	t.Parallel()
 
@@ -492,6 +511,151 @@ func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t
 	require.NotNil(t, updatedQuestionData)
 	assert.Equal(t, types.QuestionStatusRejected, updatedQuestionData.Status)
 	assert.False(t, messages[0].HasPendingQuestion())
+}
+
+func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		sessionTitle   string
+		checkpointID   string
+		resumeRequest  *bichatservices.ResumeRequest
+		expectStatus   types.QuestionStatus
+		expectAnswers  map[string]string
+		invoke         func(t *testing.T, svc *chatServiceImpl, sessionID uuid.UUID) *bichatservices.SendMessageResponse
+		assertResponse bool
+	}{
+		{
+			name:         "resume sync",
+			sessionTitle: "resume deferred stale checkpoint",
+			checkpointID: "cp-missing-answer-sync",
+			resumeRequest: &bichatservices.ResumeRequest{
+				CheckpointID: "cp-missing-answer-sync",
+				Answers: map[string]string{
+					"scope": "all",
+				},
+			},
+			expectStatus:   types.QuestionStatusAnswered,
+			expectAnswers:  map[string]string{"scope": "all"},
+			assertResponse: true,
+			invoke: func(t *testing.T, svc *chatServiceImpl, sessionID uuid.UUID) *bichatservices.SendMessageResponse {
+				t.Helper()
+				resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
+					SessionID:    sessionID,
+					CheckpointID: "cp-missing-answer-sync",
+					Answers: map[string]string{
+						"scope": "all",
+					},
+				})
+				require.NoError(t, err)
+				return resp
+			},
+		},
+		{
+			name:           "reject sync",
+			sessionTitle:   "reject deferred stale checkpoint",
+			checkpointID:   "cp-missing-reject-sync",
+			expectStatus:   types.QuestionStatusRejected,
+			assertResponse: true,
+			invoke: func(t *testing.T, svc *chatServiceImpl, sessionID uuid.UUID) *bichatservices.SendMessageResponse {
+				t.Helper()
+				resp, err := svc.RejectPendingQuestion(t.Context(), sessionID)
+				require.NoError(t, err)
+				return resp
+			},
+		},
+		{
+			name:         "resume async",
+			sessionTitle: "resume async deferred stale checkpoint",
+			checkpointID: "cp-missing-answer-async",
+			expectStatus: types.QuestionStatusAnswered,
+			expectAnswers: map[string]string{
+				"scope": "all",
+			},
+			invoke: func(t *testing.T, svc *chatServiceImpl, sessionID uuid.UUID) *bichatservices.SendMessageResponse {
+				t.Helper()
+				_, err := svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
+					SessionID:    sessionID,
+					CheckpointID: "cp-missing-answer-async",
+					Answers: map[string]string{
+						"scope": "all",
+					},
+				})
+				require.NoError(t, err)
+				return nil
+			},
+		},
+		{
+			name:         "reject async",
+			sessionTitle: "reject async deferred stale checkpoint",
+			checkpointID: "cp-missing-reject-async",
+			expectStatus: types.QuestionStatusRejected,
+			invoke: func(t *testing.T, svc *chatServiceImpl, sessionID uuid.UUID) *bichatservices.SendMessageResponse {
+				t.Helper()
+				_, err := svc.RejectPendingQuestionAsync(t.Context(), sessionID)
+				require.NoError(t, err)
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+
+			chatRepo := newMockChatRepository()
+			session := mustSession(t,
+				withSessionTenantID(env.TenantID()),
+				withSessionUserID(1),
+				withSessionTitle(tt.sessionTitle),
+			)
+			require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
+			require.NoError(t, chatRepo.SaveMessage(env.Ctx, types.NewMessage(
+				types.WithSessionID(session.ID()),
+				types.WithRole(types.RoleAssistant),
+				types.WithContent("Need scope"),
+				types.WithQuestionData(mustQuestionData(t, tt.checkpointID)),
+			)))
+
+			agentSvc := &stubAgentService{resumeStreamErr: agents.ErrCheckpointNotFound}
+			svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+
+			resp := tt.invoke(t, svc, session.ID())
+			if tt.assertResponse {
+				require.NotNil(t, resp)
+				assert.Nil(t, resp.AssistantMessage)
+			}
+
+			assertQuestionState := func() bool {
+				messages, err := chatRepo.GetSessionMessages(env.Ctx, session.ID(), domain.ListOptions{})
+				if err != nil || len(messages) == 0 || messages[0].QuestionData() == nil {
+					return false
+				}
+				updatedQuestionData := messages[0].QuestionData()
+				if updatedQuestionData.Status != tt.expectStatus {
+					return false
+				}
+				return assert.ObjectsAreEqual(tt.expectAnswers, updatedQuestionData.Answers)
+			}
+
+			if tt.assertResponse {
+				require.True(t, assertQuestionState())
+			} else {
+				require.Eventually(t, assertQuestionState, 2*time.Second, 20*time.Millisecond)
+			}
+
+			messages, err := chatRepo.GetSessionMessages(env.Ctx, session.ID(), domain.ListOptions{})
+			require.NoError(t, err)
+			require.NotEmpty(t, messages)
+			updatedQuestionData := messages[0].QuestionData()
+			require.NotNil(t, updatedQuestionData)
+			assert.Equal(t, tt.expectStatus, updatedQuestionData.Status)
+			assert.Equal(t, tt.expectAnswers, updatedQuestionData.Answers)
+			assert.False(t, messages[0].HasPendingQuestion())
+		})
+	}
 }
 
 func TestChatService_ResumeWithAnswerAsync_PersistsSubmittedStateBeforeWorkerCompletes(t *testing.T) {
@@ -1322,6 +1486,7 @@ type stubAgentService struct {
 	processStreamErr error
 	resumeEvents     []agents.ExecutorEvent
 	resumeErr        error
+	resumeStreamErr  error
 	resumeCalls      int
 	resumeCheckpoint string
 	resumeAnswers    map[string]types.Answer
@@ -1364,6 +1529,7 @@ func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.
 		return nil, s.resumeErr
 	}
 	evs := append([]agents.ExecutorEvent{}, s.resumeEvents...)
+	streamErr := s.resumeStreamErr
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
 		if s.resumeStarted != nil {
 			select {
@@ -1383,7 +1549,7 @@ func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.
 				return nil
 			}
 		}
-		return nil
+		return streamErr
 	}), nil
 }
 

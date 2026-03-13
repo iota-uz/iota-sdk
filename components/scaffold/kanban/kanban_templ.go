@@ -128,7 +128,7 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(c.Key())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 58, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 58, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -149,7 +149,7 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(ColumnCardsTargetID(c.Key()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 64, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 64, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -162,7 +162,7 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(c.Key())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 65, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 65, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

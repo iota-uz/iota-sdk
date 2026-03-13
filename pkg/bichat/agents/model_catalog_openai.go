@@ -6,7 +6,35 @@ package agents
 // ProviderOpenAI is the provider identifier for OpenAI; use it with LookupModelSpec and DefaultModelForProvider.
 const ProviderOpenAI = "openai"
 
+// DefaultOpenAIModelSnapshot is the pinned OpenAI snapshot used as the provider default.
+const DefaultOpenAIModelSnapshot = "gpt-5.4-2026-03-05"
+
 var (
+	// SpecGPT54 is the canonical spec for GPT-5.4.
+	//
+	// Context window, capability support, and pricing are based on the official OpenAI model docs.
+	SpecGPT54 = ModelSpec{
+		Name:          "gpt-5.4",
+		Provider:      ProviderOpenAI,
+		ContextWindow: 1_050_000,
+		Capabilities: []Capability{
+			CapabilityStreaming,
+			CapabilityTools,
+			CapabilityJSONMode,
+			CapabilityThinking,
+		},
+		ReasoningEffortOptions: []ReasoningEffort{
+			ReasoningLow, ReasoningMedium, ReasoningHigh, ReasoningXHigh,
+		},
+		Pricing: ModelPricing{
+			Currency:        "USD",
+			InputPer1M:      2.50,
+			OutputPer1M:     15.00,
+			CacheWritePer1M: 0,
+			CacheReadPer1M:  0.25,
+		},
+	}
+
 	// SpecGPT52 is the canonical spec for GPT-5.2 (400K context, cache read discount).
 	SpecGPT52 = ModelSpec{
 		Name:          "gpt-5.2",
@@ -72,8 +100,11 @@ var (
 )
 
 func init() {
+	// GPT-5.4: snapshot alias first so provider default resolves to the requested snapshot.
+	RegisterModelSpec(ProviderOpenAI, []string{DefaultOpenAIModelSnapshot, "gpt-5.4"}, SpecGPT54, true)
+
 	// GPT-5.2: canonical name + versioned alias
-	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.2", "gpt-5.2-2025-12-11"}, SpecGPT52, true)
+	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.2", "gpt-5.2-2025-12-11"}, SpecGPT52, false)
 
 	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5-mini"}, SpecGPT5Mini, false)
 	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5-nano"}, SpecGPT5Nano, false)

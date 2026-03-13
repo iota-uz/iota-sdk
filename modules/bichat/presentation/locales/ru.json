@@ -47,6 +47,9 @@
     "InlineQuestion": {
       "InputNeeded": "Требуется ввод",
       "WaitingForDetails": "Ожидание деталей вопроса от ассистента...",
+      "AnswerSubmitted": "Ответ отправлен",
+      "DismissalSubmitted": "Запрос закрыт",
+      "ResumeInProgress": "Продолжаю выполнение",
       "Next": "Далее",
       "Back": "Назад",
       "OtherOption": "Другое",
