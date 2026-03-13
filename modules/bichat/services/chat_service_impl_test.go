@@ -603,15 +603,16 @@ func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *tes
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 
 			chatRepo := newMockChatRepository()
 			session := mustSession(t,
-				withSessionTenantID(uuid.New()),
+				withSessionTenantID(env.TenantID()),
 				withSessionUserID(1),
 				withSessionTitle(tt.sessionTitle),
 			)
-			require.NoError(t, chatRepo.CreateSession(t.Context(), session))
-			require.NoError(t, chatRepo.SaveMessage(t.Context(), types.NewMessage(
+			require.NoError(t, chatRepo.CreateSession(env.Ctx, session))
+			require.NoError(t, chatRepo.SaveMessage(env.Ctx, types.NewMessage(
 				types.WithSessionID(session.ID()),
 				types.WithRole(types.RoleAssistant),
 				types.WithContent("Need scope"),
@@ -628,7 +629,7 @@ func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *tes
 			}
 
 			assertQuestionState := func() bool {
-				messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+				messages, err := chatRepo.GetSessionMessages(env.Ctx, session.ID(), domain.ListOptions{})
 				if err != nil || len(messages) == 0 || messages[0].QuestionData() == nil {
 					return false
 				}
@@ -645,7 +646,7 @@ func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *tes
 				require.Eventually(t, assertQuestionState, 2*time.Second, 20*time.Millisecond)
 			}
 
-			messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+			messages, err := chatRepo.GetSessionMessages(env.Ctx, session.ID(), domain.ListOptions{})
 			require.NoError(t, err)
 			require.NotEmpty(t, messages)
 			updatedQuestionData := messages[0].QuestionData()
