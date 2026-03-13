@@ -34,15 +34,15 @@ templ Content[C Card](cfg *Config[C]) {
 				class="flex divide-x divide-gray-300 w-full overflow-x-auto"
 				x-sort.ghost
 				x-sort:config="{
-					onEnd: (event) => {
-						changeCol({
-							key: event.item.dataset.colKey,
-							oldIndex: event.oldIndex,
-							newIndex: event.newIndex
-						});
-						$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
-					}
-				}"
+						onEnd: (event) => {
+							changeCol({
+								key: event.item.dataset.colKey,
+								oldIndex: event.oldIndex,
+								newIndex: event.newIndex
+							});
+							$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
+						}
+					}"
 			>
 				for _, c := range cfg.Board.Columns() {
 					<li data-col-key={ c.Key() } x-sort:item class="flex flex-col gap-2 p-3 basis-72 shrink-0 flex-1">
@@ -55,15 +55,15 @@ templ Content[C Card](cfg *Config[C]) {
 							x-sort.ghost
 							x-sort:group="cards"
 							x-sort:config="{onEnd: (event) => {
-								changeCard({
-									key: event.item.dataset.cardKey,
-									newCol: event.to.dataset.colKey,
-									oldCol: event.from.dataset.colKey,
-									oldIndex: event.oldIndex,
-									newIndex: event.newIndex
-								})
-								$nextTick(() => htmx.trigger('#card-trigger', 'cardChanged'));
-							}}"
+									changeCard({
+										key: event.item.dataset.cardKey,
+										newCol: event.to.dataset.colKey,
+										oldCol: event.from.dataset.colKey,
+										oldIndex: event.oldIndex,
+										newIndex: event.newIndex
+									})
+									$nextTick(() => htmx.trigger('#card-trigger', 'cardChanged'));
+								}}"
 						>
 							for _, card := range c.Cards() {
 								<li class="cursor-pointer" data-card-key={ card.Key() } x-sort:item>
