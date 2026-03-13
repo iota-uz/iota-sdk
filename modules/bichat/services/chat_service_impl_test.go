@@ -540,6 +540,7 @@ func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *tes
 			expectAnswers:  map[string]string{"scope": "all"},
 			assertResponse: true,
 			invoke: func(t *testing.T, svc *chatServiceImpl, sessionID uuid.UUID) *bichatservices.SendMessageResponse {
+				t.Helper()
 				resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
 					SessionID:    sessionID,
 					CheckpointID: "cp-missing-answer-sync",
@@ -558,6 +559,7 @@ func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *tes
 			expectStatus:   types.QuestionStatusRejected,
 			assertResponse: true,
 			invoke: func(t *testing.T, svc *chatServiceImpl, sessionID uuid.UUID) *bichatservices.SendMessageResponse {
+				t.Helper()
 				resp, err := svc.RejectPendingQuestion(t.Context(), sessionID)
 				require.NoError(t, err)
 				return resp
@@ -572,6 +574,7 @@ func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *tes
 				"scope": "all",
 			},
 			invoke: func(t *testing.T, svc *chatServiceImpl, sessionID uuid.UUID) *bichatservices.SendMessageResponse {
+				t.Helper()
 				_, err := svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
 					SessionID:    sessionID,
 					CheckpointID: "cp-missing-answer-async",
@@ -589,6 +592,7 @@ func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *tes
 			checkpointID: "cp-missing-reject-async",
 			expectStatus: types.QuestionStatusRejected,
 			invoke: func(t *testing.T, svc *chatServiceImpl, sessionID uuid.UUID) *bichatservices.SendMessageResponse {
+				t.Helper()
 				_, err := svc.RejectPendingQuestionAsync(t.Context(), sessionID)
 				require.NoError(t, err)
 				return nil
