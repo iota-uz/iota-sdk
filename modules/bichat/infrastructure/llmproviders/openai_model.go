@@ -107,7 +107,7 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 		return nil, serrors.E(op, "OPENAI_API_KEY environment variable is required")
 	}
 
-	modelName := os.Getenv("OPENAI_MODEL")
+	modelName := strings.TrimSpace(os.Getenv("OPENAI_MODEL"))
 	if modelName == "" {
 		if defaultName, ok := agents.DefaultModelForProvider(agents.ProviderOpenAI); ok {
 			modelName = defaultName

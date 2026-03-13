@@ -44,15 +44,15 @@
       "Compacting": "Tarix ixchamlashtirilmoqda",
       "CompactedSummary": "Ixcham xulosa"
     },
-  "InlineQuestion": {
-    "InputNeeded": "Kiritish kerak",
-    "WaitingForDetails": "Yordamchidan savol tafsilotlari kutilmoqda...",
-    "AnswerSubmitted": "Javob yuborildi",
-    "DismissalSubmitted": "So'rov yopildi",
-    "ResumeInProgress": "Jarayon davom etmoqda",
-    "Next": "Keyingisi",
-    "Back": "Orqaga",
-    "OtherOption": "Boshqa",
+    "InlineQuestion": {
+      "InputNeeded": "Kiritish kerak",
+      "WaitingForDetails": "Yordamchidan savol tafsilotlari kutilmoqda...",
+      "AnswerSubmitted": "Javob yuborildi",
+      "DismissalSubmitted": "So'rov yopildi",
+      "ResumeInProgress": "Jarayon davom etmoqda",
+      "Next": "Keyingisi",
+      "Back": "Orqaga",
+      "OtherOption": "Boshqa",
       "TypeYourAnswer": "Javobingizni yozing...",
       "SelectAllThatApply": "Tegishli barchasini tanlang",
       "Dismiss": "Yopish"

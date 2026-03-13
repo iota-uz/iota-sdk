@@ -172,13 +172,15 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 				WithField("checkpoint_id", resolvedCheckpointID).
 				Warn("resume checkpoint missing; finalizing pending question as answered")
 
-			if txErr := s.withinTx(ctx, func(txCtx context.Context) error {
+			finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), streamPersistenceTimeout)
+			defer cancel()
+			if txErr := s.withinTx(finalizeCtx, func(txCtx context.Context) error {
 				return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), answeredQD)
 			}); txErr != nil {
 				return nil, serrors.E(op, txErr)
 			}
 
-			s.maybeGenerateTitleAfterHITLCompletion(ctx, req.SessionID, false)
+			s.maybeGenerateTitleAfterHITLCompletion(finalizeCtx, req.SessionID, false)
 
 			return &bichatservices.SendMessageResponse{
 				UserMessage:      nil,
@@ -360,11 +362,13 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 						return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, answeredQuestionData)
 					}); txErr != nil {
 						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, txErr), 0))
+						s.markAsyncQuestionRunFailed(persistCtx, pendingMsgID, failedQuestionData)
 						_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 						return
 					}
 					if completeErr := s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID); completeErr != nil {
 						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+						s.markAsyncQuestionRunFailed(persistCtx, pendingMsgID, failedQuestionData)
 						_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 						return
 					}
@@ -456,6 +460,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 
 			if completeErr := s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID); completeErr != nil {
 				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+				s.markAsyncQuestionRunFailed(persistCtx, pendingMsgID, failedQuestionData)
 				_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 				return
 			}
@@ -527,13 +532,15 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 				WithField("checkpoint_id", qd.CheckpointID).
 				Warn("reject checkpoint missing; finalizing pending question as rejected")
 
-			if txErr := s.withinTx(ctx, func(txCtx context.Context) error {
+			finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), streamPersistenceTimeout)
+			defer cancel()
+			if txErr := s.withinTx(finalizeCtx, func(txCtx context.Context) error {
 				return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), rejectedQD)
 			}); txErr != nil {
 				return nil, serrors.E(op, txErr)
 			}
 
-			s.maybeGenerateTitleAfterHITLCompletion(ctx, sessionID, false)
+			s.maybeGenerateTitleAfterHITLCompletion(finalizeCtx, sessionID, false)
 
 			return &bichatservices.SendMessageResponse{
 				UserMessage:      nil,
@@ -698,11 +705,13 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 						return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, rejectedQuestionData)
 					}); txErr != nil {
 						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, txErr), 0))
+						s.markAsyncQuestionRunFailed(persistCtx, pendingMsgID, failedQuestionData)
 						_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 						return
 					}
 					if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
 						active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+						s.markAsyncQuestionRunFailed(persistCtx, pendingMsgID, failedQuestionData)
 						_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 						return
 					}
@@ -793,6 +802,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 
 			if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
 				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), 0))
+				s.markAsyncQuestionRunFailed(persistCtx, pendingMsgID, failedQuestionData)
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}

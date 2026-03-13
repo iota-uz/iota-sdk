@@ -44,15 +44,15 @@
       "Compacting": "正在压缩历史",
       "CompactedSummary": "压缩摘要"
     },
-  "InlineQuestion": {
-    "InputNeeded": "需要输入",
-    "WaitingForDetails": "正在等待助手的提问详情...",
-    "AnswerSubmitted": "答案已提交",
-    "DismissalSubmitted": "已关闭该请求",
-    "ResumeInProgress": "正在继续处理",
-    "Next": "下一步",
-    "Back": "返回",
-    "OtherOption": "其他",
+    "InlineQuestion": {
+      "InputNeeded": "需要输入",
+      "WaitingForDetails": "正在等待助手的提问详情...",
+      "AnswerSubmitted": "答案已提交",
+      "DismissalSubmitted": "已关闭该请求",
+      "ResumeInProgress": "正在继续处理",
+      "Next": "下一步",
+      "Back": "返回",
+      "OtherOption": "其他",
       "TypeYourAnswer": "输入您的答案...",
       "SelectAllThatApply": "选择所有适用项",
       "Dismiss": "关闭"

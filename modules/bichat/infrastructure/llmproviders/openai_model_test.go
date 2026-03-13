@@ -98,7 +98,7 @@ func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
 	}{
 		{name: "canonical gpt-5.4", modelEnv: "gpt-5.4", expectCtx: 1050000, expectName: "gpt-5.4"},
 		{name: "versioned alias", modelEnv: "gpt-5.4-2026-03-05", expectCtx: 1050000, expectName: "gpt-5.4-2026-03-05"},
-		{name: "normalized alias", modelEnv: " GPT-5.4-2026-03-05 ", expectCtx: 1050000, expectName: " GPT-5.4-2026-03-05 "},
+		{name: "normalized alias", modelEnv: " GPT-5.4-2026-03-05 ", expectCtx: 1050000, expectName: "GPT-5.4-2026-03-05"},
 		{name: "canonical gpt-5.2", modelEnv: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
 		{name: "versioned gpt-5.2 alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
 		{name: "gpt-5-mini", modelEnv: "gpt-5-mini", expectCtx: 400000, expectName: "gpt-5-mini"},

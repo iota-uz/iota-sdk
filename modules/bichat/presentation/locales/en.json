@@ -44,15 +44,15 @@
       "Compacting": "Compacting history",
       "CompactedSummary": "Compacted Summary"
     },
-  "InlineQuestion": {
-    "InputNeeded": "Input needed",
-    "WaitingForDetails": "Waiting for the question details from the assistant...",
-    "AnswerSubmitted": "Answer submitted",
-    "DismissalSubmitted": "Dismissal submitted",
-    "ResumeInProgress": "Continuing the run",
-    "Next": "Next",
-    "Back": "Back",
-    "OtherOption": "Other",
+    "InlineQuestion": {
+      "InputNeeded": "Input needed",
+      "WaitingForDetails": "Waiting for the question details from the assistant...",
+      "AnswerSubmitted": "Answer submitted",
+      "DismissalSubmitted": "Dismissal submitted",
+      "ResumeInProgress": "Continuing the run",
+      "Next": "Next",
+      "Back": "Back",
+      "OtherOption": "Other",
       "TypeYourAnswer": "Type your answer...",
       "SelectAllThatApply": "Select all that apply",
       "Dismiss": "Dismiss"
