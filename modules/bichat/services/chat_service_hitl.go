@@ -161,6 +161,19 @@ func (s *chatServiceImpl) failAsyncQuestionRun(
 	_ = s.cancelRunState(persistCtx, tenantID, sessionID, runID)
 }
 
+func (s *chatServiceImpl) abortAsyncQuestionRunCompletion(
+	persistCtx context.Context,
+	active *streamingsvc.ActiveRun,
+	op serrors.Op,
+	err error,
+	tenantID uuid.UUID,
+	sessionID uuid.UUID,
+	runID uuid.UUID,
+) {
+	active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+	_ = s.cancelRunState(persistCtx, tenantID, sessionID, runID)
+}
+
 func (s *chatServiceImpl) finalizeAsyncCheckpointMiss(
 	processCtx context.Context,
 	persistCtx context.Context,
@@ -188,7 +201,7 @@ func (s *chatServiceImpl) finalizeAsyncCheckpointMiss(
 		return true
 	}
 	if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
-		s.failAsyncQuestionRun(persistCtx, active, op, completeErr, msgID, failedQuestionData, session.TenantID(), sessionID, runID)
+		s.abortAsyncQuestionRunCompletion(persistCtx, active, op, completeErr, session.TenantID(), sessionID, runID)
 		return true
 	}
 
@@ -469,7 +482,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			}
 
 			if completeErr := s.completeRunState(persistCtx, session.TenantID(), req.SessionID, runID); completeErr != nil {
-				s.failAsyncQuestionRun(persistCtx, active, op, completeErr, pendingMsgID, failedQuestionData, session.TenantID(), req.SessionID, runID)
+				s.abortAsyncQuestionRunCompletion(persistCtx, active, op, completeErr, session.TenantID(), req.SessionID, runID)
 				return
 			}
 			s.maybeGenerateTitleAfterHITLCompletion(persistCtx, req.SessionID, result.interrupt != nil)
@@ -733,7 +746,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 			}
 
 			if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
-				s.failAsyncQuestionRun(persistCtx, active, op, completeErr, pendingMsgID, failedQuestionData, session.TenantID(), sessionID, runID)
+				s.abortAsyncQuestionRunCompletion(persistCtx, active, op, completeErr, session.TenantID(), sessionID, runID)
 				return
 			}
 			s.maybeGenerateTitleAfterHITLCompletion(persistCtx, sessionID, result.interrupt != nil)

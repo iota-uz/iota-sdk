@@ -6,10 +6,11 @@ import {
   createBichatStylesPlugin,
 } from '@iota-uz/sdk/applet/vite'
 
-export default defineConfig(() =>
+export default defineConfig(({ command }) =>
   createAppletViteConfig({
     basePath: '/bi-chat',
     backendUrl: 'http://localhost:3900',
+    enableLocalSdkAliases: command === 'serve',
     extend: {
       plugins: [
         react(),

@@ -513,7 +513,7 @@ func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t
 	assert.False(t, messages[0].HasPendingQuestion())
 }
 
-func TestChatService_HITLDeferredCheckpointNotFoundFinalizesSubmittedState(t *testing.T) {
+func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
