@@ -1,6 +1,11 @@
 package kanban
 
-import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+import (
+	"net/url"
+
+	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+)
 
 templ Page[C Card](cfg *Config[C]) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
@@ -16,6 +21,7 @@ templ Content[C Card](cfg *Config[C]) {
 			opacity: 0.4;
 		}
 	</style>
+	{{ currentParams := CurrentQueryParams(ctx) }}
 	<div x-data="kanban" class="contents">
 		<div class="hidden" id="column-trigger" hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged" hx-swap="none" hx-push-url="false" hx-include="this">
 			<input type="hidden" name="colKey" x-model="col.key"/>
@@ -29,11 +35,15 @@ templ Content[C Card](cfg *Config[C]) {
 			<input type="hidden" name="cardOldIndex" x-model="card.oldIndex"/>
 			<input type="hidden" name="cardNewIndex" x-model="card.newIndex"/>
 		</div>
-		<div class="flex bg-gray-200 rounded-lg h-full">
-			<ol
-				class="flex divide-x divide-gray-300 w-full overflow-x-auto"
-				x-sort.ghost
-				x-sort:config="{
+		<div class="flex bg-gray-200 rounded-lg h-full overflow-hidden">
+			<div class="w-full overflow-x-auto overscroll-x-contain [touch-action:pan-x_pinch-zoom] [-webkit-overflow-scrolling:touch]">
+				<ol
+					class="flex w-max min-w-full divide-x divide-gray-300"
+					x-sort.ghost
+					x-sort:config="{
+						delayOnTouchOnly: true,
+						delay: 150,
+						touchStartThreshold: 8,
 						onEnd: (event) => {
 							changeCol({
 								key: event.item.dataset.colKey,
@@ -43,18 +53,23 @@ templ Content[C Card](cfg *Config[C]) {
 							$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
 						}
 					}"
-			>
-				for _, c := range cfg.Board.Columns() {
-					<li data-col-key={ c.Key() } x-sort:item class="flex flex-col gap-2 p-3 basis-72 shrink-0 flex-1">
-						<header class="font-medium">
-							@c.Title()
-						</header>
-						<ol
-							class="flex flex-col gap-2 h-full"
-							data-col-key={ c.Key() }
-							x-sort.ghost
-							x-sort:group="cards"
-							x-sort:config="{onEnd: (event) => {
+				>
+					for _, c := range cfg.Board.Columns() {
+						<li data-col-key={ c.Key() } x-sort:item class="flex w-72 shrink-0 flex-col gap-2 p-3">
+							<header class="font-medium">
+								@c.Title()
+							</header>
+							<ol
+								class="flex min-h-6 flex-col gap-2"
+								id={ ColumnCardsTargetID(c.Key()) }
+								data-col-key={ c.Key() }
+								x-sort.ghost
+								x-sort:group="cards"
+								x-sort:config="{
+									delayOnTouchOnly: true,
+									delay: 150,
+									touchStartThreshold: 8,
+									onEnd: (event) => {
 									changeCard({
 										key: event.item.dataset.cardKey,
 										newCol: event.to.dataset.colKey,
@@ -64,16 +79,35 @@ templ Content[C Card](cfg *Config[C]) {
 									})
 									$nextTick(() => htmx.trigger('#card-trigger', 'cardChanged'));
 								}}"
-						>
-							for _, card := range c.Cards() {
-								<li class="cursor-pointer" data-card-key={ card.Key() } x-sort:item>
-									@card.Component()
-								</li>
-							}
-						</ol>
-					</li>
-				}
-			</ol>
+							>
+								@ColumnCards(cfg, c, currentParams)
+							</ol>
+						</li>
+					}
+				</ol>
+			</div>
 		</div>
 	</div>
+}
+
+templ ColumnCards[C Card](cfg *Config[C], column Column[C], currentParams url.Values) {
+	for _, card := range column.Cards() {
+		<li class="cursor-pointer" data-card-key={ card.Key() } x-sort:item>
+			@card.Component()
+		</li>
+	}
+	if loadState := cfg.ColumnLoad(column.Key()); cfg.CardLoadURL != "" && loadState != nil {
+		<li
+			class="pointer-events-none flex justify-center py-2"
+			id={ ColumnSpinnerID(column.Key()) }
+			hx-get={ nextColumnChunkURL(cfg.CardLoadURL, column.Key(), loadState, currentParams) }
+			hx-trigger="intersect once"
+			hx-target="this"
+			hx-swap="outerHTML"
+		>
+			@loaders.Spinner(loaders.SpinnerProps{
+				ContainerClass: templ.Classes("flex justify-center items-center py-2"),
+			})
+		</li>
+	}
 }
