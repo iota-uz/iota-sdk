@@ -41,18 +41,18 @@ templ Content[C Card](cfg *Config[C]) {
 					class="flex w-max min-w-full divide-x divide-gray-300"
 					x-sort.ghost
 					x-sort:config="{
-						delayOnTouchOnly: true,
-						delay: 150,
-						touchStartThreshold: 8,
-						onEnd: (event) => {
-							changeCol({
-								key: event.item.dataset.colKey,
-								oldIndex: event.oldIndex,
-								newIndex: event.newIndex
-							});
-							$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
-						}
-					}"
+					delayOnTouchOnly: true,
+					delay: 150,
+					touchStartThreshold: 8,
+					onEnd: (event) => {
+						changeCol({
+							key: event.item.dataset.colKey,
+							oldIndex: event.oldIndex,
+							newIndex: event.newIndex
+						});
+						$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
+					}
+				}"
 				>
 					for _, c := range cfg.Board.Columns() {
 						<li data-col-key={ c.Key() } x-sort:item class="flex w-72 shrink-0 flex-col gap-2 p-3">
@@ -66,19 +66,19 @@ templ Content[C Card](cfg *Config[C]) {
 								x-sort.ghost
 								x-sort:group="cards"
 								x-sort:config="{
-									delayOnTouchOnly: true,
-									delay: 150,
-									touchStartThreshold: 8,
-									onEnd: (event) => {
-									changeCard({
-										key: event.item.dataset.cardKey,
-										newCol: event.to.dataset.colKey,
-										oldCol: event.from.dataset.colKey,
-										oldIndex: event.oldIndex,
-										newIndex: event.newIndex
-									})
-									$nextTick(() => htmx.trigger('#card-trigger', 'cardChanged'));
-								}}"
+								delayOnTouchOnly: true,
+								delay: 150,
+								touchStartThreshold: 8,
+								onEnd: (event) => {
+								changeCard({
+									key: event.item.dataset.cardKey,
+									newCol: event.to.dataset.colKey,
+									oldCol: event.from.dataset.colKey,
+									oldIndex: event.oldIndex,
+									newIndex: event.newIndex
+								})
+								$nextTick(() => htmx.trigger('#card-trigger', 'cardChanged'));
+							}}"
 							>
 								@ColumnCards(cfg, c, currentParams)
 							</ol>
