@@ -561,7 +561,7 @@ func TestChatService_ResumeWithAnswerAsync_PersistsSubmittedStateBeforeWorkerCom
 	assert.Equal(t, "all", updatedQuestionData.Answers["scope"])
 	assert.False(t, messages[0].HasPendingQuestion())
 	_, err = chatRepo.GetPendingQuestionMessage(t.Context(), session.ID())
-	assert.ErrorIs(t, err, domain.ErrNoPendingQuestion)
+	require.ErrorIs(t, err, domain.ErrNoPendingQuestion)
 
 	close(release)
 }
@@ -626,7 +626,7 @@ func TestChatService_RejectPendingQuestionAsync_PersistsSubmittedStateBeforeWork
 	assert.Equal(t, types.QuestionStatusRejectSubmitted, updatedQuestionData.Status)
 	assert.False(t, messages[0].HasPendingQuestion())
 	_, err = chatRepo.GetPendingQuestionMessage(t.Context(), session.ID())
-	assert.ErrorIs(t, err, domain.ErrNoPendingQuestion)
+	require.ErrorIs(t, err, domain.ErrNoPendingQuestion)
 
 	close(release)
 }

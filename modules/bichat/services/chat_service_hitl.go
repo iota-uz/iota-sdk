@@ -297,6 +297,8 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 				submittedQuestionData = qd
 			case types.QuestionStatusRejectSubmitted:
 				return serrors.E(op, serrors.KindValidation, errHITLRejectAlreadyResuming)
+			case types.QuestionStatusAnswered, types.QuestionStatusRejected:
+				return serrors.E(op, serrors.KindValidation, "no pending question found for session")
 			default:
 				return serrors.E(op, serrors.KindValidation, "no pending question found for session")
 			}
@@ -586,6 +588,8 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 				submittedQuestionData = qd
 			case types.QuestionStatusAnswerSubmitted:
 				return serrors.E(op, serrors.KindValidation, errHITLAnswerAlreadyResuming)
+			case types.QuestionStatusAnswered, types.QuestionStatusRejected:
+				return serrors.E(op, serrors.KindValidation, "no pending question found for session")
 			default:
 				return serrors.E(op, serrors.KindValidation, "no pending question found for session")
 			}

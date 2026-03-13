@@ -224,6 +224,7 @@ func (qd *QuestionData) normalizeAnswers(answers map[string]string) (map[string]
 func (qd *QuestionData) SubmitAnswers(answers map[string]string) (*QuestionData, error) {
 	switch qd.Status {
 	case QuestionStatusPending, QuestionStatusAnswerFailed, QuestionStatusRejectFailed:
+	case QuestionStatusAnswerSubmitted, QuestionStatusRejectSubmitted, QuestionStatusAnswered, QuestionStatusRejected:
 	default:
 		return nil, fmt.Errorf("%w: cannot submit answers from status %q", ErrInvalidQuestionTransition, qd.Status)
 	}
@@ -242,6 +243,7 @@ func (qd *QuestionData) SubmitAnswers(answers map[string]string) (*QuestionData,
 func (qd *QuestionData) Answer(answers map[string]string) (*QuestionData, error) {
 	switch qd.Status {
 	case QuestionStatusPending, QuestionStatusAnswerSubmitted:
+	case QuestionStatusRejectSubmitted, QuestionStatusAnswerFailed, QuestionStatusRejectFailed, QuestionStatusAnswered, QuestionStatusRejected:
 	default:
 		return nil, fmt.Errorf("%w: cannot answer from status %q", ErrInvalidQuestionTransition, qd.Status)
 	}
@@ -260,6 +262,7 @@ func (qd *QuestionData) Answer(answers map[string]string) (*QuestionData, error)
 func (qd *QuestionData) SubmitReject() (*QuestionData, error) {
 	switch qd.Status {
 	case QuestionStatusPending, QuestionStatusAnswerFailed, QuestionStatusRejectFailed:
+	case QuestionStatusAnswerSubmitted, QuestionStatusRejectSubmitted, QuestionStatusAnswered, QuestionStatusRejected:
 	default:
 		return nil, fmt.Errorf("%w: cannot submit rejection from status %q", ErrInvalidQuestionTransition, qd.Status)
 	}
@@ -273,6 +276,7 @@ func (qd *QuestionData) SubmitReject() (*QuestionData, error) {
 func (qd *QuestionData) Reject() (*QuestionData, error) {
 	switch qd.Status {
 	case QuestionStatusPending, QuestionStatusRejectSubmitted:
+	case QuestionStatusAnswerSubmitted, QuestionStatusAnswerFailed, QuestionStatusRejectFailed, QuestionStatusAnswered, QuestionStatusRejected:
 	default:
 		return nil, fmt.Errorf("%w: cannot reject from status %q", ErrInvalidQuestionTransition, qd.Status)
 	}
@@ -295,6 +299,8 @@ func (qd *QuestionData) IsOpen() bool {
 	switch qd.Status {
 	case QuestionStatusPending, QuestionStatusAnswerSubmitted, QuestionStatusRejectSubmitted, QuestionStatusAnswerFailed, QuestionStatusRejectFailed:
 		return true
+	case QuestionStatusAnswered, QuestionStatusRejected:
+		return false
 	default:
 		return false
 	}
