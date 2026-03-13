@@ -941,12 +941,12 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if vm.Metrics.GitCommit != "unknown" && len(vm.Metrics.GitCommit) > 0 {
+			if vm.Metrics.GitCommit != "unknown" && len(vm.Metrics.GitCommit) > 0 && len(vm.Metrics.GitCommitURL) > 0 {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var50 templ.SafeURL = templ.URL("https://github.com/iota-uz/iota-sdk/commit/" + vm.Metrics.GitCommit)
+				var templ_7745c5c3_Var50 templ.SafeURL = templ.URL(vm.Metrics.GitCommitURL)
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var50)))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

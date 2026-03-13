@@ -227,12 +227,12 @@ templ Authenticated(props AuthenticatedProps) {
 			}"
 			data-sidebar-state={ string(sidebarProps.InitialState) }
 			@sidebar-toggle="sidebarCollapsed = !sidebarCollapsed"
-			class="flex min-h-screen w-full"
+			class="flex min-h-screen sdk-min-h-dvh w-full"
 		>
 			<div class="hidden lg:block flex-shrink-0">
 				@sidebar.Sidebar(sidebarProps)
 			</div>
-			<div class="flex-1 flex flex-col h-screen overflow-hidden">
+			<div class="flex-1 flex flex-col h-screen sdk-h-dvh overflow-hidden">
 				@Navbar(pageCtx, props.NavbarLeft)
 				<div class="flex-1 overflow-y-auto content">
 					{ children... }

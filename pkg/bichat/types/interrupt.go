@@ -92,9 +92,13 @@ func NewMultiAnswer(ss []string) Answer {
 type QuestionStatus string
 
 const (
-	QuestionStatusPending  QuestionStatus = "PENDING"
-	QuestionStatusAnswered QuestionStatus = "ANSWERED"
-	QuestionStatusRejected QuestionStatus = "REJECTED"
+	QuestionStatusPending         QuestionStatus = "PENDING"
+	QuestionStatusAnswerSubmitted QuestionStatus = "ANSWER_SUBMITTED"
+	QuestionStatusRejectSubmitted QuestionStatus = "REJECT_SUBMITTED"
+	QuestionStatusAnswerFailed    QuestionStatus = "ANSWER_RESUME_FAILED"
+	QuestionStatusRejectFailed    QuestionStatus = "REJECT_RESUME_FAILED"
+	QuestionStatusAnswered        QuestionStatus = "ANSWERED"
+	QuestionStatusRejected        QuestionStatus = "REJECTED"
 )
 
 var (
@@ -103,7 +107,8 @@ var (
 )
 
 // QuestionData holds the HITL question state stored in a message's question_data JSONB column.
-// It is the single source of truth for whether a question is pending, answered, or rejected.
+// It is the single source of truth for whether a question is pending, durably submitted,
+// answered, or rejected.
 type QuestionData struct {
 	CheckpointID string             `json:"checkpointId"`
 	Status       QuestionStatus     `json:"status"`
@@ -169,14 +174,11 @@ func NewQuestionData(checkpointID, agentName string, questions []QuestionDataIte
 	}, nil
 }
 
-// Answer transitions from pending to answered.
-func (qd *QuestionData) Answer(answers map[string]string) (*QuestionData, error) {
-	if qd.Status != QuestionStatusPending {
-		return nil, fmt.Errorf("%w: cannot answer from status %q", ErrInvalidQuestionTransition, qd.Status)
-	}
+func (qd *QuestionData) normalizeAnswers(answers map[string]string) (map[string]string, error) {
 	if len(answers) == 0 {
 		return nil, fmt.Errorf("%w: at least one answer is required", ErrQuestionDataInvalid)
 	}
+
 	questionsByID := make(map[string]QuestionDataItem, len(qd.Questions))
 	for _, q := range qd.Questions {
 		questionsByID[q.ID] = q
@@ -210,23 +212,116 @@ func (qd *QuestionData) Answer(answers map[string]string) (*QuestionData, error)
 			}
 		}
 	}
+
+	normalized := make(map[string]string, len(answers))
+	for key, value := range answers {
+		normalized[key] = value
+	}
+	return normalized, nil
+}
+
+// SubmitAnswers durably records validated answers while the continuation run is still pending.
+func (qd *QuestionData) SubmitAnswers(answers map[string]string) (*QuestionData, error) {
+	switch qd.Status {
+	case QuestionStatusPending, QuestionStatusAnswerFailed, QuestionStatusRejectFailed:
+	case QuestionStatusAnswerSubmitted, QuestionStatusRejectSubmitted, QuestionStatusAnswered, QuestionStatusRejected:
+	default:
+		return nil, fmt.Errorf("%w: cannot submit answers from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	normalized, err := qd.normalizeAnswers(answers)
+	if err != nil {
+		return nil, err
+	}
+
+	next := *qd
+	next.Status = QuestionStatusAnswerSubmitted
+	next.Answers = normalized
+	return &next, nil
+}
+
+// Answer transitions from pending to answered.
+func (qd *QuestionData) Answer(answers map[string]string) (*QuestionData, error) {
+	switch qd.Status {
+	case QuestionStatusPending, QuestionStatusAnswerSubmitted:
+	case QuestionStatusRejectSubmitted, QuestionStatusAnswerFailed, QuestionStatusRejectFailed, QuestionStatusAnswered, QuestionStatusRejected:
+	default:
+		return nil, fmt.Errorf("%w: cannot answer from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	normalized, err := qd.normalizeAnswers(answers)
+	if err != nil {
+		return nil, err
+	}
 	next := *qd
 	next.Status = QuestionStatusAnswered
-	next.Answers = answers
+	next.Answers = normalized
+	return &next, nil
+}
+
+// SubmitReject durably records that the user rejected the pending question
+// while the continuation run is still pending.
+func (qd *QuestionData) SubmitReject() (*QuestionData, error) {
+	switch qd.Status {
+	case QuestionStatusPending, QuestionStatusAnswerFailed, QuestionStatusRejectFailed:
+	case QuestionStatusAnswerSubmitted, QuestionStatusRejectSubmitted, QuestionStatusAnswered, QuestionStatusRejected:
+	default:
+		return nil, fmt.Errorf("%w: cannot submit rejection from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	next := *qd
+	next.Status = QuestionStatusRejectSubmitted
+	next.Answers = nil
 	return &next, nil
 }
 
 // Reject transitions from pending to rejected.
 func (qd *QuestionData) Reject() (*QuestionData, error) {
-	if qd.Status != QuestionStatusPending {
+	switch qd.Status {
+	case QuestionStatusPending, QuestionStatusRejectSubmitted:
+	case QuestionStatusAnswerSubmitted, QuestionStatusAnswerFailed, QuestionStatusRejectFailed, QuestionStatusAnswered, QuestionStatusRejected:
+	default:
 		return nil, fmt.Errorf("%w: cannot reject from status %q", ErrInvalidQuestionTransition, qd.Status)
 	}
 	next := *qd
 	next.Status = QuestionStatusRejected
+	next.Answers = nil
 	return &next, nil
 }
 
 // IsPending returns true if the question is in pending state.
 func (qd *QuestionData) IsPending() bool {
 	return qd != nil && qd.Status == QuestionStatusPending
+}
+
+// IsOpen returns true when the question should still be visible to the user.
+func (qd *QuestionData) IsOpen() bool {
+	if qd == nil {
+		return false
+	}
+	switch qd.Status {
+	case QuestionStatusPending, QuestionStatusAnswerSubmitted, QuestionStatusRejectSubmitted, QuestionStatusAnswerFailed, QuestionStatusRejectFailed:
+		return true
+	case QuestionStatusAnswered, QuestionStatusRejected:
+		return false
+	default:
+		return false
+	}
+}
+
+// MarkAnswerResumeFailed keeps the question visible after a failed answer continuation.
+func (qd *QuestionData) MarkAnswerResumeFailed() (*QuestionData, error) {
+	if qd.Status != QuestionStatusAnswerSubmitted {
+		return nil, fmt.Errorf("%w: cannot mark answer resume failed from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	next := *qd
+	next.Status = QuestionStatusAnswerFailed
+	return &next, nil
+}
+
+// MarkRejectResumeFailed keeps the question visible after a failed reject continuation.
+func (qd *QuestionData) MarkRejectResumeFailed() (*QuestionData, error) {
+	if qd.Status != QuestionStatusRejectSubmitted {
+		return nil, fmt.Errorf("%w: cannot mark reject resume failed from status %q", ErrInvalidQuestionTransition, qd.Status)
+	}
+	next := *qd
+	next.Status = QuestionStatusRejectFailed
+	return &next, nil
 }

@@ -40,6 +40,7 @@ type Application interface {
 	Migrations() MigrationManager
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
 	RegisterNavItems(items ...types.NavigationItem)
+	AppendNavChildren(parentName string, children ...types.NavigationItem)
 	RegisterControllers(controllers ...Controller)
 	RegisterHashFsAssets(fs ...*hashfs.FS)
 	RegisterAssets(fs ...*embed.FS)

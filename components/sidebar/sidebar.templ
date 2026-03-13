@@ -56,7 +56,7 @@ templ Sidebar(props Props) {
 		@click="handleSidebarClick($event)"
 		:class="{ 'sidebar-collapsed': isCollapsed, 'sidebar-expanded': !isCollapsed, 'sidebar-expand-cursor': isCollapsed, 'sidebar-collapse-cursor': !isCollapsed }"
 		x-init="initSidebarShell()"
-		class="flex flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
+		class="flex flex-col bg-surface-200 shadow-lg py-6 h-screen sdk-h-dvh sticky top-0 transition-all duration-300 overflow-visible"
 	>
 		{{
 			// For single groups, use the group's value as default, otherwise use provided default
