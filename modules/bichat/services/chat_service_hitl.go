@@ -186,10 +186,10 @@ func (s *chatServiceImpl) finalizeAsyncCheckpointMiss(
 	finalQuestionData *types.QuestionData,
 	failedQuestionData *types.QuestionData,
 	startedAt time.Time,
-) bool {
+) {
 	if processErr := processCtx.Err(); processErr != nil {
 		s.failAsyncQuestionRun(persistCtx, active, op, processErr, msgID, failedQuestionData, session.TenantID(), sessionID, runID)
-		return true
+		return
 	}
 
 	updateCtx, cancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
@@ -198,16 +198,15 @@ func (s *chatServiceImpl) finalizeAsyncCheckpointMiss(
 		return s.chatRepo.UpdateMessageQuestionData(txCtx, msgID, finalQuestionData)
 	}); txErr != nil {
 		s.failAsyncQuestionRun(persistCtx, active, op, txErr, msgID, failedQuestionData, session.TenantID(), sessionID, runID)
-		return true
+		return
 	}
 	if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
 		s.abortAsyncQuestionRunCompletion(persistCtx, active, op, completeErr, session.TenantID(), sessionID, runID)
-		return true
+		return
 	}
 
 	s.maybeGenerateTitleAfterHITLCompletion(persistCtx, sessionID, false)
 	active.Broadcast(streamingsvc.TerminalChunk(nil, time.Since(startedAt).Milliseconds()))
-	return true
 }
 
 // ResumeWithAnswer resumes execution after user answers questions (HITL).
@@ -421,9 +420,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			gen, err := s.agentService.ResumeWithAnswer(processCtx, req.SessionID, resolvedCheckpointID, answersMap)
 			if err != nil {
 				if errors.Is(err, agents.ErrCheckpointNotFound) {
-					if s.finalizeAsyncCheckpointMiss(processCtx, persistCtx, active, op, session, req.SessionID, runID, pendingMsgID, answeredQuestionData, failedQuestionData, startedAt) {
-						return
-					}
+					s.finalizeAsyncCheckpointMiss(processCtx, persistCtx, active, op, session, req.SessionID, runID, pendingMsgID, answeredQuestionData, failedQuestionData, startedAt)
 					return
 				}
 				s.failAsyncQuestionRun(persistCtx, active, op, err, pendingMsgID, failedQuestionData, session.TenantID(), req.SessionID, runID)
@@ -434,9 +431,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			result, err := consumeAgentEvents(processCtx, gen)
 			if err != nil {
 				if errors.Is(err, agents.ErrCheckpointNotFound) {
-					if s.finalizeAsyncCheckpointMiss(processCtx, persistCtx, active, op, session, req.SessionID, runID, pendingMsgID, answeredQuestionData, failedQuestionData, startedAt) {
-						return
-					}
+					s.finalizeAsyncCheckpointMiss(processCtx, persistCtx, active, op, session, req.SessionID, runID, pendingMsgID, answeredQuestionData, failedQuestionData, startedAt)
 					return
 				}
 				s.failAsyncQuestionRun(persistCtx, active, op, err, pendingMsgID, failedQuestionData, session.TenantID(), req.SessionID, runID)
@@ -686,9 +681,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 			gen, err := s.agentService.ResumeWithAnswer(processCtx, sessionID, checkpointID, rejectionAnswers)
 			if err != nil {
 				if errors.Is(err, agents.ErrCheckpointNotFound) {
-					if s.finalizeAsyncCheckpointMiss(processCtx, persistCtx, active, op, session, sessionID, runID, pendingMsgID, rejectedQuestionData, failedQuestionData, startedAt) {
-						return
-					}
+					s.finalizeAsyncCheckpointMiss(processCtx, persistCtx, active, op, session, sessionID, runID, pendingMsgID, rejectedQuestionData, failedQuestionData, startedAt)
 					return
 				}
 				s.failAsyncQuestionRun(persistCtx, active, op, err, pendingMsgID, failedQuestionData, session.TenantID(), sessionID, runID)
@@ -699,9 +692,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 			result, err := consumeAgentEvents(processCtx, gen)
 			if err != nil {
 				if errors.Is(err, agents.ErrCheckpointNotFound) {
-					if s.finalizeAsyncCheckpointMiss(processCtx, persistCtx, active, op, session, sessionID, runID, pendingMsgID, rejectedQuestionData, failedQuestionData, startedAt) {
-						return
-					}
+					s.finalizeAsyncCheckpointMiss(processCtx, persistCtx, active, op, session, sessionID, runID, pendingMsgID, rejectedQuestionData, failedQuestionData, startedAt)
 					return
 				}
 				s.failAsyncQuestionRun(persistCtx, active, op, err, pendingMsgID, failedQuestionData, session.TenantID(), sessionID, runID)

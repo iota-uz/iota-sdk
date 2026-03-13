@@ -41,7 +41,7 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-5.4-2026-03-05", oaiModel.modelName)
+	assert.Equal(t, agents.DefaultOpenAIModelSnapshot, oaiModel.modelName)
 }
 
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
@@ -82,7 +82,7 @@ func TestOpenAIModel_Info_DefaultGPT54ContextWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-5.4-2026-03-05", info.Name)
+	assert.Equal(t, agents.DefaultOpenAIModelSnapshot, info.Name)
 	assert.Equal(t, 1050000, info.ContextWindow)
 }
 
@@ -97,7 +97,7 @@ func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
 		expectName string
 	}{
 		{name: "canonical gpt-5.4", modelEnv: "gpt-5.4", expectCtx: 1050000, expectName: "gpt-5.4"},
-		{name: "versioned alias", modelEnv: "gpt-5.4-2026-03-05", expectCtx: 1050000, expectName: "gpt-5.4-2026-03-05"},
+		{name: "versioned alias", modelEnv: agents.DefaultOpenAIModelSnapshot, expectCtx: 1050000, expectName: agents.DefaultOpenAIModelSnapshot},
 		{name: "normalized alias", modelEnv: " GPT-5.4-2026-03-05 ", expectCtx: 1050000, expectName: "GPT-5.4-2026-03-05"},
 		{name: "canonical gpt-5.2", modelEnv: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
 		{name: "versioned gpt-5.2 alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
@@ -180,7 +180,7 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Verify model
-	assert.Equal(t, "gpt-5.4-2026-03-05", params.Model)
+	assert.Equal(t, agents.DefaultOpenAIModelSnapshot, params.Model)
 
 	// Verify input items
 	assert.NotNil(t, params.Input.OfInputItemList)

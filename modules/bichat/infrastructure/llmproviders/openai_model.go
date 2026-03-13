@@ -112,7 +112,7 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 		if defaultName, ok := agents.DefaultModelForProvider(agents.ProviderOpenAI); ok {
 			modelName = defaultName
 		} else {
-			modelName = "gpt-5.4-2026-03-05"
+			modelName = agents.DefaultOpenAIModelSnapshot
 		}
 	}
 

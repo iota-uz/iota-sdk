@@ -6,6 +6,9 @@ package agents
 // ProviderOpenAI is the provider identifier for OpenAI; use it with LookupModelSpec and DefaultModelForProvider.
 const ProviderOpenAI = "openai"
 
+// DefaultOpenAIModelSnapshot is the pinned OpenAI snapshot used as the provider default.
+const DefaultOpenAIModelSnapshot = "gpt-5.4-2026-03-05"
+
 var (
 	// SpecGPT54 is the canonical spec for GPT-5.4.
 	//
@@ -98,7 +101,7 @@ var (
 
 func init() {
 	// GPT-5.4: snapshot alias first so provider default resolves to the requested snapshot.
-	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.4-2026-03-05", "gpt-5.4"}, SpecGPT54, true)
+	RegisterModelSpec(ProviderOpenAI, []string{DefaultOpenAIModelSnapshot, "gpt-5.4"}, SpecGPT54, true)
 
 	// GPT-5.2: canonical name + versioned alias
 	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.2", "gpt-5.2-2025-12-11"}, SpecGPT52, false)
