@@ -1,3 +1,4 @@
+// Package client provides this package.
 package client
 
 import (
@@ -161,9 +162,22 @@ type Contact interface {
 
 func New(firstName string, opts ...Option) (Client, error) {
 	c := &client{
-		firstName: firstName,
-		createdAt: time.Now(),
-		updatedAt: time.Now(),
+		id:          0,
+		tenantID:    uuid.Nil,
+		firstName:   firstName,
+		lastName:    "",
+		middleName:  "",
+		phone:       nil,
+		address:     "",
+		email:       nil,
+		dateOfBirth: nil,
+		gender:      nil,
+		passport:    nil,
+		pin:         nil,
+		comments:    "",
+		contacts:    []Contact{},
+		createdAt:   time.Now(),
+		updatedAt:   time.Now(),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -384,6 +398,7 @@ type contact struct {
 func NewContact(contactType ContactType, value string, opts ...ContactOption) Contact {
 	now := time.Now()
 	c := &contact{
+		id:          0,
 		contactType: contactType,
 		value:       value,
 		createdAt:   now,

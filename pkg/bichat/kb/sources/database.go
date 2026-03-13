@@ -1,3 +1,4 @@
+// Package sources provides this package.
 package sources
 
 import (

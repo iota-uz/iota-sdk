@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -297,7 +298,7 @@ func (g *SessionRepository) UpdateStatus(ctx context.Context, id uint, status se
 	return g.execQuery(ctx, updateSessionStatusQuery, string(status), id, tenantID.String())
 }
 
-func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]session.Session, error) {
+func (g *SessionRepository) DeleteByUserID(ctx context.Context, userID uint) ([]session.Session, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
@@ -309,7 +310,7 @@ func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]
 	sessions, err := g.querySessions(
 		ctx,
 		sql,
-		userId,
+		userID,
 		tenantID,
 	)
 	if err != nil {
@@ -318,7 +319,7 @@ func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]
 	if len(sessions) == 0 {
 		return nil, nil
 	}
-	err = g.execQuery(ctx, deleteUserSessionQuery, userId, tenantID)
+	err = g.execQuery(ctx, deleteUserSessionQuery, userID, tenantID)
 	if err != nil {
 		return nil, err
 	}

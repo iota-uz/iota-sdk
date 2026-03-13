@@ -1,3 +1,4 @@
+// Package payment provides this package.
 package payment
 
 import (
@@ -13,7 +14,7 @@ import (
 
 type Option func(p *payment)
 
-// Option setters
+// WithID adds the payment identifier option.
 func WithID(id uuid.UUID) Option {
 	return func(p *payment) {
 		p.id = id

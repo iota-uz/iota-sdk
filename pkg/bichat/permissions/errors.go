@@ -1,3 +1,4 @@
+// Package permissions provides this package.
 package permissions
 
 import (

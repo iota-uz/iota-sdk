@@ -198,6 +198,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		agentService:      agentService,
 		attachmentService: attachmentService,
 		artifactService:   artifactService,
+		observability:     chatServices.Observability,
 		titleService:      titleService,
 		titleJobQueue:     titleJobQueue,
 		titleQueueConfig:  c.TitleQueue,

@@ -3,14 +3,25 @@ package periodics
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 )
 
+// noopLogger returns a logger that discards all output
+func noopLogger() *logrus.Logger {
+	l := logrus.New()
+	l.SetOutput(io.Discard)
+	return l
+}
+
 // RetryWrapper creates a JobWrapper that retries failed jobs with exponential backoff
 func RetryWrapper(maxRetries int, initialDelay time.Duration, logger *logrus.Logger) cron.JobWrapper {
+	if logger == nil {
+		logger = noopLogger()
+	}
 	return func(j cron.Job) cron.Job {
 		return cron.FuncJob(func() {
 			var lastErr error
@@ -48,8 +59,8 @@ func RetryWrapper(maxRetries int, initialDelay time.Duration, logger *logrus.Log
 					return
 				}
 
-				// Calculate delay with exponential backoff
-				delay := time.Duration(attempt) * initialDelay
+				// Calculate delay with exponential backoff (2^(attempt-1) * initialDelay)
+				delay := initialDelay * (1 << (attempt - 1))
 				logger.WithFields(logrus.Fields{
 					"attempt": attempt,
 					"delay":   delay,
@@ -63,15 +74,22 @@ func RetryWrapper(maxRetries int, initialDelay time.Duration, logger *logrus.Log
 	}
 }
 
-// TimeoutWrapper creates a JobWrapper that cancels jobs after a specified timeout
+// TimeoutWrapper creates a JobWrapper that cancels jobs after a specified timeout.
+// Note: On timeout, the job goroutine is NOT cancelled and will continue running in the background
+// until it completes naturally. This is a known limitation since Go goroutines are not preemptible.
+// A warning is logged if the timed-out goroutine eventually completes.
 func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrapper {
+	if logger == nil {
+		logger = noopLogger()
+	}
 	return func(j cron.Job) cron.Job {
 		return cron.FuncJob(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
 			done := make(chan struct{})
-			var jobPanic interface{}
+			var jobPanic any
+			timedOut := make(chan struct{})
 
 			go func() {
 				defer func() {
@@ -79,6 +97,12 @@ func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrappe
 						jobPanic = r
 					}
 					close(done)
+					// Warn if the wrapper already timed out
+					select {
+					case <-timedOut:
+						logger.Warn("Job goroutine completed after timeout")
+					default:
+					}
 				}()
 				j.Run()
 			}()
@@ -89,9 +113,8 @@ func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrappe
 					panic(jobPanic) // Re-panic to let Recover wrapper handle it
 				}
 			case <-ctx.Done():
+				close(timedOut)
 				logger.WithField("timeout", timeout).Error("Job execution timed out")
-				// Note: We can't actually cancel the job goroutine, but we can log the timeout
-				// The job will continue running in the background
 			}
 		})
 	}
@@ -99,6 +122,9 @@ func TimeoutWrapper(timeout time.Duration, logger *logrus.Logger) cron.JobWrappe
 
 // LoggingWrapper creates a JobWrapper that logs job execution details
 func LoggingWrapper(taskName string, logger *logrus.Logger) cron.JobWrapper {
+	if logger == nil {
+		logger = noopLogger()
+	}
 	return func(j cron.Job) cron.Job {
 		return cron.FuncJob(func() {
 			start := time.Now()
@@ -127,6 +153,9 @@ func LoggingWrapper(taskName string, logger *logrus.Logger) cron.JobWrapper {
 
 // MetricsWrapper creates a JobWrapper that collects metrics
 func MetricsWrapper(taskName string, collector *MetricsCollector) cron.JobWrapper {
+	if collector == nil {
+		return func(j cron.Job) cron.Job { return j }
+	}
 	return func(j cron.Job) cron.Job {
 		return cron.FuncJob(func() {
 			collector.RecordTaskStart(taskName)

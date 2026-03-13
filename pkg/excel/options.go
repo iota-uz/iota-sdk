@@ -1,3 +1,4 @@
+// Package excel provides this package.
 package excel
 
 import "time"
@@ -116,15 +117,23 @@ type ColumnOptions struct {
 
 // formatValue formats a value based on its type
 func formatValue(val interface{}, opts *ExportOptions) interface{} {
-	switch v := val.(type) {
+	normalized := convertPgxValue(val)
+
+	switch v := normalized.(type) {
 	case time.Time:
-		return v.Format(opts.DateTimeFormat)
+		if opts != nil && opts.DateTimeFormat != "" {
+			return v.Format(opts.DateTimeFormat)
+		}
+		return v
 	case *time.Time:
 		if v != nil {
-			return v.Format(opts.DateTimeFormat)
+			if opts != nil && opts.DateTimeFormat != "" {
+				return v.Format(opts.DateTimeFormat)
+			}
+			return *v
 		}
 		return nil
 	default:
-		return val
+		return normalized
 	}
 }

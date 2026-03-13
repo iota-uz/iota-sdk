@@ -43,9 +43,8 @@ storybook-static/
 # E2E test artifacts
 e2e/playwright-report/
 e2e/test-results/
-server
-
-# CLI binary (go build ./cmd/command/)
+# Binary artifacts (go build ./cmd/server/, go build ./cmd/command/)
+/server
 /command
 
 # Playwright CLI snapshots/artifacts

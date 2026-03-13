@@ -1,3 +1,4 @@
+// Package e2e provides this package.
 package e2e
 
 import (
@@ -15,6 +16,7 @@ import (
 // Create drops and creates an empty e2e database
 func Create() error {
 	ctx := context.Background()
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 
 	// Connect directly to postgres database
@@ -30,24 +32,25 @@ func Create() error {
 	}()
 
 	// Drop existing e2e database if exists
-	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2E_DB_NAME))
+	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2EDBName))
 	if err != nil {
 		return fmt.Errorf("failed to drop existing e2e database: %w", err)
 	}
 
 	// Create new e2e database
-	_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", E2E_DB_NAME))
+	_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", E2EDBName))
 	if err != nil {
 		return fmt.Errorf("failed to create e2e database: %w", err)
 	}
 
-	conf.Logger().Info("Created e2e database", "database", E2E_DB_NAME)
+	conf.Logger().Info("Created e2e database", "database", E2EDBName)
 	return nil
 }
 
 // Drop removes the e2e database
 func Drop() error {
 	ctx := context.Background()
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 
 	// Connect directly to postgres database
@@ -63,12 +66,12 @@ func Drop() error {
 	}()
 
 	// Drop e2e database
-	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2E_DB_NAME))
+	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2EDBName))
 	if err != nil {
 		return fmt.Errorf("failed to drop e2e database: %w", err)
 	}
 
-	conf.Logger().Info("Dropped e2e database", "database", E2E_DB_NAME)
+	conf.Logger().Info("Dropped e2e database", "database", E2EDBName)
 	return nil
 }
 
@@ -97,8 +100,7 @@ func Migrate() error {
 		return fmt.Errorf("failed to change to project root: %w", err)
 	}
 
-	// Set environment variable for e2e database
-	_ = os.Setenv("DB_NAME", E2E_DB_NAME)
+	ensureE2EDatabaseEnv()
 
 	conf := configuration.Use()
 	pool, err := GetE2EPool()
@@ -124,6 +126,7 @@ func Migrate() error {
 
 // Setup performs a complete e2e database setup
 func Setup() error {
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 	conf.Logger().Info("Setting up e2e database...")
 
@@ -162,6 +165,7 @@ func Setup() error {
 
 // Reset drops and recreates the e2e database with fresh data
 func Reset() error {
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 	conf.Logger().Info("Resetting e2e database...")
 
@@ -182,6 +186,7 @@ func Reset() error {
 // DatabaseExists checks if the e2e database exists
 func DatabaseExists() (bool, error) {
 	ctx := context.Background()
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
 
 	// Connect directly to postgres database
@@ -199,7 +204,7 @@ func DatabaseExists() (bool, error) {
 	// Check if database exists
 	var exists bool
 	query := "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)"
-	err = conn.QueryRow(ctx, query, E2E_DB_NAME).Scan(&exists)
+	err = conn.QueryRow(ctx, query, E2EDBName).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check if database exists: %w", err)
 	}
@@ -210,10 +215,8 @@ func DatabaseExists() (bool, error) {
 // TruncateAllTables clears all data from the e2e database while preserving connections
 func TruncateAllTables() error {
 	ctx := context.Background()
+	ensureE2EDatabaseEnv()
 	conf := configuration.Use()
-
-	// Set environment variable for e2e database
-	_ = os.Setenv("DB_NAME", E2E_DB_NAME)
 
 	pool, err := GetE2EPool()
 	if err != nil {

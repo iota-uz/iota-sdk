@@ -1,3 +1,4 @@
+// Package graph provides this package.
 package graph
 
 import (

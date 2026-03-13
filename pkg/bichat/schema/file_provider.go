@@ -1,3 +1,4 @@
+// Package schema provides this package.
 package schema
 
 import (

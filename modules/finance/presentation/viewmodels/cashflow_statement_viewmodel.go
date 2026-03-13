@@ -1,3 +1,4 @@
+// Package viewmodels provides this package.
 package viewmodels
 
 // CashflowLineItem represents a single line item in the cashflow statement

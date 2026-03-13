@@ -74,7 +74,7 @@ type SimpleDomainContext struct {
 // SimpleDomainContextOption is a functional option for SimpleDomainContext.
 type SimpleDomainContextOption func(*SimpleDomainContext)
 
-// WithTimezone sets the timezone for the domain context.
+// WithDomainTimezone sets the timezone for the domain context.
 func WithDomainTimezone(tz string) SimpleDomainContextOption {
 	return func(c *SimpleDomainContext) {
 		c.timezone = tz

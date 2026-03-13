@@ -156,7 +156,13 @@ func TestRenderTableTool_CallStructured_EmitsTableArtifact(t *testing.T) {
 	assert.NotNil(t, artifact.Metadata)
 	assert.Contains(t, artifact.Metadata, "query")
 	assert.Contains(t, artifact.Metadata, "columns")
+	assert.Contains(t, artifact.Metadata, "rows")
+	assert.Contains(t, artifact.Metadata, "row_count")
 	assert.Contains(t, artifact.Metadata, "total_rows")
+
+	rows, ok := artifact.Metadata["rows"].([][]any)
+	require.True(t, ok)
+	require.Len(t, rows, 2)
 }
 
 func TestRenderTableTool_Call_NoOutputDirStillReturnsPrompt(t *testing.T) {

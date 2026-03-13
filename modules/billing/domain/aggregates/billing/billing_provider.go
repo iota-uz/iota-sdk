@@ -32,5 +32,5 @@ type StatusCheckResult struct {
 // StatusChecker is an optional interface that providers can implement
 // to support checking the current status of a payment.
 type StatusChecker interface {
-	CheckStatus(ctx context.Context, shopTransactionId string) (*StatusCheckResult, error)
+	CheckStatus(ctx context.Context, shopTransactionID string) (*StatusCheckResult, error)
 }

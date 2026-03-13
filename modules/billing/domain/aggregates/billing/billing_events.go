@@ -15,6 +15,7 @@ func NewCreatedEvent(_ context.Context, result Transaction) (*CreatedEvent, erro
 
 func NewUpdatedEvent(_ context.Context, result Transaction) (*UpdatedEvent, error) {
 	return &UpdatedEvent{
+		Data:   result,
 		Result: result,
 	}, nil
 }

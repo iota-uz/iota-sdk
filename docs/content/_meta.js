@@ -2,6 +2,8 @@ export default {
   index: 'Overview',
   'getting-started': 'Getting Started',
   architecture: 'Architecture',
+  patterns: 'Patterns',
+  development: 'Development',
   '-- Authentication': {
     type: 'separator',
     title: 'Authentication'
@@ -13,6 +15,7 @@ export default {
   projects: { display: 'hidden' },
   hrm: { display: 'hidden' },
   billing: { display: 'hidden' },
+  subscription: { display: 'hidden' },
   superadmin: { display: 'hidden' },
   bichat: { display: 'hidden' },
   modules: {
@@ -25,6 +28,7 @@ export default {
       projects: { title: 'Projects', href: '/projects' },
       hrm: { title: 'HRM', href: '/hrm' },
       billing: { title: 'Billing', href: '/billing' },
+      subscription: { title: 'Subscription', href: '/subscription' },
       superadmin: { title: 'SuperAdmin', href: '/superadmin' },
       bichat: { title: 'BiChat', href: '/bichat' }
     }
@@ -40,5 +44,10 @@ export default {
     title: 'Infrastructure'
   },
   logging: 'Logging',
-  testkit: 'Testkit'
+  testkit: 'Testkit',
+  '-- Meta': {
+    type: 'separator',
+    title: 'Meta'
+  },
+  changelog: 'Changelog'
 }

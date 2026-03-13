@@ -1,3 +1,4 @@
+// Package chat provides this package.
 package chat
 
 import (
@@ -60,6 +61,7 @@ func WithCreatedAt(createdAt time.Time) ChatOption {
 func New(clientID uint, opts ...ChatOption) Chat {
 	c := &chat{
 		id:        0,
+		tenantID:  uuid.Nil,
 		clientID:  clientID,
 		messages:  []Message{},
 		members:   make(map[uuid.UUID]Member),
@@ -339,6 +341,7 @@ func NewMessage(
 	}
 	m := &message{
 		id:          0,
+		chatID:      0,
 		message:     msgContent,
 		sender:      sender,
 		readAt:      nil,

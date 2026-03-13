@@ -1,3 +1,4 @@
+// Package category provides this package.
 package category
 
 import (
@@ -8,7 +9,7 @@ import (
 
 type Option func(e *expenseCategory)
 
-// Option setters
+// WithID adds the expense category identifier option.
 func WithID(id uuid.UUID) Option {
 	return func(e *expenseCategory) {
 		e.id = id
@@ -47,11 +48,11 @@ func WithTenantID(tenantID uuid.UUID) Option {
 
 func WithIsCOGS(isCOGS bool) Option {
 	return func(e *expenseCategory) {
-		e.is_cogs = isCOGS
+		e.isCogs = isCOGS
 	}
 }
 
-// Interface
+// ExpenseCategory defines expense category domain behavior.
 type ExpenseCategory interface {
 	ID() uuid.UUID
 	TenantID() uuid.UUID
@@ -64,7 +65,7 @@ type ExpenseCategory interface {
 	UpdateDescription(description string) ExpenseCategory
 }
 
-// Implementation
+// New creates a new expense category aggregate.
 func New(
 	name string,
 	opts ...Option,
@@ -74,6 +75,7 @@ func New(
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "", // description is optional
+		isCogs:      false,
 		createdAt:   time.Now(),
 		updatedAt:   time.Now(),
 	}
@@ -88,7 +90,7 @@ type expenseCategory struct {
 	tenantID    uuid.UUID
 	name        string
 	description string
-	is_cogs     bool
+	isCogs      bool
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -110,7 +112,7 @@ func (e *expenseCategory) Description() string {
 }
 
 func (e *expenseCategory) IsCOGS() bool {
-	return e.is_cogs
+	return e.isCogs
 }
 
 func (e *expenseCategory) CreatedAt() time.Time {

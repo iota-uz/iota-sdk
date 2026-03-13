@@ -1,3 +1,4 @@
+// Package cache provides this package.
 package cache
 
 import (

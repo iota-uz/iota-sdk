@@ -1,3 +1,4 @@
+// Package eskiz provides this package.
 package eskiz
 
 import (
@@ -98,8 +99,8 @@ func (s *service) SendSMS(ctx context.Context, model models.SendSMS) (models.Sen
 	if model.From() != "" {
 		req = req.From(model.From())
 	}
-	if s.cfg.CallbackUrl() != "" {
-		req = req.CallbackUrl(s.cfg.CallbackUrl())
+	if s.cfg.CallbackURL() != "" {
+		req = req.CallbackUrl(s.cfg.CallbackURL())
 	}
 
 	res, httpResp, err := req.Execute()

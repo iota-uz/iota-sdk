@@ -1,3 +1,4 @@
+// Package aichatconfig provides this package.
 package aichatconfig
 
 import (
@@ -105,6 +106,7 @@ func New(
 		accessToken:  "",   // No default access token
 		temperature:  0.7,  // Default temperature
 		maxTokens:    1024, // Default max tokens
+		isDefault:    false,
 		createdAt:    time.Now(),
 		updatedAt:    time.Now(),
 	}

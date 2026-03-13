@@ -1,3 +1,4 @@
+// Package user provides this package.
 package user
 
 import "errors"

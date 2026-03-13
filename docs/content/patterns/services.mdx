@@ -283,40 +283,27 @@ package expense
 
 import (
 	"context"
-	"time"
-	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatedEvent struct {
-	ExpenseID    uuid.UUID
-	Amount       int64
-	CategoryID   uuid.UUID
-	AccountID    uuid.UUID
-	OccurredAt   time.Time
-	UserID       uuid.UUID
-	TenantID     uuid.UUID
+	Sender  user.User
+	Session session.Session
+	Result  Expense
 }
 
-func NewCreatedEvent(ctx context.Context, exp Expense) (*CreatedEvent, error) {
-	userID, err := composables.UseUserID(ctx)
+func NewCreatedEvent(ctx context.Context, result Expense) (*CreatedEvent, error) {
+	sender, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	
-	tenantID, err := composables.UseTenantID(ctx)
+	sess, err := composables.UseSession(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	return &CreatedEvent{
-		ExpenseID:  exp.ID(),
-		Amount:     exp.Amount().Amount(),
-		CategoryID: exp.Category().ID(),
-		AccountID:  exp.Account().ID(),
-		OccurredAt: time.Now(),
-		UserID:     userID,
-		TenantID:   tenantID,
-	}, nil
+	return &CreatedEvent{Sender: sender, Session: sess, Result: result}, nil
 }
 ```
 
@@ -496,16 +483,15 @@ return serrors.NewError(
 	"account.insufficient_funds",
 )
 
-// Validation errors
+// Validation errors (details via WithTemplateData for localization)
 return serrors.NewError(
 	"VALIDATION_FAILED",
 	"invalid input data",
 	"validation.failed",
-	map[string]string{
+).WithTemplateData(map[string]string{
 		"field": "amount",
 		"reason": "must be positive",
-	},
-)
+	})
 ```
 
 ### Error Wrapping

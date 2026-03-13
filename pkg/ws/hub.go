@@ -1,3 +1,4 @@
+// Package ws provides this package.
 package ws
 
 import (
@@ -276,4 +277,11 @@ func (h *Hub) On(eventType EventType, handler func(conn *Connection, message []b
 	defer h.mu.Unlock()
 
 	h.eventHandlers[eventType] = append(h.eventHandlers[eventType], handler)
+}
+
+// ConnectionCount returns the current number of active WebSocket connections.
+func (h *Hub) ConnectionCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.connections)
 }

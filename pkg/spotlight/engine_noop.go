@@ -1,3 +1,4 @@
+// Package spotlight provides this package.
 package spotlight
 
 import "context"

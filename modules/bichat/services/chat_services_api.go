@@ -1,3 +1,4 @@
+// Package services provides this package.
 package services
 
 import (
@@ -14,6 +15,7 @@ type ChatApplicationServices struct {
 	TurnQueries     bichatservices.TurnQueries
 	StreamCommands  bichatservices.StreamCommands
 	HITLCommands    bichatservices.HITLCommands
+	Observability   *StreamObservability
 }
 
 type sessionCommandsService struct{ *chatServiceImpl }
@@ -39,5 +41,6 @@ func NewChatApplicationServices(
 		TurnQueries:     &turnQueriesService{chatServiceImpl: core},
 		StreamCommands:  &streamCommandsService{chatServiceImpl: core},
 		HITLCommands:    &hitlCommandsService{chatServiceImpl: core},
+		Observability:   NewStreamObservability(core.runRegistry),
 	}
 }

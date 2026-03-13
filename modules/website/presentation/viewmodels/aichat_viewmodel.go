@@ -1,3 +1,4 @@
+// Package viewmodels provides this package.
 package viewmodels
 
 // AIConfig represents the view model for the AI chat configuration

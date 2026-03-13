@@ -42,6 +42,8 @@ type WsCallback func(ctx context.Context, conn Connection) error
 type Huber interface {
 	http.Handler
 	ForEach(channel string, f WsCallback) error
+	// ConnectionCount returns the current number of active WebSocket connections.
+	ConnectionCount() int
 }
 
 func NewHub(opts *HuberOptions) Huber {
@@ -79,6 +81,11 @@ type huber struct {
 
 func (h *huber) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.hub.ServeHTTP(w, r)
+}
+
+// ConnectionCount returns the current number of active WebSocket connections.
+func (h *huber) ConnectionCount() int {
+	return h.hub.ConnectionCount()
 }
 
 func (h *huber) onConnect(r *http.Request, hub *ws.Hub, conn *ws.Connection) error {
@@ -156,12 +163,7 @@ func (h *huber) ForEach(channel string, f WsCallback) error {
 		}
 		localizer := i18n.NewLocalizer(h.bundle, string(usr.UILanguage()))
 		connCtx := intl.WithLocalizer(ctx, localizer)
-		//nolint:staticcheck // SA1019: Using PageContext for WebSocket connection context is acceptable
-		connCtx = composables.WithPageCtx(connCtx, &types.PageContext{
-			URL:       MustParseURL("/"),
-			Locale:    language.English,
-			Localizer: localizer,
-		})
+		connCtx = composables.WithPageCtx(connCtx, types.NewPageContext(language.English, MustParseURL("/"), localizer))
 		if err := f(connCtx, &connection{
 			user: usr,
 			conn: conn,

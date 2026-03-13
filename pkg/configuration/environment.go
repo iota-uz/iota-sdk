@@ -1,3 +1,4 @@
+// Package configuration provides this package.
 package configuration
 
 import (
@@ -104,9 +105,14 @@ type LokiOptions struct {
 }
 
 type OpenTelemetryOptions struct {
-	Enabled     bool   `env:"OTEL_ENABLED" envDefault:"false"`
-	TempoURL    string `env:"OTEL_TEMPO_URL" envDefault:"localhost:4318"`
-	ServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"sdk"`
+	TempoURL    string `env:"OTEL_TEMPO_URL"`
+	ServiceName string `env:"OTEL_SERVICE_NAME"`
+}
+
+// IsConfigured returns true when both TempoURL and ServiceName are set.
+// This makes OpenTelemetry enablement implicit — no explicit flag needed.
+func (o *OpenTelemetryOptions) IsConfigured() bool {
+	return o.TempoURL != "" && o.ServiceName != ""
 }
 
 type ClickOptions struct {
@@ -128,7 +134,7 @@ type OctoOptions struct {
 	OctoShopID     int32  `env:"OCTO_SHOP_ID"`
 	OctoSecret     string `env:"OCTO_SECRET"`
 	OctoSecretHash string `env:"OCTO_SECRET_HASH"`
-	NotifyUrl      string `env:"OCTO_NOTIFY_URL"`
+	NotifyURL      string `env:"OCTO_NOTIFY_URL"`
 }
 
 type StripeOptions struct {
@@ -262,15 +268,15 @@ type Configuration struct {
 	// Session ID cookie key
 	SidCookieKey        string `env:"SID_COOKIE_KEY" envDefault:"sid"`
 	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
+	// Allowed origins for CORS and CSRF (full URLs, e.g. "http://localhost:3000").
+	// Used by CORS middleware as-is, and by CSRF middleware after normalizing scheme-qualified origins.
+	// Origin from config is always trusted for CSRF in addition to this list.
+	AllowedOrigins []string `env:"ALLOWED_ORIGINS" envDefault:"http://localhost:3000"`
 
 	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"`
 
 	// Test endpoints - only enable in test environment
 	EnableTestEndpoints bool `env:"ENABLE_TEST_ENDPOINTS" envDefault:"false"`
-
-	// Health endpoint mode - when false, returns simple {status: "healthy"} response
-	// When true, returns detailed health checks with database, system metrics
-	HealthDetailed bool `env:"HEALTH_DETAILED" envDefault:"false"`
 
 	logFile *os.File
 	logger  *logrus.Logger
@@ -372,7 +378,7 @@ func (c *Configuration) load(envFiles []string) error {
 	return nil
 }
 
-// unload handles a graceful shutdown.
+// Unload releases all environment resources.
 func (c *Configuration) Unload() {
 	if c.logFile != nil {
 		if err := c.logFile.Close(); err != nil {

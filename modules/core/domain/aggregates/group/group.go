@@ -1,3 +1,4 @@
+// Package group provides this package.
 package group
 
 import (
@@ -94,12 +95,15 @@ func WithUpdatedAt(t time.Time) Option {
 
 func New(name string, opts ...Option) Group {
 	g := &group{
-		id:        uuid.New(),
-		type_:     TypeUser,
-		tenantID:  uuid.Nil,
-		name:      name,
-		createdAt: time.Now(),
-		updatedAt: time.Now(),
+		id:          uuid.New(),
+		type_:       TypeUser,
+		tenantID:    uuid.Nil,
+		name:        name,
+		description: "",
+		roles:       []role.Role{},
+		users:       []user.User{},
+		createdAt:   time.Now(),
+		updatedAt:   time.Now(),
 	}
 
 	for _, opt := range opts {

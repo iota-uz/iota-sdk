@@ -1,3 +1,4 @@
+// Package user provides this package.
 package user
 
 import (
@@ -24,6 +25,7 @@ func NewCreatedEvent(ctx context.Context, data User) *CreatedEvent {
 		Sender:  sender,
 		Session: sess,
 		Data:    data,
+		Result:  data,
 	}
 }
 
@@ -43,6 +45,7 @@ func NewUpdatedEvent(ctx context.Context, data User) *UpdatedEvent {
 		Sender:  sender,
 		Session: sess,
 		Data:    data,
+		Result:  data,
 	}
 }
 
@@ -61,6 +64,7 @@ func NewDeletedEvent(ctx context.Context) *DeletedEvent {
 	return &DeletedEvent{
 		Sender:  sender,
 		Session: sess,
+		Result:  nil,
 	}
 }
 

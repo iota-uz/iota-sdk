@@ -1,3 +1,4 @@
+// Package definition provides this package.
 package definition
 
 import (

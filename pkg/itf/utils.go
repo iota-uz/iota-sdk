@@ -1,3 +1,4 @@
+// Package itf provides this package.
 package itf
 
 import (
@@ -7,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -24,6 +26,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
+)
+
+const (
+	opCreateDBE = serrors.Op("itf.CreateDB")
+	opDropDBE   = serrors.Op("itf.DropDB")
 )
 
 type TestFixtures struct {
@@ -73,7 +80,7 @@ func NewDatabaseManager(t *testing.T) *DatabaseManager {
 
 	dbName := t.Name()
 	CreateDB(dbName)
-	pool := NewPool(DbOpts(dbName))
+	pool := NewPool(DBOpts(dbName))
 
 	dm := &DatabaseManager{
 		pool:   pool,
@@ -142,21 +149,15 @@ const (
 	hashSuffixLength = 9
 )
 
+var nonIdentifierChars = regexp.MustCompile(`[^a-z0-9_]`)
+
 // sanitizeDBName replaces special characters in database names with underscores
 // and ensures the name doesn't exceed PostgreSQL's 63-character limit
 func sanitizeDBName(name string) string {
 	// Convert to lowercase (PostgreSQL convention)
 	sanitized := strings.ToLower(name)
 
-	// Replace special characters with underscores
-	sanitized = strings.ReplaceAll(sanitized, "/", "_")
-	sanitized = strings.ReplaceAll(sanitized, " ", "_")
-	sanitized = strings.ReplaceAll(sanitized, "-", "_")
-	sanitized = strings.ReplaceAll(sanitized, ".", "_")
-	sanitized = strings.ReplaceAll(sanitized, "(", "_")
-	sanitized = strings.ReplaceAll(sanitized, ")", "_")
-	sanitized = strings.ReplaceAll(sanitized, "[", "_")
-	sanitized = strings.ReplaceAll(sanitized, "]", "_")
+	sanitized = nonIdentifierChars.ReplaceAllString(sanitized, "_")
 
 	// Remove consecutive underscores
 	for strings.Contains(sanitized, "__") {
@@ -263,18 +264,38 @@ func CreateDB(name string) {
 			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf("CREATE DATABASE %s", sanitizedName))
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`CREATE DATABASE "%s"`, sanitizedName))
 	if err != nil {
 		panic(err)
 	}
 }
 
+// CreateDBE creates a test database and returns an error instead of panicking.
+func CreateDBE(name string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = serrors.E(opCreateDBE, fmt.Errorf("failed to create test database %q: %v", sanitizeDBName(name), r))
+		}
+	}()
+
+	CreateDB(name)
+	return nil
+}
+
 // DropDB drops a test database. Used for cleanup after tests to free disk space.
-func DropDB(name string) {
+func DropDB(name string) error {
+	if err := dropDB(name); err != nil {
+		log.Printf("[WARNING] DropDB failed: %v", err)
+		return err
+	}
+	return nil
+}
+
+func dropDB(name string) error {
 	sanitizedName := sanitizeDBName(name)
 
 	c := configuration.Use()
@@ -285,7 +306,7 @@ func DropDB(name string) {
 	db, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		log.Printf("[WARNING] Failed to open connection for DropDB: %v", err)
-		return
+		return err
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -294,21 +315,35 @@ func DropDB(name string) {
 	}()
 
 	// Terminate any remaining connections to the database
-	terminateSQL := fmt.Sprintf(`
+	terminateSQL := `
 		SELECT pg_terminate_backend(pg_stat_activity.pid)
 		FROM pg_stat_activity
-		WHERE pg_stat_activity.datname = '%s'
+		WHERE pg_stat_activity.datname = $1
 		AND pid <> pg_backend_pid()
-	`, sanitizedName)
-	_, _ = db.ExecContext(context.Background(), terminateSQL)
+	`
+	_, _ = db.ExecContext(context.Background(), terminateSQL, sanitizedName)
 
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
 	if err != nil {
-		log.Printf("[WARNING] Failed to drop database %s: %v", sanitizedName, err)
+		return err
 	}
+
+	return nil
 }
 
-func DbOpts(name string) string {
+// DropDBE drops a test database and returns an error instead of panicking.
+func DropDBE(name string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = serrors.E(opDropDBE, fmt.Errorf("failed to drop test database %q: %v", sanitizeDBName(name), r))
+		}
+	}()
+
+	err = dropDB(name)
+	return err
+}
+
+func DBOpts(name string) string {
 	sanitizedName := sanitizeDBName(name)
 
 	c := configuration.Use()
@@ -332,18 +367,6 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	}
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, err
-	}
-
-	// Only run migrations if migrations directory exists
-	// In CI, migrations are applied via `make db migrate up` before tests run,
-	// so we skip re-running them to avoid "no such file" errors when tests
-	// run from subdirectories where migrations/ path doesn't resolve.
-	if _, err := os.Stat(conf.MigrationsDir); err == nil {
-		if err := app.Migrations().Run(); err != nil {
-			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "failed to run migrations")
-		}
-	} else if !os.IsNotExist(err) {
-		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "failed to stat migrations directory")
 	}
 
 	return app, nil

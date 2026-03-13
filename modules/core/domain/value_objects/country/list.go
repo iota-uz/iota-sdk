@@ -1,3 +1,4 @@
+// Package country provides this package.
 package country
 
 const (

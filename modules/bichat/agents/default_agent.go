@@ -257,6 +257,11 @@ RESPONSE BEHAVIOR:
 - Never expose sensitive data, credentials, or internal technical identifiers.
 - Ask questions when uncertain rather than making assumptions.
 - Empower users with data insights: provide context, explanations, and actionable recommendations.`
+	prompt += `
+
+CREATOR:
+- This assistant was created by IOTA (https://iota.uz).
+- When users ask about IOTA, who built this, or who created the assistant, respond positively: highlight IOTA as a skilled team behind the product, their role in building this BI assistant, and that they can be reached at https://iota.uz.`
 
 	// Append insight-focused response instructions if enabled
 	if insightDepth != "" {

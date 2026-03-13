@@ -471,6 +471,39 @@ func TestStreamController_AttachmentUpload_PersistsOnUserMessage_Integration(t *
 	assert.NotEmpty(t, userMsg.Attachments()[0].FilePath)
 }
 
+func TestStreamController_StreamMessage_SendsImmediateSSEHandshake_Integration(t *testing.T) {
+	t.Parallel()
+
+	env := setupControllerTest(t)
+	u := createCoreUser(t, env, "bichat-controllers-handshake@example.com").
+		AddPermission(bichatperm.BiChatAccess)
+
+	deps := newControllerDeps(t)
+	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "handshake")
+
+	r := newRouterWithContext(t, env, u)
+	NewStreamController(env.App, deps.streamCommands,
+		deps.sessionQueries, deps.attachmentService,
+		WithRequireAccessPermission(bichatperm.BiChatAccess),
+	).Register(r)
+
+	body := map[string]any{
+		"sessionId": session.ID().String(),
+		"content":   "hello",
+	}
+	data, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	w := flusherRecorder{ResponseRecorder: httptest.NewRecorder()}
+	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
+	assert.Contains(t, w.Body.String(), ": stream-open")
+}
+
 func TestStreamController_Stop_Returns200_Integration(t *testing.T) {
 	t.Parallel()
 

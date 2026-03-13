@@ -1,3 +1,4 @@
+// Package analytics provides this package.
 package analytics
 
 // DefaultTenantViews returns the default set of tenant-isolated analytics views

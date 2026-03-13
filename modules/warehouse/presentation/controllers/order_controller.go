@@ -1,3 +1,4 @@
+// Package controllers provides this package.
 package controllers
 
 import (
@@ -23,18 +24,20 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/fp"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
-var (
-	OrdersToViewModels = fp.Map[order.Order, *viewmodels.Order](func(o order.Order) *viewmodels.Order {
-		return mappers.OrderToViewModel(o, map[uint]int{})
-	})
-)
+func OrdersToViewModels(orders []order.Order) []*viewmodels.Order {
+	viewModels := make([]*viewmodels.Order, 0, len(orders))
+	for _, o := range orders {
+		viewModels = append(viewModels, mappers.OrderToViewModel(o, map[uint]int{}))
+	}
+
+	return viewModels
+}
 
 type OrderItem struct {
 	PositionID    uint

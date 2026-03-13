@@ -1,3 +1,4 @@
+// Package details provides this package.
 package details
 
 type ClickOption func(d *clickDetails)
@@ -32,9 +33,9 @@ func ClickWithMerchantConfirmID(merchantConfirmID int64) ClickOption {
 	}
 }
 
-func ClickWithPayDocId(payDocId int64) ClickOption {
+func ClickWithPayDocID(payDocID int64) ClickOption {
 	return func(d *clickDetails) {
-		d.payDocId = payDocId
+		d.payDocID = payDocID
 	}
 }
 
@@ -99,8 +100,11 @@ func NewClickDetails(
 		merchantTransID:   merchantTransID,
 		merchantPrepareID: 0,
 		merchantConfirmID: 0,
+		payDocID:          0,
 		paymentID:         0,
 		paymentStatus:     0,
+		signTime:          "",
+		signString:        "",
 		errorCode:         0,
 		errorNote:         "",
 		link:              "",
@@ -121,7 +125,7 @@ type clickDetails struct {
 	merchantTransID   string
 	merchantPrepareID int64
 	merchantConfirmID int64
-	payDocId          int64
+	payDocID          int64
 	paymentID         int64
 	paymentStatus     int32
 	signTime          string
@@ -156,8 +160,8 @@ func (d *clickDetails) MerchantConfirmID() int64 {
 	return d.merchantConfirmID
 }
 
-func (d *clickDetails) PayDocId() int64 {
-	return d.payDocId
+func (d *clickDetails) PayDocID() int64 {
+	return d.payDocID
 }
 
 func (d *clickDetails) PaymentID() int64 {
@@ -222,9 +226,9 @@ func (d *clickDetails) SetMerchantConfirmID(merchantConfirmID int64) ClickDetail
 	return &result
 }
 
-func (d *clickDetails) SetPayDocId(payDocId int64) ClickDetails {
+func (d *clickDetails) SetPayDocID(payDocID int64) ClickDetails {
 	result := *d
-	result.payDocId = payDocId
+	result.payDocID = payDocID
 	return &result
 }
 

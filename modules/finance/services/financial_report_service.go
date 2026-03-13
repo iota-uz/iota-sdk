@@ -1,3 +1,4 @@
+// Package services provides this package.
 package services
 
 import (
@@ -6,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/finance/domain/value_objects"
+	valueobjects "github.com/iota-uz/iota-sdk/modules/finance/domain/value_objects"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -32,7 +33,7 @@ func NewFinancialReportService(
 }
 
 // GenerateIncomeStatement generates an income statement for a specific period
-func (s *FinancialReportService) GenerateIncomeStatement(ctx context.Context, startDate, endDate time.Time) (*value_objects.IncomeStatement, error) {
+func (s *FinancialReportService) GenerateIncomeStatement(ctx context.Context, startDate, endDate time.Time) (*valueobjects.IncomeStatement, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant ID")
@@ -54,7 +55,7 @@ func (s *FinancialReportService) GenerateIncomeStatement(ctx context.Context, st
 	currency := s.determinePrimaryCurrency(data)
 
 	// Create income statement
-	incomeStatement := value_objects.NewIncomeStatement(
+	incomeStatement := valueobjects.NewIncomeStatement(
 		tenantID,
 		startDate,
 		endDate,
@@ -104,11 +105,11 @@ func (s *FinancialReportService) GenerateIncomeStatement(ctx context.Context, st
 }
 
 // createRevenueSection creates the revenue section from query data
-func (s *FinancialReportService) createRevenueSection(data *query.IncomeStatementData) value_objects.IncomeStatementSection {
-	lineItems := make([]value_objects.IncomeStatementLineItem, 0, len(data.IncomeItems))
+func (s *FinancialReportService) createRevenueSection(data *query.IncomeStatementData) valueobjects.IncomeStatementSection {
+	lineItems := make([]valueobjects.IncomeStatementLineItem, 0, len(data.IncomeItems))
 
 	for _, item := range data.IncomeItems {
-		lineItems = append(lineItems, value_objects.IncomeStatementLineItem{
+		lineItems = append(lineItems, valueobjects.IncomeStatementLineItem{
 			ID:         item.CategoryID,
 			Name:       item.CategoryName,
 			Amount:     item.Amount,
@@ -116,7 +117,7 @@ func (s *FinancialReportService) createRevenueSection(data *query.IncomeStatemen
 		})
 	}
 
-	return value_objects.IncomeStatementSection{
+	return valueobjects.IncomeStatementSection{
 		Title:      "Revenue",
 		LineItems:  lineItems,
 		Subtotal:   data.TotalIncome,
@@ -125,11 +126,11 @@ func (s *FinancialReportService) createRevenueSection(data *query.IncomeStatemen
 }
 
 // createCOGSSection creates the COGS (Cost of Goods Sold) section from query data
-func (s *FinancialReportService) createCOGSSection(data *query.IncomeStatementData) value_objects.IncomeStatementSection {
-	lineItems := make([]value_objects.IncomeStatementLineItem, 0, len(data.COGSItems))
+func (s *FinancialReportService) createCOGSSection(data *query.IncomeStatementData) valueobjects.IncomeStatementSection {
+	lineItems := make([]valueobjects.IncomeStatementLineItem, 0, len(data.COGSItems))
 
 	for _, item := range data.COGSItems {
-		lineItems = append(lineItems, value_objects.IncomeStatementLineItem{
+		lineItems = append(lineItems, valueobjects.IncomeStatementLineItem{
 			ID:         item.CategoryID,
 			Name:       item.CategoryName,
 			Amount:     item.Amount,
@@ -143,7 +144,7 @@ func (s *FinancialReportService) createCOGSSection(data *query.IncomeStatementDa
 		percentage = math.Abs(float64(data.TotalCOGS.Amount())) / float64(data.TotalIncome.Amount()) * 100
 	}
 
-	return value_objects.IncomeStatementSection{
+	return valueobjects.IncomeStatementSection{
 		Title:      "Cost of Goods Sold",
 		LineItems:  lineItems,
 		Subtotal:   data.TotalCOGS,
@@ -152,11 +153,11 @@ func (s *FinancialReportService) createCOGSSection(data *query.IncomeStatementDa
 }
 
 // createOperatingExpenseSection creates the operating expense section from query data
-func (s *FinancialReportService) createOperatingExpenseSection(data *query.IncomeStatementData) value_objects.IncomeStatementSection {
-	lineItems := make([]value_objects.IncomeStatementLineItem, 0, len(data.OperatingExpenseItems))
+func (s *FinancialReportService) createOperatingExpenseSection(data *query.IncomeStatementData) valueobjects.IncomeStatementSection {
+	lineItems := make([]valueobjects.IncomeStatementLineItem, 0, len(data.OperatingExpenseItems))
 
 	for _, item := range data.OperatingExpenseItems {
-		lineItems = append(lineItems, value_objects.IncomeStatementLineItem{
+		lineItems = append(lineItems, valueobjects.IncomeStatementLineItem{
 			ID:         item.CategoryID,
 			Name:       item.CategoryName,
 			Amount:     item.Amount,
@@ -170,7 +171,7 @@ func (s *FinancialReportService) createOperatingExpenseSection(data *query.Incom
 		expensePercentage = math.Abs(float64(data.TotalOperatingExpenses.Amount())) / float64(data.TotalIncome.Amount()) * 100
 	}
 
-	return value_objects.IncomeStatementSection{
+	return valueobjects.IncomeStatementSection{
 		Title:      "Operating Expenses",
 		LineItems:  lineItems,
 		Subtotal:   data.TotalOperatingExpenses,
@@ -179,11 +180,11 @@ func (s *FinancialReportService) createOperatingExpenseSection(data *query.Incom
 }
 
 // createExpenseSection creates the expense section from query data
-func (s *FinancialReportService) createExpenseSection(data *query.IncomeStatementData) value_objects.IncomeStatementSection {
-	lineItems := make([]value_objects.IncomeStatementLineItem, 0, len(data.ExpenseItems))
+func (s *FinancialReportService) createExpenseSection(data *query.IncomeStatementData) valueobjects.IncomeStatementSection {
+	lineItems := make([]valueobjects.IncomeStatementLineItem, 0, len(data.ExpenseItems))
 
 	for _, item := range data.ExpenseItems {
-		lineItems = append(lineItems, value_objects.IncomeStatementLineItem{
+		lineItems = append(lineItems, valueobjects.IncomeStatementLineItem{
 			ID:         item.CategoryID,
 			Name:       item.CategoryName,
 			Amount:     item.Amount,
@@ -197,7 +198,7 @@ func (s *FinancialReportService) createExpenseSection(data *query.IncomeStatemen
 		expensePercentage = math.Abs(float64(data.TotalExpenses.Amount())) / float64(data.TotalIncome.Amount()) * 100
 	}
 
-	return value_objects.IncomeStatementSection{
+	return valueobjects.IncomeStatementSection{
 		Title:      "Operating Expenses",
 		LineItems:  lineItems,
 		Subtotal:   data.TotalExpenses,
@@ -222,7 +223,7 @@ func (s *FinancialReportService) determinePrimaryCurrency(data *query.IncomeStat
 }
 
 // GenerateCashflowStatement generates a cashflow statement for a specific account and period
-func (s *FinancialReportService) GenerateCashflowStatement(ctx context.Context, accountID uuid.UUID, startDate, endDate time.Time) (*value_objects.CashflowStatement, error) {
+func (s *FinancialReportService) GenerateCashflowStatement(ctx context.Context, accountID uuid.UUID, startDate, endDate time.Time) (*valueobjects.CashflowStatement, error) {
 	// Get cashflow data from query repository
 	data, err := s.queryRepo.GetCashflowData(ctx, accountID, startDate, endDate)
 	if err != nil {
@@ -230,7 +231,7 @@ func (s *FinancialReportService) GenerateCashflowStatement(ctx context.Context, 
 	}
 
 	// Create cashflow statement
-	cashflowStatement := value_objects.NewCashflowStatement(
+	cashflowStatement := valueobjects.NewCashflowStatement(
 		accountID,
 		startDate,
 		endDate,
@@ -244,17 +245,17 @@ func (s *FinancialReportService) GenerateCashflowStatement(ctx context.Context, 
 
 	// For now, we only have operating activities
 	// In the future, we can extend this to include investing and financing activities
-	cashflowStatement.InvestingActivities = value_objects.CashflowSection{
+	cashflowStatement.InvestingActivities = valueobjects.CashflowSection{
 		Name:        "Investing Activities",
-		Inflows:     []value_objects.CashflowLineItem{},
-		Outflows:    []value_objects.CashflowLineItem{},
+		Inflows:     []valueobjects.CashflowLineItem{},
+		Outflows:    []valueobjects.CashflowLineItem{},
 		NetCashFlow: money.New(0, data.StartingBalance.Currency().Code),
 	}
 
-	cashflowStatement.FinancingActivities = value_objects.CashflowSection{
+	cashflowStatement.FinancingActivities = valueobjects.CashflowSection{
 		Name:        "Financing Activities",
-		Inflows:     []value_objects.CashflowLineItem{},
-		Outflows:    []value_objects.CashflowLineItem{},
+		Inflows:     []valueobjects.CashflowLineItem{},
+		Outflows:    []valueobjects.CashflowLineItem{},
 		NetCashFlow: money.New(0, data.StartingBalance.Currency().Code),
 	}
 
@@ -281,10 +282,10 @@ func (s *FinancialReportService) GenerateCashflowStatement(ctx context.Context, 
 }
 
 // createCashflowSection creates a cashflow section from query data
-func (s *FinancialReportService) createCashflowSection(name string, inflows, outflows []query.CashflowLineItem) value_objects.CashflowSection {
-	inflowItems := make([]value_objects.CashflowLineItem, 0, len(inflows))
+func (s *FinancialReportService) createCashflowSection(name string, inflows, outflows []query.CashflowLineItem) valueobjects.CashflowSection {
+	inflowItems := make([]valueobjects.CashflowLineItem, 0, len(inflows))
 	for _, item := range inflows {
-		inflowItems = append(inflowItems, value_objects.CashflowLineItem{
+		inflowItems = append(inflowItems, valueobjects.CashflowLineItem{
 			CategoryID:   item.CategoryID,
 			CategoryName: item.CategoryName,
 			Amount:       item.Amount,
@@ -293,9 +294,9 @@ func (s *FinancialReportService) createCashflowSection(name string, inflows, out
 		})
 	}
 
-	outflowItems := make([]value_objects.CashflowLineItem, 0, len(outflows))
+	outflowItems := make([]valueobjects.CashflowLineItem, 0, len(outflows))
 	for _, item := range outflows {
-		outflowItems = append(outflowItems, value_objects.CashflowLineItem{
+		outflowItems = append(outflowItems, valueobjects.CashflowLineItem{
 			CategoryID:   item.CategoryID,
 			CategoryName: item.CategoryName,
 			Amount:       item.Amount,
@@ -304,7 +305,7 @@ func (s *FinancialReportService) createCashflowSection(name string, inflows, out
 		})
 	}
 
-	return value_objects.CashflowSection{
+	return valueobjects.CashflowSection{
 		Name:     name,
 		Inflows:  inflowItems,
 		Outflows: outflowItems,

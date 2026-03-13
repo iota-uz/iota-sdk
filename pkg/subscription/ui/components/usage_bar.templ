@@ -1,0 +1,32 @@
+package components
+
+import (
+	"fmt"
+
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+)
+
+type UsageBarProps struct {
+	Entity  string
+	Current int
+	Limit   int
+}
+
+templ UsageBar(props UsageBarProps) {
+	@card.Card(card.Props{WrapperClass: "w-full"}) {
+		<div class="flex flex-col gap-2">
+			<div class="text-sm font-medium">{ props.Entity }</div>
+			if props.Limit < 0 {
+				<div class="text-sm text-500">{ fmt.Sprintf("%d / unlimited", props.Current) }</div>
+			} else {
+				@base.Progress(base.ProgressProps{
+					Value:       uint(props.Current),
+					Target:      uint(max(props.Limit, 1)),
+					ValueLabel:  fmt.Sprintf("%d", props.Current),
+					TargetLabel: fmt.Sprintf("%d", props.Limit),
+				})
+			}
+		</div>
+	}
+}

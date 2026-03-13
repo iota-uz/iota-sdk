@@ -1,3 +1,4 @@
+// Package analytics provides this package.
 package analytics
 
 import (

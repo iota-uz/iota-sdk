@@ -1,3 +1,4 @@
+// Package common provides this package.
 package common
 
 import (

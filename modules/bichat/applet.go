@@ -1,3 +1,4 @@
+// Package bichat provides integration entry points for BiChat services and applet wiring.
 package bichat
 
 import (

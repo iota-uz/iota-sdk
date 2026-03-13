@@ -20,30 +20,24 @@ OIDC_ISSUER_URL=https://your-domain.com
 # Crypto key for encrypting signing keys (32+ characters recommended)
 OIDC_CRYPTO_KEY=your-very-secure-random-key-here-32-chars-minimum
 
-# Database connection (already configured for SDK)
-DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+# Database: SDK builds the connection from DB_NAME, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD (see installation). Use the same DB for OIDC.
+DB_NAME=dbname
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=user
+DB_PASSWORD=password
 ```
 
-### Optional Variables
+### Optional Variables (supported in central config)
 
 ```bash
 # Token lifetimes (defaults shown)
-OIDC_ACCESS_TOKEN_LIFETIME=3600          # 1 hour in seconds
-OIDC_ID_TOKEN_LIFETIME=3600              # 1 hour in seconds
-OIDC_REFRESH_TOKEN_LIFETIME=2592000      # 30 days in seconds
-OIDC_AUTH_CODE_LIFETIME=300              # 5 minutes in seconds
-
-# PKCE enforcement
-OIDC_REQUIRE_PKCE=true                   # Require PKCE for all clients
-
-# CORS settings
-OIDC_ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com
-
-# Rate limiting
-OIDC_RATE_LIMIT_ENABLED=true
-OIDC_RATE_LIMIT_REQUESTS=100
-OIDC_RATE_LIMIT_WINDOW=900               # 15 minutes in seconds
+OIDC_ACCESS_TOKEN_LIFETIME=1h            # 1 hour
+OIDC_ID_TOKEN_LIFETIME=1h                # 1 hour
+OIDC_REFRESH_TOKEN_LIFETIME=720h        # 30 days
 ```
+
+Other OIDC-related variables (e.g. `OIDC_AUTH_CODE_LIFETIME`, `OIDC_REQUIRE_PKCE`, `OIDC_ALLOWED_ORIGINS`, `OIDC_RATE_LIMIT_*`) are not present in the central `pkg/configuration` OIDCOptions; they may be used by other layers or not yet implemented.
 
 ## Crypto Key Generation
 
@@ -141,6 +135,8 @@ OIDC module respects multi-tenant architecture:
 
 ## Security Best Practices
 
+Variables such as `OIDC_RATE_LIMIT_*`, `OIDC_ALLOWED_ORIGINS`, `OIDC_AUTH_CODE_LIFETIME`, and `OIDC_REQUIRE_PKCE` are not part of the central `pkg/configuration` OIDCOptions. They may be implemented by other layers or not yet functional—verify support in your deployment before relying on them.
+
 ### 1. Client Configuration
 
 **Public Clients (SPAs, Mobile Apps):**
@@ -217,6 +213,8 @@ WHERE client_id = 'my-client';
 
 ### 4. Rate Limiting
 
+> **Note:** These variables are not part of central `pkg/configuration` and may require custom implementation.
+
 Protect endpoints from abuse:
 
 ```bash
@@ -230,6 +228,8 @@ OIDC_RATE_LIMIT_USERINFO=200     # per 15 min per token
 ```
 
 ### 5. CORS Configuration
+
+> **Note:** `OIDC_ALLOWED_ORIGINS` is not part of central `pkg/configuration` and may require custom implementation.
 
 Configure CORS for browser-based clients:
 

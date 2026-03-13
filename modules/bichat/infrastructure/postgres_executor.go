@@ -1,3 +1,4 @@
+// Package infrastructure provides this package.
 package infrastructure
 
 import (

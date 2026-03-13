@@ -1,3 +1,4 @@
+// Package httpdto provides this package.
 package httpdto
 
 import (

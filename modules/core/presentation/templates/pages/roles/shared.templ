@@ -28,7 +28,7 @@ func getPermissionIds(permissions []*viewmodels.PermissionItem) []string {
 }
 
 type SharedProps struct {
-	PageContext types.PageContextProvider
+	PageContext types.PageContext
 	Label       string
 	Attrs       templ.Attributes
 	Error       string
@@ -52,7 +52,7 @@ templ Permission(props SharedProps) {
 }
 
 type PermissionSetProps struct {
-	PageContext  types.PageContextProvider
+	PageContext  types.PageContext
 	Set          *viewmodels.PermissionSetItem
 	ResourceName string
 	SetIndex     int
@@ -72,7 +72,6 @@ templ PermissionSet(props PermissionSetProps) {
 				Checked:      props.Set.Checked,
 				Attrs: templ.Attributes{
 					"name": fmt.Sprintf("Permissions[%s]", props.Set.Permissions[0].ID),
-					"form": "save-form",
 				},
 			})
 			if props.Set.Description != "" {
@@ -133,7 +132,6 @@ templ PermissionSet(props PermissionSetProps) {
 								Checked:      perm.Checked,
 								Attrs: templ.Attributes{
 									"name":               fmt.Sprintf("Permissions[%s]", perm.ID),
-									"form":               "save-form",
 									"@change":            "updateState()",
 									"data-permission-id": perm.ID,
 								},
@@ -147,7 +145,7 @@ templ PermissionSet(props PermissionSetProps) {
 }
 
 type ResourceGroupProps struct {
-	PageContext   types.PageContextProvider
+	PageContext   types.PageContext
 	ResourceGroup *viewmodels.ResourcePermissionGroup
 	GroupIndex    int
 }

@@ -1,8 +1,10 @@
+// Package inventory provides this package.
 package inventory
 
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 
 	ut "github.com/go-playground/universal-translator"
@@ -59,25 +61,44 @@ func (d *CreateCheckDTO) ToEntity(createdBy user.User) (*Check, error) {
 	results := make([]*CheckResult, len(d.Positions))
 	for i, p := range d.Positions {
 		results[i] = &CheckResult{
-			PositionID:     p.PositionID,
-			ActualQuantity: int(p.Found),
+			ID:               0,
+			TenantID:         uuid.Nil,
+			PositionID:       p.PositionID,
+			Position:         nil,
+			ExpectedQuantity: 0,
+			ActualQuantity:   int(p.Found),
+			Difference:       0,
+			CreatedAt:        time.Time{},
 		}
 	}
 	return &Check{
-		ID:          0,
-		Status:      s,
-		Name:        d.Name,
-		Results:     results,
-		CreatedAt:   time.Now(),
-		CreatedBy:   createdBy,
-		CreatedByID: createdBy.ID(),
+		ID:           0,
+		TenantID:     uuid.Nil,
+		Status:       s,
+		Name:         d.Name,
+		Results:      results,
+		CreatedAt:    time.Now(),
+		FinishedAt:   time.Time{},
+		CreatedByID:  createdBy.ID(),
+		CreatedBy:    createdBy,
+		FinishedBy:   nil,
+		FinishedByID: 0,
 	}, nil
 }
 
 func (d *UpdateCheckDTO) ToEntity(id uint) (*Check, error) {
 	check := &Check{
-		ID:   id,
-		Name: d.Name,
+		ID:           id,
+		TenantID:     uuid.Nil,
+		Status:       "",
+		Name:         d.Name,
+		Results:      nil,
+		CreatedAt:    time.Time{},
+		FinishedAt:   d.FinishedAt,
+		CreatedByID:  0,
+		CreatedBy:    nil,
+		FinishedBy:   nil,
+		FinishedByID: 0,
 	}
 	return check, nil
 }

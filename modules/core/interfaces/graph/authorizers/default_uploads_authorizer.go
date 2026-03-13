@@ -1,3 +1,4 @@
+// Package authorizers provides this package.
 package authorizers
 
 import (

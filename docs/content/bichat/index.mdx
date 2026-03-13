@@ -74,7 +74,7 @@ graph TB
 |----------|--------|---------|
 | `/bi-chat` | GET | Serves the React SPA |
 | `/bi-chat/stream` | POST | SSE streaming endpoint for agent responses |
-| `/rpc` | POST | Global applet RPC API for session management |
+| `/bi-chat/rpc` | POST | Applet RPC API for session management (when BiChat is mounted at `/bi-chat`) |
 
 ### RPC Procedures
 
@@ -144,7 +144,7 @@ WHERE tenant_id = current_setting('app.tenant_id', true)::UUID;
 
 ## Configuration
 
-The module is configured via `ModuleConfig` in Go. **Required:** you must configure attachment storage (or explicitly disable it for tests). Module registration can **fail** at startup if configuration is invalid; always check the error from `app.RegisterModule(module)`.
+The module is configured via `ModuleConfig` in Go. **Required:** you must configure attachment storage (or explicitly disable it for tests). Module registration can **fail** at startup if configuration is invalid; check the error from `module.Register(app)` or from `modules.Load(app, module)`.
 
 ```go
 cfg := bichat.NewModuleConfig(
@@ -161,9 +161,10 @@ cfg := bichat.NewModuleConfig(
 )
 
 module := bichat.NewModuleWithConfig(cfg)
-if err := app.RegisterModule(module); err != nil {
+if err := module.Register(app); err != nil {
     log.Fatalf("Failed to register BiChat: %v", err)
 }
+// Or: modules.Load(app, module) and check the error returned by Load
 ```
 
 To disable attachments (e.g. testing only): use `bichat.WithNoOpAttachmentStorage()`. Session title generation is always enabled.
@@ -277,7 +278,7 @@ Behavior:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | API key for OpenAI |
-| `OPENAI_MODEL` | No | Default model (defaults to `gpt-4o`) |
+| `OPENAI_MODEL` | No | Default model (defaults to `gpt-5.2`) |
 | `BICHAT_CONTEXT_WINDOW` | No | Max tokens for context (default: 200k) |
 | `BICHAT_KNOWLEDGE_DIR` | No | Path to static knowledge root (`tables/`, `queries/`, `business/`) |
 | `BICHAT_KB_INDEX_PATH` | No | Bleve index path for `kb_search` |

@@ -119,18 +119,13 @@ CREATE SCHEMA IF NOT EXISTS analytics;
 -- Create bichat_agent_role with restricted permissions (SELECT only)
 DO $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT
-        FROM
-            pg_catalog.pg_roles
-        WHERE
-            rolname = 'bichat_agent_role') THEN
-    CREATE ROLE bichat_agent_role;
-END IF;
-EXCEPTION
-    WHEN duplicate_object THEN
-        NULL;
-END
+    BEGIN
+        CREATE ROLE bichat_agent_role;
+    EXCEPTION
+        WHEN duplicate_object OR unique_violation THEN
+            NULL;
+    END;
+END;
 $$;
 
 -- Grant USAGE on analytics and bichat schemas
@@ -187,7 +182,8 @@ BEGIN
             );
         END IF;
     END LOOP;
-END $$;
+END;
+$$;
 
 COMMENT ON SCHEMA analytics IS 'Denormalized views for BiChat query executor with automatic tenant isolation using current_setting(''app.tenant_id'', true)::UUID pattern.';
 

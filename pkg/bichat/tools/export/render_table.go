@@ -1,3 +1,4 @@
+// Package export provides this package.
 package export
 
 import (
@@ -284,6 +285,8 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 			"columns":      output.Columns,
 			"headers":      output.Headers,
 			"column_types": output.ColumnTypes,
+			"rows":         output.Rows,
+			"row_count":    output.TotalRows,
 			"total_rows":   output.TotalRows,
 			"truncated":    output.Truncated,
 			"title":        output.Title,

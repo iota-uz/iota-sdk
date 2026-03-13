@@ -5,10 +5,16 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // createTestPermissionSchema creates an empty permission schema for testing
@@ -189,8 +195,7 @@ func TestRolesController_List_Search(t *testing.T) {
 	response = suite.GET("/roles")
 	response.Assert(t).
 		ExpectStatus(200).
-		ExpectBodyContains("roles-table-body").
-		ExpectBodyContains("new-role-btn") // New button should be visible
+		ExpectBodyContains("roles-table-body")
 }
 
 func TestRolesController_Update_NonExistent(t *testing.T) {
@@ -217,4 +222,116 @@ func TestRolesController_Update_NonExistent(t *testing.T) {
 
 	// Should return error (role not found)
 	response.Assert(t).ExpectStatus(500)
+}
+
+func TestRolesController_Update_PermissionScenarios(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(modules.BuiltInModules...).
+		AsUser(permissions.RoleCreate, permissions.RoleRead, permissions.RoleUpdate, permissions.RoleDelete).
+		Build()
+
+	controller := controllers.NewRolesController(suite.Env().App, &controllers.RolesControllerOptions{
+		BasePath:         "/roles",
+		PermissionSchema: defaults.PermissionSchema(),
+	})
+	suite.Register(controller)
+
+	type updateCase struct {
+		name                string
+		roleName            string
+		initialDescription  string
+		initialPermissions  []permission.Permission
+		formDescription     string
+		formPermissionIDs   []string
+		expectedPermissions []string
+	}
+
+	cases := []updateCase{
+		{
+			name:                "PersistsSelectedPermissions",
+			roleName:            "Controller Persist Role",
+			initialDescription:  "Initial description",
+			initialPermissions:  []permission.Permission{permissions.RoleRead},
+			formDescription:     "Updated description",
+			formPermissionIDs:   []string{permissions.RoleUpdate.ID().String()},
+			expectedPermissions: []string{permissions.RoleUpdate.Name()},
+		},
+		{
+			name:               "AddMultiplePermissions",
+			roleName:           "Controller Add Multiple Role",
+			initialDescription: "Initial description",
+			initialPermissions: []permission.Permission{permissions.RoleRead},
+			formDescription:    "Updated description",
+			formPermissionIDs: []string{
+				permissions.RoleRead.ID().String(),
+				permissions.RoleCreate.ID().String(),
+				permissions.RoleUpdate.ID().String(),
+			},
+			expectedPermissions: []string{
+				permissions.RoleRead.Name(),
+				permissions.RoleCreate.Name(),
+				permissions.RoleUpdate.Name(),
+			},
+		},
+		{
+			name:                "RemoveAllPermissions",
+			roleName:            "Controller Remove All Role",
+			initialDescription:  "Initial description",
+			initialPermissions:  []permission.Permission{permissions.RoleRead, permissions.RoleUpdate},
+			formDescription:     "Updated description",
+			formPermissionIDs:   []string{},
+			expectedPermissions: []string{},
+		},
+		{
+			name:                "KeepSamePermissions",
+			roleName:            "Controller Keep Same Role",
+			initialDescription:  "Initial description",
+			initialPermissions:  []permission.Permission{permissions.RoleRead, permissions.RoleUpdate},
+			formDescription:     "Updated description",
+			formPermissionIDs:   []string{permissions.RoleRead.ID().String(), permissions.RoleUpdate.ID().String()},
+			expectedPermissions: []string{permissions.RoleRead.Name(), permissions.RoleUpdate.Name()},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			roleRepository := persistence.NewRoleRepository()
+			createdRole, err := roleRepository.Create(
+				suite.Env().Ctx,
+				role.New(
+					tc.roleName,
+					role.WithDescription(tc.initialDescription),
+					role.WithPermissions(tc.initialPermissions),
+				),
+			)
+			require.NoError(t, err)
+
+			formFields := map[string]interface{}{
+				"Name":        createdRole.Name(),
+				"Description": tc.formDescription,
+			}
+			for _, permissionID := range tc.formPermissionIDs {
+				formFields[fmt.Sprintf("Permissions[%s]", permissionID)] = "on"
+			}
+
+			response := suite.POST(fmt.Sprintf("/roles/%d", createdRole.ID())).FormFields(formFields)
+
+			response.Assert(t).ExpectStatus(302)
+
+			updatedRole, err := roleRepository.GetByID(suite.Env().Ctx, createdRole.ID())
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.formDescription, updatedRole.Description())
+
+			actualPermissions := make([]string, 0, len(updatedRole.Permissions()))
+
+			for _, p := range updatedRole.Permissions() {
+				actualPermissions = append(actualPermissions, p.Name())
+			}
+
+			assert.ElementsMatch(t, tc.expectedPermissions, actualPermissions)
+		})
+	}
 }

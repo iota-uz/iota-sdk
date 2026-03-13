@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -242,27 +243,6 @@ const (
 	`
 
 	// Message queries
-	insertMessageQuery = `
-		INSERT INTO bichat.messages (
-			id, session_id, role, content, author_user_id, tool_calls, tool_call_id, citations, debug_trace, question_data, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	`
-	selectMessageQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.author_user_id, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
-		FROM bichat.messages m
-		JOIN bichat.sessions s ON m.session_id = s.id
-		LEFT JOIN public.users u ON u.id = m.author_user_id AND u.tenant_id = s.tenant_id
-		WHERE s.tenant_id = $1 AND m.id = $2
-	`
-	selectSessionMessagesQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.author_user_id, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
-		FROM bichat.messages m
-		JOIN bichat.sessions s ON m.session_id = s.id
-		LEFT JOIN public.users u ON u.id = m.author_user_id AND u.tenant_id = s.tenant_id
-		WHERE s.tenant_id = $1 AND m.session_id = $2
-		ORDER BY m.created_at ASC
-		LIMIT $3 OFFSET $4
-	`
 	truncateMessagesFromQuery = `
 		DELETE FROM bichat.messages m
 		USING bichat.sessions s
@@ -271,25 +251,6 @@ const (
 		  AND m.session_id = $2
 		  AND m.created_at >= $3
 	`
-	updateMessageQuestionDataQuery = `
-		UPDATE bichat.messages m
-		SET question_data = $1
-		FROM bichat.sessions s
-		WHERE m.session_id = s.id
-		  AND s.tenant_id = $2
-		  AND m.id = $3
-	`
-	selectPendingQuestionMessageQuery = `
-		SELECT m.id, m.session_id, m.role, m.content, m.author_user_id, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), m.tool_calls, m.tool_call_id, m.citations, m.debug_trace, m.question_data, m.created_at
-		FROM bichat.messages m
-		JOIN bichat.sessions s ON m.session_id = s.id
-		LEFT JOIN public.users u ON u.id = m.author_user_id AND u.tenant_id = s.tenant_id
-		WHERE s.tenant_id = $1 AND m.session_id = $2
-		  AND m.question_data->>'status' = 'PENDING'
-		ORDER BY m.created_at DESC, m.id DESC
-		LIMIT 1
-	`
-
 	selectSessionOwnerUserIDQuery = `
 		SELECT user_id
 		FROM bichat.sessions
@@ -371,7 +332,6 @@ var (
 	ErrTenantUserNotFound = errors.New("tenant user not found")
 )
 
-// PostgresChatRepository implements ChatRepository using PostgreSQL.
 // ChatRepoOption configures PostgresChatRepository.
 type ChatRepoOption func(*PostgresChatRepository)
 
@@ -1057,56 +1017,38 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		return serrors.E(op, err)
 	}
 
-	// Marshal JSONB fields
-	toolCallsJSON, err := json.Marshal(msg.ToolCalls())
+	model, err := messageDomainToModel(msg)
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
-	citationsJSON, err := json.Marshal(msg.Citations())
-	if err != nil {
-		return serrors.E(op, err)
+	if model.CreatedAt.IsZero() {
+		model.CreatedAt = time.Now()
 	}
 
-	debugTraceJSON, err := json.Marshal(msg.DebugTrace())
-	if err != nil {
-		return serrors.E(op, err)
-	}
-
-	questionDataJSON, err := json.Marshal(msg.QuestionData())
-	if err != nil {
-		return serrors.E(op, err)
-	}
-
-	createdAt := msg.CreatedAt()
-	if createdAt.IsZero() {
-		createdAt = time.Now()
-	}
-
-	authorUserID := msg.AuthorUserID()
-	if msg.Role() == types.RoleUser && authorUserID == nil {
+	if model.Role == types.RoleUser && model.AuthorUserID == nil {
 		var ownerUserID int64
-		if err := tx.QueryRow(ctx, selectSessionOwnerUserIDQuery, tenantID, msg.SessionID()).Scan(&ownerUserID); err != nil {
+		if err := tx.QueryRow(ctx, selectSessionOwnerUserIDQuery, tenantID, model.SessionID).Scan(&ownerUserID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return serrors.E(op, ErrSessionNotFound)
 			}
 			return serrors.E(op, err)
 		}
-		authorUserID = &ownerUserID
+		model.AuthorUserID = &ownerUserID
 	}
 
 	_, err = tx.Exec(ctx, insertMessageQuery,
-		msg.ID(),
-		msg.SessionID(),
-		msg.Role(),
-		msg.Content(),
-		authorUserID,
-		toolCallsJSON,
-		msg.ToolCallID(),
-		citationsJSON,
-		debugTraceJSON,
-		questionDataJSON,
-		createdAt,
+		model.ID,
+		model.SessionID,
+		model.Role,
+		model.Content,
+		model.AuthorUserID,
+		model.ToolCallsJSON,
+		model.ToolCallID,
+		model.CitationsJSON,
+		model.DebugTraceJSON,
+		model.QuestionDataJSON,
+		model.CreatedAt,
 	)
 	if err != nil {
 		return serrors.E(op, err)
@@ -1117,17 +1059,17 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 	}
 
 	if len(msg.CodeOutputs()) > 0 {
-		msgID := msg.ID()
+		msgID := model.ID
 		for _, output := range msg.CodeOutputs() {
 			outputCreatedAt := output.CreatedAt
 			if outputCreatedAt.IsZero() {
-				outputCreatedAt = createdAt
+				outputCreatedAt = model.CreatedAt
 			}
 
 			codeOutputArtifact := domain.NewArtifact(
 				domain.WithArtifactID(output.ID),
 				domain.WithArtifactTenantID(tenantID),
-				domain.WithArtifactSessionID(msg.SessionID()),
+				domain.WithArtifactSessionID(model.SessionID),
 				domain.WithArtifactMessageID(&msgID),
 				domain.WithArtifactType(domain.ArtifactTypeCodeOutput),
 				domain.WithArtifactName(output.Name),
@@ -1160,37 +1102,7 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		return nil, serrors.E(op, err)
 	}
 
-	var (
-		msgID            uuid.UUID
-		sessionID        uuid.UUID
-		role             types.Role
-		content          string
-		authorUserID     *int64
-		authorFirstName  string
-		authorLastName   string
-		toolCallsJSON    []byte
-		toolCallID       *string
-		citationsJSON    []byte
-		debugTraceJSON   []byte
-		questionDataJSON []byte
-		createdAt        time.Time
-	)
-
-	err = tx.QueryRow(ctx, selectMessageQuery, tenantID, id).Scan(
-		&msgID,
-		&sessionID,
-		&role,
-		&content,
-		&authorUserID,
-		&authorFirstName,
-		&authorLastName,
-		&toolCallsJSON,
-		&toolCallID,
-		&citationsJSON,
-		&debugTraceJSON,
-		&questionDataJSON,
-		&createdAt,
-	)
+	model, err := scanMessageModel(tx.QueryRow(ctx, buildSelectMessageQuery(), tenantID, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, serrors.E(op, ErrMessageNotFound)
@@ -1198,100 +1110,29 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		return nil, serrors.E(op, err)
 	}
 
-	// Unmarshal JSONB fields
-	var toolCalls []types.ToolCall
-	if err := json.Unmarshal(toolCallsJSON, &toolCalls); err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	var citations []types.Citation
-	if err := json.Unmarshal(citationsJSON, &citations); err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	var debugTrace *types.DebugTrace
-	if len(debugTraceJSON) > 0 && string(debugTraceJSON) != "null" {
-		var trace types.DebugTrace
-		if err := json.Unmarshal(debugTraceJSON, &trace); err != nil {
-			return nil, serrors.E(op, err)
-		}
-		debugTrace = &trace
-	}
-
-	var questionData *types.QuestionData
-	if len(questionDataJSON) > 0 && string(questionDataJSON) != "null" {
-		var qd types.QuestionData
-		if err := json.Unmarshal(questionDataJSON, &qd); err != nil {
-			return nil, serrors.E(op, err)
-		}
-		questionData = &qd
-	}
-
-	// Load code interpreter outputs
-	codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, msgID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	domainAttachments, err := r.GetMessageAttachments(ctx, msgID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	attachments := convertDomainAttachmentsToTypes(domainAttachments)
-
-	// Build message options
-	opts := []types.MessageOption{
-		types.WithMessageID(msgID),
-		types.WithSessionID(sessionID),
-		types.WithRole(role),
-		types.WithContent(content),
-		types.WithCreatedAt(createdAt),
-	}
-	if len(toolCalls) > 0 {
-		opts = append(opts, types.WithToolCalls(toolCalls...))
-	}
-	if toolCallID != nil {
-		opts = append(opts, types.WithToolCallID(*toolCallID))
-	}
-	if len(citations) > 0 {
-		opts = append(opts, types.WithCitations(citations...))
-	}
-	if len(codeOutputs) > 0 {
-		opts = append(opts, types.WithCodeOutputs(codeOutputs...))
-	}
-	if len(attachments) > 0 {
-		opts = append(opts, types.WithAttachments(attachments...))
-	}
-	if debugTrace != nil {
-		opts = append(opts, types.WithDebugTrace(debugTrace))
-	}
-	if questionData != nil {
-		opts = append(opts, types.WithQuestionData(questionData))
-	}
-	if authorUserID != nil {
-		opts = append(opts, types.WithAuthorUserID(*authorUserID))
-	}
-	if strings.TrimSpace(authorFirstName) != "" || strings.TrimSpace(authorLastName) != "" {
-		opts = append(opts, types.WithAuthorName(authorFirstName, authorLastName))
-	}
-
-	return types.NewMessage(opts...), nil
+	return r.hydrateMessageModel(ctx, tenantID, &model)
 }
 
-// messageData holds intermediate message data before code outputs are loaded.
-type messageData struct {
-	msgID        uuid.UUID
-	sessID       uuid.UUID
-	role         types.Role
-	content      string
-	authorUserID *int64
-	authorFirst  string
-	authorLast   string
-	toolCalls    []types.ToolCall
-	toolCallID   *string
-	citations    []types.Citation
-	debugTrace   *types.DebugTrace
-	questionData *types.QuestionData
-	createdAt    time.Time
+func (r *PostgresChatRepository) hydrateMessageModel(
+	ctx context.Context,
+	tenantID uuid.UUID,
+	model *models.MessageModel,
+) (types.Message, error) {
+	codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, model.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	domainAttachments, err := r.GetMessageAttachments(ctx, model.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return messageModelToDomain(
+		model,
+		codeOutputs,
+		convertDomainAttachmentsToTypes(domainAttachments),
+	)
 }
 
 // GetSessionMessages retrieves all messages for a session with pagination.
@@ -1308,7 +1149,7 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 		return nil, serrors.E(op, err)
 	}
 
-	rows, err := tx.Query(ctx, selectSessionMessagesQuery, tenantID, sessionID, opts.Limit, opts.Offset)
+	rows, err := tx.Query(ctx, buildSelectSessionMessagesQuery(opts), tenantID, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -1316,87 +1157,13 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 
 	// First pass: collect all message data without nested queries
 	// This avoids "conn busy" error from nested queries on the same connection
-	var messagesData []messageData
+	modelsData := make([]models.MessageModel, 0)
 	for rows.Next() {
-		var (
-			msgID            uuid.UUID
-			sessID           uuid.UUID
-			role             types.Role
-			content          string
-			authorUserID     *int64
-			authorFirstName  string
-			authorLastName   string
-			toolCallsJSON    []byte
-			toolCallID       *string
-			citationsJSON    []byte
-			debugTraceJSON   []byte
-			questionDataJSON []byte
-			createdAt        time.Time
-		)
-
-		err := rows.Scan(
-			&msgID,
-			&sessID,
-			&role,
-			&content,
-			&authorUserID,
-			&authorFirstName,
-			&authorLastName,
-			&toolCallsJSON,
-			&toolCallID,
-			&citationsJSON,
-			&debugTraceJSON,
-			&questionDataJSON,
-			&createdAt,
-		)
-		if err != nil {
-			return nil, serrors.E(op, err)
+		model, scanErr := scanMessageModel(rows)
+		if scanErr != nil {
+			return nil, serrors.E(op, scanErr)
 		}
-
-		// Unmarshal JSONB fields
-		var toolCalls []types.ToolCall
-		if err := json.Unmarshal(toolCallsJSON, &toolCalls); err != nil {
-			return nil, serrors.E(op, err)
-		}
-
-		var citations []types.Citation
-		if err := json.Unmarshal(citationsJSON, &citations); err != nil {
-			return nil, serrors.E(op, err)
-		}
-
-		var debugTrace *types.DebugTrace
-		if len(debugTraceJSON) > 0 && string(debugTraceJSON) != "null" {
-			var trace types.DebugTrace
-			if err := json.Unmarshal(debugTraceJSON, &trace); err != nil {
-				return nil, serrors.E(op, err)
-			}
-			debugTrace = &trace
-		}
-
-		var questionData *types.QuestionData
-		if len(questionDataJSON) > 0 && string(questionDataJSON) != "null" {
-			var qd types.QuestionData
-			if err := json.Unmarshal(questionDataJSON, &qd); err != nil {
-				return nil, serrors.E(op, err)
-			}
-			questionData = &qd
-		}
-
-		messagesData = append(messagesData, messageData{
-			msgID:        msgID,
-			sessID:       sessID,
-			role:         role,
-			content:      content,
-			authorUserID: authorUserID,
-			authorFirst:  authorFirstName,
-			authorLast:   authorLastName,
-			toolCalls:    toolCalls,
-			toolCallID:   toolCallID,
-			citations:    citations,
-			debugTrace:   debugTrace,
-			questionData: questionData,
-			createdAt:    createdAt,
-		})
+		modelsData = append(modelsData, model)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -1404,55 +1171,13 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 	}
 
 	// Second pass: load code outputs for each message (rows are now closed)
-	messages := make([]types.Message, 0, len(messagesData))
-	for _, md := range messagesData {
-		codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, md.msgID)
-		if err != nil {
-			return nil, serrors.E(op, err)
+	messages := make([]types.Message, 0, len(modelsData))
+	for _, model := range modelsData {
+		message, hydrateErr := r.hydrateMessageModel(ctx, tenantID, &model)
+		if hydrateErr != nil {
+			return nil, serrors.E(op, hydrateErr)
 		}
-		domainAttachments, err := r.GetMessageAttachments(ctx, md.msgID)
-		if err != nil {
-			return nil, serrors.E(op, err)
-		}
-		attachments := convertDomainAttachmentsToTypes(domainAttachments)
-
-		// Build message options
-		msgOpts := []types.MessageOption{
-			types.WithMessageID(md.msgID),
-			types.WithSessionID(md.sessID),
-			types.WithRole(md.role),
-			types.WithContent(md.content),
-			types.WithCreatedAt(md.createdAt),
-		}
-		if len(md.toolCalls) > 0 {
-			msgOpts = append(msgOpts, types.WithToolCalls(md.toolCalls...))
-		}
-		if md.toolCallID != nil {
-			msgOpts = append(msgOpts, types.WithToolCallID(*md.toolCallID))
-		}
-		if len(md.citations) > 0 {
-			msgOpts = append(msgOpts, types.WithCitations(md.citations...))
-		}
-		if len(codeOutputs) > 0 {
-			msgOpts = append(msgOpts, types.WithCodeOutputs(codeOutputs...))
-		}
-		if len(attachments) > 0 {
-			msgOpts = append(msgOpts, types.WithAttachments(attachments...))
-		}
-		if md.debugTrace != nil {
-			msgOpts = append(msgOpts, types.WithDebugTrace(md.debugTrace))
-		}
-		if md.questionData != nil {
-			msgOpts = append(msgOpts, types.WithQuestionData(md.questionData))
-		}
-		if md.authorUserID != nil {
-			msgOpts = append(msgOpts, types.WithAuthorUserID(*md.authorUserID))
-		}
-		if strings.TrimSpace(md.authorFirst) != "" || strings.TrimSpace(md.authorLast) != "" {
-			msgOpts = append(msgOpts, types.WithAuthorName(md.authorFirst, md.authorLast))
-		}
-
-		messages = append(messages, types.NewMessage(msgOpts...))
+		messages = append(messages, message)
 	}
 
 	return messages, nil
@@ -1525,37 +1250,7 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 		return nil, serrors.E(op, err)
 	}
 
-	var (
-		msgID            uuid.UUID
-		sessID           uuid.UUID
-		role             types.Role
-		content          string
-		authorUserID     *int64
-		authorFirstName  string
-		authorLastName   string
-		toolCallsJSON    []byte
-		toolCallID       *string
-		citationsJSON    []byte
-		debugTraceJSON   []byte
-		questionDataJSON []byte
-		createdAt        time.Time
-	)
-
-	err = tx.QueryRow(ctx, selectPendingQuestionMessageQuery, tenantID, sessionID).Scan(
-		&msgID,
-		&sessID,
-		&role,
-		&content,
-		&authorUserID,
-		&authorFirstName,
-		&authorLastName,
-		&toolCallsJSON,
-		&toolCallID,
-		&citationsJSON,
-		&debugTraceJSON,
-		&questionDataJSON,
-		&createdAt,
-	)
+	model, err := scanMessageModel(tx.QueryRow(ctx, buildSelectPendingQuestionMessageQuery(), tenantID, sessionID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, serrors.E(op, domain.ErrNoPendingQuestion)
@@ -1563,83 +1258,7 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 		return nil, serrors.E(op, err)
 	}
 
-	// Unmarshal JSONB fields
-	var toolCalls []types.ToolCall
-	if err := json.Unmarshal(toolCallsJSON, &toolCalls); err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	var citations []types.Citation
-	if err := json.Unmarshal(citationsJSON, &citations); err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	var debugTrace *types.DebugTrace
-	if len(debugTraceJSON) > 0 && string(debugTraceJSON) != "null" {
-		var trace types.DebugTrace
-		if err := json.Unmarshal(debugTraceJSON, &trace); err != nil {
-			return nil, serrors.E(op, err)
-		}
-		debugTrace = &trace
-	}
-
-	var questionData *types.QuestionData
-	if len(questionDataJSON) > 0 && string(questionDataJSON) != "null" {
-		var qd types.QuestionData
-		if err := json.Unmarshal(questionDataJSON, &qd); err != nil {
-			return nil, serrors.E(op, err)
-		}
-		questionData = &qd
-	}
-
-	// Load code interpreter outputs
-	codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, msgID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	domainAttachments, err := r.GetMessageAttachments(ctx, msgID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	attachments := convertDomainAttachmentsToTypes(domainAttachments)
-
-	// Build message options
-	opts := []types.MessageOption{
-		types.WithMessageID(msgID),
-		types.WithSessionID(sessID),
-		types.WithRole(role),
-		types.WithContent(content),
-		types.WithCreatedAt(createdAt),
-	}
-	if len(toolCalls) > 0 {
-		opts = append(opts, types.WithToolCalls(toolCalls...))
-	}
-	if toolCallID != nil {
-		opts = append(opts, types.WithToolCallID(*toolCallID))
-	}
-	if len(citations) > 0 {
-		opts = append(opts, types.WithCitations(citations...))
-	}
-	if len(codeOutputs) > 0 {
-		opts = append(opts, types.WithCodeOutputs(codeOutputs...))
-	}
-	if len(attachments) > 0 {
-		opts = append(opts, types.WithAttachments(attachments...))
-	}
-	if debugTrace != nil {
-		opts = append(opts, types.WithDebugTrace(debugTrace))
-	}
-	if questionData != nil {
-		opts = append(opts, types.WithQuestionData(questionData))
-	}
-	if authorUserID != nil {
-		opts = append(opts, types.WithAuthorUserID(*authorUserID))
-	}
-	if strings.TrimSpace(authorFirstName) != "" || strings.TrimSpace(authorLastName) != "" {
-		opts = append(opts, types.WithAuthorName(authorFirstName, authorLastName))
-	}
-
-	return types.NewMessage(opts...), nil
+	return r.hydrateMessageModel(ctx, tenantID, &model)
 }
 
 // Attachment operations

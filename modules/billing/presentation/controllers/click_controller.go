@@ -1,3 +1,4 @@
+// Package controllers provides this package.
 package controllers
 
 import (
@@ -122,7 +123,7 @@ func (c *ClickController) Prepare(
 				SetMerchantPrepareID(entity.CreatedAt().Unix()).
 				SetPaymentID(dto.ClickTransId).
 				SetPaymentStatus(dto.Action).
-				SetPayDocId(dto.ClickPaydocId).
+				SetPayDocID(dto.ClickPaydocId).
 				SetErrorCode(dto.Error).
 				SetErrorNote(dto.ErrorNote).
 				SetSignTime(dto.SignTime).

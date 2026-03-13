@@ -1,3 +1,4 @@
+// Package tenant provides this package.
 package tenant
 
 import (
@@ -100,11 +101,16 @@ func WithEmail(e internet.Email) Option {
 
 func New(name string, opts ...Option) Tenant {
 	t := &tenant{
-		id:        uuid.New(),
-		name:      name,
-		isActive:  true,
-		createdAt: time.Now(),
-		updatedAt: time.Now(),
+		id:            uuid.New(),
+		name:          name,
+		domain:        "",
+		phone:         nil,
+		email:         nil,
+		isActive:      true,
+		logoID:        nil,
+		logoCompactID: nil,
+		createdAt:     time.Now(),
+		updatedAt:     time.Now(),
 	}
 	for _, opt := range opts {
 		opt(t)

@@ -1,0 +1,157 @@
+---
+title: 'Subscription Package'
+description: 'Generic subscription and entitlement management for multi-tenant apps'
+---
+
+# Subscription Package
+
+`pkg/subscription` provides feature flags, entity limits, seat limits, grace periods, and Stripe entitlement sync for multi-tenant ERP applications.
+
+## Initialization
+
+```go
+import (
+  "github.com/iota-uz/iota-sdk/pkg/subscription"
+)
+
+cfg := subscription.Config{
+  DefaultPlan: "FREE",
+  Plans: []subscription.PlanDefinition{
+    {
+      PlanID: "FREE",
+      DisplayName: "Free",
+      Features: []string{"core_access"},
+      EntityLimits: map[string]int{"drivers": 50},
+    },
+    {
+      PlanID: "PRO",
+      DisplayName: "Pro",
+      ParentPlanID: "FREE",
+      Features: []string{"shyona_access"},
+      EntityLimits: map[string]int{"drivers": -1},
+    },
+  },
+}
+
+svc, err := subscription.NewService(cfg)
+if err != nil {
+  panic(err)
+}
+
+app.RegisterServices(svc)
+```
+
+## Middleware
+
+```go
+import "github.com/iota-uz/iota-sdk/pkg/subscription"
+
+router.Use(subscription.RequireFeature(svc, subscription.FeatureKey("core_access")))
+router.Use(subscription.RequirePlan(svc, "FREE", "PRO"))
+router.Use(subscription.EnforceLimit(svc, "drivers"))
+```
+
+## Repository-Backed Middleware Bridge
+
+For Stripe-driven entitlement changes that are written to PostgreSQL, use the
+bridge evaluator so middleware reads current repository state instead of only
+in-memory grants:
+
+```go
+import (
+  "github.com/iota-uz/iota-sdk/pkg/subscription"
+  subbridge "github.com/iota-uz/iota-sdk/pkg/subscription/bridge"
+)
+
+repoEvaluator, err := subbridge.NewEvaluator(cfg, subscriptionRepo)
+if err != nil {
+  panic(err)
+}
+
+router.Use(subscription.RequireFeature(repoEvaluator, "core_access"))
+router.Use(subscription.RequirePlan(repoEvaluator, "FREE", "PRO"))
+router.Use(subscription.EnforceLimit(repoEvaluator, "drivers"))
+```
+
+## Service-Layer Checks
+
+```go
+subject := subscription.Subject{
+  Scope: subscription.ScopeTenant,
+  ID: tenantID,
+}
+
+quota, err := subscription.NewQuotaKey("drivers", "", subscription.WindowNone)
+if err != nil {
+  return err
+}
+
+result, err := svc.EvaluateLimit(
+  ctx,
+  subject,
+  quota,
+)
+if err != nil {
+  return err
+}
+if !result.Allowed {
+  return subscription.LimitExceededError{
+    Quota: quota,
+    Current: result.Current,
+    Limit: result.Limit,
+  }
+}
+```
+
+## Stripe Webhook Sync
+
+Use `pkg/subscription/stripe` to process Stripe entitlement and billing lifecycle events:
+
+```go
+import substripe "github.com/iota-uz/iota-sdk/pkg/subscription/stripe"
+
+stripeSync, err := substripe.NewService(
+  substripe.Config{
+    SecretKey: stripeSecret,
+    GracePeriodDays: 7,
+    DefaultPlan: "FREE",
+  },
+  subscriptionRepo,
+  nil, // cache invalidator (optional; implement stripe.CacheInvalidator if needed)
+  nil, // use default stripe client
+)
+if err != nil {
+  panic(err)
+}
+```
+
+`stripeSync.HandleStripeEvent(ctx, event)` supports:
+- `entitlements.active_entitlement_summary.updated`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_succeeded`
+- `invoice.payment_failed`
+
+## UI Components
+
+Reusable Templ components live in `pkg/subscription/ui/components`:
+- `UsageBar`
+- `PlanBadge`
+- `UpgradePrompt`
+- `LimitWarning`
+- `PlanComparison`
+
+## Testing
+
+Use `pkg/subscription/testing.NewMockEngine()` in module tests.
+
+## Migration Notes
+
+Migration `migrations/changes-1772374064.sql` creates:
+- `subscription_entitlements`
+- `subscription_entity_counts`
+- `subscription_plans`
+- `subscription_webhook_events`
+
+The application seed flow backfills tenants with a default `FREE` entitlement row and initializes `current_seats` from the current tenant user count.

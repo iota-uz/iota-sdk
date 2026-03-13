@@ -1,3 +1,4 @@
+// Package bichat contains sub-agent configuration and registration utilities.
 package bichat
 
 import (

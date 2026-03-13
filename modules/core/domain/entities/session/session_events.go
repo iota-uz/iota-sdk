@@ -1,3 +1,4 @@
+// Package session provides this package.
 package session
 
 func NewCreatedEvent(data Session) (*CreatedEvent, error) {
@@ -8,7 +9,8 @@ func NewCreatedEvent(data Session) (*CreatedEvent, error) {
 
 func NewUpdatedEvent(data Session) (*UpdatedEvent, error) {
 	return &UpdatedEvent{
-		Data: data,
+		Data:   data,
+		Result: data,
 	}, nil
 }
 

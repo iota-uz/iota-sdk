@@ -1,3 +1,4 @@
+// Package streaming provides this package.
 package streaming
 
 import (
@@ -52,6 +53,12 @@ func (r *ActiveRun) RemoveSubscriber(ch chan bichatservices.StreamChunk) {
 	r.Mu.Lock()
 	defer r.Mu.Unlock()
 	delete(r.subscribers, ch)
+}
+
+func (r *ActiveRun) SubscriberCount() int {
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
+	return len(r.subscribers)
 }
 
 func (r *ActiveRun) Broadcast(chunk bichatservices.StreamChunk) {
@@ -143,4 +150,22 @@ func (reg *RunRegistry) GetByRun(runID uuid.UUID) *ActiveRun {
 	reg.mu.RLock()
 	defer reg.mu.RUnlock()
 	return reg.byRun[runID]
+}
+
+func (reg *RunRegistry) ActiveRuns() int {
+	reg.mu.RLock()
+	defer reg.mu.RUnlock()
+	return len(reg.byRun)
+}
+
+func (reg *RunRegistry) ActiveSubscribers() int {
+	reg.mu.RLock()
+	defer reg.mu.RUnlock()
+
+	total := 0
+	for _, run := range reg.byRun {
+		total += run.SubscriberCount()
+	}
+
+	return total
 }

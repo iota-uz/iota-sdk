@@ -1,3 +1,4 @@
+// Package export provides this package.
 package export
 
 import (
@@ -174,9 +175,9 @@ func (t *ExportQueryToExcelTool) CallStructured(ctx context.Context, input strin
 		filename += ".xlsx"
 	}
 
-	querySql := applyRowLimit(params.SQL, 50000)
+	querySQL := applyRowLimit(params.SQL, 50000)
 
-	result, err := t.executor.ExecuteQuery(ctx, querySql, nil, 60*time.Second)
+	result, err := t.executor.ExecuteQuery(ctx, querySQL, nil, 60*time.Second)
 	if err != nil {
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,

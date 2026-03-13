@@ -1,3 +1,4 @@
+// Package client1c provides this package.
 package client1c
 
 import (

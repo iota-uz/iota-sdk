@@ -1,3 +1,4 @@
+// Package viewmodels provides this package.
 package viewmodels
 
 import (
@@ -44,7 +45,7 @@ func (t CounterpartyType) String() string {
 	return string(t)
 }
 
-func (t CounterpartyType) LocalizedString(pageCtx types.PageContextProvider) string {
+func (t CounterpartyType) LocalizedString(pageCtx types.PageContext) string {
 	key := "Counterparties.Types." + string(t)
 	return pageCtx.T(key)
 }
@@ -65,7 +66,7 @@ func (l CounterpartyLegalType) String() string {
 	return string(l)
 }
 
-func (l CounterpartyLegalType) LocalizedString(pageCtx types.PageContextProvider) string {
+func (l CounterpartyLegalType) LocalizedString(pageCtx types.PageContext) string {
 	key := "Counterparties.LegalTypes." + string(l)
 	return pageCtx.T(key)
 }

@@ -1,3 +1,4 @@
+// Package telegram provides this package.
 package telegram
 
 import (

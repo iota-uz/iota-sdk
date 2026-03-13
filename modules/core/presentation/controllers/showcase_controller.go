@@ -18,18 +18,23 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	showcase "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
+	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type ShowcaseController struct {
 	app      application.Application
 	basePath string
-	ds       lens.DataSource
+	ds       datasource.DataSource
 }
 
 func NewShowcaseController(app application.Application) application.Controller {
@@ -39,6 +44,7 @@ func NewShowcaseController(app application.Application) application.Controller {
 		MaxConnections:   5,
 		MinConnections:   1,
 		QueryTimeout:     30 * time.Second,
+		RequiredParams:   []string{"tenant_id"},
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for showcase: %v", err)
@@ -67,6 +73,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/components/loaders", di.H(c.Loaders)).Methods(http.MethodGet)
 	router.HandleFunc("/components/charts", di.H(c.Charts)).Methods(http.MethodGet)
 	router.HandleFunc("/components/tooltips", di.H(c.Tooltips)).Methods(http.MethodGet)
+	router.HandleFunc("/components/subscription", di.H(c.Subscription)).Methods(http.MethodGet)
 	router.HandleFunc("/lens", di.H(c.Lens)).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/403", di.H(c.Error403Page)).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/404", di.H(c.Error404Page)).Methods(http.MethodGet)
@@ -94,6 +101,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 				sidebar.NewLink(fmt.Sprintf("%s/components/loaders", c.basePath), "Loaders", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/tooltips", c.basePath), "Tooltips", nil),
+				sidebar.NewLink(fmt.Sprintf("%s/components/subscription", c.basePath), "Subscription", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/kanban", c.basePath), "Kanban", nil),
 			},
@@ -201,38 +209,77 @@ func (c *ShowcaseController) Tooltips(
 	templ.Handler(showcase.TooltipsPage(props)).ServeHTTP(w, r)
 }
 
+func (c *ShowcaseController) Subscription(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	props := showcase.IndexPageProps{
+		SidebarProps: c.getSidebarProps(),
+	}
+	templ.Handler(showcase.SubscriptionPage(props)).ServeHTTP(w, r)
+}
+
 func (c *ShowcaseController) Lens(
 	r *http.Request,
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	dash := lens.NewDashboard("IOTA SDK Core Analytics",
-		lens.NewRow(
-			lens.Line("user-registrations", "User Registrations Over Time").
-				Query("SELECT DATE(created_at) as label, COUNT(*)::float as value FROM users WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label").
-				Span(6).Build(),
-			lens.Bar("user-languages", "User Interface Languages").
-				Query("SELECT ui_language as label, COUNT(*)::float as value FROM users GROUP BY ui_language ORDER BY value DESC").
-				Span(6).Build(),
+	params := tenantParams(r)
+	dash := lensbuild.Dashboard("sdk-core-analytics", "IOTA SDK Core Analytics",
+		lensbuild.Row(
+			panel.TimeSeries("user-registrations", "User Registrations Over Time", "user-registrations").Span(6).Build(),
+			panel.Bar("user-languages", "User Interface Languages", "user-languages").Span(6).Build(),
 		),
-		lens.NewRow(
-			lens.Pie("user-types", "User Type Distribution").
-				Query("SELECT type as label, COUNT(*)::float as value FROM users GROUP BY type").
-				Legend().Span(4).Build(),
-			lens.Gauge("session-activity", "Active Sessions").
-				Query("SELECT COUNT(*)::float as value FROM sessions WHERE expires_at > NOW()").
-				Colors("#f59e0b").Span(4).Build(),
-			lens.Table("recent-users", "Recently Registered Users").
-				Query("SELECT first_name, last_name, email, ui_language, created_at FROM users ORDER BY created_at DESC LIMIT 10").
-				Span(4).Build(),
+		lensbuild.Row(
+			panel.Pie("user-types", "User Type Distribution", "user-types").Legend().Span(4).Build(),
+			panel.Gauge("session-activity", "Active Sessions", "session-activity").Span(4).Build(),
+			panel.Table("recent-users", "Recently Registered Users", "recent-users").Span(4).Build(),
 		),
-	)
+	).Datasets(
+		queryDatasetWithParams(
+			"user-registrations",
+			"SELECT DATE(created_at) as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id AND created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY label",
+			params,
+		),
+		queryDatasetWithParams(
+			"user-languages",
+			"SELECT ui_language as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id GROUP BY ui_language ORDER BY value DESC",
+			params,
+		),
+		queryDatasetWithParams(
+			"user-types",
+			"SELECT type as label, COUNT(*)::float8 as value FROM users WHERE tenant_id = @tenant_id GROUP BY type",
+			params,
+		),
+		queryDatasetWithParams(
+			"session-activity",
+			"SELECT COUNT(*)::float8 as value FROM sessions WHERE tenant_id = @tenant_id AND expires_at > NOW()",
+			params,
+		),
+		queryDatasetWithParams(
+			"recent-users",
+			"SELECT first_name, last_name, email, ui_language, created_at FROM users WHERE tenant_id = @tenant_id ORDER BY created_at DESC LIMIT 10",
+			params,
+		),
+	).Build()
 
-	var results *lens.Results
-	if c.ds != nil {
+	var results *runtime.DashboardResult
+	if params == nil {
+		logger.Warn("skipping lens showcase dashboard execution because tenant context is missing")
+	} else if c.ds != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		results = lens.Execute(ctx, c.ds, dash)
+		executed, err := runtime.Execute(ctx, dash, runtime.Runtime{
+			DataSources: map[string]datasource.DataSource{
+				"primary": c.ds,
+			},
+		})
+		if err != nil {
+			logger.WithError(err).Error("failed to execute lens showcase dashboard")
+		} else {
+			results = executed
+		}
 	}
 
 	props := showcase.LensPageProps{
@@ -241,6 +288,24 @@ func (c *ShowcaseController) Lens(
 		Results:      results,
 	}
 	templ.Handler(showcase.LensPage(props)).ServeHTTP(w, r)
+}
+
+func tenantParams(r *http.Request) map[string]lens.ParamValue {
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return nil
+	}
+	return map[string]lens.ParamValue{
+		"tenant_id": {Literal: tenantID},
+	}
+}
+
+func queryDatasetWithParams(name, text string, params map[string]lens.ParamValue) lens.DatasetSpec {
+	spec := lensbuild.QueryDataset(name, "primary", text)
+	if spec.Query != nil {
+		spec.Query.Params = params
+	}
+	return spec
 }
 
 func (c *ShowcaseController) Error403Page(

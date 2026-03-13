@@ -1,3 +1,4 @@
+// Package graphql provides this package.
 package graphql
 
 import (
@@ -72,7 +73,7 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 	if err != nil {
 		gqlErr := gqlerror.Errorf("could not read request body: %+v", err)
 		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-		writeJson(w, resp)
+		writeJSON(w, resp)
 		return
 	}
 
@@ -85,14 +86,14 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 			string(bodyBytes),
 		)
 		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-		writeJson(w, resp)
+		writeJSON(w, resp)
 		return
 	}
 
 	execsLen := len(execs)
 	if shouldMergeIntrospection(params, execsLen) {
 		if mergedResp, ok := mergeIntrospectionResponses(ctx, execs, params); ok {
-			writeJson(w, mergedResp)
+			writeJSON(w, mergedResp)
 			return
 		}
 	}
@@ -107,13 +108,13 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 			}
 			w.WriteHeader(statusFor(opErr))
 			resp := ex.DispatchError(graphql.WithOperationContext(ctx, rc), opErr)
-			writeJson(w, resp)
+			writeJSON(w, resp)
 			return
 		}
 
 		var responses graphql.ResponseHandler
 		responses, ctx = ex.DispatchOperation(ctx, rc)
-		writeJson(w, responses(ctx))
+		writeJSON(w, responses(ctx))
 		return
 	}
 
@@ -121,14 +122,14 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 	if lastErr != nil {
 		w.WriteHeader(statusFor(lastErr))
 		resp := exec.DispatchError(ctx, lastErr)
-		writeJson(w, resp)
+		writeJSON(w, resp)
 		return
 	}
 
 	// Fallback to a generic error to avoid empty responses
 	gqlErr := gqlerror.Errorf("no executable schema matched the operation")
 	resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
-	writeJson(w, resp)
+	writeJSON(w, resp)
 }
 
 func shouldMergeIntrospection(params *graphql.RawParams, execsLen int) bool {
@@ -434,7 +435,7 @@ func writeHeaders(w http.ResponseWriter, headers map[string][]string) {
 	}
 }
 
-func writeJson(w io.Writer, response *graphql.Response) {
+func writeJSON(w io.Writer, response *graphql.Response) {
 	b, err := json.Marshal(response)
 	if err != nil {
 		panic(fmt.Errorf("unable to marshal %s: %w", string(response.Data), err))

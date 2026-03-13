@@ -216,7 +216,7 @@ func SidebarTrigger(class string) templ.Component {
 	})
 }
 
-func Navbar(pageCtx types.PageContextProvider, navbarLeft templ.Component) templ.Component {
+func Navbar(pageCtx types.PageContext, navbarLeft templ.Component) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -624,7 +624,7 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" @sidebar-toggle=\"sidebarCollapsed = !sidebarCollapsed\" class=\"flex min-h-screen w-full\"><div class=\"hidden lg:block flex-shrink-0\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" @sidebar-toggle=\"sidebarCollapsed = !sidebarCollapsed\" class=\"flex min-h-screen sdk-min-h-dvh w-full\"><div class=\"hidden lg:block flex-shrink-0\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -632,7 +632,7 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div><div class=\"flex-1 flex flex-col h-screen overflow-hidden\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div><div class=\"flex-1 flex flex-col h-screen sdk-h-dvh overflow-hidden\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

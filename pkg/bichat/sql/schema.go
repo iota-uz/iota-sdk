@@ -1,3 +1,4 @@
+// Package sql provides this package.
 package sql
 
 import (

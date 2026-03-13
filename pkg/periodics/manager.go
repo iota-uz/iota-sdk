@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	sdkcomposables "github.com/iota-uz/iota-sdk/pkg/composables"
-	sdkconstants "github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
@@ -16,24 +16,27 @@ import (
 
 // manager implements the Manager interface
 type manager struct {
-	cron     *cron.Cron
-	logger   *logrus.Logger
-	metrics  *MetricsCollector
-	pool     *pgxpool.Pool
-	tenantID uuid.UUID
-	mu       sync.RWMutex
-	tasks    map[string]PeriodicTask
+	cron          *cron.Cron
+	logger        *logrus.Logger
+	metrics       *MetricsCollector
+	pool          *pgxpool.Pool
+	tenantID      uuid.UUID
+	mu            sync.RWMutex
+	tasks         map[string]PeriodicTask
+	taskEntryIDs  map[string]cron.EntryID
+	disabledTasks []RegisteredTask
 }
 
 // NewManager creates a new periodic task manager
 func NewManager(logger *logrus.Logger, pool *pgxpool.Pool, tenantID uuid.UUID) Manager {
 	return &manager{
-		cron:     nil, // Will be initialized in Start()
-		logger:   logger,
-		metrics:  NewMetricsCollector(logger),
-		pool:     pool,
-		tenantID: tenantID,
-		tasks:    make(map[string]PeriodicTask),
+		cron:         nil, // Will be initialized in Start()
+		logger:       logger,
+		metrics:      NewMetricsCollector(logger),
+		pool:         pool,
+		tenantID:     tenantID,
+		tasks:        make(map[string]PeriodicTask),
+		taskEntryIDs: make(map[string]cron.EntryID),
 	}
 }
 
@@ -87,37 +90,22 @@ func (m *manager) Start() error {
 	m.cron.Start()
 	m.logger.WithField("tasks_count", len(m.tasks)).Info("Periodic task manager started")
 
-	// Execute tasks that should run on startup
+	// Execute tasks that should run on startup using the same wrapper chain as cron
 	for _, task := range m.tasks {
 		if task.RunOnStart() {
-			go func(t PeriodicTask) {
-				// Recover from panics to prevent crashing the entire application
+			executor := m.buildWrappedExecutor(task)
+			go func(taskName string, exec func()) {
 				defer func() {
 					if r := recover(); r != nil {
 						m.logger.WithFields(logrus.Fields{
-							"task":  t.Name(),
+							"task":  taskName,
 							"panic": r,
-						}).Error("Panic recovered in periodic task startup")
+						}).Error("Startup task panicked")
 					}
 				}()
-
-				taskName := t.Name()
 				m.logger.WithField("task", taskName).Info("Running periodic task on startup")
-
-				ctx := context.Background()
-				ctx = sdkcomposables.WithPool(ctx, m.pool)
-				ctx = sdkcomposables.WithTenantID(ctx, m.tenantID)
-				ctx = context.WithValue(ctx, sdkconstants.LoggerKey, m.logger.WithField("task", taskName))
-
-				if err := t.Execute(ctx); err != nil {
-					m.logger.WithFields(logrus.Fields{
-						"task":  taskName,
-						"error": err,
-					}).Error("Periodic task failed on startup")
-				} else {
-					m.logger.WithField("task", taskName).Info("Periodic task completed successfully on startup")
-				}
-			}(task)
+				exec()
+			}(task.Name(), executor)
 		}
 	}
 
@@ -156,21 +144,31 @@ func (m *manager) IsRunning() bool {
 	return m.cron != nil
 }
 
-// GetEntries returns all registered cron entries
-func (m *manager) GetEntries() []cron.Entry {
+// GetEntries returns all registered scheduled entries
+func (m *manager) GetEntries() []Entry {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if m.cron == nil {
-		return []cron.Entry{}
+		return []Entry{}
 	}
 
-	return m.cron.Entries()
+	cronEntries := m.cron.Entries()
+	entries := make([]Entry, len(cronEntries))
+	for i, e := range cronEntries {
+		entries[i] = Entry{
+			ID:   int(e.ID),
+			Next: e.Next,
+			Prev: e.Prev,
+		}
+	}
+	return entries
 }
 
-// addTaskToCron adds a single task to the cron scheduler
-func (m *manager) addTaskToCron(task PeriodicTask) error {
-	config := task.Config()
+// buildWrappedExecutor creates a fully wrapped execution function for a task.
+// Both addTaskToCron and startup use this to ensure the same wrapper chain is applied.
+func (m *manager) buildWrappedExecutor(task PeriodicTask) func() {
+	config := mergeWithDefaults(task.Config())
 	taskName := task.Name()
 
 	// Create the job wrapper chain
@@ -180,7 +178,7 @@ func (m *manager) addTaskToCron(task PeriodicTask) error {
 	}
 
 	// Add skip if running wrapper (if enabled)
-	if config.EnableSkipIfRunning {
+	if config.EnableSkipIfRunning != nil && *config.EnableSkipIfRunning {
 		wrappers = append(wrappers, cron.SkipIfStillRunning(cron.VerbosePrintfLogger(m.logger)))
 	}
 
@@ -188,7 +186,7 @@ func (m *manager) addTaskToCron(task PeriodicTask) error {
 	wrappers = append(wrappers, TimeoutWrapper(config.Timeout, m.logger))
 
 	// Add retry wrapper
-	wrappers = append(wrappers, RetryWrapper(config.MaxRetries, config.RetryDelay, m.logger))
+	wrappers = append(wrappers, RetryWrapper(*config.MaxRetries, config.RetryDelay, m.logger))
 
 	// Add metrics wrapper
 	wrappers = append(wrappers, MetricsWrapper(taskName, m.metrics))
@@ -201,40 +199,77 @@ func (m *manager) addTaskToCron(task PeriodicTask) error {
 
 	// Create the job that will execute the task
 	job := cron.FuncJob(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
-		defer cancel()
+		// No context.WithTimeout here — TimeoutWrapper already handles it
+		ctx := context.Background()
 
 		// Add database pool, tenant ID, and logger to context for task execution
-		ctx = sdkcomposables.WithPool(ctx, m.pool)
-		ctx = sdkcomposables.WithTenantID(ctx, m.tenantID)
-		ctx = context.WithValue(ctx, sdkconstants.LoggerKey, m.logger.WithField("task", taskName))
+		ctx = composables.WithPool(ctx, m.pool)
+		ctx = composables.WithTenantID(ctx, m.tenantID)
+		ctx = context.WithValue(ctx, constants.LoggerKey, m.logger.WithField("task", taskName))
 
 		if err := task.Execute(ctx); err != nil {
-			m.logger.WithFields(logrus.Fields{
-				"task":  taskName,
-				"error": err,
-			}).Error("Periodic task failed")
-			// Recovery wrapper will handle any panics
-			// No need to panic here - just log the error
+			panic(fmt.Errorf("task execution failed: %w", err))
 		}
 	})
 
 	// Wrap the job with the chain
 	wrappedJob := chain.Then(job)
 
+	return wrappedJob.Run
+}
+
+// addTaskToCron adds a single task to the cron scheduler
+func (m *manager) addTaskToCron(task PeriodicTask) error {
+	executor := m.buildWrappedExecutor(task)
+
 	// Add to cron
-	entryID, err := m.cron.AddJob(task.Schedule(), wrappedJob)
+	entryID, err := m.cron.AddJob(task.Schedule(), cron.FuncJob(executor))
 	if err != nil {
 		return fmt.Errorf("failed to schedule task: %w", err)
 	}
 
+	m.taskEntryIDs[task.Name()] = entryID
+
 	m.logger.WithFields(logrus.Fields{
-		"task":     taskName,
+		"task":     task.Name(),
 		"schedule": task.Schedule(),
 		"entry_id": entryID,
 	}).Info("Periodic task scheduled")
 
 	return nil
+}
+
+// GetTaskScheduleInfo returns scheduling information for all tasks, keyed by task name.
+func (m *manager) GetTaskScheduleInfo() map[string]TaskScheduleInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[string]TaskScheduleInfo)
+	if m.cron == nil {
+		return result
+	}
+
+	entries := m.cron.Entries()
+	entryMap := make(map[cron.EntryID]cron.Entry)
+	for _, e := range entries {
+		entryMap[e.ID] = e
+	}
+
+	for taskName, entryID := range m.taskEntryIDs {
+		if e, ok := entryMap[entryID]; ok {
+			result[taskName] = TaskScheduleInfo{
+				Next: e.Next,
+				Prev: e.Prev,
+			}
+		}
+	}
+	return result
+}
+
+// SubscribeMetrics returns a channel that receives events when task metrics change,
+// and an unsubscribe function to stop receiving events and close the channel.
+func (m *manager) SubscribeMetrics() (<-chan TaskMetricEvent, func()) {
+	return m.metrics.Subscribe()
 }
 
 // GetMetrics returns performance metrics for all tasks
@@ -245,4 +280,49 @@ func (m *manager) GetMetrics() map[string]*TaskMetrics {
 // LogHealthReport logs a health report for all tasks
 func (m *manager) LogHealthReport() {
 	m.metrics.LogHealthReport()
+}
+
+// AddDisabledTaskInfo registers metadata for a disabled task so it appears in monitoring.
+// It silently ignores duplicates and conflicts with already-enabled tasks.
+func (m *manager) AddDisabledTaskInfo(name, schedule string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check for conflict with enabled tasks
+	if _, exists := m.tasks[name]; exists {
+		m.logger.WithField("task", name).Warn("AddDisabledTaskInfo called for an already-enabled task, ignoring")
+		return
+	}
+
+	// Check for duplicate in disabled tasks
+	for _, dt := range m.disabledTasks {
+		if dt.Name == name {
+			m.logger.WithField("task", name).Warn("AddDisabledTaskInfo called with duplicate name, ignoring")
+			return
+		}
+	}
+
+	m.disabledTasks = append(m.disabledTasks, RegisteredTask{
+		Name:     name,
+		Schedule: schedule,
+		Enabled:  false,
+	})
+}
+
+// GetRegisteredTasks returns information about all registered tasks (both enabled and disabled).
+func (m *manager) GetRegisteredTasks() []RegisteredTask {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	tasks := make([]RegisteredTask, 0, len(m.tasks)+len(m.disabledTasks))
+	for _, task := range m.tasks {
+		tasks = append(tasks, RegisteredTask{
+			Name:       task.Name(),
+			Schedule:   task.Schedule(),
+			RunOnStart: task.RunOnStart(),
+			Enabled:    true,
+		})
+	}
+	tasks = append(tasks, m.disabledTasks...)
+	return tasks
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -21,7 +22,15 @@ type EditFormProps struct {
 
 templ EditForm(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
+	<form
+		id="save-form"
+		class="flex flex-col justify-between h-[calc(100vh-4rem)]"
+		method="post"
+		hx-post={ fmt.Sprintf("/roles/%s", props.Role.ID) }
+		hx-indicator="#save-btn"
+		hx-swap="outerHTML"
+	>
+		@composables.CSRFTokenField()
 		<div class="flex-1 overflow-y-auto flex flex-col gap-5 p-4 md:p-6">
 			@card.Card(card.Props{
 				Class: "space-y-3",
@@ -32,7 +41,6 @@ templ EditForm(props *EditFormProps) {
 					Attrs: templ.Attributes{
 						"name":         "Name",
 						"value":        props.Role.Name,
-						"form":         "save-form",
 						"data-test-id": "role-name-input",
 					},
 					Error: props.Errors["Name"],
@@ -42,7 +50,6 @@ templ EditForm(props *EditFormProps) {
 					Placeholder: pageCtx.T("Roles.Single._Description.Placeholder"),
 					Attrs: templ.Attributes{
 						"name":         "Description",
-						"form":         "save-form",
 						"rows":         "4",
 						"data-test-id": "role-description-input",
 					},
@@ -100,21 +107,11 @@ templ EditForm(props *EditFormProps) {
 			x-data
 			class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
-			<form
-				id="delete-form"
-				hx-delete={ fmt.Sprintf("/roles/%s", props.Role.ID) }
-				hx-trigger="submit"
-				hx-target="closest .content"
-				hx-swap="innerHTML"
-				hx-indicator="#delete-role-btn"
-				hx-disabled-elt="find button"
-			>
+			if composables.CanUser(ctx, permissions.RoleDelete) == nil {
 				@button.Danger(button.Props{
 					Disabled: !props.Role.CanDelete,
 					Size:     button.SizeMD,
 					Attrs: templ.Attributes{
-						"name":         "_action",
-						"value":        "delete",
 						"type":         "button",
 						"@click":       "$dispatch('open-delete-role-confirmation')",
 						"id":           "delete-role-btn",
@@ -123,30 +120,22 @@ templ EditForm(props *EditFormProps) {
 				}) {
 					{ pageCtx.T("Delete") }
 				}
-			</form>
-			<form
-				id="save-form"
-				method="post"
-				hx-post={ fmt.Sprintf("/roles/%s", props.Role.ID) }
-				hx-indicator="#save-btn"
-				hx-target="#edit-content"
-				hx-swap="outerHTML"
-			>
+			}
+			if composables.CanUser(ctx, permissions.RoleUpdate) == nil {
 				@button.Primary(button.Props{
 					Disabled: !props.Role.CanUpdate,
 					Size:     button.SizeMD,
 					Attrs: templ.Attributes{
-						"name":         "_action",
-						"value":        "save",
+						"type":         "submit",
 						"id":           "save-btn",
 						"data-test-id": "save-role-btn",
 					},
 				}) {
 					{ pageCtx.T("Save") }
 				}
-			</form>
+			}
 		</div>
-	</div>
+	</form>
 }
 
 templ Edit(props *EditFormProps) {
@@ -155,6 +144,18 @@ templ Edit(props *EditFormProps) {
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Roles.Meta.Edit.Title")},
 	}) {
 		@EditForm(props)
+		<form
+			id="delete-form"
+			hx-delete={ fmt.Sprintf("/roles/%s", props.Role.ID) }
+			hx-trigger="submit"
+			hx-target="closest .content"
+			hx-swap="innerHTML"
+			hx-indicator="#delete-role-btn"
+			hx-disabled-elt="find button"
+			class="hidden"
+		>
+			@composables.CSRFTokenField()
+		</form>
 		@dialog.Confirmation(&dialog.Props{
 			Heading:     pageCtx.T("Roles.Single.Delete"),
 			Text:        pageCtx.T("Roles.Single.DeleteConfirmation"),

@@ -1,3 +1,4 @@
+// Package commands provides this package.
 package commands
 
 import (
@@ -55,16 +56,10 @@ func CollectLogs(ctx context.Context, options ...func(*LogCollector)) error {
 
 	defaultLabels := []string{
 		"level",
-		"request-id",
-		"path",
-		"method",
-		"host",
-		"ip",
+		// Keep only low-cardinality labels to avoid stream explosion in Loki.
+		// High-cardinality fields (request-id, path, host, ip, user-agent, trace ids, etc.)
+		// remain in the log payload and can still be queried with |= in LogQL.
 		"completed",
-		"user-agent",
-		"trace-id",
-		"span-id",
-		"status-code",
 		"status-class",
 	}
 

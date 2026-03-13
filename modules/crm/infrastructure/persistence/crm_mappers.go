@@ -1,3 +1,4 @@
+// Package persistence provides this package.
 package persistence
 
 import (
@@ -221,12 +222,16 @@ func ToDomainChat(dbRow *models.Chat, messages []chat.Message, members []chat.Me
 
 func ToDBChatMember(chatID uint, entity chat.Member) *models.ChatMember {
 	dbRow := &models.ChatMember{
-		ID:        entity.ID().String(),
-		TenantID:  entity.TenantID().String(),
-		ChatID:    chatID,
-		Transport: string(entity.Transport()),
-		CreatedAt: entity.CreatedAt(),
-		UpdatedAt: entity.UpdatedAt(),
+		ID:              entity.ID().String(),
+		TenantID:        entity.TenantID().String(),
+		ChatID:          chatID,
+		UserID:          sql.NullInt32{},
+		ClientID:        sql.NullInt32{},
+		ClientContactID: sql.NullInt32{},
+		Transport:       string(entity.Transport()),
+		TransportMeta:   nil,
+		CreatedAt:       entity.CreatedAt(),
+		UpdatedAt:       entity.UpdatedAt(),
 	}
 	switch v := entity.Sender().(type) {
 	case chat.ClientSender:
@@ -353,6 +358,7 @@ func ToDomainMessageTemplate(dbTemplate *models.MessageTemplate) (messagetemplat
 func ToDBMessageTemplate(domainTemplate messagetemplate.MessageTemplate) *models.MessageTemplate {
 	return &models.MessageTemplate{
 		ID:        domainTemplate.ID(),
+		TenantID:  "",
 		Template:  domainTemplate.Template(),
 		CreatedAt: domainTemplate.CreatedAt(),
 	}

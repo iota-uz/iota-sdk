@@ -1,3 +1,4 @@
+// Package internet provides this package.
 package internet
 
 import (

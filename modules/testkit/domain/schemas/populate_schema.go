@@ -1,3 +1,4 @@
+// Package schemas provides this package.
 package schemas
 
 import (

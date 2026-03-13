@@ -19,7 +19,7 @@ type TableDefinition struct {
 	sortable             bool
 }
 
-// Getter methods for accessing table definition properties
+// Title returns the title from the table definition.
 func (td TableDefinition) Title() string {
 	return td.title
 }

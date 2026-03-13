@@ -1,3 +1,4 @@
+// Package di provides this package.
 package di
 
 import (
@@ -5,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"sync"
 )
 
 // Invoke creates a generic DI function that can be used for any function type
@@ -22,37 +24,55 @@ func H(handler interface{}, customProviders ...Provider) http.HandlerFunc {
 // DIContext holds context for dependency injection
 type DIContext struct {
 	customProviders  []Provider
+	allProviders     []Provider
 	matchedProviders map[reflect.Type]Provider
+	mu               sync.RWMutex
 }
 
 // NewDIContext creates a new DIContext with custom providers
 func NewDIContext(customProviders ...Provider) *DIContext {
+	allProviders := append([]Provider{}, customProviders...)
+	allProviders = append(allProviders, BuiltinProviders()...)
+
 	return &DIContext{
 		customProviders:  customProviders,
+		allProviders:     allProviders,
 		matchedProviders: make(map[reflect.Type]Provider),
 	}
 }
 
-// provideValue resolves a single dependency value for a given type
-func (d *DIContext) provideValue(argType reflect.Type, ctx context.Context) (reflect.Value, error) {
-	// Check if we have already matched this type
+func (d *DIContext) resolveProvider(argType reflect.Type) (Provider, error) {
+	d.mu.RLock()
 	provider, ok := d.matchedProviders[argType]
-	if !ok {
-		// Find a provider for this type
-		allProviders := append(d.customProviders, BuiltinProviders()...)
-		for _, p := range allProviders {
-			if p.Ok(argType) {
-				provider = p
-				d.matchedProviders[argType] = p
-				break
-			}
-		}
+	d.mu.RUnlock()
+	if ok {
+		return provider, nil
+	}
 
-		if provider == nil {
-			return reflect.Value{}, fmt.Errorf("no provider found for type: %v", argType)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Re-check after upgrading to write lock.
+	if provider, ok = d.matchedProviders[argType]; ok {
+		return provider, nil
+	}
+
+	for _, p := range d.allProviders {
+		if p.Ok(argType) {
+			d.matchedProviders[argType] = p
+			return p, nil
 		}
 	}
 
+	return nil, fmt.Errorf("no provider found for type: %v", argType)
+}
+
+// provideValue resolves a single dependency value for a given type
+func (d *DIContext) provideValue(argType reflect.Type, ctx context.Context) (reflect.Value, error) {
+	provider, err := d.resolveProvider(argType)
+	if err != nil {
+		return reflect.Value{}, err
+	}
 	return provider.Provide(argType, ctx)
 }
 
@@ -93,40 +113,33 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 	}
 
 	// Precompute if we have direct HTTP injections
-	hasHttpRequestArg := make([]bool, numArgs)
-	hasHttpWriterArg := make([]bool, numArgs)
+	hasHTTPRequestArg := make([]bool, numArgs)
+	hasHTTPWriterArg := make([]bool, numArgs)
 	writerInterface := reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
+	resolvedProviders := make([]Provider, numArgs)
 
 	for i, argType := range argTypes {
 		// Check for direct *http.Request injection
 		if argType == reflect.TypeOf((*http.Request)(nil)) {
-			hasHttpRequestArg[i] = true
+			hasHTTPRequestArg[i] = true
 			continue
 		}
 
 		// Check for direct http.ResponseWriter injection
 		if argType == writerInterface || (argType.Kind() == reflect.Interface && writerInterface.Implements(argType)) {
-			hasHttpWriterArg[i] = true
+			hasHTTPWriterArg[i] = true
 			continue
 		}
 
-		// For other types, check if we have a provider
-		allProviders := append(diContext.customProviders, BuiltinProviders()...)
-		found := false
-		for _, provider := range allProviders {
-			if provider.Ok(argType) {
-				found = true
-				break
-			}
-		}
-
-		if !found {
+		provider, err := diContext.resolveProvider(argType)
+		if err != nil {
 			// Return a handler that will return an error for this specific type
-			errorMsg := fmt.Sprintf("No provider found for type: %v", argType)
+			errorMsg := err.Error()
 			return func(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, errorMsg, http.StatusInternalServerError)
 			}
 		}
+		resolvedProviders[i] = provider
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -134,12 +147,12 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 
 		// Handle direct HTTP injections
 		for i := 0; i < numArgs; i++ {
-			if hasHttpRequestArg[i] {
+			if hasHTTPRequestArg[i] {
 				args[i] = reflect.ValueOf(r)
 				continue
 			}
 
-			if hasHttpWriterArg[i] {
+			if hasHTTPWriterArg[i] {
 				args[i] = reflect.ValueOf(w)
 				continue
 			}
@@ -147,11 +160,8 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 
 		// For remaining args, use diContext to resolve them
 		for i := 0; i < numArgs; i++ {
-			if !hasHttpRequestArg[i] && !hasHttpWriterArg[i] {
-				argType := argTypes[i]
-
-				// For other types, use provider system
-				value, err := diContext.provideValue(argType, r.Context())
+			if !hasHTTPRequestArg[i] && !hasHTTPWriterArg[i] {
+				value, err := resolvedProviders[i].Provide(argTypes[i], r.Context())
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return

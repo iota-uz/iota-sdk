@@ -1,3 +1,4 @@
+// Package renderers provides this package.
 package renderers
 
 import (

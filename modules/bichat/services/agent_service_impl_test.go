@@ -678,7 +678,7 @@ func (m *mockChatRepository) GetPendingQuestionMessage(ctx context.Context, sess
 			return msg, nil
 		}
 	}
-	return nil, errors.New("no pending question found")
+	return nil, domain.ErrNoPendingQuestion
 }
 
 func (m *mockChatRepository) CreateRun(ctx context.Context, run domain.GenerationRun) error {

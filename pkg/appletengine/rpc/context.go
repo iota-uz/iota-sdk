@@ -1,3 +1,4 @@
+// Package rpc provides this package.
 package rpc
 
 import "context"

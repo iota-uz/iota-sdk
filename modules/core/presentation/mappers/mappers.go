@@ -1,3 +1,4 @@
+// Package mappers provides this package.
 package mappers
 
 import (
@@ -44,29 +45,30 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 	}
 
 	return &viewmodels.User{
-		ID:           strconv.FormatUint(uint64(entity.ID()), 10),
-		Type:         string(entity.Type()),
-		FirstName:    entity.FirstName(),
-		LastName:     entity.LastName(),
-		MiddleName:   entity.MiddleName(),
-		Email:        entity.Email().Value(),
-		Phone:        phone,
-		Avatar:       avatar,
-		Language:     string(entity.UILanguage()),
-		LastAction:   entity.LastAction().Format(time.RFC3339),
-		CreatedAt:    entity.CreatedAt().Format(time.RFC3339),
-		UpdatedAt:    entity.UpdatedAt().Format(time.RFC3339),
-		Roles:        mapping.MapViewModels(entity.Roles(), RoleToViewModel),
-		GroupIDs:     groupIDs,
-		Permissions:  mapping.MapViewModels(entity.Permissions(), PermissionToViewModel),
-		AvatarID:     strconv.Itoa(int(entity.AvatarID())),
-		CanUpdate:    entity.CanUpdate(),
-		CanDelete:    entity.CanDelete(),
-		IsBlocked:    entity.IsBlocked(),
-		BlockReason:  entity.BlockReason(),
-		BlockedAt:    blockedAt,
-		BlockedBy:    blockedBy,
-		CanBeBlocked: entity.CanBeBlocked(),
+		ID:            strconv.FormatUint(uint64(entity.ID()), 10),
+		Type:          string(entity.Type()),
+		FirstName:     entity.FirstName(),
+		LastName:      entity.LastName(),
+		MiddleName:    entity.MiddleName(),
+		Email:         entity.Email().Value(),
+		Phone:         phone,
+		Avatar:        avatar,
+		Language:      string(entity.UILanguage()),
+		LastAction:    entity.LastAction().Format(time.RFC3339),
+		CreatedAt:     entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:     entity.UpdatedAt().Format(time.RFC3339),
+		Roles:         mapping.MapViewModels(entity.Roles(), RoleToViewModel),
+		GroupIDs:      groupIDs,
+		Permissions:   mapping.MapViewModels(entity.Permissions(), PermissionToViewModel),
+		AvatarID:      strconv.Itoa(int(entity.AvatarID())),
+		CanUpdate:     entity.CanUpdate(),
+		CanDelete:     entity.CanDelete(),
+		IsBlocked:     entity.IsBlocked(),
+		BlockReason:   entity.BlockReason(),
+		BlockedAt:     blockedAt,
+		BlockedBy:     blockedBy,
+		BlockedByUser: "",
+		CanBeBlocked:  entity.CanBeBlocked(),
 	}
 }
 
@@ -74,7 +76,9 @@ func UploadToViewModel(entity upload.Upload) *viewmodels.Upload {
 	upload := &viewmodels.Upload{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
 		Hash:      entity.Hash(),
+		Slug:      entity.Slug(),
 		URL:       entity.PreviewURL(),
+		Mimetype:  "",
 		Size:      entity.Size().String(),
 		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt: entity.UpdatedAt().Format(time.RFC3339),
@@ -99,6 +103,7 @@ func RoleToViewModel(entity role.Role) *viewmodels.Role {
 		Type:        string(entity.Type()),
 		Name:        entity.Name(),
 		Description: entity.Description(),
+		UsersCount:  0,
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
 		CanUpdate:   entity.CanUpdate(),

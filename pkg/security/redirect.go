@@ -1,3 +1,4 @@
+// Package security provides this package.
 package security
 
 import (

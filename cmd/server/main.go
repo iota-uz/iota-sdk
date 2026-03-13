@@ -101,7 +101,7 @@ func (h *sdkHostServices) ExtractPageLocale(ctx context.Context) language.Tag {
 	if pc == nil {
 		return language.English
 	}
-	p, ok := pc.(types.PageContextProvider)
+	p, ok := pc.(types.PageContext)
 	if !ok {
 		return language.English
 	}
@@ -121,9 +121,9 @@ func main() {
 	conf := configuration.Use()
 	logger := conf.Logger()
 
-	// Set up OpenTelemetry if enabled
+	// Set up OpenTelemetry if configured (OTEL_TEMPO_URL and OTEL_SERVICE_NAME are set)
 	var tracingCleanup func()
-	if conf.OpenTelemetry.Enabled {
+	if conf.OpenTelemetry.IsConfigured() {
 		tracingCleanup = logging.SetupTracing(
 			context.Background(),
 			conf.OpenTelemetry.ServiceName,

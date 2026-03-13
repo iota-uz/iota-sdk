@@ -1,3 +1,4 @@
+// Package core provides this package.
 package core
 
 import (
@@ -101,6 +102,9 @@ func (m *Module) Register(app application.Application) error {
 		sessionService,
 		services.NewExcelExportService(app.DB(), uploadService),
 	)
+
+	authService := services.NewAuthService(app)
+	authFlowService := services.NewAuthFlowService(authService, sessionService)
 	// Create 2FA service with configuration
 	conf := configuration.Use()
 
@@ -188,7 +192,8 @@ func (m *Module) Register(app application.Application) error {
 	}
 
 	app.RegisterServices(
-		services.NewAuthService(app),
+		authService,
+		authFlowService,
 		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
 		services.NewRoleService(roleRepo, app.EventPublisher()),
 		tenantService,

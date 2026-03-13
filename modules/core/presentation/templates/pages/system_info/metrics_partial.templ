@@ -1,0 +1,338 @@
+package system_info
+
+import (
+	"fmt"
+	"strconv"
+
+	icons "github.com/iota-uz/icons/phosphor"
+
+	"github.com/iota-uz/iota-sdk/components/base/badge"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+)
+
+templ progressBar(percent float64) {
+	<div class="h-2 rounded-full bg-surface-100 overflow-hidden">
+		if percent < 60 {
+			<div
+				class="h-2 rounded-full transition-all duration-500 bg-green-500"
+				style={ fmt.Sprintf("width: %d%%", viewmodels.PercentWidth(percent)) }
+			></div>
+		} else if percent < 80 {
+			<div
+				class="h-2 rounded-full transition-all duration-500 bg-yellow"
+				style={ fmt.Sprintf("width: %d%%", viewmodels.PercentWidth(percent)) }
+			></div>
+		} else {
+			<div
+				class="h-2 rounded-full transition-all duration-500 bg-pink"
+				style={ fmt.Sprintf("width: %d%%", viewmodels.PercentWidth(percent)) }
+			></div>
+		}
+	</div>
+}
+
+templ statusDot(status string) {
+	if status == "healthy" {
+		<div class="w-2 h-2 rounded-full bg-green-500 shrink-0"></div>
+	} else if status == "degraded" {
+		<div class="w-2 h-2 rounded-full bg-yellow shrink-0"></div>
+	} else if status == "down" {
+		<div class="w-2 h-2 rounded-full bg-pink shrink-0"></div>
+	} else {
+		<div class="w-2 h-2 rounded-full bg-gray-400 shrink-0"></div>
+	}
+}
+
+templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
+	<div class="space-y-6">
+		<!-- Section: Overview -->
+		@card.Card(card.Props{}) {
+			<div class="flex items-center gap-2 mb-4">
+				<span class="text-200">
+					@icons.Globe(icons.Props{Size: "20"})
+				</span>
+				<h3 class="text-sm font-medium text-100">Overview</h3>
+			</div>
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+				<div>
+					<span class="text-xs text-300 block mb-1">Hostname</span>
+					<span class="text-sm font-mono text-100">{ vm.Metrics.Hostname }</span>
+				</div>
+				<div>
+					<span class="text-xs text-300 block mb-1">Uptime</span>
+					<span class="text-sm font-mono text-100">{ vm.FormattedUptime }</span>
+				</div>
+				<div>
+					<span class="text-xs text-300 block mb-1">Current Time</span>
+					<span class="text-sm font-mono text-100">{ vm.Metrics.CurrentTime.Format("2006-01-02 15:04:05") }</span>
+					<span class="text-xs text-300 ml-1">{ vm.Metrics.Timezone } ({ vm.Metrics.TimezoneOffset })</span>
+				</div>
+				<div>
+					<span class="text-xs text-300 block mb-1">Environment</span>
+					@badge.New(badge.Props{Variant: badge.VariantBlue, Size: badge.SizeNormal}) {
+						{ vm.Metrics.Environment }
+					}
+				</div>
+			</div>
+		}
+		<!-- Section: Resources -->
+		<div>
+			<h2 class="text-sm font-medium text-300 uppercase tracking-wider mb-3">Resources</h2>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<!-- CPU -->
+				@card.Card(card.Props{}) {
+					<div class="flex items-center gap-2 mb-3">
+						<span class="text-200">
+							@icons.Cpu(icons.Props{Size: "18"})
+						</span>
+						<h3 class="text-sm font-medium text-100">CPU</h3>
+					</div>
+					<div class="text-3xl font-semibold text-100 mb-1">{ vm.FormattedCPUPercent }</div>
+					<div class="text-xs text-200 mb-3">{ strconv.Itoa(vm.Metrics.NumCPU) } cores</div>
+					@progressBar(vm.Metrics.CPUPercent)
+				}
+				<!-- Memory -->
+				@card.Card(card.Props{}) {
+					<div class="flex items-center gap-2 mb-3">
+						<span class="text-200">
+							@icons.Memory(icons.Props{Size: "18"})
+						</span>
+						<h3 class="text-sm font-medium text-100">Memory</h3>
+					</div>
+					<div class="text-3xl font-semibold text-100 mb-1">{ vm.FormattedMemoryPercent }</div>
+					<div class="text-xs text-200 mb-3">{ vm.FormattedUsedMemory } / { vm.FormattedTotalMemory }</div>
+					@progressBar(vm.Metrics.MemoryPercent)
+				}
+				<!-- Disk -->
+				@card.Card(card.Props{}) {
+					<div class="flex items-center gap-2 mb-3">
+						<span class="text-200">
+							@icons.HardDrive(icons.Props{Size: "18"})
+						</span>
+						<h3 class="text-sm font-medium text-100">Disk</h3>
+					</div>
+					<div class="text-3xl font-semibold text-100 mb-1">{ vm.FormattedDiskPercent }</div>
+					<div class="text-xs text-200 mb-3">{ vm.FormattedDiskUsed } / { vm.FormattedDiskTotal }</div>
+					@progressBar(vm.Metrics.DiskPercent)
+				}
+			</div>
+		</div>
+		<!-- Section: Runtime -->
+		<div>
+			<h2 class="text-sm font-medium text-300 uppercase tracking-wider mb-3">Runtime</h2>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<!-- Runtime Info -->
+				@card.Card(card.Props{}) {
+					<div class="flex items-center gap-2 mb-3">
+						<span class="text-200">
+							@icons.Gear(icons.Props{Size: "18"})
+						</span>
+						<h3 class="text-sm font-medium text-100">Runtime</h3>
+					</div>
+					<div class="space-y-2 text-sm">
+						<div class="flex justify-between">
+							<span class="text-200">Go Version</span>
+							<span class="font-mono text-100">{ vm.Metrics.GoVersion }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">OS / Arch</span>
+							<span class="font-mono text-100">{ vm.Metrics.GOOS }/{ vm.Metrics.GOARCH }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">CPUs</span>
+							<span class="font-mono text-100">{ strconv.Itoa(vm.Metrics.NumCPU) }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Goroutines</span>
+							<span class="font-mono text-100">{ strconv.Itoa(vm.Metrics.NumGoroutines) }</span>
+						</div>
+					</div>
+				}
+				<!-- Garbage Collection -->
+				@card.Card(card.Props{}) {
+					<div class="flex items-center gap-2 mb-3">
+						<span class="text-200">
+							@icons.Gauge(icons.Props{Size: "18"})
+						</span>
+						<h3 class="text-sm font-medium text-100">Garbage Collection</h3>
+					</div>
+					<div class="space-y-2 text-sm">
+						<div class="flex justify-between">
+							<span class="text-200">GC Cycles</span>
+							<span class="font-mono text-100">{ strconv.FormatUint(uint64(vm.Metrics.NumGC), 10) }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Last Pause</span>
+							<span class="font-mono text-100">{ strconv.FormatUint(vm.Metrics.LastPauseNs/1000000, 10) } ms</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">CPU Fraction</span>
+							<span class="font-mono text-100">{ fmt.Sprintf("%.2f", vm.Metrics.GCCPUFraction*100) }%</span>
+						</div>
+					</div>
+				}
+				<!-- Heap Memory -->
+				@card.Card(card.Props{}) {
+					<div class="flex items-center gap-2 mb-3">
+						<span class="text-200">
+							@icons.ChartBar(icons.Props{Size: "18"})
+						</span>
+						<h3 class="text-sm font-medium text-100">Heap Memory</h3>
+					</div>
+					<div class="space-y-2 text-sm">
+						<div class="flex justify-between">
+							<span class="text-200">Heap Alloc</span>
+							<span class="font-mono text-100">{ vm.FormattedHeapAlloc }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Heap Sys</span>
+							<span class="font-mono text-100">{ vm.FormattedHeapSys }</span>
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+		<!-- Section: Infrastructure -->
+		<div>
+			<h2 class="text-sm font-medium text-300 uppercase tracking-wider mb-3">Infrastructure</h2>
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<!-- Database Pool -->
+				@card.Card(card.Props{}) {
+					<div class="flex items-center gap-2 mb-3">
+						<span class="text-200">
+							@icons.Database(icons.Props{Size: "18"})
+						</span>
+						<h3 class="text-sm font-medium text-100">Database Pool</h3>
+					</div>
+					<div class="mb-3">
+						<div class="flex justify-between text-xs text-200 mb-1">
+							<span>{ strconv.FormatInt(int64(vm.Metrics.PoolTotalConns), 10) } / { strconv.FormatInt(int64(vm.Metrics.PoolMaxConns), 10) } connections</span>
+							<span>{ fmt.Sprintf("%.0f", vm.PoolUtilPercent) }%</span>
+						</div>
+						@progressBar(vm.PoolUtilPercent)
+					</div>
+					<div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+						<div class="flex justify-between">
+							<span class="text-200">Active</span>
+							<span class="font-mono text-100">{ strconv.FormatInt(int64(vm.Metrics.PoolActiveConns), 10) }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Idle</span>
+							<span class="font-mono text-100">{ strconv.FormatInt(int64(vm.Metrics.PoolIdleConns), 10) }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Acquires</span>
+							<span class="font-mono text-100">{ strconv.FormatInt(vm.Metrics.PoolAcquireCount, 10) }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Avg Acquire</span>
+							<span class="font-mono text-100">{ strconv.FormatInt(vm.Metrics.PoolAcquireDuration.Milliseconds(), 10) } ms</span>
+						</div>
+					</div>
+				}
+				<!-- Build Information -->
+				@card.Card(card.Props{}) {
+					<div class="flex items-center gap-2 mb-3">
+						<span class="text-200">
+							@icons.GitBranch(icons.Props{Size: "18"})
+						</span>
+						<h3 class="text-sm font-medium text-100">Build</h3>
+					</div>
+					<div class="space-y-2 text-sm">
+						<div class="flex justify-between">
+							<span class="text-200">Version</span>
+							<span class="font-mono text-100">{ vm.Metrics.Version }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Branch</span>
+							<span class="font-mono text-100">{ vm.Metrics.BranchName }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Git Commit</span>
+							if vm.Metrics.GitCommit != "unknown" && len(vm.Metrics.GitCommit) > 0 && len(vm.Metrics.GitCommitURL) > 0 {
+								<a
+									href={ templ.URL(vm.Metrics.GitCommitURL) }
+									target="_blank"
+									rel="noopener noreferrer"
+									class="font-mono text-xs text-blue hover:underline"
+								>
+									if len(vm.Metrics.GitCommit) >= 8 {
+										{ vm.Metrics.GitCommit[:8] }
+									} else {
+										{ vm.Metrics.GitCommit }
+									}
+								</a>
+							} else {
+								<span class="font-mono text-xs text-300">{ vm.Metrics.GitCommit }</span>
+							}
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Build Time</span>
+							<span class="font-mono text-xs text-100">{ vm.Metrics.BuildTime }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Environment</span>
+							<span class="font-mono text-xs text-100">{ vm.Metrics.BuildEnvironment }</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-200">Build Go</span>
+							<span class="font-mono text-xs text-100">{ vm.Metrics.BuildGoVersion }</span>
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+		<!-- Section: Capabilities -->
+		if len(vm.Capabilities) > 0 {
+			<div>
+				<h2 class="text-sm font-medium text-300 uppercase tracking-wider mb-3">Capabilities</h2>
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+					for _, capability := range vm.Capabilities {
+						@card.Card(card.Props{Class: "!p-3"}) {
+							<div class="flex items-center gap-2 mb-2">
+								@statusDot(string(capability.Status))
+								<span class="text-sm font-medium text-100">{ capability.Name }</span>
+							</div>
+							<div class="flex flex-wrap items-center gap-1.5">
+								if capability.Enabled {
+									@badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeNormal}) {
+										enabled
+									}
+								} else {
+									@badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeNormal}) {
+										disabled
+									}
+								}
+								if capability.Status == "healthy" {
+									@badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeNormal}) {
+										healthy
+									}
+								} else if capability.Status == "degraded" {
+									@badge.New(badge.Props{Variant: badge.VariantYellow, Size: badge.SizeNormal}) {
+										degraded
+									}
+								} else if capability.Status == "down" {
+									@badge.New(badge.Props{Variant: badge.VariantPink, Size: badge.SizeNormal}) {
+										down
+									}
+								} else if capability.Status == "disabled" {
+									@badge.New(badge.Props{Variant: badge.VariantGray, Size: badge.SizeNormal}) {
+										disabled
+									}
+								} else {
+									@badge.New(badge.Props{Variant: badge.VariantBlue, Size: badge.SizeNormal}) {
+										unknown
+									}
+								}
+							</div>
+							if capability.Message != "" {
+								<div class="text-xs text-200 mt-2">{ capability.Message }</div>
+							}
+						}
+					}
+				</div>
+			</div>
+		}
+	</div>
+}

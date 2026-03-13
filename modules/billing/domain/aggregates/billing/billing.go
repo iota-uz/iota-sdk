@@ -1,3 +1,4 @@
+// Package billing contains billing domain contracts and core transaction types.
 package billing
 
 import (
