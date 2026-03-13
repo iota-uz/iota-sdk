@@ -44,12 +44,15 @@
       "Compacting": "Сжатие истории",
       "CompactedSummary": "Сжатое резюме"
     },
-    "InlineQuestion": {
-      "InputNeeded": "Требуется ввод",
-      "WaitingForDetails": "Ожидание деталей вопроса от ассистента...",
-      "Next": "Далее",
-      "Back": "Назад",
-      "OtherOption": "Другое",
+  "InlineQuestion": {
+    "InputNeeded": "Требуется ввод",
+    "WaitingForDetails": "Ожидание деталей вопроса от ассистента...",
+    "AnswerSubmitted": "Ответ отправлен",
+    "DismissalSubmitted": "Запрос закрыт",
+    "ResumeInProgress": "Продолжаю выполнение",
+    "Next": "Далее",
+    "Back": "Назад",
+    "OtherOption": "Другое",
       "TypeYourAnswer": "Введите ваш ответ...",
       "SelectAllThatApply": "Выберите все подходящие",
       "Dismiss": "Закрыть"

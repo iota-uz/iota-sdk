@@ -41,7 +41,7 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
+	assert.Equal(t, "gpt-5.4-2026-03-05", oaiModel.modelName)
 }
 
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
@@ -73,7 +73,7 @@ func TestOpenAIModel_Info(t *testing.T) {
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
 }
 
-func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
+func TestOpenAIModel_Info_DefaultGPT54ContextWindow(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	require.NoError(t, os.Unsetenv("OPENAI_MODEL"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
@@ -82,8 +82,8 @@ func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-5.2", info.Name)
-	assert.Equal(t, 400000, info.ContextWindow)
+	assert.Equal(t, "gpt-5.4-2026-03-05", info.Name)
+	assert.Equal(t, 1050000, info.ContextWindow)
 }
 
 func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
@@ -96,12 +96,14 @@ func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
 		expectCtx  int
 		expectName string
 	}{
+		{name: "canonical gpt-5.4", modelEnv: "gpt-5.4", expectCtx: 1050000, expectName: "gpt-5.4"},
+		{name: "versioned alias", modelEnv: "gpt-5.4-2026-03-05", expectCtx: 1050000, expectName: "gpt-5.4-2026-03-05"},
+		{name: "normalized alias", modelEnv: " GPT-5.4-2026-03-05 ", expectCtx: 1050000, expectName: " GPT-5.4-2026-03-05 "},
 		{name: "canonical gpt-5.2", modelEnv: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
-		{name: "versioned alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
-		{name: "normalized alias", modelEnv: " GPT-5.2-2025-12-11 ", expectCtx: 400000, expectName: " GPT-5.2-2025-12-11 "},
+		{name: "versioned gpt-5.2 alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
 		{name: "gpt-5-mini", modelEnv: "gpt-5-mini", expectCtx: 400000, expectName: "gpt-5-mini"},
 		{name: "gpt-5-nano", modelEnv: "gpt-5-nano", expectCtx: 400000, expectName: "gpt-5-nano"},
-		{name: "unknown falls back to default spec", modelEnv: "unknown-model", expectCtx: 400000, expectName: "unknown-model"},
+		{name: "unknown falls back to default spec", modelEnv: "unknown-model", expectCtx: 1050000, expectName: "unknown-model"},
 	}
 
 	for _, tt := range tests {
@@ -178,7 +180,7 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Verify model
-	assert.Equal(t, "gpt-5.2", params.Model)
+	assert.Equal(t, "gpt-5.4-2026-03-05", params.Model)
 
 	// Verify input items
 	assert.NotNil(t, params.Input.OfInputItemList)
