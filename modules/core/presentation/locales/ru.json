@@ -106,6 +106,9 @@
       "Back": "Назад",
       "CurrentScope": "Текущий срез"
     },
+    "Table": {
+      "OpenRow": "Открыть детали"
+    },
     "Filters": {
       "All": "Все",
       "AllTime": "Все время",

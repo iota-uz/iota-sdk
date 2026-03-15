@@ -106,6 +106,9 @@
       "Back": "Orqaga",
       "CurrentScope": "Жорий кесим"
     },
+    "Table": {
+      "OpenRow": "Тафсилотларни очиш"
+    },
     "Filters": {
       "All": "Barchasi",
       "AllTime": "Butun vaqt",

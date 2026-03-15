@@ -95,15 +95,11 @@ templ DrillNavigation(model drillNavModel) {
 							</a>
 							<span class="text-slate-300">
 								@icons.CaretRight(icons.Props{Size: "12"})
-							</span>
+					</span>
 						</li>
 					}
 					<li class="font-semibold text-slate-900">
-						if model.CurrentValue != "" {
-							{ model.CurrentValue }
-						} else {
-							{ model.CurrentTitle }
-						}
+						{ model.CurrentDisplay }
 					</li>
 				</ol>
 			</div>
@@ -370,25 +366,30 @@ templ CompositePanel(spec panel.Spec, result *runtime.Result) {
 
 templ TabsPanel(spec panel.Spec, result *runtime.Result) {
 	{{ chartText := localizedChartText(ctx) }}
+	{{ canFullscreen := panelCanFullscreen(spec, result) }}
 	<div x-data={ tabsState(spec) } data-lens-rerender-scope class="flex h-full flex-col">
 		<div class="mb-3 flex items-center justify-end gap-2">
 			@PanelLogScaleBadge(spec, chartText, "")
-			@PanelFullscreenButton(chartText)
+			if canFullscreen {
+				@PanelFullscreenButton(chartText)
+			}
 		</div>
 		@TabsPanelBody(spec, result)
-		@PanelFullscreenOverlay(spec, chartText, panelFullscreenBodyClass(spec), TabsPanelFullscreenBody(spec, result))
+		if canFullscreen {
+			@PanelFullscreenOverlay(spec, chartText, panelFullscreenBodyClass(spec), TabsPanelFullscreenBody(spec, result))
+		}
 	</div>
 }
 
 templ TabsPanelBody(spec panel.Spec, result *runtime.Result) {
-	<div class="flex h-full flex-col">
+	<div class="flex min-h-0 flex-1 flex-col">
 		@TabsPanelNav(spec)
 		@TabsPanelFrames(spec, result, false)
 	</div>
 }
 
 templ TabsPanelFullscreenBody(spec panel.Spec, result *runtime.Result) {
-	<div class="flex h-full flex-col">
+	<div class="flex min-h-0 flex-1 flex-col">
 		@TabsPanelNav(spec)
 		@TabsPanelFrames(spec, result, true)
 	</div>
@@ -618,10 +619,12 @@ templ ChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
 }
 
 templ FullscreenChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
-	@charts.Chart(charts.Props{
-		Class:   "flex-1 w-full h-full min-h-0",
-		Options: apex.OptionsWithHeight(spec, result, "100%"),
-	})
+	<div class="flex h-full flex-1 min-h-[420px] w-full">
+		@charts.Chart(charts.Props{
+			Class:   "h-full min-h-[420px] w-full flex-1",
+			Options: apex.OptionsWithHeight(spec, result, "100%"),
+		})
+	</div>
 }
 
 templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
@@ -684,7 +687,7 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 											onclick={ stopPropagationScript(rowOnClick) }
 											class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
 										>
-											{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+											{ tablePrimaryText(ctx, column, row, result) }
 										</a>
 									} else if i == 0 && rowOnClick.Call != "" {
 										<button
@@ -692,7 +695,7 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 											onclick={ rowOnClick }
 											class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
 										>
-											{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+											{ tablePrimaryText(ctx, column, row, result) }
 										</button>
 									} else {
 										{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
@@ -711,27 +714,42 @@ templ CardListRow(columns []panel.TableColumn, row map[string]any, result *runti
 	if len(columns) == 0 {
 		return
 	}
+	{{
+		primaryText := displayValueOrDash(tableValueText(columns[0], row, result))
+		secondaryBadge := ""
+		if len(columns) > 1 {
+			secondaryBadge = strings.TrimSpace(tableValueText(columns[1], row, result))
+		}
+		trailingValue := ""
+		if len(columns) > 2 {
+			trailingValue = strings.TrimSpace(tableValueText(columns[2], row, result))
+		}
+		tertiaryText := ""
+		if len(columns) > 3 {
+			tertiaryText = strings.TrimSpace(tableValueText(columns[3], row, result))
+		}
+	}}
 	<div class="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-4 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50">
-		<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold" style={ badgeStyle(rowAccentColor(row)) }>
-			{ rowMarker(tableValueText(columns[0], row, result)) }
+		<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold" style={ badgeStyle(rowAccentColor(row)) } title={ primaryText }>
+			{ rowMarker(primaryText) }
 		</div>
 		<div class="min-w-0 flex-1">
-			<p class="truncate text-lg font-semibold text-slate-900">{ tableValueText(columns[0], row, result) }</p>
+			<p class="truncate text-lg font-semibold text-slate-900" title={ primaryText }>{ primaryText }</p>
 			<div class="mt-2 flex flex-wrap items-center gap-2">
-				if len(columns) > 1 {
+				if secondaryBadge != "" {
 					<span class="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-						{ tableValueText(columns[1], row, result) } { strings.ToLower(columns[1].Label) }
+						{ secondaryBadge } { strings.ToLower(columns[1].Label) }
 					</span>
 				}
-				if len(columns) > 3 {
-					<span class="text-sm font-semibold text-slate-800">{ tableValueText(columns[3], row, result) }</span>
+				if tertiaryText != "" {
+					<span class="text-sm font-semibold text-slate-800">{ tertiaryText }</span>
 				}
 			</div>
 		</div>
 		<div class="flex items-center gap-3">
-			if len(columns) > 2 {
+			if trailingValue != "" {
 				<div class="text-right">
-					<div class="text-2xl font-bold text-slate-900">{ tableValueText(columns[2], row, result) }</div>
+					<div class="text-2xl font-bold text-slate-900">{ trailingValue }</div>
 					<div class="text-xs font-medium text-slate-400">{ strings.ToLower(columns[2].Label) }</div>
 				</div>
 			}

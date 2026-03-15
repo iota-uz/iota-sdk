@@ -106,6 +106,9 @@
       "Back": "返回",
       "CurrentScope": "当前范围"
     },
+    "Table": {
+      "OpenRow": "打开详情"
+    },
     "Filters": {
       "All": "全部",
       "AllTime": "全部时间",

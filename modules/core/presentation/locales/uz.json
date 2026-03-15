@@ -106,6 +106,9 @@
       "Back": "Orqaga",
       "CurrentScope": "Joriy kesim"
     },
+    "Table": {
+      "OpenRow": "Tafsilotlarni ochish"
+    },
     "Filters": {
       "All": "Barchasi",
       "AllTime": "Butun vaqt",

@@ -48,14 +48,15 @@ func panelResult(result *runtime.Result, panelID string) *runtime.PanelResult {
 }
 
 type drillNavModel struct {
-	HasNav       bool
-	CurrentTitle string
-	CurrentValue string
-	CurrentLabel string
-	UpURL        string
-	UpLabel      string
-	Trail        []drillNavCrumb
-	Summary      []drillSummaryItem
+	HasNav         bool
+	CurrentTitle   string
+	CurrentValue   string
+	CurrentLabel   string
+	CurrentDisplay string
+	UpURL          string
+	UpLabel        string
+	Trail          []drillNavCrumb
+	Summary        []drillSummaryItem
 }
 
 type drillNavCrumb struct {
@@ -74,10 +75,11 @@ func drillNavigationModel(result *runtime.Result) drillNavModel {
 	}
 	state := result.Drill
 	model := drillNavModel{
-		HasNav:       state.HasNavigation(),
-		CurrentTitle: state.Current.Title,
-		CurrentValue: state.Current.ScopeValue,
-		CurrentLabel: state.Current.ScopeLabel,
+		HasNav:         state.HasNavigation(),
+		CurrentTitle:   state.Current.Title,
+		CurrentValue:   state.Current.ScopeValue,
+		CurrentLabel:   state.Current.ScopeLabel,
+		CurrentDisplay: drillCurrentDisplay(state),
 	}
 	if up, ok := state.Up(); ok {
 		model.UpURL = up.URL
@@ -89,19 +91,43 @@ func drillNavigationModel(result *runtime.Result) drillNavModel {
 			Label: crumb.DisplayLabel(),
 		})
 		if strings.TrimSpace(crumb.ScopeValue) != "" {
-			model.Summary = append(model.Summary, drillSummaryItem{
-				Label: firstNonEmptyString(crumb.ScopeLabel, crumb.Title),
-				Value: crumb.ScopeValue,
-			})
+			model.Summary = appendDrillSummary(model.Summary, firstNonEmptyString(crumb.ScopeLabel, crumb.Title), crumb.ScopeValue)
 		}
 	}
 	if strings.TrimSpace(state.Current.ScopeValue) != "" {
-		model.Summary = append(model.Summary, drillSummaryItem{
-			Label: firstNonEmptyString(state.Current.ScopeLabel, state.Current.Title),
-			Value: state.Current.ScopeValue,
-		})
+		model.Summary = appendDrillSummary(model.Summary, firstNonEmptyString(state.Current.ScopeLabel, state.Current.Title), state.Current.ScopeValue)
 	}
 	return model
+}
+
+func drillCurrentDisplay(state *drill.State) string {
+	if state == nil {
+		return ""
+	}
+	display := firstNonEmptyString(state.Current.ScopeValue, state.Current.Title)
+	if len(state.Trail) == 0 {
+		return display
+	}
+	last := state.Trail[len(state.Trail)-1].DisplayLabel()
+	if strings.TrimSpace(display) != "" && strings.EqualFold(strings.TrimSpace(display), strings.TrimSpace(last)) {
+		return firstNonEmptyString(state.Current.Title, display)
+	}
+	return display
+}
+
+func appendDrillSummary(summary []drillSummaryItem, label, value string) []drillSummaryItem {
+	label = strings.TrimSpace(label)
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return summary
+	}
+	if len(summary) > 0 {
+		last := summary[len(summary)-1]
+		if strings.EqualFold(strings.TrimSpace(last.Label), label) && strings.EqualFold(strings.TrimSpace(last.Value), value) {
+			return summary
+		}
+	}
+	return append(summary, drillSummaryItem{Label: label, Value: value})
 }
 
 func tableColumns(spec panel.Spec, result *runtime.PanelResult) []panel.TableColumn {
@@ -564,7 +590,7 @@ func metricInfoTooltipHTML(ctx context.Context, info string) string {
 	body := html.EscapeString(strings.TrimSpace(info))
 	body = strings.ReplaceAll(body, "\n", "<br>")
 	return fmt.Sprintf(
-		`<div class="max-w-xs p-1"><div class="text-[11px] font-medium uppercase tracking-wide text-slate-400 mb-1">%s</div><div class="text-xs leading-relaxed text-slate-600">%s</div></div>`,
+		`<div class="max-w-xs space-y-1.5 p-1"><div class="text-xs font-semibold text-white">%s</div><div class="text-xs leading-5 text-white/85">%s</div></div>`,
 		html.EscapeString(chartText.MetricInfo),
 		body,
 	)
@@ -648,6 +674,21 @@ func rowMarker(text string) string {
 	return "•"
 }
 
+func displayValueOrDash(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "—"
+	}
+	return value
+}
+
+func tablePrimaryText(ctx context.Context, column panel.TableColumn, row map[string]any, result *runtime.PanelResult) string {
+	value := strings.TrimSpace(tableValueText(column, row, result))
+	if value != "" {
+		return value
+	}
+	return translateOrFallback(ctx, "Lens.Table.OpenRow", "Open details")
+}
+
 func firstNonEmptyString(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
@@ -672,6 +713,37 @@ func panelBodyClass(spec panel.Spec) string {
 		return "flex-1 p-3"
 	default:
 		return "flex-1 p-3"
+	}
+}
+
+func panelHasRenderableContent(spec panel.Spec, result *runtime.Result) bool {
+	switch spec.Kind {
+	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+		for _, child := range spec.Children {
+			if panelHasRenderableContent(child, result) {
+				return true
+			}
+		}
+		return false
+	default:
+		panelResult := panelResult(result, spec.ID)
+		return panelResultHasContent(panelResult)
+	}
+}
+
+func panelResultHasContent(result *runtime.PanelResult) bool {
+	if result == nil || result.Error != nil || result.Frames == nil || result.Frames.Primary() == nil {
+		return false
+	}
+	return result.Frames.Primary().RowCount > 0
+}
+
+func panelCanFullscreen(spec panel.Spec, result *runtime.Result) bool {
+	switch spec.Kind {
+	case panel.KindTabs, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+		return panelHasRenderableContent(spec, result)
+	default:
+		return false
 	}
 }
 
@@ -778,11 +850,11 @@ func rerenderChartsScript(delayMs int) string {
 	if delayMs <= 0 {
 		delayMs = 180
 	}
-	return fmt.Sprintf("setTimeout(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })); }, %d)", delayMs)
+	return fmt.Sprintf("setTimeout(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })); window.dispatchEvent(new Event('resize')); }, %d)", delayMs)
 }
 
 func openFullscreenScript() string {
-	return "fullscreen = true; requestAnimationFrame(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); setTimeout(() => document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })), 220); setTimeout(() => document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })), 420); });"
+	return "fullscreen = true; requestAnimationFrame(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); const rerender = () => { document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })); window.dispatchEvent(new Event('resize')); }; setTimeout(rerender, 220); setTimeout(rerender, 420); setTimeout(rerender, 720); });"
 }
 
 func activateTabScript(tabID string) string {
