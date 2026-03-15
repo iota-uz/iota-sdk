@@ -106,6 +106,7 @@ func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*Dashboa
 	return execute(ctx, spec, rt, nil)
 }
 
+// Run is a semantic alias for Execute kept for callers that prefer verb-style execution APIs.
 func Run(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardResult, error) {
 	return Execute(ctx, spec, rt)
 }

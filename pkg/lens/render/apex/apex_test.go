@@ -136,131 +136,152 @@ func TestOptionsFallsBackToCategoryForUngroupedBarCategories(t *testing.T) {
 	require.Equal(t, []string{"March", "April"}, options.XAxis.Categories)
 }
 
-func TestOptionsWithHeightOverridesPanelHeight(t *testing.T) {
+func TestOptionsPanelEnhancements(t *testing.T) {
 	t.Parallel()
 
-	fr, err := frame.New("sales",
-		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"March"}},
-		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
-	)
-	require.NoError(t, err)
+	type testCase struct {
+		name        string
+		panelSpec   panel.Spec
+		panelResult *runtime.PanelResult
+		height      string
+		assertions  func(t *testing.T, options charts.ChartOptions)
+	}
 
-	options := OptionsWithHeight(
-		panel.Bar("sales-by-month", "Sales by Month", "sales").
-			CategoryField("category").
-			ValueField("value").
-			Height("360px").
-			Build(),
-		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
-		"100%",
-	)
-
-	require.Equal(t, "100%", options.Chart.Height)
-}
-
-func TestOptionsAppliesLogarithmicScaleToHorizontalBars(t *testing.T) {
-	t.Parallel()
-
-	fr, err := frame.New("regions",
+	regionFrame, err := frame.New("regions",
 		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Tashkent", "Region"}},
 		frame.Field{Name: "revenue", Type: frame.FieldTypeNumber, Values: []any{757_350_000.0, 1_250.0}},
 	)
 	require.NoError(t, err)
 
-	options := Options(
-		panel.HorizontalBar("revenue-by-region", "Revenue by Region", "regions").
-			LabelField("label").
-			ValueField("revenue").
-			Format(format.MoneyCompact("UZS")).
-			LogarithmicValueAxis(10).
-			Build(),
-		&runtime.PanelResult{Frames: mustFrameSet(t, fr), Locale: "ru"},
-	)
-
-	series, ok := options.Series.([]charts.Series)
-	require.True(t, ok)
-	require.Len(t, series, 1)
-	require.Equal(t, []string{"Tashkent", "Region"}, options.XAxis.Categories)
-	require.IsType(t, float64(0), series[0].Data[0])
-	require.IsType(t, float64(0), series[0].Data[1])
-	require.Greater(t, series[0].Data[0].(float64), series[0].Data[1].(float64))
-	require.NotNil(t, options.XAxis.Min)
-	require.NotNil(t, options.XAxis.Max)
-	require.NotNil(t, options.XAxis.StepSize)
-	require.InDelta(t, 3.0, *options.XAxis.Min, 1e-9)
-	require.InDelta(t, 9.0, *options.XAxis.Max, 1e-9)
-	require.InDelta(t, 2.0, *options.XAxis.StepSize, 1e-9)
-	require.NotEmpty(t, options.XAxis.Labels.Formatter)
-	require.NotNil(t, options.Tooltip)
-	require.NotNil(t, options.Tooltip.Y)
-	tooltipY, ok := options.Tooltip.Y.(*charts.TooltipYConfig)
-	require.True(t, ok)
-	require.NotEmpty(t, tooltipY.Formatter)
-}
-
-func TestOptionsAppliesSmartLogarithmicScaleToVerticalBars(t *testing.T) {
-	t.Parallel()
-
-	fr, err := frame.New("liability",
+	liabilityFrame, err := frame.New("liability",
 		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Travel", "OSAGO", "KASKO"}},
 		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{68_800.0, 357_100_000_000.0, 472_900_000.0}},
 	)
 	require.NoError(t, err)
 
-	options := Options(
-		panel.Bar("liability-by-type", "Liability by Type", "liability").
-			LabelField("label").
-			ValueField("value").
-			Format(format.MoneyCompact("UZS")).
-			LogarithmicValueAxis(10).
-			Build(),
-		&runtime.PanelResult{Frames: mustFrameSet(t, fr), Locale: "ru"},
-	)
-
-	series, ok := options.Series.([]charts.Series)
-	require.True(t, ok)
-	require.Len(t, series, 1)
-	require.Len(t, options.YAxis, 1)
-	require.Nil(t, options.YAxis[0].Logarithmic)
-	require.InDelta(t, 4.0, options.YAxis[0].Min, 1e-9)
-	require.InDelta(t, 12.0, options.YAxis[0].Max, 1e-9)
-	require.NotNil(t, options.YAxis[0].StepSize)
-	require.InDelta(t, 2.0, *options.YAxis[0].StepSize, 1e-9)
-	require.NotNil(t, options.YAxis[0].TickAmount)
-	require.Equal(t, 4, *options.YAxis[0].TickAmount)
-	require.NotNil(t, options.YAxis[0].Labels)
-	require.NotEmpty(t, options.YAxis[0].Labels.Formatter)
-	require.NotNil(t, options.Tooltip)
-	require.NotNil(t, options.Tooltip.Y)
-	tooltipY, ok := options.Tooltip.Y.(*charts.TooltipYConfig)
-	require.True(t, ok)
-	require.NotEmpty(t, tooltipY.Formatter)
-}
-
-func TestOptionsEnablesDistributedColorsForBarPanels(t *testing.T) {
-	t.Parallel()
-
-	fr, err := frame.New("products",
+	productsFrame, err := frame.New("products",
 		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"TRAVEL", "OSAGO", "KASKO"}},
 		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0, 25.0, 5.0}},
 	)
 	require.NoError(t, err)
 
-	options := Options(
-		panel.Bar("premium-by-type", "Average Premium", "products").
-			LabelField("label").
-			ValueField("value").
-			Colors("#3B82F6", "#10B981", "#EF4444").
-			DistributedColors().
-			Build(),
-		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
+	heightFrame, err := frame.New("sales",
+		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"March"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
 	)
+	require.NoError(t, err)
 
-	require.NotNil(t, options.PlotOptions)
-	require.NotNil(t, options.PlotOptions.Bar)
-	require.NotNil(t, options.PlotOptions.Bar.Distributed)
-	require.True(t, *options.PlotOptions.Bar.Distributed)
-	require.Equal(t, []string{"#3B82F6", "#10B981", "#EF4444"}, options.Colors)
+	tests := []testCase{
+		{
+			name: "height override",
+			panelSpec: panel.Bar("sales-by-month", "Sales by Month", "sales").
+				CategoryField("category").
+				ValueField("value").
+				Height("360px").
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, heightFrame)},
+			height:      "100%",
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.Equal(t, "100%", options.Chart.Height)
+			},
+		},
+		{
+			name: "logarithmic horizontal bar",
+			panelSpec: panel.HorizontalBar("revenue-by-region", "Revenue by Region", "regions").
+				LabelField("label").
+				ValueField("revenue").
+				Format(format.MoneyCompact("UZS")).
+				LogarithmicValueAxis(10).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, regionFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				series, ok := options.Series.([]charts.Series)
+				require.True(t, ok)
+				require.Len(t, series, 1)
+				require.Equal(t, []string{"Tashkent", "Region"}, options.XAxis.Categories)
+				require.IsType(t, float64(0), series[0].Data[0])
+				require.IsType(t, float64(0), series[0].Data[1])
+				require.Greater(t, series[0].Data[0].(float64), series[0].Data[1].(float64))
+				require.NotNil(t, options.XAxis.Min)
+				require.NotNil(t, options.XAxis.Max)
+				require.NotNil(t, options.XAxis.StepSize)
+				require.InDelta(t, 3.0, *options.XAxis.Min, 1e-9)
+				require.InDelta(t, 9.0, *options.XAxis.Max, 1e-9)
+				require.InDelta(t, 2.0, *options.XAxis.StepSize, 1e-9)
+				require.NotEmpty(t, options.XAxis.Labels.Formatter)
+				require.NotNil(t, options.Tooltip)
+				require.NotNil(t, options.Tooltip.Y)
+				tooltipY, ok := options.Tooltip.Y.(*charts.TooltipYConfig)
+				require.True(t, ok)
+				require.NotEmpty(t, tooltipY.Formatter)
+			},
+		},
+		{
+			name: "smart logarithmic vertical bar",
+			panelSpec: panel.Bar("liability-by-type", "Liability by Type", "liability").
+				LabelField("label").
+				ValueField("value").
+				Format(format.MoneyCompact("UZS")).
+				LogarithmicValueAxis(10).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, liabilityFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				series, ok := options.Series.([]charts.Series)
+				require.True(t, ok)
+				require.Len(t, series, 1)
+				require.Len(t, options.YAxis, 1)
+				require.Nil(t, options.YAxis[0].Logarithmic)
+				require.InDelta(t, 4.0, options.YAxis[0].Min, 1e-9)
+				require.InDelta(t, 12.0, options.YAxis[0].Max, 1e-9)
+				require.NotNil(t, options.YAxis[0].StepSize)
+				require.InDelta(t, 2.0, *options.YAxis[0].StepSize, 1e-9)
+				require.NotNil(t, options.YAxis[0].TickAmount)
+				require.Equal(t, 4, *options.YAxis[0].TickAmount)
+				require.NotNil(t, options.YAxis[0].Labels)
+				require.NotEmpty(t, options.YAxis[0].Labels.Formatter)
+				require.NotNil(t, options.Tooltip)
+				require.NotNil(t, options.Tooltip.Y)
+				tooltipY, ok := options.Tooltip.Y.(*charts.TooltipYConfig)
+				require.True(t, ok)
+				require.NotEmpty(t, tooltipY.Formatter)
+			},
+		},
+		{
+			name: "distributed colors",
+			panelSpec: panel.Bar("premium-by-type", "Average Premium", "products").
+				LabelField("label").
+				ValueField("value").
+				Colors("#3B82F6", "#10B981", "#EF4444").
+				DistributedColors().
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame)},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.PlotOptions)
+				require.NotNil(t, options.PlotOptions.Bar)
+				require.NotNil(t, options.PlotOptions.Bar.Distributed)
+				require.True(t, *options.PlotOptions.Bar.Distributed)
+				require.Equal(t, []string{"#3B82F6", "#10B981", "#EF4444"}, options.Colors)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			options := Options(tc.panelSpec, tc.panelResult)
+			if tc.height != "" {
+				options = OptionsWithHeight(tc.panelSpec, tc.panelResult, tc.height)
+			}
+
+			tc.assertions(t, options)
+		})
+	}
 }
 
 func mustFrameSet(t *testing.T, fr *frame.Frame) *frame.FrameSet {

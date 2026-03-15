@@ -353,6 +353,23 @@ func tabsState(spec panel.Spec) string {
 	})
 }
 
+func jsStringLiteral(value string) string {
+	return js.MustToJS(value)
+}
+
+func tabClassExpression(tabID string) string {
+	literal := jsStringLiteral(tabID)
+	return fmt.Sprintf(
+		"{ 'bg-white text-slate-700 shadow-sm': activeTab === %s, 'text-slate-300 hover:text-white': activeTab !== %s }",
+		literal,
+		literal,
+	)
+}
+
+func tabVisibilityExpression(tabID string) string {
+	return "activeTab === " + jsStringLiteral(tabID)
+}
+
 func panelIcon(kind panel.Kind) templpkg.Component {
 	iconProps := icons.Props{Size: "16"}
 	switch kind {
@@ -431,13 +448,11 @@ func panelHasClass(spec panel.Spec, token string) bool {
 }
 
 func badgeStyle(color string) templpkg.SafeCSS {
-	if color == "" {
-		color = "#64748b"
-	}
 	r, g, b := parseHexColor(color)
+	safeColor := fmt.Sprintf("#%02x%02x%02x", r, g, b)
 	return templpkg.SafeCSS(fmt.Sprintf(
 		"background-color: rgba(%d, %d, %d, 0.12); border: 1px solid rgba(%d, %d, %d, 0.22); color: %s;",
-		r, g, b, r, g, b, color,
+		r, g, b, r, g, b, safeColor,
 	))
 }
 
@@ -613,7 +628,7 @@ func openFullscreenScript() string {
 }
 
 func activateTabScript(tabID string) string {
-	return "activeTab = '" + tabID + "'; " + rerenderChartsScript(180)
+	return "activeTab = " + jsStringLiteral(tabID) + "; " + rerenderChartsScript(180)
 }
 
 func panelPlaceholderRows(spec panel.Spec) int {

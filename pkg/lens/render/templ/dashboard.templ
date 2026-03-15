@@ -340,10 +340,10 @@ templ TabsPanelNav(spec panel.Spec) {
 				type="button"
 				class="flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200"
 				@click={ activateTabScript(child.ID) }
-				:class={ "{ 'bg-white text-slate-700 shadow-sm': activeTab === '" + child.ID + "', 'text-slate-300 hover:text-white': activeTab !== '" + child.ID + "' }" }
+				:class={ tabClassExpression(child.ID) }
 			>
 				<span class="text-current/80">
-					@panelIcon(child.Kind)
+					@panelDisplayIcon(child)
 				</span>
 				{ child.Title }
 			</button>
@@ -353,12 +353,14 @@ templ TabsPanelNav(spec panel.Spec) {
 
 templ TabsPanelFrames(spec panel.Spec, result *runtime.DashboardResult, fullscreen bool) {
 	for _, child := range spec.Children {
-		<div x-show={ "activeTab === '" + child.ID + "'" } x-transition.opacity.duration.150ms class={ tabsPanelFrameClass(fullscreen) }>
+		<div x-show={ tabVisibilityExpression(child.ID) } x-transition.opacity.duration.150ms class={ tabsPanelFrameClass(fullscreen) }>
 			{{ childPanel := panelResult(result, child.ID) }}
 			if child.Kind == panel.KindTable {
 				@TablePanel(child, childPanel)
 			} else if child.Kind == panel.KindStat {
 				@StatPanel(child, childPanel)
+			} else if child.Kind == panel.KindTabs || child.Kind == panel.KindGrid || child.Kind == panel.KindSplit || child.Kind == panel.KindRepeat {
+				@PanelContent(child, result)
 			} else if fullscreen {
 				@FullscreenTabbedChartPanel(child, childPanel)
 			} else {
