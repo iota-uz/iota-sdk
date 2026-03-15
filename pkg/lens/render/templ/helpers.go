@@ -1,51 +1,38 @@
 package templ
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	templpkg "github.com/a-h/templ"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
-var spanClasses = map[int]string{
-	1:  "col-span-12 md:col-span-1",
-	2:  "col-span-12 md:col-span-2",
-	3:  "col-span-12 md:col-span-3",
-	4:  "col-span-12 md:col-span-4",
-	5:  "col-span-12 md:col-span-5",
-	6:  "col-span-12 md:col-span-6",
-	7:  "col-span-12 md:col-span-7",
-	8:  "col-span-12 md:col-span-8",
-	9:  "col-span-12 md:col-span-9",
-	10: "col-span-12 md:col-span-10",
-	11: "col-span-12 md:col-span-11",
-	12: "col-span-12 md:col-span-12",
+func normalizedSpan(span int) int {
+	if span < 1 {
+		return 12
+	}
+	if span > 12 {
+		return 12
+	}
+	return span
 }
 
-func spanClass(span int) string {
-	if className, ok := spanClasses[span]; ok {
-		return className
-	}
-	return spanClasses[6]
-}
-
-func defaultTab(spec panel.Spec) string {
-	if spec.DefaultChild != "" {
-		return spec.DefaultChild
-	}
-	if len(spec.Children) == 0 {
-		return ""
-	}
-	return spec.Children[0].ID
+func panelSpanStyle(span int) templpkg.SafeCSS {
+	return templpkg.SafeCSS("--lens-col-span:" + strconv.Itoa(normalizedSpan(span)))
 }
 
 func panelResult(result *runtime.DashboardResult, panelID string) *runtime.PanelResult {
@@ -274,11 +261,92 @@ func dateRangeState(input filter.Input) string {
 	})
 }
 
+func panelUsesLogScale(spec panel.Spec) bool {
+	if spec.ValueAxis.Scale == panel.AxisScaleLogarithmic {
+		return true
+	}
+	for _, child := range spec.Children {
+		if panelUsesLogScale(child) {
+			return true
+		}
+	}
+	return false
+}
+
+type chartText struct {
+	ExpandToFullscreen string
+	CloseFullscreen    string
+	LogScale           string
+	LogScaleHint       string
+}
+
+func pageContext(ctx context.Context) types.PageContext {
+	pageCtx, ok := ctx.Value(constants.PageContext).(types.PageContext)
+	if !ok || pageCtx == nil {
+		return nil
+	}
+	return pageCtx
+}
+
+func translateOrFallback(ctx context.Context, key, fallback string) string {
+	pageCtx := pageContext(ctx)
+	if pageCtx == nil {
+		return fallback
+	}
+	if translated := pageCtx.TSafe(key); translated != "" {
+		return translated
+	}
+	return fallback
+}
+
+func localizedChartText(ctx context.Context) chartText {
+	return chartText{
+		ExpandToFullscreen: translateOrFallback(ctx, "Chart.ExpandToFullScreen", "Expand to fullscreen"),
+		CloseFullscreen:    translateOrFallback(ctx, "Chart.CloseFullScreen", "Close fullscreen"),
+		LogScale:           translateOrFallback(ctx, "Chart.LogScale", "Log scale"),
+		LogScaleHint:       translateOrFallback(ctx, "Chart.LogScaleHint", "Values are shown on a logarithmic scale"),
+	}
+}
+
+type lensText struct {
+	FiltersTitle     string
+	FiltersApply     string
+	DefaultRange     string
+	CustomRange      string
+	AllTime          string
+	All              string
+	EmptyTitle       string
+	EmptyDescription string
+	ErrorTitle       string
+	ErrorDescription string
+}
+
+func localizedLensText(ctx context.Context) lensText {
+	return lensText{
+		FiltersTitle:     translateOrFallback(ctx, "Lens.Filters.Title", "Filters"),
+		FiltersApply:     translateOrFallback(ctx, "Lens.Filters.Apply", "Apply"),
+		DefaultRange:     translateOrFallback(ctx, "Lens.Filters.DefaultRange", "Default range"),
+		CustomRange:      translateOrFallback(ctx, "Lens.Filters.CustomRange", "Custom range"),
+		AllTime:          translateOrFallback(ctx, "Lens.Filters.AllTime", "All time"),
+		All:              translateOrFallback(ctx, "Lens.Filters.All", "All"),
+		EmptyTitle:       translateOrFallback(ctx, "Lens.Empty.Title", "No data available"),
+		EmptyDescription: translateOrFallback(ctx, "Lens.Empty._Description", "Try adjusting your filters"),
+		ErrorTitle:       translateOrFallback(ctx, "Lens.Error.Title", "Unable to load data"),
+		ErrorDescription: translateOrFallback(ctx, "Lens.Error._Description", "An error occurred while rendering this panel"),
+	}
+}
+
 func tabsState(spec panel.Spec) string {
+	activeTab := ""
+	if len(spec.Children) > 0 {
+		activeTab = spec.Children[0].ID
+	}
 	return js.MustToJS(struct {
-		ActiveTab string `json:"activeTab"`
+		ActiveTab  string `json:"activeTab"`
+		Fullscreen bool   `json:"fullscreen"`
 	}{
-		ActiveTab: defaultTab(spec),
+		ActiveTab:  activeTab,
+		Fullscreen: false,
 	})
 }
 
@@ -310,9 +378,102 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 	}
 }
 
+func panelDisplayIcon(spec panel.Spec) templpkg.Component {
+	if spec.Icon != nil {
+		return spec.Icon
+	}
+	return panelIcon(spec.Kind)
+}
+
+func showPanelHeader(spec panel.Spec) bool {
+	if statUsesCustomChrome(spec) {
+		return false
+	}
+	return spec.Title != "" || (spec.Description != "" && spec.Kind != panel.KindStat)
+}
+
+func statUsesCustomChrome(spec panel.Spec) bool {
+	return spec.Icon != nil || spec.AccentColor != ""
+}
+
+func panelHasClass(spec panel.Spec, token string) bool {
+	for _, className := range strings.Fields(spec.ClassName) {
+		if className == token {
+			return true
+		}
+	}
+	return false
+}
+
+func badgeStyle(color string) templpkg.SafeCSS {
+	if color == "" {
+		color = "#64748b"
+	}
+	r, g, b := parseHexColor(color)
+	return templpkg.SafeCSS(fmt.Sprintf(
+		"background-color: rgba(%d, %d, %d, 0.12); border: 1px solid rgba(%d, %d, %d, 0.22); color: %s;",
+		r, g, b, r, g, b, color,
+	))
+}
+
+func parseHexColor(color string) (int, int, int) {
+	trimmed := strings.TrimPrefix(strings.TrimSpace(color), "#")
+	if len(trimmed) == 3 {
+		trimmed = string([]byte{
+			trimmed[0], trimmed[0],
+			trimmed[1], trimmed[1],
+			trimmed[2], trimmed[2],
+		})
+	}
+	if len(trimmed) != 6 {
+		return 100, 116, 139
+	}
+	value, err := strconv.ParseUint(trimmed, 16, 32)
+	if err != nil {
+		return 100, 116, 139
+	}
+	return int(value >> 16), int((value >> 8) & 0xff), int(value & 0xff)
+}
+
+func tableValueText(column panel.TableColumn, row map[string]any, result *runtime.PanelResult) string {
+	if row == nil {
+		return ""
+	}
+	return formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone)
+}
+
+func rowString(row map[string]any, key string) string {
+	if row == nil {
+		return ""
+	}
+	value, ok := row[key]
+	if !ok || value == nil {
+		return ""
+	}
+	return fmt.Sprint(value)
+}
+
+func rowAccentColor(row map[string]any) string {
+	color := rowString(row, "accent_color")
+	if color == "" {
+		return "#6366f1"
+	}
+	return color
+}
+
+func rowMarker(text string) string {
+	for _, r := range strings.TrimSpace(text) {
+		return strings.ToUpper(string(r))
+	}
+	return "•"
+}
+
 func panelBodyClass(spec panel.Spec) string {
 	switch spec.Kind {
 	case panel.KindStat:
+		if statUsesCustomChrome(spec) {
+			return "flex-1 p-0"
+		}
 		return "flex-1 px-5 py-2.5"
 	case panel.KindTable:
 		return "flex-1 p-4"
@@ -323,4 +484,30 @@ func panelBodyClass(spec panel.Spec) string {
 	default:
 		return "flex-1 p-3"
 	}
+}
+
+func panelFullscreenBodyClass(spec panel.Spec) string {
+	return strings.TrimSpace(panelBodyClass(spec) + " h-[calc(100vh-8rem)] min-h-[70vh]")
+}
+
+func tabsPanelFrameClass(fullscreen bool) string {
+	if fullscreen {
+		return "flex flex-1 min-h-0"
+	}
+	return "flex-1"
+}
+
+func rerenderChartsScript(delayMs int) string {
+	if delayMs <= 0 {
+		delayMs = 180
+	}
+	return fmt.Sprintf("setTimeout(() => document.dispatchEvent(new Event('sdk:rerenderCharts')), %d)", delayMs)
+}
+
+func openFullscreenScript() string {
+	return "fullscreen = true; " + rerenderChartsScript(180)
+}
+
+func activateTabScript(tabID string) string {
+	return "activeTab = '" + tabID + "'; " + rerenderChartsScript(180)
 }

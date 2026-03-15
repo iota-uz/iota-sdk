@@ -16,7 +16,13 @@ script graph(id string, options templ.JSExpression) {
 			console.error(`Chart container with ID ${id} not found.`);
 			return;
 		}
+		if (container.__apexChart && typeof container.__apexChart.destroy === 'function') {
+			container.__apexChart.destroy();
+			container.__apexChart = null;
+		}
+		container.innerHTML = '';
 		const chart = new ApexCharts(container, options);
+		container.__apexChart = chart;
 		chart.render();
 	}
 	document.addEventListener('DOMContentLoaded', () => {

@@ -4,6 +4,7 @@ package apex
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -18,6 +20,14 @@ import (
 )
 
 func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.ChartOptions {
+	return options(panelSpec, panelResult, "")
+}
+
+func OptionsWithHeight(panelSpec panel.Spec, panelResult *runtime.PanelResult, height string) charts.ChartOptions {
+	return options(panelSpec, panelResult, height)
+}
+
+func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverride string) charts.ChartOptions {
 	fontFamily := "'Inter', 'Helvetica Neue', Arial, sans-serif"
 	axisFontSize := "11px"
 	axisColor := "#9ca3af" // gray-400
@@ -26,7 +36,7 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 	options := charts.ChartOptions{
 		Chart: charts.ChartConfig{
 			Type:    chartType(panelSpec.Kind),
-			Height:  panelHeight(panelSpec),
+			Height:  panelHeight(panelSpec, heightOverride),
 			Toolbar: charts.Toolbar{Show: false},
 			Stacked: panelSpec.Kind == panel.KindStackedBar,
 		},
@@ -153,6 +163,9 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 			options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{BorderRadius: 4, ColumnWidth: "48%"}}
 		}
 	}
+	if options.PlotOptions != nil && options.PlotOptions.Bar != nil && panelSpec.Distributed {
+		options.PlotOptions.Bar.Distributed = mapping.Pointer(true)
+	}
 	if panelSpec.Kind == panel.KindTimeSeries {
 		curve := charts.StrokeCurveSmooth
 		options.Stroke = &charts.StrokeConfig{
@@ -196,10 +209,258 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 			options.Legend.ItemMargin = &charts.LegendItemMargin{Horizontal: mapping.Pointer(8), Vertical: mapping.Pointer(2)}
 		}
 	}
+	applyValueScale(&options, panelSpec)
+	applyValueFormatter(&options, panelSpec, panelResult)
 	if panelSpec.Action != nil {
 		options.Chart.Events = &charts.ChartEvents{DataPointSelection: buildActionJS(panelSpec.Action, fr, fields, panelResult.Variables)}
 	}
 	return options
+}
+
+func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) {
+	if options == nil {
+		return
+	}
+	axis := normalizedValueAxis(panelSpec.ValueAxis)
+	if axis.Scale != panel.AxisScaleLogarithmic {
+		return
+	}
+	series, ok := options.Series.([]charts.Series)
+	if !ok || len(series) == 0 {
+		return
+	}
+	plan, ok := buildLogarithmicAxisPlan(series, axis.LogBase)
+	if !ok {
+		return
+	}
+	for i := range series {
+		series[i].Data = logarithmicSeriesData(series[i].Data, axis.LogBase)
+	}
+	options.Series = series
+	step := plan.Step
+	if panelSpec.Kind == panel.KindHorizontalBar {
+		options.XAxis.Min = mapping.Pointer(plan.MinExponent)
+		options.XAxis.Max = mapping.Pointer(plan.MaxExponent)
+		options.XAxis.StepSize = &step
+		options.XAxis.DecimalsInFloat = mapping.Pointer(0)
+		return
+	}
+	if len(options.YAxis) == 0 {
+		options.YAxis = []charts.YAxisConfig{{}}
+	}
+	options.YAxis[0].Logarithmic = nil
+	options.YAxis[0].LogBase = nil
+	options.YAxis[0].Min = plan.MinExponent
+	options.YAxis[0].Max = plan.MaxExponent
+	options.YAxis[0].StepSize = &step
+	options.YAxis[0].TickAmount = mapping.Pointer(plan.TickAmount)
+	options.YAxis[0].ForceNiceScale = mapping.Pointer(false)
+	options.YAxis[0].DecimalsInFloat = mapping.Pointer(0)
+}
+
+func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, panelResult *runtime.PanelResult) {
+	if options == nil || panelResult == nil {
+		return
+	}
+	axisFormatter, tooltipFormatter := chartValueFormatters(panelSpec.Formatter, panelResult.Locale)
+	valueAxis := normalizedValueAxis(panelSpec.ValueAxis)
+	if valueAxis.Scale == panel.AxisScaleLogarithmic {
+		plan, ok := logarithmicAxisPlanForOptions(*options, valueAxis.LogBase)
+		if ok {
+			axisFormatter = wrapLogarithmicAxisFormatter(axisFormatter, panelResult.Locale, plan)
+			tooltipFormatter = wrapLogarithmicTooltipFormatter(tooltipFormatter, panelResult.Locale, valueAxis.LogBase)
+		}
+	}
+	if axisFormatter == "" && tooltipFormatter == "" {
+		return
+	}
+	if axisFormatter != "" {
+		if panelSpec.Kind == panel.KindHorizontalBar {
+			if options.XAxis.Labels != nil {
+				options.XAxis.Labels.Formatter = axisFormatter
+			}
+		} else if len(options.YAxis) > 0 && options.YAxis[0].Labels != nil {
+			options.YAxis[0].Labels.Formatter = axisFormatter
+		}
+	}
+	if options.Tooltip == nil {
+		options.Tooltip = &charts.TooltipConfig{}
+	}
+	if tooltipFormatter != "" {
+		options.Tooltip.Y = &charts.TooltipYConfig{Formatter: tooltipFormatter}
+	}
+}
+
+func normalizedValueAxis(axis panel.ValueAxis) panel.ValueAxis {
+	if axis.Scale == "" {
+		axis.Scale = panel.AxisScaleLinear
+	}
+	if axis.LogBase <= 1 {
+		axis.LogBase = 10
+	}
+	return axis
+}
+
+type logarithmicAxisPlan struct {
+	Base        int
+	MinExponent float64
+	MaxExponent float64
+	Step        float64
+	TickAmount  int
+}
+
+func logarithmicAxisPlanForOptions(options charts.ChartOptions, base int) (logarithmicAxisPlan, bool) {
+	series, ok := options.Series.([]charts.Series)
+	if !ok || len(series) == 0 {
+		return logarithmicAxisPlan{}, false
+	}
+	return buildLogarithmicAxisPlan(series, base)
+}
+
+func buildLogarithmicAxisPlan(series []charts.Series, base int) (logarithmicAxisPlan, bool) {
+	if base <= 1 {
+		base = 10
+	}
+	minPositive := 0.0
+	maxPositive := 0.0
+	for _, entry := range series {
+		for _, point := range entry.Data {
+			value := numericValue(point)
+			if value <= 0 {
+				continue
+			}
+			if minPositive == 0 || value < minPositive {
+				minPositive = value
+			}
+			if value > maxPositive {
+				maxPositive = value
+			}
+		}
+	}
+	if minPositive <= 0 || maxPositive <= 0 {
+		return logarithmicAxisPlan{}, false
+	}
+	logBase := math.Log(float64(base))
+	minExponent := int(math.Floor(math.Log(minPositive) / logBase))
+	maxExponent := int(math.Ceil(math.Log(maxPositive) / logBase))
+	if maxExponent <= minExponent {
+		maxExponent = minExponent + 1
+	}
+	span := maxExponent - minExponent
+	step := 1
+	const maxLabels = 5
+	for span/step+1 > maxLabels {
+		step++
+	}
+	maxTickExponent := minExponent + step*int(math.Ceil(float64(span)/float64(step)))
+	tickAmount := (maxTickExponent - minExponent) / step
+	if tickAmount < 1 {
+		tickAmount = 1
+	}
+	return logarithmicAxisPlan{
+		Base:        base,
+		MinExponent: float64(minExponent),
+		MaxExponent: float64(maxTickExponent),
+		Step:        float64(step),
+		TickAmount:  tickAmount,
+	}, true
+}
+
+func logarithmicSeriesData(values []any, base int) []any {
+	if len(values) == 0 {
+		return values
+	}
+	scaled := make([]any, len(values))
+	for i, value := range values {
+		scaled[i] = logarithmicValue(numericValue(value), base)
+	}
+	return scaled
+}
+
+func logarithmicValue(value float64, base int) float64 {
+	if value <= 0 {
+		return 0
+	}
+	if base <= 1 {
+		base = 10
+	}
+	return math.Log(value) / math.Log(float64(base))
+}
+
+func wrapLogarithmicAxisFormatter(formatter templ.JSExpression, locale string, plan logarithmicAxisPlan) templ.JSExpression {
+	if strings.TrimSpace(locale) == "" {
+		locale = "en-US"
+	}
+	inner := "null"
+	if formatter != "" {
+		inner = "(" + string(formatter) + ")"
+	}
+	return templ.JSExpression(fmt.Sprintf(`function(value) {
+		const scaled = Number(value);
+		if (!Number.isFinite(scaled)) {
+			return '';
+		}
+		const minExponent = %f;
+		const step = %f;
+		const slot = (scaled - minExponent) / step;
+		if (!Number.isFinite(slot) || Math.abs(slot - Math.round(slot)) > 0.001) {
+			return '';
+		}
+		const actual = Math.pow(%d, scaled);
+		const normalized = Math.abs(actual) < 1e-9 ? 0 : actual;
+		if (%s) {
+			return %s(normalized);
+		}
+		return Math.round(normalized).toLocaleString(%q);
+	}`, plan.MinExponent, plan.Step, plan.Base, inner, inner, locale))
+}
+
+func wrapLogarithmicTooltipFormatter(formatter templ.JSExpression, locale string, base int) templ.JSExpression {
+	if strings.TrimSpace(locale) == "" {
+		locale = "en-US"
+	}
+	if base <= 1 {
+		base = 10
+	}
+	inner := "null"
+	if formatter != "" {
+		inner = "(" + string(formatter) + ")"
+	}
+	return templ.JSExpression(fmt.Sprintf(`function(value) {
+		const scaled = Number(value);
+		if (!Number.isFinite(scaled)) {
+			return '';
+		}
+		const actual = Math.pow(%d, scaled);
+		const normalized = Math.abs(actual) < 1e-9 ? 0 : actual;
+		if (%s) {
+			return %s(normalized);
+		}
+		return Math.round(normalized).toLocaleString(%q);
+	}`, base, inner, inner, locale))
+}
+
+func chartValueFormatters(spec *format.Spec, locale string) (templ.JSExpression, templ.JSExpression) {
+	if spec == nil {
+		return "", ""
+	}
+	if strings.TrimSpace(locale) == "" {
+		locale = "en-US"
+	}
+	switch spec.Kind {
+	case format.KindMoney:
+		return charts.FullCurrency(locale, spec.Currency), charts.FullCurrency(locale, spec.Currency)
+	case format.KindAbbreviatedMoney:
+		return charts.AbbreviatedCurrency(locale, spec.Currency), charts.FullCurrency(locale, spec.Currency)
+	case format.KindInteger:
+		return charts.Count(locale), charts.Count(locale)
+	case format.KindPercent:
+		return charts.Percentage(spec.Precision), charts.Percentage(spec.Precision)
+	case format.KindDate, format.KindMonthLabel, format.KindDuration, format.KindLocalizedString:
+		return "", ""
+	default:
+		return "", ""
+	}
 }
 
 func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, variables map[string]any) templ.JSExpression {
@@ -361,7 +622,10 @@ func chartType(kind panel.Kind) charts.ChartType {
 	return charts.BarChartType
 }
 
-func panelHeight(panelSpec panel.Spec) string {
+func panelHeight(panelSpec panel.Spec, heightOverride string) string {
+	if heightOverride != "" {
+		return heightOverride
+	}
 	if panelSpec.Height != "" {
 		return panelSpec.Height
 	}

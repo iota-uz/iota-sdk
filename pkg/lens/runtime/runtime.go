@@ -778,14 +778,8 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 		return nil
 	}
 	primary := frames.Primary()
-	required := requiredPanelFields(spec)
-	for _, field := range required {
-		if field.Empty() {
-			continue
-		}
-		if _, ok := primary.Field(field.Name()); !ok {
-			return fmt.Errorf("panel %s is missing field %q in dataset %s", spec.ID, field.Name(), spec.Dataset)
-		}
+	if err := validateRequiredPanelFields(spec, primary); err != nil {
+		return err
 	}
 	if spec.Kind == panel.KindTable {
 		for _, column := range spec.Columns {
@@ -812,27 +806,61 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 	return nil
 }
 
-func requiredPanelFields(spec panel.Spec) []panel.FieldRef {
+func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 	switch spec.Kind {
 	case panel.KindStat:
-		return []panel.FieldRef{spec.Fields.Value}
+		return requireField(spec, primary, spec.Fields.Value)
 	case panel.KindTimeSeries:
-		return []panel.FieldRef{spec.Fields.Category, spec.Fields.Value}
+		if err := requireField(spec, primary, spec.Fields.Category); err != nil {
+			return err
+		}
+		return requireField(spec, primary, spec.Fields.Value)
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
-		fields := []panel.FieldRef{spec.Fields.Value}
-		if !spec.Fields.Label.Empty() {
-			fields = append(fields, spec.Fields.Label)
+		if err := requireField(spec, primary, spec.Fields.Value); err != nil {
+			return err
 		}
-		if !spec.Fields.Category.Empty() {
-			fields = append(fields, spec.Fields.Category)
+		if err := requireOneField(spec, primary, spec.Fields.Label, spec.Fields.Category); err != nil {
+			return err
 		}
-		return fields
 	case panel.KindStackedBar:
-		return []panel.FieldRef{spec.Fields.Category, spec.Fields.Series, spec.Fields.Value}
+		if err := requireField(spec, primary, spec.Fields.Category); err != nil {
+			return err
+		}
+		if err := requireField(spec, primary, spec.Fields.Series); err != nil {
+			return err
+		}
+		return requireField(spec, primary, spec.Fields.Value)
 	case panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return nil
 	}
 	return nil
+}
+
+func requireField(spec panel.Spec, primary *frame.Frame, field panel.FieldRef) error {
+	if field.Empty() {
+		return nil
+	}
+	if _, ok := primary.Field(field.Name()); ok {
+		return nil
+	}
+	return fmt.Errorf("panel %s is missing field %q in dataset %s", spec.ID, field.Name(), spec.Dataset)
+}
+
+func requireOneField(spec panel.Spec, primary *frame.Frame, fields ...panel.FieldRef) error {
+	nonEmpty := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if field.Empty() {
+			continue
+		}
+		nonEmpty = append(nonEmpty, field.Name())
+		if _, ok := primary.Field(field.Name()); ok {
+			return nil
+		}
+	}
+	if len(nonEmpty) == 0 {
+		return nil
+	}
+	return fmt.Errorf("panel %s is missing field from set %q in dataset %s", spec.ID, nonEmpty, spec.Dataset)
 }
 
 func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, source action.ValueSource) error {

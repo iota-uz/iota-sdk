@@ -17,7 +17,19 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 	if result != nil {
 		{{ filters = filterModel(result) }}
 	}
-	<div class="space-y-5">
+	<style>
+		.lens-grid-item {
+			grid-column: span 12 / span 12;
+			min-width: 0;
+		}
+
+		@media (min-width: 768px) {
+			.lens-grid-item {
+				grid-column: span var(--lens-col-span, 12) / span var(--lens-col-span, 12);
+			}
+		}
+	</style>
+	<div class="space-y-6">
 		@FilterBar(filters)
 		for _, row := range spec.Rows {
 			<div class={ "grid grid-cols-12 gap-5", row.Class }>
@@ -30,6 +42,7 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 }
 
 templ FilterBar(model filter.Model) {
+	{{ lensText := localizedLensText(ctx) }}
 	if len(model.Inputs) == 0 {
 		{{ return }}
 	}
@@ -39,10 +52,10 @@ templ FilterBar(model filter.Model) {
 				<div class="text-gray-400">
 					@icons.Funnel(icons.Props{Size: "15"})
 				</div>
-				<span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Filters</span>
+				<span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{ lensText.FiltersTitle }</span>
 			</div>
 			<button type="submit" class="rounded-md bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:ring-offset-1 active:bg-blue-800">
-				Apply
+				{ lensText.FiltersApply }
 			</button>
 		</div>
 		<div class="grid gap-x-4 gap-y-3 border-t border-gray-100 px-5 py-4 md:grid-cols-2 xl:grid-cols-4">
@@ -53,10 +66,10 @@ templ FilterBar(model filter.Model) {
 						case lens.VariableDateRange:
 							<div class="space-y-2" x-data={ dateRangeState(input) }>
 								<select name={ input.Name } x-model="dateMode" class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
-									<option value="default">Default range</option>
-									<option value="bounded">Custom range</option>
+									<option value="default">{ lensText.DefaultRange }</option>
+									<option value="bounded">{ lensText.CustomRange }</option>
 									if input.DateRange.AllowAllTime {
-										<option value="all">All time</option>
+										<option value="all">{ lensText.AllTime }</option>
 									}
 								</select>
 								<div class="grid gap-2 md:grid-cols-2" x-show="dateMode === 'bounded'" x-transition>
@@ -73,7 +86,7 @@ templ FilterBar(model filter.Model) {
 							if len(input.Options) > 0 {
 								<select name={ input.Name } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
 									if !input.Required {
-										<option value="">All</option>
+										<option value="">{ lensText.All }</option>
 									}
 									for _, option := range input.Options {
 										<option value={ option.Value } selected?={ option.Selected }>{ option.Label }</option>
@@ -106,42 +119,46 @@ templ FilterBar(model filter.Model) {
 }
 
 templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
-	{{ currentPanel := panelResult(result, spec.ID) }}
-	<div class={ spanClass(spec.Span), spec.ClassName }>
-		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200/80 bg-white shadow-sm">
-			if spec.Title != "" || (spec.Description != "" && spec.Kind != panel.KindStat) {
-				<div class="flex items-center justify-between border-b border-gray-100 px-5 py-2.5">
+	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
+		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md">
+			if showPanelHeader(spec) {
+				<div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
 					<div class="flex items-center gap-2 min-w-0">
-						<div class="flex-shrink-0 text-gray-400">
-							@panelIcon(spec.Kind)
+						<div class="flex-shrink-0 text-slate-400">
+							@panelDisplayIcon(spec)
 						</div>
 						<div class="min-w-0">
 							if spec.Title != "" {
-								<h3 class="truncate text-xs font-semibold text-gray-600">{ spec.Title }</h3>
+								<h3 class="truncate text-sm font-semibold text-slate-700">{ spec.Title }</h3>
 							}
 							if spec.Description != "" && spec.Kind != panel.KindStat {
-								<p class="mt-0.5 truncate text-[11px] text-gray-400">{ spec.Description }</p>
+								<p class="mt-0.5 truncate text-xs text-slate-400">{ spec.Description }</p>
 							}
 						</div>
 					</div>
 				</div>
 			}
 			<div class={ panelBodyClass(spec) }>
-				switch spec.Kind {
-					case panel.KindTabs:
-						@TabsPanel(spec, result)
-					case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-						@CompositePanel(spec, result)
-					case panel.KindTable:
-						@TablePanel(spec, currentPanel)
-					case panel.KindStat:
-						@StatPanel(spec, currentPanel)
-					default:
-						@ChartPanel(spec, currentPanel)
-				}
+				@PanelContent(spec, result)
 			</div>
 		</div>
 	</div>
+}
+
+templ PanelContent(spec panel.Spec, result *runtime.DashboardResult) {
+	{{ currentPanel := panelResult(result, spec.ID) }}
+	switch spec.Kind {
+		case panel.KindTabs:
+			@TabsPanel(spec, result)
+		case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+			@CompositePanel(spec, result)
+		case panel.KindTable:
+			@TablePanel(spec, currentPanel)
+		case panel.KindStat:
+			@StatPanel(spec, currentPanel)
+		default:
+			@ChartPanel(spec, currentPanel)
+	}
 }
 
 templ CompositePanel(spec panel.Spec, result *runtime.DashboardResult) {
@@ -153,36 +170,64 @@ templ CompositePanel(spec panel.Spec, result *runtime.DashboardResult) {
 }
 
 templ TabsPanel(spec panel.Spec, result *runtime.DashboardResult) {
-	<div x-data={ tabsState(spec) }>
-		<div class="mb-4 flex flex-wrap gap-0.5 border-b border-gray-100">
-			for _, child := range spec.Children {
-				<button
-					type="button"
-					class="relative px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 transition-colors hover:text-gray-600"
-					@click={ "activeTab = '" + child.ID + "'" }
-					:class={ "{ '!text-blue-600': activeTab === '" + child.ID + "' }" }
-				>
-					{ child.Title }
-					<span
-						class="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-blue-600 transition-opacity"
-						:class={ "{ 'opacity-100': activeTab === '" + child.ID + "', 'opacity-0': activeTab !== '" + child.ID + "' }" }
-					></span>
-				</button>
-			}
+	{{ chartText := localizedChartText(ctx) }}
+	<div x-data={ tabsState(spec) } class="flex h-full flex-col">
+		<div class="mb-3 flex items-center justify-end gap-2">
+			@PanelLogScaleBadge(spec, chartText, "")
+			@PanelFullscreenButton(chartText)
 		</div>
+		@TabsPanelBody(spec, result)
+		@PanelFullscreenOverlay(spec, chartText, panelFullscreenBodyClass(spec), TabsPanelFullscreenBody(spec, result))
+	</div>
+}
+
+templ TabsPanelBody(spec panel.Spec, result *runtime.DashboardResult) {
+	<div class="flex h-full flex-col">
+		@TabsPanelNav(spec)
+		@TabsPanelFrames(spec, result, false)
+	</div>
+}
+
+templ TabsPanelFullscreenBody(spec panel.Spec, result *runtime.DashboardResult) {
+	<div class="flex h-full flex-col">
+		@TabsPanelNav(spec)
+		@TabsPanelFrames(spec, result, true)
+	</div>
+}
+
+templ TabsPanelNav(spec panel.Spec) {
+	<div class="mb-5 inline-flex w-full rounded-2xl bg-slate-800 p-1.5">
 		for _, child := range spec.Children {
-			<div x-show={ "activeTab === '" + child.ID + "'" } x-transition.opacity.duration.150ms>
-				{{ childPanel := panelResult(result, child.ID) }}
-				if child.Kind == panel.KindTable {
-					@TablePanel(child, childPanel)
-				} else if child.Kind == panel.KindStat {
-					@StatPanel(child, childPanel)
-				} else {
-					@ChartPanel(child, childPanel)
-				}
-			</div>
+			<button
+				type="button"
+				class="flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200"
+				@click={ activateTabScript(child.ID) }
+				:class={ "{ 'bg-white text-slate-700 shadow-sm': activeTab === '" + child.ID + "', 'text-slate-300 hover:text-white': activeTab !== '" + child.ID + "' }" }
+			>
+				<span class="text-current/80">
+					@panelIcon(child.Kind)
+				</span>
+				{ child.Title }
+			</button>
 		}
 	</div>
+}
+
+templ TabsPanelFrames(spec panel.Spec, result *runtime.DashboardResult, fullscreen bool) {
+	for _, child := range spec.Children {
+		<div x-show={ "activeTab === '" + child.ID + "'" } x-transition.opacity.duration.150ms class={ tabsPanelFrameClass(fullscreen) }>
+			{{ childPanel := panelResult(result, child.ID) }}
+			if child.Kind == panel.KindTable {
+				@TablePanel(child, childPanel)
+			} else if child.Kind == panel.KindStat {
+				@StatPanel(child, childPanel)
+			} else if fullscreen {
+				@FullscreenTabbedChartPanel(child, childPanel)
+			} else {
+				@TabbedChartPanel(child, childPanel)
+			}
+		</div>
+	}
 }
 
 templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
@@ -196,27 +241,57 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 	{{ onClick := actionOnClick(spec.Action, row, result.Variables) }}
 	if href != "" {
 		<a href={ templ.URL(href) } onclick={ onClick } class="group block h-full transition-opacity hover:opacity-90">
-			@statContent(value, spec.Description)
+			@statContent(spec, value, spec.Description)
 		</a>
 	} else if onClick.Call != "" {
 		<button type="button" onclick={ onClick } class="group block h-full w-full text-left transition-opacity hover:opacity-90">
-			@statContent(value, spec.Description)
+			@statContent(spec, value, spec.Description)
 		</button>
 	} else {
-		@statContent(value, spec.Description)
+		@statContent(spec, value, spec.Description)
 	}
 }
 
-templ statContent(value, description string) {
-	<div class="flex h-full flex-col justify-center">
-		<div class="text-[28px] font-bold tabular-nums leading-tight tracking-tight text-gray-900">{ value }</div>
-		if description != "" {
-			<div class="mt-1.5 text-[11px] font-medium text-gray-400">{ description }</div>
-		}
-	</div>
+templ statContent(spec panel.Spec, value, description string) {
+	if statUsesCustomChrome(spec) {
+		<div class="flex h-full flex-col">
+			<div class="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+				<h3 class="text-base font-medium text-slate-600 transition-colors group-hover:text-slate-900">{ spec.Title }</h3>
+				<div class="flex h-10 w-10 items-center justify-center rounded-xl" style={ badgeStyle(spec.AccentColor) }>
+					@panelDisplayIcon(spec)
+				</div>
+			</div>
+			<div class="flex flex-1 flex-col justify-center px-4 py-5">
+				<div class="text-[40px] font-bold tabular-nums leading-tight tracking-tight text-slate-900">{ value }</div>
+				if description != "" {
+					<div class="mt-2 text-sm font-medium text-slate-400">{ description }</div>
+				}
+			</div>
+		</div>
+	} else {
+		<div class="flex h-full flex-col justify-center">
+			<div class="text-[28px] font-bold tabular-nums leading-tight tracking-tight text-gray-900">{ value }</div>
+			if description != "" {
+				<div class="mt-1.5 text-[11px] font-medium text-gray-400">{ description }</div>
+			}
+		</div>
+	}
 }
 
 templ ChartPanel(spec panel.Spec, result *runtime.PanelResult) {
+	@chartPanelContent(spec, result, true, false)
+}
+
+templ TabbedChartPanel(spec panel.Spec, result *runtime.PanelResult) {
+	@chartPanelContent(spec, result, false, false)
+}
+
+templ FullscreenTabbedChartPanel(spec panel.Spec, result *runtime.PanelResult) {
+	@chartPanelContent(spec, result, false, true)
+}
+
+templ chartPanelContent(spec panel.Spec, result *runtime.PanelResult, showControls bool, fullscreen bool) {
+	{{ chartText := localizedChartText(ctx) }}
 	if result == nil || result.Error != nil {
 		@ErrorState(result)
 		{{ return }}
@@ -225,9 +300,104 @@ templ ChartPanel(spec panel.Spec, result *runtime.PanelResult) {
 		@EmptyState()
 		{{ return }}
 	}
+	if !showControls {
+		if fullscreen {
+			@FullscreenChartCanvas(spec, result)
+		} else {
+			@ChartCanvas(spec, result)
+		}
+		{{ return }}
+	}
+	<div x-data="{ fullscreen: false }" class="flex h-full flex-col">
+		<div class="mb-3 flex items-center justify-end gap-2">
+			@PanelLogScaleBadge(spec, chartText, "")
+			@PanelFullscreenButton(chartText)
+		</div>
+		@ChartCanvas(spec, result)
+		@PanelFullscreenOverlay(spec, chartText, panelFullscreenBodyClass(spec), FullscreenChartCanvas(spec, result))
+	</div>
+}
+
+templ PanelLogScaleBadge(spec panel.Spec, chartText chartText, className string) {
+	if panelUsesLogScale(spec) {
+		<div class={ "inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700", className } title={ chartText.LogScaleHint }>
+			@icons.WarningCircle(icons.Props{Size: "12"})
+			<span>{ chartText.LogScale }</span>
+		</div>
+	}
+}
+
+templ PanelFullscreenButton(chartText chartText) {
+	<button
+		type="button"
+		@click={ openFullscreenScript() }
+		class="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
+		title={ chartText.ExpandToFullscreen }
+		aria-label={ chartText.ExpandToFullscreen }
+	>
+		@icons.ArrowsOut(icons.Props{Size: "16"})
+	</button>
+}
+
+templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass string, body templ.Component) {
+	<div
+		x-show="fullscreen"
+		x-transition:enter="transition ease-out duration-200"
+		x-transition:enter-start="opacity-0"
+		x-transition:enter-end="opacity-100"
+		x-transition:leave="transition ease-in duration-150"
+		x-transition:leave-start="opacity-100"
+		x-transition:leave-end="opacity-0"
+		class="fixed inset-0 z-50 overflow-y-auto bg-white/95 p-4 backdrop-blur-sm sm:p-6 xl:p-8"
+		style="display: none;"
+		@click.self="fullscreen = false"
+		@keydown.escape.window="fullscreen = false"
+	>
+		<div class="mx-auto flex min-h-full w-full max-w-[1600px] flex-col">
+			<div class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+				@PanelFullscreenHeader(spec, chartText)
+				<div class={ bodyClass }>
+					@body
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+templ PanelFullscreenHeader(spec panel.Spec, chartText chartText) {
+	<div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+		<div class="min-w-0">
+			if spec.Title != "" {
+				<h2 class="truncate text-lg font-semibold text-slate-900">{ spec.Title }</h2>
+			}
+			if spec.Description != "" {
+				<p class="mt-1 text-sm text-slate-500">{ spec.Description }</p>
+			}
+			@PanelLogScaleBadge(spec, chartText, "mt-3")
+		</div>
+		<button
+			type="button"
+			@click="fullscreen = false"
+			class="inline-flex h-10 w-10 cursor-pointer flex-shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+			title={ chartText.CloseFullscreen }
+			aria-label={ chartText.CloseFullscreen }
+		>
+			@icons.X(icons.Props{Size: "18"})
+		</button>
+	</div>
+}
+
+templ ChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
 	@charts.Chart(charts.Props{
 		Class:   "w-full h-full min-h-[240px]",
 		Options: apex.Options(spec, result),
+	})
+}
+
+templ FullscreenChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
+	@charts.Chart(charts.Props{
+		Class:   "w-full h-full min-h-0",
+		Options: apex.OptionsWithHeight(spec, result, "100%"),
 	})
 }
 
@@ -242,70 +412,132 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 	}
 	{{ rows := result.Frames.Primary().Rows() }}
 	{{ columns := tableColumns(spec, result) }}
-	<div class="overflow-auto">
-		<table class="min-w-full w-full text-[13px]">
-			<thead>
-				<tr class="border-b border-gray-200/80">
-					for _, column := range columns {
-						<th class="sticky top-0 whitespace-nowrap bg-gray-50/80 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">{ column.Label }</th>
-					}
-				</tr>
-			</thead>
-			<tbody class="divide-y divide-gray-100/80">
-				for _, row := range rows {
-					{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
-					{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
-					<tr class="transition-colors hover:bg-gray-50/60">
-						for i, column := range columns {
-							<td class="whitespace-nowrap px-4 py-2 text-gray-600">
-								if i == 0 && rowHref != "" {
-									<a
-										href={ templ.URL(rowHref) }
-										onclick={ stopPropagationScript(rowOnClick) }
-										class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
-									>
-										{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-									</a>
-								} else if i == 0 && rowOnClick.Call != "" {
-									<button
-										type="button"
-										onclick={ rowOnClick }
-										class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
-									>
-										{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-									</button>
-								} else {
-									{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-								}
-							</td>
+	if panelHasClass(spec, "lens-card-list") {
+		<div class="space-y-3">
+			for _, row := range rows {
+				{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
+				{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
+				if rowHref != "" {
+					<a
+						href={ templ.URL(rowHref) }
+						onclick={ stopPropagationScript(rowOnClick) }
+						class="block"
+					>
+						@CardListRow(columns, row, result)
+					</a>
+				} else if rowOnClick.Call != "" {
+					<button
+						type="button"
+						onclick={ rowOnClick }
+						class="block w-full text-left"
+					>
+						@CardListRow(columns, row, result)
+					</button>
+				} else {
+					@CardListRow(columns, row, result)
+				}
+			}
+		</div>
+	} else {
+		<div class="overflow-auto">
+			<table class="min-w-full w-full text-[13px]">
+				<thead>
+					<tr class="border-b border-gray-200/80">
+						for _, column := range columns {
+							<th class="sticky top-0 whitespace-nowrap bg-gray-50/80 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">{ column.Label }</th>
 						}
 					</tr>
+				</thead>
+				<tbody class="divide-y divide-gray-100/80">
+					for _, row := range rows {
+						{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
+						{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
+						<tr class="transition-colors hover:bg-gray-50/60">
+							for i, column := range columns {
+								<td class="whitespace-nowrap px-4 py-2 text-gray-600">
+									if i == 0 && rowHref != "" {
+										<a
+											href={ templ.URL(rowHref) }
+											onclick={ stopPropagationScript(rowOnClick) }
+											class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+										>
+											{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+										</a>
+									} else if i == 0 && rowOnClick.Call != "" {
+										<button
+											type="button"
+											onclick={ rowOnClick }
+											class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+										>
+											{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+										</button>
+									} else {
+										{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+									}
+								</td>
+							}
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+templ CardListRow(columns []panel.TableColumn, row map[string]any, result *runtime.PanelResult) {
+	<div class="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-4 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50">
+		<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold" style={ badgeStyle(rowAccentColor(row)) }>
+			{ rowMarker(tableValueText(columns[0], row, result)) }
+		</div>
+		<div class="min-w-0 flex-1">
+			<p class="truncate text-lg font-semibold text-slate-900">{ tableValueText(columns[0], row, result) }</p>
+			<div class="mt-2 flex flex-wrap items-center gap-2">
+				if len(columns) > 1 {
+					<span class="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+						{ tableValueText(columns[1], row, result) } { strings.ToLower(columns[1].Label) }
+					</span>
 				}
-			</tbody>
-		</table>
+				if len(columns) > 3 {
+					<span class="text-sm font-semibold text-slate-800">{ tableValueText(columns[3], row, result) }</span>
+				}
+			</div>
+		</div>
+		<div class="flex items-center gap-3">
+			if len(columns) > 2 {
+				<div class="text-right">
+					<div class="text-2xl font-bold text-slate-900">{ tableValueText(columns[2], row, result) }</div>
+					<div class="text-xs font-medium text-slate-400">{ strings.ToLower(columns[2].Label) }</div>
+				</div>
+			}
+			<div class="text-slate-300 transition-colors group-hover:text-slate-500">
+				@icons.ArrowRight(icons.Props{Size: "16"})
+			</div>
+		</div>
 	</div>
 }
 
 templ EmptyState() {
+	{{ lensText := localizedLensText(ctx) }}
 	<div class="flex min-h-[180px] flex-col items-center justify-center gap-2.5 text-center">
 		<div class="rounded-lg bg-gray-50 p-2.5 text-gray-300">
 			@icons.ChartBar(icons.Props{Size: "20"})
 		</div>
 		<div>
-			<p class="text-[13px] font-medium text-gray-400">No data available</p>
-			<p class="mt-0.5 text-[11px] text-gray-300">Try adjusting your filters</p>
+			<p class="text-[13px] font-medium text-gray-400">{ lensText.EmptyTitle }</p>
+			<p class="mt-0.5 text-[11px] text-gray-300">{ lensText.EmptyDescription }</p>
 		</div>
 	</div>
 }
 
 templ ErrorState(result *runtime.PanelResult) {
+	{{ lensText := localizedLensText(ctx) }}
 	<div class="flex min-h-[180px] flex-col items-center justify-center gap-2.5 text-center">
 		<div class="rounded-lg bg-red-50 p-2.5 text-red-300">
 			@icons.WarningCircle(icons.Props{Size: "20"})
 		</div>
 		<div>
-			<p class="text-[13px] font-medium text-red-400">Unable to load data</p>
-			<p class="mt-0.5 text-[11px] text-gray-400">An error occurred while rendering this panel</p>
+			<p class="text-[13px] font-medium text-red-400">{ lensText.ErrorTitle }</p>
+			<p class="mt-0.5 text-[11px] text-gray-400">{ lensText.ErrorDescription }</p>
 		</div>
 	</div>
 }

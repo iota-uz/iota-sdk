@@ -86,6 +86,30 @@
   },
   "Back": "返回",
   "Cancel": "取消",
+  "Chart": {
+    "CloseFullScreen": "关闭全屏",
+    "ExpandToFullScreen": "全屏展开",
+    "LogScale": "对数刻度",
+    "LogScaleHint": "这些数值使用对数刻度显示"
+  },
+  "Lens": {
+    "Empty": {
+      "_Description": "请尝试调整筛选条件",
+      "Title": "暂无数据"
+    },
+    "Error": {
+      "_Description": "渲染此面板时发生错误",
+      "Title": "无法加载数据"
+    },
+    "Filters": {
+      "All": "全部",
+      "AllTime": "全部时间",
+      "Apply": "应用",
+      "CustomRange": "自定义范围",
+      "DefaultRange": "默认范围",
+      "Title": "筛选"
+    }
+  },
   "ConfirmDelete": "您确定要删除此项吗？",
   "Countries": {
     "AF": "阿富汗",

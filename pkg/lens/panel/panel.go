@@ -4,6 +4,7 @@ package panel
 import (
 	"strings"
 
+	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
@@ -26,6 +27,18 @@ const (
 	KindSplit         Kind = "split"
 	KindRepeat        Kind = "repeat"
 )
+
+type AxisScale string
+
+const (
+	AxisScaleLinear      AxisScale = "linear"
+	AxisScaleLogarithmic AxisScale = "logarithmic"
+)
+
+type ValueAxis struct {
+	Scale   AxisScale
+	LogBase int
+}
 
 type TableColumn struct {
 	Field     FieldRef
@@ -52,23 +65,26 @@ func (f FieldRef) Empty() bool {
 }
 
 type Spec struct {
-	ID           string
-	Title        string
-	Description  string
-	Kind         Kind
-	Dataset      string
-	Span         int
-	Height       string
-	Colors       []string
-	ShowLegend   bool
-	Fields       FieldMapping
-	Formatter    *format.Spec
-	Columns      []TableColumn
-	Transforms   []transform.Spec
-	Action       *action.Spec
-	Children     []Spec
-	DefaultChild string
-	ClassName    string
+	ID          string
+	Title       string
+	Description string
+	Kind        Kind
+	Dataset     string
+	Span        int
+	Height      string
+	Colors      []string
+	ShowLegend  bool
+	Fields      FieldMapping
+	Formatter   *format.Spec
+	Columns     []TableColumn
+	Transforms  []transform.Spec
+	Action      *action.Spec
+	Children    []Spec
+	ClassName   string
+	Icon        templ.Component
+	AccentColor string
+	ValueAxis   ValueAxis
+	Distributed bool
 }
 
 type FieldMapping struct {
@@ -153,6 +169,28 @@ func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; 
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
 func (b *Builder) ClassName(name string) *Builder   { b.spec.ClassName = name; return b }
+func (b *Builder) ValueAxisScale(scale AxisScale, base int) *Builder {
+	b.spec.ValueAxis.Scale = scale
+	if base > 1 {
+		b.spec.ValueAxis.LogBase = base
+	}
+	return b
+}
+func (b *Builder) LogarithmicValueAxis(base int) *Builder {
+	return b.ValueAxisScale(AxisScaleLogarithmic, base)
+}
+func (b *Builder) Icon(icon templ.Component) *Builder {
+	b.spec.Icon = icon
+	return b
+}
+func (b *Builder) AccentColor(color string) *Builder {
+	b.spec.AccentColor = color
+	return b
+}
+func (b *Builder) DistributedColors() *Builder {
+	b.spec.Distributed = true
+	return b
+}
 func (b *Builder) Fields(mapping FieldMapping) *Builder {
 	b.spec.Fields = mapping
 	return b

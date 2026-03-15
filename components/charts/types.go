@@ -163,6 +163,7 @@ type BarConfig struct {
 	BorderRadius int       `json:"borderRadius,omitempty"`
 	ColumnWidth  string    `json:"columnWidth,omitempty"`
 	DataLabels   BarLabels `json:"dataLabels,omitempty"`
+	Distributed  *bool     `json:"distributed,omitempty"`
 	Horizontal   *bool     `json:"horizontal,omitempty"`
 }
 

@@ -1,0 +1,581 @@
+{
+  "Resources": {
+    "payment": "To'lovlar",
+    "expense": "Xarajatlar",
+    "expense_category": "Xarajat toifalari",
+    "debt": "Qarzlar"
+  },
+  "Permissions": {
+    "Payment": {
+      "Create": "To'lov yaratish",
+      "Read": "To'lovni ko'rish",
+      "Update": "To'lovni tahrirlash",
+      "Delete": "To'lovni o'chirish"
+    },
+    "Expense": {
+      "Create": "Xarajat yaratish",
+      "Read": "Xarajatni ko'rish",
+      "Update": "Xarajatni tahrirlash",
+      "Delete": "Xarajatni o'chirish"
+    },
+    "ExpenseCategory": {
+      "Create": "Xarajat toifasi yaratish",
+      "Read": "Xarajat toifasini ko'rish",
+      "Update": "Xarajat toifasini tahrirlash",
+      "Delete": "Xarajat toifasini o'chirish"
+    },
+    "Debt": {
+      "Create": "Qarz yaratish",
+      "Read": "Qarzni ko'rish",
+      "Update": "Qarzni tahrirlash",
+      "Delete": "Qarzni o'chirish"
+    }
+  },
+  "NavigationLinks": {
+    "Accounts": "Hisoblar",
+    "FinancialOverview": "Moliyaviy ko'rinish",
+    "Transactions": "Tranzaksiyalar",
+    "Expenses": "Xarajatlar",
+    "ExpenseCategories": "Xarajat kategoriyalari",
+    "Payments": "To'lovlar",
+    "PaymentCategories": "To'lov kategoriyalari",
+    "Finances": "Moliya",
+    "Counterparties": "Kontragentlar",
+    "Debts": "Qarzlar",
+    "DebtAggregates": "Qarzlar xulosasi",
+    "Inventory": "Ombor",
+    "Reports": "Hisobotlar",
+    "IncomeStatement": "Daromad va zarar hisoboti",
+    "CashflowStatement": "Pul oqimi hisoboti",
+    "Finance": {
+      "Enums": "Ro'yxatlar"
+    }
+  },
+  "FinancialOverview": {
+    "Meta": {
+      "Title": "Moliyaviy ko'rinish"
+    }
+  },
+  "ExpenseCategories": {
+    "Meta": {
+      "List": {
+        "Title": "Xarajat kategoriyalari"
+      },
+      "Edit": {
+        "Title": "Kategoriyani tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi kategoriya"
+      }
+    },
+    "List": {
+      "New": "Yangi kategoriya",
+      "Name": "Nomi",
+      "Amount": "Miqdori",
+      "NoCategories": {
+        "Title": "Xarajat kategoriyalari topilmadi",
+        "_Description": "Hali xarajat kategoriyalari yo'q. Yangi yaratish uchun 'Yangi kategoriya' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "EditUser": "Kategoriyani tahrirlash",
+      "Name": "Nomi",
+      "Amount": "Miqdori",
+      "CurrencyCode": {
+        "Label": "Valyuta",
+        "Placeholder": "Valyutani tanlang"
+      },
+      "_Description": "Tavsif",
+      "IsCOGS": "Sotilgan tovarlarning tannarxi (COGS)",
+      "Delete": "Kategoriyani o'chirish",
+      "DeleteConfirmation": "Ushbu xarajat kategoriyasini o'chirishni xohlaysizmi?"
+    }
+  },
+  "Payments": {
+    "Meta": {
+      "List": {
+        "Title": "To'lovlar"
+      },
+      "Edit": {
+        "Title": "To'lovni tahrirlash"
+      },
+      "New": {
+        "Title": "To'lov qo'shish"
+      },
+      "Show": {
+        "Title": "To'lov tafsilotlari"
+      }
+    },
+    "List": {
+      "New": "To'lov qo'shish",
+      "Amount": "Miqdori",
+      "NoPayments": {
+        "Title": "To'lovlar topilmadi",
+        "_Description": "Hali to'lovlar yo'q. Yangi yaratish uchun 'To'lov qo'shish' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "AccountID": "Hisob",
+      "SelectAccount": "Hisobni tanlang",
+      "Edit": "To'lovni tahrirlash",
+      "Name": "Nomi",
+      "Amount": "Miqdori",
+      "Date": "Sana",
+      "AccountingPeriod": "Hisob davri",
+      "CounterpartyID": {
+        "Label": "Jo'natuvchi",
+        "Placeholder": "Jo'natuvchini tanlang"
+      },
+      "CategoryID": "Kategoriya",
+      "SelectCategory": "Kategoriyani tanlang",
+      "Comment": "Izoh",
+      "User": "Foydalanuvchi",
+      "Delete": "To'lovni o'chirish",
+      "DeleteConfirmation": "Ushbu to'lovni o'chirishni xohlaysizmi?"
+    }
+  },
+  "Expenses": {
+    "Meta": {
+      "List": {
+        "Title": "Xarajatlar"
+      },
+      "Edit": {
+        "Title": "Xarajatni tahrirlash"
+      },
+      "New": {
+        "Title": "Xarajat qo'shish"
+      },
+      "Show": {
+        "Title": "Xarajat tafsilotlari"
+      }
+    },
+    "List": {
+      "New": "Xarajat qo'shish",
+      "Export": "Eksport",
+      "Category": "Kategoriya",
+      "Amount": "Miqdori",
+      "AccountingPeriod": "Hisob davri",
+      "Date": "Sana",
+      "NoExpenses": {
+        "Title": "Xarajatlar topilmadi",
+        "_Description": "Hali xarajatlar yo'q. Yangi yaratish uchun 'Xarajat qo'shish' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "AccountID": "Hisob",
+      "SelectAccount": "Hisobni tanlang",
+      "CategoryID": "Kategoriya",
+      "SelectCategory": "Kategoriyani tanlang",
+      "Edit": "Xarajatni tahrirlash",
+      "Name": "Nomi",
+      "Amount": "Miqdori",
+      "Date": "Sana",
+      "AccountingPeriod": "Hisob davri",
+      "Comment": "Izoh",
+      "Delete": "Xarajatni o'chirish",
+      "DeleteConfirmation": "Ushbu xarajatni o'chirishni xohlaysizmi?"
+    }
+  },
+  "Counterparties": {
+    "Meta": {
+      "List": {
+        "Title": "Kontragentlar"
+      },
+      "Edit": {
+        "Title": "Kontragentni tahrirlash"
+      },
+      "New": {
+        "Title": "Kontragent qo'shish"
+      }
+    },
+    "List": {
+      "New": "Kontragent qo'shish",
+      "Name": "Nomi",
+      "TIN": "STIR",
+      "Type": "Turi",
+      "LegalType": "Yuridik shakli",
+      "LegalAddress": "Yuridik manzili",
+      "NoCounterparties": {
+        "Title": "Kontragentlar topilmadi",
+        "_Description": "Hali kontragentlar yo'q. Yangi yaratish uchun 'Kontragent qo'shish' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "Edit": "Kontragentni tahrirlash",
+      "Name": "Nomi",
+      "TIN": "STIR",
+      "Type": "Turi",
+      "SelectType": "Turini tanlang",
+      "LegalType": "Yuridik shakli",
+      "SelectLegalType": "Yuridik shaklini tanlang",
+      "LegalAddress": "Yuridik manzili",
+      "Delete": "Kontragentni o'chirish",
+      "DeleteConfirmation": "Ushbu kontragentni o'chirishni xohlaysizmi?"
+    },
+    "Types": {
+      "CUSTOMER": "Mijoz",
+      "SUPPLIER": "Ta'minotchi",
+      "BOTH": "Ikkalasi",
+      "_OTHER": "Boshqa"
+    },
+    "LegalTypes": {
+      "INDIVIDUAL": "Jismoniy shaxs",
+      "LLC": "MChJ (Mas'uliyati cheklangan jamiyat)",
+      "JSC": "AJ (Aksiyadorlik jamiyati)",
+      "SOLE_PROPRIETORSHIP": "Yakka tadbirkor"
+    }
+  },
+  "MoneyAccounts": {
+    "Meta": {
+      "List": {
+        "Title": "Hisoblar"
+      },
+      "Edit": {
+        "Title": "Hisobni tahrirlash"
+      },
+      "New": {
+        "Title": "Hisob qo'shish"
+      }
+    },
+    "List": {
+      "New": "Hisob qo'shish",
+      "Name": "Nomi",
+      "Balance": "Balans",
+      "NoAccounts": {
+        "Title": "Hisoblar topilmadi",
+        "_Description": "Hali hisoblar yo'q. Yangi yaratish uchun 'Hisob qo'shish' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "Edit": "Hisobni tahrirlash",
+      "Name": "Nomi",
+      "Balance": "Balans",
+      "CurrencyCode": "Valyuta",
+      "Currency": {
+        "Label": "Valyuta",
+        "Placeholder": "Valyutani tanlang"
+      },
+      "_Description": "Tavsif",
+      "AccountNumber": "Hisob raqami",
+      "Delete": "Hisobni o'chirish",
+      "DeleteConfirmation": "Ushbu hisobni o'chirishni xohlaysizmi?",
+      "General": "Umumiy",
+      "Transactions": "Tranzaksiyalar",
+      "Transfer": "O'tkazma"
+    },
+    "Transactions": {
+      "NoTransactions": "Hozircha tranzaksiyalar yo'q",
+      "NoTransactionsDescription": "Bu hisobda tranzaksiyalar yo'q. Tranzaksiyalar siz xarajat, to'lov yoki o'tkazmalar qo'shganingizda bu yerda ko'rinadi.",
+      "ViewAll": "Barcha tranzaksiyalarni ko'rish"
+    }
+  },
+  "Transfers": {
+    "Meta": {
+      "New": {
+        "Title": "Pul o'tkazmasi"
+      }
+    },
+    "Single": {
+      "From": "Dan",
+      "To": "Ga",
+      "DestinationAccountID": "Qabul qiluvchi hisob",
+      "SelectDestinationAccount": "Qabul qiluvchi hisobni tanlang",
+      "Amount": "Miqdor",
+      "Comment": "Izoh",
+      "CommentPlaceholder": "Ixtiyoriy o'tkazma tavsifi...",
+      "Transfer": "O'tkazish",
+      "ExchangeRate": "Ayirboshlash kursi",
+      "DestinationAmount": "Qabul qiluvchi miqdori",
+      "ExchangeNotice": "Turli valyutalar aniqlandi - ayirboshlash kursi talab qilinadi"
+    }
+  },
+  "PaymentCategories": {
+    "Meta": {
+      "List": {
+        "Title": "To'lov kategoriyalari"
+      },
+      "Edit": {
+        "Title": "To'lov kategoriyasini tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi to'lov kategoriyasi"
+      }
+    },
+    "List": {
+      "New": "Yangi kategoriya",
+      "Name": "Nomi",
+      "NoCategories": {
+        "Title": "To'lov kategoriyalari topilmadi",
+        "_Description": "Hali to'lov kategoriyalari yo'q. Yangi yaratish uchun 'Yangi kategoriya' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "_Description": "Tavsif",
+      "Delete": "To'lov kategoriyasini o'chirish",
+      "DeleteConfirmation": "Ushbu to'lov kategoriyasini o'chirishni xohlaysizmi?"
+    }
+  },
+  "Inventory": {
+    "Meta": {
+      "List": {
+        "Title": "Ombor"
+      },
+      "Edit": {
+        "Title": "Tovarni tahrirlash"
+      },
+      "New": {
+        "Title": "Tovar qo'shish"
+      }
+    },
+    "List": {
+      "New": "Tovar qo'shish",
+      "Name": "Nomi",
+      "Price": "Narxi",
+      "Quantity": "Miqdori",
+      "TotalValue": "Umumiy qiymati",
+      "NoInventory": {
+        "Title": "Tovarlar topilmadi",
+        "_Description": "Hali omborxonada tovarlar yo'q. Yangi yaratish uchun 'Tovar qo'shish' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "Edit": "Tovarni tahrirlash",
+      "Name": "Nomi",
+      "Price": "Narxi",
+      "Quantity": "Miqdori",
+      "Currency": {
+        "Label": "Valyuta",
+        "Placeholder": "Valyutani tanlang"
+      },
+      "_Description": "Tavsif",
+      "Delete": "Tovarni o'chirish",
+      "DeleteConfirmation": "Ushbu tovarni o'chirishni xohlaysizmi?"
+    }
+  },
+  "Transactions": {
+    "Meta": {
+      "List": {
+        "Title": "Tranzaksiyalar"
+      }
+    },
+    "List": {
+      "Date": "Sana",
+      "Type": "Turi",
+      "Amount": "Summa",
+      "Account": "Hisob",
+      "Category": "Kategoriya",
+      "Counterparty": "Kontragent",
+      "Comment": "Izoh",
+      "NoTransactions": {
+        "Title": "Tranzaksiyalar topilmadi",
+        "_Description": "Hali tranzaksiyalar yo'q. Xarajat yoki to'lov qo'shganingizda tranzaksiyalar yaratiladi."
+      }
+    },
+    "Filters": {
+      "AllTypes": "Barcha turlar",
+      "AllTime": "Barcha vaqt",
+      "AccountingPeriod": "Hisob davri",
+      "AllPeriods": "Barcha davrlar",
+      "ThisMonth": "Bu oy",
+      "LastMonth": "O'tgan oy",
+      "TwoMonthsAgo": "2 oy oldin",
+      "ThreeMonthsAgo": "3 oy oldin"
+    },
+    "Single": {
+      "Title": "Tranzaksiya tafsilotlari",
+      "Details": "Tranzaksiya ma'lumotlari",
+      "Type": "Turi",
+      "Amount": "Summa",
+      "Date": "Tranzaksiya sanasi",
+      "AccountingPeriod": "Hisob davri",
+      "OriginAccount": "Jo'natuvchi hisob",
+      "DestinationAccount": "Qabul qiluvchi hisob",
+      "DestinationAccountID": "Qabul qiluvchi hisob",
+      "Comment": "Izoh",
+      "ExchangeDetails": "Ayirboshlash tafsilotlari",
+      "ExchangeRate": "Ayirboshlash kursi",
+      "DestinationAmount": "Qabul qiluvchi summa",
+      "RelatedDetails": "Bog'liq ma'lumotlar",
+      "PaymentCategory": "To'lov kategoriyasi",
+      "ExpenseCategory": "Xarajat kategoriyasi",
+      "Counterparty": "Kontragent",
+      "TransactionID": "Tranzaksiya ID",
+      "From": "Qayerdan",
+      "To": "Qayerga",
+      "Category": "Kategoriya"
+    },
+    "Types": {
+      "DEPOSIT": "Kirim",
+      "WITHDRAWAL": "Chiqim",
+      "TRANSFER": "O'tkazma",
+      "EXCHANGE": "Ayirboshlash"
+    }
+  },
+  "Reports": {
+    "IncomeStatement": {
+      "Title": "Daromad va zarar hisoboti",
+      "GenerateReport": "Hisobot tuzish",
+      "StartDate": "Boshlanish sanasi",
+      "EndDate": "Tugash sanasi",
+      "ComparePeriods": "Taqqoslash davrlari",
+      "Generate": "Hisobot tuzish",
+      "EnableComparison": "Davrlarni taqqoslashni yoqish",
+      "Generating": "Hisobot tuzilmoqda...",
+      "NoReportGenerated": "Hisobot tuzilmagan",
+      "SelectDatesAndGenerate": "Sanalarni tanlang va daromad va zarar hisobotini ko'rish uchun 'Hisobot tuzish' tugmasini bosing",
+      "Period": "Davr",
+      "Print": "Chop etish",
+      "GrossProfit": "Yalpi foyda",
+      "NetProfit": "Sof foyda",
+      "GeneratedAt": "Tuzilgan",
+      "NoItemsInSection": "Bu bo'limda elementlar yo'q",
+      "Total": "Jami",
+      "ComparativeTitle": "Taqqosiy daromad va zarar hisoboti",
+      "CurrentPeriod": "Joriy davr",
+      "ComparisonPeriods": "Taqqoslash davrlari",
+      "Revenue": "Daromadlar",
+      "Expenses": "Xarajatlar",
+      "Category": "Kategoriya",
+      "OperationalIncome": "Operatsion daromad",
+      "TotalExpenses": "Umumiy xarajatlar"
+    },
+    "CashflowStatement": {
+      "Title": "Pul oqimi hisoboti",
+      "_Description": "Hisoblaringizdagi pul harakatlarini ko'rish va tahlil qilish",
+      "Account": "Hisob",
+      "SelectAccount": "Hisobni tanlang",
+      "AllAccounts": "Barcha hisoblar",
+      "StartDate": "Boshlanish sanasi",
+      "EndDate": "Tugash sanasi",
+      "Generate": "Hisobot tuzish",
+      "LastGenerated": "Oxirgi tuzilgan",
+      "Never": "Hech qachon",
+      "ReportTitle": "Pul oqimi hisoboti",
+      "StartingBalance": "Boshlang'ich balans",
+      "NetCashFlow": "Sof pul oqimi",
+      "EndingBalance": "Yakuniy balans",
+      "GeneratedAt": "Tuzilgan",
+      "Category": "Kategoriya",
+      "Total": "Jami",
+      "Count": "Soni",
+      "Inflows": "Pul kirimlar",
+      "Outflows": "Pul chiqimlar",
+      "NoReportGenerated": "Hisobot tuzilmagan",
+      "SelectDatesAndGenerate": "Sanalarni va hisobni tanlang, so'ngra pul oqimi hisobotini ko'rish uchun 'Hisobot tuzish' tugmasini bosing",
+      "Generating": "Hisobot tuzilmoqda..."
+    }
+  },
+  "Debts": {
+    "Meta": {
+      "List": {
+        "Title": "Qarzlar"
+      },
+      "Edit": {
+        "Title": "Qarzni tahrirlash"
+      },
+      "New": {
+        "Title": "Qarz qo'shish"
+      }
+    },
+    "List": {
+      "New": "Qarz qo'shish",
+      "Type": "Turi",
+      "Status": "Holati",
+      "Counterparty": "Hamkor",
+      "OriginalAmount": "Dastlabki summa",
+      "OutstandingAmount": "Qarz qoldig'i",
+      "_Description": "Tavsif",
+      "DueDate": "To'lov muddati",
+      "CreatedAt": "Yaratilgan",
+      "Actions": "Amallar",
+      "NoDebts": {
+        "Title": "Qarzlar topilmadi",
+        "_Description": "Hozircha qarzlar yo'q. Yaratish uchun 'Qarz qo'shish' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "Edit": "Qarzni tahrirlash",
+      "Counterparty": "Hamkor",
+      "CounterpartyID": "Hamkor",
+      "SelectCounterparty": "Hamkorni tanlash",
+      "Type": "Qarz turi",
+      "SelectType": "Qarz turini tanlash",
+      "Status": "Holati",
+      "Amount": "Summa",
+      "OriginalAmount": "Dastlabki summa",
+      "OutstandingAmount": "Qarz qoldig'i",
+      "_Description": "Tavsif",
+      "DueDate": "To'lov muddati",
+      "SettlementTransactionID": "To'lov tranzaksiyasi",
+      "Settle": "Qarzni to'lash",
+      "WriteOff": "Hisobdan chiqarish",
+      "Delete": "Qarzni o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu qarzni o'chirmoqchimisiz?",
+      "SettleConfirmation": "Haqiqatan ham bu qarzni to'lamoqchimisiz?",
+      "WriteOffConfirmation": "Haqiqatan ham bu qarzni yomon qarz sifatida hisobdan chiqarmoqchimisiz?",
+      "SelectTransaction": "Tranzaksiyani tanlash"
+    },
+    "Types": {
+      "RECEIVABLE": "Debitorlik qarzi (bizga bergilar)",
+      "PAYABLE": "Kreditorlik qarzi (biz bergan)"
+    },
+    "Statuses": {
+      "PENDING": "Kutilayotgan",
+      "SETTLED": "To'langan",
+      "PARTIAL": "Qisman to'langan",
+      "WRITTEN_OFF": "Hisobdan chiqarilgan"
+    },
+    "Actions": {
+      "Created": "Qarz muvaffaqiyatli yaratildi",
+      "Updated": "Qarz muvaffaqiyatli yangilandi",
+      "Deleted": "Qarz muvaffaqiyatli o'chirildi",
+      "Settled": "Qarz muvaffaqiyatli to'landi",
+      "WrittenOff": "Qarz muvaffaqiyatli hisobdan chiqarildi"
+    }
+  },
+  "DebtAggregates": {
+    "Meta": {
+      "List": {
+        "Title": "Kontragentlar bo'yicha qarzlar xulosasi"
+      }
+    },
+    "List": {
+      "Counterparty": "Kontragent",
+      "TotalReceivable": "Jami olinadigan",
+      "TotalPayable": "Jami to'lanadigan",
+      "OutstandingReceivable": "Olinadigan qoldiq",
+      "OutstandingPayable": "To'lanadigan qoldiq",
+      "NetAmount": "Aniq summa",
+      "DebtCount": "Jami qarzlar"
+    },
+    "Drawer": {
+      "Title": "Qarz tafsilotlari"
+    }
+  },
+  "Attachments": {
+    "Title": "Ilovalar",
+    "AddFiles": "Fayllar qo'shish",
+    "ChooseFiles": "Fayllarni tanlash",
+    "SupportedFormats": "Qo'llab-quvvatlanadigan formatlar: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX",
+    "ExistingFiles": "Mavjud fayllar",
+    "AttachedFiles": "Biriktirilgan fayllar",
+    "DeleteConfirmation": "Haqiqatan ham bu ilovani o'chirmoqchimisiz?",
+    "DeleteFile": "Faylni o'chirish"
+  },
+  "Finance": {
+    "Attachments": {
+      "Title": "Moliyaviy hujjatlar",
+      "AddFiles": "Hujjatlar qo'shish",
+      "ChooseFiles": "Hujjatlarni tanlash",
+      "SupportedFormats": "Kvitansiyalar, schyot-fakturalar, shartnomalar va boshqa moliyaviy hujjatlarni yuklang",
+      "ExistingFiles": "Mavjud hujjatlar",
+      "AttachedFiles": "Biriktirilgan hujjatlar",
+      "DeleteConfirmation": "Haqiqatan ham bu hujjatni o'chirmoqchimisiz?",
+      "DeleteFile": "Hujjatni o'chirish"
+    }
+  },
+  "ValidationErrors": {
+    "invalidTIN": "{{.Details}}"
+  }
+}
