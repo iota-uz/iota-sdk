@@ -68,6 +68,7 @@ type Spec struct {
 	ID          string
 	Title       string
 	Description string
+	Info        string
 	Kind        Kind
 	Dataset     string
 	Span        int
@@ -168,6 +169,7 @@ func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; 
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
+func (b *Builder) Info(text string) *Builder        { b.spec.Info = text; return b }
 func (b *Builder) ClassName(name string) *Builder   { b.spec.ClassName = name; return b }
 func (b *Builder) ValueAxisScale(scale AxisScale, base int) *Builder {
 	b.spec.ValueAxis.Scale = scale

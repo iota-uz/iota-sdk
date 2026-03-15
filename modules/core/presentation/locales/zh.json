@@ -90,7 +90,8 @@
     "CloseFullScreen": "关闭全屏",
     "ExpandToFullScreen": "全屏展开",
     "LogScale": "对数刻度",
-    "LogScaleHint": "这些数值使用对数刻度显示"
+    "LogScaleHint": "这些数值使用对数刻度显示",
+    "MetricInfo": "该指标的计算方式"
   },
   "Lens": {
     "Empty": {

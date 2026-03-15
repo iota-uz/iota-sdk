@@ -90,7 +90,8 @@
     "CloseFullScreen": "Close fullscreen",
     "ExpandToFullScreen": "Expand to fullscreen",
     "LogScale": "Log scale",
-    "LogScaleHint": "Values are shown on a logarithmic scale"
+    "LogScaleHint": "Values are shown on a logarithmic scale",
+    "MetricInfo": "How this metric is calculated"
   },
   "Lens": {
     "Empty": {

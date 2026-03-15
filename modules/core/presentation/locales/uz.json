@@ -90,7 +90,8 @@
     "CloseFullScreen": "To'liq ekran rejimini yopish",
     "ExpandToFullScreen": "To'liq ekranga kengaytirish",
     "LogScale": "Logarifmik shkala",
-    "LogScaleHint": "Qiymatlar logarifmik shkala asosida ko'rsatilgan"
+    "LogScaleHint": "Qiymatlar logarifmik shkala asosida ko'rsatilgan",
+    "MetricInfo": "Bu metrika qanday hisoblanadi"
   },
   "Lens": {
     "Empty": {

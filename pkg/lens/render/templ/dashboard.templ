@@ -206,9 +206,12 @@ templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
 							@panelDisplayIcon(spec)
 						</div>
 						<div class="min-w-0">
-							if spec.Title != "" {
-								<h3 class="truncate text-sm font-semibold text-slate-700">{ spec.Title }</h3>
-							}
+							<div class="flex items-center gap-2 min-w-0">
+								if spec.Title != "" {
+									<h3 class="truncate text-sm font-semibold text-slate-700">{ spec.Title }</h3>
+								}
+								@MetricInfoButton(spec, "flex-shrink-0")
+							</div>
 							if spec.Description != "" && spec.Kind != panel.KindStat {
 								<p class="mt-0.5 truncate text-xs text-slate-400">{ spec.Description }</p>
 							}
@@ -233,9 +236,12 @@ templ PanelShell(spec panel.Spec, props DashboardShellProps) {
 							@panelDisplayIcon(spec)
 						</div>
 						<div class="min-w-0">
-							if spec.Title != "" {
-								<h3 class="truncate text-sm font-semibold text-slate-700">{ spec.Title }</h3>
-							}
+							<div class="flex items-center gap-2 min-w-0">
+								if spec.Title != "" {
+									<h3 class="truncate text-sm font-semibold text-slate-700">{ spec.Title }</h3>
+								}
+								@MetricInfoButton(spec, "flex-shrink-0")
+							</div>
 							if spec.Description != "" && spec.Kind != panel.KindStat {
 								<p class="mt-0.5 truncate text-xs text-slate-400">{ spec.Description }</p>
 							}
@@ -371,24 +377,44 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 	{{ row := statRow(result) }}
 	{{ href := actionURL(spec.Action, row, result.Variables) }}
 	{{ onClick := actionOnClick(spec.Action, row, result.Variables) }}
-	if href != "" {
-		<a href={ templ.URL(href) } onclick={ onClick } class="group block h-full transition-opacity hover:opacity-90">
-			@statContent(spec, value, spec.Description)
-		</a>
-	} else if onClick.Call != "" {
-		<button type="button" onclick={ onClick } class="group block h-full w-full text-left transition-opacity hover:opacity-90">
-			@statContent(spec, value, spec.Description)
-		</button>
-	} else {
-		@statContent(spec, value, spec.Description)
-	}
+	<div class="group relative h-full">
+		if href != "" {
+			<a href={ templ.URL(href) } onclick={ onClick } aria-label={ spec.Title } class="absolute inset-0 z-0 block rounded-xl"></a>
+		} else if onClick.Call != "" {
+			<button type="button" onclick={ onClick } aria-label={ spec.Title } class="absolute inset-0 z-0 block h-full w-full rounded-xl"></button>
+		}
+		@statContent(spec, value, spec.Description, href != "" || onClick.Call != "")
+	</div>
 }
 
-templ statContent(spec panel.Spec, value, description string) {
+templ MetricInfoButton(spec panel.Spec, class string) {
+	if strings.TrimSpace(spec.Info) == "" {
+		{{ return }}
+	}
+	{{ chartText := localizedChartText(ctx) }}
+	<button
+		type="button"
+		class={ "inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition hover:border-slate-300 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer", class }
+		x-tooltip={ metricInfoTooltipConfig(ctx, spec.Info) }
+		@click.stop=""
+		aria-label={ chartText.MetricInfo }
+	>
+		@icons.Info(icons.Props{Size: "14"})
+	</button>
+}
+
+templ statContent(spec panel.Spec, value, description string, clickable bool) {
+	{{ bodyClass := "flex h-full flex-col" }}
+	if clickable {
+		{{ bodyClass = bodyClass + " relative z-10 transition-opacity group-hover:opacity-90 pointer-events-none" }}
+	}
 	if statUsesCustomChrome(spec) {
-		<div class="flex h-full flex-col">
+		<div class={ bodyClass }>
 			<div class="flex items-center justify-between border-b border-slate-100 px-4 py-4">
-				<h3 class="text-base font-medium text-slate-600 transition-colors group-hover:text-slate-900">{ spec.Title }</h3>
+				<div class="flex min-w-0 items-center gap-2">
+					<h3 class="truncate text-base font-medium text-slate-600 transition-colors group-hover:text-slate-900">{ spec.Title }</h3>
+					@MetricInfoButton(spec, "pointer-events-auto flex-shrink-0")
+				</div>
 				<div class="flex h-10 w-10 items-center justify-center rounded-xl" style={ badgeStyle(spec.AccentColor) }>
 					@panelDisplayIcon(spec)
 				</div>
@@ -401,7 +427,7 @@ templ statContent(spec panel.Spec, value, description string) {
 			</div>
 		</div>
 	} else {
-		<div class="flex h-full flex-col justify-center">
+		<div class={ bodyClass + " justify-center" }>
 			<div class="text-[28px] font-bold tabular-nums leading-tight tracking-tight text-gray-900">{ value }</div>
 			if description != "" {
 				<div class="mt-1.5 text-[11px] font-medium text-gray-400">{ description }</div>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/url"
 	"strconv"
 	"strings"
@@ -278,6 +279,7 @@ type chartText struct {
 	CloseFullscreen    string
 	LogScale           string
 	LogScaleHint       string
+	MetricInfo         string
 }
 
 func pageContext(ctx context.Context) types.PageContext {
@@ -305,6 +307,7 @@ func localizedChartText(ctx context.Context) chartText {
 		CloseFullscreen:    translateOrFallback(ctx, "Chart.CloseFullScreen", "Close fullscreen"),
 		LogScale:           translateOrFallback(ctx, "Chart.LogScale", "Log scale"),
 		LogScaleHint:       translateOrFallback(ctx, "Chart.LogScaleHint", "Values are shown on a logarithmic scale"),
+		MetricInfo:         translateOrFallback(ctx, "Chart.MetricInfo", "How this metric is calculated"),
 	}
 }
 
@@ -394,6 +397,28 @@ func showPanelHeader(spec panel.Spec) bool {
 
 func statUsesCustomChrome(spec panel.Spec) bool {
 	return spec.Icon != nil || spec.AccentColor != ""
+}
+
+func metricInfoTooltipHTML(ctx context.Context, info string) string {
+	if strings.TrimSpace(info) == "" {
+		return ""
+	}
+	chartText := localizedChartText(ctx)
+	body := html.EscapeString(strings.TrimSpace(info))
+	body = strings.ReplaceAll(body, "\n", "<br>")
+	return fmt.Sprintf(
+		`<div class="max-w-xs space-y-1.5 p-1"><div class="text-xs font-semibold text-slate-900">%s</div><div class="text-xs leading-5 text-slate-600">%s</div></div>`,
+		html.EscapeString(chartText.MetricInfo),
+		body,
+	)
+}
+
+func metricInfoTooltipConfig(ctx context.Context, info string) string {
+	html := metricInfoTooltipHTML(ctx, info)
+	if html == "" {
+		return ""
+	}
+	return fmt.Sprintf(`{content: %s, allowHTML: true, interactive: true, trigger: 'click focusin', theme: 'light', maxWidth: 360}`, js.MustToJS(html))
 }
 
 func panelHasClass(spec panel.Spec, token string) bool {
