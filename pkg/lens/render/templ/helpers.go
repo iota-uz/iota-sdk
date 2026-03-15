@@ -490,6 +490,85 @@ func panelFullscreenBodyClass(spec panel.Spec) string {
 	return strings.TrimSpace(panelBodyClass(spec) + " h-[calc(100vh-8rem)] min-h-[70vh]")
 }
 
+func panelShellBodyClass(spec panel.Spec) string {
+	return strings.TrimSpace(panelBodyClass(spec) + " relative min-h-0")
+}
+
+func panelIslandStyle(spec panel.Spec) templpkg.SafeCSS {
+	minHeight := panelMinimumHeight(spec)
+	if minHeight == "" {
+		return ""
+	}
+	return templpkg.SafeCSS("min-height: " + minHeight + ";")
+}
+
+func panelMinimumHeight(spec panel.Spec) string {
+	switch spec.Kind {
+	case panel.KindStat:
+		if statUsesCustomChrome(spec) {
+			return "164px"
+		}
+		return "120px"
+	case panel.KindTable:
+		return "220px"
+	case panel.KindTabs:
+		if childHeight := maxChildHeight(spec.Children); childHeight != "" {
+			return "calc(" + childHeight + " + 5rem)"
+		}
+		return "420px"
+	case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+		if childHeight := maxChildHeight(spec.Children); childHeight != "" {
+			return childHeight
+		}
+		return "240px"
+	default:
+		if strings.TrimSpace(spec.Height) != "" {
+			return strings.TrimSpace(spec.Height)
+		}
+		return "240px"
+	}
+}
+
+func maxChildHeight(children []panel.Spec) string {
+	for _, child := range children {
+		if height := panelMinimumHeight(child); height != "" {
+			return height
+		}
+	}
+	return ""
+}
+
+func panelFragmentURL(basePath, panelID string) string {
+	basePath = strings.TrimRight(strings.TrimSpace(basePath), "/")
+	if basePath == "" {
+		return ""
+	}
+	return basePath + "/" + url.PathEscape(panelID)
+}
+
+func islandIncludeSelector(props DashboardShellProps) string {
+	if strings.TrimSpace(props.IncludeSelector) != "" {
+		return props.IncludeSelector
+	}
+	if strings.TrimSpace(props.FilterFormID) == "" {
+		return ""
+	}
+	formID := "#" + props.FilterFormID
+	return formID + " input, " + formID + " select, " + formID + " textarea"
+}
+
+func islandTrigger(props DashboardShellProps) string {
+	if strings.TrimSpace(props.FilterFormID) == "" {
+		return "load"
+	}
+	formID := "#" + props.FilterFormID
+	return "load, change delay:800ms from:" + formID + ", dateRangeChange delay:800ms from:" + formID
+}
+
+func shellIndicatorID(panelID string) string {
+	return "lens-panel-indicator-" + panelID
+}
+
 func tabsPanelFrameClass(fullscreen bool) string {
 	if fullscreen {
 		return "flex flex-1 min-h-0"
@@ -510,4 +589,17 @@ func openFullscreenScript() string {
 
 func activateTabScript(tabID string) string {
 	return "activeTab = '" + tabID + "'; " + rerenderChartsScript(180)
+}
+
+func panelPlaceholderRows(spec panel.Spec) int {
+	switch spec.Kind {
+	case panel.KindStat:
+		return 2
+	case panel.KindTable:
+		return 5
+	case panel.KindTabs:
+		return 4
+	default:
+		return 4
+	}
 }

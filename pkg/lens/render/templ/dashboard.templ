@@ -29,7 +29,7 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 			}
 		}
 	</style>
-	<div class="space-y-6">
+	<div class="space-y-6" data-lens-dashboard>
 		@FilterBar(filters)
 		for _, row := range spec.Rows {
 			<div class={ "grid grid-cols-12 gap-5", row.Class }>
@@ -39,6 +39,84 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 			</div>
 		}
 	</div>
+	@DashboardScripts()
+}
+
+templ DashboardShell(spec lens.DashboardSpec, props DashboardShellProps) {
+	<style>
+		.lens-grid-item {
+			grid-column: span 12 / span 12;
+			min-width: 0;
+		}
+
+		@media (min-width: 768px) {
+			.lens-grid-item {
+				grid-column: span var(--lens-col-span, 12) / span var(--lens-col-span, 12);
+			}
+		}
+	</style>
+	<div class="space-y-6" data-lens-dashboard>
+		for _, row := range spec.Rows {
+			<div class={ "grid grid-cols-12 gap-5", row.Class }>
+				for _, panelSpec := range row.Panels {
+					@PanelShell(panelSpec, props)
+				}
+			</div>
+		}
+	</div>
+	@FormURLSyncScript(props.FilterFormID)
+	@DashboardScripts()
+}
+
+templ DashboardScripts() {
+	<script>
+		(function() {
+			if (window.__lensDashboardScriptsBound) {
+				return;
+			}
+			window.__lensDashboardScriptsBound = true;
+			document.addEventListener('htmx:afterSwap', function(evt) {
+				const target = evt.detail && evt.detail.target;
+				if (!target) {
+					return;
+				}
+				const containsDashboard = target.closest('[data-lens-dashboard]') || target.querySelector('[data-lens-dashboard]');
+				if (!containsDashboard) {
+					return;
+				}
+				setTimeout(() => {
+					document.dispatchEvent(new Event('sdk:rerenderCharts'));
+				}, 100);
+			});
+		})();
+	</script>
+}
+
+templ FormURLSyncScript(formID string) {
+	if formID != "" {
+		<script>
+			(function() {
+				const form = document.getElementById("{ formID }");
+				if (!form || form.dataset.lensUrlSync === 'true') {
+					return;
+				}
+				form.dataset.lensUrlSync = 'true';
+				let timeoutId = null;
+				const syncURL = () => {
+					const next = new URL(window.location.href);
+					const params = new URLSearchParams(new FormData(form));
+					next.search = params.toString();
+					window.history.replaceState({}, '', next.toString());
+				};
+				const schedule = () => {
+					window.clearTimeout(timeoutId);
+					timeoutId = window.setTimeout(syncURL, 820);
+				};
+				form.addEventListener('change', schedule);
+				form.addEventListener('dateRangeChange', schedule);
+			})();
+		</script>
+	}
 }
 
 templ FilterBar(model filter.Model) {
@@ -145,6 +223,33 @@ templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
 	</div>
 }
 
+templ PanelShell(spec panel.Spec, props DashboardShellProps) {
+	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
+		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md">
+			if showPanelHeader(spec) {
+				<div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+					<div class="flex items-center gap-2 min-w-0">
+						<div class="flex-shrink-0 text-slate-400">
+							@panelDisplayIcon(spec)
+						</div>
+						<div class="min-w-0">
+							if spec.Title != "" {
+								<h3 class="truncate text-sm font-semibold text-slate-700">{ spec.Title }</h3>
+							}
+							if spec.Description != "" && spec.Kind != panel.KindStat {
+								<p class="mt-0.5 truncate text-xs text-slate-400">{ spec.Description }</p>
+							}
+						</div>
+					</div>
+				</div>
+			}
+			<div class={ panelShellBodyClass(spec) }>
+				@PanelIsland(spec, props)
+			</div>
+		</div>
+	</div>
+}
+
 templ PanelContent(spec panel.Spec, result *runtime.DashboardResult) {
 	{{ currentPanel := panelResult(result, spec.ID) }}
 	switch spec.Kind {
@@ -159,6 +264,33 @@ templ PanelContent(spec panel.Spec, result *runtime.DashboardResult) {
 		default:
 			@ChartPanel(spec, currentPanel)
 	}
+}
+
+templ PanelFragment(spec panel.Spec, result *runtime.DashboardResult) {
+	@PanelContent(spec, result)
+}
+
+templ PanelIsland(spec panel.Spec, props DashboardShellProps) {
+	{{ indicatorID := shellIndicatorID(spec.ID) }}
+	<div
+		class="absolute inset-0 z-10 hidden htmx-indicator bg-white/80 backdrop-blur-sm"
+		id={ indicatorID }
+	>
+		@LoadingState(spec, true)
+	</div>
+	<div
+		class="h-full"
+		style={ panelIslandStyle(spec) }
+		hx-get={ panelFragmentURL(props.PanelBasePath, spec.ID) }
+		hx-trigger={ islandTrigger(props) }
+		hx-target="this"
+		hx-swap="innerHTML"
+		hx-indicator={ "#" + indicatorID }
+		hx-include={ islandIncludeSelector(props) }
+		hx-on::after-swap="document.dispatchEvent(new Event('sdk:rerenderCharts'))"
+	>
+		@LoadingState(spec, false)
+	</div>
 }
 
 templ CompositePanel(spec panel.Spec, result *runtime.DashboardResult) {
@@ -539,5 +671,39 @@ templ ErrorState(result *runtime.PanelResult) {
 			<p class="text-[13px] font-medium text-red-400">{ lensText.ErrorTitle }</p>
 			<p class="mt-0.5 text-[11px] text-gray-400">{ lensText.ErrorDescription }</p>
 		</div>
+	</div>
+}
+
+templ LoadingState(spec panel.Spec, overlay bool) {
+	{{ containerClass := "flex h-full w-full items-center justify-center" }}
+	if overlay {
+		{{ containerClass = "flex h-full w-full items-center justify-center" }}
+	}
+	<div class={ containerClass } style={ panelIslandStyle(spec) }>
+		switch spec.Kind {
+			case panel.KindStat:
+				<div class="flex h-full w-full flex-col justify-center gap-3 px-4 py-4">
+					<div class="h-4 w-28 animate-pulse rounded bg-slate-100"></div>
+					<div class="h-10 w-32 animate-pulse rounded bg-slate-200"></div>
+					if spec.Description != "" {
+						<div class="h-3 w-24 animate-pulse rounded bg-slate-100"></div>
+					}
+				</div>
+			case panel.KindTable:
+				<div class="flex h-full w-full flex-col gap-3 p-4">
+					for i := 0; i < panelPlaceholderRows(spec); i++ {
+						<div class="h-12 animate-pulse rounded-xl bg-slate-100"></div>
+					}
+				</div>
+			case panel.KindTabs:
+				<div class="flex h-full w-full flex-col p-3">
+					<div class="mb-5 h-14 animate-pulse rounded-2xl bg-slate-100"></div>
+					<div class="flex-1 animate-pulse rounded-2xl bg-slate-50"></div>
+				</div>
+			default:
+				<div class="flex h-full w-full flex-col p-3">
+					<div class="flex-1 animate-pulse rounded-2xl bg-slate-50"></div>
+				</div>
+		}
 	</div>
 }

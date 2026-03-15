@@ -105,3 +105,52 @@ func ResolveTimeRange(value any) datasource.TimeRange {
 		Mode:  datasource.TimeRangeMode(dateRange.Mode),
 	}
 }
+
+func TopLevelPanels(spec DashboardSpec) []panel.Spec {
+	panels := make([]panel.Spec, 0)
+	for _, row := range spec.Rows {
+		panels = append(panels, row.Panels...)
+	}
+	return panels
+}
+
+func FlattenPanels(spec DashboardSpec) []panel.Spec {
+	panels := make([]panel.Spec, 0)
+	for _, row := range spec.Rows {
+		for _, panelSpec := range row.Panels {
+			panels = append(panels, flattenPanel(panelSpec)...)
+		}
+	}
+	return panels
+}
+
+func FindPanel(spec DashboardSpec, panelID string) (panel.Spec, bool) {
+	for _, row := range spec.Rows {
+		for _, panelSpec := range row.Panels {
+			if found, ok := findPanel(panelSpec, panelID); ok {
+				return found, true
+			}
+		}
+	}
+	return panel.Spec{}, false
+}
+
+func flattenPanel(spec panel.Spec) []panel.Spec {
+	panels := []panel.Spec{spec}
+	for _, child := range spec.Children {
+		panels = append(panels, flattenPanel(child)...)
+	}
+	return panels
+}
+
+func findPanel(spec panel.Spec, panelID string) (panel.Spec, bool) {
+	if spec.ID == panelID {
+		return spec, true
+	}
+	for _, child := range spec.Children {
+		if found, ok := findPanel(child, panelID); ok {
+			return found, true
+		}
+	}
+	return panel.Spec{}, false
+}

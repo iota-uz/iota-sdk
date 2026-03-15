@@ -103,6 +103,22 @@ func (m *memoryCache) Set(key string, value *frame.FrameSet) {
 }
 
 func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardResult, error) {
+	return execute(ctx, spec, rt, nil)
+}
+
+func Run(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardResult, error) {
+	return Execute(ctx, spec, rt)
+}
+
+func RunPanels(ctx context.Context, spec lens.DashboardSpec, rt Runtime, panelIDs ...string) (*DashboardResult, error) {
+	return execute(ctx, spec, rt, panelIDs)
+}
+
+func RunPanelSubtree(ctx context.Context, spec lens.DashboardSpec, rt Runtime, panelID string) (*DashboardResult, error) {
+	return execute(ctx, spec, rt, []string{panelID})
+}
+
+func execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime, panelIDs []string) (*DashboardResult, error) {
 	op := serrors.Op("lens/runtime.Execute")
 	if err := Validate(spec); err != nil {
 		return nil, serrors.E(op, err)
@@ -115,7 +131,7 @@ func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*Dashboa
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	internalPlan, err := compileExecutionPlan(spec)
+	internalPlan, err := compileExecutionPlan(spec, panelIDs)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -148,10 +164,6 @@ func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*Dashboa
 	return result, nil
 }
 
-func Run(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardResult, error) {
-	return Execute(ctx, spec, rt)
-}
-
 type plannedExecutor struct {
 	spec      lens.DashboardSpec
 	runtime   Runtime
@@ -169,16 +181,32 @@ func BuildPlan(spec lens.DashboardSpec) (ExecutionPlan, error) {
 	if err := Validate(spec); err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
-	plan, err := compileExecutionPlan(spec)
+	plan, err := compileExecutionPlan(spec, nil)
 	if err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
 	return plan.view, nil
 }
 
-func compileExecutionPlan(spec lens.DashboardSpec) (executionPlan, error) {
+func BuildPanelPlan(spec lens.DashboardSpec, panelID string) (ExecutionPlan, error) {
+	op := serrors.Op("lens/runtime.BuildPanelPlan")
+	if err := Validate(spec); err != nil {
+		return ExecutionPlan{}, serrors.E(op, err)
+	}
+	plan, err := compileExecutionPlan(spec, []string{panelID})
+	if err != nil {
+		return ExecutionPlan{}, serrors.E(op, err)
+	}
+	return plan.view, nil
+}
+
+func compileExecutionPlan(spec lens.DashboardSpec, panelIDs []string) (executionPlan, error) {
 	datasets := indexDatasets(spec.Datasets)
-	required := requiredDatasetNames(spec)
+	targetPanels, err := scopedPanels(spec, panelIDs)
+	if err != nil {
+		return executionPlan{}, err
+	}
+	required := requiredDatasetNames(targetPanels, datasets)
 	stageMap := make(map[int][]string)
 	depthMemo := make(map[string]int, len(required))
 	visiting := make(map[string]bool, len(required))
@@ -203,7 +231,7 @@ func compileExecutionPlan(spec lens.DashboardSpec) (executionPlan, error) {
 	internal := executionPlan{
 		view:          view,
 		datasetStages: make([][]lens.DatasetSpec, 0, len(depths)),
-		panels:        collectPanels(spec.Rows),
+		panels:        targetPanels,
 	}
 	for _, panelSpec := range internal.panels {
 		internal.view.Panels = append(internal.view.Panels, panelSpec.ID)
@@ -221,6 +249,33 @@ func compileExecutionPlan(spec lens.DashboardSpec) (executionPlan, error) {
 		internal.datasetStages = append(internal.datasetStages, specs)
 	}
 	return internal, nil
+}
+
+func scopedPanels(spec lens.DashboardSpec, panelIDs []string) ([]panel.Spec, error) {
+	if len(panelIDs) == 0 {
+		return lens.FlattenPanels(spec), nil
+	}
+	panels := make([]panel.Spec, 0, len(panelIDs))
+	seen := make(map[string]struct{}, len(panelIDs))
+	for _, panelID := range panelIDs {
+		if strings.TrimSpace(panelID) == "" {
+			continue
+		}
+		root, ok := lens.FindPanel(spec, panelID)
+		if !ok {
+			return nil, fmt.Errorf("panel %q not found", panelID)
+		}
+		for _, panelSpec := range lens.FlattenPanels(lens.DashboardSpec{
+			Rows: []lens.RowSpec{{Panels: []panel.Spec{root}}},
+		}) {
+			if _, exists := seen[panelSpec.ID]; exists {
+				continue
+			}
+			seen[panelSpec.ID] = struct{}{}
+			panels = append(panels, panelSpec)
+		}
+	}
+	return panels, nil
 }
 
 func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.DatasetSpec, results map[string]*DatasetResult) error {
@@ -354,6 +409,7 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		Text:      spec.Query.Text,
 		Params:    resolveParams(spec.Query.Params, s.variables),
 		Timezone:  s.runtime.Timezone,
+		Locale:    s.runtime.Locale,
 		TimeRange: resolveDatasetTimeRange(s.spec.Variables, s.variables),
 		MaxRows:   spec.Query.MaxRows,
 		Kind:      spec.Query.Kind,
@@ -396,10 +452,9 @@ func indexDatasets(specs []lens.DatasetSpec) map[string]lens.DatasetSpec {
 	return datasets
 }
 
-func requiredDatasetNames(spec lens.DashboardSpec) []string {
-	datasets := indexDatasets(spec.Datasets)
+func requiredDatasetNames(panels []panel.Spec, datasets map[string]lens.DatasetSpec) []string {
 	seen := make(map[string]struct{})
-	for _, panelSpec := range collectPanels(spec.Rows) {
+	for _, panelSpec := range panels {
 		if isCompositePanel(panelSpec.Kind) || strings.TrimSpace(panelSpec.Dataset) == "" {
 			continue
 		}
@@ -456,24 +511,6 @@ func datasetDepth(name string, datasets map[string]lens.DatasetSpec, memo map[st
 	return maxDepth, nil
 }
 
-func collectPanels(rows []lens.RowSpec) []panel.Spec {
-	panels := make([]panel.Spec, 0)
-	for _, row := range rows {
-		for _, panelSpec := range row.Panels {
-			panels = append(panels, flattenPanel(panelSpec)...)
-		}
-	}
-	return panels
-}
-
-func flattenPanel(spec panel.Spec) []panel.Spec {
-	panels := []panel.Spec{spec}
-	for _, child := range spec.Children {
-		panels = append(panels, flattenPanel(child)...)
-	}
-	return panels
-}
-
 func isCompositePanel(kind panel.Kind) bool {
 	return kind == panel.KindTabs || kind == panel.KindGrid || kind == panel.KindSplit || kind == panel.KindRepeat
 }
@@ -506,14 +543,14 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 		case lens.VariableDateRange:
 			values[spec.Name] = resolveDateRange(spec, rt.Request)
 		case lens.VariableToggle:
-			raw := strings.TrimSpace(rt.Request.Get(spec.Name))
+			raw := strings.TrimSpace(requestValue(rt.Request, spec.Name, spec.RequestKeys...))
 			if raw == "" {
 				values[spec.Name] = spec.Default
 				continue
 			}
 			values[spec.Name] = raw == "true" || raw == "1" || raw == "on"
 		case lens.VariableNumber:
-			if raw := rt.Request.Get(spec.Name); raw != "" {
+			if raw := requestValue(rt.Request, spec.Name, spec.RequestKeys...); raw != "" {
 				parsed, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
 				if err != nil {
 					values[spec.Name] = spec.Default
@@ -524,13 +561,13 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 				values[spec.Name] = spec.Default
 			}
 		case lens.VariableMultiSelect:
-			if raw := rt.Request[spec.Name]; len(raw) > 0 {
+			if raw := requestValues(rt.Request, spec.Name, spec.RequestKeys...); len(raw) > 0 {
 				values[spec.Name] = splitMultiSelectValues(raw)
 			} else {
 				values[spec.Name] = spec.Default
 			}
 		case lens.VariableSingleSelect, lens.VariableText:
-			if raw := rt.Request.Get(spec.Name); raw != "" {
+			if raw := requestValue(rt.Request, spec.Name, spec.RequestKeys...); raw != "" {
 				values[spec.Name] = raw
 			} else {
 				values[spec.Name] = spec.Default
@@ -558,12 +595,13 @@ func splitMultiSelectValues(raw []string) []string {
 }
 
 func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeValue {
-	rawMode := values.Get(spec.Name)
+	rawMode := requestValue(values, spec.Name, spec.RequestKeys...)
 	if rawMode == "all" && spec.AllowAllTime {
 		return lens.DateRangeValue{Mode: "all"}
 	}
-	startRaw := values.Get(spec.Name + "_start")
-	endRaw := values.Get(spec.Name + "_end")
+	startKey, endKey := dateRangeRequestKeys(spec)
+	startRaw := values.Get(startKey)
+	endRaw := values.Get(endKey)
 	if startRaw != "" && endRaw != "" {
 		start, startErr := time.Parse("2006-01-02", startRaw)
 		end, endErr := time.Parse("2006-01-02", endRaw)
@@ -578,6 +616,33 @@ func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeV
 	now := time.Now().UTC()
 	start := now.Add(-spec.DefaultDuration)
 	return lens.DateRangeValue{Mode: "default", Start: &start, End: &now}
+}
+
+func requestValue(values url.Values, name string, aliases ...string) string {
+	keys := append([]string{name}, aliases...)
+	for _, key := range keys {
+		if trimmed := strings.TrimSpace(values.Get(key)); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func requestValues(values url.Values, name string, aliases ...string) []string {
+	keys := append([]string{name}, aliases...)
+	for _, key := range keys {
+		if raw := values[key]; len(raw) > 0 {
+			return raw
+		}
+	}
+	return nil
+}
+
+func dateRangeRequestKeys(spec lens.VariableSpec) (string, string) {
+	if len(spec.RequestKeys) >= 2 {
+		return spec.RequestKeys[0], spec.RequestKeys[1]
+	}
+	return spec.Name + "_start", spec.Name + "_end"
 }
 
 func resolveParams(specs map[string]lens.ParamValue, variables map[string]any) map[string]any {
