@@ -100,7 +100,10 @@
     },
     "Error": {
       "_Description": "Panelni ko'rsatishda xatolik yuz berdi",
-      "Title": "Ma'lumotlarni yuklab bo'lmadi"
+      "Title": "Ma'lumotlarni yuklab bo'lmadi",
+      "PanelLabel": "Panel",
+      "ReasonLabel": "Sabab",
+      "LogsHint": "Xatoning to'liq tafsilotlari uchun server loglarini tekshiring"
     },
     "Drill": {
       "Back": "Orqaga",

@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -68,6 +69,16 @@ type ExecutionPlan struct {
 type ExecutionStage struct {
 	Level    int
 	Datasets []string
+}
+
+type panelErrorLog struct {
+	PanelID    string
+	PanelTitle string
+	PanelKind  string
+	Dataset    string
+	Path       string
+	Locale     string
+	Error      string
 }
 
 type Request struct {
@@ -362,6 +373,9 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 				}
 			}
 			panelResult.Duration = time.Since(start)
+			if panelResult.Error != nil {
+				logPanelFailure(panelSpec, s.runtime, panelResult.Error)
+			}
 			mu.Lock()
 			results[panelSpec.ID] = panelResult
 			mu.Unlock()
@@ -372,6 +386,20 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 		})
 	}
 	return group.Wait()
+}
+
+func logPanelFailure(spec panel.Spec, req Request, err error) {
+	if err == nil {
+		return
+	}
+	logrus.WithFields(logrus.Fields{
+		"panel_id":    spec.ID,
+		"panel_title": spec.Title,
+		"panel_kind":  string(spec.Kind),
+		"dataset":     spec.Dataset,
+		"path":        req.Path,
+		"locale":      req.Locale,
+	}).WithError(err).Error("lens panel execution failed")
 }
 
 func (s *plannedExecutor) executeDatasetSpec(ctx context.Context, spec lens.DatasetSpec, results map[string]*DatasetResult) (*frame.FrameSet, error) {
@@ -964,6 +992,9 @@ func requireOneField(spec panel.Spec, primary *frame.Frame, fields ...panel.Fiel
 
 func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, source action.ValueSource) error {
 	if source.Kind != action.SourceField {
+		return nil
+	}
+	if primary == nil || primary.RowCount == 0 {
 		return nil
 	}
 	if _, ok := primary.Field(source.Name); ok {

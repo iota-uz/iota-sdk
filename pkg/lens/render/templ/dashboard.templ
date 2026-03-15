@@ -775,6 +775,7 @@ templ EmptyState() {
 
 templ ErrorState(result *runtime.PanelResult) {
 	{{ lensText := localizedLensText(ctx) }}
+	{{ details := panelErrorDetails(result) }}
 	<div class="flex min-h-[180px] flex-col items-center justify-center gap-2.5 text-center">
 		<div class="rounded-lg bg-red-50 p-2.5 text-red-300">
 			@icons.WarningCircle(icons.Props{Size: "20"})
@@ -782,6 +783,23 @@ templ ErrorState(result *runtime.PanelResult) {
 		<div>
 			<p class="text-[13px] font-medium text-red-400">{ lensText.ErrorTitle }</p>
 			<p class="mt-0.5 text-[11px] text-gray-400">{ lensText.ErrorDescription }</p>
+			if details.PanelID != "" || details.Reason != "" {
+				<div class="mt-3 inline-flex max-w-[32rem] flex-col gap-1 rounded-xl border border-red-100 bg-red-50/70 px-3 py-2 text-left">
+					if details.PanelID != "" {
+						<p class="text-[11px] text-red-700">
+							<span class="font-semibold">{ lensText.ErrorPanelLabel }:</span>
+							<span class="ml-1 font-mono">{ details.PanelID }</span>
+						</p>
+					}
+					if details.Reason != "" {
+						<p class="text-[11px] text-red-700">
+							<span class="font-semibold">{ lensText.ErrorReasonLabel }:</span>
+							<span class="ml-1">{ details.Reason }</span>
+						</p>
+					}
+					<p class="text-[10px] text-red-500">{ lensText.ErrorLogsHint }</p>
+				</div>
+			}
 		</div>
 	</div>
 }

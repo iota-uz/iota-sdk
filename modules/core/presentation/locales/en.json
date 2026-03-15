@@ -100,7 +100,10 @@
     },
     "Error": {
       "_Description": "An error occurred while rendering this panel",
-      "Title": "Unable to load data"
+      "Title": "Unable to load data",
+      "PanelLabel": "Panel",
+      "ReasonLabel": "Reason",
+      "LogsHint": "Check server logs for the full error context"
     },
     "Drill": {
       "Back": "Back",

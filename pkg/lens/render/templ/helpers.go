@@ -488,6 +488,9 @@ type lensText struct {
 	EmptyDescription string
 	ErrorTitle       string
 	ErrorDescription string
+	ErrorPanelLabel  string
+	ErrorReasonLabel string
+	ErrorLogsHint    string
 }
 
 func localizedLensText(ctx context.Context) lensText {
@@ -502,7 +505,41 @@ func localizedLensText(ctx context.Context) lensText {
 		EmptyDescription: translateOrFallback(ctx, "Lens.Empty._Description", "Try adjusting your filters"),
 		ErrorTitle:       translateOrFallback(ctx, "Lens.Error.Title", "Unable to load data"),
 		ErrorDescription: translateOrFallback(ctx, "Lens.Error._Description", "An error occurred while rendering this panel"),
+		ErrorPanelLabel:  translateOrFallback(ctx, "Lens.Error.PanelLabel", "Panel"),
+		ErrorReasonLabel: translateOrFallback(ctx, "Lens.Error.ReasonLabel", "Reason"),
+		ErrorLogsHint:    translateOrFallback(ctx, "Lens.Error.LogsHint", "Check server logs for the full error context"),
 	}
+}
+
+type panelErrorModel struct {
+	PanelID string
+	Reason  string
+}
+
+func panelErrorDetails(result *runtime.PanelResult) panelErrorModel {
+	if result == nil {
+		return panelErrorModel{}
+	}
+	reason := ""
+	if result.Error != nil {
+		reason = normalizeErrorText(result.Error.Error())
+	}
+	return panelErrorModel{
+		PanelID: strings.TrimSpace(result.Panel.ID),
+		Reason:  reason,
+	}
+}
+
+func normalizeErrorText(message string) string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return ""
+	}
+	message = strings.Join(strings.Fields(message), " ")
+	if len(message) > 220 {
+		return message[:217] + "..."
+	}
+	return message
 }
 
 func tabsState(spec panel.Spec) string {
@@ -854,7 +891,7 @@ func rerenderChartsScript(delayMs int) string {
 }
 
 func openFullscreenScript() string {
-	return "fullscreen = true; requestAnimationFrame(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); const rerender = () => { document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })); window.dispatchEvent(new Event('resize')); }; setTimeout(rerender, 220); setTimeout(rerender, 420); setTimeout(rerender, 720); });"
+	return "fullscreen = true; requestAnimationFrame(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); if (root && root.__lensFullscreenRerenderTimer) { clearTimeout(root.__lensFullscreenRerenderTimer); } const rerender = () => { document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })); window.dispatchEvent(new Event('resize')); if (root) { root.__lensFullscreenRerenderTimer = null; } }; const timer = setTimeout(rerender, 260); if (root) { root.__lensFullscreenRerenderTimer = timer; } });"
 }
 
 func activateTabScript(tabID string) string {

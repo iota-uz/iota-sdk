@@ -100,7 +100,10 @@
     },
     "Error": {
       "_Description": "渲染此面板时发生错误",
-      "Title": "无法加载数据"
+      "Title": "无法加载数据",
+      "PanelLabel": "面板",
+      "ReasonLabel": "原因",
+      "LogsHint": "请检查服务器日志以获取完整错误上下文"
     },
     "Drill": {
       "Back": "返回",
