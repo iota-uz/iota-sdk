@@ -75,42 +75,60 @@ templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
 
 templ DrillNavigation(model drillNavModel) {
 	{{ chartText := localizedChartText(ctx) }}
-	<div class="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-		<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-			<div class="min-w-0 space-y-2">
-				<div class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-					for _, crumb := range model.Trail {
-						<a href={ templ.URL(crumb.URL) } class="font-medium text-slate-600 transition hover:text-slate-900 hover:underline">
-							{ crumb.Label }
-						</a>
-						<span class="text-slate-300">/</span>
-					}
-					if model.CurrentValue != "" {
-						<span class="font-semibold text-slate-900">{ model.CurrentValue }</span>
-					} else {
-						<span class="font-semibold text-slate-900">{ model.CurrentTitle }</span>
-					}
-				</div>
-				if len(model.Summary) > 0 {
-					<div class="flex flex-wrap items-center gap-2">
-						<span class="text-xs font-semibold uppercase tracking-wide text-slate-400">{ chartText.DrillCurrentScope }</span>
-						for _, item := range model.Summary {
-							<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-								<span class="text-slate-400">{ item.Label }:</span>
-								<span>{ item.Value }</span>
-							</span>
-						}
-					</div>
-				}
-			</div>
+	<nav class="rounded-xl border border-slate-200/80 bg-white shadow-sm">
+		<div class="flex items-center gap-3 px-5 py-3.5">
 			if model.UpURL != "" {
-				<a href={ templ.URL(model.UpURL) } class="inline-flex items-center gap-2 self-start rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900">
+				<a
+					href={ templ.URL(model.UpURL) }
+					class="flex-none inline-flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
+					title={ chartText.DrillBack }
+				>
 					@icons.ArrowLeft(icons.Props{Size: "16"})
-					<span>{ chartText.DrillBack }</span>
 				</a>
 			}
+			<div class="min-w-0 flex-1">
+				<ol class="flex flex-wrap items-center gap-1 text-sm">
+					for _, crumb := range model.Trail {
+						<li class="flex items-center gap-1">
+							<a href={ templ.URL(crumb.URL) } class="text-slate-500 transition hover:text-blue-600 hover:underline underline-offset-2">
+								{ crumb.Label }
+							</a>
+							<span class="text-slate-300">
+								@icons.CaretRight(icons.Props{Size: "12"})
+							</span>
+						</li>
+					}
+					<li class="font-semibold text-slate-900">
+						if model.CurrentValue != "" {
+							{ model.CurrentValue }
+						} else {
+							{ model.CurrentTitle }
+						}
+					</li>
+				</ol>
+			</div>
+			if len(model.Summary) > 0 {
+				<div class="hidden md:flex flex-none items-center gap-1.5">
+					for _, item := range model.Summary {
+						<span class="inline-flex items-center gap-1.5 rounded-md bg-slate-50 border border-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+							<span class="text-slate-400">{ item.Label }</span>
+							<span>{ item.Value }</span>
+						</span>
+					}
+				</div>
+			}
 		</div>
-	</div>
+		if len(model.Summary) > 0 {
+			<div class="flex md:hidden flex-wrap items-center gap-1.5 border-t border-slate-100 px-5 py-2.5">
+				for _, item := range model.Summary {
+					<span class="inline-flex items-center gap-1.5 rounded-md bg-slate-50 border border-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+						<span class="text-slate-400">{ item.Label }</span>
+						<span>{ item.Value }</span>
+					</span>
+				}
+			</div>
+		}
+	</nav>
 }
 
 templ DrillHiddenInputs(fields map[string]string) {
@@ -439,8 +457,8 @@ templ MetricInfoButton(spec panel.Spec, class string) {
 	{{ chartText := localizedChartText(ctx) }}
 	<button
 		type="button"
-		class={ "inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition hover:border-slate-300 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer", class }
-		x-tooltip.interactive.html.raw={ metricInfoTooltipHTML(ctx, spec.Info) }
+		class={ "inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-300 transition hover:text-slate-500 focus:outline-none cursor-pointer", class }
+		x-tooltip.interactive.theme.light.html.raw={ metricInfoTooltipHTML(ctx, spec.Info) }
 		@click.stop=""
 		aria-label={ chartText.MetricInfo }
 	>

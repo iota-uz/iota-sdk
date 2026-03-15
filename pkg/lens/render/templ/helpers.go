@@ -564,7 +564,7 @@ func metricInfoTooltipHTML(ctx context.Context, info string) string {
 	body := html.EscapeString(strings.TrimSpace(info))
 	body = strings.ReplaceAll(body, "\n", "<br>")
 	return fmt.Sprintf(
-		`<div class="max-w-xs space-y-1.5 p-1"><div class="text-xs font-semibold text-slate-900">%s</div><div class="text-xs leading-5 text-slate-600">%s</div></div>`,
+		`<div class="max-w-xs p-1"><div class="text-[11px] font-medium uppercase tracking-wide text-slate-400 mb-1">%s</div><div class="text-xs leading-relaxed text-slate-600">%s</div></div>`,
 		html.EscapeString(chartText.MetricInfo),
 		body,
 	)
