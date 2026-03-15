@@ -974,7 +974,7 @@ func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, sou
 
 func validateValueSource(panelID, name string, source action.ValueSource) error {
 	switch source.Kind {
-	case action.SourceField, action.SourceVariable, action.SourcePoint:
+	case action.SourceField, action.SourceVariable:
 		if strings.TrimSpace(source.Name) == "" {
 			return fmt.Errorf("panel %s action value %s requires source name", panelID, name)
 		}

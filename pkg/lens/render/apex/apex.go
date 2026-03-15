@@ -602,14 +602,14 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		payloadIndex++
 	}
 	if spec.Kind == action.KindDrill {
-		labelSource := action.PointValue("label")
+		labelSource := action.FieldValue("label")
 		if spec.Drill != nil && spec.Drill.LabelSource.Kind != "" {
 			labelSource = spec.Drill.LabelSource
 		} else if spec.Drill == nil {
-			labelSource = action.PointValue("label")
+			labelSource = action.FieldValue("label")
 		}
 		if labelSource.Kind == "" {
-			labelSource = action.PointValue("label")
+			labelSource = action.FieldValue("label")
 		}
 		scopeExpr := actionValueJS(labelSource, fields)
 		js += `if (cfg.drill) {
@@ -659,29 +659,12 @@ func actionValueJS(source action.ValueSource, fields panel.FieldMapping) string 
 	switch source.Kind {
 	case action.SourceField:
 		return fmt.Sprintf("resolveValue(row[%q], %s)", source.Name, jsFallbackLiteral(source.Fallback))
-	case action.SourcePoint:
-		return fmt.Sprintf("resolveValue(%s, %s)", pointValueJS(source.Name, fields), jsFallbackLiteral(source.Fallback))
 	case action.SourceVariable:
 		return fmt.Sprintf("resolveValue(variables[%q], %s)", source.Name, jsFallbackLiteral(source.Fallback))
 	case action.SourceLiteral:
 		return mustJSONJS(source.Value)
 	default:
 		return "undefined"
-	}
-}
-
-func pointValueJS(name string, fields panel.FieldMapping) string {
-	switch name {
-	case "label":
-		return fmt.Sprintf("row[%q] || row[%q] || categoryName", fields.Label.Name(), fields.Category.Name())
-	case "value":
-		return fmt.Sprintf("row[%q]", fields.Value.Name())
-	case "series":
-		return "seriesName"
-	case "category":
-		return "categoryName"
-	default:
-		return fmt.Sprintf("row[%q]", name)
 	}
 }
 

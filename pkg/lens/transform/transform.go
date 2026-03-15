@@ -3,6 +3,7 @@ package transform
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -160,11 +161,6 @@ type Spec struct {
 type TopNConfig struct {
 	Field string
 	N     int
-}
-
-type Plugin interface {
-	Name() string
-	Apply(primary *frame.FrameSet, deps map[string]*frame.FrameSet, spec Spec) (*frame.FrameSet, error)
 }
 
 func Apply(primary *frame.FrameSet, deps map[string]*frame.FrameSet, specs []Spec) (*frame.FrameSet, error) {
@@ -484,7 +480,7 @@ func groupBy(primary *frame.FrameSet, fields []string, aggregates []Aggregate) (
 			keyValues[field] = row[field]
 			keyParts = append(keyParts, fmt.Sprint(row[field]))
 		}
-		key := strings.Join(keyParts, "|")
+		key := strings.Join(keyParts, "\x00")
 		if _, ok := groups[key]; !ok {
 			groups[key] = &bucket{keys: keyValues}
 		}
@@ -532,19 +528,19 @@ func aggregateRows(rows []map[string]any, agg Aggregate) any {
 		}
 		return total / float64(len(rows))
 	case "min":
-		minValue := 0.0
-		for i, row := range rows {
+		minValue := math.Inf(1)
+		for _, row := range rows {
 			value := toFloat(row[agg.Field])
-			if i == 0 || value < minValue {
+			if value < minValue {
 				minValue = value
 			}
 		}
 		return minValue
 	case "max":
-		maxValue := 0.0
-		for i, row := range rows {
+		maxValue := math.Inf(-1)
+		for _, row := range rows {
 			value := toFloat(row[agg.Field])
-			if i == 0 || value > maxValue {
+			if value > maxValue {
 				maxValue = value
 			}
 		}
@@ -717,7 +713,7 @@ func fillMissing(primary *frame.FrameSet, cfg *FillMissingConfig) (*frame.FrameS
 			seriesSeen[ser] = true
 			series = append(series, ser)
 		}
-		existing[cat+"|"+ser] = row
+		existing[cat+"\x00"+ser] = row
 	}
 	out, err := frame.New(fr.Name)
 	if err != nil {
@@ -725,7 +721,7 @@ func fillMissing(primary *frame.FrameSet, cfg *FillMissingConfig) (*frame.FrameS
 	}
 	for _, cat := range categories {
 		for _, ser := range series {
-			key := cat + "|" + ser
+			key := cat + "\x00" + ser
 			if row, ok := existing[key]; ok {
 				if err := out.AppendRow(row); err != nil {
 					return nil, err

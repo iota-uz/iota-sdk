@@ -35,11 +35,6 @@ type Formatter interface {
 	Format(value any, locale, timezone string) string
 }
 
-type Plugin interface {
-	Name() string
-	Build(spec Spec) (Formatter, error)
-}
-
 func MoneyCompact(currency string) Spec {
 	return Spec{Name: "money_compact", Kind: KindAbbreviatedMoney, Currency: currency, Precision: 2}
 }

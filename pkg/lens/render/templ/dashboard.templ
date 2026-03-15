@@ -20,12 +20,7 @@ templ Dashboard(props DashboardProps) {
 	}
 }
 
-templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
-	{{ filters := filter.Build(spec.Variables, nil) }}
-	if result != nil {
-		{{ filters = filterModel(result) }}
-	}
-	{{ drillNav := drillNavigationModel(result) }}
+templ lensGridStyles() {
 	<style>
 		.lens-grid-item {
 			grid-column: span 12 / span 12;
@@ -38,6 +33,15 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 			}
 		}
 	</style>
+}
+
+templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
+	{{ filters := filter.Build(spec.Variables, nil) }}
+	if result != nil {
+		{{ filters = filterModel(result) }}
+	}
+	{{ drillNav := drillNavigationModel(result) }}
+	@lensGridStyles()
 	<div class="space-y-6" data-lens-dashboard>
 		if drillNav.HasNav {
 			@DrillNavigation(drillNav)
@@ -55,18 +59,7 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 }
 
 templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
-	<style>
-		.lens-grid-item {
-			grid-column: span 12 / span 12;
-			min-width: 0;
-		}
-
-		@media (min-width: 768px) {
-			.lens-grid-item {
-				grid-column: span var(--lens-col-span, 12) / span var(--lens-col-span, 12);
-			}
-		}
-	</style>
+	@lensGridStyles()
 	<div class="space-y-6" data-lens-dashboard>
 		for _, row := range spec.Rows {
 			<div class={ "grid grid-cols-12 gap-5", row.Class }>
@@ -269,7 +262,7 @@ templ FilterBar(model filter.Model) {
 	</form>
 }
 
-templ Panel(spec panel.Spec, result *runtime.Result) {
+templ panelCard(spec panel.Spec, bodyClass string, body templ.Component) {
 	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
 		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md">
 			if showPanelHeader(spec) {
@@ -292,41 +285,19 @@ templ Panel(spec panel.Spec, result *runtime.Result) {
 					</div>
 				</div>
 			}
-			<div class={ panelBodyClass(spec) }>
-				@PanelContent(spec, result)
+			<div class={ bodyClass }>
+				@body
 			</div>
 		</div>
 	</div>
 }
 
+templ Panel(spec panel.Spec, result *runtime.Result) {
+	@panelCard(spec, panelBodyClass(spec), PanelContent(spec, result))
+}
+
 templ PanelShell(spec panel.Spec, props AsyncProps) {
-	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
-		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md">
-			if showPanelHeader(spec) {
-				<div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-					<div class="flex items-center gap-2 min-w-0">
-						<div class="flex-shrink-0 text-slate-400">
-							@panelDisplayIcon(spec)
-						</div>
-						<div class="min-w-0">
-							<div class="flex items-center gap-2 min-w-0">
-								if spec.Title != "" {
-									<h3 class="truncate text-sm font-semibold text-slate-700">{ spec.Title }</h3>
-								}
-								@MetricInfoButton(spec, "flex-shrink-0")
-							</div>
-							if spec.Description != "" && spec.Kind != panel.KindStat {
-								<p class="mt-0.5 truncate text-xs text-slate-400">{ spec.Description }</p>
-							}
-						</div>
-					</div>
-				</div>
-			}
-			<div class={ panelShellBodyClass(spec) }>
-				@PanelIsland(spec, props)
-			</div>
-		</div>
-	</div>
+	@panelCard(spec, panelShellBodyClass(spec), PanelIsland(spec, props))
 }
 
 templ PanelContent(spec panel.Spec, result *runtime.Result) {
@@ -776,6 +747,19 @@ templ ErrorState(result *runtime.PanelResult) {
 			<p class="text-[13px] font-medium text-red-400">{ lensText.ErrorTitle }</p>
 			<p class="mt-0.5 text-[11px] text-gray-400">{ lensText.ErrorDescription }</p>
 		</div>
+	</div>
+}
+
+templ ContentWithLoading(props ContentWithLoadingProps) {
+	<div class="relative">
+		if props.Loading {
+			<div class="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+				<div class="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-blue-500"></div>
+			</div>
+		}
+		if props.Content != nil {
+			@props.Content
+		}
 	</div>
 }
 

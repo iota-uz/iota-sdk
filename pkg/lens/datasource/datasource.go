@@ -64,7 +64,3 @@ type DataSource interface {
 	Capabilities() CapabilitySet
 }
 
-type Plugin interface {
-	Name() string
-	New(config map[string]any) (DataSource, error)
-}

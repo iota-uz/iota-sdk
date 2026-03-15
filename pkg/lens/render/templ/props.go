@@ -40,3 +40,8 @@ type PageProps struct {
 	BodyClass      string
 	ContainerClass string
 }
+
+type ContentWithLoadingProps struct {
+	Loading bool
+	Content templpkg.Component
+}

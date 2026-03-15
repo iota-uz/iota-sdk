@@ -313,7 +313,7 @@ func resolvedDrillScopeValue(spec *action.Spec, row map[string]any, result *runt
 		return text, true
 	}
 	for _, field := range []string{"label", "category"} {
-		value, ok := actionValue(action.PointValue(field), row, result.Variables)
+		value, ok := actionValue(action.FieldValue(field), row, result.Variables)
 		if !ok {
 			continue
 		}
@@ -352,66 +352,11 @@ func assignQueryValue(values url.Values, key string, value any) {
 }
 
 func actionValue(source action.ValueSource, row map[string]any, variables map[string]any) (any, bool) {
-	switch source.Kind {
-	case action.SourceField:
-		if row == nil {
-			return nil, false
-		}
-		value, ok := row[source.Name]
-		if !ok || value == nil || fmt.Sprint(value) == "" {
-			if source.Fallback != nil {
-				return source.Fallback, true
-			}
-			return nil, false
-		}
-		return value, true
-	case action.SourcePoint:
-		if row == nil {
-			if source.Fallback != nil {
-				return source.Fallback, true
-			}
-			return nil, false
-		}
-		value, ok := row[source.Name]
-		if !ok || value == nil || fmt.Sprint(value) == "" {
-			if source.Fallback != nil {
-				return source.Fallback, true
-			}
-			return nil, false
-		}
-		return value, true
-	case action.SourceLiteral:
-		if source.Value == nil {
-			return nil, false
-		}
-		return source.Value, true
-	case action.SourceVariable:
-		if variables == nil {
-			if source.Fallback != nil {
-				return source.Fallback, true
-			}
-			return nil, false
-		}
-		value, ok := variables[source.Name]
-		if !ok || value == nil || fmt.Sprint(value) == "" {
-			if source.Fallback != nil {
-				return source.Fallback, true
-			}
-			return nil, false
-		}
-		return value, true
-	default:
-		return nil, false
-	}
+	return action.ResolveValue(source, row, variables)
 }
 
 func containsQuery(raw string) bool {
-	for _, ch := range raw {
-		if ch == '?' {
-			return true
-		}
-	}
-	return false
+	return strings.ContainsRune(raw, '?')
 }
 
 func joinURLQuery(raw string, values url.Values) string {

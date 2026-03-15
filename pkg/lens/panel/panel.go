@@ -98,11 +98,6 @@ type FieldMapping struct {
 	EndTime   FieldRef
 }
 
-type Plugin interface {
-	Name() string
-	Kind() Kind
-}
-
 type Builder struct {
 	spec Spec
 }
@@ -123,23 +118,27 @@ func Donut(id, title, dataset string) *Builder { return newBuilder(KindDonut, id
 func Table(id, title, dataset string) *Builder { return newBuilder(KindTable, id, title, dataset) }
 func Gauge(id, title, dataset string) *Builder { return newBuilder(KindGauge, id, title, dataset) }
 
-func Tabs(id, title string, children ...Spec) Spec {
-	return Spec{
-		ID:       id,
-		Title:    title,
-		Kind:     KindTabs,
-		Span:     6,
-		Children: children,
+func Tabs(id, title string, children ...Spec) *Builder {
+	return &Builder{
+		spec: Spec{
+			ID:       id,
+			Title:    title,
+			Kind:     KindTabs,
+			Span:     6,
+			Children: children,
+		},
 	}
 }
 
-func Grid(id, title string, children ...Spec) Spec {
-	return Spec{
-		ID:       id,
-		Title:    title,
-		Kind:     KindGrid,
-		Span:     12,
-		Children: children,
+func Grid(id, title string, children ...Spec) *Builder {
+	return &Builder{
+		spec: Spec{
+			ID:       id,
+			Title:    title,
+			Kind:     KindGrid,
+			Span:     12,
+			Children: children,
+		},
 	}
 }
 
@@ -211,43 +210,12 @@ func (b *Builder) Transforms(specs ...transform.Spec) *Builder {
 	b.spec.Transforms = append(b.spec.Transforms, specs...)
 	return b
 }
+func (b *Builder) Children(children ...Spec) *Builder {
+	b.spec.Children = append(b.spec.Children, children...)
+	return b
+}
 func (b *Builder) Build() Spec { return b.spec }
 
 func Ref(name string) FieldRef {
 	return FieldRef(name)
-}
-
-// Label marks the field used for display labels in panel mappings.
-func Label(name string) FieldRef {
-	return Ref(name)
-}
-
-// Value marks the primary numeric field used for panel values.
-func Value(name string) FieldRef {
-	return Ref(name)
-}
-
-// Series marks the field used to split grouped chart series.
-func Series(name string) FieldRef {
-	return Ref(name)
-}
-
-// Category marks the field used for chart buckets or x-axis categories.
-func Category(name string) FieldRef {
-	return Ref(name)
-}
-
-// ID marks an identifier field used in actions or row navigation.
-func ID(name string) FieldRef {
-	return Ref(name)
-}
-
-// StartTime marks the field used for interval start timestamps.
-func StartTime(name string) FieldRef {
-	return Ref(name)
-}
-
-// EndTime marks the field used for interval end timestamps.
-func EndTime(name string) FieldRef {
-	return Ref(name)
 }
