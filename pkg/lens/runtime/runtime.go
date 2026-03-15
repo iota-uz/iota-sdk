@@ -955,7 +955,7 @@ func requireOneField(spec panel.Spec, primary *frame.Frame, fields ...panel.Fiel
 	if len(nonEmpty) == 0 {
 		return nil
 	}
-	return fmt.Errorf("panel %s is missing field from set %q in dataset %s", spec.ID, nonEmpty, spec.Dataset)
+	return fmt.Errorf("panel %s is missing field from set %v in dataset %s", spec.ID, nonEmpty, spec.Dataset)
 }
 
 func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, source action.ValueSource) error {
