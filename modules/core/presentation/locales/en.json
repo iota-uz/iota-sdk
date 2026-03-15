@@ -102,6 +102,10 @@
       "_Description": "An error occurred while rendering this panel",
       "Title": "Unable to load data"
     },
+    "Drill": {
+      "Back": "Back",
+      "CurrentScope": "Current scope"
+    },
     "Filters": {
       "All": "All",
       "AllTime": "All time",

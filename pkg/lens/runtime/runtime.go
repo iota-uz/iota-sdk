@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/drill"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -38,6 +39,8 @@ type PanelResult struct {
 	Locale    string
 	Timezone  string
 	Variables map[string]any
+	Request   url.Values
+	Drill     *drill.State
 }
 
 type DashboardResult struct {
@@ -49,6 +52,8 @@ type DashboardResult struct {
 	Panels    map[string]*PanelResult
 	Locale    string
 	Timezone  string
+	Request   url.Values
+	Drill     *drill.State
 	StartedAt time.Time
 	Duration  time.Duration
 }
@@ -66,6 +71,7 @@ type ExecutionStage struct {
 type Runtime struct {
 	Locale      string
 	Timezone    string
+	Path        string
 	Request     url.Values
 	Overrides   map[string]any
 	DataSources map[string]datasource.DataSource
@@ -146,6 +152,8 @@ func execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime, panelIDs 
 		Panels:    make(map[string]*PanelResult),
 		Locale:    rt.Locale,
 		Timezone:  rt.Timezone,
+		Request:   cloneValues(rt.Request),
+		Drill:     drill.Parse(rt.Path, rt.Request, spec.Title),
 		StartedAt: startedAt,
 	}
 
@@ -326,6 +334,8 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 				Locale:    s.runtime.Locale,
 				Timezone:  s.runtime.Timezone,
 				Variables: s.variables,
+				Request:   cloneValues(s.runtime.Request),
+				Drill:     drill.Parse(s.runtime.Path, s.runtime.Request, s.spec.Title),
 			}
 			if isCompositePanel(panelSpec.Kind) {
 				mu.Lock()
@@ -639,7 +649,21 @@ func requestValues(values url.Values, name string, aliases ...string) []string {
 	return nil
 }
 
+func cloneValues(values url.Values) url.Values {
+	if values == nil {
+		return nil
+	}
+	cloned := make(url.Values, len(values))
+	for key, items := range values {
+		cloned[key] = append([]string(nil), items...)
+	}
+	return cloned
+}
+
 func dateRangeRequestKeys(spec lens.VariableSpec) (string, string) {
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[1], spec.RequestKeys[2]
+	}
 	if len(spec.RequestKeys) >= 2 {
 		return spec.RequestKeys[0], spec.RequestKeys[1]
 	}
@@ -815,7 +839,7 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	}
 	if spec.Action != nil {
 		switch spec.Action.Kind {
-		case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent:
+		case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent, action.KindDrill:
 		default:
 			return fmt.Errorf("panel %s action has unsupported kind %q", spec.ID, spec.Action.Kind)
 		}
@@ -832,6 +856,11 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		}
 		for name, source := range spec.Action.Payload {
 			if err := validateValueSource(spec.ID, name, source); err != nil {
+				return err
+			}
+		}
+		if spec.Action.Kind == action.KindDrill && spec.Action.Drill != nil && spec.Action.Drill.LabelSource.Kind != "" {
+			if err := validateValueSource(spec.ID, "drill_label", spec.Action.Drill.LabelSource); err != nil {
 				return err
 			}
 		}

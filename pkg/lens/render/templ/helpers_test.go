@@ -25,9 +25,9 @@ func TestActionURLIncludesVariableParams(t *testing.T) {
 		},
 	}, map[string]any{
 		"product_id": "osago",
-	}, map[string]any{
+	}, &runtime.PanelResult{Variables: map[string]any{
 		"active_only": true,
-	})
+	}})
 
 	parsed, err := urlpkg.Parse(url)
 	require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestActionURLSupportsHtmxActions(t *testing.T) {
 		},
 	}, map[string]any{
 		"product_id": "osago",
-	}, nil)
+	}, &runtime.PanelResult{})
 
 	require.Equal(t, "/contracts?product=osago", url)
 }
@@ -66,7 +66,7 @@ func TestActionOnClickSupportsEmitEventFallbacks(t *testing.T) {
 				Fallback: "default-product",
 			},
 		},
-	}, map[string]any{}, nil)
+	}, map[string]any{}, &runtime.PanelResult{})
 
 	require.Contains(t, onClick.Call, "lens:drilldown")
 	require.Contains(t, onClick.Call, "default-product")
@@ -85,7 +85,7 @@ func TestActionOnClickPreservesTimePayloadValues(t *testing.T) {
 				Value: timestamp,
 			},
 		},
-	}, nil, nil)
+	}, nil, &runtime.PanelResult{})
 
 	require.Contains(t, onClick.Call, "2026-03-09T00:00:00Z")
 }
@@ -100,7 +100,7 @@ func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 		Params: []action.Param{
 			action.LiteralParam("scope", "daily"),
 		},
-	}, nil, nil)
+	}, nil, &runtime.PanelResult{})
 
 	require.Contains(t, onClick.Call, "htmx.ajax")
 	require.Contains(t, onClick.Call, "/contracts?scope=daily")

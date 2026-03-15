@@ -175,6 +175,30 @@ func TestDateRangeVariableSupportsAllTimeAndDefaults(t *testing.T) {
 	require.Equal(t, "all", allRange.Mode)
 }
 
+func TestDateRangeVariableUsesStartAndEndRequestKeysWhenModeKeyIsPresent(t *testing.T) {
+	t.Parallel()
+
+	spec := lensbuild.Dashboard("variables", "Variables").Variables(
+		lensbuild.DateRangeVariable("range", "Range", 24*time.Hour),
+	).Build()
+
+	values := url.Values{
+		"range":       []string{"bounded"},
+		"range_start": []string{"2026-03-01"},
+		"range_end":   []string{"2026-03-15"},
+	}
+
+	resolved, err := resolveVariables(spec.Variables, Runtime{Request: values})
+	require.NoError(t, err)
+
+	bounded := resolved["range"].(lens.DateRangeValue)
+	require.Equal(t, "bounded", bounded.Mode)
+	require.NotNil(t, bounded.Start)
+	require.NotNil(t, bounded.End)
+	assert.Equal(t, time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC), bounded.Start.UTC())
+	assert.Equal(t, time.Date(2026, 3, 15, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC), bounded.End.UTC())
+}
+
 func TestValidateRejectsDuplicatePanels(t *testing.T) {
 	t.Parallel()
 

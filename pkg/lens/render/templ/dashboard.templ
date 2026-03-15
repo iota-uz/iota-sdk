@@ -17,6 +17,7 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 	if result != nil {
 		{{ filters = filterModel(result) }}
 	}
+	{{ drillNav := drillNavigationModel(result) }}
 	<style>
 		.lens-grid-item {
 			grid-column: span 12 / span 12;
@@ -30,6 +31,9 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 		}
 	</style>
 	<div class="space-y-6" data-lens-dashboard>
+		if drillNav.HasNav {
+			@DrillNavigation(drillNav)
+		}
 		@FilterBar(filters)
 		for _, row := range spec.Rows {
 			<div class={ "grid grid-cols-12 gap-5", row.Class }>
@@ -40,6 +44,60 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 		}
 	</div>
 	@DashboardScripts()
+}
+
+templ DrillNavigation(model drillNavModel) {
+	{{ chartText := localizedChartText(ctx) }}
+	<div class="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+		<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+			<div class="min-w-0 space-y-2">
+				<div class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+					for _, crumb := range model.Trail {
+						<a href={ templ.URL(crumb.URL) } class="font-medium text-slate-600 transition hover:text-slate-900 hover:underline">
+							{ crumb.Label }
+						</a>
+						<span class="text-slate-300">/</span>
+					}
+					if model.CurrentValue != "" {
+						<span class="font-semibold text-slate-900">{ model.CurrentValue }</span>
+					} else {
+						<span class="font-semibold text-slate-900">{ model.CurrentTitle }</span>
+					}
+				</div>
+				if len(model.Summary) > 0 {
+					<div class="flex flex-wrap items-center gap-2">
+						<span class="text-xs font-semibold uppercase tracking-wide text-slate-400">{ chartText.DrillCurrentScope }</span>
+						for _, item := range model.Summary {
+							<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+								<span class="text-slate-400">{ item.Label }:</span>
+								<span>{ item.Value }</span>
+							</span>
+						}
+					</div>
+				}
+			</div>
+			if model.UpURL != "" {
+				<a href={ templ.URL(model.UpURL) } class="inline-flex items-center gap-2 self-start rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900">
+					@icons.ArrowLeft(icons.Props{Size: "16"})
+					<span>{ chartText.DrillBack }</span>
+				</a>
+			}
+		</div>
+	</div>
+}
+
+templ DrillHiddenInputs(fields map[string]string) {
+	for key, value := range fields {
+		<input type="hidden" name={ key } value={ value }/>
+	}
+}
+
+templ HiddenQueryInputs(values map[string][]string) {
+	for key, items := range values {
+		for _, value := range items {
+			<input type="hidden" name={ key } value={ value }/>
+		}
+	}
 }
 
 templ DashboardShell(spec lens.DashboardSpec, props DashboardShellProps) {
@@ -377,8 +435,8 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 	}
 	{{ value := formatValue(statRawValue(spec, result), spec.Formatter, result.Locale, result.Timezone) }}
 	{{ row := statRow(result) }}
-	{{ href := actionURL(spec.Action, row, result.Variables) }}
-	{{ onClick := actionOnClick(spec.Action, row, result.Variables) }}
+	{{ href := actionURL(spec.Action, row, result) }}
+	{{ onClick := actionOnClick(spec.Action, row, result) }}
 	<div class="group relative h-full">
 		if href != "" {
 			<a href={ templ.URL(href) } onclick={ onClick } aria-label={ spec.Title } class="absolute inset-0 z-0 block rounded-xl"></a>
@@ -575,8 +633,8 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 	if panelHasClass(spec, "lens-card-list") {
 		<div class="space-y-3">
 			for _, row := range rows {
-				{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
-				{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
+				{{ rowHref := actionURL(spec.Action, row, result) }}
+				{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
 				if rowHref != "" {
 					<a
 						href={ templ.URL(rowHref) }
@@ -610,8 +668,8 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 				</thead>
 				<tbody class="divide-y divide-gray-100/80">
 					for _, row := range rows {
-						{{ rowHref := actionURL(spec.Action, row, result.Variables) }}
-						{{ rowOnClick := actionOnClick(spec.Action, row, result.Variables) }}
+						{{ rowHref := actionURL(spec.Action, row, result) }}
+						{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
 						<tr class="transition-colors hover:bg-gray-50/60">
 							for i, column := range columns {
 								<td class="whitespace-nowrap px-4 py-2 text-gray-600">
@@ -645,6 +703,9 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 }
 
 templ CardListRow(columns []panel.TableColumn, row map[string]any, result *runtime.PanelResult) {
+	if len(columns) == 0 {
+		return
+	}
 	<div class="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-4 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50">
 		<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold" style={ badgeStyle(rowAccentColor(row)) }>
 			{ rowMarker(tableValueText(columns[0], row, result)) }

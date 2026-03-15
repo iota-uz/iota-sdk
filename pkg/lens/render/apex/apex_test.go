@@ -27,7 +27,7 @@ func TestBuildActionJSNormalizesTimeCategories(t *testing.T) {
 		&action.Spec{Kind: action.KindNavigate, URL: "/reports"},
 		fr,
 		panel.FieldMapping{Category: "category", Series: "series", Value: "value"},
-		nil,
+		&runtime.PanelResult{},
 	))
 
 	require.Contains(t, js, "normalizeCategoryValue")
@@ -49,7 +49,7 @@ func TestBuildActionJSPreservesTimeValuesInConfig(t *testing.T) {
 		&action.Spec{Kind: action.KindNavigate, URL: "/reports"},
 		fr,
 		panel.FieldMapping{Category: "category", Series: "series", Value: "value"},
-		map[string]any{"from": timestamp},
+		&runtime.PanelResult{Variables: map[string]any{"from": timestamp}},
 	))
 
 	require.Contains(t, js, `"2026-03-09T00:00:00Z"`)
@@ -89,7 +89,7 @@ func TestBuildActionJSHonorsFallbacks(t *testing.T) {
 		},
 		fr,
 		panel.FieldMapping{Category: "category", Series: "series", Value: "value"},
-		nil,
+		&runtime.PanelResult{},
 	))
 
 	require.Contains(t, js, `resolveValue(row["product_id"], "default-product")`)

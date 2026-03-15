@@ -102,6 +102,10 @@
       "_Description": "Panelni ko'rsatishda xatolik yuz berdi",
       "Title": "Ma'lumotlarni yuklab bo'lmadi"
     },
+    "Drill": {
+      "Back": "Orqaga",
+      "CurrentScope": "Joriy kesim"
+    },
     "Filters": {
       "All": "Barchasi",
       "AllTime": "Butun vaqt",

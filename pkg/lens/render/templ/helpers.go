@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,12 +16,15 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/drill"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
+
+var actionPlaceholderPattern = regexp.MustCompile(`\{[a-zA-Z0-9_]+\}`)
 
 func normalizedSpan(span int) int {
 	if span < 1 {
@@ -41,6 +45,63 @@ func panelResult(result *runtime.DashboardResult, panelID string) *runtime.Panel
 		return nil
 	}
 	return result.Panels[panelID]
+}
+
+type drillNavModel struct {
+	HasNav       bool
+	CurrentTitle string
+	CurrentValue string
+	CurrentLabel string
+	UpURL        string
+	UpLabel      string
+	Trail        []drillNavCrumb
+	Summary      []drillSummaryItem
+}
+
+type drillNavCrumb struct {
+	URL   string
+	Label string
+}
+
+type drillSummaryItem struct {
+	Label string
+	Value string
+}
+
+func drillNavigationModel(result *runtime.DashboardResult) drillNavModel {
+	if result == nil || result.Drill == nil {
+		return drillNavModel{}
+	}
+	state := result.Drill
+	model := drillNavModel{
+		HasNav:       state.HasNavigation(),
+		CurrentTitle: state.Current.Title,
+		CurrentValue: state.Current.ScopeValue,
+		CurrentLabel: state.Current.ScopeLabel,
+	}
+	if up, ok := state.Up(); ok {
+		model.UpURL = up.URL
+		model.UpLabel = up.DisplayLabel()
+	}
+	for _, crumb := range state.Trail {
+		model.Trail = append(model.Trail, drillNavCrumb{
+			URL:   crumb.URL,
+			Label: crumb.DisplayLabel(),
+		})
+		if strings.TrimSpace(crumb.ScopeValue) != "" {
+			model.Summary = append(model.Summary, drillSummaryItem{
+				Label: firstNonEmptyString(crumb.ScopeLabel, crumb.Title),
+				Value: crumb.ScopeValue,
+			})
+		}
+	}
+	if strings.TrimSpace(state.Current.ScopeValue) != "" {
+		model.Summary = append(model.Summary, drillSummaryItem{
+			Label: firstNonEmptyString(state.Current.ScopeLabel, state.Current.Title),
+			Value: state.Current.ScopeValue,
+		})
+	}
+	return model
 }
 
 func tableColumns(spec panel.Spec, result *runtime.PanelResult) []panel.TableColumn {
@@ -106,24 +167,27 @@ func filterModel(result *runtime.DashboardResult) filter.Model {
 	return result.Filters
 }
 
-func actionURL(spec *action.Spec, row map[string]any, variables map[string]any) string {
+func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResult) string {
 	if spec == nil {
 		return ""
 	}
 	switch spec.Kind {
-	case action.KindNavigate, action.KindHtmxSwap:
+	case action.KindNavigate, action.KindHtmxSwap, action.KindDrill:
 	case action.KindEmitEvent:
 		return ""
 	default:
 		return ""
 	}
-	nextURL := spec.URL
+	if spec.Kind == action.KindDrill {
+		return drillActionURL(spec, row, result)
+	}
+	nextURL := interpolateActionURL(spec.URL, row, resultVariables(result))
 	if len(spec.Params) == 0 {
 		return nextURL
 	}
 	values := url.Values{}
 	for _, param := range spec.Params {
-		value, ok := actionValue(param.Source, row, variables)
+		value, ok := actionValue(param.Source, row, resultVariables(result))
 		if !ok {
 			continue
 		}
@@ -140,15 +204,15 @@ func actionURL(spec *action.Spec, row map[string]any, variables map[string]any) 
 	return nextURL + separator + query
 }
 
-func actionOnClick(spec *action.Spec, row map[string]any, variables map[string]any) templpkg.ComponentScript {
+func actionOnClick(spec *action.Spec, row map[string]any, result *runtime.PanelResult) templpkg.ComponentScript {
 	if spec == nil {
 		return templpkg.ComponentScript{}
 	}
 	switch spec.Kind {
-	case action.KindNavigate:
+	case action.KindNavigate, action.KindDrill:
 		return templpkg.ComponentScript{}
 	case action.KindHtmxSwap:
-		href := actionURL(spec, row, variables)
+		href := actionURL(spec, row, result)
 		if href == "" {
 			return templpkg.ComponentScript{}
 		}
@@ -158,7 +222,7 @@ func actionOnClick(spec *action.Spec, row map[string]any, variables map[string]a
 		}
 		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
 	case action.KindEmitEvent:
-		payload := actionPayload(spec, row, variables)
+		payload := actionPayload(spec, row, resultVariables(result))
 		encoded, err := json.Marshal(payload)
 		if err != nil {
 			return templpkg.ComponentScript{}
@@ -167,6 +231,13 @@ func actionOnClick(spec *action.Spec, row map[string]any, variables map[string]a
 	default:
 		return templpkg.ComponentScript{}
 	}
+}
+
+func resultVariables(result *runtime.PanelResult) map[string]any {
+	if result == nil {
+		return nil
+	}
+	return result.Variables
 }
 
 func stopPropagationScript(script templpkg.ComponentScript) templpkg.ComponentScript {
@@ -189,6 +260,85 @@ func actionPayload(spec *action.Spec, row map[string]any, variables map[string]a
 		payload[key] = value
 	}
 	return payload
+}
+
+func drillActionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResult) string {
+	if spec == nil || result == nil {
+		return ""
+	}
+	values := drill.Strip(result.Request)
+	for _, param := range spec.Params {
+		value, ok := actionValue(param.Source, row, result.Variables)
+		if !ok {
+			continue
+		}
+		assignQueryValue(values, param.Name, value)
+	}
+	if spec.Drill != nil {
+		if result.Drill != nil {
+			if trail := result.Drill.NextTrailEncoded(); trail != "" {
+				values.Set(drill.QueryTrail, trail)
+			}
+		}
+		if title := strings.TrimSpace(spec.Drill.PageTitle); title != "" {
+			values.Set(drill.QueryPageTitle, title)
+		}
+		if label := strings.TrimSpace(spec.Drill.ScopeLabel); label != "" {
+			values.Set(drill.QueryScopeLabel, label)
+		}
+		if scopeValue, ok := resolvedDrillScopeValue(spec, row, result); ok {
+			values.Set(drill.QueryScopeValue, scopeValue)
+		}
+		if destination := strings.TrimSpace(string(spec.Drill.Destination)); destination != "" {
+			values.Set(drill.QueryDestination, destination)
+		}
+	}
+	return joinURLQuery(interpolateActionURL(spec.URL, row, result.Variables), values)
+}
+
+func resolvedDrillScopeValue(spec *action.Spec, row map[string]any, result *runtime.PanelResult) (string, bool) {
+	if spec == nil || spec.Drill == nil {
+		return "", false
+	}
+	source := spec.Drill.LabelSource
+	if source.Kind == "" {
+		source = action.PointValue("label")
+	}
+	value, ok := actionValue(source, row, result.Variables)
+	if !ok {
+		return "", false
+	}
+	text := strings.TrimSpace(fmt.Sprint(value))
+	if text == "" {
+		return "", false
+	}
+	return text, true
+}
+
+func assignQueryValue(values url.Values, key string, value any) {
+	if values == nil || strings.TrimSpace(key) == "" || value == nil {
+		return
+	}
+	switch current := value.(type) {
+	case []string:
+		values.Del(key)
+		for _, item := range current {
+			if trimmed := strings.TrimSpace(item); trimmed != "" {
+				values.Add(key, trimmed)
+			}
+		}
+	case []any:
+		values.Del(key)
+		for _, item := range current {
+			assignQueryValue(values, key, item)
+		}
+	default:
+		text := strings.TrimSpace(fmt.Sprint(value))
+		if text == "" {
+			return
+		}
+		values.Set(key, text)
+	}
 }
 
 func actionValue(source action.ValueSource, row map[string]any, variables map[string]any) (any, bool) {
@@ -254,6 +404,37 @@ func containsQuery(raw string) bool {
 	return false
 }
 
+func joinURLQuery(raw string, values url.Values) string {
+	query := values.Encode()
+	if query == "" {
+		return raw
+	}
+	if containsQuery(raw) {
+		return raw + "&" + query
+	}
+	return raw + "?" + query
+}
+
+func interpolateActionURL(raw string, row map[string]any, variables map[string]any) string {
+	if strings.TrimSpace(raw) == "" {
+		return raw
+	}
+	return actionPlaceholderPattern.ReplaceAllStringFunc(raw, func(token string) string {
+		key := strings.TrimSuffix(strings.TrimPrefix(token, "{"), "}")
+		if row != nil {
+			if value, ok := row[key]; ok && strings.TrimSpace(fmt.Sprint(value)) != "" {
+				return url.PathEscape(fmt.Sprint(value))
+			}
+		}
+		if variables != nil {
+			if value, ok := variables[key]; ok && strings.TrimSpace(fmt.Sprint(value)) != "" {
+				return url.PathEscape(fmt.Sprint(value))
+			}
+		}
+		return ""
+	})
+}
+
 func dateRangeState(input filter.Input) string {
 	return js.MustToJS(struct {
 		DateMode string `json:"dateMode"`
@@ -280,6 +461,8 @@ type chartText struct {
 	LogScale           string
 	LogScaleHint       string
 	MetricInfo         string
+	DrillBack          string
+	DrillCurrentScope  string
 }
 
 func pageContext(ctx context.Context) types.PageContext {
@@ -308,6 +491,8 @@ func localizedChartText(ctx context.Context) chartText {
 		LogScale:           translateOrFallback(ctx, "Chart.LogScale", "Log scale"),
 		LogScaleHint:       translateOrFallback(ctx, "Chart.LogScaleHint", "Values are shown on a logarithmic scale"),
 		MetricInfo:         translateOrFallback(ctx, "Chart.MetricInfo", "How this metric is calculated"),
+		DrillBack:          translateOrFallback(ctx, "Lens.Drill.Back", "Back"),
+		DrillCurrentScope:  translateOrFallback(ctx, "Lens.Drill.CurrentScope", "Current scope"),
 	}
 }
 
@@ -506,6 +691,15 @@ func rowMarker(text string) string {
 		return strings.ToUpper(string(r))
 	}
 	return "•"
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func panelBodyClass(spec panel.Spec) string {

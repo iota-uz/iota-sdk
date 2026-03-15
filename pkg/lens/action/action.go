@@ -7,6 +7,7 @@ const (
 	KindNavigate  Kind = "navigate"
 	KindHtmxSwap  Kind = "htmx_swap"
 	KindEmitEvent Kind = "emit_event"
+	KindDrill     Kind = "drill"
 )
 
 type ValueSourceKind string
@@ -38,6 +39,7 @@ type Spec struct {
 	Event   string
 	Payload map[string]ValueSource
 	Params  []Param
+	Drill   *DrillSpec
 }
 
 type Plugin interface {
@@ -63,11 +65,75 @@ func HtmxSwap(url, target string, params ...Param) Spec {
 	}
 }
 
+func DrillDashboard(url, pageTitle, scopeLabel string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindDrill,
+		URL:    url,
+		Method: "GET",
+		Params: params,
+		Drill: &DrillSpec{
+			Destination: DestinationDashboard,
+			PageTitle:   pageTitle,
+			ScopeLabel:  scopeLabel,
+			LabelSource: PointValue("label"),
+		},
+	}
+}
+
+func DrillRaw(url, pageTitle, scopeLabel string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindDrill,
+		URL:    url,
+		Method: "GET",
+		Params: params,
+		Drill: &DrillSpec{
+			Destination: DestinationRaw,
+			PageTitle:   pageTitle,
+			ScopeLabel:  scopeLabel,
+			LabelSource: PointValue("label"),
+		},
+	}
+}
+
+func (s Spec) WithDrillLabel(source ValueSource) Spec {
+	if s.Drill == nil {
+		return s
+	}
+	s.Drill.LabelSource = source
+	return s
+}
+
+func (s Spec) WithDrillScopeLabel(label string) Spec {
+	if s.Drill == nil {
+		return s
+	}
+	s.Drill.ScopeLabel = label
+	return s
+}
+
+func (s Spec) WithDrillPageTitle(title string) Spec {
+	if s.Drill == nil {
+		return s
+	}
+	s.Drill.PageTitle = title
+	return s
+}
+
 func FieldParam(name, field string) Param {
 	return Param{
 		Name: name,
 		Source: ValueSource{
 			Kind: SourceField,
+			Name: field,
+		},
+	}
+}
+
+func PointParam(name, field string) Param {
+	return Param{
+		Name: name,
+		Source: ValueSource{
+			Kind: SourcePoint,
 			Name: field,
 		},
 	}
@@ -91,4 +157,20 @@ func VariableParam(name, variable string) Param {
 			Name: variable,
 		},
 	}
+}
+
+func FieldValue(field string) ValueSource {
+	return ValueSource{Kind: SourceField, Name: field}
+}
+
+func PointValue(field string) ValueSource {
+	return ValueSource{Kind: SourcePoint, Name: field}
+}
+
+func LiteralValue(value any) ValueSource {
+	return ValueSource{Kind: SourceLiteral, Value: value}
+}
+
+func VariableValue(variable string) ValueSource {
+	return ValueSource{Kind: SourceVariable, Name: variable}
 }

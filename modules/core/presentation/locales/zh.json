@@ -102,6 +102,10 @@
       "_Description": "渲染此面板时发生错误",
       "Title": "无法加载数据"
     },
+    "Drill": {
+      "Back": "返回",
+      "CurrentScope": "当前范围"
+    },
     "Filters": {
       "All": "全部",
       "AllTime": "全部时间",

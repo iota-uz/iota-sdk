@@ -12,6 +12,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/drill"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -212,7 +213,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	applyValueScale(&options, panelSpec)
 	applyValueFormatter(&options, panelSpec, panelResult)
 	if panelSpec.Action != nil {
-		options.Chart.Events = &charts.ChartEvents{DataPointSelection: buildActionJS(panelSpec.Action, fr, fields, panelResult.Variables)}
+		options.Chart.Events = &charts.ChartEvents{DataPointSelection: buildActionJS(panelSpec.Action, fr, fields, panelResult)}
 	}
 	return options
 }
@@ -463,14 +464,25 @@ func chartValueFormatters(spec *format.Spec, locale string) (templ.JSExpression,
 	}
 }
 
-func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, variables map[string]any) templ.JSExpression {
+func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, panelResult *runtime.PanelResult) templ.JSExpression {
 	method := spec.Method
 	if method == "" {
 		method = "GET"
 	}
+	variables := map[string]any(nil)
+	baseQuery := map[string][]string(nil)
+	nextTrail := ""
+	if panelResult != nil {
+		variables = panelResult.Variables
+		baseQuery = strippedQueryMap(panelResult.Request)
+		if panelResult.Drill != nil {
+			nextTrail = panelResult.Drill.NextTrailEncoded()
+		}
+	}
 	configJS := mustJSONJS(chartActionConfig{
 		Rows:           fr.Rows(),
 		Variables:      variables,
+		Kind:           string(spec.Kind),
 		URL:            spec.URL,
 		Method:         method,
 		Target:         spec.Target,
@@ -479,10 +491,14 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		LabelField:     fields.Label.Name(),
 		StartTimeField: fields.StartTime.Name(),
 		SeriesField:    fields.Series.Name(),
+		BaseQuery:      baseQuery,
+		Drill:          chartDrillConfig(spec, nextTrail),
 	})
 	var actionJS string
 	switch spec.Kind {
 	case action.KindNavigate:
+		actionJS = "window.location.href = nextURL;"
+	case action.KindDrill:
 		actionJS = "window.location.href = nextURL;"
 	case action.KindHtmxSwap:
 		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {target: cfg.target, swap: 'innerHTML'});"
@@ -517,6 +533,20 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			}
 			return value;
 		};
+		const replaceParam = function(name, value) {
+			params.delete(name);
+			if (Array.isArray(value)) {
+				value.forEach(function(item) {
+					if (item !== undefined && item !== null && item !== '') {
+						params.append(name, String(item));
+					}
+				});
+				return;
+			}
+			if (value !== undefined && value !== null && value !== '') {
+				params.append(name, String(value));
+			}
+		};
 		let row = rows[opts.dataPointIndex] || {};
 		const groupedMatch = rows.find(function(item) {
 			const categoryValue = item[cfg.categoryField] || item[cfg.labelField] || item[cfg.startTimeField];
@@ -529,10 +559,21 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		let nextURL = cfg.url;
 		const payload = {};
 		const params = new URLSearchParams();
+		if (cfg.kind === 'drill' && cfg.baseQuery) {
+			Object.entries(cfg.baseQuery).forEach(function(entry) {
+				const key = entry[0];
+				const values = Array.isArray(entry[1]) ? entry[1] : [];
+				values.forEach(function(item) {
+					if (item !== undefined && item !== null && item !== '') {
+						params.append(key, String(item));
+					}
+				});
+			});
+		}
 	`, configJS)
 	for idx, param := range spec.Params {
 		expr := actionValueJS(param.Source, fields)
-		js += fmt.Sprintf("const paramValue%d = %s;\nif (paramValue%d !== undefined) { params.append(%q, paramValue%d); payload[%q] = paramValue%d; }\n", idx, expr, idx, param.Name, idx, param.Name, idx)
+		js += fmt.Sprintf("const paramValue%d = %s;\nif (paramValue%d !== undefined) { replaceParam(%q, paramValue%d); payload[%q] = paramValue%d; }\n", idx, expr, idx, param.Name, idx, param.Name, idx)
 	}
 	payloadIndex := 0
 	for key, source := range spec.Payload {
@@ -540,12 +581,53 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		js += fmt.Sprintf("const payloadValue%d = %s;\nif (payloadValue%d !== undefined) { payload[%q] = payloadValue%d; }\n", payloadIndex, expr, payloadIndex, key, payloadIndex)
 		payloadIndex++
 	}
+	if spec.Kind == action.KindDrill {
+		labelSource := spec.Drill.LabelSource
+		if labelSource.Kind == "" {
+			labelSource = action.PointValue("label")
+		}
+		scopeExpr := actionValueJS(labelSource, fields)
+		js += `if (cfg.drill) {
+			if (cfg.drill.trail) { params.set('_lens_drill', cfg.drill.trail); }
+			if (cfg.drill.pageTitle) { params.set('_lens_page_title', cfg.drill.pageTitle); }
+			if (cfg.drill.scopeLabel) { params.set('_lens_scope_label', cfg.drill.scopeLabel); }
+			if (cfg.drill.destination) { params.set('_lens_destination', cfg.drill.destination); }
+		}
+		`
+		js += fmt.Sprintf("const drillScopeValue = %s;\nif (drillScopeValue !== undefined && drillScopeValue !== null && drillScopeValue !== '') { params.set('_lens_scope_value', String(drillScopeValue)); }\n", scopeExpr)
+	}
 	js += `const query = params.toString();
 		if (query) {
 			nextURL = nextURL + (nextURL.includes('?') ? '&' : '?') + query;
 		}
 	` + actionJS + `}`
 	return templ.JSExpression(js)
+}
+
+func chartDrillConfig(spec *action.Spec, nextTrail string) *chartDrill {
+	if spec == nil || spec.Kind != action.KindDrill || spec.Drill == nil {
+		return nil
+	}
+	return &chartDrill{
+		Trail:       nextTrail,
+		PageTitle:   spec.Drill.PageTitle,
+		ScopeLabel:  spec.Drill.ScopeLabel,
+		Destination: string(spec.Drill.Destination),
+	}
+}
+
+func strippedQueryMap(values map[string][]string) map[string][]string {
+	if values == nil {
+		return nil
+	}
+	out := map[string][]string{}
+	for key, items := range values {
+		if key == drill.QueryTrail || key == drill.QueryPageTitle || key == drill.QueryScopeLabel || key == drill.QueryScopeValue || key == drill.QueryDestination {
+			continue
+		}
+		out[key] = append([]string(nil), items...)
+	}
+	return out
 }
 
 func actionValueJS(source action.ValueSource, fields panel.FieldMapping) string {
@@ -594,16 +676,26 @@ func mustJSONJS(value any) string {
 }
 
 type chartActionConfig struct {
-	Rows           []map[string]any `json:"rows"`
-	Variables      map[string]any   `json:"variables"`
-	URL            string           `json:"url"`
-	Method         string           `json:"method,omitempty"`
-	Target         string           `json:"target,omitempty"`
-	Event          string           `json:"event,omitempty"`
-	CategoryField  string           `json:"categoryField"`
-	LabelField     string           `json:"labelField"`
-	StartTimeField string           `json:"startTimeField"`
-	SeriesField    string           `json:"seriesField"`
+	Rows           []map[string]any    `json:"rows"`
+	Variables      map[string]any      `json:"variables"`
+	Kind           string              `json:"kind"`
+	URL            string              `json:"url"`
+	Method         string              `json:"method,omitempty"`
+	Target         string              `json:"target,omitempty"`
+	Event          string              `json:"event,omitempty"`
+	CategoryField  string              `json:"categoryField"`
+	LabelField     string              `json:"labelField"`
+	StartTimeField string              `json:"startTimeField"`
+	SeriesField    string              `json:"seriesField"`
+	BaseQuery      map[string][]string `json:"baseQuery,omitempty"`
+	Drill          *chartDrill         `json:"drill,omitempty"`
+}
+
+type chartDrill struct {
+	Trail       string `json:"trail,omitempty"`
+	PageTitle   string `json:"pageTitle,omitempty"`
+	ScopeLabel  string `json:"scopeLabel,omitempty"`
+	Destination string `json:"destination,omitempty"`
 }
 
 func chartType(kind panel.Kind) charts.ChartType {
