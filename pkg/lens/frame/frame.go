@@ -114,7 +114,7 @@ func (f *Frame) Clone() *Frame {
 	for k, v := range f.Meta.Labels {
 		labels[k] = v
 	}
-	return &Frame{
+	cloned := &Frame{
 		Name:     f.Name,
 		Fields:   fields,
 		RowCount: f.RowCount,
@@ -124,6 +124,8 @@ func (f *Frame) Clone() *Frame {
 			Labels:      labels,
 		},
 	}
+	cloned.buildFieldIndex()
+	return cloned
 }
 
 func (f *Frame) buildFieldIndex() {
