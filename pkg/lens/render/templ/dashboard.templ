@@ -490,7 +490,7 @@ templ statContent(spec panel.Spec, value, description string, clickable bool) {
 					<h3 class="truncate text-base font-medium text-slate-600 transition-colors group-hover:text-slate-900">{ spec.Title }</h3>
 					@MetricInfoButton(spec, "pointer-events-auto flex-shrink-0")
 				</div>
-				<div class="flex h-10 w-10 items-center justify-center rounded-xl" style={ badgeStyle(spec.AccentColor) }>
+				<div class="flex h-10 w-10 items-center justify-center rounded-xl" style={ badgeStyle(spec.Chrome.AccentColor) }>
 					@panelDisplayIcon(spec)
 				</div>
 			</div>

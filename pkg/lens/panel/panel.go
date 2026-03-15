@@ -4,8 +4,8 @@ package panel
 import (
 	"strings"
 
-	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
@@ -82,8 +82,7 @@ type Spec struct {
 	Action      *action.Spec
 	Children    []Spec
 	ClassName   string
-	Icon        templ.Component
-	AccentColor string
+	Chrome      chrome.Spec
 	ValueAxis   ValueAxis
 	Distributed bool
 }
@@ -180,12 +179,12 @@ func (b *Builder) ValueAxisScale(scale AxisScale, base int) *Builder {
 func (b *Builder) LogarithmicValueAxis(base int) *Builder {
 	return b.ValueAxisScale(AxisScaleLogarithmic, base)
 }
-func (b *Builder) Icon(icon templ.Component) *Builder {
-	b.spec.Icon = icon
+func (b *Builder) Icon(icon chrome.Icon) *Builder {
+	b.spec.Chrome.Icon = icon
 	return b
 }
 func (b *Builder) AccentColor(color string) *Builder {
-	b.spec.AccentColor = color
+	b.spec.Chrome.AccentColor = color
 	return b
 }
 func (b *Builder) DistributedColors() *Builder {

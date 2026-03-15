@@ -609,8 +609,8 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 }
 
 func panelDisplayIcon(spec panel.Spec) templpkg.Component {
-	if spec.Icon != nil {
-		return spec.Icon
+	if !spec.Chrome.Icon.Empty() {
+		return spec.Chrome.Icon.Render()
 	}
 	return panelIcon(spec.Kind)
 }
@@ -623,7 +623,7 @@ func showPanelHeader(spec panel.Spec) bool {
 }
 
 func statUsesCustomChrome(spec panel.Spec) bool {
-	return spec.Kind == panel.KindStat && (spec.Icon != nil || strings.TrimSpace(spec.AccentColor) != "")
+	return spec.Kind == panel.KindStat && (!spec.Chrome.Icon.Empty() || strings.TrimSpace(spec.Chrome.AccentColor) != "")
 }
 
 func metricInfoTooltipHTML(ctx context.Context, info string) string {
