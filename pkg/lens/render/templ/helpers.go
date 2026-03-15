@@ -40,7 +40,7 @@ func panelSpanStyle(span int) templpkg.SafeCSS {
 	return templpkg.SafeCSS("--lens-col-span:" + strconv.Itoa(normalizedSpan(span)))
 }
 
-func panelResult(result *runtime.DashboardResult, panelID string) *runtime.PanelResult {
+func panelResult(result *runtime.Result, panelID string) *runtime.PanelResult {
 	if result == nil || result.Panels == nil {
 		return nil
 	}
@@ -68,7 +68,7 @@ type drillSummaryItem struct {
 	Value string
 }
 
-func drillNavigationModel(result *runtime.DashboardResult) drillNavModel {
+func drillNavigationModel(result *runtime.Result) drillNavModel {
 	if result == nil || result.Drill == nil {
 		return drillNavModel{}
 	}
@@ -160,7 +160,7 @@ func formatValue(value any, spec *format.Spec, locale, timezone string) string {
 	}
 }
 
-func filterModel(result *runtime.DashboardResult) filter.Model {
+func filterModel(result *runtime.Result) filter.Model {
 	if result == nil {
 		return filter.Model{}
 	}
@@ -780,7 +780,7 @@ func panelFragmentURL(basePath, panelID string) string {
 	return basePath + "/" + url.PathEscape(panelID)
 }
 
-func islandIncludeSelector(props DashboardShellProps) string {
+func islandIncludeSelector(props AsyncProps) string {
 	if strings.TrimSpace(props.IncludeSelector) != "" {
 		return props.IncludeSelector
 	}
@@ -791,7 +791,7 @@ func islandIncludeSelector(props DashboardShellProps) string {
 	return formID + " input, " + formID + " select, " + formID + " textarea"
 }
 
-func islandTrigger(props DashboardShellProps) string {
+func islandTrigger(props AsyncProps) string {
 	if strings.TrimSpace(props.FilterFormID) == "" {
 		return "load"
 	}

@@ -12,12 +12,15 @@ import (
 type LensPageProps struct {
 	SidebarProps sidebar.Props
 	Dashboard    lens.DashboardSpec
-	Results      *runtime.DashboardResult
+	Results      *runtime.Result
 }
 
 templ LensContent(props LensPageProps) {
 	if props.Results != nil {
-		@lensrender.Dashboard(props.Dashboard, props.Results)
+		@lensrender.Dashboard(lensrender.DashboardProps{
+			Spec:   props.Dashboard,
+			Result: props.Results,
+		})
 	} else {
 		<div class="p-8 text-center">
 			<p class="text-gray-600">No database connection available</p>

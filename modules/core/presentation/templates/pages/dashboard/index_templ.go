@@ -18,7 +18,7 @@ import (
 
 type IndexPageProps struct {
 	Dashboard lens.DashboardSpec
-	Results   *runtime.DashboardResult
+	Results   *runtime.Result
 }
 
 func DashboardContent(props *IndexPageProps) templ.Component {
@@ -47,7 +47,10 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if props.Results != nil {
-			templ_7745c5c3_Err = lensrender.Dashboard(props.Dashboard, props.Results).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = lensrender.Dashboard(lensrender.DashboardProps{
+				Spec:   props.Dashboard,
+				Result: props.Results,
+			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

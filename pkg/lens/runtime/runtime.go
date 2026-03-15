@@ -58,6 +58,8 @@ type DashboardResult struct {
 	Duration  time.Duration
 }
 
+type Result = DashboardResult
+
 type ExecutionPlan struct {
 	DatasetStages []ExecutionStage
 	Panels        []string
@@ -68,7 +70,7 @@ type ExecutionStage struct {
 	Datasets []string
 }
 
-type Runtime struct {
+type Request struct {
 	Locale      string
 	Timezone    string
 	Path        string
@@ -76,6 +78,24 @@ type Runtime struct {
 	Overrides   map[string]any
 	DataSources map[string]datasource.DataSource
 	Cache       Cache
+}
+
+type Runtime = Request
+
+type Scope struct {
+	PanelIDs []string
+}
+
+func DashboardScope() Scope {
+	return Scope{}
+}
+
+func PanelsScope(panelIDs ...string) Scope {
+	return Scope{PanelIDs: append([]string(nil), panelIDs...)}
+}
+
+func PanelScope(panelID string) Scope {
+	return Scope{PanelIDs: []string{panelID}}
 }
 
 type Cache interface {
@@ -108,37 +128,28 @@ func (m *memoryCache) Set(key string, value *frame.FrameSet) {
 	m.items[key] = value.Clone()
 }
 
-func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardResult, error) {
-	return execute(ctx, spec, rt, nil)
+func Run(ctx context.Context, spec lens.DashboardSpec, req Request) (*DashboardResult, error) {
+	return run(ctx, spec, req, DashboardScope())
 }
 
-// Run is a semantic alias for Execute kept for callers that prefer verb-style execution APIs.
-func Run(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardResult, error) {
-	return Execute(ctx, spec, rt)
+func RunScope(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
+	return run(ctx, spec, req, scope)
 }
 
-func RunPanels(ctx context.Context, spec lens.DashboardSpec, rt Runtime, panelIDs ...string) (*DashboardResult, error) {
-	return execute(ctx, spec, rt, panelIDs)
-}
-
-func RunPanelSubtree(ctx context.Context, spec lens.DashboardSpec, rt Runtime, panelID string) (*DashboardResult, error) {
-	return execute(ctx, spec, rt, []string{panelID})
-}
-
-func execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime, panelIDs []string) (*DashboardResult, error) {
+func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
 	op := serrors.Op("lens/runtime.Execute")
 	if err := Validate(spec); err != nil {
 		return nil, serrors.E(op, err)
 	}
 	startedAt := time.Now()
-	if rt.Cache == nil {
-		rt.Cache = NewMemoryCache()
+	if req.Cache == nil {
+		req.Cache = NewMemoryCache()
 	}
-	variables, err := resolveVariables(spec.Variables, rt)
+	variables, err := resolveVariables(spec.Variables, req)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	internalPlan, err := compileExecutionPlan(spec, panelIDs)
+	internalPlan, err := compileExecutionPlan(spec, scope.PanelIDs)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -150,16 +161,16 @@ func execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime, panelIDs 
 		Plan:      internalPlan.view,
 		Datasets:  make(map[string]*DatasetResult, len(spec.Datasets)),
 		Panels:    make(map[string]*PanelResult),
-		Locale:    rt.Locale,
-		Timezone:  rt.Timezone,
-		Request:   cloneValues(rt.Request),
-		Drill:     drill.Parse(rt.Path, rt.Request, spec.Title),
+		Locale:    req.Locale,
+		Timezone:  req.Timezone,
+		Request:   cloneValues(req.Request),
+		Drill:     drill.Parse(req.Path, req.Request, spec.Title),
 		StartedAt: startedAt,
 	}
 
 	state := plannedExecutor{
 		spec:      spec,
-		runtime:   rt,
+		runtime:   req,
 		variables: variables,
 	}
 
@@ -175,7 +186,7 @@ func execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime, panelIDs 
 
 type plannedExecutor struct {
 	spec      lens.DashboardSpec
-	runtime   Runtime
+	runtime   Request
 	variables map[string]any
 }
 
@@ -185,24 +196,12 @@ type executionPlan struct {
 	panels        []panel.Spec
 }
 
-func BuildPlan(spec lens.DashboardSpec) (ExecutionPlan, error) {
-	op := serrors.Op("lens/runtime.BuildPlan")
+func Plan(spec lens.DashboardSpec, scope Scope) (ExecutionPlan, error) {
+	op := serrors.Op("lens/runtime.Plan")
 	if err := Validate(spec); err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
-	plan, err := compileExecutionPlan(spec, nil)
-	if err != nil {
-		return ExecutionPlan{}, serrors.E(op, err)
-	}
-	return plan.view, nil
-}
-
-func BuildPanelPlan(spec lens.DashboardSpec, panelID string) (ExecutionPlan, error) {
-	op := serrors.Op("lens/runtime.BuildPanelPlan")
-	if err := Validate(spec); err != nil {
-		return ExecutionPlan{}, serrors.E(op, err)
-	}
-	plan, err := compileExecutionPlan(spec, []string{panelID})
+	plan, err := compileExecutionPlan(spec, scope.PanelIDs)
 	if err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
@@ -543,7 +542,7 @@ func resolveDependencyFrames(name string, dependencies []string, results map[str
 	return deps, nil
 }
 
-func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, error) {
+func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, error) {
 	values := make(map[string]any, len(specs))
 	for _, spec := range specs {
 		if override, ok := rt.Overrides[spec.Name]; ok {

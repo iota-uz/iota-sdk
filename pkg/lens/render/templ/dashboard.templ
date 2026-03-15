@@ -12,7 +12,15 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
 
-templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
+templ Dashboard(props DashboardProps) {
+	if props.Async != nil && props.Result == nil {
+		@dashboardShell(props.Spec, *props.Async)
+	} else {
+		@dashboardResult(props.Spec, props.Result)
+	}
+}
+
+templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 	{{ filters := filter.Build(spec.Variables, nil) }}
 	if result != nil {
 		{{ filters = filterModel(result) }}
@@ -43,6 +51,32 @@ templ Dashboard(spec lens.DashboardSpec, result *runtime.DashboardResult) {
 			</div>
 		}
 	</div>
+	@DashboardScripts()
+}
+
+templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
+	<style>
+		.lens-grid-item {
+			grid-column: span 12 / span 12;
+			min-width: 0;
+		}
+
+		@media (min-width: 768px) {
+			.lens-grid-item {
+				grid-column: span var(--lens-col-span, 12) / span var(--lens-col-span, 12);
+			}
+		}
+	</style>
+	<div class="space-y-6" data-lens-dashboard>
+		for _, row := range spec.Rows {
+			<div class={ "grid grid-cols-12 gap-5", row.Class }>
+				for _, panelSpec := range row.Panels {
+					@PanelShell(panelSpec, props)
+				}
+			</div>
+		}
+	</div>
+	@FormURLSyncScript(props.FilterFormID)
 	@DashboardScripts()
 }
 
@@ -100,32 +134,6 @@ templ HiddenQueryInputs(values map[string][]string) {
 	}
 }
 
-templ DashboardShell(spec lens.DashboardSpec, props DashboardShellProps) {
-	<style>
-		.lens-grid-item {
-			grid-column: span 12 / span 12;
-			min-width: 0;
-		}
-
-		@media (min-width: 768px) {
-			.lens-grid-item {
-				grid-column: span var(--lens-col-span, 12) / span var(--lens-col-span, 12);
-			}
-		}
-	</style>
-	<div class="space-y-6" data-lens-dashboard>
-		for _, row := range spec.Rows {
-			<div class={ "grid grid-cols-12 gap-5", row.Class }>
-				for _, panelSpec := range row.Panels {
-					@PanelShell(panelSpec, props)
-				}
-			</div>
-		}
-	</div>
-	@FormURLSyncScript(props.FilterFormID)
-	@DashboardScripts()
-}
-
 templ DashboardScripts() {
 	<script>
 		(function() {
@@ -152,9 +160,15 @@ templ DashboardScripts() {
 
 templ FormURLSyncScript(formID string) {
 	if formID != "" {
+		<div data-lens-url-sync={ formID } style="display:none"></div>
 		<script>
 			(function() {
-				const form = document.getElementById("{ formID }");
+				const marker = document.querySelector('[data-lens-url-sync]');
+				if (!marker) {
+					return;
+				}
+				const formID = marker.getAttribute('data-lens-url-sync');
+				const form = document.getElementById(formID);
 				if (!form || form.dataset.lensUrlSync === 'true') {
 					return;
 				}
@@ -172,6 +186,7 @@ templ FormURLSyncScript(formID string) {
 				};
 				form.addEventListener('change', schedule);
 				form.addEventListener('dateRangeChange', schedule);
+				marker.remove();
 			})();
 		</script>
 	}
@@ -254,7 +269,7 @@ templ FilterBar(model filter.Model) {
 	</form>
 }
 
-templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
+templ Panel(spec panel.Spec, result *runtime.Result) {
 	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
 		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md">
 			if showPanelHeader(spec) {
@@ -284,7 +299,7 @@ templ Panel(spec panel.Spec, result *runtime.DashboardResult) {
 	</div>
 }
 
-templ PanelShell(spec panel.Spec, props DashboardShellProps) {
+templ PanelShell(spec panel.Spec, props AsyncProps) {
 	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
 		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md">
 			if showPanelHeader(spec) {
@@ -314,7 +329,7 @@ templ PanelShell(spec panel.Spec, props DashboardShellProps) {
 	</div>
 }
 
-templ PanelContent(spec panel.Spec, result *runtime.DashboardResult) {
+templ PanelContent(spec panel.Spec, result *runtime.Result) {
 	{{ currentPanel := panelResult(result, spec.ID) }}
 	switch spec.Kind {
 		case panel.KindTabs:
@@ -330,11 +345,11 @@ templ PanelContent(spec panel.Spec, result *runtime.DashboardResult) {
 	}
 }
 
-templ PanelFragment(spec panel.Spec, result *runtime.DashboardResult) {
-	@PanelContent(spec, result)
+templ PanelFragment(props FragmentProps) {
+	@PanelContent(props.Panel, props.Result)
 }
 
-templ PanelIsland(spec panel.Spec, props DashboardShellProps) {
+templ PanelIsland(spec panel.Spec, props AsyncProps) {
 	{{ indicatorID := shellIndicatorID(spec.ID) }}
 	<div
 		class="absolute inset-0 z-10 hidden htmx-indicator bg-white/80 backdrop-blur-sm"
@@ -357,7 +372,7 @@ templ PanelIsland(spec panel.Spec, props DashboardShellProps) {
 	</div>
 }
 
-templ CompositePanel(spec panel.Spec, result *runtime.DashboardResult) {
+templ CompositePanel(spec panel.Spec, result *runtime.Result) {
 	<div class="grid grid-cols-12 gap-5">
 		for _, child := range spec.Children {
 			@Panel(child, result)
@@ -365,7 +380,7 @@ templ CompositePanel(spec panel.Spec, result *runtime.DashboardResult) {
 	</div>
 }
 
-templ TabsPanel(spec panel.Spec, result *runtime.DashboardResult) {
+templ TabsPanel(spec panel.Spec, result *runtime.Result) {
 	{{ chartText := localizedChartText(ctx) }}
 	<div x-data={ tabsState(spec) } class="flex h-full flex-col">
 		<div class="mb-3 flex items-center justify-end gap-2">
@@ -377,14 +392,14 @@ templ TabsPanel(spec panel.Spec, result *runtime.DashboardResult) {
 	</div>
 }
 
-templ TabsPanelBody(spec panel.Spec, result *runtime.DashboardResult) {
+templ TabsPanelBody(spec panel.Spec, result *runtime.Result) {
 	<div class="flex h-full flex-col">
 		@TabsPanelNav(spec)
 		@TabsPanelFrames(spec, result, false)
 	</div>
 }
 
-templ TabsPanelFullscreenBody(spec panel.Spec, result *runtime.DashboardResult) {
+templ TabsPanelFullscreenBody(spec panel.Spec, result *runtime.Result) {
 	<div class="flex h-full flex-col">
 		@TabsPanelNav(spec)
 		@TabsPanelFrames(spec, result, true)
@@ -409,7 +424,7 @@ templ TabsPanelNav(spec panel.Spec) {
 	</div>
 }
 
-templ TabsPanelFrames(spec panel.Spec, result *runtime.DashboardResult, fullscreen bool) {
+templ TabsPanelFrames(spec panel.Spec, result *runtime.Result, fullscreen bool) {
 	for _, child := range spec.Children {
 		<div x-show={ tabVisibilityExpression(child.ID) } x-transition.opacity.duration.150ms class={ tabsPanelFrameClass(fullscreen) }>
 			{{ childPanel := panelResult(result, child.ID) }}
@@ -766,7 +781,7 @@ templ ErrorState(result *runtime.PanelResult) {
 templ LoadingState(spec panel.Spec, overlay bool) {
 	{{ containerClass := "flex h-full w-full items-center justify-center" }}
 	if overlay {
-		{{ containerClass = "flex h-full w-full items-center justify-center" }}
+		{{ containerClass = "absolute inset-0 flex h-full w-full items-center justify-center" }}
 	}
 	<div class={ containerClass } style={ panelIslandStyle(spec) }>
 		switch spec.Kind {

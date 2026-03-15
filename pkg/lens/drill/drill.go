@@ -122,7 +122,8 @@ func buildCurrentURL(path string, values url.Values) string {
 	if trimmedPath == "" {
 		trimmedPath = "/"
 	}
-	query := values.Encode()
+	clean := Strip(values)
+	query := clean.Encode()
 	if query == "" {
 		return trimmedPath
 	}

@@ -112,12 +112,12 @@ func TestFilterModel_Scenarios(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		result *runtime.DashboardResult
+		result *runtime.Result
 		assert func(t *testing.T, model filter.Model)
 	}{
 		{
 			name: "returns dashboard filters",
-			result: &runtime.DashboardResult{
+			result: &runtime.Result{
 				Filters: filter.Model{
 					Inputs: []filter.Input{{Name: "range"}},
 				},
