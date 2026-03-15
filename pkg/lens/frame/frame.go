@@ -98,6 +98,7 @@ func (f *Frame) Normalize() error {
 		}
 	}
 	f.RowCount = rowCount
+	f.buildFieldIndex()
 	return nil
 }
 
@@ -133,9 +134,6 @@ func (f *Frame) buildFieldIndex() {
 }
 
 func (f *Frame) Field(name string) (*Field, bool) {
-	if f.fieldIndex == nil {
-		f.buildFieldIndex()
-	}
 	i, ok := f.fieldIndex[name]
 	if !ok || i >= len(f.Fields) {
 		return nil, false
@@ -181,6 +179,7 @@ func (f *Frame) AppendRow(row map[string]any) error {
 			})
 		}
 		f.RowCount = 1
+		f.buildFieldIndex()
 		return nil
 	}
 
@@ -192,6 +191,7 @@ func (f *Frame) AppendRow(row map[string]any) error {
 		f.Fields[i].Values = append(f.Fields[i].Values, value)
 	}
 	f.RowCount++
+	f.buildFieldIndex()
 	return nil
 }
 

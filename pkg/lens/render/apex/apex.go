@@ -269,7 +269,7 @@ func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, pan
 	axisFormatter, tooltipFormatter := chartValueFormatters(panelSpec.Formatter, panelResult.Locale)
 	valueAxis := normalizedValueAxis(panelSpec.ValueAxis)
 	if valueAxis.Scale == panel.AxisScaleLogarithmic {
-		plan, ok := logarithmicAxisPlanForOptions(*options, valueAxis.LogBase)
+		plan, ok := logarithmicAxisPlanFromAxisOptions(*options, panelSpec.Kind, valueAxis.LogBase)
 		if ok {
 			axisFormatter = wrapLogarithmicAxisFormatter(axisFormatter, panelResult.Locale, plan)
 			tooltipFormatter = wrapLogarithmicTooltipFormatter(tooltipFormatter, panelResult.Locale, valueAxis.LogBase)
@@ -319,6 +319,97 @@ func logarithmicAxisPlanForOptions(options charts.ChartOptions, base int) (logar
 		return logarithmicAxisPlan{}, false
 	}
 	return buildLogarithmicAxisPlan(series, base)
+}
+
+func logarithmicAxisPlanFromAxisOptions(options charts.ChartOptions, kind panel.Kind, base int) (logarithmicAxisPlan, bool) {
+	if base <= 1 {
+		base = 10
+	}
+	if kind == panel.KindHorizontalBar {
+		return logarithmicAxisPlanFromAxisConfig(options.XAxis.Min, options.XAxis.Max, options.XAxis.StepSize, options.XAxis.TickAmount, base)
+	}
+	if len(options.YAxis) > 0 {
+		axis := options.YAxis[0]
+		return logarithmicAxisPlanFromAxisConfig(axis.Min, axis.Max, axis.StepSize, axis.TickAmount, base)
+	}
+	return logarithmicAxisPlanForOptions(options, base)
+}
+
+func logarithmicAxisPlanFromAxisConfig(minValue, maxValue any, step *float64, tickAmount any, base int) (logarithmicAxisPlan, bool) {
+	minExponent, okMin := numericAxisValue(minValue)
+	maxExponent, okMax := numericAxisValue(maxValue)
+	if !okMin || !okMax {
+		return logarithmicAxisPlan{}, false
+	}
+	plan := logarithmicAxisPlan{
+		Base:        base,
+		MinExponent: minExponent,
+		MaxExponent: maxExponent,
+		TickAmount:  max(1, int(maxExponent-minExponent)+1),
+	}
+	if step != nil && *step > 0 {
+		plan.Step = *step
+	}
+	if ticks, ok := numericAxisIntValue(tickAmount); ok && ticks > 0 {
+		plan.TickAmount = ticks
+	}
+	if plan.Step == 0 {
+		plan.Step = 1
+	}
+	return plan, true
+}
+
+func numericAxisValue(value any) (float64, bool) {
+	switch current := value.(type) {
+	case nil:
+		return 0, false
+	case float64:
+		return current, true
+	case float32:
+		return float64(current), true
+	case int:
+		return float64(current), true
+	case int64:
+		return float64(current), true
+	case int32:
+		return float64(current), true
+	case *float64:
+		if current == nil {
+			return 0, false
+		}
+		return *current, true
+	case *int:
+		if current == nil {
+			return 0, false
+		}
+		return float64(*current), true
+	default:
+		return 0, false
+	}
+}
+
+func numericAxisIntValue(value any) (int, bool) {
+	switch current := value.(type) {
+	case nil:
+		return 0, false
+	case int:
+		return current, true
+	case int64:
+		return int(current), true
+	case int32:
+		return int(current), true
+	case float64:
+		return int(current), true
+	case float32:
+		return int(current), true
+	case *int:
+		if current == nil {
+			return 0, false
+		}
+		return *current, true
+	default:
+		return 0, false
+	}
 }
 
 func buildLogarithmicAxisPlan(series []charts.Series, base int) (logarithmicAxisPlan, bool) {

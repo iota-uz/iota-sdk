@@ -148,7 +148,7 @@ func RunScope(ctx context.Context, spec lens.DashboardSpec, req Request, scope S
 }
 
 func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
-	op := serrors.Op("lens/runtime.Execute")
+	op := serrors.Op("lens/runtime.Run")
 	if err := Validate(spec); err != nil {
 		return nil, serrors.E(op, err)
 	}

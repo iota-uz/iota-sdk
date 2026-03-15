@@ -366,7 +366,10 @@ func assignQueryValue(values url.Values, key string, value any) {
 	case []any:
 		values.Del(key)
 		for _, item := range current {
-			assignQueryValue(values, key, item)
+			text := strings.TrimSpace(fmt.Sprint(item))
+			if text != "" {
+				values.Add(key, text)
+			}
 		}
 	default:
 		text := strings.TrimSpace(fmt.Sprint(value))
@@ -386,6 +389,10 @@ func containsQuery(raw string) bool {
 }
 
 func joinURLQuery(raw string, values url.Values) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
 	query := values.Encode()
 	if query == "" {
 		return raw

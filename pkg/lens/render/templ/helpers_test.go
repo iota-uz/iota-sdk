@@ -152,3 +152,19 @@ func TestFormatValueReturnsEmptyStringForNil(t *testing.T) {
 
 	require.Empty(t, formatValue(nil, nil, "", ""))
 }
+
+func TestAssignQueryValuePreservesAllArrayItems(t *testing.T) {
+	t.Parallel()
+
+	values := urlpkg.Values{}
+	assignQueryValue(values, "products", []any{"osago", "travel", "", 42})
+
+	require.Equal(t, []string{"osago", "travel", "42"}, values["products"])
+}
+
+func TestJoinURLQueryReturnsEmptyForBlankBase(t *testing.T) {
+	t.Parallel()
+
+	url := joinURLQuery("", urlpkg.Values{"scope": []string{"sales"}})
+	require.Empty(t, url)
+}

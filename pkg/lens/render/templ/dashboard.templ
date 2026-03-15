@@ -183,7 +183,18 @@ templ FormURLSyncScript(formID string) {
 				let timeoutId = null;
 				const syncURL = () => {
 					const next = new URL(window.location.href);
-					const params = new URLSearchParams(new FormData(form));
+					const params = new URLSearchParams(next.search);
+					const formData = new FormData(form);
+					const touched = new Set();
+					for (const [key] of formData.entries()) {
+						touched.add(key);
+					}
+					for (const key of touched) {
+						params.delete(key);
+					}
+					for (const [key, value] of formData.entries()) {
+						params.append(key, value);
+					}
 					next.search = params.toString();
 					window.history.replaceState({}, '', next.toString());
 				};

@@ -283,6 +283,34 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 	}
 }
 
+func TestLogarithmicAxisPlanFromAxisOptionsUsesAxisConfig(t *testing.T) {
+	t.Parallel()
+
+	min := 3.0
+	max := 9.0
+	step := 2.0
+	options := charts.ChartOptions{
+		XAxis: charts.XAxisConfig{
+			Min:      &min,
+			Max:      &max,
+			StepSize: &step,
+		},
+		Series: []charts.Series{
+			{
+				Name: "Revenue",
+				Data: []any{0.0, 1.0, 2.0},
+			},
+		},
+	}
+
+	plan, ok := logarithmicAxisPlanFromAxisOptions(options, panel.KindHorizontalBar, 10)
+	require.True(t, ok)
+	require.Equal(t, 10, plan.Base)
+	require.InDelta(t, 3.0, plan.MinExponent, 1e-9)
+	require.InDelta(t, 9.0, plan.MaxExponent, 1e-9)
+	require.InDelta(t, 2.0, plan.Step, 1e-9)
+}
+
 func mustFrameSet(t *testing.T, fr *frame.Frame) *frame.FrameSet {
 	t.Helper()
 
