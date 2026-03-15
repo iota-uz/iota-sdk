@@ -552,7 +552,7 @@ func DashboardScripts() templ.Component {
 			templ_7745c5c3_Var24 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<script>\n\t\t(function() {\n\t\t\tif (window.__lensDashboardScriptsBound) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__lensDashboardScriptsBound = true;\n\t\t\tdocument.addEventListener('htmx:afterSwap', function(evt) {\n\t\t\t\tconst target = evt.detail && evt.detail.target;\n\t\t\t\tif (!target) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tconst containsDashboard = target.closest('[data-lens-dashboard]') || target.querySelector('[data-lens-dashboard]');\n\t\t\t\tif (!containsDashboard) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tsetTimeout(() => {\n\t\t\t\t\tdocument.dispatchEvent(new Event('sdk:rerenderCharts'));\n\t\t\t\t}, 100);\n\t\t\t});\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<script>\n\t\t(function() {\n\t\t\tif (window.__lensDashboardScriptsBound) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__lensDashboardScriptsBound = true;\n\t\t\tdocument.addEventListener('htmx:afterSwap', function(evt) {\n\t\t\t\tconst target = evt.detail && evt.detail.target;\n\t\t\t\tif (!target) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tconst containsDashboard = target.closest('[data-lens-dashboard]') || target.querySelector('[data-lens-dashboard]');\n\t\t\t\tif (!containsDashboard) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tsetTimeout(() => {\n\t\t\t\t\tdocument.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: { root: target } }));\n\t\t\t\t}, 100);\n\t\t\t});\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1767,7 +1767,7 @@ func TabsPanel(spec panel.Spec, result *runtime.Result) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 139, "\" class=\"flex h-full flex-col\"><div class=\"mb-3 flex items-center justify-end gap-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 139, "\" data-lens-rerender-scope class=\"flex h-full flex-col\"><div class=\"mb-3 flex items-center justify-end gap-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2227,14 +2227,14 @@ func MetricInfoButton(spec panel.Spec, class string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 168, "\" x-tooltip=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 168, "\" x-tooltip.interactive.html.raw=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var106 string
-		templ_7745c5c3_Var106, templ_7745c5c3_Err = templ.JoinStringErrs(metricInfoTooltipConfig(ctx, spec.Info))
+		templ_7745c5c3_Var106, templ_7745c5c3_Err = templ.JoinStringErrs(metricInfoTooltipHTML(ctx, spec.Info))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 472, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 472, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var106))
 		if templ_7745c5c3_Err != nil {
@@ -2608,7 +2608,7 @@ func chartPanelContent(spec panel.Spec, result *runtime.PanelResult, showControl
 			}
 			return
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 191, "<div x-data=\"{ fullscreen: false }\" class=\"flex h-full flex-col\"><div class=\"mb-3 flex items-center justify-end gap-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 191, "<div x-data=\"{ fullscreen: false }\" data-lens-rerender-scope class=\"flex h-full flex-col\"><div class=\"mb-3 flex items-center justify-end gap-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -3029,7 +3029,7 @@ func FullscreenChartCanvas(spec panel.Spec, result *runtime.PanelResult) templ.C
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = charts.Chart(charts.Props{
-			Class:   "w-full h-full min-h-0",
+			Class:   "flex-1 w-full h-full min-h-0",
 			Options: apex.OptionsWithHeight(spec, result, "100%"),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

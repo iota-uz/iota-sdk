@@ -731,7 +731,7 @@ func panelBodyClass(spec panel.Spec) string {
 }
 
 func panelFullscreenBodyClass(spec panel.Spec) string {
-	return strings.TrimSpace(panelBodyClass(spec) + " h-[calc(100vh-8rem)] min-h-[70vh]")
+	return strings.TrimSpace("flex flex-1 min-h-0 flex-col " + panelBodyClass(spec) + " h-[calc(100vh-8rem)] min-h-[70vh]")
 }
 
 func panelShellBodyClass(spec panel.Spec) string {
@@ -824,7 +824,7 @@ func shellIndicatorID(panelID string) string {
 
 func tabsPanelFrameClass(fullscreen bool) string {
 	if fullscreen {
-		return "flex flex-1 min-h-0"
+		return "flex h-full flex-1 min-h-0 flex-col"
 	}
 	return "flex-1"
 }
@@ -833,11 +833,11 @@ func rerenderChartsScript(delayMs int) string {
 	if delayMs <= 0 {
 		delayMs = 180
 	}
-	return fmt.Sprintf("setTimeout(() => document.dispatchEvent(new Event('sdk:rerenderCharts')), %d)", delayMs)
+	return fmt.Sprintf("setTimeout(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })); }, %d)", delayMs)
 }
 
 func openFullscreenScript() string {
-	return "fullscreen = true; " + rerenderChartsScript(180)
+	return "fullscreen = true; requestAnimationFrame(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); setTimeout(() => document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })), 220); setTimeout(() => document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })), 420); });"
 }
 
 func activateTabScript(tabID string) string {

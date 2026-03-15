@@ -151,7 +151,7 @@ templ DashboardScripts() {
 					return;
 				}
 				setTimeout(() => {
-					document.dispatchEvent(new Event('sdk:rerenderCharts'));
+					document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: { root: target } }));
 				}, 100);
 			});
 		})();
@@ -381,7 +381,7 @@ templ CompositePanel(spec panel.Spec, result *runtime.Result) {
 
 templ TabsPanel(spec panel.Spec, result *runtime.Result) {
 	{{ chartText := localizedChartText(ctx) }}
-	<div x-data={ tabsState(spec) } class="flex h-full flex-col">
+	<div x-data={ tabsState(spec) } data-lens-rerender-scope class="flex h-full flex-col">
 		<div class="mb-3 flex items-center justify-end gap-2">
 			@PanelLogScaleBadge(spec, chartText, "")
 			@PanelFullscreenButton(chartText)
@@ -469,7 +469,7 @@ templ MetricInfoButton(spec panel.Spec, class string) {
 	<button
 		type="button"
 		class={ "inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition hover:border-slate-300 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer", class }
-		x-tooltip={ metricInfoTooltipConfig(ctx, spec.Info) }
+		x-tooltip.interactive.html.raw={ metricInfoTooltipHTML(ctx, spec.Info) }
 		@click.stop=""
 		aria-label={ chartText.MetricInfo }
 	>
@@ -540,7 +540,7 @@ templ chartPanelContent(spec panel.Spec, result *runtime.PanelResult, showContro
 		}
 		{{ return }}
 	}
-	<div x-data="{ fullscreen: false }" class="flex h-full flex-col">
+	<div x-data="{ fullscreen: false }" data-lens-rerender-scope class="flex h-full flex-col">
 		<div class="mb-3 flex items-center justify-end gap-2">
 			@PanelLogScaleBadge(spec, chartText, "")
 			@PanelFullscreenButton(chartText)
@@ -630,7 +630,7 @@ templ ChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
 
 templ FullscreenChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
 	@charts.Chart(charts.Props{
-		Class:   "w-full h-full min-h-0",
+		Class:   "flex-1 w-full h-full min-h-0",
 		Options: apex.OptionsWithHeight(spec, result, "100%"),
 	})
 }

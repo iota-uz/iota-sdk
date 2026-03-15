@@ -28,7 +28,19 @@ script graph(id string, options templ.JSExpression) {
 	document.addEventListener('DOMContentLoaded', () => {
 		renderChart();
 	});
-	document.addEventListener('sdk:rerenderCharts', () => renderChart());
+	document.addEventListener('sdk:rerenderCharts', (evt) => {
+		const container = document.getElementById(id);
+		if (!container) {
+			return;
+		}
+		const root = evt && evt.detail && evt.detail.root;
+		if (root instanceof Element) {
+			if (!root.contains(container) && !container.contains(root)) {
+				return;
+			}
+		}
+		renderChart();
+	});
 }
 
 script ensureChartEvents() {
