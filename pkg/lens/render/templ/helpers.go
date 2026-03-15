@@ -301,18 +301,28 @@ func resolvedDrillScopeValue(spec *action.Spec, row map[string]any, result *runt
 		return "", false
 	}
 	source := spec.Drill.LabelSource
-	if source.Kind == "" {
-		source = action.PointValue("label")
+	if source.Kind != "" {
+		value, ok := actionValue(source, row, result.Variables)
+		if !ok {
+			return "", false
+		}
+		text := strings.TrimSpace(fmt.Sprint(value))
+		if text == "" {
+			return "", false
+		}
+		return text, true
 	}
-	value, ok := actionValue(source, row, result.Variables)
-	if !ok {
-		return "", false
+	for _, field := range []string{"label", "category"} {
+		value, ok := actionValue(action.PointValue(field), row, result.Variables)
+		if !ok {
+			continue
+		}
+		text := strings.TrimSpace(fmt.Sprint(value))
+		if text != "" {
+			return text, true
+		}
 	}
-	text := strings.TrimSpace(fmt.Sprint(value))
-	if text == "" {
-		return "", false
-	}
-	return text, true
+	return "", false
 }
 
 func assignQueryValue(values url.Values, key string, value any) {
@@ -598,7 +608,7 @@ func showPanelHeader(spec panel.Spec) bool {
 }
 
 func statUsesCustomChrome(spec panel.Spec) bool {
-	return spec.Icon != nil || spec.AccentColor != ""
+	return spec.Kind == panel.KindStat && (spec.Icon != nil || strings.TrimSpace(spec.AccentColor) != "")
 }
 
 func metricInfoTooltipHTML(ctx context.Context, info string) string {
@@ -755,21 +765,30 @@ func panelMinimumHeight(spec panel.Spec) string {
 			return childHeight
 		}
 		return "240px"
-	default:
+	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		if strings.TrimSpace(spec.Height) != "" {
 			return strings.TrimSpace(spec.Height)
 		}
 		return "240px"
 	}
+	return "240px"
 }
 
 func maxChildHeight(children []panel.Spec) string {
+	heights := make([]string, 0, len(children))
 	for _, child := range children {
 		if height := panelMinimumHeight(child); height != "" {
-			return height
+			heights = append(heights, height)
 		}
 	}
-	return ""
+	switch len(heights) {
+	case 0:
+		return ""
+	case 1:
+		return heights[0]
+	default:
+		return "max(" + strings.Join(heights, ", ") + ")"
+	}
 }
 
 func panelFragmentURL(basePath, panelID string) string {
@@ -831,9 +850,10 @@ func panelPlaceholderRows(spec panel.Spec) int {
 		return 2
 	case panel.KindTable:
 		return 5
-	case panel.KindTabs:
+	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return 4
-	default:
+	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return 4
 	}
+	return 4
 }

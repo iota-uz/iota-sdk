@@ -1,3 +1,4 @@
+// Package drill defines Lens drill-through query state and breadcrumb helpers.
 package drill
 
 import (

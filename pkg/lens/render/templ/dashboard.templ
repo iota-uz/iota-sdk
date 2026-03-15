@@ -366,7 +366,6 @@ templ PanelIsland(spec panel.Spec, props AsyncProps) {
 		hx-swap="innerHTML"
 		hx-indicator={ "#" + indicatorID }
 		hx-include={ islandIncludeSelector(props) }
-		hx-on::after-swap="document.dispatchEvent(new Event('sdk:rerenderCharts'))"
 	>
 		@LoadingState(spec, false)
 	</div>
@@ -589,9 +588,11 @@ templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass str
 		<div class="mx-auto flex min-h-full w-full max-w-[1600px] flex-col">
 			<div class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
 				@PanelFullscreenHeader(spec, chartText)
-				<div class={ bodyClass }>
-					@body
-				</div>
+				<template x-if="fullscreen">
+					<div class={ bodyClass }>
+						@body
+					</div>
+				</template>
 			</div>
 		</div>
 	</div>

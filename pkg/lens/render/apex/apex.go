@@ -230,6 +230,9 @@ func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) {
 	if !ok || len(series) == 0 {
 		return
 	}
+	if !supportsManualLogScale(panelSpec, series) {
+		return
+	}
 	plan, ok := buildLogarithmicAxisPlan(series, axis.LogBase)
 	if !ok {
 		return
@@ -376,6 +379,23 @@ func logarithmicSeriesData(values []any, base int) []any {
 		scaled[i] = logarithmicValue(numericValue(value), base)
 	}
 	return scaled
+}
+
+func supportsManualLogScale(panelSpec panel.Spec, series []charts.Series) bool {
+	if panelSpec.Kind == panel.KindStackedBar {
+		return false
+	}
+	for _, entry := range series {
+		if len(entry.Data) == 0 {
+			return false
+		}
+		for _, point := range entry.Data {
+			if numericValue(point) <= 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func logarithmicValue(value float64, base int) float64 {
@@ -582,7 +602,12 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		payloadIndex++
 	}
 	if spec.Kind == action.KindDrill {
-		labelSource := spec.Drill.LabelSource
+		labelSource := action.PointValue("label")
+		if spec.Drill != nil && spec.Drill.LabelSource.Kind != "" {
+			labelSource = spec.Drill.LabelSource
+		} else if spec.Drill == nil {
+			labelSource = action.PointValue("label")
+		}
 		if labelSource.Kind == "" {
 			labelSource = action.PointValue("label")
 		}

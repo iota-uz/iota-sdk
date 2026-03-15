@@ -576,6 +576,6 @@
     }
   },
   "ValidationErrors": {
-    "invalidTIN": "{{.Детаилс}}"
+    "invalidTIN": "Нотўғри СТИР формати: {{.Details}}"
   }
 }

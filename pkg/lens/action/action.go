@@ -95,27 +95,36 @@ func DrillRaw(url, pageTitle, scopeLabel string, params ...Param) Spec {
 	}
 }
 
-func (s Spec) WithDrillLabel(source ValueSource) Spec {
+func (s Spec) withClonedDrill() Spec {
 	if s.Drill == nil {
 		return s
 	}
-	s.Drill.LabelSource = source
+	drill := *s.Drill
+	s.Drill = &drill
+	return s
+}
+
+func (s Spec) WithDrillLabel(source ValueSource) Spec {
+	s = s.withClonedDrill()
+	if s.Drill != nil {
+		s.Drill.LabelSource = source
+	}
 	return s
 }
 
 func (s Spec) WithDrillScopeLabel(label string) Spec {
-	if s.Drill == nil {
-		return s
+	s = s.withClonedDrill()
+	if s.Drill != nil {
+		s.Drill.ScopeLabel = label
 	}
-	s.Drill.ScopeLabel = label
 	return s
 }
 
 func (s Spec) WithDrillPageTitle(title string) Spec {
-	if s.Drill == nil {
-		return s
+	s = s.withClonedDrill()
+	if s.Drill != nil {
+		s.Drill.PageTitle = title
 	}
-	s.Drill.PageTitle = title
 	return s
 }
 

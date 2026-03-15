@@ -896,6 +896,11 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 				return err
 			}
 		}
+		if spec.Action.Kind == action.KindDrill && spec.Action.Drill != nil && spec.Action.Drill.LabelSource.Kind != "" {
+			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, spec.Action.Drill.LabelSource); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
