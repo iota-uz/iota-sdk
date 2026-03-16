@@ -193,7 +193,6 @@ func (f *Frame) AppendRow(row map[string]any) error {
 		f.Fields[i].Values = append(f.Fields[i].Values, value)
 	}
 	f.RowCount++
-	f.buildFieldIndex()
 	return nil
 }
 

@@ -210,32 +210,32 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			options.Legend.ItemMargin = &charts.LegendItemMargin{Horizontal: mapping.Pointer(8), Vertical: mapping.Pointer(2)}
 		}
 	}
-	applyValueScale(&options, panelSpec)
-	applyValueFormatter(&options, panelSpec, panelResult)
+	logPlan, manualLogScaleApplied := applyValueScale(&options, panelSpec)
+	applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
 	if panelSpec.Action != nil {
 		options.Chart.Events = &charts.ChartEvents{DataPointSelection: buildActionJS(panelSpec.Action, fr, fields, panelResult)}
 	}
 	return options
 }
 
-func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) {
+func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) (logarithmicAxisPlan, bool) {
 	if options == nil {
-		return
+		return logarithmicAxisPlan{}, false
 	}
 	axis := normalizedValueAxis(panelSpec.ValueAxis)
 	if axis.Scale != panel.AxisScaleLogarithmic {
-		return
+		return logarithmicAxisPlan{}, false
 	}
 	series, ok := options.Series.([]charts.Series)
 	if !ok || len(series) == 0 {
-		return
+		return logarithmicAxisPlan{}, false
 	}
 	if !supportsManualLogScale(panelSpec, series) {
-		return
+		return logarithmicAxisPlan{}, false
 	}
 	plan, ok := buildLogarithmicAxisPlan(series, axis.LogBase)
 	if !ok {
-		return
+		return logarithmicAxisPlan{}, false
 	}
 	for i := range series {
 		series[i].Data = logarithmicSeriesData(series[i].Data, axis.LogBase)
@@ -247,7 +247,7 @@ func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) {
 		options.XAxis.Max = mapping.Pointer(plan.MaxExponent)
 		options.XAxis.StepSize = &step
 		options.XAxis.DecimalsInFloat = mapping.Pointer(0)
-		return
+		return plan, true
 	}
 	if len(options.YAxis) == 0 {
 		options.YAxis = []charts.YAxisConfig{{}}
@@ -260,20 +260,18 @@ func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) {
 	options.YAxis[0].TickAmount = mapping.Pointer(plan.TickAmount)
 	options.YAxis[0].ForceNiceScale = mapping.Pointer(false)
 	options.YAxis[0].DecimalsInFloat = mapping.Pointer(0)
+	return plan, true
 }
 
-func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, panelResult *runtime.PanelResult) {
+func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, panelResult *runtime.PanelResult, manualLogScaleApplied bool, logPlan logarithmicAxisPlan) {
 	if options == nil || panelResult == nil {
 		return
 	}
 	axisFormatter, tooltipFormatter := chartValueFormatters(panelSpec.Formatter, panelResult.Locale)
 	valueAxis := normalizedValueAxis(panelSpec.ValueAxis)
-	if valueAxis.Scale == panel.AxisScaleLogarithmic {
-		plan, ok := logarithmicAxisPlanFromAxisOptions(*options, panelSpec.Kind, valueAxis.LogBase)
-		if ok {
-			axisFormatter = wrapLogarithmicAxisFormatter(axisFormatter, panelResult.Locale, plan)
-			tooltipFormatter = wrapLogarithmicTooltipFormatter(tooltipFormatter, panelResult.Locale, valueAxis.LogBase)
-		}
+	if valueAxis.Scale == panel.AxisScaleLogarithmic && manualLogScaleApplied {
+		axisFormatter = wrapLogarithmicAxisFormatter(axisFormatter, panelResult.Locale, logPlan)
+		tooltipFormatter = wrapLogarithmicTooltipFormatter(tooltipFormatter, panelResult.Locale, valueAxis.LogBase)
 	}
 	if axisFormatter == "" && tooltipFormatter == "" {
 		return

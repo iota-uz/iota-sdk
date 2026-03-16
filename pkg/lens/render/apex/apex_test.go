@@ -311,6 +311,35 @@ func TestLogarithmicAxisPlanFromAxisOptionsUsesAxisConfig(t *testing.T) {
 	require.InDelta(t, 2.0, plan.Step, 1e-9)
 }
 
+func TestOptionsDoesNotWrapLogFormattersWhenManualScaleIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("sales",
+		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"March", "April", "May"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{0.0, 100.0, 1000.0}},
+	)
+	require.NoError(t, err)
+
+	options := Options(
+		panel.Bar("sales-by-month", "Sales by Month", "sales").
+			CategoryField("category").
+			ValueField("value").
+			Format(format.MoneyCompact("UZS")).
+			LogarithmicValueAxis(10).
+			Build(),
+		&runtime.PanelResult{Frames: mustFrameSet(t, fr), Locale: "ru", Timezone: "Asia/Tashkent"},
+	)
+
+	require.NotNil(t, options.Tooltip)
+	tooltipY, ok := options.Tooltip.Y.(*charts.TooltipYConfig)
+	require.True(t, ok)
+	require.NotNil(t, tooltipY)
+	require.NotContains(t, string(tooltipY.Formatter), "Math.pow")
+	require.Len(t, options.YAxis, 1)
+	require.NotNil(t, options.YAxis[0].Labels)
+	require.NotContains(t, string(options.YAxis[0].Labels.Formatter), "Math.pow")
+}
+
 func mustFrameSet(t *testing.T, fr *frame.Frame) *frame.FrameSet {
 	t.Helper()
 
