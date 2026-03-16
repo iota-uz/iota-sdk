@@ -227,6 +227,17 @@ func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
 	switch kind {
 	case panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindBar,
+		panel.KindHorizontalBar,
+		panel.KindStackedBar,
+		panel.KindTable,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
+		// Responsive defaults apply to cartesian and table-like layouts.
 	}
 
 	tabletFontSize := "10px"

@@ -196,6 +196,16 @@ func buildDimensionRows(panels []panel.Spec) []lens.RowSpec {
 
 func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 	switch kind {
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindBar,
+		panel.KindTable,
+		panel.KindGauge,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
+		return panel.Bar(id, title, dataset)
 	case panel.KindHorizontalBar:
 		return panel.HorizontalBar(id, title, dataset)
 	case panel.KindStackedBar:
@@ -204,9 +214,8 @@ func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 		return panel.Donut(id, title, dataset)
 	case panel.KindPie:
 		return panel.Pie(id, title, dataset)
-	default:
-		return panel.Bar(id, title, dataset)
 	}
+	return panel.Bar(id, title, dataset)
 }
 
 func orderedDimensions(spec CubeSpec) []DimensionSpec {

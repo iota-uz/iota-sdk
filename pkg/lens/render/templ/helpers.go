@@ -457,7 +457,7 @@ type chartText struct {
 	LogScale           string
 	LogScaleHint       string
 	MetricInfo         string
-	DrillBack string
+	DrillBack          string
 }
 
 func pageContext(ctx context.Context) types.PageContext {
@@ -486,7 +486,7 @@ func localizedChartText(ctx context.Context) chartText {
 		LogScale:           translateOrFallback(ctx, "Chart.LogScale", "Log scale"),
 		LogScaleHint:       translateOrFallback(ctx, "Chart.LogScaleHint", "Values are shown on a logarithmic scale"),
 		MetricInfo:         translateOrFallback(ctx, "Chart.MetricInfo", "How this metric is calculated"),
-		DrillBack: translateOrFallback(ctx, "Lens.Drill.Back", "Back"),
+		DrillBack:          translateOrFallback(ctx, "Lens.Drill.Back", "Back"),
 	}
 }
 

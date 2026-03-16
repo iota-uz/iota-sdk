@@ -1,3 +1,4 @@
+// Package cube builds drillable Lens dashboards from SQL or in-memory datasets.
 package cube
 
 import (

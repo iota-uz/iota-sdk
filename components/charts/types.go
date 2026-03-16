@@ -27,25 +27,25 @@ const (
 )
 
 type ChartOptions struct {
-	Chart       ChartConfig    `json:"chart"`
-	Series      interface{}    `json:"series"`
-	Labels      []string       `json:"labels,omitempty"`
-	XAxis       XAxisConfig    `json:"xaxis"`
-	YAxis       []YAxisConfig  `json:"yaxis"`
-	Colors      []string       `json:"colors,omitempty"`
-	DataLabels  *DataLabels    `json:"dataLabels,omitempty"`
-	Grid        *GridConfig    `json:"grid,omitempty"`
-	PlotOptions *PlotOptions   `json:"plotOptions,omitempty"`
-	Tooltip     *TooltipConfig `json:"tooltip,omitempty"`
-	Title       *TitleConfig   `json:"title,omitempty"`
-	Theme       *ThemeConfig   `json:"theme,omitempty"`
-	Stroke      *StrokeConfig  `json:"stroke,omitempty"`
-	Markers     *MarkersConfig `json:"markers,omitempty"`
-	Legend      *LegendConfig  `json:"legend,omitempty"`
-	NoData      *NoDataConfig  `json:"noData,omitempty"`
-	States      *StatesConfig  `json:"states,omitempty"`
-	Fill        *FillConfig    `json:"fill,omitempty"`
-	Annotations *Annotations          `json:"annotations,omitempty"`
+	Chart       ChartConfig            `json:"chart"`
+	Series      interface{}            `json:"series"`
+	Labels      []string               `json:"labels,omitempty"`
+	XAxis       XAxisConfig            `json:"xaxis"`
+	YAxis       []YAxisConfig          `json:"yaxis"`
+	Colors      []string               `json:"colors,omitempty"`
+	DataLabels  *DataLabels            `json:"dataLabels,omitempty"`
+	Grid        *GridConfig            `json:"grid,omitempty"`
+	PlotOptions *PlotOptions           `json:"plotOptions,omitempty"`
+	Tooltip     *TooltipConfig         `json:"tooltip,omitempty"`
+	Title       *TitleConfig           `json:"title,omitempty"`
+	Theme       *ThemeConfig           `json:"theme,omitempty"`
+	Stroke      *StrokeConfig          `json:"stroke,omitempty"`
+	Markers     *MarkersConfig         `json:"markers,omitempty"`
+	Legend      *LegendConfig          `json:"legend,omitempty"`
+	NoData      *NoDataConfig          `json:"noData,omitempty"`
+	States      *StatesConfig          `json:"states,omitempty"`
+	Fill        *FillConfig            `json:"fill,omitempty"`
+	Annotations *Annotations           `json:"annotations,omitempty"`
 	Responsive  []ResponsiveBreakpoint `json:"responsive,omitempty"`
 }
 

@@ -124,4 +124,3 @@ func baseDataset(spec CubeSpec) lens.DatasetSpec {
 		Static: spec.Data.Clone(),
 	}
 }
-

@@ -18,8 +18,8 @@ type DimensionFilter struct {
 }
 
 type DrillContext struct {
-	Filters          []DimensionFilter
-	ActiveDimension  string
+	Filters         []DimensionFilter
+	ActiveDimension string
 }
 
 type Breadcrumb struct {

@@ -63,4 +63,3 @@ type DataSource interface {
 	Run(ctx context.Context, req QueryRequest) (*frame.FrameSet, error)
 	Capabilities() CapabilitySet
 }
-
