@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/stretchr/testify/assert"
@@ -105,6 +106,29 @@ func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 	require.Contains(t, onClick.Call, "htmx.ajax")
 	require.Contains(t, onClick.Call, "/contracts?scope=daily")
 	require.Contains(t, onClick.Call, "#report")
+}
+
+func TestActionURLPreservesExistingCubeDrillFilters(t *testing.T) {
+	t.Parallel()
+
+	url := actionURL(&action.Spec{
+		Kind: action.KindCubeDrill,
+		URL:  "/insurance/sales-report",
+		Drill: &action.DrillSpec{
+			Dimension: "region",
+			Value:     action.FieldValue("filter_value"),
+		},
+	}, map[string]any{
+		"filter_value": "tashkent",
+	}, &runtime.PanelResult{
+		Request: urlpkg.Values{
+			cube.QueryFilter: []string{"product:osago"},
+		},
+	})
+
+	parsed, err := urlpkg.Parse(url)
+	require.NoError(t, err)
+	require.Equal(t, []string{"product:osago", "region:tashkent"}, parsed.Query()[cube.QueryFilter])
 }
 
 func TestFilterModel_Scenarios(t *testing.T) {

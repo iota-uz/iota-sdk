@@ -136,6 +136,9 @@ func (f *Frame) buildFieldIndex() {
 }
 
 func (f *Frame) Field(name string) (*Field, bool) {
+	if f.fieldIndex == nil {
+		f.buildFieldIndex()
+	}
 	i, ok := f.fieldIndex[name]
 	if !ok || i >= len(f.Fields) {
 		return nil, false

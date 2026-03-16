@@ -40,7 +40,7 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 	if result != nil {
 		{{ filters = filterModel(result) }}
 	}
-	{{ drillNav := drillNavigationModel(result) }}
+	{{ drillNav := drillNavigationModel(ctx, result) }}
 	@lensGridStyles()
 	<div class="space-y-6" data-lens-dashboard>
 		if drillNav.HasNav {
@@ -75,8 +75,8 @@ templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
 
 templ DrillNavigation(model drillNavModel) {
 	{{ chartText := localizedChartText(ctx) }}
-	<nav class="rounded-xl border border-slate-200/80 bg-white shadow-sm">
-		<div class="flex items-center gap-3 px-5 py-3.5">
+	<nav aria-label="Breadcrumb" class="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+		<div class="flex items-center gap-2 px-4 py-3.5 md:gap-3 md:px-5">
 			if model.UpURL != "" {
 				<a
 					href={ templ.URL(model.UpURL) }
@@ -86,11 +86,11 @@ templ DrillNavigation(model drillNavModel) {
 					@icons.ArrowLeft(icons.Props{Size: "16"})
 				</a>
 			}
-			<div class="min-w-0 flex-1">
-				<ol class="flex flex-wrap items-center gap-1 text-sm">
+			<div class="min-w-0 flex-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				<ol class="flex min-w-max items-center gap-1 text-sm pr-2">
 					for _, crumb := range model.Trail {
 						<li class="flex items-center gap-1">
-							<a href={ templ.URL(crumb.URL) } class="text-slate-500 transition hover:text-blue-600 hover:underline underline-offset-2">
+							<a href={ templ.URL(crumb.URL) } class="rounded-md px-2.5 py-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 hover:underline underline-offset-2">
 								{ crumb.Label }
 							</a>
 							<span class="text-slate-300">
@@ -98,39 +98,45 @@ templ DrillNavigation(model drillNavModel) {
 							</span>
 						</li>
 					}
-					<li class="font-semibold text-slate-900">
+					<li aria-current="location" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-900">
 						{ model.CurrentDisplay }
 					</li>
 				</ol>
 			</div>
-			if len(model.Summary) > 0 {
-				<div class="hidden md:flex flex-none items-center gap-1.5">
-					for _, item := range model.Summary {
-						<span class="inline-flex items-center gap-1.5 rounded-md bg-slate-50 border border-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-							<span class="text-slate-400">{ item.Label }</span>
-							<span>{ item.Value }</span>
-						</span>
-					}
-				</div>
-			}
 		</div>
+		if len(model.Remaining) > 0 {
+			<div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3 md:px-5">
+				for _, item := range model.Remaining {
+					if item.Active {
+						<span class="inline-flex min-h-9 items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-blue-700">
+							{ item.Label }
+						</span>
+					} else {
+						<a
+							href={ templ.URL(item.URL) }
+							hx-get={ item.URL }
+							hx-push-url="true"
+							hx-target="[data-lens-dashboard]"
+							hx-swap="innerHTML"
+							class="inline-flex min-h-9 cursor-pointer items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
+						>
+							{ item.Label }
+						</a>
+					}
+				}
+			</div>
+		}
 		if len(model.Summary) > 0 {
-			<div class="flex md:hidden flex-wrap items-center gap-1.5 border-t border-slate-100 px-5 py-2.5">
+			<div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2.5 md:px-5">
 				for _, item := range model.Summary {
-					<span class="inline-flex items-center gap-1.5 rounded-md bg-slate-50 border border-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-						<span class="text-slate-400">{ item.Label }</span>
+					<span class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
+						<span class="text-blue-500">{ item.Label }</span>
 						<span>{ item.Value }</span>
 					</span>
 				}
 			</div>
 		}
 	</nav>
-}
-
-templ DrillHiddenInputs(fields map[string]string) {
-	for key, value := range fields {
-		<input type="hidden" name={ key } value={ value }/>
-	}
 }
 
 templ HiddenQueryInputs(values map[string][]string) {
@@ -452,11 +458,12 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 	{{ row := statRow(result) }}
 	{{ href := actionURL(spec.Action, row, result) }}
 	{{ onClick := actionOnClick(spec.Action, row, result) }}
+	{{ ariaLabel := statAriaLabel(spec) }}
 	<div class="group relative h-full">
 		if href != "" {
-			<a href={ templ.URL(href) } onclick={ onClick } aria-label={ spec.Title } class="absolute inset-0 z-0 block rounded-xl"></a>
+			<a href={ templ.URL(href) } onclick={ onClick } aria-label={ ariaLabel } class="absolute inset-0 z-0 block rounded-xl"></a>
 		} else if onClick.Call != "" {
-			<button type="button" onclick={ onClick } aria-label={ spec.Title } class="absolute inset-0 z-0 block h-full w-full rounded-xl"></button>
+			<button type="button" onclick={ onClick } aria-label={ ariaLabel } class="absolute inset-0 z-0 block h-full w-full rounded-xl"></button>
 		}
 		@statContent(spec, value, spec.Description, href != "" || onClick.Call != "")
 	</div>

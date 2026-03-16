@@ -15,8 +15,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
-	"github.com/iota-uz/iota-sdk/pkg/lens/drill"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -41,7 +41,7 @@ type PanelResult struct {
 	Timezone  string
 	Variables map[string]any
 	Request   url.Values
-	Drill     *drill.State
+	Drill     *cube.DrillContext
 }
 
 type DashboardResult struct {
@@ -54,7 +54,7 @@ type DashboardResult struct {
 	Locale    string
 	Timezone  string
 	Request   url.Values
-	Drill     *drill.State
+	Drill     *cube.DrillContext
 	StartedAt time.Time
 	Duration  time.Duration
 }
@@ -74,7 +74,6 @@ type ExecutionStage struct {
 type Request struct {
 	Locale      string
 	Timezone    string
-	Path        string
 	Request     url.Values
 	Overrides   map[string]any
 	DataSources map[string]datasource.DataSource
@@ -165,7 +164,7 @@ func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope)
 		Locale:    req.Locale,
 		Timezone:  req.Timezone,
 		Request:   cloneValues(req.Request),
-		Drill:     drill.Parse(req.Path, req.Request, spec.Title),
+		Drill:     parseDrillContext(req.Request),
 		StartedAt: startedAt,
 	}
 
@@ -173,6 +172,7 @@ func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope)
 		spec:      spec,
 		runtime:   req,
 		variables: variables,
+		drill:     result.Drill,
 	}
 
 	if err := state.executeDatasets(ctx, internalPlan.datasetStages, result.Datasets); err != nil {
@@ -189,6 +189,7 @@ type plannedExecutor struct {
 	spec      lens.DashboardSpec
 	runtime   Request
 	variables map[string]any
+	drill     *cube.DrillContext
 }
 
 type executionPlan struct {
@@ -335,7 +336,7 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 				Timezone:  s.runtime.Timezone,
 				Variables: s.variables,
 				Request:   cloneValues(s.runtime.Request),
-				Drill:     drill.Parse(s.runtime.Path, s.runtime.Request, s.spec.Title),
+				Drill:     s.drill,
 			}
 			if isCompositePanel(panelSpec.Kind) {
 				mu.Lock()
@@ -387,7 +388,6 @@ func logPanelFailure(spec panel.Spec, req Request, err error) {
 		"panel_title": spec.Title,
 		"panel_kind":  string(spec.Kind),
 		"dataset":     spec.Dataset,
-		"path":        req.Path,
 		"locale":      req.Locale,
 	}).WithError(err).Error("lens panel execution failed")
 }
@@ -666,6 +666,11 @@ func requestValues(values url.Values, name string, aliases ...string) []string {
 	return nil
 }
 
+func parseDrillContext(values url.Values) *cube.DrillContext {
+	ctx := cube.ParseDrillContext(values)
+	return &ctx
+}
+
 func cloneValues(values url.Values) url.Values {
 	if values == nil {
 		return nil
@@ -856,7 +861,7 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	}
 	if spec.Action != nil {
 		switch spec.Action.Kind {
-		case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent, action.KindDrill:
+		case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent, action.KindCubeDrill:
 		default:
 			return fmt.Errorf("panel %s action has unsupported kind %q", spec.ID, spec.Action.Kind)
 		}
@@ -873,11 +878,6 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		}
 		for name, source := range spec.Action.Payload {
 			if err := validateValueSource(spec.ID, name, source); err != nil {
-				return err
-			}
-		}
-		if spec.Action.Kind == action.KindDrill && spec.Action.Drill != nil && spec.Action.Drill.LabelSource.Kind != "" {
-			if err := validateValueSource(spec.ID, "drill_label", spec.Action.Drill.LabelSource); err != nil {
 				return err
 			}
 		}
@@ -914,11 +914,6 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 		}
 		for _, source := range spec.Action.Payload {
 			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, source); err != nil {
-				return err
-			}
-		}
-		if spec.Action.Kind == action.KindDrill && spec.Action.Drill != nil && spec.Action.Drill.LabelSource.Kind != "" {
-			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, spec.Action.Drill.LabelSource); err != nil {
 				return err
 			}
 		}

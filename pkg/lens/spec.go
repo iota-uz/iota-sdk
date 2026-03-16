@@ -39,6 +39,19 @@ type DashboardSpec struct {
 	Rows        []RowSpec
 	Variables   []VariableSpec
 	Datasets    []DatasetSpec
+	Drill       *DrillMeta
+}
+
+type DrillMeta struct {
+	BaseURL             string
+	Dimensions          []DrillDimensionMeta
+	RemainingDimensions []DrillDimensionMeta
+	ActiveDimension     string
+}
+
+type DrillDimensionMeta struct {
+	Name  string
+	Label string
 }
 
 type RowSpec struct {

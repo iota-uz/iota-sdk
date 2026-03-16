@@ -12,7 +12,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
-	"github.com/iota-uz/iota-sdk/pkg/lens/drill"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -639,13 +638,9 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	}
 	variables := map[string]any(nil)
 	baseQuery := map[string][]string(nil)
-	nextTrail := ""
 	if panelResult != nil {
 		variables = panelResult.Variables
-		baseQuery = strippedQueryMap(panelResult.Request)
-		if panelResult.Drill != nil {
-			nextTrail = panelResult.Drill.NextTrailEncoded()
-		}
+		baseQuery = copiedQueryMap(panelResult.Request)
 	}
 	configJS := mustJSONJS(chartActionConfig{
 		Rows:           fr.Rows(),
@@ -657,16 +652,17 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		Event:          spec.Event,
 		CategoryField:  fields.Category.Name(),
 		LabelField:     fields.Label.Name(),
+		IDField:        fields.ID.Name(),
 		StartTimeField: fields.StartTime.Name(),
 		SeriesField:    fields.Series.Name(),
 		BaseQuery:      baseQuery,
-		Drill:          chartDrillConfig(spec, nextTrail),
+		Drill:          chartDrillConfig(spec),
 	})
 	var actionJS string
 	switch spec.Kind {
 	case action.KindNavigate:
 		actionJS = "window.location.href = nextURL;"
-	case action.KindDrill:
+	case action.KindCubeDrill:
 		actionJS = "window.location.href = nextURL;"
 	case action.KindHtmxSwap:
 		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {target: cfg.target, swap: 'innerHTML'});"
@@ -727,7 +723,7 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		let nextURL = cfg.url;
 		const payload = {};
 		const params = new URLSearchParams();
-		if (cfg.kind === 'drill' && cfg.baseQuery) {
+		if (cfg.baseQuery) {
 			Object.entries(cfg.baseQuery).forEach(function(entry) {
 				const key = entry[0];
 				const values = Array.isArray(entry[1]) ? entry[1] : [];
@@ -749,25 +745,18 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		js += fmt.Sprintf("const payloadValue%d = %s;\nif (payloadValue%d !== undefined) { payload[%q] = payloadValue%d; }\n", payloadIndex, expr, payloadIndex, key, payloadIndex)
 		payloadIndex++
 	}
-	if spec.Kind == action.KindDrill {
-		labelSource := action.FieldValue("label")
-		if spec.Drill != nil && spec.Drill.LabelSource.Kind != "" {
-			labelSource = spec.Drill.LabelSource
-		} else if spec.Drill == nil {
-			labelSource = action.FieldValue("label")
+	if spec.Kind == action.KindCubeDrill {
+		drillExpr := "undefined"
+		if spec.Drill != nil {
+			drillExpr = actionValueJS(spec.Drill.Value, fields)
 		}
-		if labelSource.Kind == "" {
-			labelSource = action.FieldValue("label")
+		js += fmt.Sprintf(`if (cfg.drill) {
+			const drillValue = %s;
+			if (drillValue !== undefined && drillValue !== null && drillValue !== '') {
+				params.append('_f', cfg.drill.dimension + ':' + String(drillValue));
+			}
 		}
-		scopeExpr := actionValueJS(labelSource, fields)
-		js += `if (cfg.drill) {
-			if (cfg.drill.trail) { params.set('_lens_drill', cfg.drill.trail); }
-			if (cfg.drill.pageTitle) { params.set('_lens_page_title', cfg.drill.pageTitle); }
-			if (cfg.drill.scopeLabel) { params.set('_lens_scope_label', cfg.drill.scopeLabel); }
-			if (cfg.drill.destination) { params.set('_lens_destination', cfg.drill.destination); }
-		}
-		`
-		js += fmt.Sprintf("const drillScopeValue = %s;\nif (drillScopeValue !== undefined && drillScopeValue !== null && drillScopeValue !== '') { params.set('_lens_scope_value', String(drillScopeValue)); }\n", scopeExpr)
+		`, drillExpr)
 	}
 	js += `const query = params.toString();
 		if (query) {
@@ -777,27 +766,21 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	return templ.JSExpression(js)
 }
 
-func chartDrillConfig(spec *action.Spec, nextTrail string) *chartDrill {
-	if spec == nil || spec.Kind != action.KindDrill || spec.Drill == nil {
+func chartDrillConfig(spec *action.Spec) *chartDrill {
+	if spec == nil || spec.Kind != action.KindCubeDrill || spec.Drill == nil {
 		return nil
 	}
 	return &chartDrill{
-		Trail:       nextTrail,
-		PageTitle:   spec.Drill.PageTitle,
-		ScopeLabel:  spec.Drill.ScopeLabel,
-		Destination: string(spec.Drill.Destination),
+		Dimension: spec.Drill.Dimension,
 	}
 }
 
-func strippedQueryMap(values map[string][]string) map[string][]string {
+func copiedQueryMap(values map[string][]string) map[string][]string {
 	if values == nil {
 		return nil
 	}
 	out := map[string][]string{}
 	for key, items := range values {
-		if key == drill.QueryTrail || key == drill.QueryPageTitle || key == drill.QueryScopeLabel || key == drill.QueryScopeValue || key == drill.QueryDestination {
-			continue
-		}
 		out[key] = append([]string(nil), items...)
 	}
 	return out
@@ -841,6 +824,7 @@ type chartActionConfig struct {
 	Event          string              `json:"event,omitempty"`
 	CategoryField  string              `json:"categoryField"`
 	LabelField     string              `json:"labelField"`
+	IDField        string              `json:"idField"`
 	StartTimeField string              `json:"startTimeField"`
 	SeriesField    string              `json:"seriesField"`
 	BaseQuery      map[string][]string `json:"baseQuery,omitempty"`
@@ -848,10 +832,7 @@ type chartActionConfig struct {
 }
 
 type chartDrill struct {
-	Trail       string `json:"trail,omitempty"`
-	PageTitle   string `json:"pageTitle,omitempty"`
-	ScopeLabel  string `json:"scopeLabel,omitempty"`
-	Destination string `json:"destination,omitempty"`
+	Dimension string `json:"dimension,omitempty"`
 }
 
 func chartType(kind panel.Kind) charts.ChartType {

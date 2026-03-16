@@ -9,7 +9,7 @@ const (
 	KindNavigate  Kind = "navigate"
 	KindHtmxSwap  Kind = "htmx_swap"
 	KindEmitEvent Kind = "emit_event"
-	KindDrill     Kind = "drill"
+	KindCubeDrill Kind = "cube_drill"
 )
 
 type ValueSourceKind string
@@ -62,32 +62,15 @@ func HtmxSwap(url, target string, params ...Param) Spec {
 	}
 }
 
-func DrillDashboard(url, pageTitle, scopeLabel string, params ...Param) Spec {
+func CubeDrill(url, dimension string, params ...Param) Spec {
 	return Spec{
-		Kind:   KindDrill,
-		URL:    url,
+		Kind:   KindCubeDrill,
 		Method: "GET",
+		URL:    url,
 		Params: params,
 		Drill: &DrillSpec{
-			Destination: DestinationDashboard,
-			PageTitle:   pageTitle,
-			ScopeLabel:  scopeLabel,
-			LabelSource: FieldValue("label"),
-		},
-	}
-}
-
-func DrillRaw(url, pageTitle, scopeLabel string, params ...Param) Spec {
-	return Spec{
-		Kind:   KindDrill,
-		URL:    url,
-		Method: "GET",
-		Params: params,
-		Drill: &DrillSpec{
-			Destination: DestinationRaw,
-			PageTitle:   pageTitle,
-			ScopeLabel:  scopeLabel,
-			LabelSource: FieldValue("label"),
+			Dimension: dimension,
+			Value:     FieldValue("filter_value"),
 		},
 	}
 }
@@ -101,27 +84,12 @@ func (s Spec) withClonedDrill() Spec {
 	return s
 }
 
-func (s Spec) WithDrillLabel(source ValueSource) Spec {
-	s = s.withClonedDrill()
-	if s.Drill != nil {
-		s.Drill.LabelSource = source
+func (s Spec) WithDrillValue(source ValueSource) Spec {
+	if s.Drill == nil {
+		return s
 	}
-	return s
-}
-
-func (s Spec) WithDrillScopeLabel(label string) Spec {
 	s = s.withClonedDrill()
-	if s.Drill != nil {
-		s.Drill.ScopeLabel = label
-	}
-	return s
-}
-
-func (s Spec) WithDrillPageTitle(title string) Spec {
-	s = s.withClonedDrill()
-	if s.Drill != nil {
-		s.Drill.PageTitle = title
-	}
+	s.Drill.Value = source
 	return s
 }
 

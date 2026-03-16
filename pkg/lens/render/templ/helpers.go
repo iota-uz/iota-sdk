@@ -10,13 +10,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	templpkg "github.com/a-h/templ"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
-	"github.com/iota-uz/iota-sdk/pkg/lens/drill"
+	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -57,6 +58,7 @@ type drillNavModel struct {
 	UpLabel        string
 	Trail          []drillNavCrumb
 	Summary        []drillSummaryItem
+	Remaining      []drillDimensionTab
 }
 
 type drillNavCrumb struct {
@@ -64,55 +66,92 @@ type drillNavCrumb struct {
 	Label string
 }
 
+type drillDimensionTab struct {
+	Name   string
+	Label  string
+	URL    string
+	Active bool
+}
+
 type drillSummaryItem struct {
 	Label string
 	Value string
 }
 
-func drillNavigationModel(result *runtime.Result) drillNavModel {
-	if result == nil || result.Drill == nil {
+func drillNavigationModel(ctx context.Context, result *runtime.Result) drillNavModel {
+	if result == nil || result.Drill == nil || result.Spec.Drill == nil || !result.Drill.HasFilters() {
 		return drillNavModel{}
 	}
 	state := result.Drill
+	meta := result.Spec.Drill
+	labels := map[string]string{}
+	for _, dim := range meta.Dimensions {
+		labels[dim.Name] = dim.Label
+	}
 	model := drillNavModel{
-		HasNav:         state.HasNavigation(),
-		CurrentTitle:   state.Current.Title,
-		CurrentValue:   state.Current.ScopeValue,
-		CurrentLabel:   state.Current.ScopeLabel,
-		CurrentDisplay: drillCurrentDisplay(state),
+		HasNav:         true,
+		CurrentDisplay: state.Filters[len(state.Filters)-1].Value,
+		UpURL:          meta.BaseURL,
 	}
-	if up, ok := state.Up(); ok {
-		model.UpURL = up.URL
-		model.UpLabel = up.DisplayLabel()
-	}
-	for _, crumb := range state.Trail {
-		model.Trail = append(model.Trail, drillNavCrumb{
-			URL:   crumb.URL,
-			Label: crumb.DisplayLabel(),
-		})
-		if strings.TrimSpace(crumb.ScopeValue) != "" {
-			model.Summary = appendDrillSummary(model.Summary, firstNonEmptyString(crumb.ScopeLabel, crumb.Title), crumb.ScopeValue)
+	model.Trail = append(model.Trail, drillNavCrumb{
+		URL:   meta.BaseURL,
+		Label: translateOrFallback(ctx, "Lens.Drill.All", "All"),
+	})
+	for idx, filter := range state.Filters {
+		if idx == len(state.Filters)-1 {
+			break
 		}
+		model.Trail = append(model.Trail, drillNavCrumb{
+			URL:   drillURL(meta.BaseURL, state.Filters[:idx+1]),
+			Label: filter.Value,
+		})
 	}
-	if strings.TrimSpace(state.Current.ScopeValue) != "" {
-		model.Summary = appendDrillSummary(model.Summary, firstNonEmptyString(state.Current.ScopeLabel, state.Current.Title), state.Current.ScopeValue)
+	if len(state.Filters) > 1 {
+		model.UpURL = drillURL(meta.BaseURL, state.Filters[:len(state.Filters)-1])
+		model.UpLabel = state.Filters[len(state.Filters)-2].Value
+	}
+	for _, filter := range state.Filters {
+		model.Summary = appendDrillSummary(model.Summary, firstNonEmptyString(labels[filter.Dimension], filter.Dimension), filter.Value)
+	}
+	activeDim := meta.ActiveDimension
+	if activeDim == "" && len(meta.RemainingDimensions) > 0 {
+		activeDim = meta.RemainingDimensions[0].Name
+	}
+	drillValues := drillFilterValues(state.Filters)
+	for _, dim := range meta.RemainingDimensions {
+		model.Remaining = append(model.Remaining, drillDimensionTab{
+			Name:   dim.Name,
+			Label:  dim.Label,
+			URL:    dimensionTabURL(meta.BaseURL, drillValues, dim.Name),
+			Active: dim.Name == activeDim,
+		})
 	}
 	return model
 }
 
-func drillCurrentDisplay(state *drill.State) string {
-	if state == nil {
-		return ""
+func drillURL(baseURL string, filters []cube.DimensionFilter) string {
+	values := url.Values{}
+	for _, filter := range filters {
+		values.Add(cube.QueryFilter, filter.Dimension+":"+filter.Value)
 	}
-	display := firstNonEmptyString(state.Current.ScopeValue, state.Current.Title)
-	if len(state.Trail) == 0 {
-		return display
+	return joinURLQuery(baseURL, values)
+}
+
+func drillFilterValues(filters []cube.DimensionFilter) url.Values {
+	values := url.Values{}
+	for _, filter := range filters {
+		values.Add(cube.QueryFilter, filter.Dimension+":"+filter.Value)
 	}
-	last := state.Trail[len(state.Trail)-1].DisplayLabel()
-	if strings.TrimSpace(display) != "" && strings.EqualFold(strings.TrimSpace(display), strings.TrimSpace(last)) {
-		return firstNonEmptyString(state.Current.Title, display)
+	return values
+}
+
+func dimensionTabURL(baseURL string, drillValues url.Values, dimensionName string) string {
+	values := url.Values{}
+	for key, items := range drillValues {
+		values[key] = append([]string(nil), items...)
 	}
-	return display
+	values.Set(cube.QueryDimension, dimensionName)
+	return joinURLQuery(baseURL, values)
 }
 
 func appendDrillSummary(summary []drillSummaryItem, label, value string) []drillSummaryItem {
@@ -198,14 +237,14 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 		return ""
 	}
 	switch spec.Kind {
-	case action.KindNavigate, action.KindHtmxSwap, action.KindDrill:
+	case action.KindNavigate, action.KindHtmxSwap, action.KindCubeDrill:
 	case action.KindEmitEvent:
 		return ""
 	default:
 		return ""
 	}
-	if spec.Kind == action.KindDrill {
-		return drillActionURL(spec, row, result)
+	if spec.Kind == action.KindCubeDrill {
+		return cubeDrillActionURL(spec, row, result)
 	}
 	nextURL := interpolateActionURL(spec.URL, row, resultVariables(result))
 	if len(spec.Params) == 0 {
@@ -235,7 +274,7 @@ func actionOnClick(spec *action.Spec, row map[string]any, result *runtime.PanelR
 		return templpkg.ComponentScript{}
 	}
 	switch spec.Kind {
-	case action.KindNavigate, action.KindDrill:
+	case action.KindNavigate, action.KindCubeDrill:
 		return templpkg.ComponentScript{}
 	case action.KindHtmxSwap:
 		href := actionURL(spec, row, result)
@@ -288,11 +327,11 @@ func actionPayload(spec *action.Spec, row map[string]any, variables map[string]a
 	return payload
 }
 
-func drillActionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResult) string {
+func cubeDrillActionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResult) string {
 	if spec == nil || result == nil {
 		return ""
 	}
-	values := drill.Strip(result.Request)
+	values := cloneURLValues(result.Request)
 	for _, param := range spec.Params {
 		value, ok := actionValue(param.Source, row, result.Variables)
 		if !ok {
@@ -301,54 +340,23 @@ func drillActionURL(spec *action.Spec, row map[string]any, result *runtime.Panel
 		assignQueryValue(values, param.Name, value)
 	}
 	if spec.Drill != nil {
-		if result.Drill != nil {
-			if trail := result.Drill.NextTrailEncoded(); trail != "" {
-				values.Set(drill.QueryTrail, trail)
+		if scopeValue, ok := actionValue(spec.Drill.Value, row, result.Variables); ok {
+			text := strings.TrimSpace(fmt.Sprint(scopeValue))
+			if text == "" {
+				return joinURLQuery(interpolateActionURL(spec.URL, row, result.Variables), values)
 			}
-		}
-		if title := strings.TrimSpace(spec.Drill.PageTitle); title != "" {
-			values.Set(drill.QueryPageTitle, title)
-		}
-		if label := strings.TrimSpace(spec.Drill.ScopeLabel); label != "" {
-			values.Set(drill.QueryScopeLabel, label)
-		}
-		if scopeValue, ok := resolvedDrillScopeValue(spec, row, result); ok {
-			values.Set(drill.QueryScopeValue, scopeValue)
-		}
-		if destination := strings.TrimSpace(string(spec.Drill.Destination)); destination != "" {
-			values.Set(drill.QueryDestination, destination)
+			values.Add(cube.QueryFilter, spec.Drill.Dimension+":"+text)
 		}
 	}
 	return joinURLQuery(interpolateActionURL(spec.URL, row, result.Variables), values)
 }
 
-func resolvedDrillScopeValue(spec *action.Spec, row map[string]any, result *runtime.PanelResult) (string, bool) {
-	if spec == nil || spec.Drill == nil {
-		return "", false
+func cloneURLValues(values url.Values) url.Values {
+	cloned := url.Values{}
+	for key, items := range values {
+		cloned[key] = append([]string(nil), items...)
 	}
-	source := spec.Drill.LabelSource
-	if source.Kind != "" {
-		value, ok := actionValue(source, row, result.Variables)
-		if !ok {
-			return "", false
-		}
-		text := strings.TrimSpace(fmt.Sprint(value))
-		if text == "" {
-			return "", false
-		}
-		return text, true
-	}
-	for _, field := range []string{"label", "category"} {
-		value, ok := actionValue(action.FieldValue(field), row, result.Variables)
-		if !ok {
-			continue
-		}
-		text := strings.TrimSpace(fmt.Sprint(value))
-		if text != "" {
-			return text, true
-		}
-	}
-	return "", false
+	return cloned
 }
 
 func assignQueryValue(values url.Values, key string, value any) {
@@ -449,8 +457,7 @@ type chartText struct {
 	LogScale           string
 	LogScaleHint       string
 	MetricInfo         string
-	DrillBack          string
-	DrillCurrentScope  string
+	DrillBack string
 }
 
 func pageContext(ctx context.Context) types.PageContext {
@@ -479,8 +486,7 @@ func localizedChartText(ctx context.Context) chartText {
 		LogScale:           translateOrFallback(ctx, "Chart.LogScale", "Log scale"),
 		LogScaleHint:       translateOrFallback(ctx, "Chart.LogScaleHint", "Values are shown on a logarithmic scale"),
 		MetricInfo:         translateOrFallback(ctx, "Chart.MetricInfo", "How this metric is calculated"),
-		DrillBack:          translateOrFallback(ctx, "Lens.Drill.Back", "Back"),
-		DrillCurrentScope:  translateOrFallback(ctx, "Lens.Drill.CurrentScope", "Current scope"),
+		DrillBack: translateOrFallback(ctx, "Lens.Drill.Back", "Back"),
 	}
 }
 
@@ -543,8 +549,13 @@ func normalizeErrorText(message string) string {
 		return ""
 	}
 	message = strings.Join(strings.Fields(message), " ")
-	if len(message) > 220 {
-		return message[:217] + "..."
+	const maxLen = 220
+	if len(message) > maxLen {
+		truncated := message[:maxLen-3]
+		for len(truncated) > 0 && !utf8.ValidString(truncated) {
+			truncated = truncated[:len(truncated)-1]
+		}
+		return truncated + "..."
 	}
 	return message
 }
@@ -613,6 +624,16 @@ func panelDisplayIcon(spec panel.Spec) templpkg.Component {
 		return spec.Chrome.Icon.Render()
 	}
 	return panelIcon(spec.Kind)
+}
+
+func statAriaLabel(spec panel.Spec) string {
+	if trimmed := strings.TrimSpace(spec.Title); trimmed != "" {
+		return trimmed
+	}
+	if trimmed := strings.TrimSpace(spec.Description); trimmed != "" {
+		return trimmed
+	}
+	return strings.TrimSpace(spec.ID)
 }
 
 func showPanelHeader(spec panel.Spec) bool {

@@ -152,7 +152,7 @@ func moneyFormatter(currency string, precision int, locale string) *sdkmoney.For
 			decimal = definition.Decimal
 		}
 		if definition.Grapheme != "" {
-			grapheme = definition.Code
+			grapheme = definition.Grapheme
 		}
 	}
 	return sdkmoney.NewFormatter(precision, decimal, thousand, grapheme, template)
