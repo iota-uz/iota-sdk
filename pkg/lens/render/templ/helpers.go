@@ -684,6 +684,16 @@ func tableValueText(column panel.TableColumn, row map[string]any, result *runtim
 	return formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone)
 }
 
+func tableActionText(ctx context.Context, column panel.TableColumn, row map[string]any, result *runtime.PanelResult) string {
+	if trimmed := strings.TrimSpace(column.Text); trimmed != "" {
+		return trimmed
+	}
+	if value := strings.TrimSpace(tableValueText(column, row, result)); value != "" {
+		return value
+	}
+	return translateOrFallback(ctx, "Lens.Table.OpenRow", "Open details")
+}
+
 func rowString(row map[string]any, key string) string {
 	if row == nil {
 		return ""
@@ -722,7 +732,7 @@ func tablePrimaryText(ctx context.Context, column panel.TableColumn, row map[str
 	if value != "" {
 		return value
 	}
-	return translateOrFallback(ctx, "Lens.Table.OpenRow", "Open details")
+	return tableActionText(ctx, column, row, result)
 }
 
 func firstNonEmptyString(values ...string) string {

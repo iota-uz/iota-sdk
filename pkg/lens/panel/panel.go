@@ -44,6 +44,8 @@ type TableColumn struct {
 	Field     FieldRef
 	Label     string
 	Formatter *format.Spec
+	Action    *action.Spec
+	Text      string
 }
 
 type FieldRef string

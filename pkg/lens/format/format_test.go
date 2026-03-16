@@ -18,6 +18,7 @@ func TestApplyParsesNumericStrings_Scenarios(t *testing.T) {
 		expected string
 	}{
 		{name: "count", spec: Count(), input: "42", expected: "42"},
+		{name: "money", spec: Money("UZS", 0), input: "160000", expected: "160 000 UZS"},
 		{name: "money_compact", spec: MoneyCompact("UZS"), input: "12500", expected: "12.50K UZS"},
 		{name: "percent", spec: Percent(1), input: "7.5", expected: "7.5%"},
 		{name: "invalid_count_string", spec: Count(), input: "abc", expected: "abc"},
@@ -40,6 +41,14 @@ func TestApplyFormatsDatesInTimezone(t *testing.T) {
 	value := time.Date(2026, time.March, 9, 0, 30, 0, 0, time.UTC)
 
 	require.Equal(t, "2026-03-09 05:30", Apply(&spec, value, "", "Asia/Tashkent"))
+}
+
+func TestApplyFormatsMoneyWithLocaleSeparators(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "160 000 UZS", Apply(&Spec{Kind: KindMoney, Currency: "UZS", Precision: 0}, 160000.0, "ru", ""))
+	require.Equal(t, "160,000 UZS", Apply(&Spec{Kind: KindMoney, Currency: "UZS", Precision: 0}, 160000.0, "en-US", ""))
+	require.Equal(t, "160 000.50 UZS", Apply(&Spec{Kind: KindMoney, Currency: "UZS", Precision: 2}, 160000.5, "ru", ""))
 }
 
 func TestApplySupportsMonthLabelDurationAndLocalizedString(t *testing.T) {

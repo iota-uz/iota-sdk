@@ -691,8 +691,28 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 						{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
 						<tr class="transition-colors hover:bg-gray-50/60">
 							for i, column := range columns {
+								{{ columnHref := actionURL(column.Action, row, result) }}
+								{{ columnOnClick := actionOnClick(column.Action, row, result) }}
 								<td class="whitespace-nowrap px-4 py-3 md:py-2 text-gray-600">
-									if i == 0 && rowHref != "" {
+									if column.Action != nil && columnHref != "" {
+										<a
+											href={ templ.URL(columnHref) }
+											onclick={ stopPropagationScript(columnOnClick) }
+											class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-200"
+										>
+											{ tableActionText(ctx, column, row, result) }
+											@icons.ArrowUpRight(icons.Props{Size: "14"})
+										</a>
+									} else if column.Action != nil && columnOnClick.Call != "" {
+										<button
+											type="button"
+											onclick={ stopPropagationScript(columnOnClick) }
+											class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-200"
+										>
+											{ tableActionText(ctx, column, row, result) }
+											@icons.ArrowUpRight(icons.Props{Size: "14"})
+										</button>
+									} else if i == 0 && rowHref != "" {
 										<a
 											href={ templ.URL(rowHref) }
 											onclick={ stopPropagationScript(rowOnClick) }
