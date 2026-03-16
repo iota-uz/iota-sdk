@@ -640,14 +640,6 @@ func metricInfoTooltipHTML(ctx context.Context, info string) string {
 	)
 }
 
-func metricInfoTooltipConfig(ctx context.Context, info string) string {
-	html := metricInfoTooltipHTML(ctx, info)
-	if html == "" {
-		return ""
-	}
-	return fmt.Sprintf(`{content: %s, allowHTML: true, interactive: true, trigger: 'click focusin', theme: 'light', maxWidth: 360}`, js.MustToJS(html))
-}
-
 func panelHasClass(spec panel.Spec, token string) bool {
 	for _, className := range strings.Fields(spec.ClassName) {
 		if className == token {
@@ -769,10 +761,20 @@ func panelHasRenderableContent(spec panel.Spec, result *runtime.Result) bool {
 			}
 		}
 		return false
-	default:
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindBar,
+		panel.KindHorizontalBar,
+		panel.KindStackedBar,
+		panel.KindPie,
+		panel.KindDonut,
+		panel.KindTable,
+		panel.KindGauge:
 		panelResult := panelResult(result, spec.ID)
 		return panelResultHasContent(panelResult)
 	}
+
+	return false
 }
 
 func panelResultHasContent(result *runtime.PanelResult) bool {
@@ -786,9 +788,11 @@ func panelCanFullscreen(spec panel.Spec, result *runtime.Result) bool {
 	switch spec.Kind {
 	case panel.KindTabs, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return panelHasRenderableContent(spec, result)
-	default:
+	case panel.KindStat, panel.KindTable, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return false
 	}
+
+	return false
 }
 
 func panelFullscreenBodyClass(spec panel.Spec) string {

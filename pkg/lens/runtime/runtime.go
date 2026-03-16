@@ -71,16 +71,6 @@ type ExecutionStage struct {
 	Datasets []string
 }
 
-type panelErrorLog struct {
-	PanelID    string
-	PanelTitle string
-	PanelKind  string
-	Dataset    string
-	Path       string
-	Locale     string
-	Error      string
-}
-
 type Request struct {
 	Locale      string
 	Timezone    string

@@ -1,3 +1,4 @@
+// Package chrome defines optional visual chrome metadata for Lens panels.
 package chrome
 
 import "github.com/a-h/templ"

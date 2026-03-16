@@ -286,13 +286,13 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 func TestLogarithmicAxisPlanFromAxisOptionsUsesAxisConfig(t *testing.T) {
 	t.Parallel()
 
-	min := 3.0
-	max := 9.0
+	minValue := 3.0
+	maxValue := 9.0
 	step := 2.0
 	options := charts.ChartOptions{
 		XAxis: charts.XAxisConfig{
-			Min:      &min,
-			Max:      &max,
+			Min:      &minValue,
+			Max:      &maxValue,
 			StepSize: &step,
 		},
 		Series: []charts.Series{
