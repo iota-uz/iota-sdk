@@ -48,9 +48,10 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			Padding:     &charts.Padding{Top: mapping.Pointer(4), Right: mapping.Pointer(12), Bottom: mapping.Pointer(0), Left: mapping.Pointer(12)},
 		},
 		Tooltip: &charts.TooltipConfig{
-			Theme:  mapping.Pointer("dark"),
-			Shared: mapping.Pointer(true),
-			Style:  &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
+			Theme:     mapping.Pointer("dark"),
+			Shared:    mapping.Pointer(true),
+			Intersect: mapping.Pointer(false),
+			Style:     &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
 		},
 		XAxis: charts.XAxisConfig{
 			Labels: &charts.XAxisLabelsConfig{
