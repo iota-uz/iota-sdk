@@ -53,6 +53,7 @@ type QueryRequest struct {
 	Params    map[string]any    `json:"params,omitempty"`
 	TimeRange TimeRange         `json:"time_range,omitempty"`
 	Timezone  string            `json:"timezone,omitempty"`
+	Locale    string            `json:"locale,omitempty"`
 	MaxRows   int               `json:"max_rows,omitempty"`
 	Kind      QueryKind         `json:"kind,omitempty"`
 	Labels    map[string]string `json:"labels,omitempty"`
@@ -61,9 +62,4 @@ type QueryRequest struct {
 type DataSource interface {
 	Run(ctx context.Context, req QueryRequest) (*frame.FrameSet, error)
 	Capabilities() CapabilitySet
-}
-
-type Plugin interface {
-	Name() string
-	New(config map[string]any) (DataSource, error)
 }

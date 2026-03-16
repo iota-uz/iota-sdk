@@ -15,12 +15,14 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -38,6 +40,8 @@ type PanelResult struct {
 	Locale    string
 	Timezone  string
 	Variables map[string]any
+	Request   url.Values
+	Drill     *cube.DrillContext
 }
 
 type DashboardResult struct {
@@ -49,9 +53,13 @@ type DashboardResult struct {
 	Panels    map[string]*PanelResult
 	Locale    string
 	Timezone  string
+	Request   url.Values
+	Drill     *cube.DrillContext
 	StartedAt time.Time
 	Duration  time.Duration
 }
+
+type Result = DashboardResult
 
 type ExecutionPlan struct {
 	DatasetStages []ExecutionStage
@@ -63,13 +71,31 @@ type ExecutionStage struct {
 	Datasets []string
 }
 
-type Runtime struct {
+type Request struct {
 	Locale      string
 	Timezone    string
 	Request     url.Values
 	Overrides   map[string]any
 	DataSources map[string]datasource.DataSource
 	Cache       Cache
+}
+
+type Runtime = Request
+
+type Scope struct {
+	PanelIDs []string
+}
+
+func DashboardScope() Scope {
+	return Scope{}
+}
+
+func PanelsScope(panelIDs ...string) Scope {
+	return Scope{PanelIDs: append([]string(nil), panelIDs...)}
+}
+
+func PanelScope(panelID string) Scope {
+	return Scope{PanelIDs: []string{panelID}}
 }
 
 type Cache interface {
@@ -102,20 +128,28 @@ func (m *memoryCache) Set(key string, value *frame.FrameSet) {
 	m.items[key] = value.Clone()
 }
 
-func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardResult, error) {
-	op := serrors.Op("lens/runtime.Execute")
+func Run(ctx context.Context, spec lens.DashboardSpec, req Request) (*DashboardResult, error) {
+	return run(ctx, spec, req, DashboardScope())
+}
+
+func RunScope(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
+	return run(ctx, spec, req, scope)
+}
+
+func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
+	op := serrors.Op("lens/runtime.Run")
 	if err := Validate(spec); err != nil {
 		return nil, serrors.E(op, err)
 	}
 	startedAt := time.Now()
-	if rt.Cache == nil {
-		rt.Cache = NewMemoryCache()
+	if req.Cache == nil {
+		req.Cache = NewMemoryCache()
 	}
-	variables, err := resolveVariables(spec.Variables, rt)
+	variables, err := resolveVariables(spec.Variables, req)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	internalPlan, err := compileExecutionPlan(spec)
+	internalPlan, err := compileExecutionPlan(spec, scope.PanelIDs)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -127,15 +161,18 @@ func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*Dashboa
 		Plan:      internalPlan.view,
 		Datasets:  make(map[string]*DatasetResult, len(spec.Datasets)),
 		Panels:    make(map[string]*PanelResult),
-		Locale:    rt.Locale,
-		Timezone:  rt.Timezone,
+		Locale:    req.Locale,
+		Timezone:  req.Timezone,
+		Request:   cloneValues(req.Request),
+		Drill:     parseDrillContext(req.Request),
 		StartedAt: startedAt,
 	}
 
 	state := plannedExecutor{
 		spec:      spec,
-		runtime:   rt,
+		runtime:   req,
 		variables: variables,
+		drill:     result.Drill,
 	}
 
 	if err := state.executeDatasets(ctx, internalPlan.datasetStages, result.Datasets); err != nil {
@@ -148,14 +185,11 @@ func Execute(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*Dashboa
 	return result, nil
 }
 
-func Run(ctx context.Context, spec lens.DashboardSpec, rt Runtime) (*DashboardResult, error) {
-	return Execute(ctx, spec, rt)
-}
-
 type plannedExecutor struct {
 	spec      lens.DashboardSpec
-	runtime   Runtime
+	runtime   Request
 	variables map[string]any
+	drill     *cube.DrillContext
 }
 
 type executionPlan struct {
@@ -164,21 +198,25 @@ type executionPlan struct {
 	panels        []panel.Spec
 }
 
-func BuildPlan(spec lens.DashboardSpec) (ExecutionPlan, error) {
-	op := serrors.Op("lens/runtime.BuildPlan")
+func Plan(spec lens.DashboardSpec, scope Scope) (ExecutionPlan, error) {
+	op := serrors.Op("lens/runtime.Plan")
 	if err := Validate(spec); err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
-	plan, err := compileExecutionPlan(spec)
+	plan, err := compileExecutionPlan(spec, scope.PanelIDs)
 	if err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
 	return plan.view, nil
 }
 
-func compileExecutionPlan(spec lens.DashboardSpec) (executionPlan, error) {
+func compileExecutionPlan(spec lens.DashboardSpec, panelIDs []string) (executionPlan, error) {
 	datasets := indexDatasets(spec.Datasets)
-	required := requiredDatasetNames(spec)
+	targetPanels, err := scopedPanels(spec, panelIDs)
+	if err != nil {
+		return executionPlan{}, err
+	}
+	required := requiredDatasetNames(targetPanels, datasets)
 	stageMap := make(map[int][]string)
 	depthMemo := make(map[string]int, len(required))
 	visiting := make(map[string]bool, len(required))
@@ -203,7 +241,7 @@ func compileExecutionPlan(spec lens.DashboardSpec) (executionPlan, error) {
 	internal := executionPlan{
 		view:          view,
 		datasetStages: make([][]lens.DatasetSpec, 0, len(depths)),
-		panels:        collectPanels(spec.Rows),
+		panels:        targetPanels,
 	}
 	for _, panelSpec := range internal.panels {
 		internal.view.Panels = append(internal.view.Panels, panelSpec.ID)
@@ -221,6 +259,33 @@ func compileExecutionPlan(spec lens.DashboardSpec) (executionPlan, error) {
 		internal.datasetStages = append(internal.datasetStages, specs)
 	}
 	return internal, nil
+}
+
+func scopedPanels(spec lens.DashboardSpec, panelIDs []string) ([]panel.Spec, error) {
+	if len(panelIDs) == 0 {
+		return lens.FlattenPanels(spec), nil
+	}
+	panels := make([]panel.Spec, 0, len(panelIDs))
+	seen := make(map[string]struct{}, len(panelIDs))
+	for _, panelID := range panelIDs {
+		if strings.TrimSpace(panelID) == "" {
+			continue
+		}
+		root, ok := lens.FindPanel(spec, panelID)
+		if !ok {
+			return nil, fmt.Errorf("panel %q not found", panelID)
+		}
+		for _, panelSpec := range lens.FlattenPanels(lens.DashboardSpec{
+			Rows: []lens.RowSpec{{Panels: []panel.Spec{root}}},
+		}) {
+			if _, exists := seen[panelSpec.ID]; exists {
+				continue
+			}
+			seen[panelSpec.ID] = struct{}{}
+			panels = append(panels, panelSpec)
+		}
+	}
+	return panels, nil
 }
 
 func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.DatasetSpec, results map[string]*DatasetResult) error {
@@ -270,6 +335,8 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 				Locale:    s.runtime.Locale,
 				Timezone:  s.runtime.Timezone,
 				Variables: s.variables,
+				Request:   cloneValues(s.runtime.Request),
+				Drill:     s.drill,
 			}
 			if isCompositePanel(panelSpec.Kind) {
 				mu.Lock()
@@ -297,6 +364,9 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 				}
 			}
 			panelResult.Duration = time.Since(start)
+			if panelResult.Error != nil {
+				logPanelFailure(panelSpec, s.runtime, panelResult.Error)
+			}
 			mu.Lock()
 			results[panelSpec.ID] = panelResult
 			mu.Unlock()
@@ -307,6 +377,19 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 		})
 	}
 	return group.Wait()
+}
+
+func logPanelFailure(spec panel.Spec, req Request, err error) {
+	if err == nil {
+		return
+	}
+	logrus.WithFields(logrus.Fields{
+		"panel_id":    spec.ID,
+		"panel_title": spec.Title,
+		"panel_kind":  string(spec.Kind),
+		"dataset":     spec.Dataset,
+		"locale":      req.Locale,
+	}).WithError(err).Error("lens panel execution failed")
 }
 
 func (s *plannedExecutor) executeDatasetSpec(ctx context.Context, spec lens.DatasetSpec, results map[string]*DatasetResult) (*frame.FrameSet, error) {
@@ -354,6 +437,7 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		Text:      spec.Query.Text,
 		Params:    resolveParams(spec.Query.Params, s.variables),
 		Timezone:  s.runtime.Timezone,
+		Locale:    s.runtime.Locale,
 		TimeRange: resolveDatasetTimeRange(s.spec.Variables, s.variables),
 		MaxRows:   spec.Query.MaxRows,
 		Kind:      spec.Query.Kind,
@@ -396,10 +480,9 @@ func indexDatasets(specs []lens.DatasetSpec) map[string]lens.DatasetSpec {
 	return datasets
 }
 
-func requiredDatasetNames(spec lens.DashboardSpec) []string {
-	datasets := indexDatasets(spec.Datasets)
+func requiredDatasetNames(panels []panel.Spec, datasets map[string]lens.DatasetSpec) []string {
 	seen := make(map[string]struct{})
-	for _, panelSpec := range collectPanels(spec.Rows) {
+	for _, panelSpec := range panels {
 		if isCompositePanel(panelSpec.Kind) || strings.TrimSpace(panelSpec.Dataset) == "" {
 			continue
 		}
@@ -456,24 +539,6 @@ func datasetDepth(name string, datasets map[string]lens.DatasetSpec, memo map[st
 	return maxDepth, nil
 }
 
-func collectPanels(rows []lens.RowSpec) []panel.Spec {
-	panels := make([]panel.Spec, 0)
-	for _, row := range rows {
-		for _, panelSpec := range row.Panels {
-			panels = append(panels, flattenPanel(panelSpec)...)
-		}
-	}
-	return panels
-}
-
-func flattenPanel(spec panel.Spec) []panel.Spec {
-	panels := []panel.Spec{spec}
-	for _, child := range spec.Children {
-		panels = append(panels, flattenPanel(child)...)
-	}
-	return panels
-}
-
 func isCompositePanel(kind panel.Kind) bool {
 	return kind == panel.KindTabs || kind == panel.KindGrid || kind == panel.KindSplit || kind == panel.KindRepeat
 }
@@ -495,7 +560,7 @@ func resolveDependencyFrames(name string, dependencies []string, results map[str
 	return deps, nil
 }
 
-func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, error) {
+func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, error) {
 	values := make(map[string]any, len(specs))
 	for _, spec := range specs {
 		if override, ok := rt.Overrides[spec.Name]; ok {
@@ -506,14 +571,14 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 		case lens.VariableDateRange:
 			values[spec.Name] = resolveDateRange(spec, rt.Request)
 		case lens.VariableToggle:
-			raw := strings.TrimSpace(rt.Request.Get(spec.Name))
+			raw := strings.TrimSpace(requestValue(rt.Request, spec.Name, spec.RequestKeys...))
 			if raw == "" {
 				values[spec.Name] = spec.Default
 				continue
 			}
 			values[spec.Name] = raw == "true" || raw == "1" || raw == "on"
 		case lens.VariableNumber:
-			if raw := rt.Request.Get(spec.Name); raw != "" {
+			if raw := requestValue(rt.Request, spec.Name, spec.RequestKeys...); raw != "" {
 				parsed, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
 				if err != nil {
 					values[spec.Name] = spec.Default
@@ -524,13 +589,13 @@ func resolveVariables(specs []lens.VariableSpec, rt Runtime) (map[string]any, er
 				values[spec.Name] = spec.Default
 			}
 		case lens.VariableMultiSelect:
-			if raw := rt.Request[spec.Name]; len(raw) > 0 {
+			if raw := requestValues(rt.Request, spec.Name, spec.RequestKeys...); len(raw) > 0 {
 				values[spec.Name] = splitMultiSelectValues(raw)
 			} else {
 				values[spec.Name] = spec.Default
 			}
 		case lens.VariableSingleSelect, lens.VariableText:
-			if raw := rt.Request.Get(spec.Name); raw != "" {
+			if raw := requestValue(rt.Request, spec.Name, spec.RequestKeys...); raw != "" {
 				values[spec.Name] = raw
 			} else {
 				values[spec.Name] = spec.Default
@@ -558,12 +623,13 @@ func splitMultiSelectValues(raw []string) []string {
 }
 
 func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeValue {
-	rawMode := values.Get(spec.Name)
+	rawMode := requestValue(values, spec.Name, spec.RequestKeys...)
 	if rawMode == "all" && spec.AllowAllTime {
 		return lens.DateRangeValue{Mode: "all"}
 	}
-	startRaw := values.Get(spec.Name + "_start")
-	endRaw := values.Get(spec.Name + "_end")
+	startKey, endKey := dateRangeRequestKeys(spec)
+	startRaw := values.Get(startKey)
+	endRaw := values.Get(endKey)
 	if startRaw != "" && endRaw != "" {
 		start, startErr := time.Parse("2006-01-02", startRaw)
 		end, endErr := time.Parse("2006-01-02", endRaw)
@@ -578,6 +644,52 @@ func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeV
 	now := time.Now().UTC()
 	start := now.Add(-spec.DefaultDuration)
 	return lens.DateRangeValue{Mode: "default", Start: &start, End: &now}
+}
+
+func requestValue(values url.Values, name string, aliases ...string) string {
+	keys := append([]string{name}, aliases...)
+	for _, key := range keys {
+		if trimmed := strings.TrimSpace(values.Get(key)); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func requestValues(values url.Values, name string, aliases ...string) []string {
+	keys := append([]string{name}, aliases...)
+	for _, key := range keys {
+		if raw := values[key]; len(raw) > 0 {
+			return raw
+		}
+	}
+	return nil
+}
+
+func parseDrillContext(values url.Values) *cube.DrillContext {
+	ctx := cube.ParseDrillContext(values)
+	return &ctx
+}
+
+func cloneValues(values url.Values) url.Values {
+	if values == nil {
+		return nil
+	}
+	cloned := make(url.Values, len(values))
+	for key, items := range values {
+		cloned[key] = append([]string(nil), items...)
+	}
+	return cloned
+}
+
+func dateRangeRequestKeys(spec lens.VariableSpec) (string, string) {
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[1], spec.RequestKeys[2]
+	}
+	if len(spec.RequestKeys) >= 2 {
+		return spec.RequestKeys[0], spec.RequestKeys[1]
+	}
+	return spec.Name + "_start", spec.Name + "_end"
 }
 
 func resolveParams(specs map[string]lens.ParamValue, variables map[string]any) map[string]any {
@@ -749,7 +861,7 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	}
 	if spec.Action != nil {
 		switch spec.Action.Kind {
-		case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent:
+		case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent, action.KindCubeDrill:
 		default:
 			return fmt.Errorf("panel %s action has unsupported kind %q", spec.ID, spec.Action.Kind)
 		}
@@ -778,18 +890,15 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 		return nil
 	}
 	primary := frames.Primary()
-	required := requiredPanelFields(spec)
-	for _, field := range required {
-		if field.Empty() {
-			continue
-		}
-		if _, ok := primary.Field(field.Name()); !ok {
-			return fmt.Errorf("panel %s is missing field %q in dataset %s", spec.ID, field.Name(), spec.Dataset)
-		}
+	if err := validateRequiredPanelFields(spec, primary); err != nil {
+		return err
 	}
 	if spec.Kind == panel.KindTable {
 		for _, column := range spec.Columns {
 			if column.Field.Empty() {
+				if column.Action != nil {
+					continue // action-only columns (e.g. "View" links) don't need a field
+				}
 				return fmt.Errorf("panel %s has table column without field reference", spec.ID)
 			}
 			if _, ok := primary.Field(column.Field.Name()); !ok {
@@ -812,31 +921,68 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 	return nil
 }
 
-func requiredPanelFields(spec panel.Spec) []panel.FieldRef {
+func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 	switch spec.Kind {
 	case panel.KindStat:
-		return []panel.FieldRef{spec.Fields.Value}
+		return requireField(spec, primary, spec.Fields.Value)
 	case panel.KindTimeSeries:
-		return []panel.FieldRef{spec.Fields.Category, spec.Fields.Value}
+		if err := requireField(spec, primary, spec.Fields.Category); err != nil {
+			return err
+		}
+		return requireField(spec, primary, spec.Fields.Value)
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
-		fields := []panel.FieldRef{spec.Fields.Value}
-		if !spec.Fields.Label.Empty() {
-			fields = append(fields, spec.Fields.Label)
+		if err := requireField(spec, primary, spec.Fields.Value); err != nil {
+			return err
 		}
-		if !spec.Fields.Category.Empty() {
-			fields = append(fields, spec.Fields.Category)
+		if err := requireOneField(spec, primary, spec.Fields.Label, spec.Fields.Category); err != nil {
+			return err
 		}
-		return fields
 	case panel.KindStackedBar:
-		return []panel.FieldRef{spec.Fields.Category, spec.Fields.Series, spec.Fields.Value}
+		if err := requireField(spec, primary, spec.Fields.Category); err != nil {
+			return err
+		}
+		if err := requireField(spec, primary, spec.Fields.Series); err != nil {
+			return err
+		}
+		return requireField(spec, primary, spec.Fields.Value)
 	case panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return nil
 	}
 	return nil
 }
 
+func requireField(spec panel.Spec, primary *frame.Frame, field panel.FieldRef) error {
+	if field.Empty() {
+		return nil
+	}
+	if _, ok := primary.Field(field.Name()); ok {
+		return nil
+	}
+	return fmt.Errorf("panel %s is missing field %q in dataset %s", spec.ID, field.Name(), spec.Dataset)
+}
+
+func requireOneField(spec panel.Spec, primary *frame.Frame, fields ...panel.FieldRef) error {
+	nonEmpty := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if field.Empty() {
+			continue
+		}
+		nonEmpty = append(nonEmpty, field.Name())
+		if _, ok := primary.Field(field.Name()); ok {
+			return nil
+		}
+	}
+	if len(nonEmpty) == 0 {
+		return nil
+	}
+	return fmt.Errorf("panel %s is missing field from set %v in dataset %s", spec.ID, nonEmpty, spec.Dataset)
+}
+
 func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, source action.ValueSource) error {
 	if source.Kind != action.SourceField {
+		return nil
+	}
+	if primary == nil || primary.RowCount == 0 {
 		return nil
 	}
 	if _, ok := primary.Field(source.Name); ok {
@@ -847,7 +993,7 @@ func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, sou
 
 func validateValueSource(panelID, name string, source action.ValueSource) error {
 	switch source.Kind {
-	case action.SourceField, action.SourceVariable, action.SourcePoint:
+	case action.SourceField, action.SourceVariable:
 		if strings.TrimSpace(source.Name) == "" {
 			return fmt.Errorf("panel %s action value %s requires source name", panelID, name)
 		}

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	sdkmoney "github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Kind string
@@ -35,13 +37,12 @@ type Formatter interface {
 	Format(value any, locale, timezone string) string
 }
 
-type Plugin interface {
-	Name() string
-	Build(spec Spec) (Formatter, error)
-}
-
 func MoneyCompact(currency string) Spec {
 	return Spec{Name: "money_compact", Kind: KindAbbreviatedMoney, Currency: currency, Precision: 2}
+}
+
+func Money(currency string, precision int) Spec {
+	return Spec{Name: "money", Kind: KindMoney, Currency: currency, Precision: precision}
 }
 
 func Count() Spec {
@@ -66,7 +67,7 @@ func Apply(spec *Spec, value any, locale, timezone string) string {
 		if !ok {
 			return defaultFormat(value)
 		}
-		return fmt.Sprintf("%.*f %s", spec.Precision, number, spec.Currency)
+		return formatMoney(number, spec.Currency, spec.Precision, locale)
 	case KindAbbreviatedMoney:
 		number, ok := coerceNumber(value)
 		if !ok {
@@ -121,6 +122,49 @@ func Apply(spec *Spec, value any, locale, timezone string) string {
 		return defaultFormat(value)
 	default:
 		return defaultFormat(value)
+	}
+}
+
+func formatMoney(number float64, currency string, precision int, locale string) string {
+	if precision < 0 {
+		precision = 0
+	}
+	amount := scaleMoneyAmount(number, precision)
+	formatter := moneyFormatter(currency, precision, locale)
+	return formatter.Format(amount)
+}
+
+func scaleMoneyAmount(number float64, precision int) int64 {
+	scale := math.Pow10(precision)
+	return int64(math.Round(number * scale))
+}
+
+func moneyFormatter(currency string, precision int, locale string) *sdkmoney.Formatter {
+	decimal := "."
+	thousand := moneyThousandSeparator(locale)
+	grapheme := strings.TrimSpace(currency)
+	template := "1 $"
+	if grapheme == "" {
+		grapheme = "—"
+	}
+	if definition := sdkmoney.GetCurrency(currency); definition != nil {
+		if definition.Decimal != "" {
+			decimal = definition.Decimal
+		}
+		if definition.Grapheme != "" {
+			grapheme = definition.Grapheme
+		}
+	}
+	return sdkmoney.NewFormatter(precision, decimal, thousand, grapheme, template)
+}
+
+func moneyThousandSeparator(locale string) string {
+	normalized := strings.ToLower(strings.TrimSpace(locale))
+	switch {
+	case strings.HasPrefix(normalized, "en"):
+		return ","
+	default:
+		return " "
 	}
 }
 

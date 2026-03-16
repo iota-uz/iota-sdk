@@ -1,85 +1,180 @@
 # Lens Dashboard Framework
 
-Row-based dashboard framework: Build → Execute → Render.
+Lens supports two patterns:
 
-## Architecture
+- Manual `lens.DashboardSpec`: use when the layout and datasets are bespoke and there is no multi-level drill flow.
+- `cube.New(...)`: use when you want a dashboard that starts with KPIs plus dimension panels and drills through ordered `_f=dimension:value` state.
 
-```
-pkg/lens/
-├── lens.go          # Core types: Dashboard, Row, Panel, PanelType
-├── builder.go       # Fluent API: Metric(), Line(), Bar(), Table(), etc.
-├── datasource.go    # DataSource interface, QueryResult
-├── executor.go      # Execute() — runs all panel queries concurrently
-├── postgres/
-│   └── postgres.go  # PostgreSQL DataSource (pgxpool)
-└── ui/
-    ├── dashboard.templ  # Dashboard + Row rendering
-    ├── row.templ        # 12-column grid row with panel dispatch
-    ├── metric.templ     # Metric cards
-    ├── chart.templ      # Chart panels (delegates to components/charts)
-    ├── table.templ      # Data tables with drill-through
-    ├── states.templ     # Empty, Error, Loading states
-    └── helpers.go       # QueryResult → chart series/metric transformations
-```
+## Manual DashboardSpec
 
-## Quick Start
+Use plain `lens.DashboardSpec` when:
 
-```go
-// 1. Build dashboard
-dash := lens.NewDashboard("Finance Overview",
-    lens.NewRow(
-        lens.Metric("revenue", "Revenue").Query("SELECT SUM(amount) as value FROM orders").Unit("USD").Span(3).Build(),
-        lens.Metric("orders", "Orders").Query("SELECT COUNT(*) as value FROM orders").Span(3).Build(),
-    ),
-    lens.NewRow(
-        lens.Line("trend", "Revenue Trend").Query("SELECT date as label, SUM(amount) as value FROM orders GROUP BY 1").Span(8).Build(),
-        lens.Pie("categories", "By Category").Query("SELECT category as label, SUM(amount) as value FROM orders GROUP BY 1").Span(4).Build(),
-    ),
-)
+- Panels are unrelated to one another
+- You already know the exact dataset graph you want
+- Drill-through is row/panel specific instead of hierarchical cube drilling
+- A dashboard is mostly one-off presentation work
 
-// 2. Execute queries
-results := lens.Execute(ctx, dataSource, dash)
+## Cube Pattern
 
-// 3. Render (in templ)
-@lensui.Dashboard(dash, results)
-```
+Use `cube.New(...)` when:
 
-## Panel Types & Query Formats
+- The dashboard is a KPI summary plus a set of dimensions
+- Each click should narrow the same analytical slice
+- Raw leaf views should receive accumulated drill context
+- You want Lens to build breadcrumbs, remaining-dimension pills, and chart drill actions for you
 
-| Type | Constructor | Expected Columns |
-|------|-------------|-----------------|
-| metric | `Metric()` | `value` (single row) |
-| line | `Line()` | `label`, `value` |
-| bar | `Bar()` | `label`, `value` |
-| stacked_bar | `StackedBar()` | `category`, `series`, `value` |
-| pie/donut | `Pie()`/`Donut()` | `label`, `value` |
-| area | `Area()` | `label`, `value` |
-| gauge | `Gauge()` | `value` (single row, 0–100) |
-| table | `Table()` | any columns |
-
-## Drill-Through (HTMX)
+Basic flow:
 
 ```go
-// Chart click → full navigation
-lens.Bar("sales", "Sales").DrillTo("/analytics?category={label}").Build()
+spec := cube.New("sales", "Sales Overview").
+	SQL("primary", "insurance.contracts c").
+	ParamLiteral("tenant_id", tenantID).
+	Where("(c.tenant_id = @tenant_id OR c.tenant_id IS NULL)").
+	Dimension("product", "Product").
+	Column("COALESCE(pr.id::text, '')").
+	LabelColumn("COALESCE(pr.name, 'Unknown')").
+	RequiresJoin("product").
+	Measure("total_policies", "Policies").
+	Column("DISTINCT pol.id").
+	Count().
+	DefaultDimension("product").
+	Leaf("/insurance/sales-report/drill/contracts").
+	Build()
 
-// Chart click → HTMX partial update
-lens.Bar("sales", "Sales").DrillToTarget("/analytics?category={label}", "#detail").Build()
-
-// Table row click → navigation
-lens.Table("orders", "Orders").DrillTo("/orders/{id}").Build()
+dashboard, err := cube.Resolve(spec, cube.ParseDrillContext(r.URL.Query()), "/insurance/sales-report")
 ```
 
-## Adding New Panel Types
+## Data Modes
 
-1. Add constant in `lens.go`: `TypeNewType PanelType = "new_type"`
-2. Add constructor in `builder.go`: `func NewType(id, title string) *PanelBuilder`
-3. Handle in `ui/helpers.go`: add to `panelTypeToChartType()`, `panelColors()`
-4. If needed, add templ component in `ui/` and dispatch case in `row.templ`
+### SQL mode
+
+Use `.SQL(dataSource, fromSQL)` when the source of truth is the database and drill levels should be translated into SQL filters.
+
+Best for:
+
+- Production analytics over large tables
+- Dimensions that rely on joins
+- Leaf routes backed by repositories or raw queries
+
+Rules:
+
+- Add cube-wide params with `.ParamLiteral(...)` or `.ParamVariable(...)`
+- Add shared filters with `.Where(...)`
+- Add reusable joins with `.Join(name, sql)`
+- Use `.RequiresJoin(...)` on dimensions/measures so Lens only brings in the joins it needs
+
+### Dataset mode
+
+Use `.Dataset(frameSet)` when the data already exists in memory and drill levels should be resolved with frame transforms.
+
+Best for:
+
+- Dashboards built from already-fetched rows
+- Small or medium datasets
+- Places where SQL would duplicate upstream query logic
+
+## Adding a Dimension
+
+For a normal dimension, one `.Dimension(...)` block is usually enough:
+
+```go
+.Dimension("region", "Region").
+	Column("COALESCE(r.id::text, '')").
+	LabelColumn("COALESCE(r.name, 'Unknown')").
+	PanelKind(panel.KindHorizontalBar).
+	RequiresJoin("region")
+```
+
+Checklist:
+
+1. Choose a stable filter value expression for `.Column(...)`
+2. Choose a display label for `.LabelColumn(...)` or `.LabelField(...)`
+3. Add any required join with `.RequiresJoin(...)`
+4. Pick a reasonable panel kind and colors
+5. Make sure the raw leaf route knows how to consume the drilled value
+
+## Override Escape Hatch
+
+Use `.Override(...)` when a dimension cannot be expressed as a simple `GROUP BY column`, for example:
+
+- Age bands
+- Complex CTE-backed buckets
+- Multi-stage ranking queries
+- Pre-aggregated custom SQL
+
+Example:
+
+```go
+.Dimension("age_group", "Age Group").
+	Column(ageGroupFilterExpr()).
+	RequiresJoin("insurant_person").
+	Override(lens.DatasetSpec{
+		Kind: lens.DatasetKindQuery,
+		Query: &lens.QuerySpec{
+			Text: ageDistributionOverrideQuery(),
+			Kind: datasource.QueryKindRaw,
+		},
+	})
+```
+
+Important behavior:
+
+- Override datasets automatically inherit cube params
+- Override datasets automatically receive active drill filters as `@f_<dimension>`
+- In SQL cubes, override query datasets inherit the cube datasource if they do not set one explicitly
+
+That means an override query can safely reference params such as:
+
+- `@tenant_id`
+- `@issue_at_from`
+- `@issue_at_to`
+- `@f_product`
+- `@f_region`
+
+If a dimension can be drilled further, still give it a valid `.Column(...)` filter expression so later drill levels and KPI stats can apply that filter outside the override dataset.
+
+## Drill URL Format
+
+Cube drill state is encoded in ordered repeated query params:
+
+```text
+_f=product:osago&_f=region:tashkent
+```
+
+Rules:
+
+- Order matters
+- Each `_f` entry is one drill level
+- Lens preserves `_f` values during HTMX/filter interactions as long as the filter form re-emits hidden query inputs
+- Leaf routes should parse `cube.ParseDrillContext(r.URL.Query())`
+
+## Date Range + Drill
+
+When a drilled page also has external date filters:
+
+- Preserve drill params with hidden inputs
+- Exclude only the date keys when rebuilding hidden query state
+- Treat empty results after a date-range change as a valid empty state, not an error
+
+Both report controllers in this repo follow that pattern through `persistentDashboardQuery(...)`.
+
+## Performance Profiling
+
+Cube SQL is generated dynamically, so profiling is part of the implementation work for production-facing dashboards.
+
+Before calling a cube rollout done:
+
+1. Capture the generated SQL for stats and each drill level
+2. Run `EXPLAIN ANALYZE` against production-scale data
+3. Check filter/join indexes for high-use dimensions
+4. Measure end-to-end response time at each drill level
+5. Watch high-cardinality dimensions and cap or reshape them if charts become noisy
+
+This repo can verify correctness locally, but true performance sign-off still requires a real dataset and environment.
 
 ## Critical Rules
 
-- **Query column conventions**: Use `label`/`category` for x-axis, `value` for y-axis, `series` for stacking
-- **Import rule**: `ui/` may import `lens` root, never the reverse
-- **Template changes**: Always run `templ generate && just css`
-- **Never read `*_templ.go` files** — they're generated
+- Keep generated `*_templ.go` files out of manual edits
+- Run `templ generate` after Templ changes
+- Prefer cube mode for hierarchical drill dashboards, not for every dashboard
+- Keep leaf routes responsible for translating drill filters into repository/query params

@@ -37,7 +37,7 @@ func (s *stubDataSource) Capabilities() datasource.CapabilitySet {
 	return datasource.CapabilitySet{datasource.CapabilityParameterizedQueries: true}
 }
 
-func TestExecuteReusesDatasetAcrossPanels(t *testing.T) {
+func TestRunReusesDatasetAcrossPanels(t *testing.T) {
 	t.Parallel()
 
 	ds := &stubDataSource{}
@@ -50,7 +50,7 @@ func TestExecuteReusesDatasetAcrossPanels(t *testing.T) {
 		lensbuild.QueryDataset("shared-data", "primary", "select 1"),
 	).Build()
 
-	result, err := Execute(context.Background(), spec, Runtime{
+	result, err := Run(context.Background(), spec, Request{
 		DataSources: map[string]datasource.DataSource{"primary": ds},
 	})
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestExecuteReusesDatasetAcrossPanels(t *testing.T) {
 	require.Equal(t, int32(1), ds.calls.Load())
 }
 
-func TestBuildPlan_Scenarios(t *testing.T) {
+func TestPlan_Scenarios(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -96,20 +96,20 @@ func TestBuildPlan_Scenarios(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			plan, err := BuildPlan(tt.spec)
+			plan, err := Plan(tt.spec, DashboardScope())
 			require.NoError(t, err)
 			tt.assert(t, plan)
 		})
 	}
 }
 
-func TestExecute_Scenarios(t *testing.T) {
+func TestRun_Scenarios(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name   string
 		spec   lens.DashboardSpec
-		assert func(t *testing.T, result *DashboardResult, ds *stubDataSource)
+		assert func(t *testing.T, result *Result, ds *stubDataSource)
 	}{
 		{
 			name: "skips unused datasets",
@@ -121,7 +121,7 @@ func TestExecute_Scenarios(t *testing.T) {
 				lensbuild.QueryDataset("shared-data", "primary", "select 1"),
 				lensbuild.QueryDataset("unused-data", "primary", "select 2"),
 			).Build(),
-			assert: func(t *testing.T, result *DashboardResult, ds *stubDataSource) {
+			assert: func(t *testing.T, result *Result, ds *stubDataSource) {
 				t.Helper()
 				assert.Equal(t, int32(1), ds.calls.Load())
 				assert.Contains(t, result.Datasets, "shared-data")
@@ -133,7 +133,7 @@ func TestExecute_Scenarios(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := &stubDataSource{}
-			result, err := Execute(context.Background(), tt.spec, Runtime{
+			result, err := Run(context.Background(), tt.spec, Request{
 				DataSources: map[string]datasource.DataSource{"primary": ds},
 			})
 			require.NoError(t, err)
@@ -162,17 +162,41 @@ func TestDateRangeVariableSupportsAllTimeAndDefaults(t *testing.T) {
 		lensbuild.DateRangeVariable("range", "Range", 24*time.Hour),
 	).Build()
 
-	defaults, err := resolveVariables(spec.Variables, Runtime{Request: url.Values{}})
+	defaults, err := resolveVariables(spec.Variables, Request{Request: url.Values{}})
 	require.NoError(t, err)
 	defaultRange := defaults["range"].(lens.DateRangeValue)
 	require.Equal(t, "default", defaultRange.Mode)
 	require.NotNil(t, defaultRange.Start)
 	require.NotNil(t, defaultRange.End)
 
-	allTime, err := resolveVariables(spec.Variables, Runtime{Request: url.Values{"range": []string{"all"}}})
+	allTime, err := resolveVariables(spec.Variables, Request{Request: url.Values{"range": []string{"all"}}})
 	require.NoError(t, err)
 	allRange := allTime["range"].(lens.DateRangeValue)
 	require.Equal(t, "all", allRange.Mode)
+}
+
+func TestDateRangeVariableUsesStartAndEndRequestKeysWhenModeKeyIsPresent(t *testing.T) {
+	t.Parallel()
+
+	spec := lensbuild.Dashboard("variables", "Variables").Variables(
+		lensbuild.DateRangeVariable("range", "Range", 24*time.Hour),
+	).Build()
+
+	values := url.Values{
+		"range":       []string{"bounded"},
+		"range_start": []string{"2026-03-01"},
+		"range_end":   []string{"2026-03-15"},
+	}
+
+	resolved, err := resolveVariables(spec.Variables, Request{Request: values})
+	require.NoError(t, err)
+
+	bounded := resolved["range"].(lens.DateRangeValue)
+	require.Equal(t, "bounded", bounded.Mode)
+	require.NotNil(t, bounded.Start)
+	require.NotNil(t, bounded.End)
+	assert.Equal(t, time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC), bounded.Start.UTC())
+	assert.Equal(t, time.Date(2026, 3, 15, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC), bounded.End.UTC())
 }
 
 func TestValidateRejectsDuplicatePanels(t *testing.T) {
@@ -264,7 +288,7 @@ func TestExecuteMarksMissingPanelFieldsAsPanelError(t *testing.T) {
 		lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
 	).Build()
 
-	result, err := Execute(context.Background(), spec, Runtime{})
+	result, err := Run(context.Background(), spec, Request{})
 	require.NoError(t, err)
 	require.Error(t, result.Panels["sales"].Error)
 	require.Contains(t, result.Panels["sales"].Error.Error(), "missing field")
@@ -282,7 +306,7 @@ func TestResolveVariablesPreservesAllMultiSelectValues(t *testing.T) {
 		},
 	).Build()
 
-	values, err := resolveVariables(spec.Variables, Runtime{
+	values, err := resolveVariables(spec.Variables, Request{
 		Request: url.Values{"products": []string{"osago", "travel"}},
 	})
 	require.NoError(t, err)
@@ -301,7 +325,7 @@ func TestResolveVariablesSplitsCommaSeparatedMultiSelectValues(t *testing.T) {
 		},
 	).Build()
 
-	values, err := resolveVariables(spec.Variables, Runtime{
+	values, err := resolveVariables(spec.Variables, Request{
 		Request: url.Values{"products": []string{"osago, travel", "kasko"}},
 	})
 	require.NoError(t, err)
@@ -315,7 +339,7 @@ func TestResolveVariablesParsesNumberValues(t *testing.T) {
 		lens.VariableSpec{Name: "limit", Label: "Limit", Kind: lens.VariableNumber, Default: 10.0},
 	).Build()
 
-	values, err := resolveVariables(spec.Variables, Runtime{
+	values, err := resolveVariables(spec.Variables, Request{
 		Request: url.Values{"limit": []string{"25.5"}},
 	})
 	require.NoError(t, err)
@@ -329,7 +353,7 @@ func TestResolveVariablesUsesToggleDefaultWhenRequestMissing(t *testing.T) {
 		lens.VariableSpec{Name: "active_only", Label: "Active Only", Kind: lens.VariableToggle, Default: true},
 	).Build()
 
-	values, err := resolveVariables(spec.Variables, Runtime{Request: url.Values{}})
+	values, err := resolveVariables(spec.Variables, Request{Request: url.Values{}})
 	require.NoError(t, err)
 	require.Equal(t, true, values["active_only"])
 }

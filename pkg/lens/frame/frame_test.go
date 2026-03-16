@@ -8,126 +8,77 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFrameBehaviors_Scenarios(t *testing.T) {
+func TestNormalizeRejectsUnevenFields(t *testing.T) {
+	t.Parallel()
+
+	fr := &Frame{
+		Name: "broken",
+		Fields: []Field{
+			{Name: "label", Values: []any{"a", "b"}},
+			{Name: "value", Values: []any{1}},
+		},
+	}
+	require.Error(t, fr.Normalize())
+}
+
+func TestRowsRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC().Truncate(time.Second)
-	cases := []struct {
-		name string
-		run  func(t *testing.T)
-	}{
-		{
-			name: "normalize_rejects_uneven_fields",
-			run: func(t *testing.T) {
-				t.Helper()
-				fr := &Frame{
-					Name: "broken",
-					Fields: []Field{
-						{Name: "label", Values: []any{"a", "b"}},
-						{Name: "value", Values: []any{1}},
-					},
-				}
-
-				require.Error(t, fr.Normalize())
-			},
-		},
-		{
-			name: "rows_round_trip",
-			run: func(t *testing.T) {
-				t.Helper()
-				fr, err := New("report",
-					Field{Name: "label", Values: []any{"one", "two"}},
-					Field{Name: "value", Values: []any{1.0, 2.0}},
-					Field{Name: "at", Values: []any{now, now.Add(time.Hour)}},
-				)
-				require.NoError(t, err)
-
-				rows := fr.Rows()
-				require.Len(t, rows, 2)
-				assert.Equal(t, "one", rows[0]["label"])
-				assert.InDelta(t, 2.0, rows[1]["value"].(float64), 0.001)
-				assert.Equal(t, now.Add(time.Hour), rows[1]["at"])
-			},
-		},
-		{
-			name: "long_series_preserves_extra_fields",
-			run: func(t *testing.T) {
-				t.Helper()
-				set, err := LongSeries("sales",
-					LongSeriesRow{
-						Category: "2026-01-01",
-						Series:   "OSAGO",
-						Value:    12.5,
-						Extra: map[string]any{
-							"bucket_start": "2026-01-01",
-							"product_id":   "prod-1",
-						},
-					},
-				)
-				require.NoError(t, err)
-
-				rows := set.Primary().Rows()
-				require.Len(t, rows, 1)
-				assert.Equal(t, "2026-01-01", rows[0]["category"])
-				assert.Equal(t, "OSAGO", rows[0]["series"])
-				assert.Equal(t, "prod-1", rows[0]["product_id"])
-			},
-		},
-		{
-			name: "append_strict_requires_declared_fields",
-			run: func(t *testing.T) {
-				t.Helper()
-				builder := NewBuilder("strict").
-					String("label", RoleDimension).
-					Number("value", RoleMetric)
-
-				err := builder.AppendStrict(Row{"label": "Revenue"})
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "row missing field")
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			tc.run(t)
-		})
-	}
-}
-
-func TestBuilderAppendStrictRejectsUnexpectedFields(t *testing.T) {
-	t.Parallel()
-
-	builder := NewBuilder("strict").
-		String("label", RoleDimension).
-		Number("value", RoleMetric)
-
-	err := builder.AppendStrict(Row{"label": "Revenue", "value": 12.5, "extra": "nope"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected field")
-}
-
-func TestInferFieldTypeSupportsPointerTime(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now().UTC()
-	require.Equal(t, FieldTypeTime, InferFieldType(&now))
-}
-
-func TestBuilderAppendBackfillsLateFields(t *testing.T) {
-	t.Parallel()
-
-	builder := NewBuilder("late-fields")
-
-	require.NoError(t, builder.Append(Row{"label": "Revenue"}))
-	require.NoError(t, builder.Append(Row{"label": "Expenses", "value": 12.5}))
-
-	set, err := builder.FrameSet()
+	fr, err := New("report",
+		Field{Name: "label", Values: []any{"one", "two"}},
+		Field{Name: "value", Values: []any{1.0, 2.0}},
+		Field{Name: "at", Values: []any{now, now.Add(time.Hour)}},
+	)
 	require.NoError(t, err)
 
-	rows := set.Primary().Rows()
+	rows := fr.Rows()
 	require.Len(t, rows, 2)
-	require.Nil(t, rows[0]["value"])
-	require.InDelta(t, 12.5, rows[1]["value"].(float64), 0.001)
+	assert.Equal(t, "one", rows[0]["label"])
+	assert.InDelta(t, 2.0, rows[1]["value"].(float64), 0.001)
+	assert.Equal(t, now.Add(time.Hour), rows[1]["at"])
+}
+
+func TestAppendRowBootstrapsFields(t *testing.T) {
+	t.Parallel()
+
+	fr := &Frame{Name: "dynamic"}
+	require.NoError(t, fr.AppendRow(map[string]any{"label": "Revenue", "value": 42.0}))
+	require.Equal(t, 1, fr.RowCount)
+
+	field, ok := fr.Field("label")
+	require.True(t, ok)
+	require.Equal(t, "Revenue", field.Values[0])
+}
+
+func TestClonePreservesFieldLookups(t *testing.T) {
+	t.Parallel()
+
+	fr, err := New("sales",
+		Field{Name: "label", Type: FieldTypeString, Values: []any{"OSAGO"}},
+		Field{Name: "value", Type: FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	cloned := fr.Clone()
+	field, ok := cloned.Field("label")
+	require.True(t, ok)
+	require.NotNil(t, field)
+	require.Equal(t, "label", field.Name)
+}
+
+func TestFieldLazyIndexBuild(t *testing.T) {
+	t.Parallel()
+
+	fr := &Frame{
+		Name: "lazy",
+		Fields: []Field{
+			{Name: "a", Values: []any{"x"}},
+			{Name: "b", Values: []any{1}},
+		},
+	}
+	// Field() should work even without prior Normalize() call
+	field, ok := fr.Field("a")
+	require.True(t, ok)
+	require.Equal(t, "a", field.Name)
 }

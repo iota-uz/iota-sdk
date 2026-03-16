@@ -193,12 +193,12 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	dash := c.createFinanceDashboard(tenantID)
 
-	var results *runtime.DashboardResult
+	var results *runtime.Result
 	if c.ds != nil {
 		err = composables.InTx(r.Context(), func(txCtx context.Context) error {
 			ctx, cancel := context.WithTimeout(txCtx, 30*time.Second)
 			defer cancel()
-			executed, execErr := runtime.Execute(ctx, dash, runtime.Runtime{
+			executed, execErr := runtime.Run(ctx, dash, runtime.Request{
 				DataSources: map[string]datasource.DataSource{
 					"primary": c.ds,
 				},

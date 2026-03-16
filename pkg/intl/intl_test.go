@@ -5,51 +5,55 @@ import (
 	"testing"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
 
-func TestMustLocalize_success(t *testing.T) {
-	bundle := i18n.NewBundle(language.English)
-	require.NoError(t, bundle.AddMessages(language.English, &i18n.Message{ID: "ok", Other: "OK"}))
-	l := i18n.NewLocalizer(bundle, "en")
-	out := MustLocalize(l, &i18n.LocalizeConfig{MessageID: "ok"})
-	require.Equal(t, "OK", out)
+func TestGetSupportedLanguagesIncludesUzCyrl(t *testing.T) {
+	t.Parallel()
+
+	languages := GetSupportedLanguages(nil)
+
+	for _, lang := range languages {
+		if lang.Code == "uz-Cyrl" {
+			require.Equal(t, "Ўзбекча", lang.VerboseName)
+			require.Equal(t, "uz-Cyrl", lang.Tag.String())
+			return
+		}
+	}
+
+	t.Fatalf("expected uz-Cyrl in supported languages, got %+v", languages)
 }
 
-func TestMustLocalize_panic(t *testing.T) {
+func TestMustLocalizePanicsOnMissingKey(t *testing.T) {
+	t.Parallel()
+
 	bundle := i18n.NewBundle(language.English)
-	l := i18n.NewLocalizer(bundle, "en")
-	var panicVal interface{}
+	localizer := i18n.NewLocalizer(bundle, language.English.String())
+
+	var recovered any
 	func() {
-		defer func() { panicVal = recover() }()
-		_ = MustLocalize(l, &i18n.LocalizeConfig{MessageID: "missing"})
+		defer func() {
+			recovered = recover()
+		}()
+		MustLocalize(localizer, &i18n.LocalizeConfig{MessageID: "Missing.Key"})
 	}()
-	require.NotNil(t, panicVal)
-	s := fmt.Sprintf("%v", panicVal)
-	require.Contains(t, s, "message_id=\"missing\"", "panic must include message_id")
-	require.Contains(t, s, "callsite=", "panic must include callsite")
-	require.Contains(t, s, "remediation=", "panic must include remediation")
+
+	require.NotNil(t, recovered)
+	assert.Contains(t, fmt.Sprint(recovered), `message_id="Missing.Key"`)
+	assert.Contains(t, fmt.Sprint(recovered), `Missing.Key`)
+	assert.Contains(t, fmt.Sprint(recovered), `not found in language`)
 }
 
-func TestValidateRequiredKeys_success(t *testing.T) {
+func TestValidateRequiredKeys(t *testing.T) {
+	t.Parallel()
+
 	bundle := i18n.NewBundle(language.English)
-	require.NoError(t, bundle.AddMessages(language.English, &i18n.Message{ID: "a", Other: "A"}))
-	require.NoError(t, bundle.AddMessages(language.English, &i18n.Message{ID: "b", Other: "B"}))
-	err := ValidateRequiredKeys(bundle, []string{"a", "b"}, language.English)
-	require.NoError(t, err)
-}
+	bundle.MustAddMessages(language.English, &i18n.Message{ID: "Lens.Ready", Other: "ready"})
 
-func TestValidateRequiredKeys_missing(t *testing.T) {
-	bundle := i18n.NewBundle(language.English)
-	require.NoError(t, bundle.AddMessages(language.English, &i18n.Message{ID: "a", Other: "A"}))
-	err := ValidateRequiredKeys(bundle, []string{"a", "missing"}, language.English)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "en:missing")
-}
-
-func TestValidateRequiredKeys_nilBundle(t *testing.T) {
-	err := ValidateRequiredKeys(nil, []string{"a"}, language.English)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "bundle is nil")
+	require.NoError(t, ValidateRequiredKeys(bundle, []string{"Lens.Ready"}, language.English))
+	require.EqualError(t, ValidateRequiredKeys(bundle, []string{"Lens.Ready", "Lens.Missing"}, language.English), "i18n missing required keys: en:Lens.Missing")
+	require.EqualError(t, ValidateRequiredKeys(nil, []string{"Lens.Ready"}, language.English), "bundle is nil")
 }

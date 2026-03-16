@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
@@ -27,10 +28,24 @@ const (
 	KindRepeat        Kind = "repeat"
 )
 
+type AxisScale string
+
+const (
+	AxisScaleLinear      AxisScale = "linear"
+	AxisScaleLogarithmic AxisScale = "logarithmic"
+)
+
+type ValueAxis struct {
+	Scale   AxisScale
+	LogBase int
+}
+
 type TableColumn struct {
 	Field     FieldRef
 	Label     string
 	Formatter *format.Spec
+	Action    *action.Spec
+	Text      string
 }
 
 type FieldRef string
@@ -52,23 +67,26 @@ func (f FieldRef) Empty() bool {
 }
 
 type Spec struct {
-	ID           string
-	Title        string
-	Description  string
-	Kind         Kind
-	Dataset      string
-	Span         int
-	Height       string
-	Colors       []string
-	ShowLegend   bool
-	Fields       FieldMapping
-	Formatter    *format.Spec
-	Columns      []TableColumn
-	Transforms   []transform.Spec
-	Action       *action.Spec
-	Children     []Spec
-	DefaultChild string
-	ClassName    string
+	ID          string
+	Title       string
+	Description string
+	Info        string
+	Kind        Kind
+	Dataset     string
+	Span        int
+	Height      string
+	Colors      []string
+	ShowLegend  bool
+	Fields      FieldMapping
+	Formatter   *format.Spec
+	Columns     []TableColumn
+	Transforms  []transform.Spec
+	Action      *action.Spec
+	Children    []Spec
+	ClassName   string
+	Chrome      chrome.Spec
+	ValueAxis   ValueAxis
+	Distributed bool
 }
 
 type FieldMapping struct {
@@ -79,11 +97,6 @@ type FieldMapping struct {
 	ID        FieldRef
 	StartTime FieldRef
 	EndTime   FieldRef
-}
-
-type Plugin interface {
-	Name() string
-	Kind() Kind
 }
 
 type Builder struct {
@@ -106,23 +119,27 @@ func Donut(id, title, dataset string) *Builder { return newBuilder(KindDonut, id
 func Table(id, title, dataset string) *Builder { return newBuilder(KindTable, id, title, dataset) }
 func Gauge(id, title, dataset string) *Builder { return newBuilder(KindGauge, id, title, dataset) }
 
-func Tabs(id, title string, children ...Spec) Spec {
-	return Spec{
-		ID:       id,
-		Title:    title,
-		Kind:     KindTabs,
-		Span:     6,
-		Children: children,
+func Tabs(id, title string, children ...Spec) *Builder {
+	return &Builder{
+		spec: Spec{
+			ID:       id,
+			Title:    title,
+			Kind:     KindTabs,
+			Span:     6,
+			Children: children,
+		},
 	}
 }
 
-func Grid(id, title string, children ...Spec) Spec {
-	return Spec{
-		ID:       id,
-		Title:    title,
-		Kind:     KindGrid,
-		Span:     12,
-		Children: children,
+func Grid(id, title string, children ...Spec) *Builder {
+	return &Builder{
+		spec: Spec{
+			ID:       id,
+			Title:    title,
+			Kind:     KindGrid,
+			Span:     12,
+			Children: children,
+		},
 	}
 }
 
@@ -152,7 +169,30 @@ func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; 
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
+func (b *Builder) Info(text string) *Builder        { b.spec.Info = text; return b }
 func (b *Builder) ClassName(name string) *Builder   { b.spec.ClassName = name; return b }
+func (b *Builder) ValueAxisScale(scale AxisScale, base int) *Builder {
+	b.spec.ValueAxis.Scale = scale
+	if base > 1 {
+		b.spec.ValueAxis.LogBase = base
+	}
+	return b
+}
+func (b *Builder) LogarithmicValueAxis(base int) *Builder {
+	return b.ValueAxisScale(AxisScaleLogarithmic, base)
+}
+func (b *Builder) Icon(icon chrome.Icon) *Builder {
+	b.spec.Chrome.Icon = icon
+	return b
+}
+func (b *Builder) AccentColor(color string) *Builder {
+	b.spec.Chrome.AccentColor = color
+	return b
+}
+func (b *Builder) DistributedColors() *Builder {
+	b.spec.Distributed = true
+	return b
+}
 func (b *Builder) Fields(mapping FieldMapping) *Builder {
 	b.spec.Fields = mapping
 	return b
@@ -171,43 +211,12 @@ func (b *Builder) Transforms(specs ...transform.Spec) *Builder {
 	b.spec.Transforms = append(b.spec.Transforms, specs...)
 	return b
 }
+func (b *Builder) Children(children ...Spec) *Builder {
+	b.spec.Children = append(b.spec.Children, children...)
+	return b
+}
 func (b *Builder) Build() Spec { return b.spec }
 
 func Ref(name string) FieldRef {
 	return FieldRef(name)
-}
-
-// Label marks the field used for display labels in panel mappings.
-func Label(name string) FieldRef {
-	return Ref(name)
-}
-
-// Value marks the primary numeric field used for panel values.
-func Value(name string) FieldRef {
-	return Ref(name)
-}
-
-// Series marks the field used to split grouped chart series.
-func Series(name string) FieldRef {
-	return Ref(name)
-}
-
-// Category marks the field used for chart buckets or x-axis categories.
-func Category(name string) FieldRef {
-	return Ref(name)
-}
-
-// ID marks an identifier field used in actions or row navigation.
-func ID(name string) FieldRef {
-	return Ref(name)
-}
-
-// StartTime marks the field used for interval start timestamps.
-func StartTime(name string) FieldRef {
-	return Ref(name)
-}
-
-// EndTime marks the field used for interval end timestamps.
-func EndTime(name string) FieldRef {
-	return Ref(name)
 }

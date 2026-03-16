@@ -16,13 +16,31 @@ script graph(id string, options templ.JSExpression) {
 			console.error(`Chart container with ID ${id} not found.`);
 			return;
 		}
+		if (container.__apexChart && typeof container.__apexChart.destroy === 'function') {
+			container.__apexChart.destroy();
+			container.__apexChart = null;
+		}
+		container.innerHTML = '';
 		const chart = new ApexCharts(container, options);
+		container.__apexChart = chart;
 		chart.render();
 	}
 	document.addEventListener('DOMContentLoaded', () => {
 		renderChart();
 	});
-	document.addEventListener('sdk:rerenderCharts', () => renderChart());
+	document.addEventListener('sdk:rerenderCharts', (evt) => {
+		const container = document.getElementById(id);
+		if (!container) {
+			return;
+		}
+		const root = evt && evt.detail && evt.detail.root;
+		if (root instanceof Element) {
+			if (!root.contains(container) && !container.contains(root)) {
+				return;
+			}
+		}
+		renderChart();
+	});
 }
 
 script ensureChartEvents() {

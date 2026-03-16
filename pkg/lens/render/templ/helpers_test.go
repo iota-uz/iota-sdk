@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/stretchr/testify/assert"
@@ -25,9 +26,9 @@ func TestActionURLIncludesVariableParams(t *testing.T) {
 		},
 	}, map[string]any{
 		"product_id": "osago",
-	}, map[string]any{
+	}, &runtime.PanelResult{Variables: map[string]any{
 		"active_only": true,
-	})
+	}})
 
 	parsed, err := urlpkg.Parse(url)
 	require.NoError(t, err)
@@ -48,7 +49,7 @@ func TestActionURLSupportsHtmxActions(t *testing.T) {
 		},
 	}, map[string]any{
 		"product_id": "osago",
-	}, nil)
+	}, &runtime.PanelResult{})
 
 	require.Equal(t, "/contracts?product=osago", url)
 }
@@ -66,7 +67,7 @@ func TestActionOnClickSupportsEmitEventFallbacks(t *testing.T) {
 				Fallback: "default-product",
 			},
 		},
-	}, map[string]any{}, nil)
+	}, map[string]any{}, &runtime.PanelResult{})
 
 	require.Contains(t, onClick.Call, "lens:drilldown")
 	require.Contains(t, onClick.Call, "default-product")
@@ -85,7 +86,7 @@ func TestActionOnClickPreservesTimePayloadValues(t *testing.T) {
 				Value: timestamp,
 			},
 		},
-	}, nil, nil)
+	}, nil, &runtime.PanelResult{})
 
 	require.Contains(t, onClick.Call, "2026-03-09T00:00:00Z")
 }
@@ -100,11 +101,34 @@ func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 		Params: []action.Param{
 			action.LiteralParam("scope", "daily"),
 		},
-	}, nil, nil)
+	}, nil, &runtime.PanelResult{})
 
 	require.Contains(t, onClick.Call, "htmx.ajax")
 	require.Contains(t, onClick.Call, "/contracts?scope=daily")
 	require.Contains(t, onClick.Call, "#report")
+}
+
+func TestActionURLPreservesExistingCubeDrillFilters(t *testing.T) {
+	t.Parallel()
+
+	url := actionURL(&action.Spec{
+		Kind: action.KindCubeDrill,
+		URL:  "/insurance/sales-report",
+		Drill: &action.DrillSpec{
+			Dimension: "region",
+			Value:     action.FieldValue("filter_value"),
+		},
+	}, map[string]any{
+		"filter_value": "tashkent",
+	}, &runtime.PanelResult{
+		Request: urlpkg.Values{
+			cube.QueryFilter: []string{"product:osago"},
+		},
+	})
+
+	parsed, err := urlpkg.Parse(url)
+	require.NoError(t, err)
+	require.Equal(t, []string{"product:osago", "region:tashkent"}, parsed.Query()[cube.QueryFilter])
 }
 
 func TestFilterModel_Scenarios(t *testing.T) {
@@ -112,12 +136,12 @@ func TestFilterModel_Scenarios(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		result *runtime.DashboardResult
+		result *runtime.Result
 		assert func(t *testing.T, model filter.Model)
 	}{
 		{
 			name: "returns dashboard filters",
-			result: &runtime.DashboardResult{
+			result: &runtime.Result{
 				Filters: filter.Model{
 					Inputs: []filter.Input{{Name: "range"}},
 				},
@@ -151,4 +175,20 @@ func TestFormatValueReturnsEmptyStringForNil(t *testing.T) {
 	t.Parallel()
 
 	require.Empty(t, formatValue(nil, nil, "", ""))
+}
+
+func TestAssignQueryValuePreservesAllArrayItems(t *testing.T) {
+	t.Parallel()
+
+	values := urlpkg.Values{}
+	assignQueryValue(values, "products", []any{"osago", "travel", "", 42})
+
+	require.Equal(t, []string{"osago", "travel", "42"}, values["products"])
+}
+
+func TestJoinURLQueryReturnsEmptyForBlankBase(t *testing.T) {
+	t.Parallel()
+
+	url := joinURLQuery("", urlpkg.Values{"scope": []string{"sales"}})
+	require.Empty(t, url)
 }

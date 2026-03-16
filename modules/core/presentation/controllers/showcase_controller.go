@@ -264,13 +264,13 @@ func (c *ShowcaseController) Lens(
 		),
 	).Build()
 
-	var results *runtime.DashboardResult
+	var results *runtime.Result
 	if params == nil {
 		logger.Warn("skipping lens showcase dashboard execution because tenant context is missing")
 	} else if c.ds != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		executed, err := runtime.Execute(ctx, dash, runtime.Runtime{
+		executed, err := runtime.Run(ctx, dash, runtime.Request{
 			DataSources: map[string]datasource.DataSource{
 				"primary": c.ds,
 			},

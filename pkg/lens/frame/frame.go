@@ -68,10 +68,11 @@ type FrameMeta struct {
 }
 
 type Frame struct {
-	Name     string
-	Fields   []Field
-	RowCount int
-	Meta     FrameMeta
+	Name       string
+	Fields     []Field
+	RowCount   int
+	Meta       FrameMeta
+	fieldIndex map[string]int
 }
 
 func New(name string, fields ...Field) (*Frame, error) {
@@ -97,6 +98,7 @@ func (f *Frame) Normalize() error {
 		}
 	}
 	f.RowCount = rowCount
+	f.buildFieldIndex()
 	return nil
 }
 
@@ -112,7 +114,7 @@ func (f *Frame) Clone() *Frame {
 	for k, v := range f.Meta.Labels {
 		labels[k] = v
 	}
-	return &Frame{
+	cloned := &Frame{
 		Name:     f.Name,
 		Fields:   fields,
 		RowCount: f.RowCount,
@@ -122,15 +124,26 @@ func (f *Frame) Clone() *Frame {
 			Labels:      labels,
 		},
 	}
+	cloned.buildFieldIndex()
+	return cloned
+}
+
+func (f *Frame) buildFieldIndex() {
+	f.fieldIndex = make(map[string]int, len(f.Fields))
+	for i := range f.Fields {
+		f.fieldIndex[f.Fields[i].Name] = i
+	}
 }
 
 func (f *Frame) Field(name string) (*Field, bool) {
-	for i := range f.Fields {
-		if f.Fields[i].Name == name {
-			return &f.Fields[i], true
-		}
+	if f.fieldIndex == nil {
+		f.buildFieldIndex()
 	}
-	return nil, false
+	i, ok := f.fieldIndex[name]
+	if !ok || i >= len(f.Fields) {
+		return nil, false
+	}
+	return &f.Fields[i], true
 }
 
 func (f *Frame) MustField(name string) Field {
@@ -171,6 +184,7 @@ func (f *Frame) AppendRow(row map[string]any) error {
 			})
 		}
 		f.RowCount = 1
+		f.buildFieldIndex()
 		return nil
 	}
 

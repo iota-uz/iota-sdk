@@ -10,13 +10,16 @@ import (
 
 type IndexPageProps struct {
 	Dashboard lens.DashboardSpec
-	Results   *runtime.DashboardResult
+	Results   *runtime.Result
 }
 
 templ DashboardContent(props *IndexPageProps) {
 	<div class="m-6">
 		if props.Results != nil {
-			@lensrender.Dashboard(props.Dashboard, props.Results)
+			@lensrender.Dashboard(lensrender.DashboardProps{
+				Spec:   props.Dashboard,
+				Result: props.Results,
+			})
 		} else {
 			<div class="p-8 text-center">
 				<p class="text-gray-600">No database connection available</p>
