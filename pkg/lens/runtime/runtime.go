@@ -896,6 +896,9 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 	if spec.Kind == panel.KindTable {
 		for _, column := range spec.Columns {
 			if column.Field.Empty() {
+				if column.Action != nil {
+					continue // action-only columns (e.g. "View" links) don't need a field
+				}
 				return fmt.Errorf("panel %s has table column without field reference", spec.ID)
 			}
 			if _, ok := primary.Field(column.Field.Name()); !ok {
