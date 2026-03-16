@@ -50,7 +50,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		Tooltip: &charts.TooltipConfig{
 			Theme:     mapping.Pointer("dark"),
 			Shared:    mapping.Pointer(true),
-			Intersect: mapping.Pointer(false),
+			Intersect: mapping.BoolPointer(false),
 			Style:     &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
 		},
 		XAxis: charts.XAxisConfig{
