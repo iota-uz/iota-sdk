@@ -120,7 +120,7 @@ func Page(props PageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"flex min-h-screen w-full flex-col\"><div class=\"flex-1 space-y-6 p-4 sm:p-6\"><div class=\"rounded-lg border border-gray-200 bg-white shadow-sm\"><div class=\"flex flex-col items-start justify-between gap-4 p-6 lg:flex-row lg:items-center\"><div class=\"flex items-center gap-4\"><div class=\"rounded-lg bg-blue-600 p-3\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"flex min-h-screen w-full flex-col\"><div class=\"flex-1 space-y-6 p-4 sm:p-6\"><div class=\"rounded-lg border border-gray-200 bg-white shadow-sm\"><div class=\"flex flex-col items-start justify-between gap-4 p-4 sm:p-6 lg:flex-row lg:items-center\"><div class=\"flex items-center gap-4\"><div class=\"rounded-lg bg-blue-600 p-3\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

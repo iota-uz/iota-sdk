@@ -48,7 +48,7 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 		}
 		@FilterBar(filters)
 		for _, row := range spec.Rows {
-			<div class={ "grid grid-cols-12 gap-5", row.Class }>
+			<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
 				for _, panelSpec := range row.Panels {
 					@Panel(panelSpec, result)
 				}
@@ -62,7 +62,7 @@ templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
 	@lensGridStyles()
 	<div class="space-y-6" data-lens-dashboard>
 		for _, row := range spec.Rows {
-			<div class={ "grid grid-cols-12 gap-5", row.Class }>
+			<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
 				for _, panelSpec := range row.Panels {
 					@PanelShell(panelSpec, props)
 				}
@@ -80,7 +80,7 @@ templ DrillNavigation(model drillNavModel) {
 			if model.UpURL != "" {
 				<a
 					href={ templ.URL(model.UpURL) }
-					class="flex-none inline-flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
+					class="flex-none inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
 					title={ chartText.DrillBack }
 				>
 					@icons.ArrowLeft(icons.Props{Size: "16"})
@@ -368,7 +368,7 @@ templ PanelIsland(spec panel.Spec, props AsyncProps) {
 }
 
 templ CompositePanel(spec panel.Spec, result *runtime.Result) {
-	<div class="grid grid-cols-12 gap-5">
+	<div class="grid grid-cols-12 gap-3 md:gap-5">
 		for _, child := range spec.Children {
 			@Panel(child, result)
 		}
@@ -411,7 +411,7 @@ templ TabsPanelNav(spec panel.Spec) {
 		for _, child := range spec.Children {
 			<button
 				type="button"
-				class="flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200"
+				class="flex flex-1 items-center justify-center gap-2 rounded-xl px-2.5 py-2.5 text-xs sm:px-4 sm:py-3 sm:text-sm font-medium transition-all duration-200"
 				@click={ activateTabScript(child.ID) }
 				:class={ tabClassExpression(child.ID) }
 			>
@@ -469,7 +469,7 @@ templ MetricInfoButton(spec panel.Spec, class string) {
 	{{ chartText := localizedChartText(ctx) }}
 	<button
 		type="button"
-		class={ "inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-300 transition hover:text-slate-500 focus:outline-none cursor-pointer", class }
+		class={ "inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-300 transition hover:text-slate-500 focus:outline-none cursor-pointer", class }
 		x-tooltip.interactive.theme.light.html.raw={ metricInfoTooltipHTML(ctx, spec.Info) }
 		@click.stop=""
 		aria-label={ chartText.MetricInfo }
@@ -495,7 +495,7 @@ templ statContent(spec panel.Spec, value, description string, clickable bool) {
 				</div>
 			</div>
 			<div class="flex flex-1 flex-col justify-center px-4 py-5">
-				<div class="text-[40px] font-bold tabular-nums leading-tight tracking-tight text-slate-900">{ value }</div>
+				<div class="text-[28px] sm:text-[36px] md:text-[40px] font-bold tabular-nums leading-tight tracking-tight text-slate-900">{ value }</div>
 				if description != "" {
 					<div class="mt-2 text-sm font-medium text-slate-400">{ description }</div>
 				}
@@ -503,7 +503,7 @@ templ statContent(spec panel.Spec, value, description string, clickable bool) {
 		</div>
 	} else {
 		<div class={ bodyClass + " justify-center" }>
-			<div class="text-[28px] font-bold tabular-nums leading-tight tracking-tight text-gray-900">{ value }</div>
+			<div class="text-xl sm:text-2xl md:text-[28px] font-bold tabular-nums leading-tight tracking-tight text-gray-900">{ value }</div>
 			if description != "" {
 				<div class="mt-1.5 text-[11px] font-medium text-gray-400">{ description }</div>
 			}
@@ -564,7 +564,7 @@ templ PanelFullscreenButton(chartText chartText) {
 	<button
 		type="button"
 		@click={ openFullscreenScript() }
-		class="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
+		class="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
 		title={ chartText.ExpandToFullscreen }
 		aria-label={ chartText.ExpandToFullscreen }
 	>
@@ -581,7 +581,7 @@ templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass str
 		x-transition:leave="transition ease-in duration-150"
 		x-transition:leave-start="opacity-100"
 		x-transition:leave-end="opacity-0"
-		class="fixed inset-0 z-50 overflow-y-auto bg-white/95 p-4 backdrop-blur-sm sm:p-6 xl:p-8"
+		class="fixed inset-0 z-50 overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
 		style="display: none;"
 		@click.self="fullscreen = false"
 		@keydown.escape.window="fullscreen = false"
@@ -681,7 +681,7 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 				<thead>
 					<tr class="border-b border-gray-200/80">
 						for _, column := range columns {
-							<th class="sticky top-0 whitespace-nowrap bg-gray-50/80 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">{ column.Label }</th>
+							<th class="sticky top-0 z-10 whitespace-nowrap bg-gray-50/80 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">{ column.Label }</th>
 						}
 					</tr>
 				</thead>
@@ -691,7 +691,7 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 						{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
 						<tr class="transition-colors hover:bg-gray-50/60">
 							for i, column := range columns {
-								<td class="whitespace-nowrap px-4 py-2 text-gray-600">
+								<td class="whitespace-nowrap px-4 py-3 md:py-2 text-gray-600">
 									if i == 0 && rowHref != "" {
 										<a
 											href={ templ.URL(rowHref) }
@@ -740,7 +740,7 @@ templ CardListRow(columns []panel.TableColumn, row map[string]any, result *runti
 			tertiaryText = strings.TrimSpace(tableValueText(columns[3], row, result))
 		}
 	}}
-	<div class="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-4 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50">
+	<div class="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-4 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100">
 		<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold" style={ badgeStyle(rowAccentColor(row)) } title={ primaryText }>
 			{ rowMarker(primaryText) }
 		</div>

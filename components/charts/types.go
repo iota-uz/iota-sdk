@@ -45,7 +45,13 @@ type ChartOptions struct {
 	NoData      *NoDataConfig  `json:"noData,omitempty"`
 	States      *StatesConfig  `json:"states,omitempty"`
 	Fill        *FillConfig    `json:"fill,omitempty"`
-	Annotations *Annotations   `json:"annotations,omitempty"`
+	Annotations *Annotations          `json:"annotations,omitempty"`
+	Responsive  []ResponsiveBreakpoint `json:"responsive,omitempty"`
+}
+
+type ResponsiveBreakpoint struct {
+	Breakpoint int          `json:"breakpoint"`
+	Options    ChartOptions `json:"options"`
 }
 
 type ChartConfig struct {

@@ -796,7 +796,7 @@ func panelCanFullscreen(spec panel.Spec, result *runtime.Result) bool {
 }
 
 func panelFullscreenBodyClass(spec panel.Spec) string {
-	return strings.TrimSpace("flex flex-1 min-h-0 flex-col " + panelBodyClass(spec) + " h-[calc(100vh-8rem)] min-h-[70vh]")
+	return strings.TrimSpace("flex flex-1 min-h-0 flex-col " + panelBodyClass(spec) + " h-[calc(100dvh-8rem)] min-h-[70vh]")
 }
 
 func panelShellBodyClass(spec panel.Spec) string {

@@ -48,11 +48,14 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			Padding:     &charts.Padding{Top: mapping.Pointer(4), Right: mapping.Pointer(12), Bottom: mapping.Pointer(0), Left: mapping.Pointer(12)},
 		},
 		Tooltip: &charts.TooltipConfig{
-			Theme: mapping.Pointer("dark"),
-			Style: &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
+			Theme:  mapping.Pointer("dark"),
+			Shared: mapping.Pointer(true),
+			Style:  &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
 		},
 		XAxis: charts.XAxisConfig{
 			Labels: &charts.XAxisLabelsConfig{
+				HideOverlappingLabels: mapping.Pointer(true),
+				Trim:                  mapping.Pointer(true),
 				Style: &charts.XAxisLabelStyleConfig{
 					FontSize:   &axisFontSize,
 					FontFamily: &fontFamily,
@@ -215,7 +218,62 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	if panelSpec.Action != nil {
 		options.Chart.Events = &charts.ChartEvents{DataPointSelection: buildActionJS(panelSpec.Action, fr, fields, panelResult)}
 	}
+	appendResponsiveDefaults(&options, panelSpec.Kind)
 	return options
+}
+
+func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
+	// Skip for pie/donut/gauge — they scale via SVG naturally
+	switch kind {
+	case panel.KindPie, panel.KindDonut, panel.KindGauge:
+		return
+	}
+
+	tabletFontSize := "10px"
+	mobileFontSize := "9px"
+	mobileRotate := -45
+
+	// Tablet breakpoint (768px)
+	tabletOpts := charts.ChartOptions{
+		XAxis: charts.XAxisConfig{
+			Labels: &charts.XAxisLabelsConfig{
+				Style: &charts.XAxisLabelStyleConfig{FontSize: &tabletFontSize},
+			},
+		},
+		YAxis: []charts.YAxisConfig{
+			{Labels: &charts.YAxisLabelsConfig{Style: &charts.YAxisLabelStyleConfig{FontSize: &tabletFontSize}}},
+		},
+		Grid: &charts.GridConfig{
+			Padding: &charts.Padding{Left: mapping.Pointer(4), Right: mapping.Pointer(4)},
+		},
+	}
+	if options.Legend != nil {
+		tabletOpts.Legend = &charts.LegendConfig{FontSize: &tabletFontSize}
+	}
+
+	// Mobile breakpoint (480px)
+	mobileOpts := charts.ChartOptions{
+		XAxis: charts.XAxisConfig{
+			Labels: &charts.XAxisLabelsConfig{
+				Style:  &charts.XAxisLabelStyleConfig{FontSize: &mobileFontSize},
+				Rotate: &mobileRotate,
+			},
+		},
+		YAxis: []charts.YAxisConfig{
+			{Labels: &charts.YAxisLabelsConfig{Style: &charts.YAxisLabelStyleConfig{FontSize: &mobileFontSize}}},
+		},
+		Grid: &charts.GridConfig{
+			Padding: &charts.Padding{Left: mapping.Pointer(0), Right: mapping.Pointer(0)},
+		},
+	}
+	if options.Legend != nil {
+		mobileOpts.Legend = &charts.LegendConfig{FontSize: &mobileFontSize}
+	}
+
+	options.Responsive = []charts.ResponsiveBreakpoint{
+		{Breakpoint: 769, Options: tabletOpts},
+		{Breakpoint: 481, Options: mobileOpts},
+	}
 }
 
 func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) (logarithmicAxisPlan, bool) {
