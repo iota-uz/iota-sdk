@@ -13,8 +13,8 @@ export interface ChatSession {
   pinned?: boolean
   isGroup?: boolean
   memberCount?: number
-  owner?: SessionUser
-  access?: SessionAccess
+  owner?: SessionUser | null
+  access?: SessionAccess | null
 }
 
 /**
