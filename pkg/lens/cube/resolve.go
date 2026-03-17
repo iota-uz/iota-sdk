@@ -151,6 +151,10 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL stri
 	// Dimension charts use the first measure as their value axis.
 	// Additional measures appear only in stat panels.
 	measure := spec.Measures[0]
+	actionURL := baseURL
+	if remainingCount == 1 && strings.TrimSpace(spec.Leaf.URL) != "" {
+		actionURL = spec.Leaf.URL
+	}
 	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, dataset).
 		Span(dimensionSpan(remainingCount, index)).
 		Height("360px").
@@ -161,7 +165,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL stri
 			Value:    panel.Ref(measure.Name),
 			ID:       panel.Ref("filter_value"),
 		}).
-		Action(action.CubeDrill(baseURL, dim.Name))
+		Action(action.CubeDrill(actionURL, dim.Name))
 	if measure.Formatter != nil {
 		builder.Format(*measure.Formatter)
 	}

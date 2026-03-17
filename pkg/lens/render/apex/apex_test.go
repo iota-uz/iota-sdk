@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
@@ -94,6 +95,61 @@ func TestBuildActionJSHonorsFallbacks(t *testing.T) {
 
 	require.Contains(t, js, `resolveValue(row["product_id"], "default-product")`)
 	require.Contains(t, js, `resolveValue(variables["active_only"], true)`)
+}
+
+func TestBuildActionJSUsesHtmxSwapForCubeDrill(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("sales",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"OSAGO"}},
+		frame.Field{Name: "filter_value", Type: frame.FieldTypeString, Values: []any{"osago"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	js := string(buildActionJS(
+		&action.Spec{
+			Kind: action.KindCubeDrill,
+			URL:  "/crm/reports/sales",
+			Drill: &action.DrillSpec{
+				Dimension: "product",
+				Value:     action.FieldValue("filter_value"),
+			},
+		},
+		fr,
+		panel.FieldMapping{Label: "label", Category: "label", Value: "value", ID: "filter_value"},
+		&runtime.PanelResult{},
+	))
+
+	require.Contains(t, js, "closest('[data-lens-swap-target]')")
+	require.Contains(t, js, "target.dataset.lensDrillPending === 'true'")
+	require.Contains(t, js, "document.addEventListener('htmx:afterRequest', clearPending)")
+	require.Contains(t, js, "source.setAttribute('hx-push-url', 'true')")
+	require.Contains(t, js, "htmx.ajax")
+}
+
+func TestOptionsResponsiveOverridesDoNotSerializeNilSeries(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("sales",
+		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"March", "April"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0, 18.0}},
+	)
+	require.NoError(t, err)
+
+	options := Options(
+		panel.Bar("sales-by-month", "Sales by Month", "sales").
+			CategoryField("category").
+			ValueField("value").
+			Build(),
+		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
+	)
+
+	encoded, err := js.ToJS(options)
+	require.NoError(t, err)
+	require.Contains(t, encoded, "responsive")
+	require.NotContains(t, encoded, "series: null")
+	require.NotContains(t, encoded, "chart: {}")
 }
 
 func TestOptionsFallsBackToCategoryForPieLabels(t *testing.T) {

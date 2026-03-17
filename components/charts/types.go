@@ -50,8 +50,30 @@ type ChartOptions struct {
 }
 
 type ResponsiveBreakpoint struct {
-	Breakpoint int          `json:"breakpoint"`
-	Options    ChartOptions `json:"options"`
+	Breakpoint int               `json:"breakpoint"`
+	Options    ResponsiveOptions `json:"options"`
+}
+
+type ResponsiveOptions struct {
+	Chart       *ChartConfig   `json:"chart,omitempty"`
+	Series      interface{}    `json:"series,omitempty"`
+	Labels      []string       `json:"labels,omitempty"`
+	XAxis       *XAxisConfig   `json:"xaxis,omitempty"`
+	YAxis       []YAxisConfig  `json:"yaxis,omitempty"`
+	Colors      []string       `json:"colors,omitempty"`
+	DataLabels  *DataLabels    `json:"dataLabels,omitempty"`
+	Grid        *GridConfig    `json:"grid,omitempty"`
+	PlotOptions *PlotOptions   `json:"plotOptions,omitempty"`
+	Tooltip     *TooltipConfig `json:"tooltip,omitempty"`
+	Title       *TitleConfig   `json:"title,omitempty"`
+	Theme       *ThemeConfig   `json:"theme,omitempty"`
+	Stroke      *StrokeConfig  `json:"stroke,omitempty"`
+	Markers     *MarkersConfig `json:"markers,omitempty"`
+	Legend      *LegendConfig  `json:"legend,omitempty"`
+	NoData      *NoDataConfig  `json:"noData,omitempty"`
+	States      *StatesConfig  `json:"states,omitempty"`
+	Fill        *FillConfig    `json:"fill,omitempty"`
+	Annotations *Annotations   `json:"annotations,omitempty"`
 }
 
 type ChartConfig struct {

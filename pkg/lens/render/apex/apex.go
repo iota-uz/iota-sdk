@@ -245,8 +245,8 @@ func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
 	mobileRotate := -45
 
 	// Tablet breakpoint (768px)
-	tabletOpts := charts.ChartOptions{
-		XAxis: charts.XAxisConfig{
+	tabletOpts := charts.ResponsiveOptions{
+		XAxis: &charts.XAxisConfig{
 			Labels: &charts.XAxisLabelsConfig{
 				Style: &charts.XAxisLabelStyleConfig{FontSize: &tabletFontSize},
 			},
@@ -263,8 +263,8 @@ func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
 	}
 
 	// Mobile breakpoint (480px)
-	mobileOpts := charts.ChartOptions{
-		XAxis: charts.XAxisConfig{
+	mobileOpts := charts.ResponsiveOptions{
+		XAxis: &charts.XAxisConfig{
 			Labels: &charts.XAxisLabelsConfig{
 				Style:  &charts.XAxisLabelStyleConfig{FontSize: &mobileFontSize},
 				Rotate: &mobileRotate,
@@ -674,7 +674,48 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	case action.KindNavigate:
 		actionJS = "window.location.href = nextURL;"
 	case action.KindCubeDrill:
-		actionJS = "window.location.href = nextURL;"
+		actionJS = `const source = (chartContext && chartContext.el) ? chartContext.el : null;
+		const target = (source && source.closest) ? source.closest('[data-lens-swap-target]') : document.querySelector('[data-lens-swap-target]');
+		if (typeof htmx !== 'undefined' && target) {
+			if (target.dataset && target.dataset.lensDrillPending === 'true') {
+				return;
+			}
+			if (target.dataset) {
+				target.dataset.lensDrillPending = 'true';
+			}
+			const clearPending = function(evt) {
+				const detail = evt && evt.detail ? evt.detail : {};
+				const requestTarget = detail.target || null;
+				const requestSource = detail.elt || null;
+				if (requestTarget !== target && requestSource !== (source || target)) {
+					return;
+				}
+				if (target.dataset) {
+					delete target.dataset.lensDrillPending;
+				}
+				document.removeEventListener('htmx:afterRequest', clearPending);
+				document.removeEventListener('htmx:sendError', clearPending);
+				document.removeEventListener('htmx:sendAbort', clearPending);
+				document.removeEventListener('htmx:timeout', clearPending);
+			};
+			document.addEventListener('htmx:afterRequest', clearPending);
+			document.addEventListener('htmx:sendError', clearPending);
+			document.addEventListener('htmx:sendAbort', clearPending);
+			document.addEventListener('htmx:timeout', clearPending);
+			if (source && source.setAttribute) {
+				source.setAttribute('hx-push-url', 'true');
+			}
+			try {
+				htmx.ajax(cfg.method || 'GET', nextURL, {source: source || target, target: target, swap: 'innerHTML'});
+			} catch (error) {
+				if (target.dataset) {
+					delete target.dataset.lensDrillPending;
+				}
+				throw error;
+			}
+		} else {
+			window.location.href = nextURL;
+		};`
 	case action.KindHtmxSwap:
 		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {target: cfg.target, swap: 'innerHTML'});"
 	case action.KindEmitEvent:

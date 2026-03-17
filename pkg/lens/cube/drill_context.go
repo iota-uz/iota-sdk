@@ -164,6 +164,7 @@ func drillMeta(spec CubeSpec, drillCtx DrillContext, baseURL string, remaining [
 	meta := &lens.DrillMeta{
 		BaseURL:             baseURL,
 		Dimensions:          make([]lens.DrillDimensionMeta, 0, len(spec.Dimensions)),
+		Filters:             make([]lens.DrillFilterMeta, 0, len(drillCtx.Filters)),
 		RemainingDimensions: make([]lens.DrillDimensionMeta, 0, len(remaining)),
 		ActiveDimension:     drillCtx.ActiveDimension,
 	}
@@ -171,6 +172,13 @@ func drillMeta(spec CubeSpec, drillCtx DrillContext, baseURL string, remaining [
 		meta.Dimensions = append(meta.Dimensions, lens.DrillDimensionMeta{
 			Name:  dim.Name,
 			Label: dim.Label,
+		})
+	}
+	for _, filter := range drillCtx.Filters {
+		meta.Filters = append(meta.Filters, lens.DrillFilterMeta{
+			Dimension: filter.Dimension,
+			Value:     filter.Value,
+			Display:   filter.Value,
 		})
 	}
 	for _, dim := range remaining {

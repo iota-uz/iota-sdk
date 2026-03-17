@@ -677,3 +677,13 @@ rect.legend-mouseover-inactive,
 .apexcharts-rangebar-goals-markers {
   pointer-events: none
 }
+
+/*
+ * Drillable radial Lens charts rely on slice clicks, but Apex renders the HTML
+ * legend and donut center as overlay elements that can cover the whole chart.
+ * Disable hit-testing on those decorative layers so clicks reach the slices.
+ */
+.lens-chart--radial-action .apexcharts-canvas foreignObject,
+.lens-chart--radial-action .apexcharts-canvas circle[fill="transparent"] {
+  pointer-events: none
+}

@@ -16,6 +16,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/js"
+	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
@@ -42,10 +43,10 @@ func panelSpanStyle(span int) templpkg.SafeCSS {
 }
 
 func panelResult(result *runtime.Result, panelID string) *runtime.PanelResult {
-	if result == nil || result.Panels == nil {
+	if result == nil {
 		return nil
 	}
-	return result.Panels[panelID]
+	return result.Panel(panelID)
 }
 
 type drillNavModel struct {
@@ -84,71 +85,91 @@ func drillNavigationModel(ctx context.Context, result *runtime.Result) drillNavM
 	}
 	state := result.Drill
 	meta := result.Spec.Drill
+	baseQuery := drillBaseQueryValues(result.Request)
 	labels := map[string]string{}
 	for _, dim := range meta.Dimensions {
 		labels[dim.Name] = dim.Label
 	}
 	model := drillNavModel{
 		HasNav:         true,
-		CurrentDisplay: state.Filters[len(state.Filters)-1].Value,
-		UpURL:          meta.BaseURL,
+		CurrentDisplay: drillFilterDisplay(meta, len(state.Filters)-1, state.Filters[len(state.Filters)-1]),
+		UpURL:          drillURL(meta.BaseURL, baseQuery, nil),
 	}
 	model.Trail = append(model.Trail, drillNavCrumb{
-		URL:   meta.BaseURL,
-		Label: translateOrFallback(ctx, "Lens.Drill.All", "All"),
+		URL:   drillURL(meta.BaseURL, baseQuery, nil),
+		Label: translate(ctx, "Lens.Drill.All"),
 	})
 	for idx, filter := range state.Filters {
 		if idx == len(state.Filters)-1 {
 			break
 		}
 		model.Trail = append(model.Trail, drillNavCrumb{
-			URL:   drillURL(meta.BaseURL, state.Filters[:idx+1]),
-			Label: filter.Value,
+			URL:   drillURL(meta.BaseURL, baseQuery, state.Filters[:idx+1]),
+			Label: drillFilterDisplay(meta, idx, filter),
 		})
 	}
 	if len(state.Filters) > 1 {
-		model.UpURL = drillURL(meta.BaseURL, state.Filters[:len(state.Filters)-1])
-		model.UpLabel = state.Filters[len(state.Filters)-2].Value
+		model.UpURL = drillURL(meta.BaseURL, baseQuery, state.Filters[:len(state.Filters)-1])
+		model.UpLabel = drillFilterDisplay(meta, len(state.Filters)-2, state.Filters[len(state.Filters)-2])
 	}
-	for _, filter := range state.Filters {
-		model.Summary = appendDrillSummary(model.Summary, firstNonEmptyString(labels[filter.Dimension], filter.Dimension), filter.Value)
+	for idx, filter := range state.Filters {
+		model.Summary = appendDrillSummary(
+			model.Summary,
+			firstNonEmptyString(labels[filter.Dimension], filter.Dimension),
+			drillFilterDisplay(meta, idx, filter),
+		)
 	}
 	activeDim := meta.ActiveDimension
 	if activeDim == "" && len(meta.RemainingDimensions) > 0 {
 		activeDim = meta.RemainingDimensions[0].Name
 	}
-	drillValues := drillFilterValues(state.Filters)
 	for _, dim := range meta.RemainingDimensions {
 		model.Remaining = append(model.Remaining, drillDimensionTab{
 			Name:   dim.Name,
 			Label:  dim.Label,
-			URL:    dimensionTabURL(meta.BaseURL, drillValues, dim.Name),
+			URL:    dimensionTabURL(meta.BaseURL, baseQuery, state.Filters, dim.Name),
 			Active: dim.Name == activeDim,
 		})
 	}
 	return model
 }
 
-func drillURL(baseURL string, filters []cube.DimensionFilter) string {
-	values := url.Values{}
+func drillFilterDisplay(meta *lens.DrillMeta, idx int, filter cube.DimensionFilter) string {
+	if meta != nil && idx >= 0 && idx < len(meta.Filters) {
+		item := meta.Filters[idx]
+		if item.Dimension == filter.Dimension && item.Value == filter.Value && strings.TrimSpace(item.Display) != "" {
+			return item.Display
+		}
+	}
+	if meta != nil {
+		for _, item := range meta.Filters {
+			if item.Dimension == filter.Dimension && item.Value == filter.Value && strings.TrimSpace(item.Display) != "" {
+				return item.Display
+			}
+		}
+	}
+	return filter.Value
+}
+
+func drillBaseQueryValues(values url.Values) url.Values {
+	base := cloneURLValues(values)
+	delete(base, cube.QueryFilter)
+	delete(base, cube.QueryDimension)
+	return base
+}
+
+func drillURL(baseURL string, baseQuery url.Values, filters []cube.DimensionFilter) string {
+	values := cloneURLValues(baseQuery)
 	for _, filter := range filters {
 		values.Add(cube.QueryFilter, filter.Dimension+":"+filter.Value)
 	}
 	return joinURLQuery(baseURL, values)
 }
 
-func drillFilterValues(filters []cube.DimensionFilter) url.Values {
-	values := url.Values{}
+func dimensionTabURL(baseURL string, baseQuery url.Values, filters []cube.DimensionFilter, dimensionName string) string {
+	values := cloneURLValues(baseQuery)
 	for _, filter := range filters {
 		values.Add(cube.QueryFilter, filter.Dimension+":"+filter.Value)
-	}
-	return values
-}
-
-func dimensionTabURL(baseURL string, drillValues url.Values, dimensionName string) string {
-	values := url.Values{}
-	for key, items := range drillValues {
-		values[key] = append([]string(nil), items...)
 	}
 	values.Set(cube.QueryDimension, dimensionName)
 	return joinURLQuery(baseURL, values)
@@ -181,6 +202,56 @@ func tableColumns(spec panel.Spec, result *runtime.PanelResult) []panel.TableCol
 		columns = append(columns, panel.TableColumn{Field: panel.Ref(field.Name), Label: field.Name})
 	}
 	return columns
+}
+
+func tableRowContainerID(spec panel.Spec) string {
+	if panelHasClass(spec, "lens-card-list") {
+		return spec.ID + "-cards"
+	}
+	return spec.ID + "-rows"
+}
+
+func tableSentinelID(spec panel.Spec) string {
+	return spec.ID + "-pagination"
+}
+
+func tableIndicatorID(spec panel.Spec) string {
+	return spec.ID + "-pagination-indicator"
+}
+
+func tablePagination(result *runtime.PanelResult) *runtime.TablePagination {
+	if result == nil || result.TablePagination == nil {
+		return nil
+	}
+	page := result.TablePagination.Page
+	if page < runtime.DefaultTablePage {
+		page = runtime.DefaultTablePage
+	}
+	perPage := result.TablePagination.PerPage
+	if perPage < 1 {
+		perPage = runtime.DefaultTablePerPage
+	}
+	return &runtime.TablePagination{
+		Page:    page,
+		PerPage: perPage,
+		HasMore: result.TablePagination.HasMore,
+	}
+}
+
+func tablePaginationURL(result *runtime.PanelResult) string {
+	pagination := tablePagination(result)
+	if result == nil || pagination == nil || !pagination.HasMore {
+		return ""
+	}
+	path := strings.TrimSpace(result.RequestPath)
+	if path == "" {
+		return ""
+	}
+	values := cloneURLValues(result.Request)
+	values.Set(runtime.TablePaginationPanelQuery, strings.TrimSpace(result.Panel.ID))
+	values.Set(runtime.TablePaginationPageQuery, strconv.Itoa(pagination.Page+1))
+	values.Set(runtime.TablePaginationLimitQuery, strconv.Itoa(pagination.PerPage))
+	return joinURLQuery(path, values)
 }
 
 func statRawValue(spec panel.Spec, result *runtime.PanelResult) any {
@@ -468,25 +539,22 @@ func pageContext(ctx context.Context) types.PageContext {
 	return pageCtx
 }
 
-func translateOrFallback(ctx context.Context, key, fallback string) string {
+func translate(ctx context.Context, key string, args ...map[string]interface{}) string {
 	pageCtx := pageContext(ctx)
 	if pageCtx == nil {
-		return fallback
+		return ""
 	}
-	if translated := pageCtx.TSafe(key); translated != "" {
-		return translated
-	}
-	return fallback
+	return pageCtx.TSafe(key, args...)
 }
 
 func localizedChartText(ctx context.Context) chartText {
 	return chartText{
-		ExpandToFullscreen: translateOrFallback(ctx, "Chart.ExpandToFullScreen", "Expand to fullscreen"),
-		CloseFullscreen:    translateOrFallback(ctx, "Chart.CloseFullScreen", "Close fullscreen"),
-		LogScale:           translateOrFallback(ctx, "Chart.LogScale", "Log scale"),
-		LogScaleHint:       translateOrFallback(ctx, "Chart.LogScaleHint", "Values are shown on a logarithmic scale"),
-		MetricInfo:         translateOrFallback(ctx, "Chart.MetricInfo", "How this metric is calculated"),
-		DrillBack:          translateOrFallback(ctx, "Lens.Drill.Back", "Back"),
+		ExpandToFullscreen: translate(ctx, "Chart.ExpandToFullScreen"),
+		CloseFullscreen:    translate(ctx, "Chart.CloseFullScreen"),
+		LogScale:           translate(ctx, "Chart.LogScale"),
+		LogScaleHint:       translate(ctx, "Chart.LogScaleHint"),
+		MetricInfo:         translate(ctx, "Chart.MetricInfo"),
+		DrillBack:          translate(ctx, "Lens.Drill.Back"),
 	}
 }
 
@@ -508,19 +576,19 @@ type lensText struct {
 
 func localizedLensText(ctx context.Context) lensText {
 	return lensText{
-		FiltersTitle:     translateOrFallback(ctx, "Lens.Filters.Title", "Filters"),
-		FiltersApply:     translateOrFallback(ctx, "Lens.Filters.Apply", "Apply"),
-		DefaultRange:     translateOrFallback(ctx, "Lens.Filters.DefaultRange", "Default range"),
-		CustomRange:      translateOrFallback(ctx, "Lens.Filters.CustomRange", "Custom range"),
-		AllTime:          translateOrFallback(ctx, "Lens.Filters.AllTime", "All time"),
-		All:              translateOrFallback(ctx, "Lens.Filters.All", "All"),
-		EmptyTitle:       translateOrFallback(ctx, "Lens.Empty.Title", "No data available"),
-		EmptyDescription: translateOrFallback(ctx, "Lens.Empty._Description", "Try adjusting your filters"),
-		ErrorTitle:       translateOrFallback(ctx, "Lens.Error.Title", "Unable to load data"),
-		ErrorDescription: translateOrFallback(ctx, "Lens.Error._Description", "An error occurred while rendering this panel"),
-		ErrorPanelLabel:  translateOrFallback(ctx, "Lens.Error.PanelLabel", "Panel"),
-		ErrorReasonLabel: translateOrFallback(ctx, "Lens.Error.ReasonLabel", "Reason"),
-		ErrorLogsHint:    translateOrFallback(ctx, "Lens.Error.LogsHint", "Check server logs for the full error context"),
+		FiltersTitle:     translate(ctx, "Lens.Filters.Title"),
+		FiltersApply:     translate(ctx, "Lens.Filters.Apply"),
+		DefaultRange:     translate(ctx, "Lens.Filters.DefaultRange"),
+		CustomRange:      translate(ctx, "Lens.Filters.CustomRange"),
+		AllTime:          translate(ctx, "Lens.Filters.AllTime"),
+		All:              translate(ctx, "Lens.Filters.All"),
+		EmptyTitle:       translate(ctx, "Lens.Empty.Title"),
+		EmptyDescription: translate(ctx, "Lens.Empty._Description"),
+		ErrorTitle:       translate(ctx, "Lens.Error.Title"),
+		ErrorDescription: translate(ctx, "Lens.Error._Description"),
+		ErrorPanelLabel:  translate(ctx, "Lens.Error.PanelLabel"),
+		ErrorReasonLabel: translate(ctx, "Lens.Error.ReasonLabel"),
+		ErrorLogsHint:    translate(ctx, "Lens.Error.LogsHint"),
 	}
 }
 
@@ -661,6 +729,57 @@ func metricInfoTooltipHTML(ctx context.Context, info string) string {
 	)
 }
 
+func panelMetricInfoText(ctx context.Context, spec panel.Spec) string {
+	if info := strings.TrimSpace(spec.Info); info != "" {
+		return info
+	}
+	if !panelUsesMetricInfoFallback(spec) {
+		return ""
+	}
+	return defaultMetricInfoText(ctx, spec)
+}
+
+func panelUsesMetricInfoFallback(spec panel.Spec) bool {
+	switch spec.Kind {
+	case panel.KindTimeSeries,
+		panel.KindBar,
+		panel.KindHorizontalBar,
+		panel.KindStackedBar,
+		panel.KindPie,
+		panel.KindDonut,
+		panel.KindGauge,
+		panel.KindTabs:
+		return true
+	default:
+		return false
+	}
+}
+
+func panelUsesRadialActionSurface(spec panel.Spec) bool {
+	if spec.Action == nil {
+		return false
+	}
+	switch spec.Kind {
+	case panel.KindPie, panel.KindDonut, panel.KindGauge:
+		return true
+	default:
+		return false
+	}
+}
+
+func panelChartClass(spec panel.Spec, fullscreen bool) string {
+	base := "w-full min-h-[240px]"
+	if fullscreen {
+		base = "h-full min-h-[420px] w-full flex-1"
+	} else {
+		base += " h-full"
+	}
+	if panelUsesRadialActionSurface(spec) {
+		base += " lens-chart--radial-action"
+	}
+	return strings.TrimSpace(base)
+}
+
 func panelHasClass(spec panel.Spec, token string) bool {
 	for _, className := range strings.Fields(spec.ClassName) {
 		if className == token {
@@ -677,6 +796,71 @@ func badgeStyle(color string) templpkg.SafeCSS {
 		"background-color: rgba(%d, %d, %d, 0.12); border: 1px solid rgba(%d, %d, %d, 0.22); color: %s;",
 		r, g, b, r, g, b, safeColor,
 	))
+}
+
+func defaultMetricInfoText(ctx context.Context, spec panel.Spec) string {
+	subject := metricInfoSubject(ctx, spec)
+	parts := make([]string, 0, 3)
+	if description := normalizedMetricDescription(spec.Description); description != "" {
+		parts = append(parts, description)
+	}
+	if key := metricInfoTemplateKey(spec.Kind); key != "" {
+		if summary := translate(ctx, key, map[string]interface{}{"Subject": subject}); summary != "" {
+			parts = append(parts, summary)
+		}
+	}
+	if spec.Action != nil && spec.Action.Kind == action.KindCubeDrill {
+		if hint := translate(ctx, "Lens.Chart.Info.DrillHint"); hint != "" {
+			parts = append(parts, hint)
+		}
+	}
+	if panelUsesLogScale(spec) {
+		if hint := translate(ctx, "Lens.Chart.Info.LogScaleHint"); hint != "" {
+			parts = append(parts, hint)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func metricInfoTemplateKey(kind panel.Kind) string {
+	switch kind {
+	case panel.KindTimeSeries:
+		return "Lens.Chart.Info.TimeSeries"
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar:
+		return "Lens.Chart.Info.Category"
+	case panel.KindPie, panel.KindDonut:
+		return "Lens.Chart.Info.Distribution"
+	case panel.KindGauge:
+		return "Lens.Chart.Info.Gauge"
+	case panel.KindTabs:
+		return "Lens.Chart.Info.Tabs"
+	default:
+		return ""
+	}
+}
+
+func metricInfoSubject(ctx context.Context, spec panel.Spec) string {
+	if title := strings.TrimSpace(spec.Title); title != "" {
+		return title
+	}
+	return firstNonEmptyString(
+		translate(ctx, "Lens.Chart.Info.SubjectFallback"),
+		strings.TrimSpace(spec.ID),
+	)
+}
+
+func normalizedMetricDescription(description string) string {
+	description = strings.TrimSpace(description)
+	if description == "" {
+		return ""
+	}
+	if len(description) < 40 && !strings.ContainsAny(description, ".!?") {
+		return ""
+	}
+	if strings.HasSuffix(description, ".") || strings.HasSuffix(description, "!") || strings.HasSuffix(description, "?") {
+		return description
+	}
+	return description + "."
 }
 
 func parseHexColor(color string) (int, int, int) {
@@ -712,7 +896,7 @@ func tableActionText(ctx context.Context, column panel.TableColumn, row map[stri
 	if value := strings.TrimSpace(tableValueText(column, row, result)); value != "" {
 		return value
 	}
-	return translateOrFallback(ctx, "Lens.Table.OpenRow", "Open details")
+	return translate(ctx, "Lens.Table.OpenRow")
 }
 
 func rowString(row map[string]any, key string) string {
