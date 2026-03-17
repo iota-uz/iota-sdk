@@ -80,6 +80,10 @@ templ DrillNavigation(model drillNavModel) {
 			if model.UpURL != "" {
 				<a
 					href={ templ.URL(model.UpURL) }
+					hx-get={ model.UpURL }
+					hx-push-url="true"
+					hx-target="closest [data-lens-swap-target]"
+					hx-swap="innerHTML"
 					class="flex-none inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
 					title={ chartText.DrillBack }
 				>
@@ -90,7 +94,14 @@ templ DrillNavigation(model drillNavModel) {
 				<ol class="flex min-w-max items-center gap-1 text-sm pr-2">
 					for _, crumb := range model.Trail {
 						<li class="flex items-center gap-1">
-							<a href={ templ.URL(crumb.URL) } class="rounded-md px-2.5 py-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 hover:underline underline-offset-2">
+							<a
+								href={ templ.URL(crumb.URL) }
+								hx-get={ crumb.URL }
+								hx-push-url="true"
+								hx-target="closest [data-lens-swap-target]"
+								hx-swap="innerHTML"
+								class="rounded-md px-2.5 py-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 hover:underline underline-offset-2"
+							>
 								{ crumb.Label }
 							</a>
 							<span class="text-slate-300">
@@ -116,7 +127,7 @@ templ DrillNavigation(model drillNavModel) {
 							href={ templ.URL(item.URL) }
 							hx-get={ item.URL }
 							hx-push-url="true"
-							hx-target="[data-lens-dashboard]"
+							hx-target="closest [data-lens-swap-target]"
 							hx-swap="innerHTML"
 							class="inline-flex min-h-9 cursor-pointer items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
 						>
@@ -470,14 +481,15 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 }
 
 templ MetricInfoButton(spec panel.Spec, class string) {
-	if strings.TrimSpace(spec.Info) == "" {
+	{{ infoText := panelMetricInfoText(ctx, spec) }}
+	if infoText == "" {
 		{{ return }}
 	}
 	{{ chartText := localizedChartText(ctx) }}
 	<button
 		type="button"
 		class={ "inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-300 transition hover:text-slate-500 focus:outline-none cursor-pointer", class }
-		x-tooltip.interactive.theme.light.html.raw={ metricInfoTooltipHTML(ctx, spec.Info) }
+		x-tooltip.interactive.theme.light.html.raw={ metricInfoTooltipHTML(ctx, infoText) }
 		@click.stop=""
 		aria-label={ chartText.MetricInfo }
 	>
@@ -607,10 +619,16 @@ templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass str
 }
 
 templ PanelFullscreenHeader(spec panel.Spec, chartText chartText) {
+	{{ infoText := panelMetricInfoText(ctx, spec) }}
 	<div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
 		<div class="min-w-0">
-			if spec.Title != "" {
-				<h2 class="truncate text-lg font-semibold text-slate-900">{ spec.Title }</h2>
+			if spec.Title != "" || infoText != "" {
+				<div class="flex items-center gap-2 min-w-0">
+					if spec.Title != "" {
+						<h2 class="truncate text-lg font-semibold text-slate-900">{ spec.Title }</h2>
+					}
+					@MetricInfoButton(spec, "flex-shrink-0")
+				</div>
 			}
 			if spec.Description != "" {
 				<p class="mt-1 text-sm text-slate-500">{ spec.Description }</p>
@@ -631,7 +649,7 @@ templ PanelFullscreenHeader(spec panel.Spec, chartText chartText) {
 
 templ ChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
 	@charts.Chart(charts.Props{
-		Class:   "w-full h-full min-h-[240px]",
+		Class:   panelChartClass(spec, false),
 		Options: apex.Options(spec, result),
 	})
 }
@@ -639,7 +657,7 @@ templ ChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
 templ FullscreenChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
 	<div class="flex h-full flex-1 min-h-[420px] w-full">
 		@charts.Chart(charts.Props{
-			Class:   "h-full min-h-[420px] w-full flex-1",
+			Class:   panelChartClass(spec, true),
 			Options: apex.OptionsWithHeight(spec, result, "100%"),
 		})
 	</div>
@@ -656,31 +674,10 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 	}
 	{{ rows := result.Frames.Primary().Rows() }}
 	{{ columns := tableColumns(spec, result) }}
+	{{ rowContainerID := tableRowContainerID(spec) }}
 	if panelHasClass(spec, "lens-card-list") {
-		<div class="space-y-3">
-			for _, row := range rows {
-				{{ rowHref := actionURL(spec.Action, row, result) }}
-				{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
-				if rowHref != "" {
-					<a
-						href={ templ.URL(rowHref) }
-						onclick={ stopPropagationScript(rowOnClick) }
-						class="block"
-					>
-						@CardListRow(columns, row, result)
-					</a>
-				} else if rowOnClick.Call != "" {
-					<button
-						type="button"
-						onclick={ rowOnClick }
-						class="block w-full text-left"
-					>
-						@CardListRow(columns, row, result)
-					</button>
-				} else {
-					@CardListRow(columns, row, result)
-				}
-			}
+		<div id={ rowContainerID } class="space-y-3">
+			@TableCardRows(spec, columns, rows, result)
 		</div>
 	} else {
 		<div class="overflow-auto">
@@ -692,60 +689,148 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
 						}
 					</tr>
 				</thead>
-				<tbody class="divide-y divide-gray-100/80">
-					for _, row := range rows {
-						{{ rowHref := actionURL(spec.Action, row, result) }}
-						{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
-						<tr class="transition-colors hover:bg-gray-50/60">
-							for i, column := range columns {
-								{{ columnHref := actionURL(column.Action, row, result) }}
-								{{ columnOnClick := actionOnClick(column.Action, row, result) }}
-								<td class="whitespace-nowrap px-4 py-3 md:py-2 text-gray-600">
-									if column.Action != nil && columnHref != "" {
-										<a
-											href={ templ.URL(columnHref) }
-											onclick={ stopPropagationScript(columnOnClick) }
-											class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-200"
-										>
-											{ tableActionText(ctx, column, row, result) }
-											@icons.ArrowUpRight(icons.Props{Size: "14"})
-										</a>
-									} else if column.Action != nil && columnOnClick.Call != "" {
-										<button
-											type="button"
-											onclick={ stopPropagationScript(columnOnClick) }
-											class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-200"
-										>
-											{ tableActionText(ctx, column, row, result) }
-											@icons.ArrowUpRight(icons.Props{Size: "14"})
-										</button>
-									} else if i == 0 && rowHref != "" {
-										<a
-											href={ templ.URL(rowHref) }
-											onclick={ stopPropagationScript(rowOnClick) }
-											class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
-										>
-											{ tablePrimaryText(ctx, column, row, result) }
-										</a>
-									} else if i == 0 && rowOnClick.Call != "" {
-										<button
-											type="button"
-											onclick={ rowOnClick }
-											class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
-										>
-											{ tablePrimaryText(ctx, column, row, result) }
-										</button>
-									} else {
-										{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
-									}
-								</td>
-							}
-						</tr>
-					}
+				<tbody id={ rowContainerID } class="divide-y divide-gray-100/80">
+					@TableDesktopRows(spec, columns, rows, result)
 				</tbody>
 			</table>
 		</div>
 	}
+	@TablePaginationSentinel(spec, result)
+}
+
+templ TablePanelChunk(result *runtime.PanelResult) {
+	if result == nil {
+		{{ return }}
+	}
+	{{ spec := result.Panel }}
+	if result.Error != nil {
+		@TablePaginationSentinel(spec, result)
+		{{ return }}
+	}
+	if result.Frames == nil || result.Frames.Primary() == nil || result.Frames.Primary().RowCount == 0 {
+		@TablePaginationSentinel(spec, result)
+		{{ return }}
+	}
+	{{ rows := result.Frames.Primary().Rows() }}
+	{{ columns := tableColumns(spec, result) }}
+	{{ rowContainerID := tableRowContainerID(spec) }}
+	if panelHasClass(spec, "lens-card-list") {
+		<div hx-swap-oob={ "beforeend:#" + rowContainerID }>
+			@TableCardRows(spec, columns, rows, result)
+		</div>
+	} else {
+		<tbody hx-swap-oob={ "beforeend:#" + rowContainerID }>
+			@TableDesktopRows(spec, columns, rows, result)
+		</tbody>
+	}
+	@TablePaginationSentinel(spec, result)
+}
+
+templ TableCardRows(spec panel.Spec, columns []panel.TableColumn, rows []map[string]any, result *runtime.PanelResult) {
+	for _, row := range rows {
+		{{ rowHref := actionURL(spec.Action, row, result) }}
+		{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
+		if rowHref != "" {
+			<a
+				href={ templ.URL(rowHref) }
+				onclick={ stopPropagationScript(rowOnClick) }
+				class="block"
+			>
+				@CardListRow(columns, row, result)
+			</a>
+		} else if rowOnClick.Call != "" {
+			<button
+				type="button"
+				onclick={ rowOnClick }
+				class="block w-full text-left"
+			>
+				@CardListRow(columns, row, result)
+			</button>
+		} else {
+			@CardListRow(columns, row, result)
+		}
+	}
+}
+
+templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[string]any, result *runtime.PanelResult) {
+	for _, row := range rows {
+		{{ rowHref := actionURL(spec.Action, row, result) }}
+		{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
+		<tr class="transition-colors hover:bg-gray-50/60">
+			for i, column := range columns {
+				{{ columnHref := actionURL(column.Action, row, result) }}
+				{{ columnOnClick := actionOnClick(column.Action, row, result) }}
+				<td class="whitespace-nowrap px-4 py-3 md:py-2 text-gray-600">
+					if column.Action != nil && columnHref != "" {
+						<a
+							href={ templ.URL(columnHref) }
+							onclick={ stopPropagationScript(columnOnClick) }
+							class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-200"
+						>
+							{ tableActionText(ctx, column, row, result) }
+							@icons.ArrowUpRight(icons.Props{Size: "14"})
+						</a>
+					} else if column.Action != nil && columnOnClick.Call != "" {
+						<button
+							type="button"
+							onclick={ stopPropagationScript(columnOnClick) }
+							class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-200"
+						>
+							{ tableActionText(ctx, column, row, result) }
+							@icons.ArrowUpRight(icons.Props{Size: "14"})
+						</button>
+					} else if i == 0 && rowHref != "" {
+						<a
+							href={ templ.URL(rowHref) }
+							onclick={ stopPropagationScript(rowOnClick) }
+							class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+						>
+							{ tablePrimaryText(ctx, column, row, result) }
+						</a>
+					} else if i == 0 && rowOnClick.Call != "" {
+						<button
+							type="button"
+							onclick={ rowOnClick }
+							class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+						>
+							{ tablePrimaryText(ctx, column, row, result) }
+						</button>
+					} else {
+						{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+					}
+				</td>
+			}
+		</tr>
+	}
+}
+
+templ TablePaginationSentinel(spec panel.Spec, result *runtime.PanelResult) {
+	{{ lensText := localizedLensText(ctx) }}
+	{{ nextURL := tablePaginationURL(result) }}
+	{{ sentinelClass := "flex min-h-10 items-center justify-center" }}
+	if nextURL == "" {
+		{{ sentinelClass = "hidden" }}
+	}
+	<div
+		id={ tableSentinelID(spec) }
+		class={ sentinelClass }
+		if nextURL != "" {
+			hx-get={ nextURL }
+			hx-trigger="intersect once"
+			hx-target="this"
+			hx-swap="outerHTML"
+			hx-indicator={ "#" + tableIndicatorID(spec) }
+		}
+	>
+		<div
+			id={ tableIndicatorID(spec) }
+			class="hidden htmx-indicator items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm [&.htmx-request]:!inline-flex"
+		>
+			<div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-500"></div>
+			<span>{ translate(ctx, "Lens.Table.LoadingMore") }</span>
+		</div>
+		<span class="sr-only">{ lensText.EmptyTitle }</span>
+	</div>
 }
 
 templ CardListRow(columns []panel.TableColumn, row map[string]any, result *runtime.PanelResult) {

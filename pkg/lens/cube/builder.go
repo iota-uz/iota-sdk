@@ -141,6 +141,11 @@ func (b *DimensionBuilder) PanelKind(kind panel.Kind) *DimensionBuilder {
 	return b
 }
 
+func (b *DimensionBuilder) Height(height string) *DimensionBuilder {
+	b.spec.Height = height
+	return b
+}
+
 func (b *DimensionBuilder) Description(description string) *DimensionBuilder {
 	b.spec.Description = description
 	return b

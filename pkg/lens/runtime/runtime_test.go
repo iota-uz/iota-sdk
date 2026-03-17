@@ -58,6 +58,80 @@ func TestRunReusesDatasetAcrossPanels(t *testing.T) {
 	require.Equal(t, int32(1), ds.calls.Load())
 }
 
+func TestRunSanitizesInternalPaginationParamsAndPreservesPath(t *testing.T) {
+	t.Parallel()
+
+	ds := &stubDataSource{}
+	spec := lensbuild.Dashboard("shared", "Shared Dataset",
+		lensbuild.Row(
+			panel.Table("p1", "Panel 1", "shared-data").Build(),
+		),
+	).Datasets(
+		lensbuild.QueryDataset("shared-data", "primary", "select 1"),
+	).Build()
+
+	result, err := Run(context.Background(), spec, Request{
+		Path: "/reports/drill/contracts",
+		Request: url.Values{
+			TablePaginationPanelQuery: []string{"p1"},
+			TablePaginationPageQuery:  []string{"2"},
+			TablePaginationLimitQuery: []string{"50"},
+			"issue_at_from":           []string{"2026-03-01"},
+		},
+		DataSources: map[string]datasource.DataSource{"primary": ds},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "/reports/drill/contracts", result.RequestPath)
+	require.NotContains(t, result.Request, TablePaginationPanelQuery)
+	panelResult := result.Panels["p1"]
+	require.NotNil(t, panelResult)
+	require.Equal(t, "/reports/drill/contracts", panelResult.RequestPath)
+	require.NotContains(t, panelResult.Request, TablePaginationPageQuery)
+	require.Equal(t, "2026-03-01", panelResult.Request.Get("issue_at_from"))
+}
+
+func TestTablePaginationHelpers(t *testing.T) {
+	t.Parallel()
+
+	values := url.Values{
+		TablePaginationPanelQuery: []string{"contracts-table"},
+		TablePaginationPageQuery:  []string{"3"},
+		TablePaginationLimitQuery: []string{"75"},
+	}
+
+	require.True(t, IsTableChunkRequest(values, "contracts-table"))
+	require.False(t, IsTableChunkRequest(values, "policies-table"))
+	require.Equal(t, 3, tablePage(values, DefaultTablePage))
+	require.Equal(t, 75, tablePerPage(values, DefaultTablePerPage))
+	pageState := ParseTablePageState(values, DefaultTablePerPage)
+	require.Equal(t, 3, pageState.Page)
+	require.Equal(t, 75, pageState.PerPage)
+	require.Equal(t, 150, pageState.Offset)
+	require.Equal(t, []string{"contracts-table"}, TableChunkScope(values, "contracts-table").PanelIDs)
+	require.Empty(t, TableChunkScope(values, "policies-table").PanelIDs)
+	require.Equal(t, DefaultTablePage, tablePage(url.Values{}, DefaultTablePage))
+	require.Equal(t, DefaultTablePerPage, tablePerPage(url.Values{}, DefaultTablePerPage))
+}
+
+func TestApplyTablePagination(t *testing.T) {
+	t.Parallel()
+
+	result := &Result{
+		Panels: map[string]*PanelResult{
+			"contracts-table": {Panel: panel.Spec{ID: "contracts-table"}},
+		},
+	}
+
+	ApplyTablePagination(result, "contracts-table", 50, 25, 25, 120)
+
+	panelResult := result.Panel("contracts-table")
+	require.NotNil(t, panelResult)
+	require.NotNil(t, panelResult.TablePagination)
+	require.Equal(t, 3, panelResult.TablePagination.Page)
+	require.Equal(t, 25, panelResult.TablePagination.PerPage)
+	require.True(t, panelResult.TablePagination.HasMore)
+}
+
 func TestPlan_Scenarios(t *testing.T) {
 	t.Parallel()
 

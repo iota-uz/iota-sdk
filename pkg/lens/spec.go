@@ -45,6 +45,7 @@ type DashboardSpec struct {
 type DrillMeta struct {
 	BaseURL             string
 	Dimensions          []DrillDimensionMeta
+	Filters             []DrillFilterMeta
 	RemainingDimensions []DrillDimensionMeta
 	ActiveDimension     string
 }
@@ -52,6 +53,12 @@ type DrillMeta struct {
 type DrillDimensionMeta struct {
 	Name  string
 	Label string
+}
+
+type DrillFilterMeta struct {
+	Dimension string
+	Value     string
+	Display   string
 }
 
 type RowSpec struct {

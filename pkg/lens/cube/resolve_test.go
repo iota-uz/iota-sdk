@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/stretchr/testify/require"
@@ -46,4 +47,22 @@ func TestResolveOverrideDatasetInheritsCubeParamsAndFilters(t *testing.T) {
 	require.Contains(t, resolved.Query.Params, "f_age_group")
 	require.Nil(t, resolved.Query.Params["f_age_group"].Literal)
 	require.Equal(t, "value", resolved.Query.Params["custom"].Literal)
+}
+
+func TestBuildDimensionPanelUsesLeafURLForTerminalDrill(t *testing.T) {
+	t.Parallel()
+
+	spec := New("crm-sales", "Sales").
+		Dataset(nil).
+		Dimension("payment_method", "Payment Method").
+		Field("payment_method").
+		Leaf("/crm/reports/sales/drill/policies").
+		Measure("total_policies", "Total Policies").
+		Count().
+		Build()
+
+	panelSpec := buildDimensionPanel(spec, spec.Dimensions[0], "cube_dim_payment_method", "/crm/reports/sales", 1, 0)
+	require.NotNil(t, panelSpec.Action)
+	require.Equal(t, action.KindCubeDrill, panelSpec.Action.Kind)
+	require.Equal(t, "/crm/reports/sales/drill/policies", panelSpec.Action.URL)
 }

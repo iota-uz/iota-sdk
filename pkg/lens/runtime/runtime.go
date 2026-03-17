@@ -33,33 +33,43 @@ type DatasetResult struct {
 }
 
 type PanelResult struct {
-	Panel     panel.Spec
-	Frames    *frame.FrameSet
-	Duration  time.Duration
-	Error     error
-	Locale    string
-	Timezone  string
-	Variables map[string]any
-	Request   url.Values
-	Drill     *cube.DrillContext
+	Panel           panel.Spec
+	Frames          *frame.FrameSet
+	Duration        time.Duration
+	Error           error
+	Locale          string
+	Timezone        string
+	Variables       map[string]any
+	RequestPath     string
+	Request         url.Values
+	Drill           *cube.DrillContext
+	TablePagination *TablePagination
 }
 
 type DashboardResult struct {
-	Spec      lens.DashboardSpec
-	Variables map[string]any
-	Filters   filter.Model
-	Plan      ExecutionPlan
-	Datasets  map[string]*DatasetResult
-	Panels    map[string]*PanelResult
-	Locale    string
-	Timezone  string
-	Request   url.Values
-	Drill     *cube.DrillContext
-	StartedAt time.Time
-	Duration  time.Duration
+	Spec        lens.DashboardSpec
+	Variables   map[string]any
+	Filters     filter.Model
+	Plan        ExecutionPlan
+	Datasets    map[string]*DatasetResult
+	Panels      map[string]*PanelResult
+	Locale      string
+	Timezone    string
+	RequestPath string
+	Request     url.Values
+	Drill       *cube.DrillContext
+	StartedAt   time.Time
+	Duration    time.Duration
 }
 
 type Result = DashboardResult
+
+func (r *DashboardResult) Panel(panelID string) *PanelResult {
+	if r == nil || r.Panels == nil {
+		return nil
+	}
+	return r.Panels[panelID]
+}
 
 type ExecutionPlan struct {
 	DatasetStages []ExecutionStage
@@ -74,6 +84,7 @@ type ExecutionStage struct {
 type Request struct {
 	Locale      string
 	Timezone    string
+	Path        string
 	Request     url.Values
 	Overrides   map[string]any
 	DataSources map[string]datasource.DataSource
@@ -155,17 +166,18 @@ func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope)
 	}
 
 	result := &DashboardResult{
-		Spec:      spec,
-		Variables: variables,
-		Filters:   filter.Build(spec.Variables, variables),
-		Plan:      internalPlan.view,
-		Datasets:  make(map[string]*DatasetResult, len(spec.Datasets)),
-		Panels:    make(map[string]*PanelResult),
-		Locale:    req.Locale,
-		Timezone:  req.Timezone,
-		Request:   cloneValues(req.Request),
-		Drill:     parseDrillContext(req.Request),
-		StartedAt: startedAt,
+		Spec:        spec,
+		Variables:   variables,
+		Filters:     filter.Build(spec.Variables, variables),
+		Plan:        internalPlan.view,
+		Datasets:    make(map[string]*DatasetResult, len(spec.Datasets)),
+		Panels:      make(map[string]*PanelResult),
+		Locale:      req.Locale,
+		Timezone:    req.Timezone,
+		RequestPath: strings.TrimSpace(req.Path),
+		Request:     sanitizedRequestValues(req.Request),
+		Drill:       parseDrillContext(req.Request),
+		StartedAt:   startedAt,
 	}
 
 	state := plannedExecutor{
@@ -330,13 +342,14 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 		group.Go(func() error {
 			start := time.Now()
 			panelResult := &PanelResult{
-				Panel:     panelSpec,
-				Duration:  time.Since(start),
-				Locale:    s.runtime.Locale,
-				Timezone:  s.runtime.Timezone,
-				Variables: s.variables,
-				Request:   cloneValues(s.runtime.Request),
-				Drill:     s.drill,
+				Panel:       panelSpec,
+				Duration:    time.Since(start),
+				Locale:      s.runtime.Locale,
+				Timezone:    s.runtime.Timezone,
+				Variables:   s.variables,
+				RequestPath: strings.TrimSpace(s.runtime.Path),
+				Request:     sanitizedRequestValues(s.runtime.Request),
+				Drill:       s.drill,
 			}
 			if isCompositePanel(panelSpec.Kind) {
 				mu.Lock()
@@ -679,6 +692,14 @@ func cloneValues(values url.Values) url.Values {
 	for key, items := range values {
 		cloned[key] = append([]string(nil), items...)
 	}
+	return cloned
+}
+
+func sanitizedRequestValues(values url.Values) url.Values {
+	cloned := cloneValues(values)
+	delete(cloned, TablePaginationPanelQuery)
+	delete(cloned, TablePaginationPageQuery)
+	delete(cloned, TablePaginationLimitQuery)
 	return cloned
 }
 

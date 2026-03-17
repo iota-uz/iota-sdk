@@ -64,6 +64,7 @@ type DimensionSpec struct {
 	Field        string
 	LabelField   string
 	PanelKind    panel.Kind
+	Height       string
 	Description  string
 	RequiresJoin []string
 	Override     *lens.DatasetSpec
