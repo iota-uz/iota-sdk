@@ -309,6 +309,39 @@ func (m *manager) AddDisabledTaskInfo(name, schedule string) {
 	})
 }
 
+// RunTask executes a registered task immediately (out-of-schedule).
+func (m *manager) RunTask(name string) error {
+	m.mu.RLock()
+	task, exists := m.tasks[name]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("task '%s' not found or disabled", name)
+	}
+
+	// Check if already running
+	metrics := m.metrics.GetMetrics()
+	if tm, ok := metrics[name]; ok && tm.IsRunning {
+		return fmt.Errorf("task '%s' is already running", name)
+	}
+
+	executor := m.buildWrappedExecutor(task)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				m.logger.WithFields(logrus.Fields{
+					"task":  name,
+					"panic": r,
+				}).Error("Manually triggered task panicked")
+			}
+		}()
+		m.logger.WithField("task", name).Info("Running periodic task manually")
+		executor()
+	}()
+
+	return nil
+}
+
 // GetRegisteredTasks returns information about all registered tasks (both enabled and disabled).
 func (m *manager) GetRegisteredTasks() []RegisteredTask {
 	m.mu.RLock()
