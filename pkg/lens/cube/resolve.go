@@ -166,6 +166,9 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL stri
 			ID:       panel.Ref("filter_value"),
 		}).
 		Action(action.CubeDrill(actionURL, dim.Name))
+	if strings.TrimSpace(dim.Height) != "" {
+		builder.Height(dim.Height)
+	}
 	if measure.Formatter != nil {
 		builder.Format(*measure.Formatter)
 	}
