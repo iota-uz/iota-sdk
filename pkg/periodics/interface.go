@@ -83,6 +83,10 @@ type Manager interface {
 	// SubscribeMetrics returns a channel that receives events when task metrics change,
 	// and an unsubscribe function to stop receiving events and close the channel.
 	SubscribeMetrics() (<-chan TaskMetricEvent, func())
+
+	// RunTask executes a registered task immediately (out-of-schedule).
+	// Returns an error if the task is not found, is disabled, or is already running.
+	RunTask(name string) error
 }
 
 // TaskScheduleInfo provides scheduling information for a specific task.
