@@ -12,6 +12,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	lenscolor "github.com/iota-uz/iota-sdk/pkg/lens/color"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -41,7 +42,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			Stacked: panelSpec.Kind == panel.KindStackedBar,
 		},
 		DataLabels: &charts.DataLabels{Enabled: false},
-		Colors:     panelColors(panelSpec),
+		Colors:     panelColors(panelSpec, panelResult),
 		Grid: &charts.GridConfig{
 			BorderColor: gridColor,
 			Padding:     &charts.Padding{Top: mapping.Pointer(4), Right: mapping.Pointer(12), Bottom: mapping.Pointer(0), Left: mapping.Pointer(12)},
@@ -705,11 +706,17 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			if (source && source.setAttribute) {
 				source.setAttribute('hx-push-url', 'true');
 			}
+			if (window.__lensSetSwapTargetLoading) {
+				window.__lensSetSwapTargetLoading(target, true);
+			}
 			try {
 				htmx.ajax(cfg.method || 'GET', nextURL, {source: source || target, target: target, swap: 'innerHTML'});
 			} catch (error) {
 				if (target.dataset) {
 					delete target.dataset.lensDrillPending;
+				}
+				if (window.__lensSetSwapTargetLoading) {
+					window.__lensSetSwapTargetLoading(target, false);
 				}
 				throw error;
 			}
@@ -913,23 +920,44 @@ func panelHeight(panelSpec panel.Spec, heightOverride string) string {
 	return "320px"
 }
 
-func panelColors(panelSpec panel.Spec) []string {
+func panelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []string {
+	if colors := semanticPanelColors(panelSpec, panelResult); len(colors) > 0 {
+		return colors
+	}
 	if len(panelSpec.Colors) > 0 {
 		return panelSpec.Colors
 	}
 	switch panelSpec.Kind {
 	case panel.KindTimeSeries:
-		return []string{"#3b82f6"} // blue-500 — consistent primary
+		return []string{"#2563eb"}
 	case panel.KindStackedBar:
-		return []string{"#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#6366f1", "#14b8a6"}
+		return []string{"#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0f766e", "#db2777", "#0891b2"}
 	case panel.KindPie, panel.KindDonut:
-		return []string{"#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#6366f1", "#14b8a6"}
+		return []string{"#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0f766e", "#db2777", "#0891b2"}
 	case panel.KindGauge:
-		return []string{"#3b82f6"} // blue-500 — unified accent
+		return []string{"#2563eb"}
 	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-		return []string{"#3b82f6"} // blue-500
+		return []string{"#2563eb"}
 	}
-	return []string{"#3b82f6"}
+	return []string{"#2563eb"}
+}
+
+func semanticPanelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []string {
+	if panelResult == nil || panelResult.Frames == nil || panelResult.Frames.Primary() == nil {
+		return nil
+	}
+	if strings.TrimSpace(panelSpec.ColorScale) == "" || panelSpec.ColorField.Empty() {
+		return nil
+	}
+	rows := panelResult.Frames.Primary().Rows()
+	if len(rows) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(rows))
+	for _, row := range rows {
+		keys = append(keys, displayValue(firstNonEmpty(row[panelSpec.ColorField.Name()], row[panelSpec.Fields.ID.Name()], row[panelSpec.Fields.Category.Name()], row[panelSpec.Fields.Label.Name()])))
+	}
+	return lenscolor.Palette(panelSpec.ColorScale, keys)
 }
 
 func hasSeries(rows []map[string]any, field string) bool {

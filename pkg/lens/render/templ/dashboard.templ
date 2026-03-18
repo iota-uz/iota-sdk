@@ -5,6 +5,7 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -42,18 +43,29 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 	}
 	{{ drillNav := drillNavigationModel(ctx, result) }}
 	@lensGridStyles()
-	<div class="space-y-6" data-lens-dashboard>
-		if drillNav.HasNav {
-			@DrillNavigation(drillNav)
-		}
-		@FilterBar(filters)
-		for _, row := range spec.Rows {
-			<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
-				for _, panelSpec := range row.Panels {
-					@Panel(panelSpec, result)
-				}
+	<div class="relative" data-lens-dashboard-shell>
+		<div
+			class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-xl bg-white/88 backdrop-blur-sm"
+			data-lens-loading-overlay
+		>
+			<div class="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-lg">
+				<div class="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+				<p class="text-sm font-medium text-slate-700">{ composables.UsePageCtx(ctx).T("Lens.Chart.Loading") }</p>
 			</div>
-		}
+		</div>
+		<div class="space-y-6" data-lens-dashboard>
+			if drillNav.HasNav {
+				@DrillNavigation(drillNav)
+			}
+			@FilterBar(filters)
+			for _, row := range spec.Rows {
+				<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
+					for _, panelSpec := range row.Panels {
+						@Panel(panelSpec, result)
+					}
+				</div>
+			}
+		</div>
 	</div>
 	@DashboardScripts()
 }
@@ -84,6 +96,7 @@ templ DrillNavigation(model drillNavModel) {
 					hx-push-url="true"
 					hx-target="closest [data-lens-swap-target]"
 					hx-swap="innerHTML"
+					onclick={ swapTargetLoadingScript() }
 					class="flex-none inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
 					title={ chartText.DrillBack }
 				>
@@ -100,6 +113,7 @@ templ DrillNavigation(model drillNavModel) {
 								hx-push-url="true"
 								hx-target="closest [data-lens-swap-target]"
 								hx-swap="innerHTML"
+								onclick={ swapTargetLoadingScript() }
 								class="rounded-md px-2.5 py-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 hover:underline underline-offset-2"
 							>
 								{ crumb.Label }
@@ -129,6 +143,7 @@ templ DrillNavigation(model drillNavModel) {
 							hx-push-url="true"
 							hx-target="closest [data-lens-swap-target]"
 							hx-swap="innerHTML"
+							onclick={ swapTargetLoadingScript() }
 							class="inline-flex min-h-9 cursor-pointer items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
 						>
 							{ item.Label }
@@ -165,11 +180,38 @@ templ DashboardScripts() {
 				return;
 			}
 			window.__lensDashboardScriptsBound = true;
+			window.__lensSetSwapTargetLoading = function(target, active) {
+				if (!target) {
+					return;
+				}
+				const overlay = target.querySelector('[data-lens-loading-overlay]');
+				if (target.dataset) {
+					if (active) {
+						target.dataset.lensLoading = 'true';
+					} else {
+						delete target.dataset.lensLoading;
+					}
+				}
+				target.setAttribute('aria-busy', active ? 'true' : 'false');
+				if (!overlay) {
+					return;
+				}
+				overlay.classList.toggle('hidden', !active);
+				overlay.classList.toggle('flex', active);
+			};
+			const clearSwapTargetLoading = function(target) {
+				if (!target || !window.__lensSetSwapTargetLoading) {
+					return;
+				}
+				window.__lensSetSwapTargetLoading(target, false);
+			};
 			document.addEventListener('htmx:afterSwap', function(evt) {
 				const target = evt.detail && evt.detail.target;
 				if (!target) {
 					return;
 				}
+				const swapTarget = target.closest('[data-lens-swap-target]') || target.querySelector('[data-lens-swap-target]');
+				clearSwapTargetLoading(swapTarget || target.closest('[data-lens-dashboard-shell]'));
 				const containsDashboard = target.closest('[data-lens-dashboard]') || target.querySelector('[data-lens-dashboard]');
 				if (!containsDashboard) {
 					return;
@@ -177,6 +219,16 @@ templ DashboardScripts() {
 				setTimeout(() => {
 					document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: { root: target } }));
 				}, 100);
+			});
+			['htmx:responseError', 'htmx:sendError', 'htmx:sendAbort', 'htmx:timeout'].forEach(function(eventName) {
+				document.addEventListener(eventName, function(evt) {
+					const detail = evt && evt.detail ? evt.detail : {};
+					const target = detail.target || detail.elt;
+					if (!target) {
+						return;
+					}
+					clearSwapTargetLoading(target.closest('[data-lens-swap-target]'));
+				});
 			});
 		})();
 	</script>
@@ -306,7 +358,7 @@ templ FilterBar(model filter.Model) {
 
 templ panelCard(spec panel.Spec, bodyClass string, body templ.Component) {
 	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
-		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md">
+		<div class={ panelCardClass(spec) }>
 			if showPanelHeader(spec) {
 				<div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
 					<div class="flex items-center gap-2 min-w-0">
@@ -734,7 +786,7 @@ templ TableCardRows(spec panel.Spec, columns []panel.TableColumn, rows []map[str
 			<a
 				href={ templ.URL(rowHref) }
 				onclick={ stopPropagationScript(rowOnClick) }
-				class="block"
+				class="block cursor-pointer"
 			>
 				@CardListRow(columns, row, result)
 			</a>
@@ -742,7 +794,7 @@ templ TableCardRows(spec panel.Spec, columns []panel.TableColumn, rows []map[str
 			<button
 				type="button"
 				onclick={ rowOnClick }
-				class="block w-full text-left"
+				class="block w-full cursor-pointer text-left"
 			>
 				@CardListRow(columns, row, result)
 			</button>
@@ -756,7 +808,7 @@ templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[
 	for _, row := range rows {
 		{{ rowHref := actionURL(spec.Action, row, result) }}
 		{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
-		<tr class="transition-colors hover:bg-gray-50/60">
+		<tr class={ "transition-colors hover:bg-gray-50/60", templ.KV("cursor-pointer", rowHref != "" || rowOnClick.Call != "") }>
 			for i, column := range columns {
 				{{ columnHref := actionURL(column.Action, row, result) }}
 				{{ columnOnClick := actionOnClick(column.Action, row, result) }}

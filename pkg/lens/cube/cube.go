@@ -61,8 +61,10 @@ type DimensionSpec struct {
 	Type         DimensionType
 	Column       string
 	LabelColumn  string
+	ColorColumn  string
 	Field        string
 	LabelField   string
+	ColorField   string
 	PanelKind    panel.Kind
 	Height       string
 	Description  string
@@ -70,6 +72,7 @@ type DimensionSpec struct {
 	Override     *lens.DatasetSpec
 	Colors       []string
 	ValueAxis    panel.ValueAxis
+	ColorScale   string
 }
 
 type MeasureSpec struct {

@@ -126,6 +126,11 @@ func (b *DimensionBuilder) LabelColumn(column string) *DimensionBuilder {
 	return b
 }
 
+func (b *DimensionBuilder) ColorColumn(column string) *DimensionBuilder {
+	b.spec.ColorColumn = column
+	return b
+}
+
 func (b *DimensionBuilder) Field(field string) *DimensionBuilder {
 	b.spec.Field = field
 	return b
@@ -133,6 +138,11 @@ func (b *DimensionBuilder) Field(field string) *DimensionBuilder {
 
 func (b *DimensionBuilder) LabelField(field string) *DimensionBuilder {
 	b.spec.LabelField = field
+	return b
+}
+
+func (b *DimensionBuilder) ColorField(field string) *DimensionBuilder {
+	b.spec.ColorField = field
 	return b
 }
 
@@ -163,6 +173,11 @@ func (b *DimensionBuilder) Override(dataset lens.DatasetSpec) *DimensionBuilder 
 
 func (b *DimensionBuilder) Colors(colors ...string) *DimensionBuilder {
 	b.spec.Colors = append([]string(nil), colors...)
+	return b
+}
+
+func (b *DimensionBuilder) ColorScale(scale string) *DimensionBuilder {
+	b.spec.ColorScale = scale
 	return b
 }
 

@@ -87,6 +87,8 @@ type Spec struct {
 	Chrome      chrome.Spec
 	ValueAxis   ValueAxis
 	Distributed bool
+	ColorField  FieldRef
+	ColorScale  string
 }
 
 type FieldMapping struct {
@@ -191,6 +193,11 @@ func (b *Builder) AccentColor(color string) *Builder {
 }
 func (b *Builder) DistributedColors() *Builder {
 	b.spec.Distributed = true
+	return b
+}
+func (b *Builder) SemanticColors(scale string, field FieldRef) *Builder {
+	b.spec.ColorScale = strings.TrimSpace(scale)
+	b.spec.ColorField = field
 	return b
 }
 func (b *Builder) Fields(mapping FieldMapping) *Builder {

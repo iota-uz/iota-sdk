@@ -767,6 +767,10 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 	}
 }
 
+func panelIsInteractive(spec panel.Spec) bool {
+	return spec.Action != nil
+}
+
 func panelChartClass(spec panel.Spec, fullscreen bool) string {
 	base := "w-full min-h-[240px]"
 	if fullscreen {
@@ -774,8 +778,21 @@ func panelChartClass(spec panel.Spec, fullscreen bool) string {
 	} else {
 		base += " h-full"
 	}
+	if panelIsInteractive(spec) {
+		base += " cursor-pointer"
+	}
 	if panelUsesRadialActionSurface(spec) {
 		base += " lens-chart--radial-action"
+	}
+	return strings.TrimSpace(base)
+}
+
+func panelCardClass(spec panel.Spec) string {
+	base := "flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-all duration-200"
+	if panelIsInteractive(spec) {
+		base += " hover:border-blue-200 hover:shadow-md"
+	} else {
+		base += " hover:shadow-md"
 	}
 	return strings.TrimSpace(base)
 }
@@ -1118,6 +1135,10 @@ func rerenderChartsScript(delayMs int) string {
 
 func openFullscreenScript() string {
 	return "fullscreen = true; requestAnimationFrame(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); if (root && root.__lensFullscreenRerenderTimer) { clearTimeout(root.__lensFullscreenRerenderTimer); } const rerender = () => { document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })); window.dispatchEvent(new Event('resize')); if (root) { root.__lensFullscreenRerenderTimer = null; } }; const timer = setTimeout(rerender, 260); if (root) { root.__lensFullscreenRerenderTimer = timer; } });"
+}
+
+func swapTargetLoadingScript() templpkg.ComponentScript {
+	return templpkg.JSUnsafeFuncCall("if (window.__lensSetSwapTargetLoading) { window.__lensSetSwapTargetLoading(this.closest('[data-lens-swap-target]'), true); }")
 }
 
 func activateTabScript(tabID string) string {

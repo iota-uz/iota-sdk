@@ -43,6 +43,19 @@ func resolveDatasetDimensionDataset(spec CubeSpec, ctx DrillContext, dim Dimensi
 			},
 		},
 	})
+	if colorSource := dim.ColorField; colorSource != "" {
+		transforms = append(transforms, transform.Spec{
+			Kind: transform.KindLookup,
+			Lookup: &transform.LookupConfig{
+				Other:      baseDatasetName,
+				LocalField: "label",
+				OtherField: groupBy,
+				Fields: map[string]string{
+					colorSource: "color_value",
+				},
+			},
+		})
+	}
 	// Sort dimension values by the first measure (descending).
 	transforms = append(transforms, transform.Spec{
 		Kind: transform.KindSort,

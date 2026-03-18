@@ -175,6 +175,16 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL stri
 	if dim.ValueAxis.Scale != "" {
 		builder.ValueAxisScale(dim.ValueAxis.Scale, dim.ValueAxis.LogBase)
 	}
+	if strings.TrimSpace(dim.ColorScale) != "" {
+		colorField := panel.Ref("filter_value")
+		if strings.TrimSpace(dim.ColorColumn) != "" || strings.TrimSpace(dim.ColorField) != "" {
+			colorField = panel.Ref("color_value")
+		}
+		builder.SemanticColors(dim.ColorScale, colorField)
+		if dim.PanelKind == panel.KindBar || dim.PanelKind == panel.KindHorizontalBar {
+			builder.DistributedColors()
+		}
+	}
 	if len(dim.Colors) > 0 {
 		builder.Colors(dim.Colors...)
 		if dim.PanelKind == panel.KindBar || dim.PanelKind == panel.KindHorizontalBar {

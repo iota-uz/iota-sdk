@@ -38,6 +38,9 @@ func resolveSQLDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSp
 		measureSelects = append(measureSelects, sqlMeasureSelect(measure))
 	}
 	text := "SELECT\n  " + dim.Column + " AS filter_value,\n  " + labelColumn + " AS label"
+	if strings.TrimSpace(dim.ColorColumn) != "" {
+		text += ",\n  " + dim.ColorColumn + " AS color_value"
+	}
 	if len(measureSelects) > 0 {
 		text += ",\n  " + strings.Join(measureSelects, ",\n  ")
 	}
@@ -46,7 +49,11 @@ func resolveSQLDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSp
 	if where != "" {
 		text += "\nWHERE " + where
 	}
-	text += "\nGROUP BY filter_value, label"
+	groupBy := []string{"filter_value", "label"}
+	if strings.TrimSpace(dim.ColorColumn) != "" {
+		groupBy = append(groupBy, "color_value")
+	}
+	text += "\nGROUP BY " + strings.Join(groupBy, ", ")
 	if len(spec.Measures) > 0 {
 		text += "\nORDER BY " + spec.Measures[0].Name + " DESC, label ASC"
 	}
