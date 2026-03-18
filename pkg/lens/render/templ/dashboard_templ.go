@@ -116,7 +116,7 @@ func dashboardResult(spec lens.DashboardSpec, result *runtime.Result) templ.Comp
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"relative\" data-lens-dashboard-shell><div class=\"pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-xl bg-white/88 backdrop-blur-sm\" data-lens-loading-overlay><div class=\"flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-lg\"><div class=\"h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent\"></div><p class=\"text-sm font-medium text-slate-700\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"relative\" data-lens-dashboard-shell><div class=\"pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-xl bg-white/88 backdrop-blur-sm\" data-lens-loading-overlay><div class=\"fixed left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 px-5 py-4 shadow-lg\"><div class=\"h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent\"></div><p class=\"text-sm font-medium text-slate-700\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
