@@ -5,6 +5,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
 
 type Builder struct {
@@ -168,6 +169,11 @@ func (b *DimensionBuilder) RequiresJoin(name string) *DimensionBuilder {
 
 func (b *DimensionBuilder) Override(dataset lens.DatasetSpec) *DimensionBuilder {
 	b.spec.Override = &dataset
+	return b
+}
+
+func (b *DimensionBuilder) Transforms(specs ...transform.Spec) *DimensionBuilder {
+	b.spec.Transforms = append(b.spec.Transforms, specs...)
 	return b
 }
 

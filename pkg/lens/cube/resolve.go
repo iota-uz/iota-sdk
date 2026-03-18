@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,6 +17,11 @@ const (
 	dimDatasetNamePrefix   = "cube_dim"
 	leafDatasetNamePrefix  = "cube_leaf"
 )
+
+type dimensionDatasetResolution struct {
+	Name     string
+	Datasets []lens.DatasetSpec
+}
 
 func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpec, error) {
 	if err := spec.Validate(); err != nil {
@@ -66,12 +72,12 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 
 	dimensionPanels := make([]panel.Spec, 0, len(remaining))
 	for idx, dim := range remaining {
-		dataset, err := resolveDimensionDataset(spec, ctx, dim)
+		resolved, err := resolveDimensionDataset(spec, ctx, dim)
 		if err != nil {
 			return lens.DashboardSpec{}, err
 		}
-		dashboard.Datasets = append(dashboard.Datasets, dataset)
-		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, dataset.Name, baseURL, len(remaining), idx))
+		dashboard.Datasets = append(dashboard.Datasets, resolved.Datasets...)
+		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved.Name, baseURL, len(remaining), idx))
 	}
 	dashboard.Rows = append(dashboard.Rows, buildDimensionRows(dimensionPanels)...)
 
@@ -90,18 +96,42 @@ func resolveStatsDataset(spec CubeSpec, ctx DrillContext) (lens.DatasetSpec, err
 	}
 }
 
-func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec) (lens.DatasetSpec, error) {
+func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec) (dimensionDatasetResolution, error) {
 	name := datasetName(dim.Name)
 	if dim.Override != nil {
-		return resolveOverrideDataset(spec, ctx, *dim.Override, name), nil
+		return dimensionDatasetResolution{
+			Name:     name,
+			Datasets: []lens.DatasetSpec{resolveOverrideDataset(spec, ctx, *dim.Override, name)},
+		}, nil
 	}
 	switch spec.DataMode {
 	case DataModeSQL:
-		return resolveSQLDimensionDataset(spec, ctx, dim, name), nil
+		if len(dim.Transforms) == 0 {
+			return dimensionDatasetResolution{
+				Name:     name,
+				Datasets: []lens.DatasetSpec{resolveSQLDimensionDataset(spec, ctx, dim, name)},
+			}, nil
+		}
+		sourceName := name + "_source"
+		return dimensionDatasetResolution{
+			Name: name,
+			Datasets: []lens.DatasetSpec{
+				resolveSQLDimensionDataset(spec, ctx, dim, sourceName),
+				{
+					Name:       name,
+					Kind:       lens.DatasetKindTransform,
+					DependsOn:  []string{sourceName},
+					Transforms: append([]transform.Spec(nil), dim.Transforms...),
+				},
+			},
+		}, nil
 	case DataModeDataset:
-		return resolveDatasetDimensionDataset(spec, ctx, dim, name), nil
+		return dimensionDatasetResolution{
+			Name:     name,
+			Datasets: []lens.DatasetSpec{resolveDatasetDimensionDataset(spec, ctx, dim, name)},
+		}, nil
 	default:
-		return lens.DatasetSpec{}, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
+		return dimensionDatasetResolution{}, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
 	}
 }
 

@@ -77,6 +77,9 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 				},
 			},
 		},
+		Legend: &charts.LegendConfig{
+			Show: mapping.BoolPointer(false),
+		},
 	}
 	if panelResult == nil || panelResult.Frames == nil || panelResult.Frames.Primary() == nil {
 		return options
@@ -194,6 +197,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			},
 		}
 	}
+	applyCategoryLabelFormatting(&options, panelSpec)
 	if panelSpec.ShowLegend {
 		position := charts.LegendPositionBottom
 		legendFontSize := "11px"
@@ -809,10 +813,13 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		if spec.Drill != nil {
 			drillExpr = actionValueJS(spec.Drill.Value, fields)
 		}
-		js += fmt.Sprintf(`if (cfg.drill) {
-			const drillValue = %s;
+		js += fmt.Sprintf(`let drillValue;
+		if (cfg.drill) {
+			drillValue = %s;
 			if (drillValue !== undefined && drillValue !== null && drillValue !== '') {
 				params.append('_f', cfg.drill.dimension + ':' + String(drillValue));
+			} else {
+				return;
 			}
 		}
 		`, drillExpr)
@@ -823,6 +830,78 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		}
 	` + actionJS + `}`
 	return templ.JSExpression(js)
+}
+
+func applyCategoryLabelFormatting(options *charts.ChartOptions, panelSpec panel.Spec) {
+	if options == nil {
+		return
+	}
+	categories := options.XAxis.Categories
+	if len(categories) == 0 {
+		return
+	}
+	switch panelSpec.Kind {
+	case panel.KindBar, panel.KindStackedBar:
+		applyVerticalCategoryLabelFormatting(options, categories)
+	case panel.KindHorizontalBar:
+		applyHorizontalCategoryLabelFormatting(options, categories)
+	}
+}
+
+func applyVerticalCategoryLabelFormatting(options *charts.ChartOptions, categories []string) {
+	if options.XAxis.Labels == nil {
+		options.XAxis.Labels = &charts.XAxisLabelsConfig{}
+	}
+	maxLength := maxCategoryLength(categories)
+	if maxLength <= 16 {
+		return
+	}
+	rotate := -45
+	rotateAlways := true
+	maxHeight := 96
+	options.XAxis.Labels.Rotate = &rotate
+	options.XAxis.Labels.RotateAlways = &rotateAlways
+	options.XAxis.Labels.MaxHeight = &maxHeight
+	options.XAxis.Labels.Formatter = truncateCategoryLabelFormatter(16)
+}
+
+func applyHorizontalCategoryLabelFormatting(options *charts.ChartOptions, categories []string) {
+	if len(options.YAxis) == 0 {
+		options.YAxis = []charts.YAxisConfig{{}}
+	}
+	if options.YAxis[0].Labels == nil {
+		options.YAxis[0].Labels = &charts.YAxisLabelsConfig{}
+	}
+	maxLength := maxCategoryLength(categories)
+	if maxLength <= 24 {
+		return
+	}
+	maxWidth := 220
+	options.YAxis[0].Labels.MaxWidth = &maxWidth
+	options.YAxis[0].Labels.Formatter = truncateCategoryLabelFormatter(24)
+}
+
+func maxCategoryLength(categories []string) int {
+	maxLength := 0
+	for _, category := range categories {
+		if length := len([]rune(strings.TrimSpace(category))); length > maxLength {
+			maxLength = length
+		}
+	}
+	return maxLength
+}
+
+func truncateCategoryLabelFormatter(limit int) templ.JSExpression {
+	return templ.JSExpression(fmt.Sprintf(`function(value) {
+		if (value === undefined || value === null) {
+			return '';
+		}
+		const text = String(value).trim();
+		if (text.length <= %d) {
+			return text;
+		}
+		return text.slice(0, %d) + '...';
+	}`, limit, limit-1))
 }
 
 func chartDrillConfig(spec *action.Spec) *chartDrill {

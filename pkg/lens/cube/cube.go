@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
 
 type DataMode string
@@ -70,6 +71,7 @@ type DimensionSpec struct {
 	Description  string
 	RequiresJoin []string
 	Override     *lens.DatasetSpec
+	Transforms   []transform.Spec
 	Colors       []string
 	ValueAxis    panel.ValueAxis
 	ColorScale   string

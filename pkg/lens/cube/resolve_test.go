@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,13 +41,15 @@ func TestResolveOverrideDatasetInheritsCubeParamsAndFilters(t *testing.T) {
 		Filters: []DimensionFilter{{Dimension: "product", Value: "osago"}},
 	}, spec.Dimensions[1])
 	require.NoError(t, err)
-	require.Equal(t, "primary", resolved.Source)
-	require.NotNil(t, resolved.Query)
-	require.Equal(t, "tenant-1", resolved.Query.Params["tenant_id"].Literal)
-	require.Equal(t, "osago", resolved.Query.Params["f_product"].Literal)
-	require.Contains(t, resolved.Query.Params, "f_age_group")
-	require.Nil(t, resolved.Query.Params["f_age_group"].Literal)
-	require.Equal(t, "value", resolved.Query.Params["custom"].Literal)
+	require.Equal(t, "cube_dim_age_group", resolved.Name)
+	require.Len(t, resolved.Datasets, 1)
+	require.Equal(t, "primary", resolved.Datasets[0].Source)
+	require.NotNil(t, resolved.Datasets[0].Query)
+	require.Equal(t, "tenant-1", resolved.Datasets[0].Query.Params["tenant_id"].Literal)
+	require.Equal(t, "osago", resolved.Datasets[0].Query.Params["f_product"].Literal)
+	require.Contains(t, resolved.Datasets[0].Query.Params, "f_age_group")
+	require.Nil(t, resolved.Datasets[0].Query.Params["f_age_group"].Literal)
+	require.Equal(t, "value", resolved.Datasets[0].Query.Params["custom"].Literal)
 }
 
 func TestBuildDimensionPanelUsesLeafURLForTerminalDrill(t *testing.T) {
@@ -65,4 +68,30 @@ func TestBuildDimensionPanelUsesLeafURLForTerminalDrill(t *testing.T) {
 	require.NotNil(t, panelSpec.Action)
 	require.Equal(t, action.KindCubeDrill, panelSpec.Action.Kind)
 	require.Equal(t, "/crm/reports/sales/drill/policies", panelSpec.Action.URL)
+}
+
+func TestResolveDimensionDatasetWrapsSQLDimensionsWithTransforms(t *testing.T) {
+	t.Parallel()
+
+	spec := New("insurance-sales", "Sales").
+		SQL("primary", "insurance.contracts c").
+		Dimension("agency", "Agency").
+		Column("COALESCE(c.agency_id::text, '')").
+		Transforms(transform.TopN("total_policies", 10, "Other")).
+		Measure("total_policies", "Total Policies").
+		Column("DISTINCT c.id").
+		Count().
+		Build()
+
+	resolved, err := resolveDimensionDataset(spec, DrillContext{}, spec.Dimensions[0])
+	require.NoError(t, err)
+	require.Equal(t, "cube_dim_agency", resolved.Name)
+	require.Len(t, resolved.Datasets, 2)
+	require.Equal(t, lens.DatasetKindQuery, resolved.Datasets[0].Kind)
+	require.Equal(t, "cube_dim_agency_source", resolved.Datasets[0].Name)
+	require.Equal(t, lens.DatasetKindTransform, resolved.Datasets[1].Kind)
+	require.Equal(t, "cube_dim_agency", resolved.Datasets[1].Name)
+	require.Equal(t, []string{"cube_dim_agency_source"}, resolved.Datasets[1].DependsOn)
+	require.Len(t, resolved.Datasets[1].Transforms, 1)
+	require.Equal(t, "Other", resolved.Datasets[1].Transforms[0].TopN.Other)
 }

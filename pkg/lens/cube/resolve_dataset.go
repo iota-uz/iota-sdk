@@ -64,6 +64,7 @@ func resolveDatasetDimensionDataset(spec CubeSpec, ctx DrillContext, dim Dimensi
 			Direction: transform.SortDesc,
 		}},
 	})
+	transforms = append(transforms, dim.Transforms...)
 	return lens.DatasetSpec{
 		Name:       name,
 		Kind:       lens.DatasetKindTransform,

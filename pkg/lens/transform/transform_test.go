@@ -168,3 +168,44 @@ func TestFilterRows_ParsesNumericStrings(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, "a", rows[0]["label"])
 }
+
+func TestTopN_AggregatesOverflowIntoOtherBucket(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("products",
+		frame.Row{"filter_value": "osago", "label": "OSAGO", "color_value": "osago", "total_policies": 50.0, "total_revenue": 100.0},
+		frame.Row{"filter_value": "travel", "label": "Travel", "color_value": "travel", "total_policies": 30.0, "total_revenue": 60.0},
+		frame.Row{"filter_value": "kasko", "label": "KASKO", "color_value": "kasko", "total_policies": 20.0, "total_revenue": 40.0},
+		frame.Row{"filter_value": "osgor", "label": "OSGOR", "color_value": "osgor", "total_policies": 10.0, "total_revenue": 20.0},
+	)
+	require.NoError(t, err)
+
+	next, err := Apply(set, nil, []Spec{
+		TopN("total_policies", 2, "Other"),
+	})
+	require.NoError(t, err)
+
+	rows := next.Primary().Rows()
+	require.Len(t, rows, 3)
+	assert.Equal(t, map[string]any{
+		"filter_value":   "osago",
+		"label":          "OSAGO",
+		"color_value":    "osago",
+		"total_policies": 50.0,
+		"total_revenue":  100.0,
+	}, rows[0])
+	assert.Equal(t, map[string]any{
+		"filter_value":   "travel",
+		"label":          "Travel",
+		"color_value":    "travel",
+		"total_policies": 30.0,
+		"total_revenue":  60.0,
+	}, rows[1])
+	assert.Equal(t, map[string]any{
+		"filter_value":   "",
+		"label":          "Other",
+		"color_value":    "Other",
+		"total_policies": 30.0,
+		"total_revenue":  60.0,
+	}, rows[2])
+}

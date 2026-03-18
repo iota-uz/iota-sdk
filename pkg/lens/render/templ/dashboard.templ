@@ -49,11 +49,12 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 			data-lens-loading-overlay
 		></div>
 		<div
-			class="pointer-events-none fixed left-1/2 top-1/2 z-30 hidden -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 px-5 py-4 shadow-lg"
+			class="pointer-events-none fixed left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 rounded-2xl px-5 py-4"
+			style="z-index: 40; border: 1px solid rgba(226, 232, 240, 0.96); background: rgba(255, 255, 255, 0.96); box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);"
 			data-lens-loading-card
 		>
 			<div class="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-			<p class="text-sm font-medium text-slate-700">{ composables.UsePageCtx(ctx).T("Lens.Chart.Loading") }</p>
+			<p class="text-sm font-medium" style="color: #334155;">{ composables.UsePageCtx(ctx).T("Lens.Chart.Loading") }</p>
 		</div>
 		<div class="space-y-6" data-lens-dashboard>
 			if drillNav.HasNav {

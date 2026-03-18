@@ -125,6 +125,7 @@ func TestBuildActionJSUsesHtmxSwapForCubeDrill(t *testing.T) {
 	require.Contains(t, js, "target.dataset.lensDrillPending === 'true'")
 	require.Contains(t, js, "document.addEventListener('htmx:afterRequest', clearPending)")
 	require.Contains(t, js, "source.setAttribute('hx-push-url', 'true')")
+	require.Contains(t, js, "return;")
 	require.Contains(t, js, "htmx.ajax")
 }
 
@@ -394,6 +395,34 @@ func TestOptionsDoesNotWrapLogFormattersWhenManualScaleIsSkipped(t *testing.T) {
 	require.Len(t, options.YAxis, 1)
 	require.NotNil(t, options.YAxis[0].Labels)
 	require.NotContains(t, string(options.YAxis[0].Labels.Formatter), "Math.pow")
+}
+
+func TestOptionsHidesLegendAndTruncatesDenseCategoryLabels(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("agency",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Very Long Agency Name That Needs Truncation", "Another Long Agency Name"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0, 18.0}},
+	)
+	require.NoError(t, err)
+
+	options := Options(
+		panel.HorizontalBar("agency", "Agency", "agency").
+			LabelField("label").
+			ValueField("value").
+			Colors("#3B82F6", "#10B981").
+			DistributedColors().
+			Build(),
+		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
+	)
+
+	require.NotNil(t, options.Legend)
+	require.NotNil(t, options.Legend.Show)
+	require.False(t, *options.Legend.Show)
+	require.Len(t, options.YAxis, 1)
+	require.NotNil(t, options.YAxis[0].Labels)
+	require.NotEmpty(t, options.YAxis[0].Labels.Formatter)
+	require.NotNil(t, options.YAxis[0].Labels.MaxWidth)
 }
 
 func mustFrameSet(t *testing.T, fr *frame.Frame) *frame.FrameSet {
