@@ -417,7 +417,7 @@ func metricInfoContext(t *testing.T, locale language.Tag) context.Context {
 	t.Helper()
 
 	bundle := i18n.NewBundle(language.English)
-	bundle.AddMessages(language.English,
+	require.NoError(t, bundle.AddMessages(language.English,
 		&i18n.Message{ID: "Chart.MetricInfo", Other: "How this metric is calculated"},
 		&i18n.Message{ID: "Lens.Drill.All", Other: "All"},
 		&i18n.Message{ID: "Lens.Chart.Info.SubjectFallback", Other: "this metric"},
@@ -428,14 +428,14 @@ func metricInfoContext(t *testing.T, locale language.Tag) context.Context {
 		&i18n.Message{ID: "Lens.Chart.Info.Tabs", Other: `Lets you switch between several chart views for "{{.Subject}}" built from the same selected date range and active filters.`},
 		&i18n.Message{ID: "Lens.Chart.Info.DrillHint", Other: "Click a chart value to open the next level of detail for that segment."},
 		&i18n.Message{ID: "Lens.Chart.Info.LogScaleHint", Other: "The axis uses a logarithmic scale so large and small categories remain readable on one chart."},
-	)
-	bundle.AddMessages(language.Russian,
+	))
+	require.NoError(t, bundle.AddMessages(language.Russian,
 		&i18n.Message{ID: "Chart.MetricInfo", Other: "Как рассчитывается метрика"},
 		&i18n.Message{ID: "Lens.Drill.All", Other: "Все"},
 		&i18n.Message{ID: "Lens.Chart.Info.SubjectFallback", Other: "этот показатель"},
 		&i18n.Message{ID: "Lens.Chart.Info.Distribution", Other: "Показывает, как общий итог распределяется по сегментам «{{.Subject}}». Каждый сектор отражает агрегированную долю одной категории за выбранный период и с учетом активных фильтров."},
 		&i18n.Message{ID: "Lens.Chart.Info.DrillHint", Other: "Нажмите на значение на графике, чтобы открыть следующий уровень детализации по выбранному сегменту."},
-	)
+	))
 
 	pageCtx := types.NewPageContext(locale, &urlpkg.URL{Path: "/"}, i18n.NewLocalizer(bundle, locale.String()))
 	return context.WithValue(context.Background(), constants.PageContext, pageCtx)

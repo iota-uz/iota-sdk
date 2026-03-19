@@ -45,6 +45,8 @@ func resolvedDimensionTransforms(spec CubeSpec, transformsIn []transform.Spec) [
 		switch measure.Aggregation {
 		case AggregationCount, AggregationSum:
 			additiveByField[measure.Name] = true
+		case AggregationAvg:
+			additiveByField[measure.Name] = false
 		}
 	}
 	out := make([]transform.Spec, len(transformsIn))

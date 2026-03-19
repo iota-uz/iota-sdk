@@ -21,7 +21,6 @@ func TestCanonicalProductKey_AliasesRemainStable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.want, CanonicalProductKey(tc.input))
@@ -36,6 +35,7 @@ func TestSemantic_KnownPalettesAndFallbacksRemainDeterministic(t *testing.T) {
 	require.Equal(t, "#DC2626", Semantic(ScopeProduct, "ONLINE_KASKO"))
 	require.Equal(t, "#0F766E", Semantic(ScopeProduct, "WEB_CONSTRUCTOR"))
 	require.Equal(t, "#10B981", Semantic(ScopePaymentMethod, "payme"))
-	require.Equal(t, Semantic(ScopeAgency, "Alpha"), Semantic(ScopeAgency, "Alpha"))
+	alphaColor := Semantic(ScopeAgency, "Alpha")
+	require.Equal(t, alphaColor, Semantic(ScopeAgency, "Alpha"))
 	require.NotEqual(t, Semantic(ScopeAgency, "AB"), Semantic(ScopeAgency, "BA"))
 }

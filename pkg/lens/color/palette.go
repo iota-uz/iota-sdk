@@ -1,3 +1,4 @@
+// Package color provides stable semantic and fallback palettes for Lens charts.
 package color
 
 import (

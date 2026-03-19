@@ -852,6 +852,17 @@ func applyCategoryLabelFormatting(options *charts.ChartOptions, panelSpec panel.
 		applyVerticalCategoryLabelFormatting(options, categories)
 	case panel.KindHorizontalBar:
 		applyHorizontalCategoryLabelFormatting(options, categories)
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindPie,
+		panel.KindDonut,
+		panel.KindTable,
+		panel.KindGauge,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
+		return
 	}
 }
 
@@ -1034,6 +1045,17 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 	}
 	switch panelSpec.Kind {
 	case panel.KindBar, panel.KindHorizontalBar:
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindStackedBar,
+		panel.KindPie,
+		panel.KindDonut,
+		panel.KindTable,
+		panel.KindGauge,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
 	default:
 		return ""
 	}
@@ -1128,6 +1150,15 @@ func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelRes
 		if panelSpec.Distributed {
 			return len(rows)
 		}
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindTable,
+		panel.KindGauge,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
+		return 1
 	}
 	return 1
 }

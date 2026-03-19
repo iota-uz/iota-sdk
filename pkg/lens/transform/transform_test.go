@@ -236,7 +236,7 @@ func TestTopN_PreservesNonAdditiveMeasuresInOtherBucket(t *testing.T) {
 
 	rows := next.Primary().Rows()
 	require.Len(t, rows, 2)
-	assert.Equal(t, 50.0, rows[0]["avg_ticket"])
+	assert.InDelta(t, 50.0, rows[0]["avg_ticket"], 1e-9)
 	assert.Nil(t, rows[1]["avg_ticket"])
-	assert.Equal(t, 7.0, rows[1]["total_policies"])
+	assert.InDelta(t, 7.0, rows[1]["total_policies"], 1e-9)
 }

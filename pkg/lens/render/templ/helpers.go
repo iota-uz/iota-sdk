@@ -756,9 +756,14 @@ func panelUsesMetricInfoFallback(spec panel.Spec) bool {
 		panel.KindGauge,
 		panel.KindTabs:
 		return true
-	default:
+	case panel.KindStat,
+		panel.KindTable,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
 		return false
 	}
+	return false
 }
 
 func panelUsesRadialActionSurface(spec panel.Spec) bool {
@@ -768,9 +773,19 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 	switch spec.Kind {
 	case panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return true
-	default:
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindBar,
+		panel.KindHorizontalBar,
+		panel.KindStackedBar,
+		panel.KindTable,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
 		return false
 	}
+	return false
 }
 
 func panelIsInteractive(spec panel.Spec) bool {
@@ -857,9 +872,14 @@ func metricInfoTemplateKey(kind panel.Kind) string {
 		return "Lens.Chart.Info.Gauge"
 	case panel.KindTabs:
 		return "Lens.Chart.Info.Tabs"
-	default:
+	case panel.KindStat,
+		panel.KindTable,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
 		return ""
 	}
+	return ""
 }
 
 func metricInfoSubject(ctx context.Context, spec panel.Spec) string {
