@@ -35,7 +35,7 @@ func resolveDatasetDimensionDataset(spec CubeSpec, ctx DrillContext, dim Dimensi
 	lookupFields := map[string]string{
 		lookupSource: "filter_value",
 	}
-	if colorSource := dim.ColorField; colorSource != "" {
+	if colorSource := dim.ColorField; colorSource != "" && colorSource != lookupSource {
 		lookupFields[colorSource] = "color_value"
 	}
 	transforms = append(transforms, transform.Spec{
@@ -55,7 +55,7 @@ func resolveDatasetDimensionDataset(spec CubeSpec, ctx DrillContext, dim Dimensi
 			Direction: transform.SortDesc,
 		}},
 	})
-	transforms = append(transforms, dim.Transforms...)
+	transforms = append(transforms, resolvedDimensionTransforms(spec, dim.Transforms)...)
 	return lens.DatasetSpec{
 		Name:       name,
 		Kind:       lens.DatasetKindTransform,

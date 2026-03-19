@@ -159,9 +159,10 @@ type Spec struct {
 }
 
 type TopNConfig struct {
-	Field string
-	N     int
-	Other string
+	Field          string
+	N              int
+	Other          string
+	AdditiveFields map[string]bool
 }
 
 func Apply(primary *frame.FrameSet, deps map[string]*frame.FrameSet, specs []Spec) (*frame.FrameSet, error) {
@@ -819,7 +820,7 @@ func applyTopN(primary *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error
 			return nil, serrors.E(op, err)
 		}
 	}
-	if err := out.AppendRow(topNOtherRow(fr, rows[keep:], cfg.Other)); err != nil {
+	if err := out.AppendRow(topNOtherRow(fr, rows[keep:], cfg)); err != nil {
 		return nil, serrors.E(op, err)
 	}
 	if err := out.Normalize(); err != nil {
@@ -832,7 +833,11 @@ func applyTopN(primary *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error
 	return fs, nil
 }
 
-func topNOtherRow(fr *frame.Frame, rows []map[string]any, other string) map[string]any {
+func topNOtherRow(fr *frame.Frame, rows []map[string]any, cfg *TopNConfig) map[string]any {
+	other := ""
+	if cfg != nil {
+		other = cfg.Other
+	}
 	row := make(map[string]any, len(fr.Fields))
 	for _, field := range fr.Fields {
 		switch field.Name {
@@ -843,7 +848,7 @@ func topNOtherRow(fr *frame.Frame, rows []map[string]any, other string) map[stri
 		case "color_value":
 			row[field.Name] = other
 		default:
-			if topNShouldAggregate(field) {
+			if topNShouldAggregate(field, cfg) {
 				total := 0.0
 				for _, item := range rows {
 					total += toFloat(item[field.Name])
@@ -857,8 +862,14 @@ func topNOtherRow(fr *frame.Frame, rows []map[string]any, other string) map[stri
 	return row
 }
 
-func topNShouldAggregate(field frame.Field) bool {
-	return field.Type == frame.FieldTypeNumber || field.Role == frame.RoleMetric
+func topNShouldAggregate(field frame.Field, cfg *TopNConfig) bool {
+	if field.Type != frame.FieldTypeNumber && field.Role != frame.RoleMetric {
+		return false
+	}
+	if cfg == nil || len(cfg.AdditiveFields) == 0 {
+		return true
+	}
+	return cfg.AdditiveFields[field.Name]
 }
 
 func pivot(primary *frame.FrameSet, cfg *PivotConfig) (*frame.FrameSet, error) {

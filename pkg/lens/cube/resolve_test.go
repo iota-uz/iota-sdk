@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/stretchr/testify/require"
@@ -91,86 +92,104 @@ func TestBuildStatPanelsPreserveMeasureAction(t *testing.T) {
 	require.True(t, panels[0].Action.PreserveQuery)
 }
 
-func TestResolveDimensionDatasetWrapsSQLDimensionsWithTransforms(t *testing.T) {
+func TestResolveDimensionDataset_TransformResolutionScenarios(t *testing.T) {
 	t.Parallel()
 
-	spec := New("insurance-sales", "Sales").
-		SQL("primary", "insurance.contracts c").
-		Dimension("agency", "Agency").
-		Column("COALESCE(c.agency_id::text, '')").
-		Transforms(transform.TopN("total_policies", 10, "Other")).
-		Measure("total_policies", "Total Policies").
-		Column("DISTINCT c.id").
-		Count().
-		Build()
-
-	resolved, err := resolveDimensionDataset(spec, DrillContext{}, spec.Dimensions[0])
-	require.NoError(t, err)
-	require.Equal(t, "cube_dim_agency", resolved.Name)
-	require.Len(t, resolved.Datasets, 2)
-	require.Equal(t, lens.DatasetKindQuery, resolved.Datasets[0].Kind)
-	require.Equal(t, "cube_dim_agency_source", resolved.Datasets[0].Name)
-	require.Equal(t, lens.DatasetKindTransform, resolved.Datasets[1].Kind)
-	require.Equal(t, "cube_dim_agency", resolved.Datasets[1].Name)
-	require.Equal(t, []string{"cube_dim_agency_source"}, resolved.Datasets[1].DependsOn)
-	require.Len(t, resolved.Datasets[1].Transforms, 1)
-	require.Equal(t, "Other", resolved.Datasets[1].Transforms[0].TopN.Other)
-}
-
-func TestResolveOverrideDatasetWrapsTransforms(t *testing.T) {
-	t.Parallel()
-
-	spec := New("insurance-sales", "Sales").
-		SQL("primary", "insurance.contracts c").
-		Dimension("agency", "Agency").
-		Override(lens.DatasetSpec{
-			Kind: lens.DatasetKindQuery,
-			Query: &lens.QuerySpec{
-				Text: "SELECT c.agency_id::text AS filter_value, c.agency_name AS label, COUNT(*) AS total_policies FROM insurance.contracts c GROUP BY 1, 2",
+	tests := []struct {
+		name     string
+		spec     CubeSpec
+		assertFn func(t *testing.T, resolved dimensionDatasetResolution)
+	}{
+		{
+			name: "sql dimensions wrap transforms with additive metadata",
+			spec: New("insurance-sales", "Sales").
+				SQL("primary", "insurance.contracts c").
+				Dimension("agency", "Agency").
+				Column("COALESCE(c.agency_id::text, '')").
+				Transforms(transform.TopN("total_policies", 10, "Other")).
+				Measure("total_policies", "Total Policies").
+				Column("DISTINCT c.id").
+				Count().
+				Build(),
+			assertFn: func(t *testing.T, resolved dimensionDatasetResolution) {
+				t.Helper()
+				require.Equal(t, "cube_dim_agency", resolved.Name)
+				require.Len(t, resolved.Datasets, 2)
+				require.Equal(t, lens.DatasetKindQuery, resolved.Datasets[0].Kind)
+				require.Equal(t, "cube_dim_agency_source", resolved.Datasets[0].Name)
+				require.Equal(t, lens.DatasetKindTransform, resolved.Datasets[1].Kind)
+				require.Equal(t, "cube_dim_agency", resolved.Datasets[1].Name)
+				require.Equal(t, []string{"cube_dim_agency_source"}, resolved.Datasets[1].DependsOn)
+				require.Len(t, resolved.Datasets[1].Transforms, 1)
+				require.Equal(t, "Other", resolved.Datasets[1].Transforms[0].TopN.Other)
+				require.True(t, resolved.Datasets[1].Transforms[0].TopN.AdditiveFields["total_policies"])
 			},
-		}).
-		Transforms(transform.TopN("total_policies", 10, "Other")).
-		Measure("total_policies", "Total Policies").
-		Column("DISTINCT c.id").
-		Count().
-		Build()
-
-	resolved, err := resolveDimensionDataset(spec, DrillContext{}, spec.Dimensions[0])
-	require.NoError(t, err)
-	require.Equal(t, "cube_dim_agency", resolved.Name)
-	require.Len(t, resolved.Datasets, 2)
-	require.Equal(t, "cube_dim_agency_source", resolved.Datasets[0].Name)
-	require.Equal(t, lens.DatasetKindTransform, resolved.Datasets[1].Kind)
-	require.Equal(t, []string{"cube_dim_agency_source"}, resolved.Datasets[1].DependsOn)
-	require.Len(t, resolved.Datasets[1].Transforms, 1)
-	require.Equal(t, "Other", resolved.Datasets[1].Transforms[0].TopN.Other)
-}
-
-func TestResolveOverrideDatasetMarksColorValueAvailability(t *testing.T) {
-	t.Parallel()
-
-	spec := New("insurance-sales", "Sales").
-		SQL("primary", "insurance.contracts c").
-		Dimension("agency", "Agency").
-		Override(lens.DatasetSpec{
-			Kind: lens.DatasetKindQuery,
-			Query: &lens.QuerySpec{
-				Text: "SELECT c.agency_id::text AS filter_value, c.agency_name AS label, c.brand_color AS color_value, COUNT(*) AS total_policies FROM insurance.contracts c GROUP BY 1, 2, 3",
+		},
+		{
+			name: "override dimensions wrap transforms",
+			spec: New("insurance-sales", "Sales").
+				SQL("primary", "insurance.contracts c").
+				Dimension("agency", "Agency").
+				Override(lens.DatasetSpec{
+					Kind: lens.DatasetKindQuery,
+					Query: &lens.QuerySpec{
+						Text: "SELECT c.agency_id::text AS filter_value, c.agency_name AS label, COUNT(*) AS total_policies FROM insurance.contracts c GROUP BY 1, 2",
+					},
+				}).
+				Transforms(transform.TopN("total_policies", 10, "Other")).
+				Measure("total_policies", "Total Policies").
+				Column("DISTINCT c.id").
+				Count().
+				Build(),
+			assertFn: func(t *testing.T, resolved dimensionDatasetResolution) {
+				t.Helper()
+				require.Equal(t, "cube_dim_agency", resolved.Name)
+				require.Len(t, resolved.Datasets, 2)
+				require.Equal(t, "cube_dim_agency_source", resolved.Datasets[0].Name)
+				require.Equal(t, lens.DatasetKindTransform, resolved.Datasets[1].Kind)
+				require.Equal(t, []string{"cube_dim_agency_source"}, resolved.Datasets[1].DependsOn)
+				require.Len(t, resolved.Datasets[1].Transforms, 1)
+				require.Equal(t, "Other", resolved.Datasets[1].Transforms[0].TopN.Other)
+				require.True(t, resolved.Datasets[1].Transforms[0].TopN.AdditiveFields["total_policies"])
 			},
-		}).
-		ColorField("color_value").
-		Transforms(transform.TopN("total_policies", 10, "Other")).
-		Measure("total_policies", "Total Policies").
-		Column("DISTINCT c.id").
-		Count().
-		Build()
+		},
+		{
+			name: "override dimensions carry color value availability",
+			spec: New("insurance-sales", "Sales").
+				SQL("primary", "insurance.contracts c").
+				Dimension("agency", "Agency").
+				Override(lens.DatasetSpec{
+					Kind: lens.DatasetKindQuery,
+					Query: &lens.QuerySpec{
+						Text: "SELECT c.agency_id::text AS filter_value, c.agency_name AS label, c.brand_color AS color_value, COUNT(*) AS total_policies FROM insurance.contracts c GROUP BY 1, 2, 3",
+					},
+				}).
+				ColorField("color_value").
+				Transforms(transform.TopN("total_policies", 10, "Other")).
+				Measure("total_policies", "Total Policies").
+				Column("DISTINCT c.id").
+				Count().
+				Build(),
+			assertFn: func(t *testing.T, resolved dimensionDatasetResolution) {
+				t.Helper()
+				require.True(t, resolved.HasColorValue)
+				require.Len(t, resolved.Datasets, 2)
+				require.Equal(t, "cube_dim_agency_source", resolved.Datasets[0].Name)
+				require.Equal(t, lens.DatasetKindTransform, resolved.Datasets[1].Kind)
+			},
+		},
+	}
 
-	resolved, err := resolveDimensionDataset(spec, DrillContext{}, spec.Dimensions[0])
-	require.NoError(t, err)
-	require.True(t, resolved.HasColorValue)
-	require.Len(t, resolved.Datasets, 2)
-	require.Equal(t, "cube_dim_agency_source", resolved.Datasets[0].Name)
-	require.Equal(t, lens.DatasetKindTransform, resolved.Datasets[1].Kind)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			resolved, err := resolveDimensionDataset(tc.spec, DrillContext{}, tc.spec.Dimensions[0])
+			require.NoError(t, err)
+			tc.assertFn(t, resolved)
+		})
+	}
 }
 
 func TestBuildDimensionPanelUsesFilterValueWhenColorValueIsUnavailable(t *testing.T) {
@@ -187,4 +206,36 @@ func TestBuildDimensionPanelUsesFilterValueWhenColorValueIsUnavailable(t *testin
 
 	panelSpec := buildDimensionPanel(spec, spec.Dimensions[0], dimensionDatasetResolution{Name: "cube_dim_agency"}, "/crm/reports/sales", 1, 0)
 	require.Equal(t, panel.Ref("filter_value"), panelSpec.ColorField)
+}
+
+func TestResolveDimensionDataset_DatasetColorFieldCollisionKeepsFilterValue(t *testing.T) {
+	t.Parallel()
+
+	data, err := frame.FromRows("contracts",
+		frame.Row{"agency_name": "Alpha", "total_policies": 10.0},
+		frame.Row{"agency_name": "Beta", "total_policies": 8.0},
+	)
+	require.NoError(t, err)
+
+	spec := New("insurance-sales", "Sales").
+		Dataset(data).
+		Dimension("agency", "Agency").
+		Field("agency_name").
+		ColorField("agency_name").
+		ColorScale("AGENCY").
+		Transforms(transform.TopN("total_policies", 10, "Other")).
+		Measure("total_policies", "Total Policies").
+		Field("total_policies").
+		Sum().
+		Build()
+
+	resolved, err := resolveDimensionDataset(spec, DrillContext{}, spec.Dimensions[0])
+	require.NoError(t, err)
+	require.False(t, resolved.HasColorValue)
+	require.Len(t, resolved.Datasets, 1)
+	require.NotEmpty(t, resolved.Datasets[0].Transforms)
+
+	lookup := resolved.Datasets[0].Transforms[2].Lookup
+	require.NotNil(t, lookup)
+	require.Equal(t, map[string]string{"agency_name": "filter_value"}, lookup.Fields)
 }

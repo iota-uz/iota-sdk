@@ -5,7 +5,6 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/charts"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -54,7 +53,7 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 			data-lens-loading-card
 		>
 			<div class="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-			<p class="text-sm font-medium" style="color: #334155;">{ composables.UsePageCtx(ctx).T("Lens.Chart.Loading") }</p>
+			<p class="text-sm font-medium" style="color: #334155;">{ translate(ctx, "Lens.Chart.Loading") }</p>
 		</div>
 		<div class="space-y-6" data-lens-dashboard>
 			if drillNav.HasNav {

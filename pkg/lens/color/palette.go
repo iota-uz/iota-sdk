@@ -141,9 +141,10 @@ func stableIndex(key string, size int) int {
 	if size <= 0 {
 		return 0
 	}
-	sum := 0
+	hash := uint64(14695981039346656037)
 	for _, ch := range key {
-		sum += int(ch)
+		hash ^= uint64(ch)
+		hash *= 1099511628211
 	}
-	return sum % size
+	return int(hash % uint64(size))
 }

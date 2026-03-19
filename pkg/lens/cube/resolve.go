@@ -24,6 +24,47 @@ type dimensionDatasetResolution struct {
 	HasColorValue bool
 }
 
+func datasetDimensionHasColorValue(dim DimensionSpec) bool {
+	colorField := strings.TrimSpace(dim.ColorField)
+	if colorField == "" {
+		return false
+	}
+	lookupSource := strings.TrimSpace(dim.Field)
+	if lookupSource == "" {
+		lookupSource = strings.TrimSpace(dim.LabelField)
+	}
+	return colorField != lookupSource
+}
+
+func resolvedDimensionTransforms(spec CubeSpec, transformsIn []transform.Spec) []transform.Spec {
+	if len(transformsIn) == 0 {
+		return nil
+	}
+	additiveByField := make(map[string]bool, len(spec.Measures))
+	for _, measure := range spec.Measures {
+		switch measure.Aggregation {
+		case AggregationCount, AggregationSum:
+			additiveByField[measure.Name] = true
+		}
+	}
+	out := make([]transform.Spec, len(transformsIn))
+	for i, specTransform := range transformsIn {
+		out[i] = specTransform
+		if specTransform.TopN == nil {
+			continue
+		}
+		cfg := *specTransform.TopN
+		if len(additiveByField) > 0 {
+			cfg.AdditiveFields = make(map[string]bool, len(additiveByField))
+			for field, additive := range additiveByField {
+				cfg.AdditiveFields[field] = additive
+			}
+		}
+		out[i].TopN = &cfg
+	}
+	return out
+}
+
 func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpec, error) {
 	if err := spec.Validate(); err != nil {
 		return lens.DashboardSpec{}, err
@@ -120,7 +161,7 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 					Name:       name,
 					Kind:       lens.DatasetKindTransform,
 					DependsOn:  []string{sourceName},
-					Transforms: append([]transform.Spec(nil), dim.Transforms...),
+					Transforms: resolvedDimensionTransforms(spec, dim.Transforms),
 				},
 			},
 		}, nil
@@ -144,7 +185,7 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 					Name:       name,
 					Kind:       lens.DatasetKindTransform,
 					DependsOn:  []string{sourceName},
-					Transforms: append([]transform.Spec(nil), dim.Transforms...),
+					Transforms: resolvedDimensionTransforms(spec, dim.Transforms),
 				},
 			},
 		}, nil
@@ -152,7 +193,7 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 		return dimensionDatasetResolution{
 			Name:          name,
 			Datasets:      []lens.DatasetSpec{resolveDatasetDimensionDataset(spec, ctx, dim, name)},
-			HasColorValue: strings.TrimSpace(dim.ColorField) != "",
+			HasColorValue: datasetDimensionHasColorValue(dim),
 		}, nil
 	default:
 		return dimensionDatasetResolution{}, fmt.Errorf("unsupported cube mode %q", spec.DataMode)

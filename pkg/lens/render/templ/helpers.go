@@ -328,9 +328,6 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 		}
 		return joinURLQuery(nextURL, values)
 	}
-	if values == nil {
-		values = url.Values{}
-	}
 	for _, param := range spec.Params {
 		value, ok := actionValue(param.Source, row, resultVariables(result))
 		if !ok {

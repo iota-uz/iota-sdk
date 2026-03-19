@@ -326,6 +326,76 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.NotEmpty(t, options.Chart.Events.DataPointMouseEnter)
 			},
 		},
+		{
+			name: "dense category labels hide legend and truncate",
+			panelSpec: panel.HorizontalBar("agency", "Agency", "agency").
+				LabelField("label").
+				ValueField("value").
+				Colors("#3B82F6", "#10B981").
+				DistributedColors().
+				Build(),
+			panelResult: func() *runtime.PanelResult {
+				fr, err := frame.New("agency",
+					frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Very Long Agency Name That Needs Truncation", "Another Long Agency Name"}},
+					frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0, 18.0}},
+				)
+				require.NoError(t, err)
+				return &runtime.PanelResult{Frames: mustFrameSet(t, fr)}
+			}(),
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.Legend)
+				require.NotNil(t, options.Legend.Show)
+				require.False(t, *options.Legend.Show)
+				require.Len(t, options.YAxis, 1)
+				require.NotNil(t, options.YAxis[0].Labels)
+				require.NotEmpty(t, options.YAxis[0].Labels.Formatter)
+				require.NotNil(t, options.YAxis[0].Labels.MaxWidth)
+			},
+		},
+		{
+			name: "semantic colors deduplicate grouped series",
+			panelSpec: panel.StackedBar("sales-by-product", "Sales by Product", "sales").
+				CategoryField("category").
+				SeriesField("series").
+				ValueField("value").
+				SemanticColors("PRODUCT", panel.Ref("color_value")).
+				Build(),
+			panelResult: func() *runtime.PanelResult {
+				fr, err := frame.New("sales",
+					frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"Jan", "Jan", "Feb", "Feb"}},
+					frame.Field{Name: "series", Type: frame.FieldTypeString, Values: []any{"OSAGO", "TRAVEL", "OSAGO", "TRAVEL"}},
+					frame.Field{Name: "color_value", Type: frame.FieldTypeString, Values: []any{"osago", "travel", "osago", "travel"}},
+					frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0, 5.0, 12.0, 8.0}},
+				)
+				require.NoError(t, err)
+				return &runtime.PanelResult{Frames: mustFrameSet(t, fr)}
+			}(),
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.Len(t, options.Colors, 2)
+				require.Equal(t, []string{"#7C3AED", "#2563EB"}, options.Colors)
+			},
+		},
+		{
+			name: "truncate formatter keeps output within limit",
+			panelSpec: panel.Bar("formatter-check", "Formatter Check", "sales").
+				CategoryField("category").
+				ValueField("value").
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, heightFrame)},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				formatter := string(truncateCategoryLabelFormatter(16))
+				require.Contains(t, formatter, "text.slice(0, 13) + '...';")
+				require.NotContains(t, formatter, "if (16 <= 3)")
+
+				shortFormatter := string(truncateCategoryLabelFormatter(3))
+				require.Contains(t, shortFormatter, "return text.slice(0, 3);")
+				require.NotContains(t, shortFormatter, "text.slice(0, 0) + '...';")
+				require.NotNil(t, options)
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -397,71 +467,6 @@ func TestOptionsDoesNotWrapLogFormattersWhenManualScaleIsSkipped(t *testing.T) {
 	require.Len(t, options.YAxis, 1)
 	require.NotNil(t, options.YAxis[0].Labels)
 	require.NotContains(t, string(options.YAxis[0].Labels.Formatter), "Math.pow")
-}
-
-func TestOptionsHidesLegendAndTruncatesDenseCategoryLabels(t *testing.T) {
-	t.Parallel()
-
-	fr, err := frame.New("agency",
-		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Very Long Agency Name That Needs Truncation", "Another Long Agency Name"}},
-		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0, 18.0}},
-	)
-	require.NoError(t, err)
-
-	options := Options(
-		panel.HorizontalBar("agency", "Agency", "agency").
-			LabelField("label").
-			ValueField("value").
-			Colors("#3B82F6", "#10B981").
-			DistributedColors().
-			Build(),
-		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
-	)
-
-	require.NotNil(t, options.Legend)
-	require.NotNil(t, options.Legend.Show)
-	require.False(t, *options.Legend.Show)
-	require.Len(t, options.YAxis, 1)
-	require.NotNil(t, options.YAxis[0].Labels)
-	require.NotEmpty(t, options.YAxis[0].Labels.Formatter)
-	require.NotNil(t, options.YAxis[0].Labels.MaxWidth)
-}
-
-func TestSemanticPanelColorsDeduplicateGroupedSeries(t *testing.T) {
-	t.Parallel()
-
-	fr, err := frame.New("sales",
-		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"Jan", "Jan", "Feb", "Feb"}},
-		frame.Field{Name: "series", Type: frame.FieldTypeString, Values: []any{"OSAGO", "TRAVEL", "OSAGO", "TRAVEL"}},
-		frame.Field{Name: "color_value", Type: frame.FieldTypeString, Values: []any{"osago", "travel", "osago", "travel"}},
-		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0, 5.0, 12.0, 8.0}},
-	)
-	require.NoError(t, err)
-
-	options := Options(
-		panel.StackedBar("sales-by-product", "Sales by Product", "sales").
-			CategoryField("category").
-			SeriesField("series").
-			ValueField("value").
-			SemanticColors("PRODUCT", panel.Ref("color_value")).
-			Build(),
-		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
-	)
-
-	require.Len(t, options.Colors, 2)
-	require.Equal(t, []string{"#7C3AED", "#2563EB"}, options.Colors)
-}
-
-func TestTruncateCategoryLabelFormatterKeepsOutputWithinLimit(t *testing.T) {
-	t.Parallel()
-
-	formatter := string(truncateCategoryLabelFormatter(16))
-	require.Contains(t, formatter, "text.slice(0, 13) + '...';")
-	require.NotContains(t, formatter, "if (16 <= 3)")
-
-	shortFormatter := string(truncateCategoryLabelFormatter(3))
-	require.Contains(t, shortFormatter, "return text.slice(0, 3);")
-	require.NotContains(t, shortFormatter, "text.slice(0, 0) + '...';")
 }
 
 func mustFrameSet(t *testing.T, fr *frame.Frame) *frame.FrameSet {
