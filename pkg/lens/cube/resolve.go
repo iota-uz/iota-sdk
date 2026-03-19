@@ -193,6 +193,9 @@ func buildStatPanels(spec CubeSpec, dataset string) []panel.Spec {
 		if strings.TrimSpace(measure.AccentColor) != "" {
 			builder.AccentColor(measure.AccentColor)
 		}
+		if measure.Action != nil {
+			builder.Action(*measure.Action)
+		}
 		panels = append(panels, builder.Build())
 	}
 	return panels

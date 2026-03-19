@@ -2,6 +2,7 @@ package cube
 
 import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -261,6 +262,11 @@ func (b *MeasureBuilder) AccentColor(color string) *MeasureBuilder {
 
 func (b *MeasureBuilder) Description(description string) *MeasureBuilder {
 	b.spec.Description = description
+	return b
+}
+
+func (b *MeasureBuilder) Action(spec action.Spec) *MeasureBuilder {
+	b.spec.Action = &spec
 	return b
 }
 

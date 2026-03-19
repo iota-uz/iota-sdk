@@ -70,6 +70,27 @@ func TestBuildDimensionPanelUsesLeafURLForTerminalDrill(t *testing.T) {
 	require.Equal(t, "/crm/reports/sales/drill/policies", panelSpec.Action.URL)
 }
 
+func TestBuildStatPanelsPreserveMeasureAction(t *testing.T) {
+	t.Parallel()
+
+	measureAction := action.Navigate("/crm/reports/sales/drill/policies").WithPreservedQuery()
+	spec := New("crm-sales", "Sales").
+		Dataset(nil).
+		Dimension("payment_method", "Payment Method").
+		Field("payment_method").
+		Measure("total_policies", "Total Policies").
+		Count().
+		Action(measureAction).
+		Build()
+
+	panels := buildStatPanels(spec, "cube_stats")
+	require.Len(t, panels, 1)
+	require.NotNil(t, panels[0].Action)
+	require.Equal(t, action.KindNavigate, panels[0].Action.Kind)
+	require.Equal(t, "/crm/reports/sales/drill/policies", panels[0].Action.URL)
+	require.True(t, panels[0].Action.PreserveQuery)
+}
+
 func TestResolveDimensionDatasetWrapsSQLDimensionsWithTransforms(t *testing.T) {
 	t.Parallel()
 

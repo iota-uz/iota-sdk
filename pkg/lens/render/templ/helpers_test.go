@@ -45,6 +45,33 @@ func TestActionURLIncludesVariableParams(t *testing.T) {
 	require.Equal(t, "report", parsed.Query().Get("scope"))
 }
 
+func TestActionURLPreservesExistingQueryForNavigateActions(t *testing.T) {
+	t.Parallel()
+
+	url := actionURL(&action.Spec{
+		Kind:          action.KindNavigate,
+		URL:           "/insurance/sales-report/drill/contracts",
+		PreserveQuery: true,
+	}, map[string]any{
+		"product_id": "osago",
+	}, &runtime.PanelResult{
+		Request: urlpkg.Values{
+			"issue_at":       []string{"bounded"},
+			"issue_at_start": []string{"2026-03-01"},
+			"issue_at_end":   []string{"2026-03-31"},
+			cube.QueryFilter: []string{"product:osago"},
+		},
+	})
+
+	parsed, err := urlpkg.Parse(url)
+	require.NoError(t, err)
+	require.Equal(t, "/insurance/sales-report/drill/contracts", parsed.Path)
+	require.Equal(t, "bounded", parsed.Query().Get("issue_at"))
+	require.Equal(t, "2026-03-01", parsed.Query().Get("issue_at_start"))
+	require.Equal(t, "2026-03-31", parsed.Query().Get("issue_at_end"))
+	require.Equal(t, []string{"product:osago"}, parsed.Query()[cube.QueryFilter])
+}
+
 func TestActionURLSupportsHtmxActions(t *testing.T) {
 	t.Parallel()
 

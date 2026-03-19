@@ -33,14 +33,15 @@ type Param struct {
 }
 
 type Spec struct {
-	Kind    Kind
-	Method  string
-	URL     string
-	Target  string
-	Event   string
-	Payload map[string]ValueSource
-	Params  []Param
-	Drill   *DrillSpec
+	Kind          Kind
+	Method        string
+	URL           string
+	Target        string
+	Event         string
+	Payload       map[string]ValueSource
+	Params        []Param
+	Drill         *DrillSpec
+	PreserveQuery bool
 }
 
 func Navigate(url string, params ...Param) Spec {
@@ -90,6 +91,11 @@ func (s Spec) WithDrillValue(source ValueSource) Spec {
 	}
 	s = s.withClonedDrill()
 	s.Drill.Value = source
+	return s
+}
+
+func (s Spec) WithPreservedQuery() Spec {
+	s.PreserveQuery = true
 	return s
 }
 

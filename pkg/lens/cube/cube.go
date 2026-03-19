@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -87,6 +88,7 @@ type MeasureSpec struct {
 	AccentColor  string
 	Description  string
 	RequiresJoin []string
+	Action       *action.Spec
 }
 
 type LeafSpec struct {

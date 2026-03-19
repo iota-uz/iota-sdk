@@ -318,10 +318,19 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 		return cubeDrillActionURL(spec, row, result)
 	}
 	nextURL := interpolateActionURL(spec.URL, row, resultVariables(result))
-	if len(spec.Params) == 0 {
-		return nextURL
-	}
 	values := url.Values{}
+	if spec.PreserveQuery && result != nil {
+		values = cloneURLValues(result.Request)
+	}
+	if len(spec.Params) == 0 {
+		if len(values) == 0 {
+			return nextURL
+		}
+		return joinURLQuery(nextURL, values)
+	}
+	if values == nil {
+		values = url.Values{}
+	}
 	for _, param := range spec.Params {
 		value, ok := actionValue(param.Source, row, resultVariables(result))
 		if !ok {
