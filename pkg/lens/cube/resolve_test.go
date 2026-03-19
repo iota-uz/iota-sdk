@@ -146,6 +146,33 @@ func TestResolveOverrideDatasetWrapsTransforms(t *testing.T) {
 	require.Equal(t, "Other", resolved.Datasets[1].Transforms[0].TopN.Other)
 }
 
+func TestResolveOverrideDatasetMarksColorValueAvailability(t *testing.T) {
+	t.Parallel()
+
+	spec := New("insurance-sales", "Sales").
+		SQL("primary", "insurance.contracts c").
+		Dimension("agency", "Agency").
+		Override(lens.DatasetSpec{
+			Kind: lens.DatasetKindQuery,
+			Query: &lens.QuerySpec{
+				Text: "SELECT c.agency_id::text AS filter_value, c.agency_name AS label, c.brand_color AS color_value, COUNT(*) AS total_policies FROM insurance.contracts c GROUP BY 1, 2, 3",
+			},
+		}).
+		ColorField("color_value").
+		Transforms(transform.TopN("total_policies", 10, "Other")).
+		Measure("total_policies", "Total Policies").
+		Column("DISTINCT c.id").
+		Count().
+		Build()
+
+	resolved, err := resolveDimensionDataset(spec, DrillContext{}, spec.Dimensions[0])
+	require.NoError(t, err)
+	require.True(t, resolved.HasColorValue)
+	require.Len(t, resolved.Datasets, 2)
+	require.Equal(t, "cube_dim_agency_source", resolved.Datasets[0].Name)
+	require.Equal(t, lens.DatasetKindTransform, resolved.Datasets[1].Kind)
+}
+
 func TestBuildDimensionPanelUsesFilterValueWhenColorValueIsUnavailable(t *testing.T) {
 	t.Parallel()
 

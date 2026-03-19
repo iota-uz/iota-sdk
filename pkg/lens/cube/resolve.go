@@ -101,16 +101,19 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 	name := datasetName(dim.Name)
 	if dim.Override != nil {
 		overrideDataset := resolveOverrideDataset(spec, ctx, *dim.Override, name)
+		hasColorValue := strings.TrimSpace(dim.ColorField) != ""
 		if len(dim.Transforms) == 0 {
 			return dimensionDatasetResolution{
-				Name:     name,
-				Datasets: []lens.DatasetSpec{overrideDataset},
+				Name:          name,
+				Datasets:      []lens.DatasetSpec{overrideDataset},
+				HasColorValue: hasColorValue,
 			}, nil
 		}
 		sourceName := name + "_source"
 		overrideDataset.Name = sourceName
 		return dimensionDatasetResolution{
-			Name: name,
+			Name:          name,
+			HasColorValue: hasColorValue,
 			Datasets: []lens.DatasetSpec{
 				overrideDataset,
 				{

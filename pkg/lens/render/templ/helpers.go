@@ -336,7 +336,7 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 		if !ok {
 			continue
 		}
-		values.Add(param.Name, fmt.Sprint(value))
+		assignQueryValue(values, param.Name, value)
 	}
 	query := values.Encode()
 	if query == "" {
