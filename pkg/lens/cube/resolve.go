@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,6 +17,55 @@ const (
 	dimDatasetNamePrefix   = "cube_dim"
 	leafDatasetNamePrefix  = "cube_leaf"
 )
+
+type dimensionDatasetResolution struct {
+	Name          string
+	Datasets      []lens.DatasetSpec
+	HasColorValue bool
+}
+
+func datasetDimensionHasColorValue(dim DimensionSpec) bool {
+	colorField := strings.TrimSpace(dim.ColorField)
+	if colorField == "" {
+		return false
+	}
+	lookupSource := strings.TrimSpace(dim.Field)
+	if lookupSource == "" {
+		lookupSource = strings.TrimSpace(dim.LabelField)
+	}
+	return colorField != lookupSource
+}
+
+func resolvedDimensionTransforms(spec CubeSpec, transformsIn []transform.Spec) []transform.Spec {
+	if len(transformsIn) == 0 {
+		return nil
+	}
+	additiveByField := make(map[string]bool, len(spec.Measures))
+	for _, measure := range spec.Measures {
+		switch measure.Aggregation {
+		case AggregationCount, AggregationSum:
+			additiveByField[measure.Name] = true
+		case AggregationAvg:
+			additiveByField[measure.Name] = false
+		}
+	}
+	out := make([]transform.Spec, len(transformsIn))
+	for i, specTransform := range transformsIn {
+		out[i] = specTransform
+		if specTransform.TopN == nil {
+			continue
+		}
+		cfg := *specTransform.TopN
+		if len(additiveByField) > 0 {
+			cfg.AdditiveFields = make(map[string]bool, len(additiveByField))
+			for field, additive := range additiveByField {
+				cfg.AdditiveFields[field] = additive
+			}
+		}
+		out[i].TopN = &cfg
+	}
+	return out
+}
 
 func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpec, error) {
 	if err := spec.Validate(); err != nil {
@@ -66,12 +116,12 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 
 	dimensionPanels := make([]panel.Spec, 0, len(remaining))
 	for idx, dim := range remaining {
-		dataset, err := resolveDimensionDataset(spec, ctx, dim)
+		resolved, err := resolveDimensionDataset(spec, ctx, dim)
 		if err != nil {
 			return lens.DashboardSpec{}, err
 		}
-		dashboard.Datasets = append(dashboard.Datasets, dataset)
-		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, dataset.Name, baseURL, len(remaining), idx))
+		dashboard.Datasets = append(dashboard.Datasets, resolved.Datasets...)
+		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved, baseURL, len(remaining), idx))
 	}
 	dashboard.Rows = append(dashboard.Rows, buildDimensionRows(dimensionPanels)...)
 
@@ -90,18 +140,65 @@ func resolveStatsDataset(spec CubeSpec, ctx DrillContext) (lens.DatasetSpec, err
 	}
 }
 
-func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec) (lens.DatasetSpec, error) {
+func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec) (dimensionDatasetResolution, error) {
 	name := datasetName(dim.Name)
 	if dim.Override != nil {
-		return resolveOverrideDataset(spec, ctx, *dim.Override, name), nil
+		overrideDataset := resolveOverrideDataset(spec, ctx, *dim.Override, name)
+		hasColorValue := strings.TrimSpace(dim.ColorField) != ""
+		if len(dim.Transforms) == 0 {
+			return dimensionDatasetResolution{
+				Name:          name,
+				Datasets:      []lens.DatasetSpec{overrideDataset},
+				HasColorValue: hasColorValue,
+			}, nil
+		}
+		sourceName := name + "_source"
+		overrideDataset.Name = sourceName
+		return dimensionDatasetResolution{
+			Name:          name,
+			HasColorValue: hasColorValue,
+			Datasets: []lens.DatasetSpec{
+				overrideDataset,
+				{
+					Name:       name,
+					Kind:       lens.DatasetKindTransform,
+					DependsOn:  []string{sourceName},
+					Transforms: resolvedDimensionTransforms(spec, dim.Transforms),
+				},
+			},
+		}, nil
 	}
 	switch spec.DataMode {
 	case DataModeSQL:
-		return resolveSQLDimensionDataset(spec, ctx, dim, name), nil
+		if len(dim.Transforms) == 0 {
+			return dimensionDatasetResolution{
+				Name:          name,
+				Datasets:      []lens.DatasetSpec{resolveSQLDimensionDataset(spec, ctx, dim, name)},
+				HasColorValue: strings.TrimSpace(dim.ColorColumn) != "",
+			}, nil
+		}
+		sourceName := name + "_source"
+		return dimensionDatasetResolution{
+			Name:          name,
+			HasColorValue: strings.TrimSpace(dim.ColorColumn) != "",
+			Datasets: []lens.DatasetSpec{
+				resolveSQLDimensionDataset(spec, ctx, dim, sourceName),
+				{
+					Name:       name,
+					Kind:       lens.DatasetKindTransform,
+					DependsOn:  []string{sourceName},
+					Transforms: resolvedDimensionTransforms(spec, dim.Transforms),
+				},
+			},
+		}, nil
 	case DataModeDataset:
-		return resolveDatasetDimensionDataset(spec, ctx, dim, name), nil
+		return dimensionDatasetResolution{
+			Name:          name,
+			Datasets:      []lens.DatasetSpec{resolveDatasetDimensionDataset(spec, ctx, dim, name)},
+			HasColorValue: datasetDimensionHasColorValue(dim),
+		}, nil
 	default:
-		return lens.DatasetSpec{}, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
+		return dimensionDatasetResolution{}, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
 	}
 }
 
@@ -139,15 +236,21 @@ func buildStatPanels(spec CubeSpec, dataset string) []panel.Spec {
 		if strings.TrimSpace(measure.Description) != "" {
 			builder.Description(measure.Description)
 		}
+		if strings.TrimSpace(measure.Info) != "" {
+			builder.Info(measure.Info)
+		}
 		if strings.TrimSpace(measure.AccentColor) != "" {
 			builder.AccentColor(measure.AccentColor)
+		}
+		if measure.Action != nil {
+			builder.Action(*measure.Action)
 		}
 		panels = append(panels, builder.Build())
 	}
 	return panels
 }
 
-func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL string, remainingCount, index int) panel.Spec {
+func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDatasetResolution, baseURL string, remainingCount, index int) panel.Spec {
 	// Dimension charts use the first measure as their value axis.
 	// Additional measures appear only in stat panels.
 	measure := spec.Measures[0]
@@ -155,7 +258,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL stri
 	if remainingCount == 1 && strings.TrimSpace(spec.Leaf.URL) != "" {
 		actionURL = spec.Leaf.URL
 	}
-	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, dataset).
+	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, resolved.Name).
 		Span(dimensionSpan(remainingCount, index)).
 		Height("360px").
 		Description(dim.Description).
@@ -174,6 +277,16 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL stri
 	}
 	if dim.ValueAxis.Scale != "" {
 		builder.ValueAxisScale(dim.ValueAxis.Scale, dim.ValueAxis.LogBase)
+	}
+	if strings.TrimSpace(dim.ColorScale) != "" {
+		colorField := panel.Ref("filter_value")
+		if resolved.HasColorValue {
+			colorField = panel.Ref("color_value")
+		}
+		builder.SemanticColors(dim.ColorScale, colorField)
+		if dim.PanelKind == panel.KindBar || dim.PanelKind == panel.KindHorizontalBar {
+			builder.DistributedColors()
+		}
 	}
 	if len(dim.Colors) > 0 {
 		builder.Colors(dim.Colors...)

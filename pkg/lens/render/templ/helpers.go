@@ -318,16 +318,22 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 		return cubeDrillActionURL(spec, row, result)
 	}
 	nextURL := interpolateActionURL(spec.URL, row, resultVariables(result))
-	if len(spec.Params) == 0 {
-		return nextURL
-	}
 	values := url.Values{}
+	if spec.PreserveQuery && result != nil {
+		values = cloneURLValues(result.Request)
+	}
+	if len(spec.Params) == 0 {
+		if len(values) == 0 {
+			return nextURL
+		}
+		return joinURLQuery(nextURL, values)
+	}
 	for _, param := range spec.Params {
 		value, ok := actionValue(param.Source, row, resultVariables(result))
 		if !ok {
 			continue
 		}
-		values.Add(param.Name, fmt.Sprint(value))
+		assignQueryValue(values, param.Name, value)
 	}
 	query := values.Encode()
 	if query == "" {
@@ -750,9 +756,14 @@ func panelUsesMetricInfoFallback(spec panel.Spec) bool {
 		panel.KindGauge,
 		panel.KindTabs:
 		return true
-	default:
+	case panel.KindStat,
+		panel.KindTable,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
 		return false
 	}
+	return false
 }
 
 func panelUsesRadialActionSurface(spec panel.Spec) bool {
@@ -762,9 +773,23 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 	switch spec.Kind {
 	case panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return true
-	default:
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindBar,
+		panel.KindHorizontalBar,
+		panel.KindStackedBar,
+		panel.KindTable,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
 		return false
 	}
+	return false
+}
+
+func panelIsInteractive(spec panel.Spec) bool {
+	return spec.Action != nil
 }
 
 func panelChartClass(spec panel.Spec, fullscreen bool) string {
@@ -774,8 +799,21 @@ func panelChartClass(spec panel.Spec, fullscreen bool) string {
 	} else {
 		base += " h-full"
 	}
+	if panelIsInteractive(spec) {
+		base += " cursor-pointer"
+	}
 	if panelUsesRadialActionSurface(spec) {
 		base += " lens-chart--radial-action"
+	}
+	return strings.TrimSpace(base)
+}
+
+func panelCardClass(spec panel.Spec) string {
+	base := "flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-all duration-200"
+	if panelIsInteractive(spec) {
+		base += " hover:border-blue-200 hover:shadow-md"
+	} else {
+		base += " hover:shadow-md"
 	}
 	return strings.TrimSpace(base)
 }
@@ -834,9 +872,14 @@ func metricInfoTemplateKey(kind panel.Kind) string {
 		return "Lens.Chart.Info.Gauge"
 	case panel.KindTabs:
 		return "Lens.Chart.Info.Tabs"
-	default:
+	case panel.KindStat,
+		panel.KindTable,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
 		return ""
 	}
+	return ""
 }
 
 func metricInfoSubject(ctx context.Context, spec panel.Spec) string {
@@ -1118,6 +1161,10 @@ func rerenderChartsScript(delayMs int) string {
 
 func openFullscreenScript() string {
 	return "fullscreen = true; requestAnimationFrame(() => { const root = event && event.currentTarget && event.currentTarget.closest('[data-lens-rerender-scope]'); if (root && root.__lensFullscreenRerenderTimer) { clearTimeout(root.__lensFullscreenRerenderTimer); } const rerender = () => { document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: root ? { root } : {} })); window.dispatchEvent(new Event('resize')); if (root) { root.__lensFullscreenRerenderTimer = null; } }; const timer = setTimeout(rerender, 260); if (root) { root.__lensFullscreenRerenderTimer = timer; } });"
+}
+
+func swapTargetLoadingScript() templpkg.ComponentScript {
+	return templpkg.JSUnsafeFuncCall("if (window.__lensSetSwapTargetLoading) { window.__lensSetSwapTargetLoading(this.closest('[data-lens-swap-target]'), true); }")
 }
 
 func activateTabScript(tabID string) string {

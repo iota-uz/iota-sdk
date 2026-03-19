@@ -12,6 +12,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	lenscolor "github.com/iota-uz/iota-sdk/pkg/lens/color"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -41,7 +42,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			Stacked: panelSpec.Kind == panel.KindStackedBar,
 		},
 		DataLabels: &charts.DataLabels{Enabled: false},
-		Colors:     panelColors(panelSpec),
+		Colors:     panelColors(panelSpec, panelResult),
 		Grid: &charts.GridConfig{
 			BorderColor: gridColor,
 			Padding:     &charts.Padding{Top: mapping.Pointer(4), Right: mapping.Pointer(12), Bottom: mapping.Pointer(0), Left: mapping.Pointer(12)},
@@ -75,6 +76,9 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 					},
 				},
 			},
+		},
+		Legend: &charts.LegendConfig{
+			Show: mapping.BoolPointer(false),
 		},
 	}
 	if panelResult == nil || panelResult.Frames == nil || panelResult.Frames.Primary() == nil {
@@ -193,6 +197,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			},
 		}
 	}
+	applyCategoryLabelFormatting(&options, panelSpec)
 	if panelSpec.ShowLegend {
 		position := charts.LegendPositionBottom
 		legendFontSize := "11px"
@@ -215,8 +220,15 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	logPlan, manualLogScaleApplied := applyValueScale(&options, panelSpec)
 	applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
+	var chartEvents charts.ChartEvents
+	if syncTooltip := distributedTooltipMarkerSyncJS(panelSpec, rows, fields); syncTooltip != "" {
+		chartEvents.DataPointMouseEnter = syncTooltip
+	}
 	if panelSpec.Action != nil {
-		options.Chart.Events = &charts.ChartEvents{DataPointSelection: buildActionJS(panelSpec.Action, fr, fields, panelResult)}
+		chartEvents.DataPointSelection = buildActionJS(panelSpec.Action, fr, fields, panelResult)
+	}
+	if chartEvents.DataPointMouseEnter != "" || chartEvents.DataPointSelection != "" {
+		options.Chart.Events = &chartEvents
 	}
 	appendResponsiveDefaults(&options, panelSpec.Kind)
 	return options
@@ -705,11 +717,17 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			if (source && source.setAttribute) {
 				source.setAttribute('hx-push-url', 'true');
 			}
+			if (window.__lensSetSwapTargetLoading) {
+				window.__lensSetSwapTargetLoading(target, true);
+			}
 			try {
 				htmx.ajax(cfg.method || 'GET', nextURL, {source: source || target, target: target, swap: 'innerHTML'});
 			} catch (error) {
 				if (target.dataset) {
 					delete target.dataset.lensDrillPending;
+				}
+				if (window.__lensSetSwapTargetLoading) {
+					window.__lensSetSwapTargetLoading(target, false);
 				}
 				throw error;
 			}
@@ -802,10 +820,13 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		if spec.Drill != nil {
 			drillExpr = actionValueJS(spec.Drill.Value, fields)
 		}
-		js += fmt.Sprintf(`if (cfg.drill) {
-			const drillValue = %s;
+		js += fmt.Sprintf(`let drillValue;
+		if (cfg.drill) {
+			drillValue = %s;
 			if (drillValue !== undefined && drillValue !== null && drillValue !== '') {
 				params.append('_f', cfg.drill.dimension + ':' + String(drillValue));
+			} else {
+				return;
 			}
 		}
 		`, drillExpr)
@@ -816,6 +837,101 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		}
 	` + actionJS + `}`
 	return templ.JSExpression(js)
+}
+
+func applyCategoryLabelFormatting(options *charts.ChartOptions, panelSpec panel.Spec) {
+	if options == nil {
+		return
+	}
+	categories := options.XAxis.Categories
+	if len(categories) == 0 {
+		return
+	}
+	switch panelSpec.Kind {
+	case panel.KindBar, panel.KindStackedBar:
+		applyVerticalCategoryLabelFormatting(options, categories)
+	case panel.KindHorizontalBar:
+		applyHorizontalCategoryLabelFormatting(options, categories)
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindPie,
+		panel.KindDonut,
+		panel.KindTable,
+		panel.KindGauge,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
+		return
+	}
+}
+
+func applyVerticalCategoryLabelFormatting(options *charts.ChartOptions, categories []string) {
+	if options.XAxis.Labels == nil {
+		options.XAxis.Labels = &charts.XAxisLabelsConfig{}
+	}
+	maxLength := maxCategoryLength(categories)
+	if maxLength <= 16 {
+		return
+	}
+	rotate := -45
+	rotateAlways := true
+	maxHeight := 96
+	options.XAxis.Labels.Rotate = &rotate
+	options.XAxis.Labels.RotateAlways = &rotateAlways
+	options.XAxis.Labels.MaxHeight = &maxHeight
+	options.XAxis.Labels.Formatter = truncateCategoryLabelFormatter(16)
+}
+
+func applyHorizontalCategoryLabelFormatting(options *charts.ChartOptions, categories []string) {
+	if len(options.YAxis) == 0 {
+		options.YAxis = []charts.YAxisConfig{{}}
+	}
+	if options.YAxis[0].Labels == nil {
+		options.YAxis[0].Labels = &charts.YAxisLabelsConfig{}
+	}
+	maxLength := maxCategoryLength(categories)
+	if maxLength <= 24 {
+		return
+	}
+	maxWidth := 220
+	options.YAxis[0].Labels.MaxWidth = &maxWidth
+	options.YAxis[0].Labels.Formatter = truncateCategoryLabelFormatter(24)
+}
+
+func maxCategoryLength(categories []string) int {
+	maxLength := 0
+	for _, category := range categories {
+		if length := len([]rune(strings.TrimSpace(category))); length > maxLength {
+			maxLength = length
+		}
+	}
+	return maxLength
+}
+
+func truncateCategoryLabelFormatter(limit int) templ.JSExpression {
+	if limit <= 3 {
+		return templ.JSExpression(fmt.Sprintf(`function(value) {
+		if (value === undefined || value === null) {
+			return '';
+		}
+		const text = String(value).trim();
+		if (text.length <= %d) {
+			return text;
+		}
+		return text.slice(0, %d);
+	}`, limit, limit))
+	}
+	return templ.JSExpression(fmt.Sprintf(`function(value) {
+		if (value === undefined || value === null) {
+			return '';
+		}
+		const text = String(value).trim();
+		if (text.length <= %d) {
+			return text;
+		}
+		return text.slice(0, %d) + '...';
+	}`, limit, limit-3))
 }
 
 func chartDrillConfig(spec *action.Spec) *chartDrill {
@@ -913,23 +1029,155 @@ func panelHeight(panelSpec panel.Spec, heightOverride string) string {
 	return "320px"
 }
 
-func panelColors(panelSpec panel.Spec) []string {
+func panelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []string {
+	if colors := semanticPanelColors(panelSpec, panelResult); len(colors) > 0 {
+		return colors
+	}
 	if len(panelSpec.Colors) > 0 {
 		return panelSpec.Colors
 	}
-	switch panelSpec.Kind {
-	case panel.KindTimeSeries:
-		return []string{"#3b82f6"} // blue-500 — consistent primary
-	case panel.KindStackedBar:
-		return []string{"#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#6366f1", "#14b8a6"}
-	case panel.KindPie, panel.KindDonut:
-		return []string{"#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#6366f1", "#14b8a6"}
-	case panel.KindGauge:
-		return []string{"#3b82f6"} // blue-500 — unified accent
-	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-		return []string{"#3b82f6"} // blue-500
+	return lenscolor.Sequence(string(panelSpec.Kind), fallbackPanelColorCount(panelSpec, panelResult))
+}
+
+func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any, fields panel.FieldMapping) templ.JSExpression {
+	if !panelSpec.Distributed {
+		return ""
 	}
-	return []string{"#3b82f6"}
+	switch panelSpec.Kind {
+	case panel.KindBar, panel.KindHorizontalBar:
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindStackedBar,
+		panel.KindPie,
+		panel.KindDonut,
+		panel.KindTable,
+		panel.KindGauge,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
+	default:
+		return ""
+	}
+	if hasSeries(rows, fields.Series.Name()) {
+		return ""
+	}
+	return templ.JSExpression(`function(event, chartContext, config) {
+		requestAnimationFrame(function() {
+			const tooltips = Array.from(document.querySelectorAll('.apexcharts-tooltip'));
+			const tooltip = tooltips.find(function(node) {
+				if (!(node instanceof HTMLElement)) {
+					return false;
+				}
+				const style = window.getComputedStyle(node);
+				return style.display !== 'none' && style.visibility !== 'hidden' && node.offsetWidth > 0 && node.offsetHeight > 0;
+			});
+			if (!tooltip) {
+				return;
+			}
+			const marker = tooltip.querySelector('.apexcharts-tooltip-marker');
+			if (!marker) {
+				return;
+			}
+			const globals = config && config.w && config.w.globals;
+			if (!globals || !Array.isArray(globals.colors)) {
+				return;
+			}
+			const index = Number(config && config.dataPointIndex);
+			const color = globals.colors[index] || globals.colors[0];
+			if (!color) {
+				return;
+			}
+			marker.style.backgroundColor = color;
+			marker.style.borderColor = color;
+		});
+	}`)
+}
+
+func semanticPanelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []string {
+	if panelResult == nil || panelResult.Frames == nil || panelResult.Frames.Primary() == nil {
+		return nil
+	}
+	if strings.TrimSpace(panelSpec.ColorScale) == "" || panelSpec.ColorField.Empty() {
+		return nil
+	}
+	rows := panelResult.Frames.Primary().Rows()
+	if len(rows) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(rows))
+	seen := map[string]bool{}
+	seriesField := panelSpec.Fields.Series.Name()
+	groupedBySeries := hasSeries(rows, seriesField)
+	for _, row := range rows {
+		seriesName := ""
+		if groupedBySeries {
+			seriesName = displayValue(row[seriesField])
+			if seen[seriesName] {
+				continue
+			}
+		}
+		key := displayValue(firstNonEmpty(
+			row[panelSpec.ColorField.Name()],
+			seriesName,
+			row[panelSpec.Fields.ID.Name()],
+			row[panelSpec.Fields.Category.Name()],
+			row[panelSpec.Fields.Label.Name()],
+		))
+		keys = append(keys, key)
+		if groupedBySeries {
+			seen[seriesName] = true
+		}
+	}
+	return lenscolor.Palette(panelSpec.ColorScale, keys)
+}
+
+func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelResult) int {
+	if panelResult == nil || panelResult.Frames == nil || panelResult.Frames.Primary() == nil {
+		return 1
+	}
+	rows := panelResult.Frames.Primary().Rows()
+	if len(rows) == 0 {
+		return 1
+	}
+	if hasSeries(rows, panelSpec.Fields.Series.Name()) {
+		return len(uniqueDisplayValues(rows, panelSpec.Fields.Series.Name()))
+	}
+	switch panelSpec.Kind {
+	case panel.KindPie, panel.KindDonut, panel.KindStackedBar:
+		return len(rows)
+	case panel.KindBar, panel.KindHorizontalBar:
+		if panelSpec.Distributed {
+			return len(rows)
+		}
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindTable,
+		panel.KindGauge,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
+		return 1
+	}
+	return 1
+}
+
+func uniqueDisplayValues(rows []map[string]any, field string) []string {
+	if field == "" {
+		return nil
+	}
+	values := make([]string, 0, len(rows))
+	seen := map[string]bool{}
+	for _, row := range rows {
+		value := displayValue(row[field])
+		if seen[value] {
+			continue
+		}
+		seen[value] = true
+		values = append(values, value)
+	}
+	return values
 }
 
 func hasSeries(rows []map[string]any, field string) bool {

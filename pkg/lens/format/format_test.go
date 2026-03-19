@@ -20,6 +20,7 @@ func TestApplyParsesNumericStrings_Scenarios(t *testing.T) {
 		{name: "count", spec: Count(), input: "42", expected: "42"},
 		{name: "money", spec: Money("UZS", 0), input: "160000", expected: "160 000 so\u2019m"},
 		{name: "money_compact", spec: MoneyCompact("UZS"), input: "12500", expected: "12.50K UZS"},
+		{name: "money_compact_trillions", spec: MoneyCompact("UZS"), input: "1417670000000", expected: "1.42T UZS"},
 		{name: "percent", spec: Percent(1), input: "7.5", expected: "7.5%"},
 		{name: "invalid_count_string", spec: Count(), input: "abc", expected: "abc"},
 		{name: "empty_count_string", spec: Count(), input: "", expected: ""},

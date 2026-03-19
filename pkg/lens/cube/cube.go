@@ -6,9 +6,11 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
 
 type DataMode string
@@ -61,15 +63,19 @@ type DimensionSpec struct {
 	Type         DimensionType
 	Column       string
 	LabelColumn  string
+	ColorColumn  string
 	Field        string
 	LabelField   string
+	ColorField   string
 	PanelKind    panel.Kind
 	Height       string
 	Description  string
 	RequiresJoin []string
 	Override     *lens.DatasetSpec
+	Transforms   []transform.Spec
 	Colors       []string
 	ValueAxis    panel.ValueAxis
+	ColorScale   string
 }
 
 type MeasureSpec struct {
@@ -81,7 +87,9 @@ type MeasureSpec struct {
 	Formatter    *format.Spec
 	AccentColor  string
 	Description  string
+	Info         string
 	RequiresJoin []string
+	Action       *action.Spec
 }
 
 type LeafSpec struct {

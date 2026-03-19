@@ -42,18 +42,32 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 	}
 	{{ drillNav := drillNavigationModel(ctx, result) }}
 	@lensGridStyles()
-	<div class="space-y-6" data-lens-dashboard>
-		if drillNav.HasNav {
-			@DrillNavigation(drillNav)
-		}
-		@FilterBar(filters)
-		for _, row := range spec.Rows {
-			<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
-				for _, panelSpec := range row.Panels {
-					@Panel(panelSpec, result)
-				}
-			</div>
-		}
+	<div class="relative" data-lens-dashboard-shell>
+		<div
+			class="pointer-events-none absolute inset-0 z-20 hidden rounded-xl bg-white/88 backdrop-blur-sm"
+			data-lens-loading-overlay
+		></div>
+		<div
+			class="pointer-events-none fixed left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 rounded-2xl px-5 py-4"
+			style="z-index: 40; border: 1px solid rgba(226, 232, 240, 0.96); background: rgba(255, 255, 255, 0.96); box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);"
+			data-lens-loading-card
+		>
+			<div class="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+			<p class="text-sm font-medium" style="color: #334155;">{ translate(ctx, "Lens.Chart.Loading") }</p>
+		</div>
+		<div class="space-y-6" data-lens-dashboard>
+			if drillNav.HasNav {
+				@DrillNavigation(drillNav)
+			}
+			@FilterBar(filters)
+			for _, row := range spec.Rows {
+				<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
+					for _, panelSpec := range row.Panels {
+						@Panel(panelSpec, result)
+					}
+				</div>
+			}
+		</div>
 	</div>
 	@DashboardScripts()
 }
@@ -84,13 +98,14 @@ templ DrillNavigation(model drillNavModel) {
 					hx-push-url="true"
 					hx-target="closest [data-lens-swap-target]"
 					hx-swap="innerHTML"
+					onclick={ swapTargetLoadingScript() }
 					class="flex-none inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
 					title={ chartText.DrillBack }
 				>
 					@icons.ArrowLeft(icons.Props{Size: "16"})
 				</a>
 			}
-			<div class="min-w-0 flex-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+			<div class="min-w-0 flex-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 				<ol class="flex min-w-max items-center gap-1 text-sm pr-2">
 					for _, crumb := range model.Trail {
 						<li class="flex items-center gap-1">
@@ -100,6 +115,7 @@ templ DrillNavigation(model drillNavModel) {
 								hx-push-url="true"
 								hx-target="closest [data-lens-swap-target]"
 								hx-swap="innerHTML"
+								onclick={ swapTargetLoadingScript() }
 								class="rounded-md px-2.5 py-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 hover:underline underline-offset-2"
 							>
 								{ crumb.Label }
@@ -129,6 +145,7 @@ templ DrillNavigation(model drillNavModel) {
 							hx-push-url="true"
 							hx-target="closest [data-lens-swap-target]"
 							hx-swap="innerHTML"
+							onclick={ swapTargetLoadingScript() }
 							class="inline-flex min-h-9 cursor-pointer items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
 						>
 							{ item.Label }
@@ -165,11 +182,45 @@ templ DashboardScripts() {
 				return;
 			}
 			window.__lensDashboardScriptsBound = true;
+			window.__lensSetSwapTargetLoading = function(target, active) {
+				if (!target) {
+					return;
+				}
+				const overlay = target.querySelector('[data-lens-loading-overlay]');
+				const card = target.querySelector('[data-lens-loading-card]');
+				const currentCount = Number.parseInt((target.dataset && target.dataset.lensLoadingCount) || '0', 10) || 0;
+				const nextCount = active ? currentCount + 1 : Math.max(currentCount - 1, 0);
+				if (target.dataset) {
+					if (nextCount > 0) {
+						target.dataset.lensLoadingCount = String(nextCount);
+						target.dataset.lensLoading = 'true';
+					} else {
+						delete target.dataset.lensLoadingCount;
+						delete target.dataset.lensLoading;
+					}
+				}
+				target.setAttribute('aria-busy', nextCount > 0 ? 'true' : 'false');
+				if (overlay) {
+					overlay.classList.toggle('hidden', nextCount === 0);
+				}
+				if (card) {
+					card.classList.toggle('hidden', nextCount === 0);
+					card.classList.toggle('flex', nextCount > 0);
+				}
+			};
+			const clearSwapTargetLoading = function(target) {
+				if (!target || !window.__lensSetSwapTargetLoading) {
+					return;
+				}
+				window.__lensSetSwapTargetLoading(target, false);
+			};
 			document.addEventListener('htmx:afterSwap', function(evt) {
 				const target = evt.detail && evt.detail.target;
 				if (!target) {
 					return;
 				}
+				const swapTarget = target.closest('[data-lens-swap-target]') || target.querySelector('[data-lens-swap-target]');
+				clearSwapTargetLoading(swapTarget || target.closest('[data-lens-dashboard-shell]'));
 				const containsDashboard = target.closest('[data-lens-dashboard]') || target.querySelector('[data-lens-dashboard]');
 				if (!containsDashboard) {
 					return;
@@ -177,6 +228,16 @@ templ DashboardScripts() {
 				setTimeout(() => {
 					document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: { root: target } }));
 				}, 100);
+			});
+			['htmx:responseError', 'htmx:sendError', 'htmx:sendAbort', 'htmx:timeout'].forEach(function(eventName) {
+				document.addEventListener(eventName, function(evt) {
+					const detail = evt && evt.detail ? evt.detail : {};
+					const target = detail.target || detail.elt;
+					if (!target) {
+						return;
+					}
+					clearSwapTargetLoading(target.closest('[data-lens-swap-target]'));
+				});
 			});
 		})();
 	</script>
@@ -306,7 +367,7 @@ templ FilterBar(model filter.Model) {
 
 templ panelCard(spec panel.Spec, bodyClass string, body templ.Component) {
 	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
-		<div class="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md">
+		<div class={ panelCardClass(spec) }>
 			if showPanelHeader(spec) {
 				<div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
 					<div class="flex items-center gap-2 min-w-0">
@@ -600,13 +661,13 @@ templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass str
 		x-transition:leave="transition ease-in duration-150"
 		x-transition:leave-start="opacity-100"
 		x-transition:leave-end="opacity-0"
-		class="fixed inset-0 z-50 overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex min-h-0 flex-col overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
 		style="display: none;"
 		@click.self="fullscreen = false"
 		@keydown.escape.window="fullscreen = false"
 	>
-		<div class="mx-auto flex min-h-full w-full max-w-[1600px] flex-col">
-			<div class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+		<div class="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-1 flex-col">
+			<div class="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
 				@PanelFullscreenHeader(spec, chartText)
 				<template x-if="fullscreen">
 					<div class={ bodyClass }>
@@ -734,7 +795,7 @@ templ TableCardRows(spec panel.Spec, columns []panel.TableColumn, rows []map[str
 			<a
 				href={ templ.URL(rowHref) }
 				onclick={ stopPropagationScript(rowOnClick) }
-				class="block"
+				class="block cursor-pointer"
 			>
 				@CardListRow(columns, row, result)
 			</a>
@@ -742,7 +803,7 @@ templ TableCardRows(spec panel.Spec, columns []panel.TableColumn, rows []map[str
 			<button
 				type="button"
 				onclick={ rowOnClick }
-				class="block w-full text-left"
+				class="block w-full cursor-pointer text-left"
 			>
 				@CardListRow(columns, row, result)
 			</button>

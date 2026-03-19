@@ -159,8 +159,10 @@ type Spec struct {
 }
 
 type TopNConfig struct {
-	Field string
-	N     int
+	Field          string
+	N              int
+	Other          string
+	AdditiveFields map[string]bool
 }
 
 func Apply(primary *frame.FrameSet, deps map[string]*frame.FrameSet, specs []Spec) (*frame.FrameSet, error) {
@@ -206,7 +208,7 @@ func applyOne(primary *frame.FrameSet, deps map[string]*frame.FrameSet, spec Spe
 	case KindBucketTime:
 		return bucketTime(primary, spec.BucketTime)
 	case KindTopN:
-		return topN(primary, spec.TopN)
+		return applyTopN(primary, spec.TopN)
 	case KindPivot:
 		return pivot(primary, spec.Pivot)
 	case KindUnpivot:
@@ -267,6 +269,17 @@ func MoneyScale(field, as string, factor float64) Spec {
 			Field:  field,
 			As:     as,
 			Factor: factor,
+		},
+	}
+}
+
+func TopN(field string, n int, other string) Spec {
+	return Spec{
+		Kind: KindTopN,
+		TopN: &TopNConfig{
+			Field: field,
+			N:     n,
+			Other: strings.TrimSpace(other),
 		},
 	}
 }
@@ -769,15 +782,94 @@ func bucketTime(primary *frame.FrameSet, cfg *BucketTimeConfig) (*frame.FrameSet
 	return next, fr.Normalize()
 }
 
-func topN(primary *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
+func applyTopN(primary *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
+	op := serrors.Op("lens/transform.applyTopN")
 	if cfg == nil {
 		return primary.Clone(), nil
 	}
 	sorted, err := sortRows(primary, []SortField{{Field: cfg.Field, Direction: SortDesc}})
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
-	return limit(sorted, cfg.N)
+	if strings.TrimSpace(cfg.Other) == "" {
+		return limit(sorted, cfg.N)
+	}
+	fr := sorted.Primary()
+	if fr == nil {
+		return sorted.Clone(), nil
+	}
+	rows := fr.Rows()
+	keep := cfg.N
+	if keep < 0 {
+		keep = 0
+	}
+	if len(rows) <= keep {
+		return sorted, nil
+	}
+	out, err := frame.New(fr.Name)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	out.Fields = make([]frame.Field, len(fr.Fields))
+	for i, field := range fr.Fields {
+		out.Fields[i] = field.Clone()
+		out.Fields[i].Values = nil
+	}
+	for idx := 0; idx < keep; idx++ {
+		if err := out.AppendRow(rows[idx]); err != nil {
+			return nil, serrors.E(op, err)
+		}
+	}
+	if err := out.AppendRow(topNOtherRow(fr, rows[keep:], cfg)); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	fs, err := frame.NewFrameSet(out)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return fs, nil
+}
+
+func topNOtherRow(fr *frame.Frame, rows []map[string]any, cfg *TopNConfig) map[string]any {
+	other := ""
+	if cfg != nil {
+		other = cfg.Other
+	}
+	row := make(map[string]any, len(fr.Fields))
+	for _, field := range fr.Fields {
+		switch field.Name {
+		case "label", "category":
+			row[field.Name] = other
+		case "filter_value", "id":
+			row[field.Name] = ""
+		case "color_value":
+			row[field.Name] = other
+		default:
+			if topNShouldAggregate(field, cfg) {
+				total := 0.0
+				for _, item := range rows {
+					total += toFloat(item[field.Name])
+				}
+				row[field.Name] = total
+				continue
+			}
+			row[field.Name] = nil
+		}
+	}
+	return row
+}
+
+func topNShouldAggregate(field frame.Field, cfg *TopNConfig) bool {
+	if field.Type != frame.FieldTypeNumber && field.Role != frame.RoleMetric {
+		return false
+	}
+	if cfg == nil || len(cfg.AdditiveFields) == 0 {
+		return true
+	}
+	return cfg.AdditiveFields[field.Name]
 }
 
 func pivot(primary *frame.FrameSet, cfg *PivotConfig) (*frame.FrameSet, error) {

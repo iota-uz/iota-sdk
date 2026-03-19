@@ -168,3 +168,75 @@ func TestFilterRows_ParsesNumericStrings(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, "a", rows[0]["label"])
 }
+
+func TestTopN_AggregatesOverflowIntoOtherBucket(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("products",
+		frame.Row{"filter_value": "osago", "label": "OSAGO", "color_value": "osago", "total_policies": 50.0, "total_revenue": 100.0},
+		frame.Row{"filter_value": "travel", "label": "Travel", "color_value": "travel", "total_policies": 30.0, "total_revenue": 60.0},
+		frame.Row{"filter_value": "kasko", "label": "KASKO", "color_value": "kasko", "total_policies": 20.0, "total_revenue": 40.0},
+		frame.Row{"filter_value": "osgor", "label": "OSGOR", "color_value": "osgor", "total_policies": 10.0, "total_revenue": 20.0},
+	)
+	require.NoError(t, err)
+
+	next, err := Apply(set, nil, []Spec{
+		TopN("total_policies", 2, "Other"),
+	})
+	require.NoError(t, err)
+
+	rows := next.Primary().Rows()
+	require.Len(t, rows, 3)
+	assert.Equal(t, map[string]any{
+		"filter_value":   "osago",
+		"label":          "OSAGO",
+		"color_value":    "osago",
+		"total_policies": 50.0,
+		"total_revenue":  100.0,
+	}, rows[0])
+	assert.Equal(t, map[string]any{
+		"filter_value":   "travel",
+		"label":          "Travel",
+		"color_value":    "travel",
+		"total_policies": 30.0,
+		"total_revenue":  60.0,
+	}, rows[1])
+	assert.Equal(t, map[string]any{
+		"filter_value":   "",
+		"label":          "Other",
+		"color_value":    "Other",
+		"total_policies": 30.0,
+		"total_revenue":  60.0,
+	}, rows[2])
+}
+
+func TestTopN_PreservesNonAdditiveMeasuresInOtherBucket(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("products",
+		frame.Row{"filter_value": "osago", "label": "OSAGO", "avg_ticket": 50.0, "total_policies": 5.0},
+		frame.Row{"filter_value": "travel", "label": "Travel", "avg_ticket": 30.0, "total_policies": 4.0},
+		frame.Row{"filter_value": "kasko", "label": "KASKO", "avg_ticket": 20.0, "total_policies": 3.0},
+	)
+	require.NoError(t, err)
+
+	next, err := Apply(set, nil, []Spec{{
+		Kind: KindTopN,
+		TopN: &TopNConfig{
+			Field: "total_policies",
+			N:     1,
+			Other: "Other",
+			AdditiveFields: map[string]bool{
+				"total_policies": true,
+				"avg_ticket":     false,
+			},
+		},
+	}})
+	require.NoError(t, err)
+
+	rows := next.Primary().Rows()
+	require.Len(t, rows, 2)
+	assert.InDelta(t, 50.0, rows[0]["avg_ticket"], 1e-9)
+	assert.Nil(t, rows[1]["avg_ticket"])
+	assert.InDelta(t, 7.0, rows[1]["total_policies"], 1e-9)
+}

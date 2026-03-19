@@ -2,9 +2,11 @@ package cube
 
 import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
 
 type Builder struct {
@@ -126,6 +128,11 @@ func (b *DimensionBuilder) LabelColumn(column string) *DimensionBuilder {
 	return b
 }
 
+func (b *DimensionBuilder) ColorColumn(column string) *DimensionBuilder {
+	b.spec.ColorColumn = column
+	return b
+}
+
 func (b *DimensionBuilder) Field(field string) *DimensionBuilder {
 	b.spec.Field = field
 	return b
@@ -133,6 +140,11 @@ func (b *DimensionBuilder) Field(field string) *DimensionBuilder {
 
 func (b *DimensionBuilder) LabelField(field string) *DimensionBuilder {
 	b.spec.LabelField = field
+	return b
+}
+
+func (b *DimensionBuilder) ColorField(field string) *DimensionBuilder {
+	b.spec.ColorField = field
 	return b
 }
 
@@ -161,8 +173,18 @@ func (b *DimensionBuilder) Override(dataset lens.DatasetSpec) *DimensionBuilder 
 	return b
 }
 
+func (b *DimensionBuilder) Transforms(specs ...transform.Spec) *DimensionBuilder {
+	b.spec.Transforms = append(b.spec.Transforms, specs...)
+	return b
+}
+
 func (b *DimensionBuilder) Colors(colors ...string) *DimensionBuilder {
 	b.spec.Colors = append([]string(nil), colors...)
+	return b
+}
+
+func (b *DimensionBuilder) ColorScale(scale string) *DimensionBuilder {
+	b.spec.ColorScale = scale
 	return b
 }
 
@@ -240,6 +262,30 @@ func (b *MeasureBuilder) AccentColor(color string) *MeasureBuilder {
 
 func (b *MeasureBuilder) Description(description string) *MeasureBuilder {
 	b.spec.Description = description
+	return b
+}
+
+func (b *MeasureBuilder) Info(text string) *MeasureBuilder {
+	b.spec.Info = text
+	return b
+}
+
+func (b *MeasureBuilder) Action(spec action.Spec) *MeasureBuilder {
+	cloned := spec
+	if spec.Payload != nil {
+		cloned.Payload = make(map[string]action.ValueSource, len(spec.Payload))
+		for key, value := range spec.Payload {
+			cloned.Payload[key] = value
+		}
+	}
+	if spec.Params != nil {
+		cloned.Params = append([]action.Param(nil), spec.Params...)
+	}
+	if spec.Drill != nil {
+		drill := *spec.Drill
+		cloned.Drill = &drill
+	}
+	b.spec.Action = &cloned
 	return b
 }
 
