@@ -19,8 +19,9 @@ const (
 )
 
 type dimensionDatasetResolution struct {
-	Name     string
-	Datasets []lens.DatasetSpec
+	Name          string
+	Datasets      []lens.DatasetSpec
+	HasColorValue bool
 }
 
 func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpec, error) {
@@ -77,7 +78,7 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 			return lens.DashboardSpec{}, err
 		}
 		dashboard.Datasets = append(dashboard.Datasets, resolved.Datasets...)
-		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved.Name, baseURL, len(remaining), idx))
+		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved, baseURL, len(remaining), idx))
 	}
 	dashboard.Rows = append(dashboard.Rows, buildDimensionRows(dimensionPanels)...)
 
@@ -99,22 +100,41 @@ func resolveStatsDataset(spec CubeSpec, ctx DrillContext) (lens.DatasetSpec, err
 func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec) (dimensionDatasetResolution, error) {
 	name := datasetName(dim.Name)
 	if dim.Override != nil {
+		overrideDataset := resolveOverrideDataset(spec, ctx, *dim.Override, name)
+		if len(dim.Transforms) == 0 {
+			return dimensionDatasetResolution{
+				Name:     name,
+				Datasets: []lens.DatasetSpec{overrideDataset},
+			}, nil
+		}
+		sourceName := name + "_source"
+		overrideDataset.Name = sourceName
 		return dimensionDatasetResolution{
-			Name:     name,
-			Datasets: []lens.DatasetSpec{resolveOverrideDataset(spec, ctx, *dim.Override, name)},
+			Name: name,
+			Datasets: []lens.DatasetSpec{
+				overrideDataset,
+				{
+					Name:       name,
+					Kind:       lens.DatasetKindTransform,
+					DependsOn:  []string{sourceName},
+					Transforms: append([]transform.Spec(nil), dim.Transforms...),
+				},
+			},
 		}, nil
 	}
 	switch spec.DataMode {
 	case DataModeSQL:
 		if len(dim.Transforms) == 0 {
 			return dimensionDatasetResolution{
-				Name:     name,
-				Datasets: []lens.DatasetSpec{resolveSQLDimensionDataset(spec, ctx, dim, name)},
+				Name:          name,
+				Datasets:      []lens.DatasetSpec{resolveSQLDimensionDataset(spec, ctx, dim, name)},
+				HasColorValue: strings.TrimSpace(dim.ColorColumn) != "",
 			}, nil
 		}
 		sourceName := name + "_source"
 		return dimensionDatasetResolution{
-			Name: name,
+			Name:          name,
+			HasColorValue: strings.TrimSpace(dim.ColorColumn) != "",
 			Datasets: []lens.DatasetSpec{
 				resolveSQLDimensionDataset(spec, ctx, dim, sourceName),
 				{
@@ -127,8 +147,9 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 		}, nil
 	case DataModeDataset:
 		return dimensionDatasetResolution{
-			Name:     name,
-			Datasets: []lens.DatasetSpec{resolveDatasetDimensionDataset(spec, ctx, dim, name)},
+			Name:          name,
+			Datasets:      []lens.DatasetSpec{resolveDatasetDimensionDataset(spec, ctx, dim, name)},
+			HasColorValue: strings.TrimSpace(dim.ColorField) != "",
 		}, nil
 	default:
 		return dimensionDatasetResolution{}, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
@@ -177,7 +198,7 @@ func buildStatPanels(spec CubeSpec, dataset string) []panel.Spec {
 	return panels
 }
 
-func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL string, remainingCount, index int) panel.Spec {
+func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDatasetResolution, baseURL string, remainingCount, index int) panel.Spec {
 	// Dimension charts use the first measure as their value axis.
 	// Additional measures appear only in stat panels.
 	measure := spec.Measures[0]
@@ -185,7 +206,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL stri
 	if remainingCount == 1 && strings.TrimSpace(spec.Leaf.URL) != "" {
 		actionURL = spec.Leaf.URL
 	}
-	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, dataset).
+	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, resolved.Name).
 		Span(dimensionSpan(remainingCount, index)).
 		Height("360px").
 		Description(dim.Description).
@@ -207,7 +228,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, dataset, baseURL stri
 	}
 	if strings.TrimSpace(dim.ColorScale) != "" {
 		colorField := panel.Ref("filter_value")
-		if strings.TrimSpace(dim.ColorColumn) != "" || strings.TrimSpace(dim.ColorField) != "" {
+		if resolved.HasColorValue {
 			colorField = panel.Ref("color_value")
 		}
 		builder.SemanticColors(dim.ColorScale, colorField)

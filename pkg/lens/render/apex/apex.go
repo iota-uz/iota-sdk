@@ -892,6 +892,18 @@ func maxCategoryLength(categories []string) int {
 }
 
 func truncateCategoryLabelFormatter(limit int) templ.JSExpression {
+	if limit <= 3 {
+		return templ.JSExpression(fmt.Sprintf(`function(value) {
+		if (value === undefined || value === null) {
+			return '';
+		}
+		const text = String(value).trim();
+		if (text.length <= %d) {
+			return text;
+		}
+		return text.slice(0, %d);
+	}`, limit, limit))
+	}
 	return templ.JSExpression(fmt.Sprintf(`function(value) {
 		if (value === undefined || value === null) {
 			return '';
@@ -901,7 +913,7 @@ func truncateCategoryLabelFormatter(limit int) templ.JSExpression {
 			return text;
 		}
 		return text.slice(0, %d) + '...';
-	}`, limit, limit-1))
+	}`, limit, limit-3))
 }
 
 func chartDrillConfig(spec *action.Spec) *chartDrill {
@@ -1006,19 +1018,7 @@ func panelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []strin
 	if len(panelSpec.Colors) > 0 {
 		return panelSpec.Colors
 	}
-	switch panelSpec.Kind {
-	case panel.KindTimeSeries:
-		return []string{"#2563eb"}
-	case panel.KindStackedBar:
-		return []string{"#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0f766e", "#db2777", "#0891b2"}
-	case panel.KindPie, panel.KindDonut:
-		return []string{"#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0f766e", "#db2777", "#0891b2"}
-	case panel.KindGauge:
-		return []string{"#2563eb"}
-	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-		return []string{"#2563eb"}
-	}
-	return []string{"#2563eb"}
+	return lenscolor.Sequence(string(panelSpec.Kind), fallbackPanelColorCount(panelSpec, panelResult))
 }
 
 func semanticPanelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []string {
@@ -1033,10 +1033,69 @@ func semanticPanelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult)
 		return nil
 	}
 	keys := make([]string, 0, len(rows))
+	seen := map[string]bool{}
+	seriesField := panelSpec.Fields.Series.Name()
+	groupedBySeries := hasSeries(rows, seriesField)
 	for _, row := range rows {
-		keys = append(keys, displayValue(firstNonEmpty(row[panelSpec.ColorField.Name()], row[panelSpec.Fields.ID.Name()], row[panelSpec.Fields.Category.Name()], row[panelSpec.Fields.Label.Name()])))
+		seriesName := ""
+		if groupedBySeries {
+			seriesName = displayValue(row[seriesField])
+			if seen[seriesName] {
+				continue
+			}
+		}
+		key := displayValue(firstNonEmpty(
+			row[panelSpec.ColorField.Name()],
+			seriesName,
+			row[panelSpec.Fields.ID.Name()],
+			row[panelSpec.Fields.Category.Name()],
+			row[panelSpec.Fields.Label.Name()],
+		))
+		keys = append(keys, key)
+		if groupedBySeries {
+			seen[seriesName] = true
+		}
 	}
 	return lenscolor.Palette(panelSpec.ColorScale, keys)
+}
+
+func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelResult) int {
+	if panelResult == nil || panelResult.Frames == nil || panelResult.Frames.Primary() == nil {
+		return 1
+	}
+	rows := panelResult.Frames.Primary().Rows()
+	if len(rows) == 0 {
+		return 1
+	}
+	if hasSeries(rows, panelSpec.Fields.Series.Name()) {
+		return len(uniqueDisplayValues(rows, panelSpec.Fields.Series.Name()))
+	}
+	switch panelSpec.Kind {
+	case panel.KindPie, panel.KindDonut, panel.KindStackedBar:
+		return len(rows)
+	case panel.KindBar, panel.KindHorizontalBar:
+		if panelSpec.Distributed {
+			return len(rows)
+		}
+	}
+	return 1
+}
+
+func uniqueDisplayValues(rows []map[string]any, field string) []string {
+	if field == "" {
+		return nil
+	}
+	values := make([]string, 0, len(rows))
+	seen := map[string]bool{}
+	for _, row := range rows {
+		value := displayValue(row[field])
+		if seen[value] {
+			continue
+		}
+		seen[value] = true
+		values = append(values, value)
+	}
+	return values
 }
 
 func hasSeries(rows []map[string]any, field string) bool {

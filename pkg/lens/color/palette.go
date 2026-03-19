@@ -97,6 +97,22 @@ func Palette(scope string, keys []string) []string {
 	return colors
 }
 
+func Sequence(scope string, size int) []string {
+	if size <= 0 {
+		return nil
+	}
+	scope = normalizeToken(scope)
+	if scope == "" {
+		scope = "DEFAULT"
+	}
+	offset := stableIndex(scope, len(genericPalette))
+	colors := make([]string, size)
+	for i := 0; i < size; i++ {
+		colors[i] = genericPalette[(offset+i)%len(genericPalette)]
+	}
+	return colors
+}
+
 func CanonicalProductKey(key string) string {
 	normalized := normalizeToken(key)
 	if alias, ok := productAliases[normalized]; ok {

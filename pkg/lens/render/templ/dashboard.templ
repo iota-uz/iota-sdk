@@ -189,20 +189,24 @@ templ DashboardScripts() {
 				}
 				const overlay = target.querySelector('[data-lens-loading-overlay]');
 				const card = target.querySelector('[data-lens-loading-card]');
+				const currentCount = Number.parseInt((target.dataset && target.dataset.lensLoadingCount) || '0', 10) || 0;
+				const nextCount = active ? currentCount + 1 : Math.max(currentCount - 1, 0);
 				if (target.dataset) {
-					if (active) {
+					if (nextCount > 0) {
+						target.dataset.lensLoadingCount = String(nextCount);
 						target.dataset.lensLoading = 'true';
 					} else {
+						delete target.dataset.lensLoadingCount;
 						delete target.dataset.lensLoading;
 					}
 				}
-				target.setAttribute('aria-busy', active ? 'true' : 'false');
+				target.setAttribute('aria-busy', nextCount > 0 ? 'true' : 'false');
 				if (overlay) {
-					overlay.classList.toggle('hidden', !active);
+					overlay.classList.toggle('hidden', nextCount === 0);
 				}
 				if (card) {
-					card.classList.toggle('hidden', !active);
-					card.classList.toggle('flex', active);
+					card.classList.toggle('hidden', nextCount === 0);
+					card.classList.toggle('flex', nextCount > 0);
 				}
 			};
 			const clearSwapTargetLoading = function(target) {
@@ -814,7 +818,7 @@ templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[
 	for _, row := range rows {
 		{{ rowHref := actionURL(spec.Action, row, result) }}
 		{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
-		<tr class={ "transition-colors hover:bg-gray-50/60", templ.KV("cursor-pointer", rowHref != "" || rowOnClick.Call != "") }>
+		<tr class="transition-colors hover:bg-gray-50/60">
 			for i, column := range columns {
 				{{ columnHref := actionURL(column.Action, row, result) }}
 				{{ columnOnClick := actionOnClick(column.Action, row, result) }}

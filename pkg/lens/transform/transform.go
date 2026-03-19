@@ -782,12 +782,13 @@ func bucketTime(primary *frame.FrameSet, cfg *BucketTimeConfig) (*frame.FrameSet
 }
 
 func applyTopN(primary *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
+	op := serrors.Op("lens/transform.applyTopN")
 	if cfg == nil {
 		return primary.Clone(), nil
 	}
 	sorted, err := sortRows(primary, []SortField{{Field: cfg.Field, Direction: SortDesc}})
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	if strings.TrimSpace(cfg.Other) == "" {
 		return limit(sorted, cfg.N)
@@ -806,7 +807,7 @@ func applyTopN(primary *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error
 	}
 	out, err := frame.New(fr.Name)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	out.Fields = make([]frame.Field, len(fr.Fields))
 	for i, field := range fr.Fields {
@@ -815,16 +816,20 @@ func applyTopN(primary *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error
 	}
 	for idx := 0; idx < keep; idx++ {
 		if err := out.AppendRow(rows[idx]); err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 	}
 	if err := out.AppendRow(topNOtherRow(fr, rows[keep:], cfg.Other)); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	if err := out.Normalize(); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
-	return frame.NewFrameSet(out)
+	fs, err := frame.NewFrameSet(out)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return fs, nil
 }
 
 func topNOtherRow(fr *frame.Frame, rows []map[string]any, other string) map[string]any {
