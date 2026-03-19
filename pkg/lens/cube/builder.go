@@ -271,7 +271,21 @@ func (b *MeasureBuilder) Info(text string) *MeasureBuilder {
 }
 
 func (b *MeasureBuilder) Action(spec action.Spec) *MeasureBuilder {
-	b.spec.Action = &spec
+	cloned := spec
+	if spec.Payload != nil {
+		cloned.Payload = make(map[string]action.ValueSource, len(spec.Payload))
+		for key, value := range spec.Payload {
+			cloned.Payload[key] = value
+		}
+	}
+	if spec.Params != nil {
+		cloned.Params = append([]action.Param(nil), spec.Params...)
+	}
+	if spec.Drill != nil {
+		drill := *spec.Drill
+		cloned.Drill = &drill
+	}
+	b.spec.Action = &cloned
 	return b
 }
 
