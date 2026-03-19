@@ -192,6 +192,8 @@ func defaultFormat(value any) string {
 func abbreviate(value float64, precision int) string {
 	abs := math.Abs(value)
 	switch {
+	case abs >= 1_000_000_000_000:
+		return fmt.Sprintf("%.*fT", precision, value/1_000_000_000_000)
 	case abs >= 1_000_000_000:
 		return fmt.Sprintf("%.*fB", precision, value/1_000_000_000)
 	case abs >= 1_000_000:

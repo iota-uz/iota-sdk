@@ -265,6 +265,11 @@ func (b *MeasureBuilder) Description(description string) *MeasureBuilder {
 	return b
 }
 
+func (b *MeasureBuilder) Info(text string) *MeasureBuilder {
+	b.spec.Info = text
+	return b
+}
+
 func (b *MeasureBuilder) Action(spec action.Spec) *MeasureBuilder {
 	b.spec.Action = &spec
 	return b

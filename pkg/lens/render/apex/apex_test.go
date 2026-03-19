@@ -322,6 +322,8 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.NotNil(t, options.PlotOptions.Bar.Distributed)
 				require.True(t, *options.PlotOptions.Bar.Distributed)
 				require.Equal(t, []string{"#3B82F6", "#10B981", "#EF4444"}, options.Colors)
+				require.NotNil(t, options.Chart.Events)
+				require.NotEmpty(t, options.Chart.Events.DataPointMouseEnter)
 			},
 		},
 	}

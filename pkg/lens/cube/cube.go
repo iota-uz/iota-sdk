@@ -87,6 +87,7 @@ type MeasureSpec struct {
 	Formatter    *format.Spec
 	AccentColor  string
 	Description  string
+	Info         string
 	RequiresJoin []string
 	Action       *action.Spec
 }

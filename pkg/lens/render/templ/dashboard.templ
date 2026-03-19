@@ -106,7 +106,7 @@ templ DrillNavigation(model drillNavModel) {
 					@icons.ArrowLeft(icons.Props{Size: "16"})
 				</a>
 			}
-			<div class="min-w-0 flex-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+			<div class="min-w-0 flex-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 				<ol class="flex min-w-max items-center gap-1 text-sm pr-2">
 					for _, crumb := range model.Trail {
 						<li class="flex items-center gap-1">
@@ -662,13 +662,13 @@ templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass str
 		x-transition:leave="transition ease-in duration-150"
 		x-transition:leave-start="opacity-100"
 		x-transition:leave-end="opacity-0"
-		class="fixed inset-0 z-50 overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex min-h-0 flex-col overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
 		style="display: none;"
 		@click.self="fullscreen = false"
 		@keydown.escape.window="fullscreen = false"
 	>
-		<div class="mx-auto flex min-h-full w-full max-w-[1600px] flex-col">
-			<div class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+		<div class="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-1 flex-col">
+			<div class="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
 				@PanelFullscreenHeader(spec, chartText)
 				<template x-if="fullscreen">
 					<div class={ bodyClass }>

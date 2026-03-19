@@ -220,8 +220,15 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	logPlan, manualLogScaleApplied := applyValueScale(&options, panelSpec)
 	applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
+	var chartEvents charts.ChartEvents
+	if syncTooltip := distributedTooltipMarkerSyncJS(panelSpec, rows, fields); syncTooltip != "" {
+		chartEvents.DataPointMouseEnter = syncTooltip
+	}
 	if panelSpec.Action != nil {
-		options.Chart.Events = &charts.ChartEvents{DataPointSelection: buildActionJS(panelSpec.Action, fr, fields, panelResult)}
+		chartEvents.DataPointSelection = buildActionJS(panelSpec.Action, fr, fields, panelResult)
+	}
+	if chartEvents.DataPointMouseEnter != "" || chartEvents.DataPointSelection != "" {
+		options.Chart.Events = &chartEvents
 	}
 	appendResponsiveDefaults(&options, panelSpec.Kind)
 	return options
@@ -1019,6 +1026,50 @@ func panelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []strin
 		return panelSpec.Colors
 	}
 	return lenscolor.Sequence(string(panelSpec.Kind), fallbackPanelColorCount(panelSpec, panelResult))
+}
+
+func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any, fields panel.FieldMapping) templ.JSExpression {
+	if !panelSpec.Distributed {
+		return ""
+	}
+	switch panelSpec.Kind {
+	case panel.KindBar, panel.KindHorizontalBar:
+	default:
+		return ""
+	}
+	if hasSeries(rows, fields.Series.Name()) {
+		return ""
+	}
+	return templ.JSExpression(`function(event, chartContext, config) {
+		requestAnimationFrame(function() {
+			const tooltips = Array.from(document.querySelectorAll('.apexcharts-tooltip'));
+			const tooltip = tooltips.find(function(node) {
+				if (!(node instanceof HTMLElement)) {
+					return false;
+				}
+				const style = window.getComputedStyle(node);
+				return style.display !== 'none' && style.visibility !== 'hidden' && node.offsetWidth > 0 && node.offsetHeight > 0;
+			});
+			if (!tooltip) {
+				return;
+			}
+			const marker = tooltip.querySelector('.apexcharts-tooltip-marker');
+			if (!marker) {
+				return;
+			}
+			const globals = config && config.w && config.w.globals;
+			if (!globals || !Array.isArray(globals.colors)) {
+				return;
+			}
+			const index = Number(config && config.dataPointIndex);
+			const color = globals.colors[index] || globals.colors[0];
+			if (!color) {
+				return;
+			}
+			marker.style.backgroundColor = color;
+			marker.style.borderColor = color;
+		});
+	}`)
 }
 
 func semanticPanelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []string {
