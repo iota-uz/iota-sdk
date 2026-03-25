@@ -8,6 +8,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/iota-uz/utils/random"
+	"log"
+	"strings"
 )
 
 func toJSON(v interface{}) string {
@@ -17,6 +19,21 @@ func toJSON(v interface{}) string {
 		return "{}"
 	}
 	return string(b)
+}
+
+// tOrKey translates the key using TSafe; if missing, logs a warning and returns the last segment of the key as fallback.
+func tOrKey(ctx types.PageContext, key string) string {
+	if v := ctx.TSafe(key); v != "" {
+		return v
+	}
+	log.Printf("[WARN] i18n missing translation: key=%q locale=%s", key, ctx.GetLocale())
+	if key == "" {
+		return "unknown"
+	}
+	if i := strings.LastIndex(key, "."); i >= 0 && i < len(key)-1 {
+		return key[i+1:]
+	}
+	return key
 }
 
 func getPermissionIds(permissions []*viewmodels.PermissionItem) []string {
@@ -61,7 +78,7 @@ type PermissionSetProps struct {
 templ PermissionSet(props PermissionSetProps) {
 	{{ setId := fmt.Sprintf("%s-set-%d", props.ResourceName, props.SetIndex) }}
 	{{ toggleId := fmt.Sprintf("toggle-%s", setId) }}
-	{{ label := props.PageContext.T(props.Set.Label) }}
+	{{ label := tOrKey(props.PageContext, props.Set.Label) }}
 	// For single permission sets, render a simple toggle
 	if len(props.Set.Permissions) == 1 {
 		<div class="border border-gray-400 bg-surface-100 rounded-md py-2 px-3">
@@ -75,7 +92,7 @@ templ PermissionSet(props PermissionSetProps) {
 				},
 			})
 			if props.Set.Description != "" {
-				<p class="text-sm text-gray-600 mt-1">{ props.PageContext.T(props.Set.Description) }</p>
+				<p class="text-sm text-gray-600 mt-1">{ tOrKey(props.PageContext,props.Set.Description) }</p>
 			}
 		</div>
 	} else {
@@ -114,7 +131,7 @@ templ PermissionSet(props PermissionSetProps) {
 					</button>
 				</div>
 				if props.Set.Description != "" {
-					<p class="text-sm text-gray-600 mt-1">{ props.PageContext.T(props.Set.Description) }</p>
+					<p class="text-sm text-gray-600 mt-1">{ tOrKey(props.PageContext,props.Set.Description) }</p>
 				}
 			</div>
 			<div
@@ -127,7 +144,7 @@ templ PermissionSet(props PermissionSetProps) {
 						<div class="child-permission pl-4">
 							@input.Switch(&input.SwitchProps{
 								ID:           fmt.Sprintf("%s-perm-%s", setId, perm.ID),
-								Label:        props.PageContext.T(fmt.Sprintf("Permissions.%s", perm.Name)),
+								Label:        tOrKey(props.PageContext, fmt.Sprintf("Permissions.%s", perm.Name)),
 								LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 								Checked:      perm.Checked,
 								Attrs: templ.Attributes{
@@ -180,7 +197,7 @@ templ ResourceGroup(props ResourceGroupProps) {
 	>
 		<div class="flex items-center mb-2">
 			<button type="button" class="flex items-center justify-between w-full font-medium text-lg cursor-pointer" @click="toggleAll()">
-				<span>{ props.PageContext.T(fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)) }</span>
+				<span>{ tOrKey(props.PageContext,fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)) }</span>
 				{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
 				{{
 					if allChecked {
