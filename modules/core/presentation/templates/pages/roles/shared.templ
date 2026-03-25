@@ -27,8 +27,13 @@ func tOrKey(ctx types.PageContext, key string) string {
 		return v
 	}
 	log.Printf("[WARN] i18n missing translation: key=%q locale=%s", key, ctx.GetLocale())
-	parts := strings.Split(key, ".")
-	return parts[len(parts)-1]
+	if key == "" {
+		return "unknown"
+	}
+	if i := strings.LastIndex(key, "."); i >= 0 && i < len(key)-1 {
+		return key[i+1:]
+	}
+	return key
 }
 
 func getPermissionIds(permissions []*viewmodels.PermissionItem) []string {
