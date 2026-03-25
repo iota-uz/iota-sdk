@@ -3,12 +3,12 @@ package roles
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/iota-uz/utils/random"
+	"log"
 	"strings"
 )
 
@@ -73,7 +73,7 @@ type PermissionSetProps struct {
 templ PermissionSet(props PermissionSetProps) {
 	{{ setId := fmt.Sprintf("%s-set-%d", props.ResourceName, props.SetIndex) }}
 	{{ toggleId := fmt.Sprintf("toggle-%s", setId) }}
-	{{ label := tOrKey(props.PageContext,props.Set.Label) }}
+	{{ label := tOrKey(props.PageContext, props.Set.Label) }}
 	// For single permission sets, render a simple toggle
 	if len(props.Set.Permissions) == 1 {
 		<div class="border border-gray-400 bg-surface-100 rounded-md py-2 px-3">
@@ -139,7 +139,7 @@ templ PermissionSet(props PermissionSetProps) {
 						<div class="child-permission pl-4">
 							@input.Switch(&input.SwitchProps{
 								ID:           fmt.Sprintf("%s-perm-%s", setId, perm.ID),
-								Label:        tOrKey(props.PageContext,fmt.Sprintf("Permissions.%s", perm.Name)),
+								Label:        tOrKey(props.PageContext, fmt.Sprintf("Permissions.%s", perm.Name)),
 								LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 								Checked:      perm.Checked,
 								Attrs: templ.Attributes{
