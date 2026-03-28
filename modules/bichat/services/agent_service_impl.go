@@ -32,7 +32,7 @@ const (
 type agentServiceImpl struct {
 	agent                  agents.ExtendedAgent
 	model                  agents.Model
-	modelRegistry          *agents.ModelRegistry   // Optional for per-request model selection
+	modelRegistry          *agents.ModelRegistry // Optional for per-request model selection
 	policy                 bichatctx.ContextPolicy
 	renderer               bichatctx.Renderer
 	checkpointer           agents.Checkpointer
@@ -53,7 +53,7 @@ type agentServiceImpl struct {
 type AgentServiceConfig struct {
 	Agent                  agents.ExtendedAgent
 	Model                  agents.Model
-	ModelRegistry          *agents.ModelRegistry   // Optional for per-request model selection
+	ModelRegistry          *agents.ModelRegistry // Optional for per-request model selection
 	Policy                 bichatctx.ContextPolicy
 	Renderer               bichatctx.Renderer
 	Checkpointer           agents.Checkpointer
