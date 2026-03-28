@@ -175,47 +175,9 @@ func NewQuestionData(checkpointID, agentName string, questions []QuestionDataIte
 }
 
 func (qd *QuestionData) normalizeAnswers(answers map[string]string) (map[string]string, error) {
-	if len(answers) == 0 {
-		return nil, fmt.Errorf("%w: at least one answer is required", ErrQuestionDataInvalid)
-	}
-
-	questionsByID := make(map[string]QuestionDataItem, len(qd.Questions))
-	for _, q := range qd.Questions {
-		questionsByID[q.ID] = q
-	}
-	for answerQID, rawAnswer := range answers {
-		question, ok := questionsByID[answerQID]
-		if !ok {
-			return nil, fmt.Errorf("%w: unknown question id %q", ErrQuestionDataInvalid, answerQID)
-		}
-		allowed := make(map[string]struct{}, len(question.Options))
-		for _, opt := range question.Options {
-			allowed[opt.ID] = struct{}{}
-		}
-		candidates := []string{strings.TrimSpace(rawAnswer)}
-		if question.Type == "multiple_choice" {
-			parts := strings.Split(rawAnswer, ",")
-			candidates = make([]string, 0, len(parts))
-			for _, part := range parts {
-				trimmed := strings.TrimSpace(part)
-				if trimmed != "" {
-					candidates = append(candidates, trimmed)
-				}
-			}
-		}
-		if len(candidates) == 0 {
-			return nil, fmt.Errorf("%w: empty answer for question %q", ErrQuestionDataInvalid, answerQID)
-		}
-		for _, candidate := range candidates {
-			if _, exists := allowed[candidate]; !exists {
-				return nil, fmt.Errorf("%w: invalid option %q for question %q", ErrQuestionDataInvalid, candidate, answerQID)
-			}
-		}
-	}
-
-	normalized := make(map[string]string, len(answers))
-	for key, value := range answers {
-		normalized[key] = value
+	normalized, _, err := NormalizeQuestionAnswers(qd.Questions, answers)
+	if err != nil {
+		return nil, err
 	}
 	return normalized, nil
 }
