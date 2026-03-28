@@ -431,6 +431,9 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 		if err != nil {
 			return serrors.E(op, err)
 		}
+		if err := s.ensureNoOpenQuestionForSend(txCtx, req.SessionID); err != nil {
+			return err
+		}
 
 		if err := s.chatRepo.SaveMessage(txCtx, userMsg); err != nil {
 			return serrors.E(op, err)
@@ -533,6 +536,13 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		if err != nil {
 			return serrors.E(op, err)
 		}
+		session, err = s.maybeReplaceHistoryFromMessage(txCtx, session, req.ReplaceFromMessageID)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		if err := s.ensureNoOpenQuestionForSend(txCtx, req.SessionID); err != nil {
+			return err
+		}
 
 		run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
 			SessionID: req.SessionID,
@@ -545,11 +555,6 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		runStateCreated, err = s.createRunState(txCtx, run)
 		if err != nil {
 			return err
-		}
-
-		session, err = s.maybeReplaceHistoryFromMessage(txCtx, session, req.ReplaceFromMessageID)
-		if err != nil {
-			return serrors.E(op, err)
 		}
 
 		if err := s.chatRepo.SaveMessage(txCtx, userMsg); err != nil {

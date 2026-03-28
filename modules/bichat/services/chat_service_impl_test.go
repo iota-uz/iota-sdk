@@ -38,6 +38,23 @@ func mustQuestionData(t *testing.T, checkpointID string) *types.QuestionData {
 	return qd
 }
 
+func mustQuestionDataWithStatus(t *testing.T, checkpointID string, status types.QuestionStatus) *types.QuestionData {
+	t.Helper()
+
+	qd := mustQuestionData(t, checkpointID)
+	switch status {
+	case types.QuestionStatusPending:
+		return qd
+	case types.QuestionStatusAnswerSubmitted:
+		submitted, err := qd.SubmitAnswers(map[string]string{"scope": "all"})
+		require.NoError(t, err)
+		return submitted
+	default:
+		t.Fatalf("unsupported question status for test: %s", status)
+		return nil
+	}
+}
+
 func TestChatService_UnarchiveSession(t *testing.T) {
 	t.Parallel()
 
@@ -239,6 +256,84 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 	require.Len(t, messages, 2)
 	assert.Equal(t, userOne.ID(), messages[0].ID())
 	assert.Equal(t, assistantOne.ID(), messages[1].ID())
+}
+
+func TestChatService_SendMessage_RejectsWhileQuestionOpen(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []types.QuestionStatus{
+		types.QuestionStatusPending,
+		types.QuestionStatusAnswerSubmitted,
+	} {
+		t.Run(string(status), func(t *testing.T) {
+			chatRepo := newMockChatRepository()
+			svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+			session := mustSession(t,
+				withSessionTenantID(uuid.New()),
+				withSessionUserID(1),
+				withSessionTitle("pending question"),
+			)
+			require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+			require.NoError(t, chatRepo.SaveMessage(t.Context(), types.AssistantMessage(
+				"Need clarification",
+				types.WithSessionID(session.ID()),
+				types.WithQuestionData(mustQuestionDataWithStatus(t, "cp-open", status)),
+			)))
+
+			_, err := svc.SendMessage(t.Context(), bichatservices.SendMessageRequest{
+				SessionID: session.ID(),
+				UserID:    1,
+				Content:   "continue",
+			})
+			require.Error(t, err)
+			assert.ErrorContains(t, err, errHITLPendingQuestionOpen.Error())
+
+			messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+			require.NoError(t, msgErr)
+			require.Len(t, messages, 1)
+		})
+	}
+}
+
+func TestChatService_SendMessageStream_RejectsWhileQuestionOpen(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []types.QuestionStatus{
+		types.QuestionStatusPending,
+		types.QuestionStatusAnswerSubmitted,
+	} {
+		t.Run(string(status), func(t *testing.T) {
+			chatRepo := newMockChatRepository()
+			svc := NewChatService(chatRepo, nil, nil, nil, nil)
+
+			session := mustSession(t,
+				withSessionTenantID(uuid.New()),
+				withSessionUserID(1),
+				withSessionTitle("pending question"),
+			)
+			require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+			require.NoError(t, chatRepo.SaveMessage(t.Context(), types.AssistantMessage(
+				"Need clarification",
+				types.WithSessionID(session.ID()),
+				types.WithQuestionData(mustQuestionDataWithStatus(t, "cp-open-stream", status)),
+			)))
+
+			err := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+				SessionID: session.ID(),
+				UserID:    1,
+				Content:   "continue",
+			}, func(bichatservices.StreamChunk) {})
+			require.Error(t, err)
+			assert.ErrorContains(t, err, errHITLPendingQuestionOpen.Error())
+
+			messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+			require.NoError(t, msgErr)
+			require.Len(t, messages, 1)
+		})
+	}
 }
 
 func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *testing.T) {
