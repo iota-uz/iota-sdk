@@ -45,12 +45,12 @@ func TestDefaultModelSpecForProvider_OpenAI(t *testing.T) {
 
 func TestModelSpec_ToModelInfo(t *testing.T) {
 	spec := SpecGPT5Mini
-	info := spec.ToModelInfo("gpt-5-mini")
-	assert.Equal(t, "gpt-5-mini", info.Name)
+	info := spec.ToModelInfo("gpt-5.4-mini")
+	assert.Equal(t, "gpt-5.4-mini", info.Name)
 	assert.Equal(t, ProviderOpenAI, info.Provider)
 	assert.Equal(t, 400_000, info.ContextWindow)
 	assert.True(t, info.HasCapability(CapabilityStreaming))
 
-	infoDisplay := spec.ToModelInfo("gpt-5-mini-2026-01-15")
-	assert.Equal(t, "gpt-5-mini-2026-01-15", infoDisplay.Name)
+	infoDisplay := spec.ToModelInfo("gpt-5.4-mini-2026-01-15")
+	assert.Equal(t, "gpt-5.4-mini-2026-01-15", infoDisplay.Name)
 }
