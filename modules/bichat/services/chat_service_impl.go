@@ -412,6 +412,12 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	}
 
 	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
+	if req.ReasoningEffort != nil {
+		processCtx = bichatservices.WithReasoningEffort(processCtx, *req.ReasoningEffort)
+	}
+	if req.Model != nil {
+		processCtx = bichatservices.WithModelOverride(processCtx, *req.Model)
+	}
 
 	domainAttachments := cloneAttachmentsForMessage(userMsg.ID(), req.Attachments)
 
@@ -596,6 +602,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	processCtx = bichatservices.WithArtifactMessageID(processCtx, userMsg.ID())
 	if req.ReasoningEffort != nil {
 		processCtx = bichatservices.WithReasoningEffort(processCtx, *req.ReasoningEffort)
+	}
+	if req.Model != nil {
+		processCtx = bichatservices.WithModelOverride(processCtx, *req.Model)
 	}
 
 	active := streamingsvc.NewActiveRun(run.ID(), req.SessionID, cancelProcess, time.Now())

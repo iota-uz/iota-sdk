@@ -342,7 +342,7 @@ OPENAI_API_KEY=sk-...
 DATABASE_URL=postgres://...
 
 # Optional
-OPENAI_MODEL=gpt-5.2                   # default: gpt-5.2
+OPENAI_MODEL=gpt-5.2                   # default: gpt-5.2 (only used when WithModelName is not provided; Ali hardcodes model names via ModelRegistry)
 BICHAT_CONTEXT_WINDOW=180000      # default: 200k
 BICHAT_COMPLETION_RESERVE=8000    # default: 8k
 ```

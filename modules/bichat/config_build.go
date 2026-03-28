@@ -142,6 +142,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	agentService := services.NewAgentService(services.AgentServiceConfig{
 		Agent:                  c.ParentAgent,
 		Model:                  c.Model,
+		ModelRegistry:          c.ModelRegistry,
 		Policy:                 c.ContextPolicy,
 		Renderer:               c.Renderer,
 		Checkpointer:           c.Checkpointer,
