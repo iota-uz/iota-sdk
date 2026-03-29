@@ -185,9 +185,10 @@ func (s *SpotlightService) CreateSession(ctx context.Context, req SearchRequest)
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		defer time.AfterFunc(defaultSessionTTL, func() {
+		deleteTimer := time.AfterFunc(defaultSessionTTL, func() {
 			s.deleteSession(sessionID)
 		})
+		defer deleteTimer.Stop()
 		s.runSearchSession(sessionCtx, session, req)
 	}()
 

@@ -104,9 +104,9 @@ LIMIT 5000
 			URL:         fmt.Sprintf("/users/%d", id),
 			Language:    scope.Language,
 			Metadata: map[string]string{
-				"source":      "core.users",
-				"group_key":   "staff",
-				"group_title": "Spotlight.Group.Staff",
+				"source":          "core.users",
+				"group_key":       "staff",
+				"group_title_key": "Spotlight.Group.Staff",
 			},
 			Access:    spotlight.AccessPolicy{Visibility: spotlight.VisibilityPublic},
 			UpdatedAt: updatedAt,

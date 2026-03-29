@@ -23,6 +23,18 @@ func TestMeilisearchEngine_SetupForSearchExistingIndexStaysReadOnly(t *testing.T
 		GetIndex("spotlight").
 		Return(&meilisearch.IndexResult{UID: "spotlight"}, nil).
 		Once()
+	service.EXPECT().
+		Index("spotlight").
+		Return(index).
+		Once()
+	index.EXPECT().
+		GetSettings().
+		Return(&meilisearch.Settings{
+			FilterableAttributes: requiredFilterableAttributes(),
+			SearchableAttributes: requiredSearchableAttributes(),
+			SortableAttributes:   requiredSortableAttributes(),
+		}, nil).
+		Once()
 
 	require.NoError(t, engine.setupForSearch())
 	require.True(t, engine.searchReady.Load())
@@ -118,4 +130,35 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 	require.NoError(t, engine.setupForSearch())
 	require.True(t, engine.searchReady.Load())
 	require.True(t, engine.writeReady.Load())
+}
+
+func TestMeilisearchEngine_SetupForSearchRejectsExistingIndexWithoutRequiredSettings(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	index := meilimocks.NewMockmeilisearchIndexManager(t)
+	engine := &MeilisearchEngine{
+		client:    service,
+		indexName: "spotlight",
+	}
+
+	service.EXPECT().
+		GetIndex("spotlight").
+		Return(&meilisearch.IndexResult{UID: "spotlight"}, nil).
+		Once()
+	service.EXPECT().
+		Index("spotlight").
+		Return(index).
+		Once()
+	index.EXPECT().
+		GetSettings().
+		Return(&meilisearch.Settings{
+			FilterableAttributes: []string{"tenant_id"},
+			SearchableAttributes: requiredSearchableAttributes(),
+			SortableAttributes:   requiredSortableAttributes(),
+		}, nil).
+		Once()
+
+	err := engine.setupForSearch()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing filterable attributes")
+	require.False(t, engine.searchReady.Load())
 }

@@ -75,6 +75,8 @@ func (e *MeilisearchEngine) setupForSearch() error {
 			return err
 		}
 		e.writeReady.Store(true)
+	} else if err := e.validateSearchSettings(); err != nil {
+		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
 	e.searchReady.Store(true)
 	return nil
@@ -158,6 +160,50 @@ func (e *MeilisearchEngine) configureIndex() error {
 	}
 
 	return nil
+}
+
+func (e *MeilisearchEngine) validateSearchSettings() error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.validateSearchSettings"
+
+	settings, err := e.client.Index(e.indexName).GetSettings()
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	if missing := missingStrings(settings.FilterableAttributes, requiredFilterableAttributes()); len(missing) > 0 {
+		return serrors.E(op, fmt.Errorf("spotlight index is missing filterable attributes: %s", strings.Join(missing, ", ")))
+	}
+	if missing := missingStrings(settings.SearchableAttributes, requiredSearchableAttributes()); len(missing) > 0 {
+		return serrors.E(op, fmt.Errorf("spotlight index is missing searchable attributes: %s", strings.Join(missing, ", ")))
+	}
+	if missing := missingStrings(settings.SortableAttributes, requiredSortableAttributes()); len(missing) > 0 {
+		return serrors.E(op, fmt.Errorf("spotlight index is missing sortable attributes: %s", strings.Join(missing, ", ")))
+	}
+
+	return nil
+}
+
+func requiredFilterableAttributes() []string {
+	return []string{
+		"tenant_id",
+		"provider",
+		"entity_type",
+		"domain",
+		"exact_terms",
+		"access_visibility",
+		"owner_id",
+		"allowed_users",
+		"allowed_roles",
+		"allowed_permissions",
+	}
+}
+
+func requiredSearchableAttributes() []string {
+	return []string{"title", "description", "search_text"}
+}
+
+func requiredSortableAttributes() []string {
+	return []string{"updated_at"}
 }
 
 func isMeiliNotFound(err error) bool {
@@ -283,7 +329,11 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 	baseFilter := buildSearchFilter(req)
 
 	if req.Mode == QueryModeLookup && len(req.ExactTerms) > 0 {
-		exactHits, err := e.searchOnce(req, "", appendFilter(baseFilter, buildExactTermsFilter(req.ExactTerms)), topK)
+		exactFilter := buildExactTermsFilter(req.ExactTerms)
+		if exactFilter == "" {
+			return e.searchOnce(req, req.Query, baseFilter, topK)
+		}
+		exactHits, err := e.searchOnce(req, "", appendFilter(baseFilter, exactFilter), topK)
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
@@ -447,6 +497,20 @@ func normalizeExactTerms(values []string) []string {
 	normalized := ExpandExactTerms(values...)
 	slices.Sort(normalized)
 	return slices.Compact(normalized)
+}
+
+func missingStrings(actual, required []string) []string {
+	set := make(map[string]struct{}, len(actual))
+	for _, value := range actual {
+		set[value] = struct{}{}
+	}
+	missing := make([]string, 0, len(required))
+	for _, value := range required {
+		if _, ok := set[value]; !ok {
+			missing = append(missing, value)
+		}
+	}
+	return missing
 }
 
 func mergeHits(primary, secondary []SearchHit, limit int) []SearchHit {

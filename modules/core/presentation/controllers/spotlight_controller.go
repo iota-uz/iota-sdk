@@ -208,7 +208,10 @@ func (c *SpotlightController) renderSnapshotHTML(r *http.Request, snapshot spotl
 	}
 
 	for _, group := range view.Groups {
-		localizedTitle := intl.MustT(r.Context(), group.Title)
+		localizedTitle := group.Title
+		if group.TitleKey != "" {
+			localizedTitle = intl.MustT(r.Context(), group.TitleKey)
+		}
 		appendGroup(localizedTitle, group.Hits)
 	}
 
@@ -224,6 +227,7 @@ func (c *SpotlightController) renderSnapshotHTML(r *http.Request, snapshot spotl
 func renderComponent(r *http.Request, component templ.Component) string {
 	var buffer bytes.Buffer
 	if err := component.Render(r.Context(), &buffer); err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Error("spotlight component render failed")
 		return ""
 	}
 	return buffer.String()

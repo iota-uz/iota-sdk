@@ -90,9 +90,9 @@ LIMIT $2
 			URL:         fmt.Sprintf("/crm/clients?tab=profile&view=%d", id),
 			Language:    scope.Language,
 			Metadata: map[string]string{
-				"source":      "crm.clients",
-				"group_key":   "people",
-				"group_title": "Spotlight.Group.People",
+				"source":          "crm.clients",
+				"group_key":       "people",
+				"group_title_key": "Spotlight.Group.People",
 			},
 			Access:    spotlight.AccessPolicy{Visibility: spotlight.VisibilityPublic},
 			UpdatedAt: updatedAt,

@@ -191,9 +191,10 @@ type ViewResponse struct {
 }
 
 type ViewGroup struct {
-	Key   string
-	Title string
-	Hits  []SearchHit
+	Key      string
+	Title    string
+	TitleKey string
+	Hits     []SearchHit
 }
 
 type ViewAgent struct {
