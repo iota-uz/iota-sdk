@@ -4,7 +4,9 @@ package spotlight
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"sort"
 	"strings"
@@ -22,10 +24,11 @@ var _ IndexEngine = (*MeilisearchEngine)(nil)
 const IndexSchemaVersion = "2026-03-29-search-v3"
 
 type MeilisearchEngine struct {
-	client    meilisearch.ServiceManager
-	indexName string
-	setupMu   sync.Mutex
-	setupDone atomic.Bool
+	client      meilisearch.ServiceManager
+	indexName   string
+	setupMu     sync.Mutex
+	searchReady atomic.Bool
+	writeReady  atomic.Bool
 }
 
 // NewMeilisearchEngine creates a new Meilisearch-based IndexEngine.
@@ -38,43 +41,81 @@ func NewMeilisearchEngine(url, apiKey string) *MeilisearchEngine {
 
 // setup ensures the index is created and configured, retrying on failure.
 func (e *MeilisearchEngine) setup() error {
-	if e.setupDone.Load() {
+	if e.writeReady.Load() {
 		return nil
 	}
 	e.setupMu.Lock()
 	defer e.setupMu.Unlock()
-	if e.setupDone.Load() {
+	if e.writeReady.Load() {
 		return nil
 	}
-	if err := e.ensureIndex(); err != nil {
+	if err := e.ensureIndexConfigured(); err != nil {
 		return err
 	}
-	e.setupDone.Store(true)
+	e.searchReady.Store(true)
+	e.writeReady.Store(true)
 	return nil
 }
 
-// ensureIndex creates and configures the Meilisearch index.
-func (e *MeilisearchEngine) ensureIndex() error {
-	const op serrors.Op = "spotlight.MeilisearchEngine.ensureIndex"
-
-	taskInfo, err := e.client.CreateIndex(&meilisearch.IndexConfig{
-		Uid:        e.indexName,
-		PrimaryKey: "pk",
-	})
-	if err != nil {
-		return serrors.E(op, err)
+func (e *MeilisearchEngine) setupForSearch() error {
+	if e.searchReady.Load() {
+		return nil
 	}
-
-	task, err := e.client.WaitForTask(taskInfo.TaskUID, 100*time.Millisecond)
-	if err != nil {
-		return serrors.E(op, err)
+	e.setupMu.Lock()
+	defer e.setupMu.Unlock()
+	if e.searchReady.Load() {
+		return nil
 	}
-	if task.Status == meilisearch.TaskStatusFailed {
-		// "index_already_exists" is expected on restart
-		if task.Error.Code != "index_already_exists" {
-			return serrors.E(op, fmt.Errorf("create index task failed: %s", task.Error.Message))
+	created, err := e.ensureIndexExists()
+	if err != nil {
+		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
+	}
+	if created {
+		if err := e.configureIndex(); err != nil {
+			return err
 		}
+		e.writeReady.Store(true)
 	}
+	e.searchReady.Store(true)
+	return nil
+}
+
+func (e *MeilisearchEngine) ensureIndexConfigured() error {
+	if _, err := e.ensureIndexExists(); err != nil {
+		return err
+	}
+	return e.configureIndex()
+}
+
+func (e *MeilisearchEngine) ensureIndexExists() (bool, error) {
+	const op serrors.Op = "spotlight.MeilisearchEngine.ensureIndexExists"
+
+	if _, err := e.client.GetIndex(e.indexName); err != nil {
+		if !isMeiliNotFound(err) {
+			return false, serrors.E(op, err)
+		}
+		taskInfo, err := e.client.CreateIndex(&meilisearch.IndexConfig{
+			Uid:        e.indexName,
+			PrimaryKey: "pk",
+		})
+		if err != nil {
+			return false, serrors.E(op, err)
+		}
+
+		task, err := e.client.WaitForTask(taskInfo.TaskUID, 100*time.Millisecond)
+		if err != nil {
+			return false, serrors.E(op, err)
+		}
+		if task.Status == meilisearch.TaskStatusFailed {
+			return false, serrors.E(op, fmt.Errorf("create index task failed: %s", task.Error.Message))
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func (e *MeilisearchEngine) configureIndex() error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.configureIndex"
 
 	index := e.client.Index(e.indexName)
 
@@ -117,6 +158,11 @@ func (e *MeilisearchEngine) ensureIndex() error {
 	}
 
 	return nil
+}
+
+func isMeiliNotFound(err error) bool {
+	var meiliErr *meilisearch.Error
+	return errors.As(err, &meiliErr) && meiliErr.StatusCode == http.StatusNotFound
 }
 
 // Upsert indexes or updates documents in Meilisearch.
@@ -215,7 +261,7 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 		return nil, nil
 	}
 
-	if err := e.setup(); err != nil {
+	if err := e.setupForSearch(); err != nil {
 		return nil, serrors.E(op, err)
 	}
 
