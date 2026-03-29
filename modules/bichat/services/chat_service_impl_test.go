@@ -49,8 +49,15 @@ func mustQuestionDataWithStatus(t *testing.T, checkpointID string, status types.
 		submitted, err := qd.SubmitAnswers(map[string]string{"scope": "all"})
 		require.NoError(t, err)
 		return submitted
+	case types.QuestionStatusRejectSubmitted,
+		types.QuestionStatusAnswerFailed,
+		types.QuestionStatusRejectFailed,
+		types.QuestionStatusAnswered,
+		types.QuestionStatusRejected:
+		require.Failf(t, "unsupported question status for test", "status %s is not supported for open-question send guards", status)
+		return nil
 	default:
-		t.Fatalf("unsupported question status for test: %s", status)
+		require.Failf(t, "unknown question status for test", "status %s is not recognized", status)
 		return nil
 	}
 }
@@ -288,7 +295,7 @@ func TestChatService_SendMessage_RejectsWhileQuestionOpen(t *testing.T) {
 				Content:   "continue",
 			})
 			require.Error(t, err)
-			assert.ErrorContains(t, err, errHITLPendingQuestionOpen.Error())
+			require.ErrorContains(t, err, errHITLPendingQuestionOpen.Error())
 
 			messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 			require.NoError(t, msgErr)
@@ -327,7 +334,7 @@ func TestChatService_SendMessageStream_RejectsWhileQuestionOpen(t *testing.T) {
 				Content:   "continue",
 			}, func(bichatservices.StreamChunk) {})
 			require.Error(t, err)
-			assert.ErrorContains(t, err, errHITLPendingQuestionOpen.Error())
+			require.ErrorContains(t, err, errHITLPendingQuestionOpen.Error())
 
 			messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 			require.NoError(t, msgErr)
