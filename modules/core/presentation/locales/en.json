@@ -923,6 +923,49 @@
   "Spotlight": {
     "Placeholder": "Search...",
     "NothingFound": "Nothing found",
+    "NothingFoundBody": "Try a different search term or check the spelling.",
+    "Match": {
+      "Exact": "Exact match",
+      "Best": "Best match"
+    },
+    "Hint": {
+      "Navigate": "↑ ↓ navigate",
+      "Open": "Enter open",
+      "Close": "Esc close"
+    },
+    "Empty": {
+      "Title": "Search your whole workspace from one place",
+      "_Description": "Look up records, pages, people, and commands in one flow.",
+      "Body": "Try a name, email, reference number, page name, or command.",
+      "Footer": "Start with any clue you have. Best matches appear first and more results stream in.",
+      "Example": {
+        "Name": {
+          "Label": "Name",
+          "Value": "Jane Doe"
+        },
+        "Email": {
+          "Label": "Email",
+          "Value": "mail@example.com"
+        },
+        "Identifier": {
+          "Label": "Reference",
+          "Value": "INV-1024"
+        },
+        "Page": {
+          "Label": "Page",
+          "Value": "settings"
+        },
+        "Command": {
+          "Label": "Command",
+          "Value": "create user"
+        }
+      }
+    },
+    "Badge": {
+      "Exact": "Exact",
+      "Action": "Action",
+      "Navigate": "Navigate"
+    },
     "Summary": {
       "Default": "Best matches found for your request",
       "Help": "Here are the best matching pages and knowledge entries"
@@ -934,6 +977,7 @@
     },
     "Group": {
       "Navigate": "Navigate",
+      "Actions": "Actions",
       "Data": "Data",
       "Knowledge": "Knowledge",
       "_Other": "Other"

@@ -32,6 +32,43 @@ const (
 	ActionTypeShowSteps  ActionType = "show_steps"
 )
 
+type ResultDomain string
+
+const (
+	ResultDomainLookup    ResultDomain = "lookup"
+	ResultDomainNavigate  ResultDomain = "navigate"
+	ResultDomainKnowledge ResultDomain = "knowledge"
+	ResultDomainAction    ResultDomain = "action"
+	ResultDomainOther     ResultDomain = "other"
+)
+
+type QueryMode string
+
+const (
+	QueryModeExplore  QueryMode = "explore"
+	QueryModeLookup   QueryMode = "lookup"
+	QueryModeNavigate QueryMode = "navigate"
+	QueryModeHelp     QueryMode = "help"
+)
+
+type SearchStage string
+
+const (
+	SearchStageFast    SearchStage = "fast"
+	SearchStageIndexed SearchStage = "indexed"
+	SearchStageExpand  SearchStage = "expand"
+)
+
+type SearchStageStatus string
+
+const (
+	SearchStageStatusPending   SearchStageStatus = "pending"
+	SearchStageStatusRunning   SearchStageStatus = "running"
+	SearchStageStatusCompleted SearchStageStatus = "completed"
+	SearchStageStatusFailed    SearchStageStatus = "failed"
+	SearchStageStatusSkipped   SearchStageStatus = "skipped"
+)
+
 type Visibility string
 
 const (
@@ -49,18 +86,22 @@ type AccessPolicy struct {
 }
 
 type SearchDocument struct {
-	ID         string            `json:"id"`
-	TenantID   uuid.UUID         `json:"tenant_id"`
-	Provider   string            `json:"provider"`
-	EntityType string            `json:"entity_type"`
-	Title      string            `json:"title"`
-	Body       string            `json:"body"`
-	URL        string            `json:"url"`
-	Language   string            `json:"language"`
-	Metadata   map[string]string `json:"metadata"`
-	Access     AccessPolicy      `json:"access_policy"`
-	UpdatedAt  time.Time         `json:"updated_at"`
-	Embedding  []float32         `json:"embedding,omitempty"`
+	ID          string            `json:"id"`
+	TenantID    uuid.UUID         `json:"tenant_id"`
+	Provider    string            `json:"provider"`
+	EntityType  string            `json:"entity_type"`
+	Domain      ResultDomain      `json:"domain"`
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Body        string            `json:"body"`
+	SearchText  string            `json:"search_text"`
+	ExactTerms  []string          `json:"exact_terms"`
+	URL         string            `json:"url"`
+	Language    string            `json:"language"`
+	Metadata    map[string]string `json:"metadata"`
+	Access      AccessPolicy      `json:"access_policy"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+	Embedding   []float32         `json:"embedding,omitempty"`
 }
 
 type DocumentEvent struct {
@@ -71,16 +112,19 @@ type DocumentEvent struct {
 }
 
 type SearchRequest struct {
-	Query          string
-	TenantID       uuid.UUID
-	UserID         string
-	Roles          []string
-	Permissions    []string
-	TopK           int
-	Intent         SearchIntent
-	Language       string
-	Filters        map[string]string
-	QueryEmbedding []float32
+	Query            string
+	TenantID         uuid.UUID
+	UserID           string
+	Roles            []string
+	Permissions      []string
+	TopK             int
+	Intent           SearchIntent
+	Language         string
+	Filters          map[string]string
+	QueryEmbedding   []float32
+	Mode             QueryMode
+	ExactTerms       []string
+	PreferredDomains []ResultDomain
 }
 
 type SearchHit struct {
@@ -110,7 +154,35 @@ type SearchResponse struct {
 	Data      []SearchHit
 	Knowledge []SearchHit
 	Other     []SearchHit
+	Groups    []SearchGroup
 	Agent     *AgentAnswer
+}
+
+type SearchStageState struct {
+	Stage            SearchStage       `json:"stage"`
+	Status           SearchStageStatus `json:"status"`
+	TotalSources     int               `json:"total_sources"`
+	CompletedSources int               `json:"completed_sources"`
+	PendingSources   int               `json:"pending_sources"`
+	ResultCount      int               `json:"result_count"`
+	Error            string            `json:"error,omitempty"`
+}
+
+type SearchSessionSnapshot struct {
+	ID        string             `json:"id"`
+	Query     string             `json:"query"`
+	Response  SearchResponse     `json:"response"`
+	Stages    []SearchStageState `json:"stages"`
+	Loading   bool               `json:"loading"`
+	Completed bool               `json:"completed"`
+	Version   int64              `json:"version"`
+	UpdatedAt time.Time          `json:"updated_at"`
+}
+
+type SearchGroup struct {
+	Domain ResultDomain
+	Title  string
+	Hits   []SearchHit
 }
 
 type ViewResponse struct {
@@ -137,4 +209,12 @@ func (r SearchRequest) normalizedTopK() int {
 		return 100
 	}
 	return r.TopK
+}
+
+func (s SearchSessionSnapshot) PendingCount() int {
+	count := 0
+	for _, stage := range s.Stages {
+		count += stage.PendingSources
+	}
+	return count
 }

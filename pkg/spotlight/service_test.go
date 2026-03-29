@@ -41,6 +41,74 @@ func (e *testEngine) calls() int {
 	return e.searchCalls
 }
 
+type scriptedCall struct {
+	delay time.Duration
+	hits  []SearchHit
+}
+
+type scriptedEngine struct {
+	mu     sync.Mutex
+	calls  int
+	script []scriptedCall
+}
+
+func (e *scriptedEngine) Upsert(context.Context, []SearchDocument) error { return nil }
+
+func (e *scriptedEngine) Delete(context.Context, []DocumentRef) error { return nil }
+
+func (e *scriptedEngine) Search(ctx context.Context, _ SearchRequest) ([]SearchHit, error) {
+	e.mu.Lock()
+	idx := e.calls
+	e.calls++
+	var call scriptedCall
+	if idx < len(e.script) {
+		call = e.script[idx]
+	}
+	e.mu.Unlock()
+
+	if call.delay > 0 {
+		timer := time.NewTimer(call.delay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+
+	out := make([]SearchHit, len(call.hits))
+	copy(out, call.hits)
+	return out, nil
+}
+
+func (e *scriptedEngine) Health(context.Context) error { return nil }
+
+func (e *scriptedEngine) callsCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.calls
+}
+
+type fakeProvider struct {
+	id string
+}
+
+func (p *fakeProvider) ProviderID() string { return p.id }
+
+func (p *fakeProvider) Capabilities() ProviderCapabilities {
+	return ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"client"}}
+}
+
+func (p *fakeProvider) ListDocuments(context.Context, ProviderScope) ([]SearchDocument, error) {
+	return nil, nil
+}
+
+func (p *fakeProvider) Watch(context.Context, ProviderScope) (<-chan DocumentEvent, error) {
+	ch := make(chan DocumentEvent)
+	close(ch)
+	return ch, nil
+}
+
 type testBatchACL struct {
 	mu          sync.Mutex
 	batchCalls  int
@@ -111,4 +179,98 @@ func TestSpotlightService_Search_UsesBatchACLAndCache(t *testing.T) {
 	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, svc.Stop(stopCtx))
+}
+
+func TestSpotlightService_CreateSession_StreamsAndPromotesBetterLateMatches(t *testing.T) {
+	tenantID := uuid.New()
+	engine := &scriptedEngine{
+		script: []scriptedCall{
+			{
+				hits: []SearchHit{
+					{
+						Document: SearchDocument{
+							ID:         "fast",
+							TenantID:   tenantID,
+							Title:      "Fast match",
+							EntityType: "client",
+							Domain:     ResultDomainLookup,
+							Access:     AccessPolicy{Visibility: VisibilityPublic},
+						},
+						FinalScore: 10,
+					},
+				},
+			},
+			{
+				delay: 50 * time.Millisecond,
+				hits: []SearchHit{
+					{
+						Document: SearchDocument{
+							ID:         "better",
+							TenantID:   tenantID,
+							Title:      "Better match",
+							EntityType: "client",
+							Domain:     ResultDomainLookup,
+							Access:     AccessPolicy{Visibility: VisibilityPublic},
+						},
+						FinalScore: 100,
+					},
+				},
+			},
+			{
+				delay: 50 * time.Millisecond,
+				hits: []SearchHit{
+					{
+						Document: SearchDocument{
+							ID:         "provider",
+							TenantID:   tenantID,
+							Title:      "Provider match",
+							EntityType: "client",
+							Domain:     ResultDomainLookup,
+							Access:     AccessPolicy{Visibility: VisibilityPublic},
+						},
+						FinalScore: 20,
+					},
+				},
+			},
+		},
+	}
+	svc := NewService(engine, nil, DefaultServiceConfig())
+	svc.RegisterProvider(&fakeProvider{id: "provider.fake"})
+
+	snapshot, err := svc.CreateSession(context.Background(), SearchRequest{
+		Query:    "1234567",
+		TenantID: tenantID,
+		UserID:   "7",
+		TopK:     10,
+		Intent:   SearchIntentMixed,
+	})
+	require.NoError(t, err)
+	require.True(t, snapshot.Loading)
+	require.False(t, snapshot.Completed)
+	require.Equal(t, "Fast match", topSnapshotTitle(snapshot))
+
+	updates, err := svc.SubscribeSession(context.Background(), snapshot.ID)
+	require.NoError(t, err)
+
+	var finalSnapshot SearchSessionSnapshot
+	require.Eventually(t, func() bool {
+		select {
+		case finalSnapshot = <-updates:
+			return finalSnapshot.Completed
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+
+	require.Equal(t, "Better match", topSnapshotTitle(finalSnapshot))
+	require.GreaterOrEqual(t, engine.callsCount(), 3)
+}
+
+func topSnapshotTitle(snapshot SearchSessionSnapshot) string {
+	for _, group := range snapshot.Response.Groups {
+		if len(group.Hits) > 0 {
+			return group.Hits[0].Document.Title
+		}
+	}
+	return ""
 }

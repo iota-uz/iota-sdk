@@ -82,6 +82,10 @@ type Service interface {
 	ReindexTenant(ctx context.Context, tenantID uuid.UUID, language string) error
 	Readiness(ctx context.Context) error
 	Search(ctx context.Context, req SearchRequest) (SearchResponse, error)
+	CreateSession(ctx context.Context, req SearchRequest) (SearchSessionSnapshot, error)
+	SubscribeSession(ctx context.Context, sessionID string) (<-chan SearchSessionSnapshot, error)
+	GetSessionSnapshot(sessionID string) (SearchSessionSnapshot, bool)
+	CancelSession(sessionID string)
 }
 
 type ServiceOption func(*SpotlightService)
@@ -173,6 +177,8 @@ type SpotlightService struct {
 	bgCtx         context.Context
 	bgCancel      context.CancelFunc
 	wg            sync.WaitGroup
+	sessionsMu    sync.RWMutex
+	sessions      map[string]*searchSession
 }
 
 type indexTask struct {
@@ -206,6 +212,7 @@ func NewService(engine IndexEngine, agent Agent, cfg ServiceConfig, opts ...Serv
 		agent:       agent,
 		searchCache: make(map[string]cachedSearchResponse),
 		indexQueue:  make(chan indexTask, 256),
+		sessions:    make(map[string]*searchSession),
 	}
 	for _, opt := range opts {
 		opt(svc)
@@ -319,7 +326,7 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 	if req.Intent == "" {
 		req.Intent = SearchIntentMixed
 	}
-	req.Query = strings.TrimSpace(req.Query)
+	req = planRequest(req)
 	req.Roles = dedupeAndSort(req.Roles)
 	req.Permissions = dedupeAndSort(req.Permissions)
 
@@ -330,9 +337,6 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 		s.metrics.OnSearch(req, telemetry)
 		return cached, nil
 	}
-
-	s.scheduleIndexRefresh(req.TenantID, req.Language)
-	s.ensureProviderWatchers(req.TenantID, req.Language)
 
 	searchCtx, cancelSearch := withTimeoutRespectingDeadline(ctx, s.cfg.SearchTimeout)
 	engineStarted := time.Now()
@@ -714,8 +718,20 @@ func searchCacheKey(req SearchRequest) string {
 		strings.ToLower(strings.TrimSpace(req.Query)),
 		strings.ToLower(strings.TrimSpace(req.Language)),
 		string(req.Intent),
+		string(req.Mode),
 		fmt.Sprintf("topk=%d", req.normalizedTopK()),
 	)
+	if len(req.ExactTerms) > 0 {
+		parts = append(parts, "exact="+strings.Join(ExpandExactTerms(req.ExactTerms...), ","))
+	}
+	if len(req.PreferredDomains) > 0 {
+		domains := make([]string, 0, len(req.PreferredDomains))
+		for _, domain := range req.PreferredDomains {
+			domains = append(domains, string(domain))
+		}
+		sort.Strings(domains)
+		parts = append(parts, "domains="+strings.Join(domains, ","))
+	}
 	if len(req.Roles) > 0 {
 		parts = append(parts, "roles="+strings.Join(dedupeAndSort(req.Roles), ","))
 	}

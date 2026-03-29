@@ -191,14 +191,18 @@ func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]S
 		}
 
 		out = append(out, SearchDocument{
-			ID:         providerID + ":" + item.trKey + ":" + item.link,
-			TenantID:   scope.TenantID,
-			Provider:   providerID,
-			EntityType: "quick_link",
-			Title:      title,
-			Body:       body,
-			URL:        item.link,
-			Language:   scope.Language,
+			ID:          providerID + ":" + item.trKey + ":" + item.link,
+			TenantID:    scope.TenantID,
+			Provider:    providerID,
+			EntityType:  "quick_link",
+			Domain:      ResultDomainNavigate,
+			Title:       title,
+			Description: title,
+			Body:        body,
+			SearchText:  body,
+			ExactTerms:  ExpandExactTerms(title, item.link, strings.Join(item.keywords, " ")),
+			URL:         item.link,
+			Language:    scope.Language,
 			Metadata: map[string]string{
 				"tr_key": item.trKey,
 				"source": "quick_links",

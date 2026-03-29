@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +18,8 @@ import (
 )
 
 var _ IndexEngine = (*MeilisearchEngine)(nil)
+
+const IndexSchemaVersion = "2026-03-29-search-v3"
 
 type MeilisearchEngine struct {
 	client    meilisearch.ServiceManager
@@ -74,7 +78,18 @@ func (e *MeilisearchEngine) ensureIndex() error {
 
 	index := e.client.Index(e.indexName)
 
-	filterableAttrs := []interface{}{"tenant_id", "provider", "entity_type"}
+	filterableAttrs := []interface{}{
+		"tenant_id",
+		"provider",
+		"entity_type",
+		"domain",
+		"exact_terms",
+		"access_visibility",
+		"owner_id",
+		"allowed_users",
+		"allowed_roles",
+		"allowed_permissions",
+	}
 	filterTask, err := index.UpdateFilterableAttributes(&filterableAttrs)
 	if err != nil {
 		return serrors.E(op, err)
@@ -83,7 +98,7 @@ func (e *MeilisearchEngine) ensureIndex() error {
 		return serrors.E(op, err)
 	}
 
-	searchableAttrs := []string{"title", "body"}
+	searchableAttrs := []string{"title", "description", "search_text"}
 	searchTask, err := index.UpdateSearchableAttributes(&searchableAttrs)
 	if err != nil {
 		return serrors.E(op, err)
@@ -120,21 +135,31 @@ func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) e
 	records := make([]map[string]interface{}, 0, len(docs))
 	for _, doc := range docs {
 		record := map[string]interface{}{
-			"pk":          meiliPK(doc.TenantID.String(), doc.ID),
-			"id":          doc.ID,
-			"tenant_id":   doc.TenantID.String(),
-			"provider":    doc.Provider,
-			"entity_type": doc.EntityType,
-			"title":       doc.Title,
-			"body":        doc.Body,
-			"url":         doc.URL,
-			"language":    doc.Language,
-			"metadata":    doc.Metadata,
-			"updated_at":  doc.UpdatedAt.Unix(),
+			"pk":             meiliPK(doc.TenantID.String(), doc.ID),
+			"id":             doc.ID,
+			"tenant_id":      doc.TenantID.String(),
+			"provider":       doc.Provider,
+			"entity_type":    doc.EntityType,
+			"domain":         string(normalizeDomain(doc.Domain, doc.EntityType)),
+			"title":          doc.Title,
+			"description":    doc.Description,
+			"body":           doc.Body,
+			"search_text":    coalesceSearchText(doc),
+			"exact_terms":    normalizeExactTerms(doc.ExactTerms),
+			"url":            doc.URL,
+			"language":       doc.Language,
+			"metadata":       doc.Metadata,
+			"schema_version": IndexSchemaVersion,
+			"updated_at":     doc.UpdatedAt.Unix(),
 		}
 
 		// Include access policy
 		record["access_policy"] = doc.Access
+		record["access_visibility"] = string(doc.Access.Visibility)
+		record["owner_id"] = doc.Access.OwnerID
+		record["allowed_users"] = doc.Access.AllowedUsers
+		record["allowed_roles"] = doc.Access.AllowedRoles
+		record["allowed_permissions"] = doc.Access.AllowedPermissions
 
 		// Include embeddings if present
 		if len(doc.Embedding) > 0 {
@@ -203,42 +228,28 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 		topK = 100
 	}
 
-	// Build filter for tenant isolation
-	filter := fmt.Sprintf(`tenant_id = "%s"`, req.TenantID.String())
+	baseFilter := buildSearchFilter(req)
 
-	// Build search request
-	searchReq := &meilisearch.SearchRequest{
-		Filter:           filter,
-		Limit:            int64(topK),
-		ShowRankingScore: true,
-	}
-
-	// Add hybrid search if embeddings are present
-	if len(req.QueryEmbedding) > 0 {
-		searchReq.Hybrid = &meilisearch.SearchRequestHybrid{
-			SemanticRatio: 0.5,
-			Embedder:      "default",
-		}
-		searchReq.Vector = req.QueryEmbedding
-	}
-
-	// Execute search
-	resp, err := e.client.Index(e.indexName).Search(req.Query, searchReq)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	// Convert results
-	hits := make([]SearchHit, 0, len(resp.Hits))
-	for _, hit := range resp.Hits {
-		searchHit, err := parseMeiliHit(hit)
+	if req.Mode == QueryModeLookup && len(req.ExactTerms) > 0 {
+		exactHits, err := e.searchOnce(req, "", appendFilter(baseFilter, buildExactTermsFilter(req.ExactTerms)), topK)
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
+		if len(exactHits) >= topK || strings.TrimSpace(req.Query) == "" {
+			return exactHits, nil
+		}
 
-		hits = append(hits, searchHit)
+		fallbackHits, err := e.searchOnce(req, req.Query, baseFilter, topK)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+		return mergeHits(exactHits, fallbackHits, topK), nil
 	}
 
+	hits, err := e.searchOnce(req, req.Query, baseFilter, topK)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 	return hits, nil
 }
 
@@ -252,6 +263,164 @@ func (e *MeilisearchEngine) Health(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (e *MeilisearchEngine) searchOnce(req SearchRequest, query, filter string, limit int) ([]SearchHit, error) {
+	searchReq := &meilisearch.SearchRequest{
+		Filter:           filter,
+		Limit:            int64(limit),
+		ShowRankingScore: true,
+	}
+	if len(req.QueryEmbedding) > 0 {
+		searchReq.Hybrid = &meilisearch.SearchRequestHybrid{
+			SemanticRatio: 0.5,
+			Embedder:      "default",
+		}
+		searchReq.Vector = req.QueryEmbedding
+	}
+	resp, err := e.client.Index(e.indexName).Search(query, searchReq)
+	if err != nil {
+		return nil, err
+	}
+	hits := make([]SearchHit, 0, len(resp.Hits))
+	for _, hit := range resp.Hits {
+		searchHit, err := parseMeiliHit(hit)
+		if err != nil {
+			return nil, err
+		}
+		if query == "" && len(req.ExactTerms) > 0 {
+			searchHit.WhyMatched = "exact_terms"
+			searchHit.FinalScore += 10
+		}
+		hits = append(hits, searchHit)
+	}
+	return hits, nil
+}
+
+func buildSearchFilter(req SearchRequest) string {
+	filters := []string{
+		fmt.Sprintf(`tenant_id = "%s"`, req.TenantID.String()),
+	}
+	if len(req.PreferredDomains) > 0 {
+		domainFilters := make([]string, 0, len(req.PreferredDomains))
+		for _, domain := range req.PreferredDomains {
+			domainFilters = append(domainFilters, fmt.Sprintf(`domain = "%s"`, domain))
+		}
+		filters = append(filters, "("+strings.Join(domainFilters, " OR ")+")")
+	}
+	if genericFilter := buildGenericFilterClauses(req.Filters); genericFilter != "" {
+		filters = append(filters, genericFilter)
+	}
+	if accessFilter := buildAccessFilter(req); accessFilter != "" {
+		filters = append(filters, "("+accessFilter+")")
+	}
+	return strings.Join(filters, " AND ")
+}
+
+func buildGenericFilterClauses(filters map[string]string) string {
+	if len(filters) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(filters))
+	for key, value := range filters {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		switch key {
+		case "provider", "entity_type", "domain", "language":
+			keys = append(keys, key)
+		}
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	sort.Strings(keys)
+	clauses := make([]string, 0, len(keys))
+	for _, key := range keys {
+		clauses = append(clauses, fmt.Sprintf(`%s = "%s"`, key, escapeFilterString(filters[key])))
+	}
+	return strings.Join(clauses, " AND ")
+}
+
+func buildAccessFilter(req SearchRequest) string {
+	clauses := []string{`access_visibility = "public"`}
+	if req.UserID != "" {
+		clauses = append(clauses,
+			fmt.Sprintf(`(access_visibility = "owner" AND owner_id = "%s")`, req.UserID),
+			fmt.Sprintf(`allowed_users = "%s"`, req.UserID),
+		)
+	}
+	for _, role := range dedupeAndSort(req.Roles) {
+		clauses = append(clauses, fmt.Sprintf(`allowed_roles = "%s"`, role))
+	}
+	for _, permission := range dedupeAndSort(req.Permissions) {
+		clauses = append(clauses, fmt.Sprintf(`allowed_permissions = "%s"`, permission))
+	}
+	return strings.Join(clauses, " OR ")
+}
+
+func buildExactTermsFilter(terms []string) string {
+	normalized := normalizeExactTerms(terms)
+	if len(normalized) == 0 {
+		return ""
+	}
+	clauses := make([]string, 0, len(normalized))
+	for _, term := range normalized {
+		clauses = append(clauses, fmt.Sprintf(`exact_terms = "%s"`, escapeFilterString(term)))
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")"
+}
+
+func appendFilter(base, extra string) string {
+	if base == "" {
+		return extra
+	}
+	if extra == "" {
+		return base
+	}
+	return base + " AND " + extra
+}
+
+func coalesceSearchText(doc SearchDocument) string {
+	if strings.TrimSpace(doc.SearchText) != "" {
+		return doc.SearchText
+	}
+	if strings.TrimSpace(doc.Body) != "" {
+		return doc.Body
+	}
+	return BuildSearchText(doc.Title, doc.Description)
+}
+
+func normalizeExactTerms(values []string) []string {
+	normalized := ExpandExactTerms(values...)
+	slices.Sort(normalized)
+	return slices.Compact(normalized)
+}
+
+func mergeHits(primary, secondary []SearchHit, limit int) []SearchHit {
+	if len(primary) >= limit {
+		return primary[:limit]
+	}
+	out := make([]SearchHit, 0, min(limit, len(primary)+len(secondary)))
+	seen := make(map[string]struct{}, len(primary)+len(secondary))
+	for _, hit := range primary {
+		seen[hit.Document.ID] = struct{}{}
+		out = append(out, hit)
+	}
+	for _, hit := range secondary {
+		if _, exists := seen[hit.Document.ID]; exists {
+			continue
+		}
+		out = append(out, hit)
+		if len(out) == limit {
+			break
+		}
+	}
+	return out
+}
+
+func escapeFilterString(value string) string {
+	return strings.ReplaceAll(value, `"`, `\"`)
 }
 
 // meiliPK builds a Meilisearch-safe primary key from tenant ID and document ID.
@@ -307,6 +476,11 @@ func parseMeiliHit(hit meilisearch.Hit) (SearchHit, error) {
 		doc.EntityType = entityType
 	}
 
+	// Extract Domain
+	if domain, ok := hitMap["domain"].(string); ok {
+		doc.Domain = ResultDomain(domain)
+	}
+
 	// Extract Title
 	if title, ok := hitMap["title"].(string); ok {
 		doc.Title = title
@@ -315,6 +489,26 @@ func parseMeiliHit(hit meilisearch.Hit) (SearchHit, error) {
 	// Extract Body
 	if body, ok := hitMap["body"].(string); ok {
 		doc.Body = body
+	}
+
+	// Extract Description
+	if description, ok := hitMap["description"].(string); ok {
+		doc.Description = description
+	}
+
+	// Extract SearchText
+	if searchText, ok := hitMap["search_text"].(string); ok {
+		doc.SearchText = searchText
+	}
+
+	// Extract ExactTerms
+	if exactTerms, ok := hitMap["exact_terms"].([]interface{}); ok {
+		doc.ExactTerms = make([]string, 0, len(exactTerms))
+		for _, raw := range exactTerms {
+			if term, ok := raw.(string); ok {
+				doc.ExactTerms = append(doc.ExactTerms, term)
+			}
+		}
 	}
 
 	// Extract URL
