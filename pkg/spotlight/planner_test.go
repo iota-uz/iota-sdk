@@ -17,6 +17,14 @@ func TestExpandExactTermsSplitsMultilineValues(t *testing.T) {
 	require.NotContains(t, terms, "AA1234567\nBB7654321")
 }
 
+func TestExpandExactTermsDoesNotAddDigitsOnlyVariantForMixedIdentifiers(t *testing.T) {
+	terms := ExpandExactTerms("30833WAA")
+
+	require.Contains(t, terms, "30833WAA")
+	require.Contains(t, terms, "30833waa")
+	require.NotContains(t, terms, "30833")
+}
+
 func TestPlanRequest_ClassifiesLookupQueries(t *testing.T) {
 	req := planRequest(SearchRequest{
 		Query:    "AA 1234567",

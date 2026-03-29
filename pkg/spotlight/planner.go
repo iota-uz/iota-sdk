@@ -67,7 +67,7 @@ func ExpandExactTerms(values ...string) []string {
 				strings.ToLower(candidate),
 				strings.ToUpper(candidate),
 			}
-			if digits := onlyDigits(candidate); digits != "" {
+			if digits := onlyDigits(candidate); digits != "" && shouldAddDigitsVariant(candidate, digits) {
 				variants = append(variants, digits)
 			}
 			if compact := onlyAlphaNumericUpper(candidate); compact != "" {
@@ -165,4 +165,18 @@ func onlyAlphaNumericUpper(value string) string {
 		}
 	}
 	return b.String()
+}
+
+func shouldAddDigitsVariant(value, digits string) bool {
+	if digits == "" {
+		return false
+	}
+	hasLetter := false
+	for _, r := range value {
+		if unicode.IsLetter(r) {
+			hasLetter = true
+			break
+		}
+	}
+	return !hasLetter
 }

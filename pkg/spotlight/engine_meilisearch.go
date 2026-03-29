@@ -21,7 +21,7 @@ import (
 
 var _ IndexEngine = (*MeilisearchEngine)(nil)
 
-const IndexSchemaVersion = "2026-03-29-search-v3"
+const IndexSchemaVersion = "2026-03-30-search-v4"
 
 type MeilisearchEngine struct {
 	client      meilisearch.ServiceManager
@@ -219,10 +219,13 @@ func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) e
 
 	// Add documents to index
 	pk := "pk"
-	_, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{
+	task, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{
 		PrimaryKey: &pk,
 	})
 	if err != nil {
+		return serrors.E(op, err)
+	}
+	if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
 		return serrors.E(op, err)
 	}
 
@@ -246,8 +249,11 @@ func (e *MeilisearchEngine) Delete(ctx context.Context, refs []DocumentRef) erro
 	for _, ref := range refs {
 		pks = append(pks, meiliPK(ref.TenantID.String(), ref.ID))
 	}
-	_, err := index.DeleteDocuments(pks, nil)
+	task, err := index.DeleteDocuments(pks, nil)
 	if err != nil {
+		return serrors.E(op, err)
+	}
+	if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
 		return serrors.E(op, err)
 	}
 	return nil
