@@ -38,6 +38,15 @@ const (
 	defaultCodeInterpreterFileLimit   = 20
 )
 
+// WithModelName creates an OpenAI model with a specific model name, ignoring OPENAI_MODEL env var.
+func WithModelName(name string) OpenAIModelOption {
+	return func(m *OpenAIModel) {
+		if trimmed := strings.TrimSpace(name); trimmed != "" {
+			m.modelName = trimmed
+		}
+	}
+}
+
 // WithLogger sets the logger for the OpenAI model.
 func WithLogger(logger logging.Logger) OpenAIModelOption {
 	return func(m *OpenAIModel) {

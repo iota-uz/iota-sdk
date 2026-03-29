@@ -32,6 +32,7 @@ const (
 type agentServiceImpl struct {
 	agent                  agents.ExtendedAgent
 	model                  agents.Model
+	modelRegistry          *agents.ModelRegistry // Optional for per-request model selection
 	policy                 bichatctx.ContextPolicy
 	renderer               bichatctx.Renderer
 	checkpointer           agents.Checkpointer
@@ -52,6 +53,7 @@ type agentServiceImpl struct {
 type AgentServiceConfig struct {
 	Agent                  agents.ExtendedAgent
 	Model                  agents.Model
+	ModelRegistry          *agents.ModelRegistry // Optional for per-request model selection
 	Policy                 bichatctx.ContextPolicy
 	Renderer               bichatctx.Renderer
 	Checkpointer           agents.Checkpointer
@@ -103,6 +105,7 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 	return &agentServiceImpl{
 		agent:                  cfg.Agent,
 		model:                  cfg.Model,
+		modelRegistry:          cfg.ModelRegistry,
 		policy:                 cfg.Policy,
 		renderer:               cfg.Renderer,
 		checkpointer:           cfg.Checkpointer,
@@ -244,7 +247,7 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 	// Use compiled.Messages directly (now canonical []types.Message)
 	executorMessages := compiled.Messages
 
-	executor := s.buildExecutor(sessionID, tenantID)
+	executor := s.buildExecutor(ctx, sessionID, tenantID)
 
 	// Execute agent and get event generator
 	input := agents.Input{
@@ -291,7 +294,7 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 		return nil, serrors.E(op, err)
 	}
 
-	executor := s.buildExecutor(sessionID, tenantID)
+	executor := s.buildExecutor(ctx, sessionID, tenantID)
 
 	// Return resume generator directly — no conversion needed.
 	return executor.Resume(ctx, checkpointID, answers), nil
@@ -299,7 +302,19 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 
 // buildExecutor creates an Executor with shared options (delegation, formatter, checkpointer).
 // Used by both ProcessMessage and ResumeWithAnswer to avoid duplicating setup logic.
-func (s *agentServiceImpl) buildExecutor(sessionID, tenantID uuid.UUID) *agents.Executor {
+func (s *agentServiceImpl) buildExecutor(ctx context.Context, sessionID, tenantID uuid.UUID) *agents.Executor {
+	// Resolve model: context override > default
+	model := s.model
+	if s.modelRegistry != nil {
+		if overrideName, ok := services.UseModelOverride(ctx); ok {
+			if resolved, found := s.modelRegistry.Get(overrideName); found {
+				model = resolved
+			} else {
+				s.logger.WithField("model", overrideName).Warn("requested model not found in registry, using default")
+			}
+		}
+	}
+
 	opts := []agents.ExecutorOption{
 		agents.WithCheckpointer(s.checkpointer),
 		agents.WithEventBus(s.eventBus),
@@ -314,7 +329,7 @@ func (s *agentServiceImpl) buildExecutor(sessionID, tenantID uuid.UUID) *agents.
 		opts = append(opts, agents.WithExecutorTools(tools))
 	}
 
-	return agents.NewExecutor(s.agent, s.model, opts...)
+	return agents.NewExecutor(s.agent, model, opts...)
 }
 
 func (s *agentServiceImpl) buildSkillsCatalogReference() string {

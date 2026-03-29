@@ -126,6 +126,8 @@ type SendMessageRequest struct {
 	// ReasoningEffort overrides the default reasoning effort for this request.
 	// Valid values: "low", "medium", "high", "xhigh". Nil means use model default.
 	ReasoningEffort *string
+	// Model overrides the default model for this request. Must match a registered model name.
+	Model *string
 }
 
 // SendMessageResponse contains the result of sending a message

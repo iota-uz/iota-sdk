@@ -58,9 +58,9 @@ var (
 		},
 	}
 
-	// SpecGPT5Mini is the spec for GPT-5 mini (400K context).
+	// SpecGPT5Mini is the spec for GPT-5.4 mini (400K context).
 	SpecGPT5Mini = ModelSpec{
-		Name:          "gpt-5-mini",
+		Name:          "gpt-5.4-mini",
 		Provider:      ProviderOpenAI,
 		ContextWindow: 400_000,
 		Capabilities: []Capability{
@@ -68,6 +68,9 @@ var (
 			CapabilityTools,
 			CapabilityJSONMode,
 			CapabilityThinking,
+		},
+		ReasoningEffortOptions: []ReasoningEffort{
+			ReasoningLow, ReasoningMedium, ReasoningHigh,
 		},
 		Pricing: ModelPricing{
 			Currency:        "USD",
@@ -78,9 +81,9 @@ var (
 		},
 	}
 
-	// SpecGPT5Nano is the spec for GPT-5 nano (400K context).
+	// SpecGPT5Nano is the spec for GPT-5.4 nano (400K context).
 	SpecGPT5Nano = ModelSpec{
-		Name:          "gpt-5-nano",
+		Name:          "gpt-5.4-nano",
 		Provider:      ProviderOpenAI,
 		ContextWindow: 400_000,
 		Capabilities: []Capability{
@@ -106,6 +109,6 @@ func init() {
 	// GPT-5.2: canonical name + versioned alias
 	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.2", "gpt-5.2-2025-12-11"}, SpecGPT52, false)
 
-	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5-mini"}, SpecGPT5Mini, false)
-	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5-nano"}, SpecGPT5Nano, false)
+	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.4-mini"}, SpecGPT5Mini, false)
+	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.4-nano"}, SpecGPT5Nano, false)
 }

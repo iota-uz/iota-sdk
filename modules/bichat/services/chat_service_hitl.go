@@ -24,6 +24,7 @@ import (
 var (
 	errHITLAnswerAlreadyResuming = errors.New("question answers already submitted and resume is in progress")
 	errHITLRejectAlreadyResuming = errors.New("question rejection already submitted and resume is in progress")
+	errHITLPendingQuestionOpen   = errors.New("answer the pending clarification before sending a new message")
 )
 
 func noPendingQuestionValidationError(op serrors.Op) error {
@@ -61,6 +62,19 @@ func (s *chatServiceImpl) findLatestOpenQuestionMessage(ctx context.Context, ses
 	}
 
 	return nil, domain.ErrNoPendingQuestion
+}
+
+func (s *chatServiceImpl) ensureNoOpenQuestionForSend(ctx context.Context, sessionID uuid.UUID) error {
+	const op serrors.Op = "chatServiceImpl.ensureNoOpenQuestionForSend"
+
+	_, err := s.findLatestOpenQuestionMessage(ctx, sessionID)
+	if err == nil {
+		return serrors.E(op, serrors.KindValidation, errHITLPendingQuestionOpen)
+	}
+	if errors.Is(err, domain.ErrNoPendingQuestion) {
+		return nil
+	}
+	return serrors.E(op, err)
 }
 
 func (s *chatServiceImpl) findExistingAsyncQuestionRun(

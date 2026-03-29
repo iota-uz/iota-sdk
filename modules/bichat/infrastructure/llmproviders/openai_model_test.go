@@ -67,7 +67,7 @@ func TestOpenAIModel_Info(t *testing.T) {
 	info := model.Info()
 	assert.Equal(t, "gpt-5-mini", info.Name)
 	assert.Equal(t, "openai", info.Provider)
-	assert.Equal(t, 400000, info.ContextWindow)
+	assert.Equal(t, 1_050_000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
@@ -101,8 +101,10 @@ func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
 		{name: "normalized alias", modelEnv: " GPT-5.4-2026-03-05 ", expectCtx: 1050000, expectName: "GPT-5.4-2026-03-05"},
 		{name: "canonical gpt-5.2", modelEnv: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
 		{name: "versioned gpt-5.2 alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
-		{name: "gpt-5-mini", modelEnv: "gpt-5-mini", expectCtx: 400000, expectName: "gpt-5-mini"},
-		{name: "gpt-5-nano", modelEnv: "gpt-5-nano", expectCtx: 400000, expectName: "gpt-5-nano"},
+		{name: "legacy gpt-5-mini alias falls back to default spec", modelEnv: "gpt-5-mini", expectCtx: 1_050_000, expectName: "gpt-5-mini"},
+		{name: "legacy gpt-5-nano alias falls back to default spec", modelEnv: "gpt-5-nano", expectCtx: 1_050_000, expectName: "gpt-5-nano"},
+		{name: "canonical gpt-5.4-mini", modelEnv: "gpt-5.4-mini", expectCtx: 400000, expectName: "gpt-5.4-mini"},
+		{name: "canonical gpt-5.4-nano", modelEnv: "gpt-5.4-nano", expectCtx: 400000, expectName: "gpt-5.4-nano"},
 		{name: "unknown falls back to default spec", modelEnv: "unknown-model", expectCtx: 1050000, expectName: "unknown-model"},
 	}
 
