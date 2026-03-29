@@ -332,7 +332,10 @@
       "LoadMore": "Загрузить еще",
       "NoChatsFound": "Чаты не найдены",
       "NoChatsInOrg": "В этой организации пока нет чатов",
-      "NoActiveChatsInOrg": "В этой организации нет активных чатов"
+      "NoActiveChatsInOrg": "В этой организации нет активных чатов",
+      "ChatFound": "{{count}} чат найден",
+      "ChatsFound": "{{count}} чатов найдено",
+      "NoChatsFromUser": "Нет чатов от {{firstName}} {{lastName}}"
     },
     "Artifacts": {
       "Title": "Артефакты",

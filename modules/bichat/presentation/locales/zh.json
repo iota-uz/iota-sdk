@@ -328,7 +328,10 @@
       "LoadMore": "加载更多",
       "NoChatsFound": "未找到聊天",
       "NoChatsInOrg": "此组织暂无聊天",
-      "NoActiveChatsInOrg": "此组织无活跃聊天"
+      "NoActiveChatsInOrg": "此组织无活跃聊天",
+      "ChatFound": "找到 {{count}} 个聊天",
+      "ChatsFound": "找到 {{count}} 个聊天",
+      "NoChatsFromUser": "没有来自 {{firstName}} {{lastName}} 的聊天"
     },
     "Artifacts": {
       "Title": "工件",

@@ -332,7 +332,10 @@
       "LoadMore": "Ko'proq yuklash",
       "NoChatsFound": "Chatlar topilmadi",
       "NoChatsInOrg": "Ushbu tashkilotda hali chatlar yo'q",
-      "NoActiveChatsInOrg": "Ushbu tashkilotda faol chatlar yo'q"
+      "NoActiveChatsInOrg": "Ushbu tashkilotda faol chatlar yo'q",
+      "ChatFound": "{{count}} chat topildi",
+      "ChatsFound": "{{count}} chat topildi",
+      "NoChatsFromUser": "{{firstName}} {{lastName}} dan chatlar topilmadi"
     },
     "Artifacts": {
       "Title": "Artefaktlar",
