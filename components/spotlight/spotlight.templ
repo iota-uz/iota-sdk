@@ -64,11 +64,11 @@ templ Spotlight() {
 	>
 		<button
 			@click="open()"
-			class="flex h-10 items-center gap-2 rounded-xl border border-secondary bg-surface-300 px-3 text-100 shadow-sm transition-colors duration-150 hover:bg-surface-200"
+			class="flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-secondary bg-surface-300 px-3 text-300 shadow-sm transition-colors duration-150 hover:bg-surface-300/80 hover:text-100"
 			type="button"
 		>
 			@icons.MagnifyingGlass(icons.Props{Size: "18"})
-			<kbd class="text-[11px] font-medium text-300">&#8984;K</kbd>
+			<kbd class="text-[11px] font-medium">&#8984;K</kbd>
 		</button>
 		<div @keydown.window="handleShortcut($event)"></div>
 		<div
@@ -78,7 +78,7 @@ templ Spotlight() {
 			x-cloak
 		>
 			<div
-				class="flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-secondary bg-surface-300 shadow-2xl"
+				class="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-secondary bg-surface-300 shadow-2xl"
 				@click.away="close()"
 				x-transition:enter="transition ease-out duration-150"
 				x-transition:enter-start="opacity-0 translate-y-2 scale-[0.985]"
@@ -114,7 +114,7 @@ templ Spotlight() {
 					</div>
 				</div>
 
-				<div class="max-h-[420px] overflow-y-auto overscroll-contain">
+				<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 					<div
 						class="px-5 py-5"
 						x-show="query === ''"
@@ -136,31 +136,31 @@ templ Spotlight() {
 							<div class="mt-4 flex flex-wrap gap-2">
 								<button
 									type="button"
-									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-200"
+									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-300/80"
 									data-value={ intl.MustT(ctx, "Spotlight.Empty.Example.Name.Value") }
 									@click="applySuggestion($el.dataset.value)"
 								>{ intl.MustT(ctx, "Spotlight.Empty.Example.Name.Label") }</button>
 								<button
 									type="button"
-									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-200"
+									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-300/80"
 									data-value={ intl.MustT(ctx, "Spotlight.Empty.Example.Email.Value") }
 									@click="applySuggestion($el.dataset.value)"
 								>{ intl.MustT(ctx, "Spotlight.Empty.Example.Email.Label") }</button>
 								<button
 									type="button"
-									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-200"
+									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-300/80"
 									data-value={ intl.MustT(ctx, "Spotlight.Empty.Example.Identifier.Value") }
 									@click="applySuggestion($el.dataset.value)"
 								>{ intl.MustT(ctx, "Spotlight.Empty.Example.Identifier.Label") }</button>
 								<button
 									type="button"
-									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-200"
+									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-300/80"
 									data-value={ intl.MustT(ctx, "Spotlight.Empty.Example.Page.Value") }
 									@click="applySuggestion($el.dataset.value)"
 								>{ intl.MustT(ctx, "Spotlight.Empty.Example.Page.Label") }</button>
 								<button
 									type="button"
-									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-200"
+									class="rounded-full border border-secondary bg-surface-300 px-3 py-1.5 text-xs font-medium text-200 transition-colors hover:bg-surface-300/80"
 									data-value={ intl.MustT(ctx, "Spotlight.Empty.Example.Command.Value") }
 									@click="applySuggestion($el.dataset.value)"
 								>{ intl.MustT(ctx, "Spotlight.Empty.Example.Command.Label") }</button>
