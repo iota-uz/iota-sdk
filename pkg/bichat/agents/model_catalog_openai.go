@@ -69,6 +69,9 @@ var (
 			CapabilityJSONMode,
 			CapabilityThinking,
 		},
+		ReasoningEffortOptions: []ReasoningEffort{
+			ReasoningLow, ReasoningMedium, ReasoningHigh,
+		},
 		Pricing: ModelPricing{
 			Currency:        "USD",
 			InputPer1M:      0.25,
