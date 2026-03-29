@@ -334,7 +334,7 @@
       "NoChatsInOrg": "В этой организации пока нет чатов",
       "NoActiveChatsInOrg": "В этой организации нет активных чатов",
       "ChatFound": "{{count}} чат найден",
-      "ChatsFound": "{{count}} чатов найдено",
+      "ChatsFound": "Найдено: {{count}}",
       "NoChatsFromUser": "Нет чатов от {{firstName}} {{lastName}}"
     },
     "Artifacts": {
