@@ -175,6 +175,35 @@ func TestQuickLinks_ListDocuments_NoKeywords(t *testing.T) {
 	require.Equal(t, "simple.link", docs[0].Body)
 }
 
+func TestQuickLinks_Add_MergesDuplicateLinks(t *testing.T) {
+	ql := NewQuickLinks(nil, nil)
+	ql.Add(
+		NewQuickLinkBuilder("nav.users", "/users").
+			Public().
+			WithKeywords("users", "people").
+			Build(),
+	)
+	ql.Add(
+		NewQuickLinkBuilder("nav.users", "/users").
+			WithPermissions("users.read").
+			WithKeywords("staff", "directory").
+			Build(),
+	)
+
+	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+		TenantID: uuid.New(),
+		Language: "en",
+	})
+
+	require.NoError(t, err)
+	require.Len(t, docs, 1)
+	require.Equal(t, VisibilityRestricted, docs[0].Access.Visibility)
+	require.Equal(t, []string{"users.read"}, docs[0].Access.AllowedPermissions)
+	require.Contains(t, docs[0].Body, "users")
+	require.Contains(t, docs[0].Body, "staff")
+	require.Contains(t, docs[0].Body, "directory")
+}
+
 func TestQuickLinks_FilterAuthorized_RestrictedByPermission(t *testing.T) {
 	tenantID := uuid.New()
 	ql := NewQuickLinks(nil, nil)
