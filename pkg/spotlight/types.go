@@ -128,6 +128,11 @@ type SearchRequest struct {
 	PreferredDomains []ResultDomain
 }
 
+type SearchSessionAccess struct {
+	TenantID uuid.UUID
+	UserID   string
+}
+
 type SearchHit struct {
 	Document     SearchDocument
 	LexicalScore float64

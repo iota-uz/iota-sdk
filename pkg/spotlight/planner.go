@@ -10,34 +10,41 @@ import (
 func planRequest(req SearchRequest) SearchRequest {
 	planned := req
 	planned.Query = strings.TrimSpace(req.Query)
-	if planned.Mode != "" {
-		return planned
-	}
-
-	if IsHowQuery(planned.Query) {
-		planned.Mode = QueryModeHelp
-		planned.PreferredDomains = []ResultDomain{ResultDomainKnowledge}
-		return planned
-	}
-
-	if strings.HasPrefix(planned.Query, "/") {
-		planned.Mode = QueryModeNavigate
-		planned.PreferredDomains = []ResultDomain{ResultDomainNavigate}
-		return planned
-	}
-
 	exactTerms := ExpandExactTerms(planned.Query)
-	if isLookupQuery(planned.Query, exactTerms) {
-		planned.Mode = QueryModeLookup
-		planned.ExactTerms = exactTerms
-		planned.PreferredDomains = []ResultDomain{ResultDomainLookup, ResultDomainNavigate}
-		return planned
+
+	if planned.Mode == "" {
+		switch {
+		case IsHowQuery(planned.Query):
+			planned.Mode = QueryModeHelp
+		case strings.HasPrefix(planned.Query, "/"):
+			planned.Mode = QueryModeNavigate
+		case isLookupQuery(planned.Query, exactTerms):
+			planned.Mode = QueryModeLookup
+		default:
+			planned.Mode = QueryModeExplore
+		}
 	}
 
-	planned.Mode = QueryModeExplore
 	if len(exactTerms) > 0 {
 		planned.ExactTerms = exactTerms
 	}
+
+	switch planned.Mode {
+	case QueryModeHelp:
+		if len(planned.PreferredDomains) == 0 {
+			planned.PreferredDomains = []ResultDomain{ResultDomainKnowledge}
+		}
+	case QueryModeNavigate:
+		if len(planned.PreferredDomains) == 0 {
+			planned.PreferredDomains = []ResultDomain{ResultDomainNavigate}
+		}
+	case QueryModeLookup:
+		if len(planned.PreferredDomains) == 0 {
+			planned.PreferredDomains = []ResultDomain{ResultDomainLookup, ResultDomainNavigate}
+		}
+	case QueryModeExplore:
+	}
+
 	return planned
 }
 

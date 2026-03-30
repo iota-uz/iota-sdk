@@ -925,13 +925,13 @@
     "NothingFound": "Hech narsa topilmadi",
     "NothingFoundBody": "Бошқа сўз билан қидиринг ёки ёзилишини текширинг.",
     "Match": {
-      "Exact": "Aniq moslik",
-      "Best": "Eng yaxshi moslik"
+      "Exact": "Аниқ мослик",
+      "Best": "Энг яхши мослик"
     },
     "Hint": {
-      "Navigate": "↑ ↓ tanlash",
-      "Open": "Enter ochish",
-      "Close": "Esc yopish"
+      "Navigate": "↑ ↓ танлаш",
+      "Open": "Enter очиш",
+      "Close": "Esc ёпиш"
     },
     "Empty": {
       "Title": "Бутун иш майдонини битта ойнадан қидиринг",

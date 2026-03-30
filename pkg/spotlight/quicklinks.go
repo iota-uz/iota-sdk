@@ -1,4 +1,5 @@
-// Package spotlight provides this package.
+// Package spotlight provides quick-link indexing and keyword helpers for the
+// Spotlight search experience.
 package spotlight
 
 import (
@@ -213,7 +214,7 @@ func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]S
 			Description: title,
 			Body:        body,
 			SearchText:  body,
-			ExactTerms:  ExpandExactTerms(title, item.link, strings.Join(item.keywords, " ")),
+			ExactTerms:  ExpandExactTerms(append([]string{title, item.link}, item.keywords...)...),
 			URL:         item.link,
 			Language:    scope.Language,
 			Metadata: map[string]string{
@@ -263,9 +264,7 @@ func mergeAccessPolicy(base, incoming AccessPolicy) AccessPolicy {
 	if incoming.Visibility == "" {
 		return base
 	}
-	if base.Visibility == "" || incoming.Visibility != VisibilityPublic {
-		base.Visibility = incoming.Visibility
-	}
+	base.Visibility = moreRestrictiveVisibility(base.Visibility, incoming.Visibility)
 	if incoming.OwnerID != "" {
 		base.OwnerID = incoming.OwnerID
 	}
@@ -281,16 +280,41 @@ func mergeUniqueStrings(left, right []string) []string {
 	}
 	seen := make(map[string]struct{}, len(left)+len(right))
 	merged := make([]string, 0, len(left)+len(right))
-	for _, value := range append(append([]string{}, left...), right...) {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
+	for _, values := range [][]string{left, right} {
+		for _, value := range values {
+			trimmed := strings.TrimSpace(value)
+			if trimmed == "" {
+				continue
+			}
+			if _, exists := seen[trimmed]; exists {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			merged = append(merged, trimmed)
 		}
-		if _, exists := seen[trimmed]; exists {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		merged = append(merged, trimmed)
 	}
 	return merged
+}
+
+func moreRestrictiveVisibility(left, right Visibility) Visibility {
+	if visibilityRank(right) > visibilityRank(left) {
+		return right
+	}
+	if left == "" {
+		return right
+	}
+	return left
+}
+
+func visibilityRank(value Visibility) int {
+	switch value {
+	case VisibilityOwner:
+		return 3
+	case VisibilityRestricted:
+		return 2
+	case VisibilityPublic:
+		return 1
+	default:
+		return 0
+	}
 }

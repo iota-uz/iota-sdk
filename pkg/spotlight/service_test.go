@@ -249,7 +249,10 @@ func TestSpotlightService_CreateSession_StreamsAndPromotesBetterLateMatches(t *t
 	require.False(t, snapshot.Completed)
 	require.Equal(t, "Fast match", topSnapshotTitle(snapshot))
 
-	updates, err := svc.SubscribeSession(context.Background(), snapshot.ID)
+	updates, err := svc.SubscribeSession(context.Background(), snapshot.ID, SearchSessionAccess{
+		TenantID: tenantID,
+		UserID:   "7",
+	})
 	require.NoError(t, err)
 
 	var finalSnapshot SearchSessionSnapshot
@@ -264,6 +267,45 @@ func TestSpotlightService_CreateSession_StreamsAndPromotesBetterLateMatches(t *t
 
 	require.Equal(t, "Better match", topSnapshotTitle(finalSnapshot))
 	require.GreaterOrEqual(t, engine.callsCount(), 3)
+}
+
+func TestCreateSession_BindsSessionToPrincipal(t *testing.T) {
+	tenantID := uuid.New()
+	engine := &scriptedEngine{
+		script: []scriptedCall{
+			{
+				hits: []SearchHit{
+					{
+						Document: SearchDocument{
+							ID:         "fast",
+							TenantID:   tenantID,
+							Title:      "Fast match",
+							EntityType: "client",
+							Domain:     ResultDomainLookup,
+							Access:     AccessPolicy{Visibility: VisibilityPublic},
+						},
+						FinalScore: 10,
+					},
+				},
+			},
+		},
+	}
+	svc := NewService(engine, nil, DefaultServiceConfig())
+
+	snapshot, err := svc.CreateSession(context.Background(), SearchRequest{
+		Query:    "1234567",
+		TenantID: tenantID,
+		UserID:   "7",
+		TopK:     10,
+		Intent:   SearchIntentMixed,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.SubscribeSession(context.Background(), snapshot.ID, SearchSessionAccess{
+		TenantID: tenantID,
+		UserID:   "8",
+	})
+	require.ErrorIs(t, err, ErrSessionNotFound)
 }
 
 func topSnapshotTitle(snapshot SearchSessionSnapshot) string {

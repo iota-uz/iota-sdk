@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var ErrSessionNotFound = errors.New("spotlight session not found")
@@ -30,6 +31,9 @@ const (
 type searchSession struct {
 	id string
 
+	tenantID uuid.UUID
+	userID   string
+
 	mu          sync.RWMutex
 	snapshot    SearchSessionSnapshot
 	subscribers map[chan SearchSessionSnapshot]struct{}
@@ -38,9 +42,11 @@ type searchSession struct {
 	readyOnce   sync.Once
 }
 
-func newSearchSession(id, query string, cancel context.CancelFunc) *searchSession {
+func newSearchSession(id, query string, tenantID uuid.UUID, userID string, cancel context.CancelFunc) *searchSession {
 	return &searchSession{
 		id:          id,
+		tenantID:    tenantID,
+		userID:      userID,
 		subscribers: make(map[chan SearchSessionSnapshot]struct{}),
 		cancel:      cancel,
 		ready:       make(chan struct{}),
@@ -160,24 +166,25 @@ func cloneResponse(resp SearchResponse) SearchResponse {
 }
 
 func (s *SpotlightService) CreateSession(ctx context.Context, req SearchRequest) (SearchSessionSnapshot, error) {
+	const op serrors.Op = "spotlight.SpotlightService.CreateSession"
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if !s.isStarted() {
 		if err := s.Start(ctx); err != nil {
-			return SearchSessionSnapshot{}, err
+			return SearchSessionSnapshot{}, serrors.E(op, err)
 		}
 	}
 	req.Query = strings.TrimSpace(req.Query)
 	if req.Query == "" {
-		return SearchSessionSnapshot{}, errors.New("search query is required")
+		return SearchSessionSnapshot{}, serrors.E(op, errors.New("search query is required"))
 	}
 	if req.TopK <= 0 {
 		req.TopK = 30
 	}
 	sessionID := uuid.NewString()
 	sessionCtx, cancel := context.WithTimeout(context.Background(), defaultSessionTTL)
-	session := newSearchSession(sessionID, req.Query, cancel)
+	session := newSearchSession(sessionID, req.Query, req.TenantID, req.UserID, cancel)
 
 	s.sessionsMu.Lock()
 	s.sessions[sessionID] = session
@@ -201,16 +208,19 @@ func (s *SpotlightService) CreateSession(ctx context.Context, req SearchRequest)
 	return session.snapshotValue(), nil
 }
 
-func (s *SpotlightService) SubscribeSession(ctx context.Context, sessionID string) (<-chan SearchSessionSnapshot, error) {
+func (s *SpotlightService) SubscribeSession(ctx context.Context, sessionID string, access SearchSessionAccess) (<-chan SearchSessionSnapshot, error) {
 	session, ok := s.getSession(sessionID)
 	if !ok {
+		return nil, ErrSessionNotFound
+	}
+	if !session.allows(access) {
 		return nil, ErrSessionNotFound
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	ch, cleanup := session.subscribe(ctx)
-	if current, exists := s.getSession(sessionID); !exists || current != session {
+	if current, exists := s.getSession(sessionID); !exists || current != session || !current.allows(access) {
 		cleanup()
 		return nil, ErrSessionNotFound
 	}
@@ -225,9 +235,12 @@ func (s *SpotlightService) GetSessionSnapshot(sessionID string) (SearchSessionSn
 	return session.snapshotValue(), true
 }
 
-func (s *SpotlightService) CancelSession(sessionID string) {
+func (s *SpotlightService) CancelSession(sessionID string, access SearchSessionAccess) {
 	session, ok := s.getSession(sessionID)
 	if !ok {
+		return
+	}
+	if !session.allows(access) {
 		return
 	}
 	session.cancel()
@@ -257,6 +270,13 @@ func (s *SpotlightService) deleteSession(sessionID string) {
 	}
 	session.subscribers = map[chan SearchSessionSnapshot]struct{}{}
 	session.mu.Unlock()
+}
+
+func (s *searchSession) allows(access SearchSessionAccess) bool {
+	if s.tenantID != access.TenantID {
+		return false
+	}
+	return s.userID == access.UserID
 }
 
 func (s *SpotlightService) runSearchSession(ctx context.Context, session *searchSession, req SearchRequest) {
@@ -435,6 +455,7 @@ func (s *SpotlightService) executeExpandStage(ctx context.Context, session *sear
 }
 
 func (s *SpotlightService) searchStage(ctx context.Context, req SearchRequest) (SearchResponse, []SearchHit, error) {
+	const op serrors.Op = "spotlight.SpotlightService.searchStage"
 	if req.TopK <= 0 {
 		req.TopK = 20
 	}
@@ -444,7 +465,7 @@ func (s *SpotlightService) searchStage(ctx context.Context, req SearchRequest) (
 
 	hits, err := s.engine.Search(ctx, req)
 	if err != nil {
-		return SearchResponse{}, nil, err
+		return SearchResponse{}, nil, serrors.E(op, err)
 	}
 	filtered := s.filterAuthorized(ctx, req, hits)
 	ranked := s.ranker.Rank(ctx, req, filtered)

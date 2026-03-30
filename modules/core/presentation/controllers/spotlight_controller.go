@@ -1,4 +1,4 @@
-// Package controllers provides this package.
+// Package controllers provides Granite HTTP handlers for the core module.
 package controllers
 
 import (
@@ -139,7 +139,7 @@ func (c *SpotlightController) Stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updates, err := c.app.Spotlight().SubscribeSession(r.Context(), sessionID)
+	updates, err := c.app.Spotlight().SubscribeSession(r.Context(), sessionID, c.sessionAccess(r))
 	if err != nil {
 		http.Error(w, "search session not found", http.StatusNotFound)
 		return
@@ -180,7 +180,7 @@ func (c *SpotlightController) Cancel(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	c.app.Spotlight().CancelSession(sessionID)
+	c.app.Spotlight().CancelSession(sessionID, c.sessionAccess(r))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -217,6 +217,23 @@ func (c *SpotlightController) buildSearchRequest(r *http.Request, q string) (spo
 		TopK:        30,
 		Intent:      intent,
 	}, nil
+}
+
+func (c *SpotlightController) sessionAccess(r *http.Request) spotlight.SearchSessionAccess {
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return spotlight.SearchSessionAccess{}
+	}
+
+	userID := ""
+	if user, userErr := composables.UseUser(r.Context()); userErr == nil {
+		userID = fmt.Sprintf("%d", user.ID())
+	}
+
+	return spotlight.SearchSessionAccess{
+		TenantID: tenantID,
+		UserID:   userID,
+	}
 }
 
 func (c *SpotlightController) snapshotPayload(r *http.Request, snapshot spotlight.SearchSessionSnapshot) (spotlightSearchPayload, error) {

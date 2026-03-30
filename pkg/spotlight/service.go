@@ -84,9 +84,9 @@ type Service interface {
 	Readiness(ctx context.Context) error
 	Search(ctx context.Context, req SearchRequest) (SearchResponse, error)
 	CreateSession(ctx context.Context, req SearchRequest) (SearchSessionSnapshot, error)
-	SubscribeSession(ctx context.Context, sessionID string) (<-chan SearchSessionSnapshot, error)
+	SubscribeSession(ctx context.Context, sessionID string, access SearchSessionAccess) (<-chan SearchSessionSnapshot, error)
 	GetSessionSnapshot(sessionID string) (SearchSessionSnapshot, bool)
-	CancelSession(sessionID string)
+	CancelSession(sessionID string, access SearchSessionAccess)
 }
 
 type ServiceOption func(*SpotlightService)

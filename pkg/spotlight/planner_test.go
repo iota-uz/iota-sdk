@@ -48,7 +48,7 @@ func TestPlanRequest_ClassifiesNavigationQueries(t *testing.T) {
 
 func TestPlanRequest_PreservesExplicitMode(t *testing.T) {
 	req := planRequest(SearchRequest{
-		Query:            "help",
+		Query:            "AA 1234567",
 		TenantID:         uuid.New(),
 		Mode:             QueryModeLookup,
 		PreferredDomains: []ResultDomain{ResultDomainAction},
@@ -56,4 +56,5 @@ func TestPlanRequest_PreservesExplicitMode(t *testing.T) {
 
 	require.Equal(t, QueryModeLookup, req.Mode)
 	require.Equal(t, []ResultDomain{ResultDomainAction}, req.PreferredDomains)
+	require.Contains(t, req.ExactTerms, "AA1234567")
 }
