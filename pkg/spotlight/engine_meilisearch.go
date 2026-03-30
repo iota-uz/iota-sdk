@@ -127,6 +127,7 @@ func (e *MeilisearchEngine) configureIndex() error {
 		"provider",
 		"entity_type",
 		"domain",
+		"schema_version",
 		"exact_terms",
 		"access_visibility",
 		"owner_id",
@@ -166,7 +167,8 @@ func (e *MeilisearchEngine) configureIndex() error {
 func (e *MeilisearchEngine) validateSearchSettings() error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.validateSearchSettings"
 
-	settings, err := e.client.Index(e.indexName).GetSettings()
+	index := e.client.Index(e.indexName)
+	settings, err := index.GetSettings()
 	if err != nil {
 		return serrors.E(op, err)
 	}
@@ -180,6 +182,9 @@ func (e *MeilisearchEngine) validateSearchSettings() error {
 	if missing := missingStrings(settings.SortableAttributes, requiredSortableAttributes()); len(missing) > 0 {
 		return serrors.E(op, fmt.Errorf("spotlight index is missing sortable attributes: %s", strings.Join(missing, ", ")))
 	}
+	if err := e.validateSchemaVersion(index); err != nil {
+		return serrors.E(op, err)
+	}
 
 	return nil
 }
@@ -190,6 +195,7 @@ func requiredFilterableAttributes() []string {
 		"provider",
 		"entity_type",
 		"domain",
+		"schema_version",
 		"exact_terms",
 		"access_visibility",
 		"owner_id",
@@ -205,6 +211,36 @@ func requiredSearchableAttributes() []string {
 
 func requiredSortableAttributes() []string {
 	return []string{"updated_at"}
+}
+
+func (e *MeilisearchEngine) validateSchemaVersion(index meilisearch.IndexManager) error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.validateSchemaVersion"
+
+	stats, err := index.GetStats()
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if stats.NumberOfDocuments == 0 {
+		return nil
+	}
+
+	resp, err := index.Search("", &meilisearch.SearchRequest{
+		Filter: fmt.Sprintf(`schema_version = "%s"`, escapeFilterString(IndexSchemaVersion)),
+		Limit:  1,
+	})
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if resp.EstimatedTotalHits != stats.NumberOfDocuments {
+		return serrors.E(op, fmt.Errorf(
+			"spotlight index schema mismatch: expected %d documents at schema %s, found %d",
+			stats.NumberOfDocuments,
+			IndexSchemaVersion,
+			resp.EstimatedTotalHits,
+		))
+	}
+
+	return nil
 }
 
 func isMeiliNotFound(err error) bool {
@@ -407,7 +443,7 @@ func buildSearchFilter(req SearchRequest) string {
 	if len(req.PreferredDomains) > 0 {
 		domainFilters := make([]string, 0, len(req.PreferredDomains))
 		for _, domain := range req.PreferredDomains {
-			domainFilters = append(domainFilters, fmt.Sprintf(`domain = "%s"`, domain))
+			domainFilters = append(domainFilters, fmt.Sprintf(`domain = "%s"`, escapeFilterString(string(domain))))
 		}
 		filters = append(filters, "("+strings.Join(domainFilters, " OR ")+")")
 	}
@@ -448,16 +484,17 @@ func buildGenericFilterClauses(filters map[string]string) string {
 func buildAccessFilter(req SearchRequest) string {
 	clauses := []string{`access_visibility = "public"`}
 	if req.UserID != "" {
+		escapedUserID := escapeFilterString(req.UserID)
 		clauses = append(clauses,
-			fmt.Sprintf(`(access_visibility = "owner" AND owner_id = "%s")`, req.UserID),
-			fmt.Sprintf(`allowed_users = "%s"`, req.UserID),
+			fmt.Sprintf(`(access_visibility = "owner" AND owner_id = "%s")`, escapedUserID),
+			fmt.Sprintf(`allowed_users = "%s"`, escapedUserID),
 		)
 	}
 	for _, role := range dedupeAndSort(req.Roles) {
-		clauses = append(clauses, fmt.Sprintf(`allowed_roles = "%s"`, role))
+		clauses = append(clauses, fmt.Sprintf(`allowed_roles = "%s"`, escapeFilterString(role)))
 	}
 	for _, permission := range dedupeAndSort(req.Permissions) {
-		clauses = append(clauses, fmt.Sprintf(`allowed_permissions = "%s"`, permission))
+		clauses = append(clauses, fmt.Sprintf(`allowed_permissions = "%s"`, escapeFilterString(permission)))
 	}
 	return strings.Join(clauses, " OR ")
 }
