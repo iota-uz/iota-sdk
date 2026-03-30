@@ -121,7 +121,7 @@ func TestQuickLinks_ListDocuments_UsesConfiguredAccess(t *testing.T) {
 	)
 
 	tenantID := uuid.New()
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: tenantID,
 		Language: "en",
 	})
@@ -150,7 +150,7 @@ func TestQuickLinks_ListDocuments_IncludesKeywordsInBody(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: uuid.New(),
 		Language: "en",
 	})
@@ -165,7 +165,7 @@ func TestQuickLinks_ListDocuments_NoKeywords(t *testing.T) {
 	ql := NewQuickLinks(nil, nil)
 	ql.Add(NewQuickLink("simple.link", "/simple"))
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: uuid.New(),
 		Language: "en",
 	})
@@ -190,7 +190,7 @@ func TestQuickLinks_Add_MergesDuplicateLinks(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: uuid.New(),
 		Language: "en",
 	})
@@ -222,7 +222,7 @@ func TestQuickLinks_Add_MergesAccessMonotonically(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: uuid.New(),
 		Language: "en",
 	})
@@ -244,7 +244,7 @@ func TestQuickLinks_FilterAuthorized_RestrictedByPermission(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: tenantID,
 		Language: "en",
 	})
@@ -289,7 +289,7 @@ func TestQuickLinks_FilterAuthorized_RestrictedByRole(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: tenantID,
 		Language: "en",
 	})
@@ -319,7 +319,7 @@ func TestQuickLinks_RestrictedNoConfigFiltersAll(t *testing.T) {
 		NewQuickLinkBuilder("restricted.no.config", "/restricted").Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: tenantID,
 		Language: "en",
 	})

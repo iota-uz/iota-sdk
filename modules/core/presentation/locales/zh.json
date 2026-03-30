@@ -969,11 +969,6 @@
       "Exact": "精确",
       "Action": "操作",
       "Navigate": "导航",
-      "Policy": "保单",
-      "Vehicle": "车辆",
-      "Claim": "理赔",
-      "Chat": "聊天",
-      "Organization": "组织",
       "Staff": "员工",
       "Person": "人员"
     },
@@ -994,6 +989,20 @@
       "People": "人员",
       "Staff": "员工",
       "_Other": "其他"
+    },
+    "AI": {
+      "Button": "使用 AI 搜索",
+      "Title": "AI Spotlight 搜索",
+      "Back": "返回结果",
+      "ModeTitle": "使用 AI 调查这个查询",
+      "ModeBody": "AI 可以搜索 Spotlight 索引、检查实时数据库结构、执行只读 SQL，并生成经过验证的应用内链接。",
+      "Searching": "搜索中",
+      "Candidates": "可能匹配",
+      "Conversation": "调查过程",
+      "Activity": "工具活动",
+      "FollowUpPlaceholder": "继续补充线索或提出后续问题",
+      "Send": "发送",
+      "Open": "打开"
     }
   },
   "Unknown": "未知",

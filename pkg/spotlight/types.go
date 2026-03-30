@@ -156,12 +156,8 @@ type AgentAnswer struct {
 }
 
 type SearchResponse struct {
-	Navigate  []SearchHit
-	Data      []SearchHit
-	Knowledge []SearchHit
-	Other     []SearchHit
-	Groups    []SearchGroup
-	Agent     *AgentAnswer
+	Groups []SearchGroup
+	Agent  *AgentAnswer
 }
 
 type SearchStageState struct {
@@ -186,26 +182,11 @@ type SearchSessionSnapshot struct {
 }
 
 type SearchGroup struct {
-	Domain ResultDomain
-	Title  string
-	Hits   []SearchHit
-}
-
-type ViewResponse struct {
-	Groups []ViewGroup
-	Agent  *ViewAgent
-}
-
-type ViewGroup struct {
 	Key      string
+	Domain   ResultDomain
 	Title    string
 	TitleKey string
 	Hits     []SearchHit
-}
-
-type ViewAgent struct {
-	Summary string
-	Actions []AgentAction
 }
 
 func (r SearchRequest) normalizedTopK() int {
@@ -216,6 +197,21 @@ func (r SearchRequest) normalizedTopK() int {
 		return 100
 	}
 	return r.TopK
+}
+
+func (r SearchResponse) Hits() []SearchHit {
+	total := 0
+	for _, group := range r.Groups {
+		total += len(group.Hits)
+	}
+	if total == 0 {
+		return nil
+	}
+	hits := make([]SearchHit, 0, total)
+	for _, group := range r.Groups {
+		hits = append(hits, group.Hits...)
+	}
+	return hits
 }
 
 func (s SearchSessionSnapshot) PendingCount() int {

@@ -37,7 +37,7 @@ func TestApplication_RegisterNavItems_AddsQuickLinks(t *testing.T) {
 		},
 	)
 
-	docs, err := app.QuickLinks().ListDocuments(context.Background(), typesProviderScope())
+	docs, err := spotlight.CollectDocuments(context.Background(), app.QuickLinks(), typesProviderScope())
 	require.NoError(t, err)
 	require.Len(t, docs, 2)
 
@@ -71,7 +71,7 @@ func TestApplication_AppendNavChildren_AddsQuickLinksForChildren(t *testing.T) {
 		Keywords: []string{"deep", "child"},
 	})
 
-	docs, err := app.QuickLinks().ListDocuments(context.Background(), typesProviderScope())
+	docs, err := spotlight.CollectDocuments(context.Background(), app.QuickLinks(), typesProviderScope())
 	require.NoError(t, err)
 	require.Len(t, docs, 2)
 	require.Equal(t, "/parent/child?tab=details", docs[1].URL)

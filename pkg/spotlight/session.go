@@ -154,10 +154,6 @@ func cloneSnapshot(snapshot SearchSessionSnapshot) SearchSessionSnapshot {
 
 func cloneResponse(resp SearchResponse) SearchResponse {
 	cloned := resp
-	cloned.Navigate = append([]SearchHit(nil), resp.Navigate...)
-	cloned.Data = append([]SearchHit(nil), resp.Data...)
-	cloned.Knowledge = append([]SearchHit(nil), resp.Knowledge...)
-	cloned.Other = append([]SearchHit(nil), resp.Other...)
 	cloned.Groups = append([]SearchGroup(nil), resp.Groups...)
 	for i := range cloned.Groups {
 		cloned.Groups[i].Hits = append([]SearchHit(nil), resp.Groups[i].Hits...)

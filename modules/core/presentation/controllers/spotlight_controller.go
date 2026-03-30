@@ -34,11 +34,25 @@ type spotlightSearchPayload struct {
 }
 
 type spotlightSearchQuery struct {
-	Q string `schema:"q"`
+	Q string `form:"q"`
 }
 
 type spotlightSessionQuery struct {
-	SearchID string `schema:"search_id"`
+	SearchID string `form:"search_id"`
+}
+
+type spotlightAISessionQuery struct {
+	SessionID string `form:"session_id"`
+	RunID     string `form:"run_id"`
+}
+
+type spotlightAICreateRequest struct {
+	Q string `json:"q"`
+}
+
+type spotlightAIMessageRequest struct {
+	SessionID string `json:"session_id"`
+	Message   string `json:"message"`
 }
 
 func NewSpotlightController(app application.Application) application.Controller {
@@ -63,6 +77,10 @@ func (c *SpotlightController) Register(r *mux.Router) {
 	router.HandleFunc("/search", c.Search).Methods(http.MethodGet)
 	router.HandleFunc("/stream", c.Stream).Methods(http.MethodGet)
 	router.HandleFunc("/cancel", c.Cancel).Methods(http.MethodPost)
+	router.HandleFunc("/ai/sessions", c.CreateAISession).Methods(http.MethodPost)
+	router.HandleFunc("/ai/stream", c.StreamAISession).Methods(http.MethodGet)
+	router.HandleFunc("/ai/messages", c.SendAIMessage).Methods(http.MethodPost)
+	router.HandleFunc("/ai/cancel", c.CancelAISession).Methods(http.MethodPost)
 }
 
 func (c *SpotlightController) Search(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +89,7 @@ func (c *SpotlightController) Search(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
 
-	queryDTO, err := composables.UseQuery(spotlightSearchQuery{}, r)
+	queryDTO, err := composables.UseQuery(&spotlightSearchQuery{}, r)
 	if err != nil {
 		http.Error(w, "Failed to parse Spotlight query", http.StatusBadRequest)
 		return
@@ -122,7 +140,7 @@ func (c *SpotlightController) Stream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	queryDTO, err := composables.UseQuery(spotlightSessionQuery{}, r)
+	queryDTO, err := composables.UseQuery(&spotlightSessionQuery{}, r)
 	if err != nil {
 		http.Error(w, "Failed to parse search session", http.StatusBadRequest)
 		return
@@ -170,7 +188,7 @@ func (c *SpotlightController) Stream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *SpotlightController) Cancel(w http.ResponseWriter, r *http.Request) {
-	queryDTO, err := composables.UseQuery(spotlightSessionQuery{}, r)
+	queryDTO, err := composables.UseQuery(&spotlightSessionQuery{}, r)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -181,6 +199,153 @@ func (c *SpotlightController) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.app.Spotlight().CancelSession(sessionID, c.sessionAccess(r))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (c *SpotlightController) CreateAISession(w http.ResponseWriter, r *http.Request) {
+	service := spotlight.ResolveAISearchService(c.app.Services())
+	if service == nil {
+		http.Error(w, "AI Spotlight unavailable", http.StatusNotFound)
+		return
+	}
+
+	var reqBody spotlightAICreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, "Failed to parse AI Spotlight request", http.StatusBadRequest)
+		return
+	}
+
+	query := strings.TrimSpace(reqBody.Q)
+	if query == "" {
+		http.Error(w, "Query is required", http.StatusBadRequest)
+		return
+	}
+
+	snapshot, err := service.CreateSession(r.Context(), spotlight.AISearchCreateRequest{
+		Query: query,
+		Actor: c.aiActor(r),
+	})
+	if err != nil {
+		composables.UseLogger(r.Context()).WithError(err).WithField("query", query).Error("spotlight ai session creation failed")
+		http.Error(w, "Failed to start AI search", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(snapshot)
+}
+
+func (c *SpotlightController) StreamAISession(w http.ResponseWriter, r *http.Request) {
+	service := spotlight.ResolveAISearchService(c.app.Services())
+	if service == nil {
+		http.Error(w, "AI Spotlight unavailable", http.StatusNotFound)
+		return
+	}
+
+	queryDTO, err := composables.UseQuery(&spotlightAISessionQuery{}, r)
+	if err != nil {
+		http.Error(w, "Failed to parse AI Spotlight session", http.StatusBadRequest)
+		return
+	}
+	sessionID := strings.TrimSpace(queryDTO.SessionID)
+	runID := strings.TrimSpace(queryDTO.RunID)
+	if sessionID == "" || runID == "" {
+		http.Error(w, "session_id and run_id are required", http.StatusBadRequest)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	updates, err := service.Subscribe(r.Context(), sessionID, runID, c.aiSessionAccess(r))
+	if err != nil {
+		http.Error(w, "AI Spotlight session not found", http.StatusNotFound)
+		return
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case snapshot, ok := <-updates:
+			if !ok {
+				return
+			}
+			if err := writeSSE(w, "update", snapshot); err != nil {
+				return
+			}
+			flusher.Flush()
+			if snapshot.Completed && snapshot.RunID == runID {
+				return
+			}
+		}
+	}
+}
+
+func (c *SpotlightController) SendAIMessage(w http.ResponseWriter, r *http.Request) {
+	service := spotlight.ResolveAISearchService(c.app.Services())
+	if service == nil {
+		http.Error(w, "AI Spotlight unavailable", http.StatusNotFound)
+		return
+	}
+
+	var reqBody spotlightAIMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, "Failed to parse AI Spotlight message", http.StatusBadRequest)
+		return
+	}
+
+	sessionID := strings.TrimSpace(reqBody.SessionID)
+	message := strings.TrimSpace(reqBody.Message)
+	if sessionID == "" || message == "" {
+		http.Error(w, "session_id and message are required", http.StatusBadRequest)
+		return
+	}
+
+	snapshot, err := service.SendMessage(r.Context(), spotlight.AISearchMessageRequest{
+		SessionID: sessionID,
+		Message:   message,
+		Actor:     c.aiActor(r),
+	})
+	if err != nil {
+		composables.UseLogger(r.Context()).WithError(err).WithField("session_id", sessionID).Error("spotlight ai message failed")
+		http.Error(w, "Failed to continue AI search", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(snapshot)
+}
+
+func (c *SpotlightController) CancelAISession(w http.ResponseWriter, r *http.Request) {
+	service := spotlight.ResolveAISearchService(c.app.Services())
+	if service == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	queryDTO, err := composables.UseQuery(&spotlightAISessionQuery{}, r)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	service.Cancel(strings.TrimSpace(queryDTO.SessionID), strings.TrimSpace(queryDTO.RunID), c.aiSessionAccess(r))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -236,6 +401,45 @@ func (c *SpotlightController) sessionAccess(r *http.Request) spotlight.SearchSes
 	}
 }
 
+func (c *SpotlightController) aiSessionAccess(r *http.Request) spotlight.AISearchSessionAccess {
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return spotlight.AISearchSessionAccess{}
+	}
+
+	userID := ""
+	if user, userErr := composables.UseUser(r.Context()); userErr == nil {
+		userID = fmt.Sprintf("%d", user.ID())
+	}
+
+	return spotlight.AISearchSessionAccess{
+		TenantID: tenantID,
+		UserID:   userID,
+	}
+}
+
+func (c *SpotlightController) aiActor(r *http.Request) spotlight.AISearchActor {
+	tenantID, _ := composables.UseTenantID(r.Context())
+	actor := spotlight.AISearchActor{
+		TenantID: tenantID,
+	}
+	if locale, ok := intl.UseLocale(r.Context()); ok {
+		actor.Language = locale.String()
+	}
+
+	if user, err := composables.UseUser(r.Context()); err == nil {
+		actor.UserID = fmt.Sprintf("%d", user.ID())
+		for _, role := range user.Roles() {
+			actor.Roles = append(actor.Roles, role.Name())
+		}
+		for _, permission := range user.Permissions() {
+			actor.Permissions = append(actor.Permissions, permission.Name())
+		}
+	}
+
+	return actor
+}
+
 func (c *SpotlightController) snapshotPayload(r *http.Request, snapshot spotlight.SearchSessionSnapshot) (spotlightSearchPayload, error) {
 	html, err := c.renderSnapshotHTML(r, snapshot)
 	if err != nil {
@@ -252,7 +456,6 @@ func (c *SpotlightController) snapshotPayload(r *http.Request, snapshot spotligh
 }
 
 func (c *SpotlightController) renderSnapshotHTML(r *http.Request, snapshot spotlight.SearchSessionSnapshot) (string, error) {
-	view := spotlight.ToViewResponse(snapshot.Response)
 	items := make([]templ.Component, 0, 64)
 	index := 0
 
@@ -268,7 +471,7 @@ func (c *SpotlightController) renderSnapshotHTML(r *http.Request, snapshot spotl
 		index += len(groupItems)
 	}
 
-	for _, group := range view.Groups {
+	for _, group := range snapshot.Response.Groups {
 		localizedTitle := group.Title
 		if group.TitleKey != "" {
 			localizedTitle = intl.MustT(r.Context(), group.TitleKey)

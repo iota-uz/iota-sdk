@@ -411,12 +411,22 @@ let checkboxes = () => ({
 let spotlight = () => ({
   isOpen: false,
   isLoading: false,
+  aiMode: false,
+  aiLoading: false,
+  aiSessionId: '',
+  aiRunId: '',
+  aiMessages: [],
+  aiCandidates: [],
+  aiTools: [],
+  aiInput: '',
+  aiError: '',
   highlightedIndex: 0,
   query: '',
   searchId: '',
   pendingCount: 0,
   stages: [],
   eventSource: null,
+  aiEventSource: null,
   debounceTimer: null,
   requestSeq: 0,
   init() {
@@ -471,6 +481,8 @@ let spotlight = () => ({
     this.highlightedIndex = 0;
     window.clearTimeout(this.debounceTimer);
     this.stopStream();
+    this.stopAIStream();
+    this.cancelAISession();
   },
 
   scheduleSearch(value) {
@@ -486,6 +498,9 @@ let spotlight = () => ({
     this.requestSeq += 1;
     const requestSeq = this.requestSeq;
     this.stopStream();
+    if (this.aiMode) {
+      this.exitAI();
+    }
     this.isLoading = query !== '';
     this.highlightedIndex = 0;
     this.pendingCount = 0;
@@ -579,6 +594,155 @@ let spotlight = () => ({
     }
   },
 
+  async openAI() {
+    const query = (this.query || '').trim();
+    if (!query) return;
+
+    this.stopAIStream();
+    this.aiMode = true;
+    this.aiLoading = true;
+    this.aiError = '';
+    this.aiSessionId = '';
+    this.aiRunId = '';
+    this.aiMessages = [];
+    this.aiCandidates = [];
+    this.aiTools = [];
+    this.aiInput = '';
+
+    try {
+      const response = await fetch('/spotlight/ai/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({q: query}),
+      });
+      if (!response.ok) {
+        throw new Error(`AI search failed with ${response.status}`);
+      }
+      const payload = await response.json();
+      this.updateAISnapshot(payload);
+      if (this.aiSessionId && this.aiRunId && !payload.complete) {
+        this.startAIStream(this.aiSessionId, this.aiRunId);
+      }
+    } catch (error) {
+      console.error('spotlight ai search failed', error);
+      this.aiLoading = false;
+      this.aiError = this.translate({
+        ru: 'Не удалось запустить AI-поиск',
+        uz: 'AI qidiruvni ishga tushirib bo‘lmadi',
+        en: 'Could not start AI search',
+        zh: '无法启动 AI 搜索',
+      });
+    }
+  },
+
+  exitAI() {
+    this.aiMode = false;
+    this.stopAIStream();
+    this.aiLoading = false;
+    this.aiInput = '';
+  },
+
+  canSendAI() {
+    return !!this.aiSessionId && !this.aiLoading && (this.aiInput || '').trim() !== '';
+  },
+
+  async sendAIMessage() {
+    if (!this.canSendAI()) return;
+
+    const message = (this.aiInput || '').trim();
+    this.aiInput = '';
+    this.stopAIStream();
+    this.aiLoading = true;
+    this.aiError = '';
+
+    try {
+      const response = await fetch('/spotlight/ai/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          session_id: this.aiSessionId,
+          message,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`AI follow-up failed with ${response.status}`);
+      }
+      const payload = await response.json();
+      this.updateAISnapshot(payload);
+      if (this.aiSessionId && this.aiRunId && !payload.complete) {
+        this.startAIStream(this.aiSessionId, this.aiRunId);
+      }
+    } catch (error) {
+      console.error('spotlight ai message failed', error);
+      this.aiLoading = false;
+      this.aiError = this.translate({
+        ru: 'Не удалось отправить сообщение AI',
+        uz: 'AI ga xabar yuborib bo‘lmadi',
+        en: 'Could not send AI message',
+        zh: '无法发送 AI 消息',
+      });
+    }
+  },
+
+  startAIStream(sessionId, runId) {
+    if (!sessionId || !runId) return;
+    const source = new EventSource(`/spotlight/ai/stream?session_id=${encodeURIComponent(sessionId)}&run_id=${encodeURIComponent(runId)}`);
+    this.aiEventSource = source;
+
+    source.addEventListener('update', (event) => {
+      try {
+        const payload = JSON.parse(event.data || '{}');
+        this.updateAISnapshot(payload);
+        if (payload.completed) {
+          this.stopAIStream();
+        }
+      } catch (error) {
+        console.error('spotlight ai stream update failed', error);
+      }
+    });
+
+    source.onerror = () => {
+      this.aiLoading = false;
+      this.stopAIStream();
+    };
+  },
+
+  stopAIStream() {
+    if (this.aiEventSource) {
+      this.aiEventSource.close();
+      this.aiEventSource = null;
+    }
+  },
+
+  cancelAISession() {
+    if (!this.aiSessionId) return;
+    const sessionId = this.aiSessionId;
+    const runId = this.aiRunId;
+    fetch(`/spotlight/ai/cancel?session_id=${encodeURIComponent(sessionId)}&run_id=${encodeURIComponent(runId)}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      keepalive: true,
+    }).catch(() => {});
+  },
+
+  updateAISnapshot(snapshot) {
+    this.aiSessionId = snapshot.session_id || '';
+    this.aiRunId = snapshot.run_id || '';
+    this.aiMessages = Array.isArray(snapshot.messages) ? snapshot.messages : [];
+    this.aiCandidates = Array.isArray(snapshot.candidates) ? snapshot.candidates : [];
+    this.aiTools = Array.isArray(snapshot.tools) ? snapshot.tools : [];
+    this.aiLoading = Boolean(snapshot.loading) && !snapshot.completed;
+    this.aiError = snapshot.error || '';
+  },
+
   updatePayload(payload) {
     this.pendingCount = Number(payload.pending || 0);
     this.stages = payload.stages || [];
@@ -655,6 +819,32 @@ let spotlight = () => ({
       uz: 'Qidiruv yakunlandi',
       en: 'Search complete',
       zh: '搜索完成',
+    });
+  },
+
+  aiStatusLabel() {
+    if (this.aiLoading) {
+      return this.translate({
+        ru: 'AI исследует данные',
+        uz: 'AI ma’lumotlarni tekshirmoqda',
+        en: 'AI is investigating',
+        zh: 'AI 正在调查',
+      });
+    }
+    return this.translate({
+      ru: 'AI поиск завершен',
+      uz: 'AI qidiruvi yakunlandi',
+      en: 'AI search complete',
+      zh: 'AI 搜索完成',
+    });
+  },
+
+  aiPendingLabel() {
+    return this.translate({
+      ru: 'AI готовит ответ…',
+      uz: 'AI javob tayyorlamoqda…',
+      en: 'AI is thinking…',
+      zh: 'AI 正在思考…',
     });
   },
 

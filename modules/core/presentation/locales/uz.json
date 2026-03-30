@@ -965,11 +965,6 @@
       "Exact": "Aniq",
       "Action": "Harakat",
       "Navigate": "Navigatsiya",
-      "Policy": "Polis",
-      "Vehicle": "Transport",
-      "Claim": "Murojaat",
-      "Chat": "Chat",
-      "Organization": "Tashkilot",
       "Staff": "Xodim",
       "Person": "Shaxs"
     },
@@ -990,6 +985,20 @@
       "People": "Odamlar",
       "Staff": "Xodimlar",
       "_Other": "Boshqa"
+    },
+    "AI": {
+      "Button": "AI bilan qidirish",
+      "Title": "AI Spotlight qidiruvi",
+      "Back": "Natijalarga qaytish",
+      "ModeTitle": "So‘rovni AI yordamida tekshirish",
+      "ModeBody": "AI Spotlight indeksidan qidirishi, jonli baza sxemasini ko‘rishi, read-only SQL bajarishi va tekshirilgan ilova havolalarini qurishi mumkin.",
+      "Searching": "Qidirilmoqda",
+      "Candidates": "Ehtimoliy mosliklar",
+      "Conversation": "Tekshiruv",
+      "Activity": "Vositalar faoliyati",
+      "FollowUpPlaceholder": "Qo‘shimcha izoh yoki yana bir belgi kiriting",
+      "Send": "Yuborish",
+      "Open": "Ochish"
     }
   },
   "Unknown": "Noma'lum",

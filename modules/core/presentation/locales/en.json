@@ -965,11 +965,6 @@
       "Exact": "Exact",
       "Action": "Action",
       "Navigate": "Navigate",
-      "Policy": "Policy",
-      "Vehicle": "Vehicle",
-      "Claim": "Claim",
-      "Chat": "Chat",
-      "Organization": "Organization",
       "Staff": "Staff",
       "Person": "Person"
     },
@@ -990,6 +985,20 @@
       "People": "People",
       "Staff": "Staff",
       "_Other": "Other"
+    },
+    "AI": {
+      "Button": "Search with AI",
+      "Title": "AI Spotlight Search",
+      "Back": "Back to results",
+      "ModeTitle": "Investigate this query with AI",
+      "ModeBody": "AI can search the Spotlight index, inspect the live database schema, run read-only SQL, and build verified in-app links.",
+      "Searching": "Searching",
+      "Candidates": "Likely matches",
+      "Conversation": "Investigation",
+      "Activity": "Tool activity",
+      "FollowUpPlaceholder": "Ask a follow-up or give another clue",
+      "Send": "Send",
+      "Open": "Open"
     }
   },
   "Unknown": "Unknown",

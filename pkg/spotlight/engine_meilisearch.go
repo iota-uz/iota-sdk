@@ -27,6 +27,7 @@ const IndexSchemaVersion = "2026-03-30-search-v4"
 type MeilisearchEngine struct {
 	client      meilisearch.ServiceManager
 	indexName   string
+	activeName  string
 	setupMu     sync.Mutex
 	searchReady atomic.Bool
 	writeReady  atomic.Bool
@@ -35,8 +36,9 @@ type MeilisearchEngine struct {
 // NewMeilisearchEngine creates a new Meilisearch-based IndexEngine.
 func NewMeilisearchEngine(url, apiKey string) *MeilisearchEngine {
 	return &MeilisearchEngine{
-		client:    meilisearch.New(url, meilisearch.WithAPIKey(apiKey)),
-		indexName: "spotlight",
+		client:     meilisearch.New(url, meilisearch.WithAPIKey(apiKey)),
+		indexName:  "spotlight",
+		activeName: "spotlight",
 	}
 }
 
@@ -182,9 +184,6 @@ func (e *MeilisearchEngine) validateSearchSettings() error {
 	if missing := missingStrings(settings.SortableAttributes, requiredSortableAttributes()); len(missing) > 0 {
 		return serrors.E(op, fmt.Errorf("spotlight index is missing sortable attributes: %s", strings.Join(missing, ", ")))
 	}
-	if err := e.validateSchemaVersion(index); err != nil {
-		return serrors.E(op, err)
-	}
 
 	return nil
 }
@@ -213,39 +212,136 @@ func requiredSortableAttributes() []string {
 	return []string{"updated_at"}
 }
 
-func (e *MeilisearchEngine) validateSchemaVersion(index meilisearch.IndexManager) error {
-	const op serrors.Op = "spotlight.MeilisearchEngine.validateSchemaVersion"
+func isMeiliNotFound(err error) bool {
+	var meiliErr *meilisearch.Error
+	return errors.As(err, &meiliErr) && meiliErr.StatusCode == http.StatusNotFound
+}
 
-	stats, err := index.GetStats()
-	if err != nil {
-		return serrors.E(op, err)
-	}
-	if stats.NumberOfDocuments == 0 {
+type meiliRebuildSession struct {
+	client          meilisearch.ServiceManager
+	activeIndexName string
+	buildIndexName  string
+	engine          *MeilisearchEngine
+}
+
+func (s *meiliRebuildSession) Engine() IndexEngine {
+	return s.engine
+}
+
+func (s *meiliRebuildSession) Commit(ctx context.Context) error {
+	if s == nil {
 		return nil
 	}
 
-	resp, err := index.Search("", &meilisearch.SearchRequest{
-		Filter: fmt.Sprintf(`schema_version = "%s"`, escapeFilterString(IndexSchemaVersion)),
-		Limit:  1,
-	})
-	if err != nil {
-		return serrors.E(op, err)
+	createdPlaceholder := false
+	if _, err := s.client.GetIndex(s.activeIndexName); err != nil {
+		if !isMeiliNotFound(err) {
+			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+		}
+		task, err := s.client.CreateIndex(&meilisearch.IndexConfig{
+			Uid:        s.activeIndexName,
+			PrimaryKey: "pk",
+		})
+		if err != nil {
+			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+		}
+		if _, err := s.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+		}
+		createdPlaceholder = true
 	}
-	if resp.EstimatedTotalHits != stats.NumberOfDocuments {
-		return serrors.E(op, fmt.Errorf(
-			"spotlight index schema mismatch: expected %d documents at schema %s, found %d",
-			stats.NumberOfDocuments,
-			IndexSchemaVersion,
-			resp.EstimatedTotalHits,
-		))
+
+	task, err := s.client.SwapIndexesWithContext(ctx, []*meilisearch.SwapIndexesParams{{
+		Indexes: []string{s.buildIndexName, s.activeIndexName},
+	}})
+	if err != nil {
+		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+	}
+	if _, err := s.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+	}
+
+	cleanupTask, err := s.client.DeleteIndexWithContext(ctx, s.buildIndexName)
+	if err != nil {
+		if !(createdPlaceholder && isMeiliNotFound(err)) {
+			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+		}
+		return nil
+	}
+	if cleanupTask != nil {
+		if _, err := s.client.WaitForTask(cleanupTask.TaskUID, 100*time.Millisecond); err != nil {
+			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+		}
 	}
 
 	return nil
 }
 
-func isMeiliNotFound(err error) bool {
-	var meiliErr *meilisearch.Error
-	return errors.As(err, &meiliErr) && meiliErr.StatusCode == http.StatusNotFound
+func (s *meiliRebuildSession) Abort(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	task, err := s.client.DeleteIndexWithContext(ctx, s.buildIndexName)
+	if err != nil {
+		if isMeiliNotFound(err) {
+			return nil
+		}
+		return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
+	}
+	if task != nil {
+		if _, err := s.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+			return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
+		}
+	}
+	return nil
+}
+
+func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, error) {
+	const op serrors.Op = "spotlight.MeilisearchEngine.StartRebuild"
+
+	buildIndexName := rebuildIndexName(e.activeName)
+	if err := e.resetIndex(ctx, buildIndexName); err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	buildEngine := &MeilisearchEngine{
+		client:     e.client,
+		indexName:  buildIndexName,
+		activeName: e.activeName,
+	}
+	if err := buildEngine.setup(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	return &meiliRebuildSession{
+		client:          e.client,
+		activeIndexName: e.activeName,
+		buildIndexName:  buildIndexName,
+		engine:          buildEngine,
+	}, nil
+}
+
+func (e *MeilisearchEngine) resetIndex(ctx context.Context, indexName string) error {
+	if _, err := e.client.GetIndex(indexName); err == nil {
+		task, err := e.client.DeleteIndexWithContext(ctx, indexName)
+		if err != nil {
+			return err
+		}
+		if task != nil {
+			if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+				return err
+			}
+		}
+		return nil
+	} else if !isMeiliNotFound(err) {
+		return err
+	}
+	return nil
+}
+
+func rebuildIndexName(active string) string {
+	sanitizedVersion := strings.NewReplacer("-", "_", ".", "_").Replace(IndexSchemaVersion)
+	return fmt.Sprintf("%s_build_%s", active, sanitizedVersion)
 }
 
 // Upsert indexes or updates documents in Meilisearch.

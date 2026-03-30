@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDefaultRanker_PrefersPolicyForExactLookupMatches(t *testing.T) {
+func TestDefaultRanker_UsesMetadataBoostForExactLookupMatches(t *testing.T) {
 	ranker := NewDefaultRanker()
 	tenantID := uuid.New()
 
@@ -29,10 +29,13 @@ func TestDefaultRanker_PrefersPolicyForExactLookupMatches(t *testing.T) {
 		},
 		{
 			Document: SearchDocument{
-				ID:         "policy",
+				ID:         "priority",
 				TenantID:   tenantID,
-				Title:      "EEIL0388215",
-				EntityType: "policy",
+				Title:      "Priority record",
+				EntityType: "custom_record",
+				Metadata: map[string]string{
+					"rank_boost": "0.08",
+				},
 			},
 			FinalScore: 10,
 			WhyMatched: "exact_terms",
@@ -40,6 +43,6 @@ func TestDefaultRanker_PrefersPolicyForExactLookupMatches(t *testing.T) {
 	})
 
 	require.Len(t, ranked, 2)
-	require.Equal(t, "policy", ranked[0].Document.ID)
+	require.Equal(t, "priority", ranked[0].Document.ID)
 	require.Equal(t, "client", ranked[1].Document.ID)
 }

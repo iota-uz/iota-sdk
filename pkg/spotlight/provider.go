@@ -15,6 +15,8 @@ type ProviderCapabilities struct {
 	EntityTypes   []string
 }
 
+const ProviderStreamBatchSize = 500
+
 type ProviderScope struct {
 	TenantID uuid.UUID
 	Language string
@@ -22,11 +24,33 @@ type ProviderScope struct {
 	TopK     int
 }
 
+type DocumentBatchEmitter func([]SearchDocument) error
+
 type SearchProvider interface {
 	ProviderID() string
 	Capabilities() ProviderCapabilities
-	ListDocuments(ctx context.Context, scope ProviderScope) ([]SearchDocument, error)
+	StreamDocuments(ctx context.Context, scope ProviderScope, emit DocumentBatchEmitter) error
 	Watch(ctx context.Context, scope ProviderScope) (<-chan DocumentEvent, error)
+}
+
+func CollectDocumentStream(_ context.Context, streamer func(DocumentBatchEmitter) error) ([]SearchDocument, error) {
+	var out []SearchDocument
+	if err := streamer(func(batch []SearchDocument) error {
+		out = append(out, batch...)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func CollectDocuments(ctx context.Context, provider SearchProvider, scope ProviderScope) ([]SearchDocument, error) {
+	if provider == nil {
+		return nil, nil
+	}
+	return CollectDocumentStream(ctx, func(emit DocumentBatchEmitter) error {
+		return provider.StreamDocuments(ctx, scope, emit)
+	})
 }
 
 type ProviderRegistry struct {

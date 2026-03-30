@@ -190,7 +190,7 @@ func (ql *QuickLinks) resolveAllTranslations(trKey string) (string, string) {
 	return title, strings.Join(translations, searchTextDelimiter)
 }
 
-func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]SearchDocument, error) {
+func (ql *QuickLinks) StreamDocuments(_ context.Context, scope ProviderScope, emit DocumentBatchEmitter) error {
 	ql.mu.RLock()
 	defer ql.mu.RUnlock()
 
@@ -225,7 +225,10 @@ func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]S
 			UpdatedAt: item.createdAt,
 		})
 	}
-	return out, nil
+	if len(out) == 0 {
+		return nil
+	}
+	return emit(out)
 }
 
 func (ql *QuickLinks) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {

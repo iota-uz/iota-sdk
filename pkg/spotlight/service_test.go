@@ -99,8 +99,8 @@ func (p *fakeProvider) Capabilities() ProviderCapabilities {
 	return ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"client"}}
 }
 
-func (p *fakeProvider) ListDocuments(context.Context, ProviderScope) ([]SearchDocument, error) {
-	return nil, nil
+func (p *fakeProvider) StreamDocuments(_ context.Context, _ ProviderScope, _ DocumentBatchEmitter) error {
+	return nil
 }
 
 func (p *fakeProvider) Watch(context.Context, ProviderScope) (<-chan DocumentEvent, error) {
@@ -165,7 +165,8 @@ func TestSpotlightService_Search_UsesBatchACLAndCache(t *testing.T) {
 
 	resp1, err := svc.Search(context.Background(), req)
 	require.NoError(t, err)
-	require.NotEmpty(t, resp1.Other)
+	require.NotEmpty(t, resp1.Groups)
+	require.Equal(t, ResultDomainOther, resp1.Groups[0].Domain)
 
 	resp2, err := svc.Search(context.Background(), req)
 	require.NoError(t, err)

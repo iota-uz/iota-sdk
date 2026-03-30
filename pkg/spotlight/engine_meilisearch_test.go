@@ -36,10 +36,6 @@ func TestMeilisearchEngine_SetupForSearchExistingIndexStaysReadOnly(t *testing.T
 			SortableAttributes:   requiredSortableAttributes(),
 		}, nil).
 		Once()
-	index.EXPECT().
-		GetStats().
-		Return(&meilisearch.StatsIndex{}, nil).
-		Once()
 
 	require.NoError(t, engine.setupForSearch())
 	require.True(t, engine.searchReady.Load())
@@ -168,7 +164,7 @@ func TestMeilisearchEngine_SetupForSearchRejectsExistingIndexWithoutRequiredSett
 	require.False(t, engine.searchReady.Load())
 }
 
-func TestMeilisearchEngine_SetupForSearchRejectsStaleSchemaDocuments(t *testing.T) {
+func TestMeilisearchEngine_SetupForSearchAllowsStaleActiveIndex(t *testing.T) {
 	service := meilimocks.NewMockmeilisearchServiceManager(t)
 	index := meilimocks.NewMockmeilisearchIndexManager(t)
 	engine := &MeilisearchEngine{
@@ -192,21 +188,9 @@ func TestMeilisearchEngine_SetupForSearchRejectsStaleSchemaDocuments(t *testing.
 			SortableAttributes:   requiredSortableAttributes(),
 		}, nil).
 		Once()
-	index.EXPECT().
-		GetStats().
-		Return(&meilisearch.StatsIndex{NumberOfDocuments: 3}, nil).
-		Once()
-	index.EXPECT().
-		Search("", mock.MatchedBy(func(req *meilisearch.SearchRequest) bool {
-			return req != nil && req.Filter == `schema_version = "`+IndexSchemaVersion+`"` && req.Limit == 1
-		})).
-		Return(&meilisearch.SearchResponse{EstimatedTotalHits: 2}, nil).
-		Once()
 
-	err := engine.setupForSearch()
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "schema mismatch")
-	require.False(t, engine.searchReady.Load())
+	require.NoError(t, engine.setupForSearch())
+	require.True(t, engine.searchReady.Load())
 }
 
 func TestBuildSearchFilterEscapesDynamicValues(t *testing.T) {
@@ -223,6 +207,53 @@ func TestBuildSearchFilterEscapesDynamicValues(t *testing.T) {
 	require.Contains(t, filter, `owner_id = "user\" OR access_visibility = \"public"`)
 	require.Contains(t, filter, `allowed_roles = "ops\" OR allowed_roles = \"admin"`)
 	require.Contains(t, filter, `allowed_permissions = "read\" OR allowed_permissions = \"write"`)
+}
+
+func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+
+	session := &meiliRebuildSession{
+		client:          service,
+		activeIndexName: "spotlight",
+		buildIndexName:  "spotlight_build_v4",
+		engine: &MeilisearchEngine{
+			client:    service,
+			indexName: "spotlight",
+		},
+	}
+
+	service.EXPECT().
+		GetIndex("spotlight").
+		Return(nil, &meilisearch.Error{StatusCode: http.StatusNotFound}).
+		Once()
+	service.EXPECT().
+		CreateIndex(mock.AnythingOfType("*meilisearch.IndexConfig")).
+		Return(&meilisearch.TaskInfo{TaskUID: 20}, nil).
+		Once()
+	service.EXPECT().
+		WaitForTask(int64(20), 100*time.Millisecond).
+		Return(&meilisearch.Task{}, nil).
+		Once()
+	service.EXPECT().
+		SwapIndexesWithContext(mock.Anything, []*meilisearch.SwapIndexesParams{{
+			Indexes: []string{"spotlight_build_v4", "spotlight"},
+		}}).
+		Return(&meilisearch.TaskInfo{TaskUID: 21}, nil).
+		Once()
+	service.EXPECT().
+		WaitForTask(int64(21), 100*time.Millisecond).
+		Return(&meilisearch.Task{}, nil).
+		Once()
+	service.EXPECT().
+		DeleteIndexWithContext(mock.Anything, "spotlight_build_v4").
+		Return(&meilisearch.TaskInfo{TaskUID: 22}, nil).
+		Once()
+	service.EXPECT().
+		WaitForTask(int64(22), 100*time.Millisecond).
+		Return(&meilisearch.Task{}, nil).
+		Once()
+
+	require.NoError(t, session.Commit(t.Context()))
 }
 
 func uuidMustParse(raw string) uuid.UUID {

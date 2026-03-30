@@ -14,6 +14,17 @@ type IndexEngine interface {
 	Health(ctx context.Context) error
 }
 
+type RebuildSession interface {
+	Engine() IndexEngine
+	Commit(ctx context.Context) error
+	Abort(ctx context.Context) error
+}
+
+type RebuildableIndexEngine interface {
+	IndexEngine
+	StartRebuild(ctx context.Context) (RebuildSession, error)
+}
+
 type DocumentRef struct {
 	TenantID uuid.UUID
 	ID       string

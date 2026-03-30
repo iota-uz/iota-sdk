@@ -22,13 +22,43 @@ func (p *pipelineTestProvider) Capabilities() ProviderCapabilities {
 	return ProviderCapabilities{}
 }
 
-func (p *pipelineTestProvider) ListDocuments(_ context.Context, _ ProviderScope) ([]SearchDocument, error) {
-	out := make([]SearchDocument, len(p.docs))
-	copy(out, p.docs)
-	return out, nil
+func (p *pipelineTestProvider) StreamDocuments(_ context.Context, _ ProviderScope, emit DocumentBatchEmitter) error {
+	docs := make([]SearchDocument, len(p.docs))
+	copy(docs, p.docs)
+	return emit(docs)
 }
 
 func (p *pipelineTestProvider) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {
+	ch := make(chan DocumentEvent)
+	close(ch)
+	return ch, nil
+}
+
+type pipelineStreamingTestProvider struct {
+	id      string
+	batches [][]SearchDocument
+}
+
+func (p *pipelineStreamingTestProvider) ProviderID() string {
+	return p.id
+}
+
+func (p *pipelineStreamingTestProvider) Capabilities() ProviderCapabilities {
+	return ProviderCapabilities{}
+}
+
+func (p *pipelineStreamingTestProvider) StreamDocuments(_ context.Context, _ ProviderScope, emit DocumentBatchEmitter) error {
+	for _, batch := range p.batches {
+		docs := make([]SearchDocument, len(batch))
+		copy(docs, batch)
+		if err := emit(docs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *pipelineStreamingTestProvider) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {
 	ch := make(chan DocumentEvent)
 	close(ch)
 	return ch, nil
@@ -94,4 +124,42 @@ func TestIndexerPipelineSync_UpsertsPerProviderBatch(t *testing.T) {
 	require.Equal(t, "provider.beta", engine.batches[1][0].Provider)
 	require.Equal(t, tenantID, engine.batches[1][0].TenantID)
 	require.False(t, engine.batches[1][0].UpdatedAt.IsZero())
+}
+
+func TestIndexerPipelineSync_StreamingProviderUpsertsIncrementally(t *testing.T) {
+	registry := NewProviderRegistry()
+	tenantID := uuid.New()
+
+	registry.Register(&pipelineStreamingTestProvider{
+		id: "provider.streaming",
+		batches: [][]SearchDocument{
+			{
+				{ID: "s-1"},
+				{ID: "s-2"},
+			},
+			{
+				{ID: "s-3"},
+			},
+		},
+	})
+
+	engine := &pipelineTestEngine{}
+	pipeline := NewIndexerPipeline(registry, engine)
+
+	err := pipeline.Sync(context.Background(), tenantID, "en", "", 10, ScopeConfig{})
+	require.NoError(t, err)
+	require.Len(t, engine.batches, 2)
+
+	require.Len(t, engine.batches[0], 2)
+	require.Equal(t, []string{"s-1", "s-2"}, []string{engine.batches[0][0].ID, engine.batches[0][1].ID})
+	require.Len(t, engine.batches[1], 1)
+	require.Equal(t, "s-3", engine.batches[1][0].ID)
+
+	for _, batch := range engine.batches {
+		for _, doc := range batch {
+			require.Equal(t, "provider.streaming", doc.Provider)
+			require.Equal(t, tenantID, doc.TenantID)
+			require.False(t, doc.UpdatedAt.IsZero())
+		}
+	}
 }

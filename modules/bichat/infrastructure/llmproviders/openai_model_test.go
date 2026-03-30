@@ -3,9 +3,11 @@ package llmproviders
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
@@ -54,6 +56,42 @@ func TestNewOpenAIModel_CustomModel(t *testing.T) {
 
 	oaiModel := model.(*OpenAIModel)
 	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
+}
+
+func TestNewOpenAIModel_WithBaseURLAndResolveIP(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	require.NoError(t, os.Setenv("OPENAI_BASE_URL", "https://example-proxy.test/v1"))
+	require.NoError(t, os.Setenv("OPENAI_API_RESOLVE_IP", "203.0.113.10"))
+	defer func() {
+		_ = os.Unsetenv("OPENAI_API_KEY")
+		_ = os.Unsetenv("OPENAI_BASE_URL")
+		_ = os.Unsetenv("OPENAI_API_RESOLVE_IP")
+	}()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	assert.NotNil(t, model)
+}
+
+func TestNewOpenAIHTTPClient_NoResolveIP(t *testing.T) {
+	client, err := newOpenAIHTTPClient("", "")
+	require.NoError(t, err)
+	assert.Nil(t, client)
+}
+
+func TestNewOpenAIHTTPClient_InvalidBaseURL(t *testing.T) {
+	client, err := newOpenAIHTTPClient("://bad-url", "203.0.113.10")
+	require.Error(t, err)
+	assert.Nil(t, client)
+}
+
+func TestNewOpenAIHTTPClient_ReturnsConfiguredTransport(t *testing.T) {
+	client, err := newOpenAIHTTPClient("https://example-proxy.test/v1", "203.0.113.10")
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	assert.Equal(t, 2*time.Minute, client.Timeout)
+	_, ok := client.Transport.(*http.Transport)
+	assert.True(t, ok)
 }
 
 func TestOpenAIModel_Info(t *testing.T) {

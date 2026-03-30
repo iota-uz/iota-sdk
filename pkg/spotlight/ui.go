@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -15,9 +16,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
-func iconForEntityType(entityType string) templ.Component {
+func iconForEntityType(doc SearchDocument) templ.Component {
 	size := "16"
-	switch entityType {
+	if icon := iconByName(strings.TrimSpace(doc.Metadata["icon_name"]), size); icon != nil {
+		return icon
+	}
+	switch doc.EntityType {
 	case "quick_link", "route", "page", "navigation":
 		return icons.Compass(icons.Props{Size: size})
 	case "user":
@@ -26,16 +30,8 @@ func iconForEntityType(entityType string) templ.Component {
 		return icons.IdentificationCard(icons.Props{Size: size})
 	case "client":
 		return icons.Users(icons.Props{Size: size})
-	case "policy":
-		return icons.FileText(icons.Props{Size: size})
-	case "vehicle":
-		return icons.CarProfile(icons.Props{Size: size})
-	case "claim":
-		return icons.SealWarning(icons.Props{Size: size})
 	case "chat", "conversation", "thread":
 		return icons.ChatCircleText(icons.Props{Size: size})
-	case "organization":
-		return icons.Buildings(icons.Props{Size: size})
 	case "project":
 		return icons.Folder(icons.Props{Size: size})
 	case "order":
@@ -60,9 +56,42 @@ func HitToComponent(hit SearchHit, query string) templ.Component {
 			Meta:     resultMeta(ctx, hit, query),
 			Link:     hit.Document.URL,
 			Badges:   resultBadges(ctx, hit),
-			Icon:     iconForEntityType(hit.Document.EntityType),
+			Icon:     iconForEntityType(hit.Document),
 		}).Render(ctx, w)
 	})
+}
+
+func iconByName(name, size string) templ.Component {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "":
+		return nil
+	case "compass", "navigate":
+		return icons.Compass(icons.Props{Size: size})
+	case "user":
+		return icons.User(icons.Props{Size: size})
+	case "id-card", "identification-card":
+		return icons.IdentificationCard(icons.Props{Size: size})
+	case "users", "people":
+		return icons.Users(icons.Props{Size: size})
+	case "file-text":
+		return icons.FileText(icons.Props{Size: size})
+	case "car", "car-profile":
+		return icons.CarProfile(icons.Props{Size: size})
+	case "warning", "seal-warning":
+		return icons.SealWarning(icons.Props{Size: size})
+	case "chat", "chat-circle-text":
+		return icons.ChatCircleText(icons.Props{Size: size})
+	case "buildings", "organization":
+		return icons.Buildings(icons.Props{Size: size})
+	case "folder", "project":
+		return icons.Folder(icons.Props{Size: size})
+	case "cube", "order":
+		return icons.Cube(icons.Props{Size: size})
+	case "book", "knowledge":
+		return icons.Book(icons.Props{Size: size})
+	default:
+		return nil
+	}
 }
 
 func displayWhyMatched(ctx context.Context, reason string) string {
@@ -175,7 +204,7 @@ func resultMeta(ctx context.Context, hit SearchHit, query string) string {
 
 func resultBadges(ctx context.Context, hit SearchHit) []spotlightui.ResultBadge {
 	badges := make([]spotlightui.ResultBadge, 0, 2)
-	if entityBadge := entityBadgeForHit(ctx, hit.Document.EntityType); entityBadge.Label != "" {
+	if entityBadge := entityBadgeForHit(ctx, hit.Document); entityBadge.Label != "" {
 		badges = append(badges, entityBadge)
 	}
 	if hit.WhyMatched == "exact_terms" {
@@ -187,27 +216,68 @@ func resultBadges(ctx context.Context, hit SearchHit) []spotlightui.ResultBadge 
 	return badges
 }
 
-func entityBadgeForHit(ctx context.Context, entityType string) spotlightui.ResultBadge {
-	switch strings.ToLower(strings.TrimSpace(entityType)) {
-	case "policy":
-		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Policy", "Policy"), Tone: "policy"}
-	case "vehicle":
-		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Vehicle", "Vehicle"), Tone: "vehicle"}
-	case "claim":
-		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Claim", "Claim"), Tone: "claim"}
-	case "chat", "conversation", "thread":
-		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Chat", "Chat"), Tone: "chat"}
-	case "organization":
-		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Organization", "Organization"), Tone: "organization"}
+func entityBadgeForHit(ctx context.Context, doc SearchDocument) spotlightui.ResultBadge {
+	if key := strings.TrimSpace(doc.Metadata["badge_label_key"]); key != "" {
+		return spotlightui.ResultBadge{
+			Label: spotlightText(ctx, key, humanizeEntityType(doc.EntityType)),
+			Tone:  badgeToneForEntity(doc),
+		}
+	}
+	if label := strings.TrimSpace(doc.Metadata["badge_label"]); label != "" {
+		return spotlightui.ResultBadge{
+			Label: label,
+			Tone:  badgeToneForEntity(doc),
+		}
+	}
+
+	switch strings.ToLower(strings.TrimSpace(doc.EntityType)) {
 	case "user", "group", "role":
-		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Staff", "Staff"), Tone: "staff"}
+		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Staff", "Staff"), Tone: "directory"}
 	case "client", "person":
-		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Person", "Person"), Tone: "people"}
+		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Person", "Person"), Tone: "directory"}
 	case "quick_link", "route", "page", "navigation":
 		return spotlightui.ResultBadge{Label: spotlightText(ctx, "Spotlight.Badge.Navigate", "Navigate"), Tone: "navigation"}
+	case "chat", "conversation", "thread":
+		return spotlightui.ResultBadge{Label: humanizeEntityType(doc.EntityType), Tone: "conversation"}
 	default:
+		if label := humanizeEntityType(doc.EntityType); label != "" {
+			return spotlightui.ResultBadge{Label: label, Tone: badgeToneForEntity(doc)}
+		}
 		return spotlightui.ResultBadge{}
 	}
+}
+
+func badgeToneForEntity(doc SearchDocument) string {
+	if tone := strings.TrimSpace(doc.Metadata["badge_tone"]); tone != "" {
+		return tone
+	}
+	switch strings.ToLower(strings.TrimSpace(doc.EntityType)) {
+	case "quick_link", "route", "page", "navigation":
+		return "navigation"
+	case "user", "group", "role", "staff", "person", "client":
+		return "directory"
+	case "chat", "conversation", "thread":
+		return "conversation"
+	default:
+		return "entity"
+	}
+}
+
+var entityWordBoundary = regexp.MustCompile(`[_\-\s]+`)
+
+func humanizeEntityType(entityType string) string {
+	entityType = strings.TrimSpace(entityType)
+	if entityType == "" {
+		return ""
+	}
+	parts := entityWordBoundary.Split(entityType, -1)
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+	}
+	return strings.Join(parts, " ")
 }
 
 func ActionToComponent(action AgentAction) templ.Component {
