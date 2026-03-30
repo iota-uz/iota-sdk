@@ -410,9 +410,18 @@ let checkboxes = () => ({
 
 let spotlight = () => ({
   isOpen: false,
+  isLoading: false,
   highlightedIndex: 0,
+  query: '',
+  searchId: '',
+  pendingCount: 0,
+  stages: [],
+  eventSource: null,
+  debounceTimer: null,
+  requestSeq: 0,
   init() {
     if (window.__spotlightConfirmBound) {
+      this.bindSearchLifecycle();
       return;
     }
     window.__spotlightConfirmBound = true;
@@ -434,6 +443,13 @@ let spotlight = () => ({
         window.location.href = url;
       }
     });
+    this.bindSearchLifecycle();
+  },
+
+  bindSearchLifecycle() {
+    if (this.$refs.input) {
+      this.query = this.$refs.input.value || '';
+    }
   },
 
   handleShortcut(event) {
@@ -446,20 +462,208 @@ let spotlight = () => ({
   open() {
     this.isOpen = true;
     this.$nextTick(() => {
-      const input = this.$refs.input;
-      if (input) {
-        setTimeout(() => input.focus(), 50);
-      }
+      this.$refs.input?.focus();
     });
   },
 
   close() {
     this.isOpen = false;
     this.highlightedIndex = 0;
+    window.clearTimeout(this.debounceTimer);
+    this.stopStream();
+  },
+
+  scheduleSearch(value) {
+    this.query = value || '';
+    window.clearTimeout(this.debounceTimer);
+    this.debounceTimer = window.setTimeout(() => {
+      this.search(this.query);
+    }, 120);
+  },
+
+  async search(value) {
+    const query = (value || '').trim();
+    this.requestSeq += 1;
+    const requestSeq = this.requestSeq;
+    this.stopStream();
+    this.isLoading = query !== '';
+    this.highlightedIndex = 0;
+    this.pendingCount = 0;
+    this.setResultsHTML('');
+
+    if (!query) {
+      this.searchId = '';
+      return;
+    }
+
+    try {
+      const response = await fetch(`/spotlight/search?q=${encodeURIComponent(query)}`, {
+        headers: {
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        throw new Error(`search failed with ${response.status}`);
+      }
+
+      const payload = await response.json();
+      if (requestSeq !== this.requestSeq) {
+        const staleSearchId = payload.search_id || '';
+        if (staleSearchId) {
+          fetch(`/spotlight/cancel?search_id=${encodeURIComponent(staleSearchId)}`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+          }).catch(() => {});
+        }
+        return;
+      }
+
+      this.searchId = payload.search_id || '';
+      this.updatePayload(payload);
+
+      if (this.searchId && !payload.complete) {
+        this.startStream(this.searchId, requestSeq);
+      }
+    } catch (error) {
+      console.error('spotlight search failed', error);
+      if (requestSeq === this.requestSeq) {
+        this.isLoading = false;
+      }
+    }
+  },
+
+  startStream(searchId, requestSeq) {
+    if (!searchId) return;
+    const source = new EventSource(`/spotlight/stream?search_id=${encodeURIComponent(searchId)}`);
+    this.eventSource = source;
+
+    source.addEventListener('update', (event) => {
+      if (requestSeq !== this.requestSeq) {
+        return;
+      }
+      try {
+        const payload = JSON.parse(event.data || '{}');
+        this.updatePayload(payload);
+        if (payload.complete) {
+          this.stopStream();
+        }
+      } catch (error) {
+        console.error('spotlight stream update failed', error);
+      }
+    });
+
+    source.onerror = () => {
+      if (requestSeq !== this.requestSeq) {
+        return;
+      }
+      this.isLoading = false;
+      this.stopStream();
+    };
+  },
+
+  stopStream() {
+    const previousSearchId = this.searchId;
+    this.searchId = '';
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    if (previousSearchId) {
+      fetch(`/spotlight/cancel?search_id=${encodeURIComponent(previousSearchId)}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+      }).catch(() => {});
+    }
+  },
+
+  updatePayload(payload) {
+    this.pendingCount = Number(payload.pending || 0);
+    this.stages = payload.stages || [];
+    this.setResultsHTML(payload.html || '');
+    this.isLoading = Boolean(payload.loading) && !payload.complete;
+  },
+
+  setResultsHTML(html) {
+    const list = this.$refs.results;
+    if (!list) return;
+    const items = this._items();
+    const currentItem = items[this.highlightedIndex];
+    const currentKey = currentItem?.querySelector('[data-spotlight-key]')?.dataset?.spotlightKey || '';
+    list.innerHTML = html || '';
+    this.$nextTick(() => {
+      const nextItems = Array.from(this._items());
+      if (nextItems.length === 0) {
+        this.highlightedIndex = 0;
+      } else if (currentKey) {
+        const nextIndex = nextItems.findIndex((item) => item.querySelector('[data-spotlight-key]')?.dataset?.spotlightKey === currentKey);
+        this.highlightedIndex = nextIndex >= 0 ? nextIndex : 0;
+      } else if (this.highlightedIndex >= nextItems.length) {
+        this.highlightedIndex = 0;
+      }
+      if (window.Alpine && typeof window.Alpine.initTree === 'function') {
+        window.Alpine.initTree(list);
+      }
+    });
+  },
+
+  applySuggestion(value) {
+    this.query = value || '';
+    if (this.$refs.input) {
+      this.$refs.input.value = this.query;
+      this.$refs.input.focus();
+    }
+    this.search(this.query);
+  },
+
+  localeCode() {
+    return (document.documentElement.lang || 'en').toLowerCase();
+  },
+
+  translate(map) {
+    const locale = this.localeCode();
+    if (map[locale]) return map[locale];
+    const short = locale.slice(0, 2);
+    if (map[short]) return map[short];
+    return map.en;
+  },
+
+  statusLabel() {
+    if (!this.query) {
+      return '';
+    }
+    if (this.isLoading) {
+      if (this.pendingCount > 0) {
+        return `${this.translate({
+          ru: 'Ищем дальше',
+          uz: 'Qidiruv davom etmoqda',
+          en: 'Searching more sources',
+          zh: '继续搜索中',
+        })} · ${this.pendingCount}`;
+      }
+      return this.translate({
+        ru: 'Ищем совпадения',
+        uz: 'Mosliklar qidirilmoqda',
+        en: 'Finding matches',
+        zh: '正在查找匹配',
+      });
+    }
+    return this.translate({
+      ru: 'Поиск завершен',
+      uz: 'Qidiruv yakunlandi',
+      en: 'Search complete',
+      zh: '搜索完成',
+    });
+  },
+
+  hasResults() {
+    return this._items().length > 0;
   },
 
   _items() {
-    const list = document.getElementById(this.$id('spotlight'));
+    const list = this.$refs.results || document.getElementById(this.$id('spotlight'));
     if (!list) return [];
     return list.querySelectorAll('[data-spotlight-item]');
   },
@@ -472,7 +676,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
       }
     });
   },
@@ -485,7 +689,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
       }
     });
   },

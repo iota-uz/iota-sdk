@@ -33,41 +33,80 @@ func (p *spotlightProvider) ListDocuments(ctx context.Context, scope spotlight.P
 	const op serrors.Op = "core.spotlightProvider.ListDocuments"
 
 	rows, err := p.db.Query(ctx, `
-SELECT id, first_name, last_name, updated_at
-FROM users
-WHERE tenant_id = $1
-ORDER BY id ASC
-LIMIT 1000
+SELECT
+    u.id,
+    u.first_name,
+    u.last_name,
+    COALESCE(u.middle_name, ''),
+    u.email,
+    COALESCE(u.phone, ''),
+    u.type,
+    u.updated_at,
+    COALESCE(string_agg(DISTINCT r.name, E'\n') FILTER (WHERE r.name IS NOT NULL), '')
+FROM users u
+LEFT JOIN user_roles ur ON ur.user_id = u.id
+LEFT JOIN roles r ON r.id = ur.role_id
+WHERE u.tenant_id = $1
+GROUP BY u.id, u.first_name, u.last_name, u.middle_name, u.email, u.phone, u.type, u.updated_at
+ORDER BY u.updated_at DESC, u.id ASC
+LIMIT 5000
 `, scope.TenantID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
-	out := make([]spotlight.SearchDocument, 0, 256)
+	out := make([]spotlight.SearchDocument, 0, 512)
 	for rows.Next() {
 		var id int64
 		var firstName string
 		var lastName string
+		var middleName string
+		var email string
+		var phone string
+		var userType string
 		var updatedAt time.Time
-		if err := rows.Scan(&id, &firstName, &lastName, &updatedAt); err != nil {
+		var roles string
+		if err := rows.Scan(&id, &firstName, &lastName, &middleName, &email, &phone, &userType, &updatedAt, &roles); err != nil {
 			return nil, serrors.E(op, err)
 		}
-		title := strings.TrimSpace(firstName + " " + lastName)
+		title := strings.TrimSpace(strings.Join([]string{firstName, middleName, lastName}, " "))
 		if title == "" {
-			title = fmt.Sprintf("User %d", id)
+			if email != "" {
+				title = email
+			} else if phone != "" {
+				title = phone
+			} else {
+				title = fmt.Sprintf("User %d", id)
+			}
 		}
+
+		description := strings.TrimSpace(strings.Join([]string{email, phone}, " · "))
+		searchText := spotlight.BuildSearchText(title, email, phone, roles, userType)
+		exactTerms := spotlight.ExpandExactTerms(
+			fmt.Sprintf("%d", id),
+			title,
+			email,
+			phone,
+		)
+
 		out = append(out, spotlight.SearchDocument{
-			ID:         fmt.Sprintf("core:user:%d", id),
-			TenantID:   scope.TenantID,
-			Provider:   p.ProviderID(),
-			EntityType: "user",
-			Title:      title,
-			Body:       title,
-			URL:        fmt.Sprintf("/users/%d", id),
-			Language:   scope.Language,
+			ID:          fmt.Sprintf("core:user:%d", id),
+			TenantID:    scope.TenantID,
+			Provider:    p.ProviderID(),
+			EntityType:  "user",
+			Domain:      spotlight.ResultDomainLookup,
+			Title:       title,
+			Description: description,
+			Body:        searchText,
+			SearchText:  searchText,
+			ExactTerms:  exactTerms,
+			URL:         fmt.Sprintf("/users/%d", id),
+			Language:    scope.Language,
 			Metadata: map[string]string{
-				"source": "core.users",
+				"source":          "core.users",
+				"group_key":       "staff",
+				"group_title_key": "Spotlight.Group.Staff",
 			},
 			Access:    spotlight.AccessPolicy{Visibility: spotlight.VisibilityPublic},
 			UpdatedAt: updatedAt,

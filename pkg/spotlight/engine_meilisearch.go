@@ -1,10 +1,15 @@
-// Package spotlight provides this package.
+// Package spotlight provides the Meilisearch-backed index engine used by
+// Spotlight search and indexing flows.
 package spotlight
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,11 +22,14 @@ import (
 
 var _ IndexEngine = (*MeilisearchEngine)(nil)
 
+const IndexSchemaVersion = "2026-03-30-search-v4"
+
 type MeilisearchEngine struct {
-	client    meilisearch.ServiceManager
-	indexName string
-	setupMu   sync.Mutex
-	setupDone atomic.Bool
+	client      meilisearch.ServiceManager
+	indexName   string
+	setupMu     sync.Mutex
+	searchReady atomic.Bool
+	writeReady  atomic.Bool
 }
 
 // NewMeilisearchEngine creates a new Meilisearch-based IndexEngine.
@@ -34,47 +42,99 @@ func NewMeilisearchEngine(url, apiKey string) *MeilisearchEngine {
 
 // setup ensures the index is created and configured, retrying on failure.
 func (e *MeilisearchEngine) setup() error {
-	if e.setupDone.Load() {
+	if e.writeReady.Load() {
 		return nil
 	}
 	e.setupMu.Lock()
 	defer e.setupMu.Unlock()
-	if e.setupDone.Load() {
+	if e.writeReady.Load() {
 		return nil
 	}
-	if err := e.ensureIndex(); err != nil {
+	if err := e.ensureIndexConfigured(); err != nil {
 		return err
 	}
-	e.setupDone.Store(true)
+	e.searchReady.Store(true)
+	e.writeReady.Store(true)
 	return nil
 }
 
-// ensureIndex creates and configures the Meilisearch index.
-func (e *MeilisearchEngine) ensureIndex() error {
-	const op serrors.Op = "spotlight.MeilisearchEngine.ensureIndex"
-
-	taskInfo, err := e.client.CreateIndex(&meilisearch.IndexConfig{
-		Uid:        e.indexName,
-		PrimaryKey: "pk",
-	})
-	if err != nil {
-		return serrors.E(op, err)
+func (e *MeilisearchEngine) setupForSearch() error {
+	if e.searchReady.Load() {
+		return nil
 	}
-
-	task, err := e.client.WaitForTask(taskInfo.TaskUID, 100*time.Millisecond)
-	if err != nil {
-		return serrors.E(op, err)
+	e.setupMu.Lock()
+	defer e.setupMu.Unlock()
+	if e.searchReady.Load() {
+		return nil
 	}
-	if task.Status == meilisearch.TaskStatusFailed {
-		// "index_already_exists" is expected on restart
-		if task.Error.Code != "index_already_exists" {
-			return serrors.E(op, fmt.Errorf("create index task failed: %s", task.Error.Message))
+	created, err := e.ensureIndexExists()
+	if err != nil {
+		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
+	}
+	if created {
+		if err := e.configureIndex(); err != nil {
+			return err
 		}
+		e.writeReady.Store(true)
+	} else if err := e.validateSearchSettings(); err != nil {
+		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
+	e.searchReady.Store(true)
+	return nil
+}
+
+func (e *MeilisearchEngine) ensureIndexConfigured() error {
+	if _, err := e.ensureIndexExists(); err != nil {
+		return err
+	}
+	return e.configureIndex()
+}
+
+func (e *MeilisearchEngine) ensureIndexExists() (bool, error) {
+	const op serrors.Op = "spotlight.MeilisearchEngine.ensureIndexExists"
+
+	if _, err := e.client.GetIndex(e.indexName); err != nil {
+		if !isMeiliNotFound(err) {
+			return false, serrors.E(op, err)
+		}
+		taskInfo, err := e.client.CreateIndex(&meilisearch.IndexConfig{
+			Uid:        e.indexName,
+			PrimaryKey: "pk",
+		})
+		if err != nil {
+			return false, serrors.E(op, err)
+		}
+
+		task, err := e.client.WaitForTask(taskInfo.TaskUID, 100*time.Millisecond)
+		if err != nil {
+			return false, serrors.E(op, err)
+		}
+		if task.Status == meilisearch.TaskStatusFailed {
+			return false, serrors.E(op, fmt.Errorf("create index task failed: %s", task.Error.Message))
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func (e *MeilisearchEngine) configureIndex() error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.configureIndex"
 
 	index := e.client.Index(e.indexName)
 
-	filterableAttrs := []interface{}{"tenant_id", "provider", "entity_type"}
+	filterableAttrs := []interface{}{
+		"tenant_id",
+		"provider",
+		"entity_type",
+		"domain",
+		"schema_version",
+		"exact_terms",
+		"access_visibility",
+		"owner_id",
+		"allowed_users",
+		"allowed_roles",
+		"allowed_permissions",
+	}
 	filterTask, err := index.UpdateFilterableAttributes(&filterableAttrs)
 	if err != nil {
 		return serrors.E(op, err)
@@ -83,7 +143,7 @@ func (e *MeilisearchEngine) ensureIndex() error {
 		return serrors.E(op, err)
 	}
 
-	searchableAttrs := []string{"title", "body"}
+	searchableAttrs := []string{"title", "description", "search_text"}
 	searchTask, err := index.UpdateSearchableAttributes(&searchableAttrs)
 	if err != nil {
 		return serrors.E(op, err)
@@ -104,6 +164,90 @@ func (e *MeilisearchEngine) ensureIndex() error {
 	return nil
 }
 
+func (e *MeilisearchEngine) validateSearchSettings() error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.validateSearchSettings"
+
+	index := e.client.Index(e.indexName)
+	settings, err := index.GetSettings()
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	if missing := missingStrings(settings.FilterableAttributes, requiredFilterableAttributes()); len(missing) > 0 {
+		return serrors.E(op, fmt.Errorf("spotlight index is missing filterable attributes: %s", strings.Join(missing, ", ")))
+	}
+	if missing := missingStrings(settings.SearchableAttributes, requiredSearchableAttributes()); len(missing) > 0 {
+		return serrors.E(op, fmt.Errorf("spotlight index is missing searchable attributes: %s", strings.Join(missing, ", ")))
+	}
+	if missing := missingStrings(settings.SortableAttributes, requiredSortableAttributes()); len(missing) > 0 {
+		return serrors.E(op, fmt.Errorf("spotlight index is missing sortable attributes: %s", strings.Join(missing, ", ")))
+	}
+	if err := e.validateSchemaVersion(index); err != nil {
+		return serrors.E(op, err)
+	}
+
+	return nil
+}
+
+func requiredFilterableAttributes() []string {
+	return []string{
+		"tenant_id",
+		"provider",
+		"entity_type",
+		"domain",
+		"schema_version",
+		"exact_terms",
+		"access_visibility",
+		"owner_id",
+		"allowed_users",
+		"allowed_roles",
+		"allowed_permissions",
+	}
+}
+
+func requiredSearchableAttributes() []string {
+	return []string{"title", "description", "search_text"}
+}
+
+func requiredSortableAttributes() []string {
+	return []string{"updated_at"}
+}
+
+func (e *MeilisearchEngine) validateSchemaVersion(index meilisearch.IndexManager) error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.validateSchemaVersion"
+
+	stats, err := index.GetStats()
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if stats.NumberOfDocuments == 0 {
+		return nil
+	}
+
+	resp, err := index.Search("", &meilisearch.SearchRequest{
+		Filter: fmt.Sprintf(`schema_version = "%s"`, escapeFilterString(IndexSchemaVersion)),
+		Limit:  1,
+	})
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if resp.EstimatedTotalHits != stats.NumberOfDocuments {
+		return serrors.E(op, fmt.Errorf(
+			"spotlight index schema mismatch: expected %d documents at schema %s, found %d",
+			stats.NumberOfDocuments,
+			IndexSchemaVersion,
+			resp.EstimatedTotalHits,
+		))
+	}
+
+	return nil
+}
+
+func isMeiliNotFound(err error) bool {
+	var meiliErr *meilisearch.Error
+	return errors.As(err, &meiliErr) && meiliErr.StatusCode == http.StatusNotFound
+}
+
 // Upsert indexes or updates documents in Meilisearch.
 func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.Upsert"
@@ -120,21 +264,31 @@ func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) e
 	records := make([]map[string]interface{}, 0, len(docs))
 	for _, doc := range docs {
 		record := map[string]interface{}{
-			"pk":          meiliPK(doc.TenantID.String(), doc.ID),
-			"id":          doc.ID,
-			"tenant_id":   doc.TenantID.String(),
-			"provider":    doc.Provider,
-			"entity_type": doc.EntityType,
-			"title":       doc.Title,
-			"body":        doc.Body,
-			"url":         doc.URL,
-			"language":    doc.Language,
-			"metadata":    doc.Metadata,
-			"updated_at":  doc.UpdatedAt.Unix(),
+			"pk":             meiliPK(doc.TenantID.String(), doc.ID),
+			"id":             doc.ID,
+			"tenant_id":      doc.TenantID.String(),
+			"provider":       doc.Provider,
+			"entity_type":    doc.EntityType,
+			"domain":         string(normalizeDomain(doc.Domain, doc.EntityType)),
+			"title":          doc.Title,
+			"description":    doc.Description,
+			"body":           doc.Body,
+			"search_text":    coalesceSearchText(doc),
+			"exact_terms":    normalizeExactTerms(doc.ExactTerms),
+			"url":            doc.URL,
+			"language":       doc.Language,
+			"metadata":       doc.Metadata,
+			"schema_version": IndexSchemaVersion,
+			"updated_at":     doc.UpdatedAt.Unix(),
 		}
 
 		// Include access policy
 		record["access_policy"] = doc.Access
+		record["access_visibility"] = string(doc.Access.Visibility)
+		record["owner_id"] = doc.Access.OwnerID
+		record["allowed_users"] = doc.Access.AllowedUsers
+		record["allowed_roles"] = doc.Access.AllowedRoles
+		record["allowed_permissions"] = doc.Access.AllowedPermissions
 
 		// Include embeddings if present
 		if len(doc.Embedding) > 0 {
@@ -148,10 +302,13 @@ func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) e
 
 	// Add documents to index
 	pk := "pk"
-	_, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{
+	task, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{
 		PrimaryKey: &pk,
 	})
 	if err != nil {
+		return serrors.E(op, err)
+	}
+	if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
 		return serrors.E(op, err)
 	}
 
@@ -175,8 +332,11 @@ func (e *MeilisearchEngine) Delete(ctx context.Context, refs []DocumentRef) erro
 	for _, ref := range refs {
 		pks = append(pks, meiliPK(ref.TenantID.String(), ref.ID))
 	}
-	_, err := index.DeleteDocuments(pks, nil)
+	task, err := index.DeleteDocuments(pks, nil)
 	if err != nil {
+		return serrors.E(op, err)
+	}
+	if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
 		return serrors.E(op, err)
 	}
 	return nil
@@ -190,7 +350,7 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 		return nil, nil
 	}
 
-	if err := e.setup(); err != nil {
+	if err := e.setupForSearch(); err != nil {
 		return nil, serrors.E(op, err)
 	}
 
@@ -203,42 +363,32 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 		topK = 100
 	}
 
-	// Build filter for tenant isolation
-	filter := fmt.Sprintf(`tenant_id = "%s"`, req.TenantID.String())
+	baseFilter := buildSearchFilter(req)
 
-	// Build search request
-	searchReq := &meilisearch.SearchRequest{
-		Filter:           filter,
-		Limit:            int64(topK),
-		ShowRankingScore: true,
-	}
-
-	// Add hybrid search if embeddings are present
-	if len(req.QueryEmbedding) > 0 {
-		searchReq.Hybrid = &meilisearch.SearchRequestHybrid{
-			SemanticRatio: 0.5,
-			Embedder:      "default",
+	if req.Mode == QueryModeLookup && len(req.ExactTerms) > 0 {
+		exactFilter := buildExactTermsFilter(req.ExactTerms)
+		if exactFilter == "" {
+			return e.searchOnce(req, req.Query, baseFilter, topK)
 		}
-		searchReq.Vector = req.QueryEmbedding
-	}
-
-	// Execute search
-	resp, err := e.client.Index(e.indexName).Search(req.Query, searchReq)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	// Convert results
-	hits := make([]SearchHit, 0, len(resp.Hits))
-	for _, hit := range resp.Hits {
-		searchHit, err := parseMeiliHit(hit)
+		exactHits, err := e.searchOnce(req, "", appendFilter(baseFilter, exactFilter), topK)
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
+		if len(exactHits) >= topK || strings.TrimSpace(req.Query) == "" {
+			return exactHits, nil
+		}
 
-		hits = append(hits, searchHit)
+		fallbackHits, err := e.searchOnce(req, req.Query, baseFilter, topK)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+		return mergeHits(exactHits, fallbackHits, topK), nil
 	}
 
+	hits, err := e.searchOnce(req, req.Query, baseFilter, topK)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 	return hits, nil
 }
 
@@ -252,6 +402,179 @@ func (e *MeilisearchEngine) Health(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (e *MeilisearchEngine) searchOnce(req SearchRequest, query, filter string, limit int) ([]SearchHit, error) {
+	searchReq := &meilisearch.SearchRequest{
+		Filter:           filter,
+		Limit:            int64(limit),
+		ShowRankingScore: true,
+	}
+	if len(req.QueryEmbedding) > 0 {
+		searchReq.Hybrid = &meilisearch.SearchRequestHybrid{
+			SemanticRatio: 0.5,
+			Embedder:      "default",
+		}
+		searchReq.Vector = req.QueryEmbedding
+	}
+	resp, err := e.client.Index(e.indexName).Search(query, searchReq)
+	if err != nil {
+		return nil, err
+	}
+	hits := make([]SearchHit, 0, len(resp.Hits))
+	for _, hit := range resp.Hits {
+		searchHit, err := parseMeiliHit(hit)
+		if err != nil {
+			return nil, err
+		}
+		if query == "" && len(req.ExactTerms) > 0 {
+			searchHit.WhyMatched = "exact_terms"
+			searchHit.FinalScore += 10
+		}
+		hits = append(hits, searchHit)
+	}
+	return hits, nil
+}
+
+func buildSearchFilter(req SearchRequest) string {
+	filters := []string{
+		fmt.Sprintf(`tenant_id = "%s"`, req.TenantID.String()),
+	}
+	if len(req.PreferredDomains) > 0 {
+		domainFilters := make([]string, 0, len(req.PreferredDomains))
+		for _, domain := range req.PreferredDomains {
+			domainFilters = append(domainFilters, fmt.Sprintf(`domain = "%s"`, escapeFilterString(string(domain))))
+		}
+		filters = append(filters, "("+strings.Join(domainFilters, " OR ")+")")
+	}
+	if genericFilter := buildGenericFilterClauses(req.Filters); genericFilter != "" {
+		filters = append(filters, genericFilter)
+	}
+	if accessFilter := buildAccessFilter(req); accessFilter != "" {
+		filters = append(filters, "("+accessFilter+")")
+	}
+	return strings.Join(filters, " AND ")
+}
+
+func buildGenericFilterClauses(filters map[string]string) string {
+	if len(filters) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(filters))
+	for key, value := range filters {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		switch key {
+		case "provider", "entity_type", "domain", "language":
+			keys = append(keys, key)
+		}
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	sort.Strings(keys)
+	clauses := make([]string, 0, len(keys))
+	for _, key := range keys {
+		clauses = append(clauses, fmt.Sprintf(`%s = "%s"`, key, escapeFilterString(filters[key])))
+	}
+	return strings.Join(clauses, " AND ")
+}
+
+func buildAccessFilter(req SearchRequest) string {
+	clauses := []string{`access_visibility = "public"`}
+	if req.UserID != "" {
+		escapedUserID := escapeFilterString(req.UserID)
+		clauses = append(clauses,
+			fmt.Sprintf(`(access_visibility = "owner" AND owner_id = "%s")`, escapedUserID),
+			fmt.Sprintf(`allowed_users = "%s"`, escapedUserID),
+		)
+	}
+	for _, role := range dedupeAndSort(req.Roles) {
+		clauses = append(clauses, fmt.Sprintf(`allowed_roles = "%s"`, escapeFilterString(role)))
+	}
+	for _, permission := range dedupeAndSort(req.Permissions) {
+		clauses = append(clauses, fmt.Sprintf(`allowed_permissions = "%s"`, escapeFilterString(permission)))
+	}
+	return strings.Join(clauses, " OR ")
+}
+
+func buildExactTermsFilter(terms []string) string {
+	normalized := normalizeExactTerms(terms)
+	if len(normalized) == 0 {
+		return ""
+	}
+	clauses := make([]string, 0, len(normalized))
+	for _, term := range normalized {
+		clauses = append(clauses, fmt.Sprintf(`exact_terms = "%s"`, escapeFilterString(term)))
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")"
+}
+
+func appendFilter(base, extra string) string {
+	if base == "" {
+		return extra
+	}
+	if extra == "" {
+		return base
+	}
+	return base + " AND " + extra
+}
+
+func coalesceSearchText(doc SearchDocument) string {
+	if strings.TrimSpace(doc.SearchText) != "" {
+		return doc.SearchText
+	}
+	if strings.TrimSpace(doc.Body) != "" {
+		return doc.Body
+	}
+	return BuildSearchText(doc.Title, doc.Description)
+}
+
+func normalizeExactTerms(values []string) []string {
+	normalized := ExpandExactTerms(values...)
+	slices.Sort(normalized)
+	return slices.Compact(normalized)
+}
+
+func missingStrings(actual, required []string) []string {
+	set := make(map[string]struct{}, len(actual))
+	for _, value := range actual {
+		set[value] = struct{}{}
+	}
+	missing := make([]string, 0, len(required))
+	for _, value := range required {
+		if _, ok := set[value]; !ok {
+			missing = append(missing, value)
+		}
+	}
+	return missing
+}
+
+func mergeHits(primary, secondary []SearchHit, limit int) []SearchHit {
+	if len(primary) >= limit {
+		return primary[:limit]
+	}
+	out := make([]SearchHit, 0, min(limit, len(primary)+len(secondary)))
+	seen := make(map[string]struct{}, len(primary)+len(secondary))
+	for _, hit := range primary {
+		seen[hit.Document.ID] = struct{}{}
+		out = append(out, hit)
+	}
+	for _, hit := range secondary {
+		if _, exists := seen[hit.Document.ID]; exists {
+			continue
+		}
+		out = append(out, hit)
+		if len(out) == limit {
+			break
+		}
+	}
+	return out
+}
+
+func escapeFilterString(value string) string {
+	return strings.ReplaceAll(value, `"`, `\"`)
 }
 
 // meiliPK builds a Meilisearch-safe primary key from tenant ID and document ID.
@@ -307,6 +630,11 @@ func parseMeiliHit(hit meilisearch.Hit) (SearchHit, error) {
 		doc.EntityType = entityType
 	}
 
+	// Extract Domain
+	if domain, ok := hitMap["domain"].(string); ok {
+		doc.Domain = ResultDomain(domain)
+	}
+
 	// Extract Title
 	if title, ok := hitMap["title"].(string); ok {
 		doc.Title = title
@@ -315,6 +643,26 @@ func parseMeiliHit(hit meilisearch.Hit) (SearchHit, error) {
 	// Extract Body
 	if body, ok := hitMap["body"].(string); ok {
 		doc.Body = body
+	}
+
+	// Extract Description
+	if description, ok := hitMap["description"].(string); ok {
+		doc.Description = description
+	}
+
+	// Extract SearchText
+	if searchText, ok := hitMap["search_text"].(string); ok {
+		doc.SearchText = searchText
+	}
+
+	// Extract ExactTerms
+	if exactTerms, ok := hitMap["exact_terms"].([]interface{}); ok {
+		doc.ExactTerms = make([]string, 0, len(exactTerms))
+		for _, raw := range exactTerms {
+			if term, ok := raw.(string); ok {
+				doc.ExactTerms = append(doc.ExactTerms, term)
+			}
+		}
 	}
 
 	// Extract URL

@@ -923,6 +923,56 @@
   "Spotlight": {
     "Placeholder": "Qidirish...",
     "NothingFound": "Hech narsa topilmadi",
+    "NothingFoundBody": "Бошқа сўз билан қидиринг ёки ёзилишини текширинг.",
+    "Match": {
+      "Exact": "Аниқ мослик",
+      "Best": "Энг яхши мослик"
+    },
+    "Hint": {
+      "Navigate": "↑ ↓ танлаш",
+      "Open": "Enter очиш",
+      "Close": "Esc ёпиш"
+    },
+    "Empty": {
+      "Title": "Бутун иш майдонини битта ойнадан қидиринг",
+      "_Description": "Ёзувлар, саҳифалар, одамлар ва буйруқларни битта оқимда топинг.",
+      "Body": "Исм, email, рақам, саҳифа номи ёки буйруқ билан қидириб кўринг.",
+      "Footer": "Исталган ипдан бошланг. Энг мос натижалар аввал кўринади, қолганлари қидирув давомида юкланади.",
+      "Example": {
+        "Name": {
+          "Label": "Исм",
+          "Value": "Али Валиев"
+        },
+        "Email": {
+          "Label": "Email",
+          "Value": "mail@example.com"
+        },
+        "Identifier": {
+          "Label": "Рақам",
+          "Value": "INV-1024"
+        },
+        "Page": {
+          "Label": "Саҳифа",
+          "Value": "созламалар"
+        },
+        "Command": {
+          "Label": "Буйруқ",
+          "Value": "фойдаланувчи яратиш"
+        }
+      }
+    },
+    "Badge": {
+      "Exact": "Аниқ",
+      "Action": "Ҳаракат",
+      "Navigate": "Навигация",
+      "Policy": "Полис",
+      "Vehicle": "Транспорт",
+      "Claim": "Мурожаат",
+      "Chat": "Чат",
+      "Organization": "Ташкилот",
+      "Staff": "Ходим",
+      "Person": "Шахс"
+    },
     "Summary": {
       "Default": "So'rovingiz uchun eng mos natijalar topildi",
       "Help": "Bu yerda eng mos sahifalar va bilim bazasi yozuvlari keltirilgan"
@@ -933,10 +983,13 @@
       "AddAccount": "Hisob qo'shish"
     },
     "Group": {
-      "Navigate": "Navigatsiya",
-      "Data": "Ma'lumotlar",
-      "Knowledge": "Ma'lumot",
-      "_Other": "Boshqa"
+      "Navigate": "Навигация",
+      "Actions": "Ҳаракатлар",
+      "Data": "Маълумотлар",
+      "Knowledge": "Маълумот",
+      "People": "Одамлар",
+      "Staff": "Ходимлар",
+      "_Other": "Бошқа"
     }
   },
   "Unknown": "Noma'lum",

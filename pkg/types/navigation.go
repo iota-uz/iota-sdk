@@ -11,6 +11,7 @@ type NavigationItem struct {
 	Name        string
 	Href        string
 	Children    []NavigationItem
+	Keywords    []string
 	Icon        templ.Component
 	Permissions []permission.Permission
 	IsBeta      bool

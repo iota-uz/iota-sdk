@@ -30,7 +30,6 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 		return providers[i].ProviderID() < providers[j].ProviderID()
 	})
 
-	all := make([]SearchDocument, 0, 256)
 	for _, provider := range providers {
 		enabled, ok := scope.EnabledProviders[provider.ProviderID()]
 		if ok && !enabled {
@@ -52,16 +51,15 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 				docs[i].UpdatedAt = time.Now().UTC()
 			}
 		}
-		all = append(all, docs...)
-	}
 
-	for start := 0; start < len(all); start += pipelineUpsertBatchSize {
-		end := start + pipelineUpsertBatchSize
-		if end > len(all) {
-			end = len(all)
-		}
-		if err := p.engine.Upsert(ctx, all[start:end]); err != nil {
-			return serrors.E(op, fmt.Sprintf("upsert batch [%d:%d] failed", start, end), err)
+		for start := 0; start < len(docs); start += pipelineUpsertBatchSize {
+			end := start + pipelineUpsertBatchSize
+			if end > len(docs) {
+				end = len(docs)
+			}
+			if err := p.engine.Upsert(ctx, docs[start:end]); err != nil {
+				return serrors.E(op, fmt.Sprintf("provider %s upsert batch [%d:%d] failed", provider.ProviderID(), start, end), err)
+			}
 		}
 	}
 	return nil

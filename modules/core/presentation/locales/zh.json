@@ -927,6 +927,56 @@
   "Spotlight": {
     "Placeholder": "搜索...",
     "NothingFound": "未找到任何内容",
+    "NothingFoundBody": "请尝试其他搜索词或检查拼写。",
+    "Match": {
+      "Exact": "精确匹配",
+      "Best": "最佳匹配"
+    },
+    "Hint": {
+      "Navigate": "↑ ↓ 导航",
+      "Open": "Enter 打开",
+      "Close": "Esc 关闭"
+    },
+    "Empty": {
+      "Title": "在一个面板中搜索整个工作区",
+      "_Description": "在同一个流程中查找记录、页面、人员和命令。",
+      "Body": "可以尝试姓名、邮箱、编号、页面名称或命令。",
+      "Footer": "从你手头的任何线索开始。最佳匹配会先出现，更多结果会继续流式加载。",
+      "Example": {
+        "Name": {
+          "Label": "姓名",
+          "Value": "张三"
+        },
+        "Email": {
+          "Label": "邮箱",
+          "Value": "mail@example.com"
+        },
+        "Identifier": {
+          "Label": "编号",
+          "Value": "INV-1024"
+        },
+        "Page": {
+          "Label": "页面",
+          "Value": "设置"
+        },
+        "Command": {
+          "Label": "命令",
+          "Value": "创建用户"
+        }
+      }
+    },
+    "Badge": {
+      "Exact": "精确",
+      "Action": "操作",
+      "Navigate": "导航",
+      "Policy": "保单",
+      "Vehicle": "车辆",
+      "Claim": "理赔",
+      "Chat": "聊天",
+      "Organization": "组织",
+      "Staff": "员工",
+      "Person": "人员"
+    },
     "Summary": {
       "Default": "已为您的请求找到最佳匹配结果",
       "Help": "以下是最匹配的页面和知识条目"
@@ -938,8 +988,11 @@
     },
     "Group": {
       "Navigate": "导航",
+      "Actions": "操作",
       "Data": "数据",
       "Knowledge": "知识",
+      "People": "人员",
+      "Staff": "员工",
       "_Other": "其他"
     }
   },

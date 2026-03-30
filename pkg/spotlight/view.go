@@ -1,24 +1,73 @@
-// Package spotlight provides this package.
+// Package spotlight provides the view-model mapping helpers used to turn
+// Spotlight search responses into grouped UI results.
 package spotlight
 
 func ToViewResponse(resp SearchResponse) ViewResponse {
-	groups := make([]ViewGroup, 0, 4)
-	if len(resp.Navigate) > 0 {
-		groups = append(groups, ViewGroup{Key: "navigate", Title: "Spotlight.Group.Navigate", Hits: resp.Navigate})
-	}
-	if len(resp.Data) > 0 {
-		groups = append(groups, ViewGroup{Key: "data", Title: "Spotlight.Group.Data", Hits: resp.Data})
-	}
-	if len(resp.Knowledge) > 0 {
-		groups = append(groups, ViewGroup{Key: "knowledge", Title: "Spotlight.Group.Knowledge", Hits: resp.Knowledge})
-	}
-	if len(resp.Other) > 0 {
-		groups = append(groups, ViewGroup{Key: "other", Title: "Spotlight.Group._Other", Hits: resp.Other})
+	groupOrder := make([]string, 0, max(4, len(resp.Groups)))
+	groups := make(map[string]*ViewGroup, max(4, len(resp.Groups)))
+	appendHit := func(hit SearchHit) {
+		key, title, titleKey := viewGroupMeta(hit)
+		group, ok := groups[key]
+		if !ok {
+			group = &ViewGroup{Key: key, Title: title, TitleKey: titleKey, Hits: make([]SearchHit, 0, 8)}
+			groups[key] = group
+			groupOrder = append(groupOrder, key)
+		}
+		group.Hits = append(group.Hits, hit)
 	}
 
-	view := ViewResponse{Groups: groups}
+	if len(resp.Groups) > 0 {
+		for _, group := range resp.Groups {
+			for _, hit := range group.Hits {
+				appendHit(hit)
+			}
+		}
+	} else {
+		for _, hit := range resp.Navigate {
+			appendHit(hit)
+		}
+		for _, hit := range resp.Data {
+			appendHit(hit)
+		}
+		for _, hit := range resp.Knowledge {
+			appendHit(hit)
+		}
+		for _, hit := range resp.Other {
+			appendHit(hit)
+		}
+	}
+
+	view := ViewResponse{Groups: make([]ViewGroup, 0, len(groupOrder))}
+	for _, key := range groupOrder {
+		view.Groups = append(view.Groups, *groups[key])
+	}
 	if resp.Agent != nil {
 		view.Agent = &ViewAgent{Summary: resp.Agent.Summary, Actions: resp.Agent.Actions}
 	}
 	return view
+}
+
+func viewGroupMeta(hit SearchHit) (string, string, string) {
+	if key := hit.Document.Metadata["group_key"]; key != "" {
+		if title := hit.Document.Metadata["group_title"]; title != "" {
+			return key, title, ""
+		}
+		if titleKey := hit.Document.Metadata["group_title_key"]; titleKey != "" {
+			return key, "", titleKey
+		}
+	}
+	domain := normalizeDomain(hit.Document.Domain, hit.Document.EntityType)
+	switch domain {
+	case ResultDomainNavigate:
+		return "navigate", "", "Spotlight.Group.Navigate"
+	case ResultDomainKnowledge:
+		return "knowledge", "", "Spotlight.Group.Knowledge"
+	case ResultDomainAction:
+		return "actions", "", "Spotlight.Group.Actions"
+	case ResultDomainLookup:
+		return "data", "", "Spotlight.Group.Data"
+	case ResultDomainOther:
+		return "other", "", "Spotlight.Group._Other"
+	}
+	return "other", "", "Spotlight.Group._Other"
 }

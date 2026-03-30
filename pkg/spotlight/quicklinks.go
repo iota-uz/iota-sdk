@@ -1,4 +1,5 @@
-// Package spotlight provides this package.
+// Package spotlight provides quick-link indexing and keyword helpers for the
+// Spotlight search experience.
 package spotlight
 
 import (
@@ -109,6 +110,7 @@ func (b *QuickLinkBuilder) Build() *QuickLink {
 type QuickLinks struct {
 	mu        sync.RWMutex
 	items     []*QuickLink
+	index     map[string]int
 	bundle    *i18n.Bundle
 	languages []string
 }
@@ -116,6 +118,7 @@ type QuickLinks struct {
 func NewQuickLinks(bundle *i18n.Bundle, languages []string) *QuickLinks {
 	return &QuickLinks{
 		items:     make([]*QuickLink, 0, 16),
+		index:     make(map[string]int, 16),
 		bundle:    bundle,
 		languages: languages,
 	}
@@ -124,7 +127,18 @@ func NewQuickLinks(bundle *i18n.Bundle, languages []string) *QuickLinks {
 func (ql *QuickLinks) Add(links ...*QuickLink) {
 	ql.mu.Lock()
 	defer ql.mu.Unlock()
-	ql.items = append(ql.items, links...)
+	for _, link := range links {
+		if link == nil {
+			continue
+		}
+		key := quickLinkKey(link)
+		if idx, exists := ql.index[key]; exists {
+			ql.items[idx] = mergeQuickLinks(ql.items[idx], link)
+			continue
+		}
+		ql.index[key] = len(ql.items)
+		ql.items = append(ql.items, link)
+	}
 }
 
 func (ql *QuickLinks) ProviderID() string {
@@ -191,14 +205,18 @@ func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]S
 		}
 
 		out = append(out, SearchDocument{
-			ID:         providerID + ":" + item.trKey + ":" + item.link,
-			TenantID:   scope.TenantID,
-			Provider:   providerID,
-			EntityType: "quick_link",
-			Title:      title,
-			Body:       body,
-			URL:        item.link,
-			Language:   scope.Language,
+			ID:          providerID + ":" + item.trKey + ":" + item.link,
+			TenantID:    scope.TenantID,
+			Provider:    providerID,
+			EntityType:  "quick_link",
+			Domain:      ResultDomainNavigate,
+			Title:       title,
+			Description: title,
+			Body:        body,
+			SearchText:  body,
+			ExactTerms:  ExpandExactTerms(append([]string{title, item.link}, item.keywords...)...),
+			URL:         item.link,
+			Language:    scope.Language,
 			Metadata: map[string]string{
 				"tr_key": item.trKey,
 				"source": "quick_links",
@@ -214,4 +232,89 @@ func (ql *QuickLinks) Watch(_ context.Context, _ ProviderScope) (<-chan Document
 	changes := make(chan DocumentEvent)
 	close(changes)
 	return changes, nil
+}
+
+func quickLinkKey(link *QuickLink) string {
+	return link.trKey + "::" + link.link
+}
+
+func mergeQuickLinks(base, incoming *QuickLink) *QuickLink {
+	if base == nil {
+		return incoming
+	}
+	if incoming == nil {
+		return base
+	}
+	merged := *base
+	if incoming.trKey != "" {
+		merged.trKey = incoming.trKey
+	}
+	if incoming.link != "" {
+		merged.link = incoming.link
+	}
+	merged.access = mergeAccessPolicy(base.access, incoming.access)
+	merged.keywords = mergeUniqueStrings(base.keywords, incoming.keywords)
+	if incoming.createdAt.After(base.createdAt) {
+		merged.createdAt = incoming.createdAt
+	}
+	return &merged
+}
+
+func mergeAccessPolicy(base, incoming AccessPolicy) AccessPolicy {
+	if incoming.Visibility == "" {
+		return base
+	}
+	base.Visibility = moreRestrictiveVisibility(base.Visibility, incoming.Visibility)
+	if incoming.OwnerID != "" {
+		base.OwnerID = incoming.OwnerID
+	}
+	base.AllowedUsers = mergeUniqueStrings(base.AllowedUsers, incoming.AllowedUsers)
+	base.AllowedRoles = mergeUniqueStrings(base.AllowedRoles, incoming.AllowedRoles)
+	base.AllowedPermissions = mergeUniqueStrings(base.AllowedPermissions, incoming.AllowedPermissions)
+	return base
+}
+
+func mergeUniqueStrings(left, right []string) []string {
+	if len(left) == 0 && len(right) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(left)+len(right))
+	merged := make([]string, 0, len(left)+len(right))
+	for _, values := range [][]string{left, right} {
+		for _, value := range values {
+			trimmed := strings.TrimSpace(value)
+			if trimmed == "" {
+				continue
+			}
+			if _, exists := seen[trimmed]; exists {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			merged = append(merged, trimmed)
+		}
+	}
+	return merged
+}
+
+func moreRestrictiveVisibility(left, right Visibility) Visibility {
+	if visibilityRank(right) > visibilityRank(left) {
+		return right
+	}
+	if left == "" {
+		return right
+	}
+	return left
+}
+
+func visibilityRank(value Visibility) int {
+	switch value {
+	case VisibilityOwner:
+		return 3
+	case VisibilityRestricted:
+		return 2
+	case VisibilityPublic:
+		return 1
+	default:
+		return 0
+	}
 }

@@ -33,6 +33,7 @@ func (r *DefaultRanker) Rank(_ context.Context, req SearchRequest, hits []Search
 			scored.FinalScore = scored.LexicalScore*DefaultLexicalWeight + scored.VectorScore*DefaultVectorWeight
 		}
 		scored.FinalScore += titleMatchBonus(req.Query, scored.Document.Title)
+		scored.FinalScore += entityTypeBonus(req, scored)
 		out = append(out, scored)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -59,4 +60,23 @@ func titleMatchBonus(query, title string) float64 {
 		return 0.02 * float64(len(q)) / float64(len(t))
 	}
 	return 0
+}
+
+func entityTypeBonus(req SearchRequest, hit SearchHit) float64 {
+	if req.Mode != QueryModeLookup || hit.WhyMatched != "exact_terms" {
+		return 0
+	}
+
+	switch strings.ToLower(strings.TrimSpace(hit.Document.EntityType)) {
+	case "policy":
+		return 0.08
+	case "vehicle":
+		return 0.06
+	case "claim":
+		return 0.04
+	case "organization":
+		return 0.02
+	default:
+		return 0
+	}
 }
