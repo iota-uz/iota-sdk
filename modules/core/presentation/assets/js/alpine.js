@@ -415,6 +415,7 @@ let spotlight = () => ({
   query: '',
   searchId: '',
   pendingCount: 0,
+  stages: [],
   eventSource: null,
   debounceTimer: null,
   requestSeq: 0,
@@ -571,6 +572,7 @@ let spotlight = () => ({
 
   updatePayload(payload) {
     this.pendingCount = Number(payload.pending || 0);
+    this.stages = payload.stages || [];
     this.setResultsHTML(payload.html || '');
     this.isLoading = Boolean(payload.loading) && !payload.complete;
   },
@@ -665,7 +667,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'instant'});
+        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
       }
     });
   },
@@ -678,7 +680,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'instant'});
+        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
       }
     });
   },

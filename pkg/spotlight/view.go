@@ -1,4 +1,5 @@
-// Package spotlight provides this package.
+// Package spotlight provides the view-model mapping helpers used to turn
+// Spotlight search responses into grouped UI results.
 package spotlight
 
 func ToViewResponse(resp SearchResponse) ViewResponse {
@@ -65,7 +66,8 @@ func viewGroupMeta(hit SearchHit) (string, string, string) {
 		return "actions", "", "Spotlight.Group.Actions"
 	case ResultDomainLookup:
 		return "data", "", "Spotlight.Group.Data"
-	default:
+	case ResultDomainOther:
 		return "other", "", "Spotlight.Group._Other"
 	}
+	return "other", "", "Spotlight.Group._Other"
 }

@@ -46,7 +46,7 @@ func (g *DefaultGrouper) Group(_ context.Context, _ SearchRequest, hits []Search
 			resp.Knowledge = append(resp.Knowledge, hit)
 		case ResultDomainLookup, ResultDomainAction:
 			resp.Data = append(resp.Data, hit)
-		default:
+		case ResultDomainOther:
 			logrus.WithFields(logrus.Fields{
 				"entity_type": hit.Document.EntityType,
 				"document_id": hit.Document.ID,
@@ -104,7 +104,8 @@ func groupTitle(domain ResultDomain) string {
 		return "Spotlight.Group.Knowledge"
 	case ResultDomainAction:
 		return "Spotlight.Group.Actions"
-	default:
+	case ResultDomainOther:
 		return "Spotlight.Group._Other"
 	}
+	return "Spotlight.Group._Other"
 }

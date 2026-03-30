@@ -1,4 +1,5 @@
-// Package spotlight provides this package.
+// Package spotlight provides query planning and text normalization helpers for
+// Spotlight search, including lookup detection and exact-term expansion.
 package spotlight
 
 import (

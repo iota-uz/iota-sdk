@@ -1,4 +1,5 @@
-// Package spotlight provides this package.
+// Package spotlight defines the document, request, response, and session types
+// shared across Spotlight indexing and search flows.
 package spotlight
 
 import (

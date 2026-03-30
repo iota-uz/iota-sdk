@@ -63,13 +63,15 @@ func (c *SpotlightController) Search(w http.ResponseWriter, r *http.Request) {
 
 	q := r.URL.Query().Get("q")
 	if q == "" {
-		_ = json.NewEncoder(w).Encode(spotlightSearchPayload{
+		if err := json.NewEncoder(w).Encode(spotlightSearchPayload{
 			SearchID: "",
 			HTML:     "",
 			Loading:  false,
 			Complete: true,
 			Pending:  0,
-		})
+		}); err != nil {
+			composables.UseLogger(r.Context()).WithError(err).Warn("spotlight empty search payload encode failed")
+		}
 		return
 	}
 
@@ -86,7 +88,9 @@ func (c *SpotlightController) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = json.NewEncoder(w).Encode(c.snapshotPayload(r, snapshot))
+	if err := json.NewEncoder(w).Encode(c.snapshotPayload(r, snapshot)); err != nil {
+		composables.UseLogger(r.Context()).WithError(err).WithField("query", q).Warn("spotlight search payload encode failed")
+	}
 }
 
 func (c *SpotlightController) Stream(w http.ResponseWriter, r *http.Request) {

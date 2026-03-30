@@ -146,7 +146,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Title"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 129, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 128, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -159,7 +159,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Body"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 132, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 131, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -172,7 +172,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Name.Value"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 140, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 139, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -185,7 +185,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Name.Label"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 142, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 141, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -198,7 +198,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Email.Value"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 146, Col: 76}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 145, Col: 76}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -211,7 +211,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Email.Label"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 148, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 147, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -224,7 +224,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Identifier.Value"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 152, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 151, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -237,7 +237,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Identifier.Label"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 154, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 153, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -250,7 +250,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Page.Value"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 158, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 157, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -263,7 +263,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Page.Label"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 160, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 159, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -276,7 +276,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Command.Value"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 164, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 163, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -289,7 +289,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Example.Command.Label"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 166, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 165, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -312,7 +312,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Footer"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 192, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 189, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -325,7 +325,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Hint.Navigate"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 200, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 197, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -338,7 +338,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Hint.Open"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 201, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 198, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -351,7 +351,7 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Hint.Close"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 202, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 199, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -411,7 +411,7 @@ func ResultBadgeItem(badge ResultBadge) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(badge.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 211, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 208, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -462,7 +462,7 @@ func LinkItem(props LinkItemProps) templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(props.Key)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 218, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 215, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 		if templ_7745c5c3_Err != nil {
@@ -493,7 +493,7 @@ func LinkItem(props LinkItemProps) templ.Component {
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 228, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 225, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -511,7 +511,7 @@ func LinkItem(props LinkItemProps) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(props.Subtitle)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 230, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 227, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -530,7 +530,7 @@ func LinkItem(props LinkItemProps) templ.Component {
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(props.Meta)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 233, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 230, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -598,7 +598,7 @@ func SpotlightItem(i int) templ.Component {
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{'!border-primary-300/40 !bg-primary-500/12 shadow-sm [&_.text-300]:!text-white/75 [&_.border-secondary]:!border-primary-300/20 [&_.bg-surface-400]:!bg-primary-500/20 [&_.text-100]:!text-white': highlightedIndex === %d }", i))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 253, Col: 249}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 250, Col: 249}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -657,7 +657,7 @@ func NotFound() templ.Component {
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.NothingFound"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 267, Col: 89}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 264, Col: 89}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
@@ -670,7 +670,7 @@ func NotFound() templ.Component {
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.NothingFoundBody"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 268, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 265, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {
@@ -794,7 +794,7 @@ func SpotlightGroup(title string) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 292, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 289, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 		if templ_7745c5c3_Err != nil {
@@ -848,7 +848,7 @@ func AIAnswer(summary string, actions []templ.Component) templ.Component {
 		var templ_7745c5c3_Var41 string
 		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(summary)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 303, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 300, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 		if templ_7745c5c3_Err != nil {

@@ -1,4 +1,5 @@
-// Package spotlight provides this package.
+// Package spotlight manages multi-stage Spotlight search sessions, including
+// lifecycle management, snapshots, and subscriber updates.
 package spotlight
 
 import (
@@ -185,10 +186,9 @@ func (s *SpotlightService) CreateSession(ctx context.Context, req SearchRequest)
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		deleteTimer := time.AfterFunc(defaultSessionTTL, func() {
+		time.AfterFunc(defaultSessionTTL, func() {
 			s.deleteSession(sessionID)
 		})
-		defer deleteTimer.Stop()
 		s.runSearchSession(sessionCtx, session, req)
 	}()
 
@@ -380,9 +380,8 @@ func (s *SpotlightService) executeExpandStage(ctx context.Context, session *sear
 	semaphore := make(chan struct{}, defaultExpandConcurrency)
 
 	for _, provider := range providers {
-		provider := provider
 		wg.Add(1)
-		go func() {
+		go func(provider SearchProvider) {
 			defer wg.Done()
 			select {
 			case semaphore <- struct{}{}:
@@ -414,7 +413,7 @@ func (s *SpotlightService) executeExpandStage(ctx context.Context, session *sear
 					stageState.Error = fmt.Sprintf("%s: %v", provider.ProviderID(), err)
 				}
 			})
-		}()
+		}(provider)
 	}
 	wg.Wait()
 
@@ -499,10 +498,11 @@ func sessionFastRequest(req SearchRequest) SearchRequest {
 		fast.Mode = QueryModeLookup
 	case QueryModeNavigate:
 		fast.Mode = QueryModeNavigate
-	default:
+	case QueryModeExplore, QueryModeHelp:
 		if len(req.ExactTerms) > 0 {
 			fast.Mode = QueryModeLookup
 		}
+	default:
 	}
 	return fast
 }
@@ -535,9 +535,10 @@ func stageTimeoutFor(stage SearchStage) time.Duration {
 		return defaultFastStageTimeout
 	case SearchStageIndexed:
 		return defaultIndexedStageTime
-	default:
+	case SearchStageExpand:
 		return defaultExpandStageTime
 	}
+	return defaultExpandStageTime
 }
 
 func stageRef(snapshot *SearchSessionSnapshot, stage SearchStage) *SearchStageState {
@@ -564,6 +565,8 @@ func allStagesTerminal(stages []SearchStageState) bool {
 	for _, stage := range stages {
 		switch stage.Status {
 		case SearchStageStatusCompleted, SearchStageStatusFailed, SearchStageStatusSkipped:
+		case SearchStageStatusPending, SearchStageStatusRunning:
+			return false
 		default:
 			return false
 		}

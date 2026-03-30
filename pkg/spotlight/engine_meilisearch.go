@@ -1,4 +1,5 @@
-// Package spotlight provides this package.
+// Package spotlight provides the Meilisearch-backed index engine used by
+// Spotlight search and indexing flows.
 package spotlight
 
 import (
