@@ -13,6 +13,7 @@ import (
 type ProviderCapabilities struct {
 	SupportsWatch bool
 	EntityTypes   []string
+	IndexPriority int
 }
 
 const ProviderStreamBatchSize = 500
@@ -85,14 +86,19 @@ func (r *ProviderRegistry) Get(id string) (SearchProvider, bool) {
 func (r *ProviderRegistry) All() []SearchProvider {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	ids := make([]string, 0, len(r.providers))
-	for id := range r.providers {
-		ids = append(ids, id)
+	out := make([]SearchProvider, 0, len(r.providers))
+	for _, provider := range r.providers {
+		out = append(out, provider)
 	}
-	sort.Strings(ids)
-	out := make([]SearchProvider, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, r.providers[id])
-	}
+	sort.SliceStable(out, func(i, j int) bool {
+		left := out[i]
+		right := out[j]
+		leftPriority := left.Capabilities().IndexPriority
+		rightPriority := right.Capabilities().IndexPriority
+		if leftPriority != rightPriority {
+			return leftPriority > rightPriority
+		}
+		return left.ProviderID() < right.ProviderID()
+	})
 	return out
 }

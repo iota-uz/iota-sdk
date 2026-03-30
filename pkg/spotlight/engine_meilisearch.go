@@ -33,6 +33,14 @@ type MeilisearchEngine struct {
 	writeReady  atomic.Bool
 }
 
+type meiliSearchIndexState struct {
+	exists         bool
+	documents      int64
+	fieldsReady    bool
+	schemaVersion  string
+	searchableName string
+}
+
 // NewMeilisearchEngine creates a new Meilisearch-based IndexEngine.
 func NewMeilisearchEngine(url, apiKey string) *MeilisearchEngine {
 	return &MeilisearchEngine{
@@ -69,16 +77,16 @@ func (e *MeilisearchEngine) setupForSearch() error {
 	if e.searchReady.Load() {
 		return nil
 	}
-	created, err := e.ensureIndexExists()
+	indexName, created, err := e.ensureSearchIndex()
 	if err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
 	if created {
-		if err := e.configureIndex(); err != nil {
+		if err := e.configureIndex(indexName); err != nil {
 			return err
 		}
 		e.writeReady.Store(true)
-	} else if err := e.validateSearchSettings(); err != nil {
+	} else if err := e.validateSearchSettings(indexName); err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
 	e.searchReady.Store(true)
@@ -86,21 +94,33 @@ func (e *MeilisearchEngine) setupForSearch() error {
 }
 
 func (e *MeilisearchEngine) ensureIndexConfigured() error {
-	if _, err := e.ensureIndexExists(); err != nil {
+	if _, err := e.ensureIndexExists(e.indexName); err != nil {
 		return err
 	}
-	return e.configureIndex()
+	return e.configureIndex(e.indexName)
 }
 
-func (e *MeilisearchEngine) ensureIndexExists() (bool, error) {
+func (e *MeilisearchEngine) ensureSearchIndex() (string, bool, error) {
+	indexName, err := e.resolveSearchIndexName()
+	if err != nil {
+		return "", false, err
+	}
+	if indexName != e.indexName {
+		return indexName, false, nil
+	}
+	created, err := e.ensureIndexExists(indexName)
+	return indexName, created, err
+}
+
+func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 	const op serrors.Op = "spotlight.MeilisearchEngine.ensureIndexExists"
 
-	if _, err := e.client.GetIndex(e.indexName); err != nil {
+	if _, err := e.client.GetIndex(indexName); err != nil {
 		if !isMeiliNotFound(err) {
 			return false, serrors.E(op, err)
 		}
 		taskInfo, err := e.client.CreateIndex(&meilisearch.IndexConfig{
-			Uid:        e.indexName,
+			Uid:        indexName,
 			PrimaryKey: "pk",
 		})
 		if err != nil {
@@ -119,10 +139,10 @@ func (e *MeilisearchEngine) ensureIndexExists() (bool, error) {
 	return false, nil
 }
 
-func (e *MeilisearchEngine) configureIndex() error {
+func (e *MeilisearchEngine) configureIndex(indexName string) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.configureIndex"
 
-	index := e.client.Index(e.indexName)
+	index := e.client.Index(indexName)
 
 	filterableAttrs := []interface{}{
 		"tenant_id",
@@ -166,10 +186,10 @@ func (e *MeilisearchEngine) configureIndex() error {
 	return nil
 }
 
-func (e *MeilisearchEngine) validateSearchSettings() error {
+func (e *MeilisearchEngine) validateSearchSettings(indexName string) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.validateSearchSettings"
 
-	index := e.client.Index(e.indexName)
+	index := e.client.Index(indexName)
 	settings, err := index.GetSettings()
 	if err != nil {
 		return serrors.E(op, err)
@@ -186,6 +206,92 @@ func (e *MeilisearchEngine) validateSearchSettings() error {
 	}
 
 	return nil
+}
+
+func (e *MeilisearchEngine) resolveSearchIndexName() (string, error) {
+	if e.indexName != e.activeName {
+		return e.indexName, nil
+	}
+
+	activeState, err := e.inspectSearchIndex(e.activeName)
+	if err != nil {
+		return "", err
+	}
+	if activeState.searchable() {
+		return e.activeName, nil
+	}
+
+	buildIndexName := rebuildIndexName(e.activeName)
+	buildState, err := e.inspectSearchIndex(buildIndexName)
+	if err != nil {
+		return "", err
+	}
+	if buildState.currentSchemaReady() {
+		return buildIndexName, nil
+	}
+
+	return e.activeName, nil
+}
+
+func (e *MeilisearchEngine) inspectSearchIndex(indexName string) (meiliSearchIndexState, error) {
+	stats, err := e.client.Index(indexName).GetStats()
+	if err != nil {
+		if isMeiliNotFound(err) {
+			return meiliSearchIndexState{}, nil
+		}
+		return meiliSearchIndexState{}, err
+	}
+	state := meiliSearchIndexState{
+		exists:         true,
+		searchableName: indexName,
+	}
+	if stats == nil {
+		return state, nil
+	}
+	state.documents = stats.NumberOfDocuments
+	state.fieldsReady = spotlightIndexFieldsReady(stats.FieldDistribution)
+	if state.documents == 0 || !state.fieldsReady {
+		return state, nil
+	}
+
+	schemaVersion, err := e.indexSchemaVersion(indexName)
+	if err != nil {
+		return meiliSearchIndexState{}, err
+	}
+	state.schemaVersion = schemaVersion
+	return state, nil
+}
+
+func (e *MeilisearchEngine) indexSchemaVersion(indexName string) (string, error) {
+	resp, err := e.client.Index(indexName).Search("", &meilisearch.SearchRequest{
+		Limit:                1,
+		AttributesToRetrieve: []string{"schema_version"},
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Hits) == 0 {
+		return "", nil
+	}
+	var hit struct {
+		SchemaVersion string `json:"schema_version"`
+	}
+	payload, err := json.Marshal(resp.Hits[0])
+	if err != nil {
+		return "", err
+	}
+	if err := json.Unmarshal(payload, &hit); err != nil {
+		return "", err
+	}
+	return hit.SchemaVersion, nil
+}
+
+func (s meiliSearchIndexState) searchable() bool {
+	return s.exists && s.documents > 0 && s.fieldsReady
+}
+
+func (s meiliSearchIndexState) currentSchemaReady() bool {
+	return s.searchable() && s.schemaVersion == IndexSchemaVersion
 }
 
 func requiredFilterableAttributes() []string {
@@ -501,6 +607,10 @@ func (e *MeilisearchEngine) Health(ctx context.Context) error {
 }
 
 func (e *MeilisearchEngine) searchOnce(req SearchRequest, query, filter string, limit int) ([]SearchHit, error) {
+	indexName, err := e.resolveSearchIndexName()
+	if err != nil {
+		return nil, err
+	}
 	searchReq := &meilisearch.SearchRequest{
 		Filter:           filter,
 		Limit:            int64(limit),
@@ -513,7 +623,7 @@ func (e *MeilisearchEngine) searchOnce(req SearchRequest, query, filter string, 
 		}
 		searchReq.Vector = req.QueryEmbedding
 	}
-	resp, err := e.client.Index(e.indexName).Search(query, searchReq)
+	resp, err := e.client.Index(indexName).Search(query, searchReq)
 	if err != nil {
 		return nil, err
 	}
@@ -530,6 +640,30 @@ func (e *MeilisearchEngine) searchOnce(req SearchRequest, query, filter string, 
 		hits = append(hits, searchHit)
 	}
 	return hits, nil
+}
+
+func spotlightIndexFieldsReady(fieldDistribution map[string]int64) bool {
+	if len(fieldDistribution) == 0 {
+		return false
+	}
+	requiredFields := []string{
+		"domain",
+		"description",
+		"search_text",
+		"exact_terms",
+		"schema_version",
+		"access_visibility",
+		"owner_id",
+		"allowed_users",
+		"allowed_roles",
+		"allowed_permissions",
+	}
+	for _, field := range requiredFields {
+		if _, ok := fieldDistribution[field]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func buildSearchFilter(req SearchRequest) string {

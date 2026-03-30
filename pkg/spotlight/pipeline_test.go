@@ -10,8 +10,9 @@ import (
 )
 
 type pipelineTestProvider struct {
-	id   string
-	docs []SearchDocument
+	id       string
+	priority int
+	docs     []SearchDocument
 }
 
 func (p *pipelineTestProvider) ProviderID() string {
@@ -19,7 +20,7 @@ func (p *pipelineTestProvider) ProviderID() string {
 }
 
 func (p *pipelineTestProvider) Capabilities() ProviderCapabilities {
-	return ProviderCapabilities{}
+	return ProviderCapabilities{IndexPriority: p.priority}
 }
 
 func (p *pipelineTestProvider) StreamDocuments(_ context.Context, _ ProviderScope, emit DocumentBatchEmitter) error {
@@ -162,4 +163,24 @@ func TestIndexerPipelineSync_StreamingProviderUpsertsIncrementally(t *testing.T)
 			require.False(t, doc.UpdatedAt.IsZero())
 		}
 	}
+}
+
+func TestIndexerPipelineSync_UsesRegistryPriorityOrder(t *testing.T) {
+	registry := NewProviderRegistry()
+	tenantID := uuid.New()
+
+	registry.Register(&pipelineTestProvider{id: "provider.high", priority: 200, docs: []SearchDocument{{ID: "high-1"}}})
+	registry.Register(&pipelineTestProvider{id: "provider.mid", priority: 100, docs: []SearchDocument{{ID: "mid-1"}}})
+	registry.Register(&pipelineTestProvider{id: "provider.low", priority: 10, docs: []SearchDocument{{ID: "low-1"}}})
+
+	engine := &pipelineTestEngine{}
+	pipeline := NewIndexerPipeline(registry, engine)
+
+	err := pipeline.Sync(context.Background(), tenantID, "en", "", 10, ScopeConfig{})
+	require.NoError(t, err)
+
+	require.Len(t, engine.batches, 3)
+	require.Equal(t, "provider.high", engine.batches[0][0].Provider)
+	require.Equal(t, "provider.mid", engine.batches[1][0].Provider)
+	require.Equal(t, "provider.low", engine.batches[2][0].Provider)
 }

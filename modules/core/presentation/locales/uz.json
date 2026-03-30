@@ -986,19 +986,47 @@
       "Staff": "Xodimlar",
       "_Other": "Boshqa"
     },
+    "ConfirmOpenResult": "Ushbu natijani ochish?",
+    "Status": {
+      "SearchingMore": "Qidiruv davom etmoqda",
+      "FindingMatches": "Mosliklar qidirilmoqda",
+      "SearchComplete": "Qidiruv yakunlandi"
+    },
     "AI": {
       "Button": "AI bilan qidirish",
       "Title": "AI Spotlight qidiruvi",
       "Back": "Natijalarga qaytish",
       "ModeTitle": "So‘rovni AI yordamida tekshirish",
-      "ModeBody": "AI Spotlight indeksidan qidirishi, jonli baza sxemasini ko‘rishi, read-only SQL bajarishi va tekshirilgan ilova havolalarini qurishi mumkin.",
+      "ModeBody": "AI Spotlight indeksidan qidirishi, tizimdagi ma’lumotlarni tekshirishi va ilova ichida tasdiqlangan havolalarni tayyorlashi mumkin.",
       "Searching": "Qidirilmoqda",
       "Candidates": "Ehtimoliy mosliklar",
       "Conversation": "Tekshiruv",
       "Activity": "Vositalar faoliyati",
       "FollowUpPlaceholder": "Qo‘shimcha izoh yoki yana bir belgi kiriting",
       "Send": "Yuborish",
-      "Open": "Ochish"
+      "Open": "Ochish",
+      "Status": {
+        "Investigating": "AI ma’lumotlarni tekshirmoqda",
+        "Complete": "AI qidiruvi yakunlandi",
+        "Pending": "AI javob tayyorlamoqda…"
+      },
+      "Error": {
+        "StartFailed": "AI qidiruvni ishga tushirib bo‘lmadi",
+        "MessageFailed": "AI ga xabar yuborib bo‘lmadi"
+      },
+      "Tool": {
+        "meili_search": "Indeks bo‘yicha qidirish",
+        "schema_list": "Kerakli ma’lumotlarni topish",
+        "schema_describe": "Yozuv maydonlarini tekshirish",
+        "sql_execute_readonly": "Tizimdagi ma’lumotlarni tekshirish",
+        "granite_link": "Ilova havolalarini tayyorlash",
+        "publish_candidates": "Ehtimoliy mosliklarni ko‘rsatish"
+      },
+      "ToolStatus": {
+        "running": "Jarayonda",
+        "completed": "Tayyor",
+        "failed": "Xato"
+      }
     }
   },
   "Unknown": "Noma'lum",

@@ -990,19 +990,47 @@
       "Staff": "员工",
       "_Other": "其他"
     },
+    "ConfirmOpenResult": "打开这个结果？",
+    "Status": {
+      "SearchingMore": "继续搜索中",
+      "FindingMatches": "正在查找匹配",
+      "SearchComplete": "搜索完成"
+    },
     "AI": {
       "Button": "使用 AI 搜索",
       "Title": "AI Spotlight 搜索",
       "Back": "返回结果",
       "ModeTitle": "使用 AI 调查这个查询",
-      "ModeBody": "AI 可以搜索 Spotlight 索引、检查实时数据库结构、执行只读 SQL，并生成经过验证的应用内链接。",
+      "ModeBody": "AI 可以搜索 Spotlight 索引、检查系统中的实时数据，并生成经过验证的应用内链接。",
       "Searching": "搜索中",
       "Candidates": "可能匹配",
       "Conversation": "调查过程",
       "Activity": "工具活动",
       "FollowUpPlaceholder": "继续补充线索或提出后续问题",
       "Send": "发送",
-      "Open": "打开"
+      "Open": "打开",
+      "Status": {
+        "Investigating": "AI 正在调查",
+        "Complete": "AI 搜索完成",
+        "Pending": "AI 正在思考…"
+      },
+      "Error": {
+        "StartFailed": "无法启动 AI 搜索",
+        "MessageFailed": "无法发送 AI 消息"
+      },
+      "Tool": {
+        "meili_search": "搜索索引",
+        "schema_list": "查找相关数据",
+        "schema_describe": "检查记录字段",
+        "sql_execute_readonly": "检查系统数据",
+        "granite_link": "生成应用链接",
+        "publish_candidates": "显示可能匹配"
+      },
+      "ToolStatus": {
+        "running": "进行中",
+        "completed": "已完成",
+        "failed": "失败"
+      }
     }
   },
   "Unknown": "未知",

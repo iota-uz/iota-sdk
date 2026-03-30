@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -53,6 +54,53 @@ type spotlightAICreateRequest struct {
 type spotlightAIMessageRequest struct {
 	SessionID string `json:"session_id"`
 	Message   string `json:"message"`
+}
+
+type spotlightAISnapshotPayload struct {
+	SessionID  string                      `json:"session_id"`
+	RunID      string                      `json:"run_id"`
+	Query      string                      `json:"query"`
+	Messages   []spotlight.AISearchMessage `json:"messages"`
+	Candidates []spotlightAICandidateView  `json:"candidates"`
+	Tools      []spotlightAIToolView       `json:"tools"`
+	Loading    bool                        `json:"loading"`
+	Completed  bool                        `json:"completed"`
+	Error      string                      `json:"error,omitempty"`
+	UpdatedAt  time.Time                   `json:"updated_at"`
+}
+
+type spotlightAICandidateView struct {
+	ID           string                    `json:"id"`
+	EntityType   string                    `json:"entity_type"`
+	EntityLabel  string                    `json:"entity_label,omitempty"`
+	Title        string                    `json:"title"`
+	Subtitle     string                    `json:"subtitle,omitempty"`
+	Evidence     []spotlightAIEvidenceView `json:"evidence,omitempty"`
+	URL          string                    `json:"url,omitempty"`
+	Source       string                    `json:"source,omitempty"`
+	RelatedLinks []spotlightAILinkView     `json:"related_links,omitempty"`
+	Confidence   string                    `json:"confidence,omitempty"`
+}
+
+type spotlightAIEvidenceView struct {
+	Label string `json:"label,omitempty"`
+	Value string `json:"value"`
+}
+
+type spotlightAILinkView struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
+}
+
+type spotlightAIToolView struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Label       string    `json:"label"`
+	Status      string    `json:"status"`
+	StatusLabel string    `json:"status_label"`
+	Summary     string    `json:"summary,omitempty"`
+	StartedAt   time.Time `json:"started_at,omitempty"`
+	CompletedAt time.Time `json:"completed_at,omitempty"`
 }
 
 func NewSpotlightController(app application.Application) application.Controller {
@@ -235,7 +283,7 @@ func (c *SpotlightController) CreateAISession(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(snapshot)
+	_ = json.NewEncoder(w).Encode(c.aiSnapshotPayload(r, snapshot))
 }
 
 func (c *SpotlightController) StreamAISession(w http.ResponseWriter, r *http.Request) {
@@ -284,7 +332,7 @@ func (c *SpotlightController) StreamAISession(w http.ResponseWriter, r *http.Req
 			if !ok {
 				return
 			}
-			if err := writeSSE(w, "update", snapshot); err != nil {
+			if err := writeSSE(w, "update", c.aiSnapshotPayload(r, snapshot)); err != nil {
 				return
 			}
 			flusher.Flush()
@@ -330,7 +378,7 @@ func (c *SpotlightController) SendAIMessage(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(snapshot)
+	_ = json.NewEncoder(w).Encode(c.aiSnapshotPayload(r, snapshot))
 }
 
 func (c *SpotlightController) CancelAISession(w http.ResponseWriter, r *http.Request) {
@@ -360,12 +408,8 @@ func (c *SpotlightController) buildSearchRequest(r *http.Request, q string) (spo
 	permissions := make([]string, 0, 32)
 	if user, userErr := composables.UseUser(r.Context()); userErr == nil {
 		userID = fmt.Sprintf("%d", user.ID())
-		for _, role := range user.Roles() {
-			roles = append(roles, role.Name())
-		}
-		for _, permission := range user.Permissions() {
-			permissions = append(permissions, permission.Name())
-		}
+		roles = composables.RoleNames(user)
+		permissions = composables.EffectivePermissionNames(user)
 	}
 
 	intent := spotlight.SearchIntentMixed
@@ -423,21 +467,130 @@ func (c *SpotlightController) aiActor(r *http.Request) spotlight.AISearchActor {
 	actor := spotlight.AISearchActor{
 		TenantID: tenantID,
 	}
-	if locale, ok := intl.UseLocale(r.Context()); ok {
-		actor.Language = locale.String()
-	}
 
 	if user, err := composables.UseUser(r.Context()); err == nil {
 		actor.UserID = fmt.Sprintf("%d", user.ID())
-		for _, role := range user.Roles() {
-			actor.Roles = append(actor.Roles, role.Name())
-		}
-		for _, permission := range user.Permissions() {
-			actor.Permissions = append(actor.Permissions, permission.Name())
+		actor.Language = string(user.UILanguage())
+		actor.Roles = composables.RoleNames(user)
+		actor.Permissions = composables.EffectivePermissionNames(user)
+	}
+	if actor.Language == "" {
+		if locale, ok := intl.UseLocale(r.Context()); ok {
+			actor.Language = locale.String()
 		}
 	}
 
 	return actor
+}
+
+func (c *SpotlightController) aiSnapshotPayload(r *http.Request, snapshot spotlight.AISearchSnapshot) spotlightAISnapshotPayload {
+	payload := spotlightAISnapshotPayload{
+		SessionID: snapshot.SessionID,
+		RunID:     snapshot.RunID,
+		Query:     snapshot.Query,
+		Messages:  append([]spotlight.AISearchMessage(nil), snapshot.Messages...),
+		Loading:   snapshot.Loading,
+		Completed: snapshot.Completed,
+		Error:     snapshot.Error,
+		UpdatedAt: snapshot.UpdatedAt,
+	}
+
+	payload.Candidates = make([]spotlightAICandidateView, 0, len(snapshot.Candidates))
+	for _, candidate := range snapshot.Candidates {
+		view := spotlightAICandidateView{
+			ID:          candidate.ID,
+			EntityType:  candidate.EntityType,
+			EntityLabel: c.aiCandidateEntityLabel(r, candidate),
+			Title:       c.aiCandidateTitle(r, candidate),
+			Subtitle:    strings.TrimSpace(candidate.Subtitle),
+			Evidence:    c.aiCandidateEvidence(r, candidate),
+			URL:         candidate.URL,
+			Source:      candidate.Source,
+			Confidence:  c.aiCandidateConfidence(r, candidate),
+		}
+		if len(candidate.RelatedLinks) > 0 {
+			view.RelatedLinks = make([]spotlightAILinkView, 0, len(candidate.RelatedLinks))
+			for _, link := range candidate.RelatedLinks {
+				view.RelatedLinks = append(view.RelatedLinks, spotlightAILinkView{
+					Label: c.aiLinkLabel(r, link),
+					URL:   link.URL,
+				})
+			}
+		}
+		payload.Candidates = append(payload.Candidates, view)
+	}
+
+	payload.Tools = make([]spotlightAIToolView, 0, len(snapshot.Tools))
+	for _, tool := range snapshot.Tools {
+		payload.Tools = append(payload.Tools, spotlightAIToolView{
+			ID:          tool.ID,
+			Name:        tool.Name,
+			Label:       c.aiToolLabel(r, tool),
+			Status:      tool.Status,
+			StatusLabel: c.aiToolStatusLabel(r, tool),
+			Summary:     tool.Summary,
+			StartedAt:   tool.StartedAt,
+			CompletedAt: tool.CompletedAt,
+		})
+	}
+
+	return payload
+}
+
+func (c *SpotlightController) aiCandidateEntityLabel(r *http.Request, candidate spotlight.AISearchCandidate) string {
+	if key := strings.TrimSpace(candidate.EntityLabelKey); key != "" {
+		return intl.MustT(r.Context(), key)
+	}
+	return strings.TrimSpace(candidate.EntityType)
+}
+
+func (c *SpotlightController) aiCandidateTitle(r *http.Request, candidate spotlight.AISearchCandidate) string {
+	return candidate.DisplayTitle(func(key string) string {
+		return intl.MustT(r.Context(), key)
+	})
+}
+
+func (c *SpotlightController) aiCandidateEvidence(r *http.Request, candidate spotlight.AISearchCandidate) []spotlightAIEvidenceView {
+	items := make([]spotlightAIEvidenceView, 0, len(candidate.EvidenceItems))
+	for _, item := range candidate.EvidenceItems {
+		value := strings.TrimSpace(item.Value)
+		if value == "" {
+			continue
+		}
+		items = append(items, spotlightAIEvidenceView{
+			Label: item.DisplayLabel(func(key string) string {
+				return intl.MustT(r.Context(), key)
+			}),
+			Value: value,
+		})
+	}
+	return items
+}
+
+func (c *SpotlightController) aiCandidateConfidence(r *http.Request, candidate spotlight.AISearchCandidate) string {
+	return candidate.DisplayConfidence(func(key string) string {
+		return intl.MustT(r.Context(), key)
+	})
+}
+
+func (c *SpotlightController) aiLinkLabel(r *http.Request, link spotlight.AISearchLink) string {
+	return link.DisplayLabel(func(key string) string {
+		return intl.MustT(r.Context(), key)
+	})
+}
+
+func (c *SpotlightController) aiToolLabel(r *http.Request, tool spotlight.AISearchToolState) string {
+	if key := strings.TrimSpace(tool.LabelKey); key != "" {
+		return intl.MustT(r.Context(), key)
+	}
+	return strings.TrimSpace(tool.Name)
+}
+
+func (c *SpotlightController) aiToolStatusLabel(r *http.Request, tool spotlight.AISearchToolState) string {
+	if key := strings.TrimSpace(tool.StatusKey); key != "" {
+		return intl.MustT(r.Context(), key)
+	}
+	return strings.TrimSpace(tool.Status)
 }
 
 func (c *SpotlightController) snapshotPayload(r *http.Request, snapshot spotlight.SearchSessionSnapshot) (spotlightSearchPayload, error) {

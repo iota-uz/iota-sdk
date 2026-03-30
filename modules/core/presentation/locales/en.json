@@ -986,19 +986,47 @@
       "Staff": "Staff",
       "_Other": "Other"
     },
+    "ConfirmOpenResult": "Open this result?",
+    "Status": {
+      "SearchingMore": "Searching more sources",
+      "FindingMatches": "Finding matches",
+      "SearchComplete": "Search complete"
+    },
     "AI": {
       "Button": "Search with AI",
       "Title": "AI Spotlight Search",
       "Back": "Back to results",
       "ModeTitle": "Investigate this query with AI",
-      "ModeBody": "AI can search the Spotlight index, inspect the live database schema, run read-only SQL, and build verified in-app links.",
+      "ModeBody": "AI can search the Spotlight index, check live application data, and build verified in-app links.",
       "Searching": "Searching",
       "Candidates": "Likely matches",
       "Conversation": "Investigation",
       "Activity": "Tool activity",
       "FollowUpPlaceholder": "Ask a follow-up or give another clue",
       "Send": "Send",
-      "Open": "Open"
+      "Open": "Open",
+      "Status": {
+        "Investigating": "AI is investigating",
+        "Complete": "AI search complete",
+        "Pending": "AI is thinking…"
+      },
+      "Error": {
+        "StartFailed": "Could not start AI search",
+        "MessageFailed": "Could not send AI message"
+      },
+      "Tool": {
+        "meili_search": "Search index",
+        "schema_list": "Find relevant data",
+        "schema_describe": "Inspect record fields",
+        "sql_execute_readonly": "Check live records",
+        "granite_link": "Build app links",
+        "publish_candidates": "Show likely matches"
+      },
+      "ToolStatus": {
+        "running": "In progress",
+        "completed": "Done",
+        "failed": "Failed"
+      }
     }
   },
   "Unknown": "Unknown",

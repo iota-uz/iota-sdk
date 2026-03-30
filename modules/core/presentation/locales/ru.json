@@ -986,19 +986,47 @@
       "Staff": "Сотрудники",
       "_Other": "Прочее"
     },
+    "ConfirmOpenResult": "Открыть этот результат?",
+    "Status": {
+      "SearchingMore": "Ищем дальше",
+      "FindingMatches": "Ищем совпадения",
+      "SearchComplete": "Поиск завершен"
+    },
     "AI": {
       "Button": "Искать с AI",
       "Title": "AI поиск Spotlight",
       "Back": "Назад к результатам",
       "ModeTitle": "Исследовать запрос с помощью AI",
-      "ModeBody": "AI может искать по индексу Spotlight, изучать реальную схему базы данных, выполнять read-only SQL и строить проверенные ссылки внутри приложения.",
+      "ModeBody": "AI может искать по индексу Spotlight, проверять данные в системе и подбирать проверенные ссылки внутри приложения.",
       "Searching": "Поиск",
       "Candidates": "Вероятные совпадения",
       "Conversation": "Исследование",
       "Activity": "Инструменты",
       "FollowUpPlaceholder": "Уточните поиск или дайте еще одну зацепку",
       "Send": "Отправить",
-      "Open": "Открыть"
+      "Open": "Открыть",
+      "Status": {
+        "Investigating": "AI исследует данные",
+        "Complete": "AI поиск завершен",
+        "Pending": "AI готовит ответ…"
+      },
+      "Error": {
+        "StartFailed": "Не удалось запустить AI-поиск",
+        "MessageFailed": "Не удалось отправить сообщение AI"
+      },
+      "Tool": {
+        "meili_search": "Поиск по индексу",
+        "schema_list": "Поиск нужных данных",
+        "schema_describe": "Проверка полей записи",
+        "sql_execute_readonly": "Проверка данных в системе",
+        "granite_link": "Подбор ссылок",
+        "publish_candidates": "Показ вероятных совпадений"
+      },
+      "ToolStatus": {
+        "running": "В работе",
+        "completed": "Готово",
+        "failed": "Ошибка"
+      }
     }
   },
   "Unknown": "Неизвестно",

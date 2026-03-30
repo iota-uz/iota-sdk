@@ -436,20 +436,13 @@ let spotlight = () => ({
     }
     window.__spotlightConfirmBound = true;
 
-    const confirmationMessages = {
-      ru: 'Открыть этот результат?',
-      uz: 'Ushbu natijani ochish?',
-      en: 'Open this result?',
-    };
     document.addEventListener('click', (event) => {
       const button = event.target.closest('.js-spotlight-confirm[data-spotlight-url]');
       if (!button) return;
       event.preventDefault();
       const url = button.dataset.spotlightUrl || '';
       if (!url) return;
-      const lang = (document.documentElement.lang || 'en').slice(0, 2).toLowerCase();
-      const message = confirmationMessages[lang] || confirmationMessages.en;
-      if (window.confirm(message)) {
+      if (window.confirm(this.localizedText('confirmOpenResult', 'Open this result?'))) {
         window.location.href = url;
       }
     });
@@ -630,12 +623,7 @@ let spotlight = () => ({
     } catch (error) {
       console.error('spotlight ai search failed', error);
       this.aiLoading = false;
-      this.aiError = this.translate({
-        ru: 'Не удалось запустить AI-поиск',
-        uz: 'AI qidiruvni ishga tushirib bo‘lmadi',
-        en: 'Could not start AI search',
-        zh: '无法启动 AI 搜索',
-      });
+      this.aiError = this.localizedText('aiStartFailed', 'Could not start AI search');
     }
   },
 
@@ -683,12 +671,7 @@ let spotlight = () => ({
     } catch (error) {
       console.error('spotlight ai message failed', error);
       this.aiLoading = false;
-      this.aiError = this.translate({
-        ru: 'Не удалось отправить сообщение AI',
-        uz: 'AI ga xabar yuborib bo‘lmadi',
-        en: 'Could not send AI message',
-        zh: '无法发送 AI 消息',
-      });
+      this.aiError = this.localizedText('aiMessageFailed', 'Could not send AI message');
     }
   },
 
@@ -786,6 +769,12 @@ let spotlight = () => ({
     return (document.documentElement.lang || 'en').toLowerCase();
   },
 
+  localizedText(key, fallback = '') {
+    const attr = `i18n${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+    const root = this.$root || this.$el;
+    return root?.dataset?.[attr] || fallback;
+  },
+
   translate(map) {
     const locale = this.localeCode();
     if (map[locale]) return map[locale];
@@ -800,52 +789,22 @@ let spotlight = () => ({
     }
     if (this.isLoading) {
       if (this.pendingCount > 0) {
-        return `${this.translate({
-          ru: 'Ищем дальше',
-          uz: 'Qidiruv davom etmoqda',
-          en: 'Searching more sources',
-          zh: '继续搜索中',
-        })} · ${this.pendingCount}`;
+        return `${this.localizedText('statusSearchingMore')} · ${this.pendingCount}`;
       }
-      return this.translate({
-        ru: 'Ищем совпадения',
-        uz: 'Mosliklar qidirilmoqda',
-        en: 'Finding matches',
-        zh: '正在查找匹配',
-      });
+      return this.localizedText('statusFindingMatches');
     }
-    return this.translate({
-      ru: 'Поиск завершен',
-      uz: 'Qidiruv yakunlandi',
-      en: 'Search complete',
-      zh: '搜索完成',
-    });
+    return this.localizedText('statusSearchComplete');
   },
 
   aiStatusLabel() {
     if (this.aiLoading) {
-      return this.translate({
-        ru: 'AI исследует данные',
-        uz: 'AI ma’lumotlarni tekshirmoqda',
-        en: 'AI is investigating',
-        zh: 'AI 正在调查',
-      });
+      return this.localizedText('aiStatusInvestigating');
     }
-    return this.translate({
-      ru: 'AI поиск завершен',
-      uz: 'AI qidiruvi yakunlandi',
-      en: 'AI search complete',
-      zh: 'AI 搜索完成',
-    });
+    return this.localizedText('aiStatusComplete');
   },
 
   aiPendingLabel() {
-    return this.translate({
-      ru: 'AI готовит ответ…',
-      uz: 'AI javob tayyorlamoqda…',
-      en: 'AI is thinking…',
-      zh: 'AI 正在思考…',
-    });
+    return this.localizedText('aiPending');
   },
 
   hasResults() {

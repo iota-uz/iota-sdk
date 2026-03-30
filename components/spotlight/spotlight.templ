@@ -53,6 +53,15 @@ templ Spotlight() {
 		x-data="spotlight"
 		class="relative"
 		x-id="['spotlight', 'spinner', 'spotlight-panel']"
+		data-i18n-confirm-open-result={ intl.MustT(ctx, "Spotlight.ConfirmOpenResult") }
+		data-i18n-ai-start-failed={ intl.MustT(ctx, "Spotlight.AI.Error.StartFailed") }
+		data-i18n-ai-message-failed={ intl.MustT(ctx, "Spotlight.AI.Error.MessageFailed") }
+		data-i18n-status-searching-more={ intl.MustT(ctx, "Spotlight.Status.SearchingMore") }
+		data-i18n-status-finding-matches={ intl.MustT(ctx, "Spotlight.Status.FindingMatches") }
+		data-i18n-status-search-complete={ intl.MustT(ctx, "Spotlight.Status.SearchComplete") }
+		data-i18n-ai-status-investigating={ intl.MustT(ctx, "Spotlight.AI.Status.Investigating") }
+		data-i18n-ai-status-complete={ intl.MustT(ctx, "Spotlight.AI.Status.Complete") }
+		data-i18n-ai-pending={ intl.MustT(ctx, "Spotlight.AI.Status.Pending") }
 	>
 		<button
 			@click="open()"
@@ -222,18 +231,21 @@ templ Spotlight() {
 											<div class="min-w-0 flex-1">
 												<div class="flex flex-wrap items-center gap-2">
 													<p class="truncate text-sm font-semibold text-100" x-text="candidate.title"></p>
-													<span class="rounded-full border border-secondary bg-surface-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-300" x-show="candidate.entity_type" x-text="candidate.entity_type"></span>
+													<span class="rounded-full border border-secondary bg-surface-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-300" x-show="candidate.entity_label" x-text="candidate.entity_label"></span>
 												</div>
 												<p class="mt-1 text-sm text-300" x-show="candidate.subtitle" x-text="candidate.subtitle"></p>
 												<ul class="mt-2 space-y-1 text-xs text-300" x-show="candidate.evidence && candidate.evidence.length > 0">
-													<template x-for="evidence in candidate.evidence" :key="evidence">
+													<template x-for="evidence in candidate.evidence" :key="`${candidate.id}-${evidence.label || ''}-${evidence.value}`">
 														<li class="flex items-start gap-2">
 															<span class="mt-1 h-1.5 w-1.5 rounded-full bg-primary-300"></span>
-															<span x-text="evidence"></span>
+															<span>
+																<span x-show="evidence.label" x-text="`${evidence.label}: `"></span>
+																<span x-text="evidence.value"></span>
+															</span>
 														</li>
 													</template>
 												</ul>
-												<p class="mt-2 text-xs text-300" x-show="candidate.confidence_note" x-text="candidate.confidence_note"></p>
+												<p class="mt-2 text-xs text-300" x-show="candidate.confidence" x-text="candidate.confidence"></p>
 											</div>
 											<div class="shrink-0">
 												<a class="inline-flex items-center gap-1 rounded-xl border border-primary-400/30 bg-primary-500/10 px-3 py-2 text-xs font-semibold text-primary-200 transition-colors hover:bg-primary-500/20" x-show="candidate.url" :href="candidate.url">
@@ -273,10 +285,10 @@ templ Spotlight() {
 									<template x-for="tool in aiTools" :key="tool.id">
 										<div class="flex items-start justify-between gap-3 rounded-xl border border-secondary bg-surface-300/70 px-3 py-2">
 											<div class="min-w-0">
-												<p class="truncate text-xs font-semibold uppercase tracking-wide text-200" x-text="tool.name"></p>
+												<p class="truncate text-xs font-semibold uppercase tracking-wide text-200" x-text="tool.label"></p>
 												<p class="mt-0.5 text-xs text-300" x-show="tool.summary" x-text="tool.summary"></p>
 											</div>
-											<span class="shrink-0 rounded-full border border-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-300" x-text="tool.status"></span>
+											<span class="shrink-0 rounded-full border border-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-300" x-text="tool.status_label"></span>
 										</div>
 									</template>
 								</div>

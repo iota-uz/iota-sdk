@@ -4,7 +4,6 @@ package spotlight
 import (
 	"context"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,9 +25,6 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 	const op serrors.Op = "spotlight.IndexerPipeline.Sync"
 
 	providers := p.registry.All()
-	sort.Slice(providers, func(i, j int) bool {
-		return providers[i].ProviderID() < providers[j].ProviderID()
-	})
 
 	for _, provider := range providers {
 		enabled, ok := scope.EnabledProviders[provider.ProviderID()]

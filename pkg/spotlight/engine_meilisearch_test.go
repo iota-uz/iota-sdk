@@ -1,6 +1,7 @@
 package spotlight
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -181,6 +182,73 @@ func TestMeilisearchEngine_SetupForSearchAllowsStaleActiveIndex(t *testing.T) {
 		Return(index).
 		Once()
 	index.EXPECT().
+		GetSettings().
+		Return(&meilisearch.Settings{
+			FilterableAttributes: requiredFilterableAttributes(),
+			SearchableAttributes: requiredSearchableAttributes(),
+			SortableAttributes:   requiredSortableAttributes(),
+		}, nil).
+		Once()
+
+	require.NoError(t, engine.setupForSearch())
+	require.True(t, engine.searchReady.Load())
+}
+
+func TestMeilisearchEngine_SetupForSearchFallsBackToReadyBuildIndexWhenActiveEmpty(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	activeIndex := meilimocks.NewMockmeilisearchIndexManager(t)
+	buildIndex := meilimocks.NewMockmeilisearchIndexManager(t)
+	engine := &MeilisearchEngine{
+		client:     service,
+		indexName:  "spotlight",
+		activeName: "spotlight",
+	}
+	buildIndexName := rebuildIndexName("spotlight")
+
+	service.EXPECT().
+		Index("spotlight").
+		Return(activeIndex).
+		Once()
+	activeIndex.EXPECT().
+		GetStats().
+		Return(&meilisearch.StatsIndex{
+			NumberOfDocuments: 0,
+		}, nil).
+		Once()
+
+	service.EXPECT().
+		Index(buildIndexName).
+		Return(buildIndex).
+		Times(3)
+	buildIndex.EXPECT().
+		GetStats().
+		Return(&meilisearch.StatsIndex{
+			NumberOfDocuments: 42,
+			FieldDistribution: map[string]int64{
+				"domain":              42,
+				"description":         42,
+				"search_text":         42,
+				"exact_terms":         42,
+				"schema_version":      42,
+				"access_visibility":   42,
+				"owner_id":            42,
+				"allowed_users":       42,
+				"allowed_roles":       42,
+				"allowed_permissions": 42,
+			},
+		}, nil).
+		Once()
+	buildIndex.EXPECT().
+		Search("", mock.AnythingOfType("*meilisearch.SearchRequest")).
+		Return(&meilisearch.SearchResponse{
+			Hits: meilisearch.Hits{
+				meilisearch.Hit{
+					"schema_version": json.RawMessage(`"` + IndexSchemaVersion + `"`),
+				},
+			},
+		}, nil).
+		Once()
+	buildIndex.EXPECT().
 		GetSettings().
 		Return(&meilisearch.Settings{
 			FilterableAttributes: requiredFilterableAttributes(),

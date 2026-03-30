@@ -986,19 +986,47 @@
       "Staff": "Ходимлар",
       "_Other": "Бошқа"
     },
+    "ConfirmOpenResult": "Ушбу натижани очиш?",
+    "Status": {
+      "SearchingMore": "Қидирув давом этмоқда",
+      "FindingMatches": "Мосликлар қидирилмоқда",
+      "SearchComplete": "Қидирув якунланди"
+    },
     "AI": {
       "Button": "AI билан қидириш",
       "Title": "AI Spotlight қидируви",
       "Back": "Натижаларга қайтиш",
       "ModeTitle": "Сўровни AI ёрдамида текшириш",
-      "ModeBody": "AI Spotlight индексидан қидириши, жонли база схемасини кўриши, read-only SQL бажариши ва текширилган илова ҳаволаларини қуриши мумкин.",
+      "ModeBody": "AI Spotlight индексидан қидириши, тизимдаги маълумотларни текшириши ва илова ичида тасдиқланган ҳаволаларни тайёрлаши мумкин.",
       "Searching": "Қидирилмоқда",
       "Candidates": "Эҳтимолий мосликлар",
       "Conversation": "Текширув",
       "Activity": "Воситалар фаолияти",
       "FollowUpPlaceholder": "Қўшимча изоҳ ёки яна бир белги киритинг",
       "Send": "Юбориш",
-      "Open": "Очиш"
+      "Open": "Очиш",
+      "Status": {
+        "Investigating": "AI маълумотларни текширмоқда",
+        "Complete": "AI қидируви якунланди",
+        "Pending": "AI жавоб тайёрламоқда…"
+      },
+      "Error": {
+        "StartFailed": "AI қидирувни ишга тушириб бўлмади",
+        "MessageFailed": "AI га хабар юбориб бўлмади"
+      },
+      "Tool": {
+        "meili_search": "Индекс бўйича қидириш",
+        "schema_list": "Керакли маълумотларни топиш",
+        "schema_describe": "Ёзув майдонларини текшириш",
+        "sql_execute_readonly": "Тизимдаги маълумотларни текшириш",
+        "granite_link": "Илова ҳаволаларини тайёрлаш",
+        "publish_candidates": "Эҳтимолий мосликларни кўрсатиш"
+      },
+      "ToolStatus": {
+        "running": "Жараёнда",
+        "completed": "Тайёр",
+        "failed": "Хато"
+      }
     }
   },
   "Unknown": "Noma'lum",
