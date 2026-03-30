@@ -964,7 +964,14 @@
     "Badge": {
       "Exact": "Exact",
       "Action": "Action",
-      "Navigate": "Navigate"
+      "Navigate": "Navigate",
+      "Policy": "Policy",
+      "Vehicle": "Vehicle",
+      "Claim": "Claim",
+      "Chat": "Chat",
+      "Organization": "Organization",
+      "Staff": "Staff",
+      "Person": "Person"
     },
     "Summary": {
       "Default": "Best matches found for your request",

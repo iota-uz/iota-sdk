@@ -60,14 +60,18 @@ templ Spotlight() {
 	<div
 		x-data="spotlight"
 		class="relative"
-		x-id="['spotlight', 'spinner']"
+		x-id="['spotlight', 'spinner', 'spotlight-panel']"
 	>
 		<button
 			@click="open()"
 			class="flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-secondary bg-surface-300 px-3 text-300 shadow-sm transition-colors duration-150 hover:bg-surface-300/80 hover:text-100"
 			type="button"
+			aria-label={ intl.MustT(ctx, "Search") }
+			:aria-controls="$id('spotlight-panel')"
+			:aria-expanded="isOpen.toString()"
 		>
 			@icons.MagnifyingGlass(icons.Props{Size: "18"})
+			<span class="sr-only">{ intl.MustT(ctx, "Search") }</span>
 			<kbd class="text-[11px] font-medium">&#8984;K</kbd>
 		</button>
 		<div @keydown.window="handleShortcut($event)"></div>
@@ -80,6 +84,10 @@ templ Spotlight() {
 			<div
 				class="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-secondary bg-surface-300 shadow-2xl"
 				@click.away="close()"
+				:id="$id('spotlight-panel')"
+				role="dialog"
+				aria-modal="true"
+				aria-label={ intl.MustT(ctx, "Search") }
 				x-transition:enter="transition ease-out duration-150"
 				x-transition:enter-start="opacity-0 translate-y-2 scale-[0.985]"
 				x-transition:enter-end="opacity-100 translate-y-0 scale-100"

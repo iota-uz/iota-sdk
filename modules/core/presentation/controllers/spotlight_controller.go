@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -14,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
@@ -29,6 +31,14 @@ type spotlightSearchPayload struct {
 	Complete bool                         `json:"complete"`
 	Pending  int                          `json:"pending"`
 	Stages   []spotlight.SearchStageState `json:"stages"`
+}
+
+type spotlightSearchQuery struct {
+	Q string `schema:"q"`
+}
+
+type spotlightSessionQuery struct {
+	SearchID string `schema:"search_id"`
 }
 
 func NewSpotlightController(app application.Application) application.Controller {
@@ -61,7 +71,12 @@ func (c *SpotlightController) Search(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
 
-	q := r.URL.Query().Get("q")
+	queryDTO, err := composables.UseQuery(spotlightSearchQuery{}, r)
+	if err != nil {
+		http.Error(w, "Failed to parse Spotlight query", http.StatusBadRequest)
+		return
+	}
+	q := strings.TrimSpace(queryDTO.Q)
 	if q == "" {
 		if err := json.NewEncoder(w).Encode(spotlightSearchPayload{
 			SearchID: "",
@@ -88,7 +103,13 @@ func (c *SpotlightController) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(c.snapshotPayload(r, snapshot)); err != nil {
+	payload, err := c.snapshotPayload(r, snapshot)
+	if err != nil {
+		composables.UseLogger(r.Context()).WithError(err).WithField("query", q).Error("spotlight search payload render failed")
+		http.Error(w, "Failed to render Spotlight results", http.StatusInternalServerError)
+		return
+	}
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		composables.UseLogger(r.Context()).WithError(err).WithField("query", q).Warn("spotlight search payload encode failed")
 	}
 }
@@ -101,7 +122,12 @@ func (c *SpotlightController) Stream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	sessionID := r.URL.Query().Get("search_id")
+	queryDTO, err := composables.UseQuery(spotlightSessionQuery{}, r)
+	if err != nil {
+		http.Error(w, "Failed to parse search session", http.StatusBadRequest)
+		return
+	}
+	sessionID := strings.TrimSpace(queryDTO.SearchID)
 	if sessionID == "" {
 		http.Error(w, "search_id is required", http.StatusBadRequest)
 		return
@@ -127,7 +153,12 @@ func (c *SpotlightController) Stream(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if err := writeSSE(w, "update", c.snapshotPayload(r, snapshot)); err != nil {
+			payload, err := c.snapshotPayload(r, snapshot)
+			if err != nil {
+				composables.UseLogger(r.Context()).WithError(err).WithField("search_id", sessionID).Error("spotlight stream payload render failed")
+				return
+			}
+			if err := writeSSE(w, "update", payload); err != nil {
 				return
 			}
 			flusher.Flush()
@@ -139,7 +170,12 @@ func (c *SpotlightController) Stream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *SpotlightController) Cancel(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.URL.Query().Get("search_id")
+	queryDTO, err := composables.UseQuery(spotlightSessionQuery{}, r)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	sessionID := strings.TrimSpace(queryDTO.SearchID)
 	if sessionID == "" {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -183,18 +219,22 @@ func (c *SpotlightController) buildSearchRequest(r *http.Request, q string) (spo
 	}, nil
 }
 
-func (c *SpotlightController) snapshotPayload(r *http.Request, snapshot spotlight.SearchSessionSnapshot) spotlightSearchPayload {
+func (c *SpotlightController) snapshotPayload(r *http.Request, snapshot spotlight.SearchSessionSnapshot) (spotlightSearchPayload, error) {
+	html, err := c.renderSnapshotHTML(r, snapshot)
+	if err != nil {
+		return spotlightSearchPayload{}, err
+	}
 	return spotlightSearchPayload{
 		SearchID: snapshot.ID,
-		HTML:     c.renderSnapshotHTML(r, snapshot),
+		HTML:     html,
 		Loading:  snapshot.Loading,
 		Complete: snapshot.Completed,
 		Pending:  snapshot.PendingCount(),
 		Stages:   append([]spotlight.SearchStageState(nil), snapshot.Stages...),
-	}
+	}, nil
 }
 
-func (c *SpotlightController) renderSnapshotHTML(r *http.Request, snapshot spotlight.SearchSessionSnapshot) string {
+func (c *SpotlightController) renderSnapshotHTML(r *http.Request, snapshot spotlight.SearchSessionSnapshot) (string, error) {
 	view := spotlight.ToViewResponse(snapshot.Response)
 	items := make([]templ.Component, 0, 64)
 	index := 0
@@ -223,18 +263,19 @@ func (c *SpotlightController) renderSnapshotHTML(r *http.Request, snapshot spotl
 		if snapshot.Completed {
 			return renderComponent(r, spotlightui.NotFound())
 		}
-		return ""
+		return "", nil
 	}
 	return renderComponent(r, spotlightui.SpotlightResults(items))
 }
 
-func renderComponent(r *http.Request, component templ.Component) string {
+func renderComponent(r *http.Request, component templ.Component) (string, error) {
+	const op serrors.Op = "core.controllers.renderComponent"
+
 	var buffer bytes.Buffer
 	if err := component.Render(r.Context(), &buffer); err != nil {
-		composables.UseLogger(r.Context()).WithError(err).Error("spotlight component render failed")
-		return ""
+		return "", serrors.E(op, err)
 	}
-	return buffer.String()
+	return buffer.String(), nil
 }
 
 func writeSSE(w http.ResponseWriter, event string, payload any) error {

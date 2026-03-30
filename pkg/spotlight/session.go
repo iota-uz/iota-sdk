@@ -209,7 +209,11 @@ func (s *SpotlightService) SubscribeSession(ctx context.Context, sessionID strin
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	ch, _ := session.subscribe(ctx)
+	ch, cleanup := session.subscribe(ctx)
+	if current, exists := s.getSession(sessionID); !exists || current != session {
+		cleanup()
+		return nil, ErrSessionNotFound
+	}
 	return ch, nil
 }
 

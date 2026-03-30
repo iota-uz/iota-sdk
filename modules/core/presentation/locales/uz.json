@@ -964,7 +964,14 @@
     "Badge": {
       "Exact": "Aniq",
       "Action": "Harakat",
-      "Navigate": "Navigatsiya"
+      "Navigate": "Navigatsiya",
+      "Policy": "Polis",
+      "Vehicle": "Transport",
+      "Claim": "Murojaat",
+      "Chat": "Chat",
+      "Organization": "Tashkilot",
+      "Staff": "Xodim",
+      "Person": "Shaxs"
     },
     "Summary": {
       "Default": "So'rovingiz uchun eng mos natijalar topildi",

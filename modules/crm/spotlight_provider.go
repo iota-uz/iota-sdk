@@ -86,7 +86,7 @@ LIMIT $2
 			Description: title,
 			Body:        title,
 			SearchText:  title,
-			ExactTerms:  spotlight.ExpandExactTerms(title),
+			ExactTerms:  spotlight.ExpandExactTerms(fmt.Sprintf("%d", id), title),
 			URL:         fmt.Sprintf("/crm/clients?tab=profile&view=%d", id),
 			Language:    scope.Language,
 			Metadata: map[string]string{

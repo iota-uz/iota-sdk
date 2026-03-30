@@ -487,11 +487,12 @@ let spotlight = () => ({
     const requestSeq = this.requestSeq;
     this.stopStream();
     this.isLoading = query !== '';
+    this.highlightedIndex = 0;
+    this.pendingCount = 0;
+    this.setResultsHTML('');
 
     if (!query) {
       this.searchId = '';
-      this.pendingCount = 0;
-      this.setResultsHTML('');
       return;
     }
 
@@ -508,6 +509,14 @@ let spotlight = () => ({
 
       const payload = await response.json();
       if (requestSeq !== this.requestSeq) {
+        const staleSearchId = payload.search_id || '';
+        if (staleSearchId) {
+          fetch(`/spotlight/cancel?search_id=${encodeURIComponent(staleSearchId)}`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+          }).catch(() => {});
+        }
         return;
       }
 

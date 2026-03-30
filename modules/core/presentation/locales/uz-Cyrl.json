@@ -964,7 +964,14 @@
     "Badge": {
       "Exact": "Аниқ",
       "Action": "Ҳаракат",
-      "Navigate": "Навигация"
+      "Navigate": "Навигация",
+      "Policy": "Полис",
+      "Vehicle": "Транспорт",
+      "Claim": "Мурожаат",
+      "Chat": "Чат",
+      "Organization": "Ташкилот",
+      "Staff": "Ходим",
+      "Person": "Шахс"
     },
     "Summary": {
       "Default": "So'rovingiz uchun eng mos natijalar topildi",

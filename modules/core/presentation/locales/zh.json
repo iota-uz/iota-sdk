@@ -968,7 +968,14 @@
     "Badge": {
       "Exact": "精确",
       "Action": "操作",
-      "Navigate": "导航"
+      "Navigate": "导航",
+      "Policy": "保单",
+      "Vehicle": "车辆",
+      "Claim": "理赔",
+      "Chat": "聊天",
+      "Organization": "组织",
+      "Staff": "员工",
+      "Person": "人员"
     },
     "Summary": {
       "Default": "已为您的请求找到最佳匹配结果",

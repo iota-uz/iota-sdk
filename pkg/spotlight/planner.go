@@ -143,7 +143,7 @@ func isLookupQuery(query string, exactTerms []string) bool {
 	if hasLetter && hasDigit && len(compact) >= 4 {
 		return true
 	}
-	return len(exactTerms) >= 2 && len(trimmed) >= 6
+	return len(strings.Fields(trimmed)) >= 2 && len(trimmed) >= 6
 }
 
 func onlyDigits(value string) string {
