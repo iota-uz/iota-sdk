@@ -36,7 +36,7 @@ func (p *spotlightProvider) Capabilities() spotlight.ProviderCapabilities {
 	return spotlight.ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"client"}}
 }
 
-func (p *spotlightProvider) ListDocuments(ctx context.Context, scope spotlight.ProviderScope) ([]spotlight.SearchDocument, error) {
+func (p *spotlightProvider) StreamDocuments(ctx context.Context, scope spotlight.ProviderScope, emit spotlight.DocumentBatchEmitter) error {
 	const op serrors.Op = "crm.spotlightProvider.ListDocuments"
 	limit := p.maxDocuments
 	if limit <= 0 {
@@ -51,11 +51,12 @@ ORDER BY id ASC
 LIMIT $2
 `, scope.TenantID, limit)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return serrors.E(op, err)
 	}
 	defer rows.Close()
 
-	out := make([]spotlight.SearchDocument, 0, limit)
+	out := make([]spotlight.SearchDocument, 0, min(limit, spotlight.ProviderStreamBatchSize))
+	count := 0
 	for rows.Next() {
 		var id int64
 		var firstName string
@@ -63,7 +64,7 @@ LIMIT $2
 		var middleName *string
 		var updatedAt time.Time
 		if err := rows.Scan(&id, &firstName, &lastName, &middleName, &updatedAt); err != nil {
-			return nil, serrors.E(op, err)
+			return serrors.E(op, err)
 		}
 		nameParts := []string{firstName}
 		if middleName != nil {
@@ -97,17 +98,29 @@ LIMIT $2
 			Access:    spotlight.AccessPolicy{Visibility: spotlight.VisibilityPublic},
 			UpdatedAt: updatedAt,
 		})
+		count++
+		if len(out) == spotlight.ProviderStreamBatchSize {
+			if err := emit(out); err != nil {
+				return serrors.E(op, err)
+			}
+			out = make([]spotlight.SearchDocument, 0, spotlight.ProviderStreamBatchSize)
+		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return serrors.E(op, err)
 	}
-	if len(out) == limit {
+	if limit > 0 && count == limit {
 		logrus.WithFields(logrus.Fields{
 			"tenant_id": scope.TenantID.String(),
 			"limit":     limit,
 		}).Warn("crm spotlight provider reached document cap, results may be truncated")
 	}
-	return out, nil
+	if len(out) > 0 {
+		if err := emit(out); err != nil {
+			return serrors.E(op, err)
+		}
+	}
+	return nil
 }
 
 func (p *spotlightProvider) Watch(_ context.Context, _ spotlight.ProviderScope) (<-chan spotlight.DocumentEvent, error) {

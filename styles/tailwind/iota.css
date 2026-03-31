@@ -1162,3 +1162,62 @@
 .lazy-load * {
   transition: opacity 300ms ease-in;
 }
+
+/* Spotlight AI progress shimmer */
+.spotlight-shimmer {
+  -webkit-mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 40%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 1) 80%
+  );
+  mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 40%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 1) 80%
+  );
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  animation: spotlight-shimmer 4.5s linear infinite;
+}
+
+.dark .spotlight-shimmer {
+  -webkit-mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 15%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 1) 65%,
+    rgba(0, 0, 0, 1) 85%
+  );
+  mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 15%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 1) 65%,
+    rgba(0, 0, 0, 1) 85%
+  );
+}
+
+@keyframes spotlight-shimmer {
+  0% {
+    -webkit-mask-position: 130% 0;
+    mask-position: 130% 0;
+  }
+  100% {
+    -webkit-mask-position: -30% 0;
+    mask-position: -30% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-shimmer {
+    animation: none;
+  }
+}

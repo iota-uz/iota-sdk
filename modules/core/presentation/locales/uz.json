@@ -965,11 +965,6 @@
       "Exact": "Aniq",
       "Action": "Harakat",
       "Navigate": "Navigatsiya",
-      "Policy": "Polis",
-      "Vehicle": "Transport",
-      "Claim": "Murojaat",
-      "Chat": "Chat",
-      "Organization": "Tashkilot",
       "Staff": "Xodim",
       "Person": "Shaxs"
     },
@@ -990,6 +985,36 @@
       "People": "Odamlar",
       "Staff": "Xodimlar",
       "_Other": "Boshqa"
+    },
+    "ConfirmOpenResult": "Ushbu natijani ochish?",
+    "Status": {
+      "SearchingMore": "Qidiruv davom etmoqda",
+      "FindingMatches": "Mosliklar qidirilmoqda",
+      "SearchComplete": "Qidiruv yakunlandi"
+    },
+    "AI": {
+      "Button": "AI bilan qidirish",
+      "Placeholder": "AI dan so'rang...",
+      "EmptyHint": "Savol yozing va AI bilan qidirish uchun Enter bosing",
+      "Searching": "Qidirilmoqda",
+      "Candidates": "Ehtimoliy mosliklar",
+      "FollowUpPlaceholder": "Qo’shimcha izoh yoki yana bir belgi kiriting",
+      "Open": "Ochish",
+      "Progress": {
+        "Searching": "Yozuvlar qidirilmoqda...",
+        "Checking": "Ma’lumotlar bazasi tekshirilmoqda...",
+        "Building": "Natijalar shakllantirilmoqda..."
+      },
+      "TabHint": "Tab — AI qidiruv",
+      "FollowUpHint": "Qo’shimcha savol bering...",
+      "EscHint": "Esc — AI dan chiqish",
+      "Status": {
+        "Complete": "AI qidiruvi yakunlandi"
+      },
+      "Error": {
+        "StartFailed": "AI qidiruvni ishga tushirib bo’lmadi",
+        "MessageFailed": "AI ga xabar yuborib bo’lmadi"
+      }
     }
   },
   "Unknown": "Noma'lum",

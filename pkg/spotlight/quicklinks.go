@@ -4,10 +4,12 @@ package spotlight
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/agnivade/levenshtein"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 )
 
@@ -190,7 +192,7 @@ func (ql *QuickLinks) resolveAllTranslations(trKey string) (string, string) {
 	return title, strings.Join(translations, searchTextDelimiter)
 }
 
-func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]SearchDocument, error) {
+func (ql *QuickLinks) StreamDocuments(_ context.Context, scope ProviderScope, emit DocumentBatchEmitter) error {
 	ql.mu.RLock()
 	defer ql.mu.RUnlock()
 
@@ -225,13 +227,185 @@ func (ql *QuickLinks) ListDocuments(_ context.Context, scope ProviderScope) ([]S
 			UpdatedAt: item.createdAt,
 		})
 	}
-	return out, nil
+	if len(out) == 0 {
+		return nil
+	}
+	return emit(out)
 }
 
 func (ql *QuickLinks) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {
 	changes := make(chan DocumentEvent)
 	close(changes)
 	return changes, nil
+}
+
+const (
+	fuzzySearchMaxResults    = 8
+	fuzzySearchMaxDistance   = 3
+	fuzzyScoreExactPrefix    = 1.0
+	fuzzyScoreContains       = 0.8
+	fuzzyScoreLevenshteinMax = 0.6
+)
+
+// FuzzySearch performs in-memory fuzzy matching against all quick links,
+// applying RBAC filtering based on the request's principal. Results are
+// scored (exact prefix > substring > Levenshtein) and capped at 8.
+func (ql *QuickLinks) FuzzySearch(query string, req SearchRequest) []SearchHit {
+	if query == "" {
+		return nil
+	}
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return nil
+	}
+	queryWords := strings.Fields(query)
+
+	principal, hasPrincipal := principalFromRequest(req)
+
+	ql.mu.RLock()
+	defer ql.mu.RUnlock()
+
+	providerID := ql.ProviderID()
+	type scored struct {
+		hit   SearchHit
+		score float64
+	}
+	candidates := make([]scored, 0, len(ql.items))
+
+	for _, item := range ql.items {
+		// RBAC check
+		if item.access.Visibility != VisibilityPublic {
+			if !hasPrincipal || !canReadPolicy(item.access, principal) {
+				continue
+			}
+		}
+
+		title, body := ql.resolveAllTranslations(item.trKey)
+
+		// Collect all searchable text fragments (translations + keywords)
+		searchableFragments := ql.collectSearchableFragments(title, body, item.keywords)
+
+		best := ql.bestFuzzyScore(queryWords, searchableFragments)
+		if best <= 0 {
+			continue
+		}
+
+		// Build SearchDocument matching StreamDocuments shape
+		fullBody := body
+		if len(item.keywords) > 0 {
+			fullBody = body + searchTextDelimiter + strings.Join(item.keywords, searchTextDelimiter)
+		}
+
+		doc := SearchDocument{
+			ID:          providerID + ":" + item.trKey + ":" + item.link,
+			TenantID:    req.TenantID,
+			Provider:    providerID,
+			EntityType:  "quick_link",
+			Domain:      ResultDomainNavigate,
+			Title:       title,
+			Description: item.link,
+			Body:        fullBody,
+			SearchText:  fullBody,
+			ExactTerms:  ExpandExactTerms(append([]string{title, item.link}, item.keywords...)...),
+			URL:         item.link,
+			Language:    req.Language,
+			Metadata: map[string]string{
+				"tr_key": item.trKey,
+				"source": "quick_links",
+			},
+			Access:    item.access,
+			UpdatedAt: item.createdAt,
+		}
+
+		candidates = append(candidates, scored{
+			hit: SearchHit{
+				Document:   doc,
+				FinalScore: best,
+				WhyMatched: "",
+			},
+			score: best,
+		})
+	}
+
+	// Sort by score descending
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].score > candidates[j].score
+	})
+
+	limit := fuzzySearchMaxResults
+	if len(candidates) < limit {
+		limit = len(candidates)
+	}
+	results := make([]SearchHit, limit)
+	for i := 0; i < limit; i++ {
+		results[i] = candidates[i].hit
+	}
+	return results
+}
+
+// collectSearchableFragments extracts individual lowercase text fragments
+// from the title, body translations, and keywords.
+func (ql *QuickLinks) collectSearchableFragments(title, body string, keywords []string) []string {
+	fragments := make([]string, 0, 8)
+	fragments = append(fragments, strings.ToLower(title))
+	for _, part := range strings.Split(body, searchTextDelimiter) {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			fragments = append(fragments, strings.ToLower(part))
+		}
+	}
+	for _, kw := range keywords {
+		kw = strings.TrimSpace(kw)
+		if kw != "" {
+			fragments = append(fragments, strings.ToLower(kw))
+		}
+	}
+	return fragments
+}
+
+// bestFuzzyScore computes the best match score for the query words against
+// the given text fragments.  Returns 0 if no match is good enough.
+func (ql *QuickLinks) bestFuzzyScore(queryWords, fragments []string) float64 {
+	var best float64
+	for _, fragment := range fragments {
+		for _, qw := range queryWords {
+			s := scoreSingle(qw, fragment)
+			if s > best {
+				best = s
+			}
+		}
+	}
+	return best
+}
+
+// scoreSingle scores a single query word against a single text fragment.
+func scoreSingle(queryWord, text string) float64 {
+	// Exact prefix match (highest)
+	if strings.HasPrefix(text, queryWord) {
+		return fuzzyScoreExactPrefix
+	}
+	// Substring match
+	if strings.Contains(text, queryWord) {
+		return fuzzyScoreContains
+	}
+	// Also check individual words in the text
+	for _, word := range strings.Fields(text) {
+		if strings.HasPrefix(word, queryWord) {
+			return fuzzyScoreExactPrefix * 0.95 // slightly lower than full-text prefix
+		}
+	}
+	// Levenshtein distance on individual words
+	for _, word := range strings.Fields(text) {
+		dist := levenshtein.ComputeDistance(queryWord, word)
+		if dist <= fuzzySearchMaxDistance {
+			// Normalize: distance 0 = fuzzyScoreLevenshteinMax, distance 3 = ~0.1
+			score := fuzzyScoreLevenshteinMax * (1.0 - float64(dist)/float64(fuzzySearchMaxDistance+1))
+			if score > 0 {
+				return score
+			}
+		}
+	}
+	return 0
 }
 
 func quickLinkKey(link *QuickLink) string {

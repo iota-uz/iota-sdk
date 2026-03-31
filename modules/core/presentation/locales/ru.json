@@ -965,11 +965,6 @@
       "Exact": "Точно",
       "Action": "Действие",
       "Navigate": "Навигация",
-      "Policy": "Полис",
-      "Vehicle": "Автомобиль",
-      "Claim": "Обращение",
-      "Chat": "Чат",
-      "Organization": "Организация",
       "Staff": "Сотрудник",
       "Person": "Человек"
     },
@@ -990,6 +985,36 @@
       "People": "Люди",
       "Staff": "Сотрудники",
       "_Other": "Прочее"
+    },
+    "ConfirmOpenResult": "Открыть этот результат?",
+    "Status": {
+      "SearchingMore": "Ищем дальше",
+      "FindingMatches": "Ищем совпадения",
+      "SearchComplete": "Поиск завершен"
+    },
+    "AI": {
+      "Button": "Искать с AI",
+      "Placeholder": "Спросите у ИИ...",
+      "EmptyHint": "Введите вопрос и нажмите Enter для поиска с ИИ",
+      "Searching": "Поиск",
+      "Candidates": "Вероятные совпадения",
+      "FollowUpPlaceholder": "Уточните поиск или дайте еще одну зацепку",
+      "Open": "Открыть",
+      "Progress": {
+        "Searching": "Поиск записей...",
+        "Checking": "Проверка базы данных...",
+        "Building": "Формирование результатов..."
+      },
+      "TabHint": "Tab для ИИ",
+      "FollowUpHint": "Задайте уточняющий вопрос...",
+      "EscHint": "Esc — выйти из ИИ",
+      "Status": {
+        "Complete": "AI поиск завершен"
+      },
+      "Error": {
+        "StartFailed": "Не удалось запустить AI-поиск",
+        "MessageFailed": "Не удалось отправить сообщение AI"
+      }
     }
   },
   "Unknown": "Неизвестно",

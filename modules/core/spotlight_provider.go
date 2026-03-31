@@ -29,7 +29,7 @@ func (p *spotlightProvider) Capabilities() spotlight.ProviderCapabilities {
 	return spotlight.ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"user"}}
 }
 
-func (p *spotlightProvider) ListDocuments(ctx context.Context, scope spotlight.ProviderScope) ([]spotlight.SearchDocument, error) {
+func (p *spotlightProvider) StreamDocuments(ctx context.Context, scope spotlight.ProviderScope, emit spotlight.DocumentBatchEmitter) error {
 	const op serrors.Op = "core.spotlightProvider.ListDocuments"
 
 	rows, err := p.db.Query(ctx, `
@@ -50,13 +50,13 @@ WHERE u.tenant_id = $1
 GROUP BY u.id, u.first_name, u.last_name, u.middle_name, u.email, u.phone, u.type, u.updated_at
 ORDER BY u.updated_at DESC, u.id ASC
 LIMIT 5000
-`, scope.TenantID)
+	`, scope.TenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return serrors.E(op, err)
 	}
 	defer rows.Close()
 
-	out := make([]spotlight.SearchDocument, 0, 512)
+	out := make([]spotlight.SearchDocument, 0, spotlight.ProviderStreamBatchSize)
 	for rows.Next() {
 		var id int64
 		var firstName string
@@ -68,7 +68,7 @@ LIMIT 5000
 		var updatedAt time.Time
 		var roles string
 		if err := rows.Scan(&id, &firstName, &lastName, &middleName, &email, &phone, &userType, &updatedAt, &roles); err != nil {
-			return nil, serrors.E(op, err)
+			return serrors.E(op, err)
 		}
 		title := strings.TrimSpace(strings.Join([]string{firstName, middleName, lastName}, " "))
 		if title == "" {
@@ -111,11 +111,22 @@ LIMIT 5000
 			Access:    spotlight.AccessPolicy{Visibility: spotlight.VisibilityPublic},
 			UpdatedAt: updatedAt,
 		})
+		if len(out) == spotlight.ProviderStreamBatchSize {
+			if err := emit(out); err != nil {
+				return serrors.E(op, err)
+			}
+			out = make([]spotlight.SearchDocument, 0, spotlight.ProviderStreamBatchSize)
+		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return serrors.E(op, err)
 	}
-	return out, nil
+	if len(out) > 0 {
+		if err := emit(out); err != nil {
+			return serrors.E(op, err)
+		}
+	}
+	return nil
 }
 
 func (p *spotlightProvider) Watch(_ context.Context, _ spotlight.ProviderScope) (<-chan spotlight.DocumentEvent, error) {

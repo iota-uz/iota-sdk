@@ -969,11 +969,6 @@
       "Exact": "精确",
       "Action": "操作",
       "Navigate": "导航",
-      "Policy": "保单",
-      "Vehicle": "车辆",
-      "Claim": "理赔",
-      "Chat": "聊天",
-      "Organization": "组织",
       "Staff": "员工",
       "Person": "人员"
     },
@@ -994,6 +989,36 @@
       "People": "人员",
       "Staff": "员工",
       "_Other": "其他"
+    },
+    "ConfirmOpenResult": "打开这个结果？",
+    "Status": {
+      "SearchingMore": "继续搜索中",
+      "FindingMatches": "正在查找匹配",
+      "SearchComplete": "搜索完成"
+    },
+    "AI": {
+      "Button": "使用 AI 搜索",
+      "Placeholder": "问 AI 任何问题...",
+      "EmptyHint": "输入问题并按 Enter 使用 AI 搜索",
+      "Searching": "搜索中",
+      "Candidates": "可能匹配",
+      "FollowUpPlaceholder": "继续补充线索或提出后续问题",
+      "Open": "打开",
+      "Progress": {
+        "Searching": "正在搜索记录...",
+        "Checking": "正在检查数据库...",
+        "Building": "正在生成结果..."
+      },
+      "TabHint": "Tab 使用 AI",
+      "FollowUpHint": "追问...",
+      "EscHint": "Esc 退出 AI",
+      "Status": {
+        "Complete": "AI 搜索完成"
+      },
+      "Error": {
+        "StartFailed": "无法启动 AI 搜索",
+        "MessageFailed": "无法发送 AI 消息"
+      }
     }
   },
   "Unknown": "未知",

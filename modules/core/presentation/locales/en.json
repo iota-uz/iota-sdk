@@ -965,11 +965,6 @@
       "Exact": "Exact",
       "Action": "Action",
       "Navigate": "Navigate",
-      "Policy": "Policy",
-      "Vehicle": "Vehicle",
-      "Claim": "Claim",
-      "Chat": "Chat",
-      "Organization": "Organization",
       "Staff": "Staff",
       "Person": "Person"
     },
@@ -990,6 +985,36 @@
       "People": "People",
       "Staff": "Staff",
       "_Other": "Other"
+    },
+    "ConfirmOpenResult": "Open this result?",
+    "Status": {
+      "SearchingMore": "Searching more sources",
+      "FindingMatches": "Finding matches",
+      "SearchComplete": "Search complete"
+    },
+    "AI": {
+      "Button": "Search with AI",
+      "Placeholder": "Ask AI anything...",
+      "EmptyHint": "Type a question and press Enter to search with AI",
+      "Searching": "Searching",
+      "Candidates": "Likely matches",
+      "FollowUpPlaceholder": "Ask a follow-up or give another clue",
+      "Open": "Open",
+      "Progress": {
+        "Searching": "Searching records...",
+        "Checking": "Checking database...",
+        "Building": "Building results..."
+      },
+      "TabHint": "Tab for AI",
+      "FollowUpHint": "Ask a follow-up...",
+      "EscHint": "Esc to exit AI",
+      "Status": {
+        "Complete": "AI search complete"
+      },
+      "Error": {
+        "StartFailed": "Could not start AI search",
+        "MessageFailed": "Could not send AI message"
+      }
     }
   },
   "Unknown": "Unknown",

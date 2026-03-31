@@ -10,6 +10,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type reindexEngine struct {
+	deleteTenantCalls []uuid.UUID
+	upserts           [][]SearchDocument
+}
+
+func (e *reindexEngine) Upsert(_ context.Context, docs []SearchDocument) error {
+	copied := make([]SearchDocument, len(docs))
+	copy(copied, docs)
+	e.upserts = append(e.upserts, copied)
+	return nil
+}
+
+func (e *reindexEngine) Delete(context.Context, []DocumentRef) error { return nil }
+
+func (e *reindexEngine) DeleteTenant(_ context.Context, tenantID uuid.UUID) error {
+	e.deleteTenantCalls = append(e.deleteTenantCalls, tenantID)
+	return nil
+}
+
+func (e *reindexEngine) Search(context.Context, SearchRequest) ([]SearchHit, error) { return nil, nil }
+
+func (e *reindexEngine) Health(context.Context) error { return nil }
+
 type testEngine struct {
 	mu          sync.Mutex
 	searchCalls int
@@ -20,6 +43,8 @@ type testEngine struct {
 func (e *testEngine) Upsert(context.Context, []SearchDocument) error { return nil }
 
 func (e *testEngine) Delete(context.Context, []DocumentRef) error { return nil }
+
+func (e *testEngine) DeleteTenant(context.Context, uuid.UUID) error { return nil }
 
 func (e *testEngine) Search(_ context.Context, _ SearchRequest) ([]SearchHit, error) {
 	e.mu.Lock()
@@ -55,6 +80,8 @@ type scriptedEngine struct {
 func (e *scriptedEngine) Upsert(context.Context, []SearchDocument) error { return nil }
 
 func (e *scriptedEngine) Delete(context.Context, []DocumentRef) error { return nil }
+
+func (e *scriptedEngine) DeleteTenant(context.Context, uuid.UUID) error { return nil }
 
 func (e *scriptedEngine) Search(ctx context.Context, _ SearchRequest) ([]SearchHit, error) {
 	e.mu.Lock()
@@ -99,8 +126,8 @@ func (p *fakeProvider) Capabilities() ProviderCapabilities {
 	return ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"client"}}
 }
 
-func (p *fakeProvider) ListDocuments(context.Context, ProviderScope) ([]SearchDocument, error) {
-	return nil, nil
+func (p *fakeProvider) StreamDocuments(_ context.Context, _ ProviderScope, _ DocumentBatchEmitter) error {
+	return nil
 }
 
 func (p *fakeProvider) Watch(context.Context, ProviderScope) (<-chan DocumentEvent, error) {
@@ -165,7 +192,8 @@ func TestSpotlightService_Search_UsesBatchACLAndCache(t *testing.T) {
 
 	resp1, err := svc.Search(context.Background(), req)
 	require.NoError(t, err)
-	require.NotEmpty(t, resp1.Other)
+	require.NotEmpty(t, resp1.Groups)
+	require.Equal(t, ResultDomainOther, resp1.Groups[0].Domain)
 
 	resp2, err := svc.Search(context.Background(), req)
 	require.NoError(t, err)
@@ -267,6 +295,52 @@ func TestSpotlightService_CreateSession_StreamsAndPromotesBetterLateMatches(t *t
 
 	require.Equal(t, "Better match", topSnapshotTitle(finalSnapshot))
 	require.GreaterOrEqual(t, engine.callsCount(), 3)
+}
+
+func TestSpotlightService_ReindexTenant_RefreshesOnlyRequestedTenant(t *testing.T) {
+	tenantID := uuid.New()
+	engine := &reindexEngine{}
+	svc := NewService(engine, nil, DefaultServiceConfig())
+	svc.RegisterProvider(&pipelineStreamingTestProvider{
+		id: "provider.streaming",
+		batches: [][]SearchDocument{{
+			{ID: "doc-1"},
+			{ID: "doc-2"},
+		}},
+	})
+
+	err := svc.ReindexTenant(context.Background(), tenantID, "ru")
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{tenantID}, engine.deleteTenantCalls)
+	require.Len(t, engine.upserts, 1)
+	require.Equal(t, tenantID, engine.upserts[0][0].TenantID)
+	require.Equal(t, "provider.streaming", engine.upserts[0][0].Provider)
+}
+
+func TestSearchResponse_Hits_ReturnsScoreOrderedHitsAcrossGroups(t *testing.T) {
+	resp := SearchResponse{
+		Groups: []SearchGroup{
+			{
+				Domain: ResultDomainNavigate,
+				Hits: []SearchHit{{
+					Document:   SearchDocument{ID: "navigate"},
+					FinalScore: 1,
+				}},
+			},
+			{
+				Domain: ResultDomainLookup,
+				Hits: []SearchHit{{
+					Document:   SearchDocument{ID: "lookup"},
+					FinalScore: 10,
+				}},
+			},
+		},
+	}
+
+	hits := resp.Hits()
+	require.Len(t, hits, 2)
+	require.Equal(t, "lookup", hits[0].Document.ID)
+	require.Equal(t, "navigate", hits[1].Document.ID)
 }
 
 func TestCreateSession_BindsSessionToPrincipal(t *testing.T) {

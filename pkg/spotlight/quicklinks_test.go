@@ -121,7 +121,7 @@ func TestQuickLinks_ListDocuments_UsesConfiguredAccess(t *testing.T) {
 	)
 
 	tenantID := uuid.New()
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: tenantID,
 		Language: "en",
 	})
@@ -150,7 +150,7 @@ func TestQuickLinks_ListDocuments_IncludesKeywordsInBody(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: uuid.New(),
 		Language: "en",
 	})
@@ -165,7 +165,7 @@ func TestQuickLinks_ListDocuments_NoKeywords(t *testing.T) {
 	ql := NewQuickLinks(nil, nil)
 	ql.Add(NewQuickLink("simple.link", "/simple"))
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: uuid.New(),
 		Language: "en",
 	})
@@ -190,7 +190,7 @@ func TestQuickLinks_Add_MergesDuplicateLinks(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: uuid.New(),
 		Language: "en",
 	})
@@ -222,7 +222,7 @@ func TestQuickLinks_Add_MergesAccessMonotonically(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: uuid.New(),
 		Language: "en",
 	})
@@ -244,7 +244,7 @@ func TestQuickLinks_FilterAuthorized_RestrictedByPermission(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: tenantID,
 		Language: "en",
 	})
@@ -289,7 +289,7 @@ func TestQuickLinks_FilterAuthorized_RestrictedByRole(t *testing.T) {
 			Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: tenantID,
 		Language: "en",
 	})
@@ -312,6 +312,139 @@ func TestQuickLinkBuilder_DefaultRestrictedVisibility(t *testing.T) {
 	require.Empty(t, link.access.AllowedUsers)
 }
 
+// ---------------------------------------------------------------------------
+// FuzzySearch tests
+// ---------------------------------------------------------------------------
+
+func TestFuzzySearch_ExactSubstringRanksHigherThanFuzzy(t *testing.T) {
+	tenantID := uuid.New()
+	ql := NewQuickLinks(nil, nil)
+	ql.Add(
+		NewQuickLinkBuilder("nav.settings", "/settings").
+			Public().
+			WithKeywords("settings", "preferences").
+			Build(),
+		NewQuickLinkBuilder("nav.sessions", "/sessions").
+			Public().
+			WithKeywords("sessions", "logins").
+			Build(),
+		// "settingz" is 1-edit away from "settings" — fuzzy match only
+		NewQuickLinkBuilder("nav.settingz", "/settingz").
+			Public().
+			WithKeywords("settingz").
+			Build(),
+	)
+
+	req := SearchRequest{
+		TenantID: tenantID,
+		UserID:   "1",
+		Query:    "settings",
+	}
+
+	results := ql.FuzzySearch("settings", req)
+	require.NotEmpty(t, results)
+
+	// The item with exact keyword "settings" should rank first
+	require.Equal(t, "/settings", results[0].Document.URL)
+
+	// Fuzzy match "settingz" should appear but with lower score
+	found := false
+	for _, r := range results {
+		if r.Document.URL == "/settingz" {
+			found = true
+			require.Less(t, r.FinalScore, results[0].FinalScore,
+				"fuzzy match should have a lower score than exact match")
+		}
+	}
+	require.True(t, found, "fuzzy match for 'settingz' should be present in results")
+}
+
+func TestFuzzySearch_RBACFiltering(t *testing.T) {
+	tenantID := uuid.New()
+	ql := NewQuickLinks(nil, nil)
+	ql.Add(
+		NewQuickLinkBuilder("nav.public", "/public").
+			Public().
+			WithKeywords("dashboard").
+			Build(),
+		NewQuickLinkBuilder("nav.admin", "/admin").
+			WithPermissions("admin.access").
+			WithKeywords("dashboard").
+			Build(),
+	)
+
+	// User without admin.access should only see public link
+	reqNoAdmin := SearchRequest{
+		TenantID:    tenantID,
+		UserID:      "user-1",
+		Permissions: []string{"basic.view"},
+	}
+	results := ql.FuzzySearch("dashboard", reqNoAdmin)
+	require.Len(t, results, 1)
+	require.Equal(t, "/public", results[0].Document.URL)
+
+	// User with admin.access should see both
+	reqAdmin := SearchRequest{
+		TenantID:    tenantID,
+		UserID:      "user-2",
+		Permissions: []string{"admin.access"},
+	}
+	results = ql.FuzzySearch("dashboard", reqAdmin)
+	require.Len(t, results, 2)
+}
+
+func TestFuzzySearch_EmptyQueryReturnsEmpty(t *testing.T) {
+	ql := NewQuickLinks(nil, nil)
+	ql.Add(NewQuickLink("nav.home", "/home"))
+
+	req := SearchRequest{TenantID: uuid.New(), UserID: "1"}
+	require.Empty(t, ql.FuzzySearch("", req))
+	require.Empty(t, ql.FuzzySearch("   ", req))
+}
+
+func TestFuzzySearch_ResultsCappedAtEight(t *testing.T) {
+	ql := NewQuickLinks(nil, nil)
+	// Add 12 public links that all match "page"
+	for i := 0; i < 12; i++ {
+		ql.Add(
+			NewQuickLinkBuilder("nav.page"+string(rune('a'+i)), "/page/"+string(rune('a'+i))).
+				Public().
+				WithKeywords("page").
+				Build(),
+		)
+	}
+
+	req := SearchRequest{TenantID: uuid.New(), UserID: "1"}
+	results := ql.FuzzySearch("page", req)
+	require.Len(t, results, 8, "results should be capped at 8")
+}
+
+func TestFuzzySearch_DocumentShape(t *testing.T) {
+	tenantID := uuid.New()
+	ql := NewQuickLinks(nil, nil)
+	ql.Add(
+		NewQuickLinkBuilder("nav.users", "/users").
+			Public().
+			WithKeywords("staff", "people").
+			Build(),
+	)
+
+	req := SearchRequest{TenantID: tenantID, UserID: "1", Language: "en"}
+	results := ql.FuzzySearch("users", req)
+	require.Len(t, results, 1)
+
+	doc := results[0].Document
+	require.Equal(t, "core.quick_links", doc.Provider)
+	require.Equal(t, "quick_link", doc.EntityType)
+	require.Equal(t, ResultDomainNavigate, doc.Domain)
+	require.Equal(t, "/users", doc.URL)
+	require.Equal(t, tenantID, doc.TenantID)
+	require.Equal(t, "en", doc.Language)
+	require.Contains(t, doc.Metadata, "tr_key")
+	require.Contains(t, doc.Metadata, "source")
+	require.Empty(t, results[0].WhyMatched)
+}
+
 func TestQuickLinks_RestrictedNoConfigFiltersAll(t *testing.T) {
 	tenantID := uuid.New()
 	ql := NewQuickLinks(nil, nil)
@@ -319,7 +452,7 @@ func TestQuickLinks_RestrictedNoConfigFiltersAll(t *testing.T) {
 		NewQuickLinkBuilder("restricted.no.config", "/restricted").Build(),
 	)
 
-	docs, err := ql.ListDocuments(context.Background(), ProviderScope{
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
 		TenantID: tenantID,
 		Language: "en",
 	})

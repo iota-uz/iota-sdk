@@ -3,9 +3,13 @@ package llmproviders
 
 import (
 	"context"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -125,7 +129,21 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 		}
 	}
 
-	client := openai.NewClient(option.WithAPIKey(apiKey))
+	baseURL := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
+	resolveIP := strings.TrimSpace(os.Getenv("OPENAI_API_RESOLVE_IP"))
+	clientOptions := []option.RequestOption{
+		option.WithAPIKey(apiKey),
+	}
+	if baseURL != "" {
+		clientOptions = append(clientOptions, option.WithBaseURL(baseURL))
+	}
+	if httpClient, configured, err := newOpenAIHTTPClient(baseURL, resolveIP); err != nil {
+		return nil, serrors.E(op, err, "failed to configure OpenAI HTTP client")
+	} else if configured {
+		clientOptions = append(clientOptions, option.WithHTTPClient(httpClient))
+	}
+
+	client := openai.NewClient(clientOptions...)
 	m := &OpenAIModel{
 		client:                       &client,
 		modelName:                    modelName,
@@ -141,6 +159,50 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 		m.imageUploadResolver = newCoreOpenAIImageUploadLookup()
 	}
 	return m, nil
+}
+
+func newOpenAIHTTPClient(baseURL, resolveIP string) (*http.Client, bool, error) {
+	resolveIP = strings.TrimSpace(resolveIP)
+	if resolveIP == "" {
+		return nil, false, nil
+	}
+
+	resolveTarget := "api.openai.com"
+	if baseURL != "" {
+		parsedBaseURL, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, false, err
+		}
+		if host := strings.TrimSpace(parsedBaseURL.Hostname()); host != "" {
+			resolveTarget = host
+		}
+	}
+
+	baseTransport := http.DefaultTransport
+	transport, ok := baseTransport.(*http.Transport)
+	if !ok {
+		return nil, false, serrors.E("openai.httpclient.transport", "unexpected default transport type")
+	}
+	cloned := transport.Clone()
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	cloned.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return dialer.DialContext(ctx, network, addr)
+		}
+		if strings.EqualFold(host, resolveTarget) {
+			addr = net.JoinHostPort(resolveIP, port)
+		}
+		return dialer.DialContext(ctx, network, addr)
+	}
+
+	return &http.Client{
+		Transport: cloned,
+		Timeout:   2 * time.Minute,
+	}, true, nil
 }
 
 // Generate sends a blocking request to the OpenAI Responses API.

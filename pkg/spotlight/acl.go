@@ -44,12 +44,8 @@ func (r *ComposablesPrincipalResolver) Resolve(ctx context.Context, req SearchRe
 		}).Warn("spotlight request user id mismatch")
 	}
 
-	for _, role := range u.Roles() {
-		principal.Roles = append(principal.Roles, role.Name())
-	}
-	for _, permission := range u.Permissions() {
-		principal.Permissions = append(principal.Permissions, permission.Name())
-	}
+	principal.Roles = composables.RoleNames(u)
+	principal.Permissions = composables.EffectivePermissionNames(u)
 	return principal, nil
 }
 

@@ -965,11 +965,6 @@
       "Exact": "Аниқ",
       "Action": "Ҳаракат",
       "Navigate": "Навигация",
-      "Policy": "Полис",
-      "Vehicle": "Транспорт",
-      "Claim": "Мурожаат",
-      "Chat": "Чат",
-      "Organization": "Ташкилот",
       "Staff": "Ходим",
       "Person": "Шахс"
     },
@@ -990,6 +985,36 @@
       "People": "Одамлар",
       "Staff": "Ходимлар",
       "_Other": "Бошқа"
+    },
+    "ConfirmOpenResult": "Ушбу натижани очиш?",
+    "Status": {
+      "SearchingMore": "Қидирув давом этмоқда",
+      "FindingMatches": "Мосликлар қидирилмоқда",
+      "SearchComplete": "Қидирув якунланди"
+    },
+    "AI": {
+      "Button": "AI билан қидириш",
+      "Placeholder": "AI дан сўранг...",
+      "EmptyHint": "Савол ёзинг ва AI билан қидириш учун Enter босинг",
+      "Searching": "Қидирилмоқда",
+      "Candidates": "Эҳтимолий мосликлар",
+      "FollowUpPlaceholder": "Қўшимча изоҳ ёки яна бир белги киритинг",
+      "Open": "Очиш",
+      "Progress": {
+        "Searching": "Ёзувлар қидирилмоқда...",
+        "Checking": "Маълумотлар базаси текширилмоқда...",
+        "Building": "Натижалар шакллантирилмоқда..."
+      },
+      "TabHint": "Tab — AI қидирув",
+      "FollowUpHint": "Қўшимча савол беринг...",
+      "EscHint": "Esc — AI дан чиқиш",
+      "Status": {
+        "Complete": "AI қидируви якунланди"
+      },
+      "Error": {
+        "StartFailed": "AI қидирувни ишга тушириб бўлмади",
+        "MessageFailed": "AI га хабар юбориб бўлмади"
+      }
     }
   },
   "Unknown": "Noma'lum",

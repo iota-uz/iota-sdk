@@ -61,8 +61,8 @@ func (a *sdkAppletUserAdapter) HasPermission(name string) bool {
 	if nameNorm == "" {
 		return false
 	}
-	for _, p := range a.u.Permissions() {
-		if strings.ToLower(p.Name()) == nameNorm {
+	for _, permissionName := range composables.EffectivePermissionNames(a.u) {
+		if strings.ToLower(permissionName) == nameNorm {
 			return true
 		}
 	}
@@ -70,11 +70,7 @@ func (a *sdkAppletUserAdapter) HasPermission(name string) bool {
 }
 
 func (a *sdkAppletUserAdapter) PermissionNames() []string {
-	names := make([]string, 0, len(a.u.Permissions()))
-	for _, p := range a.u.Permissions() {
-		names = append(names, p.Name())
-	}
-	return names
+	return composables.EffectivePermissionNames(a.u)
 }
 
 // sdkHostServices implements applets.HostServices using composables.

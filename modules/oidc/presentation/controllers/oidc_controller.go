@@ -20,7 +20,7 @@ import (
 
 // CallbackQueryDTO represents the query parameters for the OIDC callback endpoint
 type CallbackQueryDTO struct {
-	ID string `schema:"id"`
+	ID string `form:"id"`
 }
 
 type OIDCController struct {
