@@ -324,6 +324,63 @@ func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *tes
 	require.NoError(t, session.Commit(t.Context()))
 }
 
+func TestMeilisearchEngine_DeleteTenant_RemovesOnlyRequestedTenantDocuments(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	index := meilimocks.NewMockmeilisearchIndexManager(t)
+	tenantID := uuidMustParse("11111111-1111-1111-1111-111111111111")
+	engine := &MeilisearchEngine{
+		client:    service,
+		indexName: "spotlight",
+	}
+
+	service.EXPECT().
+		GetIndex("spotlight").
+		Return(&meilisearch.IndexResult{UID: "spotlight"}, nil).
+		Once()
+	service.EXPECT().
+		Index("spotlight").
+		Return(index).
+		Once()
+	index.EXPECT().
+		UpdateFilterableAttributes(mock.Anything).
+		Return(&meilisearch.TaskInfo{TaskUID: 31}, nil).
+		Once()
+	service.EXPECT().
+		WaitForTask(int64(31), 100*time.Millisecond).
+		Return(&meilisearch.Task{}, nil).
+		Once()
+	index.EXPECT().
+		UpdateSearchableAttributes(mock.Anything).
+		Return(&meilisearch.TaskInfo{TaskUID: 32}, nil).
+		Once()
+	service.EXPECT().
+		WaitForTask(int64(32), 100*time.Millisecond).
+		Return(&meilisearch.Task{}, nil).
+		Once()
+	index.EXPECT().
+		UpdateSortableAttributes(mock.Anything).
+		Return(&meilisearch.TaskInfo{TaskUID: 33}, nil).
+		Once()
+	service.EXPECT().
+		WaitForTask(int64(33), 100*time.Millisecond).
+		Return(&meilisearch.Task{}, nil).
+		Once()
+	service.EXPECT().
+		Index("spotlight").
+		Return(index).
+		Once()
+	index.EXPECT().
+		DeleteDocumentsByFilterWithContext(mock.Anything, `tenant_id = "11111111-1111-1111-1111-111111111111"`, (*meilisearch.DocumentOptions)(nil)).
+		Return(&meilisearch.TaskInfo{TaskUID: 34}, nil).
+		Once()
+	service.EXPECT().
+		WaitForTask(int64(34), 100*time.Millisecond).
+		Return(&meilisearch.Task{}, nil).
+		Once()
+
+	require.NoError(t, engine.DeleteTenant(t.Context(), tenantID))
+}
+
 func uuidMustParse(raw string) uuid.UUID {
 	parsed, err := uuid.Parse(raw)
 	if err != nil {
