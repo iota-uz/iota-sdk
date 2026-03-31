@@ -525,9 +525,9 @@ func (c *SpotlightController) aiSnapshotPayload(r *http.Request, snapshot spotli
 		payload.Tools = append(payload.Tools, spotlightAIToolView{
 			ID:          tool.ID,
 			Name:        tool.Name,
-			Label:       c.aiToolLabel(r, tool),
+			Label:       strings.TrimSpace(tool.Name),
 			Status:      tool.Status,
-			StatusLabel: c.aiToolStatusLabel(r, tool),
+			StatusLabel: strings.TrimSpace(tool.Status),
 			Summary:     tool.Summary,
 			StartedAt:   tool.StartedAt,
 			CompletedAt: tool.CompletedAt,
@@ -577,20 +577,6 @@ func (c *SpotlightController) aiLinkLabel(r *http.Request, link spotlight.AISear
 	return link.DisplayLabel(func(key string) string {
 		return intl.MustT(r.Context(), key)
 	})
-}
-
-func (c *SpotlightController) aiToolLabel(r *http.Request, tool spotlight.AISearchToolState) string {
-	if key := strings.TrimSpace(tool.LabelKey); key != "" {
-		return intl.MustT(r.Context(), key)
-	}
-	return strings.TrimSpace(tool.Name)
-}
-
-func (c *SpotlightController) aiToolStatusLabel(r *http.Request, tool spotlight.AISearchToolState) string {
-	if key := strings.TrimSpace(tool.StatusKey); key != "" {
-		return intl.MustT(r.Context(), key)
-	}
-	return strings.TrimSpace(tool.Status)
 }
 
 func (c *SpotlightController) snapshotPayload(r *http.Request, snapshot spotlight.SearchSessionSnapshot) (spotlightSearchPayload, error) {

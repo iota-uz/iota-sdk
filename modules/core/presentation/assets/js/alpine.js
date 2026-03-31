@@ -411,15 +411,19 @@ let checkboxes = () => ({
 let spotlight = () => ({
   isOpen: false,
   isLoading: false,
-  aiMode: false,
   aiLoading: false,
   aiSessionId: '',
   aiRunId: '',
-  aiMessages: [],
   aiCandidates: [],
   aiTools: [],
   aiInput: '',
   aiError: '',
+  aiActive: false,
+  aiMode: false,
+  expandedChip: null,
+  currentProgressVerb: '',
+  verbRotationTimer: null,
+  verbIndex: 0,
   highlightedIndex: 0,
   query: '',
   searchId: '',
@@ -453,6 +457,14 @@ let spotlight = () => ({
     if (this.$refs.input) {
       this.query = this.$refs.input.value || '';
     }
+    this.$watch('query', (value) => {
+      if (!this.aiMode) {
+        window.clearTimeout(this.debounceTimer);
+        this.debounceTimer = window.setTimeout(() => {
+          this.search(value);
+        }, 120);
+      }
+    });
   },
 
   handleShortcut(event) {
@@ -476,14 +488,23 @@ let spotlight = () => ({
     this.stopStream();
     this.stopAIStream();
     this.cancelAISession();
+    this.aiActive = false;
+    this.aiMode = false;
+    this.expandedChip = null;
+    this.stopVerbRotation();
+  },
+
+  handleEscape() {
+    if (this.aiMode && this.aiActive) {
+      this.deactivateAI();
+    } else {
+      this.close();
+    }
   },
 
   scheduleSearch(value) {
     this.query = value || '';
-    window.clearTimeout(this.debounceTimer);
-    this.debounceTimer = window.setTimeout(() => {
-      this.search(this.query);
-    }, 120);
+    // The $watch on query handles the debounced search
   },
 
   async search(value) {
@@ -491,9 +512,7 @@ let spotlight = () => ({
     this.requestSeq += 1;
     const requestSeq = this.requestSeq;
     this.stopStream();
-    if (this.aiMode) {
-      this.exitAI();
-    }
+    this.expandedChip = null;
     this.isLoading = query !== '';
     this.highlightedIndex = 0;
     this.pendingCount = 0;
@@ -587,20 +606,21 @@ let spotlight = () => ({
     }
   },
 
-  async openAI() {
+  async triggerAI() {
     const query = (this.query || '').trim();
-    if (!query) return;
+    if (!query || this.aiActive) return;
 
     this.stopAIStream();
-    this.aiMode = true;
+    this.aiActive = true;
     this.aiLoading = true;
     this.aiError = '';
     this.aiSessionId = '';
     this.aiRunId = '';
-    this.aiMessages = [];
     this.aiCandidates = [];
     this.aiTools = [];
     this.aiInput = '';
+    this.expandedChip = null;
+    this.startVerbRotation();
 
     try {
       const response = await fetch('/spotlight/ai/sessions', {
@@ -623,15 +643,120 @@ let spotlight = () => ({
     } catch (error) {
       console.error('spotlight ai search failed', error);
       this.aiLoading = false;
+      this.stopVerbRotation();
       this.aiError = this.localizedText('aiStartFailed', 'Could not start AI search');
     }
   },
 
-  exitAI() {
-    this.aiMode = false;
+  deactivateAI() {
+    this.aiActive = false;
+    this.expandedChip = null;
+    this.stopVerbRotation();
     this.stopAIStream();
+    this.cancelAISession();
     this.aiLoading = false;
     this.aiInput = '';
+  },
+
+  startVerbRotation() {
+    this.stopVerbRotation();
+    const root = this.$root || this.$el;
+    this.progressVerbs = [
+      root?.dataset?.['i18nAiProgressSearching'] || 'Searching records...',
+      root?.dataset?.['i18nAiProgressChecking'] || 'Checking database...',
+      root?.dataset?.['i18nAiProgressBuilding'] || 'Building results...',
+    ];
+    this.verbIndex = 0;
+    this.currentProgressVerb = this.progressVerbs[0];
+    this.verbRotationTimer = window.setInterval(() => {
+      this.verbIndex = (this.verbIndex + 1) % this.progressVerbs.length;
+      this.currentProgressVerb = this.progressVerbs[this.verbIndex];
+    }, 3000);
+  },
+
+  stopVerbRotation() {
+    if (this.verbRotationTimer) {
+      window.clearInterval(this.verbRotationTimer);
+      this.verbRotationTimer = null;
+    }
+    this.currentProgressVerb = '';
+  },
+
+  toggleChip(candidateId) {
+    this.expandedChip = this.expandedChip === candidateId ? null : candidateId;
+  },
+
+  confidenceDot(candidate) {
+    const conf = (candidate.confidence || '').toLowerCase();
+    if (conf.includes('exact') || conf.includes('strong')) {
+      return 'bg-emerald-400 dark:bg-emerald-300';
+    }
+    if (conf.includes('related') || conf.includes('partial')) {
+      return 'bg-amber-400 dark:bg-amber-300';
+    }
+    return 'bg-slate-300 dark:bg-slate-500';
+  },
+
+  entityChipIcon(candidate) {
+    const type = (candidate.entity_type || '').toLowerCase();
+    const map = {
+      contract: 'C',
+      policy: 'P',
+      vehicle: 'V',
+      claim: 'X',
+      chat: '💬',
+      organization: 'O',
+      client: 'U',
+      person: 'U',
+      user: 'S',
+    };
+    return map[type] || '?';
+  },
+
+  entityChipClass(candidate) {
+    const type = (candidate.entity_type || '').toLowerCase();
+    switch (type) {
+      case 'contract':
+      case 'policy':
+        return 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300';
+      case 'vehicle':
+        return 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300';
+      case 'claim':
+        return 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300';
+      case 'chat':
+        return 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-500/15 dark:text-fuchsia-300';
+      case 'organization':
+        return 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300';
+      case 'client':
+      case 'person':
+      case 'user':
+        return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300';
+      default:
+        return 'bg-slate-100 text-slate-500 dark:bg-slate-500/15 dark:text-slate-400';
+    }
+  },
+
+  switchMode(toAI) {
+    this.aiMode = toAI;
+    this.$nextTick(() => {
+      this.$refs.input?.focus();
+    });
+  },
+
+  async submitAIQuery() {
+    const query = (this.query || '').trim();
+    if (!query) return;
+
+    if (this.aiActive && this.aiSessionId) {
+      // Already have a session - treat as follow-up
+      this.aiInput = query;
+      this.query = '';
+      await this.sendAIMessage();
+      return;
+    }
+
+    // Start new AI session
+    await this.triggerAI();
   },
 
   canSendAI() {
@@ -646,6 +771,8 @@ let spotlight = () => ({
     this.stopAIStream();
     this.aiLoading = true;
     this.aiError = '';
+    this.expandedChip = null;
+    this.startVerbRotation();
 
     try {
       const response = await fetch('/spotlight/ai/messages', {
@@ -671,6 +798,7 @@ let spotlight = () => ({
     } catch (error) {
       console.error('spotlight ai message failed', error);
       this.aiLoading = false;
+      this.stopVerbRotation();
       this.aiError = this.localizedText('aiMessageFailed', 'Could not send AI message');
     }
   },
@@ -719,11 +847,13 @@ let spotlight = () => ({
   updateAISnapshot(snapshot) {
     this.aiSessionId = snapshot.session_id || '';
     this.aiRunId = snapshot.run_id || '';
-    this.aiMessages = Array.isArray(snapshot.messages) ? snapshot.messages : [];
     this.aiCandidates = Array.isArray(snapshot.candidates) ? snapshot.candidates : [];
     this.aiTools = Array.isArray(snapshot.tools) ? snapshot.tools : [];
     this.aiLoading = Boolean(snapshot.loading) && !snapshot.completed;
     this.aiError = snapshot.error || '';
+    if (!this.aiLoading) {
+      this.stopVerbRotation();
+    }
   },
 
   updatePayload(payload) {
@@ -759,7 +889,6 @@ let spotlight = () => ({
   applySuggestion(value) {
     this.query = value || '';
     if (this.$refs.input) {
-      this.$refs.input.value = this.query;
       this.$refs.input.focus();
     }
     this.search(this.query);
@@ -794,17 +923,6 @@ let spotlight = () => ({
       return this.localizedText('statusFindingMatches');
     }
     return this.localizedText('statusSearchComplete');
-  },
-
-  aiStatusLabel() {
-    if (this.aiLoading) {
-      return this.localizedText('aiStatusInvestigating');
-    }
-    return this.localizedText('aiStatusComplete');
-  },
-
-  aiPendingLabel() {
-    return this.localizedText('aiPending');
   },
 
   hasResults() {

@@ -994,38 +994,26 @@
     },
     "AI": {
       "Button": "AI bilan qidirish",
-      "Title": "AI Spotlight qidiruvi",
-      "Back": "Natijalarga qaytish",
-      "ModeTitle": "So‘rovni AI yordamida tekshirish",
-      "ModeBody": "AI Spotlight indeksidan qidirishi, tizimdagi ma’lumotlarni tekshirishi va ilova ichida tasdiqlangan havolalarni tayyorlashi mumkin.",
+      "Placeholder": "AI dan so'rang...",
+      "EmptyHint": "Savol yozing va AI bilan qidirish uchun Enter bosing",
       "Searching": "Qidirilmoqda",
       "Candidates": "Ehtimoliy mosliklar",
-      "Conversation": "Tekshiruv",
-      "Activity": "Vositalar faoliyati",
-      "FollowUpPlaceholder": "Qo‘shimcha izoh yoki yana bir belgi kiriting",
-      "Send": "Yuborish",
+      "FollowUpPlaceholder": "Qo’shimcha izoh yoki yana bir belgi kiriting",
       "Open": "Ochish",
+      "Progress": {
+        "Searching": "Yozuvlar qidirilmoqda...",
+        "Checking": "Ma’lumotlar bazasi tekshirilmoqda...",
+        "Building": "Natijalar shakllantirilmoqda..."
+      },
+      "TabHint": "Tab — AI qidiruv",
+      "FollowUpHint": "Qo’shimcha savol bering...",
+      "EscHint": "Esc — AI dan chiqish",
       "Status": {
-        "Investigating": "AI ma’lumotlarni tekshirmoqda",
-        "Complete": "AI qidiruvi yakunlandi",
-        "Pending": "AI javob tayyorlamoqda…"
+        "Complete": "AI qidiruvi yakunlandi"
       },
       "Error": {
-        "StartFailed": "AI qidiruvni ishga tushirib bo‘lmadi",
-        "MessageFailed": "AI ga xabar yuborib bo‘lmadi"
-      },
-      "Tool": {
-        "meili_search": "Indeks bo‘yicha qidirish",
-        "schema_list": "Kerakli ma’lumotlarni topish",
-        "schema_describe": "Yozuv maydonlarini tekshirish",
-        "sql_execute_readonly": "Tizimdagi ma’lumotlarni tekshirish",
-        "granite_link": "Ilova havolalarini tayyorlash",
-        "publish_candidates": "Ehtimoliy mosliklarni ko‘rsatish"
-      },
-      "ToolStatus": {
-        "running": "Jarayonda",
-        "completed": "Tayyor",
-        "failed": "Xato"
+        "StartFailed": "AI qidiruvni ishga tushirib bo’lmadi",
+        "MessageFailed": "AI ga xabar yuborib bo’lmadi"
       }
     }
   },

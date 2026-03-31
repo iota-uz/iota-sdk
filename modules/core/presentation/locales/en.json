@@ -994,38 +994,26 @@
     },
     "AI": {
       "Button": "Search with AI",
-      "Title": "AI Spotlight Search",
-      "Back": "Back to results",
-      "ModeTitle": "Investigate this query with AI",
-      "ModeBody": "AI can search the Spotlight index, check live application data, and build verified in-app links.",
+      "Placeholder": "Ask AI anything...",
+      "EmptyHint": "Type a question and press Enter to search with AI",
       "Searching": "Searching",
       "Candidates": "Likely matches",
-      "Conversation": "Investigation",
-      "Activity": "Tool activity",
       "FollowUpPlaceholder": "Ask a follow-up or give another clue",
-      "Send": "Send",
       "Open": "Open",
+      "Progress": {
+        "Searching": "Searching records...",
+        "Checking": "Checking database...",
+        "Building": "Building results..."
+      },
+      "TabHint": "Tab for AI",
+      "FollowUpHint": "Ask a follow-up...",
+      "EscHint": "Esc to exit AI",
       "Status": {
-        "Investigating": "AI is investigating",
-        "Complete": "AI search complete",
-        "Pending": "AI is thinking…"
+        "Complete": "AI search complete"
       },
       "Error": {
         "StartFailed": "Could not start AI search",
         "MessageFailed": "Could not send AI message"
-      },
-      "Tool": {
-        "meili_search": "Search index",
-        "schema_list": "Find relevant data",
-        "schema_describe": "Inspect record fields",
-        "sql_execute_readonly": "Check live records",
-        "granite_link": "Build app links",
-        "publish_candidates": "Show likely matches"
-      },
-      "ToolStatus": {
-        "running": "In progress",
-        "completed": "Done",
-        "failed": "Failed"
       }
     }
   },
