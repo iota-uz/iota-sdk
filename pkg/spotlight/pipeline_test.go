@@ -112,7 +112,7 @@ func TestIndexerPipelineSync_UpsertsPerProviderBatch(t *testing.T) {
 	})
 
 	engine := &pipelineTestEngine{}
-	pipeline := NewIndexerPipeline(registry, engine)
+	pipeline := NewIndexerPipeline(registry, engine, nil)
 
 	err := pipeline.Sync(context.Background(), tenantID, "en", "", 10, ScopeConfig{})
 	require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestIndexerPipelineSync_StreamingProviderUpsertsIncrementally(t *testing.T)
 	})
 
 	engine := &pipelineTestEngine{}
-	pipeline := NewIndexerPipeline(registry, engine)
+	pipeline := NewIndexerPipeline(registry, engine, nil)
 
 	err := pipeline.Sync(context.Background(), tenantID, "en", "", 10, ScopeConfig{})
 	require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestIndexerPipelineSync_UsesRegistryPriorityOrder(t *testing.T) {
 	registry.Register(&pipelineTestProvider{id: "provider.low", priority: 10, docs: []SearchDocument{{ID: "low-1"}}})
 
 	engine := &pipelineTestEngine{}
-	pipeline := NewIndexerPipeline(registry, engine)
+	pipeline := NewIndexerPipeline(registry, engine, nil)
 
 	err := pipeline.Sync(context.Background(), tenantID, "en", "", 10, ScopeConfig{})
 	require.NoError(t, err)

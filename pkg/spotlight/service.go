@@ -206,7 +206,7 @@ func NewService(engine IndexEngine, agent Agent, cfg ServiceConfig, opts ...Serv
 		scope:       scope,
 		acl:         acl,
 		engine:      engine,
-		pipeline:    NewIndexerPipeline(registry, engine),
+		pipeline:    NewIndexerPipeline(registry, engine, nil),
 		ranker:      NewDefaultRanker(),
 		grouper:     NewDefaultGrouper(),
 		metrics:     NewNoopMetrics(),
@@ -218,6 +218,7 @@ func NewService(engine IndexEngine, agent Agent, cfg ServiceConfig, opts ...Serv
 	for _, opt := range opts {
 		opt(svc)
 	}
+	svc.pipeline.logger = svc.logger
 	return svc
 }
 
@@ -295,8 +296,17 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 		return serrors.E(op, err)
 	}
 
+	deleteStart := time.Now()
 	if err := s.engine.DeleteTenant(ctx, tenantID); err != nil {
 		return serrors.E(op, err)
+	}
+	deleteDuration := time.Since(deleteStart)
+
+	if s.logger != nil {
+		s.logger.WithFields(logrus.Fields{
+			"tenant_id": tenantID.String(),
+			"delete_ms": deleteDuration.Milliseconds(),
+		}).Info("Spotlight tenant delete completed")
 	}
 
 	if err := s.pipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
