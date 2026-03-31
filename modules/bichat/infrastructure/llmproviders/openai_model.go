@@ -137,9 +137,9 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 	if baseURL != "" {
 		clientOptions = append(clientOptions, option.WithBaseURL(baseURL))
 	}
-	if httpClient, err := newOpenAIHTTPClient(baseURL, resolveIP); err != nil {
+	if httpClient, configured, err := newOpenAIHTTPClient(baseURL, resolveIP); err != nil {
 		return nil, serrors.E(op, err, "failed to configure OpenAI HTTP client")
-	} else if httpClient != nil {
+	} else if configured {
 		clientOptions = append(clientOptions, option.WithHTTPClient(httpClient))
 	}
 
@@ -161,17 +161,17 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 	return m, nil
 }
 
-func newOpenAIHTTPClient(baseURL, resolveIP string) (*http.Client, error) {
+func newOpenAIHTTPClient(baseURL, resolveIP string) (*http.Client, bool, error) {
 	resolveIP = strings.TrimSpace(resolveIP)
 	if resolveIP == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	resolveTarget := "api.openai.com"
 	if baseURL != "" {
 		parsedBaseURL, err := url.Parse(baseURL)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if host := strings.TrimSpace(parsedBaseURL.Hostname()); host != "" {
 			resolveTarget = host
@@ -181,7 +181,7 @@ func newOpenAIHTTPClient(baseURL, resolveIP string) (*http.Client, error) {
 	baseTransport := http.DefaultTransport
 	transport, ok := baseTransport.(*http.Transport)
 	if !ok {
-		return nil, nil
+		return nil, false, serrors.E("openai.httpclient.transport", "unexpected default transport type")
 	}
 	cloned := transport.Clone()
 	dialer := &net.Dialer{
@@ -202,7 +202,7 @@ func newOpenAIHTTPClient(baseURL, resolveIP string) (*http.Client, error) {
 	return &http.Client{
 		Transport: cloned,
 		Timeout:   2 * time.Minute,
-	}, nil
+	}, true, nil
 }
 
 // Generate sends a blocking request to the OpenAI Responses API.

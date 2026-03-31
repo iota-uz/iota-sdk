@@ -27,6 +27,9 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 	providers := p.registry.All()
 
 	for _, provider := range providers {
+		if provider.ProviderID() == "core.quick_links" {
+			continue // searched in-memory via QuickLinks.FuzzySearch
+		}
 		enabled, ok := scope.EnabledProviders[provider.ProviderID()]
 		if ok && !enabled {
 			continue

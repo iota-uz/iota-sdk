@@ -185,6 +185,8 @@ func New(opts *ApplicationOptions) (Application, error) {
 	}
 	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)
+	// Inject QuickLinks into the service for in-memory fuzzy search in the fast stage.
+	spotlight.WithQuickLinks(quickLinks)(spotlightService)
 
 	return &application{
 		pool:               opts.Pool,

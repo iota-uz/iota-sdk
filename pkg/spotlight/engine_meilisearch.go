@@ -369,7 +369,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 
 	cleanupTask, err := s.client.DeleteIndexWithContext(ctx, s.buildIndexName)
 	if err != nil {
-		if !(createdPlaceholder && isMeiliNotFound(err)) {
+		if !createdPlaceholder || !isMeiliNotFound(err) {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 		return nil

@@ -283,6 +283,17 @@ func (s *SpotlightService) runSearchSession(ctx context.Context, session *search
 
 	hitState := newSessionHitState()
 
+	// In-memory fuzzy search for quick links (instant, no network hop)
+	if s.quickLinks != nil {
+		qlHits := s.quickLinks.FuzzySearch(planned.Query, planned)
+		if len(qlHits) > 0 {
+			merged := hitState.merge(planned, qlHits)
+			session.update(func(snapshot *SearchSessionSnapshot) {
+				snapshot.Response = s.grouper.Group(ctx, planned, merged)
+			})
+		}
+	}
+
 	if err := s.executeSearchStage(ctx, session, hitState, planned, SearchStageFast, sessionFastRequest(planned), nil); err != nil && ctx.Err() == nil {
 		s.logger.WithError(err).WithField("search_id", session.id).Warn("spotlight fast stage failed")
 	}

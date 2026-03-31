@@ -283,7 +283,9 @@ func (c *SpotlightController) CreateAISession(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(c.aiSnapshotPayload(r, snapshot))
+	if err := json.NewEncoder(w).Encode(c.aiSnapshotPayload(r, snapshot)); err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Warn("spotlight ai session response write failed")
+	}
 }
 
 func (c *SpotlightController) StreamAISession(w http.ResponseWriter, r *http.Request) {
@@ -378,7 +380,9 @@ func (c *SpotlightController) SendAIMessage(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(c.aiSnapshotPayload(r, snapshot))
+	if err := json.NewEncoder(w).Encode(c.aiSnapshotPayload(r, snapshot)); err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Warn("spotlight ai message response write failed")
+	}
 }
 
 func (c *SpotlightController) CancelAISession(w http.ResponseWriter, r *http.Request) {

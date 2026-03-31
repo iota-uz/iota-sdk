@@ -75,13 +75,13 @@ func buildSearchGroup(domain ResultDomain, hits []SearchHit) SearchGroup {
 	}
 }
 
-func documentGroupMeta(doc SearchDocument) (key, title, titleKey string, ok bool) {
-	key = strings.TrimSpace(doc.Metadata["group_key"])
+func documentGroupMeta(doc SearchDocument) (string, string, string, bool) {
+	key := strings.TrimSpace(doc.Metadata["group_key"])
 	if key == "" {
 		return "", "", "", false
 	}
-	title = strings.TrimSpace(doc.Metadata["group_title"])
-	titleKey = strings.TrimSpace(doc.Metadata["group_title_key"])
+	title := strings.TrimSpace(doc.Metadata["group_title"])
+	titleKey := strings.TrimSpace(doc.Metadata["group_title_key"])
 	return key, title, titleKey, true
 }
 
@@ -104,7 +104,7 @@ func normalizeDomain(domain ResultDomain, entityType string) ResultDomain {
 	}
 }
 
-func defaultGroupMeta(domain ResultDomain) (key, title, titleKey string) {
+func defaultGroupMeta(domain ResultDomain) (string, string, string) {
 	switch domain {
 	case ResultDomainNavigate:
 		return "navigate", "", "Spotlight.Group.Navigate"

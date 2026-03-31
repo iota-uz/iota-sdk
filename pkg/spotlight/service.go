@@ -141,6 +141,14 @@ func WithMetrics(metrics Metrics) ServiceOption {
 	}
 }
 
+func WithQuickLinks(ql *QuickLinks) ServiceOption {
+	return func(s *SpotlightService) {
+		if ql != nil {
+			s.quickLinks = ql
+		}
+	}
+}
+
 func WithLogger(logger *logrus.Logger) ServiceOption {
 	return func(s *SpotlightService) {
 		if logger != nil {
@@ -164,7 +172,8 @@ type SpotlightService struct {
 	mu    sync.RWMutex
 	agent Agent
 
-	outbox OutboxProcessor
+	outbox     OutboxProcessor
+	quickLinks *QuickLinks
 
 	cacheMu     sync.RWMutex
 	searchCache map[string]cachedSearchResponse

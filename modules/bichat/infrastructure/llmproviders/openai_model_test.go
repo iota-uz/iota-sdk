@@ -74,21 +74,24 @@ func TestNewOpenAIModel_WithBaseURLAndResolveIP(t *testing.T) {
 }
 
 func TestNewOpenAIHTTPClient_NoResolveIP(t *testing.T) {
-	client, err := newOpenAIHTTPClient("", "")
+	client, configured, err := newOpenAIHTTPClient("", "")
 	require.NoError(t, err)
 	assert.Nil(t, client)
+	assert.False(t, configured)
 }
 
 func TestNewOpenAIHTTPClient_InvalidBaseURL(t *testing.T) {
-	client, err := newOpenAIHTTPClient("://bad-url", "203.0.113.10")
+	client, configured, err := newOpenAIHTTPClient("://bad-url", "203.0.113.10")
 	require.Error(t, err)
 	assert.Nil(t, client)
+	assert.False(t, configured)
 }
 
 func TestNewOpenAIHTTPClient_ReturnsConfiguredTransport(t *testing.T) {
-	client, err := newOpenAIHTTPClient("https://example-proxy.test/v1", "203.0.113.10")
+	client, configured, err := newOpenAIHTTPClient("https://example-proxy.test/v1", "203.0.113.10")
 	require.NoError(t, err)
 	require.NotNil(t, client)
+	assert.True(t, configured)
 	assert.Equal(t, 2*time.Minute, client.Timeout)
 	_, ok := client.Transport.(*http.Transport)
 	assert.True(t, ok)

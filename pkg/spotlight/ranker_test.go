@@ -82,6 +82,6 @@ func TestDefaultRanker_IgnoresNonFiniteMetadataBoost(t *testing.T) {
 	})
 
 	require.Len(t, ranked, 2)
-	require.Equal(t, 10.0, ranked[0].FinalScore)
-	require.Equal(t, 10.0, ranked[1].FinalScore)
+	require.InDelta(t, 10.0, ranked[0].FinalScore, 1e-9)
+	require.InDelta(t, 10.0, ranked[1].FinalScore, 1e-9)
 }
