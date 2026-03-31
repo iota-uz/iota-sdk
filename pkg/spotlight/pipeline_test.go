@@ -76,6 +76,14 @@ func (e *pipelineTestEngine) Upsert(_ context.Context, docs []SearchDocument) er
 	return nil
 }
 
+func (e *pipelineTestEngine) UpsertAsync(_ context.Context, docs []SearchDocument) error {
+	return e.Upsert(context.Background(), docs)
+}
+
+func (e *pipelineTestEngine) WaitPending(_ context.Context) error {
+	return nil
+}
+
 func (e *pipelineTestEngine) Delete(_ context.Context, _ []DocumentRef) error {
 	return nil
 }
@@ -153,19 +161,18 @@ func TestIndexerPipelineSync_StreamingProviderUpsertsIncrementally(t *testing.T)
 
 	err := pipeline.Sync(context.Background(), tenantID, "en", "", 10, ScopeConfig{})
 	require.NoError(t, err)
-	require.Len(t, engine.batches, 2)
 
-	require.Len(t, engine.batches[0], 2)
-	require.Equal(t, []string{"s-1", "s-2"}, []string{engine.batches[0][0].ID, engine.batches[0][1].ID})
-	require.Len(t, engine.batches[1], 1)
-	require.Equal(t, "s-3", engine.batches[1][0].ID)
+	// Buffer merges small emit batches into a single upsert (all 3 docs < pipelineUpsertBatchSize)
+	require.Len(t, engine.batches, 1)
+	require.Len(t, engine.batches[0], 3)
+	require.Equal(t, []string{"s-1", "s-2", "s-3"}, []string{
+		engine.batches[0][0].ID, engine.batches[0][1].ID, engine.batches[0][2].ID,
+	})
 
-	for _, batch := range engine.batches {
-		for _, doc := range batch {
-			require.Equal(t, "provider.streaming", doc.Provider)
-			require.Equal(t, tenantID, doc.TenantID)
-			require.False(t, doc.UpdatedAt.IsZero())
-		}
+	for _, doc := range engine.batches[0] {
+		require.Equal(t, "provider.streaming", doc.Provider)
+		require.Equal(t, tenantID, doc.TenantID)
+		require.False(t, doc.UpdatedAt.IsZero())
 	}
 }
 

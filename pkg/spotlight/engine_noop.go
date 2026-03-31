@@ -19,6 +19,14 @@ func (e *NoopEngine) Upsert(context.Context, []SearchDocument) error {
 	return nil
 }
 
+func (e *NoopEngine) UpsertAsync(context.Context, []SearchDocument) error {
+	return nil
+}
+
+func (e *NoopEngine) WaitPending(context.Context) error {
+	return nil
+}
+
 func (e *NoopEngine) Delete(context.Context, []DocumentRef) error {
 	return nil
 }

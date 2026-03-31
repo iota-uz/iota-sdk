@@ -31,6 +31,8 @@ type MeilisearchEngine struct {
 	setupMu     sync.Mutex
 	searchReady atomic.Bool
 	writeReady  atomic.Bool
+	pendingMu   sync.Mutex
+	pendingUIDs []int64
 }
 
 type meiliSearchIndexState struct {
@@ -514,6 +516,88 @@ func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) e
 		return serrors.E(op, err)
 	}
 
+	return nil
+}
+
+// UpsertAsync submits documents to Meilisearch without waiting for completion.
+// Pending tasks are tracked and can be drained with WaitPending.
+func (e *MeilisearchEngine) UpsertAsync(ctx context.Context, docs []SearchDocument) error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.UpsertAsync"
+
+	if len(docs) == 0 {
+		return nil
+	}
+
+	if err := e.setup(); err != nil {
+		return serrors.E(op, err)
+	}
+
+	records := make([]map[string]interface{}, 0, len(docs))
+	for _, doc := range docs {
+		record := map[string]interface{}{
+			"pk":             meiliPK(doc.TenantID.String(), doc.ID),
+			"id":             doc.ID,
+			"tenant_id":      doc.TenantID.String(),
+			"provider":       doc.Provider,
+			"entity_type":    doc.EntityType,
+			"domain":         string(normalizeDomain(doc.Domain, doc.EntityType)),
+			"title":          doc.Title,
+			"description":    doc.Description,
+			"body":           doc.Body,
+			"search_text":    coalesceSearchText(doc),
+			"exact_terms":    normalizeExactTerms(doc.ExactTerms),
+			"url":            doc.URL,
+			"language":       doc.Language,
+			"metadata":       doc.Metadata,
+			"schema_version": IndexSchemaVersion,
+			"updated_at":     doc.UpdatedAt.Unix(),
+		}
+
+		record["access_policy"] = doc.Access
+		record["access_visibility"] = string(doc.Access.Visibility)
+		record["owner_id"] = doc.Access.OwnerID
+		record["allowed_users"] = doc.Access.AllowedUsers
+		record["allowed_roles"] = doc.Access.AllowedRoles
+		record["allowed_permissions"] = doc.Access.AllowedPermissions
+
+		if len(doc.Embedding) > 0 {
+			record["_vectors"] = map[string]interface{}{
+				"default": doc.Embedding,
+			}
+		}
+
+		records = append(records, record)
+	}
+
+	pk := "pk"
+	task, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{
+		PrimaryKey: &pk,
+	})
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	e.pendingMu.Lock()
+	e.pendingUIDs = append(e.pendingUIDs, task.TaskUID)
+	e.pendingMu.Unlock()
+
+	return nil
+}
+
+// WaitPending blocks until all async upsert tasks have completed in Meilisearch.
+func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.WaitPending"
+
+	e.pendingMu.Lock()
+	uids := e.pendingUIDs
+	e.pendingUIDs = nil
+	e.pendingMu.Unlock()
+
+	for _, uid := range uids {
+		if _, err := e.client.WaitForTask(uid, 250*time.Millisecond); err != nil {
+			return serrors.E(op, err)
+		}
+	}
 	return nil
 }
 

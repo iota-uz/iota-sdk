@@ -296,22 +296,40 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 		return serrors.E(op, err)
 	}
 
-	deleteStart := time.Now()
-	if err := s.engine.DeleteTenant(ctx, tenantID); err != nil {
+	// Use rebuild session if engine supports it — builds a fresh index
+	// and atomically swaps, avoiding slow delete-by-filter and writing
+	// to a small (fast) index instead of a large (slow) one.
+	rebuildable, ok := s.engine.(RebuildableIndexEngine)
+	if !ok {
+		if err := s.engine.DeleteTenant(ctx, tenantID); err != nil {
+			return serrors.E(op, err)
+		}
+		return s.pipeline.Sync(ctx, tenantID, language, "", 0, scope)
+	}
+
+	rebuildStart := time.Now()
+	session, err := rebuildable.StartRebuild(ctx)
+	if err != nil {
 		return serrors.E(op, err)
 	}
-	deleteDuration := time.Since(deleteStart)
+
+	buildPipeline := NewIndexerPipeline(s.registry, session.Engine(), s.logger)
+	if err := buildPipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
+		_ = session.Abort(ctx)
+		return serrors.E(op, err)
+	}
+
+	if err := session.Commit(ctx); err != nil {
+		return serrors.E(op, err)
+	}
 
 	if s.logger != nil {
 		s.logger.WithFields(logrus.Fields{
-			"tenant_id": tenantID.String(),
-			"delete_ms": deleteDuration.Milliseconds(),
-		}).Info("Spotlight tenant delete completed")
+			"tenant_id":  tenantID.String(),
+			"rebuild_ms": time.Since(rebuildStart).Milliseconds(),
+		}).Info("Spotlight rebuild completed")
 	}
 
-	if err := s.pipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
-		return serrors.E(op, err)
-	}
 	return nil
 }
 
