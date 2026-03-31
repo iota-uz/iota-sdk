@@ -286,21 +286,8 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 		return serrors.E(op, err)
 	}
 
-	if rebuildable, ok := s.engine.(RebuildableIndexEngine); ok {
-		session, err := rebuildable.StartRebuild(ctx)
-		if err != nil {
-			return serrors.E(op, err)
-		}
-		pipeline := NewIndexerPipeline(s.registry, session.Engine())
-		if err := pipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
-			_ = session.Abort(ctx)
-			return serrors.E(op, err)
-		}
-		if err := session.Commit(ctx); err != nil {
-			_ = session.Abort(ctx)
-			return serrors.E(op, err)
-		}
-		return nil
+	if err := s.engine.DeleteTenant(ctx, tenantID); err != nil {
+		return serrors.E(op, err)
 	}
 
 	if err := s.pipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {

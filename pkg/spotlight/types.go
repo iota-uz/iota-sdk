@@ -3,6 +3,7 @@
 package spotlight
 
 import (
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -211,6 +212,9 @@ func (r SearchResponse) Hits() []SearchHit {
 	for _, group := range r.Groups {
 		hits = append(hits, group.Hits...)
 	}
+	sort.SliceStable(hits, func(i, j int) bool {
+		return hits[i].FinalScore > hits[j].FinalScore
+	})
 	return hits
 }
 

@@ -544,6 +544,29 @@ func (e *MeilisearchEngine) Delete(ctx context.Context, refs []DocumentRef) erro
 	return nil
 }
 
+func (e *MeilisearchEngine) DeleteTenant(ctx context.Context, tenantID uuid.UUID) error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.DeleteTenant"
+
+	if tenantID == uuid.Nil {
+		return nil
+	}
+	if err := e.setup(); err != nil {
+		return serrors.E(op, err)
+	}
+
+	filter := fmt.Sprintf(`tenant_id = "%s"`, escapeFilterString(tenantID.String()))
+	task, err := e.client.Index(e.indexName).DeleteDocumentsByFilterWithContext(ctx, filter, nil)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if task != nil {
+		if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+			return serrors.E(op, err)
+		}
+	}
+	return nil
+}
+
 // Search performs a search query in Meilisearch.
 func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]SearchHit, error) {
 	const op serrors.Op = "spotlight.MeilisearchEngine.Search"

@@ -3,6 +3,7 @@ package spotlight
 
 import (
 	"context"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -72,7 +73,7 @@ func metadataBoost(req SearchRequest, hit SearchHit) float64 {
 		return 0
 	}
 	boost, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
+	if err != nil || math.IsNaN(boost) || math.IsInf(boost, 0) {
 		return 0
 	}
 	if boost < 0 {

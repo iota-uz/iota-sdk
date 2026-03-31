@@ -39,7 +39,6 @@ func (g *DefaultGrouper) Group(_ context.Context, _ SearchRequest, hits []Search
 		}
 	}
 
-	resp := SearchResponse{Groups: make([]SearchGroup, 0, 4)}
 	groupOrder := []ResultDomain{
 		ResultDomainNavigate,
 		ResultDomainLookup,
@@ -47,6 +46,7 @@ func (g *DefaultGrouper) Group(_ context.Context, _ SearchRequest, hits []Search
 		ResultDomainAction,
 		ResultDomainOther,
 	}
+	resp := SearchResponse{Groups: make([]SearchGroup, 0, len(groupOrder))}
 	for _, domain := range groupOrder {
 		hitsForDomain := buckets[domain]
 		if len(hitsForDomain) == 0 {

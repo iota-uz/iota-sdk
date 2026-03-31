@@ -80,6 +80,10 @@ func (e *pipelineTestEngine) Delete(_ context.Context, _ []DocumentRef) error {
 	return nil
 }
 
+func (e *pipelineTestEngine) DeleteTenant(_ context.Context, _ uuid.UUID) error {
+	return nil
+}
+
 func (e *pipelineTestEngine) Search(_ context.Context, _ SearchRequest) ([]SearchHit, error) {
 	return nil, nil
 }

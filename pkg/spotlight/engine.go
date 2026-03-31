@@ -10,6 +10,7 @@ import (
 type IndexEngine interface {
 	Upsert(ctx context.Context, docs []SearchDocument) error
 	Delete(ctx context.Context, refs []DocumentRef) error
+	DeleteTenant(ctx context.Context, tenantID uuid.UUID) error
 	Search(ctx context.Context, req SearchRequest) ([]SearchHit, error)
 	Health(ctx context.Context) error
 }
