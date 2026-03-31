@@ -19,12 +19,9 @@ type spotlightProvider struct {
 
 var _ spotlight.SearchProvider = &spotlightProvider{}
 
-const defaultSpotlightProviderLimit = 1000
-
 func newSpotlightProvider(db spotlight.Queryer) *spotlightProvider {
 	return &spotlightProvider{
-		db:           db,
-		maxDocuments: defaultSpotlightProviderLimit,
+		db: db,
 	}
 }
 
@@ -39,23 +36,33 @@ func (p *spotlightProvider) Capabilities() spotlight.ProviderCapabilities {
 func (p *spotlightProvider) StreamDocuments(ctx context.Context, scope spotlight.ProviderScope, emit spotlight.DocumentBatchEmitter) error {
 	const op serrors.Op = "crm.spotlightProvider.ListDocuments"
 	limit := p.maxDocuments
-	if limit <= 0 {
-		limit = defaultSpotlightProviderLimit
-	}
 
-	rows, err := p.db.Query(ctx, `
+	var query string
+	var args []any
+	if limit > 0 {
+		query = `
 SELECT id, first_name, last_name, middle_name, updated_at
 FROM clients
 WHERE tenant_id = $1
 ORDER BY id ASC
-LIMIT $2
-`, scope.TenantID, limit)
+LIMIT $2`
+		args = []any{scope.TenantID, limit}
+	} else {
+		query = `
+SELECT id, first_name, last_name, middle_name, updated_at
+FROM clients
+WHERE tenant_id = $1
+ORDER BY id ASC`
+		args = []any{scope.TenantID}
+	}
+
+	rows, err := p.db.Query(ctx, query, args...)
 	if err != nil {
 		return serrors.E(op, err)
 	}
 	defer rows.Close()
 
-	out := make([]spotlight.SearchDocument, 0, min(limit, spotlight.ProviderStreamBatchSize))
+	out := make([]spotlight.SearchDocument, 0, spotlight.ProviderStreamBatchSize)
 	count := 0
 	for rows.Next() {
 		var id int64
