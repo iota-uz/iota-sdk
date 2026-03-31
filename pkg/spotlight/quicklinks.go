@@ -303,7 +303,7 @@ func (ql *QuickLinks) FuzzySearch(query string, req SearchRequest) []SearchHit {
 			EntityType:  "quick_link",
 			Domain:      ResultDomainNavigate,
 			Title:       title,
-			Description: title,
+			Description: item.link,
 			Body:        fullBody,
 			SearchText:  fullBody,
 			ExactTerms:  ExpandExactTerms(append([]string{title, item.link}, item.keywords...)...),
@@ -321,7 +321,7 @@ func (ql *QuickLinks) FuzzySearch(query string, req SearchRequest) []SearchHit {
 			hit: SearchHit{
 				Document:   doc,
 				FinalScore: best,
-				WhyMatched: "fuzzy_search",
+				WhyMatched: "",
 			},
 			score: best,
 		})

@@ -442,7 +442,7 @@ func TestFuzzySearch_DocumentShape(t *testing.T) {
 	require.Equal(t, "en", doc.Language)
 	require.Contains(t, doc.Metadata, "tr_key")
 	require.Contains(t, doc.Metadata, "source")
-	require.Equal(t, "fuzzy_search", results[0].WhyMatched)
+	require.Empty(t, results[0].WhyMatched)
 }
 
 func TestQuickLinks_RestrictedNoConfigFiltersAll(t *testing.T) {
