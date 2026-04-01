@@ -36,6 +36,14 @@ func (e *incrementalTestEngine) Search(_ context.Context, _ SearchRequest) ([]Se
 	return nil, nil
 }
 
+func (e *incrementalTestEngine) UpsertAsync(_ context.Context, docs []SearchDocument) error {
+	return e.Upsert(context.Background(), docs)
+}
+
+func (e *incrementalTestEngine) WaitPending(_ context.Context) error {
+	return nil
+}
+
 func (e *incrementalTestEngine) Health(_ context.Context) error {
 	return nil
 }
