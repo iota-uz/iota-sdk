@@ -7,6 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// IndexStats holds runtime statistics about the search index.
+type IndexStats struct {
+	TotalDocuments    int64
+	FieldDistribution map[string]int64
+	SchemaVersion     string
+	IsSearchable      bool
+}
+
 type IndexEngine interface {
 	Upsert(ctx context.Context, docs []SearchDocument) error
 	UpsertAsync(ctx context.Context, docs []SearchDocument) error
@@ -15,6 +23,7 @@ type IndexEngine interface {
 	DeleteTenant(ctx context.Context, tenantID uuid.UUID) error
 	Search(ctx context.Context, req SearchRequest) ([]SearchHit, error)
 	Health(ctx context.Context) error
+	Stats(ctx context.Context) (*IndexStats, error)
 }
 
 type RebuildSession interface {

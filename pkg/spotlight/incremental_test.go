@@ -48,6 +48,10 @@ func (e *incrementalTestEngine) Health(_ context.Context) error {
 	return nil
 }
 
+func (e *incrementalTestEngine) Stats(_ context.Context) (*IndexStats, error) {
+	return &IndexStats{}, nil
+}
+
 type incrementalTestProvider struct {
 	load IncrementalLoader
 }

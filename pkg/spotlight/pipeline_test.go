@@ -100,6 +100,10 @@ func (e *pipelineTestEngine) Health(_ context.Context) error {
 	return nil
 }
 
+func (e *pipelineTestEngine) Stats(_ context.Context) (*IndexStats, error) {
+	return &IndexStats{}, nil
+}
+
 func TestIndexerPipelineSync_UpsertsPerProviderBatch(t *testing.T) {
 	registry := NewProviderRegistry()
 	tenantID := uuid.New()
