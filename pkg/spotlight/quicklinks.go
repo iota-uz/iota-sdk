@@ -148,7 +148,7 @@ func (ql *QuickLinks) ProviderID() string {
 }
 
 func (ql *QuickLinks) Capabilities() ProviderCapabilities {
-	return ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"quick_link", "route"}}
+	return ProviderCapabilities{EntityTypes: []string{"quick_link", "route"}}
 }
 
 // resolveAllTranslations resolves the translation key into a title (English)
@@ -231,12 +231,6 @@ func (ql *QuickLinks) StreamDocuments(_ context.Context, scope ProviderScope, em
 		return nil
 	}
 	return emit(out)
-}
-
-func (ql *QuickLinks) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {
-	changes := make(chan DocumentEvent)
-	close(changes)
-	return changes, nil
 }
 
 const (

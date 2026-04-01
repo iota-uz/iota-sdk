@@ -9,14 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type DocumentEventType string
-
-const (
-	DocumentEventCreate DocumentEventType = "create"
-	DocumentEventUpdate DocumentEventType = "update"
-	DocumentEventDelete DocumentEventType = "delete"
-)
-
 type SearchIntent string
 
 const (
@@ -104,13 +96,6 @@ type SearchDocument struct {
 	Access      AccessPolicy      `json:"access_policy"`
 	UpdatedAt   time.Time         `json:"updated_at"`
 	Embedding   []float32         `json:"embedding,omitempty"`
-}
-
-type DocumentEvent struct {
-	Type       DocumentEventType `json:"type"`
-	Document   *SearchDocument   `json:"document,omitempty"`
-	DocumentID string            `json:"document_id,omitempty"`
-	OccurredAt time.Time         `json:"occurred_at,omitempty"`
 }
 
 type SearchRequest struct {

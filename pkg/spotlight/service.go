@@ -80,7 +80,6 @@ type ProviderInfo struct {
 	ID            string
 	EntityTypes   []string
 	IndexPriority int
-	SupportsWatch bool
 }
 
 // ServiceStats holds high-level service statistics.
@@ -370,7 +369,6 @@ func (s *SpotlightService) Stats(ctx context.Context) (*ServiceStats, error) {
 			ID:            p.ProviderID(),
 			EntityTypes:   caps.EntityTypes,
 			IndexPriority: caps.IndexPriority,
-			SupportsWatch: caps.SupportsWatch,
 		})
 	}
 

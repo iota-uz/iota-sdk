@@ -11,7 +11,6 @@ import (
 )
 
 type ProviderCapabilities struct {
-	SupportsWatch bool
 	EntityTypes   []string
 	IndexPriority int
 }
@@ -31,7 +30,6 @@ type SearchProvider interface {
 	ProviderID() string
 	Capabilities() ProviderCapabilities
 	StreamDocuments(ctx context.Context, scope ProviderScope, emit DocumentBatchEmitter) error
-	Watch(ctx context.Context, scope ProviderScope) (<-chan DocumentEvent, error)
 }
 
 func CollectDocumentStream(_ context.Context, streamer func(DocumentBatchEmitter) error) ([]SearchDocument, error) {

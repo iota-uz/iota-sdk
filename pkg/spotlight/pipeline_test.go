@@ -29,12 +29,6 @@ func (p *pipelineTestProvider) StreamDocuments(_ context.Context, _ ProviderScop
 	return emit(docs)
 }
 
-func (p *pipelineTestProvider) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {
-	ch := make(chan DocumentEvent)
-	close(ch)
-	return ch, nil
-}
-
 type pipelineStreamingTestProvider struct {
 	id      string
 	batches [][]SearchDocument
@@ -57,12 +51,6 @@ func (p *pipelineStreamingTestProvider) StreamDocuments(_ context.Context, _ Pro
 		}
 	}
 	return nil
-}
-
-func (p *pipelineStreamingTestProvider) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {
-	ch := make(chan DocumentEvent)
-	close(ch)
-	return ch, nil
 }
 
 type pipelineTestEngine struct {

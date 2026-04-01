@@ -68,12 +68,6 @@ func (p *incrementalTestProvider) StreamDocuments(_ context.Context, _ ProviderS
 	return nil
 }
 
-func (p *incrementalTestProvider) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {
-	ch := make(chan DocumentEvent)
-	close(ch)
-	return ch, nil
-}
-
 func (p *incrementalTestProvider) LoadDocuments(ctx context.Context, scope ProviderScope, refs []DocumentRef, emit DocumentBatchEmitter) error {
 	return p.load(ctx, scope, refs, emit)
 }

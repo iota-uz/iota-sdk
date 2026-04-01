@@ -28,12 +28,6 @@ func (p registryOrderTestProvider) StreamDocuments(context.Context, ProviderScop
 	return nil
 }
 
-func (p registryOrderTestProvider) Watch(context.Context, ProviderScope) (<-chan DocumentEvent, error) {
-	ch := make(chan DocumentEvent)
-	close(ch)
-	return ch, nil
-}
-
 func TestProviderRegistryAllOrdersByPriorityThenID(t *testing.T) {
 	registry := NewProviderRegistry()
 	registry.Register(registryOrderTestProvider{id: "gamma", priority: 100, entityType: "gamma"})
