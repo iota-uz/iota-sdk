@@ -33,6 +33,12 @@ func (e *reindexEngine) Search(context.Context, SearchRequest) ([]SearchHit, err
 
 func (e *reindexEngine) Health(context.Context) error { return nil }
 
+func (e *reindexEngine) UpsertAsync(ctx context.Context, docs []SearchDocument) error {
+	return e.Upsert(ctx, docs)
+}
+
+func (e *reindexEngine) WaitPending(context.Context) error { return nil }
+
 type testEngine struct {
 	mu          sync.Mutex
 	searchCalls int
@@ -41,6 +47,10 @@ type testEngine struct {
 }
 
 func (e *testEngine) Upsert(context.Context, []SearchDocument) error { return nil }
+
+func (e *testEngine) UpsertAsync(context.Context, []SearchDocument) error { return nil }
+
+func (e *testEngine) WaitPending(context.Context) error { return nil }
 
 func (e *testEngine) Delete(context.Context, []DocumentRef) error { return nil }
 
@@ -78,6 +88,10 @@ type scriptedEngine struct {
 }
 
 func (e *scriptedEngine) Upsert(context.Context, []SearchDocument) error { return nil }
+
+func (e *scriptedEngine) UpsertAsync(context.Context, []SearchDocument) error { return nil }
+
+func (e *scriptedEngine) WaitPending(context.Context) error { return nil }
 
 func (e *scriptedEngine) Delete(context.Context, []DocumentRef) error { return nil }
 
