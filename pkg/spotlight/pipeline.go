@@ -30,8 +30,6 @@ func NewIndexerPipeline(registry *ProviderRegistry, engine IndexEngine, logger *
 }
 
 func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language, query string, topK int, scope ScopeConfig) error {
-	const op serrors.Op = "spotlight.IndexerPipeline.Sync"
-
 	providers := p.registry.All()
 	syncStart := time.Now()
 	totalDocs := 0
