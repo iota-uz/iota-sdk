@@ -58,6 +58,10 @@ func NewIncrementalBindingRegistry() *IncrementalBindingRegistry {
 
 func (r *IncrementalBindingRegistry) Register(binding IncrementalBinding) {
 	if binding.Name == "" || binding.ProviderID == "" {
+		logrus.
+			WithField("binding_name", binding.Name).
+			WithField("binding_provider_id", binding.ProviderID).
+			Warn("incremental binding registry: rejected binding with empty Name or ProviderID")
 		return
 	}
 	r.mu.Lock()
@@ -73,10 +77,14 @@ func (r *IncrementalBindingRegistry) Register(binding IncrementalBinding) {
 
 func (r *IncrementalBindingRegistry) Resolve(event ProjectionEvent) []ResolvedBinding {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	bindings := append([]IncrementalBinding(nil), r.bindings...)
+	r.mu.RUnlock()
 
-	out := make([]ResolvedBinding, 0, len(r.bindings))
-	for _, binding := range r.bindings {
+	out := make([]ResolvedBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		if event.ProviderID != "" && binding.ProviderID != "" && binding.ProviderID != event.ProviderID {
+			continue
+		}
 		if binding.Match != nil && !binding.Match(event) {
 			continue
 		}
@@ -158,12 +166,12 @@ func (s *IncrementalSyncer) SyncDocuments(
 ) error {
 	const op serrors.Op = "spotlight.IncrementalSyncer.SyncDocuments"
 
-	docIDs = dedupeRefIDs(docIDs)
-	if len(docIDs) == 0 {
-		return nil
-	}
 	if s == nil || s.engine == nil {
 		return serrors.E(op, "spotlight engine is not configured")
+	}
+	docIDs = dedupeRefIDs(docIDs)
+	if len(docIDs) == 0 && len(docs) == 0 {
+		return nil
 	}
 
 	found := make(map[string]struct{}, len(docs))
@@ -218,6 +226,9 @@ func (s *IncrementalSyncer) SyncStream(
 ) error {
 	const op serrors.Op = "spotlight.IncrementalSyncer.SyncStream"
 
+	if s == nil || s.engine == nil {
+		return serrors.E(op, "spotlight engine is not configured")
+	}
 	if stream == nil {
 		return serrors.E(op, "spotlight stream is not configured")
 	}
@@ -249,9 +260,12 @@ func (s *IncrementalSyncer) SyncProviderRefs(
 	if provider == nil {
 		return serrors.E(op, "incremental provider is not configured")
 	}
-	return s.SyncStream(ctx, projector, scope, refIDs(refs), func(emit DocumentBatchEmitter) error {
+	if err := s.SyncStream(ctx, projector, scope, refIDs(refs), func(emit DocumentBatchEmitter) error {
 		return provider.LoadDocuments(ctx, scope, refs, emit)
-	})
+	}); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func refIDs(refs []DocumentRef) []string {

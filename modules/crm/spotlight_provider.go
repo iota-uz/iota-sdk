@@ -9,12 +9,10 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/sirupsen/logrus"
 )
 
 type spotlightProvider struct {
-	db           spotlight.Queryer
-	maxDocuments int
+	db spotlight.Queryer
 }
 
 var _ spotlight.SearchProvider = &spotlightProvider{}
@@ -35,35 +33,20 @@ func (p *spotlightProvider) Capabilities() spotlight.ProviderCapabilities {
 
 func (p *spotlightProvider) StreamDocuments(ctx context.Context, scope spotlight.ProviderScope, emit spotlight.DocumentBatchEmitter) error {
 	const op serrors.Op = "crm.spotlightProvider.ListDocuments"
-	limit := p.maxDocuments
 
-	var query string
-	var args []any
-	if limit > 0 {
-		query = `
-SELECT id, first_name, last_name, middle_name, updated_at
-FROM clients
-WHERE tenant_id = $1
-ORDER BY id ASC
-LIMIT $2`
-		args = []any{scope.TenantID, limit}
-	} else {
-		query = `
+	query := `
 SELECT id, first_name, last_name, middle_name, updated_at
 FROM clients
 WHERE tenant_id = $1
 ORDER BY id ASC`
-		args = []any{scope.TenantID}
-	}
 
-	rows, err := p.db.Query(ctx, query, args...)
+	rows, err := p.db.Query(ctx, query, scope.TenantID)
 	if err != nil {
 		return serrors.E(op, err)
 	}
 	defer rows.Close()
 
 	out := make([]spotlight.SearchDocument, 0, spotlight.ProviderStreamBatchSize)
-	count := 0
 	for rows.Next() {
 		var id int64
 		var firstName string
@@ -105,7 +88,6 @@ ORDER BY id ASC`
 			Access:    spotlight.AccessPolicy{Visibility: spotlight.VisibilityPublic},
 			UpdatedAt: updatedAt,
 		})
-		count++
 		if len(out) == spotlight.ProviderStreamBatchSize {
 			if err := emit(out); err != nil {
 				return serrors.E(op, err)
@@ -115,12 +97,6 @@ ORDER BY id ASC`
 	}
 	if err := rows.Err(); err != nil {
 		return serrors.E(op, err)
-	}
-	if limit > 0 && count == limit {
-		logrus.WithFields(logrus.Fields{
-			"tenant_id": scope.TenantID.String(),
-			"limit":     limit,
-		}).Warn("crm spotlight provider reached document cap, results may be truncated")
 	}
 	if len(out) > 0 {
 		if err := emit(out); err != nil {
