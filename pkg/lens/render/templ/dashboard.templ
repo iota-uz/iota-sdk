@@ -691,6 +691,9 @@ templ PanelFullscreenHeader(spec panel.Spec, chartText chartText) {
 					@MetricInfoButton(spec, "flex-shrink-0")
 				</div>
 			}
+			if infoText != "" {
+				<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{ infoText }</p>
+			}
 			if spec.Description != "" {
 				<p class="mt-1 text-sm text-slate-500">{ spec.Description }</p>
 			}
