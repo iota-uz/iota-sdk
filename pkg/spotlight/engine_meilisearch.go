@@ -738,6 +738,25 @@ func (e *MeilisearchEngine) Stats(ctx context.Context) (*IndexStats, error) {
 	if stats != nil {
 		result.FieldDistribution = stats.FieldDistribution
 	}
+
+	// Get per-provider document counts via faceted search.
+	providerCounts := make(map[string]int64)
+	facetResp, facetErr := e.client.Index(state.searchableName).Search("", &meilisearch.SearchRequest{
+		Facets: []string{"provider"},
+		Limit:  0,
+	})
+	if facetErr == nil && facetResp != nil && len(facetResp.FacetDistribution) > 0 {
+		var allFacets map[string]map[string]float64
+		if jsonErr := json.Unmarshal(facetResp.FacetDistribution, &allFacets); jsonErr == nil {
+			if pf, ok := allFacets["provider"]; ok {
+				for k, v := range pf {
+					providerCounts[k] = int64(v)
+				}
+			}
+		}
+	}
+	result.ProviderDocumentCounts = providerCounts
+
 	return result, nil
 }
 

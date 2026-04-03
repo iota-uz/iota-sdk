@@ -9,10 +9,11 @@ import (
 
 // IndexStats holds runtime statistics about the search index.
 type IndexStats struct {
-	TotalDocuments    int64
-	FieldDistribution map[string]int64
-	SchemaVersion     string
-	IsSearchable      bool
+	TotalDocuments         int64
+	FieldDistribution      map[string]int64
+	ProviderDocumentCounts map[string]int64
+	SchemaVersion          string
+	IsSearchable           bool
 }
 
 type IndexEngine interface {
