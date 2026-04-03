@@ -80,6 +80,7 @@ type ProviderInfo struct {
 	ID            string
 	EntityTypes   []string
 	IndexPriority int
+	DocumentCount int64
 }
 
 // ServiceStats holds high-level service statistics.
@@ -370,6 +371,14 @@ func (s *SpotlightService) Stats(ctx context.Context) (*ServiceStats, error) {
 			EntityTypes:   caps.EntityTypes,
 			IndexPriority: caps.IndexPriority,
 		})
+	}
+
+	if engineStats.ProviderDocumentCounts != nil {
+		for i := range infos {
+			if count, ok := engineStats.ProviderDocumentCounts[infos[i].ID]; ok {
+				infos[i].DocumentCount = count
+			}
+		}
 	}
 
 	return &ServiceStats{
