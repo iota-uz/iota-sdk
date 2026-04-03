@@ -1078,9 +1078,6 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 	default:
 		return ""
 	}
-	if hasSeries(rows, fields.Series.Name()) {
-		return ""
-	}
 	return templ.JSExpression(`function(event, chartContext, config) {
 		requestAnimationFrame(function() {
 			const tooltips = Array.from(document.querySelectorAll('.apexcharts-tooltip'));
@@ -1192,7 +1189,17 @@ func usesDistributedBarColors(panelSpec panel.Spec, panelResult *runtime.PanelRe
 func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any, fields panel.FieldMapping) bool {
 	switch panelSpec.Kind {
 	case panel.KindBar, panel.KindHorizontalBar:
-	default:
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindStackedBar,
+		panel.KindPie,
+		panel.KindDonut,
+		panel.KindTable,
+		panel.KindGauge,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
 		return false
 	}
 	if hasSeries(rows, fields.Series.Name()) {

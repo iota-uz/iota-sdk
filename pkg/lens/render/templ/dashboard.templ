@@ -543,6 +543,10 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
 
 templ MetricInfoButton(spec panel.Spec, class string) {
 	{{ infoText := panelMetricInfoText(ctx, spec) }}
+	@MetricInfoButtonWithText(infoText, class)
+}
+
+templ MetricInfoButtonWithText(infoText, class string) {
 	if infoText == "" {
 		{{ return }}
 	}
@@ -688,7 +692,7 @@ templ PanelFullscreenHeader(spec panel.Spec, chartText chartText) {
 					if spec.Title != "" {
 						<h2 class="truncate text-lg font-semibold text-slate-900">{ spec.Title }</h2>
 					}
-					@MetricInfoButton(spec, "flex-shrink-0")
+					@MetricInfoButtonWithText(infoText, "flex-shrink-0")
 				</div>
 			}
 			if infoText != "" {
