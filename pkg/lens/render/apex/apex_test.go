@@ -489,6 +489,28 @@ func TestOptionsWithHeightEnablesFullscreenToolbar(t *testing.T) {
 	require.False(t, inlineOptions.Chart.Toolbar.Show)
 	require.True(t, fullscreenOptions.Chart.Toolbar.Show)
 	require.Equal(t, "100%", fullscreenOptions.Chart.Height)
+	require.NotNil(t, fullscreenOptions.Chart.Toolbar.Tools)
+	require.NotNil(t, fullscreenOptions.Chart.Toolbar.Tools.Download)
+	require.True(t, *fullscreenOptions.Chart.Toolbar.Tools.Download)
+	require.NotNil(t, fullscreenOptions.Chart.Toolbar.Tools.Zoom)
+	require.True(t, *fullscreenOptions.Chart.Toolbar.Tools.Zoom)
+	require.NotNil(t, fullscreenOptions.Chart.Toolbar.Tools.ZoomIn)
+	require.True(t, *fullscreenOptions.Chart.Toolbar.Tools.ZoomIn)
+	require.NotNil(t, fullscreenOptions.Chart.Toolbar.Tools.ZoomOut)
+	require.True(t, *fullscreenOptions.Chart.Toolbar.Tools.ZoomOut)
+	require.NotNil(t, fullscreenOptions.Chart.Toolbar.Tools.Pan)
+	require.True(t, *fullscreenOptions.Chart.Toolbar.Tools.Pan)
+	require.NotNil(t, fullscreenOptions.Chart.Toolbar.Tools.Reset)
+	require.True(t, *fullscreenOptions.Chart.Toolbar.Tools.Reset)
+	require.NotNil(t, fullscreenOptions.Chart.Toolbar.Tools.Selection)
+	require.False(t, *fullscreenOptions.Chart.Toolbar.Tools.Selection)
+	require.NotNil(t, fullscreenOptions.Chart.Toolbar.AutoSelected)
+	require.Equal(t, "zoom", *fullscreenOptions.Chart.Toolbar.AutoSelected)
+	require.NotNil(t, fullscreenOptions.Chart.Zoom)
+	require.NotNil(t, fullscreenOptions.Chart.Zoom.Enabled)
+	require.True(t, *fullscreenOptions.Chart.Zoom.Enabled)
+	require.NotNil(t, fullscreenOptions.Chart.Zoom.Type)
+	require.Equal(t, "x", *fullscreenOptions.Chart.Zoom.Type)
 }
 
 func TestOptionsAutoDistributesFallbackBarColors(t *testing.T) {
@@ -519,6 +541,34 @@ func TestOptionsAutoDistributesFallbackBarColors(t *testing.T) {
 	require.NotNil(t, options.Grid.Padding)
 	require.NotNil(t, options.Grid.Padding.Right)
 	require.GreaterOrEqual(t, *options.Grid.Padding.Right, 40)
+}
+
+func TestDistributedTooltipMarkerSyncJSPrefersConfiguredPointColors(t *testing.T) {
+	t.Parallel()
+
+	rows := []map[string]any{
+		{"label": "Sedan", "value": 42.0},
+		{"label": "SUV", "value": 30.0},
+		{"label": "Metro", "value": 18.0},
+	}
+
+	script := string(distributedTooltipMarkerSyncJS(
+		panel.HorizontalBar("vehicle-type", "Vehicle Type", "vehicle-types").
+			LabelField("label").
+			ValueField("value").
+			Build(),
+		rows,
+		panel.FieldMapping{Label: "label", Value: "value"},
+	))
+
+	require.Contains(t, script, "config && config.w && config.w.config")
+	require.Contains(t, script, "event && event.target instanceof Element")
+	require.Contains(t, script, "hoveredElement.getAttribute('fill')")
+	require.Contains(t, script, "hoveredElement.getAttribute('j')")
+	require.Contains(t, script, "chartConfig && chartConfig.colors")
+	require.Contains(t, script, "globals && globals.fill && globals.fill.colors")
+	require.Contains(t, script, "globals && globals.stroke && globals.stroke.colors")
+	require.Contains(t, script, "globals && globals.colors")
 }
 
 func mustFrameSet(t *testing.T, fr *frame.Frame) *frame.FrameSet {
