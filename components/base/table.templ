@@ -428,6 +428,7 @@ templ Table(props TableProps) {
 									if props.Configurable {
 										data-col={ col.Key }
 										data-col-sticky?={ col.Sticky }
+										data-col-hidden?={ col.DefaultHidden }
 									}
 									if col.Configurable {
 										data-sortable
@@ -473,6 +474,7 @@ templ Table(props TableProps) {
 									if props.Configurable {
 										data-col={ col.Key }
 										data-col-sticky?={ col.Sticky }
+										data-col-hidden?={ col.DefaultHidden }
 									}
 									if col.Configurable {
 										data-sortable

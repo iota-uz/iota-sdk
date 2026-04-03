@@ -1934,7 +1934,7 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContext) []*base.
 			SortURL:       col.SortURL(),
 			Configurable:  config.Configurable && !col.StickyPos().Left() && !col.StickyPos().Right(),
 			Sticky:        !col.StickyPos().Unknown(),
-			DefaultHidden: col.DefaultHidden(),
+			DefaultHidden: col.DefaultHidden() && config.Configurable && !col.StickyPos().Left() && !col.StickyPos().Right(),
 			AddonBottom:   col.AddonBottom(),
 		}
 	}
