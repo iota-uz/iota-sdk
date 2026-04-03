@@ -124,6 +124,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		DebugMode       bool                  `json:"debugMode"`
 		ReplaceFrom     *uuid.UUID            `json:"replaceFromMessageId,omitempty"`
 		ReasoningEffort *string               `json:"reasoningEffort,omitempty"`
+		Model           *string               `json:"model,omitempty"`
 	}
 
 	var req streamRequest
@@ -170,6 +171,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
+	c.sendSSEComment(w, flusher, "stream-open")
 
 	// 7. Stream chunks
 	ctx := r.Context()
@@ -210,6 +212,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		DebugMode:            req.DebugMode,
 		ReplaceFromMessageID: req.ReplaceFrom,
 		ReasoningEffort:      req.ReasoningEffort,
+		Model:                req.Model,
 	}, func(chunk bichatservices.StreamChunk) {
 		// Handle context cancellation
 		select {
@@ -467,6 +470,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
+	c.sendSSEComment(w, flusher, "stream-open")
 
 	var writeMu sync.Mutex
 	sendEvent := func(event string, payload interface{}) {
@@ -581,6 +585,14 @@ func (c *StreamController) sendSSEEvent(w http.ResponseWriter, flusher http.Flus
 
 	_, _ = fmt.Fprintf(w, "event: %s\n", event)
 	_, _ = fmt.Fprintf(w, "data: %s\n\n", jsonData)
+	flusher.Flush()
+}
+
+func (c *StreamController) sendSSEComment(w http.ResponseWriter, flusher http.Flusher, comment string) {
+	if strings.TrimSpace(comment) == "" {
+		comment = "stream-open"
+	}
+	_, _ = fmt.Fprintf(w, ": %s\n\n", comment)
 	flusher.Flush()
 }
 

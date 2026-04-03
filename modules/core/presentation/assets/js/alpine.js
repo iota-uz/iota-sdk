@@ -410,28 +410,59 @@ let checkboxes = () => ({
 
 let spotlight = () => ({
   isOpen: false,
+  isLoading: false,
+  aiLoading: false,
+  aiSessionId: '',
+  aiRunId: '',
+  aiCandidates: [],
+  aiTools: [],
+  aiInput: '',
+  aiError: '',
+  aiActive: false,
+  aiMode: false,
+  expandedChip: null,
+  currentProgressVerb: '',
+  verbRotationTimer: null,
+  verbIndex: 0,
   highlightedIndex: 0,
+  query: '',
+  searchId: '',
+  pendingCount: 0,
+  stages: [],
+  eventSource: null,
+  aiEventSource: null,
+  debounceTimer: null,
+  requestSeq: 0,
   init() {
     if (window.__spotlightConfirmBound) {
+      this.bindSearchLifecycle();
       return;
     }
     window.__spotlightConfirmBound = true;
 
-    const confirmationMessages = {
-      ru: 'Открыть этот результат?',
-      uz: 'Ushbu natijani ochish?',
-      en: 'Open this result?',
-    };
     document.addEventListener('click', (event) => {
       const button = event.target.closest('.js-spotlight-confirm[data-spotlight-url]');
       if (!button) return;
       event.preventDefault();
       const url = button.dataset.spotlightUrl || '';
       if (!url) return;
-      const lang = (document.documentElement.lang || 'en').slice(0, 2).toLowerCase();
-      const message = confirmationMessages[lang] || confirmationMessages.en;
-      if (window.confirm(message)) {
+      if (window.confirm(this.localizedText('confirmOpenResult', 'Open this result?'))) {
         window.location.href = url;
+      }
+    });
+    this.bindSearchLifecycle();
+  },
+
+  bindSearchLifecycle() {
+    if (this.$refs.input) {
+      this.query = this.$refs.input.value || '';
+    }
+    this.$watch('query', (value) => {
+      if (!this.aiMode) {
+        window.clearTimeout(this.debounceTimer);
+        this.debounceTimer = window.setTimeout(() => {
+          this.search(value);
+        }, 120);
       }
     });
   },
@@ -446,20 +477,460 @@ let spotlight = () => ({
   open() {
     this.isOpen = true;
     this.$nextTick(() => {
-      const input = this.$refs.input;
-      if (input) {
-        setTimeout(() => input.focus(), 50);
-      }
+      this.$refs.input?.focus();
     });
   },
 
   close() {
     this.isOpen = false;
     this.highlightedIndex = 0;
+    window.clearTimeout(this.debounceTimer);
+    this.stopStream();
+    this.stopAIStream();
+    this.cancelAISession();
+    this.aiActive = false;
+    this.aiMode = false;
+    this.expandedChip = null;
+    this.stopVerbRotation();
+  },
+
+  handleEscape() {
+    if (this.aiMode && this.aiActive) {
+      this.deactivateAI();
+    } else {
+      this.close();
+    }
+  },
+
+  scheduleSearch(value) {
+    this.query = value || '';
+    // The $watch on query handles the debounced search
+  },
+
+  async search(value) {
+    const query = (value || '').trim();
+    this.requestSeq += 1;
+    const requestSeq = this.requestSeq;
+    this.stopStream();
+    this.expandedChip = null;
+    this.isLoading = query !== '';
+    this.highlightedIndex = 0;
+    this.pendingCount = 0;
+    this.setResultsHTML('');
+
+    if (!query) {
+      this.searchId = '';
+      return;
+    }
+
+    try {
+      const response = await fetch(`/spotlight/search?q=${encodeURIComponent(query)}`, {
+        headers: {
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        throw new Error(`search failed with ${response.status}`);
+      }
+
+      const payload = await response.json();
+      if (requestSeq !== this.requestSeq) {
+        const staleSearchId = payload.search_id || '';
+        if (staleSearchId) {
+          fetch(`/spotlight/cancel?search_id=${encodeURIComponent(staleSearchId)}`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+          }).catch(() => {});
+        }
+        return;
+      }
+
+      this.searchId = payload.search_id || '';
+      this.updatePayload(payload);
+
+      if (this.searchId && !payload.complete) {
+        this.startStream(this.searchId, requestSeq);
+      }
+    } catch (error) {
+      console.error('spotlight search failed', error);
+      if (requestSeq === this.requestSeq) {
+        this.isLoading = false;
+      }
+    }
+  },
+
+  startStream(searchId, requestSeq) {
+    if (!searchId) return;
+    const source = new EventSource(`/spotlight/stream?search_id=${encodeURIComponent(searchId)}`);
+    this.eventSource = source;
+
+    source.addEventListener('update', (event) => {
+      if (requestSeq !== this.requestSeq) {
+        return;
+      }
+      try {
+        const payload = JSON.parse(event.data || '{}');
+        this.updatePayload(payload);
+        if (payload.complete) {
+          this.stopStream();
+        }
+      } catch (error) {
+        console.error('spotlight stream update failed', error);
+      }
+    });
+
+    source.onerror = () => {
+      if (requestSeq !== this.requestSeq) {
+        return;
+      }
+      this.isLoading = false;
+      this.stopStream();
+    };
+  },
+
+  stopStream() {
+    const previousSearchId = this.searchId;
+    this.searchId = '';
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    if (previousSearchId) {
+      fetch(`/spotlight/cancel?search_id=${encodeURIComponent(previousSearchId)}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+      }).catch(() => {});
+    }
+  },
+
+  async triggerAI() {
+    const query = (this.query || '').trim();
+    if (!query || this.aiActive) return;
+
+    this.stopAIStream();
+    this.aiActive = true;
+    this.aiLoading = true;
+    this.aiError = '';
+    this.aiSessionId = '';
+    this.aiRunId = '';
+    this.aiCandidates = [];
+    this.aiTools = [];
+    this.aiInput = '';
+    this.expandedChip = null;
+    this.startVerbRotation();
+
+    try {
+      const response = await fetch('/spotlight/ai/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({q: query}),
+      });
+      if (!response.ok) {
+        throw new Error(`AI search failed with ${response.status}`);
+      }
+      const payload = await response.json();
+      this.updateAISnapshot(payload);
+      if (this.aiSessionId && this.aiRunId && !payload.complete) {
+        this.startAIStream(this.aiSessionId, this.aiRunId);
+      }
+    } catch (error) {
+      console.error('spotlight ai search failed', error);
+      this.aiLoading = false;
+      this.stopVerbRotation();
+      this.aiError = this.localizedText('aiStartFailed', 'Could not start AI search');
+    }
+  },
+
+  deactivateAI() {
+    this.aiActive = false;
+    this.expandedChip = null;
+    this.stopVerbRotation();
+    this.stopAIStream();
+    this.cancelAISession();
+    this.aiLoading = false;
+    this.aiInput = '';
+  },
+
+  startVerbRotation() {
+    this.stopVerbRotation();
+    const root = this.$root || this.$el;
+    this.progressVerbs = [
+      root?.dataset?.['i18nAiProgressSearching'] || 'Searching records...',
+      root?.dataset?.['i18nAiProgressChecking'] || 'Checking database...',
+      root?.dataset?.['i18nAiProgressBuilding'] || 'Building results...',
+    ];
+    this.verbIndex = 0;
+    this.currentProgressVerb = this.progressVerbs[0];
+    this.verbRotationTimer = window.setInterval(() => {
+      this.verbIndex = (this.verbIndex + 1) % this.progressVerbs.length;
+      this.currentProgressVerb = this.progressVerbs[this.verbIndex];
+    }, 3000);
+  },
+
+  stopVerbRotation() {
+    if (this.verbRotationTimer) {
+      window.clearInterval(this.verbRotationTimer);
+      this.verbRotationTimer = null;
+    }
+    this.currentProgressVerb = '';
+  },
+
+  toggleChip(candidateId) {
+    this.expandedChip = this.expandedChip === candidateId ? null : candidateId;
+  },
+
+  confidenceDot(candidate) {
+    const conf = (candidate.confidence || '').toLowerCase();
+    if (conf.includes('exact') || conf.includes('strong')) {
+      return 'bg-emerald-400 dark:bg-emerald-300';
+    }
+    if (conf.includes('related') || conf.includes('partial')) {
+      return 'bg-amber-400 dark:bg-amber-300';
+    }
+    return 'bg-slate-300 dark:bg-slate-500';
+  },
+
+  entityChipIcon(candidate) {
+    const type = (candidate.entity_type || '').toLowerCase();
+    const map = {
+      contract: 'C',
+      policy: 'P',
+      vehicle: 'V',
+      claim: 'X',
+      chat: '💬',
+      organization: 'O',
+      client: 'U',
+      person: 'U',
+      user: 'S',
+    };
+    return map[type] || '?';
+  },
+
+  entityChipClass(candidate) {
+    const type = (candidate.entity_type || '').toLowerCase();
+    switch (type) {
+      case 'contract':
+      case 'policy':
+        return 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300';
+      case 'vehicle':
+        return 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300';
+      case 'claim':
+        return 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300';
+      case 'chat':
+        return 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-500/15 dark:text-fuchsia-300';
+      case 'organization':
+        return 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300';
+      case 'client':
+      case 'person':
+      case 'user':
+        return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300';
+      default:
+        return 'bg-slate-100 text-slate-500 dark:bg-slate-500/15 dark:text-slate-400';
+    }
+  },
+
+  switchMode(toAI) {
+    this.aiMode = toAI;
+    this.$nextTick(() => {
+      this.$refs.input?.focus();
+    });
+  },
+
+  async submitAIQuery() {
+    const query = (this.query || '').trim();
+    if (!query) return;
+
+    if (this.aiActive && this.aiSessionId) {
+      // Already have a session - treat as follow-up
+      this.aiInput = query;
+      this.query = '';
+      await this.sendAIMessage();
+      return;
+    }
+
+    // Start new AI session
+    await this.triggerAI();
+  },
+
+  canSendAI() {
+    return !!this.aiSessionId && !this.aiLoading && (this.aiInput || '').trim() !== '';
+  },
+
+  async sendAIMessage() {
+    if (!this.canSendAI()) return;
+
+    const message = (this.aiInput || '').trim();
+    this.aiInput = '';
+    this.stopAIStream();
+    this.aiLoading = true;
+    this.aiError = '';
+    this.expandedChip = null;
+    this.startVerbRotation();
+
+    try {
+      const response = await fetch('/spotlight/ai/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          session_id: this.aiSessionId,
+          message,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`AI follow-up failed with ${response.status}`);
+      }
+      const payload = await response.json();
+      this.updateAISnapshot(payload);
+      if (this.aiSessionId && this.aiRunId && !payload.complete) {
+        this.startAIStream(this.aiSessionId, this.aiRunId);
+      }
+    } catch (error) {
+      console.error('spotlight ai message failed', error);
+      this.aiLoading = false;
+      this.stopVerbRotation();
+      this.aiError = this.localizedText('aiMessageFailed', 'Could not send AI message');
+    }
+  },
+
+  startAIStream(sessionId, runId) {
+    if (!sessionId || !runId) return;
+    const source = new EventSource(`/spotlight/ai/stream?session_id=${encodeURIComponent(sessionId)}&run_id=${encodeURIComponent(runId)}`);
+    this.aiEventSource = source;
+
+    source.addEventListener('update', (event) => {
+      try {
+        const payload = JSON.parse(event.data || '{}');
+        this.updateAISnapshot(payload);
+        if (payload.completed) {
+          this.stopAIStream();
+        }
+      } catch (error) {
+        console.error('spotlight ai stream update failed', error);
+      }
+    });
+
+    source.onerror = () => {
+      this.aiLoading = false;
+      this.stopAIStream();
+    };
+  },
+
+  stopAIStream() {
+    if (this.aiEventSource) {
+      this.aiEventSource.close();
+      this.aiEventSource = null;
+    }
+  },
+
+  cancelAISession() {
+    if (!this.aiSessionId) return;
+    const sessionId = this.aiSessionId;
+    const runId = this.aiRunId;
+    fetch(`/spotlight/ai/cancel?session_id=${encodeURIComponent(sessionId)}&run_id=${encodeURIComponent(runId)}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      keepalive: true,
+    }).catch(() => {});
+  },
+
+  updateAISnapshot(snapshot) {
+    this.aiSessionId = snapshot.session_id || '';
+    this.aiRunId = snapshot.run_id || '';
+    this.aiCandidates = Array.isArray(snapshot.candidates) ? snapshot.candidates : [];
+    this.aiTools = Array.isArray(snapshot.tools) ? snapshot.tools : [];
+    this.aiLoading = Boolean(snapshot.loading) && !snapshot.completed;
+    this.aiError = snapshot.error || '';
+    if (!this.aiLoading) {
+      this.stopVerbRotation();
+    }
+  },
+
+  updatePayload(payload) {
+    this.pendingCount = Number(payload.pending || 0);
+    this.stages = payload.stages || [];
+    this.setResultsHTML(payload.html || '');
+    this.isLoading = Boolean(payload.loading) && !payload.complete;
+  },
+
+  setResultsHTML(html) {
+    const list = this.$refs.results;
+    if (!list) return;
+    const items = this._items();
+    const currentItem = items[this.highlightedIndex];
+    const currentKey = currentItem?.querySelector('[data-spotlight-key]')?.dataset?.spotlightKey || '';
+    list.innerHTML = html || '';
+    this.$nextTick(() => {
+      const nextItems = Array.from(this._items());
+      if (nextItems.length === 0) {
+        this.highlightedIndex = 0;
+      } else if (currentKey) {
+        const nextIndex = nextItems.findIndex((item) => item.querySelector('[data-spotlight-key]')?.dataset?.spotlightKey === currentKey);
+        this.highlightedIndex = nextIndex >= 0 ? nextIndex : 0;
+      } else if (this.highlightedIndex >= nextItems.length) {
+        this.highlightedIndex = 0;
+      }
+      if (window.Alpine && typeof window.Alpine.initTree === 'function') {
+        window.Alpine.initTree(list);
+      }
+    });
+  },
+
+  applySuggestion(value) {
+    this.query = value || '';
+    if (this.$refs.input) {
+      this.$refs.input.focus();
+    }
+    this.search(this.query);
+  },
+
+  localeCode() {
+    return (document.documentElement.lang || 'en').toLowerCase();
+  },
+
+  localizedText(key, fallback = '') {
+    const attr = `i18n${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+    const root = this.$root || this.$el;
+    return root?.dataset?.[attr] || fallback;
+  },
+
+  translate(map) {
+    const locale = this.localeCode();
+    if (map[locale]) return map[locale];
+    const short = locale.slice(0, 2);
+    if (map[short]) return map[short];
+    return map.en;
+  },
+
+  statusLabel() {
+    if (!this.query) {
+      return '';
+    }
+    if (this.isLoading) {
+      if (this.pendingCount > 0) {
+        return `${this.localizedText('statusSearchingMore')} · ${this.pendingCount}`;
+      }
+      return this.localizedText('statusFindingMatches');
+    }
+    return this.localizedText('statusSearchComplete');
+  },
+
+  hasResults() {
+    return this._items().length > 0;
   },
 
   _items() {
-    const list = document.getElementById(this.$id('spotlight'));
+    const list = this.$refs.results || document.getElementById(this.$id('spotlight'));
     if (!list) return [];
     return list.querySelectorAll('[data-spotlight-item]');
   },
@@ -472,7 +943,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
       }
     });
   },
@@ -485,7 +956,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
       }
     });
   },

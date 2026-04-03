@@ -78,7 +78,7 @@ func Sidebar(props Props) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"sidebarShell()\" x-cloak @click=\"handleSidebarClick($event)\" :class=\"{ &#39;sidebar-collapsed&#39;: isCollapsed, &#39;sidebar-expanded&#39;: !isCollapsed, &#39;sidebar-expand-cursor&#39;: isCollapsed, &#39;sidebar-collapse-cursor&#39;: !isCollapsed }\" x-init=\"initSidebarShell()\" class=\"flex flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"sidebarShell()\" x-cloak @click=\"handleSidebarClick($event)\" :class=\"{ &#39;sidebar-collapsed&#39;: isCollapsed, &#39;sidebar-expanded&#39;: !isCollapsed, &#39;sidebar-expand-cursor&#39;: isCollapsed, &#39;sidebar-collapse-cursor&#39;: !isCollapsed }\" x-init=\"initSidebarShell()\" class=\"flex flex-col bg-surface-200 shadow-lg py-6 h-screen sdk-h-dvh sticky top-0 transition-all duration-300 overflow-visible\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

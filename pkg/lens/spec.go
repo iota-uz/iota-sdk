@@ -1,0 +1,176 @@
+// Package lens defines dashboard specs, datasets, and variable models for Lens.
+package lens
+
+import (
+	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
+)
+
+type DatasetKind string
+
+const (
+	DatasetKindQuery     DatasetKind = "query"
+	DatasetKindTransform DatasetKind = "transform"
+	DatasetKindJoin      DatasetKind = "join"
+	DatasetKindUnion     DatasetKind = "union"
+	DatasetKindFormula   DatasetKind = "formula"
+	DatasetKindStatic    DatasetKind = "static"
+)
+
+type VariableKind string
+
+const (
+	VariableDateRange    VariableKind = "date_range"
+	VariableSingleSelect VariableKind = "single_select"
+	VariableMultiSelect  VariableKind = "multi_select"
+	VariableText         VariableKind = "text"
+	VariableNumber       VariableKind = "number"
+	VariableToggle       VariableKind = "toggle"
+)
+
+type DashboardSpec struct {
+	ID          string
+	Title       string
+	Description string
+	Rows        []RowSpec
+	Variables   []VariableSpec
+	Datasets    []DatasetSpec
+	Drill       *DrillMeta
+}
+
+type DrillMeta struct {
+	BaseURL             string
+	Dimensions          []DrillDimensionMeta
+	Filters             []DrillFilterMeta
+	RemainingDimensions []DrillDimensionMeta
+	ActiveDimension     string
+}
+
+type DrillDimensionMeta struct {
+	Name  string
+	Label string
+}
+
+type DrillFilterMeta struct {
+	Dimension string
+	Value     string
+	Display   string
+}
+
+type RowSpec struct {
+	Panels []panel.Spec
+	Class  string
+}
+
+type VariableOption struct {
+	Label string
+	Value string
+}
+
+type VariableSpec struct {
+	Name            string
+	Label           string
+	Kind            VariableKind
+	RequestKeys     []string
+	Default         any
+	Required        bool
+	Description     string
+	Options         []VariableOption
+	AllowAllTime    bool
+	DefaultDuration time.Duration
+}
+
+type DateRangeValue struct {
+	Mode  string
+	Start *time.Time
+	End   *time.Time
+}
+
+type ParamValue struct {
+	Literal  any
+	Variable string
+}
+
+type QuerySpec struct {
+	Text    string
+	Params  map[string]ParamValue
+	Kind    datasource.QueryKind
+	MaxRows int
+}
+
+type DatasetSpec struct {
+	Name        string
+	Title       string
+	Kind        DatasetKind
+	Source      string
+	DependsOn   []string
+	Query       *QuerySpec
+	Transforms  []transform.Spec
+	Static      *frame.FrameSet
+	Description string
+}
+
+func ResolveTimeRange(value any) datasource.TimeRange {
+	dateRange, ok := value.(DateRangeValue)
+	if !ok {
+		return datasource.TimeRange{}
+	}
+	return datasource.TimeRange{
+		Start: dateRange.Start,
+		End:   dateRange.End,
+		Mode:  datasource.TimeRangeMode(dateRange.Mode),
+	}
+}
+
+func TopLevelPanels(spec DashboardSpec) []panel.Spec {
+	panels := make([]panel.Spec, 0)
+	for _, row := range spec.Rows {
+		panels = append(panels, row.Panels...)
+	}
+	return panels
+}
+
+func FlattenPanels(spec DashboardSpec) []panel.Spec {
+	panels := make([]panel.Spec, 0)
+	for _, row := range spec.Rows {
+		for _, panelSpec := range row.Panels {
+			panels = append(panels, flattenPanel(panelSpec)...)
+		}
+	}
+	return panels
+}
+
+func FindPanel(spec DashboardSpec, panelID string) (panel.Spec, bool) {
+	for _, row := range spec.Rows {
+		for _, panelSpec := range row.Panels {
+			if found, ok := findPanel(panelSpec, panelID); ok {
+				return found, true
+			}
+		}
+	}
+	return panel.Spec{}, false
+}
+
+func flattenPanel(spec panel.Spec) []panel.Spec {
+	panels := []panel.Spec{spec}
+	for _, child := range spec.Children {
+		panels = append(panels, flattenPanel(child)...)
+	}
+	return panels
+}
+
+func findPanel(spec panel.Spec, panelID string) (panel.Spec, bool) {
+	if spec.ID == panelID {
+		return spec, true
+	}
+	for _, child := range spec.Children {
+		if found, ok := findPanel(child, panelID); ok {
+			return found, true
+		}
+	}
+	return panel.Spec{}, false
+}

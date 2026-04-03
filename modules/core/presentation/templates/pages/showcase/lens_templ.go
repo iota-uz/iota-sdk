@@ -13,13 +13,14 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	lensui "github.com/iota-uz/iota-sdk/pkg/lens/ui"
+	lensrender "github.com/iota-uz/iota-sdk/pkg/lens/render/templ"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
 
 type LensPageProps struct {
 	SidebarProps sidebar.Props
-	Dashboard    lens.Dashboard
-	Results      *lens.Results
+	Dashboard    lens.DashboardSpec
+	Results      *runtime.Result
 }
 
 func LensContent(props LensPageProps) templ.Component {
@@ -44,7 +45,10 @@ func LensContent(props LensPageProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if props.Results != nil {
-			templ_7745c5c3_Err = lensui.Dashboard(props.Dashboard, props.Results).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = lensrender.Dashboard(lensrender.DashboardProps{
+				Spec:   props.Dashboard,
+				Result: props.Results,
+			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

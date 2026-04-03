@@ -3,6 +3,7 @@ package composables
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -29,6 +30,55 @@ func UseUser(ctx context.Context) (user.User, error) {
 // WithUser returns a new context with the user.
 func WithUser(ctx context.Context, u user.User) context.Context {
 	return context.WithValue(ctx, constants.UserKey, u)
+}
+
+func RoleNames(u user.User) []string {
+	if u == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	names := make([]string, 0, len(u.Roles()))
+	for _, role := range u.Roles() {
+		name := role.Name()
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+func EffectivePermissionNames(u user.User) []string {
+	if u == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	names := make([]string, 0, len(u.Permissions()))
+	appendPermission := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, exists := seen[name]; exists {
+			return
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	for _, perm := range u.Permissions() {
+		appendPermission(perm.Name())
+	}
+	for _, role := range u.Roles() {
+		for _, perm := range role.Permissions() {
+			appendPermission(perm.Name())
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // MustUseUser returns the user from the context. If no user is found, it panics.

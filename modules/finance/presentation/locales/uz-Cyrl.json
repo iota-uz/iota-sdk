@@ -1,0 +1,581 @@
+{
+  "Resources": {
+    "payment": "Тўловлар",
+    "expense": "Харажатлар",
+    "expense_category": "Харажат тоифалари",
+    "debt": "Қарзлар"
+  },
+  "Permissions": {
+    "Payment": {
+      "Create": "Тўлов яратиш",
+      "Read": "Тўловни кўриш",
+      "Update": "Тўловни таҳрирлаш",
+      "Delete": "Тўловни ўчириш"
+    },
+    "Expense": {
+      "Create": "Харажат яратиш",
+      "Read": "Харажатни кўриш",
+      "Update": "Харажатни таҳрирлаш",
+      "Delete": "Харажатни ўчириш"
+    },
+    "ExpenseCategory": {
+      "Create": "Харажат тоифаси яратиш",
+      "Read": "Харажат тоифасини кўриш",
+      "Update": "Харажат тоифасини таҳрирлаш",
+      "Delete": "Харажат тоифасини ўчириш"
+    },
+    "Debt": {
+      "Create": "Қарз яратиш",
+      "Read": "Қарзни кўриш",
+      "Update": "Қарзни таҳрирлаш",
+      "Delete": "Қарзни ўчириш"
+    }
+  },
+  "NavigationLinks": {
+    "Accounts": "Ҳисоблар",
+    "FinancialOverview": "Молиявий кўриниш",
+    "Transactions": "Транзаксиялар",
+    "Expenses": "Харажатлар",
+    "ExpenseCategories": "Харажат категориялари",
+    "Payments": "Тўловлар",
+    "PaymentCategories": "Тўлов категориялари",
+    "Finances": "Молия",
+    "Counterparties": "Контрагентлар",
+    "Debts": "Қарзлар",
+    "DebtAggregates": "Қарзлар хулосаси",
+    "Inventory": "Омбор",
+    "Reports": "Ҳисоботлар",
+    "IncomeStatement": "Даромад ва зарар ҳисоботи",
+    "CashflowStatement": "Пул оқими ҳисоботи",
+    "Finance": {
+      "Enums": "Рўйхатлар"
+    }
+  },
+  "FinancialOverview": {
+    "Meta": {
+      "Title": "Молиявий кўриниш"
+    }
+  },
+  "ExpenseCategories": {
+    "Meta": {
+      "List": {
+        "Title": "Харажат категориялари"
+      },
+      "Edit": {
+        "Title": "Категорияни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Янги категория"
+      }
+    },
+    "List": {
+      "New": "Янги категория",
+      "Name": "Номи",
+      "Amount": "Миқдори",
+      "NoCategories": {
+        "Title": "Харажат категориялари топилмади",
+        "_Description": "Ҳали харажат категориялари йўқ. Янги яратиш учун 'Янги категория' тугмасини босинг."
+      }
+    },
+    "Single": {
+      "EditUser": "Категорияни таҳрирлаш",
+      "Name": "Номи",
+      "Amount": "Миқдори",
+      "CurrencyCode": {
+        "Label": "Валюта",
+        "Placeholder": "Валютани танланг"
+      },
+      "_Description": "Тавсиф",
+      "IsCOGS": "Сотилган товарларнинг таннархи (COGS)",
+      "Delete": "Категорияни ўчириш",
+      "DeleteConfirmation": "Ушбу харажат категориясини ўчиришни хоҳлайсизми?"
+    }
+  },
+  "Payments": {
+    "Meta": {
+      "List": {
+        "Title": "Тўловлар"
+      },
+      "Edit": {
+        "Title": "Тўловни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Тўлов қўшиш"
+      },
+      "Show": {
+        "Title": "Тўлов тафсилотлари"
+      }
+    },
+    "List": {
+      "New": "Тўлов қўшиш",
+      "Amount": "Миқдори",
+      "NoPayments": {
+        "Title": "Тўловлар топилмади",
+        "_Description": "Ҳали тўловлар йўқ. Янги яратиш учун 'Тўлов қўшиш' тугмасини босинг."
+      }
+    },
+    "Single": {
+      "AccountID": "Ҳисоб",
+      "SelectAccount": "Ҳисобни танланг",
+      "Edit": "Тўловни таҳрирлаш",
+      "Name": "Номи",
+      "Amount": "Миқдори",
+      "Date": "Сана",
+      "AccountingPeriod": "Ҳисоб даври",
+      "CounterpartyID": {
+        "Label": "Жўнатувчи",
+        "Placeholder": "Жўнатувчини танланг"
+      },
+      "CategoryID": "Категория",
+      "SelectCategory": "Категорияни танланг",
+      "Comment": "Изоҳ",
+      "User": "Фойдаланувчи",
+      "Delete": "Тўловни ўчириш",
+      "DeleteConfirmation": "Ушбу тўловни ўчиришни хоҳлайсизми?"
+    }
+  },
+  "Expenses": {
+    "Meta": {
+      "List": {
+        "Title": "Харажатлар"
+      },
+      "Edit": {
+        "Title": "Харажатни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Харажат қўшиш"
+      },
+      "Show": {
+        "Title": "Харажат тафсилотлари"
+      }
+    },
+    "List": {
+      "New": "Харажат қўшиш",
+      "Export": "Експорт",
+      "Category": "Категория",
+      "Amount": "Миқдори",
+      "AccountingPeriod": "Ҳисоб даври",
+      "Date": "Сана",
+      "NoExpenses": {
+        "Title": "Харажатлар топилмади",
+        "_Description": "Ҳали харажатлар йўқ. Янги яратиш учун 'Харажат қўшиш' тугмасини босинг."
+      }
+    },
+    "Single": {
+      "AccountID": "Ҳисоб",
+      "SelectAccount": "Ҳисобни танланг",
+      "CategoryID": "Категория",
+      "SelectCategory": "Категорияни танланг",
+      "Edit": "Харажатни таҳрирлаш",
+      "Name": "Номи",
+      "Amount": "Миқдори",
+      "Date": "Сана",
+      "AccountingPeriod": "Ҳисоб даври",
+      "Comment": "Изоҳ",
+      "Delete": "Харажатни ўчириш",
+      "DeleteConfirmation": "Ушбу харажатни ўчиришни хоҳлайсизми?"
+    }
+  },
+  "Counterparties": {
+    "Meta": {
+      "List": {
+        "Title": "Контрагентлар"
+      },
+      "Edit": {
+        "Title": "Контрагентни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Контрагент қўшиш"
+      }
+    },
+    "List": {
+      "New": "Контрагент қўшиш",
+      "Name": "Номи",
+      "TIN": "СТИР",
+      "Type": "Тури",
+      "LegalType": "Юридик шакли",
+      "LegalAddress": "Юридик манзили",
+      "NoCounterparties": {
+        "Title": "Контрагентлар топилмади",
+        "_Description": "Ҳали контрагентлар йўқ. Янги яратиш учун 'Контрагент қўшиш' тугмасини босинг."
+      }
+    },
+    "Single": {
+      "Edit": "Контрагентни таҳрирлаш",
+      "Name": "Номи",
+      "TIN": "СТИР",
+      "Type": "Тури",
+      "SelectType": "Турини танланг",
+      "LegalType": "Юридик шакли",
+      "SelectLegalType": "Юридик шаклини танланг",
+      "LegalAddress": "Юридик манзили",
+      "Delete": "Контрагентни ўчириш",
+      "DeleteConfirmation": "Ушбу контрагентни ўчиришни хоҳлайсизми?"
+    },
+    "Types": {
+      "CUSTOMER": "Мижоз",
+      "SUPPLIER": "Таъминотчи",
+      "BOTH": "Иккаласи",
+      "_OTHER": "Бошқа"
+    },
+    "LegalTypes": {
+      "INDIVIDUAL": "Жисмоний шахс",
+      "LLC": "МЧЖ (Масъулияти чекланган жамият)",
+      "JSC": "АЖ (Аксиядорлик жамияти)",
+      "SOLE_PROPRIETORSHIP": "Якка тадбиркор"
+    }
+  },
+  "MoneyAccounts": {
+    "Meta": {
+      "List": {
+        "Title": "Ҳисоблар"
+      },
+      "Edit": {
+        "Title": "Ҳисобни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Ҳисоб қўшиш"
+      }
+    },
+    "List": {
+      "New": "Ҳисоб қўшиш",
+      "Name": "Номи",
+      "Balance": "Баланс",
+      "NoAccounts": {
+        "Title": "Ҳисоблар топилмади",
+        "_Description": "Ҳали ҳисоблар йўқ. Янги яратиш учун 'Ҳисоб қўшиш' тугмасини босинг."
+      }
+    },
+    "Single": {
+      "Edit": "Ҳисобни таҳрирлаш",
+      "Name": "Номи",
+      "Balance": "Баланс",
+      "CurrencyCode": "Валюта",
+      "Currency": {
+        "Label": "Валюта",
+        "Placeholder": "Валютани танланг"
+      },
+      "_Description": "Тавсиф",
+      "AccountNumber": "Ҳисоб рақами",
+      "Delete": "Ҳисобни ўчириш",
+      "DeleteConfirmation": "Ушбу ҳисобни ўчиришни хоҳлайсизми?",
+      "General": "Умумий",
+      "Transactions": "Транзаксиялар",
+      "Transfer": "Ўтказма"
+    },
+    "Transactions": {
+      "NoTransactions": "Ҳозирча транзаксиялар йўқ",
+      "NoTransactionsDescription": "Бу ҳисобда транзаксиялар йўқ. Транзаксиялар сиз харажат, тўлов ёки ўтказмалар қўшганингизда бу йерда кўринади.",
+      "ViewAll": "Барча транзаксияларни кўриш"
+    }
+  },
+  "Transfers": {
+    "Meta": {
+      "New": {
+        "Title": "Пул ўтказмаси"
+      }
+    },
+    "Single": {
+      "From": "Дан",
+      "To": "Га",
+      "DestinationAccountID": "Қабул қилувчи ҳисоб",
+      "SelectDestinationAccount": "Қабул қилувчи ҳисобни танланг",
+      "Amount": "Миқдор",
+      "Comment": "Изоҳ",
+      "CommentPlaceholder": "Ихтиёрий ўтказма тавсифи...",
+      "Transfer": "Ўтказиш",
+      "ExchangeRate": "Айирбошлаш курси",
+      "DestinationAmount": "Қабул қилувчи миқдори",
+      "ExchangeNotice": "Турли валюталар аниқланди - айирбошлаш курси талаб қилинади"
+    }
+  },
+  "PaymentCategories": {
+    "Meta": {
+      "List": {
+        "Title": "Тўлов категориялари"
+      },
+      "Edit": {
+        "Title": "Тўлов категориясини таҳрирлаш"
+      },
+      "New": {
+        "Title": "Янги тўлов категорияси"
+      }
+    },
+    "List": {
+      "New": "Янги категория",
+      "Name": "Номи",
+      "NoCategories": {
+        "Title": "Тўлов категориялари топилмади",
+        "_Description": "Ҳали тўлов категориялари йўқ. Янги яратиш учун 'Янги категория' тугмасини босинг."
+      }
+    },
+    "Single": {
+      "Name": "Номи",
+      "_Description": "Тавсиф",
+      "Delete": "Тўлов категориясини ўчириш",
+      "DeleteConfirmation": "Ушбу тўлов категориясини ўчиришни хоҳлайсизми?"
+    }
+  },
+  "Inventory": {
+    "Meta": {
+      "List": {
+        "Title": "Омбор"
+      },
+      "Edit": {
+        "Title": "Товарни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Товар қўшиш"
+      }
+    },
+    "List": {
+      "New": "Товар қўшиш",
+      "Name": "Номи",
+      "Price": "Нархи",
+      "Quantity": "Миқдори",
+      "TotalValue": "Умумий қиймати",
+      "NoInventory": {
+        "Title": "Товарлар топилмади",
+        "_Description": "Ҳали омборхонада товарлар йўқ. Янги яратиш учун 'Товар қўшиш' тугмасини босинг."
+      }
+    },
+    "Single": {
+      "Edit": "Товарни таҳрирлаш",
+      "Name": "Номи",
+      "Price": "Нархи",
+      "Quantity": "Миқдори",
+      "Currency": {
+        "Label": "Валюта",
+        "Placeholder": "Валютани танланг"
+      },
+      "_Description": "Тавсиф",
+      "Delete": "Товарни ўчириш",
+      "DeleteConfirmation": "Ушбу товарни ўчиришни хоҳлайсизми?"
+    }
+  },
+  "Transactions": {
+    "Meta": {
+      "List": {
+        "Title": "Транзаксиялар"
+      }
+    },
+    "List": {
+      "Date": "Сана",
+      "Type": "Тури",
+      "Amount": "Сумма",
+      "Account": "Ҳисоб",
+      "Category": "Категория",
+      "Counterparty": "Контрагент",
+      "Comment": "Изоҳ",
+      "NoTransactions": {
+        "Title": "Транзаксиялар топилмади",
+        "_Description": "Ҳали транзаксиялар йўқ. Харажат ёки тўлов қўшганингизда транзаксиялар яратилади."
+      }
+    },
+    "Filters": {
+      "AllTypes": "Барча турлар",
+      "AllTime": "Барча вақт",
+      "AccountingPeriod": "Ҳисоб даври",
+      "AllPeriods": "Барча даврлар",
+      "ThisMonth": "Бу ой",
+      "LastMonth": "Ўтган ой",
+      "TwoMonthsAgo": "2 ой олдин",
+      "ThreeMonthsAgo": "3 ой олдин"
+    },
+    "Single": {
+      "Title": "Транзаксия тафсилотлари",
+      "Details": "Транзаксия маълумотлари",
+      "Type": "Тури",
+      "Amount": "Сумма",
+      "Date": "Транзаксия санаси",
+      "AccountingPeriod": "Ҳисоб даври",
+      "OriginAccount": "Жўнатувчи ҳисоб",
+      "DestinationAccount": "Қабул қилувчи ҳисоб",
+      "DestinationAccountID": "Қабул қилувчи ҳисоб",
+      "Comment": "Изоҳ",
+      "ExchangeDetails": "Айирбошлаш тафсилотлари",
+      "ExchangeRate": "Айирбошлаш курси",
+      "DestinationAmount": "Қабул қилувчи сумма",
+      "RelatedDetails": "Боғлиқ маълумотлар",
+      "PaymentCategory": "Тўлов категорияси",
+      "ExpenseCategory": "Харажат категорияси",
+      "Counterparty": "Контрагент",
+      "TransactionID": "Транзаксия ID",
+      "From": "Қайердан",
+      "To": "Қайерга",
+      "Category": "Категория"
+    },
+    "Types": {
+      "DEPOSIT": "Кирим",
+      "WITHDRAWAL": "Чиқим",
+      "TRANSFER": "Ўтказма",
+      "EXCHANGE": "Айирбошлаш"
+    }
+  },
+  "Reports": {
+    "IncomeStatement": {
+      "Title": "Даромад ва зарар ҳисоботи",
+      "GenerateReport": "Ҳисобот тузиш",
+      "StartDate": "Бошланиш санаси",
+      "EndDate": "Тугаш санаси",
+      "ComparePeriods": "Таққослаш даврлари",
+      "Generate": "Ҳисобот тузиш",
+      "EnableComparison": "Даврларни таққослашни ёқиш",
+      "Generating": "Ҳисобот тузилмоқда...",
+      "NoReportGenerated": "Ҳисобот тузилмаган",
+      "SelectDatesAndGenerate": "Саналарни танланг ва даромад ва зарар ҳисоботини кўриш учун 'Ҳисобот тузиш' тугмасини босинг",
+      "Period": "Давр",
+      "Print": "Чоп етиш",
+      "GrossProfit": "Ялпи фойда",
+      "NetProfit": "Соф фойда",
+      "GeneratedAt": "Тузилган",
+      "NoItemsInSection": "Бу бўлимда елементлар йўқ",
+      "Total": "Жами",
+      "ComparativeTitle": "Таққосий даромад ва зарар ҳисоботи",
+      "CurrentPeriod": "Жорий давр",
+      "ComparisonPeriods": "Таққослаш даврлари",
+      "Revenue": "Даромадлар",
+      "Expenses": "Харажатлар",
+      "Category": "Категория",
+      "OperationalIncome": "Оператсион даромад",
+      "TotalExpenses": "Умумий харажатлар"
+    },
+    "CashflowStatement": {
+      "Title": "Пул оқими ҳисоботи",
+      "_Description": "Ҳисобларингиздаги пул ҳаракатларини кўриш ва таҳлил қилиш",
+      "Account": "Ҳисоб",
+      "SelectAccount": "Ҳисобни танланг",
+      "AllAccounts": "Барча ҳисоблар",
+      "StartDate": "Бошланиш санаси",
+      "EndDate": "Тугаш санаси",
+      "Generate": "Ҳисобот тузиш",
+      "LastGenerated": "Охирги тузилган",
+      "Never": "Ҳеч қачон",
+      "ReportTitle": "Пул оқими ҳисоботи",
+      "StartingBalance": "Бошланғич баланс",
+      "NetCashFlow": "Соф пул оқими",
+      "EndingBalance": "Якуний баланс",
+      "GeneratedAt": "Тузилган",
+      "Category": "Категория",
+      "Total": "Жами",
+      "Count": "Сони",
+      "Inflows": "Пул киримлар",
+      "Outflows": "Пул чиқимлар",
+      "NoReportGenerated": "Ҳисобот тузилмаган",
+      "SelectDatesAndGenerate": "Саналарни ва ҳисобни танланг, сўнгра пул оқими ҳисоботини кўриш учун 'Ҳисобот тузиш' тугмасини босинг",
+      "Generating": "Ҳисобот тузилмоқда..."
+    }
+  },
+  "Debts": {
+    "Meta": {
+      "List": {
+        "Title": "Қарзлар"
+      },
+      "Edit": {
+        "Title": "Қарзни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Қарз қўшиш"
+      }
+    },
+    "List": {
+      "New": "Қарз қўшиш",
+      "Type": "Тури",
+      "Status": "Ҳолати",
+      "Counterparty": "Ҳамкор",
+      "OriginalAmount": "Дастлабки сумма",
+      "OutstandingAmount": "Қарз қолдиғи",
+      "_Description": "Тавсиф",
+      "DueDate": "Тўлов муддати",
+      "CreatedAt": "Яратилган",
+      "Actions": "Амаллар",
+      "NoDebts": {
+        "Title": "Қарзлар топилмади",
+        "_Description": "Ҳозирча қарзлар йўқ. Яратиш учун 'Қарз қўшиш' тугмасини босинг."
+      }
+    },
+    "Single": {
+      "Edit": "Қарзни таҳрирлаш",
+      "Counterparty": "Ҳамкор",
+      "CounterpartyID": "Ҳамкор",
+      "SelectCounterparty": "Ҳамкорни танлаш",
+      "Type": "Қарз тури",
+      "SelectType": "Қарз турини танлаш",
+      "Status": "Ҳолати",
+      "Amount": "Сумма",
+      "OriginalAmount": "Дастлабки сумма",
+      "OutstandingAmount": "Қарз қолдиғи",
+      "_Description": "Тавсиф",
+      "DueDate": "Тўлов муддати",
+      "SettlementTransactionID": "Тўлов транзаксияси",
+      "Settle": "Қарзни тўлаш",
+      "WriteOff": "Ҳисобдан чиқариш",
+      "Delete": "Қарзни ўчириш",
+      "DeleteConfirmation": "Ҳақиқатан ҳам бу қарзни ўчирмоқчимисиз?",
+      "SettleConfirmation": "Ҳақиқатан ҳам бу қарзни тўламоқчимисиз?",
+      "WriteOffConfirmation": "Ҳақиқатан ҳам бу қарзни ёмон қарз сифатида ҳисобдан чиқармоқчимисиз?",
+      "SelectTransaction": "Транзаксияни танлаш"
+    },
+    "Types": {
+      "RECEIVABLE": "Дебиторлик қарзи (бизга бергилар)",
+      "PAYABLE": "Кредиторлик қарзи (биз берган)"
+    },
+    "Statuses": {
+      "PENDING": "Кутилаётган",
+      "SETTLED": "Тўланган",
+      "PARTIAL": "Қисман тўланган",
+      "WRITTEN_OFF": "Ҳисобдан чиқарилган"
+    },
+    "Actions": {
+      "Created": "Қарз муваффақиятли яратилди",
+      "Updated": "Қарз муваффақиятли янгиланди",
+      "Deleted": "Қарз муваффақиятли ўчирилди",
+      "Settled": "Қарз муваффақиятли тўланди",
+      "WrittenOff": "Қарз муваффақиятли ҳисобдан чиқарилди"
+    }
+  },
+  "DebtAggregates": {
+    "Meta": {
+      "List": {
+        "Title": "Контрагентлар бўйича қарзлар хулосаси"
+      }
+    },
+    "List": {
+      "Counterparty": "Контрагент",
+      "TotalReceivable": "Жами олинадиган",
+      "TotalPayable": "Жами тўланадиган",
+      "OutstandingReceivable": "Олинадиган қолдиқ",
+      "OutstandingPayable": "Тўланадиган қолдиқ",
+      "NetAmount": "Аниқ сумма",
+      "DebtCount": "Жами қарзлар"
+    },
+    "Drawer": {
+      "Title": "Қарз тафсилотлари"
+    }
+  },
+  "Attachments": {
+    "Title": "Иловалар",
+    "AddFiles": "Файллар қўшиш",
+    "ChooseFiles": "Файлларни танлаш",
+    "SupportedFormats": "Қўллаб-қувватланадиган форматлар: PDF, JPG, PNG, DOC, DOCХ, XLS, XLSХ",
+    "ExistingFiles": "Мавжуд файллар",
+    "AttachedFiles": "Бириктирилган файллар",
+    "DeleteConfirmation": "Ҳақиқатан ҳам бу иловани ўчирмоқчимисиз?",
+    "DeleteFile": "Файлни ўчириш"
+  },
+  "Finance": {
+    "Attachments": {
+      "Title": "Молиявий ҳужжатлар",
+      "AddFiles": "Ҳужжатлар қўшиш",
+      "ChooseFiles": "Ҳужжатларни танлаш",
+      "SupportedFormats": "Квитансиялар, счёт-фактуралар, шартномалар ва бошқа молиявий ҳужжатларни юкланг",
+      "ExistingFiles": "Мавжуд ҳужжатлар",
+      "AttachedFiles": "Бириктирилган ҳужжатлар",
+      "DeleteConfirmation": "Ҳақиқатан ҳам бу ҳужжатни ўчирмоқчимисиз?",
+      "DeleteFile": "Ҳужжатни ўчириш"
+    }
+  },
+  "ValidationErrors": {
+    "invalidTIN": "Нотўғри СТИР формати: {{.Details}}"
+  }
+}

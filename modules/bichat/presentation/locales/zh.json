@@ -47,6 +47,9 @@
     "InlineQuestion": {
       "InputNeeded": "需要输入",
       "WaitingForDetails": "正在等待助手的提问详情...",
+      "AnswerSubmitted": "答案已提交",
+      "DismissalSubmitted": "已关闭该请求",
+      "ResumeInProgress": "正在继续处理",
       "Next": "下一步",
       "Back": "返回",
       "OtherOption": "其他",
@@ -325,7 +328,10 @@
       "LoadMore": "加载更多",
       "NoChatsFound": "未找到聊天",
       "NoChatsInOrg": "此组织暂无聊天",
-      "NoActiveChatsInOrg": "此组织无活跃聊天"
+      "NoActiveChatsInOrg": "此组织无活跃聊天",
+      "ChatFound": "找到 {{count}} 个聊天",
+      "ChatsFound": "找到 {{count}} 个聊天",
+      "NoChatsFromUser": "没有来自 {{firstName}} {{lastName}} 的聊天"
     },
     "Artifacts": {
       "Title": "工件",

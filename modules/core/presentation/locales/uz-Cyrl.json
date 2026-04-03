@@ -1,0 +1,1257 @@
+{
+  "Account": {
+    "Meta": {
+      "Index": {
+        "Title": "Profil"
+      },
+      "Settings": {
+        "Title": "Profil sozlamalari"
+      },
+      "Logo": {
+        "Title": "Logo sozlamalari"
+      }
+    },
+    "BrowseFilesystem": "Fayllarni ko'rish",
+    "FirstName": {
+      "Label": "Ism",
+      "Placeholder": "Ismingizni kiriting"
+    },
+    "LastName": {
+      "Label": "Familiya",
+      "Placeholder": "Familiyangizni kiriting"
+    },
+    "MiddleName": {
+      "Label": "Otasining ismi",
+      "Placeholder": "Otangizning ismini kiriting"
+    },
+    "Email": {
+      "Label": "Email",
+      "Placeholder": "Email manzilingizni kiriting"
+    },
+    "Phone": {
+      "Label": "Telefon",
+      "Placeholder": "Telefon raqamingizni kiriting"
+    },
+    "Password": "Parol",
+    "Save": "Saqlash",
+    "Logo": {
+      "FullLogo": "To'liq logo",
+      "FullLogoDescription": "Bu logo yon panel ochiq bo'lganda ko'rsatiladi",
+      "FullLogoPlaceholder": "Kompaniyangizning to'liq logosini tanlang (PNG, JPG, SVG)",
+      "CompactLogo": "Ixcham logo",
+      "CompactLogoDescription": "Bu logo yon panel yopiq bo'lganda ko'rsatiladi",
+      "CompactLogoPlaceholder": "Kompaniyangizning ixcham logosini tanlang (PNG, JPG, SVG)"
+    },
+    "Contact": {
+      "Information": "Aloqa ma'lumotlari",
+      "DescText": "Tashkilotingizning aloqa ma'lumotlarini boshqaring",
+      "Phone": "Telefon raqami",
+      "PhonePlaceholder": "Telefon raqamini kiriting (masalan +1234567890)",
+      "Email": "Elektron pochta manzili",
+      "EmailPlaceholder": "Elektron pochta manzilini kiriting"
+    },
+    "Sessions": {
+      "Title": "Faol sessiyalar",
+      "DescText": "Turli qurilmalardagi faol sessiyalarni boshqarish",
+      "CurrentDevice": "Joriy",
+      "Device": "Qurilma",
+      "IPAddress": "IP manzil",
+      "CreatedAt": "Kirish vaqti",
+      "Actions": "Harakatlar",
+      "Revoke": "Bekor qilish",
+      "RevokeAll": "Boshqa qurilmalardan chiqish",
+      "ConfirmRevoke": "Ushbu sessiyani bekor qilmoqchimisiz?",
+      "ConfirmRevokeAll": "Boshqa qurilmalardan chiqmoqchimisiz?",
+      "RevokeSuccess": "Sessiya muvaffaqiyatli bekor qilindi",
+      "RevokeAllSuccess": "%d sessiya bekor qilindi",
+      "EmptyState": "Siz faqat ushbu qurilmada kirgansiz",
+      "CannotRevokeCurrent": "Joriy sessiyani bekor qilish mumkin emas"
+    }
+  },
+  "Actions": "Harakatlar",
+  "Add": "Qo'shish",
+  "All": "Hammasi",
+  "NotFound": "Topilmadi",
+  "Analytics": {
+    "PreviousDay": "Oldingi kun",
+    "NextDay": "Keyingi kun",
+    "Revenue": "Daromad",
+    "Count": "Soni",
+    "RevenueByCategory": "Toifalar bo'yicha daromad",
+    "CountByCategory": "Toifalar bo'yicha soni",
+    "CategoryBreakdown": "Toifalar bo'yicha taqsimlash",
+    "NoDataTitle": "Ma'lumot mavjud emas",
+    "NoDataDescription": "Tanlangan sana uchun ma'lumot mavjud emas",
+    "Categories": "Toifalar"
+  },
+  "Back": "Orqaga",
+  "Cancel": "Bekor qilish",
+  "Chart": {
+    "CloseFullScreen": "To'liq ekran rejimini yopish",
+    "ExpandToFullScreen": "To'liq ekranga kengaytirish",
+    "LogScale": "Logarifmik shkala",
+    "LogScaleHint": "Qiymatlar logarifmik shkala asosida ko'rsatilgan",
+    "MetricInfo": "Bu metrika qanday hisoblanadi"
+  },
+  "Lens": {
+    "Empty": {
+      "_Description": "Filtrlarni o'zgartirib ko'ring",
+      "Title": "Ma'lumot topilmadi"
+    },
+    "Error": {
+      "_Description": "Panelni ko'rsatishda xatolik yuz berdi",
+      "Title": "Ma'lumotlarni yuklab bo'lmadi",
+      "PanelLabel": "Panel",
+      "ReasonLabel": "Sabab",
+      "LogsHint": "Xatoning to'liq tafsilotlari uchun server loglarini tekshiring"
+    },
+    "Drill": {
+      "Back": "Orqaga",
+      "CurrentScope": "Жорий кесим"
+    },
+    "Table": {
+      "OpenRow": "Тафсилотларни очиш"
+    },
+    "Filters": {
+      "All": "Barchasi",
+      "AllTime": "Butun vaqt",
+      "Apply": "Qo'llash",
+      "CustomRange": "Ixtiyoriy diapazon",
+      "DefaultRange": "Standart diapazon",
+      "Title": "Filtrlar"
+    }
+  },
+  "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
+  "Countries": {
+    "AF": "Afg'oniston",
+    "AL": "Albaniya",
+    "DZ": "Jazoir",
+    "AD": "Andorra",
+    "AO": "Angola",
+    "AG": "Antigua va Barbuda",
+    "AR": "Argentina",
+    "AM": "Armaniston",
+    "AU": "Avstraliya",
+    "AT": "Avstriya",
+    "AZ": "Ozarbayjon",
+    "BS": "Bagama orollari",
+    "BH": "Bahrayn",
+    "BD": "Bangladeshi",
+    "BB": "Barbados",
+    "BY": "Belarus",
+    "BE": "Belgiya",
+    "BZ": "Beliz",
+    "BJ": "Benin",
+    "BT": "Butan",
+    "BO": "Boliviya",
+    "BA": "Bosniya va Gertsegovina",
+    "BW": "Botsvana",
+    "BR": "Braziliya",
+    "BN": "Bruney",
+    "BG": "Bolgariya",
+    "BF": "Burkina Faso",
+    "BI": "Burundi",
+    "CV": "Kabo Verde",
+    "KH": "Kambodja",
+    "CM": "Kamerun",
+    "CA": "Kanada",
+    "CF": "Markaziy Afrika Respublikasi",
+    "TD": "Chad",
+    "CL": "Chili",
+    "CN": "Xitoy",
+    "CO": "Kolumbiya",
+    "KM": "Komor orollari",
+    "CG": "Kongo (Brazzavil)",
+    "CD": "Kongo (Kinshasa)",
+    "CR": "Kosta-Rika",
+    "HR": "Xorvatiya",
+    "CU": "Kuba",
+    "CY": "Kipr",
+    "CZ": "Chexiya",
+    "DK": "Daniya",
+    "DJ": "Djibuti",
+    "DM": "Dominika",
+    "DO": "Dominikan Respublikasi",
+    "EC": "Ekvador",
+    "EG": "Misr",
+    "SV": "El Salvador",
+    "GQ": "Ekvatorial Gvineya",
+    "ER": "Eritreya",
+    "EE": "Estoniya",
+    "SZ": "Eswatini",
+    "ET": "Efiopiya",
+    "FJ": "Fiji",
+    "FI": "Finlandiya",
+    "FR": "Fransiya",
+    "GA": "Gabon",
+    "GM": "Gambiya",
+    "GE": "Gruziya",
+    "DE": "Germaniya",
+    "GH": "Gana",
+    "GR": "Gretsiya",
+    "GD": "Grenada",
+    "GT": "Gvatemala",
+    "GN": "Gvineya",
+    "GW": "Gvineya-Bissau",
+    "GY": "Guyana",
+    "HT": "Gaiti",
+    "HN": "Gonduras",
+    "HU": "Vengriya",
+    "IS": "Islandiya",
+    "IN": "Hindiston",
+    "IDN": "Indoneziya",
+    "IR": "Eron",
+    "IQ": "Iroq",
+    "IE": "Irlandiya",
+    "IL": "Isroil",
+    "IT": "Italiya",
+    "JM": "Yamayka",
+    "JP": "Yaponiya",
+    "JO": "Iordaniya",
+    "KZ": "Qozog'iston",
+    "KE": "Keniya",
+    "KI": "Kiribati",
+    "KP": "Shimoliy Koreya",
+    "KR": "Janubiy Koreya",
+    "XK": "Kosovo",
+    "KW": "Kuveyt",
+    "KG": "Qirg'iziston",
+    "LA": "Laos",
+    "LV": "Latviya",
+    "LB": "Livan",
+    "LS": "Lesoto",
+    "LR": "Liberiya",
+    "LY": "Liviya",
+    "LI": "Lixtenshteyn",
+    "LT": "Litva",
+    "LU": "Lyuksemburg",
+    "MG": "Madagaskar",
+    "MW": "Malavi",
+    "MY": "Malayziya",
+    "MV": "Maldiv orollari",
+    "ML": "Mali",
+    "MT": "Malta",
+    "MH": "Marshall orollari",
+    "MR": "Mavritaniya",
+    "MU": "Mavrikiy",
+    "MX": "Meksika",
+    "FM": "Mikroneziya",
+    "MD": "Moldova",
+    "MC": "Monako",
+    "MN": "Mongoliya",
+    "ME": "Chernogoriya",
+    "MA": "Marokash",
+    "MZ": "Mozambik",
+    "MM": "Myanma (Birma)",
+    "NA": "Namibiya",
+    "NR": "Nauru",
+    "NP": "Nepal",
+    "NL": "Niderlandlar",
+    "NZ": "Yangi Zelandiya",
+    "NI": "Nikaragua",
+    "NE": "Niger",
+    "NG": "Nigeriya",
+    "MK": "Shimoliy Makedoniya",
+    "NO": "Norvegiya",
+    "OM": "Ummon",
+    "PK": "Pokiston",
+    "PW": "Palau",
+    "PS": "Falastin",
+    "PA": "Panama",
+    "PG": "Papua Yangi Gvineya",
+    "PY": "Paragvay",
+    "PE": "Peru",
+    "PH": "Filippin",
+    "PL": "Polsha",
+    "PT": "Portugaliya",
+    "QA": "Qatar",
+    "RO": "Ruminiya",
+    "RU": "Rossiya",
+    "RW": "Ruanda",
+    "KN": "Muqaddas Kristof va Nevis",
+    "LC": "Sent Lyusiya",
+    "VC": "Sent Vinsent va Grenadin",
+    "WS": "Samoa",
+    "SM": "San Marino",
+    "ST": "Santome va Prinsipi",
+    "SA": "Saudiya Arabistoni",
+    "SN": "Senegal",
+    "RS": "Serbiya",
+    "SC": "Seyshel orollari",
+    "SL": "Sierra Leone",
+    "SG": "Singapur",
+    "SK": "Slovakiya",
+    "SI": "Sloveniya",
+    "SB": "Solomon orollari",
+    "SO": "Somaliya",
+    "ZA": "Janubiy Afrika",
+    "SS": "Janubiy Sudan",
+    "ES": "Ispaniya",
+    "LK": "Shri-Lanka",
+    "SD": "Sudan",
+    "SR": "Surinam",
+    "SE": "Shvetsiya",
+    "CH": "Shveytsariya",
+    "SY": "Suriya",
+    "TJ": "Tojikiston",
+    "TZ": "Tanzaniya",
+    "TH": "Tailand",
+    "TL": "Sharqiy Timor",
+    "TG": "Togo",
+    "TO": "Tonga",
+    "TT": "Trinidad va Tobago",
+    "TN": "Tunis",
+    "TR": "Turkiya",
+    "TM": "Turkmaniston",
+    "TV": "Tuvalu",
+    "UG": "Uganda",
+    "UA": "Ukraina",
+    "AE": "Birlashgan Arab Amirliklari",
+    "GB": "Buyuk Britaniya",
+    "US": "Qo'shma Shtatlari",
+    "UY": "Urugvay",
+    "UZ": "O'zbekiston",
+    "VU": "Vanuatu",
+    "VA": "Vatikan",
+    "VE": "Venesuela",
+    "VN": "Vetnam",
+    "YE": "Yaman",
+    "ZM": "Zambiya",
+    "ZW": "Zimbabve"
+  },
+  "CreatedAt": "Yaratilgan sana",
+  "Dashboard": {
+    "Meta": {
+      "Title": "Boshqaruv paneli"
+    },
+    "Welcome": "Boshqaruv paneliga xush kelibsiz"
+  },
+  "Delete": "O'chirish",
+  "Edit": "Tahrirlash",
+  "ErrorPages": {
+    "NotFound": {
+      "Title": "404",
+      "Message": "Sahifa topilmadi",
+      "Home": "Bosh sahifa"
+    },
+    "Forbidden": {
+      "Title": "403",
+      "Message": "Kirish taqiqlangan",
+      "_Description": "Sizda ushbu resursga kirish uchun ruxsat yo'q.",
+      "Home": "Bosh sahifa",
+      "GoBack": "Orqaga"
+    }
+  },
+  "Errors": {
+    "Internal": "Ichki server xatosi yuz berdi: {{.Error}}",
+    "BadRequest": "Noto'g'ri so'rov: {{.Error}}",
+    "NotFound": "Resurs topilmadi: {{.Error}}",
+    "Unauthorized": "Ruxsatsiz: {{.Error}}",
+    "Forbidden": "Taqiqlangan: {{.Error}}",
+    "InvalidFormData": "Noto'g'ri forma ma'lumotlari",
+    "InvalidQueryParams": "Noto'g'ri so'rov parametrlari",
+    "FailedToRetrieve": "Ma'lumotlarni olishda xatolik",
+    "FailedToSave": "Ma'lumotlarni saqlashda xatolik",
+    "FailedToUpdate": "Ma'lumotlarni yangilashda xatolik",
+    "FailedToDelete": "Ma'lumotlarni o'chirishda xatolik",
+    "EntityNotFound": "Element topilmadi",
+    "InternalServer": "Ichki server xatosi",
+    "FailedToRender": "Sahifani ko'rsatishda xatolik"
+  },
+  "Export": {
+    "Title": "Eksport",
+    "ToExcel": "Excel ga eksport",
+    "ToCSV": "CSV ga eksport",
+    "ToJSON": "JSON ga eksport",
+    "ToTXT": "TXT ga eksport"
+  },
+  "Filters": {
+    "CreatedAt": {
+      "AllTime": "Barcha vaqt",
+      "Today": "Bugun",
+      "Yesterday": "Kecha",
+      "Ereyesterday": "Ikki kun oldin",
+      "ThisWeek": "Shu hafta",
+      "LastWeek": "O'tgan hafta",
+      "ThisMonth": "Shu oy",
+      "LastMonth": "O'tgan oy"
+    }
+  },
+  "Groups": {
+    "Meta": {
+      "List": {
+        "Title": "Guruhlar"
+      },
+      "Edit": {
+        "Title": "Guruhni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi guruh"
+      }
+    },
+    "Cards": {
+      "GroupInfo": "Guruh ma'lumotlari",
+      "MembershipInfo": "A'zolik ma'lumotlari"
+    },
+    "List": {
+      "New": "Yangi guruh",
+      "Name": "Nomi",
+      "_Description": "Tavsif",
+      "Roles": "Rollar",
+      "Users": "Foydalanuvchilar",
+      "NoGroups": {
+        "Title": "Guruhlar topilmadi",
+        "_Description": "'Yangi guruh' tugmasini bosib birinchi guruhingizni yarating"
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "_Description": "Tavsif",
+      "RoleIDs": "Rollar",
+      "UserIDs": "Foydalanuvchilar",
+      "SelectRole": "Rollarni tanlang",
+      "SelectUser": "Foydalanuvchilarni tanlang",
+      "SearchRoles": "Rollarni qidirish",
+      "EnterGroupName": "Guruh nomini kiriting",
+      "EnterDescription": "Tavsif kiriting",
+      "NoRoleDescription": "Tavsif mavjud emas",
+      "Delete": "Guruhni o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
+    }
+  },
+  "Home": {
+    "Meta": {
+      "Title": "Bosh sahifa"
+    }
+  },
+  "Import": {
+    "Error": {
+      "ValidationError": "Tekshirish xatosi"
+    }
+  },
+  "Login": {
+    "Meta": {
+      "Title": "Tizimga kirish"
+    },
+    "Email": "Email",
+    "Password": "Parol",
+    "Login": "Kirish",
+    "WelcomeBack": "Xush kelibsiz",
+    "LoginToUse": "IOTA ERP dan foydalanish uchun tizimga kiring",
+    "LoginWithGoogle": "Google orqali kirish",
+    "OrSignInWith": "Yoki quyidagi orqali kiring",
+    "Errors": {
+      "PasswordInvalid": "Email yoki parol noto'g'ri",
+      "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
+      "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
+      "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
+      "UserNotFound": "Foydalanuvchi topilmadi",
+      "AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling."
+    }
+  },
+  "Modules": {
+    "BiChat": "BI-Chat",
+    "Billing": "To'lov tizimi",
+    "Core": "Boshqaruv",
+    "CRM": "CRM",
+    "Finance": "Moliya",
+    "HRM": "Kadrlar boshqaruvi",
+    "Logging": "Jurnallashtirish",
+    "Pipeline": "Quvur",
+    "Projects": "Loyihalar",
+    "Superadmin": "Super administrator",
+    "Testkit": "Test to'plami",
+    "Warehouse": "Ombor",
+    "Website": "Veb-sayt"
+  },
+  "NavigationLinks": {
+    "Dashboard": "Boshqaruv paneli",
+    "Administration": "Ma'muriyat",
+    "Users": "Foydalanuvchilar",
+    "Roles": "Rollar",
+    "Groups": "Guruhlar",
+    "Settings": "Sozlamalar",
+    "KnowledgeBase": "Bilimlar bazasi",
+    "Operations": "Operatsiyalar",
+    "Calendar": "Taqvim",
+    "Enums": "Ro'yxatlar",
+    "TaskTypes": "Vazifa turlari",
+    "Positions": "Lavozimlar",
+    "Finances": "Moliya",
+    "Projects": "Loyihalar",
+    "Reports": "Hisobotlar",
+    "Portfolio": "Portfel",
+    "SalesReport": "Sotish hisoboti",
+    "OsagoReport": "OSAGO hisoboti",
+    "Underwriting": "Anderrayting",
+    "Submissions": "Arizalar",
+    "Policies": "Polislar",
+    "Files": "Fayllar",
+    "Lookups": "Ma'lumotnomalar",
+    "PolicyObjects": "Polis ob'ektlari",
+    "Persons": "Shaxslar",
+    "Organizations": "Tashkilotlar",
+    "Vehicles": "Transport vositalari",
+    "VehicleGroups": "Transport guruhlari",
+    "VehicleTypes": "Transport turlari",
+    "ResidencyTypes": "Rezidentlik turlari",
+    "Discounts": "Chegirmalar",
+    "ContractTermConclusions": "Shartnoma tuzish shartlari",
+    "ContractStatuses": "Shartnoma holatlari",
+    "ContractSources": "Shartnoma manbalari",
+    "UseTerritoryRegions": "Hudud foydalanish hududlari",
+    "SeasonalInsurances": "Mavsumiy sug'urtalar",
+    "ForeignVehiclesPolicyDurations": "Xorijiy transport vositalari polisi muddatlari",
+    "AreaTypes": "Hudud turlari",
+    "DocumentAuthorities": "Hujjat beruvchi organlar",
+    "Industries": "Sohalar",
+    "InsuranceClasses": "Sug'urta sinflari",
+    "InsuranceObjectTypes": "Sug'urta ob'ekti turlari",
+    "InsuranceTerms": "Sug'urta shartlari",
+    "InsuranceTypes": "Sug'urta turlari",
+    "InsuranceClassGroups": "Sug'urta sinflari guruhlari",
+    "FormOfInsurances": "Sug'urta shakllari",
+    "AgriculturalTypes": "Qishloq xo'jaligi turlari",
+    "BuildingTypes": "Bino turlari",
+    "OpoObjectTypes": "OPO ob'ektlari turlari",
+    "OtherObjectTypes": "Boshqa ob'ekt turlari",
+    "PaymentConditions": "To'lov shartlari",
+    "Risks": "Xavflar",
+    "OwnershipForms": "Mulkchilik shakllari",
+    "RightToLandTypes": "Yerga huquq turlari",
+    "Okeds": "OKED",
+    "Reinsurance": "Qayta sug'urtalash",
+    "PipelineStatuses": "Voronka holatlari",
+    "PipelineInsuranceTypes": "Voronka sug'urta turlari",
+    "PipelineDeclinedReasons": "Voronka rad etish sabablari",
+    "PipelineStructures": "Voronka tuzilmalari",
+    "PipelinePayables": "Voronka to'lovlari",
+    "PipelineProbabilityOfBind": "Voronka tuzish ehtimoli",
+    "PipelineDeductionTypes": "Voronka franshuza turlari",
+    "PipelineDeductionLevels": "Voronka franshuza darajalari",
+    "PipelineTaxTypes": "Voronka soliq turlari",
+    "PipelinePremiumScheduleTypes": "Voronka mukofot jadval turlari",
+    "PipelinePremiumScheduleStatus": "Voronka mukofot jadval holati",
+    "PipelineRiskCodes": "Voronka xavf kodlari",
+    "PipelineInsurancePartiesTypes": "Voronka sug'urta ishtirokchilari turlari",
+    "PipelinePaymentTypes": "Voronka to'lov turlari",
+    "PipelineChoicesOfLaw": "Voronka huquq tanlovi",
+    "PipelineChoicesOfJurisdiction": "Voronka yurisdiktsiya tanlovi",
+    "Currencies": "Valyutalar",
+    "Banks": "Banklar",
+    "BankBranches": "Bank filiallari",
+    "Countries": "Mamlakatlar",
+    "Regions": "Viloyatlar",
+    "Districts": "Tumanlar",
+    "Genders": "Jins",
+    "Relatives": "Qarindoshlar",
+    "MeasureTypes": "O'lchov turlari",
+    "Agencies": "Agentliklar",
+    "ReferralProgram": "Referal dasturi",
+    "Chats": "Chatlar",
+    "Clients": "Mijozlar",
+    "Requests": "So'rovlar",
+    "KaskoRequests": "KASKO so'rovlari",
+    "Questions": "Savollar",
+    "SOS": "SOS",
+    "PartnerProgramRequests": "Hamkorlik dasturi so'rovlari",
+    "Commission": "Komissiya",
+    "PromoCodes": "Promo kodlar",
+    "Payouts": "To'lovlar",
+    "ChatBot": "Chat bot",
+    "AIChatPlayground": "AI chat maydoni",
+    "AIChatLogs": "AI chat loglar",
+    "AIChatConfigurations": "AI chat konfiguratsiyalari",
+    "AIChatEvaluation": "AI chat baholash",
+    "SystemInfo": "Tizim ma'lumotlari",
+    "Logs": "Loglar",
+    "LiveLogs": "Jonli loglar",
+    "RequestLogs": "So'rov loglar",
+    "RequestLogsList": "So'rov loglar ro'yxati",
+    "Metrics": "Metrikalar",
+    "Navbar": {
+      "Profile": "Profil",
+      "Sessions": "Sessiyalar",
+      "Logout": "Chiqish"
+    }
+  },
+  "No": "Yo'q",
+  "PerPage": "Sahifada",
+  "PermissionSets": {
+    "Core": {
+      "UserView": {
+        "Label": "Foydalanuvchilarni ko'rish",
+        "_Description": "Foydalanuvchi ma'lumotlarini faqat ko'rish"
+      },
+      "UserManage": {
+        "Label": "Foydalanuvchilarni boshqarish",
+        "_Description": "Foydalanuvchilarni to'liq boshqarish, shu jumladan bloklash"
+      },
+      "RoleView": {
+        "Label": "Rollarni ko'rish",
+        "_Description": "Rollar ma'lumotlarini faqat ko'rish"
+      },
+      "RoleManage": {
+        "Label": "Rollarni boshqarish",
+        "_Description": "Rollar va ruxsatlarni to'liq boshqarish"
+      },
+      "GroupView": {
+        "Label": "Guruhlarni ko'rish",
+        "_Description": "Guruhlar ma'lumotlarini faqat ko'rish"
+      },
+      "GroupManage": {
+        "Label": "Guruhlarni boshqarish",
+        "_Description": "Guruhlarni to'liq boshqarish"
+      },
+      "UploadView": {
+        "Label": "Fayllarni ko'rish",
+        "_Description": "Yuklangan fayllarni faqat ko'rish"
+      },
+      "UploadManage": {
+        "Label": "Fayllarni boshqarish",
+        "_Description": "Fayl yuklashni to'liq boshqarish"
+      }
+    },
+    "Finance": {
+      "PaymentView": {
+        "Label": "To'lovlarni ko'rish",
+        "_Description": "To'lovlar ma'lumotlarini faqat ko'rish"
+      },
+      "PaymentManage": {
+        "Label": "To'lovlarni boshqarish",
+        "_Description": "To'lovlarni to'liq boshqarish"
+      },
+      "ExpenseView": {
+        "Label": "Xarajatlarni ko'rish",
+        "_Description": "Xarajatlar ma'lumotlarini faqat ko'rish"
+      },
+      "ExpenseManage": {
+        "Label": "Xarajatlarni boshqarish",
+        "_Description": "Xarajatlarni to'liq boshqarish"
+      },
+      "ExpenseCategoryView": {
+        "Label": "Xarajat toifalarini ko'rish",
+        "_Description": "Xarajat toifalari ma'lumotlarini faqat ko'rish"
+      },
+      "ExpenseCategoryManage": {
+        "Label": "Xarajat toifalarini boshqarish",
+        "_Description": "Xarajat toifalarini to'liq boshqarish"
+      },
+      "DebtView": {
+        "Label": "Qarzlarni ko'rish",
+        "_Description": "Qarzlar ma'lumotlarini faqat ko'rish"
+      },
+      "DebtManage": {
+        "Label": "Qarzlarni boshqarish",
+        "_Description": "Qarzlarni to'liq boshqarish"
+      }
+    },
+    "Projects": {
+      "ProjectView": {
+        "Label": "Loyihalarni ko'rish",
+        "_Description": "Loyihalar ma'lumotlarini faqat ko'rish"
+      },
+      "ProjectManage": {
+        "Label": "Loyihalarni boshqarish",
+        "_Description": "Loyihalarni to'liq boshqarish"
+      },
+      "ProjectStageView": {
+        "Label": "Loyiha bosqichlarini ko'rish",
+        "_Description": "Loyiha bosqichlari ma'lumotlarini faqat ko'rish"
+      },
+      "ProjectStageManage": {
+        "Label": "Loyiha bosqichlarini boshqarish",
+        "_Description": "Loyiha bosqichlarini to'liq boshqarish"
+      }
+    },
+    "Warehouse": {
+      "ProductView": {
+        "Label": "Mahsulotlarni ko'rish",
+        "_Description": "Mahsulotlar ma'lumotlarini faqat ko'rish"
+      },
+      "ProductManage": {
+        "Label": "Mahsulotlarni boshqarish",
+        "_Description": "Mahsulotlarni to'liq boshqarish"
+      },
+      "PositionView": {
+        "Label": "Pozitsiyalarni ko'rish",
+        "_Description": "Pozitsiyalar ma'lumotlarini faqat ko'rish"
+      },
+      "PositionManage": {
+        "Label": "Pozitsiyalarni boshqarish",
+        "_Description": "Pozitsiyalarni to'liq boshqarish"
+      },
+      "OrderView": {
+        "Label": "Buyurtmalarni ko'rish",
+        "_Description": "Buyurtmalar ma'lumotlarini faqat ko'rish"
+      },
+      "OrderManage": {
+        "Label": "Buyurtmalarni boshqarish",
+        "_Description": "Buyurtmalarni to'liq boshqarish"
+      },
+      "UnitView": {
+        "Label": "Birliklarni ko'rish",
+        "_Description": "Birliklar ma'lumotlarini faqat ko'rish"
+      },
+      "UnitManage": {
+        "Label": "Birliklarni boshqarish",
+        "_Description": "Birliklarni to'liq boshqarish"
+      },
+      "InventoryView": {
+        "Label": "Inventarni ko'rish",
+        "_Description": "Inventar ma'lumotlarini faqat ko'rish"
+      },
+      "InventoryManage": {
+        "Label": "Inventarni boshqarish",
+        "_Description": "Inventarni to'liq boshqarish"
+      }
+    },
+    "CRM": {
+      "ClientView": {
+        "Label": "Mijozlarni ko'rish",
+        "_Description": "Mijozlar ma'lumotlarini faqat ko'rish"
+      },
+      "ClientManage": {
+        "Label": "Mijozlarni boshqarish",
+        "_Description": "Mijozlarni to'liq boshqarish"
+      },
+      "PayoutView": {
+        "Label": "To'lovlarni ko'rish",
+        "_Description": "To'lov ma'lumotlarini ko'rish"
+      },
+      "PayoutManage": {
+        "Label": "To'lovlarni boshqarish",
+        "_Description": "To'lovlarni to'liq boshqarish"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "Voronkalarni ko'rish",
+        "_Description": "Voronkalar ma'lumotlarini faqat ko'rish"
+      },
+      "PipelineManage": {
+        "Label": "Voronkalarni boshqarish",
+        "_Description": "Voronkalarni to'liq boshqarish"
+      }
+    },
+    "HRM": {
+      "EmployeeView": {
+        "Label": "Xodimlarni ko'rish",
+        "_Description": "Xodimlar ma'lumotlarini faqat ko'rish"
+      },
+      "EmployeeManage": {
+        "Label": "Xodimlarni boshqarish",
+        "_Description": "Xodimlarni to'liq boshqarish"
+      }
+    },
+    "BiChat": {
+      "AccessView": {
+        "Label": "BI-Chat ga kirish",
+        "_Description": "BI-Chat suhbat interfeysidan foydalanish"
+      },
+      "ReadAllView": {
+        "Label": "Barcha sessiyalarni ko'rish",
+        "_Description": "Barcha foydalanuvchilarning chat sessiyalarini ko'rish"
+      },
+      "Export": {
+        "Label": "Ma'lumotlarni eksport qilish",
+        "_Description": "Chat ma'lumotlarini eksport qilish"
+      }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "Veb-saytni ko'rish",
+        "_Description": "Veb-sayt ma'lumotlarini faqat ko'rish"
+      },
+      "WebsiteManage": {
+        "Label": "Veb-saytni boshqarish",
+        "_Description": "Veb-saytni to'liq boshqarish"
+      }
+    }
+  },
+  "Permissions": {
+    "User": {
+      "Create": "Foydalanuvchi yaratish",
+      "Read": "Foydalanuvchilarni ko'rish",
+      "Update": "Foydalanuvchini tahrirlash",
+      "Delete": "Foydalanuvchini o'chirish",
+      "UpdateBlockStatus": "Foydalanuvchilarni bloklash/blokdan chiqarish"
+    },
+    "Role": {
+      "Create": "Rol yaratish",
+      "Read": "Rollarni ko'rish",
+      "Update": "Rolni tahrirlash",
+      "Delete": "Rolni o'chirish"
+    },
+    "Group": {
+      "Create": "Guruh yaratish",
+      "Read": "Guruhlarni ko'rish",
+      "Update": "Guruhni tahrirlash",
+      "Delete": "Guruhni o'chirish"
+    },
+    "Account": {
+      "Create": "Hisob yaratish",
+      "Read": "Hisoblarni ko'rish",
+      "Update": "Hisobni tahrirlash",
+      "Delete": "Hisobni o'chirish"
+    },
+    "Settings": {
+      "Update": "Sozlamalarni tahrirlash",
+      "Read": "Sozlamalarni ko'rish"
+    },
+    "Upload": {
+      "Create": "Yuklash yaratish",
+      "Read": "Yuklashlarni ko'rish",
+      "Update": "Yuklashni tahrirlash",
+      "Delete": "Yuklashni o'chirish"
+    },
+    "Payout": {
+      "Pay": "To'lash",
+      "PayAll": "Barchasini to'lash",
+      "Reverse": "To'lovni bekor qilish"
+    },
+    "Pipeline": {
+      "Create": "Voronka yaratish",
+      "Read": "Voronkalarni ko'rish",
+      "Update": "Voronkani tahrirlash",
+      "Delete": "Voronkani o'chirish",
+      "SubmitForUnderwriting": "Anderraytingga yuborish",
+      "Approve": "Voronkalarni tasdiqlash",
+      "Decline": "Voronkalarni rad etish",
+      "RequestAdditionalInfo": "Qo'shimcha ma'lumot so'rash",
+      "CompleteAssessment": "Baholashni yakunlash"
+    },
+    "Session": {
+      "Read": "Seanslarni ko'rish",
+      "Delete": "Seanslarni o'chirish"
+    }
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Loyihalar"
+      },
+      "Edit": {
+        "Title": "Loyihani tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi loyiha"
+      }
+    },
+    "List": {
+      "New": "Yangi loyiha",
+      "_Description": "Tavsif",
+      "Name": "Nomi"
+    },
+    "Single": {
+      "Edit": "Loyihani tahrirlash",
+      "Name": "Nomi",
+      "_Description": "Tavsif",
+      "Delete": "Loyihani o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu loyihani o'chirmoqchimisiz?"
+    }
+  },
+  "Remove": "O'chirish",
+  "Resources": {
+    "bichat": "BI-Chat",
+    "user": "Foydalanuvchilar",
+    "role": "Rollar",
+    "group": "Guruhlar",
+    "upload": "Yuklashlar",
+    "payout_request": "To'lov so'rovi",
+    "pipeline": "Quvur liniyasi",
+    "website": "Veb-sayt",
+    "session": "Seanslar"
+  },
+  "Roles": {
+    "Meta": {
+      "List": {
+        "Title": "Rollar"
+      },
+      "Edit": {
+        "Title": "Rolni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi rol"
+      }
+    },
+    "List": {
+      "New": "Yangi rol",
+      "Name": "Nomi"
+    },
+    "Single": {
+      "Edit": "Rolni tahrirlash",
+      "Name": {
+        "Label": "Rol nomi",
+        "Placeholder": "Rol nomini kiriting"
+      },
+      "_Description": {
+        "Label": "Tavsif",
+        "Placeholder": "Rol uchun tavsif kiriting"
+      },
+      "Delete": "Rolni o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
+    }
+  },
+  "Save": "Saqlash",
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "Ma'lumotlar yo'q",
+      "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
+      "NothingFound": "Hech narsa topilmadi",
+      "TableSettings": "Jadval sozlamalari",
+      "ResetSettings": "Sozlamalarni tiklash",
+      "Columns": "Ustunlar",
+      "Grid": "Tarmoq",
+      "GridVertical": "Vertikal chiziqlar",
+      "GridHorizontal": "Gorizontal chiziqlar"
+    },
+    "Filters": {
+      "Title": "Filtrlar",
+      "SelectAll": "Barchasini tanlash"
+    }
+  },
+  "Search": "Qidirish",
+  "SignOut": "Chiqish",
+  "Submit": "Yuborish",
+  "UploadLabel": "Fayl yuklash",
+  "UploadPlaceholder": "Yuklash uchun faylni tanlang",
+  "DownloadTemplate": "Shablonni yuklab olish",
+  "Example": {
+    "Below": "Quyida misolni ko'ring"
+  },
+  "Spotlight": {
+    "Placeholder": "Qidirish...",
+    "NothingFound": "Hech narsa topilmadi",
+    "NothingFoundBody": "Бошқа сўз билан қидиринг ёки ёзилишини текширинг.",
+    "Match": {
+      "Exact": "Аниқ мослик",
+      "Best": "Энг яхши мослик"
+    },
+    "Hint": {
+      "Navigate": "↑ ↓ танлаш",
+      "Open": "Enter очиш",
+      "Close": "Esc ёпиш"
+    },
+    "Empty": {
+      "Title": "Бутун иш майдонини битта ойнадан қидиринг",
+      "_Description": "Ёзувлар, саҳифалар, одамлар ва буйруқларни битта оқимда топинг.",
+      "Body": "Исм, email, рақам, саҳифа номи ёки буйруқ билан қидириб кўринг.",
+      "Footer": "Исталган ипдан бошланг. Энг мос натижалар аввал кўринади, қолганлари қидирув давомида юкланади.",
+      "Example": {
+        "Name": {
+          "Label": "Исм",
+          "Value": "Али Валиев"
+        },
+        "Email": {
+          "Label": "Email",
+          "Value": "mail@example.com"
+        },
+        "Identifier": {
+          "Label": "Рақам",
+          "Value": "INV-1024"
+        },
+        "Page": {
+          "Label": "Саҳифа",
+          "Value": "созламалар"
+        },
+        "Command": {
+          "Label": "Буйруқ",
+          "Value": "фойдаланувчи яратиш"
+        }
+      }
+    },
+    "Badge": {
+      "Exact": "Аниқ",
+      "Action": "Ҳаракат",
+      "Navigate": "Навигация",
+      "Staff": "Ходим",
+      "Person": "Шахс"
+    },
+    "Summary": {
+      "Default": "So'rovingiz uchun eng mos natijalar topildi",
+      "Help": "Bu yerda eng mos sahifalar va bilim bazasi yozuvlari keltirilgan"
+    },
+    "Actions": {
+      "Open": "Ochish",
+      "AddUser": "Foydalanuvchi qo'shish",
+      "AddAccount": "Hisob qo'shish"
+    },
+    "Group": {
+      "Navigate": "Навигация",
+      "Actions": "Ҳаракатлар",
+      "Data": "Маълумотлар",
+      "Knowledge": "Маълумот",
+      "People": "Одамлар",
+      "Staff": "Ходимлар",
+      "_Other": "Бошқа"
+    },
+    "ConfirmOpenResult": "Ушбу натижани очиш?",
+    "Status": {
+      "SearchingMore": "Қидирув давом этмоқда",
+      "FindingMatches": "Мосликлар қидирилмоқда",
+      "SearchComplete": "Қидирув якунланди"
+    },
+    "AI": {
+      "Button": "AI билан қидириш",
+      "Placeholder": "AI дан сўранг...",
+      "EmptyHint": "Савол ёзинг ва AI билан қидириш учун Enter босинг",
+      "Searching": "Қидирилмоқда",
+      "Candidates": "Эҳтимолий мосликлар",
+      "FollowUpPlaceholder": "Қўшимча изоҳ ёки яна бир белги киритинг",
+      "Open": "Очиш",
+      "Progress": {
+        "Searching": "Ёзувлар қидирилмоқда...",
+        "Checking": "Маълумотлар базаси текширилмоқда...",
+        "Building": "Натижалар шакллантирилмоқда..."
+      },
+      "TabHint": "Tab — AI қидирув",
+      "FollowUpHint": "Қўшимча савол беринг...",
+      "EscHint": "Esc — AI дан чиқиш",
+      "Status": {
+        "Complete": "AI қидируви якунланди"
+      },
+      "Error": {
+        "StartFailed": "AI қидирувни ишга тушириб бўлмади",
+        "MessageFailed": "AI га хабар юбориб бўлмади"
+      }
+    }
+  },
+  "Unknown": "Noma'lum",
+  "System": "Tizim",
+  "UpdatedAt": "Yangilangan sana",
+  "Users": {
+    "Meta": {
+      "List": {
+        "Title": "Foydalanuvchilar"
+      },
+      "Edit": {
+        "Title": "Foydalanuvchini tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi foydalanuvchi"
+      },
+      "Permissions": {
+        "Title": "Foydalanuvchi ruxsatlari"
+      }
+    },
+    "List": {
+      "New": "Yangi foydalanuvchi",
+      "FullName": "To'liq ism",
+      "Roles": "Rollar",
+      "Email": "Email",
+      "AllGroups": "Barcha guruhlar",
+      "AllRoles": "Barcha rollar",
+      "Filters": "Filterlar",
+      "ExpandFilters": "Filtrlarni kengaytirish",
+      "CollapseFilters": "Filtrlarni yig'ish"
+    },
+    "Cards": {
+      "PersonalInfo": "Shaxsiy ma'lumotlar",
+      "UserInfo": "Foydalanuvchi ma'lumotlari"
+    },
+    "Tabs": {
+      "UserInfo": "Ma'lumotlar",
+      "Permissions": "Ruxsatlar",
+      "Sessions": "Sessiyalar"
+    },
+    "Single": {
+      "EditUser": "Foydalanuvchini tahrirlash",
+      "FirstName": "Ism",
+      "LastName": "Familiya",
+      "MiddleName": "Otasining ismi",
+      "Email": "Email",
+      "Phone": "Telefon",
+      "Password": "Parol",
+      "Language": "Til",
+      "UILanguage": "uz",
+      "SelectLanguage": "Tilni tanlang",
+      "ChooseAvatar": "Avatar tanlang",
+      "RoleIDs": "Rol",
+      "GroupIDs": "Guruh",
+      "SelectRole": "Rolni tanlang",
+      "SelectGroup": "Guruhni tanlang",
+      "EnterPassword": "Parolni kiriting",
+      "Delete": "Foydalanuvchini o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
+      "Permissions": "Foydalanuvchi ruxsatlari"
+    },
+    "Blocked": "Bloklangan",
+    "Block": {
+      "Title": "Foydalanuvchini bloklash",
+      "Button": "Bloklash",
+      "Confirm": "Bloklash",
+      "Reason": "Bloklash sababi",
+      "ReasonPlaceholder": "Bloklash sababini kiriting (kamida 3 ta belgi)",
+      "ConfirmationText": "Ushbu foydalanuvchini bloklashni xohlaysizmi?",
+      "BlockedBy": "Bloklagan",
+      "BlockedAt": "Bloklangan vaqt",
+      "Errors": {
+        "ReasonRequired": "Bloklash sababi talab qilinadi",
+        "ReasonTooShort": "Sabab kamida 3 ta belgidan iborat bo'lishi kerak",
+        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak"
+      }
+    },
+    "Unblock": {
+      "Title": "Foydalanuvchini blokdan chiqarish",
+      "Button": "Blokdan chiqarish",
+      "Confirm": "Blokdan chiqarish",
+      "ConfirmationText": "Ushbu foydalanuvchini blokdan chiqarishni xohlaysizmi?"
+    },
+    "Errors": {
+      "PhoneUnique": "Telefon raqami allaqachon foydalanilgan",
+      "EmailUnique": "Email allaqachon ishlatilgan."
+    },
+    "Delete": {
+      "NotAllowed": "O'chirib bo'lmaydi: Siz ushbu tenantdagi yagona foydalanuvchisiz"
+    },
+    "Sessions": {
+      "Title": "Sessiyalar:",
+      "Device": "Qurilma",
+      "Browser": "Brauzer",
+      "OS": "Operatsion tizim",
+      "IP": "IP manzil",
+      "CreatedAt": "Yaratilgan",
+      "Actions": "Harakatlar",
+      "Revoke": "Bekor qilish",
+      "RevokeConfirm": "Ushbu sessiyani bekor qilmoqchimisiz?",
+      "NoSessions": "Faol sessiyalar yo'q",
+      "RevokeSuccess": "Sessiya muvaffaqiyatli bekor qilindi",
+      "RevokeFailed": "Sessiyani bekor qilib bo'lmadi"
+    }
+  },
+  "ValidationErrors": {
+    "required": "Bu maydon to'ldirilishi shart",
+    "emptySelect": "Qiymatni tanlang",
+    "email": "Email formati noto'g'ri",
+    "min": "{{.Field}} minimal qiymatdan kam bo'lmasligi kerak",
+    "max": "{{.Field}} maksimal qiymatdan oshmasligi kerak",
+    "lte": "{{.Field}} belgilangan qiymatdan kichik yoki teng bo'lishi kerak",
+    "custom": "{{.Field}}: {{.Error}}",
+    "uuid": "Haqiqiy UUID bo'lishi kerak",
+    "gte": "{{.Field}} dan katta yoki teng bo'lishi kerak",
+    "len": "{{.Field}} uzunligi {{.Param}} ga teng bo'lishi kerak",
+    "gt": "{{.Field}} dan katta bo'lishi kerak",
+    "alphanum": "{{.Field}} faqat harf va raqamlardan iborat bo'lishi kerak.",
+    "oneof": "{{.Field}} ruxsat etilgan qiymatlardan biri bo'lishi kerak",
+    "datetime": "{{.Field}} to'g'ri sana bo'lishi kerak",
+    "gtfield": "{{.Field}} {{.Param}}dan katta bo'lishi kerak",
+    "invalidTIN": "Noto'g'ri STIR formati: {{.Details}}",
+    "invalidPIN": "Noto'g'ri JSHSHR formati: {{.Details}}"
+  },
+  "Yes": "Ha",
+  "TwoFactor": {
+    "Setup": {
+      "Meta": {
+        "Title": "Ikki faktorli autentifikatsiyani sozlash",
+        "TOTP": "Authenticator ilovasi",
+        "OTP": "Tasdiqlash kodi",
+        "Complete": "Sozlash tugallandi"
+      },
+      "SetupTwoFactor": "Ikki faktorli autentifikatsiyani sozlash",
+      "ChooseMethod": "Hisobingizni himoya qilish usulini tanlang",
+      "Continue": "Davom etish",
+      "TOTPMethod": "Authenticator ilovasi",
+      "TOTPDescription": "Google Authenticator, Microsoft Authenticator yoki Authy kabi authenticator ilovasidan foydalaning",
+      "SMSMethod": "SMS",
+      "SMSDescription": "Telefon raqamiga SMS orqali tasdiqlash kodlarini oling",
+      "EmailMethod": "Email",
+      "EmailDescription": "Elektron pochtaga tasdiqlash kodlarini oling",
+      "SetupAuthenticator": "Authenticator ilovasini sozlash",
+      "ScanQRCode": "Bu QR-kodni authenticator ilovasi bilan skanerlang",
+      "ScanWithAuthenticator": "Bu QR-kodni skanerlash uchun authenticator ilovasidan foydalaning yoki sozlash kalitini qo'lda kiriting",
+      "EnterCode": "Authenticator ilovasidan 6 xonali kodni kiriting",
+      "EnterVerificationCode": "Tasdiqlash kodi kiriting",
+      "DigitCode": "6 xonali kod",
+      "Verify": "Tekshiring va davom etish",
+      "VerifyPhone": "Telefon raqamingizni tasdiqlang",
+      "VerifyEmail": "Email pochtangizni tasdiqlang",
+      "CodeSentToPhone": "Biz tasdiqlash kodini telefon raqamingizga jo'natdik",
+      "CodeSentToEmail": "Biz tasdiqlash kodini email pochtangizga jo'natdik",
+      "CodeSent": "Kod muvaffaqiyatli jo'natildi",
+      "SMSSent": "Tasdiqlash kodi telefon raqamingizga jo'natildi",
+      "EmailSent": "Tasdiqlash kodi email pochtangizga jo'natildi",
+      "ResendCode": "Kod qayta jo'natish",
+      "TOTPHelp": "Agar siz authenticator ilovasiga kirishni yo'qotsangiz, siz tizimga kira olmaysiz. Tiklash kodlarini xavfsiz joyda saqlang.",
+      "SMSHelp": "Kod 10 daqiqa davomida amal qiladi. Agar uni olmay qolsangiz, yangi kod so'rashga harakat qiling.",
+      "EmailHelp": "Tasdiqlash kodi uchun email pochtangizni tekshiring. U 10 daqiqa davomida amal qiladi.",
+      "Success": "Ikki faktorli autentifikatsiya yoqildi",
+      "SetupComplete": "Sizning hisobingiz endi ikki faktorli autentifikatsiya bilan himoyalangan",
+      "SaveRecoveryCodes": "Tiklash kodlarini saqlang",
+      "RecoveryCodesWarning": "Bu tiklash kodlari authenticator ilovasiga yoki telefoniga kirishni yo'qotgan taqdirda hisobingizga kirishning yagona usuli. Ularni xavfsiz joyda saqlang.",
+      "BackupCodesTip": "Har bir kod faqat bir marta ishlatilishi mumkin. Ularni parol menejeringizdagi xavfsiz joyda saqlang.",
+      "BackupCodesTipOTP": "Har bir kod faqat bir marta ishlatilishi mumkin. Yangi tiklash kodlari kerak bo'lsa, siz akkaunt sozlamalarida ularni qayta shakllantira olasiz.",
+      "PrintCodes": "Kodlarni chop etish",
+      "CopyCodes": "Kodlarni nusxa olish",
+      "RecoveryCodesInfo": "Agar siz authenticator qurilmasiga kirishni yo'qotgan bo'lsangiz, tiklash kodini ishlatishingiz mumkin. Har bir kod faqat bir marta ishlatilishi mumkin.",
+      "InvalidCode": "Kiritgan kodingiz noto'g'ri yoki muddati tugagan. Iltimos, qayta urinib ko'ring.",
+      "InvalidMethod": "Noto'g'ri tekshirish usuli tanlangan. Iltimos, qayta urinib ko'ring.",
+      "ResendFailed": "Tasdiqlash kodini qayta yuborib bo'lmadi. Iltimos, qayta urinib ko'ring.",
+      "Error": "Ikki faktorli autentifikatsiyani sozlab bo'lmadi. Iltimos, qayta urinib ko'ring."
+    },
+    "Verify": {
+      "Meta": {
+        "Title": "O'zingizni tasdiqlang",
+        "Recovery": "Tiklash kodini ishlatish"
+      },
+      "EnterCode": "Tasdiqlash kodini kiriting",
+      "EnterAuthenticatorCode": "Authenticator ilovasidagi kodni kiriting",
+      "VerifyPhone": "Telefon raqamingizni tasdiqlang",
+      "VerifyEmail": "Email pochtangizni tasdiqlang",
+      "CodeSentToPhone": "Biz tasdiqlash kodini telefon raqamingizga jo'natdik",
+      "CodeSentToEmail": "Biz tasdiqlash kodini email pochtangizga jo'natdik",
+      "EnterVerificationCode": "Tasdiqlash kodi kiriting",
+      "DigitCode": "6 xonali kod",
+      "Verify": "Tekshirish",
+      "ResendCode": "Kod qayta jo'natish",
+      "CodeSent": "Kod muvaffaqiyatli jo'natildi",
+      "SMSCodeSent": "Tasdiqlash kodi telefon raqamingizga jo'natildi",
+      "EmailCodeSent": "Tasdiqlash kodi email pochtangizga jo'natildi",
+      "ResendError": "Kodni jo'natib bo'lmadi. Iltimos, qayta urinib ko'ring.",
+      "InvalidCode": "Kiritgan kodingiz noto'g'ri yoki muddati tugagan. Iltimos, qayta urinib ko'ring.",
+      "InvalidRecoveryCode": "Kiritgan tiklash kodingiz noto'g'ri. Iltimos, qayta urinib ko'ring.",
+      "Error": "O'zingizni tasdiqlab bo'lmadi. Iltimos, qayta urinib ko'ring.",
+      "Success": "O'zingiz muvaffaqiyatli tasdiqlandingiz",
+      "LostAccess": "Authenticator ilovasiga yoki telefoniga kirishni yo'qotdingizmi?",
+      "UseRecoveryCode": "Buning o'rniga tiklash kodini ishlatish",
+      "RecoveryCodeLabel": "Tiklash kodini kiriting",
+      "RecoveryCodeFormat": "Format: XXXX-XXXX-XXXX (12 belgi)",
+      "EnterRecoveryCode": "Saqlangan tiklash kodlaridan birini kiriting",
+      "VerifyRecoveryCode": "Tiklash kodini tekshiring",
+      "BackToVerification": "Ilovaga yoki telefoniga kirishingiz bor?",
+      "TOTPHelp": "Agar siz authenticator ilovasiga kirishni yo'qotgan bo'lsangiz, siz tizimga kira olmaysiz. Buning o'rniga tiklash kodini ishlating.",
+      "SMSHelp": "Kod 10 daqiqa davomida amal qiladi. Agar uni olmay qolsangiz, yangi kod so'rashga harakat qiling yoki tiklash kodini ishlating.",
+      "EmailHelp": "Email pochtangizni tasdiqlash kodi uchun tekshiring. U 10 daqiqa davomida amal qiladi yoki tiklash kodini ishlating.",
+      "RecoveryCodeHelp": "Har bir tiklash kodi faqat bir marta ishlatilishi mumkin. Agar tiklash kodlari tugab qolgan bo'lsa, siz akkaunt sozlamalarida yangisini yarata olasiz."
+    }
+  },
+  "multilang": {
+    "empty": "—",
+    "no_translations": "Tarjimalar mavjud emas",
+    "add_language": "+ Til qo'shish",
+    "remove_language": "Bu tilni o'chirish",
+    "locale_placeholder": "uz",
+    "text_placeholder": "Bu tilda matn kiriting"
+  },
+  "Sessions": {
+    "Meta": {
+      "List": {
+        "Title": "Faol seanslar"
+      }
+    },
+    "List": {
+      "Title": "Faol seanslar",
+      "Search": "Foydalanuvchi nomi yoki email bo'yicha qidirish...",
+      "User": "Foydalanuvchi",
+      "Device": "Qurilma",
+      "IP": "IP manzil",
+      "CreatedAt": "Yaratilgan",
+      "Actions": "Amallar",
+      "Revoke": "Bekor qilish",
+      "ConfirmRevoke": "Ushbu seansni bekor qilishga ishonchingiz komilmi?",
+      "EmptyState": "Faol seanslar topilmadi",
+      "CurrentSession": "Joriy"
+    },
+    "Revoked": "Seans muvaffaqiyatli bekor qilindi"
+  }
+}

@@ -12,12 +12,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	lensui "github.com/iota-uz/iota-sdk/pkg/lens/ui"
+	lensrender "github.com/iota-uz/iota-sdk/pkg/lens/render/templ"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
 
 type IndexPageProps struct {
-	Dashboard lens.Dashboard
-	Results   *lens.Results
+	Dashboard lens.DashboardSpec
+	Results   *runtime.Result
 }
 
 func DashboardContent(props *IndexPageProps) templ.Component {
@@ -46,7 +47,10 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if props.Results != nil {
-			templ_7745c5c3_Err = lensui.Dashboard(props.Dashboard, props.Results).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = lensrender.Dashboard(lensrender.DashboardProps{
+				Spec:   props.Dashboard,
+				Result: props.Results,
+			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

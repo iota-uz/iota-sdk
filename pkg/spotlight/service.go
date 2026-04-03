@@ -1,4 +1,5 @@
-// Package spotlight provides this package.
+// Package spotlight provides the core search, indexing, and streaming session
+// primitives behind the Spotlight experience.
 package spotlight
 
 import (
@@ -74,6 +75,22 @@ func (c ServiceConfig) normalized() ServiceConfig {
 	return cfg
 }
 
+// ProviderInfo describes a registered search provider.
+type ProviderInfo struct {
+	ID            string
+	EntityTypes   []string
+	IndexPriority int
+	DocumentCount int64
+}
+
+// ServiceStats holds high-level service statistics.
+type ServiceStats struct {
+	Engine        IndexStats
+	Providers     []ProviderInfo
+	ProviderCount int
+	Started       bool
+}
+
 type Service interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -82,6 +99,11 @@ type Service interface {
 	ReindexTenant(ctx context.Context, tenantID uuid.UUID, language string) error
 	Readiness(ctx context.Context) error
 	Search(ctx context.Context, req SearchRequest) (SearchResponse, error)
+	CreateSession(ctx context.Context, req SearchRequest) (SearchSessionSnapshot, error)
+	SubscribeSession(ctx context.Context, sessionID string, access SearchSessionAccess) (<-chan SearchSessionSnapshot, error)
+	GetSessionSnapshot(sessionID string) (SearchSessionSnapshot, bool)
+	CancelSession(sessionID string, access SearchSessionAccess)
+	Stats(ctx context.Context) (*ServiceStats, error)
 }
 
 type ServiceOption func(*SpotlightService)
@@ -136,6 +158,14 @@ func WithMetrics(metrics Metrics) ServiceOption {
 	}
 }
 
+func WithQuickLinks(ql *QuickLinks) ServiceOption {
+	return func(s *SpotlightService) {
+		if ql != nil {
+			s.quickLinks = ql
+		}
+	}
+}
+
 func WithLogger(logger *logrus.Logger) ServiceOption {
 	return func(s *SpotlightService) {
 		if logger != nil {
@@ -159,25 +189,20 @@ type SpotlightService struct {
 	mu    sync.RWMutex
 	agent Agent
 
-	outbox OutboxProcessor
+	outbox     OutboxProcessor
+	quickLinks *QuickLinks
 
 	cacheMu     sync.RWMutex
 	searchCache map[string]cachedSearchResponse
 
-	indexQueue    chan indexTask
-	enqueueOnce   sync.Map
-	watchStarted  sync.Map
 	lifecycleMu   sync.Mutex
 	started       bool
 	startedAtomic atomic.Bool
 	bgCtx         context.Context
 	bgCancel      context.CancelFunc
 	wg            sync.WaitGroup
-}
-
-type indexTask struct {
-	tenantID uuid.UUID
-	language string
+	sessionsMu    sync.RWMutex
+	sessions      map[string]*searchSession
 }
 
 type cachedSearchResponse struct {
@@ -198,18 +223,19 @@ func NewService(engine IndexEngine, agent Agent, cfg ServiceConfig, opts ...Serv
 		scope:       scope,
 		acl:         acl,
 		engine:      engine,
-		pipeline:    NewIndexerPipeline(registry, engine),
+		pipeline:    NewIndexerPipeline(registry, engine, nil),
 		ranker:      NewDefaultRanker(),
 		grouper:     NewDefaultGrouper(),
 		metrics:     NewNoopMetrics(),
 		logger:      logrus.StandardLogger(),
 		agent:       agent,
 		searchCache: make(map[string]cachedSearchResponse),
-		indexQueue:  make(chan indexTask, 256),
+		sessions:    make(map[string]*searchSession),
 	}
 	for _, opt := range opts {
 		opt(svc)
 	}
+	svc.pipeline.logger = svc.logger
 	return svc
 }
 
@@ -286,14 +312,81 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if err := s.pipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
+
+	// Use rebuild session if engine supports it — builds a fresh index
+	// and atomically swaps, avoiding slow delete-by-filter and writing
+	// to a small (fast) index instead of a large (slow) one.
+	rebuildable, ok := s.engine.(RebuildableIndexEngine)
+	if !ok {
+		if err := s.engine.DeleteTenant(ctx, tenantID); err != nil {
+			return serrors.E(op, err)
+		}
+		return s.pipeline.Sync(ctx, tenantID, language, "", 0, scope)
+	}
+
+	rebuildStart := time.Now()
+	session, err := rebuildable.StartRebuild(ctx)
+	if err != nil {
 		return serrors.E(op, err)
 	}
+
+	buildPipeline := NewIndexerPipeline(s.registry, session.Engine(), s.logger)
+	if err := buildPipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
+		_ = session.Abort(ctx)
+		return serrors.E(op, err)
+	}
+
+	if err := session.Commit(ctx); err != nil {
+		return serrors.E(op, err)
+	}
+
+	if s.logger != nil {
+		s.logger.WithFields(logrus.Fields{
+			"tenant_id":  tenantID.String(),
+			"rebuild_ms": time.Since(rebuildStart).Milliseconds(),
+		}).Info("Spotlight rebuild completed")
+	}
+
 	return nil
 }
 
 func (s *SpotlightService) Readiness(ctx context.Context) error {
 	return s.engine.Health(ctx)
+}
+
+func (s *SpotlightService) Stats(ctx context.Context) (*ServiceStats, error) {
+	const op serrors.Op = "spotlight.SpotlightService.Stats"
+
+	engineStats, err := s.engine.Stats(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	providers := s.registry.All()
+	infos := make([]ProviderInfo, 0, len(providers))
+	for _, p := range providers {
+		caps := p.Capabilities()
+		infos = append(infos, ProviderInfo{
+			ID:            p.ProviderID(),
+			EntityTypes:   caps.EntityTypes,
+			IndexPriority: caps.IndexPriority,
+		})
+	}
+
+	if engineStats.ProviderDocumentCounts != nil {
+		for i := range infos {
+			if count, ok := engineStats.ProviderDocumentCounts[infos[i].ID]; ok {
+				infos[i].DocumentCount = count
+			}
+		}
+	}
+
+	return &ServiceStats{
+		Engine:        *engineStats,
+		Providers:     infos,
+		ProviderCount: len(infos),
+		Started:       s.isStarted(),
+	}, nil
 }
 
 func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (SearchResponse, error) {
@@ -319,7 +412,7 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 	if req.Intent == "" {
 		req.Intent = SearchIntentMixed
 	}
-	req.Query = strings.TrimSpace(req.Query)
+	req = planRequest(req)
 	req.Roles = dedupeAndSort(req.Roles)
 	req.Permissions = dedupeAndSort(req.Permissions)
 
@@ -330,9 +423,6 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 		s.metrics.OnSearch(req, telemetry)
 		return cached, nil
 	}
-
-	s.scheduleIndexRefresh(req.TenantID, req.Language)
-	s.ensureProviderWatchers(req.TenantID, req.Language)
 
 	searchCtx, cancelSearch := withTimeoutRespectingDeadline(ctx, s.cfg.SearchTimeout)
 	engineStarted := time.Now()
@@ -413,130 +503,6 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 	return resp, nil
 }
 
-func (s *SpotlightService) scheduleIndexRefresh(tenantID uuid.UUID, language string) {
-	if tenantID == uuid.Nil {
-		return
-	}
-	key := tenantID.String() + ":" + language
-	if _, loaded := s.enqueueOnce.LoadOrStore(key, struct{}{}); loaded {
-		s.metrics.OnQueue(tenantID, language, false, len(s.indexQueue))
-		return
-	}
-	select {
-	case s.indexQueue <- indexTask{tenantID: tenantID, language: language}:
-		s.metrics.OnQueue(tenantID, language, true, len(s.indexQueue))
-	default:
-		s.enqueueOnce.Delete(key)
-		s.metrics.OnQueue(tenantID, language, false, len(s.indexQueue))
-	}
-}
-
-func (s *SpotlightService) ensureProviderWatchers(tenantID uuid.UUID, language string) {
-	if tenantID == uuid.Nil {
-		return
-	}
-	s.lifecycleMu.Lock()
-	bgCtx := s.bgCtx
-	s.lifecycleMu.Unlock()
-	if bgCtx == nil {
-		return
-	}
-	for _, provider := range s.registry.All() {
-		if !provider.Capabilities().SupportsWatch {
-			continue
-		}
-		watchKey := provider.ProviderID() + ":" + tenantID.String() + ":" + language
-		if _, loaded := s.watchStarted.LoadOrStore(watchKey, struct{}{}); loaded {
-			continue
-		}
-		s.wg.Add(1)
-		go func(ctx context.Context, p SearchProvider, t uuid.UUID, l, wk string) {
-			defer s.wg.Done()
-			s.runProviderWatch(ctx, p, t, l, wk)
-		}(bgCtx, provider, tenantID, language, watchKey)
-	}
-}
-
-func (s *SpotlightService) runProviderWatch(ctx context.Context, provider SearchProvider, tenantID uuid.UUID, language, watchKey string) {
-	defer s.watchStarted.Delete(watchKey)
-	changes, err := provider.Watch(ctx, ProviderScope{TenantID: tenantID, Language: language, TopK: 0})
-	if err != nil {
-		s.metrics.OnWatch(provider.ProviderID(), tenantID, "watch_start", err)
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"provider":  provider.ProviderID(),
-			"tenant_id": tenantID.String(),
-		}).Error("spotlight provider watch failed")
-		return
-	}
-	s.metrics.OnWatch(provider.ProviderID(), tenantID, "watch_start", nil)
-	if changes == nil {
-		return
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case change, ok := <-changes:
-			if !ok {
-				return
-			}
-			s.applyDocumentEvent(ctx, tenantID, provider.ProviderID(), change)
-			s.metrics.OnWatch(provider.ProviderID(), tenantID, string(change.Type), nil)
-		}
-	}
-}
-
-func (s *SpotlightService) applyDocumentEvent(ctx context.Context, tenantID uuid.UUID, providerID string, change DocumentEvent) {
-	switch change.Type {
-	case DocumentEventDelete:
-		id := change.DocumentID
-		if id == "" && change.Document != nil {
-			id = change.Document.ID
-		}
-		if id == "" {
-			return
-		}
-		if err := s.engine.Delete(ctx, []DocumentRef{{TenantID: tenantID, ID: id}}); err != nil {
-			s.logger.WithError(err).WithFields(logrus.Fields{
-				"provider":  providerID,
-				"tenant_id": tenantID.String(),
-				"doc_id":    id,
-			}).Error("spotlight delete event failed")
-			return
-		}
-		s.invalidateSearchCacheForTenant(tenantID)
-	case DocumentEventCreate, DocumentEventUpdate:
-		if change.Document == nil {
-			return
-		}
-		doc := *change.Document
-		if doc.TenantID == uuid.Nil {
-			doc.TenantID = tenantID
-		}
-		if doc.Provider == "" {
-			doc.Provider = providerID
-		}
-		if doc.Access.Visibility == "" {
-			doc.Access.Visibility = VisibilityRestricted
-		}
-		if err := s.engine.Upsert(ctx, []SearchDocument{doc}); err != nil {
-			s.logger.WithError(err).WithFields(logrus.Fields{
-				"provider":  providerID,
-				"tenant_id": tenantID.String(),
-				"doc_id":    doc.ID,
-			}).Error("spotlight upsert event failed")
-			return
-		}
-		s.invalidateSearchCacheForTenant(tenantID)
-	default:
-		s.logger.WithFields(logrus.Fields{
-			"provider":   providerID,
-			"tenant_id":  tenantID.String(),
-			"event_type": change.Type,
-		}).Warn("spotlight unsupported document event type")
-	}
-}
-
 func (s *SpotlightService) runBackgroundIndexer(ctx context.Context, tick time.Duration) {
 	if ctx == nil {
 		return
@@ -550,17 +516,6 @@ func (s *SpotlightService) runBackgroundIndexer(ctx context.Context, tick time.D
 			return
 		case <-ticker.C:
 			s.pollOutbox(ctx)
-			continue
-		default:
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.pollOutbox(ctx)
-		case task := <-s.indexQueue:
-			s.reindexTask(ctx, task)
 		}
 	}
 }
@@ -691,21 +646,6 @@ func (s *SpotlightService) setCachedSearch(req SearchRequest, resp SearchRespons
 	}
 }
 
-func (s *SpotlightService) invalidateSearchCacheForTenant(tenantID uuid.UUID) {
-	if tenantID == uuid.Nil {
-		return
-	}
-	prefix := tenantID.String() + searchCacheSeparator
-	// O(n) tenant-key scan is bounded by SearchCacheMaxEntries (default: 512).
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	for key := range s.searchCache {
-		if strings.HasPrefix(key, prefix) {
-			delete(s.searchCache, key)
-		}
-	}
-}
-
 func searchCacheKey(req SearchRequest) string {
 	parts := make([]string, 0, 16)
 	parts = append(parts,
@@ -714,8 +654,20 @@ func searchCacheKey(req SearchRequest) string {
 		strings.ToLower(strings.TrimSpace(req.Query)),
 		strings.ToLower(strings.TrimSpace(req.Language)),
 		string(req.Intent),
+		string(req.Mode),
 		fmt.Sprintf("topk=%d", req.normalizedTopK()),
 	)
+	if len(req.ExactTerms) > 0 {
+		parts = append(parts, "exact="+strings.Join(ExpandExactTerms(req.ExactTerms...), ","))
+	}
+	if len(req.PreferredDomains) > 0 {
+		domains := make([]string, 0, len(req.PreferredDomains))
+		for _, domain := range req.PreferredDomains {
+			domains = append(domains, string(domain))
+		}
+		sort.Strings(domains)
+		parts = append(parts, "domains="+strings.Join(domains, ","))
+	}
 	if len(req.Roles) > 0 {
 		parts = append(parts, "roles="+strings.Join(dedupeAndSort(req.Roles), ","))
 	}
@@ -736,21 +688,3 @@ func searchCacheKey(req SearchRequest) string {
 }
 
 const searchCacheSeparator = "\x00"
-
-func (s *SpotlightService) reindexTask(ctx context.Context, task indexTask) {
-	defer s.enqueueOnce.Delete(task.tenantID.String() + ":" + task.language)
-	if task.tenantID == uuid.Nil {
-		return
-	}
-	started := time.Now()
-	if err := s.ReindexTenant(ctx, task.tenantID, task.language); err != nil {
-		s.metrics.OnReindex(task.tenantID, task.language, time.Since(started), err)
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"tenant_id": task.tenantID.String(),
-			"language":  task.language,
-		}).Error("spotlight indexing failed")
-		return
-	}
-	s.invalidateSearchCacheForTenant(task.tenantID)
-	s.metrics.OnReindex(task.tenantID, task.language, time.Since(started), nil)
-}

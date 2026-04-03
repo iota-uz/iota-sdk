@@ -3,9 +3,13 @@ package llmproviders
 
 import (
 	"context"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -37,6 +41,15 @@ const (
 	defaultCodeInterpreterMemoryLimit = "4g"
 	defaultCodeInterpreterFileLimit   = 20
 )
+
+// WithModelName creates an OpenAI model with a specific model name, ignoring OPENAI_MODEL env var.
+func WithModelName(name string) OpenAIModelOption {
+	return func(m *OpenAIModel) {
+		if trimmed := strings.TrimSpace(name); trimmed != "" {
+			m.modelName = trimmed
+		}
+	}
+}
 
 // WithLogger sets the logger for the OpenAI model.
 func WithLogger(logger logging.Logger) OpenAIModelOption {
@@ -98,7 +111,7 @@ func WithImageUploadResolver(resolver OpenAIImageUploadLookup) OpenAIModelOption
 }
 
 // NewOpenAIModel creates a new OpenAI model from environment variables.
-// It reads OPENAI_API_KEY (required) and OPENAI_MODEL (optional, defaults to gpt-5.2).
+// It reads OPENAI_API_KEY (required) and OPENAI_MODEL (optional, defaults to the provider catalog default).
 func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 	const op serrors.Op = "llmproviders.NewOpenAIModel"
 
@@ -107,16 +120,30 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 		return nil, serrors.E(op, "OPENAI_API_KEY environment variable is required")
 	}
 
-	modelName := os.Getenv("OPENAI_MODEL")
+	modelName := strings.TrimSpace(os.Getenv("OPENAI_MODEL"))
 	if modelName == "" {
 		if defaultName, ok := agents.DefaultModelForProvider(agents.ProviderOpenAI); ok {
 			modelName = defaultName
 		} else {
-			modelName = "gpt-5.2"
+			modelName = agents.DefaultOpenAIModelSnapshot
 		}
 	}
 
-	client := openai.NewClient(option.WithAPIKey(apiKey))
+	baseURL := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
+	resolveIP := strings.TrimSpace(os.Getenv("OPENAI_API_RESOLVE_IP"))
+	clientOptions := []option.RequestOption{
+		option.WithAPIKey(apiKey),
+	}
+	if baseURL != "" {
+		clientOptions = append(clientOptions, option.WithBaseURL(baseURL))
+	}
+	if httpClient, configured, err := newOpenAIHTTPClient(baseURL, resolveIP); err != nil {
+		return nil, serrors.E(op, err, "failed to configure OpenAI HTTP client")
+	} else if configured {
+		clientOptions = append(clientOptions, option.WithHTTPClient(httpClient))
+	}
+
+	client := openai.NewClient(clientOptions...)
 	m := &OpenAIModel{
 		client:                       &client,
 		modelName:                    modelName,
@@ -132,6 +159,50 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 		m.imageUploadResolver = newCoreOpenAIImageUploadLookup()
 	}
 	return m, nil
+}
+
+func newOpenAIHTTPClient(baseURL, resolveIP string) (*http.Client, bool, error) {
+	resolveIP = strings.TrimSpace(resolveIP)
+	if resolveIP == "" {
+		return nil, false, nil
+	}
+
+	resolveTarget := "api.openai.com"
+	if baseURL != "" {
+		parsedBaseURL, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, false, err
+		}
+		if host := strings.TrimSpace(parsedBaseURL.Hostname()); host != "" {
+			resolveTarget = host
+		}
+	}
+
+	baseTransport := http.DefaultTransport
+	transport, ok := baseTransport.(*http.Transport)
+	if !ok {
+		return nil, false, serrors.E("openai.httpclient.transport", "unexpected default transport type")
+	}
+	cloned := transport.Clone()
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	cloned.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return dialer.DialContext(ctx, network, addr)
+		}
+		if strings.EqualFold(host, resolveTarget) {
+			addr = net.JoinHostPort(resolveIP, port)
+		}
+		return dialer.DialContext(ctx, network, addr)
+	}
+
+	return &http.Client{
+		Transport: cloned,
+		Timeout:   2 * time.Minute,
+	}, true, nil
 }
 
 // Generate sends a blocking request to the OpenAI Responses API.

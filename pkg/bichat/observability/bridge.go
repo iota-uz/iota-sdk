@@ -593,6 +593,11 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 	h.bridge.lastGenerationIDs[traceID] = genID
 	h.bridge.mu.Unlock()
 
+	// Tag trace with model name for dashboard filtering.
+	if e.Model != "" {
+		h.bridge.addTraceTag(traceID, "model:"+e.Model)
+	}
+
 	// Prefer OpenTelemetry trace context if present on ctx.
 	if traceID, spanID, ok := OTelTraceSpanIDs(ctx); ok {
 		obs.TraceID = traceID

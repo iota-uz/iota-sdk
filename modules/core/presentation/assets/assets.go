@@ -13,4 +13,5 @@ import (
 //go:embed js/*
 var FS embed.FS
 
+// HashFS serves versioned core presentation assets, including the Spotlight runtime bundle.
 var HashFS = hashfs.NewFS(&FS)

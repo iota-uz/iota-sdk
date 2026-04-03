@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
@@ -26,6 +28,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/applets"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	appletenginecontrollers "github.com/iota-uz/iota-sdk/pkg/appletengine/controllers"
 	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
 	appletenginejobs "github.com/iota-uz/iota-sdk/pkg/appletengine/jobs"
@@ -48,6 +51,7 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 			}),
 			Href:        item.Href,
 			Children:    translate(localizer, item.Children),
+			Keywords:    append([]string(nil), item.Keywords...),
 			Icon:        item.Icon,
 			Permissions: item.Permissions,
 			IsBeta:      item.IsBeta,
@@ -181,6 +185,8 @@ func New(opts *ApplicationOptions) (Application, error) {
 	}
 	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)
+	// Inject QuickLinks into the service for in-memory fuzzy search in the fast stage.
+	spotlight.WithQuickLinks(quickLinks)(spotlightService)
 
 	return &application{
 		pool:               opts.Pool,
@@ -236,6 +242,120 @@ func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationIt
 
 func (app *application) RegisterNavItems(items ...types.NavigationItem) {
 	app.navItems = append(app.navItems, items...)
+	app.registerNavQuickLinks(items...)
+}
+
+// AppendNavChildren finds a registered NavigationItem by name (recursively)
+// and appends the given children to it. If the parent item has an Href, it is
+// preserved as the first child so that the original link remains accessible
+// from the dropdown.
+func (app *application) AppendNavChildren(parentName string, children ...types.NavigationItem) {
+	appendChildren(&app.navItems, parentName, children)
+	app.registerNavQuickLinks(children...)
+}
+
+func (app *application) registerNavQuickLinks(items ...types.NavigationItem) {
+	if app.quickLinks == nil {
+		return
+	}
+	app.quickLinks.Add(navItemsToQuickLinks(items...)...)
+}
+
+func navItemsToQuickLinks(items ...types.NavigationItem) []*spotlight.QuickLink {
+	out := make([]*spotlight.QuickLink, 0, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.Href) != "" {
+			builder := spotlight.NewQuickLinkBuilder(item.Name, item.Href).
+				WithKeywords(navItemKeywords(item)...)
+			if len(item.Permissions) == 0 {
+				builder.Public()
+			} else {
+				builder.WithPermissions(navPermissionNames(item.Permissions)...)
+			}
+			out = append(out, builder.Build())
+		}
+		if len(item.Children) > 0 {
+			out = append(out, navItemsToQuickLinks(item.Children...)...)
+		}
+	}
+	return out
+}
+
+func navPermissionNames(perms []permission.Permission) []string {
+	names := make([]string, 0, len(perms))
+	for _, perm := range perms {
+		if perm == nil {
+			continue
+		}
+		names = append(names, perm.Name())
+	}
+	return names
+}
+
+func navItemKeywords(item types.NavigationItem) []string {
+	keywords := make([]string, 0, len(item.Keywords)+8)
+	keywords = append(keywords, item.Keywords...)
+	keywords = append(keywords, splitKeywordTokens(item.Name)...)
+	keywords = append(keywords, hrefKeywords(item.Href)...)
+	return keywords
+}
+
+func hrefKeywords(href string) []string {
+	trimmed := strings.TrimSpace(href)
+	if trimmed == "" {
+		return nil
+	}
+	u, err := url.Parse(trimmed)
+	if err != nil {
+		return splitKeywordTokens(trimmed)
+	}
+	keywords := splitKeywordTokens(u.Path)
+	for key, values := range u.Query() {
+		keywords = append(keywords, splitKeywordTokens(key)...)
+		for _, value := range values {
+			keywords = append(keywords, splitKeywordTokens(value)...)
+		}
+	}
+	return keywords
+}
+
+func splitKeywordTokens(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(value, func(r rune) bool {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return false
+		}
+		return true
+	})
+	keywords := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" || len(trimmed) <= 1 {
+			continue
+		}
+		keywords = append(keywords, strings.ToLower(trimmed))
+	}
+	return keywords
+}
+
+func appendChildren(items *[]types.NavigationItem, parentName string, children []types.NavigationItem) bool {
+	for i := range *items {
+		if (*items)[i].Name == parentName {
+			(*items)[i].Children = append((*items)[i].Children, children...)
+			if (*items)[i].Href != "" {
+				(*items)[i].Href = ""
+			}
+			return true
+		}
+		if len((*items)[i].Children) > 0 {
+			if appendChildren(&(*items)[i].Children, parentName, children) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (app *application) Middleware() []mux.MiddlewareFunc {

@@ -1,0 +1,1043 @@
+package templ
+
+import (
+	"strings"
+
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	apex "github.com/iota-uz/iota-sdk/pkg/lens/render/apex"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+)
+
+templ Dashboard(props DashboardProps) {
+	if props.Async != nil && props.Result == nil {
+		@dashboardShell(props.Spec, *props.Async)
+	} else {
+		@dashboardResult(props.Spec, props.Result)
+	}
+}
+
+templ lensGridStyles() {
+	<style>
+		.lens-grid-item {
+			grid-column: span 12 / span 12;
+			min-width: 0;
+		}
+
+		@media (min-width: 768px) {
+			.lens-grid-item {
+				grid-column: span var(--lens-col-span, 12) / span var(--lens-col-span, 12);
+			}
+		}
+	</style>
+}
+
+templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
+	{{ filters := filter.Build(spec.Variables, nil) }}
+	if result != nil {
+		{{ filters = filterModel(result) }}
+	}
+	{{ drillNav := drillNavigationModel(ctx, result) }}
+	@lensGridStyles()
+	<div class="relative" data-lens-dashboard-shell>
+		<div
+			class="pointer-events-none absolute inset-0 z-20 hidden rounded-xl bg-white/88 backdrop-blur-sm"
+			data-lens-loading-overlay
+		></div>
+		<div
+			class="pointer-events-none fixed left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 rounded-2xl px-5 py-4"
+			style="z-index: 40; border: 1px solid rgba(226, 232, 240, 0.96); background: rgba(255, 255, 255, 0.96); box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);"
+			data-lens-loading-card
+		>
+			<div class="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+			<p class="text-sm font-medium" style="color: #334155;">{ translate(ctx, "Lens.Chart.Loading") }</p>
+		</div>
+		<div class="space-y-6" data-lens-dashboard>
+			if drillNav.HasNav {
+				@DrillNavigation(drillNav)
+			}
+			@FilterBar(filters)
+			for _, row := range spec.Rows {
+				<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
+					for _, panelSpec := range row.Panels {
+						@Panel(panelSpec, result)
+					}
+				</div>
+			}
+		</div>
+	</div>
+	@DashboardScripts()
+}
+
+templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
+	@lensGridStyles()
+	<div class="space-y-6" data-lens-dashboard>
+		for _, row := range spec.Rows {
+			<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
+				for _, panelSpec := range row.Panels {
+					@PanelShell(panelSpec, props)
+				}
+			</div>
+		}
+	</div>
+	@FormURLSyncScript(props.FilterFormID)
+	@DashboardScripts()
+}
+
+templ DrillNavigation(model drillNavModel) {
+	{{ chartText := localizedChartText(ctx) }}
+	<nav aria-label="Breadcrumb" class="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+		<div class="flex items-center gap-2 px-4 py-3.5 md:gap-3 md:px-5">
+			if model.UpURL != "" {
+				<a
+					href={ templ.URL(model.UpURL) }
+					hx-get={ model.UpURL }
+					hx-push-url="true"
+					hx-target="closest [data-lens-swap-target]"
+					hx-swap="innerHTML"
+					onclick={ swapTargetLoadingScript() }
+					class="flex-none inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
+					title={ chartText.DrillBack }
+				>
+					@icons.ArrowLeft(icons.Props{Size: "16"})
+				</a>
+			}
+			<div class="min-w-0 flex-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				<ol class="flex min-w-max items-center gap-1 text-sm pr-2">
+					for _, crumb := range model.Trail {
+						<li class="flex items-center gap-1">
+							<a
+								href={ templ.URL(crumb.URL) }
+								hx-get={ crumb.URL }
+								hx-push-url="true"
+								hx-target="closest [data-lens-swap-target]"
+								hx-swap="innerHTML"
+								onclick={ swapTargetLoadingScript() }
+								class="rounded-md px-2.5 py-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 hover:underline underline-offset-2"
+							>
+								{ crumb.Label }
+							</a>
+							<span class="text-slate-300">
+								@icons.CaretRight(icons.Props{Size: "12"})
+							</span>
+						</li>
+					}
+					<li aria-current="location" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-900">
+						{ model.CurrentDisplay }
+					</li>
+				</ol>
+			</div>
+		</div>
+		if len(model.Remaining) > 0 {
+			<div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3 md:px-5">
+				for _, item := range model.Remaining {
+					if item.Active {
+						<span class="inline-flex min-h-9 items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-blue-700">
+							{ item.Label }
+						</span>
+					} else {
+						<a
+							href={ templ.URL(item.URL) }
+							hx-get={ item.URL }
+							hx-push-url="true"
+							hx-target="closest [data-lens-swap-target]"
+							hx-swap="innerHTML"
+							onclick={ swapTargetLoadingScript() }
+							class="inline-flex min-h-9 cursor-pointer items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
+						>
+							{ item.Label }
+						</a>
+					}
+				}
+			</div>
+		}
+		if len(model.Summary) > 0 {
+			<div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2.5 md:px-5">
+				for _, item := range model.Summary {
+					<span class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
+						<span class="text-blue-500">{ item.Label }</span>
+						<span>{ item.Value }</span>
+					</span>
+				}
+			</div>
+		}
+	</nav>
+}
+
+templ HiddenQueryInputs(values map[string][]string) {
+	for key, items := range values {
+		for _, value := range items {
+			<input type="hidden" name={ key } value={ value }/>
+		}
+	}
+}
+
+templ DashboardScripts() {
+	<script>
+		(function() {
+			if (window.__lensDashboardScriptsBound) {
+				return;
+			}
+			window.__lensDashboardScriptsBound = true;
+			window.__lensSetSwapTargetLoading = function(target, active) {
+				if (!target) {
+					return;
+				}
+				const overlay = target.querySelector('[data-lens-loading-overlay]');
+				const card = target.querySelector('[data-lens-loading-card]');
+				const currentCount = Number.parseInt((target.dataset && target.dataset.lensLoadingCount) || '0', 10) || 0;
+				const nextCount = active ? currentCount + 1 : Math.max(currentCount - 1, 0);
+				if (target.dataset) {
+					if (nextCount > 0) {
+						target.dataset.lensLoadingCount = String(nextCount);
+						target.dataset.lensLoading = 'true';
+					} else {
+						delete target.dataset.lensLoadingCount;
+						delete target.dataset.lensLoading;
+					}
+				}
+				target.setAttribute('aria-busy', nextCount > 0 ? 'true' : 'false');
+				if (overlay) {
+					overlay.classList.toggle('hidden', nextCount === 0);
+				}
+				if (card) {
+					card.classList.toggle('hidden', nextCount === 0);
+					card.classList.toggle('flex', nextCount > 0);
+				}
+			};
+			const clearSwapTargetLoading = function(target) {
+				if (!target || !window.__lensSetSwapTargetLoading) {
+					return;
+				}
+				window.__lensSetSwapTargetLoading(target, false);
+			};
+			document.addEventListener('htmx:afterSwap', function(evt) {
+				const target = evt.detail && evt.detail.target;
+				if (!target) {
+					return;
+				}
+				const swapTarget = target.closest('[data-lens-swap-target]') || target.querySelector('[data-lens-swap-target]');
+				clearSwapTargetLoading(swapTarget || target.closest('[data-lens-dashboard-shell]'));
+				const containsDashboard = target.closest('[data-lens-dashboard]') || target.querySelector('[data-lens-dashboard]');
+				if (!containsDashboard) {
+					return;
+				}
+				setTimeout(() => {
+					document.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: { root: target } }));
+				}, 100);
+			});
+			['htmx:responseError', 'htmx:sendError', 'htmx:sendAbort', 'htmx:timeout'].forEach(function(eventName) {
+				document.addEventListener(eventName, function(evt) {
+					const detail = evt && evt.detail ? evt.detail : {};
+					const target = detail.target || detail.elt;
+					if (!target) {
+						return;
+					}
+					clearSwapTargetLoading(target.closest('[data-lens-swap-target]'));
+				});
+			});
+		})();
+	</script>
+}
+
+templ FormURLSyncScript(formID string) {
+	if formID != "" {
+		<div data-lens-url-sync={ formID } style="display:none"></div>
+		<script>
+			(function() {
+				const marker = document.querySelector('[data-lens-url-sync]');
+				if (!marker) {
+					return;
+				}
+				const formID = marker.getAttribute('data-lens-url-sync');
+				const form = document.getElementById(formID);
+				if (!form || form.dataset.lensUrlSync === 'true') {
+					return;
+				}
+				form.dataset.lensUrlSync = 'true';
+				let timeoutId = null;
+				const syncURL = () => {
+					const next = new URL(window.location.href);
+					const params = new URLSearchParams(next.search);
+					const formData = new FormData(form);
+					const touched = new Set();
+					for (const [key] of formData.entries()) {
+						touched.add(key);
+					}
+					for (const key of touched) {
+						params.delete(key);
+					}
+					for (const [key, value] of formData.entries()) {
+						params.append(key, value);
+					}
+					next.search = params.toString();
+					window.history.replaceState({}, '', next.toString());
+				};
+				const schedule = () => {
+					window.clearTimeout(timeoutId);
+					timeoutId = window.setTimeout(syncURL, 820);
+				};
+				form.addEventListener('change', schedule);
+				form.addEventListener('dateRangeChange', schedule);
+				marker.remove();
+			})();
+		</script>
+	}
+}
+
+templ FilterBar(model filter.Model) {
+	{{ lensText := localizedLensText(ctx) }}
+	if len(model.Inputs) == 0 {
+		{{ return }}
+	}
+	<form class="rounded-xl border border-gray-200/80 bg-white shadow-sm">
+		<div class="flex items-center justify-between px-5 py-2.5">
+			<div class="flex items-center gap-2">
+				<div class="text-gray-400">
+					@icons.Funnel(icons.Props{Size: "15"})
+				</div>
+				<span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{ lensText.FiltersTitle }</span>
+			</div>
+			<button type="submit" class="rounded-md bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:ring-offset-1 active:bg-blue-800">
+				{ lensText.FiltersApply }
+			</button>
+		</div>
+		<div class="grid gap-x-4 gap-y-3 border-t border-gray-100 px-5 py-4 md:grid-cols-2 xl:grid-cols-4">
+			for _, input := range model.Inputs {
+				<div class="space-y-1.5">
+					<label class="text-[11px] font-medium uppercase tracking-wide text-gray-400">{ input.Label }</label>
+					switch input.Kind {
+						case lens.VariableDateRange:
+							<div class="space-y-2" x-data={ dateRangeState(input) }>
+								<select name={ input.Name } x-model="dateMode" class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
+									<option value="default">{ lensText.DefaultRange }</option>
+									<option value="bounded">{ lensText.CustomRange }</option>
+									if input.DateRange.AllowAllTime {
+										<option value="all">{ lensText.AllTime }</option>
+									}
+								</select>
+								<div class="grid gap-2 md:grid-cols-2" x-show="dateMode === 'bounded'" x-transition>
+									<input type="date" name={ input.Name + "_start" } value={ input.DateRange.Start } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+									<input type="date" name={ input.Name + "_end" } value={ input.DateRange.End } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+								</div>
+							</div>
+						case lens.VariableToggle:
+							<label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 transition hover:bg-gray-100">
+								<input type="checkbox" name={ input.Name } value="true" checked?={ input.Checked } class="rounded border-gray-300 text-blue-600 focus:ring-blue-200"/>
+								<span>{ input.Description }</span>
+							</label>
+						case lens.VariableSingleSelect:
+							if len(input.Options) > 0 {
+								<select name={ input.Name } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
+									if !input.Required {
+										<option value="">{ lensText.All }</option>
+									}
+									for _, option := range input.Options {
+										<option value={ option.Value } selected?={ option.Selected }>{ option.Label }</option>
+									}
+								</select>
+							} else {
+								<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+							}
+						case lens.VariableMultiSelect:
+							if len(input.Options) > 0 {
+								<select name={ input.Name } multiple class="min-h-32 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
+									for _, option := range input.Options {
+										<option value={ option.Value } selected?={ option.Selected }>{ option.Label }</option>
+									}
+								</select>
+							} else {
+								<input type="text" name={ input.Name } value={ strings.Join(input.Values, ",") } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+							}
+						case lens.VariableNumber:
+							<input type="number" step="any" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+						case lens.VariableText:
+							<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+						default:
+							<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+					}
+				</div>
+			}
+		</div>
+	</form>
+}
+
+templ panelCard(spec panel.Spec, bodyClass string, body templ.Component) {
+	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
+		<div class={ panelCardClass(spec) }>
+			if showPanelHeader(spec) {
+				<div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+					<div class="flex items-center gap-2 min-w-0">
+						<div class="flex-shrink-0 text-slate-400">
+							@panelDisplayIcon(spec)
+						</div>
+						<div class="min-w-0">
+							<div class="flex items-center gap-2 min-w-0">
+								if spec.Title != "" {
+									<h3 class="truncate text-sm font-semibold text-slate-700">{ spec.Title }</h3>
+								}
+								@MetricInfoButton(spec, "flex-shrink-0")
+							</div>
+							if spec.Description != "" && spec.Kind != panel.KindStat {
+								<p class="mt-0.5 truncate text-xs text-slate-400">{ spec.Description }</p>
+							}
+						</div>
+					</div>
+				</div>
+			}
+			<div class={ bodyClass }>
+				@body
+			</div>
+		</div>
+	</div>
+}
+
+templ Panel(spec panel.Spec, result *runtime.Result) {
+	@panelCard(spec, panelBodyClass(spec), PanelContent(spec, result))
+}
+
+templ PanelShell(spec panel.Spec, props AsyncProps) {
+	@panelCard(spec, panelShellBodyClass(spec), PanelIsland(spec, props))
+}
+
+templ PanelContent(spec panel.Spec, result *runtime.Result) {
+	{{ currentPanel := panelResult(result, spec.ID) }}
+	switch spec.Kind {
+		case panel.KindTabs:
+			@TabsPanel(spec, result)
+		case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+			@CompositePanel(spec, result)
+		case panel.KindTable:
+			@TablePanel(spec, currentPanel)
+		case panel.KindStat:
+			@StatPanel(spec, currentPanel)
+		default:
+			@ChartPanel(spec, currentPanel)
+	}
+}
+
+templ PanelFragment(props FragmentProps) {
+	@PanelContent(props.Panel, props.Result)
+}
+
+templ PanelIsland(spec panel.Spec, props AsyncProps) {
+	{{ indicatorID := shellIndicatorID(spec.ID) }}
+	<div
+		class="absolute inset-0 z-10 hidden htmx-indicator bg-white/80 backdrop-blur-sm"
+		id={ indicatorID }
+	>
+		@LoadingState(spec, true)
+	</div>
+	<div
+		class="h-full"
+		style={ panelIslandStyle(spec) }
+		hx-get={ panelFragmentURL(props.PanelBasePath, spec.ID) }
+		hx-trigger={ islandTrigger(props) }
+		hx-target="this"
+		hx-swap="innerHTML"
+		hx-indicator={ "#" + indicatorID }
+		hx-include={ islandIncludeSelector(props) }
+	>
+		@LoadingState(spec, false)
+	</div>
+}
+
+templ CompositePanel(spec panel.Spec, result *runtime.Result) {
+	<div class="grid grid-cols-12 gap-3 md:gap-5">
+		for _, child := range spec.Children {
+			@Panel(child, result)
+		}
+	</div>
+}
+
+templ TabsPanel(spec panel.Spec, result *runtime.Result) {
+	{{ chartText := localizedChartText(ctx) }}
+	{{ canFullscreen := panelCanFullscreen(spec, result) }}
+	<div x-data={ tabsState(spec) } data-lens-rerender-scope class="flex h-full flex-col">
+		<div class="mb-3 flex items-center justify-end gap-2">
+			@PanelLogScaleBadge(spec, chartText, "")
+			if canFullscreen {
+				@PanelFullscreenButton(chartText)
+			}
+		</div>
+		@TabsPanelBody(spec, result)
+		if canFullscreen {
+			@PanelFullscreenOverlay(spec, chartText, panelFullscreenBodyClass(spec), TabsPanelFullscreenBody(spec, result))
+		}
+	</div>
+}
+
+templ TabsPanelBody(spec panel.Spec, result *runtime.Result) {
+	<div class="flex min-h-0 flex-1 flex-col">
+		@TabsPanelNav(spec)
+		@TabsPanelFrames(spec, result, false)
+	</div>
+}
+
+templ TabsPanelFullscreenBody(spec panel.Spec, result *runtime.Result) {
+	<div class="flex min-h-0 flex-1 flex-col">
+		@TabsPanelNav(spec)
+		@TabsPanelFrames(spec, result, true)
+	</div>
+}
+
+templ TabsPanelNav(spec panel.Spec) {
+	<div class="mb-5 inline-flex w-full rounded-2xl bg-slate-800 p-1.5">
+		for _, child := range spec.Children {
+			<button
+				type="button"
+				class="flex flex-1 items-center justify-center gap-2 rounded-xl px-2.5 py-2.5 text-xs sm:px-4 sm:py-3 sm:text-sm font-medium transition-all duration-200"
+				@click={ activateTabScript(child.ID) }
+				:class={ tabClassExpression(child.ID) }
+			>
+				<span class="text-current/80">
+					@panelDisplayIcon(child)
+				</span>
+				{ child.Title }
+			</button>
+		}
+	</div>
+}
+
+templ TabsPanelFrames(spec panel.Spec, result *runtime.Result, fullscreen bool) {
+	for _, child := range spec.Children {
+		<div x-show={ tabVisibilityExpression(child.ID) } x-transition.opacity.duration.150ms class={ tabsPanelFrameClass(fullscreen) }>
+			{{ childPanel := panelResult(result, child.ID) }}
+			if child.Kind == panel.KindTable {
+				@TablePanel(child, childPanel)
+			} else if child.Kind == panel.KindStat {
+				@StatPanel(child, childPanel)
+			} else if child.Kind == panel.KindTabs || child.Kind == panel.KindGrid || child.Kind == panel.KindSplit || child.Kind == panel.KindRepeat {
+				@PanelContent(child, result)
+			} else if fullscreen {
+				@FullscreenTabbedChartPanel(child, childPanel)
+			} else {
+				@TabbedChartPanel(child, childPanel)
+			}
+		</div>
+	}
+}
+
+templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
+	if result == nil || result.Error != nil {
+		@ErrorState(result)
+		{{ return }}
+	}
+	{{ value := formatValue(statRawValue(spec, result), spec.Formatter, result.Locale, result.Timezone) }}
+	{{ row := statRow(result) }}
+	{{ href := actionURL(spec.Action, row, result) }}
+	{{ onClick := actionOnClick(spec.Action, row, result) }}
+	{{ ariaLabel := statAriaLabel(spec) }}
+	<div class="group relative h-full">
+		if href != "" {
+			<a href={ templ.URL(href) } onclick={ onClick } aria-label={ ariaLabel } class="absolute inset-0 z-0 block rounded-xl"></a>
+		} else if onClick.Call != "" {
+			<button type="button" onclick={ onClick } aria-label={ ariaLabel } class="absolute inset-0 z-0 block h-full w-full rounded-xl"></button>
+		}
+		@statContent(spec, value, spec.Description, href != "" || onClick.Call != "")
+	</div>
+}
+
+templ MetricInfoButton(spec panel.Spec, class string) {
+	{{ infoText := panelMetricInfoText(ctx, spec) }}
+	@MetricInfoButtonWithText(infoText, class)
+}
+
+templ MetricInfoButtonWithText(infoText, class string) {
+	if infoText == "" {
+		{{ return }}
+	}
+	{{ chartText := localizedChartText(ctx) }}
+	<button
+		type="button"
+		class={ "inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-300 transition hover:text-slate-500 focus:outline-none cursor-pointer", class }
+		x-tooltip.interactive.theme.light.html.raw={ metricInfoTooltipHTML(ctx, infoText) }
+		@click.stop=""
+		aria-label={ chartText.MetricInfo }
+	>
+		@icons.Info(icons.Props{Size: "14"})
+	</button>
+}
+
+templ statContent(spec panel.Spec, value, description string, clickable bool) {
+	{{ bodyClass := "flex h-full flex-col" }}
+	if clickable {
+		{{ bodyClass = bodyClass + " relative z-10 transition-opacity group-hover:opacity-90 pointer-events-none" }}
+	}
+	if statUsesCustomChrome(spec) {
+		<div class={ bodyClass }>
+			<div class="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+				<div class="flex min-w-0 items-center gap-2">
+					<h3 class="truncate text-base font-medium text-slate-600 transition-colors group-hover:text-slate-900">{ spec.Title }</h3>
+					@MetricInfoButton(spec, "pointer-events-auto flex-shrink-0")
+				</div>
+				<div class="flex h-10 w-10 items-center justify-center rounded-xl" style={ badgeStyle(spec.Chrome.AccentColor) }>
+					@panelDisplayIcon(spec)
+				</div>
+			</div>
+			<div class="flex flex-1 flex-col justify-center px-4 py-5">
+				<div class="text-[28px] sm:text-[36px] md:text-[40px] font-bold tabular-nums leading-tight tracking-tight text-slate-900">{ value }</div>
+				if description != "" {
+					<div class="mt-2 text-sm font-medium text-slate-400">{ description }</div>
+				}
+			</div>
+		</div>
+	} else {
+		<div class={ bodyClass + " justify-center" }>
+			<div class="text-xl sm:text-2xl md:text-[28px] font-bold tabular-nums leading-tight tracking-tight text-gray-900">{ value }</div>
+			if description != "" {
+				<div class="mt-1.5 text-[11px] font-medium text-gray-400">{ description }</div>
+			}
+		</div>
+	}
+}
+
+templ ChartPanel(spec panel.Spec, result *runtime.PanelResult) {
+	@chartPanelContent(spec, result, true, false)
+}
+
+templ TabbedChartPanel(spec panel.Spec, result *runtime.PanelResult) {
+	@chartPanelContent(spec, result, false, false)
+}
+
+templ FullscreenTabbedChartPanel(spec panel.Spec, result *runtime.PanelResult) {
+	@chartPanelContent(spec, result, false, true)
+}
+
+templ chartPanelContent(spec panel.Spec, result *runtime.PanelResult, showControls bool, fullscreen bool) {
+	{{ chartText := localizedChartText(ctx) }}
+	if result == nil || result.Error != nil {
+		@ErrorState(result)
+		{{ return }}
+	}
+	if result.Frames == nil || result.Frames.Primary() == nil || result.Frames.Primary().RowCount == 0 {
+		@EmptyState()
+		{{ return }}
+	}
+	if !showControls {
+		if fullscreen {
+			@FullscreenChartCanvas(spec, result)
+		} else {
+			@ChartCanvas(spec, result)
+		}
+		{{ return }}
+	}
+	<div x-data="{ fullscreen: false }" data-lens-rerender-scope class="flex h-full flex-col">
+		<div class="mb-3 flex items-center justify-end gap-2">
+			@PanelLogScaleBadge(spec, chartText, "")
+			@PanelFullscreenButton(chartText)
+		</div>
+		@ChartCanvas(spec, result)
+		@PanelFullscreenOverlay(spec, chartText, panelFullscreenBodyClass(spec), FullscreenChartCanvas(spec, result))
+	</div>
+}
+
+templ PanelLogScaleBadge(spec panel.Spec, chartText chartText, className string) {
+	if panelUsesLogScale(spec) {
+		<div class={ "inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700", className } title={ chartText.LogScaleHint }>
+			@icons.WarningCircle(icons.Props{Size: "12"})
+			<span>{ chartText.LogScale }</span>
+		</div>
+	}
+}
+
+templ PanelFullscreenButton(chartText chartText) {
+	<button
+		type="button"
+		@click={ openFullscreenScript() }
+		class="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
+		title={ chartText.ExpandToFullscreen }
+		aria-label={ chartText.ExpandToFullscreen }
+	>
+		@icons.ArrowsOut(icons.Props{Size: "16"})
+	</button>
+}
+
+templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass string, body templ.Component) {
+	<div
+		x-show="fullscreen"
+		x-transition:enter="transition ease-out duration-200"
+		x-transition:enter-start="opacity-0"
+		x-transition:enter-end="opacity-100"
+		x-transition:leave="transition ease-in duration-150"
+		x-transition:leave-start="opacity-100"
+		x-transition:leave-end="opacity-0"
+		class="fixed inset-0 z-50 flex min-h-0 flex-col overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
+		style="display: none;"
+		@click.self="fullscreen = false"
+		@keydown.escape.window="fullscreen = false"
+	>
+		<div class="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-1 flex-col">
+			<div class="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+				@PanelFullscreenHeader(spec, chartText)
+				<template x-if="fullscreen">
+					<div class={ bodyClass }>
+						@body
+					</div>
+				</template>
+			</div>
+		</div>
+	</div>
+}
+
+templ PanelFullscreenHeader(spec panel.Spec, chartText chartText) {
+	{{ infoText := panelMetricInfoText(ctx, spec) }}
+	<div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+		<div class="min-w-0">
+			if spec.Title != "" || infoText != "" {
+				<div class="flex items-center gap-2 min-w-0">
+					if spec.Title != "" {
+						<h2 class="truncate text-lg font-semibold text-slate-900">{ spec.Title }</h2>
+					}
+					@MetricInfoButtonWithText(infoText, "flex-shrink-0")
+				</div>
+			}
+			if infoText != "" {
+				<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{ infoText }</p>
+			}
+			if spec.Description != "" {
+				<p class="mt-1 text-sm text-slate-500">{ spec.Description }</p>
+			}
+			@PanelLogScaleBadge(spec, chartText, "mt-3")
+		</div>
+		<button
+			type="button"
+			@click="fullscreen = false"
+			class="inline-flex h-10 w-10 cursor-pointer flex-shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+			title={ chartText.CloseFullscreen }
+			aria-label={ chartText.CloseFullscreen }
+		>
+			@icons.X(icons.Props{Size: "18"})
+		</button>
+	</div>
+}
+
+templ ChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
+	@charts.Chart(charts.Props{
+		Class:   panelChartClass(spec, false),
+		Options: apex.Options(spec, result),
+	})
+}
+
+templ FullscreenChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
+	<div class="flex h-full flex-1 min-h-[420px] w-full">
+		@charts.Chart(charts.Props{
+			Class:   panelChartClass(spec, true),
+			Options: apex.OptionsWithHeight(spec, result, "100%"),
+		})
+	</div>
+}
+
+templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
+	if result == nil || result.Error != nil {
+		@ErrorState(result)
+		{{ return }}
+	}
+	if result.Frames == nil || result.Frames.Primary() == nil || result.Frames.Primary().RowCount == 0 {
+		@EmptyState()
+		{{ return }}
+	}
+	{{ rows := result.Frames.Primary().Rows() }}
+	{{ columns := tableColumns(spec, result) }}
+	{{ rowContainerID := tableRowContainerID(spec) }}
+	if panelHasClass(spec, "lens-card-list") {
+		<div id={ rowContainerID } class="space-y-3">
+			@TableCardRows(spec, columns, rows, result)
+		</div>
+	} else {
+		<div class="overflow-auto">
+			<table class="min-w-full w-full text-[13px]">
+				<thead>
+					<tr class="border-b border-gray-200/80">
+						for _, column := range columns {
+							<th class="sticky top-0 z-10 whitespace-nowrap bg-gray-50/80 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">{ column.Label }</th>
+						}
+					</tr>
+				</thead>
+				<tbody id={ rowContainerID } class="divide-y divide-gray-100/80">
+					@TableDesktopRows(spec, columns, rows, result)
+				</tbody>
+			</table>
+		</div>
+	}
+	@TablePaginationSentinel(spec, result)
+}
+
+templ TablePanelChunk(result *runtime.PanelResult) {
+	if result == nil {
+		{{ return }}
+	}
+	{{ spec := result.Panel }}
+	if result.Error != nil {
+		@TablePaginationSentinel(spec, result)
+		{{ return }}
+	}
+	if result.Frames == nil || result.Frames.Primary() == nil || result.Frames.Primary().RowCount == 0 {
+		@TablePaginationSentinel(spec, result)
+		{{ return }}
+	}
+	{{ rows := result.Frames.Primary().Rows() }}
+	{{ columns := tableColumns(spec, result) }}
+	{{ rowContainerID := tableRowContainerID(spec) }}
+	if panelHasClass(spec, "lens-card-list") {
+		<div hx-swap-oob={ "beforeend:#" + rowContainerID }>
+			@TableCardRows(spec, columns, rows, result)
+		</div>
+	} else {
+		<tbody hx-swap-oob={ "beforeend:#" + rowContainerID }>
+			@TableDesktopRows(spec, columns, rows, result)
+		</tbody>
+	}
+	@TablePaginationSentinel(spec, result)
+}
+
+templ TableCardRows(spec panel.Spec, columns []panel.TableColumn, rows []map[string]any, result *runtime.PanelResult) {
+	for _, row := range rows {
+		{{ rowHref := actionURL(spec.Action, row, result) }}
+		{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
+		if rowHref != "" {
+			<a
+				href={ templ.URL(rowHref) }
+				onclick={ stopPropagationScript(rowOnClick) }
+				class="block cursor-pointer"
+			>
+				@CardListRow(columns, row, result)
+			</a>
+		} else if rowOnClick.Call != "" {
+			<button
+				type="button"
+				onclick={ rowOnClick }
+				class="block w-full cursor-pointer text-left"
+			>
+				@CardListRow(columns, row, result)
+			</button>
+		} else {
+			@CardListRow(columns, row, result)
+		}
+	}
+}
+
+templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[string]any, result *runtime.PanelResult) {
+	for _, row := range rows {
+		{{ rowHref := actionURL(spec.Action, row, result) }}
+		{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
+		<tr class="transition-colors hover:bg-gray-50/60">
+			for i, column := range columns {
+				{{ columnHref := actionURL(column.Action, row, result) }}
+				{{ columnOnClick := actionOnClick(column.Action, row, result) }}
+				<td class="whitespace-nowrap px-4 py-3 md:py-2 text-gray-600">
+					if column.Action != nil && columnHref != "" {
+						<a
+							href={ templ.URL(columnHref) }
+							onclick={ stopPropagationScript(columnOnClick) }
+							class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-200"
+						>
+							{ tableActionText(ctx, column, row, result) }
+							@icons.ArrowUpRight(icons.Props{Size: "14"})
+						</a>
+					} else if column.Action != nil && columnOnClick.Call != "" {
+						<button
+							type="button"
+							onclick={ stopPropagationScript(columnOnClick) }
+							class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-200"
+						>
+							{ tableActionText(ctx, column, row, result) }
+							@icons.ArrowUpRight(icons.Props{Size: "14"})
+						</button>
+					} else if i == 0 && rowHref != "" {
+						<a
+							href={ templ.URL(rowHref) }
+							onclick={ stopPropagationScript(rowOnClick) }
+							class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+						>
+							{ tablePrimaryText(ctx, column, row, result) }
+						</a>
+					} else if i == 0 && rowOnClick.Call != "" {
+						<button
+							type="button"
+							onclick={ rowOnClick }
+							class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
+						>
+							{ tablePrimaryText(ctx, column, row, result) }
+						</button>
+					} else {
+						{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
+					}
+				</td>
+			}
+		</tr>
+	}
+}
+
+templ TablePaginationSentinel(spec panel.Spec, result *runtime.PanelResult) {
+	{{ lensText := localizedLensText(ctx) }}
+	{{ nextURL := tablePaginationURL(result) }}
+	{{ sentinelClass := "flex min-h-10 items-center justify-center" }}
+	if nextURL == "" {
+		{{ sentinelClass = "hidden" }}
+	}
+	<div
+		id={ tableSentinelID(spec) }
+		class={ sentinelClass }
+		if nextURL != "" {
+			hx-get={ nextURL }
+			hx-trigger="intersect once"
+			hx-target="this"
+			hx-swap="outerHTML"
+			hx-indicator={ "#" + tableIndicatorID(spec) }
+		}
+	>
+		<div
+			id={ tableIndicatorID(spec) }
+			class="hidden htmx-indicator items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm [&.htmx-request]:!inline-flex"
+		>
+			<div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-500"></div>
+			<span>{ translate(ctx, "Lens.Table.LoadingMore") }</span>
+		</div>
+		<span class="sr-only">{ lensText.EmptyTitle }</span>
+	</div>
+}
+
+templ CardListRow(columns []panel.TableColumn, row map[string]any, result *runtime.PanelResult) {
+	if len(columns) == 0 {
+		return
+	}
+	{{
+		primaryText := displayValueOrDash(tableValueText(columns[0], row, result))
+		secondaryBadge := ""
+		if len(columns) > 1 {
+			secondaryBadge = strings.TrimSpace(tableValueText(columns[1], row, result))
+		}
+		trailingValue := ""
+		if len(columns) > 2 {
+			trailingValue = strings.TrimSpace(tableValueText(columns[2], row, result))
+		}
+		tertiaryText := ""
+		if len(columns) > 3 {
+			tertiaryText = strings.TrimSpace(tableValueText(columns[3], row, result))
+		}
+	}}
+	<div class="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-4 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100">
+		<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold" style={ badgeStyle(rowAccentColor(row)) } title={ primaryText }>
+			{ rowMarker(primaryText) }
+		</div>
+		<div class="min-w-0 flex-1">
+			<p class="truncate text-lg font-semibold text-slate-900" title={ primaryText }>{ primaryText }</p>
+			<div class="mt-2 flex flex-wrap items-center gap-2">
+				if secondaryBadge != "" {
+					<span class="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+						{ secondaryBadge } { strings.ToLower(columns[1].Label) }
+					</span>
+				}
+				if tertiaryText != "" {
+					<span class="text-sm font-semibold text-slate-800">{ tertiaryText }</span>
+				}
+			</div>
+		</div>
+		<div class="flex items-center gap-3">
+			if trailingValue != "" {
+				<div class="text-right">
+					<div class="text-2xl font-bold text-slate-900">{ trailingValue }</div>
+					<div class="text-xs font-medium text-slate-400">{ strings.ToLower(columns[2].Label) }</div>
+				</div>
+			}
+			<div class="text-slate-300 transition-colors group-hover:text-slate-500">
+				@icons.ArrowRight(icons.Props{Size: "16"})
+			</div>
+		</div>
+	</div>
+}
+
+templ EmptyState() {
+	{{ lensText := localizedLensText(ctx) }}
+	<div class="flex min-h-[180px] flex-col items-center justify-center gap-2.5 text-center">
+		<div class="rounded-lg bg-gray-50 p-2.5 text-gray-300">
+			@icons.ChartBar(icons.Props{Size: "20"})
+		</div>
+		<div>
+			<p class="text-[13px] font-medium text-gray-400">{ lensText.EmptyTitle }</p>
+			<p class="mt-0.5 text-[11px] text-gray-300">{ lensText.EmptyDescription }</p>
+		</div>
+	</div>
+}
+
+templ ErrorState(result *runtime.PanelResult) {
+	{{ lensText := localizedLensText(ctx) }}
+	{{ details := panelErrorDetails(result) }}
+	<div class="flex min-h-[180px] flex-col items-center justify-center gap-2.5 text-center">
+		<div class="rounded-lg bg-red-50 p-2.5 text-red-300">
+			@icons.WarningCircle(icons.Props{Size: "20"})
+		</div>
+		<div>
+			<p class="text-[13px] font-medium text-red-400">{ lensText.ErrorTitle }</p>
+			<p class="mt-0.5 text-[11px] text-gray-400">{ lensText.ErrorDescription }</p>
+			if details.PanelID != "" || details.Reason != "" {
+				<div class="mt-3 inline-flex max-w-[32rem] flex-col gap-1 rounded-xl border border-red-100 bg-red-50/70 px-3 py-2 text-left">
+					if details.PanelID != "" {
+						<p class="text-[11px] text-red-700">
+							<span class="font-semibold">{ lensText.ErrorPanelLabel }:</span>
+							<span class="ml-1 font-mono">{ details.PanelID }</span>
+						</p>
+					}
+					if details.Reason != "" {
+						<p class="text-[11px] text-red-700">
+							<span class="font-semibold">{ lensText.ErrorReasonLabel }:</span>
+							<span class="ml-1">{ details.Reason }</span>
+						</p>
+					}
+					<p class="text-[10px] text-red-500">{ lensText.ErrorLogsHint }</p>
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ ContentWithLoading(props ContentWithLoadingProps) {
+	<div class="relative">
+		if props.Loading {
+			<div class="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+				<div class="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-blue-500"></div>
+			</div>
+		}
+		if props.Content != nil {
+			@props.Content
+		}
+	</div>
+}
+
+templ LoadingState(spec panel.Spec, overlay bool) {
+	{{ containerClass := "flex h-full w-full items-center justify-center" }}
+	if overlay {
+		{{ containerClass = "absolute inset-0 flex h-full w-full items-center justify-center" }}
+	}
+	<div class={ containerClass } style={ panelIslandStyle(spec) }>
+		switch spec.Kind {
+			case panel.KindStat:
+				<div class="flex h-full w-full flex-col justify-center gap-3 px-4 py-4">
+					<div class="h-4 w-28 animate-pulse rounded bg-slate-100"></div>
+					<div class="h-10 w-32 animate-pulse rounded bg-slate-200"></div>
+					if spec.Description != "" {
+						<div class="h-3 w-24 animate-pulse rounded bg-slate-100"></div>
+					}
+				</div>
+			case panel.KindTable:
+				<div class="flex h-full w-full flex-col gap-3 p-4">
+					for i := 0; i < panelPlaceholderRows(spec); i++ {
+						<div class="h-12 animate-pulse rounded-xl bg-slate-100"></div>
+					}
+				</div>
+			case panel.KindTabs:
+				<div class="flex h-full w-full flex-col p-3">
+					<div class="mb-5 h-14 animate-pulse rounded-2xl bg-slate-100"></div>
+					<div class="flex-1 animate-pulse rounded-2xl bg-slate-50"></div>
+				</div>
+			default:
+				<div class="flex h-full w-full flex-col p-3">
+					<div class="flex-1 animate-pulse rounded-2xl bg-slate-50"></div>
+				</div>
+		}
+	</div>
+}

@@ -1,0 +1,47 @@
+package templ
+
+import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+
+templ Body(props BodyProps) {
+	<div class={ dashboardBodyClass(props.ClassName) }>
+		<div class={ props.ContainerClass }>
+			@props.Dashboard
+		</div>
+	</div>
+}
+
+templ Page(props PageProps) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{
+			Title: props.MetaTitle,
+		},
+	}) {
+		<div class="flex min-h-screen w-full flex-col">
+			<div class="flex-1 space-y-6 p-4 sm:p-6">
+				<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
+					<div class="flex flex-col items-start justify-between gap-4 p-4 sm:p-6 lg:flex-row lg:items-center">
+						<div class="flex items-center gap-4">
+							<div class="rounded-lg bg-blue-600 p-3">
+								@pageShellIcon(props.Icon)
+							</div>
+							<div>
+								<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">{ props.Title }</h1>
+								if props.Subtitle != "" {
+									<p class="mt-1 text-sm text-gray-600 sm:text-base">{ props.Subtitle }</p>
+								}
+							</div>
+						</div>
+						if props.Filters != nil {
+							@props.Filters
+						}
+					</div>
+				</div>
+				@Body(BodyProps{
+					ClassName:      props.BodyClass,
+					ContainerClass: props.ContainerClass,
+					Dashboard:      props.Dashboard,
+				})
+			</div>
+		</div>
+	}
+}

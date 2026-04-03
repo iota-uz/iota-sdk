@@ -86,6 +86,41 @@
   },
   "Back": "Orqaga",
   "Cancel": "Bekor qilish",
+  "Chart": {
+    "CloseFullScreen": "To'liq ekran rejimini yopish",
+    "ExpandToFullScreen": "To'liq ekranga kengaytirish",
+    "LogScale": "Logarifmik shkala",
+    "LogScaleHint": "Qiymatlar logarifmik shkala asosida ko'rsatilgan",
+    "MetricInfo": "Bu metrika qanday hisoblanadi"
+  },
+  "Lens": {
+    "Empty": {
+      "_Description": "Filtrlarni o'zgartirib ko'ring",
+      "Title": "Ma'lumot topilmadi"
+    },
+    "Error": {
+      "_Description": "Panelni ko'rsatishda xatolik yuz berdi",
+      "Title": "Ma'lumotlarni yuklab bo'lmadi",
+      "PanelLabel": "Panel",
+      "ReasonLabel": "Sabab",
+      "LogsHint": "Xatoning to'liq tafsilotlari uchun server loglarini tekshiring"
+    },
+    "Drill": {
+      "Back": "Orqaga",
+      "CurrentScope": "Joriy kesim"
+    },
+    "Table": {
+      "OpenRow": "Tafsilotlarni ochish"
+    },
+    "Filters": {
+      "All": "Barchasi",
+      "AllTime": "Butun vaqt",
+      "Apply": "Qo'llash",
+      "CustomRange": "Ixtiyoriy diapazon",
+      "DefaultRange": "Standart diapazon",
+      "Title": "Filtrlar"
+    }
+  },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
     "AF": "Afg'oniston",
@@ -888,6 +923,51 @@
   "Spotlight": {
     "Placeholder": "Qidirish...",
     "NothingFound": "Hech narsa topilmadi",
+    "NothingFoundBody": "Boshqa so'z bilan qidiring yoki yozilishini tekshiring.",
+    "Match": {
+      "Exact": "Aniq moslik",
+      "Best": "Eng yaxshi moslik"
+    },
+    "Hint": {
+      "Navigate": "↑ ↓ tanlash",
+      "Open": "Enter ochish",
+      "Close": "Esc yopish"
+    },
+    "Empty": {
+      "Title": "Butun ish maydonini bitta oynadan qidiring",
+      "_Description": "Yozuvlar, sahifalar, odamlar va buyruqlarni bitta oqimda toping.",
+      "Body": "Ism, email, raqam, sahifa nomi yoki buyruq bilan qidirib ko'ring.",
+      "Footer": "Istalgan ipdan boshlang. Eng mos natijalar avval ko'rinadi, qolganlari qidiruv davomida yuklanadi.",
+      "Example": {
+        "Name": {
+          "Label": "Ism",
+          "Value": "Ali Valiyev"
+        },
+        "Email": {
+          "Label": "Email",
+          "Value": "mail@example.com"
+        },
+        "Identifier": {
+          "Label": "Raqam",
+          "Value": "INV-1024"
+        },
+        "Page": {
+          "Label": "Sahifa",
+          "Value": "sozlamalar"
+        },
+        "Command": {
+          "Label": "Buyruq",
+          "Value": "foydalanuvchi yaratish"
+        }
+      }
+    },
+    "Badge": {
+      "Exact": "Aniq",
+      "Action": "Harakat",
+      "Navigate": "Navigatsiya",
+      "Staff": "Xodim",
+      "Person": "Shaxs"
+    },
     "Summary": {
       "Default": "So'rovingiz uchun eng mos natijalar topildi",
       "Help": "Bu yerda eng mos sahifalar va bilim bazasi yozuvlari keltirilgan"
@@ -899,9 +979,42 @@
     },
     "Group": {
       "Navigate": "Navigatsiya",
+      "Actions": "Harakatlar",
       "Data": "Ma'lumotlar",
       "Knowledge": "Ma'lumot",
+      "People": "Odamlar",
+      "Staff": "Xodimlar",
       "_Other": "Boshqa"
+    },
+    "ConfirmOpenResult": "Ushbu natijani ochish?",
+    "Status": {
+      "SearchingMore": "Qidiruv davom etmoqda",
+      "FindingMatches": "Mosliklar qidirilmoqda",
+      "SearchComplete": "Qidiruv yakunlandi"
+    },
+    "AI": {
+      "Button": "AI bilan qidirish",
+      "Placeholder": "AI dan so'rang...",
+      "EmptyHint": "Savol yozing va AI bilan qidirish uchun Enter bosing",
+      "Searching": "Qidirilmoqda",
+      "Candidates": "Ehtimoliy mosliklar",
+      "FollowUpPlaceholder": "Qo’shimcha izoh yoki yana bir belgi kiriting",
+      "Open": "Ochish",
+      "Progress": {
+        "Searching": "Yozuvlar qidirilmoqda...",
+        "Checking": "Ma’lumotlar bazasi tekshirilmoqda...",
+        "Building": "Natijalar shakllantirilmoqda..."
+      },
+      "TabHint": "Tab — AI qidiruv",
+      "FollowUpHint": "Qo’shimcha savol bering...",
+      "EscHint": "Esc — AI dan chiqish",
+      "Status": {
+        "Complete": "AI qidiruvi yakunlandi"
+      },
+      "Error": {
+        "StartFailed": "AI qidiruvni ishga tushirib bo’lmadi",
+        "MessageFailed": "AI ga xabar yuborib bo’lmadi"
+      }
     }
   },
   "Unknown": "Noma'lum",

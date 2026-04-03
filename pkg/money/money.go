@@ -7,6 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // Injection points for backward compatibility.
@@ -27,63 +30,96 @@ var (
 	ErrInvalidJSONUnmarshal = errors.New("invalid json unmarshal")
 )
 
+// bigIntFromFloat safely converts a float64 to *big.Int using big.Float
+// to avoid int64 overflow.
+func bigIntFromFloat(f float64) *big.Int {
+	bf := new(big.Float).SetFloat64(f)
+	bi, _ := bf.Int(nil)
+	return bi
+}
+
+const opUnmarshalJSON = serrors.Op("money.defaultUnmarshalJSON")
+
 func defaultUnmarshalJSON(m *Money, b []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
 	data := make(map[string]interface{})
-	err := json.Unmarshal(b, &data)
-	if err != nil {
-		return err
+	if err := dec.Decode(&data); err != nil {
+		return serrors.E(opUnmarshalJSON, err)
 	}
 
-	var amount float64
+	var amount *big.Int
 	if amountRaw, ok := data["amount"]; ok {
-		amount, ok = amountRaw.(float64)
-		if !ok {
-			return ErrInvalidJSONUnmarshal
+		switch v := amountRaw.(type) {
+		case json.Number:
+			amount = new(big.Int)
+			if _, ok := amount.SetString(v.String(), 10); !ok {
+				// Try parsing as float
+				f, err := v.Float64()
+				if err != nil {
+					return serrors.E(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
+				}
+				amount = bigIntFromFloat(f)
+			}
+		case float64:
+			amount = bigIntFromFloat(v)
+		default:
+			return serrors.E(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
 		}
 	}
 
 	var currency string
 	if currencyRaw, ok := data["currency"]; ok {
-		currency, ok = currencyRaw.(string)
-		if !ok {
-			return ErrInvalidJSONUnmarshal
+		switch v := currencyRaw.(type) {
+		case string:
+			currency = v
+		default:
+			return serrors.E(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
 		}
 	}
 
-	var ref *Money
-	if amount == 0 && currency == "" {
-		ref = &Money{}
-	} else {
-		ref = New(int64(amount), currency)
+	if amount == nil && currency == "" {
+		*m = Money{}
+		return nil
 	}
 
-	*m = *ref
+	if amount == nil {
+		amount = big.NewInt(0)
+	}
+
+	if amount.Sign() == 0 && currency == "" {
+		*m = Money{}
+		return nil
+	}
+
+	*m = Money{amount: amount, currency: newCurrency(currency).get()}
 	return nil
 }
 
 func defaultMarshalJSON(m Money) ([]byte, error) {
-	if m == (Money{}) {
+	if m.amount == nil {
 		m = *New(0, "")
 	}
 
-	buff := bytes.NewBufferString(fmt.Sprintf(`{"amount": %d, "currency": "%s"}`, m.Amount(), m.Currency().Code))
+	buff := bytes.NewBufferString(fmt.Sprintf(`{"amount":%s,"currency":"%s"}`, m.amount.String(), m.Currency().Code))
 	return buff.Bytes(), nil
 }
 
-// Amount is a data structure that stores the amount being used for calculations.
+// Amount is a data type alias that stores the amount being used for calculations.
+// Deprecated: Use BigAmount() for values that may exceed int64 range.
 type Amount = int64
 
 // Money represents monetary value information, stores
 // currency and amount value.
 type Money struct {
-	amount   Amount    `db:"amount"`
+	amount   *big.Int  `db:"amount"`
 	currency *Currency `db:"currency"`
 }
 
 // New creates and returns new instance of Money.
 func New(amount int64, code string) *Money {
 	return &Money{
-		amount:   amount,
+		amount:   big.NewInt(amount),
 		currency: newCurrency(code).get(),
 	}
 }
@@ -92,7 +128,36 @@ func New(amount int64, code string) *Money {
 // Always rounding trailing decimals down.
 func NewFromFloat(amount float64, code string) *Money {
 	currencyDecimals := math.Pow10(newCurrency(code).get().Fraction)
-	return New(int64(amount*currencyDecimals), code)
+	scaled := amount * currencyDecimals
+
+	// Safe conversion: use big.Float -> big.Int to avoid int64 overflow
+	bf := new(big.Float).SetFloat64(scaled)
+	bi, _ := bf.Int(nil)
+
+	return &Money{
+		amount:   bi,
+		currency: newCurrency(code).get(),
+	}
+}
+
+// NewFromBigInt creates and returns new instance of Money from a *big.Int (minor units).
+func NewFromBigInt(amount *big.Int, code string) *Money {
+	a := big.NewInt(0)
+	if amount != nil {
+		a = new(big.Int).Set(amount)
+	}
+	return &Money{
+		amount:   a,
+		currency: newCurrency(code).get(),
+	}
+}
+
+// amountOrZero returns the given big.Int, or zero if it is nil.
+func amountOrZero(a *big.Int) *big.Int {
+	if a == nil {
+		return big.NewInt(0)
+	}
+	return a
 }
 
 // Currency returns the currency used by Money.
@@ -101,8 +166,26 @@ func (m *Money) Currency() *Currency {
 }
 
 // Amount returns a copy of the internal monetary value as an int64.
+// If the value overflows int64, it returns math.MaxInt64 or math.MinInt64.
 func (m *Money) Amount() int64 {
-	return m.amount
+	if m.amount == nil {
+		return 0
+	}
+	if m.amount.IsInt64() {
+		return m.amount.Int64()
+	}
+	if m.amount.Sign() > 0 {
+		return math.MaxInt64
+	}
+	return math.MinInt64
+}
+
+// BigAmount returns a copy of the internal value as *big.Int.
+func (m *Money) BigAmount() *big.Int {
+	if m.amount == nil {
+		return big.NewInt(0)
+	}
+	return new(big.Int).Set(m.amount)
 }
 
 // SameCurrency check if given Money is equals by currency.
@@ -119,14 +202,7 @@ func (m *Money) assertSameCurrency(om *Money) error {
 }
 
 func (m *Money) compare(om *Money) int {
-	switch {
-	case m.amount > om.amount:
-		return 1
-	case m.amount < om.amount:
-		return -1
-	}
-
-	return 0
+	return amountOrZero(m.amount).Cmp(amountOrZero(om.amount))
 }
 
 // Equals checks equality between two Money types.
@@ -176,17 +252,17 @@ func (m *Money) LessThanOrEqual(om *Money) (bool, error) {
 
 // IsZero returns boolean of whether the value of Money is equals to zero.
 func (m *Money) IsZero() bool {
-	return m.amount == 0
+	return m.amount == nil || m.amount.Sign() == 0
 }
 
 // IsPositive returns boolean of whether the value of Money is positive.
 func (m *Money) IsPositive() bool {
-	return m.amount > 0
+	return m.amount != nil && m.amount.Sign() > 0
 }
 
 // IsNegative returns boolean of whether the value of Money is negative.
 func (m *Money) IsNegative() bool {
-	return m.amount < 0
+	return m.amount != nil && m.amount.Sign() < 0
 }
 
 // Absolute returns new Money struct from given Money using absolute monetary value.
@@ -243,13 +319,12 @@ func (m *Money) Multiply(muls ...int64) *Money {
 		panic("At least one multiplier is required to multiply")
 	}
 
-	k := New(1, m.currency.Code)
-
-	for _, m2 := range muls {
-		k.amount = mutate.calc.multiply(k.amount, m2)
+	result := new(big.Int).Set(amountOrZero(m.amount))
+	for _, mul := range muls {
+		result.Mul(result, big.NewInt(mul))
 	}
 
-	return &Money{amount: mutate.calc.multiply(m.amount, k.amount), currency: m.currency}
+	return &Money{amount: result, currency: m.currency}
 }
 
 // Round returns new Money struct with value rounded to nearest zero.
@@ -265,24 +340,25 @@ func (m *Money) Split(n int) ([]*Money, error) {
 		return nil, errors.New("split must be higher than zero")
 	}
 
-	a := mutate.calc.divide(m.amount, int64(n))
+	amt := amountOrZero(m.amount)
+	a := mutate.calc.divide(amt, int64(n))
 	ms := make([]*Money, n)
 
 	for i := 0; i < n; i++ {
-		ms[i] = &Money{amount: a, currency: m.currency}
+		ms[i] = &Money{amount: new(big.Int).Set(a), currency: m.currency}
 	}
 
-	r := mutate.calc.modulus(m.amount, int64(n))
-	l := mutate.calc.absolute(r)
+	r := mutate.calc.modulus(amt, int64(n))
+	l := new(big.Int).Abs(r)
 	// Add leftovers to the first parties.
 
-	v := int64(1)
-	if m.amount < 0 {
-		v = -1
+	v := big.NewInt(1)
+	if amt.Sign() < 0 {
+		v = big.NewInt(-1)
 	}
-	for p := 0; l != 0; p++ {
+	for p := 0; l.Sign() != 0; p++ {
 		ms[p].amount = mutate.calc.add(ms[p].amount, v)
-		l--
+		l.Sub(l, big.NewInt(1))
 	}
 
 	return ms, nil
@@ -308,16 +384,17 @@ func (m *Money) Allocate(rs ...int) ([]*Money, error) {
 		sum += int64(r)
 	}
 
-	var total int64
+	amt := amountOrZero(m.amount)
+	total := big.NewInt(0)
 	ms := make([]*Money, 0, len(rs))
 	for _, r := range rs {
 		party := &Money{
-			amount:   mutate.calc.allocate(m.amount, int64(r), sum),
+			amount:   mutate.calc.allocate(amt, int64(r), sum),
 			currency: m.currency,
 		}
 
 		ms = append(ms, party)
-		total += party.amount
+		total.Add(total, party.amount)
 	}
 
 	// if the sum of all ratios is zero, then we just returns zeros and don't do anything
@@ -327,15 +404,15 @@ func (m *Money) Allocate(rs ...int) ([]*Money, error) {
 	}
 
 	// Calculate leftover value and divide to first parties.
-	lo := m.amount - total
-	sub := int64(1)
-	if lo < 0 {
-		sub = -sub
+	lo := new(big.Int).Sub(amt, total)
+	sub := big.NewInt(1)
+	if lo.Sign() < 0 {
+		sub = big.NewInt(-1)
 	}
 
-	for p := 0; lo != 0; p++ {
+	for p := 0; lo.Sign() != 0; p++ {
 		ms[p].amount = mutate.calc.add(ms[p].amount, sub)
-		lo -= sub
+		lo.Sub(lo, sub)
 	}
 
 	return ms, nil
@@ -344,7 +421,10 @@ func (m *Money) Allocate(rs ...int) ([]*Money, error) {
 // Display lets represent Money struct as string in given Currency value.
 func (m *Money) Display() string {
 	c := m.currency.get()
-	return c.Formatter().Format(m.amount)
+	if m.amount != nil && !m.amount.IsInt64() {
+		return c.Formatter().FormatBigInt(m.amount)
+	}
+	return c.Formatter().Format(m.Amount())
 }
 
 // DisplayCompact lets represent Money struct as a compact string for large values
@@ -356,13 +436,20 @@ func (m *Money) DisplayCompact(decimals ...int) string {
 	if len(decimals) > 0 && decimals[0] > 0 {
 		d = decimals[0]
 	}
-	return c.Formatter().FormatCompact(m.amount, d)
+	if m.amount != nil && !m.amount.IsInt64() {
+		return c.Formatter().FormatCompactBigInt(m.amount, d)
+	}
+	return c.Formatter().FormatCompact(m.Amount(), d)
 }
 
 // AsMajorUnits lets represent Money struct as subunits (float64) in given Currency value
 func (m *Money) AsMajorUnits() float64 {
+	if m.amount == nil {
+		return 0
+	}
 	c := m.currency.get()
-	return c.Formatter().ToMajorUnits(m.amount)
+	v, _ := c.Formatter().ToMajorUnitsBigFloat(m.amount).Float64()
+	return v
 }
 
 // UnmarshalJSON is implementation of json.Unmarshaller
@@ -384,7 +471,7 @@ func (m Money) MarshalJSON() ([]byte, error) {
 // If compare moneys from distinct currency, return (m.amount, ErrCurrencyMismatch)
 func (m *Money) Compare(om *Money) (int, error) {
 	if err := m.assertSameCurrency(om); err != nil {
-		return int(m.amount), err
+		return 0, err
 	}
 
 	return m.compare(om), nil

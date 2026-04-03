@@ -13,7 +13,7 @@ func (m *OpenAIModel) openAISpec() agents.ModelSpec {
 	if spec, ok := agents.DefaultModelSpecForProvider(agents.ProviderOpenAI); ok {
 		return spec
 	}
-	return agents.SpecGPT52
+	return agents.SpecGPT54
 }
 
 // Info returns model metadata including capabilities from the shared catalog.

@@ -10,11 +10,21 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
+type LoginMethod struct {
+	ID         string
+	Label      string
+	Href       string
+	Variant    string
+	Icon       templ.Component
+	Attributes templ.Attributes
+}
+
 type LoginProps struct {
-	ErrorsMap          map[string]string
-	ErrorMessage       string
-	Email              string
-	GoogleOAuthCodeURL string
+	ErrorsMap    map[string]string
+	ErrorMessage string
+	Email        string
+	Methods      []LoginMethod
+	Logo         templ.Component
 }
 
 var (
@@ -22,10 +32,14 @@ var (
 	companyLogo = "/assets/" + assets.HashFS.HashName("images/logo.webp")
 )
 
-templ Header() {
+templ Header(logo templ.Component) {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-surface-300 border-b-primary">
 		<a href="/">
-			<img src={ companyLogo } class="h-10 w-auto"/>
+			if logo != nil {
+				@logo
+			} else {
+				<img src={ companyLogo } class="h-10 w-auto"/>
+			}
 		</a>
 		<div class="ml-auto flex items-center gap-8">
 			<div class="flex items-center justify-center w-9 h-9">
@@ -72,11 +86,21 @@ templ Header() {
 
 templ Index(p *LoginProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ hasPasswordMethod := false }}
+	{{ hasExternalMethod := false }}
+	for _, method := range p.Methods {
+		if method.ID == "password" {
+			{{ hasPasswordMethod = true }}
+		} else {
+			{{ hasExternalMethod = true }}
+		}
+	}
 	@layouts.Base(&layouts.BaseProps{Title: pageCtx.T("Login.Meta.Title"), WebsocketURL: "/ws"}) {
 		<div class="flex flex-col h-screen overflow-y-auto">
-			@Header()
+			@Header(p.Logo)
 			<div class="flex-1 flex items-center justify-center">
 				<form class="mx-4 max-w-md w-full p-6 md:p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]" method="post">
+					@composables.CSRFTokenField()
 					<div class="text-center">
 						<h1 class="text-2xl text-100">
 							{ pageCtx.T("Login.WelcomeBack") }
@@ -84,17 +108,31 @@ templ Index(p *LoginProps) {
 						<p class="mt-2 text-200">{ pageCtx.T("Login.LoginToUse") }</p>
 					</div>
 					<hr class="border border-primary"/>
-					if p.GoogleOAuthCodeURL != "" {
-						@button.Secondary(button.Props{
-							Size:  button.SizeNormal,
-							Class: "justify-center items-center gap-3",
-							Href:  p.GoogleOAuthCodeURL,
-							Attrs: templ.Attributes{
-								"type": "button",
-							},
-						}) {
-							@GoogleIcon()
-							{ pageCtx.T("Login.LoginWithGoogle") }
+					if hasExternalMethod {
+						for _, method := range p.Methods {
+							if method.ID != "password" {
+								{{ attrs := templ.Attributes{} }}
+								if method.Href == "" {
+									{{ attrs["type"] = "button" }}
+								}
+								for key, value := range method.Attributes {
+									{{ attrs[key] = value }}
+								}
+								@button.Secondary(button.Props{
+									Size:  button.SizeNormal,
+									Class: "justify-center items-center gap-3",
+									Href:  method.Href,
+									Attrs: attrs,
+								}) {
+									if method.Icon != nil {
+										@method.Icon
+									}
+									{ method.Label }
+								}
+							}
+						}
+						if hasPasswordMethod {
+							<p class="text-xs text-200 text-center">{ pageCtx.T("Login.OrSignInWith") }</p>
 						}
 					}
 					if len(p.ErrorMessage) > 0 {
@@ -102,29 +140,31 @@ templ Index(p *LoginProps) {
 							{ p.ErrorMessage }
 						}
 					}
-					@input.Email(&input.Props{
-						Label: pageCtx.T("Login.Email"),
-						Attrs: templ.Attributes{
-							"name":  "Email",
-							"value": p.Email,
-						},
-						Error: p.ErrorsMap["Email"],
-					})
-					@input.Password(&input.Props{
-						Label: pageCtx.T("Login.Password"),
-						Attrs: templ.Attributes{
-							"name": "Password",
-						},
-						Error: p.ErrorsMap["Password"],
-					})
-					@button.Primary(button.Props{
-						Size:  button.SizeNormal,
-						Class: "justify-center",
-						Attrs: templ.Attributes{
-							"type": "submit",
-						},
-					}) {
-						{ pageCtx.T("Login.Login") }
+					if hasPasswordMethod {
+						@input.Email(&input.Props{
+							Label: pageCtx.T("Login.Email"),
+							Attrs: templ.Attributes{
+								"name":  "Email",
+								"value": p.Email,
+							},
+							Error: p.ErrorsMap["Email"],
+						})
+						@input.Password(&input.Props{
+							Label: pageCtx.T("Login.Password"),
+							Attrs: templ.Attributes{
+								"name": "Password",
+							},
+							Error: p.ErrorsMap["Password"],
+						})
+						@button.Primary(button.Props{
+							Size:  button.SizeNormal,
+							Class: "justify-center",
+							Attrs: templ.Attributes{
+								"type": "submit",
+							},
+						}) {
+							{ pageCtx.T("Login.Login") }
+						}
 					}
 				</form>
 			</div>

@@ -3,9 +3,11 @@ package llmproviders
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
@@ -41,7 +43,7 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
+	assert.Equal(t, agents.DefaultOpenAIModelSnapshot, oaiModel.modelName)
 }
 
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
@@ -56,6 +58,45 @@ func TestNewOpenAIModel_CustomModel(t *testing.T) {
 	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
 }
 
+func TestNewOpenAIModel_WithBaseURLAndResolveIP(t *testing.T) {
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	require.NoError(t, os.Setenv("OPENAI_BASE_URL", "https://example-proxy.test/v1"))
+	require.NoError(t, os.Setenv("OPENAI_API_RESOLVE_IP", "203.0.113.10"))
+	defer func() {
+		_ = os.Unsetenv("OPENAI_API_KEY")
+		_ = os.Unsetenv("OPENAI_BASE_URL")
+		_ = os.Unsetenv("OPENAI_API_RESOLVE_IP")
+	}()
+
+	model, err := NewOpenAIModel()
+	require.NoError(t, err)
+	assert.NotNil(t, model)
+}
+
+func TestNewOpenAIHTTPClient_NoResolveIP(t *testing.T) {
+	client, configured, err := newOpenAIHTTPClient("", "")
+	require.NoError(t, err)
+	assert.Nil(t, client)
+	assert.False(t, configured)
+}
+
+func TestNewOpenAIHTTPClient_InvalidBaseURL(t *testing.T) {
+	client, configured, err := newOpenAIHTTPClient("://bad-url", "203.0.113.10")
+	require.Error(t, err)
+	assert.Nil(t, client)
+	assert.False(t, configured)
+}
+
+func TestNewOpenAIHTTPClient_ReturnsConfiguredTransport(t *testing.T) {
+	client, configured, err := newOpenAIHTTPClient("https://example-proxy.test/v1", "203.0.113.10")
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	assert.True(t, configured)
+	assert.Equal(t, 2*time.Minute, client.Timeout)
+	_, ok := client.Transport.(*http.Transport)
+	assert.True(t, ok)
+}
+
 func TestOpenAIModel_Info(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5-mini"))
@@ -67,13 +108,13 @@ func TestOpenAIModel_Info(t *testing.T) {
 	info := model.Info()
 	assert.Equal(t, "gpt-5-mini", info.Name)
 	assert.Equal(t, "openai", info.Provider)
-	assert.Equal(t, 400000, info.ContextWindow)
+	assert.Equal(t, 1_050_000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
 }
 
-func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
+func TestOpenAIModel_Info_DefaultGPT54ContextWindow(t *testing.T) {
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	require.NoError(t, os.Unsetenv("OPENAI_MODEL"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
@@ -82,8 +123,8 @@ func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-5.2", info.Name)
-	assert.Equal(t, 400000, info.ContextWindow)
+	assert.Equal(t, agents.DefaultOpenAIModelSnapshot, info.Name)
+	assert.Equal(t, 1050000, info.ContextWindow)
 }
 
 func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
@@ -96,12 +137,16 @@ func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
 		expectCtx  int
 		expectName string
 	}{
+		{name: "canonical gpt-5.4", modelEnv: "gpt-5.4", expectCtx: 1050000, expectName: "gpt-5.4"},
+		{name: "versioned alias", modelEnv: agents.DefaultOpenAIModelSnapshot, expectCtx: 1050000, expectName: agents.DefaultOpenAIModelSnapshot},
+		{name: "normalized alias", modelEnv: " GPT-5.4-2026-03-05 ", expectCtx: 1050000, expectName: "GPT-5.4-2026-03-05"},
 		{name: "canonical gpt-5.2", modelEnv: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
-		{name: "versioned alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
-		{name: "normalized alias", modelEnv: " GPT-5.2-2025-12-11 ", expectCtx: 400000, expectName: " GPT-5.2-2025-12-11 "},
-		{name: "gpt-5-mini", modelEnv: "gpt-5-mini", expectCtx: 400000, expectName: "gpt-5-mini"},
-		{name: "gpt-5-nano", modelEnv: "gpt-5-nano", expectCtx: 400000, expectName: "gpt-5-nano"},
-		{name: "unknown falls back to default spec", modelEnv: "unknown-model", expectCtx: 400000, expectName: "unknown-model"},
+		{name: "versioned gpt-5.2 alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
+		{name: "legacy gpt-5-mini alias falls back to default spec", modelEnv: "gpt-5-mini", expectCtx: 1_050_000, expectName: "gpt-5-mini"},
+		{name: "legacy gpt-5-nano alias falls back to default spec", modelEnv: "gpt-5-nano", expectCtx: 1_050_000, expectName: "gpt-5-nano"},
+		{name: "canonical gpt-5.4-mini", modelEnv: "gpt-5.4-mini", expectCtx: 400000, expectName: "gpt-5.4-mini"},
+		{name: "canonical gpt-5.4-nano", modelEnv: "gpt-5.4-nano", expectCtx: 400000, expectName: "gpt-5.4-nano"},
+		{name: "unknown falls back to default spec", modelEnv: "unknown-model", expectCtx: 1050000, expectName: "unknown-model"},
 	}
 
 	for _, tt := range tests {
@@ -178,7 +223,7 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Verify model
-	assert.Equal(t, "gpt-5.2", params.Model)
+	assert.Equal(t, agents.DefaultOpenAIModelSnapshot, params.Model)
 
 	// Verify input items
 	assert.NotNil(t, params.Input.OfInputItemList)

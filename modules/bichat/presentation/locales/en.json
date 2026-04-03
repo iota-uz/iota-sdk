@@ -47,6 +47,9 @@
     "InlineQuestion": {
       "InputNeeded": "Input needed",
       "WaitingForDetails": "Waiting for the question details from the assistant...",
+      "AnswerSubmitted": "Answer submitted",
+      "DismissalSubmitted": "Dismissal submitted",
+      "ResumeInProgress": "Continuing the run",
       "Next": "Next",
       "Back": "Back",
       "OtherOption": "Other",
@@ -329,7 +332,10 @@
       "LoadMore": "Load more",
       "NoChatsFound": "No chats found",
       "NoChatsInOrg": "No chats in this organization yet",
-      "NoActiveChatsInOrg": "No active chats in this organization"
+      "NoActiveChatsInOrg": "No active chats in this organization",
+      "ChatFound": "{{count}} chat found",
+      "ChatsFound": "{{count}} chats found",
+      "NoChatsFromUser": "No chats from {{firstName}} {{lastName}}"
     },
     "Artifacts": {
       "Title": "Artifacts",

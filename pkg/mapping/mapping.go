@@ -46,10 +46,16 @@ func Or[T any](args ...T) T {
 }
 
 // Pointer is a utility function that returns a pointer to the given value.
+// NOTE: returns nil for zero values (0, false, ""). Use BoolPointer for explicit false.
 func Pointer[T any](v T) *T {
 	if reflect.ValueOf(v).IsZero() {
 		return nil
 	}
+	return &v
+}
+
+// BoolPointer returns a pointer to the given bool value, preserving false.
+func BoolPointer(v bool) *bool {
 	return &v
 }
 
