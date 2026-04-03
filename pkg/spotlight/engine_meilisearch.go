@@ -713,6 +713,34 @@ func (e *MeilisearchEngine) Health(ctx context.Context) error {
 	return nil
 }
 
+// Stats returns runtime statistics about the Meilisearch index.
+func (e *MeilisearchEngine) Stats(ctx context.Context) (*IndexStats, error) {
+	const op serrors.Op = "spotlight.MeilisearchEngine.Stats"
+
+	state, err := e.inspectSearchIndex(e.activeName)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if !state.exists {
+		return &IndexStats{}, nil
+	}
+
+	stats, err := e.client.Index(state.searchableName).GetStats()
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	result := &IndexStats{
+		TotalDocuments: state.documents,
+		SchemaVersion:  state.schemaVersion,
+		IsSearchable:   state.searchable(),
+	}
+	if stats != nil {
+		result.FieldDistribution = stats.FieldDistribution
+	}
+	return result, nil
+}
+
 func (e *MeilisearchEngine) searchOnce(req SearchRequest, query, filter string, limit int) ([]SearchHit, error) {
 	indexName, err := e.resolveSearchIndexName()
 	if err != nil {

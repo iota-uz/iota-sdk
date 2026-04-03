@@ -42,3 +42,7 @@ func (e *NoopEngine) Search(context.Context, SearchRequest) ([]SearchHit, error)
 func (e *NoopEngine) Health(context.Context) error {
 	return nil
 }
+
+func (e *NoopEngine) Stats(context.Context) (*IndexStats, error) {
+	return &IndexStats{}, nil
+}

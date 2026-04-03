@@ -33,6 +33,8 @@ func (e *reindexEngine) Search(context.Context, SearchRequest) ([]SearchHit, err
 
 func (e *reindexEngine) Health(context.Context) error { return nil }
 
+func (e *reindexEngine) Stats(context.Context) (*IndexStats, error) { return &IndexStats{}, nil }
+
 func (e *reindexEngine) UpsertAsync(ctx context.Context, docs []SearchDocument) error {
 	return e.Upsert(ctx, docs)
 }
@@ -69,6 +71,8 @@ func (e *testEngine) Search(_ context.Context, _ SearchRequest) ([]SearchHit, er
 }
 
 func (e *testEngine) Health(context.Context) error { return nil }
+
+func (e *testEngine) Stats(context.Context) (*IndexStats, error) { return &IndexStats{}, nil }
 
 func (e *testEngine) calls() int {
 	e.mu.Lock()
@@ -124,6 +128,8 @@ func (e *scriptedEngine) Search(ctx context.Context, _ SearchRequest) ([]SearchH
 
 func (e *scriptedEngine) Health(context.Context) error { return nil }
 
+func (e *scriptedEngine) Stats(context.Context) (*IndexStats, error) { return &IndexStats{}, nil }
+
 func (e *scriptedEngine) callsCount() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -137,17 +143,11 @@ type fakeProvider struct {
 func (p *fakeProvider) ProviderID() string { return p.id }
 
 func (p *fakeProvider) Capabilities() ProviderCapabilities {
-	return ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"client"}}
+	return ProviderCapabilities{EntityTypes: []string{"client"}}
 }
 
 func (p *fakeProvider) StreamDocuments(_ context.Context, _ ProviderScope, _ DocumentBatchEmitter) error {
 	return nil
-}
-
-func (p *fakeProvider) Watch(context.Context, ProviderScope) (<-chan DocumentEvent, error) {
-	ch := make(chan DocumentEvent)
-	close(ch)
-	return ch, nil
 }
 
 type testBatchACL struct {

@@ -196,7 +196,7 @@ templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
 		<!-- Section: Infrastructure -->
 		<div>
 			<h2 class="text-sm font-medium text-300 uppercase tracking-wider mb-3">Infrastructure</h2>
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 				<!-- Database Pool -->
 				@card.Card(card.Props{}) {
 					<div class="flex items-center gap-2 mb-3">
@@ -231,6 +231,23 @@ templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
 						</div>
 					</div>
 				}
+				<!-- Spotlight Search -->
+				<a href="/system/spotlight" class="block no-underline">
+					@card.Card(card.Props{Class: "hover:ring-1 hover:ring-blue/30 transition-shadow cursor-pointer"}) {
+						<div class="flex items-center gap-2 mb-3">
+							<span class="text-200">
+								@icons.MagnifyingGlass(icons.Props{Size: "18"})
+							</span>
+							<h3 class="text-sm font-medium text-100">Spotlight Search</h3>
+							<span class="ml-auto text-200">
+								@icons.ArrowRight(icons.Props{Size: "16"})
+							</span>
+						</div>
+						<div class="text-xs text-200">
+							View index statistics, registered providers, and field distribution.
+						</div>
+					}
+				</a>
 				<!-- Build Information -->
 				@card.Card(card.Props{}) {
 					<div class="flex items-center gap-2 mb-3">

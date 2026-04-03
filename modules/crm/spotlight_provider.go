@@ -28,7 +28,7 @@ func (p *spotlightProvider) ProviderID() string {
 }
 
 func (p *spotlightProvider) Capabilities() spotlight.ProviderCapabilities {
-	return spotlight.ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"client"}}
+	return spotlight.ProviderCapabilities{EntityTypes: []string{"client"}}
 }
 
 func (p *spotlightProvider) StreamDocuments(ctx context.Context, scope spotlight.ProviderScope, emit spotlight.DocumentBatchEmitter) error {
@@ -104,10 +104,4 @@ ORDER BY id ASC`
 		}
 	}
 	return nil
-}
-
-func (p *spotlightProvider) Watch(_ context.Context, _ spotlight.ProviderScope) (<-chan spotlight.DocumentEvent, error) {
-	changes := make(chan spotlight.DocumentEvent)
-	close(changes)
-	return changes, nil
 }

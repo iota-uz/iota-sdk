@@ -48,6 +48,10 @@ func (e *incrementalTestEngine) Health(_ context.Context) error {
 	return nil
 }
 
+func (e *incrementalTestEngine) Stats(_ context.Context) (*IndexStats, error) {
+	return &IndexStats{}, nil
+}
+
 type incrementalTestProvider struct {
 	load IncrementalLoader
 }
@@ -62,12 +66,6 @@ func (p *incrementalTestProvider) Capabilities() ProviderCapabilities {
 
 func (p *incrementalTestProvider) StreamDocuments(_ context.Context, _ ProviderScope, _ DocumentBatchEmitter) error {
 	return nil
-}
-
-func (p *incrementalTestProvider) Watch(_ context.Context, _ ProviderScope) (<-chan DocumentEvent, error) {
-	ch := make(chan DocumentEvent)
-	close(ch)
-	return ch, nil
 }
 
 func (p *incrementalTestProvider) LoadDocuments(ctx context.Context, scope ProviderScope, refs []DocumentRef, emit DocumentBatchEmitter) error {

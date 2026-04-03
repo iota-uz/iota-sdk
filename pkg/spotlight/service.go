@@ -75,6 +75,21 @@ func (c ServiceConfig) normalized() ServiceConfig {
 	return cfg
 }
 
+// ProviderInfo describes a registered search provider.
+type ProviderInfo struct {
+	ID            string
+	EntityTypes   []string
+	IndexPriority int
+}
+
+// ServiceStats holds high-level service statistics.
+type ServiceStats struct {
+	Engine        IndexStats
+	Providers     []ProviderInfo
+	ProviderCount int
+	Started       bool
+}
+
 type Service interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -87,6 +102,7 @@ type Service interface {
 	SubscribeSession(ctx context.Context, sessionID string, access SearchSessionAccess) (<-chan SearchSessionSnapshot, error)
 	GetSessionSnapshot(sessionID string) (SearchSessionSnapshot, bool)
 	CancelSession(sessionID string, access SearchSessionAccess)
+	Stats(ctx context.Context) (*ServiceStats, error)
 }
 
 type ServiceOption func(*SpotlightService)
@@ -335,6 +351,33 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 
 func (s *SpotlightService) Readiness(ctx context.Context) error {
 	return s.engine.Health(ctx)
+}
+
+func (s *SpotlightService) Stats(ctx context.Context) (*ServiceStats, error) {
+	const op serrors.Op = "spotlight.SpotlightService.Stats"
+
+	engineStats, err := s.engine.Stats(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	providers := s.registry.All()
+	infos := make([]ProviderInfo, 0, len(providers))
+	for _, p := range providers {
+		caps := p.Capabilities()
+		infos = append(infos, ProviderInfo{
+			ID:            p.ProviderID(),
+			EntityTypes:   caps.EntityTypes,
+			IndexPriority: caps.IndexPriority,
+		})
+	}
+
+	return &ServiceStats{
+		Engine:        *engineStats,
+		Providers:     infos,
+		ProviderCount: len(infos),
+		Started:       s.isStarted(),
+	}, nil
 }
 
 func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (SearchResponse, error) {
