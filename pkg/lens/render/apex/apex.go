@@ -25,7 +25,9 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 }
 
 func OptionsWithHeight(panelSpec panel.Spec, panelResult *runtime.PanelResult, height string) charts.ChartOptions {
-	return options(panelSpec, panelResult, height)
+	options := options(panelSpec, panelResult, height)
+	options.Chart.Toolbar.Show = true
+	return options
 }
 
 func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverride string) charts.ChartOptions {
@@ -165,13 +167,14 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	if panelSpec.Kind == panel.KindHorizontalBar {
 		horizontal := true
 		options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{Horizontal: &horizontal, BorderRadius: 4, ColumnWidth: "50%"}}
+		ensureHorizontalBarLabelPadding(&options)
 	}
 	if panelSpec.Kind == panel.KindBar || panelSpec.Kind == panel.KindStackedBar {
 		if options.PlotOptions == nil {
 			options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{BorderRadius: 4, ColumnWidth: "48%"}}
 		}
 	}
-	if options.PlotOptions != nil && options.PlotOptions.Bar != nil && panelSpec.Distributed {
+	if options.PlotOptions != nil && options.PlotOptions.Bar != nil && usesDistributedBarColors(panelSpec, panelResult) {
 		options.PlotOptions.Bar.Distributed = mapping.Pointer(true)
 	}
 	if panelSpec.Kind == panel.KindTimeSeries {
@@ -1029,6 +1032,22 @@ func panelHeight(panelSpec panel.Spec, heightOverride string) string {
 	return "320px"
 }
 
+func ensureHorizontalBarLabelPadding(options *charts.ChartOptions) {
+	if options == nil {
+		return
+	}
+	if options.Grid == nil {
+		options.Grid = &charts.GridConfig{}
+	}
+	if options.Grid.Padding == nil {
+		options.Grid.Padding = &charts.Padding{}
+	}
+	rightPadding := 40
+	if options.Grid.Padding.Right == nil || *options.Grid.Padding.Right < rightPadding {
+		options.Grid.Padding.Right = mapping.Pointer(rightPadding)
+	}
+}
+
 func panelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []string {
 	if colors := semanticPanelColors(panelSpec, panelResult); len(colors) > 0 {
 		return colors
@@ -1040,7 +1059,7 @@ func panelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []strin
 }
 
 func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any, fields panel.FieldMapping) templ.JSExpression {
-	if !panelSpec.Distributed {
+	if !usesDistributedBarColorsForRows(panelSpec, rows, fields) {
 		return ""
 	}
 	switch panelSpec.Kind {
@@ -1057,9 +1076,6 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 		panel.KindSplit,
 		panel.KindRepeat:
 	default:
-		return ""
-	}
-	if hasSeries(rows, fields.Series.Name()) {
 		return ""
 	}
 	return templ.JSExpression(`function(event, chartContext, config) {
@@ -1147,7 +1163,7 @@ func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelRes
 	case panel.KindPie, panel.KindDonut, panel.KindStackedBar:
 		return len(rows)
 	case panel.KindBar, panel.KindHorizontalBar:
-		if panelSpec.Distributed {
+		if usesDistributedBarColorsForRows(panelSpec, rows, panelSpec.Fields) {
 			return len(rows)
 		}
 	case panel.KindStat,
@@ -1161,6 +1177,41 @@ func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelRes
 		return 1
 	}
 	return 1
+}
+
+func usesDistributedBarColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) bool {
+	if panelResult == nil || panelResult.Frames == nil || panelResult.Frames.Primary() == nil {
+		return panelSpec.Distributed
+	}
+	return usesDistributedBarColorsForRows(panelSpec, panelResult.Frames.Primary().Rows(), panelSpec.Fields)
+}
+
+func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any, fields panel.FieldMapping) bool {
+	switch panelSpec.Kind {
+	case panel.KindBar, panel.KindHorizontalBar:
+	case panel.KindStat,
+		panel.KindTimeSeries,
+		panel.KindStackedBar,
+		panel.KindPie,
+		panel.KindDonut,
+		panel.KindTable,
+		panel.KindGauge,
+		panel.KindTabs,
+		panel.KindGrid,
+		panel.KindSplit,
+		panel.KindRepeat:
+		return false
+	}
+	if hasSeries(rows, fields.Series.Name()) {
+		return false
+	}
+	if panelSpec.Distributed {
+		return true
+	}
+	if len(rows) <= 1 {
+		return false
+	}
+	return strings.TrimSpace(panelSpec.ColorScale) == "" && len(panelSpec.Colors) == 0
 }
 
 func uniqueDisplayValues(rows []map[string]any, field string) []string {

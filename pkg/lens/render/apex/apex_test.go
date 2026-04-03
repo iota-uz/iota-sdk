@@ -469,6 +469,58 @@ func TestOptionsDoesNotWrapLogFormattersWhenManualScaleIsSkipped(t *testing.T) {
 	require.NotContains(t, string(options.YAxis[0].Labels.Formatter), "Math.pow")
 }
 
+func TestOptionsWithHeightEnablesFullscreenToolbar(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("sales",
+		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"March"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	panelSpec := panel.Bar("sales-by-month", "Sales by Month", "sales").
+		CategoryField("category").
+		ValueField("value").
+		Build()
+
+	inlineOptions := Options(panelSpec, &runtime.PanelResult{Frames: mustFrameSet(t, fr)})
+	fullscreenOptions := OptionsWithHeight(panelSpec, &runtime.PanelResult{Frames: mustFrameSet(t, fr)}, "100%")
+
+	require.False(t, inlineOptions.Chart.Toolbar.Show)
+	require.True(t, fullscreenOptions.Chart.Toolbar.Show)
+	require.Equal(t, "100%", fullscreenOptions.Chart.Height)
+}
+
+func TestOptionsAutoDistributesFallbackBarColors(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("vehicle-types",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Sedan", "SUV", "Truck"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0, 30.0, 18.0}},
+	)
+	require.NoError(t, err)
+
+	options := Options(
+		panel.HorizontalBar("vehicle-type", "Vehicle Type", "vehicle-types").
+			LabelField("label").
+			ValueField("value").
+			Build(),
+		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
+	)
+
+	require.NotNil(t, options.PlotOptions)
+	require.NotNil(t, options.PlotOptions.Bar)
+	require.NotNil(t, options.PlotOptions.Bar.Distributed)
+	require.True(t, *options.PlotOptions.Bar.Distributed)
+	require.Len(t, options.Colors, 3)
+	require.NotNil(t, options.Chart.Events)
+	require.NotEmpty(t, options.Chart.Events.DataPointMouseEnter)
+	require.NotNil(t, options.Grid)
+	require.NotNil(t, options.Grid.Padding)
+	require.NotNil(t, options.Grid.Padding.Right)
+	require.GreaterOrEqual(t, *options.Grid.Padding.Right, 40)
+}
+
 func mustFrameSet(t *testing.T, fr *frame.Frame) *frame.FrameSet {
 	t.Helper()
 
