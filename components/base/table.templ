@@ -91,15 +91,16 @@ type Addon struct {
 }
 
 type TableColumn struct {
-	Label        string
-	Key          string
-	Class        string
-	Sortable     bool
-	SortDir      SortDirection
-	SortURL      string // URL for sorting this column
-	Sticky       bool
-	Configurable bool
-	AddonBottom  *Addon
+	Label         string
+	Key           string
+	Class         string
+	Sortable      bool
+	SortDir       SortDirection
+	SortURL       string // URL for sorting this column
+	Sticky        bool
+	Configurable  bool
+	DefaultHidden bool
+	AddonBottom   *Addon
 }
 
 type TableRowProps struct {
@@ -273,6 +274,7 @@ templ Table(props TableProps) {
 										if props.Configurable {
 											data-col={ col.Key }
 											data-col-sticky?={ col.Sticky }
+											data-col-hidden?={ col.DefaultHidden }
 										}
 										if col.Configurable {
 											x-sort:item
@@ -317,6 +319,7 @@ templ Table(props TableProps) {
 										if props.Configurable {
 											data-col={ col.Key }
 											data-col-sticky?={ col.Sticky }
+											data-col-hidden?={ col.DefaultHidden }
 										}
 										if col.Configurable {
 											x-sort:item
