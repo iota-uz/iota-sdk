@@ -572,7 +572,8 @@
     "Navbar": {
       "Profile": "Profile",
       "Sessions": "Sessions",
-      "Logout": "Logout"
+      "Logout": "Logout",
+      "Settings": "Settings"
     }
   },
   "No": "No",
@@ -1253,5 +1254,11 @@
       "CurrentSession": "Current"
     },
     "Revoked": "Session revoked successfully"
+  },
+  "Settings": {
+    "Hub": {
+      "Title": "Settings",
+      "BackToApp": "Back to app"
+    }
   }
 }

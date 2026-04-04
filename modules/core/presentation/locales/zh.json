@@ -576,7 +576,8 @@
     "Navbar": {
       "Profile": "个人资料",
       "Sessions": "会话",
-      "Logout": "退出登录"
+      "Logout": "退出登录",
+      "Settings": "设置"
     }
   },
   "No": "否",
@@ -1257,5 +1258,11 @@
       "CurrentSession": "当前"
     },
     "Revoked": "会话已撤销"
+  },
+  "Settings": {
+    "Hub": {
+      "Title": "设置",
+      "BackToApp": "返回应用"
+    }
   }
 }

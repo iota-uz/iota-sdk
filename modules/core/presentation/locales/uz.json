@@ -572,7 +572,8 @@
     "Navbar": {
       "Profile": "Profil",
       "Sessions": "Sessiyalar",
-      "Logout": "Chiqish"
+      "Logout": "Chiqish",
+      "Settings": "Sozlamalar"
     }
   },
   "No": "Yo'q",
@@ -1253,5 +1254,11 @@
       "CurrentSession": "Joriy"
     },
     "Revoked": "Seans muvaffaqiyatli bekor qilindi"
+  },
+  "Settings": {
+    "Hub": {
+      "Title": "Sozlamalar",
+      "BackToApp": "Orqaga"
+    }
   }
 }

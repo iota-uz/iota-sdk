@@ -51,8 +51,13 @@ func (c *SettingsController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
+	router.HandleFunc("", c.GetHub).Methods(http.MethodGet)
 	router.HandleFunc("/logo", c.GetLogo).Methods(http.MethodGet)
 	router.HandleFunc("/logo", c.PostLogo).Methods(http.MethodPost)
+}
+
+func (c *SettingsController) GetHub(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, c.basePath+"/logo", http.StatusFound)
 }
 
 func (c *SettingsController) GetLogo(w http.ResponseWriter, r *http.Request) {
