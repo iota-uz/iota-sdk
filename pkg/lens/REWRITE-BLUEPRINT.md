@@ -4,8 +4,8 @@
 
 This package is being reshaped around a document-first architecture with these assumptions:
 
-- EAI is the only consumer.
-- Backwards compatibility is not a goal.
+- Lens should support multiple consumers, including SDK and EAI-owned dashboards.
+- Backwards compatibility is a migration goal while the document model is rolled out.
 - JSON-backed dashboard definitions are the primary authoring format for semantic dashboards.
 - Manual/static dashboards still compile through the same document pipeline.
 

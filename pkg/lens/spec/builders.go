@@ -43,27 +43,23 @@ func Gauge(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindGauge, id, title, dataset)
 }
 
-func Tabs(id, title string, children ...PanelSpec) *PanelBuilder {
-	return &PanelBuilder{
-		panel: PanelSpec{
-			ID:       id,
-			Title:    LiteralText(title),
-			Kind:     panel.KindTabs,
-			Span:     6,
-			Children: children,
-		},
+func Tabs(id, title string, children ...PanelSpec) PanelSpec {
+	return PanelSpec{
+		ID:       id,
+		Title:    LiteralText(title),
+		Kind:     panel.KindTabs,
+		Span:     6,
+		Children: children,
 	}
 }
 
-func Grid(id, title string, children ...PanelSpec) *PanelBuilder {
-	return &PanelBuilder{
-		panel: PanelSpec{
-			ID:       id,
-			Title:    LiteralText(title),
-			Kind:     panel.KindGrid,
-			Span:     12,
-			Children: children,
-		},
+func Grid(id, title string, children ...PanelSpec) PanelSpec {
+	return PanelSpec{
+		ID:       id,
+		Title:    LiteralText(title),
+		Kind:     panel.KindGrid,
+		Span:     12,
+		Children: children,
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,23 +20,43 @@ func TestTextResolvePrefersExactLocaleThenFallbacks(t *testing.T) {
 		},
 	}
 
-	require.Equal(t, "Assalomu alaykum", text.Resolve("uz_OZ"))
-	require.Equal(t, "Salom", text.Resolve("uz-Cyrl"))
-	require.Equal(t, "Hello", text.Resolve("en-US"))
+	testCases := []struct {
+		name     string
+		locale   string
+		expected string
+	}{
+		{name: "exact locale after normalization", locale: "uz_OZ", expected: "Assalomu alaykum"},
+		{name: "language fallback", locale: "uz-Cyrl", expected: "Salom"},
+		{name: "base language fallback", locale: "en-US", expected: "Hello"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, testCase.expected, text.Resolve(testCase.locale))
+		})
+	}
 }
 
-func TestDurationUnmarshalSupportsString(t *testing.T) {
+func TestDurationUnmarshal(t *testing.T) {
 	t.Parallel()
 
-	var duration Duration
-	require.NoError(t, json.Unmarshal([]byte(`"48h"`), &duration))
-	require.Equal(t, 48*time.Hour, duration.Std())
-}
+	testCases := []struct {
+		name     string
+		payload  string
+		expected time.Duration
+	}{
+		{name: "supports string", payload: `"48h"`, expected: 48 * time.Hour},
+		{name: "treats numbers as seconds", payload: `90`, expected: 90 * time.Second},
+	}
 
-func TestDurationUnmarshalTreatsNumbersAsSeconds(t *testing.T) {
-	t.Parallel()
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-	var duration Duration
-	require.NoError(t, json.Unmarshal([]byte(`90`), &duration))
-	require.Equal(t, 90*time.Second, duration.Std())
+			var duration Duration
+			require.NoError(t, json.Unmarshal([]byte(testCase.payload), &duration))
+			assert.Equal(t, testCase.expected, duration.Std())
+		})
+	}
 }

@@ -2,6 +2,7 @@
 package spec
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -15,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 const DocumentVersion = 2
@@ -166,20 +168,34 @@ type FieldMappingSpec struct {
 }
 
 func Load(data []byte) (Document, error) {
+	const op serrors.Op = "lens.spec.Load"
+
 	var doc Document
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+
 	//nolint:musttag // Document is the canonical Lens JSON payload owned by this package.
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return Document{}, err
+	if err := decoder.Decode(&doc); err != nil {
+		return Document{}, serrors.E(op, err)
 	}
-	return doc, doc.Validate()
+	if err := doc.Validate(); err != nil {
+		return Document{}, serrors.E(op, err)
+	}
+	return doc, nil
 }
 
 func LoadFS(fsys fs.FS, name string) (Document, error) {
+	const op serrors.Op = "lens.spec.LoadFS"
+
 	data, err := fs.ReadFile(fsys, name)
 	if err != nil {
-		return Document{}, err
+		return Document{}, serrors.E(op, err)
 	}
-	return Load(data)
+	doc, err := Load(data)
+	if err != nil {
+		return Document{}, serrors.E(op, err)
+	}
+	return doc, nil
 }
 
 func (d Document) EffectiveVersion() int {
@@ -196,8 +212,13 @@ func (d Document) Validate() error {
 	if strings.TrimSpace(d.ID) == "" {
 		return fmt.Errorf("document id is required")
 	}
-	if strings.TrimSpace(d.Title.Value) == "" && len(d.Title.Translations) == 0 {
+	if strings.TrimSpace(d.Title.Resolve("")) == "" {
 		return fmt.Errorf("document title is required")
+	}
+	switch d.BodyPosition {
+	case "", BodyPositionAppend, BodyPositionPrepend:
+	default:
+		return fmt.Errorf("unsupported bodyPosition %q", d.BodyPosition)
 	}
 	return nil
 }

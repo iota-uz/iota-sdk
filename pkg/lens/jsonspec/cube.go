@@ -2,6 +2,7 @@
 package jsonspec
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -16,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 const CubeDocumentVersion = 1
@@ -116,20 +118,35 @@ type DatasetSpec struct {
 }
 
 func LoadCube(data []byte, opts ResolveOptions) (cube.CubeSpec, error) {
+	const op serrors.Op = "lens.jsonspec.LoadCube"
+
 	var doc CubeDocument
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+
 	//nolint:musttag // CubeDocument is a loader type for trusted repo-owned JSON specs.
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return cube.CubeSpec{}, err
+	if err := decoder.Decode(&doc); err != nil {
+		return cube.CubeSpec{}, serrors.E(op, err)
 	}
-	return doc.Resolve(opts)
+	spec, err := doc.Resolve(opts)
+	if err != nil {
+		return cube.CubeSpec{}, serrors.E(op, err)
+	}
+	return spec, nil
 }
 
 func LoadCubeFS(fsys fs.FS, name string, opts ResolveOptions) (cube.CubeSpec, error) {
+	const op serrors.Op = "lens.jsonspec.LoadCubeFS"
+
 	data, err := fs.ReadFile(fsys, name)
 	if err != nil {
-		return cube.CubeSpec{}, err
+		return cube.CubeSpec{}, serrors.E(op, err)
 	}
-	return LoadCube(data, opts)
+	spec, err := LoadCube(data, opts)
+	if err != nil {
+		return cube.CubeSpec{}, serrors.E(op, err)
+	}
+	return spec, nil
 }
 
 func (d CubeDocument) Resolve(opts ResolveOptions) (cube.CubeSpec, error) {

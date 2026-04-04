@@ -40,6 +40,20 @@ func TestDurationParsesNumericSeconds(t *testing.T) {
 	require.Equal(t, 45*time.Second, d.Std())
 }
 
+func TestLoadCubeRejectsUnknownFields(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadCube([]byte(`{
+		"version": 1,
+		"id": "finance-overview",
+		"title": "Finance overview",
+		"unknownField": true
+	}`), ResolveOptions{})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "lens.jsonspec.LoadCube")
+	require.ErrorContains(t, err, "unknown field")
+}
+
 func TestLoadCubeResolvesLocaleRefsAndTemplates(t *testing.T) {
 	t.Parallel()
 
