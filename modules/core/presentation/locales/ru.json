@@ -572,7 +572,8 @@
     "Navbar": {
       "Profile": "Профиль",
       "Sessions": "Сеансы",
-      "Logout": "Выйти"
+      "Logout": "Выйти",
+      "Settings": "Настройки"
     }
   },
   "No": "Нет",
@@ -1253,5 +1254,11 @@
       "CurrentSession": "Текущая"
     },
     "Revoked": "Сессия успешно отозвана"
+  },
+  "Settings": {
+    "Hub": {
+      "Title": "Настройки",
+      "BackToApp": "Назад"
+    }
   }
 }
