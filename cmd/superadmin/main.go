@@ -62,10 +62,11 @@ func main() {
 	}
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		Bundle:   bundle,
-		EventBus: eventbus.NewEventPublisher(logger),
-		Logger:   logger,
+		Pool:               pool,
+		Bundle:             bundle,
+		EventBus:           eventbus.NewEventPublisher(logger),
+		Logger:             logger,
+		SupportedLanguages: application.DefaultSupportedLanguages(),
 		Huber: application.NewHub(&application.HuberOptions{
 			Pool:           pool,
 			Logger:         logger,

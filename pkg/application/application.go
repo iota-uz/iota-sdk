@@ -28,6 +28,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/applets"
+	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	appletenginecontrollers "github.com/iota-uz/iota-sdk/pkg/appletengine/controllers"
 	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
@@ -123,6 +124,16 @@ func LoadBundle() *i18n.Bundle {
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 	return bundle
+}
+
+// DefaultSupportedLanguages returns the canonical UI languages supported by the SDK.
+func DefaultSupportedLanguages() []string {
+	return []string{
+		string(coreuser.UILanguageEN),
+		string(coreuser.UILanguageRU),
+		string(coreuser.UILanguageUZ),
+		string(coreuser.UILanguageZH),
+	}
 }
 
 // LoadBundleFromLocaleFiles creates a bundle and loads all message files from the given embed.FS slices.
