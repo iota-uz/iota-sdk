@@ -27,6 +27,17 @@ func TestGetSupportedLanguagesIncludesUzCyrl(t *testing.T) {
 	t.Fatalf("expected uz-Cyrl in supported languages, got %+v", languages)
 }
 
+func TestGetSupportedLanguageCodesIncludesUzCyrl(t *testing.T) {
+	t.Parallel()
+
+	codes := GetSupportedLanguageCodes(nil)
+
+	require.Contains(t, codes, "en")
+	require.Contains(t, codes, "ru")
+	require.Contains(t, codes, "uz")
+	require.Contains(t, codes, "uz-Cyrl")
+}
+
 func TestMustLocalizePanicsOnMissingKey(t *testing.T) {
 	t.Parallel()
 

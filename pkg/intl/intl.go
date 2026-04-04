@@ -71,6 +71,17 @@ func GetSupportedLanguages(whitelist []string) []SupportedLanguage {
 	return filtered
 }
 
+// GetSupportedLanguageCodes returns the language codes for the supported languages.
+// If whitelist is nil or empty, it returns all supported language codes.
+func GetSupportedLanguageCodes(whitelist []string) []string {
+	languages := GetSupportedLanguages(whitelist)
+	codes := make([]string, 0, len(languages))
+	for _, lang := range languages {
+		codes = append(codes, lang.Code)
+	}
+	return codes
+}
+
 // MustLocalize localizes the message and panics with an actionable error if the key is missing.
 // Use in shared request-path code (nav, layout, sidebar) so failures are easy to trace.
 // The panic includes message_id, locale, callsite, and remediation.

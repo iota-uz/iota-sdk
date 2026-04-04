@@ -154,6 +154,10 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("application options are required")
 	}
+	supportedLanguages := opts.SupportedLanguages
+	if len(supportedLanguages) == 0 {
+		supportedLanguages = intl.GetSupportedLanguageCodes(nil)
+	}
 	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer initCancel()
 
@@ -183,7 +187,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if err := spotlightService.Start(initCtx); err != nil {
 		return nil, fmt.Errorf("start spotlight service: %w", err)
 	}
-	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
+	quickLinks := spotlight.NewQuickLinks(opts.Bundle, supportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)
 	// Inject QuickLinks into the service for in-memory fuzzy search in the fast stage.
 	spotlight.WithQuickLinks(quickLinks)(spotlightService)
@@ -198,7 +202,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
 		migrations:         NewMigrationManager(opts.Pool),
-		supportedLanguages: opts.SupportedLanguages,
+		supportedLanguages: supportedLanguages,
 		appletRegistry:     applets.NewRegistry(),
 	}, nil
 }
