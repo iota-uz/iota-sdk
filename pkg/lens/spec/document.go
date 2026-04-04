@@ -55,6 +55,7 @@ type VariableSpec struct {
 	Name            string            `json:"name"`
 	Label           Text              `json:"label"`
 	Kind            lens.VariableKind `json:"kind"`
+	Component       string            `json:"component,omitempty"`
 	RequestKeys     []string          `json:"requestKeys,omitempty"`
 	Default         any               `json:"default,omitempty"`
 	Required        bool              `json:"required,omitempty"`

@@ -18,6 +18,7 @@ type Input struct {
 	Label       string
 	Description string
 	Kind        lens.VariableKind
+	Component   lens.VariableComponent
 	Required    bool
 	Options     []Option
 	Value       string
@@ -35,6 +36,8 @@ type Option struct {
 type DateRange struct {
 	Mode         string
 	AllowAllTime bool
+	StartName    string
+	EndName      string
 	Start        string
 	End          string
 }
@@ -76,6 +79,7 @@ func buildInput(spec lens.VariableSpec, value any) Input {
 		Label:       spec.Label,
 		Description: spec.Description,
 		Kind:        spec.Kind,
+		Component:   resolveComponent(spec),
 		Required:    spec.Required,
 		Options:     buildOptions(spec.Options, value),
 	}
@@ -122,12 +126,32 @@ func buildDateRange(spec lens.VariableSpec, value any) DateRange {
 	if mode == "all" && !spec.AllowAllTime {
 		mode = "default"
 	}
+	startName, endName := dateRangeRequestNames(spec)
 	return DateRange{
 		Mode:         mode,
 		AllowAllTime: spec.AllowAllTime,
+		StartName:    startName,
+		EndName:      endName,
 		Start:        formatDate(current.Start),
 		End:          formatDate(current.End),
 	}
+}
+
+func resolveComponent(spec lens.VariableSpec) lens.VariableComponent {
+	if spec.Component != "" {
+		return spec.Component
+	}
+	return lens.DefaultVariableComponent(spec.Kind)
+}
+
+func dateRangeRequestNames(spec lens.VariableSpec) (string, string) {
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[1], spec.RequestKeys[2]
+	}
+	if len(spec.RequestKeys) >= 2 {
+		return spec.RequestKeys[0], spec.RequestKeys[1]
+	}
+	return spec.Name + "_start", spec.Name + "_end"
 }
 
 func formatDate(value *time.Time) string {

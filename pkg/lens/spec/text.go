@@ -18,6 +18,27 @@ func LiteralText(value string) Text {
 	return Text{Value: value}
 }
 
+func (t Text) MarshalJSON() ([]byte, error) {
+	if len(t.Translations) == 0 {
+		return json.Marshal(t.Value)
+	}
+	if strings.TrimSpace(t.Value) != "" {
+		translations := make(map[string]string, len(t.Translations)+1)
+		for locale, value := range t.Translations {
+			translations[normalizeLocale(locale)] = value
+		}
+		if _, exists := translations["en"]; !exists {
+			translations["en"] = t.Value
+		}
+		return json.Marshal(translations)
+	}
+	translations := make(map[string]string, len(t.Translations))
+	for locale, value := range t.Translations {
+		translations[normalizeLocale(locale)] = value
+	}
+	return json.Marshal(translations)
+}
+
 func (t *Text) UnmarshalJSON(data []byte) error {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
@@ -110,6 +131,10 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	}
 	*d = Duration(time.Duration(asNumber * float64(time.Second)))
 	return nil
+}
+
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.Std().String())
 }
 
 func (d Duration) Std() time.Duration {

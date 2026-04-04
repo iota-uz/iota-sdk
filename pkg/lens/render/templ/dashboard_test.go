@@ -2,9 +2,12 @@ package templ
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
@@ -57,4 +60,59 @@ func TestPanelFullscreenHeader_RendersVisibleMetricInfoText(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestErrorState_RendersPanelErrorActionWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	spec := panel.Bar("sales", "Sales Report", "sales").Build()
+	result := &runtime.PanelResult{
+		Panel: spec,
+		Error: errors.New("dataset failed"),
+	}
+
+	var html bytes.Buffer
+	err := ErrorState(spec, result, func(panelSpec panel.Spec, panelResult *runtime.PanelResult) *PanelErrorAction {
+		require.Equal(t, "sales", panelSpec.ID)
+		require.Equal(t, result, panelResult)
+		return &PanelErrorAction{
+			Label:  "Fix with AI",
+			URL:    "/dashboards/123/fix/sales",
+			Method: "post",
+			Target: "closest [data-lens-swap-target]",
+			Swap:   "innerHTML",
+		}
+	}).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, "Fix with AI")
+	assert.Contains(t, rendered, `hx-post="/dashboards/123/fix/sales"`)
+	assert.Contains(t, rendered, `hx-target="closest [data-lens-swap-target]"`)
+	assert.Contains(t, rendered, `hx-swap="innerHTML"`)
+}
+
+func TestDashboard_RendersVariableComponentOverrides(t *testing.T) {
+	t.Parallel()
+
+	spec := lens.DashboardSpec{
+		ID:    "filters",
+		Title: "Filters",
+		Variables: []lens.VariableSpec{
+			{
+				Name:      "product",
+				Label:     "Product",
+				Kind:      lens.VariableSingleSelect,
+				Component: lens.VariableComponentTextInput,
+			},
+		},
+	}
+
+	var html bytes.Buffer
+	err := Dashboard(DashboardProps{Spec: spec}).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, `type="text" name="product"`)
+	assert.NotContains(t, rendered, `<select name="product"`)
 }

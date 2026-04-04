@@ -60,3 +60,55 @@ func TestDurationUnmarshal(t *testing.T) {
 		})
 	}
 }
+
+func TestTextMarshalRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		text     Text
+		expected string
+	}{
+		{
+			name:     "literal text marshals as string",
+			text:     LiteralText("Sales report"),
+			expected: `"Sales report"`,
+		},
+		{
+			name: "translated text marshals as locale map",
+			text: Text{
+				Translations: map[string]string{
+					"en": "Sales report",
+					"ru": "Otchet",
+				},
+			},
+			expected: `{"en":"Sales report","ru":"Otchet"}`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload, err := json.Marshal(testCase.text)
+			require.NoError(t, err)
+			assert.JSONEq(t, testCase.expected, string(payload))
+
+			var roundTrip Text
+			require.NoError(t, json.Unmarshal(payload, &roundTrip))
+			assert.Equal(t, testCase.text.Resolve("en"), roundTrip.Resolve("en"))
+		})
+	}
+}
+
+func TestDurationMarshalRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	payload, err := json.Marshal(Duration(48 * time.Hour))
+	require.NoError(t, err)
+	assert.JSONEq(t, `"48h0m0s"`, string(payload))
+
+	var duration Duration
+	require.NoError(t, json.Unmarshal(payload, &duration))
+	assert.Equal(t, 48*time.Hour, duration.Std())
+}
