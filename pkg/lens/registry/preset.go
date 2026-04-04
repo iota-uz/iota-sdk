@@ -1,3 +1,4 @@
+// Package registry loads Lens documents from embedded or filesystem-backed presets.
 package registry
 
 import (

@@ -31,3 +31,11 @@ func TestDurationUnmarshalSupportsString(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`"48h"`), &duration))
 	require.Equal(t, 48*time.Hour, duration.Std())
 }
+
+func TestDurationUnmarshalTreatsNumbersAsSeconds(t *testing.T) {
+	t.Parallel()
+
+	var duration Duration
+	require.NoError(t, json.Unmarshal([]byte(`90`), &duration))
+	require.Equal(t, 90*time.Second, duration.Std())
+}

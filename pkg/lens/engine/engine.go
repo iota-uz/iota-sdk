@@ -1,3 +1,4 @@
+// Package engine compiles and executes Lens dashboards against runtime inputs.
 package engine
 
 import (

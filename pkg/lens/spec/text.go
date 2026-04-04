@@ -108,7 +108,7 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(trimmed, &asNumber); err != nil {
 		return fmt.Errorf("duration must be a string or number: %w", err)
 	}
-	*d = Duration(time.Duration(asNumber))
+	*d = Duration(time.Duration(asNumber * float64(time.Second)))
 	return nil
 }
 

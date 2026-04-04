@@ -1,3 +1,4 @@
+// Package spec defines the JSON-serializable Lens document model and helpers.
 package spec
 
 import (
@@ -166,6 +167,7 @@ type FieldMappingSpec struct {
 
 func Load(data []byte) (Document, error) {
 	var doc Document
+	//nolint:musttag // Document is the canonical Lens JSON payload owned by this package.
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return Document{}, err
 	}

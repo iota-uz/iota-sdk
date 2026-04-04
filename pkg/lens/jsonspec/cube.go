@@ -1,3 +1,4 @@
+// Package jsonspec loads Lens cube specifications from repo-owned JSON documents.
 package jsonspec
 
 import (
@@ -116,6 +117,7 @@ type DatasetSpec struct {
 
 func LoadCube(data []byte, opts ResolveOptions) (cube.CubeSpec, error) {
 	var doc CubeDocument
+	//nolint:musttag // CubeDocument is a loader type for trusted repo-owned JSON specs.
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return cube.CubeSpec{}, err
 	}
@@ -258,11 +260,15 @@ func (s DimensionSpec) resolve(opts ResolveOptions) (cube.DimensionSpec, error) 
 		Height:       resolveString(s.Height, opts.Values),
 		Description:  resolveText(s.Description, opts),
 		RequiresJoin: resolveStringSlice(s.RequiresJoin, opts.Values),
-		Transforms:   resolveTransformSpecs(s.Transforms, opts.Values),
 		Colors:       resolveStringSlice(s.Colors, opts.Values),
 		ValueAxis:    s.ValueAxis,
 		ColorScale:   resolveString(s.ColorScale, opts.Values),
 	}
+	transforms, err := resolveTransformSpecs(s.Transforms, opts.Values)
+	if err != nil {
+		return cube.DimensionSpec{}, fmt.Errorf("resolve dimension %q transforms: %w", s.Name, err)
+	}
+	resolved.Transforms = transforms
 	if resolved.Type == "" {
 		resolved.Type = cube.DimensionTypeCategory
 	}
@@ -306,9 +312,13 @@ func (s DatasetSpec) resolve(opts ResolveOptions) (lens.DatasetSpec, error) {
 		Kind:        s.Kind,
 		Source:      resolveString(s.Source, opts.Values),
 		DependsOn:   resolveStringSlice(s.DependsOn, opts.Values),
-		Transforms:  resolveTransformSpecs(s.Transforms, opts.Values),
 		Description: resolveText(s.Description, opts),
 	}
+	transforms, err := resolveTransformSpecs(s.Transforms, opts.Values)
+	if err != nil {
+		return lens.DatasetSpec{}, fmt.Errorf("resolve dataset %q transforms: %w", s.Name, err)
+	}
+	dataset.Transforms = transforms
 	if s.Query != nil {
 		query, err := resolveQuerySpec(*s.Query, opts.Values)
 		if err != nil {
@@ -425,9 +435,9 @@ func resolveValueSource(source action.ValueSource, values map[string]any) (actio
 	return resolved, nil
 }
 
-func resolveTransformSpecs(specs []transform.Spec, values map[string]any) []transform.Spec {
+func resolveTransformSpecs(specs []transform.Spec, values map[string]any) ([]transform.Spec, error) {
 	if len(specs) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]transform.Spec, len(specs))
 	for i, spec := range specs {
@@ -437,7 +447,11 @@ func resolveTransformSpecs(specs []transform.Spec, values map[string]any) []tran
 		out[i].GroupBy = resolveStringSlice(spec.GroupBy, values)
 		out[i].Sort = resolveSortFields(spec.Sort, values)
 		out[i].Aggregates = resolveAggregates(spec.Aggregates, values)
-		out[i].Predicates = resolvePredicates(spec.Predicates, values)
+		predicates, err := resolvePredicates(spec.Predicates, values)
+		if err != nil {
+			return nil, fmt.Errorf("resolve transform spec %d predicates: %w", i, err)
+		}
+		out[i].Predicates = predicates
 		if spec.Join != nil {
 			join := *spec.Join
 			join.Other = resolveString(join.Other, values)
@@ -452,9 +466,10 @@ func resolveTransformSpecs(specs []transform.Spec, values map[string]any) []tran
 			fill.ValueField = resolveString(fill.ValueField, values)
 			if !isNilValue(fill.FillValue) {
 				fillValue, err := resolveValueRefs(fill.FillValue, values)
-				if err == nil {
-					fill.FillValue = fillValue
+				if err != nil {
+					return nil, fmt.Errorf("resolve fill missing fill value for transform spec %d: %w", i, err)
 				}
+				fill.FillValue = fillValue
 			}
 			out[i].FillMissing = &fill
 		}
@@ -530,12 +545,12 @@ func resolveTransformSpecs(specs []transform.Spec, values map[string]any) []tran
 			out[i].FilterZeroSeries = &filterZero
 		}
 	}
-	return out
+	return out, nil
 }
 
-func resolvePredicates(predicates []transform.Predicate, values map[string]any) []transform.Predicate {
+func resolvePredicates(predicates []transform.Predicate, values map[string]any) ([]transform.Predicate, error) {
 	if len(predicates) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]transform.Predicate, len(predicates))
 	for i, predicate := range predicates {
@@ -544,12 +559,13 @@ func resolvePredicates(predicates []transform.Predicate, values map[string]any) 
 		out[i].Op = resolveString(predicate.Op, values)
 		if !isNilValue(predicate.Value) {
 			resolved, err := resolveValueRefs(predicate.Value, values)
-			if err == nil {
-				out[i].Value = resolved
+			if err != nil {
+				return nil, fmt.Errorf("resolve predicate %d value: %w", i, err)
 			}
+			out[i].Value = resolved
 		}
 	}
-	return out
+	return out, nil
 }
 
 func resolveAggregates(aggregates []transform.Aggregate, values map[string]any) []transform.Aggregate {
@@ -667,6 +683,7 @@ func isNilValue(value any) bool {
 		return true
 	}
 	rv := reflect.ValueOf(value)
+	//nolint:exhaustive // Only nil-capable kinds need explicit handling here.
 	switch rv.Kind() {
 	case reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
 		return rv.IsNil()

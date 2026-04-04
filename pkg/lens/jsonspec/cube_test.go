@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,6 +30,14 @@ func TestDurationParsesString(t *testing.T) {
 	var d Duration
 	require.NoError(t, d.UnmarshalJSON([]byte(`"168h"`)))
 	require.Equal(t, 168*time.Hour, d.Std())
+}
+
+func TestDurationParsesNumericSeconds(t *testing.T) {
+	t.Parallel()
+
+	var d Duration
+	require.NoError(t, d.UnmarshalJSON([]byte(`45`)))
+	require.Equal(t, 45*time.Second, d.Std())
 }
 
 func TestLoadCubeResolvesLocaleRefsAndTemplates(t *testing.T) {
@@ -174,4 +183,32 @@ func TestLoadCubeResolvesVariableDefaults(t *testing.T) {
 	require.Len(t, spec.Variables, 1)
 	require.Equal(t, lens.VariableDateRange, spec.Variables[0].Kind)
 	require.Equal(t, 168*time.Hour, spec.Variables[0].DefaultDuration)
+}
+
+func TestResolveTransformSpecsFailsWhenFillValueRefCannotBeResolved(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolveTransformSpecs([]transform.Spec{
+		{
+			FillMissing: &transform.FillMissingConfig{
+				FillValue: map[string]any{"$ref": "missing_value"},
+			},
+		},
+	}, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "missing_value")
+}
+
+func TestResolveTransformSpecsFailsWhenPredicateRefCannotBeResolved(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolveTransformSpecs([]transform.Spec{
+		{
+			Predicates: []transform.Predicate{
+				{Field: "status", Op: "=", Value: map[string]any{"$ref": "missing_status"}},
+			},
+		},
+	}, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "missing_status")
 }

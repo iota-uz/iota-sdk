@@ -1,6 +1,7 @@
 package templ
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -40,7 +41,7 @@ func TestRenderPanelFragment(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest("GET", "/dashboards/panels/sales-panel", nil)
+	req := httptest.NewRequest(http.MethodGet, "/dashboards/panels/sales-panel", nil)
 	rec := httptest.NewRecorder()
 
 	ok := RenderPanelFragment(rec, req, result, "sales-panel")
@@ -51,7 +52,7 @@ func TestRenderPanelFragment(t *testing.T) {
 func TestRenderPanelFragmentReturnsFalseWhenPanelMissing(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/dashboards/panels/missing", nil)
+	req := httptest.NewRequest(http.MethodGet, "/dashboards/panels/missing", nil)
 	rec := httptest.NewRecorder()
 
 	ok := RenderPanelFragment(rec, req, &runtime.Result{}, "missing")

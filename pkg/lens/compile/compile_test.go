@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensspec "github.com/iota-uz/iota-sdk/pkg/lens/spec"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,4 +98,32 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 	require.Len(t, compiled.Spec.Rows, 1)
 	require.Equal(t, "stats", compiled.Spec.Datasets[0].Name)
 	require.Equal(t, "total", compiled.Spec.Rows[0].Panels[0].ID)
+}
+
+func TestResolveTransformSpecsFailsWhenFillValueRefCannotBeResolved(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolveTransformSpecs([]transform.Spec{
+		{
+			FillMissing: &transform.FillMissingConfig{
+				FillValue: map[string]any{"$ref": "missing_value"},
+			},
+		},
+	}, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "missing_value")
+}
+
+func TestResolveTransformSpecsFailsWhenPredicateRefCannotBeResolved(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolveTransformSpecs([]transform.Spec{
+		{
+			Predicates: []transform.Predicate{
+				{Field: "status", Op: "=", Value: map[string]any{"$ref": "missing_status"}},
+			},
+		},
+	}, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "missing_status")
 }

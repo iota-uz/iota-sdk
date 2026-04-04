@@ -1,3 +1,4 @@
+// Package compile resolves Lens spec documents into executable dashboard specs.
 package compile
 
 import (
@@ -242,11 +243,15 @@ func compileDimension(item lensspec.DimensionSpec, opts Options) (cube.Dimension
 		Height:       resolveString(item.Height, opts.Values),
 		Description:  resolveText(item.Description, opts),
 		RequiresJoin: resolveStringSlice(item.RequiresJoin, opts.Values),
-		Transforms:   resolveTransformSpecs(item.Transforms, opts.Values),
 		Colors:       resolveStringSlice(item.Colors, opts.Values),
 		ValueAxis:    item.ValueAxis,
 		ColorScale:   resolveString(item.ColorScale, opts.Values),
 	}
+	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
+	if err != nil {
+		return cube.DimensionSpec{}, fmt.Errorf("compile dimension %q transforms: %w", item.Name, err)
+	}
+	out.Transforms = transforms
 	if out.Type == "" {
 		out.Type = cube.DimensionTypeCategory
 	}
@@ -290,10 +295,14 @@ func compileDataset(item lensspec.DatasetSpec, opts Options) (lens.DatasetSpec, 
 		Kind:        item.Kind,
 		Source:      resolveString(item.Source, opts.Values),
 		DependsOn:   resolveStringSlice(item.DependsOn, opts.Values),
-		Transforms:  resolveTransformSpecs(item.Transforms, opts.Values),
 		Description: resolveText(item.Description, opts),
 		Static:      item.Static,
 	}
+	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
+	if err != nil {
+		return lens.DatasetSpec{}, fmt.Errorf("compile dataset %q transforms: %w", item.Name, err)
+	}
+	out.Transforms = transforms
 	if item.Query != nil {
 		query, err := resolveQuerySpec(*item.Query, opts.Values)
 		if err != nil {
@@ -352,13 +361,17 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			EndTime:   panel.Ref(resolveString(item.Fields.EndTime, opts.Values)),
 		},
 		Formatter:   item.Formatter,
-		Transforms:  resolveTransformSpecs(item.Transforms, opts.Values),
 		ClassName:   resolveString(item.ClassName, opts.Values),
 		ValueAxis:   item.ValueAxis,
 		Distributed: item.Distributed,
 		ColorField:  panel.Ref(resolveString(item.ColorField, opts.Values)),
 		ColorScale:  resolveString(item.ColorScale, opts.Values),
 	}
+	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
+	if err != nil {
+		return panel.Spec{}, fmt.Errorf("compile panel %q transforms: %w", item.ID, err)
+	}
+	out.Transforms = transforms
 
 	for _, column := range item.Columns {
 		var actionSpec *action.Spec
@@ -507,9 +520,9 @@ func resolveValueSource(source action.ValueSource, values map[string]any) (actio
 	return resolved, nil
 }
 
-func resolveTransformSpecs(specs []transform.Spec, values map[string]any) []transform.Spec {
+func resolveTransformSpecs(specs []transform.Spec, values map[string]any) ([]transform.Spec, error) {
 	if len(specs) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]transform.Spec, len(specs))
 	for i, spec := range specs {
@@ -519,7 +532,11 @@ func resolveTransformSpecs(specs []transform.Spec, values map[string]any) []tran
 		out[i].GroupBy = resolveStringSlice(spec.GroupBy, values)
 		out[i].Sort = resolveSortFields(spec.Sort, values)
 		out[i].Aggregates = resolveAggregates(spec.Aggregates, values)
-		out[i].Predicates = resolvePredicates(spec.Predicates, values)
+		predicates, err := resolvePredicates(spec.Predicates, values)
+		if err != nil {
+			return nil, fmt.Errorf("resolve transform spec %d predicates: %w", i, err)
+		}
+		out[i].Predicates = predicates
 		if spec.Join != nil {
 			join := *spec.Join
 			join.Other = resolveString(join.Other, values)
@@ -534,9 +551,10 @@ func resolveTransformSpecs(specs []transform.Spec, values map[string]any) []tran
 			fill.ValueField = resolveString(fill.ValueField, values)
 			if !isNilValue(fill.FillValue) {
 				fillValue, err := resolveValueRefs(fill.FillValue, values)
-				if err == nil {
-					fill.FillValue = fillValue
+				if err != nil {
+					return nil, fmt.Errorf("resolve transform spec %d FillMissing.FillValue: %w", i, err)
 				}
+				fill.FillValue = fillValue
 			}
 			out[i].FillMissing = &fill
 		}
@@ -612,12 +630,12 @@ func resolveTransformSpecs(specs []transform.Spec, values map[string]any) []tran
 			out[i].FilterZeroSeries = &filterZero
 		}
 	}
-	return out
+	return out, nil
 }
 
-func resolvePredicates(predicates []transform.Predicate, values map[string]any) []transform.Predicate {
+func resolvePredicates(predicates []transform.Predicate, values map[string]any) ([]transform.Predicate, error) {
 	if len(predicates) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]transform.Predicate, len(predicates))
 	for i, predicate := range predicates {
@@ -626,12 +644,13 @@ func resolvePredicates(predicates []transform.Predicate, values map[string]any) 
 		out[i].Op = resolveString(predicate.Op, values)
 		if !isNilValue(predicate.Value) {
 			resolved, err := resolveValueRefs(predicate.Value, values)
-			if err == nil {
-				out[i].Value = resolved
+			if err != nil {
+				return nil, fmt.Errorf("resolve predicate %d value: %w", i, err)
 			}
+			out[i].Value = resolved
 		}
 	}
-	return out
+	return out, nil
 }
 
 func resolveAggregates(aggregates []transform.Aggregate, values map[string]any) []transform.Aggregate {
@@ -749,6 +768,7 @@ func isNilValue(value any) bool {
 		return true
 	}
 	rv := reflect.ValueOf(value)
+	//nolint:exhaustive // Only nil-capable kinds need explicit handling here.
 	switch rv.Kind() {
 	case reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
 		return rv.IsNil()
