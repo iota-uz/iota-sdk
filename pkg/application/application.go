@@ -28,6 +28,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/applets"
+	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	appletenginecontrollers "github.com/iota-uz/iota-sdk/pkg/appletengine/controllers"
 	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
@@ -125,6 +126,16 @@ func LoadBundle() *i18n.Bundle {
 	return bundle
 }
 
+// DefaultSupportedLanguages returns the canonical UI languages supported by the SDK.
+func DefaultSupportedLanguages() []string {
+	return []string{
+		string(coreuser.UILanguageEN),
+		string(coreuser.UILanguageRU),
+		string(coreuser.UILanguageUZ),
+		string(coreuser.UILanguageZH),
+	}
+}
+
 // LoadBundleFromLocaleFiles creates a bundle and loads all message files from the given embed.FS slices.
 // Use this to build a bundle from locale files only (e.g. for tests without DB or config).
 func LoadBundleFromLocaleFiles(fs ...*embed.FS) *i18n.Bundle {
@@ -153,10 +164,6 @@ func loadLocaleFSIntoBundle(bundle *i18n.Bundle, localeFs *embed.FS) {
 func New(opts *ApplicationOptions) (Application, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("application options are required")
-	}
-	supportedLanguages := opts.SupportedLanguages
-	if len(supportedLanguages) == 0 {
-		supportedLanguages = intl.GetSupportedLanguageCodes(nil)
 	}
 	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer initCancel()
@@ -187,7 +194,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if err := spotlightService.Start(initCtx); err != nil {
 		return nil, fmt.Errorf("start spotlight service: %w", err)
 	}
-	quickLinks := spotlight.NewQuickLinks(opts.Bundle, supportedLanguages)
+	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)
 	// Inject QuickLinks into the service for in-memory fuzzy search in the fast stage.
 	spotlight.WithQuickLinks(quickLinks)(spotlightService)
@@ -202,7 +209,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
 		migrations:         NewMigrationManager(opts.Pool),
-		supportedLanguages: supportedLanguages,
+		supportedLanguages: opts.SupportedLanguages,
 		appletRegistry:     applets.NewRegistry(),
 	}, nil
 }

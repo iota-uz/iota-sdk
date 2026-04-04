@@ -54,16 +54,8 @@ func TestApplication_RegisterNavItems_AddsQuickLinks(t *testing.T) {
 	require.Contains(t, docs[1].Body, "sessions")
 }
 
-func TestApplication_DefaultsSupportedLanguages(t *testing.T) {
-	app, err := New(&ApplicationOptions{
-		Bundle: LoadBundle(),
-	})
-	require.NoError(t, err)
-
-	require.Contains(t, app.GetSupportedLanguages(), "en")
-	require.Contains(t, app.GetSupportedLanguages(), "ru")
-	require.Contains(t, app.GetSupportedLanguages(), "uz")
-	require.Contains(t, app.GetSupportedLanguages(), "uz-Cyrl")
+func TestDefaultSupportedLanguages(t *testing.T) {
+	require.Equal(t, []string{"en", "ru", "uz", "zh"}, DefaultSupportedLanguages())
 }
 
 func TestApplication_AppendNavChildren_AddsQuickLinksForChildren(t *testing.T) {
