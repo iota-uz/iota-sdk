@@ -158,6 +158,45 @@ When a drilled page also has external date filters:
 
 Both report controllers in this repo follow that pattern through `persistentDashboardQuery(...)`.
 
+## Async Shell + Panel Fragments
+
+Lens supports shell-first dashboard rendering when a page wants to lazy load individual panels.
+
+Use this pattern when:
+
+- Panels are backed by Lens runtime execution and can be scoped cheaply with `runtime.PanelScope(panelID)`
+- The page already has a Lens spec before execution
+- Fetching one panel is meaningfully cheaper than fetching the entire dashboard
+
+Do not use this pattern blindly for dashboards that are built from already-materialized report data or manual in-memory datasets. In those cases, turning one request into N panel requests often makes the page slower, not faster.
+
+Controller contract:
+
+1. Prepare the dashboard spec first with `engine.Prepare(...)` or `engine.Prepare` via existing page helpers
+2. On the initial non-HTMX request, render the shell with:
+   - `Result: nil`
+   - `Spec: prepared.Spec`
+   - `AsyncProps.PanelBasePath`
+   - `AsyncProps.FilterFormID`
+3. Expose a panel fragment route such as `GET /reports/panels/{panel_id}`
+4. In that fragment route, execute only the requested panel with `runtime.PanelScope(panelID)`
+5. Return the fragment with `render/templ.RenderPanelFragment(...)`
+
+Template contract:
+
+- Pass `DashboardProps{Spec: spec, Async: &templ.AsyncProps{...}}` to `render/templ.Dashboard(...)` for the main area
+- Use `render/templ.PanelShell(...)` for sidebar cards or any panel rendered outside the main dashboard grid
+- Preserve drill/query state with hidden inputs so `_f=...` and non-date state survive HTMX updates
+
+Reference implementation:
+
+- `modules/insurance/presentation/controllers/sales_report_controller.go`
+- `modules/insurance/presentation/templates/pages/sales_report/lens.templ`
+
+Current helper:
+
+- `render/templ.RenderPanelFragment(...)` renders a single panel body from a fully prepared `runtime.Result`
+
 ## Performance Profiling
 
 Cube SQL is generated dynamically, so profiling is part of the implementation work for production-facing dashboards.

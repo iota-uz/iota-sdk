@@ -77,13 +77,15 @@ type ResponsiveOptions struct {
 }
 
 type ChartConfig struct {
-	Type    ChartType    `json:"type"`
-	Height  string       `json:"height,omitempty"`
-	OffsetX int          `json:"offsetX,omitempty"`
-	OffsetY int          `json:"offsetY,omitempty"`
-	Toolbar Toolbar      `json:"toolbar,omitempty"`
-	Stacked bool         `json:"stacked,omitempty"`
-	Events  *ChartEvents `json:"events,omitempty"`
+	Type      ChartType        `json:"type"`
+	Height    string           `json:"height,omitempty"`
+	OffsetX   int              `json:"offsetX,omitempty"`
+	OffsetY   int              `json:"offsetY,omitempty"`
+	Toolbar   Toolbar          `json:"toolbar,omitempty"`
+	Zoom      *ZoomConfig      `json:"zoom,omitempty"`
+	Selection *SelectionConfig `json:"selection,omitempty"`
+	Stacked   bool             `json:"stacked,omitempty"`
+	Events    *ChartEvents     `json:"events,omitempty"`
 }
 
 type ChartEvents struct {
@@ -108,7 +110,30 @@ type ChartEvents struct {
 }
 
 type Toolbar struct {
-	Show bool `json:"show"`
+	Show         bool          `json:"show"`
+	AutoSelected *string       `json:"autoSelected,omitempty"`
+	Tools        *ToolbarTools `json:"tools,omitempty"`
+}
+
+type ToolbarTools struct {
+	Download  *bool `json:"download,omitempty"`
+	Selection *bool `json:"selection,omitempty"`
+	Zoom      *bool `json:"zoom,omitempty"`
+	ZoomIn    *bool `json:"zoomin,omitempty"`
+	ZoomOut   *bool `json:"zoomout,omitempty"`
+	Pan       *bool `json:"pan,omitempty"`
+	Reset     *bool `json:"reset,omitempty"`
+}
+
+type ZoomConfig struct {
+	Enabled        *bool   `json:"enabled,omitempty"`
+	Type           *string `json:"type,omitempty"`
+	AutoScaleYaxis *bool   `json:"autoScaleYaxis,omitempty"`
+}
+
+type SelectionConfig struct {
+	Enabled *bool   `json:"enabled,omitempty"`
+	Type    *string `json:"type,omitempty"`
 }
 
 type Series struct {

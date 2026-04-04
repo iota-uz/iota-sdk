@@ -14,13 +14,14 @@ func TestPanelFullscreenHeader_RendersVisibleMetricInfoText(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name             string
-		spec             panel.Spec
-		chartText        chartText
-		expectedContains []string
+		name                string
+		spec                panel.Spec
+		chartText           chartText
+		expectedContains    []string
+		expectedNotContains []string
 	}{
 		{
-			name: "renders visible subtitle paragraph and tooltip button",
+			name: "renders visible subtitle paragraph without redundant tooltip button",
 			spec: panel.Bar("sales", "Sales Report", "sales").
 				Info("Shows how revenue is aggregated for the selected period.").
 				Description("Secondary chart description").
@@ -31,6 +32,9 @@ func TestPanelFullscreenHeader_RendersVisibleMetricInfoText(t *testing.T) {
 			expectedContains: []string{
 				`<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Shows how revenue is aggregated for the selected period.</p>`,
 				`<p class="mt-1 text-sm text-slate-500">Secondary chart description</p>`,
+				`aria-label="Close fullscreen"`,
+			},
+			expectedNotContains: []string{
 				`x-tooltip.interactive.theme.light.html.raw=`,
 			},
 		},
@@ -47,6 +51,9 @@ func TestPanelFullscreenHeader_RendersVisibleMetricInfoText(t *testing.T) {
 			rendered := html.String()
 			for _, expected := range tc.expectedContains {
 				assert.Contains(t, rendered, expected)
+			}
+			for _, unexpected := range tc.expectedNotContains {
+				assert.NotContains(t, rendered, unexpected)
 			}
 		})
 	}

@@ -26,7 +26,28 @@ func Options(panelSpec panel.Spec, panelResult *runtime.PanelResult) charts.Char
 
 func OptionsWithHeight(panelSpec panel.Spec, panelResult *runtime.PanelResult, height string) charts.ChartOptions {
 	options := options(panelSpec, panelResult, height)
-	options.Chart.Toolbar.Show = true
+	enable := true
+	disable := false
+	zoomMode := "x"
+	autoSelected := "zoom"
+	options.Chart.Toolbar = charts.Toolbar{
+		Show:         true,
+		AutoSelected: &autoSelected,
+		Tools: &charts.ToolbarTools{
+			Download:  &enable,
+			Selection: &disable,
+			Zoom:      &enable,
+			ZoomIn:    &enable,
+			ZoomOut:   &enable,
+			Pan:       &enable,
+			Reset:     &enable,
+		},
+	}
+	options.Chart.Zoom = &charts.ZoomConfig{
+		Enabled:        &enable,
+		Type:           &zoomMode,
+		AutoScaleYaxis: &disable,
+	}
 	return options
 }
 
@@ -1080,7 +1101,19 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 	}
 	return templ.JSExpression(`function(event, chartContext, config) {
 		requestAnimationFrame(function() {
-			const tooltips = Array.from(document.querySelectorAll('.apexcharts-tooltip'));
+			const normalizeColor = function(value) {
+				if (typeof value !== 'string') {
+					return '';
+				}
+				const color = value.trim();
+				if (!color || color === 'none' || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') {
+					return '';
+				}
+				return color;
+			};
+			const chartRoot = chartContext && chartContext.el instanceof Element ? chartContext.el : null;
+			const scopedTooltip = chartRoot ? chartRoot.querySelector('.apexcharts-tooltip') : null;
+			const tooltips = scopedTooltip ? [scopedTooltip] : Array.from(document.querySelectorAll('.apexcharts-tooltip'));
 			const tooltip = tooltips.find(function(node) {
 				if (!(node instanceof HTMLElement)) {
 					return false;
@@ -1095,12 +1128,47 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 			if (!marker) {
 				return;
 			}
-			const globals = config && config.w && config.w.globals;
-			if (!globals || !Array.isArray(globals.colors)) {
-				return;
+			const hoveredElement = event && event.target instanceof Element ? event.target.closest('path, rect, circle, line, polygon, polyline') : null;
+			let color = '';
+			if (hoveredElement) {
+				color = normalizeColor(hoveredElement.getAttribute('fill'));
+				if (!color) {
+					color = normalizeColor(hoveredElement.getAttribute('stroke'));
+				}
+				if (!color) {
+					const hoveredStyle = window.getComputedStyle(hoveredElement);
+					color = normalizeColor(hoveredStyle.fill) || normalizeColor(hoveredStyle.stroke);
+				}
 			}
-			const index = Number(config && config.dataPointIndex);
-			const color = globals.colors[index] || globals.colors[0];
+			const resolveIndexedColor = function(values, index) {
+				if (!Array.isArray(values) || values.length === 0) {
+					return '';
+				}
+				const fallbackIndex = Number.isFinite(index) && index >= 0 ? index : 0;
+				const candidate = values[fallbackIndex] || values[0];
+				return normalizeColor(candidate);
+			};
+			const chartConfig = config && config.w && config.w.config;
+			const globals = config && config.w && config.w.globals;
+			let index = Number(config && config.dataPointIndex);
+			if (!Number.isFinite(index) && hoveredElement) {
+				const domIndex = Number(hoveredElement.getAttribute('j'));
+				if (Number.isFinite(domIndex)) {
+					index = domIndex;
+				}
+			}
+			if (!color) {
+				color = resolveIndexedColor(chartConfig && chartConfig.colors, index);
+			}
+			if (!color) {
+				color = resolveIndexedColor(globals && globals.fill && globals.fill.colors, index);
+			}
+			if (!color) {
+				color = resolveIndexedColor(globals && globals.stroke && globals.stroke.colors, index);
+			}
+			if (!color) {
+				color = resolveIndexedColor(globals && globals.colors, index);
+			}
 			if (!color) {
 				return;
 			}
