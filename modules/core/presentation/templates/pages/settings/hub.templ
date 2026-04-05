@@ -1,0 +1,61 @@
+package settings
+
+import (
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type HubPageProps struct {
+	Sections []types.SettingsSection
+}
+
+templ Hub(props *HubPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Settings.Hub.Title")},
+	}) {
+		<div class="p-6 md:p-8 max-w-6xl">
+			<h1 class="text-2xl font-semibold text-gray-900 mb-8">
+				{ pageCtx.T("Settings.Hub.Title") }
+			</h1>
+			for _, section := range props.Sections {
+				<div class="mb-8">
+					<h2 class="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">
+						{ section.Name }
+					</h2>
+					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+						for _, page := range section.Pages {
+							@settingsCard(page)
+						}
+					</div>
+				</div>
+			}
+		</div>
+	}
+}
+
+templ settingsCard(page types.SettingsPage) {
+	<a
+		href={ templ.SafeURL(page.Href) }
+		class="block p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all group"
+	>
+		<div class="flex items-start gap-3">
+			if page.Icon != nil {
+				<div class="text-gray-400 group-hover:text-blue-500 transition-colors mt-0.5">
+					@page.Icon
+				</div>
+			}
+			<div>
+				<div class="text-sm font-medium text-gray-900 group-hover:text-blue-600">
+					{ page.Name }
+				</div>
+				if page.Description != "" {
+					<div class="text-xs text-gray-600 mt-1">
+						{ page.Description }
+					</div>
+				}
+			</div>
+		</div>
+	</a>
+}

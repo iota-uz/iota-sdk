@@ -154,15 +154,16 @@ func (ql *QuickLinks) Capabilities() ProviderCapabilities {
 // resolveAllTranslations resolves the translation key into a title (English)
 // and a body containing all unique translations joined by " | " for multi-language search.
 func (ql *QuickLinks) resolveAllTranslations(trKey string) (string, string) {
-	if ql.bundle == nil || len(ql.languages) == 0 {
+	languages := ql.resolvedLanguages()
+	if ql.bundle == nil || len(languages) == 0 {
 		return trKey, trKey
 	}
 
 	var title string
-	seen := make(map[string]struct{}, len(ql.languages))
-	translations := make([]string, 0, len(ql.languages))
+	seen := make(map[string]struct{}, len(languages))
+	translations := make([]string, 0, len(languages))
 
-	for _, lang := range ql.languages {
+	for _, lang := range languages {
 		localizer := i18n.NewLocalizer(ql.bundle, lang)
 		translated, err := localizer.Localize(&i18n.LocalizeConfig{
 			MessageID: trKey,
@@ -190,6 +191,36 @@ func (ql *QuickLinks) resolveAllTranslations(trKey string) (string, string) {
 		return title, title
 	}
 	return title, strings.Join(translations, searchTextDelimiter)
+}
+
+func (ql *QuickLinks) resolvedLanguages() []string {
+	if len(ql.languages) > 0 {
+		return ql.languages
+	}
+	if ql.bundle == nil {
+		return nil
+	}
+
+	tags := ql.bundle.LanguageTags()
+	if len(tags) == 0 {
+		return nil
+	}
+
+	languages := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		lang := strings.TrimSpace(tag.String())
+		if lang == "" {
+			continue
+		}
+		if _, ok := seen[lang]; ok {
+			continue
+		}
+		seen[lang] = struct{}{}
+		languages = append(languages, lang)
+	}
+
+	return languages
 }
 
 func (ql *QuickLinks) StreamDocuments(_ context.Context, scope ProviderScope, emit DocumentBatchEmitter) error {

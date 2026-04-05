@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/text/language"
 )
 
 func TestNewQuickLink_HasPublicAccess(t *testing.T) {
@@ -173,6 +175,25 @@ func TestQuickLinks_ListDocuments_NoKeywords(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, docs, 1)
 	require.Equal(t, "simple.link", docs[0].Body)
+}
+
+func TestQuickLinks_ListDocuments_FallsBackToBundleLanguages(t *testing.T) {
+	bundle := i18n.NewBundle(language.English)
+	bundle.MustAddMessages(language.English, &i18n.Message{ID: "NavigationLinks.Users", Other: "Users"})
+	bundle.MustAddMessages(language.Russian, &i18n.Message{ID: "NavigationLinks.Users", Other: "Пользователи"})
+
+	ql := NewQuickLinks(bundle, nil)
+	ql.Add(NewQuickLink("NavigationLinks.Users", "/users"))
+
+	docs, err := CollectDocuments(context.Background(), ql, ProviderScope{
+		TenantID: uuid.New(),
+		Language: "en",
+	})
+
+	require.NoError(t, err)
+	require.Len(t, docs, 1)
+	require.Contains(t, docs[0].Body, "Users")
+	require.Contains(t, docs[0].Body, "Пользователи")
 }
 
 func TestQuickLinks_Add_MergesDuplicateLinks(t *testing.T) {
