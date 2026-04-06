@@ -68,4 +68,3 @@ func MustUseSidebarProps(ctx context.Context) sidebar.Props {
 	}
 	return sidebarProps
 }
-
