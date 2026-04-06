@@ -29,7 +29,7 @@ type BaseTaskConfig struct {
 	EnableSkipIfRunning bool `env:"ENABLE_SKIP_IF_RUNNING" envDefault:"true"`
 
 	// Enabled determines if the task should be registered and run
-	Enabled bool `env:"ENABLED" envDefault:"true"`
+	Enabled bool `env:"ENABLED" envDefault:"false"`
 
 	// RunOnStart determines if the task should run immediately on application startup
 	RunOnStart bool `env:"RUN_ON_START" envDefault:"false"`
