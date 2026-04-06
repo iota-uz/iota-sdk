@@ -92,6 +92,40 @@ func TestErrorState_RendersPanelErrorActionWhenProvided(t *testing.T) {
 	assert.Contains(t, rendered, `hx-swap="innerHTML"`)
 }
 
+func TestErrorState_RendersHTMXAttributesForGetPanelErrorAction(t *testing.T) {
+	t.Parallel()
+
+	spec := panel.Bar("sales", "Sales Report", "sales").Build()
+	result := &runtime.PanelResult{
+		Panel: spec,
+		Error: errors.New("dataset failed"),
+	}
+
+	var html bytes.Buffer
+	err := ErrorState(spec, result, func(panelSpec panel.Spec, panelResult *runtime.PanelResult) *PanelErrorAction {
+		require.Equal(t, "sales", panelSpec.ID)
+		require.Equal(t, result, panelResult)
+		return &PanelErrorAction{
+			Label:   "Retry",
+			URL:     "/dashboards/123/panels/sales/retry",
+			Method:  "get",
+			Target:  "#panel",
+			Swap:    "outerHTML",
+			Include: "#filters",
+			Confirm: "Retry panel?",
+		}
+	}).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, `href="/dashboards/123/panels/sales/retry"`)
+	assert.Contains(t, rendered, `hx-get="/dashboards/123/panels/sales/retry"`)
+	assert.Contains(t, rendered, `hx-target="#panel"`)
+	assert.Contains(t, rendered, `hx-swap="outerHTML"`)
+	assert.Contains(t, rendered, `hx-include="#filters"`)
+	assert.Contains(t, rendered, `hx-confirm="Retry panel?"`)
+}
+
 func TestDashboard_RendersVariableComponentOverrides(t *testing.T) {
 	t.Parallel()
 
@@ -115,4 +149,29 @@ func TestDashboard_RendersVariableComponentOverrides(t *testing.T) {
 	rendered := html.String()
 	assert.Contains(t, rendered, `type="text" name="product"`)
 	assert.NotContains(t, rendered, `<select name="product"`)
+}
+
+func TestDashboard_RendersMultiSelectOverrideValueInTextInput(t *testing.T) {
+	t.Parallel()
+
+	spec := lens.DashboardSpec{
+		ID:    "filters",
+		Title: "Filters",
+		Variables: []lens.VariableSpec{
+			{
+				Name:      "product",
+				Label:     "Product",
+				Kind:      lens.VariableMultiSelect,
+				Component: lens.VariableComponentTextInput,
+				Default:   []string{"sku-1", "sku-2"},
+			},
+		},
+	}
+
+	var html bytes.Buffer
+	err := Dashboard(DashboardProps{Spec: spec}).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, `type="text" name="product" value="sku-1,sku-2"`)
 }

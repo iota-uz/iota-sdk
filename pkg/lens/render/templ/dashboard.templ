@@ -340,7 +340,7 @@ templ FilterBar(model filter.Model) {
 									}
 								</select>
 							} else {
-								<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+								<input type="text" name={ input.Name } value={ inputTextValue(input) } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 							}
 						case lens.VariableComponentMultiSelect:
 							if len(input.Options) > 0 {
@@ -353,11 +353,11 @@ templ FilterBar(model filter.Model) {
 								<input type="text" name={ input.Name } value={ strings.Join(input.Values, ",") } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 							}
 						case lens.VariableComponentNumberInput:
-							<input type="number" step="any" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+							<input type="number" step="any" name={ input.Name } value={ inputTextValue(input) } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 						case lens.VariableComponentTextInput:
-							<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+							<input type="text" name={ input.Name } value={ inputTextValue(input) } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 						default:
-							<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+							<input type="text" name={ input.Name } value={ inputTextValue(input) } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 					}
 				</div>
 			}
@@ -1013,6 +1013,19 @@ templ ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelError
 					} else {
 						<a
 							href={ templ.URL(details.Action.URL) }
+							hx-get={ details.Action.URL }
+							if details.Action.Target != "" {
+								hx-target={ details.Action.Target }
+							}
+							if details.Action.Swap != "" {
+								hx-swap={ details.Action.Swap }
+							}
+							if details.Action.Include != "" {
+								hx-include={ details.Action.Include }
+							}
+							if details.Action.Confirm != "" {
+								hx-confirm={ details.Action.Confirm }
+							}
 							class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
 						>
 							{ details.Action.Label }

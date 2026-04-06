@@ -643,14 +643,17 @@ func normalizePanelErrorAction(action *PanelErrorAction) *PanelErrorAction {
 	if normalized.Label == "" || normalized.URL == "" {
 		return nil
 	}
-	switch normalized.Method {
-	case "", strings.ToLower(http.MethodGet):
-		normalized.Method = strings.ToLower(http.MethodGet)
-	case strings.ToLower(http.MethodPost):
-	default:
+	if normalized.Method != strings.ToLower(http.MethodPost) {
 		normalized.Method = strings.ToLower(http.MethodGet)
 	}
 	return normalized
+}
+
+func inputTextValue(input filter.Input) string {
+	if input.Kind == lens.VariableMultiSelect && len(input.Values) > 0 {
+		return strings.Join(input.Values, ",")
+	}
+	return input.Value
 }
 
 func normalizeErrorText(message string) string {

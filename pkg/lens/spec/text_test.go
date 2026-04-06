@@ -101,6 +101,20 @@ func TestTextMarshalRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTextMarshalJSON_SkipsBlankNormalizedLocales(t *testing.T) {
+	t.Parallel()
+
+	payload, err := json.Marshal(Text{
+		Value: "Sales report",
+		Translations: map[string]string{
+			" ":  "ignored",
+			"EN": "Dashboard",
+		},
+	})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"en":"Dashboard"}`, string(payload))
+}
+
 func TestDurationMarshalRoundTrip(t *testing.T) {
 	t.Parallel()
 
