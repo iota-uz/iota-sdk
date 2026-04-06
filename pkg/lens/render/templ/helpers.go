@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -77,6 +78,12 @@ type drillDimensionTab struct {
 type drillSummaryItem struct {
 	Label string
 	Value string
+}
+
+type panelErrorModel struct {
+	PanelID string
+	Reason  string
+	Action  *PanelErrorAction
 }
 
 func drillNavigationModel(ctx context.Context, result *runtime.Result) drillNavModel {
@@ -598,11 +605,6 @@ func localizedLensText(ctx context.Context) lensText {
 	}
 }
 
-type panelErrorModel struct {
-	PanelID string
-	Reason  string
-}
-
 func panelErrorDetails(result *runtime.PanelResult) panelErrorModel {
 	if result == nil {
 		return panelErrorModel{}
@@ -615,6 +617,43 @@ func panelErrorDetails(result *runtime.PanelResult) panelErrorModel {
 		PanelID: strings.TrimSpace(result.Panel.ID),
 		Reason:  reason,
 	}
+}
+
+func panelErrorModelFor(spec panel.Spec, result *runtime.PanelResult, resolve PanelErrorActionResolver) panelErrorModel {
+	details := panelErrorDetails(result)
+	if resolve != nil {
+		details.Action = normalizePanelErrorAction(resolve(spec, result))
+	}
+	return details
+}
+
+func normalizePanelErrorAction(action *PanelErrorAction) *PanelErrorAction {
+	if action == nil {
+		return nil
+	}
+	normalized := &PanelErrorAction{
+		Label:   strings.TrimSpace(action.Label),
+		URL:     strings.TrimSpace(action.URL),
+		Method:  strings.ToLower(strings.TrimSpace(action.Method)),
+		Target:  strings.TrimSpace(action.Target),
+		Swap:    strings.TrimSpace(action.Swap),
+		Include: strings.TrimSpace(action.Include),
+		Confirm: strings.TrimSpace(action.Confirm),
+	}
+	if normalized.Label == "" || normalized.URL == "" {
+		return nil
+	}
+	if normalized.Method != strings.ToLower(http.MethodPost) {
+		normalized.Method = strings.ToLower(http.MethodGet)
+	}
+	return normalized
+}
+
+func inputTextValue(input filter.Input) string {
+	if input.Kind == lens.VariableMultiSelect && len(input.Values) > 0 {
+		return strings.Join(input.Values, ",")
+	}
+	return input.Value
 }
 
 func normalizeErrorText(message string) string {

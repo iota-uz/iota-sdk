@@ -211,6 +211,7 @@ func compileVariable(item lensspec.VariableSpec, opts Options) (lens.VariableSpe
 		Name:            resolveString(item.Name, opts.Values),
 		Label:           resolveText(item.Label, opts),
 		Kind:            item.Kind,
+		Component:       lens.VariableComponent(resolveString(item.Component, opts.Values)),
 		RequestKeys:     resolveStringSlice(item.RequestKeys, opts.Values),
 		Default:         defaultValue,
 		Required:        item.Required,

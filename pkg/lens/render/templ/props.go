@@ -14,14 +14,16 @@ type AsyncProps struct {
 }
 
 type DashboardProps struct {
-	Spec   lens.DashboardSpec
-	Result *runtime.Result
-	Async  *AsyncProps
+	Spec                    lens.DashboardSpec
+	Result                  *runtime.Result
+	Async                   *AsyncProps
+	ResolvePanelErrorAction PanelErrorActionResolver
 }
 
 type FragmentProps struct {
-	Panel  panel.Spec
-	Result *runtime.Result
+	Panel                   panel.Spec
+	Result                  *runtime.Result
+	ResolvePanelErrorAction PanelErrorActionResolver
 }
 
 type BodyProps struct {
@@ -45,3 +47,15 @@ type ContentWithLoadingProps struct {
 	Loading bool
 	Content templpkg.Component
 }
+
+type PanelErrorAction struct {
+	Label   string
+	URL     string
+	Method  string
+	Target  string
+	Swap    string
+	Include string
+	Confirm string
+}
+
+type PanelErrorActionResolver func(panel panel.Spec, result *runtime.PanelResult) *PanelErrorAction

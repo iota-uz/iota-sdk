@@ -56,6 +56,7 @@ type VariableSpec struct {
 	Name            string            `json:"name"`
 	Label           Text              `json:"label"`
 	Kind            lens.VariableKind `json:"kind"`
+	Component       string            `json:"component"`
 	RequestKeys     []string          `json:"requestKeys"`
 	Default         any               `json:"default"`
 	Required        bool              `json:"required"`
@@ -245,6 +246,7 @@ func (s VariableSpec) resolve(opts ResolveOptions) (lens.VariableSpec, error) {
 		Name:            resolveString(s.Name, opts.Values),
 		Label:           resolveText(s.Label, opts),
 		Kind:            s.Kind,
+		Component:       lens.VariableComponent(resolveString(s.Component, opts.Values)),
 		RequestKeys:     resolveStringSlice(s.RequestKeys, opts.Values),
 		Default:         defaultValue,
 		Required:        s.Required,
