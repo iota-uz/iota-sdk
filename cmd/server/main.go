@@ -322,6 +322,11 @@ func main() {
 		controllers.NewGraphQLController(app),
 	)
 	app.RegisterControllers(appletControllers...)
+	spotlightCtx, spotlightCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer spotlightCancel()
+	if err := app.Spotlight().Start(spotlightCtx); err != nil {
+		log.Fatalf("failed to start spotlight service: %v", err)
+	}
 	options := &server.DefaultOptions{
 		Logger:        logger,
 		Configuration: conf,
