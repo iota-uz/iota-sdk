@@ -18,6 +18,31 @@ func LiteralText(value string) Text {
 	return Text{Value: value}
 }
 
+func (t Text) MarshalJSON() ([]byte, error) {
+	if len(t.Translations) == 0 {
+		return json.Marshal(t.Value)
+	}
+	translations := t.normalizedTranslations()
+	if strings.TrimSpace(t.Value) != "" {
+		if _, exists := translations["en"]; !exists {
+			translations["en"] = t.Value
+		}
+	}
+	return json.Marshal(translations)
+}
+
+func (t Text) normalizedTranslations() map[string]string {
+	translations := make(map[string]string, len(t.Translations))
+	for locale, value := range t.Translations {
+		key := normalizeLocale(locale)
+		if key == "" {
+			continue
+		}
+		translations[key] = value
+	}
+	return translations
+}
+
 func (t *Text) UnmarshalJSON(data []byte) error {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
@@ -36,15 +61,7 @@ func (t *Text) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("text must be a string or locale map: %w", err)
 	}
 
-	normalized := make(map[string]string, len(translations))
-	for locale, value := range translations {
-		key := normalizeLocale(locale)
-		if key == "" {
-			continue
-		}
-		normalized[key] = value
-	}
-	*t = Text{Translations: normalized}
+	*t = Text{Translations: Text{Translations: translations}.normalizedTranslations()}
 	return nil
 }
 
@@ -110,6 +127,10 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	}
 	*d = Duration(time.Duration(asNumber * float64(time.Second)))
 	return nil
+}
+
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.Std().String())
 }
 
 func (d Duration) Std() time.Duration {

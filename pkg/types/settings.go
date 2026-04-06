@@ -14,9 +14,9 @@ type SettingsSection struct {
 
 // SettingsPage represents a single page in the settings compartment.
 type SettingsPage struct {
-	Name        string                  // i18n key for display name
-	Description string                  // i18n key for hub page card description
-	Href        string                  // URL path
+	Name        string // i18n key for display name
+	Description string // i18n key for hub page card description
+	Href        string // URL path
 	Icon        templ.Component
 	Permissions []permission.Permission
 	Children    []NavigationItem // Optional sub-navigation for sidebar

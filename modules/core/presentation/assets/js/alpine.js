@@ -331,7 +331,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       this.multiple = this.$el.multiple;
       for (let i = 0, len = this.options.length; i < len; i++) {
         let option = this.options[i];
-        if (option.selected) {
+        if (option.hasAttribute('selected')) {
           this.activeIndex = i;
           this.activeValue = option.value;
           if (this.selectedValues.size > 0 && !this.multiple) continue;
@@ -1336,7 +1336,7 @@ let disableFormElementsWhen = (query) => ({
     this.changeHandler = this.onChange.bind(this);
     this.media.addEventListener('change', this.changeHandler);
     this.observer = new MutationObserver(() => this.disableAllFormElements());
-    this.observer.observe(this.$el, { childList: true, subtree: true });
+    this.observer.observe(this.$el, {childList: true, subtree: true});
     this.disableAllFormElements();
   },
   destroy() {
@@ -1813,7 +1813,7 @@ let fillerRows = (rowHeight = 49) => ({
   },
   _debounce(fn, ms) {
     let t;
-    return (...a) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
+    return (...a) => {clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms);};
   }
 });
 
@@ -1823,7 +1823,7 @@ let tableConfig = (id) => ({
   },
   columns: [],
   fixedColumns: [],
-  grid: { verticalLines: true, horizontalLines: true },
+  grid: {verticalLines: true, horizontalLines: true},
   table: null,
   rootEl: null,
   observer: null,

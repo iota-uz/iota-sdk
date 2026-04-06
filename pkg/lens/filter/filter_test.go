@@ -39,6 +39,9 @@ func TestBuild_Scenarios(t *testing.T) {
 				require.Len(t, model.Inputs, 1)
 				assert.Equal(t, "all", model.Inputs[0].DateRange.Mode)
 				assert.True(t, model.Inputs[0].DateRange.AllowAllTime)
+				assert.Equal(t, lens.VariableComponentDateRangePicker, model.Inputs[0].Component)
+				assert.Equal(t, "range_start", model.Inputs[0].DateRange.StartName)
+				assert.Equal(t, "range_end", model.Inputs[0].DateRange.EndName)
 				assert.Equal(t, "2026-03-01", model.Inputs[0].DateRange.Start)
 				assert.Equal(t, "2026-03-09", model.Inputs[0].DateRange.End)
 			},
@@ -115,6 +118,35 @@ func TestBuild_Scenarios(t *testing.T) {
 				require.Len(t, model.Inputs, 2)
 				assert.True(t, model.Inputs[0].Checked)
 				assert.Equal(t, "25.5", model.Inputs[1].Value)
+			},
+		},
+		{
+			name: "respects explicit component overrides and custom date range keys",
+			specs: []lens.VariableSpec{
+				{
+					Name:        "period",
+					Label:       "Period",
+					Kind:        lens.VariableDateRange,
+					Component:   lens.VariableComponentDateRangePicker,
+					RequestKeys: []string{"period_mode", "from", "to"},
+				},
+				{
+					Name:      "product",
+					Label:     "Product",
+					Kind:      lens.VariableSingleSelect,
+					Component: lens.VariableComponentTextInput,
+				},
+			},
+			values: map[string]any{
+				"period":  lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end},
+				"product": "osago",
+			},
+			assert: func(t *testing.T, model Model) {
+				t.Helper()
+				require.Len(t, model.Inputs, 2)
+				assert.Equal(t, "from", model.Inputs[0].DateRange.StartName)
+				assert.Equal(t, "to", model.Inputs[0].DateRange.EndName)
+				assert.Equal(t, lens.VariableComponentTextInput, model.Inputs[1].Component)
 			},
 		},
 	}

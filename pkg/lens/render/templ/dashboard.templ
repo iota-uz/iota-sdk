@@ -16,7 +16,7 @@ templ Dashboard(props DashboardProps) {
 	if props.Async != nil && props.Result == nil {
 		@dashboardShell(props.Spec, *props.Async)
 	} else {
-		@dashboardResult(props.Spec, props.Result)
+		@dashboardResult(props.Spec, props.Result, props.ResolvePanelErrorAction)
 	}
 }
 
@@ -35,7 +35,7 @@ templ lensGridStyles() {
 	</style>
 }
 
-templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
+templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver) {
 	{{ filters := filter.Build(spec.Variables, nil) }}
 	if result != nil {
 		{{ filters = filterModel(result) }}
@@ -63,7 +63,7 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result) {
 			for _, row := range spec.Rows {
 				<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
 					for _, panelSpec := range row.Panels {
-						@Panel(panelSpec, result)
+						@Panel(panelSpec, result, resolvePanelErrorAction)
 					}
 				</div>
 			}
@@ -309,8 +309,8 @@ templ FilterBar(model filter.Model) {
 			for _, input := range model.Inputs {
 				<div class="space-y-1.5">
 					<label class="text-[11px] font-medium uppercase tracking-wide text-gray-400">{ input.Label }</label>
-					switch input.Kind {
-						case lens.VariableDateRange:
+					switch input.Component {
+						case lens.VariableComponentDateRangePicker:
 							<div class="space-y-2" x-data={ dateRangeState(input) }>
 								<select name={ input.Name } x-model="dateMode" class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
 									<option value="default">{ lensText.DefaultRange }</option>
@@ -320,16 +320,16 @@ templ FilterBar(model filter.Model) {
 									}
 								</select>
 								<div class="grid gap-2 md:grid-cols-2" x-show="dateMode === 'bounded'" x-transition>
-									<input type="date" name={ input.Name + "_start" } value={ input.DateRange.Start } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
-									<input type="date" name={ input.Name + "_end" } value={ input.DateRange.End } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+									<input type="date" name={ input.DateRange.StartName } value={ input.DateRange.Start } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+									<input type="date" name={ input.DateRange.EndName } value={ input.DateRange.End } x-bind:disabled="dateMode !== 'bounded'" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 								</div>
 							</div>
-						case lens.VariableToggle:
+						case lens.VariableComponentToggle:
 							<label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 transition hover:bg-gray-100">
 								<input type="checkbox" name={ input.Name } value="true" checked?={ input.Checked } class="rounded border-gray-300 text-blue-600 focus:ring-blue-200"/>
 								<span>{ input.Description }</span>
 							</label>
-						case lens.VariableSingleSelect:
+						case lens.VariableComponentSelect:
 							if len(input.Options) > 0 {
 								<select name={ input.Name } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
 									if !input.Required {
@@ -340,9 +340,9 @@ templ FilterBar(model filter.Model) {
 									}
 								</select>
 							} else {
-								<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+								<input type="text" name={ input.Name } value={ inputTextValue(input) } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 							}
-						case lens.VariableMultiSelect:
+						case lens.VariableComponentMultiSelect:
 							if len(input.Options) > 0 {
 								<select name={ input.Name } multiple class="min-h-32 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200">
 									for _, option := range input.Options {
@@ -352,12 +352,12 @@ templ FilterBar(model filter.Model) {
 							} else {
 								<input type="text" name={ input.Name } value={ strings.Join(input.Values, ",") } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 							}
-						case lens.VariableNumber:
-							<input type="number" step="any" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
-						case lens.VariableText:
-							<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+						case lens.VariableComponentNumberInput:
+							<input type="number" step="any" name={ input.Name } value={ inputTextValue(input) } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+						case lens.VariableComponentTextInput:
+							<input type="text" name={ input.Name } value={ inputTextValue(input) } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 						default:
-							<input type="text" name={ input.Name } value={ input.Value } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
+							<input type="text" name={ input.Name } value={ inputTextValue(input) } class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"/>
 					}
 				</div>
 			}
@@ -388,39 +388,39 @@ templ panelCard(spec panel.Spec, bodyClass string, body templ.Component) {
 					</div>
 				</div>
 			}
-			<div class={ bodyClass }>
+			<div class={ bodyClass } data-lens-panel-body={ spec.ID }>
 				@body
 			</div>
 		</div>
 	</div>
 }
 
-templ Panel(spec panel.Spec, result *runtime.Result) {
-	@panelCard(spec, panelBodyClass(spec), PanelContent(spec, result))
+templ Panel(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver) {
+	@panelCard(spec, panelBodyClass(spec), PanelContent(spec, result, resolvePanelErrorAction))
 }
 
 templ PanelShell(spec panel.Spec, props AsyncProps) {
 	@panelCard(spec, panelShellBodyClass(spec), PanelIsland(spec, props))
 }
 
-templ PanelContent(spec panel.Spec, result *runtime.Result) {
+templ PanelContent(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver) {
 	{{ currentPanel := panelResult(result, spec.ID) }}
 	switch spec.Kind {
 		case panel.KindTabs:
-			@TabsPanel(spec, result)
+			@TabsPanel(spec, result, resolvePanelErrorAction)
 		case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-			@CompositePanel(spec, result)
+			@CompositePanel(spec, result, resolvePanelErrorAction)
 		case panel.KindTable:
-			@TablePanel(spec, currentPanel)
+			@TablePanel(spec, currentPanel, resolvePanelErrorAction)
 		case panel.KindStat:
-			@StatPanel(spec, currentPanel)
+			@StatPanel(spec, currentPanel, resolvePanelErrorAction)
 		default:
-			@ChartPanel(spec, currentPanel)
+			@ChartPanel(spec, currentPanel, resolvePanelErrorAction)
 	}
 }
 
 templ PanelFragment(props FragmentProps) {
-	@PanelContent(props.Panel, props.Result)
+	@PanelContent(props.Panel, props.Result, props.ResolvePanelErrorAction)
 }
 
 templ PanelIsland(spec panel.Spec, props AsyncProps) {
@@ -445,15 +445,15 @@ templ PanelIsland(spec panel.Spec, props AsyncProps) {
 	</div>
 }
 
-templ CompositePanel(spec panel.Spec, result *runtime.Result) {
+templ CompositePanel(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver) {
 	<div class="grid grid-cols-12 gap-3 md:gap-5">
 		for _, child := range spec.Children {
-			@Panel(child, result)
+			@Panel(child, result, resolvePanelErrorAction)
 		}
 	</div>
 }
 
-templ TabsPanel(spec panel.Spec, result *runtime.Result) {
+templ TabsPanel(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver) {
 	{{ chartText := localizedChartText(ctx) }}
 	{{ canFullscreen := panelCanFullscreen(spec, result) }}
 	<div x-data={ tabsState(spec) } data-lens-rerender-scope class="flex h-full flex-col">
@@ -463,24 +463,24 @@ templ TabsPanel(spec panel.Spec, result *runtime.Result) {
 				@PanelFullscreenButton(chartText)
 			}
 		</div>
-		@TabsPanelBody(spec, result)
+		@TabsPanelBody(spec, result, resolvePanelErrorAction)
 		if canFullscreen {
-			@PanelFullscreenOverlay(spec, chartText, panelFullscreenBodyClass(spec), TabsPanelFullscreenBody(spec, result))
+			@PanelFullscreenOverlay(spec, chartText, panelFullscreenBodyClass(spec), TabsPanelFullscreenBody(spec, result, resolvePanelErrorAction))
 		}
 	</div>
 }
 
-templ TabsPanelBody(spec panel.Spec, result *runtime.Result) {
+templ TabsPanelBody(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver) {
 	<div class="flex min-h-0 flex-1 flex-col">
 		@TabsPanelNav(spec)
-		@TabsPanelFrames(spec, result, false)
+		@TabsPanelFrames(spec, result, false, resolvePanelErrorAction)
 	</div>
 }
 
-templ TabsPanelFullscreenBody(spec panel.Spec, result *runtime.Result) {
+templ TabsPanelFullscreenBody(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver) {
 	<div class="flex min-h-0 flex-1 flex-col">
 		@TabsPanelNav(spec)
-		@TabsPanelFrames(spec, result, true)
+		@TabsPanelFrames(spec, result, true, resolvePanelErrorAction)
 	</div>
 }
 
@@ -502,28 +502,28 @@ templ TabsPanelNav(spec panel.Spec) {
 	</div>
 }
 
-templ TabsPanelFrames(spec panel.Spec, result *runtime.Result, fullscreen bool) {
+templ TabsPanelFrames(spec panel.Spec, result *runtime.Result, fullscreen bool, resolvePanelErrorAction PanelErrorActionResolver) {
 	for _, child := range spec.Children {
 		<div x-show={ tabVisibilityExpression(child.ID) } x-transition.opacity.duration.150ms class={ tabsPanelFrameClass(fullscreen) }>
 			{{ childPanel := panelResult(result, child.ID) }}
 			if child.Kind == panel.KindTable {
-				@TablePanel(child, childPanel)
+				@TablePanel(child, childPanel, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindStat {
-				@StatPanel(child, childPanel)
+				@StatPanel(child, childPanel, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindTabs || child.Kind == panel.KindGrid || child.Kind == panel.KindSplit || child.Kind == panel.KindRepeat {
-				@PanelContent(child, result)
+				@PanelContent(child, result, resolvePanelErrorAction)
 			} else if fullscreen {
-				@FullscreenTabbedChartPanel(child, childPanel)
+				@FullscreenTabbedChartPanel(child, childPanel, resolvePanelErrorAction)
 			} else {
-				@TabbedChartPanel(child, childPanel)
+				@TabbedChartPanel(child, childPanel, resolvePanelErrorAction)
 			}
 		</div>
 	}
 }
 
-templ StatPanel(spec panel.Spec, result *runtime.PanelResult) {
+templ StatPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
 	if result == nil || result.Error != nil {
-		@ErrorState(result)
+		@ErrorState(spec, result, resolvePanelErrorAction)
 		{{ return }}
 	}
 	{{ value := formatValue(statRawValue(spec, result), spec.Formatter, result.Locale, result.Timezone) }}
@@ -595,22 +595,22 @@ templ statContent(spec panel.Spec, value, description string, clickable bool) {
 	}
 }
 
-templ ChartPanel(spec panel.Spec, result *runtime.PanelResult) {
-	@chartPanelContent(spec, result, true, false)
+templ ChartPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	@chartPanelContent(spec, result, true, false, resolvePanelErrorAction)
 }
 
-templ TabbedChartPanel(spec panel.Spec, result *runtime.PanelResult) {
-	@chartPanelContent(spec, result, false, false)
+templ TabbedChartPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	@chartPanelContent(spec, result, false, false, resolvePanelErrorAction)
 }
 
-templ FullscreenTabbedChartPanel(spec panel.Spec, result *runtime.PanelResult) {
-	@chartPanelContent(spec, result, false, true)
+templ FullscreenTabbedChartPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	@chartPanelContent(spec, result, false, true, resolvePanelErrorAction)
 }
 
-templ chartPanelContent(spec panel.Spec, result *runtime.PanelResult, showControls bool, fullscreen bool) {
+templ chartPanelContent(spec panel.Spec, result *runtime.PanelResult, showControls bool, fullscreen bool, resolvePanelErrorAction PanelErrorActionResolver) {
 	{{ chartText := localizedChartText(ctx) }}
 	if result == nil || result.Error != nil {
-		@ErrorState(result)
+		@ErrorState(spec, result, resolvePanelErrorAction)
 		{{ return }}
 	}
 	if result.Frames == nil || result.Frames.Primary() == nil || result.Frames.Primary().RowCount == 0 {
@@ -728,9 +728,9 @@ templ FullscreenChartCanvas(spec panel.Spec, result *runtime.PanelResult) {
 	</div>
 }
 
-templ TablePanel(spec panel.Spec, result *runtime.PanelResult) {
+templ TablePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
 	if result == nil || result.Error != nil {
-		@ErrorState(result)
+		@ErrorState(spec, result, resolvePanelErrorAction)
 		{{ return }}
 	}
 	if result.Frames == nil || result.Frames.Primary() == nil || result.Frames.Primary().RowCount == 0 {
@@ -961,9 +961,9 @@ templ EmptyState() {
 	</div>
 }
 
-templ ErrorState(result *runtime.PanelResult) {
+templ ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
 	{{ lensText := localizedLensText(ctx) }}
-	{{ details := panelErrorDetails(result) }}
+	{{ details := panelErrorModelFor(spec, result, resolvePanelErrorAction) }}
 	<div class="flex min-h-[180px] flex-col items-center justify-center gap-2.5 text-center">
 		<div class="rounded-lg bg-red-50 p-2.5 text-red-300">
 			@icons.WarningCircle(icons.Props{Size: "20"})
@@ -986,6 +986,51 @@ templ ErrorState(result *runtime.PanelResult) {
 						</p>
 					}
 					<p class="text-[10px] text-red-500">{ lensText.ErrorLogsHint }</p>
+				</div>
+			}
+			if details.Action != nil {
+				<div class="mt-4">
+					if details.Action.Method == "post" {
+						<button
+							type="button"
+							class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+							hx-post={ details.Action.URL }
+							if details.Action.Target != "" {
+								hx-target={ details.Action.Target }
+							}
+							if details.Action.Swap != "" {
+								hx-swap={ details.Action.Swap }
+							}
+							if details.Action.Include != "" {
+								hx-include={ details.Action.Include }
+							}
+							if details.Action.Confirm != "" {
+								hx-confirm={ details.Action.Confirm }
+							}
+						>
+							{ details.Action.Label }
+						</button>
+					} else {
+						<a
+							href={ templ.URL(details.Action.URL) }
+							hx-get={ details.Action.URL }
+							if details.Action.Target != "" {
+								hx-target={ details.Action.Target }
+							}
+							if details.Action.Swap != "" {
+								hx-swap={ details.Action.Swap }
+							}
+							if details.Action.Include != "" {
+								hx-include={ details.Action.Include }
+							}
+							if details.Action.Confirm != "" {
+								hx-confirm={ details.Action.Confirm }
+							}
+							class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+						>
+							{ details.Action.Label }
+						</a>
+					}
 				</div>
 			}
 		</div>

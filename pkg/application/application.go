@@ -37,6 +37,7 @@ import (
 	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
 	appletenginewsbridge "github.com/iota-uz/iota-sdk/pkg/appletengine/wsbridge"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -90,11 +91,11 @@ type seeder struct {
 	seedFuncs []SeedFunc
 }
 
-func (s *seeder) Seed(ctx context.Context, app Application) error {
+func (s *seeder) Seed(ctx context.Context, deps *SeedDeps) error {
 	conf := configuration.Use()
 	for _, seedFunc := range s.seedFuncs {
 		conf.Logger().Infof("Seeding %s", reflect.TypeOf(seedFunc).Name())
-		if err := seedFunc(ctx, app); err != nil {
+		if err := seedFunc(ctx, deps); err != nil {
 			return err
 		}
 	}
@@ -103,6 +104,83 @@ func (s *seeder) Seed(ctx context.Context, app Application) error {
 
 func (s *seeder) Register(seedFuncs ...SeedFunc) {
 	s.seedFuncs = append(s.seedFuncs, seedFuncs...)
+}
+
+// Seed wraps a function into a SeedFunc using dependency injection. The function
+// must accept context.Context as the first argument and return exactly one error.
+// Additional parameters are resolved from the SeedDeps provider registry.
+//
+// Seed panics if fn has an invalid signature. Call it at package init time or
+// during registration so signature errors surface at startup, not at seed time.
+func Seed(fn interface{}) SeedFunc {
+	if err := validateSeedSignature(fn); err != nil {
+		panic(err)
+	}
+	return func(ctx context.Context, deps *SeedDeps) error {
+		if deps == nil {
+			return fmt.Errorf("seed deps are required")
+		}
+		return deps.Invoke(ctx, fn)
+	}
+}
+
+func (d *SeedDeps) Invoke(ctx context.Context, fn interface{}) error {
+	if d == nil {
+		return fmt.Errorf("seed deps are required")
+	}
+	results, err := di.InvokeWithProviders(ctx, fn, d.providersForInvocation()...)
+	if err != nil {
+		return err
+	}
+	if len(results) != 1 {
+		return fmt.Errorf("seed function must return exactly one value")
+	}
+	if results[0].IsNil() {
+		return nil
+	}
+	resultErr, ok := results[0].Interface().(error)
+	if !ok {
+		return fmt.Errorf("seed function must return an error")
+	}
+	return resultErr
+}
+
+func (d *SeedDeps) providersForInvocation() []di.Provider {
+	if d == nil {
+		return nil
+	}
+
+	providers := make([]di.Provider, 0, len(d.providers)+3)
+	if d.Pool != nil {
+		providers = append(providers, di.ValueProvider(d.Pool))
+	}
+	if d.EventBus != nil {
+		providers = append(providers, di.ValueProvider(d.EventBus))
+	}
+	if d.Logger != nil {
+		providers = append(providers, di.ValueProvider(d.Logger))
+	}
+	providers = append(providers, d.providers...)
+	return providers
+}
+
+func validateSeedSignature(fn interface{}) error {
+	if fn == nil {
+		return fmt.Errorf("seed function is required")
+	}
+	fnType := reflect.TypeOf(fn)
+	if fnType.Kind() != reflect.Func {
+		return fmt.Errorf("seed function must be a function, got %s", fnType.Kind())
+	}
+	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
+	if fnType.NumIn() == 0 || fnType.In(0) != contextType {
+		return fmt.Errorf("seed function must accept context.Context as the first argument")
+	}
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if fnType.NumOut() != 1 || !fnType.Out(0).Implements(errorType) {
+		return fmt.Errorf("seed function must return exactly one error")
+	}
+	return nil
 }
 
 // ---- Applet Registry implementation ----
@@ -165,8 +243,6 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("application options are required")
 	}
-	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer initCancel()
 
 	var engine spotlight.IndexEngine
 	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
@@ -175,15 +251,9 @@ func New(opts *ApplicationOptions) (Application, error) {
 	}
 	cfg := configuration.Use()
 	if cfg.MeiliURL == "" {
-		if opts.Logger != nil {
-			opts.Logger.Info("spotlight disabled: MEILI_URL not set")
-		}
 		engine = spotlight.NewNoopEngine()
 	} else {
 		engine = spotlight.NewMeilisearchEngine(cfg.MeiliURL, cfg.MeiliAPIKey)
-		if err := engine.Health(initCtx); err != nil {
-			return nil, fmt.Errorf("spotlight preflight check: %w", err)
-		}
 	}
 	spotlightService := spotlight.NewService(
 		engine,
@@ -191,9 +261,6 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight.DefaultServiceConfig(),
 		serviceOpts...,
 	)
-	if err := spotlightService.Start(initCtx); err != nil {
-		return nil, fmt.Errorf("start spotlight service: %w", err)
-	}
 	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)
 	// Inject QuickLinks into the service for in-memory fuzzy search in the fast stage.
