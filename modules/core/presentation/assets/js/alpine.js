@@ -1975,10 +1975,12 @@ let tableConfig = (id) => ({
     headerCells.forEach((th, index) => {
       let key = th.dataset.col || `col-${index}`;
       let sticky = th.dataset.colSticky != undefined;
+      let defaultHidden = th.dataset.colHidden != undefined;
       columns.push({
         key,
         label: th.textContent.trim(),
         sticky,
+        visible: !defaultHidden,
       });
     });
 

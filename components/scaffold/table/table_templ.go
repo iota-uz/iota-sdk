@@ -1929,12 +1929,13 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContext) []*base.
 				templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-primary))]", col.StickyPos().Left()),
 				col.Class(),
 			).String(),
-			Sortable:     col.Sortable(),
-			SortDir:      col.SortDir(),
-			SortURL:      col.SortURL(),
-			Configurable: config.Configurable && !col.StickyPos().Left() && !col.StickyPos().Right(),
-			Sticky:       !col.StickyPos().Unknown(),
-			AddonBottom:  col.AddonBottom(),
+			Sortable:      col.Sortable(),
+			SortDir:       col.SortDir(),
+			SortURL:       col.SortURL(),
+			Configurable:  config.Configurable && !col.StickyPos().Left() && !col.StickyPos().Right(),
+			Sticky:        !col.StickyPos().Unknown(),
+			DefaultHidden: col.DefaultHidden() && config.Configurable && !col.StickyPos().Left() && !col.StickyPos().Right(),
+			AddonBottom:   col.AddonBottom(),
 		}
 	}
 

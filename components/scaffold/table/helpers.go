@@ -38,6 +38,7 @@ type TableColumn interface {
 	SortURL() string
 	StickyPos() StickyPosition
 	AddonBottom() *Addon
+	DefaultHidden() bool
 }
 
 type TableCell interface {
@@ -648,6 +649,7 @@ type tableColumnImpl struct {
 	rendererRegistery *crud.RendererRegistry
 	stickyPos         StickyPosition
 	addonBottom       *Addon
+	defaultHidden     bool
 }
 
 func (c *tableColumnImpl) Key() string                              { return c.key }
@@ -660,6 +662,7 @@ func (c *tableColumnImpl) SortURL() string                          { return c.s
 func (c *tableColumnImpl) Editable() bool                           { return c.editable }
 func (c *tableColumnImpl) StickyPos() StickyPosition                { return c.stickyPos }
 func (c *tableColumnImpl) AddonBottom() *Addon                      { return c.addonBottom }
+func (c *tableColumnImpl) DefaultHidden() bool                      { return c.defaultHidden }
 func (c *tableColumnImpl) EditableField() crud.Field                { return c.editableField }
 func (c *tableColumnImpl) RendererRegistry() *crud.RendererRegistry { return c.rendererRegistery }
 
@@ -729,6 +732,13 @@ func WithSortableState(sortable bool) ColumnOpt {
 func WithSticky(pos StickyPosition) ColumnOpt {
 	return func(c *tableColumnImpl) {
 		c.stickyPos = pos
+	}
+}
+
+// WithDefaultHidden hides a column by default. Users can show it via table settings.
+func WithDefaultHidden() ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.defaultHidden = true
 	}
 }
 
