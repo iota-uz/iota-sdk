@@ -31,6 +31,7 @@ type GraphSchema struct {
 type Application interface {
 	DB() *pgxpool.Pool
 	EventPublisher() eventbus.EventBus
+	RuntimeProfile() RuntimeProfile
 	Controllers() []Controller
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS

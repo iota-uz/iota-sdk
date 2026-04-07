@@ -195,6 +195,7 @@ type ApplicationOptions struct {
 	Bundle             *i18n.Bundle
 	Huber              Huber
 	SupportedLanguages []string
+	RuntimeProfile     RuntimeProfile
 }
 
 func LoadBundle() *i18n.Bundle {
@@ -269,6 +270,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 	return &application{
 		pool:               opts.Pool,
 		eventPublisher:     opts.EventBus,
+		runtimeProfile:     normalizeRuntimeProfile(opts.RuntimeProfile),
 		websocket:          opts.Huber,
 		controllers:        make(map[string]Controller),
 		services:           make(map[reflect.Type]interface{}),
@@ -285,6 +287,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 type application struct {
 	pool               *pgxpool.Pool
 	eventPublisher     eventbus.EventBus
+	runtimeProfile     RuntimeProfile
 	websocket          Huber
 	services           map[reflect.Type]interface{}
 	controllers        map[string]Controller
@@ -446,6 +449,10 @@ func (app *application) DB() *pgxpool.Pool {
 
 func (app *application) EventPublisher() eventbus.EventBus {
 	return app.eventPublisher
+}
+
+func (app *application) RuntimeProfile() RuntimeProfile {
+	return app.runtimeProfile
 }
 
 func (app *application) Controllers() []Controller {
