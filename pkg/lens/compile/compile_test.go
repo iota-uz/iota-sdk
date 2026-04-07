@@ -127,3 +127,27 @@ func TestResolveTransformSpecsFailsWhenPredicateRefCannotBeResolved(t *testing.T
 	require.Error(t, err)
 	require.ErrorContains(t, err, "missing_status")
 }
+
+func TestDocumentCompilesVariableComponentOverride(t *testing.T) {
+	t.Parallel()
+
+	doc := lensspec.Document{
+		Version: lensspec.DocumentVersion,
+		ID:      "filter-components",
+		Title:   lensspec.LiteralText("Filter Components"),
+		Variables: []lensspec.VariableSpec{
+			{
+				Name:      "product",
+				Label:     lensspec.LiteralText("Product"),
+				Kind:      lens.VariableSingleSelect,
+				Component: string(lens.VariableComponentTextInput),
+			},
+		},
+		Rows: []lensspec.RowSpec{},
+	}
+
+	compiled, err := Document(doc, Options{Locale: "en"})
+	require.NoError(t, err)
+	require.Len(t, compiled.Spec.Variables, 1)
+	require.Equal(t, lens.VariableComponentTextInput, compiled.Spec.Variables[0].Component)
+}

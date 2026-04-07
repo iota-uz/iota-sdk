@@ -141,7 +141,9 @@ func newRedisClient(redisURL string) (*redis.Client, error) {
 	}
 
 	client := redis.NewClient(opts)
-	if pingErr := client.Ping(context.Background()).Err(); pingErr != nil {
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+	if pingErr := client.Ping(pingCtx).Err(); pingErr != nil {
 		_ = client.Close()
 		return nil, serrors.E(op, "ping redis", pingErr)
 	}

@@ -32,6 +32,17 @@ const (
 	VariableToggle       VariableKind = "toggle"
 )
 
+type VariableComponent string
+
+const (
+	VariableComponentDateRangePicker VariableComponent = "date_range_picker"
+	VariableComponentSelect          VariableComponent = "select"
+	VariableComponentMultiSelect     VariableComponent = "multi_select"
+	VariableComponentTextInput       VariableComponent = "text_input"
+	VariableComponentNumberInput     VariableComponent = "number_input"
+	VariableComponentToggle          VariableComponent = "toggle"
+)
+
 type DashboardSpec struct {
 	ID          string
 	Title       string
@@ -75,6 +86,7 @@ type VariableSpec struct {
 	Name            string
 	Label           string
 	Kind            VariableKind
+	Component       VariableComponent
 	RequestKeys     []string
 	Default         any
 	Required        bool
@@ -82,6 +94,25 @@ type VariableSpec struct {
 	Options         []VariableOption
 	AllowAllTime    bool
 	DefaultDuration time.Duration
+}
+
+func DefaultVariableComponent(kind VariableKind) VariableComponent {
+	switch kind {
+	case VariableDateRange:
+		return VariableComponentDateRangePicker
+	case VariableSingleSelect:
+		return VariableComponentSelect
+	case VariableMultiSelect:
+		return VariableComponentMultiSelect
+	case VariableNumber:
+		return VariableComponentNumberInput
+	case VariableToggle:
+		return VariableComponentToggle
+	case VariableText:
+		fallthrough
+	default:
+		return VariableComponentTextInput
+	}
 }
 
 type DateRangeValue struct {

@@ -7,6 +7,7 @@ import (
 	"reflect"
 
 	"github.com/iota-uz/applets"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -30,6 +31,7 @@ type GraphSchema struct {
 type Application interface {
 	DB() *pgxpool.Pool
 	EventPublisher() eventbus.EventBus
+	RuntimeProfile() RuntimeProfile
 	Controllers() []Controller
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
@@ -65,11 +67,34 @@ type Application interface {
 }
 
 type Seeder interface {
-	Seed(ctx context.Context, app Application) error
+	Seed(ctx context.Context, deps *SeedDeps) error
 	Register(funcs ...SeedFunc)
 }
 
-type SeedFunc func(ctx context.Context, app Application) error
+type SeedFunc func(ctx context.Context, deps *SeedDeps) error
+
+type SeedDeps struct {
+	Pool      *pgxpool.Pool
+	EventBus  eventbus.EventBus
+	Logger    logrus.FieldLogger
+	providers []di.Provider
+}
+
+func (d *SeedDeps) RegisterValues(values ...interface{}) {
+	if d == nil {
+		panic("seed deps are required")
+	}
+	for _, value := range values {
+		d.providers = append(d.providers, di.ValueProvider(value))
+	}
+}
+
+func (d *SeedDeps) RegisterProviders(providers ...di.Provider) {
+	if d == nil {
+		panic("seed deps are required")
+	}
+	d.providers = append(d.providers, providers...)
+}
 
 type Controller interface {
 	Register(r *mux.Router)

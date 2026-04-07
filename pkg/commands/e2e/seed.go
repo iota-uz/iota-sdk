@@ -7,22 +7,20 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	websiteseed "github.com/iota-uz/iota-sdk/modules/website/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
-// Seed populates the e2e database with test data
-func Seed() error {
-	// Set environment variable for e2e database
+// SeedRaw populates the e2e database with test data.
+func SeedRaw() error {
 	_ = os.Setenv("DB_NAME", E2EDBName)
 
 	conf := configuration.Use()
@@ -34,20 +32,22 @@ func Seed() error {
 	}
 	defer pool.Close()
 
-	app, err := common.NewApplication(pool, modules.BuiltInModules...)
-	if err != nil {
-		return fmt.Errorf("failed to create application: %w", err)
-	}
-	app.RegisterNavItems(modules.NavLinks...)
-
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
+	seedDeps := &application.SeedDeps{
+		Pool:     pool,
+		EventBus: eventbus.NewEventPublisher(conf.Logger()),
+		Logger:   conf.Logger(),
+	}
+	coreseed.RegisterProviders(seedDeps)
+	websiteseed.RegisterProviders(seedDeps)
 	seeder := application.NewSeeder()
-
-	// Create test user
 	usr, err := user.New(
 		"Test",
 		"User",
@@ -58,7 +58,6 @@ func Seed() error {
 		return fmt.Errorf("failed to create test user: %w", err)
 	}
 
-	// Add default tenant to context
 	defaultTenant := &composables.Tenant{
 		ID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 		Name:   "Default",
@@ -69,9 +68,7 @@ func Seed() error {
 	seeder.Register(
 		coreseed.CreateDefaultTenant,
 		coreseed.CreateCurrencies,
-		func(ctx context.Context, app application.Application) error {
-			return coreseed.CreatePermissions(ctx, app, allPermissions)
-		},
+		coreseed.CreatePermissions(allPermissions),
 		coreseed.UserSeedFunc(usr, allPermissions),
 		coreseed.UserSeedFunc(user.New(
 			"AI",
@@ -94,10 +91,7 @@ func Seed() error {
 		defaultTenant.ID,
 	)
 
-	if err := seeder.Seed(ctxWithTenant, app); err != nil {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			return fmt.Errorf("rollback failed: %w (original error: %w)", rollbackErr, err)
-		}
+	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
 		return err
 	}
 

@@ -192,8 +192,11 @@ type testApp struct {
 	migrations application.MigrationManager
 }
 
-func (a *testApp) DB() *pgxpool.Pool                                                     { return nil }
-func (a *testApp) EventPublisher() eventbus.EventBus                                     { return nil }
+func (a *testApp) DB() *pgxpool.Pool                 { return nil }
+func (a *testApp) EventPublisher() eventbus.EventBus { return nil }
+func (a *testApp) RuntimeProfile() application.RuntimeProfile {
+	return application.RuntimeProfileServer
+}
 func (a *testApp) Controllers() []application.Controller                                 { return nil }
 func (a *testApp) Middleware() []mux.MiddlewareFunc                                      { return nil }
 func (a *testApp) Assets() []*embed.FS                                                   { return nil }
