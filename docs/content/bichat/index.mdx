@@ -144,7 +144,7 @@ WHERE tenant_id = current_setting('app.tenant_id', true)::UUID;
 
 ## Configuration
 
-The module is configured via `ModuleConfig` in Go. **Required:** you must configure attachment storage (or explicitly disable it for tests). Module registration can **fail** at startup if configuration is invalid; check the error from `module.Register(app)` or from `modules.Load(app, module)`.
+The module is configured via `ModuleConfig` in Go. **Required:** you must configure attachment storage (or explicitly disable it for tests). Module registration can **fail** at startup if configuration is invalid; check the error from `module.RegisterWiring(app)` and `module.RegisterTransports(app)` or use `application.ApplyProfile(...)`.
 
 ```go
 cfg := bichat.NewModuleConfig(
@@ -161,10 +161,12 @@ cfg := bichat.NewModuleConfig(
 )
 
 module := bichat.NewModuleWithConfig(cfg)
-if err := module.Register(app); err != nil {
-    log.Fatalf("Failed to register BiChat: %v", err)
+if err := module.RegisterWiring(app); err != nil {
+    log.Fatalf("Failed to wire BiChat: %v", err)
 }
-// Or: modules.Load(app, module) and check the error returned by Load
+if err := module.RegisterTransports(app); err != nil {
+    log.Fatalf("Failed to register BiChat transports: %v", err)
+}
 ```
 
 To disable attachments (e.g. testing only): use `bichat.WithNoOpAttachmentStorage()`. Session title generation is always enabled.

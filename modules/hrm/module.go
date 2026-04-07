@@ -24,17 +24,21 @@ func NewModule() application.Module {
 type Module struct {
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.RegisterServices(
 		services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher()),
 		services.NewEmployeeService(persistence.NewEmployeeRepository(), app.EventPublisher()),
 	)
-	app.RegisterControllers(
-		controllers.NewEmployeeController(app),
-	)
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(EmployeesLink.Name, EmployeesLink.Href),
+	)
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
+	app.RegisterControllers(
+		controllers.NewEmployeeController(app),
 	)
 	return nil
 }

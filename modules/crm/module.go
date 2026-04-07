@@ -30,7 +30,7 @@ func NewModule() application.Module {
 type Module struct {
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	conf := configuration.Use()
 
 	passportRepo := corepersistence.NewPassportRepository()
@@ -72,6 +72,28 @@ func (m *Module) Register(app application.Application) error {
 	)
 	app.Spotlight().RegisterProvider(newSpotlightProvider(app.DB()))
 
+	app.RegisterLocaleFiles(&LocaleFiles)
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
+	conf := configuration.Use()
+
+	passportRepo := corepersistence.NewPassportRepository()
+	chatRepo := persistence.NewChatRepository()
+	clientRepo := persistence.NewClientRepository(passportRepo)
+	twilioProvider := cpassproviders.NewTwilioProvider(
+		cpassproviders.Config{
+			Params: twilio.ClientParams{
+				Username: conf.Twilio.AccountSID,
+				Password: conf.Twilio.AuthToken,
+			},
+			WebhookURL: conf.Twilio.WebhookURL,
+		},
+		clientRepo,
+		chatRepo,
+	)
+
 	// Configure client controller with explicit tabs
 	basePath := "/crm/clients"
 	app.RegisterControllers(
@@ -93,8 +115,6 @@ func (m *Module) Register(app application.Application) error {
 	if botToken := conf.TelegramBotToken; botToken != "" {
 		handlers.RegisterNotificationHandler(app, botToken)
 	}
-
-	app.RegisterLocaleFiles(&LocaleFiles)
 	return nil
 }
 

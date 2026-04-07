@@ -49,17 +49,7 @@ func NewModule(opts ...Option) application.Module {
 	return module
 }
 
-// Register initializes the billing module and registers all services and controllers.
-//
-// Example of registering a transaction callback from external project:
-//
-//	billingService := app.Service(services.BillingService{}).(*services.BillingService)
-//	billingService.RegisterCallback(func(ctx context.Context, tx billing.Transaction) error {
-//		// Custom business logic (update subscription, send email, etc.)
-//		log.Printf("Processing transaction: %s, amount: %.2f", tx.ID(), tx.Amount().Quantity())
-//		return nil // return nil for success, error for failure
-//	})
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	_ = migrationFiles
 
 	conf := configuration.Use()
@@ -125,6 +115,22 @@ func (m *Module) Register(app application.Application) error {
 		billingService,
 	)
 
+	app.RegisterLocaleFiles(&LocaleFiles)
+
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
+	conf := configuration.Use()
+
+	logTransport := middleware.NewLogTransport(
+		conf.Logger(),
+		conf,
+		true,
+		true,
+		"octo",
+	)
+
 	basePath := "/billing"
 	stripeHooks := append([]ports.StripeEventHook{}, m.stripeHooks...)
 
@@ -152,8 +158,6 @@ func (m *Module) Register(app application.Application) error {
 			stripeHooks...,
 		),
 	)
-
-	app.RegisterLocaleFiles(&LocaleFiles)
 
 	return nil
 }

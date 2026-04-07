@@ -53,10 +53,5 @@ var (
 )
 
 func Load(app application.Application, externalModules ...application.Module) error {
-	for _, module := range externalModules {
-		if err := module.Register(app); err != nil {
-			return err
-		}
-	}
-	return nil
+	return application.Wire(app, externalModules...)
 }

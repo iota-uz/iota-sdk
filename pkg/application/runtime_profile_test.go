@@ -2,35 +2,26 @@ package application
 
 import "testing"
 
-func TestApplicationRuntimeProfileDefaultsToServer(t *testing.T) {
+func TestNormalizeCompositionProfileDefaultsToServer(t *testing.T) {
 	t.Parallel()
 
-	app, err := New(&ApplicationOptions{
-		Bundle:             LoadBundle(),
-		SupportedLanguages: []string{"en"},
-	})
+	got, err := normalizeCompositionProfile("")
 	if err != nil {
-		t.Fatalf("New() error = %v", err)
+		t.Fatalf("normalizeCompositionProfile() error = %v", err)
 	}
-
-	if got := app.RuntimeProfile(); got != RuntimeProfileServer {
-		t.Fatalf("RuntimeProfile() = %q, want %q", got, RuntimeProfileServer)
+	if got != CompositionProfileServer {
+		t.Fatalf("normalizeCompositionProfile() = %q, want %q", got, CompositionProfileServer)
 	}
 }
 
-func TestApplicationRuntimeProfileHonorsBootstrap(t *testing.T) {
+func TestNormalizeCompositionProfileHonorsBootstrap(t *testing.T) {
 	t.Parallel()
 
-	app, err := New(&ApplicationOptions{
-		Bundle:             LoadBundle(),
-		SupportedLanguages: []string{"en"},
-		RuntimeProfile:     RuntimeProfileBootstrap,
-	})
+	got, err := normalizeCompositionProfile(CompositionProfileBootstrap)
 	if err != nil {
-		t.Fatalf("New() error = %v", err)
+		t.Fatalf("normalizeCompositionProfile() error = %v", err)
 	}
-
-	if got := app.RuntimeProfile(); got != RuntimeProfileBootstrap {
-		t.Fatalf("RuntimeProfile() = %q, want %q", got, RuntimeProfileBootstrap)
+	if got != CompositionProfileBootstrap {
+		t.Fatalf("normalizeCompositionProfile() = %q, want %q", got, CompositionProfileBootstrap)
 	}
 }

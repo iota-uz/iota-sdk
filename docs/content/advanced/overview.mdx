@@ -13,14 +13,16 @@ This module includes essential features for advanced management.
 
 ## Usage
 
-Load a module by passing it to `modules.Load`; the module's `Register(app)` is called internally. Always check the returned error so registration failures are caught at startup:
+Compose modules with a profile so wiring, transports, and runtime startup happen explicitly. For most long-running servers, use `application.ApplyProfile`:
 
 ```go
-if err := modules.Load(app, yourModule); err != nil {
-    return err
-}
-// or with built-ins:
-if err := modules.Load(app, modules.BuiltInModules..., yourModule); err != nil {
-    return err
+if err := application.ApplyProfile(
+	context.Background(),
+	app,
+	application.CompositionProfileServer,
+	modules.BuiltInModules...,
+	yourModule,
+); err != nil {
+	return err
 }
 ```

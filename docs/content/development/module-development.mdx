@@ -938,28 +938,24 @@ func NewModule() application.Module {
 
 type Module struct{}
 
-func (m *Module) Register(app application.Application) error {
-	// Create repositories
+func (m *Module) RegisterWiring(app application.Application) error {
 	productRepo := persistence.NewProductRepository()
 
-	// Register services
 	app.RegisterServices(
 		services.NewProductService(productRepo, app.EventPublisher()),
 	)
-
-	// Register controllers
-	app.RegisterControllers(
-		controllers.NewProductController(app),
-	)
-
-	// Register quick links for Spotlight search (trKey = translation key, link = URL)
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href),
 	)
-
-	// Register locale files
 	app.RegisterLocaleFiles(&localeFiles)
 
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
+	app.RegisterControllers(
+		controllers.NewProductController(app),
+	)
 	return nil
 }
 

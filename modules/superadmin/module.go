@@ -32,7 +32,7 @@ type Module struct {
 	options *ModuleOptions
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	// Register locale files
 	app.RegisterLocaleFiles(&LocaleFiles)
 
@@ -50,6 +50,10 @@ func (m *Module) Register(app application.Application) error {
 		services.NewTenantUsersService(userRepo),
 	)
 
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
 	// Get UserService from application
 	userService := app.Service(coreservices.UserService{}).(*coreservices.UserService)
 
@@ -58,7 +62,6 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewDashboardController(app),
 		controllers.NewTenantsController(app, userService),
 	)
-
 	return nil
 }
 

@@ -60,8 +60,8 @@ type Module struct {
 	options *ModuleOptions
 }
 
-func (m *Module) Register(app application.Application) error {
-	const op serrors.Op = "core.Module.Register"
+func (m *Module) RegisterWiring(app application.Application) error {
+	const op serrors.Op = "core.Module.RegisterWiring"
 
 	_ = MigrationFiles
 	app.RegisterLocaleFiles(&LocaleFiles)
@@ -202,9 +202,29 @@ func (m *Module) Register(app application.Application) error {
 		twoFactorService,
 	)
 
-	// handlers.RegisterUserHandler(app)
+	DashboardLinkPermissions = m.options.DashboardLinkPermissions
+	SettingsLinkPermissions = m.options.SettingsLinkPermissions
+	NavItems = ResolvedNavItems()
+	app.RegisterHashFsAssets(assets.HashFS)
+	app.RegisterGraphSchema(application.GraphSchema{
+		Value: graph.NewExecutableSchema(graph.Config{
+			Resolvers: graph.NewResolver(app),
+		}),
+		BasePath: "/",
+	})
+	app.Spotlight().RegisterProvider(newSpotlightProvider(app.DB()))
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
+		spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
+		spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
+		spotlight.NewQuickLink("Users.List.New", "/users/new"),
+		spotlight.NewQuickLink("Account.Meta.Index.Title", "/account"),
+		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
+	)
+	return nil
+}
 
-	//controllers.InitCrudShowcase(app)
+func (m *Module) RegisterTransports(app application.Application) error {
 	app.RegisterControllers(
 		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
@@ -228,36 +248,15 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewSettingsController(app),
 		controllers.NewSessionController(app, "/settings/sessions"),
 	)
-	// Register Upload API controller if configured via module options
 	if m.options.UploadsAuthorizer != nil || m.options.DefaultTenantID != uuid.Nil {
 		app.RegisterControllers(
 			controllers.NewUploadAPIController(app, uploadAPIControllerOpts(m.options)...),
 		)
 	}
-	// Register showcase controllers with nil-checks (dev build tag)
 	if ctrl := controllers.NewShowcaseController(app); ctrl != nil {
 		app.RegisterControllers(ctrl)
 	}
 	app.RegisterControllers(controllers.NewCrudShowcaseController(app))
-	DashboardLinkPermissions = m.options.DashboardLinkPermissions
-	SettingsLinkPermissions = m.options.SettingsLinkPermissions
-	NavItems = ResolvedNavItems()
-	app.RegisterHashFsAssets(assets.HashFS)
-	app.RegisterGraphSchema(application.GraphSchema{
-		Value: graph.NewExecutableSchema(graph.Config{
-			Resolvers: graph.NewResolver(app),
-		}),
-		BasePath: "/",
-	})
-	app.Spotlight().RegisterProvider(newSpotlightProvider(app.DB()))
-	app.QuickLinks().Add(
-		spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
-		spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
-		spotlight.NewQuickLink("Users.List.New", "/users/new"),
-		spotlight.NewQuickLink("Account.Meta.Index.Title", "/account"),
-		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
-	)
 	return nil
 }
 

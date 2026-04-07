@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 //go:embed presentation/locales/*.json
@@ -66,22 +67,10 @@ type Module struct {
 	titleWorkerDone        chan struct{}
 }
 
-func (m *Module) Register(app application.Application) error {
-	// Register translation files
+func (m *Module) RegisterWiring(app application.Application) error {
 	app.RegisterLocaleFiles(&LocaleFiles)
 
-	controllersToRegister := []application.Controller{}
-
-	// Register controllers if config is available
 	if m.config != nil {
-		// Sync analytics views to database (fail-fast on startup)
-		if m.config.ViewManager != nil {
-			if err := m.config.ViewManager.Sync(context.Background(), app.DB()); err != nil {
-				return fmt.Errorf("failed to sync analytics views: %w", err)
-			}
-		}
-
-		// Build services (fail fast - no try/continue)
 		container, err := m.config.BuildServices()
 		if err != nil {
 			return fmt.Errorf("failed to build BiChat services: %w", err)
@@ -111,69 +100,58 @@ func (m *Module) Register(app application.Application) error {
 			streamObservability,
 		)
 
-		if m.titleWorker == nil {
-			worker, err := container.NewTitleJobWorker(app.DB())
-			if err != nil && !errors.Is(err, ErrTitleJobWorkerDisabled) {
-				return fmt.Errorf("failed to create title job worker: %w", err)
-			}
-			if err == nil && worker != nil {
-				workerCtx, workerCancel := context.WithCancel(context.Background())
-				m.titleWorker = worker
-				m.titleWorkerCancel = workerCancel
-				m.titleWorkerDone = make(chan struct{})
-				go func() {
-					defer close(m.titleWorkerDone)
-					if startErr := worker.Start(workerCtx); startErr != nil && m.config.Logger != nil {
-						m.config.Logger.WithError(startErr).Warn("bichat title job worker stopped with error")
-					}
-				}()
-			}
-		}
-
 		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
 		if m.config.KBSearcher != nil {
 			app.Spotlight().SetAgent(spotlight.NewBIChatAgent(m.config.KBSearcher))
 		}
-
-		// Create and register controllers.
-		// Applet request/response APIs should go through applet RPC.
-		// Streaming is exposed via StreamController.
-		streamRequirePermission := bichatperm.BiChatAccess
-		if m.config.StreamRequireAccessPermission != nil {
-			streamRequirePermission = m.config.StreamRequireAccessPermission
-		}
-
-		streamOpts := []controllers.ControllerOption{
-			controllers.WithRequireAccessPermission(streamRequirePermission),
-		}
-		if m.config.StreamReadAllPermission != nil {
-			streamOpts = append(
-				streamOpts,
-				controllers.WithReadAllPermission(m.config.StreamReadAllPermission),
-			)
-		}
-		streamController := controllers.NewStreamController(
-			app,
-			streamCommands,
-			sessionQueries,
-			attachmentService,
-			streamOpts...,
-		)
-		controllersToRegister = append(controllersToRegister, streamController)
-
-		if m.config.Logger != nil {
-			m.config.Logger.Info("Registered BiChat stream endpoint at /bi-chat/stream")
-		}
+		app.RegisterRuntime(application.RuntimeRegistration{
+			Component: &runtimeComponent{module: m, pool: app.DB()},
+			Profiles: []application.CompositionProfile{
+				application.CompositionProfileServer,
+				application.CompositionProfileWorkerOnly,
+			},
+		})
 	}
 
-	// Register BiChat applet (after services are built so RPC can access them)
 	bichatApplet := NewBiChatApplet(m.config, m.container)
 	if err := app.RegisterApplet(bichatApplet); err != nil {
 		return fmt.Errorf("failed to register BiChat applet: %w", err)
 	}
 
-	app.RegisterControllers(controllersToRegister...)
+	return nil
+}
 
+func (m *Module) RegisterTransports(app application.Application) error {
+	if m.config == nil || m.container == nil {
+		return nil
+	}
+
+	streamRequirePermission := bichatperm.BiChatAccess
+	if m.config.StreamRequireAccessPermission != nil {
+		streamRequirePermission = m.config.StreamRequireAccessPermission
+	}
+
+	streamOpts := []controllers.ControllerOption{
+		controllers.WithRequireAccessPermission(streamRequirePermission),
+	}
+	if m.config.StreamReadAllPermission != nil {
+		streamOpts = append(
+			streamOpts,
+			controllers.WithReadAllPermission(m.config.StreamReadAllPermission),
+		)
+	}
+	app.RegisterControllers(
+		controllers.NewStreamController(
+			app,
+			m.container.StreamCommands(),
+			m.container.SessionQueries(),
+			m.container.AttachmentService(),
+			streamOpts...,
+		),
+	)
+	if m.config.Logger != nil {
+		m.config.Logger.Info("Registered BiChat stream endpoint at /bi-chat/stream")
+	}
 	return nil
 }
 
@@ -229,4 +207,55 @@ func (m *Module) Shutdown(ctx context.Context) error {
 	}
 
 	return shutdownErr
+}
+
+type runtimeComponent struct {
+	module *Module
+	pool   *pgxpool.Pool
+}
+
+func (c *runtimeComponent) Name() string {
+	return "bichat-runtime"
+}
+
+func (c *runtimeComponent) Start(ctx context.Context) error {
+	if c.module == nil || c.module.config == nil || c.module.container == nil {
+		return nil
+	}
+	if c.module.config.ViewManager != nil {
+		if err := c.module.config.ViewManager.Sync(ctx, c.pool); err != nil {
+			return fmt.Errorf("failed to sync analytics views: %w", err)
+		}
+	}
+	if c.module.titleWorker != nil {
+		return nil
+	}
+	worker, err := c.module.container.NewTitleJobWorker(c.pool)
+	if err != nil {
+		if errors.Is(err, ErrTitleJobWorkerDisabled) {
+			return nil
+		}
+		return fmt.Errorf("failed to create title job worker: %w", err)
+	}
+	if worker == nil {
+		return nil
+	}
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	c.module.titleWorker = worker
+	c.module.titleWorkerCancel = workerCancel
+	c.module.titleWorkerDone = make(chan struct{})
+	go func() {
+		defer close(c.module.titleWorkerDone)
+		if startErr := worker.Start(workerCtx); startErr != nil && c.module.config.Logger != nil {
+			c.module.config.Logger.WithError(startErr).Warn("bichat title job worker stopped with error")
+		}
+	}()
+	return nil
+}
+
+func (c *runtimeComponent) Stop(ctx context.Context) error {
+	if c.module == nil {
+		return nil
+	}
+	return c.module.Shutdown(ctx)
 }

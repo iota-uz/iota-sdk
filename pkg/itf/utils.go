@@ -366,7 +366,7 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	if err != nil {
 		return nil, err
 	}
-	if err := modules.Load(app, mods...); err != nil {
+	if err := application.ApplyProfile(context.Background(), app, application.CompositionProfileAPIOnly, mods...); err != nil {
 		return nil, err
 	}
 
@@ -387,7 +387,7 @@ func GetTestContext() *TestFixtures {
 	if err != nil {
 		panic(err)
 	}
-	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
+	if err := application.ApplyProfile(context.Background(), app, application.CompositionProfileAPIOnly, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
 

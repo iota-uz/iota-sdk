@@ -6,16 +6,17 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
 	langfusego "github.com/henomis/langfuse-go"
 	"github.com/iota-uz/applets"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
-	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/bichat"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
@@ -24,7 +25,6 @@ import (
 	bichatpersistence "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	langfuseprovider "github.com/iota-uz/iota-sdk/pkg/bichat/observability/langfuse"
@@ -41,13 +41,11 @@ import (
 	"golang.org/x/text/language"
 )
 
-// noopMetrics is a no-op implementation of MetricsRecorder
 type noopMetrics struct{}
 
 func (n noopMetrics) RecordDuration(name string, duration time.Duration, labels map[string]string) {}
 func (n noopMetrics) IncrementCounter(name string, labels map[string]string)                       {}
 
-// sdkAppletUserAdapter adapts iota-sdk user.User to applets.AppletUser.
 type sdkAppletUserAdapter struct{ u user.User }
 
 func (a *sdkAppletUserAdapter) ID() uint { return a.u.ID() }
@@ -73,7 +71,6 @@ func (a *sdkAppletUserAdapter) PermissionNames() []string {
 	return composables.EffectivePermissionNames(a.u)
 }
 
-// sdkHostServices implements applets.HostServices using composables.
 type sdkHostServices struct{ pool *pgxpool.Pool }
 
 func (h *sdkHostServices) ExtractUser(ctx context.Context) (applets.AppletUser, error) {
@@ -117,19 +114,18 @@ func main() {
 	conf := configuration.Use()
 	logger := conf.Logger()
 
-	// Set up OpenTelemetry if configured (OTEL_TEMPO_URL and OTEL_SERVICE_NAME are set)
 	var tracingCleanup func()
 	if conf.OpenTelemetry.IsConfigured() {
 		tracingCleanup = logging.SetupTracing(
 			context.Background(),
-			conf.OpenTelemetry.ServiceName,
+			conf.OpenTelemetry.ServiceName+"-worker",
 			conf.OpenTelemetry.TempoURL,
 		)
 		defer tracingCleanup()
 		logger.Info("OpenTelemetry tracing enabled, exporting to Tempo at " + conf.OpenTelemetry.TempoURL)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, conf.Database.Opts)
 	if err != nil {
@@ -168,17 +164,14 @@ func main() {
 	app.RegisterNavItems(modules.NavLinks...)
 	app.RegisterHashFsAssets(internalassets.HashFS)
 
-	// Register BiChat module with config (requires OpenAI API key)
 	var bichatModule application.Module
 	if openaiKey := os.Getenv("OPENAI_API_KEY"); openaiKey != "" {
-		// Create BiChat dependencies
 		chatRepo := bichatpersistence.NewPostgresChatRepository()
 
 		model, err := llmproviders.NewOpenAIModel()
 		if err != nil {
 			logger.Warnf("Failed to create OpenAI model for BiChat: %v", err)
 		} else {
-			// Create PostgreSQL query executor for SQL tools
 			executor := bichatinfra.NewPostgresQueryExecutor(pool)
 			learningStore := bichatpersistence.NewLearningRepository(pool)
 			validatedQueryStore := bichatpersistence.NewValidatedQueryRepository(pool)
@@ -207,7 +200,7 @@ func main() {
 				kbIndexPath = filepath.Join(conf.UploadsPath, "bichat", "knowledge.bleve")
 			}
 			if kbIndexPath != "" {
-				if err := os.MkdirAll(filepath.Dir(kbIndexPath), 0750); err != nil {
+				if err := os.MkdirAll(filepath.Dir(kbIndexPath), 0o750); err != nil {
 					logger.Warnf("Failed to create KB index directory: %v", err)
 				} else {
 					_, kbSearcher, kbErr := kb.NewBleveIndex(kbIndexPath)
@@ -233,14 +226,11 @@ func main() {
 				}
 			}
 
-			// Create BiChat agent with SQL query capabilities
 			parentAgent, err := bichatagents.NewDefaultBIAgent(executor, agentOpts...)
 			if err != nil {
 				logger.Warnf("Failed to create BiChat agent: %v", err)
 			} else {
-				// Set up LangFuse observability if credentials are available
 				if lfPublicKey := os.Getenv("LANGFUSE_PUBLIC_KEY"); lfPublicKey != "" {
-					// Bridge LANGFUSE_BASE_URL → LANGFUSE_HOST for the langfuse-go SDK
 					if baseURL := os.Getenv("LANGFUSE_BASE_URL"); baseURL != "" && os.Getenv("LANGFUSE_HOST") == "" {
 						if err := os.Setenv("LANGFUSE_HOST", baseURL); err != nil {
 							logger.Warnf("Failed to set LANGFUSE_HOST for Langfuse SDK: %v", err)
@@ -264,25 +254,24 @@ func main() {
 					}
 				}
 
-				// Create BiChat config with wrapper functions for tenant/user ID
 				cfg := bichat.NewModuleConfig(
 					func(ctx context.Context) uuid.UUID {
 						tenantID, err := composables.UseTenantID(ctx)
 						if err != nil {
-							panic(err) // Fail fast if tenant context missing
+							panic(err)
 						}
 						return tenantID
 					},
 					func(ctx context.Context) int64 {
-						user, err := composables.UseUser(ctx)
+						currentUser, err := composables.UseUser(ctx)
 						if err != nil {
-							panic(err) // Fail fast if user context missing
+							panic(err)
 						}
-						uid := uint64(user.ID())
+						uid := uint64(currentUser.ID())
 						if uid > math.MaxInt64 {
 							panic("user id overflows int64")
 						}
-						return int64(uid) // #nosec G115 -- bounded by the MaxInt64 guard above
+						return int64(uid)
 					},
 					chatRepo,
 					model,
@@ -291,12 +280,10 @@ func main() {
 					configOpts...,
 				)
 
-				// Register BiChat module with config
 				bichatModule = bichat.NewModuleWithConfig(cfg)
 				if err := bichatModule.RegisterWiring(app); err != nil {
 					logger.Warnf("Failed to register BiChat module: %v", err)
 				} else {
-					// Register BiChat navigation items (only when module is loaded)
 					app.RegisterNavItems(bichat.NavItems...)
 					logger.Info("BiChat module registered successfully")
 				}
@@ -306,17 +293,7 @@ func main() {
 		logger.Info("OPENAI_API_KEY not set - BiChat module disabled")
 	}
 
-	// Register applet controllers for all registered applets
 	hostServices := &sdkHostServices{pool: pool}
-	appletControllers, err := app.CreateAppletControllers(
-		hostServices,
-		applets.DefaultSessionConfig,
-		logger,
-		noopMetrics{},
-	)
-	if err != nil {
-		log.Fatalf("failed to create applet controllers: %v", err)
-	}
 	if err := app.RegisterAppletRuntime(
 		hostServices,
 		applets.DefaultSessionConfig,
@@ -325,35 +302,16 @@ func main() {
 	); err != nil {
 		log.Fatalf("failed to register applet runtime: %v", err)
 	}
-	if err := application.RegisterTransports(app, modules.BuiltInModules...); err != nil {
-		log.Fatalf("failed to register module transports: %v", err)
-	}
-	if bichatModule != nil {
-		if err := bichatModule.RegisterTransports(app); err != nil {
-			log.Fatalf("failed to register bichat transports: %v", err)
-		}
-	}
-
-	app.RegisterControllers(
-		controllers.NewStaticFilesController(app.HashFsAssets()),
-		controllers.NewGraphQLController(app),
-	)
-	app.RegisterControllers(appletControllers...)
-	if err := app.StartRuntime(context.Background(), application.CompositionProfileServer); err != nil {
+	if err := app.StartRuntime(context.Background(), application.CompositionProfileWorkerOnly); err != nil {
 		log.Fatalf("failed to start runtime: %v", err)
 	}
-	options := &server.DefaultOptions{
-		Logger:        logger,
-		Configuration: conf,
-		Application:   app,
-		Pool:          pool,
-	}
-	serverInstance, err := server.Default(options)
-	if err != nil {
-		log.Fatalf("failed to create server: %v", err)
-	}
-	log.Printf("Listening on: %s\n", conf.Origin)
-	if err := serverInstance.Start(conf.SocketAddress); err != nil {
-		log.Fatalf("failed to start server: %v", err)
-	}
+
+	logger.Info("worker runtime started")
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	sig := <-sigCh
+	logger.Infof("received signal %v, shutting down worker", sig)
 }

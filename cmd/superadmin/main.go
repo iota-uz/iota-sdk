@@ -80,6 +80,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to initialize application: %v", err)
 	}
+	defer func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stopCancel()
+		if stopErr := app.StopRuntime(stopCtx); stopErr != nil {
+			logger.WithError(stopErr).Warn("failed to stop runtime")
+		}
+	}()
 
 	// Manually register only necessary parts from core module (without its controllers)
 	// This avoids exposing core module's admin pages (/users, /roles, etc.) in superadmin
@@ -137,8 +144,11 @@ func main() {
 
 	// Load superadmin module
 	superadminModule := superadmin.NewModule(&superadmin.ModuleOptions{})
-	if err := superadminModule.Register(app); err != nil {
-		log.Fatalf("failed to load superadmin module: %v", err)
+	if err := superadminModule.RegisterWiring(app); err != nil {
+		log.Fatalf("failed to wire superadmin module: %v", err)
+	}
+	if err := superadminModule.RegisterTransports(app); err != nil {
+		log.Fatalf("failed to register superadmin transports: %v", err)
 	}
 
 	// Register navigation items only from superadmin
@@ -176,6 +186,9 @@ func main() {
 		middleware.RedirectNotAuthenticated(),
 		superadminMiddleware.RequireSuperAdmin(),
 	)
+	if err := app.StartRuntime(context.Background(), application.CompositionProfileAPIOnly); err != nil {
+		log.Fatalf("failed to start runtime: %v", err)
+	}
 
 	logger.Info("Super Admin Server starting...")
 	logger.Info("Listening on: " + conf.Origin)

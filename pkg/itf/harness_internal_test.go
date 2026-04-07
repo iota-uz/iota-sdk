@@ -192,11 +192,8 @@ type testApp struct {
 	migrations application.MigrationManager
 }
 
-func (a *testApp) DB() *pgxpool.Pool                 { return nil }
-func (a *testApp) EventPublisher() eventbus.EventBus { return nil }
-func (a *testApp) RuntimeProfile() application.RuntimeProfile {
-	return application.RuntimeProfileServer
-}
+func (a *testApp) DB() *pgxpool.Pool                                                     { return nil }
+func (a *testApp) EventPublisher() eventbus.EventBus                                     { return nil }
 func (a *testApp) Controllers() []application.Controller                                 { return nil }
 func (a *testApp) Middleware() []mux.MiddlewareFunc                                      { return nil }
 func (a *testApp) Assets() []*embed.FS                                                   { return nil }
@@ -214,13 +211,19 @@ func (a *testApp) RegisterLocaleFiles(fs ...*embed.FS)                          
 func (a *testApp) RegisterGraphSchema(schema application.GraphSchema)                    {}
 func (a *testApp) GraphSchemas() []application.GraphSchema                               { return nil }
 func (a *testApp) RegisterServices(services ...interface{})                              {}
-func (a *testApp) RegisterMiddleware(middleware ...mux.MiddlewareFunc)                   {}
-func (a *testApp) Service(service interface{}) interface{}                               { return nil }
-func (a *testApp) Services() map[reflect.Type]interface{}                                { return nil }
-func (a *testApp) Bundle() *i18n.Bundle                                                  { return nil }
-func (a *testApp) GetSupportedLanguages() []string                                       { return nil }
-func (a *testApp) RegisterApplet(applet application.Applet) error                        { return nil }
-func (a *testApp) AppletRegistry() application.AppletRegistry                            { return nil }
+func (a *testApp) RegisterRuntime(registrations ...application.RuntimeRegistration)      {}
+func (a *testApp) RuntimeComponents() []application.RuntimeRegistration                  { return nil }
+func (a *testApp) StartRuntime(ctx context.Context, profile application.CompositionProfile) error {
+	return nil
+}
+func (a *testApp) StopRuntime(ctx context.Context) error               { return nil }
+func (a *testApp) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {}
+func (a *testApp) Service(service interface{}) interface{}             { return nil }
+func (a *testApp) Services() map[reflect.Type]interface{}              { return nil }
+func (a *testApp) Bundle() *i18n.Bundle                                { return nil }
+func (a *testApp) GetSupportedLanguages() []string                     { return nil }
+func (a *testApp) RegisterApplet(applet application.Applet) error      { return nil }
+func (a *testApp) AppletRegistry() application.AppletRegistry          { return nil }
 func (a *testApp) CreateAppletControllers(
 	host applets.HostServices,
 	sessionConfig applets.SessionConfig,
@@ -229,6 +232,15 @@ func (a *testApp) CreateAppletControllers(
 	opts ...applets.BuilderOption,
 ) ([]application.Controller, error) {
 	return nil, nil
+}
+func (a *testApp) RegisterAppletRuntime(
+	host applets.HostServices,
+	sessionConfig applets.SessionConfig,
+	logger *logrus.Logger,
+	metrics applets.MetricsRecorder,
+	opts ...applets.BuilderOption,
+) error {
+	return nil
 }
 func (a *testApp) Session() session.Session                 { return nil }
 func (a *testApp) SetSession(session session.Session)       {}

@@ -26,7 +26,7 @@ func NewModule() application.Module {
 type Module struct {
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	userRepo := corePersistence.NewUserRepository(
 		corePersistence.NewUploadRepository(),
 	)
@@ -48,6 +48,11 @@ func (m *Module) Register(app application.Application) error {
 			},
 		),
 	)
+	app.RegisterLocaleFiles(&LocaleFiles)
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
 	app.RegisterControllers(
 		controllers.NewAIChatController(controllers.AIChatControllerConfig{
 			BasePath: "/website/ai-chat",
@@ -58,7 +63,6 @@ func (m *Module) Register(app application.Application) error {
 			App:      app,
 		}),
 	)
-	app.RegisterLocaleFiles(&LocaleFiles)
 	return nil
 }
 
