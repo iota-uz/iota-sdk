@@ -18,6 +18,25 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
+// SidebarPropsDecorator allows host applications to adjust sidebar props after
+// the SDK has built the default navigation-driven structure.
+type SidebarPropsDecorator func(ctx context.Context, r *http.Request, props sidebar.Props) sidebar.Props
+
+var sidebarPropsDecorator SidebarPropsDecorator = func(_ context.Context, _ *http.Request, props sidebar.Props) sidebar.Props {
+	return props
+}
+
+// SetSidebarPropsDecorator overrides the default no-op sidebar props decorator.
+func SetSidebarPropsDecorator(decorator SidebarPropsDecorator) {
+	if decorator == nil {
+		sidebarPropsDecorator = func(_ context.Context, _ *http.Request, props sidebar.Props) sidebar.Props {
+			return props
+		}
+		return
+	}
+	sidebarPropsDecorator = decorator
+}
+
 func filterItems(items []types.NavigationItem, user user.User) []types.NavigationItem {
 	filteredItems := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
@@ -108,6 +127,7 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 					Footer:       layouts.DefaultSidebarFooter(),
 					InitialState: initialState,
 				}
+				sidebarProps = sidebarPropsDecorator(r.Context(), r, sidebarProps)
 
 				ctx := context.WithValue(r.Context(), constants.AllNavItemsKey, filtered)
 				ctx = context.WithValue(ctx, constants.NavItemsKey, enabledNavItems)
