@@ -24,6 +24,12 @@ var _ IndexEngine = (*MeilisearchEngine)(nil)
 
 const IndexSchemaVersion = "2026-03-30-search-v4"
 
+const (
+	meiliMaxDocumentsPerRequest = 5000
+	// Keep a safety margin below Meilisearch's configured payload ceiling.
+	meiliSafePayloadLimitBytes = 90 << 20 // 90 MiB
+)
+
 type MeilisearchEngine struct {
 	client      meilisearch.ServiceManager
 	indexName   string
@@ -41,6 +47,12 @@ type meiliSearchIndexState struct {
 	fieldsReady    bool
 	schemaVersion  string
 	searchableName string
+}
+
+type meiliDocumentRecord struct {
+	payload   map[string]interface{}
+	sizeBytes int
+	docID     string
 }
 
 // NewMeilisearchEngine creates a new Meilisearch-based IndexEngine.
@@ -463,60 +475,12 @@ func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) e
 	if err := e.setup(); err != nil {
 		return serrors.E(op, err)
 	}
-
-	// Convert documents to Meilisearch format
-	records := make([]map[string]interface{}, 0, len(docs))
-	for _, doc := range docs {
-		record := map[string]interface{}{
-			"pk":             meiliPK(doc.TenantID.String(), doc.ID),
-			"id":             doc.ID,
-			"tenant_id":      doc.TenantID.String(),
-			"provider":       doc.Provider,
-			"entity_type":    doc.EntityType,
-			"domain":         string(normalizeDomain(doc.Domain, doc.EntityType)),
-			"title":          doc.Title,
-			"description":    doc.Description,
-			"body":           doc.Body,
-			"search_text":    coalesceSearchText(doc),
-			"exact_terms":    normalizeExactTerms(doc.ExactTerms),
-			"url":            doc.URL,
-			"language":       doc.Language,
-			"metadata":       doc.Metadata,
-			"schema_version": IndexSchemaVersion,
-			"updated_at":     doc.UpdatedAt.Unix(),
-		}
-
-		// Include access policy
-		record["access_policy"] = doc.Access
-		record["access_visibility"] = string(doc.Access.Visibility)
-		record["owner_id"] = doc.Access.OwnerID
-		record["allowed_users"] = doc.Access.AllowedUsers
-		record["allowed_roles"] = doc.Access.AllowedRoles
-		record["allowed_permissions"] = doc.Access.AllowedPermissions
-
-		// Include embeddings if present
-		if len(doc.Embedding) > 0 {
-			record["_vectors"] = map[string]interface{}{
-				"default": doc.Embedding,
-			}
-		}
-
-		records = append(records, record)
-	}
-
-	// Add documents to index
-	pk := "pk"
-	task, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{
-		PrimaryKey: &pk,
-	})
+	records, err := buildMeiliDocumentRecords(docs)
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
-		return serrors.E(op, err)
-	}
-
-	return nil
+	_, err = e.submitRecords(ctx, op, records, true)
+	return err
 }
 
 // UpsertAsync submits documents to Meilisearch without waiting for completion.
@@ -531,8 +495,24 @@ func (e *MeilisearchEngine) UpsertAsync(ctx context.Context, docs []SearchDocume
 	if err := e.setup(); err != nil {
 		return serrors.E(op, err)
 	}
+	records, err := buildMeiliDocumentRecords(docs)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	taskUIDs, err := e.submitRecords(ctx, op, records, false)
+	if err != nil {
+		return err
+	}
 
-	records := make([]map[string]interface{}, 0, len(docs))
+	e.pendingMu.Lock()
+	e.pendingUIDs = append(e.pendingUIDs, taskUIDs...)
+	e.pendingMu.Unlock()
+
+	return nil
+}
+
+func buildMeiliDocumentRecords(docs []SearchDocument) ([]meiliDocumentRecord, error) {
+	records := make([]meiliDocumentRecord, 0, len(docs))
 	for _, doc := range docs {
 		record := map[string]interface{}{
 			"pk":             meiliPK(doc.TenantID.String(), doc.ID),
@@ -566,22 +546,145 @@ func (e *MeilisearchEngine) UpsertAsync(ctx context.Context, docs []SearchDocume
 			}
 		}
 
-		records = append(records, record)
+		payloadBytes, err := json.Marshal(record)
+		if err != nil {
+			return nil, err
+		}
+
+		records = append(records, meiliDocumentRecord{
+			payload:   record,
+			sizeBytes: len(payloadBytes),
+			docID:     doc.ID,
+		})
+	}
+	return records, nil
+}
+
+func chunkMeiliDocumentRecords(records []meiliDocumentRecord, maxDocs, maxPayloadBytes int) [][]meiliDocumentRecord {
+	if len(records) == 0 {
+		return nil
+	}
+	if maxDocs <= 0 {
+		maxDocs = len(records)
+	}
+	if maxPayloadBytes <= 0 {
+		maxPayloadBytes = int(^uint(0) >> 1)
+	}
+
+	batches := make([][]meiliDocumentRecord, 0, max(1, len(records)/maxDocs))
+	current := make([]meiliDocumentRecord, 0, min(len(records), maxDocs))
+	currentBytes := 2 // Opening and closing JSON array brackets.
+
+	flush := func() {
+		if len(current) == 0 {
+			return
+		}
+		batches = append(batches, current)
+		current = make([]meiliDocumentRecord, 0, min(len(records), maxDocs))
+		currentBytes = 2
+	}
+
+	for _, record := range records {
+		additionalBytes := record.sizeBytes
+		if len(current) > 0 {
+			additionalBytes++ // Comma separator in JSON array.
+		}
+		if len(current) > 0 && (len(current) >= maxDocs || currentBytes+additionalBytes > maxPayloadBytes) {
+			flush()
+		}
+		current = append(current, record)
+		currentBytes += additionalBytes
+	}
+	flush()
+
+	return batches
+}
+
+func (e *MeilisearchEngine) submitRecords(
+	ctx context.Context,
+	op serrors.Op,
+	records []meiliDocumentRecord,
+	waitForTask bool,
+) ([]int64, error) {
+	var allTaskUIDs []int64
+	for _, batch := range chunkMeiliDocumentRecords(records, meiliMaxDocumentsPerRequest, meiliSafePayloadLimitBytes) {
+		taskUIDs, err := e.submitRecordBatch(ctx, op, batch, waitForTask)
+		if err != nil {
+			return nil, err
+		}
+		allTaskUIDs = append(allTaskUIDs, taskUIDs...)
+	}
+	return allTaskUIDs, nil
+}
+
+func (e *MeilisearchEngine) submitRecordBatch(
+	ctx context.Context,
+	op serrors.Op,
+	batch []meiliDocumentRecord,
+	waitForTask bool,
+) ([]int64, error) {
+	taskUIDs, err := e.trySubmitRecordBatch(ctx, batch, waitForTask)
+	if err == nil {
+		return taskUIDs, nil
+	}
+	if !isMeiliPayloadTooLarge(err) {
+		return nil, serrors.E(op, err)
+	}
+	if len(batch) == 1 {
+		return nil, serrors.E(op, fmt.Sprintf("single document %s exceeded Meilisearch payload limit", batch[0].docID), err)
+	}
+
+	mid := len(batch) / 2
+	leftTaskUIDs, leftErr := e.submitRecordBatch(ctx, op, batch[:mid], waitForTask)
+	if leftErr != nil {
+		return nil, leftErr
+	}
+	rightTaskUIDs, rightErr := e.submitRecordBatch(ctx, op, batch[mid:], waitForTask)
+	if rightErr != nil {
+		return nil, rightErr
+	}
+	return append(leftTaskUIDs, rightTaskUIDs...), nil
+}
+
+func (e *MeilisearchEngine) trySubmitRecordBatch(
+	ctx context.Context,
+	batch []meiliDocumentRecord,
+	waitForTask bool,
+) ([]int64, error) {
+	if len(batch) == 0 {
+		return nil, nil
 	}
 
 	pk := "pk"
-	task, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{
+	task, err := e.client.Index(e.indexName).AddDocuments(meiliRecordPayloads(batch), &meilisearch.DocumentOptions{
 		PrimaryKey: &pk,
 	})
 	if err != nil {
-		return serrors.E(op, err)
+		return nil, err
 	}
+	if waitForTask {
+		if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	return []int64{task.TaskUID}, nil
+}
 
-	e.pendingMu.Lock()
-	e.pendingUIDs = append(e.pendingUIDs, task.TaskUID)
-	e.pendingMu.Unlock()
+func meiliRecordPayloads(records []meiliDocumentRecord) []map[string]interface{} {
+	payloads := make([]map[string]interface{}, 0, len(records))
+	for _, record := range records {
+		payloads = append(payloads, record.payload)
+	}
+	return payloads
+}
 
-	return nil
+func isMeiliPayloadTooLarge(err error) bool {
+	var meiliErr *meilisearch.Error
+	if !errors.As(err, &meiliErr) {
+		return false
+	}
+	return meiliErr.StatusCode == http.StatusRequestEntityTooLarge || meiliErr.MeilisearchApiError.Code == "payload_too_large"
 }
 
 // WaitPending blocks until all async upsert tasks have completed in Meilisearch.

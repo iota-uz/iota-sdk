@@ -381,6 +381,106 @@ func TestMeilisearchEngine_DeleteTenant_RemovesOnlyRequestedTenantDocuments(t *t
 	require.NoError(t, engine.DeleteTenant(t.Context(), tenantID))
 }
 
+func TestChunkMeiliDocumentRecordsHonorsPayloadAndDocumentLimits(t *testing.T) {
+	records := []meiliDocumentRecord{
+		{docID: "doc-1", sizeBytes: 10},
+		{docID: "doc-2", sizeBytes: 10},
+		{docID: "doc-3", sizeBytes: 10},
+	}
+
+	batches := chunkMeiliDocumentRecords(records, 2, 25)
+	require.Len(t, batches, 2)
+	require.Len(t, batches[0], 2)
+	require.Len(t, batches[1], 1)
+	require.Equal(t, "doc-1", batches[0][0].docID)
+	require.Equal(t, "doc-2", batches[0][1].docID)
+	require.Equal(t, "doc-3", batches[1][0].docID)
+}
+
+func TestMeilisearchEngine_SubmitRecordBatchSplitsPayloadTooLargeErrors(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	index := meilimocks.NewMockmeilisearchIndexManager(t)
+	engine := &MeilisearchEngine{
+		client:    service,
+		indexName: "spotlight",
+	}
+	payloadTooLarge := &meilisearch.Error{
+		StatusCode: http.StatusRequestEntityTooLarge,
+		MeilisearchApiError: struct {
+			Message string `json:"message"`
+			Code    string `json:"code"`
+			Type    string `json:"type"`
+			Link    string `json:"link"`
+		}{
+			Code: "payload_too_large",
+		},
+	}
+	batch := []meiliDocumentRecord{
+		{docID: "doc-1", payload: map[string]interface{}{"id": "doc-1"}, sizeBytes: 10},
+		{docID: "doc-2", payload: map[string]interface{}{"id": "doc-2"}, sizeBytes: 10},
+	}
+
+	service.EXPECT().Index("spotlight").Return(index).Times(3)
+	index.EXPECT().
+		AddDocuments(mock.MatchedBy(func(documents interface{}) bool {
+			payloads, ok := documents.([]map[string]interface{})
+			return ok && len(payloads) == 2
+		}), mock.Anything).
+		Return(nil, payloadTooLarge).
+		Once()
+	index.EXPECT().
+		AddDocuments(mock.MatchedBy(func(documents interface{}) bool {
+			payloads, ok := documents.([]map[string]interface{})
+			return ok && len(payloads) == 1 && payloads[0]["id"] == "doc-1"
+		}), mock.Anything).
+		Return(&meilisearch.TaskInfo{TaskUID: 101}, nil).
+		Once()
+	index.EXPECT().
+		AddDocuments(mock.MatchedBy(func(documents interface{}) bool {
+			payloads, ok := documents.([]map[string]interface{})
+			return ok && len(payloads) == 1 && payloads[0]["id"] == "doc-2"
+		}), mock.Anything).
+		Return(&meilisearch.TaskInfo{TaskUID: 102}, nil).
+		Once()
+
+	taskUIDs, err := engine.submitRecordBatch(t.Context(), "spotlight.MeilisearchEngine.UpsertAsync", batch, false)
+	require.NoError(t, err)
+	require.Equal(t, []int64{101, 102}, taskUIDs)
+}
+
+func TestMeilisearchEngine_SubmitRecordBatchReportsOversizedSingleDocument(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	index := meilimocks.NewMockmeilisearchIndexManager(t)
+	engine := &MeilisearchEngine{
+		client:    service,
+		indexName: "spotlight",
+	}
+	payloadTooLarge := &meilisearch.Error{
+		StatusCode: http.StatusRequestEntityTooLarge,
+		MeilisearchApiError: struct {
+			Message string `json:"message"`
+			Code    string `json:"code"`
+			Type    string `json:"type"`
+			Link    string `json:"link"`
+		}{
+			Code: "payload_too_large",
+		},
+	}
+	batch := []meiliDocumentRecord{
+		{docID: "doc-heavy", payload: map[string]interface{}{"id": "doc-heavy"}, sizeBytes: meiliSafePayloadLimitBytes + 1},
+	}
+
+	service.EXPECT().Index("spotlight").Return(index).Once()
+	index.EXPECT().
+		AddDocuments(mock.Anything, mock.Anything).
+		Return(nil, payloadTooLarge).
+		Once()
+
+	_, err := engine.submitRecordBatch(t.Context(), "spotlight.MeilisearchEngine.UpsertAsync", batch, false)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "single document doc-heavy exceeded Meilisearch payload limit")
+}
+
 func uuidMustParse(raw string) uuid.UUID {
 	parsed, err := uuid.Parse(raw)
 	if err != nil {
