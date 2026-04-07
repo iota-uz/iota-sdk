@@ -34,7 +34,7 @@ func newDetailsDropdown(props *DetailsDropdownProps) *DetailsDropdownProps {
 }
 
 templ (p *DetailsDropdownProps) render() {
-	<div class={ p.Classes.String() }>
+	<div class={ templ.Classes("relative", p.Classes) }>
 		<details class="relative z-10 peer" name="details-dropdown">
 			if p.Summary != nil {
 				@p.Summary
