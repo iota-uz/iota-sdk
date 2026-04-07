@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
@@ -27,13 +28,23 @@ type IndexPageProps struct {
 	HasMore bool
 }
 
-func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
+func mkInfiniteAttrs(ctx context.Context, props *IndexPageProps) templ.Attributes {
+	pageCtx := composables.UsePageCtx(ctx)
+	currentURL := pageCtx.GetURL()
 	params := url.Values{}
+	for k, vs := range currentURL.Query() {
+		if k == "page" || k == "limit" {
+			continue
+		}
+		for _, v := range vs {
+			params.Add(k, v)
+		}
+	}
 	params.Set("page", strconv.Itoa(props.Page+1))
 	params.Set("limit", strconv.Itoa(props.PerPage))
 
 	return templ.Attributes{
-		"hx-get":     "/users?" + params.Encode(),
+		"hx-get":     currentURL.Path + "?" + params.Encode(),
 		"hx-trigger": "intersect once",
 		"hx-swap":    "afterend",
 		"hx-target":  "this",
@@ -129,7 +140,7 @@ templ UserRows(props *IndexPageProps) {
 				Attrs: templ.Attributes{},
 			}
 			if isLastRow && props.HasMore {
-				rowProps.Attrs = mkInfiniteAttrs(props)
+				rowProps.Attrs = mkInfiniteAttrs(ctx, props)
 			}
 		}}
 		@UserRow(user, rowProps)
@@ -191,7 +202,7 @@ templ RoleFilter(props *IndexPageProps) {
 								"@change": "onChange",
 							},
 						}) {
-							<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full ml-2">
+							<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full ml-auto">
 								{ fmt.Sprintf("%d", role.UsersCount) }
 							</span>
 						}
@@ -240,7 +251,7 @@ templ GroupFilter(props *IndexPageProps) {
 								"@change": "onChange",
 							},
 						}) {
-							<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full ml-2">
+							<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full ml-auto">
 								{ fmt.Sprintf("%d", group.UsersCount()) }
 							</span>
 						}
