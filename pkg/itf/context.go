@@ -26,7 +26,6 @@ type TestContext struct {
 	app        application.Application
 	tenant     *composables.Tenant
 	user       user.User
-	modules    []application.Module
 	components []composition.Component
 	dbName     string
 }
@@ -35,14 +34,13 @@ type TestContext struct {
 func newTestContext() *TestContext {
 	return &TestContext{
 		ctx:        context.Background(),
-		modules:    []application.Module{},
 		components: []composition.Component{},
 	}
 }
 
 // WithModules adds modules to the test context
-func (tc *TestContext) WithModules(modules ...application.Module) *TestContext {
-	tc.modules = append(tc.modules, modules...)
+func (tc *TestContext) WithModules(modules ...composition.Component) *TestContext {
+	tc.components = append(tc.components, modules...)
 	return tc
 }
 
@@ -80,7 +78,6 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	}
 	h := NewHarness(tb, HarnessConfig{
 		Name:       tc.dbName,
-		Modules:    tc.modules,
 		Components: tc.components,
 		Database: DatabaseConfig{
 			Provisioning: ProvisioningPerTestDatabase,
@@ -127,17 +124,20 @@ type TestEnvironment struct {
 
 // Service retrieves a service from the application
 func (te *TestEnvironment) Service(service interface{}) interface{} {
-	return te.App.Service(service)
+	resolved, err := composition.ResolveAnyForApp(te.App, service)
+	if err != nil {
+		panic(err)
+	}
+	return resolved
 }
 
 // GetService is a generic helper that retrieves and casts a service
 func GetService[T any](te *TestEnvironment) *T {
-	var zero T
-	service := te.App.Service(zero)
-	if service == nil {
+	service, err := composition.ResolveForApp[*T](te.App)
+	if err != nil {
 		return nil
 	}
-	return service.(*T)
+	return service
 }
 
 // AssertNoError fails the test if err is not nil

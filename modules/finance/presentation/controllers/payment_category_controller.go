@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -48,7 +49,7 @@ func NewPaymentCategoriesController(app application.Application) application.Con
 
 	return &PaymentCategoriesController{
 		app:                    app,
-		paymentCategoryService: app.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService),
+		paymentCategoryService: composition.MustResolveForApp[*services.PaymentCategoryService](app),
 		basePath:               basePath,
 		tableDefinition:        tableDefinition,
 	}

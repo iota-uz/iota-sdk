@@ -16,6 +16,7 @@ import (
 	projectstage "github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project_stage"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
@@ -47,9 +48,9 @@ func TestProjectStageController_List_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
+	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
+	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -115,9 +116,9 @@ func TestProjectStageController_List_HTMX_Request(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
+	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
+	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -170,9 +171,9 @@ func TestProjectStageController_ListByProject_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
+	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
+	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -295,9 +296,9 @@ func TestProjectStageController_Create_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
+	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
+	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -354,7 +355,7 @@ func TestProjectStageController_Create_ValidationError(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
 
 	formData := url.Values{}
 	formData.Set("ProjectID", "")    // Invalid: required field
@@ -386,9 +387,9 @@ func TestProjectStageController_GetEditDrawer_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
+	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
+	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -480,9 +481,9 @@ func TestProjectStageController_Update_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
+	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
+	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -546,9 +547,9 @@ func TestProjectStageController_Update_ValidationError(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
+	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
+	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -658,9 +659,9 @@ func TestProjectStageController_Delete_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
+	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
+	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -753,9 +754,9 @@ func TestProjectStageController_Create_WithDates(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := composition.MustResolveForApp[*services.ProjectStageService](env.App)
+	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
+	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(

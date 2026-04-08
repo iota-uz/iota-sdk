@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -49,7 +50,7 @@ func Authorize() mux.MiddlewareFunc {
 				if err != nil {
 					panic(err)
 				}
-				authService := app.Service(services.AuthService{}).(*services.AuthService)
+				authService := composition.MustResolveForApp[*services.AuthService](app)
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -96,7 +97,7 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 				if err != nil {
 					panic(err)
 				}
-				authService := app.Service(services.AuthService{}).(*services.AuthService)
+				authService := composition.MustResolveForApp[*services.AuthService](app)
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -132,7 +133,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				if err != nil {
 					panic(err)
 				}
-				userService := app.Service(services.UserService{}).(*services.UserService)
+				userService := composition.MustResolveForApp[*services.UserService](app)
 				u, err := userService.GetByID(ctx, sess.UserID())
 				if err != nil {
 					next.ServeHTTP(w, r)

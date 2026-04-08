@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -30,8 +31,8 @@ type SettingsController struct {
 func NewSettingsController(app application.Application) application.Controller {
 	return &SettingsController{
 		app:           app,
-		tenantService: app.Service(services.TenantService{}).(*services.TenantService),
-		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
+		tenantService: composition.MustResolveForApp[*services.TenantService](app),
+		uploadService: composition.MustResolveForApp[*services.UploadService](app),
 		basePath:      "/settings",
 	}
 }

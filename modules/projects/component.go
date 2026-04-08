@@ -47,7 +47,8 @@ func (c *component) Build(builder *composition.Builder) error {
 		app.EventPublisher(),
 	)
 
-	app.RegisterServices(projectService, projectStageService)
+	composition.Provide[*services.ProjectService](builder, projectService)
+	composition.Provide[*services.ProjectStageService](builder, projectStageService)
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(ProjectsItem.Name, ProjectsItem.Href),
 		spotlight.NewQuickLink(ProjectStagesItem.Name, ProjectStagesItem.Href),

@@ -8,6 +8,7 @@ import (
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -19,8 +20,10 @@ type Runtime struct {
 	Pool   *pgxpool.Pool
 	Bundle *i18n.Bundle
 	App    application.Application
+	Engine *composition.Engine
 
-	values map[reflect.Type]any
+	container *composition.Container
+	values    map[reflect.Type]any
 }
 
 type Installer interface {
@@ -78,6 +81,46 @@ func (rt *Runtime) Use(target any) bool {
 		}
 	}
 	return false
+}
+
+func (rt *Runtime) Container() *composition.Container {
+	if rt == nil {
+		return nil
+	}
+	return rt.container
+}
+
+func (rt *Runtime) SetComposition(engine *composition.Engine, container *composition.Container) error {
+	if rt == nil {
+		return nil
+	}
+	merged, err := composition.Merge(rt.container, container)
+	if err != nil {
+		return err
+	}
+	rt.Engine = engine
+	rt.container = merged
+	if rt.App != nil && merged != nil {
+		composition.Attach(rt.App, merged)
+	}
+	if merged != nil {
+		rt.Provide(merged)
+	}
+	return nil
+}
+
+func (rt *Runtime) Start(ctx context.Context) error {
+	if rt == nil || rt.container == nil {
+		return nil
+	}
+	return composition.Start(ctx, rt.container)
+}
+
+func (rt *Runtime) Stop(ctx context.Context) error {
+	if rt == nil || rt.container == nil {
+		return nil
+	}
+	return composition.Stop(ctx, rt.container)
 }
 
 type Option func(*options)
@@ -183,10 +226,13 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	return rt, func() error {
 		var cleanupErr error
-		if rt.App != nil {
+		if rt.container != nil {
 			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			cleanupErr = errors.Join(cleanupErr, rt.App.StopRuntime(stopCtx))
+			cleanupErr = errors.Join(cleanupErr, rt.Stop(stopCtx))
+		}
+		if rt.App != nil {
+			composition.Detach(rt.App)
 		}
 		cleanupErr = errors.Join(cleanupErr, runCleanup(cleanup))
 		return cleanupErr

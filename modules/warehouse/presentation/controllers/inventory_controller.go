@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -42,8 +43,8 @@ func NewInventoryController(app application.Application) application.Controller 
 	return &InventoryController{
 		app:              app,
 		basePath:         "/warehouse/inventory",
-		inventoryService: app.Service(services.InventoryService{}).(*services.InventoryService),
-		positionService:  app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
+		inventoryService: composition.MustResolveForApp[*services.InventoryService](app),
+		positionService:  composition.MustResolveForApp[*positionservice.PositionService](app),
 	}
 }
 

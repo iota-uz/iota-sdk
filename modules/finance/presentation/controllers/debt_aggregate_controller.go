@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -35,8 +36,8 @@ func NewDebtAggregateController(app application.Application) application.Control
 
 	return &DebtAggregateController{
 		app:                 app,
-		debtService:         app.Service(services.DebtService{}).(*services.DebtService),
-		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
+		debtService:         composition.MustResolveForApp[*services.DebtService](app),
+		counterpartyService: composition.MustResolveForApp[*services.CounterpartyService](app),
 		basePath:            basePath,
 	}
 }

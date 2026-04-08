@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
@@ -134,7 +135,7 @@ type GroupsController struct {
 }
 
 func NewGroupsController(app application.Application) application.Controller {
-	groupService := app.Service(services.GroupService{}).(*services.GroupService)
+	groupService := composition.MustResolveForApp[*services.GroupService](app)
 	basePath := "/groups"
 
 	controller := &GroupsController{

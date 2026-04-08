@@ -10,6 +10,7 @@ import (
 	i18n "github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/sirupsen/logrus"
@@ -38,6 +39,9 @@ func TestMiddleware(env *TestEnvironment, u user.User) mux.MiddlewareFunc {
 
 			// Add app constants
 			ctx = context.WithValue(ctx, constants.AppKey, env.App)
+			if container, ok := composition.ForApp(env.App); ok {
+				ctx = context.WithValue(ctx, constants.ContainerKey, container)
+			}
 			ctx = context.WithValue(ctx, constants.HeadKey, templ.NopComponent)
 			ctx = context.WithValue(ctx, constants.LogoKey, templ.NopComponent)
 			ctx = context.WithValue(ctx, constants.LoggerKey, logrus.WithField("test", true))

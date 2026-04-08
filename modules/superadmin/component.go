@@ -57,27 +57,21 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		service := services.NewAnalyticsService(repo)
-		builder.Context().App.RegisterServices(service)
-		return service, nil
+		return services.NewAnalyticsService(repo), nil
 	})
 	composition.Provide[*services.TenantService](builder, func(container *composition.Container) (*services.TenantService, error) {
 		repo, err := composition.Resolve[domain.AnalyticsQueryRepository](container)
 		if err != nil {
 			return nil, err
 		}
-		service := services.NewTenantService(repo)
-		builder.Context().App.RegisterServices(service)
-		return service, nil
+		return services.NewTenantService(repo), nil
 	})
 	composition.Provide[*services.TenantUsersService](builder, func(container *composition.Container) (*services.TenantUsersService, error) {
 		repo, err := composition.Resolve[coreuser.Repository](container)
 		if err != nil {
 			return nil, err
 		}
-		service := services.NewTenantUsersService(repo)
-		builder.Context().App.RegisterServices(service)
-		return service, nil
+		return services.NewTenantUsersService(repo), nil
 	})
 
 	composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {

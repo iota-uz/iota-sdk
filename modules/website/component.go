@@ -46,18 +46,18 @@ func (c *component) Build(builder *composition.Builder) error {
 	clientRepo := crmPersistence.NewClientRepository(passportRepo)
 	aiconfigRepo := persistence.NewAIChatConfigRepository()
 
-	app.RegisterServices(
-		services.NewAIChatConfigService(aiconfigRepo),
-		services.NewWebsiteChatService(
-			services.WebsiteChatServiceConfig{
-				AIConfigRepo: aiconfigRepo,
-				UserRepo:     userRepo,
-				ClientRepo:   clientRepo,
-				ChatRepo:     chatRepo,
-				AIUserEmail:  internet.MustParseEmail("ai@llm.com"),
-			},
-		),
+	aiChatConfigService := services.NewAIChatConfigService(aiconfigRepo)
+	websiteChatService := services.NewWebsiteChatService(
+		services.WebsiteChatServiceConfig{
+			AIConfigRepo: aiconfigRepo,
+			UserRepo:     userRepo,
+			ClientRepo:   clientRepo,
+			ChatRepo:     chatRepo,
+			AIUserEmail:  internet.MustParseEmail("ai@llm.com"),
+		},
 	)
+	composition.Provide[*services.AIChatConfigService](builder, aiChatConfigService)
+	composition.Provide[*services.WebsiteChatService](builder, websiteChatService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {

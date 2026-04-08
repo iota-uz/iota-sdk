@@ -58,15 +58,23 @@ func (c *component) Build(builder *composition.Builder) error {
 		return nil
 	}
 
-	builder.Context().App.RegisterRuntime(application.RuntimeRegistration{
-		Component: &oidcBootstrapComponent{
-			pool:      builder.Context().App.DB(),
-			cryptoKey: config.CryptoKey,
-		},
-		Tags: []application.RuntimeTag{
-			application.RuntimeTagAPI,
-		},
-	})
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
+			component := &oidcBootstrapComponent{
+				pool:      builder.Context().App.DB(),
+				cryptoKey: config.CryptoKey,
+			}
+			return []composition.Hook{{
+				Name: component.Name(),
+				Start: func(ctx context.Context, _ *composition.Container) error {
+					return component.Start(ctx)
+				},
+				Stop: func(ctx context.Context, _ *composition.Container) error {
+					return component.Stop(ctx)
+				},
+			}}, nil
+		})
+	}
 
 	composition.Provide[OIDCConfig](builder, config)
 	composition.Provide[client.Repository](builder, persistence.NewClientRepository())
@@ -117,9 +125,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		service := services.NewOIDCService(clientRepo, authRequestRepo)
-		builder.Context().App.RegisterServices(service)
-		return service, nil
+		return services.NewOIDCService(clientRepo, authRequestRepo), nil
 	})
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {

@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,7 +50,7 @@ func TestAIChatController_SaveConfig_Success(t *testing.T) {
 	suite.Register(controller)
 
 	// Get service
-	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
+	configService := composition.MustResolveForApp[*services.AIChatConfigService](env.App)
 
 	// Prepare form data
 	formData := url.Values{}
@@ -95,7 +96,7 @@ func TestAIChatController_SaveConfig_ValidationError(t *testing.T) {
 	suite.Register(controller)
 
 	// Get service
-	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
+	configService := composition.MustResolveForApp[*services.AIChatConfigService](env.App)
 
 	// Prepare form data with invalid MaxTokens
 	formData := url.Values{}
@@ -132,7 +133,7 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 	suite.Register(controller)
 
 	// Get service
-	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
+	configService := composition.MustResolveForApp[*services.AIChatConfigService](env.App)
 
 	// First, create an initial configuration
 	options := []aichatconfig.Option{
@@ -194,7 +195,7 @@ func TestAIChatController_SaveConfig_FirstConfigSetsDefault(t *testing.T) {
 	suite.Register(controller)
 
 	// Get service
-	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
+	configService := composition.MustResolveForApp[*services.AIChatConfigService](env.App)
 
 	// Ensure no configs exist initially
 	configs, err := configService.List(env.Ctx)

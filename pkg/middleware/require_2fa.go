@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
 
 // Require2FAVerification returns a middleware that enforces 2FA verification.
@@ -53,12 +54,7 @@ func Require2FAVerification(setupPath, verifyPath string) mux.MiddlewareFunc {
 					return
 				}
 
-				userService, ok := app.Service(services.UserService{}).(*services.UserService)
-				if !ok {
-					// Type assertion failed, deny the request
-					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-					return
-				}
+				userService := composition.MustResolveForApp[*services.UserService](app)
 				u, err := userService.GetByID(ctx, sess.UserID())
 				if err != nil {
 					// If user not found or error, deny the request

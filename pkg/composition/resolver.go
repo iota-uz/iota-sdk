@@ -1,6 +1,9 @@
 package composition
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+)
 
 type Resolver[T any] struct {
 	key Key
@@ -12,6 +15,17 @@ func Use[T any]() Resolver[T] {
 
 func UseNamed[T any](name string) Resolver[T] {
 	return Resolver[T]{key: NamedKeyFor[T](name)}
+}
+
+func KeyForType(t reflect.Type) Key {
+	return keyFor(t, "")
+}
+
+func (c *Container) ResolveType(t reflect.Type) (any, error) {
+	if c == nil {
+		return nil, fmt.Errorf("composition: container is nil")
+	}
+	return c.resolveAny(keyFor(t, ""))
 }
 
 func (r Resolver[T]) Key() Key {

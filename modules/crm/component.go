@@ -89,9 +89,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		service := services.NewClientService(clientRepo, app.EventPublisher())
-		app.RegisterServices(service)
-		return service, nil
+		return services.NewClientService(clientRepo, app.EventPublisher()), nil
 	})
 	composition.Provide[*services.ChatService](builder, func(container *composition.Container) (*services.ChatService, error) {
 		chatRepo, err := composition.Resolve[chat.Repository](container)
@@ -110,23 +108,19 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		service := services.NewChatService(
+		return services.NewChatService(
 			chatRepo,
 			clientRepo,
 			clientService,
 			[]chat.Provider{twilioProvider},
 			app.EventPublisher(),
-		)
-		app.RegisterServices(service)
-		return service, nil
+		), nil
 	})
 	composition.Provide[*services.MessageTemplateService](builder, func() *services.MessageTemplateService {
-		service := services.NewMessageTemplateService(
+		return services.NewMessageTemplateService(
 			persistence.NewMessageTemplateRepository(),
 			app.EventPublisher(),
 		)
-		app.RegisterServices(service)
-		return service
 	})
 	composition.Provide[*handlers.ClientHandler](builder, func(container *composition.Container) (*handlers.ClientHandler, error) {
 		chatService, err := composition.Resolve[*services.ChatService](container)

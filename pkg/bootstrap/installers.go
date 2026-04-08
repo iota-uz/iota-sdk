@@ -11,21 +11,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	compositionapplet "github.com/iota-uz/iota-sdk/pkg/composition/applet"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/sirupsen/logrus"
 )
-
-func InstallModules(modules ...application.Module) Installer {
-	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		return application.Wire(rt.App, modules...)
-	})
-}
-
-func InstallModuleTransports(modules ...application.Module) Installer {
-	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		return application.RegisterTransports(rt.App, modules...)
-	})
-}
 
 func InstallComponents(capabilities []composition.Capability, components ...composition.Component) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
@@ -43,8 +32,7 @@ func InstallComponents(capabilities []composition.Capability, components ...comp
 			return err
 		}
 
-		rt.Provide(container)
-		return nil
+		return rt.SetComposition(engine, container)
 	})
 }
 
@@ -126,14 +114,39 @@ func InstallApplets(opts AppletsOptions) Installer {
 		}
 
 		if opts.WithRuntime {
-			if err := rt.App.RegisterAppletRuntime(
-				host,
-				opts.SessionConfig,
-				logger,
-				metrics,
-				opts.BuilderOpts...,
-			); err != nil {
+			if rt.Container() == nil {
+				return fmt.Errorf("install components before installing applet runtime")
+			}
+			builder := compositionapplet.NewAppletEngineBuilder()
+			result, err := builder.Build(compositionapplet.BuildInput{
+				Applets:       rt.App.AppletRegistry().All(),
+				Pool:          rt.Pool,
+				Bundle:        rt.App.Bundle(),
+				Host:          host,
+				SessionConfig: opts.SessionConfig,
+				Logger:        logger,
+				Metrics:       metrics,
+				Options:       opts.BuilderOpts,
+			})
+			if err != nil {
 				return fmt.Errorf("register applet runtime: %w", err)
+			}
+			for _, registration := range result.RuntimeRegistrations {
+				component := application.NewAppletRuntimeComponent(
+					registration.Manager,
+					rt.Pool,
+					logger,
+					registration.HasPostgresJobs,
+				)
+				rt.Container().AppendHooks(composition.Hook{
+					Name: component.Name(),
+					Start: func(ctx context.Context, _ *composition.Container) error {
+						return component.Start(ctx)
+					},
+					Stop: func(ctx context.Context, _ *composition.Container) error {
+						return component.Stop(ctx)
+					},
+				})
 			}
 		}
 
@@ -145,10 +158,10 @@ func InstallApplets(opts AppletsOptions) Installer {
 	})
 }
 
-func StartRuntime(tags ...application.RuntimeTag) Installer {
+func StartComposition() Installer {
 	return InstallerFunc(func(ctx context.Context, rt *Runtime) error {
 		startCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		return rt.App.StartRuntime(startCtx, tags...)
+		return rt.Start(startCtx)
 	})
 }

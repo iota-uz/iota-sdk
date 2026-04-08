@@ -2,6 +2,7 @@
 package core
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"os"
@@ -80,6 +81,29 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ContributeSpotlightProviders(builder, func(*composition.Container) ([]spotlight.SearchProvider, error) {
 		return []spotlight.SearchProvider{newSpotlightProvider(app.DB())}, nil
 	})
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		cfg := configuration.Use()
+		composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
+			service := app.Spotlight()
+			return []composition.Hook{{
+				Name: "spotlight",
+				Start: func(ctx context.Context, _ *composition.Container) error {
+					if cfg.MeiliURL != "" {
+						if err := service.Readiness(ctx); err != nil {
+							return serrors.E(op, err, "spotlight preflight check")
+						}
+					}
+					if err := service.Start(ctx); err != nil {
+						return serrors.E(op, err, "start spotlight service")
+					}
+					return nil
+				},
+				Stop: func(ctx context.Context, _ *composition.Container) error {
+					return service.Stop(ctx)
+				},
+			}}, nil
+		})
+	}
 
 	fsStorage, err := persistence.NewFSStorage()
 	if err != nil {
@@ -107,7 +131,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	groupQueryService := services.NewGroupQueryService(groupQueryRepo)
 	roleQueryService := services.NewRoleQueryService(roleQueryRepo)
 	excelExportService := services.NewExcelExportService(app.DB(), uploadService)
-	authService := services.NewAuthService(app)
+	authService := services.NewAuthService(userService, sessionService)
 	authFlowService := services.NewAuthFlowService(authService, sessionService)
 
 	conf := configuration.Use()
@@ -185,24 +209,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	permissionService := services.NewPermissionService(permRepo, app.EventPublisher())
 	groupService := services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher())
 
-	app.RegisterServices(
-		uploadService,
-		userService,
-		userQueryService,
-		groupQueryService,
-		roleQueryService,
-		sessionService,
-		excelExportService,
-		authService,
-		authFlowService,
-		currencyService,
-		roleService,
-		tenantService,
-		permissionService,
-		groupService,
-		twoFactorService,
-	)
-
 	composition.Provide[*services.UploadService](builder, uploadService)
 	composition.Provide[*services.UserService](builder, userService)
 	composition.Provide[*services.UserQueryService](builder, userQueryService)
@@ -217,6 +223,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.Provide[*services.TenantService](builder, tenantService)
 	composition.Provide[*services.PermissionService](builder, permissionService)
 	composition.Provide[*services.GroupService](builder, groupService)
+	composition.Provide[*coreservices2fa.TwoFactorService](builder, twoFactorService)
 
 	DashboardLinkPermissions = c.options.DashboardLinkPermissions
 	SettingsLinkPermissions = c.options.SettingsLinkPermissions

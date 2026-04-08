@@ -87,11 +87,12 @@ func (c *component) Build(builder *composition.Builder) error {
 		SecretKey: conf.Stripe.SecretKey,
 	})
 
-	app.RegisterServices(services.NewBillingService(
+	billingService := services.NewBillingService(
 		persistence.NewBillingRepository(),
 		[]billingdom.Provider{clickProvider, paymeProvider, octoProvider, stripeProvider},
 		app.EventPublisher(),
-	))
+	)
+	composition.Provide[*services.BillingService](builder, billingService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		basePath := "/billing"

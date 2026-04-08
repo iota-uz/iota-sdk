@@ -48,35 +48,42 @@ func (c *component) Build(builder *composition.Builder) error {
 	)
 	transactionRepo := persistence.NewTransactionRepository()
 	categoryRepo := persistence.NewExpenseCategoryRepository()
-
-	app.RegisterServices(
-		services.NewTransactionService(transactionRepo, app.EventPublisher()),
-		services.NewPaymentService(
-			persistence.NewPaymentRepository(),
-			app.EventPublisher(),
-			moneyAccountService,
-			uploadRepo,
-		),
-		services.NewExpenseCategoryService(categoryRepo, app.EventPublisher()),
-		services.NewPaymentCategoryService(
-			persistence.NewPaymentCategoryRepository(),
-			app.EventPublisher(),
-		),
-		services.NewExpenseService(
-			persistence.NewExpenseRepository(categoryRepo, transactionRepo),
-			app.EventPublisher(),
-			moneyAccountService,
-			uploadRepo,
-		),
+	transactionService := services.NewTransactionService(transactionRepo, app.EventPublisher())
+	paymentService := services.NewPaymentService(
+		persistence.NewPaymentRepository(),
+		app.EventPublisher(),
 		moneyAccountService,
-		services.NewCounterpartyService(persistence.NewCounterpartyRepository()),
-		services.NewInventoryService(persistence.NewInventoryRepository()),
-		services.NewDebtService(persistence.NewDebtRepository(), app.EventPublisher()),
-		services.NewFinancialReportService(
-			query.NewPgFinancialReportsQueryRepository(),
-			app.EventPublisher(),
-		),
+		uploadRepo,
 	)
+	expenseCategoryService := services.NewExpenseCategoryService(categoryRepo, app.EventPublisher())
+	paymentCategoryService := services.NewPaymentCategoryService(
+		persistence.NewPaymentCategoryRepository(),
+		app.EventPublisher(),
+	)
+	expenseService := services.NewExpenseService(
+		persistence.NewExpenseRepository(categoryRepo, transactionRepo),
+		app.EventPublisher(),
+		moneyAccountService,
+		uploadRepo,
+	)
+	counterpartyService := services.NewCounterpartyService(persistence.NewCounterpartyRepository())
+	inventoryService := services.NewInventoryService(persistence.NewInventoryRepository())
+	debtService := services.NewDebtService(persistence.NewDebtRepository(), app.EventPublisher())
+	financialReportService := services.NewFinancialReportService(
+		query.NewPgFinancialReportsQueryRepository(),
+		app.EventPublisher(),
+	)
+
+	composition.Provide[*services.TransactionService](builder, transactionService)
+	composition.Provide[*services.PaymentService](builder, paymentService)
+	composition.Provide[*services.ExpenseCategoryService](builder, expenseCategoryService)
+	composition.Provide[*services.PaymentCategoryService](builder, paymentCategoryService)
+	composition.Provide[*services.ExpenseService](builder, expenseService)
+	composition.Provide[*services.MoneyAccountService](builder, moneyAccountService)
+	composition.Provide[*services.CounterpartyService](builder, counterpartyService)
+	composition.Provide[*services.InventoryService](builder, inventoryService)
+	composition.Provide[*services.DebtService](builder, debtService)
+	composition.Provide[*services.FinancialReportService](builder, financialReportService)
 
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),

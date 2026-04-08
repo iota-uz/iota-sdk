@@ -127,6 +127,14 @@ func (e *Engine) Run(ctx context.Context, buildCtx BuildContext, capabilities ..
 }
 
 func (e *Engine) Start(ctx context.Context, container *Container) error {
+	return Start(ctx, container)
+}
+
+func (e *Engine) Stop(ctx context.Context, container *Container) error {
+	return Stop(ctx, container)
+}
+
+func Start(ctx context.Context, container *Container) error {
 	if container == nil || container.started {
 		return nil
 	}
@@ -152,7 +160,7 @@ func (e *Engine) Start(ctx context.Context, container *Container) error {
 	return nil
 }
 
-func (e *Engine) Stop(ctx context.Context, container *Container) error {
+func Stop(ctx context.Context, container *Container) error {
 	if container == nil || !container.started {
 		return nil
 	}
@@ -249,7 +257,7 @@ func newContainer(context BuildContext, activeCapabilities []Capability) *Contai
 		activeCapabilities: append([]Capability(nil), activeCapabilities...),
 		providers:          make(map[Key]*providerEntry),
 	}
-	seedAppServices(container, context.App)
+	Attach(context.App, container)
 	return container
 }
 
@@ -283,6 +291,61 @@ func (c *Container) SpotlightProviders() []spotlight.SearchProvider {
 
 func (c *Container) Hooks() []Hook {
 	return append([]Hook(nil), c.hooks...)
+}
+
+func (c *Container) AppendHooks(hooks ...Hook) {
+	if c == nil {
+		return
+	}
+	for _, hook := range hooks {
+		if hook.Name == "" {
+			continue
+		}
+		c.hooks = append(c.hooks, hook)
+	}
+}
+
+func Merge(target, source *Container) (*Container, error) {
+	switch {
+	case target == nil:
+		return source, nil
+	case source == nil:
+		return target, nil
+	}
+
+	for key, provider := range source.providers {
+		if _, exists := target.providers[key]; exists {
+			return nil, fmt.Errorf("composition: duplicate provider %s", key)
+		}
+		target.providers[key] = provider
+	}
+
+	target.providerOrder = append(target.providerOrder, source.providerOrder...)
+	target.controllers = append(target.controllers, source.controllers...)
+	target.navItems = append(target.navItems, source.navItems...)
+	target.locales = append(target.locales, source.locales...)
+	target.graphSchemas = append(target.graphSchemas, source.graphSchemas...)
+	target.applets = append(target.applets, source.applets...)
+	target.spotlightProviders = append(target.spotlightProviders, source.spotlightProviders...)
+	target.hooks = append(target.hooks, source.hooks...)
+	target.activeCapabilities = mergeCapabilities(target.activeCapabilities, source.activeCapabilities)
+	target.started = target.started || source.started
+
+	return target, nil
+}
+
+func mergeCapabilities(left, right []Capability) []Capability {
+	if len(left) == 0 {
+		return append([]Capability(nil), right...)
+	}
+	merged := append([]Capability(nil), left...)
+	for _, capability := range right {
+		if slices.Contains(merged, capability) {
+			continue
+		}
+		merged = append(merged, capability)
+	}
+	return merged
 }
 
 func Resolve[T any](container *Container) (T, error) {
@@ -489,23 +552,4 @@ func typeOfComponent(component Component) reflect.Type {
 
 func formatPath(path []string) string {
 	return strings.Join(path, " -> ")
-}
-
-func seedAppServices(container *Container, app application.Application) {
-	if container == nil || app == nil {
-		return
-	}
-	for _, service := range app.Services() {
-		if service == nil {
-			continue
-		}
-		entry := &providerEntry{
-			key:           keyFor(reflect.TypeOf(service), ""),
-			componentName: "application",
-			displayName:   shortTypeName(reflect.TypeOf(service)),
-			state:         providerResolved,
-			value:         service,
-		}
-		container.providers[entry.key] = entry
-	}
 }

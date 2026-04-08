@@ -7,6 +7,7 @@ import (
 	positionservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
 
 // This file will not be regenerated automatically.
@@ -24,9 +25,9 @@ type Resolver struct {
 func NewResolver(app application.Application) *Resolver {
 	return &Resolver{
 		app:              app,
-		orderService:     app.Service(orderservice.OrderService{}).(*orderservice.OrderService),
-		productService:   app.Service(productservice.ProductService{}).(*productservice.ProductService),
-		positionService:  app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
-		inventoryService: app.Service(services.InventoryService{}).(*services.InventoryService),
+		orderService:     composition.MustResolveForApp[*orderservice.OrderService](app),
+		productService:   composition.MustResolveForApp[*productservice.ProductService](app),
+		positionService:  composition.MustResolveForApp[*positionservice.PositionService](app),
+		inventoryService: composition.MustResolveForApp[*services.InventoryService](app),
 	}
 }

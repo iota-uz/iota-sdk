@@ -7,14 +7,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (app *application) buildAppletControllersAndRuntime(
+func (app *application) buildAppletControllers(
 	host applets.HostServices,
 	sessionConfig applets.SessionConfig,
 	logger *logrus.Logger,
 	metrics applets.MetricsRecorder,
 	opts ...applets.BuilderOption,
-) ([]Controller, []RuntimeRegistration, error) {
-	const op serrors.Op = "application.buildAppletControllersAndRuntime"
+) ([]Controller, error) {
+	const op serrors.Op = "application.buildAppletControllers"
 	builder := compositionapplet.NewAppletEngineBuilder()
 	result, err := builder.Build(compositionapplet.BuildInput{
 		Applets:       app.AppletRegistry().All(),
@@ -27,19 +27,11 @@ func (app *application) buildAppletControllersAndRuntime(
 		Options:       opts,
 	})
 	if err != nil {
-		return nil, nil, serrors.E(op, err)
+		return nil, serrors.E(op, err)
 	}
 	controllers := make([]Controller, 0, len(result.Controllers))
 	for _, controller := range result.Controllers {
 		controllers = append(controllers, controller.(Controller))
 	}
-	registrations := make([]RuntimeRegistration, 0, len(result.RuntimeRegistrations))
-	for _, registration := range result.RuntimeRegistrations {
-		registrations = append(registrations, RuntimeRegistration{
-			Component: newAppletRuntimeComponent(registration.Manager, app.DB(), logger, registration.HasPostgresJobs),
-			Tags:      []RuntimeTag{RuntimeTagWorker},
-		})
-	}
-	app.appletRuntime = result.RuntimeManager
-	return controllers, registrations, nil
+	return controllers, nil
 }

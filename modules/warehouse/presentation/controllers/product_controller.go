@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -41,8 +42,8 @@ type PaginatedResponse struct {
 func NewProductsController(app application.Application) application.Controller {
 	return &ProductsController{
 		app:             app,
-		productService:  app.Service(productservice.ProductService{}).(*productservice.ProductService),
-		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
+		productService:  composition.MustResolveForApp[*productservice.ProductService](app),
+		positionService: composition.MustResolveForApp[*positionservice.PositionService](app),
 		basePath:        "/warehouse/products",
 	}
 }

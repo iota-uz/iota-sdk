@@ -38,10 +38,10 @@ func (c *component) Build(builder *composition.Builder) error {
 		return []*embed.FS{&LocaleFiles}, nil
 	})
 
-	app.RegisterServices(
-		services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher()),
-		services.NewEmployeeService(persistence.NewEmployeeRepository(), app.EventPublisher()),
-	)
+	positionService := services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher())
+	employeeService := services.NewEmployeeService(persistence.NewEmployeeRepository(), app.EventPublisher())
+	composition.Provide[*services.PositionService](builder, positionService)
+	composition.Provide[*services.EmployeeService](builder, employeeService)
 	app.QuickLinks().Add(spotlight.NewQuickLink(EmployeesLink.Name, EmployeesLink.Href))
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {

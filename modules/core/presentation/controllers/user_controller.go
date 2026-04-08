@@ -29,6 +29,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
@@ -154,7 +155,7 @@ func NewUsersController(app application.Application, opts *UsersControllerOption
 	if opts.BasePath == "" {
 		panic("UsersController requires explicit BasePath in options")
 	}
-	userService := app.Service(services.UserService{}).(*services.UserService)
+	userService := composition.MustResolveForApp[*services.UserService](app)
 
 	controller := &UsersController{
 		app:              app,

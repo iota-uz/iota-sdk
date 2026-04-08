@@ -1,10 +1,17 @@
 package oidc
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
 
-func NewModule(opts *ModuleOptions) application.Module {
-	return composition.Legacy(NewComponent(opts), composition.CapabilityAPI)
+type Module struct {
+	composition.Component
+}
+
+func NewModule(opts *ModuleOptions) *Module {
+	return &Module{Component: NewComponent(opts)}
+}
+
+func (m *Module) Name() string {
+	return m.Descriptor().Name
 }

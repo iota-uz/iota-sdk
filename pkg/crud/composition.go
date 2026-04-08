@@ -11,7 +11,6 @@ func ProvideBuilder[TEntity any](
 	opts ...BuilderOption[TEntity],
 ) Builder[TEntity] {
 	registry := NewBuilder(schema, builder.Context().App.EventPublisher(), opts...)
-	builder.Context().App.RegisterServices(registry)
 	composition.Provide[Builder[TEntity]](builder, registry)
 	return registry
 }
@@ -22,7 +21,6 @@ func ProvideExistingBuilder[TEntity any](
 	builder *composition.Builder,
 	registry Builder[TEntity],
 ) Builder[TEntity] {
-	builder.Context().App.RegisterServices(registry)
 	composition.Provide[Builder[TEntity]](builder, registry)
 	return registry
 }

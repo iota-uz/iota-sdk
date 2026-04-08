@@ -4,7 +4,6 @@ package application
 import (
 	"context"
 	"embed"
-	"reflect"
 
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/di"
@@ -48,14 +47,7 @@ type Application interface {
 	RegisterLocaleFiles(fs ...*embed.FS)
 	RegisterGraphSchema(schema GraphSchema)
 	GraphSchemas() []GraphSchema
-	RegisterServices(services ...interface{})
-	RegisterRuntime(registrations ...RuntimeRegistration)
-	RuntimeComponents() []RuntimeRegistration
-	StartRuntime(ctx context.Context, tags ...RuntimeTag) error
-	StopRuntime(ctx context.Context) error
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
-	Service(service interface{}) interface{}
-	Services() map[reflect.Type]interface{}
 	Bundle() *i18n.Bundle
 	GetSupportedLanguages() []string
 	RegisterApplet(applet Applet) error
@@ -67,13 +59,6 @@ type Application interface {
 		metrics applets.MetricsRecorder,
 		opts ...applets.BuilderOption,
 	) ([]Controller, error)
-	RegisterAppletRuntime(
-		host applets.HostServices,
-		sessionConfig applets.SessionConfig,
-		logger *logrus.Logger,
-		metrics applets.MetricsRecorder,
-		opts ...applets.BuilderOption,
-	) error
 }
 
 type Seeder interface {
@@ -109,12 +94,6 @@ func (d *SeedDeps) RegisterProviders(providers ...di.Provider) {
 type Controller interface {
 	Register(r *mux.Router)
 	Key() string
-}
-
-type Module interface {
-	Name() string
-	RegisterWiring(app Application) error
-	RegisterTransports(app Application) error
 }
 
 // Applet represents a React/Next.js application that integrates with the SDK

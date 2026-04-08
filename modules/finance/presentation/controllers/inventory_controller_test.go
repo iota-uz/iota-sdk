@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -37,7 +38,7 @@ func TestInventoryController_List_Success(t *testing.T) {
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
+	service := composition.MustResolveForApp[*services.InventoryService](env.App)
 
 	item1 := inventory.New(
 		"Test Product 1",
@@ -84,7 +85,7 @@ func TestInventoryController_List_HTMX_Request(t *testing.T) {
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
+	service := composition.MustResolveForApp[*services.InventoryService](env.App)
 
 	item := inventory.New(
 		"HTMX Test Product",
@@ -149,7 +150,7 @@ func TestInventoryController_Create_Success(t *testing.T) {
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
+	service := composition.MustResolveForApp[*services.InventoryService](env.App)
 
 	formData := url.Values{}
 	formData.Set("Name", "New Test Product")
@@ -191,7 +192,7 @@ func TestInventoryController_Create_ValidationError(t *testing.T) {
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
+	service := composition.MustResolveForApp[*services.InventoryService](env.App)
 
 	formData := url.Values{}
 	formData.Set("Name", "")
@@ -228,7 +229,7 @@ func TestInventoryController_GetEdit_Success(t *testing.T) {
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
+	service := composition.MustResolveForApp[*services.InventoryService](env.App)
 
 	item := inventory.New(
 		"Edit Test Product",
@@ -293,7 +294,7 @@ func TestInventoryController_Update_Success(t *testing.T) {
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
+	service := composition.MustResolveForApp[*services.InventoryService](env.App)
 
 	item := inventory.New(
 		"Original Product",
@@ -343,7 +344,7 @@ func TestInventoryController_Update_ValidationError(t *testing.T) {
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
+	service := composition.MustResolveForApp[*services.InventoryService](env.App)
 
 	item := inventory.New(
 		"Test Product",
@@ -390,7 +391,7 @@ func TestInventoryController_Delete_Success(t *testing.T) {
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
+	service := composition.MustResolveForApp[*services.InventoryService](env.App)
 
 	item := inventory.New(
 		"Product to Delete",

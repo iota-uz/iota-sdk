@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -74,12 +75,11 @@ func (r *managerRegistry) All() map[string]Manager {
 // GetManagerRegistry retrieves the ManagerRegistry from the application container.
 // Returns nil if no registry has been registered.
 func GetManagerRegistry(app application.Application) ManagerRegistry {
-	for _, svc := range app.Services() {
-		if reg, ok := svc.(ManagerRegistry); ok {
-			return reg
-		}
+	registry, ok, err := composition.ResolveOptionalForApp[ManagerRegistry](app)
+	if err != nil || !ok {
+		return nil
 	}
-	return nil
+	return registry
 }
 
 var registryMu sync.Mutex
@@ -90,10 +90,5 @@ var registryMu sync.Mutex
 func GetOrCreateManagerRegistry(app application.Application) ManagerRegistry {
 	registryMu.Lock()
 	defer registryMu.Unlock()
-	if reg := GetManagerRegistry(app); reg != nil {
-		return reg
-	}
-	reg := NewManagerRegistry()
-	app.RegisterServices(reg)
-	return reg
+	return GetManagerRegistry(app)
 }

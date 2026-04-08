@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -41,8 +42,8 @@ func TestDebtAggregateController_List_Success(t *testing.T) {
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
 
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
+	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -107,8 +108,8 @@ func TestDebtAggregateController_List_HTMX_Request(t *testing.T) {
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
 
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
+	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -190,8 +191,8 @@ func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
 
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
+	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -323,8 +324,8 @@ func TestDebtAggregateController_MultipleCounterparties(t *testing.T) {
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
 
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
+	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create multiple counterparties
 	counterparty1 := counterparty.New(

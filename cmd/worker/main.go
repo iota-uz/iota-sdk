@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/modules"
 	bichatbootstrap "github.com/iota-uz/iota-sdk/modules/bichat/bootstrap"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -66,7 +65,7 @@ func run() error {
 			SessionConfig: applets.DefaultSessionConfig,
 			WithRuntime:   true,
 		}),
-		bootstrap.StartRuntime(application.RuntimeTagWorker),
+		bootstrap.StartComposition(),
 	); err != nil {
 		return fmt.Errorf("failed to compose worker runtime: %w", err)
 	}
@@ -81,7 +80,7 @@ func run() error {
 	rt.Logger.Infof("received signal %v, shutting down worker", sig)
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := rt.App.StopRuntime(shutdownCtx); err != nil {
+	if err := rt.Stop(shutdownCtx); err != nil {
 		rt.Logger.WithError(err).Warn("failed to stop worker runtime gracefully")
 	}
 	return nil

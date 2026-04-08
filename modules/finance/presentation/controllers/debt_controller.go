@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/debts"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/a-h/templ"
@@ -53,9 +54,9 @@ func NewDebtsController(app application.Application) application.Controller {
 
 	return &DebtsController{
 		app:                 app,
-		debtService:         app.Service(services.DebtService{}).(*services.DebtService),
-		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
-		transactionService:  app.Service(services.TransactionService{}).(*services.TransactionService),
+		debtService:         composition.MustResolveForApp[*services.DebtService](app),
+		counterpartyService: composition.MustResolveForApp[*services.CounterpartyService](app),
+		transactionService:  composition.MustResolveForApp[*services.TransactionService](app),
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,
 	}

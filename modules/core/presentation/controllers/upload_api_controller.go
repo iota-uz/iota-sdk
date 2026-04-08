@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -174,7 +175,7 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create upload
-	uploadService := c.app.Service(services.UploadService{}).(*services.UploadService)
+	uploadService := composition.MustResolveForApp[*services.UploadService](c.app)
 	var uploadEntity upload.Upload
 	if err := composables.InTx(r.Context(), func(txCtx context.Context) error {
 		var createErr error

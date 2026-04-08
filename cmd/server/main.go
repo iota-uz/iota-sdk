@@ -11,7 +11,6 @@ import (
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules"
 	bichatbootstrap "github.com/iota-uz/iota-sdk/modules/bichat/bootstrap"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -61,7 +60,7 @@ func run() error {
 			WithRuntime:   true,
 		}),
 		bootstrap.InstallCoreControllers(),
-		bootstrap.StartRuntime(application.RuntimeTagAPI, application.RuntimeTagWorker),
+		bootstrap.StartComposition(),
 	); err != nil {
 		return fmt.Errorf("failed to compose server runtime: %w", err)
 	}

@@ -18,8 +18,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -40,13 +40,13 @@ type Suite struct {
 	t           testing.TB
 	env         *TestEnvironment
 	router      *mux.Router
-	modules     []application.Module
+	modules     []composition.Component
 	user        user.User
 	middlewares []MiddlewareFunc
 	beforeEach  []HookFunc
 }
 
-func NewSuite(tb testing.TB, modules ...application.Module) *Suite {
+func NewSuite(tb testing.TB, modules ...composition.Component) *Suite {
 	tb.Helper()
 
 	s := &Suite{
@@ -196,6 +196,9 @@ func (s *Suite) setupMiddleware() {
 			ctx = composables.WithSession(ctx, MockSession())
 			ctx = composables.WithTenantID(ctx, s.env.Tenant.ID)
 			ctx = context.WithValue(ctx, constants.AppKey, s.env.App)
+			if container, ok := composition.ForApp(s.env.App); ok {
+				ctx = context.WithValue(ctx, constants.ContainerKey, container)
+			}
 			ctx = context.WithValue(ctx, constants.HeadKey, templ.NopComponent)
 			ctx = context.WithValue(ctx, constants.LogoKey, templ.NopComponent)
 

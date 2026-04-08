@@ -26,6 +26,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -60,9 +61,9 @@ func NewMoneyAccountController(app application.Application) application.Controll
 
 	return &MoneyAccountController{
 		app:                 app,
-		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		transactionService:  app.Service(services.TransactionService{}).(*services.TransactionService),
-		currencyService:     app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
+		moneyAccountService: composition.MustResolveForApp[*services.MoneyAccountService](app),
+		transactionService:  composition.MustResolveForApp[*services.TransactionService](app),
+		currencyService:     composition.MustResolveForApp[*coreservices.CurrencyService](app),
 		transactionQuery:    query.NewPgTransactionQueryRepository(),
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,

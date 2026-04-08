@@ -20,12 +20,12 @@ type appletRuntimeComponent struct {
 	startedJobs     atomic.Bool
 }
 
-func newAppletRuntimeComponent(
+func NewAppletRuntimeComponent(
 	manager *appletengineruntime.Manager,
 	pool *pgxpool.Pool,
 	logger *logrus.Logger,
 	hasPostgresJobs bool,
-) RuntimeComponent {
+) *appletRuntimeComponent {
 	return &appletRuntimeComponent{
 		manager:         manager,
 		pool:            pool,

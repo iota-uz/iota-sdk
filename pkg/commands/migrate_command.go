@@ -10,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
 
 var (
@@ -27,7 +28,8 @@ func ensureDirectories() error {
 	return nil
 }
 
-func Migrate(mods ...application.Module) error {
+func Migrate(components ...composition.Component) error {
+	_ = components
 	if len(os.Args) < 2 {
 		return ErrNoCommand
 	}
@@ -116,7 +118,7 @@ func handleMigrationCommands(
 
 // MigrateWithSubcommand runs migration with a specific subcommand
 // This is a wrapper for the unified command tool
-func MigrateWithSubcommand(subcommand string, mods ...application.Module) error {
+func MigrateWithSubcommand(subcommand string, components ...composition.Component) error {
 	// Temporarily modify os.Args to match the expected format
 	originalArgs := os.Args
 	defer func() { os.Args = originalArgs }()
@@ -124,5 +126,5 @@ func MigrateWithSubcommand(subcommand string, mods ...application.Module) error 
 	// Set os.Args to simulate direct migrate command call
 	os.Args = []string{"migrate", subcommand}
 
-	return Migrate(mods...)
+	return Migrate(components...)
 }

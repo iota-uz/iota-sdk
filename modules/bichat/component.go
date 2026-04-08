@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
+	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -70,18 +71,16 @@ func (c *component) Build(builder *composition.Builder) error {
 	}
 	c.container = container
 
-	app.RegisterServices(
-		container.SessionCommands(),
-		container.SessionQueries(),
-		container.TurnCommands(),
-		container.TurnQueries(),
-		container.StreamCommands(),
-		container.HITLCommands(),
-		container.AgentService(),
-		container.AttachmentService(),
-		container.ArtifactService(),
-		container.StreamObservability(),
-	)
+	composition.Provide[bichatservices.SessionCommands](builder, container.SessionCommands())
+	composition.Provide[bichatservices.SessionQueries](builder, container.SessionQueries())
+	composition.Provide[bichatservices.TurnCommands](builder, container.TurnCommands())
+	composition.Provide[bichatservices.TurnQueries](builder, container.TurnQueries())
+	composition.Provide[bichatservices.StreamCommands](builder, container.StreamCommands())
+	composition.Provide[bichatservices.HITLCommands](builder, container.HITLCommands())
+	composition.Provide[bichatservices.AgentService](builder, container.AgentService())
+	composition.Provide[bichatservices.AttachmentService](builder, container.AttachmentService())
+	composition.Provide[bichatservices.ArtifactService](builder, container.ArtifactService())
+	composition.Provide[*services.StreamObservability](builder, container.StreamObservability())
 
 	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
 		return NavItems, nil
@@ -91,12 +90,20 @@ func (c *component) Build(builder *composition.Builder) error {
 	if c.config.KBSearcher != nil {
 		app.Spotlight().SetAgent(spotlight.NewBIChatAgent(c.config.KBSearcher))
 	}
-	app.RegisterRuntime(application.RuntimeRegistration{
-		Component: &runtimeComponent{component: c, pool: app.DB()},
-		Tags: []application.RuntimeTag{
-			application.RuntimeTagWorker,
-		},
-	})
+	if builder.Context().HasCapability(composition.CapabilityWorker) {
+		composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
+			component := &runtimeComponent{component: c, pool: app.DB()}
+			return []composition.Hook{{
+				Name: component.Name(),
+				Start: func(ctx context.Context, _ *composition.Container) error {
+					return component.Start(ctx)
+				},
+				Stop: func(ctx context.Context, _ *composition.Container) error {
+					return component.Stop(ctx)
+				},
+			}}, nil
+		})
+	}
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {

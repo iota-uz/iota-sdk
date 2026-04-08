@@ -5,7 +5,6 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"net/url"
@@ -14,8 +13,6 @@ import (
 	goruntime "runtime"
 	"sort"
 	"strings"
-	"sync"
-	"time"
 	"unicode"
 
 	"github.com/BurntSushi/toml"
@@ -31,7 +28,6 @@ import (
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
-	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -267,7 +263,6 @@ func New(opts *ApplicationOptions) (Application, error) {
 		eventPublisher:     opts.EventBus,
 		websocket:          opts.Huber,
 		controllers:        make(map[string]Controller),
-		services:           make(map[reflect.Type]interface{}),
 		quickLinks:         quickLinks,
 		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
@@ -275,12 +270,6 @@ func New(opts *ApplicationOptions) (Application, error) {
 		supportedLanguages: opts.SupportedLanguages,
 		appletRegistry:     applets.NewRegistry(),
 	}
-	app.RegisterRuntime(RuntimeRegistration{
-		Component: newSpotlightRuntimeComponent(cfg, spotlightService),
-		Tags: []RuntimeTag{
-			RuntimeTagAPI,
-		},
-	})
 	return app, nil
 }
 
@@ -289,7 +278,6 @@ type application struct {
 	pool               *pgxpool.Pool
 	eventPublisher     eventbus.EventBus
 	websocket          Huber
-	services           map[reflect.Type]interface{}
 	controllers        map[string]Controller
 	middleware         []mux.MiddlewareFunc
 	hashFsAssets       []*hashfs.FS
@@ -302,13 +290,6 @@ type application struct {
 	navItems           []types.NavigationItem
 	supportedLanguages []string
 	appletRegistry     applets.Registry
-	appletRuntime      *appletengineruntime.Manager
-	runtimeComponents  []RuntimeRegistration
-	startedRuntime     []RuntimeComponent
-	currentRuntimeTags []RuntimeTag
-	startingRuntime    bool
-	stoppingRuntime    bool
-	runtimeMu          sync.Mutex
 }
 
 func (app *application) Spotlight() spotlight.Service {
@@ -457,155 +438,6 @@ func (app *application) EventPublisher() eventbus.EventBus {
 	return app.eventPublisher
 }
 
-func (app *application) RegisterRuntime(registrations ...RuntimeRegistration) {
-	app.runtimeMu.Lock()
-	defer app.runtimeMu.Unlock()
-
-	for _, registration := range registrations {
-		if registration.Component == nil {
-			continue
-		}
-		app.runtimeComponents = append(app.runtimeComponents, cloneRuntimeRegistration(registration))
-	}
-}
-
-func (app *application) RuntimeComponents() []RuntimeRegistration {
-	app.runtimeMu.Lock()
-	defer app.runtimeMu.Unlock()
-
-	components := make([]RuntimeRegistration, len(app.runtimeComponents))
-	for i, registration := range app.runtimeComponents {
-		components[i] = cloneRuntimeRegistration(registration)
-	}
-	return components
-}
-
-func (app *application) StartRuntime(ctx context.Context, tags ...RuntimeTag) error {
-	normalizedTags, err := normalizeRuntimeTags(tags)
-	if err != nil {
-		return err
-	}
-	if len(normalizedTags) == 0 {
-		return nil
-	}
-	app.runtimeMu.Lock()
-	if app.startingRuntime {
-		activeTags := formatRuntimeTags(app.currentRuntimeTags)
-		if activeTags == "[]" {
-			activeTags = formatRuntimeTags(normalizedTags)
-		}
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime is starting with tags %s", activeTags)
-	}
-	if app.stoppingRuntime {
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime is stopping")
-	}
-	if app.currentRuntimeTags != nil {
-		if runtimeTagsEqual(app.currentRuntimeTags, normalizedTags) {
-			app.runtimeMu.Unlock()
-			return nil
-		}
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime already started with tags %s", formatRuntimeTags(app.currentRuntimeTags))
-	}
-
-	activeTags := runtimeTagSet(normalizedTags)
-	applicable := make([]RuntimeRegistration, 0, len(app.runtimeComponents))
-	for _, registration := range app.runtimeComponents {
-		registrationTags, err := normalizeRuntimeTags(registration.Tags)
-		if err != nil {
-			app.runtimeMu.Unlock()
-			return fmt.Errorf("runtime component %q: %w", registration.Component.Name(), err)
-		}
-		cloned := cloneRuntimeRegistration(registration)
-		cloned.Tags = registrationTags
-		if !cloned.AppliesTo(activeTags) {
-			continue
-		}
-		applicable = append(applicable, cloned)
-	}
-	app.startingRuntime = true
-	app.currentRuntimeTags = append([]RuntimeTag(nil), normalizedTags...)
-	app.runtimeMu.Unlock()
-
-	started := make([]RuntimeComponent, 0, len(applicable))
-	var startErr error
-	for _, registration := range applicable {
-		if err := registration.Component.Start(ctx); err != nil {
-			rollbackCtx, rollbackCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			var rollbackErr error
-			for i := len(started) - 1; i >= 0; i-- {
-				if stopErr := started[i].Stop(rollbackCtx); stopErr != nil {
-					rollbackErr = errors.Join(
-						rollbackErr,
-						fmt.Errorf("rollback runtime component %q: %w", started[i].Name(), stopErr),
-					)
-				}
-			}
-			rollbackCancel()
-			startErr = errors.Join(
-				fmt.Errorf("start runtime component %q: %w", registration.Component.Name(), err),
-				rollbackErr,
-			)
-			break
-		}
-		started = append(started, registration.Component)
-	}
-
-	app.runtimeMu.Lock()
-	defer app.runtimeMu.Unlock()
-	app.startingRuntime = false
-	if startErr != nil {
-		app.startedRuntime = nil
-		app.currentRuntimeTags = nil
-		return startErr
-	}
-	app.startedRuntime = started
-	return nil
-}
-
-func (app *application) StopRuntime(ctx context.Context) error {
-	app.runtimeMu.Lock()
-	if app.startingRuntime {
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime is starting")
-	}
-	if app.stoppingRuntime {
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime is stopping")
-	}
-	started := append([]RuntimeComponent(nil), app.startedRuntime...)
-	if app.currentRuntimeTags == nil {
-		app.runtimeMu.Unlock()
-		return nil
-	}
-	app.stoppingRuntime = true
-	app.runtimeMu.Unlock()
-	var stopErr error
-	for i := len(started) - 1; i >= 0; i-- {
-		if err := started[i].Stop(ctx); err != nil {
-			stopErr = errors.Join(stopErr, fmt.Errorf("stop runtime component %q: %w", started[i].Name(), err))
-		}
-	}
-	app.runtimeMu.Lock()
-	app.startedRuntime = nil
-	app.currentRuntimeTags = nil
-	app.stoppingRuntime = false
-	app.runtimeMu.Unlock()
-	return stopErr
-}
-
-func cloneRuntimeRegistration(registration RuntimeRegistration) RuntimeRegistration {
-	cloned := registration
-	if len(registration.Tags) == 0 {
-		cloned.Tags = nil
-		return cloned
-	}
-	cloned.Tags = append([]RuntimeTag(nil), registration.Tags...)
-	return cloned
-}
-
 // CreateAppletControllers creates controllers for all registered applets without
 // starting long-lived runtime processes.
 func (app *application) CreateAppletControllers(
@@ -615,26 +447,7 @@ func (app *application) CreateAppletControllers(
 	metrics applets.MetricsRecorder,
 	opts ...applets.BuilderOption,
 ) ([]Controller, error) {
-	controllers, _, err := app.buildAppletControllersAndRuntime(host, sessionConfig, logger, metrics, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return controllers, nil
-}
-
-func (app *application) RegisterAppletRuntime(
-	host applets.HostServices,
-	sessionConfig applets.SessionConfig,
-	logger *logrus.Logger,
-	metrics applets.MetricsRecorder,
-	opts ...applets.BuilderOption,
-) error {
-	_, registrations, err := app.buildAppletControllersAndRuntime(host, sessionConfig, logger, metrics, opts...)
-	if err != nil {
-		return err
-	}
-	app.RegisterRuntime(registrations...)
-	return nil
+	return app.buildAppletControllers(host, sessionConfig, logger, metrics, opts...)
 }
 
 func (app *application) Controllers() []Controller {
@@ -705,27 +518,6 @@ func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
 }
 
 // RegisterServices registers a new service in the application by its type
-func (app *application) RegisterServices(services ...interface{}) {
-	for _, service := range services {
-		serviceType := reflect.TypeOf(service).Elem()
-		app.services[serviceType] = service
-	}
-}
-
-// Service retrieves a service by its type
-func (app *application) Service(service interface{}) interface{} {
-	serviceType := reflect.TypeOf(service)
-	svc, exists := app.services[serviceType]
-	if !exists {
-		panic(fmt.Sprintf("service %s not found", serviceType.Name()))
-	}
-	return svc
-}
-
-func (app *application) Services() map[reflect.Type]interface{} {
-	return app.services
-}
-
 func (app *application) Bundle() *i18n.Bundle {
 	return app.bundle
 }

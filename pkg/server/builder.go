@@ -104,6 +104,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		middleware.WithLogger(cfg.logger, middleware.DefaultLoggerOptions()),
 		middleware.TracedMiddleware("database"),
 		middleware.Provide(constants.AppKey, rt.App),
+		middleware.Provide(constants.ContainerKey, rt.Container()),
 		middleware.Provide(constants.HeadKey, layouts.DefaultHead()),
 		middleware.Provide(constants.LogoKey, assets.DefaultLogo()),
 		middleware.Provide(constants.PoolKey, rt.Pool),

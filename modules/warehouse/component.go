@@ -4,6 +4,7 @@ package warehouse
 import (
 	"embed"
 
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/assets"
@@ -59,17 +60,32 @@ func (c *component) Build(builder *composition.Builder) error {
 	positionRepo := persistence.NewPositionRepository()
 	productRepo := persistence.NewProductRepository()
 
-	app.RegisterServices(
-		services.NewUnitService(unitRepo, app.EventPublisher()),
-		productservice.NewProductService(productRepo, app.EventPublisher()),
-		positionservice.NewPositionService(positionRepo, app.EventPublisher(), app),
-		orderservice.NewOrderService(
-			app.EventPublisher(),
-			persistence.NewOrderRepository(productRepo),
-			productRepo,
-		),
-		services.NewInventoryService(app.EventPublisher()),
+	unitService := services.NewUnitService(unitRepo, app.EventPublisher())
+	productService := productservice.NewProductService(productRepo, app.EventPublisher())
+	orderService := orderservice.NewOrderService(
+		app.EventPublisher(),
+		persistence.NewOrderRepository(productRepo),
+		productRepo,
 	)
+	inventoryService := services.NewInventoryService(app.EventPublisher())
+
+	composition.Provide[*services.UnitService](builder, unitService)
+	composition.Provide[*productservice.ProductService](builder, productService)
+	composition.Provide[*positionservice.PositionService](builder, func(container *composition.Container) (*positionservice.PositionService, error) {
+		uploadService, err := composition.Resolve[*coreservices.UploadService](container)
+		if err != nil {
+			return nil, err
+		}
+		return positionservice.NewPositionService(
+			positionRepo,
+			app.EventPublisher(),
+			uploadService,
+			unitService,
+			productService,
+		), nil
+	})
+	composition.Provide[*orderservice.OrderService](builder, orderService)
+	composition.Provide[*services.InventoryService](builder, inventoryService)
 
 	app.RegisterAssets(&assets.FS)
 	app.QuickLinks().Add(

@@ -11,12 +11,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 func ProvideDynamicLogo(app application.Application) mux.MiddlewareFunc {
-	tenantService := app.Service(services.TenantService{}).(*services.TenantService)
-	uploadService := app.Service(services.UploadService{}).(*services.UploadService)
+	tenantService := composition.MustResolveForApp[*services.TenantService](app)
+	uploadService := composition.MustResolveForApp[*services.UploadService](app)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

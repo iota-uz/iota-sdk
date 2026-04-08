@@ -6,20 +6,14 @@ import (
 	"log"
 	"os"
 	"runtime/debug"
-	"time"
 
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
-	coreassets "github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	superadminMiddleware "github.com/iota-uz/iota-sdk/modules/superadmin/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/server"
@@ -61,69 +55,20 @@ func run() error {
 		}
 	}()
 
-	app := rt.App
-
-	app.RegisterLocaleFiles(&core.LocaleFiles)
-
-	fsStorage, err := persistence.NewFSStorage()
-	if err != nil {
-		log.Fatalf("failed to create file storage: %v", err)
+	if err := rt.Install(
+		context.Background(),
+		bootstrap.InstallComponents(
+			[]composition.Capability{composition.CapabilityAPI},
+			core.NewComponent(&core.ModuleOptions{}),
+			superadmin.NewComponent(&superadmin.ModuleOptions{}),
+		),
+		bootstrap.InstallNavItems(superadmin.NavItems...),
+		bootstrap.InstallHashFS(internalassets.HashFS),
+		bootstrap.StartComposition(),
+	); err != nil {
+		return fmt.Errorf("failed to compose superadmin runtime: %w", err)
 	}
-	uploadRepo := persistence.NewUploadRepository()
-	userRepo := persistence.NewUserRepository(uploadRepo)
-	roleRepo := persistence.NewRoleRepository()
-	tenantRepo := persistence.NewTenantRepository()
-	permRepo := persistence.NewPermissionRepository()
-	userQueryRepo := query.NewPgUserQueryRepository()
-	groupQueryRepo := query.NewPgGroupQueryRepository()
-	userValidator := validators.NewUserValidator(userRepo)
-
-	tenantService := services.NewTenantService(tenantRepo)
-	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
-	sessionService := services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher())
-
-	app.RegisterServices(
-		uploadService,
-		services.NewUserService(userRepo, userValidator, app.EventPublisher(), sessionService),
-		services.NewUserQueryService(userQueryRepo),
-		services.NewGroupQueryService(groupQueryRepo),
-		sessionService,
-		services.NewExcelExportService(app.DB(), uploadService),
-	)
-	app.RegisterServices(
-		services.NewAuthService(app),
-		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
-		services.NewRoleService(roleRepo, app.EventPublisher()),
-		tenantService,
-		services.NewPermissionService(permRepo, app.EventPublisher()),
-		services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
-	)
-
-	app.RegisterControllers(
-		controllers.NewLoginController(app),
-		controllers.NewLogoutController(app),
-		controllers.NewAccountController(app),
-		controllers.NewUploadController(app),
-	)
-	app.RegisterHashFsAssets(coreassets.HashFS)
-
-	superadminModule := superadmin.NewModule(&superadmin.ModuleOptions{})
-	if err := superadminModule.RegisterWiring(app); err != nil {
-		return fmt.Errorf("failed to wire superadmin module: %w", err)
-	}
-	if err := superadminModule.RegisterTransports(app); err != nil {
-		return fmt.Errorf("failed to register superadmin transports: %w", err)
-	}
-
-	app.RegisterNavItems(superadmin.NavItems...)
-	app.RegisterHashFsAssets(internalassets.HashFS)
-	app.RegisterControllers(controllers.NewStaticFilesController(app.HashFsAssets()))
-
-	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancelStartRuntime()
-	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
-		return fmt.Errorf("failed to start runtime: %w", err)
-	}
+	rt.App.RegisterControllers(controllers.NewStaticFilesController(rt.App.HashFsAssets()))
 
 	serverInstance, err := server.New(
 		rt,

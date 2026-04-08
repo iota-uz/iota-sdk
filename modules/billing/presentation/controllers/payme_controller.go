@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	paymeapi "github.com/iota-uz/payme"
@@ -31,7 +32,7 @@ type PaymeController struct {
 func NewPaymeController(app application.Application, payme configuration.PaymeOptions, basePath string) application.Controller {
 	return &PaymeController{
 		app:            app,
-		billingService: app.Service(services.BillingService{}).(*services.BillingService),
+		billingService: composition.MustResolveForApp[*services.BillingService](app),
 		payme:          payme,
 		basePath:       basePath,
 	}

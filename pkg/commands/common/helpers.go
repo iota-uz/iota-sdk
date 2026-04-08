@@ -44,7 +44,7 @@ func GetDefaultDatabasePool() (*pgxpool.Pool, error) {
 }
 
 // NewApplication creates a new application with consistent setup patterns
-func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
+func NewApplication(pool *pgxpool.Pool, components ...composition.Component) (application.Application, error) {
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 
@@ -59,55 +59,9 @@ func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application
 		return nil, fmt.Errorf("failed to initialize application: %w", err)
 	}
 
-	if err := application.Wire(app, mods...); err != nil {
-		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
-	}
-
-	return app, nil
-}
-
-// NewApplicationWithDefaults creates an application with default database and built-in modules
-func NewApplicationWithDefaults(mods ...application.Module) (application.Application, *pgxpool.Pool, error) {
-	pool, err := GetDefaultDatabasePool()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	app, err := NewApplication(pool, mods...)
-	if err != nil {
-		pool.Close()
-		return nil, nil, err
-	}
-
-	return app, pool, nil
-}
-
-func NewApplicationFromComponents(
-	components ...composition.Component,
-) (application.Application, *pgxpool.Pool, error) {
-	pool, err := GetDefaultDatabasePool()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	conf := configuration.Use()
-	bundle := application.LoadBundle()
-	app, err := application.New(&application.ApplicationOptions{
-		Pool:               pool,
-		Bundle:             bundle,
-		EventBus:           eventbus.NewEventPublisher(conf.Logger()),
-		Logger:             conf.Logger(),
-		SupportedLanguages: application.DefaultSupportedLanguages(),
-	})
-	if err != nil {
-		pool.Close()
-		return nil, nil, fmt.Errorf("failed to initialize application: %w", err)
-	}
-
 	engine := composition.NewEngine()
 	if err := engine.Register(components...); err != nil {
-		pool.Close()
-		return nil, nil, serrors.E(serrors.Op("commands.common.NewApplicationFromComponents"), err)
+		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
 	container, err := engine.Compile(
 		composition.BuildContext{App: app},
@@ -115,13 +69,31 @@ func NewApplicationFromComponents(
 		composition.CapabilityWorker,
 	)
 	if err != nil {
-		pool.Close()
-		return nil, nil, serrors.E(serrors.Op("commands.common.NewApplicationFromComponents"), err)
+		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
 	if err := composition.Apply(app, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
+		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
+	}
+
+	return app, nil
+}
+
+// NewApplicationWithDefaults creates an application with default database and built-in modules
+func NewApplicationWithDefaults(components ...composition.Component) (application.Application, *pgxpool.Pool, error) {
+	pool, err := GetDefaultDatabasePool()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	app, err := NewApplication(pool, components...)
+	if err != nil {
 		pool.Close()
-		return nil, nil, serrors.E(serrors.Op("commands.common.NewApplicationFromComponents"), err)
+		return nil, nil, err
 	}
 
 	return app, pool, nil
+}
+
+func NewApplicationFromComponents(components ...composition.Component) (application.Application, *pgxpool.Pool, error) {
+	return NewApplicationWithDefaults(components...)
 }

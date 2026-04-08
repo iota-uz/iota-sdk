@@ -11,7 +11,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"golang.org/x/oauth2"
@@ -42,7 +41,6 @@ var (
 )
 
 type AuthService struct {
-	app            application.Application
 	oAuthConfig    *oauth2.Config
 	usersService   *UserService
 	sessionService *SessionService
@@ -59,10 +57,9 @@ func WithIPBindingMode(mode IPBindingMode) AuthServiceOption {
 	}
 }
 
-func NewAuthService(app application.Application, opts ...AuthServiceOption) *AuthService {
+func NewAuthService(usersService *UserService, sessionService *SessionService, opts ...AuthServiceOption) *AuthService {
 	conf := configuration.Use()
 	svc := &AuthService{
-		app: app,
 		oAuthConfig: &oauth2.Config{
 			RedirectURL:  conf.Google.RedirectURL,
 			ClientID:     conf.Google.ClientID,
@@ -73,8 +70,8 @@ func NewAuthService(app application.Application, opts ...AuthServiceOption) *Aut
 			},
 			Endpoint: google.Endpoint,
 		},
-		usersService:   app.Service(UserService{}).(*UserService),
-		sessionService: app.Service(SessionService{}).(*SessionService),
+		usersService:   usersService,
+		sessionService: sessionService,
 		ipBindingMode:  IPBindingDisabled, // Default to disabled for backward compatibility
 	}
 	for _, opt := range opts {

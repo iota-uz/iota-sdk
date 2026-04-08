@@ -11,7 +11,6 @@ func ProvideManagerRegistry(
 	if registry == nil {
 		registry = NewManagerRegistry()
 	}
-	builder.Context().App.RegisterServices(registry)
 	composition.Provide[ManagerRegistry](builder, registry)
 	return registry
 }

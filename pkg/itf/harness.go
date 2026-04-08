@@ -118,7 +118,6 @@ type ContextConfig struct {
 
 type HarnessConfig struct {
 	Name       string
-	Modules    []application.Module
 	Components []composition.Component
 	Database   DatabaseConfig
 	Migration  MigrationConfig
@@ -434,7 +433,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
-	app, err := SetupApplication(pool, cfg.Components, cfg.Modules...)
+	app, err := SetupApplication(pool, cfg.Components)
 	if err != nil {
 		pool.Close()
 		_ = DropDBE(dbName)
@@ -550,10 +549,6 @@ func inferSharedHarnessName() string {
 }
 
 func buildHarnessKey(cfg HarnessConfig) string {
-	moduleTypes := make([]string, 0, len(cfg.Modules))
-	for _, mod := range cfg.Modules {
-		moduleTypes = append(moduleTypes, reflect.TypeOf(mod).String())
-	}
 	componentTypes := make([]string, 0, len(cfg.Components))
 	for _, component := range cfg.Components {
 		componentTypes = append(componentTypes, reflect.TypeOf(component).String())
@@ -562,7 +557,7 @@ func buildHarnessKey(cfg HarnessConfig) string {
 	return fmt.Sprintf(
 		"name=%s|mods=%v|components=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
-		moduleTypes,
+		nil,
 		componentTypes,
 		cfg.Database.Provisioning,
 		cfg.Migration.Policy,
@@ -662,6 +657,9 @@ func buildBaseContext(pool *pgxpool.Pool, app application.Application, tenant *c
 	ctx = composables.WithParams(ctx, DefaultParams())
 	ctx = composables.WithSession(ctx, MockSession())
 	ctx = context.WithValue(ctx, constants.AppKey, app)
+	if container, ok := composition.ForApp(app); ok {
+		ctx = context.WithValue(ctx, constants.ContainerKey, container)
+	}
 
 	locale := "en"
 	if len(cfg.Locales) > 0 && cfg.Locales[0] != "" {
@@ -752,6 +750,9 @@ func closeApplication(app application.Application) error {
 	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	closeErr := app.StopRuntime(stopCtx)
+	var closeErr error
+	if container, ok := composition.ForApp(app); ok {
+		closeErr = composition.Stop(stopCtx, container)
+	}
 	return mergeCloseErrors(closeErr, closeControllers(app.Controllers()))
 }

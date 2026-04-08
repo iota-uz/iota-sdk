@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -91,8 +92,8 @@ func NewLoginController(app application.Application, opts ...*LoginControllerOpt
 	}
 	return &LoginController{
 		app:             app,
-		authService:     app.Service(services.AuthService{}).(*services.AuthService),
-		authFlowService: app.Service(services.AuthFlowService{}).(*services.AuthFlowService),
+		authService:     composition.MustResolveForApp[*services.AuthService](app),
+		authFlowService: composition.MustResolveForApp[*services.AuthFlowService](app),
 		options:         options,
 	}
 }

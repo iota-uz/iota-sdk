@@ -24,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -89,9 +90,9 @@ type OrderPaginatedResponse struct {
 func NewOrdersController(app application.Application) application.Controller {
 	return &OrdersController{
 		app:             app,
-		orderService:    app.Service(orderservice.OrderService{}).(*orderservice.OrderService),
-		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
-		productService:  app.Service(productservice.ProductService{}).(*productservice.ProductService),
+		orderService:    composition.MustResolveForApp[*orderservice.OrderService](app),
+		positionService: composition.MustResolveForApp[*positionservice.PositionService](app),
+		productService:  composition.MustResolveForApp[*productservice.ProductService](app),
 		basePath:        "/warehouse/orders",
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -35,9 +36,9 @@ import (
 func NewTwoFactorSetupController(app application.Application) application.Controller {
 	return &TwoFactorSetupController{
 		app:              app,
-		twoFactorService: app.Service(twofactor.TwoFactorService{}).(*twofactor.TwoFactorService),
-		sessionService:   app.Service(services.SessionService{}).(*services.SessionService),
-		userService:      app.Service(services.UserService{}).(*services.UserService),
+		twoFactorService: composition.MustResolveForApp[*twofactor.TwoFactorService](app),
+		sessionService:   composition.MustResolveForApp[*services.SessionService](app),
+		userService:      composition.MustResolveForApp[*services.UserService](app),
 	}
 }
 

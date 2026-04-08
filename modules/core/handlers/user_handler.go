@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -25,7 +26,7 @@ func RegisterUserHandler(app application.Application) *UserHandler {
 	handler := &UserHandler{
 		pool:           app.DB(),
 		publisher:      app.EventPublisher(),
-		sessionService: app.Service(services.SessionService{}).(*services.SessionService),
+		sessionService: composition.MustResolveForApp[*services.SessionService](app),
 	}
 	app.EventPublisher().Subscribe(handler.onUserPasswordUpdated)
 	return handler

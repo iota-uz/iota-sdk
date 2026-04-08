@@ -11,6 +11,7 @@ import (
 	paymentCategoryEntity "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ func TestPaymentCategoryController_List_Success(t *testing.T) {
 	controller := controllers.NewPaymentCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	service := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
 
 	category1 := paymentCategoryEntity.New(
 		"Office Supplies",
@@ -78,7 +79,7 @@ func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
 	controller := controllers.NewPaymentCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	service := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
 
 	category := paymentCategoryEntity.New(
 		"HTMX Test Category",
@@ -135,7 +136,7 @@ func TestPaymentCategoryController_Create_Success(t *testing.T) {
 	controller := controllers.NewPaymentCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	service := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
 
 	formData := url.Values{}
 	formData.Set("Name", "New Test Category")
@@ -170,7 +171,7 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 	controller := controllers.NewPaymentCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	service := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
 
 	formData := url.Values{}
 	formData.Set("Name", "")
@@ -205,7 +206,7 @@ func TestPaymentCategoryController_GetEditDrawer_Success(t *testing.T) {
 	controller := controllers.NewPaymentCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	service := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
 
 	category := paymentCategoryEntity.New(
 		"Edit Test Category",
@@ -269,7 +270,7 @@ func TestPaymentCategoryController_Update_Success(t *testing.T) {
 	controller := controllers.NewPaymentCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	service := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
 
 	category := paymentCategoryEntity.New(
 		"Original Category",
@@ -317,7 +318,7 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 	controller := controllers.NewPaymentCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	service := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
 
 	category := paymentCategoryEntity.New(
 		"Test Category",
@@ -366,7 +367,7 @@ func TestPaymentCategoryController_Delete_Success(t *testing.T) {
 	controller := controllers.NewPaymentCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	service := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
 
 	category := paymentCategoryEntity.New(
 		"Category to Delete",

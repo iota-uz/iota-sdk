@@ -53,9 +53,11 @@ func (f *TestFixtures) Close() error {
 		closeErr = errors.Join(closeErr, f.Tx.Rollback(context.Background()))
 	}
 	if f.App != nil {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		closeErr = errors.Join(closeErr, f.App.StopRuntime(stopCtx))
-		cancel()
+		if container, ok := composition.ForApp(f.App); ok {
+			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			closeErr = errors.Join(closeErr, composition.Stop(stopCtx, container))
+			cancel()
+		}
 	}
 	if f.SQLDB != nil {
 		closeErr = errors.Join(closeErr, f.SQLDB.Close())
@@ -381,7 +383,6 @@ func DBOpts(name string) string {
 func SetupApplication(
 	pool *pgxpool.Pool,
 	components []composition.Component,
-	mods ...application.Module,
 ) (application.Application, error) {
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
@@ -412,16 +413,12 @@ func SetupApplication(
 			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "apply components")
 		}
 	}
-	if err := application.Wire(app, mods...); err != nil {
-		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "wire application")
-	}
-	if err := application.RegisterTransports(app, mods...); err != nil {
-		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register transports")
-	}
-	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelStartRuntime()
-	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
-		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "start runtime")
+	if container, ok := composition.ForApp(app); ok {
+		startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelStart()
+		if err := composition.Start(startCtx, container); err != nil {
+			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "start runtime")
+		}
 	}
 
 	return app, nil
@@ -457,10 +454,12 @@ func GetTestContext() *TestFixtures {
 	if err := composition.Apply(app, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
 		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "apply components"))
 	}
-	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelStartRuntime()
-	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "start runtime"))
+	if container, ok := composition.ForApp(app); ok {
+		startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelStart()
+		if err := composition.Start(startCtx, container); err != nil {
+			panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "start runtime"))
+		}
 	}
 
 	// Only run migrations if migrations directory exists

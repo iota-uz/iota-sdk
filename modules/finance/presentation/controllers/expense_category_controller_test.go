@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,7 @@ func TestExpenseCategoryController_List_Success(t *testing.T) {
 	controller := controllers.NewExpenseCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
+	service := composition.MustResolveForApp[*services.ExpenseCategoryService](env.App)
 
 	category1 := expenseCategoryEntity.New(
 		"Office Supplies",
@@ -88,7 +89,7 @@ func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
 	controller := controllers.NewExpenseCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
+	service := composition.MustResolveForApp[*services.ExpenseCategoryService](env.App)
 
 	category := expenseCategoryEntity.New(
 		"HTMX Test Category",
@@ -143,7 +144,7 @@ func TestExpenseCategoryController_Create_Success(t *testing.T) {
 	controller := controllers.NewExpenseCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
+	service := composition.MustResolveForApp[*services.ExpenseCategoryService](env.App)
 
 	formData := url.Values{}
 	formData.Set("Name", "New Test Category")
@@ -177,7 +178,7 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 	controller := controllers.NewExpenseCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
+	service := composition.MustResolveForApp[*services.ExpenseCategoryService](env.App)
 
 	formData := url.Values{}
 	formData.Set("Name", "")
@@ -212,7 +213,7 @@ func TestExpenseCategoryController_GetEditDrawer_Success(t *testing.T) {
 	controller := controllers.NewExpenseCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
+	service := composition.MustResolveForApp[*services.ExpenseCategoryService](env.App)
 
 	category := expenseCategoryEntity.New(
 		"Edit Test Category",
@@ -275,7 +276,7 @@ func TestExpenseCategoryController_Update_Success(t *testing.T) {
 	controller := controllers.NewExpenseCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
+	service := composition.MustResolveForApp[*services.ExpenseCategoryService](env.App)
 
 	category := expenseCategoryEntity.New(
 		"Original Category",
@@ -322,7 +323,7 @@ func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
 	controller := controllers.NewExpenseCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
+	service := composition.MustResolveForApp[*services.ExpenseCategoryService](env.App)
 
 	category := expenseCategoryEntity.New(
 		"Test Category",
@@ -371,7 +372,7 @@ func TestExpenseCategoryController_Delete_Success(t *testing.T) {
 	controller := controllers.NewExpenseCategoriesController(env.App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
+	service := composition.MustResolveForApp[*services.ExpenseCategoryService](env.App)
 
 	category := expenseCategoryEntity.New(
 		"Category to Delete",
