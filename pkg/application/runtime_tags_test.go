@@ -25,7 +25,7 @@ func TestNormalizeRuntimeTags(t *testing.T) {
 		{
 			name:    "rejects unknown tags",
 			input:   []RuntimeTag{"unknown"},
-			wantErr: `invalid runtime tag "unknown"`,
+			wantErr: `application.normalizeRuntimeTags: invalid runtime tag "unknown"`,
 		},
 	}
 
@@ -47,45 +47,118 @@ func TestNormalizeRuntimeTags(t *testing.T) {
 func TestRuntimeRegistration_AppliesTo(t *testing.T) {
 	t.Parallel()
 
-	activeTags := runtimeTagSet([]RuntimeTag{RuntimeTagAPI, RuntimeTagWorker})
+	tests := []struct {
+		name         string
+		registration RuntimeRegistration
+		activeTags   map[RuntimeTag]struct{}
+		expected     bool
+	}{
+		{
+			name: "component without tags applies to all",
+			registration: RuntimeRegistration{
+				Component: noopRuntimeComponent{name: "all"},
+			},
+			activeTags: runtimeTagSet([]RuntimeTag{RuntimeTagAPI, RuntimeTagWorker}),
+			expected:   true,
+		},
+		{
+			name: "api-tagged component applies to api runtime",
+			registration: RuntimeRegistration{
+				Component: noopRuntimeComponent{name: "api"},
+				Tags:      []RuntimeTag{RuntimeTagAPI},
+			},
+			activeTags: runtimeTagSet([]RuntimeTag{RuntimeTagAPI}),
+			expected:   true,
+		},
+		{
+			name: "worker-tagged component does not apply to api runtime",
+			registration: RuntimeRegistration{
+				Component: noopRuntimeComponent{name: "worker"},
+				Tags:      []RuntimeTag{RuntimeTagWorker},
+			},
+			activeTags: runtimeTagSet([]RuntimeTag{RuntimeTagAPI}),
+			expected:   false,
+		},
+		{
+			name: "unknown tag does not match active runtime",
+			registration: RuntimeRegistration{
+				Component: noopRuntimeComponent{name: "none"},
+				Tags:      []RuntimeTag{"maintenance"},
+			},
+			activeTags: runtimeTagSet([]RuntimeTag{RuntimeTagAPI, RuntimeTagWorker}),
+			expected:   false,
+		},
+	}
 
-	assert.True(t, RuntimeRegistration{
-		Component: noopRuntimeComponent{name: "all"},
-	}.AppliesTo(activeTags))
-	assert.True(t, RuntimeRegistration{
-		Component: noopRuntimeComponent{name: "api"},
-		Tags:      []RuntimeTag{RuntimeTagAPI},
-	}.AppliesTo(activeTags))
-	assert.False(t, RuntimeRegistration{
-		Component: noopRuntimeComponent{name: "none"},
-		Tags:      []RuntimeTag{"maintenance"},
-	}.AppliesTo(activeTags))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, tt.registration.AppliesTo(tt.activeTags))
+		})
+	}
 }
 
 func TestApplication_StartRuntimeUsesTags(t *testing.T) {
 	t.Parallel()
 
-	apiComponent := &recordingRuntimeComponent{name: "api"}
-	workerComponent := &recordingRuntimeComponent{name: "worker"}
-	app := &application{
-		runtimeComponents: []RuntimeRegistration{
-			{Component: apiComponent, Tags: []RuntimeTag{RuntimeTagAPI}},
-			{Component: workerComponent, Tags: []RuntimeTag{RuntimeTagWorker}},
+	tests := []struct {
+		name                string
+		tags                []RuntimeTag
+		wantAPIStarts       int
+		wantWorkerStarts    int
+		wantDuplicateErrMsg string
+	}{
+		{
+			name:             "api only",
+			tags:             []RuntimeTag{RuntimeTagAPI},
+			wantAPIStarts:    1,
+			wantWorkerStarts: 0,
+		},
+		{
+			name:             "worker only",
+			tags:             []RuntimeTag{RuntimeTagWorker},
+			wantAPIStarts:    0,
+			wantWorkerStarts: 1,
+		},
+		{
+			name:                "api and worker",
+			tags:                []RuntimeTag{RuntimeTagWorker, RuntimeTagAPI},
+			wantAPIStarts:       1,
+			wantWorkerStarts:    1,
+			wantDuplicateErrMsg: "runtime already started with tags [api, worker]",
 		},
 	}
 
-	err := app.StartRuntime(context.Background(), RuntimeTagWorker, RuntimeTagAPI)
-	require.NoError(t, err)
-	assert.Equal(t, 1, apiComponent.started)
-	assert.Equal(t, 1, workerComponent.started)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	err = app.StartRuntime(context.Background(), RuntimeTagAPI, RuntimeTagWorker)
-	require.NoError(t, err)
-	assert.Equal(t, 1, apiComponent.started)
-	assert.Equal(t, 1, workerComponent.started)
+			apiComponent := &recordingRuntimeComponent{name: "api"}
+			workerComponent := &recordingRuntimeComponent{name: "worker"}
+			app := &application{
+				runtimeComponents: []RuntimeRegistration{
+					{Component: apiComponent, Tags: []RuntimeTag{RuntimeTagAPI}},
+					{Component: workerComponent, Tags: []RuntimeTag{RuntimeTagWorker}},
+				},
+			}
 
-	err = app.StartRuntime(context.Background(), RuntimeTagAPI)
-	require.EqualError(t, err, "runtime already started with tags [api, worker]")
+			err := app.StartRuntime(context.Background(), tt.tags...)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantAPIStarts, apiComponent.started)
+			assert.Equal(t, tt.wantWorkerStarts, workerComponent.started)
+
+			err = app.StartRuntime(context.Background(), tt.tags...)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantAPIStarts, apiComponent.started)
+			assert.Equal(t, tt.wantWorkerStarts, workerComponent.started)
+
+			if tt.wantDuplicateErrMsg != "" {
+				err = app.StartRuntime(context.Background(), RuntimeTagAPI)
+				require.EqualError(t, err, tt.wantDuplicateErrMsg)
+			}
+		})
+	}
 }
 
 type noopRuntimeComponent struct {

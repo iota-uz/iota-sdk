@@ -152,8 +152,8 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	pool, poolCleanup, err := cfg.poolFactory(ctx, cfg.config, logger)
 	if err != nil {
-		runCleanup(cleanup)
-		return nil, nil, fmt.Errorf("build pool: %w", err)
+		err = errors.Join(fmt.Errorf("build pool: %w", err), runCleanup(cleanup))
+		return nil, nil, err
 	}
 	rt.Pool = pool
 	if poolCleanup != nil {
@@ -162,15 +162,15 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	bundle, err := cfg.bundleFactory(ctx, cfg.config)
 	if err != nil {
-		runCleanup(cleanup)
-		return nil, nil, fmt.Errorf("build bundle: %w", err)
+		err = errors.Join(fmt.Errorf("build bundle: %w", err), runCleanup(cleanup))
+		return nil, nil, err
 	}
 	rt.Bundle = bundle
 
 	app, err := cfg.appFactory(ctx, rt)
 	if err != nil {
-		runCleanup(cleanup)
-		return nil, nil, fmt.Errorf("build application: %w", err)
+		err = errors.Join(fmt.Errorf("build application: %w", err), runCleanup(cleanup))
+		return nil, nil, err
 	}
 	rt.App = app
 	rt.Provide(logger, pool, bundle, app)

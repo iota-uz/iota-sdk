@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"runtime/debug"
+	"time"
 
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core"
@@ -33,6 +35,13 @@ func main() {
 		}
 	}()
 
+	if err := run(); err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	conf := configuration.Use()
 	serviceName := conf.OpenTelemetry.ServiceName
 	if serviceName != "" {
@@ -44,7 +53,7 @@ func main() {
 		bootstrap.IotaConfigWithServiceName(conf, serviceName),
 	)
 	if err != nil {
-		log.Fatalf("failed to initialize runtime: %v", err)
+		return fmt.Errorf("failed to initialize runtime: %w", err)
 	}
 	defer func() {
 		if err := cleanup(); err != nil {
@@ -100,18 +109,20 @@ func main() {
 
 	superadminModule := superadmin.NewModule(&superadmin.ModuleOptions{})
 	if err := superadminModule.RegisterWiring(app); err != nil {
-		log.Fatalf("failed to wire superadmin module: %v", err)
+		return fmt.Errorf("failed to wire superadmin module: %w", err)
 	}
 	if err := superadminModule.RegisterTransports(app); err != nil {
-		log.Fatalf("failed to register superadmin transports: %v", err)
+		return fmt.Errorf("failed to register superadmin transports: %w", err)
 	}
 
 	app.RegisterNavItems(superadmin.NavItems...)
 	app.RegisterHashFsAssets(internalassets.HashFS)
 	app.RegisterControllers(controllers.NewStaticFilesController(app.HashFsAssets()))
 
-	if err := app.StartRuntime(context.Background(), application.RuntimeTagAPI); err != nil {
-		log.Fatalf("failed to start runtime: %v", err)
+	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelStartRuntime()
+	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
+		return fmt.Errorf("failed to start runtime: %w", err)
 	}
 
 	serverInstance, err := server.New(
@@ -124,7 +135,7 @@ func main() {
 		),
 	)
 	if err != nil {
-		log.Fatalf("failed to create server: %v", err)
+		return fmt.Errorf("failed to create server: %w", err)
 	}
 
 	rt.Logger.Info("Super Admin Server starting...")
@@ -133,6 +144,7 @@ func main() {
 	rt.Logger.Info("SuperAdmin authentication required for all routes")
 
 	if err := serverInstance.Start(conf.SocketAddress); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+		return fmt.Errorf("failed to start server: %w", err)
 	}
+	return nil
 }

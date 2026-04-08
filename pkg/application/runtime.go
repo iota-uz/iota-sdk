@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // RuntimeTag selects which long-running runtime components should start.
@@ -16,6 +18,8 @@ const (
 )
 
 func normalizeRuntimeTags(tags []RuntimeTag) ([]RuntimeTag, error) {
+	const op serrors.Op = "application.normalizeRuntimeTags"
+
 	if len(tags) == 0 {
 		return nil, nil
 	}
@@ -30,7 +34,7 @@ func normalizeRuntimeTags(tags []RuntimeTag) ([]RuntimeTag, error) {
 		switch trimmed {
 		case RuntimeTagAPI, RuntimeTagWorker:
 		default:
-			return nil, fmt.Errorf("invalid runtime tag %q", tag)
+			return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid runtime tag %q", tag))
 		}
 		if _, ok := seen[trimmed]; ok {
 			continue

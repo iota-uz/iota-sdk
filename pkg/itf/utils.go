@@ -372,7 +372,9 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	if err := application.RegisterTransports(app, mods...); err != nil {
 		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register transports")
 	}
-	if err := app.StartRuntime(context.Background(), application.RuntimeTagAPI); err != nil {
+	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelStartRuntime()
+	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
 		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "start runtime")
 	}
 
@@ -399,7 +401,9 @@ func GetTestContext() *TestFixtures {
 	if err := application.RegisterTransports(app, modules.BuiltInModules...); err != nil {
 		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register transports"))
 	}
-	if err := app.StartRuntime(context.Background(), application.RuntimeTagAPI); err != nil {
+	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelStartRuntime()
+	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
 		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "start runtime"))
 	}
 

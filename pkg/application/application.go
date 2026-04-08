@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"github.com/BurntSushi/toml"
@@ -305,6 +306,7 @@ type application struct {
 	runtimeComponents  []RuntimeRegistration
 	startedRuntime     []RuntimeComponent
 	currentRuntimeTags []RuntimeTag
+	stoppingRuntime    bool
 	pendingAppletRT    []RuntimeRegistration
 	runtimeMu          sync.Mutex
 }
@@ -456,17 +458,25 @@ func (app *application) EventPublisher() eventbus.EventBus {
 }
 
 func (app *application) RegisterRuntime(registrations ...RuntimeRegistration) {
+	app.runtimeMu.Lock()
+	defer app.runtimeMu.Unlock()
+
 	for _, registration := range registrations {
 		if registration.Component == nil {
 			continue
 		}
-		app.runtimeComponents = append(app.runtimeComponents, registration)
+		app.runtimeComponents = append(app.runtimeComponents, cloneRuntimeRegistration(registration))
 	}
 }
 
 func (app *application) RuntimeComponents() []RuntimeRegistration {
+	app.runtimeMu.Lock()
+	defer app.runtimeMu.Unlock()
+
 	components := make([]RuntimeRegistration, len(app.runtimeComponents))
-	copy(components, app.runtimeComponents)
+	for i, registration := range app.runtimeComponents {
+		components[i] = cloneRuntimeRegistration(registration)
+	}
 	return components
 }
 
@@ -480,7 +490,10 @@ func (app *application) StartRuntime(ctx context.Context, tags ...RuntimeTag) er
 	}
 	app.runtimeMu.Lock()
 	defer app.runtimeMu.Unlock()
-	if len(app.startedRuntime) > 0 {
+	if app.stoppingRuntime {
+		return fmt.Errorf("runtime is stopping")
+	}
+	if app.currentRuntimeTags != nil {
 		if runtimeTagsEqual(app.currentRuntimeTags, normalizedTags) {
 			return nil
 		}
@@ -499,24 +512,42 @@ func (app *application) StartRuntime(ctx context.Context, tags ...RuntimeTag) er
 			continue
 		}
 		if err := registration.Component.Start(ctx); err != nil {
+			rollbackCtx, rollbackCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer rollbackCancel()
+			var rollbackErr error
 			for i := len(started) - 1; i >= 0; i-- {
-				_ = started[i].Stop(ctx)
+				if stopErr := started[i].Stop(rollbackCtx); stopErr != nil {
+					rollbackErr = errors.Join(
+						rollbackErr,
+						fmt.Errorf("rollback runtime component %q: %w", started[i].Name(), stopErr),
+					)
+				}
 			}
-			return fmt.Errorf("start runtime component %q: %w", registration.Component.Name(), err)
+			return errors.Join(
+				fmt.Errorf("start runtime component %q: %w", registration.Component.Name(), err),
+				rollbackErr,
+			)
 		}
 		started = append(started, registration.Component)
 	}
 
 	app.startedRuntime = started
-	app.currentRuntimeTags = normalizedTags
+	app.currentRuntimeTags = append([]RuntimeTag(nil), normalizedTags...)
 	return nil
 }
 
 func (app *application) StopRuntime(ctx context.Context) error {
 	app.runtimeMu.Lock()
-	started := app.startedRuntime
-	app.startedRuntime = nil
-	app.currentRuntimeTags = nil
+	if app.stoppingRuntime {
+		app.runtimeMu.Unlock()
+		return fmt.Errorf("runtime is stopping")
+	}
+	started := append([]RuntimeComponent(nil), app.startedRuntime...)
+	if app.currentRuntimeTags == nil {
+		app.runtimeMu.Unlock()
+		return nil
+	}
+	app.stoppingRuntime = true
 	app.runtimeMu.Unlock()
 	var stopErr error
 	for i := len(started) - 1; i >= 0; i-- {
@@ -524,7 +555,22 @@ func (app *application) StopRuntime(ctx context.Context) error {
 			stopErr = errors.Join(stopErr, fmt.Errorf("stop runtime component %q: %w", started[i].Name(), err))
 		}
 	}
+	app.runtimeMu.Lock()
+	app.startedRuntime = nil
+	app.currentRuntimeTags = nil
+	app.stoppingRuntime = false
+	app.runtimeMu.Unlock()
 	return stopErr
+}
+
+func cloneRuntimeRegistration(registration RuntimeRegistration) RuntimeRegistration {
+	cloned := registration
+	if len(registration.Tags) == 0 {
+		cloned.Tags = nil
+		return cloned
+	}
+	cloned.Tags = append([]RuntimeTag(nil), registration.Tags...)
+	return cloned
 }
 
 func (app *application) Controllers() []Controller {

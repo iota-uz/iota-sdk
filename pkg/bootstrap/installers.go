@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-uz/applets"
@@ -115,6 +116,8 @@ func InstallApplets(opts AppletsOptions) Installer {
 
 func StartRuntime(tags ...application.RuntimeTag) Installer {
 	return InstallerFunc(func(ctx context.Context, rt *Runtime) error {
-		return rt.App.StartRuntime(ctx, tags...)
+		startCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		return rt.App.StartRuntime(startCtx, tags...)
 	})
 }

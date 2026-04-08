@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"runtime/debug"
@@ -26,10 +27,17 @@ func main() {
 		}
 	}()
 
+	if err := run(); err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	conf := configuration.Use()
 	rt, cleanup, err := bootstrap.NewRuntime(context.Background(), bootstrap.IotaConfig(conf))
 	if err != nil {
-		log.Fatalf("failed to initialize runtime: %v", err)
+		return fmt.Errorf("failed to initialize runtime: %w", err)
 	}
 	defer func() {
 		if err := cleanup(); err != nil {
@@ -52,16 +60,17 @@ func main() {
 		bootstrap.InstallCoreControllers(),
 		bootstrap.StartRuntime(application.RuntimeTagAPI, application.RuntimeTagWorker),
 	); err != nil {
-		log.Fatalf("failed to compose server runtime: %v", err)
+		return fmt.Errorf("failed to compose server runtime: %w", err)
 	}
 
 	serverInstance, err := server.New(rt)
 	if err != nil {
-		log.Fatalf("failed to create server: %v", err)
+		return fmt.Errorf("failed to create server: %w", err)
 	}
 
 	log.Printf("Listening on: %s\n", conf.Origin)
 	if err := serverInstance.Start(conf.SocketAddress); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+		return fmt.Errorf("failed to start server: %w", err)
 	}
+	return nil
 }

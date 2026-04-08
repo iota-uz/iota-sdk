@@ -947,6 +947,7 @@ func (m *Module) RegisterWiring(app application.Application) error {
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href),
 	)
+	app.RegisterNavItems(NavItems...)
 	app.RegisterLocaleFiles(&localeFiles)
 
 	return nil

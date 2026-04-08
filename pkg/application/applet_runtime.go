@@ -17,6 +17,7 @@ import (
 	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
 	appletenginewsbridge "github.com/iota-uz/iota-sdk/pkg/appletengine/wsbridge"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -28,6 +29,8 @@ func (app *application) buildAppletControllersAndRuntime(
 	metrics applets.MetricsRecorder,
 	opts ...applets.BuilderOption,
 ) ([]Controller, []RuntimeRegistration, error) {
+	const op serrors.Op = "application.buildAppletControllersAndRuntime"
+
 	registry := app.AppletRegistry()
 	allApplets := registry.All()
 	rpcRegistry := appletenginerpc.NewRegistry()
@@ -42,7 +45,7 @@ func (app *application) buildAppletControllersAndRuntime(
 			}
 			projectConfig = nil
 		} else {
-			return nil, nil, fmt.Errorf("load applet config from .applets/config.toml: %w", loadConfigErr)
+			return nil, nil, serrors.E(op, loadConfigErr)
 		}
 	}
 
@@ -112,7 +115,7 @@ func (app *application) buildAppletControllersAndRuntime(
 			if engineCfg.Backends.KV == appletsconfig.KVBackendRedis {
 				redisKVStore, err := appletenginehandlers.NewRedisKVStore(engineCfg.Redis.URL)
 				if err != nil {
-					return nil, nil, fmt.Errorf("configure redis kv store for %s: %w", appletName, err)
+					return nil, nil, serrors.E(op, fmt.Errorf("configure redis kv store for %s: %w", appletName, err))
 				}
 				kvStub = appletenginehandlers.NewKVStubWithStore(redisKVStore)
 			}
@@ -127,7 +130,7 @@ func (app *application) buildAppletControllersAndRuntime(
 				}
 				postgresDBStore, err := appletenginehandlers.NewPostgresDBStore(app.DB())
 				if err != nil {
-					return nil, nil, fmt.Errorf("configure postgres db store for %s: %w", appletName, err)
+					return nil, nil, serrors.E(op, fmt.Errorf("configure postgres db store for %s: %w", appletName, err))
 				}
 				dbStub = appletenginehandlers.NewDBStubWithStore(postgresDBStore)
 			}
@@ -139,7 +142,7 @@ func (app *application) buildAppletControllersAndRuntime(
 			if engineCfg.Backends.Jobs == appletsconfig.JobsBackendPostgres {
 				postgresJobsStore, err := appletenginehandlers.NewPostgresJobsStore(app.DB())
 				if err != nil {
-					return nil, nil, fmt.Errorf("configure postgres jobs store for %s: %w", appletName, err)
+					return nil, nil, serrors.E(op, fmt.Errorf("configure postgres jobs store for %s: %w", appletName, err))
 				}
 				jobsStub = appletenginehandlers.NewJobsStubWithStore(postgresJobsStore)
 			}
@@ -155,7 +158,7 @@ func (app *application) buildAppletControllersAndRuntime(
 					strings.TrimSpace(engineCfg.Files.Dir),
 				)
 				if err != nil {
-					return nil, nil, fmt.Errorf("configure postgres files store for %s: %w", appletName, err)
+					return nil, nil, serrors.E(op, fmt.Errorf("configure postgres files store for %s: %w", appletName, err))
 				}
 				filesStore = postgresFilesStore
 			case appletsconfig.FilesBackendS3:
@@ -170,7 +173,7 @@ func (app *application) buildAppletControllersAndRuntime(
 					ForcePathStyle:  engineCfg.S3.ForcePathStyle,
 				})
 				if err != nil {
-					return nil, nil, fmt.Errorf("configure s3 files store for %s: %w", appletName, err)
+					return nil, nil, serrors.E(op, fmt.Errorf("configure s3 files store for %s: %w", appletName, err))
 				}
 				filesStore = s3FilesStore
 			}
@@ -184,14 +187,14 @@ func (app *application) buildAppletControllersAndRuntime(
 			if engineCfg.Backends.Secrets == appletsconfig.SecretsBackendPostgres {
 				masterKeyPayload, readErr := os.ReadFile(strings.TrimSpace(engineCfg.Secrets.MasterKeyFile))
 				if readErr != nil {
-					return nil, nil, fmt.Errorf("read %s secrets master key file: %w", appletName, readErr)
+					return nil, nil, serrors.E(op, fmt.Errorf("read %s secrets master key file: %w", appletName, readErr))
 				}
 				postgresSecretsStore, err := appletenginehandlers.NewPostgresSecretsStore(
 					app.DB(),
 					strings.TrimSpace(string(masterKeyPayload)),
 				)
 				if err != nil {
-					return nil, nil, fmt.Errorf("configure postgres secrets store for %s: %w", appletName, err)
+					return nil, nil, serrors.E(op, fmt.Errorf("configure postgres secrets store for %s: %w", appletName, err))
 				}
 				secretsStore = postgresSecretsStore
 			}
@@ -225,11 +228,16 @@ func (app *application) buildAppletControllersAndRuntime(
 			dispatcher.SetBunPublicCaller(runtimeManager)
 			effectiveBunBin := ""
 			for _, engineCfg := range runtimeEnabledByApplet {
-				if effectiveBunBin == "" {
-					effectiveBunBin = engineCfg.BunBin
+				bunBin := strings.TrimSpace(engineCfg.BunBin)
+				if bunBin == "" {
+					continue
 				}
-				if strings.TrimSpace(engineCfg.BunBin) != "" && strings.TrimSpace(effectiveBunBin) != strings.TrimSpace(engineCfg.BunBin) {
-					return nil, nil, fmt.Errorf("runtime bun_bin mismatch across enabled applets")
+				if effectiveBunBin == "" {
+					effectiveBunBin = bunBin
+					continue
+				}
+				if effectiveBunBin != bunBin {
+					return nil, nil, serrors.E(op, serrors.Invalid, "runtime bun_bin mismatch across enabled applets")
 				}
 			}
 			runtimeManager.SetBunBin(effectiveBunBin)
@@ -237,7 +245,7 @@ func (app *application) buildAppletControllersAndRuntime(
 			hasPostgresJobs := false
 			for appletName, engineCfg := range runtimeEnabledByApplet {
 				if err := rpcRegistry.SetPublicTargetForApplet(appletName, appletenginerpc.MethodTargetBun); err != nil {
-					return nil, nil, fmt.Errorf("set bun rpc target for %s: %w", appletName, err)
+					return nil, nil, serrors.E(op, fmt.Errorf("set bun rpc target for %s: %w", appletName, err))
 				}
 				entrypoint := resolveAppletRuntimeEntrypoint(appletName)
 				runtimeManager.RegisterApplet(appletName, entrypoint)
@@ -269,7 +277,7 @@ func (app *application) buildAppletControllersAndRuntime(
 
 		if len(ssrApplets) > 0 {
 			if runtimeManager == nil {
-				return nil, nil, fmt.Errorf("ssr applets require bun runtime manager")
+				return nil, nil, serrors.E(op, serrors.Invalid, "ssr applets require bun runtime manager")
 			}
 			for _, applet := range ssrApplets {
 				entrypoint := resolveAppletRuntimeEntrypoint(applet.Name())
@@ -314,6 +322,8 @@ func (c *appletRuntimeComponent) Name() string {
 }
 
 func (c *appletRuntimeComponent) Start(ctx context.Context) error {
+	const op serrors.Op = "application.appletRuntimeComponent.Start"
+
 	if c.manager == nil || !c.hasPostgresJobs || c.startedJobs.Load() {
 		return nil
 	}
@@ -325,7 +335,7 @@ func (c *appletRuntimeComponent) Start(ctx context.Context) error {
 	}
 	runner, err := appletenginejobs.NewRunner(c.pool, c.manager, c.logger, 2*time.Second)
 	if err != nil {
-		return fmt.Errorf("create applet jobs runner: %w", err)
+		return serrors.E(op, err)
 	}
 	if !c.startedJobs.CompareAndSwap(false, true) {
 		return nil
@@ -340,5 +350,10 @@ func (c *appletRuntimeComponent) Stop(ctx context.Context) error {
 	if c.manager == nil {
 		return nil
 	}
-	return c.manager.Shutdown(ctx)
+	if err := c.manager.Shutdown(ctx); err != nil {
+		return err
+	}
+	c.manager.SetJobCancel(nil)
+	c.startedJobs.Store(false)
+	return nil
 }

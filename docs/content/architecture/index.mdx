@@ -115,6 +115,7 @@ sequenceDiagram
     App->>Mod: RegisterTransports(app)
     Mod->>App: Register Controllers
     Mod->>App: Register Middleware
+    App->>App: StartRuntime(...)
     App->>Web: Start Server
 ```
 

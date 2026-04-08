@@ -382,7 +382,7 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 	var closeErr error
 	s.closeOnce.Do(func() {
 		if s.app != nil {
-			closeErr = mergeCloseErrors(closeErr, closeControllers(s.app.Controllers()))
+			closeErr = mergeCloseErrors(closeErr, closeApplication(s.app))
 		}
 		if s.pool != nil {
 			s.pool.Close()
@@ -441,7 +441,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 
 	if err := runMigrationPolicy(context.Background(), pool, app, cfg.Migration); err != nil {
 		combinedErr := serrors.E(opRunMigrationPolicy, err, "migration policy")
-		closeErr := closeControllers(app.Controllers())
+		closeErr := closeApplication(app)
 		pool.Close()
 		dropErr := DropDBE(dbName)
 		if closeErr != nil {
@@ -461,7 +461,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 
 	tenant, err := resolveTenant(context.Background(), pool, cfg.Context.TenantID)
 	if err != nil {
-		closeErr := closeControllers(app.Controllers())
+		closeErr := closeApplication(app)
 		pool.Close()
 		_ = DropDBE(dbName)
 		if closeErr != nil {
@@ -476,7 +476,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		if err := composables.InTx(baseCtx, func(seedCtx context.Context) error {
 			return cfg.Seed.Run(seedCtx, app)
 		}); err != nil {
-			closeErr := closeControllers(app.Controllers())
+			closeErr := closeApplication(app)
 			pool.Close()
 			_ = DropDBE(dbName)
 			if closeErr != nil {
@@ -735,4 +735,16 @@ func closeControllers(controllers []application.Controller) error {
 		}
 	}
 	return closeErr
+}
+
+func closeApplication(app application.Application) error {
+	if app == nil {
+		return nil
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	closeErr := app.StopRuntime(stopCtx)
+	return mergeCloseErrors(closeErr, closeControllers(app.Controllers()))
 }

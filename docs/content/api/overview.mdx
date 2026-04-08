@@ -22,7 +22,7 @@ func (m *Module) RegisterWiring(app application.Application) error {
 
 func (m *Module) RegisterTransports(app application.Application) error {
 	app.RegisterControllers(
-		controllers.NewAPIController(app),
+		controllers.NewGraphQLController(app),
 	)
 
 	app.RegisterGraphSchema(application.GraphSchema{

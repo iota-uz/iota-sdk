@@ -113,11 +113,16 @@ func (c *oidcBootstrapComponent) Name() string {
 }
 
 func (c *oidcBootstrapComponent) Start(ctx context.Context) error {
+	const op serrors.Op = "oidcBootstrapComponent.Start"
+
+	if c.pool == nil {
+		return serrors.E(op, serrors.Invalid, "database pool is nil")
+	}
+
 	startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	if err := oidc.BootstrapKeys(startCtx, c.pool, c.cryptoKey); err != nil {
-		const op serrors.Op = "oidcBootstrapComponent.Start"
-		return serrors.E(op, "failed to bootstrap OIDC signing keys", err)
+		return serrors.E(op, err)
 	}
 	return nil
 }

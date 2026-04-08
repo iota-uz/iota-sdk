@@ -70,8 +70,8 @@ func WithCORS(origins ...string) Option {
 
 func WithRateLimit(cfg RateLimitOptions) Option {
 	return func(o *options) {
-		copy := cfg
-		o.rateLimit = &copy
+		rateLimitCfg := cfg
+		o.rateLimit = &rateLimitCfg
 	}
 }
 

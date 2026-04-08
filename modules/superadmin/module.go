@@ -3,7 +3,6 @@ package superadmin
 
 import (
 	"embed"
-	"fmt"
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -61,7 +60,7 @@ func (m *Module) RegisterTransports(app application.Application) error {
 	userServiceAny := app.Service(coreservices.UserService{})
 	userService, ok := userServiceAny.(*coreservices.UserService)
 	if !ok || userService == nil {
-		return serrors.E(op, fmt.Errorf("user service is not registered"))
+		return serrors.E(op, serrors.Invalid, "user service is not registered")
 	}
 
 	// Register controllers

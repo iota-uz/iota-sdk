@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -26,6 +27,13 @@ func main() {
 		}
 	}()
 
+	if err := run(); err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	conf := configuration.Use()
 	serviceName := conf.OpenTelemetry.ServiceName
 	if serviceName != "" {
@@ -37,7 +45,7 @@ func main() {
 		bootstrap.IotaConfigWithServiceName(conf, serviceName),
 	)
 	if err != nil {
-		log.Fatalf("failed to initialize worker runtime: %v", err)
+		return fmt.Errorf("failed to initialize worker runtime: %w", err)
 	}
 	defer func() {
 		if err := cleanup(); err != nil {
@@ -55,7 +63,7 @@ func main() {
 		}),
 		bootstrap.StartRuntime(application.RuntimeTagWorker),
 	); err != nil {
-		log.Fatalf("failed to compose worker runtime: %v", err)
+		return fmt.Errorf("failed to compose worker runtime: %w", err)
 	}
 
 	rt.Logger.Info("worker runtime started")
@@ -66,4 +74,5 @@ func main() {
 
 	sig := <-sigCh
 	rt.Logger.Infof("received signal %v, shutting down worker", sig)
+	return nil
 }
