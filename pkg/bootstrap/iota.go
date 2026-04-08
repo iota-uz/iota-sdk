@@ -1,3 +1,4 @@
+// Package bootstrap provides runtime initialization and composition helpers for SDK entrypoints.
 package bootstrap
 
 import (
@@ -53,7 +54,7 @@ func IotaConfigWithServiceName(conf *configuration.Configuration, serviceName st
 			}, nil
 		}
 		o.poolFactory = func(ctx context.Context, _ any, _ *logrus.Logger) (*pgxpool.Pool, func() error, error) {
-			poolCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			poolCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel()
 
 			pool, err := pgxpool.New(poolCtx, conf.Database.Opts)
@@ -81,7 +82,11 @@ func IotaConfigWithServiceName(conf *configuration.Configuration, serviceName st
 					Bundle:         rt.Bundle,
 					UserRepository: persistence.NewUserRepository(persistence.NewUploadRepository()),
 					CheckOrigin: func(r *http.Request) bool {
-						return true
+						origin := strings.TrimSpace(r.Header.Get("Origin"))
+						if origin == "" {
+							return true
+						}
+						return origin == strings.TrimSpace(conf.Origin)
 					},
 				}),
 			})

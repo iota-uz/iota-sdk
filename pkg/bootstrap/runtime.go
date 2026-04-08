@@ -3,12 +3,12 @@ package bootstrap
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -65,12 +65,19 @@ func (rt *Runtime) Use(target any) bool {
 	if ptr.Kind() != reflect.Ptr || ptr.IsNil() {
 		return false
 	}
-	value, ok := rt.values[ptr.Elem().Type()]
-	if !ok {
-		return false
+	targetType := ptr.Elem().Type()
+	if value, ok := rt.values[targetType]; ok {
+		ptr.Elem().Set(reflect.ValueOf(value))
+		return true
 	}
-	ptr.Elem().Set(reflect.ValueOf(value))
-	return true
+	for _, value := range rt.values {
+		valueValue := reflect.ValueOf(value)
+		if valueValue.Type().AssignableTo(targetType) {
+			ptr.Elem().Set(valueValue)
+			return true
+		}
+	}
+	return false
 }
 
 type Option func(*options)
@@ -114,6 +121,8 @@ func WithApplicationFactory(factory func(context.Context, *Runtime) (application
 }
 
 func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, error) {
+	const op serrors.Op = "bootstrap.NewRuntime"
+
 	cfg := &options{}
 	for _, opt := range opts {
 		if opt != nil {
@@ -143,7 +152,7 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	logger, loggerCleanup, err := cfg.loggerFactory(ctx, cfg.config)
 	if err != nil {
-		return nil, nil, fmt.Errorf("build logger: %w", err)
+		return nil, nil, serrors.E(op, err, "build logger")
 	}
 	rt.Logger = logger
 	if loggerCleanup != nil {
@@ -152,8 +161,7 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	pool, poolCleanup, err := cfg.poolFactory(ctx, cfg.config, logger)
 	if err != nil {
-		err = errors.Join(fmt.Errorf("build pool: %w", err), runCleanup(cleanup))
-		return nil, nil, err
+		return nil, nil, errors.Join(serrors.E(op, err, "build pool"), runCleanup(cleanup))
 	}
 	rt.Pool = pool
 	if poolCleanup != nil {
@@ -162,15 +170,13 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	bundle, err := cfg.bundleFactory(ctx, cfg.config)
 	if err != nil {
-		err = errors.Join(fmt.Errorf("build bundle: %w", err), runCleanup(cleanup))
-		return nil, nil, err
+		return nil, nil, errors.Join(serrors.E(op, err, "build bundle"), runCleanup(cleanup))
 	}
 	rt.Bundle = bundle
 
 	app, err := cfg.appFactory(ctx, rt)
 	if err != nil {
-		err = errors.Join(fmt.Errorf("build application: %w", err), runCleanup(cleanup))
-		return nil, nil, err
+		return nil, nil, errors.Join(serrors.E(op, err, "build application"), runCleanup(cleanup))
 	}
 	rt.App = app
 	rt.Provide(logger, pool, bundle, app)

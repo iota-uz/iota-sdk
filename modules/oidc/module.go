@@ -33,6 +33,7 @@ func NewModule(opts *ModuleOptions) application.Module {
 
 type Module struct {
 	options     *ModuleOptions
+	wired       bool
 	enabled     bool
 	storage     *oidc.Storage
 	config      *configuration.OIDCOptions
@@ -44,12 +45,16 @@ func (m *Module) Name() string {
 }
 
 func (m *Module) RegisterWiring(app application.Application) error {
+	m.wired = true
 	app.RegisterLocaleFiles(&LocaleFiles)
 
 	config := configuration.Use()
 
 	if !config.OIDC.IsConfigured() {
 		m.enabled = false
+		m.storage = nil
+		m.config = nil
+		m.oidcService = nil
 		return nil
 	}
 	m.enabled = true
@@ -94,8 +99,15 @@ func (m *Module) RegisterWiring(app application.Application) error {
 }
 
 func (m *Module) RegisterTransports(app application.Application) error {
+	const op serrors.Op = "oidc.Module.RegisterTransports"
+	if !m.wired {
+		return serrors.E(op, serrors.Invalid, "oidc module wiring must run before transports")
+	}
 	if !m.enabled {
 		return nil
+	}
+	if m.storage == nil || m.config == nil || m.oidcService == nil {
+		return serrors.E(op, serrors.Invalid, "oidc module wiring is incomplete")
 	}
 	app.RegisterControllers(
 		controllers.NewOIDCController(app, m.storage, m.config, m.oidcService),

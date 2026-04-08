@@ -139,8 +139,8 @@ func run() error {
 	}
 
 	rt.Logger.Info("Super Admin Server starting...")
-	rt.Logger.Info("Listening on: " + conf.Origin)
-	rt.Logger.Info("Only superadmin module loaded (core services only, no core controllers)")
+	rt.Logger.Info("Listening on: " + conf.SocketAddress)
+	rt.Logger.Info("Core auth/upload controllers and superadmin controllers loaded")
 	rt.Logger.Info("SuperAdmin authentication required for all routes")
 
 	if err := serverInstance.Start(conf.SocketAddress); err != nil {

@@ -137,12 +137,6 @@ func New(opts ...Option) sdkbootstrap.Installer {
 		}
 
 		if publicKey := strings.TrimSpace(os.Getenv(cfg.langfusePublicEnv)); publicKey != "" {
-			if baseURL := strings.TrimSpace(os.Getenv(cfg.langfuseBaseURLEnv)); baseURL != "" && os.Getenv("LANGFUSE_HOST") == "" {
-				if err := os.Setenv("LANGFUSE_HOST", baseURL); err != nil {
-					rt.Logger.Warnf("Failed to set LANGFUSE_HOST for Langfuse SDK: %v", err)
-				}
-			}
-
 			lfClient := langfusego.New(ctx)
 			lfProvider, lfErr := langfuseprovider.NewLangfuseProvider(lfClient, langfuseprovider.Config{
 				Enabled:     true,
@@ -164,18 +158,21 @@ func New(opts ...Option) sdkbootstrap.Installer {
 			func(ctx context.Context) uuid.UUID {
 				tenantID, err := composables.UseTenantID(ctx)
 				if err != nil {
-					panic(err)
+					rt.Logger.WithError(err).Warn("BiChat tenant resolver could not read tenant from context")
+					return uuid.Nil
 				}
 				return tenantID
 			},
 			func(ctx context.Context) int64 {
 				currentUser, err := composables.UseUser(ctx)
 				if err != nil {
-					panic(err)
+					rt.Logger.WithError(err).Warn("BiChat user resolver could not read user from context")
+					return 0
 				}
 				userID := uint64(currentUser.ID())
 				if userID > math.MaxInt64 {
-					panic("user id overflows int64")
+					rt.Logger.Warn("BiChat user resolver detected user id overflow")
+					return 0
 				}
 				return int64(userID)
 			},
@@ -188,8 +185,7 @@ func New(opts ...Option) sdkbootstrap.Installer {
 
 		module := bichat.NewModuleWithConfig(moduleConfig)
 		if err := module.RegisterWiring(rt.App); err != nil {
-			rt.Logger.Warnf("Failed to register BiChat module: %v", err)
-			return nil
+			return serrors.E(op, err, "register bichat wiring")
 		}
 
 		rt.App.RegisterNavItems(bichat.NavItems...)

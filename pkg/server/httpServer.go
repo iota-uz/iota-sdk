@@ -2,6 +2,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/NYTimes/gziphandler"
@@ -32,7 +33,11 @@ func (s *HTTPServer) Start(socketAddress string) error {
 		Addr:    socketAddress,
 		Handler: s.handler(),
 	}
-	return s.httpServer.ListenAndServe()
+	err := s.httpServer.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
 }
 
 func (s *HTTPServer) handler() http.Handler {

@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"syscall"
+	"time"
 
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -74,5 +75,10 @@ func run() error {
 
 	sig := <-sigCh
 	rt.Logger.Infof("received signal %v, shutting down worker", sig)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := rt.App.StopRuntime(shutdownCtx); err != nil {
+		rt.Logger.WithError(err).Warn("failed to stop worker runtime gracefully")
+	}
 	return nil
 }

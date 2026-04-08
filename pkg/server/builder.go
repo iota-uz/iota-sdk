@@ -26,7 +26,6 @@ type options struct {
 	notFoundHandler         http.Handler
 	methodNotAllowedHandler http.Handler
 	corsOrigins             []string
-	corsWebSocketOrigins    []string
 	rateLimit               *RateLimitOptions
 }
 
@@ -64,7 +63,6 @@ func WithMethodNotAllowedHandler(handler http.Handler) Option {
 func WithCORS(origins ...string) Option {
 	return func(o *options) {
 		o.corsOrigins = append([]string(nil), origins...)
-		o.corsWebSocketOrigins = append([]string(nil), origins...)
 	}
 }
 
@@ -85,7 +83,6 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		notFoundHandler:         controllers.NotFound(rt.App),
 		methodNotAllowedHandler: controllers.MethodNotAllowed(),
 		corsOrigins:             []string{"http://localhost:3000"},
-		corsWebSocketOrigins:    []string{"ws://localhost:3000"},
 	}
 	if appConfig, ok := rt.Config.(*configuration.Configuration); ok && appConfig != nil {
 		cfg.rateLimit = &RateLimitOptions{
@@ -120,8 +117,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		case "redis":
 			redisStore, err := middleware.NewRedisStore(cfg.rateLimit.RedisURL)
 			if err != nil {
-				cfg.logger.WithError(err).Warn("Failed to create Redis store for rate limiting, falling back to memory")
-				store = middleware.NewMemoryStore()
+				return nil, fmt.Errorf("create redis rate limit store: %w", err)
 			} else {
 				store = redisStore
 			}

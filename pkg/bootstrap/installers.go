@@ -49,6 +49,9 @@ func InstallControllers(controllersToRegister ...application.Controller) Install
 
 func InstallCoreControllers() Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
+		if len(rt.App.HashFsAssets()) == 0 {
+			return fmt.Errorf("hashfs assets must be registered before core controllers")
+		}
 		rt.App.RegisterControllers(
 			controllers.NewStaticFilesController(rt.App.HashFsAssets()),
 			controllers.NewGraphQLController(rt.App),
@@ -69,6 +72,8 @@ type AppletsOptions struct {
 
 func InstallApplets(opts AppletsOptions) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
+		var appletControllers []application.Controller
+
 		host := opts.HostServices
 		if host == nil {
 			host = NewSDKHostServices(rt.Pool)
@@ -85,7 +90,8 @@ func InstallApplets(opts AppletsOptions) Installer {
 		}
 
 		if opts.WithHTTP {
-			appletControllers, err := rt.App.CreateAppletControllers(
+			var err error
+			appletControllers, err = rt.App.CreateAppletControllers(
 				host,
 				opts.SessionConfig,
 				logger,
@@ -95,7 +101,6 @@ func InstallApplets(opts AppletsOptions) Installer {
 			if err != nil {
 				return fmt.Errorf("create applet controllers: %w", err)
 			}
-			rt.App.RegisterControllers(appletControllers...)
 		}
 
 		if opts.WithRuntime {
@@ -108,6 +113,10 @@ func InstallApplets(opts AppletsOptions) Installer {
 			); err != nil {
 				return fmt.Errorf("register applet runtime: %w", err)
 			}
+		}
+
+		if len(appletControllers) > 0 {
+			rt.App.RegisterControllers(appletControllers...)
 		}
 
 		return nil
