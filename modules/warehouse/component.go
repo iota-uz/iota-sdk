@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
@@ -24,36 +25,44 @@ var localeFiles embed.FS
 //go:embed infrastructure/persistence/schema/warehouse-schema.sql
 var migrationFiles embed.FS
 
-func NewModule() application.Module {
-	return &Module{}
+func NewComponent() composition.Component {
+	return &component{}
 }
 
-type Module struct {
+type component struct{}
+
+func (c *component) Descriptor() composition.Descriptor {
+	return composition.Descriptor{
+		Name:     "warehouse",
+		Requires: []string{"core"},
+	}
 }
 
-func (m *Module) RegisterWiring(app application.Application) error {
-	_ = migrationFiles
+func (c *component) Build(builder *composition.Builder) error {
+	app := builder.Context().App
+
+	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
+		return []*embed.FS{&localeFiles}, nil
+	})
+	composition.ContributeSchemas(builder, func(*composition.Container) ([]application.GraphSchema, error) {
+		return []application.GraphSchema{
+			{
+				Value: graph.NewExecutableSchema(graph.Config{
+					Resolvers: graph.NewResolver(app),
+				}),
+				BasePath: "/warehouse",
+			},
+		}, nil
+	})
 
 	unitRepo := persistence.NewUnitRepository()
 	positionRepo := persistence.NewPositionRepository()
 	productRepo := persistence.NewProductRepository()
 
-	unitService := services.NewUnitService(unitRepo, app.EventPublisher())
-	app.RegisterServices(unitService)
-
-	productService := productservice.NewProductService(productRepo, app.EventPublisher())
-	app.RegisterServices(productService)
 	app.RegisterServices(
 		services.NewUnitService(unitRepo, app.EventPublisher()),
 		productservice.NewProductService(productRepo, app.EventPublisher()),
-	)
-
-	app.RegisterServices(
-		positionservice.NewPositionService(
-			positionRepo,
-			app.EventPublisher(),
-			app,
-		),
+		positionservice.NewPositionService(positionRepo, app.EventPublisher(), app),
 		orderservice.NewOrderService(
 			app.EventPublisher(),
 			persistence.NewOrderRepository(productRepo),
@@ -62,7 +71,6 @@ func (m *Module) RegisterWiring(app application.Application) error {
 		services.NewInventoryService(app.EventPublisher()),
 	)
 
-	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterAssets(&assets.FS)
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(ProductsItem.Name, ProductsItem.Href),
@@ -70,40 +78,23 @@ func (m *Module) RegisterWiring(app application.Application) error {
 		spotlight.NewQuickLink(OrdersItem.Name, OrdersItem.Href),
 		spotlight.NewQuickLink(UnitsItem.Name, UnitsItem.Href),
 		spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
-		spotlight.NewQuickLink("WarehousePositions.List.New",
-			"/warehouse/positions/new",
-		),
-		spotlight.NewQuickLink("Products.List.New",
-			"/warehouse/products/new",
-		),
-		spotlight.NewQuickLink("WarehouseOrders.List.New",
-			"/warehouse/orders/new",
-		),
-		spotlight.NewQuickLink("WarehouseUnits.List.New",
-			"/warehouse/units/new",
-		),
+		spotlight.NewQuickLink("WarehousePositions.List.New", "/warehouse/positions/new"),
+		spotlight.NewQuickLink("Products.List.New", "/warehouse/products/new"),
+		spotlight.NewQuickLink("WarehouseOrders.List.New", "/warehouse/orders/new"),
+		spotlight.NewQuickLink("WarehouseUnits.List.New", "/warehouse/units/new"),
 	)
 
-	app.RegisterGraphSchema(application.GraphSchema{
-		Value: graph.NewExecutableSchema(graph.Config{
-			Resolvers: graph.NewResolver(app),
-		}),
-		BasePath: "/warehouse",
-	})
-	return nil
-}
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
+			return []application.Controller{
+				controllers.NewProductsController(app),
+				controllers.NewPositionsController(app),
+				controllers.NewUnitsController(app),
+				controllers.NewOrdersController(app),
+				controllers.NewInventoryController(app),
+			}, nil
+		})
+	}
 
-func (m *Module) RegisterTransports(app application.Application) error {
-	app.RegisterControllers(
-		controllers.NewProductsController(app),
-		controllers.NewPositionsController(app),
-		controllers.NewUnitsController(app),
-		controllers.NewOrdersController(app),
-		controllers.NewInventoryController(app),
-	)
 	return nil
-}
-
-func (m *Module) Name() string {
-	return "warehouse"
 }

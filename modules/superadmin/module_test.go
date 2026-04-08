@@ -26,7 +26,7 @@ func TestModule_Register(t *testing.T) {
 
 		// Setup test environment with built-in modules and superadmin module
 		// Built-in modules are required because superadmin module depends on UserService from core module
-		env := itf.Setup(t, itf.WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...))
+		env := itf.Setup(t, itf.WithComponents(modules.Components()...), itf.WithModules(superadmin.NewModule(nil)))
 
 		// Verify module is registered
 		require.NotNil(t, env, "test environment should be initialized")

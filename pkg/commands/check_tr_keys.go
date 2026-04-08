@@ -19,6 +19,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
@@ -113,6 +114,107 @@ func CheckTrKeys(allowedLanguages []string, mods ...application.Module) error {
 			}
 
 			// Log detailed error about the missing key using WithFields
+			conf.Logger().WithFields(logrus.Fields{
+				"key":          key,
+				"present_in":   strings.Join(present, ", "),
+				"missing_from": strings.Join(missing, ", "),
+			}).Error("Translation key mismatch")
+		}
+	}
+
+	if missingKeys {
+		return fmt.Errorf("some translation keys are not consistent across all locales, see logs for details")
+	}
+
+	conf.Logger().WithFields(logrus.Fields{
+		"locale_count": len(locales),
+		"key_count":    len(allKeys),
+	}).Info("All translation keys are consistent across all locales")
+
+	if err := checkForUndefinedKeys(allKeys, conf.Logger()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func CheckTrKeysComponents(allowedLanguages []string, components ...composition.Component) error {
+	conf := configuration.Use()
+	app, pool, err := common.NewApplicationFromComponents(components...)
+	if err != nil {
+		return fmt.Errorf("failed to initialize application: %w", err)
+	}
+	defer pool.Close()
+
+	messages := app.Bundle().Messages()
+
+	var allowedLocales map[string]language.Tag
+	if len(allowedLanguages) > 0 {
+		allowedLocales = make(map[string]language.Tag)
+		for _, code := range allowedLanguages {
+			tag, err := language.Parse(code)
+			if err != nil {
+				return fmt.Errorf("invalid language code in whitelist: %s: %w", code, err)
+			}
+			allowedLocales[code] = tag
+		}
+
+		for code, tag := range allowedLocales {
+			if messages[tag] == nil {
+				return fmt.Errorf("language %s (%s) is in whitelist but not found in bundle", code, tag)
+			}
+		}
+	}
+
+	allKeys := make(map[string]map[language.Tag]bool)
+	locales := make([]language.Tag, 0)
+
+	for locale, message := range messages {
+		if message == nil {
+			continue
+		}
+		if len(allowedLocales) > 0 {
+			isAllowed := false
+			for _, allowedTag := range allowedLocales {
+				if locale == allowedTag {
+					isAllowed = true
+					break
+				}
+			}
+			if !isAllowed {
+				continue
+			}
+		}
+
+		locales = append(locales, locale)
+		for key := range message {
+			if allKeys[key] == nil {
+				allKeys[key] = make(map[language.Tag]bool)
+			}
+			allKeys[key][locale] = true
+		}
+	}
+
+	if len(locales) == 0 {
+		return fmt.Errorf("no locales found in the application bundle")
+	}
+
+	missingKeys := false
+	for key, localeMap := range allKeys {
+		if len(localeMap) != len(locales) {
+			missingKeys = true
+
+			present := make([]string, 0)
+			missing := make([]string, 0)
+
+			for _, locale := range locales {
+				if localeMap[locale] {
+					present = append(present, locale.String())
+				} else {
+					missing = append(missing, locale.String())
+				}
+			}
+
 			conf.Logger().WithFields(logrus.Fields{
 				"key":          key,
 				"present_in":   strings.Join(present, ", "),

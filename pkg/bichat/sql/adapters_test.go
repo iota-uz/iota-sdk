@@ -39,7 +39,7 @@ func requirePostgres(t *testing.T) {
 func TestSchemaLister_ReturnsDescriptionsAndRowCounts(t *testing.T) {
 	t.Parallel()
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	tenantID, err := composables.UseTenantID(env.Ctx)
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestSchemaLister_ReturnsDescriptionsAndRowCounts(t *testing.T) {
 func TestSchemaLister_CachesViewCounts(t *testing.T) {
 	t.Parallel()
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	tenantID, err := composables.UseTenantID(env.Ctx)
 	require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestSchemaLister_CachesViewCounts(t *testing.T) {
 func TestSchemaLister_CacheExpiresAfterTTL(t *testing.T) {
 	t.Parallel()
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	tenantID, err := composables.UseTenantID(env.Ctx)
 	require.NoError(t, err)
@@ -280,7 +280,7 @@ func TestSchemaLister_CacheExpiresAfterTTL(t *testing.T) {
 func TestSchemaLister_NoCacheWithoutKeyFunc(t *testing.T) {
 	t.Parallel()
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	tenantID, err := composables.UseTenantID(env.Ctx)
 	require.NoError(t, err)
@@ -334,7 +334,7 @@ func TestSchemaLister_NoCacheWithoutKeyFunc(t *testing.T) {
 func TestSchemaDescriber_ReturnsColumns(t *testing.T) {
 	t.Parallel()
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	_, err := env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS analytics`)
 	require.NoError(t, err)
@@ -387,7 +387,7 @@ func TestSchemaDescriber_ReturnsColumns(t *testing.T) {
 func TestSchemaDescriber_NonExistentTable(t *testing.T) {
 	t.Parallel()
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	_, err := env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS analytics`)
 	require.NoError(t, err)

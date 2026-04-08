@@ -23,7 +23,7 @@ func setupTest(t *testing.T, permissions ...permission.Permission) *itf.TestEnvi
 
 	user := itf.User(permissions...)
 	return itf.Setup(t,
-		itf.WithModules(modules.BuiltInModules...),
+		itf.WithComponents(modules.Components()...),
 		itf.WithUser(user),
 	)
 }

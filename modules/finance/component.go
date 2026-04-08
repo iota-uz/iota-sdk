@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
@@ -19,19 +20,27 @@ var localeFiles embed.FS
 //go:embed infrastructure/persistence/schema/finance-schema.sql
 var migrationFiles embed.FS
 
-func NewModule() application.Module {
-	return &Module{}
+func NewComponent() composition.Component {
+	return &component{}
 }
 
-type Module struct {
+type component struct{}
+
+func (c *component) Descriptor() composition.Descriptor {
+	return composition.Descriptor{
+		Name:     "finance",
+		Requires: []string{"core"},
+	}
 }
 
-func (m *Module) RegisterWiring(app application.Application) error {
-	_ = migrationFiles
+func (c *component) Build(builder *composition.Builder) error {
+	app := builder.Context().App
 
-	// Create upload repository for attachment functionality
+	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
+		return []*embed.FS{&localeFiles}, nil
+	})
+
 	uploadRepo := corepersistence.NewUploadRepository()
-
 	moneyAccountService := services.NewMoneyAccountService(
 		persistence.NewMoneyAccountRepository(),
 		persistence.NewTransactionRepository(),
@@ -39,21 +48,16 @@ func (m *Module) RegisterWiring(app application.Application) error {
 	)
 	transactionRepo := persistence.NewTransactionRepository()
 	categoryRepo := persistence.NewExpenseCategoryRepository()
+
 	app.RegisterServices(
-		services.NewTransactionService(
-			transactionRepo,
-			app.EventPublisher(),
-		),
+		services.NewTransactionService(transactionRepo, app.EventPublisher()),
 		services.NewPaymentService(
 			persistence.NewPaymentRepository(),
 			app.EventPublisher(),
 			moneyAccountService,
 			uploadRepo,
 		),
-		services.NewExpenseCategoryService(
-			categoryRepo,
-			app.EventPublisher(),
-		),
+		services.NewExpenseCategoryService(categoryRepo, app.EventPublisher()),
 		services.NewPaymentCategoryService(
 			persistence.NewPaymentCategoryRepository(),
 			app.EventPublisher(),
@@ -67,10 +71,7 @@ func (m *Module) RegisterWiring(app application.Application) error {
 		moneyAccountService,
 		services.NewCounterpartyService(persistence.NewCounterpartyRepository()),
 		services.NewInventoryService(persistence.NewInventoryRepository()),
-		services.NewDebtService(
-			persistence.NewDebtRepository(),
-			app.EventPublisher(),
-		),
+		services.NewDebtService(persistence.NewDebtRepository(), app.EventPublisher()),
 		services.NewFinancialReportService(
 			query.NewPgFinancialReportsQueryRepository(),
 			app.EventPublisher(),
@@ -85,52 +86,32 @@ func (m *Module) RegisterWiring(app application.Application) error {
 		spotlight.NewQuickLink(DebtsItem.Name, DebtsItem.Href),
 		spotlight.NewQuickLink(AccountsItem.Name, AccountsItem.Href),
 		spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
-		spotlight.NewQuickLink("NavigationLinks.IncomeStatement",
-			"/finance/reports/income-statement",
-		),
-		spotlight.NewQuickLink("NavigationLinks.CashflowStatement",
-			"/finance/reports/cashflow",
-		),
-		spotlight.NewQuickLink("Expenses.List.New",
-			"/finance/overview?tab=expenses",
-		),
-		spotlight.NewQuickLink("MoneyAccounts.List.New",
-			"/finance/accounts/new",
-		),
-		spotlight.NewQuickLink("Payments.List.New",
-			"/finance/overview?tab=payments",
-		),
-		spotlight.NewQuickLink("ExpenseCategories.List.New",
-			"/finance/expense-categories/new",
-		),
-		spotlight.NewQuickLink("PaymentCategories.List.New",
-			"/finance/payment-categories/new",
-		),
-		spotlight.NewQuickLink("Inventory.List.New",
-			"/finance/inventory/new",
-		),
+		spotlight.NewQuickLink("NavigationLinks.IncomeStatement", "/finance/reports/income-statement"),
+		spotlight.NewQuickLink("NavigationLinks.CashflowStatement", "/finance/reports/cashflow"),
+		spotlight.NewQuickLink("Expenses.List.New", "/finance/overview?tab=expenses"),
+		spotlight.NewQuickLink("MoneyAccounts.List.New", "/finance/accounts/new"),
+		spotlight.NewQuickLink("Payments.List.New", "/finance/overview?tab=payments"),
+		spotlight.NewQuickLink("ExpenseCategories.List.New", "/finance/expense-categories/new"),
+		spotlight.NewQuickLink("PaymentCategories.List.New", "/finance/payment-categories/new"),
+		spotlight.NewQuickLink("Inventory.List.New", "/finance/inventory/new"),
 	)
 
-	app.RegisterLocaleFiles(&localeFiles)
-	return nil
-}
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
+			return []application.Controller{
+				controllers.NewFinancialOverviewController(app),
+				controllers.NewMoneyAccountController(app),
+				controllers.NewExpenseCategoriesController(app),
+				controllers.NewPaymentCategoriesController(app),
+				controllers.NewCounterpartiesController(app),
+				controllers.NewInventoryController(app),
+				controllers.NewDebtsController(app),
+				controllers.NewDebtAggregateController(app),
+				controllers.NewFinancialReportController(app),
+				controllers.NewCashflowController(app),
+			}, nil
+		})
+	}
 
-func (m *Module) RegisterTransports(app application.Application) error {
-	app.RegisterControllers(
-		controllers.NewFinancialOverviewController(app),
-		controllers.NewMoneyAccountController(app),
-		controllers.NewExpenseCategoriesController(app),
-		controllers.NewPaymentCategoriesController(app),
-		controllers.NewCounterpartiesController(app),
-		controllers.NewInventoryController(app),
-		controllers.NewDebtsController(app),
-		controllers.NewDebtAggregateController(app),
-		controllers.NewFinancialReportController(app),
-		controllers.NewCashflowController(app),
-	)
 	return nil
-}
-
-func (m *Module) Name() string {
-	return "finance"
 }

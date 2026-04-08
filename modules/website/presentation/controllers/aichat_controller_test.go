@@ -32,7 +32,7 @@ func setupTest(t *testing.T) *itf.Suite {
 
 	adminUser := itf.User()
 
-	return itf.NewSuiteBuilder(t).WithModules(modules.BuiltInModules...).Build().
+	return itf.NewSuiteBuilder(t).WithComponents(modules.Components()...).Build().
 		AsUser(adminUser)
 }
 

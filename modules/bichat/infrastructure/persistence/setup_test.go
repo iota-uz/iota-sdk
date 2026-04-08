@@ -44,7 +44,7 @@ func setupTest(t *testing.T) *itf.TestEnvironment {
 
 	requirePostgres(t)
 
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	// Create role first (required for user)
 	roleRepo := persistence.NewRoleRepository()

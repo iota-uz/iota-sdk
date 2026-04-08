@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -83,6 +84,13 @@ type Option func(*TestContext)
 func WithModules(modules ...application.Module) Option {
 	return func(tc *TestContext) {
 		tc.modules = append(tc.modules, modules...)
+	}
+}
+
+// WithComponents adds composition components to the test context.
+func WithComponents(components ...composition.Component) Option {
+	return func(tc *TestContext) {
+		tc.components = append(tc.components, components...)
 	}
 }
 

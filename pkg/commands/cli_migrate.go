@@ -3,8 +3,6 @@ package commands
 
 import (
 	"github.com/spf13/cobra"
-
-	"github.com/iota-uz/iota-sdk/modules"
 )
 
 // NewMigrateCommand creates the migrate command group with all subcommands
@@ -40,7 +38,7 @@ func newMigrateUpCmd() *cobra.Command {
 		Short: "Apply all pending migrations",
 		Long:  `Applies all pending database migrations to bring the schema up to the latest version.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return MigrateWithSubcommand("up", modules.BuiltInModules...)
+			return MigrateWithSubcommand("up")
 		},
 	}
 }
@@ -51,7 +49,7 @@ func newMigrateDownCmd() *cobra.Command {
 		Short: "Rollback the last migration",
 		Long:  `Rolls back the most recently applied database migration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return MigrateWithSubcommand("down", modules.BuiltInModules...)
+			return MigrateWithSubcommand("down")
 		},
 	}
 }
@@ -62,7 +60,7 @@ func newMigrateRedoCmd() *cobra.Command {
 		Short: "Rollback and reapply the last migration",
 		Long:  `Rolls back the most recent migration and then reapplies it, useful for testing migration changes.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return MigrateWithSubcommand("redo", modules.BuiltInModules...)
+			return MigrateWithSubcommand("redo")
 		},
 	}
 }
@@ -73,7 +71,7 @@ func newMigrateStatusCmd() *cobra.Command {
 		Short: "Show migration status",
 		Long:  `Displays the status of all migrations, showing which are applied and which are pending.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return MigrateWithSubcommand("status", modules.BuiltInModules...)
+			return MigrateWithSubcommand("status")
 		},
 	}
 }

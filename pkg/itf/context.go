@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -19,27 +20,35 @@ type controllerCloser interface {
 
 // TestContext provides a fluent API for building test contexts
 type TestContext struct {
-	ctx     context.Context
-	pool    *pgxpool.Pool
-	tx      pgx.Tx
-	app     application.Application
-	tenant  *composables.Tenant
-	user    user.User
-	modules []application.Module
-	dbName  string
+	ctx        context.Context
+	pool       *pgxpool.Pool
+	tx         pgx.Tx
+	app        application.Application
+	tenant     *composables.Tenant
+	user       user.User
+	modules    []application.Module
+	components []composition.Component
+	dbName     string
 }
 
 // newTestContext creates a new internal TestContext builder.
 func newTestContext() *TestContext {
 	return &TestContext{
-		ctx:     context.Background(),
-		modules: []application.Module{},
+		ctx:        context.Background(),
+		modules:    []application.Module{},
+		components: []composition.Component{},
 	}
 }
 
 // WithModules adds modules to the test context
 func (tc *TestContext) WithModules(modules ...application.Module) *TestContext {
 	tc.modules = append(tc.modules, modules...)
+	return tc
+}
+
+// WithComponents adds composition components to the test context.
+func (tc *TestContext) WithComponents(components ...composition.Component) *TestContext {
+	tc.components = append(tc.components, components...)
 	return tc
 }
 
@@ -70,8 +79,9 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 		tc.dbName = tb.Name() + "_" + uniqueSuffix
 	}
 	h := NewHarness(tb, HarnessConfig{
-		Name:    tc.dbName,
-		Modules: tc.modules,
+		Name:       tc.dbName,
+		Modules:    tc.modules,
+		Components: tc.components,
 		Database: DatabaseConfig{
 			Provisioning: ProvisioningPerTestDatabase,
 			Cleanup:      CleanupDropOnExit,

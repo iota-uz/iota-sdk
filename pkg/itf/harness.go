@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -116,13 +117,14 @@ type ContextConfig struct {
 }
 
 type HarnessConfig struct {
-	Name      string
-	Modules   []application.Module
-	Database  DatabaseConfig
-	Migration MigrationConfig
-	Isolation IsolationConfig
-	Seed      SeedConfig
-	Context   ContextConfig
+	Name       string
+	Modules    []application.Module
+	Components []composition.Component
+	Database   DatabaseConfig
+	Migration  MigrationConfig
+	Isolation  IsolationConfig
+	Seed       SeedConfig
+	Context    ContextConfig
 }
 
 type Scope struct {
@@ -432,7 +434,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
-	app, err := SetupApplication(pool, cfg.Modules...)
+	app, err := SetupApplication(pool, cfg.Components, cfg.Modules...)
 	if err != nil {
 		pool.Close()
 		_ = DropDBE(dbName)
@@ -552,11 +554,16 @@ func buildHarnessKey(cfg HarnessConfig) string {
 	for _, mod := range cfg.Modules {
 		moduleTypes = append(moduleTypes, reflect.TypeOf(mod).String())
 	}
+	componentTypes := make([]string, 0, len(cfg.Components))
+	for _, component := range cfg.Components {
+		componentTypes = append(componentTypes, reflect.TypeOf(component).String())
+	}
 
 	return fmt.Sprintf(
-		"name=%s|mods=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
+		"name=%s|mods=%v|components=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
 		moduleTypes,
+		componentTypes,
 		cfg.Database.Provisioning,
 		cfg.Migration.Policy,
 		cfg.Isolation.Mode,

@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -377,7 +378,11 @@ func DBOpts(name string) string {
 	)
 }
 
-func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
+func SetupApplication(
+	pool *pgxpool.Pool,
+	components []composition.Component,
+	mods ...application.Module,
+) (application.Application, error) {
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
@@ -389,6 +394,23 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	})
 	if err != nil {
 		return nil, err
+	}
+	if len(components) > 0 {
+		engine := composition.NewEngine()
+		if err := engine.Register(components...); err != nil {
+			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register components")
+		}
+		container, err := engine.Compile(
+			composition.BuildContext{App: app},
+			composition.CapabilityAPI,
+			composition.CapabilityWorker,
+		)
+		if err != nil {
+			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "compile components")
+		}
+		if err := composition.Apply(app, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
+			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "apply components")
+		}
 	}
 	if err := application.Wire(app, mods...); err != nil {
 		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "wire application")
@@ -420,11 +442,20 @@ func GetTestContext() *TestFixtures {
 	if err != nil {
 		panic(err)
 	}
-	if err := application.Wire(app, modules.BuiltInModules...); err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "wire application"))
+	engine := composition.NewEngine()
+	if err := engine.Register(modules.Components()...); err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register components"))
 	}
-	if err := application.RegisterTransports(app, modules.BuiltInModules...); err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register transports"))
+	container, err := engine.Compile(
+		composition.BuildContext{App: app},
+		composition.CapabilityAPI,
+		composition.CapabilityWorker,
+	)
+	if err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "compile components"))
+	}
+	if err := composition.Apply(app, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "apply components"))
 	}
 	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelStartRuntime()

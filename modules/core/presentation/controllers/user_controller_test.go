@@ -59,7 +59,7 @@ func TestUsersController_Delete_SelfDeletionPrevention(t *testing.T) {
 
 	// Create test environment with admin permissions for user deletion
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 
@@ -133,7 +133,7 @@ func TestUsersController_Delete_Permissions(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			suite := itf.NewSuiteBuilder(t).
-				WithModules(modules.BuiltInModules...).
+				WithComponents(modules.Components()...).
 				AsUser(tc.permissions...).
 				Build()
 
@@ -158,7 +158,7 @@ func TestUsersController_Delete_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 

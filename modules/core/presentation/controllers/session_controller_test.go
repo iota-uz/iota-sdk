@@ -67,7 +67,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 
 		// Create suite with authenticated user but no session cookie
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -85,7 +85,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -148,7 +148,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -200,7 +200,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -248,7 +248,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -265,7 +265,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -305,7 +305,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -364,7 +364,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -407,7 +407,7 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -424,7 +424,7 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -491,7 +491,7 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
@@ -543,7 +543,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 
 		// User without SessionDelete permission
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead). // Only read permission
 			Build()
 
@@ -559,7 +559,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionDelete, permissions.SessionRead).
 			Build()
 
@@ -600,7 +600,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionDelete, permissions.SessionRead).
 			Build()
 
@@ -622,7 +622,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(). // No permissions
 			Build()
 
@@ -638,7 +638,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead).
 			Build()
 
@@ -674,7 +674,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead, permissions.UserRead).
 			Build()
 
@@ -713,7 +713,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead).
 			Build()
 
@@ -770,7 +770,7 @@ func TestSessionController_Permissions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead). // Only read permission
 			Build()
 
@@ -792,7 +792,7 @@ func TestSessionController_Permissions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionDelete).
 			Build()
 
@@ -827,7 +827,7 @@ func TestSessionController_Permissions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(). // No permissions
 			Build()
 

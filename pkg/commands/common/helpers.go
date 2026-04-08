@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -76,6 +77,50 @@ func NewApplicationWithDefaults(mods ...application.Module) (application.Applica
 	if err != nil {
 		pool.Close()
 		return nil, nil, err
+	}
+
+	return app, pool, nil
+}
+
+func NewApplicationFromComponents(
+	components ...composition.Component,
+) (application.Application, *pgxpool.Pool, error) {
+	pool, err := GetDefaultDatabasePool()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	conf := configuration.Use()
+	bundle := application.LoadBundle()
+	app, err := application.New(&application.ApplicationOptions{
+		Pool:               pool,
+		Bundle:             bundle,
+		EventBus:           eventbus.NewEventPublisher(conf.Logger()),
+		Logger:             conf.Logger(),
+		SupportedLanguages: application.DefaultSupportedLanguages(),
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("failed to initialize application: %w", err)
+	}
+
+	engine := composition.NewEngine()
+	if err := engine.Register(components...); err != nil {
+		pool.Close()
+		return nil, nil, serrors.E(serrors.Op("commands.common.NewApplicationFromComponents"), err)
+	}
+	container, err := engine.Compile(
+		composition.BuildContext{App: app},
+		composition.CapabilityAPI,
+		composition.CapabilityWorker,
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, serrors.E(serrors.Op("commands.common.NewApplicationFromComponents"), err)
+	}
+	if err := composition.Apply(app, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
+		pool.Close()
+		return nil, nil, serrors.E(serrors.Op("commands.common.NewApplicationFromComponents"), err)
 	}
 
 	return app, pool, nil

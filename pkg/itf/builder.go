@@ -9,14 +9,16 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
 
 // SuiteBuilder provides a fluent API for building test suites with minimal boilerplate
 type SuiteBuilder struct {
-	t       testing.TB
-	modules []application.Module
-	user    user.User
-	dbName  string
+	t          testing.TB
+	modules    []application.Module
+	components []composition.Component
+	user       user.User
+	dbName     string
 }
 
 // NewSuiteBuilder creates a new SuiteBuilder for HTTP controller testing
@@ -30,6 +32,12 @@ func NewSuiteBuilder(tb testing.TB) *SuiteBuilder {
 // WithModules adds application modules to the test suite
 func (sb *SuiteBuilder) WithModules(modules ...application.Module) *SuiteBuilder {
 	sb.modules = append(sb.modules, modules...)
+	return sb
+}
+
+// WithComponents adds composition components to the test suite.
+func (sb *SuiteBuilder) WithComponents(components ...composition.Component) *SuiteBuilder {
+	sb.components = append(sb.components, components...)
 	return sb
 }
 
@@ -108,6 +116,9 @@ func (sb *SuiteBuilder) BuildWithOptions(opts ...Option) *Suite {
 
 	// Build options array
 	options := make([]Option, 0, len(opts)+2)
+	if len(sb.components) > 0 {
+		options = append(options, WithComponents(sb.components...))
+	}
 	if len(sb.modules) > 0 {
 		options = append(options, WithModules(sb.modules...))
 	}

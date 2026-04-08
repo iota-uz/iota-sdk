@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
 
 //go:embed presentation/locales/*.json
@@ -19,23 +20,32 @@ var LocaleFiles embed.FS
 //go:embed infrastructure/persistence/schema/website-schema.sql
 var MigrationFiles embed.FS
 
-func NewModule() application.Module {
-	return &Module{}
+func NewComponent() composition.Component {
+	return &component{}
 }
 
-type Module struct {
+type component struct{}
+
+func (c *component) Descriptor() composition.Descriptor {
+	return composition.Descriptor{
+		Name:     "website",
+		Requires: []string{"core", "crm"},
+	}
 }
 
-func (m *Module) RegisterWiring(app application.Application) error {
-	userRepo := corePersistence.NewUserRepository(
-		corePersistence.NewUploadRepository(),
-	)
+func (c *component) Build(builder *composition.Builder) error {
+	app := builder.Context().App
+
+	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
+		return []*embed.FS{&LocaleFiles}, nil
+	})
+
+	userRepo := corePersistence.NewUserRepository(corePersistence.NewUploadRepository())
 	chatRepo := crmPersistence.NewChatRepository()
 	passportRepo := corePersistence.NewPassportRepository()
-	clientRepo := crmPersistence.NewClientRepository(
-		passportRepo,
-	)
+	clientRepo := crmPersistence.NewClientRepository(passportRepo)
 	aiconfigRepo := persistence.NewAIChatConfigRepository()
+
 	app.RegisterServices(
 		services.NewAIChatConfigService(aiconfigRepo),
 		services.NewWebsiteChatService(
@@ -48,24 +58,21 @@ func (m *Module) RegisterWiring(app application.Application) error {
 			},
 		),
 	)
-	app.RegisterLocaleFiles(&LocaleFiles)
-	return nil
-}
 
-func (m *Module) RegisterTransports(app application.Application) error {
-	app.RegisterControllers(
-		controllers.NewAIChatController(controllers.AIChatControllerConfig{
-			BasePath: "/website/ai-chat",
-			App:      app,
-		}),
-		controllers.NewAIChatAPIController(controllers.AIChatAPIControllerConfig{
-			BasePath: "/api/website/ai-chat",
-			App:      app,
-		}),
-	)
-	return nil
-}
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
+			return []application.Controller{
+				controllers.NewAIChatController(controllers.AIChatControllerConfig{
+					BasePath: "/website/ai-chat",
+					App:      app,
+				}),
+				controllers.NewAIChatAPIController(controllers.AIChatAPIControllerConfig{
+					BasePath: "/api/website/ai-chat",
+					App:      app,
+				}),
+			}, nil
+		})
+	}
 
-func (m *Module) Name() string {
-	return "website"
+	return nil
 }

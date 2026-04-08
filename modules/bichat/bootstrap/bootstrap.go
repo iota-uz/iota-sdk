@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
@@ -183,20 +184,17 @@ func New(opts ...Option) sdkbootstrap.Installer {
 			moduleOpts...,
 		)
 
-		module := bichat.NewModuleWithConfig(moduleConfig)
-		if err := module.RegisterWiring(rt.App); err != nil {
-			return serrors.E(op, err, "register bichat wiring")
-		}
-
-		rt.App.RegisterNavItems(bichat.NavItems...)
+		capabilities := []composition.Capability{composition.CapabilityWorker}
 		if cfg.registerTransports {
-			if err := module.RegisterTransports(rt.App); err != nil {
-				return serrors.E(op, err, "register bichat transports")
-			}
+			capabilities = append(capabilities, composition.CapabilityAPI)
+		}
+		component := bichat.NewComponent(moduleConfig)
+		if err := sdkbootstrap.InstallComponents(capabilities, component).Install(ctx, rt); err != nil {
+			return serrors.E(op, err, "register bichat component")
 		}
 
 		rt.Logger.Info("BiChat module registered successfully")
-		rt.Provide(module)
+		rt.Provide(component)
 		return nil
 	})
 }

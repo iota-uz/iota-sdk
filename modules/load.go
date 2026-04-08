@@ -15,7 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/testkit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/modules/website"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
@@ -23,20 +22,6 @@ import (
 var (
 	coreModuleOptions = &core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}
-
-	BuiltInModules = []application.Module{
-		core.NewModule(coreModuleOptions),
-		hrm.NewModule(),
-		finance.NewModule(),
-		projects.NewModule(),
-		logging.NewModule(),
-		warehouse.NewModule(),
-		crm.NewModule(),
-		website.NewModule(),
-		billing.NewModule(),
-		oidc.NewModule(&oidc.ModuleOptions{}), // OIDC provider - active when required OIDC settings are configured
-		testkit.NewModule(),                   // Test endpoints - only active when ENABLE_TEST_ENDPOINTS=true
 	}
 
 	// NOTE: bichat.NavItems is intentionally excluded from default NavLinks.
@@ -55,16 +40,16 @@ var (
 
 func Components() []composition.Component {
 	return []composition.Component{
-		composition.Adopt(core.NewModule(coreModuleOptions)),
-		composition.Adopt(hrm.NewModule()),
-		composition.Adopt(finance.NewModule()),
-		composition.Adopt(projects.NewModule()),
-		composition.Adopt(logging.NewModule()),
-		composition.Adopt(warehouse.NewModule()),
+		core.NewComponent(coreModuleOptions),
+		hrm.NewComponent(),
+		finance.NewComponent(),
+		projects.NewComponent(),
+		logging.NewComponent(),
+		warehouse.NewComponent(),
 		crm.NewComponent(),
-		composition.Adopt(website.NewModule()),
-		composition.Adopt(billing.NewModule()),
+		website.NewComponent(),
+		billing.NewComponent(),
 		oidc.NewComponent(&oidc.ModuleOptions{}),
-		composition.Adopt(testkit.NewModule()),
+		testkit.NewComponent(),
 	}
 }

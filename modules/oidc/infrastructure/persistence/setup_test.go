@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 func setupTest(t *testing.T) *itf.TestEnvironment {
 	t.Helper()
 
-	return itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	return itf.Setup(t, itf.WithComponents(modules.Components()...))
 }
 
 func createOIDCTestTenantAndUsers(t *testing.T, env *itf.TestEnvironment, userIDs ...int) uuid.UUID {

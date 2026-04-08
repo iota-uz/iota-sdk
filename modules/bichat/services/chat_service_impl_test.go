@@ -705,7 +705,7 @@ func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *tes
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+			env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 			chatRepo := newMockChatRepository()
 			session := mustSession(t,
@@ -1129,7 +1129,7 @@ func TestChatService_RejectPendingQuestionAsync_MarksFailureStateWhenWorkerFails
 
 func TestChatService_ResumeWithAnswer_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	chatRepo := newMockChatRepository()
 	session := mustSession(t,
@@ -1263,7 +1263,7 @@ func TestChatService_ResumeWithAnswer_DoesNotTriggerTitleGenerationWhenInterrupt
 
 func TestChatService_RejectPendingQuestion_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	chatRepo := newMockChatRepository()
 	session := mustSession(t,
@@ -1316,7 +1316,7 @@ func TestChatService_RejectPendingQuestion_TriggersTitleGenerationAfterCompletio
 
 func TestChatService_ResumeWithAnswerAsync_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	chatRepo := newMockChatRepository()
 	session := mustSession(t,
@@ -1375,7 +1375,7 @@ func TestChatService_ResumeWithAnswerAsync_TriggersTitleGenerationAfterCompletio
 
 func TestChatService_RejectPendingQuestionAsync_TriggersTitleGenerationAfterCompletion(t *testing.T) {
 	t.Parallel()
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	chatRepo := newMockChatRepository()
 	session := mustSession(t,
@@ -1715,7 +1715,7 @@ func TestChatService_MaybeGenerateTitleAsync_IgnoresNilWrappedQueue(t *testing.T
 
 	env := itf.Setup(
 		t,
-		itf.WithModules(modules.BuiltInModules...),
+		itf.WithComponents(modules.Components()...),
 	)
 	titleService := &captureTitleContextService{
 		called: make(chan context.Context, 1),
