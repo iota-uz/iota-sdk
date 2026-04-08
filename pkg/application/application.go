@@ -308,8 +308,6 @@ type application struct {
 	currentRuntimeTags []RuntimeTag
 	startingRuntime    bool
 	stoppingRuntime    bool
-	pendingAppletRT    []RuntimeRegistration
-	pendingAppletRTMu  sync.Mutex
 	runtimeMu          sync.Mutex
 }
 
@@ -609,8 +607,7 @@ func cloneRuntimeRegistration(registration RuntimeRegistration) RuntimeRegistrat
 }
 
 // CreateAppletControllers creates controllers for all registered applets without
-// starting long-lived runtime processes. Runtime registrations are staged until
-// RegisterAppletRuntime is called.
+// starting long-lived runtime processes.
 func (app *application) CreateAppletControllers(
 	host applets.HostServices,
 	sessionConfig applets.SessionConfig,
@@ -618,13 +615,10 @@ func (app *application) CreateAppletControllers(
 	metrics applets.MetricsRecorder,
 	opts ...applets.BuilderOption,
 ) ([]Controller, error) {
-	controllers, registrations, err := app.buildAppletControllersAndRuntime(host, sessionConfig, logger, metrics, opts...)
+	controllers, _, err := app.buildAppletControllersAndRuntime(host, sessionConfig, logger, metrics, opts...)
 	if err != nil {
 		return nil, err
 	}
-	app.pendingAppletRTMu.Lock()
-	app.pendingAppletRT = append(app.pendingAppletRT, registrations...)
-	app.pendingAppletRTMu.Unlock()
 	return controllers, nil
 }
 
@@ -635,16 +629,9 @@ func (app *application) RegisterAppletRuntime(
 	metrics applets.MetricsRecorder,
 	opts ...applets.BuilderOption,
 ) error {
-	app.pendingAppletRTMu.Lock()
-	registrations := append([]RuntimeRegistration(nil), app.pendingAppletRT...)
-	app.pendingAppletRT = nil
-	app.pendingAppletRTMu.Unlock()
-	if len(registrations) == 0 {
-		var err error
-		_, registrations, err = app.buildAppletControllersAndRuntime(host, sessionConfig, logger, metrics, opts...)
-		if err != nil {
-			return err
-		}
+	_, registrations, err := app.buildAppletControllersAndRuntime(host, sessionConfig, logger, metrics, opts...)
+	if err != nil {
+		return err
 	}
 	app.RegisterRuntime(registrations...)
 	return nil
