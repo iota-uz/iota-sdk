@@ -13,9 +13,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/logging"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/iota-uz/utils/fs"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/iota-uz/utils/fs"
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 )
@@ -80,9 +80,19 @@ func (d *DatabaseOptions) ConnectionString() string {
 // PoolConfig returns a fully configured pgxpool.Config derived from the
 // connection string and the pool-tuning fields on DatabaseOptions.
 func (d *DatabaseOptions) PoolConfig() (*pgxpool.Config, error) {
+	if d.MaxConns <= 0 {
+		return nil, fmt.Errorf("DB_MAX_CONNS must be positive, got %d", d.MaxConns)
+	}
+	if d.MinConns > d.MaxConns {
+		return nil, fmt.Errorf("DB_MIN_CONNS (%d) must not exceed DB_MAX_CONNS (%d)", d.MinConns, d.MaxConns)
+	}
+	if d.ConnectTimeout <= 0 {
+		return nil, fmt.Errorf("DB_CONNECT_TIMEOUT must be positive, got %s", d.ConnectTimeout)
+	}
+
 	cfg, err := pgxpool.ParseConfig(d.ConnectionString())
 	if err != nil {
-		return nil, fmt.Errorf("parse pool config: %w", err)
+		return nil, fmt.Errorf("DatabaseOptions.PoolConfig: parse connection string: %w", err)
 	}
 
 	cfg.MaxConns = d.MaxConns
