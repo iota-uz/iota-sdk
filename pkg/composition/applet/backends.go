@@ -139,7 +139,7 @@ func mustRegisterBuiltins(registry *BackendRegistry) {
 	must(registry.KV.Register(appletsconfig.KVBackendMemory, BackendFactory[appletenginehandlers.KVStore]{
 		ID: appletsconfig.KVBackendMemory,
 		BuildFunc: func(*Container) (appletenginehandlers.KVStore, error) {
-			return nil, nil
+			return appletenginehandlers.NewMemoryKVStore(), nil
 		},
 	}))
 	must(registry.KV.Register(appletsconfig.KVBackendRedis, BackendFactory[appletenginehandlers.KVStore]{
@@ -152,7 +152,7 @@ func mustRegisterBuiltins(registry *BackendRegistry) {
 	must(registry.DB.Register(appletsconfig.DBBackendMemory, BackendFactory[appletenginehandlers.DBStore]{
 		ID: appletsconfig.DBBackendMemory,
 		BuildFunc: func(*Container) (appletenginehandlers.DBStore, error) {
-			return nil, nil
+			return appletenginehandlers.NewMemoryDBStore(), nil
 		},
 	}))
 	must(registry.DB.Register(appletsconfig.DBBackendPostgres, BackendFactory[appletenginehandlers.DBStore]{
@@ -169,7 +169,7 @@ func mustRegisterBuiltins(registry *BackendRegistry) {
 	must(registry.Jobs.Register(appletsconfig.JobsBackendMemory, BackendFactory[appletenginehandlers.JobsStore]{
 		ID: appletsconfig.JobsBackendMemory,
 		BuildFunc: func(*Container) (appletenginehandlers.JobsStore, error) {
-			return nil, nil
+			return appletenginehandlers.NewMemoryJobsStore(), nil
 		},
 	}))
 	must(registry.Jobs.Register(appletsconfig.JobsBackendPostgres, BackendFactory[appletenginehandlers.JobsStore]{

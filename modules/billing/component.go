@@ -32,9 +32,6 @@ func WithStripeEventHooks(hooks ...ports.StripeEventHook) ComponentOption {
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
 
-//go:embed infrastructure/persistence/schema/billing-schema.sql
-var migrationFiles embed.FS
-
 func NewComponent(opts ...ComponentOption) composition.Component {
 	component := &component{}
 	for _, opt := range opts {

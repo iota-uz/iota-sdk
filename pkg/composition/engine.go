@@ -196,6 +196,8 @@ func (e *Engine) orderComponents() ([]registeredComponent, error) {
 			return fmt.Errorf("composition: component %q not registered", name)
 		}
 		switch state[name] {
+		case providerPending:
+			// Continue into dependency resolution below.
 		case providerResolved:
 			return nil
 		case providerResolving:
@@ -397,6 +399,8 @@ func (c *Container) resolveKeyWithPath(key Key, path []string) (any, error) {
 
 func (c *Container) resolveEntry(entry *providerEntry, path []string) (any, error) {
 	switch entry.state {
+	case providerPending:
+		// Resolve the provider below.
 	case providerResolved:
 		return entry.value, nil
 	case providerResolving:

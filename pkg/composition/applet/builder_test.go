@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -60,24 +58,6 @@ func (u *testUser) ID() uint                    { return 1 }
 func (u *testUser) DisplayName() string         { return "Demo User" }
 func (u *testUser) HasPermission(_ string) bool { return true }
 func (u *testUser) PermissionNames() []string   { return []string{"Demo.Access"} }
-
-type testHostServices struct{}
-
-func (h *testHostServices) ExtractUser(context.Context) (applets.AppletUser, error) {
-	return &testUser{}, nil
-}
-
-func (h *testHostServices) ExtractTenantID(context.Context) (uuid.UUID, error) {
-	return uuid.MustParse("00000000-0000-0000-0000-000000000001"), nil
-}
-
-func (h *testHostServices) ExtractPool(context.Context) (any, error) {
-	return nil, fmt.Errorf("no pool in tests")
-}
-
-func (h *testHostServices) ExtractPageLocale(context.Context) language.Tag {
-	return language.English
-}
 
 type fakeFilesStore struct{}
 
@@ -185,7 +165,6 @@ func TestDefaultBunBinResolver(t *testing.T) {
 
 	resolver := DefaultBunBinResolver{}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := resolver.Resolve(tc.configs)
 			if tc.wantErr != "" {
@@ -197,18 +176,4 @@ func TestDefaultBunBinResolver(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
-}
-
-func withAppletConfig(t *testing.T, configContent string) {
-	t.Helper()
-	root := t.TempDir()
-	dir := filepath.Join(root, ".applets")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "config.toml"), []byte(configContent), 0o644))
-	oldWD, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(root))
-	t.Cleanup(func() {
-		_ = os.Chdir(oldWD)
-	})
 }

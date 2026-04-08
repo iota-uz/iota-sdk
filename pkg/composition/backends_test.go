@@ -10,10 +10,10 @@ import (
 
 type fakeKVStore struct{}
 
-func (fakeKVStore) Get(context.Context, string) (any, error)      { return nil, nil }
+func (fakeKVStore) Get(context.Context, string) (any, error)      { return map[string]any{}, nil }
 func (fakeKVStore) Set(context.Context, string, any, *int) error  { return nil }
 func (fakeKVStore) Delete(context.Context, string) (bool, error)  { return false, nil }
-func (fakeKVStore) MGet(context.Context, []string) ([]any, error) { return nil, nil }
+func (fakeKVStore) MGet(context.Context, []string) ([]any, error) { return []any{}, nil }
 
 func TestBackendRegistryValidateAndBuildAreSeparated(t *testing.T) {
 	registry := NewBackendRegistry()

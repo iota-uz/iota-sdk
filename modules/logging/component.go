@@ -10,9 +10,6 @@ import (
 //go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-//go:embed infrastructure/persistence/schema/logging-schema.sql
-var migrationFiles embed.FS
-
 func NewComponent() composition.Component {
 	return &component{}
 }

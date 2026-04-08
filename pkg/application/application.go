@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"reflect"
-	goruntime "runtime"
 	"sort"
 	"strings"
 	"unicode"
@@ -18,7 +17,6 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	appletsconfig "github.com/iota-uz/applets/config"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -27,7 +25,6 @@ import (
 	"github.com/iota-uz/applets"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -534,73 +531,6 @@ func (app *application) AppletRegistry() AppletRegistry {
 	return app.appletRegistry
 }
 
-func resolveAppletRuntimeEntrypoint(appletName string) string {
-	_, currentFile, _, ok := goruntime.Caller(0)
-	if !ok {
-		return filepath.Join("modules", appletName, "runtime", "index.ts")
-	}
-	// pkg/application/application.go -> repo root -> modules/<applet>/runtime/index.ts
-	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
-	return filepath.Join(root, "modules", appletName, "runtime", "index.ts")
-}
-
-type appletOverride struct {
-	base   Applet
-	config applets.Config
-}
-
-func (a *appletOverride) Name() string     { return a.base.Name() }
-func (a *appletOverride) BasePath() string { return a.base.BasePath() }
-func (a *appletOverride) Config() applets.Config {
-	return a.config
-}
-
-func applyProjectAppletOverrides(base Applet, projectConfig *appletsconfig.ProjectConfig) Applet {
-	if base == nil || projectConfig == nil {
-		return base
-	}
-	appletCfg, ok := projectConfig.Applets[base.Name()]
-	if !ok || appletCfg == nil {
-		return base
-	}
-
-	config := base.Config()
-	changed := false
-	if len(appletCfg.Hosts) > 0 {
-		hosts := make([]string, 0, len(appletCfg.Hosts))
-		for _, host := range appletCfg.Hosts {
-			host = strings.TrimSpace(host)
-			if host == "" {
-				continue
-			}
-			hosts = append(hosts, host)
-		}
-		if len(hosts) > 0 {
-			config.Hosts = hosts
-			changed = true
-		}
-	}
-	if !changed {
-		return base
-	}
-	return &appletOverride{base: base, config: config}
-}
-
-func appletFrontendType(projectConfig *appletsconfig.ProjectConfig, appletName string) string {
-	if projectConfig == nil || strings.TrimSpace(appletName) == "" {
-		return appletsconfig.FrontendTypeStatic
-	}
-	cfg, ok := projectConfig.Applets[appletName]
-	if !ok || cfg == nil || cfg.Frontend == nil {
-		return appletsconfig.FrontendTypeStatic
-	}
-	frontendType := strings.TrimSpace(cfg.Frontend.Type)
-	if frontendType == "" {
-		return appletsconfig.FrontendTypeStatic
-	}
-	return frontendType
-}
-
 func toBunDelegateMethodName(appletName, methodName string) (string, error) {
 	appletName = strings.TrimSpace(appletName)
 	methodName = strings.TrimSpace(methodName)
@@ -632,37 +562,4 @@ func makeBunPublicProxyMethod(publicMethodName, goDelegateMethodName string, bas
 			)
 		},
 	}
-}
-
-func validateRequiredAppletSecrets(ctx context.Context, appletName string, required []string, store appletenginehandlers.SecretsStore) error {
-	if len(required) == 0 {
-		return nil
-	}
-	if store == nil {
-		return fmt.Errorf("validate required secrets for %s: secrets store is required", appletName)
-	}
-	seen := make(map[string]struct{}, len(required))
-	missing := make([]string, 0)
-	for _, name := range required {
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
-		}
-		if _, exists := seen[name]; exists {
-			continue
-		}
-		seen[name] = struct{}{}
-		_, found, err := store.Get(ctx, appletName, name)
-		if err != nil {
-			return fmt.Errorf("validate required secret %q for %s: %w", name, appletName, err)
-		}
-		if !found {
-			missing = append(missing, name)
-		}
-	}
-	if len(missing) == 0 {
-		return nil
-	}
-	sort.Strings(missing)
-	return fmt.Errorf("required secrets missing for %s: %s", appletName, strings.Join(missing, ", "))
 }
