@@ -2,6 +2,7 @@
 package configuration
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/logging"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/iota-uz/utils/fs"
 	"github.com/joho/godotenv"
@@ -59,12 +61,13 @@ type DatabaseOptions struct {
 	User     string `env:"DB_USER" envDefault:"postgres"`
 	Password string `env:"DB_PASSWORD" envDefault:"postgres"`
 
-	MaxConns          int32         `env:"DB_MAX_CONNS" envDefault:"32"`
-	MinConns          int32         `env:"DB_MIN_CONNS" envDefault:"8"`
-	MaxConnLifetime   time.Duration `env:"DB_MAX_CONN_LIFETIME" envDefault:"1h"`
-	MaxConnIdleTime   time.Duration `env:"DB_MAX_CONN_IDLE_TIME" envDefault:"15m"`
-	HealthCheckPeriod time.Duration `env:"DB_HEALTH_CHECK_PERIOD" envDefault:"1m"`
-	ConnectTimeout    time.Duration `env:"DB_CONNECT_TIMEOUT" envDefault:"10s"`
+	MaxConns              int32         `env:"DB_MAX_CONNS" envDefault:"32"`
+	MinConns              int32         `env:"DB_MIN_CONNS" envDefault:"8"`
+	MaxConnLifetime       time.Duration `env:"DB_MAX_CONN_LIFETIME" envDefault:"1h"`
+	MaxConnLifetimeJitter time.Duration `env:"DB_MAX_CONN_LIFETIME_JITTER" envDefault:"6m"`
+	MaxConnIdleTime       time.Duration `env:"DB_MAX_CONN_IDLE_TIME" envDefault:"15m"`
+	HealthCheckPeriod     time.Duration `env:"DB_HEALTH_CHECK_PERIOD" envDefault:"1m"`
+	ConnectTimeout        time.Duration `env:"DB_CONNECT_TIMEOUT" envDefault:"10s"`
 }
 
 func (d *DatabaseOptions) ConnectionString() string {
@@ -85,9 +88,19 @@ func (d *DatabaseOptions) PoolConfig() (*pgxpool.Config, error) {
 	cfg.MaxConns = d.MaxConns
 	cfg.MinConns = d.MinConns
 	cfg.MaxConnLifetime = d.MaxConnLifetime
+	cfg.MaxConnLifetimeJitter = d.MaxConnLifetimeJitter
 	cfg.MaxConnIdleTime = d.MaxConnIdleTime
 	cfg.HealthCheckPeriod = d.HealthCheckPeriod
 	cfg.ConnConfig.ConnectTimeout = d.ConnectTimeout
+
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, "SET idle_in_transaction_session_timeout = '120s'")
+		return err
+	}
+
+	cfg.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		return conn.Ping(ctx) == nil
+	}
 
 	return cfg, nil
 }
