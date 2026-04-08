@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/sirupsen/logrus"
 )
@@ -23,6 +24,27 @@ func InstallModules(modules ...application.Module) Installer {
 func InstallModuleTransports(modules ...application.Module) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
 		return application.RegisterTransports(rt.App, modules...)
+	})
+}
+
+func InstallComponents(capabilities []composition.Capability, components ...composition.Component) Installer {
+	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
+		engine := composition.NewEngine()
+		if err := engine.Register(components...); err != nil {
+			return err
+		}
+
+		container, err := engine.Compile(composition.BuildContext{App: rt.App}, capabilities...)
+		if err != nil {
+			return err
+		}
+
+		if err := composition.Apply(rt.App, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
+			return err
+		}
+
+		rt.Provide(container)
+		return nil
 	})
 }
 

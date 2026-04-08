@@ -51,15 +51,23 @@ type ChatController struct {
 	basePath        string
 }
 
-func NewChatController(app application.Application, basePath string) application.Controller {
+func NewChatController(
+	app application.Application,
+	userService *coreservices.UserService,
+	clientService *services.ClientService,
+	chatService *services.ChatService,
+	templateService *services.MessageTemplateService,
+	tenantService *coreservices.TenantService,
+	basePath string,
+) application.Controller {
 	return &ChatController{
 		app:             app,
+		userService:     userService,
+		templateService: templateService,
+		clientService:   clientService,
+		chatService:     chatService,
+		tenantService:   tenantService,
 		logger:          configuration.Use().Logger(),
-		userService:     app.Service(coreservices.UserService{}).(*coreservices.UserService),
-		clientService:   app.Service(services.ClientService{}).(*services.ClientService),
-		chatService:     app.Service(services.ChatService{}).(*services.ChatService),
-		templateService: app.Service(services.MessageTemplateService{}).(*services.MessageTemplateService),
-		tenantService:   app.Service(coreservices.TenantService{}).(*coreservices.TenantService),
 		basePath:        basePath,
 	}
 }

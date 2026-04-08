@@ -123,11 +123,13 @@ func DefaultClientControllerConfig() ClientControllerConfig {
 }
 
 type ClientController struct {
-	app       application.Application
-	config    ClientControllerConfig
-	realtime  *ClientRealtimeUpdates
-	tabsByID  map[string]TabDefinition
-	tabsOrder []TabDefinition
+	app           application.Application
+	clientService *services.ClientService
+	chatService   *services.ChatService
+	config        ClientControllerConfig
+	realtime      *ClientRealtimeUpdates
+	tabsByID      map[string]TabDefinition
+	tabsOrder     []TabDefinition
 }
 
 type ClientsPaginatedResponse struct {
@@ -137,20 +139,25 @@ type ClientsPaginatedResponse struct {
 	HasMore bool
 }
 
-func NewClientController(app application.Application, config ...ClientControllerConfig) application.Controller {
+func NewClientController(
+	app application.Application,
+	clientService *services.ClientService,
+	chatService *services.ChatService,
+	config ...ClientControllerConfig,
+) application.Controller {
 	// Use default config or the provided one
 	cfg := DefaultClientControllerConfig()
 	if len(config) > 0 {
 		cfg = config[0]
 	}
 
-	clientService := app.Service(services.ClientService{}).(*services.ClientService)
-
 	// Initialize controller
 	controller := &ClientController{
-		app:      app,
-		config:   cfg,
-		tabsByID: make(map[string]TabDefinition),
+		app:           app,
+		clientService: clientService,
+		chatService:   chatService,
+		config:        cfg,
+		tabsByID:      make(map[string]TabDefinition),
 	}
 
 	// Register provided tabs
@@ -166,66 +173,54 @@ func NewClientController(app application.Application, config ...ClientController
 	return controller
 }
 
-// Default tab definitions - exported for configuration
+func ProfileTab(basePath string, clientService *services.ClientService) TabDefinition {
+	return TabDefinition{
+		ID:        "profile",
+		NameKey:   "Clients.Tabs.Profile",
+		SortOrder: 10,
+		Permissions: []permission.Permission{
+			crmPermissions.ClientRead,
+		},
+		Component: func(r *http.Request, clientID uint) (templ.Component, error) {
+			clientEntity, err := clientService.GetByID(r.Context(), clientID)
+			if err != nil {
+				return nil, errors.Wrap(err, "Error retrieving client")
+			}
+			return clients.Profile(clients.ProfileProps{
+				ClientURL: basePath,
+				EditURL:   fmt.Sprintf("%s/%d/edit", basePath, clientID),
+				Client:    mappers.ClientToViewModel(clientEntity),
+			}), nil
+		},
+	}
+}
+
+func ChatTab(basePath string, clientService *services.ClientService, chatService *services.ChatService) TabDefinition {
+	return TabDefinition{
+		ID:        "chat",
+		NameKey:   "Clients.Tabs.Chat",
+		SortOrder: 20,
+		Permissions: []permission.Permission{
+			crmPermissions.ClientRead,
+		},
+		Component: func(r *http.Request, clientID uint) (templ.Component, error) {
+			clientEntity, err := clientService.GetByID(r.Context(), clientID)
+			if err != nil {
+				return nil, errors.Wrap(err, "Error retrieving client")
+			}
+			chatEntity, err := chatService.GetByClientIDOrCreate(r.Context(), clientID)
+			if err != nil {
+				return nil, errors.Wrap(err, "Error retrieving chat")
+			}
+			return clients.Chats(chatsui.SelectedChatProps{
+				Chat:       mappers.ChatToViewModel(chatEntity, clientEntity),
+				ClientsURL: basePath,
+			}), nil
+		},
+	}
+}
+
 var (
-	ProfileTab = func(basePath string) TabDefinition {
-		return TabDefinition{
-			ID:        "profile",
-			NameKey:   "Clients.Tabs.Profile",
-			SortOrder: 10,
-			Permissions: []permission.Permission{
-				crmPermissions.ClientRead,
-			},
-			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
-				app, err := application.UseApp(r.Context())
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving app")
-				}
-				clientService := app.Service(services.ClientService{}).(*services.ClientService)
-				clientEntity, err := clientService.GetByID(r.Context(), clientID)
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving client")
-				}
-				return clients.Profile(clients.ProfileProps{
-					ClientURL: basePath,
-					EditURL:   fmt.Sprintf("%s/%d/edit", basePath, clientID),
-					Client:    mappers.ClientToViewModel(clientEntity),
-				}), nil
-			},
-		}
-	}
-
-	ChatTab = func(basePath string) TabDefinition {
-		return TabDefinition{
-			ID:        "chat",
-			NameKey:   "Clients.Tabs.Chat",
-			SortOrder: 20,
-			Permissions: []permission.Permission{
-				crmPermissions.ClientRead,
-			},
-			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
-				app, err := application.UseApp(r.Context())
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving app")
-				}
-				clientService := app.Service(services.ClientService{}).(*services.ClientService)
-				chatService := app.Service(services.ChatService{}).(*services.ChatService)
-				clientEntity, err := clientService.GetByID(r.Context(), clientID)
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving client")
-				}
-				chatEntity, err := chatService.GetByClientIDOrCreate(r.Context(), clientID)
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving chat")
-				}
-				return clients.Chats(chatsui.SelectedChatProps{
-					Chat:       mappers.ChatToViewModel(chatEntity, clientEntity),
-					ClientsURL: basePath,
-				}), nil
-			},
-		}
-	}
-
 	ActionsTab = func() TabDefinition {
 		return TabDefinition{
 			ID:        "actions",
@@ -438,7 +433,7 @@ func (c *ClientController) List(
 	}
 	isHxRequest := htmx.IsHxRequest(r)
 	if isHxRequest && r.URL.Query().Get("view") != "" {
-		c.View(r, w, user, logger, clientService, c.app.Service(services.ChatService{}).(*services.ChatService))
+		c.View(r, w, user, logger, clientService, c.chatService)
 		return
 	}
 	props := &clients.IndexPageProps{

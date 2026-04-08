@@ -13,6 +13,7 @@ import (
 	bichatbootstrap "github.com/iota-uz/iota-sdk/modules/bichat/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 )
@@ -47,7 +48,10 @@ func run() error {
 
 	if err := rt.Install(
 		context.Background(),
-		bootstrap.InstallModules(modules.BuiltInModules...),
+		bootstrap.InstallComponents(
+			[]composition.Capability{composition.CapabilityAPI, composition.CapabilityWorker},
+			modules.Components()...,
+		),
 		bootstrap.InstallNavItems(modules.NavLinks...),
 		bootstrap.InstallHashFS(internalassets.HashFS),
 		bichatbootstrap.New(bichatbootstrap.WithTransports()),
@@ -56,7 +60,6 @@ func run() error {
 			WithHTTP:      true,
 			WithRuntime:   true,
 		}),
-		bootstrap.InstallModuleTransports(modules.BuiltInModules...),
 		bootstrap.InstallCoreControllers(),
 		bootstrap.StartRuntime(application.RuntimeTagAPI, application.RuntimeTagWorker),
 	); err != nil {

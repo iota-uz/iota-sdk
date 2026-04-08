@@ -16,11 +16,11 @@ type SMSHandler struct {
 	chatService *services.ChatService
 }
 
-func RegisterSMSHandlers(app application.Application) *SMSHandler {
+func RegisterSMSHandlers(app application.Application, chatService *services.ChatService) *SMSHandler {
 	handler := &SMSHandler{
 		pool:        app.DB(),
 		publisher:   app.EventPublisher(),
-		chatService: app.Service(services.ChatService{}).(*services.ChatService),
+		chatService: chatService,
 	}
 	app.EventPublisher().Subscribe(handler.onSMSReceived)
 	return handler

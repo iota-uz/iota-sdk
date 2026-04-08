@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/modules/website"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
@@ -51,3 +52,19 @@ var (
 		website.NavItems,
 	)
 )
+
+func Components() []composition.Component {
+	return []composition.Component{
+		composition.Adopt(core.NewModule(coreModuleOptions)),
+		composition.Adopt(hrm.NewModule()),
+		composition.Adopt(finance.NewModule()),
+		composition.Adopt(projects.NewModule()),
+		composition.Adopt(logging.NewModule()),
+		composition.Adopt(warehouse.NewModule()),
+		crm.NewComponent(),
+		composition.Adopt(website.NewModule()),
+		composition.Adopt(billing.NewModule()),
+		oidc.NewComponent(&oidc.ModuleOptions{}),
+		composition.Adopt(testkit.NewModule()),
+	}
+}

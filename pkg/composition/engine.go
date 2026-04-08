@@ -244,11 +244,13 @@ type Container struct {
 }
 
 func newContainer(context BuildContext, activeCapabilities []Capability) *Container {
-	return &Container{
+	container := &Container{
 		context:            context,
 		activeCapabilities: append([]Capability(nil), activeCapabilities...),
 		providers:          make(map[Key]*providerEntry),
 	}
+	seedAppServices(container, context.App)
+	return container
 }
 
 func (c *Container) HasCapability(capability Capability) bool {
@@ -487,4 +489,23 @@ func typeOfComponent(component Component) reflect.Type {
 
 func formatPath(path []string) string {
 	return strings.Join(path, " -> ")
+}
+
+func seedAppServices(container *Container, app application.Application) {
+	if container == nil || app == nil {
+		return
+	}
+	for _, service := range app.Services() {
+		if service == nil {
+			continue
+		}
+		entry := &providerEntry{
+			key:           keyFor(reflect.TypeOf(service), ""),
+			componentName: "application",
+			displayName:   shortTypeName(reflect.TypeOf(service)),
+			state:         providerResolved,
+			value:         service,
+		}
+		container.providers[entry.key] = entry
+	}
 }

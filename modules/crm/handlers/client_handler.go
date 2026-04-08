@@ -25,12 +25,16 @@ type ClientHandler struct {
 	tenantService *services.TenantService
 }
 
-func RegisterClientHandler(app application.Application) *ClientHandler {
+func RegisterClientHandler(
+	app application.Application,
+	chatService *crmservices.ChatService,
+	tenantService *services.TenantService,
+) *ClientHandler {
 	handler := &ClientHandler{
 		pool:          app.DB(),
 		publisher:     app.EventPublisher(),
-		chatService:   app.Service(crmservices.ChatService{}).(*crmservices.ChatService),
-		tenantService: app.Service(services.TenantService{}).(*services.TenantService),
+		chatService:   chatService,
+		tenantService: tenantService,
 	}
 	app.EventPublisher().Subscribe(handler.onCreated)
 	return handler
