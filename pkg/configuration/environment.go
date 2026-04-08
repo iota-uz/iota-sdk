@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/logging"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/iota-uz/utils/fs"
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
@@ -57,6 +58,13 @@ type DatabaseOptions struct {
 	Port     string `env:"DB_PORT" envDefault:"5432"`
 	User     string `env:"DB_USER" envDefault:"postgres"`
 	Password string `env:"DB_PASSWORD" envDefault:"postgres"`
+
+	MaxConns          int32         `env:"DB_MAX_CONNS" envDefault:"32"`
+	MinConns          int32         `env:"DB_MIN_CONNS" envDefault:"8"`
+	MaxConnLifetime   time.Duration `env:"DB_MAX_CONN_LIFETIME" envDefault:"1h"`
+	MaxConnIdleTime   time.Duration `env:"DB_MAX_CONN_IDLE_TIME" envDefault:"15m"`
+	HealthCheckPeriod time.Duration `env:"DB_HEALTH_CHECK_PERIOD" envDefault:"1m"`
+	ConnectTimeout    time.Duration `env:"DB_CONNECT_TIMEOUT" envDefault:"10s"`
 }
 
 func (d *DatabaseOptions) ConnectionString() string {
@@ -64,6 +72,24 @@ func (d *DatabaseOptions) ConnectionString() string {
 		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
 		d.Host, d.Port, d.User, d.Name, d.Password,
 	)
+}
+
+// PoolConfig returns a fully configured pgxpool.Config derived from the
+// connection string and the pool-tuning fields on DatabaseOptions.
+func (d *DatabaseOptions) PoolConfig() (*pgxpool.Config, error) {
+	cfg, err := pgxpool.ParseConfig(d.ConnectionString())
+	if err != nil {
+		return nil, fmt.Errorf("parse pool config: %w", err)
+	}
+
+	cfg.MaxConns = d.MaxConns
+	cfg.MinConns = d.MinConns
+	cfg.MaxConnLifetime = d.MaxConnLifetime
+	cfg.MaxConnIdleTime = d.MaxConnIdleTime
+	cfg.HealthCheckPeriod = d.HealthCheckPeriod
+	cfg.ConnConfig.ConnectTimeout = d.ConnectTimeout
+
+	return cfg, nil
 }
 
 type GoogleOptions struct {
