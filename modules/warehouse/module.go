@@ -31,7 +31,7 @@ func NewModule() application.Module {
 type Module struct {
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	_ = migrationFiles
 
 	unitRepo := persistence.NewUnitRepository()
@@ -62,13 +62,6 @@ func (m *Module) Register(app application.Application) error {
 		services.NewInventoryService(app.EventPublisher()),
 	)
 
-	app.RegisterControllers(
-		controllers.NewProductsController(app),
-		controllers.NewPositionsController(app),
-		controllers.NewUnitsController(app),
-		controllers.NewOrdersController(app),
-		controllers.NewInventoryController(app),
-	)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterAssets(&assets.FS)
 	app.QuickLinks().Add(
@@ -97,6 +90,17 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/warehouse",
 	})
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
+	app.RegisterControllers(
+		controllers.NewProductsController(app),
+		controllers.NewPositionsController(app),
+		controllers.NewUnitsController(app),
+		controllers.NewOrdersController(app),
+		controllers.NewInventoryController(app),
+	)
 	return nil
 }
 

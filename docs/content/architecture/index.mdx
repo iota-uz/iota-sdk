@@ -107,12 +107,15 @@ sequenceDiagram
     participant DB as Database
     participant Web as Web Server
     
-    App->>Mod: Register(app)
+    App->>Mod: RegisterWiring(app)
     Mod->>DB: Register Migrations
     Mod->>App: Register Services
+    Mod->>App: Register Runtime Components
+    Mod->>App: Register Navigation
+    App->>Mod: RegisterTransports(app)
     Mod->>App: Register Controllers
     Mod->>App: Register Middleware
-    Mod->>App: Register Navigation
+    App->>App: StartRuntime(...)
     App->>Web: Start Server
 ```
 

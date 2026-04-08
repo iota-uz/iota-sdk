@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 //go:embed presentation/locales/*.toml
@@ -32,7 +33,7 @@ type Module struct {
 	options *ModuleOptions
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	// Register locale files
 	app.RegisterLocaleFiles(&LocaleFiles)
 
@@ -50,15 +51,23 @@ func (m *Module) Register(app application.Application) error {
 		services.NewTenantUsersService(userRepo),
 	)
 
-	// Get UserService from application
-	userService := app.Service(coreservices.UserService{}).(*coreservices.UserService)
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
+	const op serrors.Op = "superadmin.Module.RegisterTransports"
+
+	userServiceAny := app.Service(coreservices.UserService{})
+	userService, ok := userServiceAny.(*coreservices.UserService)
+	if !ok || userService == nil {
+		return serrors.E(op, serrors.Invalid, "user service is not registered")
+	}
 
 	// Register controllers
 	app.RegisterControllers(
 		controllers.NewDashboardController(app),
 		controllers.NewTenantsController(app, userService),
 	)
-
 	return nil
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 //go:embed presentation/locales/*.toml
@@ -31,26 +32,34 @@ func NewModule(opts *ModuleOptions) application.Module {
 }
 
 type Module struct {
-	options *ModuleOptions
+	options     *ModuleOptions
+	wired       bool
+	enabled     bool
+	storage     *oidc.Storage
+	config      *configuration.OIDCOptions
+	oidcService *services.OIDCService
 }
 
 func (m *Module) Name() string {
 	return "oidc"
 }
 
-func (m *Module) Register(app application.Application) error {
-	// Register locales
+func (m *Module) RegisterWiring(app application.Application) error {
+	m.wired = true
 	app.RegisterLocaleFiles(&LocaleFiles)
 
-	// Get configuration
 	config := configuration.Use()
 
-	// Only register OIDC when required settings are configured
 	if !config.OIDC.IsConfigured() {
+		m.enabled = false
+		m.storage = nil
+		m.config = nil
+		m.oidcService = nil
 		return nil
 	}
+	m.enabled = true
+	m.config = &config.OIDC
 
-	// Create repositories
 	clientRepo := persistence.NewClientRepository()
 	authRequestRepo := persistence.NewAuthRequestRepository()
 	tokenRepo := persistence.NewTokenRepository()
@@ -59,7 +68,6 @@ func (m *Module) Register(app application.Application) error {
 	// This avoids tight coupling to service-registration order and concrete service types.
 	userRepo := corepersistence.NewUserRepository(corepersistence.NewUploadRepository())
 
-	// Create OIDC storage adapter (bridge to zitadel/oidc library)
 	storage := oidc.NewStorage(
 		clientRepo,
 		authRequestRepo,
@@ -71,26 +79,67 @@ func (m *Module) Register(app application.Application) error {
 		config.OIDC.AccessTokenLifetime,
 		config.OIDC.RefreshTokenLifetime,
 	)
+	m.storage = storage
 
-	// Bootstrap signing keys on startup (if not already present)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	oidcService := services.NewOIDCService(clientRepo, authRequestRepo)
+	m.oidcService = oidcService
 
-	if err := oidc.BootstrapKeys(ctx, app.DB(), config.OIDC.CryptoKey); err != nil {
-		const op serrors.Op = "Module.Register"
-		return serrors.E(op, "failed to bootstrap OIDC signing keys", err)
+	app.RegisterServices(oidcService)
+	app.RegisterRuntime(application.RuntimeRegistration{
+		Component: &oidcBootstrapComponent{
+			pool:      app.DB(),
+			cryptoKey: config.OIDC.CryptoKey,
+		},
+		Tags: []application.RuntimeTag{
+			application.RuntimeTagAPI,
+		},
+	})
+
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
+	const op serrors.Op = "oidc.Module.RegisterTransports"
+	if !m.wired {
+		return serrors.E(op, serrors.Invalid, "oidc module wiring must run before transports")
+	}
+	if !m.enabled {
+		return nil
+	}
+	if m.storage == nil || m.config == nil || m.oidcService == nil {
+		return serrors.E(op, serrors.Invalid, "oidc module wiring is incomplete")
+	}
+	app.RegisterControllers(
+		controllers.NewOIDCController(app, m.storage, m.config, m.oidcService),
+	)
+	return nil
+}
+
+type oidcBootstrapComponent struct {
+	pool      *pgxpool.Pool
+	cryptoKey string
+}
+
+func (c *oidcBootstrapComponent) Name() string {
+	return "oidc-bootstrap-keys"
+}
+
+func (c *oidcBootstrapComponent) Start(ctx context.Context) error {
+	const op serrors.Op = "oidcBootstrapComponent.Start"
+
+	if c.pool == nil {
+		return serrors.E(op, serrors.Invalid, "database pool is nil")
 	}
 
-	// Create service
-	oidcService := services.NewOIDCService(clientRepo, authRequestRepo)
+	startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := oidc.BootstrapKeys(startCtx, c.pool, c.cryptoKey); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
 
-	// Register services
-	app.RegisterServices(oidcService)
-
-	// Register controller
-	app.RegisterControllers(
-		controllers.NewOIDCController(app, storage, &config.OIDC, oidcService),
-	)
-
+func (c *oidcBootstrapComponent) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }

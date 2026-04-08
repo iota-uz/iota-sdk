@@ -26,7 +26,7 @@ func NewModule() application.Module {
 type Module struct {
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	_ = migrationFiles
 
 	// Create upload repository for attachment functionality
@@ -77,18 +77,6 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
-	app.RegisterControllers(
-		controllers.NewFinancialOverviewController(app),
-		controllers.NewMoneyAccountController(app),
-		controllers.NewExpenseCategoriesController(app),
-		controllers.NewPaymentCategoriesController(app),
-		controllers.NewCounterpartiesController(app),
-		controllers.NewInventoryController(app),
-		controllers.NewDebtsController(app),
-		controllers.NewDebtAggregateController(app),
-		controllers.NewFinancialReportController(app),
-		controllers.NewCashflowController(app),
-	)
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
 		spotlight.NewQuickLink(PaymentCategoriesItem.Name, PaymentCategoriesItem.Href),
@@ -124,6 +112,22 @@ func (m *Module) Register(app application.Application) error {
 	)
 
 	app.RegisterLocaleFiles(&localeFiles)
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
+	app.RegisterControllers(
+		controllers.NewFinancialOverviewController(app),
+		controllers.NewMoneyAccountController(app),
+		controllers.NewExpenseCategoriesController(app),
+		controllers.NewPaymentCategoriesController(app),
+		controllers.NewCounterpartiesController(app),
+		controllers.NewInventoryController(app),
+		controllers.NewDebtsController(app),
+		controllers.NewDebtAggregateController(app),
+		controllers.NewFinancialReportController(app),
+		controllers.NewCashflowController(app),
+	)
 	return nil
 }
 

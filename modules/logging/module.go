@@ -20,9 +20,13 @@ func NewModule() application.Module {
 type Module struct {
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	_ = migrationFiles
 	app.RegisterLocaleFiles(&localeFiles)
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
 	return nil
 }
 

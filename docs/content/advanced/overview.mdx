@@ -13,14 +13,23 @@ This module includes essential features for advanced management.
 
 ## Usage
 
-Load a module by passing it to `modules.Load`; the module's `Register(app)` is called internally. Always check the returned error so registration failures are caught at startup:
+Compose modules explicitly so wiring, transports, and runtime startup stay separate:
 
 ```go
-if err := modules.Load(app, yourModule); err != nil {
-    return err
+allModules := append([]application.Module{}, modules.BuiltInModules...)
+allModules = append(allModules, yourModule)
+
+if err := application.Wire(app, allModules...); err != nil {
+	return err
 }
-// or with built-ins:
-if err := modules.Load(app, modules.BuiltInModules..., yourModule); err != nil {
-    return err
+if err := application.RegisterTransports(app, allModules...); err != nil {
+	return err
+}
+if err := app.StartRuntime(
+	context.Background(),
+	application.RuntimeTagAPI,
+	application.RuntimeTagWorker,
+); err != nil {
+	return err
 }
 ```

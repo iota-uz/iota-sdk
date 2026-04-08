@@ -3,6 +3,7 @@ package crm
 
 import (
 	"embed"
+	"fmt"
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
@@ -13,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/twilio/twilio-go"
 )
@@ -28,9 +30,10 @@ func NewModule() application.Module {
 }
 
 type Module struct {
+	twilioProvider *cpassproviders.TwilioProvider
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	conf := configuration.Use()
 
 	passportRepo := corepersistence.NewPassportRepository()
@@ -58,6 +61,7 @@ func (m *Module) Register(app application.Application) error {
 		[]chat.Provider{twilioProvider},
 		app.EventPublisher(),
 	)
+	m.twilioProvider = twilioProvider
 	app.RegisterServices(
 		chatsService,
 		clientService,
@@ -71,6 +75,20 @@ func (m *Module) Register(app application.Application) error {
 		spotlight.NewQuickLink(ClientsLink.Name, ClientsLink.Href),
 	)
 	app.Spotlight().RegisterProvider(newSpotlightProvider(app.DB()))
+	handlers.RegisterClientHandler(app)
+	handlers.RegisterSMSHandlers(app)
+	if botToken := conf.TelegramBotToken; botToken != "" {
+		handlers.RegisterNotificationHandler(app, botToken)
+	}
+
+	app.RegisterLocaleFiles(&LocaleFiles)
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
+	if m.twilioProvider == nil {
+		return serrors.E(serrors.Op("crm.Module.RegisterTransports"), serrors.Invalid, fmt.Sprintf("%s module wiring must run before transports", m.Name()))
+	}
 
 	// Configure client controller with explicit tabs
 	basePath := "/crm/clients"
@@ -85,16 +103,8 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		controllers.NewChatController(app, "/crm/chats"),
 		controllers.NewMessageTemplateController(app, "/crm/instant-messages"),
-		controllers.NewTwilioController(app, twilioProvider),
+		controllers.NewTwilioController(app, m.twilioProvider),
 	)
-
-	handlers.RegisterClientHandler(app)
-	handlers.RegisterSMSHandlers(app)
-	if botToken := conf.TelegramBotToken; botToken != "" {
-		handlers.RegisterNotificationHandler(app, botToken)
-	}
-
-	app.RegisterLocaleFiles(&LocaleFiles)
 	return nil
 }
 

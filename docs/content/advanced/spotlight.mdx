@@ -26,7 +26,7 @@ Defined in `pkg/configuration` and used in `pkg/application` when creating the S
 
 ### Basic Quick Links (Public)
 
-In your module's **`Register`**:
+In your module's **`RegisterWiring`**:
 
 ```go
 import (
@@ -34,8 +34,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
-func (m *Module) Register(app application.Application) error {
-	// ... register services, controllers ...
+func (m *Module) RegisterWiring(app application.Application) error {
+	// ... register services ...
 
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink("NavigationLinks.Expenses", "/finance/expenses"),
@@ -59,7 +59,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	app.QuickLinks().Add(
 		// Require specific permissions
 		spotlight.NewQuickLinkBuilder("NavigationLinks.AdminPanel", "/admin").

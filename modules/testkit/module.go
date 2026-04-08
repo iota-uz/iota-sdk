@@ -13,7 +13,11 @@ func NewModule() application.Module {
 	return &Module{}
 }
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
+	return nil
+}
+
+func (m *Module) RegisterTransports(app application.Application) error {
 	conf := configuration.Use()
 
 	// Only register test endpoints if explicitly enabled

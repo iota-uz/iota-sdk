@@ -70,8 +70,8 @@ modules/mymodule/
 Modules register themselves with the application during startup:
 
 1. **Define the Module** - Implement the `application.Module` interface
-2. **Register Components** - In your module's `Register(app)`, register services, controllers, nav items
-3. **Load Module** - Pass your module to `modules.Load(app, yourModule)` (built-in modules are already loaded via `modules.Load(app, modules.BuiltInModules...)`; do not edit `BuiltInModules` to add custom modules)
+2. **Split Phases** - Put services, locales, assets, and runtime registrations in `RegisterWiring(app)`; put controllers and GraphQL/WebSocket setup in `RegisterTransports(app)`
+3. **Compose Explicitly** - Call `application.Wire(app, yourModule)`, then `application.RegisterTransports(...)` when the process serves APIs, and `app.StartRuntime(...)` with explicit runtime tags when it should run long-lived background components
 
 ### Key Registration Steps
 

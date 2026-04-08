@@ -1,4 +1,4 @@
-// Package application provides this package.
+// Package application defines the SDK composition surface for wiring, transports, and runtime startup.
 package application
 
 import (
@@ -31,7 +31,6 @@ type GraphSchema struct {
 type Application interface {
 	DB() *pgxpool.Pool
 	EventPublisher() eventbus.EventBus
-	RuntimeProfile() RuntimeProfile
 	Controllers() []Controller
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
@@ -50,6 +49,10 @@ type Application interface {
 	RegisterGraphSchema(schema GraphSchema)
 	GraphSchemas() []GraphSchema
 	RegisterServices(services ...interface{})
+	RegisterRuntime(registrations ...RuntimeRegistration)
+	RuntimeComponents() []RuntimeRegistration
+	StartRuntime(ctx context.Context, tags ...RuntimeTag) error
+	StopRuntime(ctx context.Context) error
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}
 	Services() map[reflect.Type]interface{}
@@ -64,6 +67,13 @@ type Application interface {
 		metrics applets.MetricsRecorder,
 		opts ...applets.BuilderOption,
 	) ([]Controller, error)
+	RegisterAppletRuntime(
+		host applets.HostServices,
+		sessionConfig applets.SessionConfig,
+		logger *logrus.Logger,
+		metrics applets.MetricsRecorder,
+		opts ...applets.BuilderOption,
+	) error
 }
 
 type Seeder interface {
@@ -103,7 +113,8 @@ type Controller interface {
 
 type Module interface {
 	Name() string
-	Register(app Application) error
+	RegisterWiring(app Application) error
+	RegisterTransports(app Application) error
 }
 
 // Applet represents a React/Next.js application that integrates with the SDK

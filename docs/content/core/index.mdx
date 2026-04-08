@@ -278,7 +278,7 @@ The sidebar shows navigation items only to users who have at least one role; use
 
 ## Usage
 
-The Core module is included in `BuiltInModules` and registered via `modules.Load(app, modules.BuiltInModules...)`. To add a custom module, pass it to `modules.Load(app, yourModule)` (or `modules.Load(app, modules.BuiltInModules..., yourModule)`); each module's `Register(app)` is called by `Load`. There is no `app.RegisterModule(module)`—use `modules.Load` instead.
+The Core module is included in `BuiltInModules` and is usually loaded by calling `application.Wire(app, modules.BuiltInModules...)`, then `application.RegisterTransports(...)`, and finally `app.StartRuntime(...)` with the runtime tags your process needs. There is no `app.RegisterModule(module)`; composition happens through the application helpers.
 
 ## Best Practices
 

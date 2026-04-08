@@ -2,31 +2,27 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"runtime/debug"
 	"time"
 
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
-	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
+	coreassets "github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	superadminMiddleware "github.com/iota-uz/iota-sdk/modules/superadmin/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/lib/pq"
+	"github.com/iota-uz/iota-sdk/pkg/server"
 )
 
 func main() {
@@ -39,55 +35,36 @@ func main() {
 		}
 	}()
 
+	if err := run(); err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	conf := configuration.Use()
-	logger := conf.Logger()
-
-	// Set up OpenTelemetry if configured (OTEL_TEMPO_URL and OTEL_SERVICE_NAME are set)
-	var tracingCleanup func()
-	if conf.OpenTelemetry.IsConfigured() {
-		tracingCleanup = logging.SetupTracing(
-			context.Background(),
-			conf.OpenTelemetry.ServiceName+"-superadmin",
-			conf.OpenTelemetry.TempoURL,
-		)
-		defer tracingCleanup()
-		logger.Info("OpenTelemetry tracing enabled for Super Admin, exporting to Tempo at " + conf.OpenTelemetry.TempoURL)
+	serviceName := conf.OpenTelemetry.ServiceName
+	if serviceName != "" {
+		serviceName += "-superadmin"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	pool, err := pgxpool.New(ctx, conf.Database.Opts)
+	rt, cleanup, err := bootstrap.NewRuntime(
+		context.Background(),
+		bootstrap.IotaConfigWithServiceName(conf, serviceName),
+	)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to initialize runtime: %w", err)
 	}
-	bundle := application.LoadBundle()
-	app, err := application.New(&application.ApplicationOptions{
-		Pool:               pool,
-		Bundle:             bundle,
-		EventBus:           eventbus.NewEventPublisher(logger),
-		Logger:             logger,
-		SupportedLanguages: application.DefaultSupportedLanguages(),
-		Huber: application.NewHub(&application.HuberOptions{
-			Pool:           pool,
-			Logger:         logger,
-			Bundle:         bundle,
-			UserRepository: persistence.NewUserRepository(persistence.NewUploadRepository()),
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		}),
-	})
-	if err != nil {
-		log.Fatalf("failed to initialize application: %v", err)
-	}
+	defer func() {
+		if err := cleanup(); err != nil {
+			rt.Logger.WithError(err).Warn("failed to clean up runtime")
+		}
+	}()
 
-	// Manually register only necessary parts from core module (without its controllers)
-	// This avoids exposing core module's admin pages (/users, /roles, etc.) in superadmin
+	app := rt.App
 
-	// Register core locales
 	app.RegisterLocaleFiles(&core.LocaleFiles)
 
-	// Register core repositories and services (needed for authentication)
 	fsStorage, err := persistence.NewFSStorage()
 	if err != nil {
 		log.Fatalf("failed to create file storage: %v", err)
@@ -105,7 +82,6 @@ func main() {
 	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
 	sessionService := services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher())
 
-	// Register first batch of services (without AuthService)
 	app.RegisterServices(
 		uploadService,
 		services.NewUserService(userRepo, userValidator, app.EventPublisher(), sessionService),
@@ -114,7 +90,6 @@ func main() {
 		sessionService,
 		services.NewExcelExportService(app.DB(), uploadService),
 	)
-	// Register second batch (including AuthService which depends on UserService)
 	app.RegisterServices(
 		services.NewAuthService(app),
 		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
@@ -124,65 +99,52 @@ func main() {
 		services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
 	)
 
-	// Register only auth-related controllers from core (Login, Logout, Account)
 	app.RegisterControllers(
 		controllers.NewLoginController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewAccountController(app),
 		controllers.NewUploadController(app),
 	)
+	app.RegisterHashFsAssets(coreassets.HashFS)
 
-	// Register core assets
-	app.RegisterHashFsAssets(assets.HashFS)
-
-	// Load superadmin module
 	superadminModule := superadmin.NewModule(&superadmin.ModuleOptions{})
-	if err := superadminModule.Register(app); err != nil {
-		log.Fatalf("failed to load superadmin module: %v", err)
+	if err := superadminModule.RegisterWiring(app); err != nil {
+		return fmt.Errorf("failed to wire superadmin module: %w", err)
+	}
+	if err := superadminModule.RegisterTransports(app); err != nil {
+		return fmt.Errorf("failed to register superadmin transports: %w", err)
 	}
 
-	// Register navigation items only from superadmin
 	app.RegisterNavItems(superadmin.NavItems...)
-
-	// Register internal assets and static files controller
 	app.RegisterHashFsAssets(internalassets.HashFS)
-	app.RegisterControllers(
-		controllers.NewStaticFilesController(app.HashFsAssets()),
-	)
+	app.RegisterControllers(controllers.NewStaticFilesController(app.HashFsAssets()))
 
-	options := &server.DefaultOptions{
-		Logger:        logger,
-		Configuration: conf,
-		Application:   app,
-		Pool:          pool,
+	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelStartRuntime()
+	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
+		return fmt.Errorf("failed to start runtime: %w", err)
 	}
 
-	// Create server first - this sets up core middleware including RequestParams
-	serverInstance, err := server.Default(options)
+	serverInstance, err := server.New(
+		rt,
+		server.WithAfterMiddleware(
+			middleware.Authorize(),
+			middleware.ProvideUser(),
+			middleware.RedirectNotAuthenticated(),
+			superadminMiddleware.RequireSuperAdmin(),
+		),
+	)
 	if err != nil {
-		log.Fatalf("failed to create server: %v", err)
+		return fmt.Errorf("failed to create server: %w", err)
 	}
 
-	// Apply authentication middleware chain globally AFTER core middleware is set up
-	// Execution order will be:
-	// 1. Core middleware (Logger, RequestParams, etc.) - from server.Default()
-	// 2. Authorize() - reads cookie/token, populates session
-	// 3. ProvideUser() - reads session, populates user in context
-	// 4. RedirectNotAuthenticated() - redirects to /login if not authenticated
-	// 5. RequireSuperAdmin() - checks superadmin status
-	app.RegisterMiddleware(
-		middleware.Authorize(),
-		middleware.ProvideUser(),
-		middleware.RedirectNotAuthenticated(),
-		superadminMiddleware.RequireSuperAdmin(),
-	)
-
-	logger.Info("Super Admin Server starting...")
-	logger.Info("Listening on: " + conf.Origin)
-	logger.Info("Only superadmin module loaded (core services only, no core controllers)")
-	logger.Info("SuperAdmin authentication required for all routes")
+	rt.Logger.Info("Super Admin Server starting...")
+	rt.Logger.Info("Listening on: " + conf.SocketAddress)
+	rt.Logger.Info("Core auth/upload controllers and superadmin controllers loaded")
+	rt.Logger.Info("SuperAdmin authentication required for all routes")
 
 	if err := serverInstance.Start(conf.SocketAddress); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+		return fmt.Errorf("failed to start server: %w", err)
 	}
+	return nil
 }

@@ -48,12 +48,12 @@ func NewExpenseService(
 
 ### Service Registration
 
-Services are wired together in the module registration:
+Services are wired together during the module wiring phase:
 
 ```go
 // modules/finance/module.go
 
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	// Create repositories first
 	uploadRepo := corepersistence.NewUploadRepository()
 	categoryRepo := persistence.NewExpenseCategoryRepository()
@@ -77,6 +77,8 @@ func (m *Module) Register(app application.Application) error {
 		moneyAccountService,
 		// ... other services
 	)
+
+	return nil
 }
 ```
 
@@ -313,7 +315,7 @@ Subscribe to events in other modules:
 
 ```go
 // Another module subscribing to expense events
-func (m *Module) Register(app application.Application) error {
+func (m *Module) RegisterWiring(app application.Application) error {
 	app.EventPublisher().Subscribe(
 		func(event *expense.CreatedEvent) error {
 			// Handle expense creation
@@ -321,6 +323,8 @@ func (m *Module) Register(app application.Application) error {
 			return nil
 		},
 	)
+
+	return nil
 }
 ```
 

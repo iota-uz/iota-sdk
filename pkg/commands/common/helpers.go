@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -58,8 +58,8 @@ func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application
 		return nil, fmt.Errorf("failed to initialize application: %w", err)
 	}
 
-	if err := modules.Load(app, mods...); err != nil {
-		return nil, fmt.Errorf("failed to load modules: %w", err)
+	if err := application.Wire(app, mods...); err != nil {
+		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
 
 	return app, nil

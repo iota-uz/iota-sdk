@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -39,6 +40,29 @@ type TestFixtures struct {
 	Context context.Context
 	Tx      pgx.Tx
 	App     application.Application
+}
+
+func (f *TestFixtures) Close() error {
+	if f == nil {
+		return nil
+	}
+
+	var closeErr error
+	if f.Tx != nil {
+		closeErr = errors.Join(closeErr, f.Tx.Rollback(context.Background()))
+	}
+	if f.App != nil {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		closeErr = errors.Join(closeErr, f.App.StopRuntime(stopCtx))
+		cancel()
+	}
+	if f.SQLDB != nil {
+		closeErr = errors.Join(closeErr, f.SQLDB.Close())
+	}
+	if f.Pool != nil {
+		f.Pool.Close()
+	}
+	return closeErr
 }
 
 func MockSession() session.Session {
@@ -366,13 +390,22 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	if err != nil {
 		return nil, err
 	}
-	if err := modules.Load(app, mods...); err != nil {
-		return nil, err
+	if err := application.Wire(app, mods...); err != nil {
+		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "wire application")
+	}
+	if err := application.RegisterTransports(app, mods...); err != nil {
+		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register transports")
+	}
+	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelStartRuntime()
+	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
+		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "start runtime")
 	}
 
 	return app, nil
 }
 
+// GetTestContext starts application runtime state; callers should call Close when done.
 func GetTestContext() *TestFixtures {
 	conf := configuration.Use()
 	pool := NewPool(conf.Database.Opts)
@@ -387,8 +420,16 @@ func GetTestContext() *TestFixtures {
 	if err != nil {
 		panic(err)
 	}
-	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
-		panic(err)
+	if err := application.Wire(app, modules.BuiltInModules...); err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "wire application"))
+	}
+	if err := application.RegisterTransports(app, modules.BuiltInModules...); err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register transports"))
+	}
+	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelStartRuntime()
+	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "start runtime"))
 	}
 
 	// Only run migrations if migrations directory exists
