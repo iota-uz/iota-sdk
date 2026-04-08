@@ -26,7 +26,7 @@ func TestUploadController_DirectoryListing_Returns404(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewUploadController(suite.Environment().App)
@@ -54,7 +54,7 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewUploadController(suite.Environment().App)
@@ -90,7 +90,7 @@ func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewUploadController(suite.Environment().App)
@@ -122,7 +122,7 @@ func TestUploadController_FileInSubdirectory_ReturnsFile(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewUploadController(suite.Environment().App)
@@ -160,7 +160,7 @@ func TestUploadController_NonExistentFile_Returns404(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewUploadController(suite.Environment().App)

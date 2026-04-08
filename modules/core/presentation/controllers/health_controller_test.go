@@ -16,7 +16,7 @@ import (
 func TestHealthController_Key_ReturnsCorrectPath(t *testing.T) {
 	t.Parallel()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewHealthController(suite.Environment().App)
@@ -27,7 +27,7 @@ func TestHealthController_Key_ReturnsCorrectPath(t *testing.T) {
 func TestHealthController_Get_ReturnsMinimalHealthyPayload(t *testing.T) {
 	t.Parallel()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewHealthController(suite.Environment().App)
@@ -47,7 +47,7 @@ func TestHealthController_Get_ReturnsMinimalHealthyPayload(t *testing.T) {
 func TestHealthController_QuickDBCheck_Timeout(t *testing.T) {
 	t.Parallel()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 
@@ -67,7 +67,7 @@ func TestHealthController_QuickDBCheck_Timeout(t *testing.T) {
 func TestHealthController_Integration_ResponseFormat(t *testing.T) {
 	t.Parallel()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewHealthController(suite.Environment().App)

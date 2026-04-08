@@ -61,7 +61,7 @@ func TestTenantsController_Index(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -80,7 +80,7 @@ func TestTenantsController_Index_HTMX(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -100,7 +100,7 @@ func TestTenantsController_Index_WithPagination(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -152,7 +152,7 @@ func TestTenantsController_Index_WithSearch(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -194,7 +194,7 @@ func TestTenantsController_Export(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -226,7 +226,7 @@ func TestTenantsController_Permissions(t *testing.T) {
 				t.Helper()
 				return itf.NewSuiteBuilder(t).
 					WithComponents(modules.Components()...).
-					WithModules(superadmin.NewModule(nil)).
+					WithComponents(superadmin.NewComponent(nil)).
 					WithUser(createSuperAdminUserForTenants()).
 					Build()
 			},
@@ -239,7 +239,7 @@ func TestTenantsController_Permissions(t *testing.T) {
 				t.Helper()
 				return itf.NewSuiteBuilder(t).
 					WithComponents(modules.Components()...).
-					WithModules(superadmin.NewModule(nil)).
+					WithComponents(superadmin.NewComponent(nil)).
 					WithUser(createRegularUserForTenants()).
 					Build()
 			},
@@ -252,7 +252,7 @@ func TestTenantsController_Permissions(t *testing.T) {
 				t.Helper()
 				return itf.NewSuiteBuilder(t).
 					WithComponents(modules.Components()...).
-					WithModules(superadmin.NewModule(nil)).
+					WithComponents(superadmin.NewComponent(nil)).
 					AsAnonymous().
 					Build()
 			},
@@ -282,7 +282,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 	t.Run("Tenants_Index_SuperAdmin_OK", func(t *testing.T) {
 		suite := itf.NewSuiteBuilder(t).
 			WithComponents(modules.Components()...).
-			WithModules(superadmin.NewModule(nil)).
+			WithComponents(superadmin.NewComponent(nil)).
 			WithUser(createSuperAdminUserForTenants()).
 			Build()
 
@@ -298,7 +298,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 	t.Run("Tenants_Index_RegularUser_Forbidden", func(t *testing.T) {
 		suite := itf.NewSuiteBuilder(t).
 			WithComponents(modules.Components()...).
-			WithModules(superadmin.NewModule(nil)).
+			WithComponents(superadmin.NewComponent(nil)).
 			WithUser(createRegularUserForTenants()).
 			Build()
 
@@ -314,7 +314,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 	t.Run("Tenants_Export_SuperAdmin_OK", func(t *testing.T) {
 		suite := itf.NewSuiteBuilder(t).
 			WithComponents(modules.Components()...).
-			WithModules(superadmin.NewModule(nil)).
+			WithComponents(superadmin.NewComponent(nil)).
 			WithUser(createSuperAdminUserForTenants()).
 			Build()
 
@@ -331,7 +331,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 	t.Run("Tenants_Export_RegularUser_Forbidden", func(t *testing.T) {
 		suite := itf.NewSuiteBuilder(t).
 			WithComponents(modules.Components()...).
-			WithModules(superadmin.NewModule(nil)).
+			WithComponents(superadmin.NewComponent(nil)).
 			WithUser(createRegularUserForTenants()).
 			Build()
 
@@ -347,7 +347,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 	t.Run("Tenants_Users_SuperAdmin_OK", func(t *testing.T) {
 		suite := itf.NewSuiteBuilder(t).
 			WithComponents(modules.Components()...).
-			WithModules(superadmin.NewModule(nil)).
+			WithComponents(superadmin.NewComponent(nil)).
 			WithUser(createSuperAdminUserForTenants()).
 			Build()
 
@@ -367,7 +367,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 	t.Run("Tenants_Users_RegularUser_Forbidden", func(t *testing.T) {
 		suite := itf.NewSuiteBuilder(t).
 			WithComponents(modules.Components()...).
-			WithModules(superadmin.NewModule(nil)).
+			WithComponents(superadmin.NewComponent(nil)).
 			WithUser(createRegularUserForTenants()).
 			Build()
 
@@ -390,7 +390,7 @@ func TestTenantsController_Routes(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -425,7 +425,7 @@ func TestTenantsController_EdgeCases(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -476,7 +476,7 @@ func TestTenantsController_HTMX(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -496,7 +496,7 @@ func TestTenantsController_Index_WithDateRange(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -564,7 +564,7 @@ func TestTenantsController_Index_SortAscending(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -618,7 +618,7 @@ func TestTenantsController_Index_SortDescending(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -672,7 +672,7 @@ func TestTenantsController_Index_DefaultSort(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -722,7 +722,7 @@ func TestTenantsController_Index_InvalidSortField(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -776,7 +776,7 @@ func TestTenantsController_Index_SortWithDateFilter(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -837,7 +837,7 @@ func TestTenantsController_Index_SortWithSearch(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -895,7 +895,7 @@ func TestTenantsController_Index_SortWithPagination(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -945,7 +945,7 @@ func TestTenantsController_Index_DateRangeWithPagination(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -995,7 +995,7 @@ func TestTenantsController_TenantUsers(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1033,7 +1033,7 @@ func TestTenantsController_TenantUsers_HTMX(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1056,7 +1056,7 @@ func TestTenantsController_TenantUsers_Pagination(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1103,7 +1103,7 @@ func TestTenantsController_TenantUsers_Search(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1148,7 +1148,7 @@ func TestTenantsController_TenantUsers_Sorting(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1196,7 +1196,7 @@ func TestTenantsController_Index_HTMXTargetHandling(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1251,7 +1251,7 @@ func TestTenantsController_TenantUsers_HTMXTargetHandling(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1315,7 +1315,7 @@ func TestTenantsController_ResetUserPassword_Success(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1364,7 +1364,7 @@ func TestTenantsController_ResetUserPassword_InvalidTenantID(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1384,7 +1384,7 @@ func TestTenantsController_ResetUserPassword_InvalidUserID(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1407,7 +1407,7 @@ func TestTenantsController_ResetUserPassword_UserNotFound(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1431,7 +1431,7 @@ func TestTenantsController_ResetUserPassword_WrongTenant(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1469,7 +1469,7 @@ func TestTenantsController_ResetUserPassword_EmptyPassword(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1492,7 +1492,7 @@ func TestTenantsController_ResetUserPassword_PasswordTooShort(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1525,7 +1525,7 @@ func TestTenantsController_ResetUserPassword_Permissions(t *testing.T) {
 	t.Run("SuperAdmin_Allowed", func(t *testing.T) {
 		suite := itf.NewSuiteBuilder(t).
 			WithComponents(modules.Components()...).
-			WithModules(superadmin.NewModule(nil)).
+			WithComponents(superadmin.NewComponent(nil)).
 			WithUser(createSuperAdminUserForTenants()).
 			Build()
 
@@ -1554,7 +1554,7 @@ func TestTenantsController_ResetUserPassword_Permissions(t *testing.T) {
 	t.Run("RegularUser_Forbidden", func(t *testing.T) {
 		suite := itf.NewSuiteBuilder(t).
 			WithComponents(modules.Components()...).
-			WithModules(superadmin.NewModule(nil)).
+			WithComponents(superadmin.NewComponent(nil)).
 			WithUser(createRegularUserForTenants()).
 			Build()
 
@@ -1578,7 +1578,7 @@ func TestTenantsController_ResetUserPassword_PasswordTooLong(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
@@ -1615,7 +1615,7 @@ func TestTenantsController_ResetUserPassword_InvalidContentType(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		WithModules(superadmin.NewModule(nil)).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 

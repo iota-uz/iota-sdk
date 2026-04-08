@@ -28,12 +28,12 @@ var (
 
 func newProjectStageSuiteBuilder(tb testing.TB) *itf.SuiteBuilder {
 	tb.Helper()
-	return itf.NewSuiteBuilder(tb).WithModules(
-		core.NewModule(&core.ModuleOptions{
+	return itf.NewSuiteBuilder(tb).WithComponents(
+		core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}),
-		finance.NewModule(),
-		projects.NewModule(),
+		finance.NewComponent(),
+		projects.NewComponent(),
 	)
 }
 

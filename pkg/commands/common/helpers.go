@@ -93,7 +93,3 @@ func NewApplicationWithDefaults(components ...composition.Component) (applicatio
 
 	return app, pool, nil
 }
-
-func NewApplicationFromComponents(components ...composition.Component) (application.Application, *pgxpool.Pool, error) {
-	return NewApplicationWithDefaults(components...)
-}

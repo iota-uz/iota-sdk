@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestModule_Register(t *testing.T) {
+func TestComponent_Register(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ModuleInitialization", func(t *testing.T) {
@@ -26,7 +26,7 @@ func TestModule_Register(t *testing.T) {
 
 		// Setup test environment with built-in modules and superadmin module
 		// Built-in modules are required because superadmin module depends on UserService from core module
-		env := itf.Setup(t, itf.WithComponents(modules.Components()...), itf.WithModules(superadmin.NewModule(nil)))
+		env := itf.Setup(t, itf.WithComponents(modules.Components()...), itf.WithComponents(superadmin.NewComponent(nil)))
 
 		// Verify module is registered
 		require.NotNil(t, env, "test environment should be initialized")
@@ -36,27 +36,27 @@ func TestModule_Register(t *testing.T) {
 	t.Run("ModuleName", func(t *testing.T) {
 		t.Parallel()
 
-		module := superadmin.NewModule(nil)
-		assert.Equal(t, "superadmin", module.Name())
+		component := superadmin.NewComponent(nil)
+		assert.Equal(t, "superadmin", component.Descriptor().Name)
 	})
 
 	t.Run("ModuleWithOptions", func(t *testing.T) {
 		t.Parallel()
 
 		opts := &superadmin.ModuleOptions{}
-		module := superadmin.NewModule(opts)
+		component := superadmin.NewComponent(opts)
 
-		require.NotNil(t, module)
-		assert.Equal(t, "superadmin", module.Name())
+		require.NotNil(t, component)
+		assert.Equal(t, "superadmin", component.Descriptor().Name)
 	})
 
 	t.Run("ModuleWithNilOptions", func(t *testing.T) {
 		t.Parallel()
 
-		module := superadmin.NewModule(nil)
+		component := superadmin.NewComponent(nil)
 
-		require.NotNil(t, module)
-		assert.Equal(t, "superadmin", module.Name())
+		require.NotNil(t, component)
+		assert.Equal(t, "superadmin", component.Descriptor().Name)
 	})
 }
 

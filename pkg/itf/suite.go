@@ -46,17 +46,17 @@ type Suite struct {
 	beforeEach  []HookFunc
 }
 
-func NewSuite(tb testing.TB, modules ...composition.Component) *Suite {
+func NewSuite(tb testing.TB, components ...composition.Component) *Suite {
 	tb.Helper()
 
 	s := &Suite{
 		t:           tb,
-		modules:     modules,
+		modules:     components,
 		middlewares: make([]MiddlewareFunc, 0),
 		beforeEach:  make([]HookFunc, 0),
 	}
 
-	s.env = newTestContext().WithModules(modules...).Build(tb)
+	s.env = newTestContext().WithComponents(components...).Build(tb)
 	s.router = mux.NewRouter()
 	s.setupMiddleware()
 

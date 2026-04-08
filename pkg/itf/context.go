@@ -38,12 +38,6 @@ func newTestContext() *TestContext {
 	}
 }
 
-// WithModules adds modules to the test context
-func (tc *TestContext) WithModules(modules ...composition.Component) *TestContext {
-	tc.components = append(tc.components, modules...)
-	return tc
-}
-
 // WithComponents adds composition components to the test context.
 func (tc *TestContext) WithComponents(components ...composition.Component) *TestContext {
 	tc.components = append(tc.components, components...)
@@ -120,15 +114,6 @@ type TestEnvironment struct {
 	App    application.Application
 	Tenant *composables.Tenant
 	User   user.User
-}
-
-// Service retrieves a service from the application
-func (te *TestEnvironment) Service(service interface{}) interface{} {
-	resolved, err := composition.ResolveAnyForApp(te.App, service)
-	if err != nil {
-		panic(err)
-	}
-	return resolved
 }
 
 // GetService is a generic helper that retrieves and casts a service

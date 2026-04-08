@@ -20,14 +20,6 @@ func Setup(tb testing.TB, opts ...Option) *TestEnvironment {
 	return newTestContext().applyOptions(opts...).Build(tb)
 }
 
-// HTTP provides a quick HTTP suite bootstrap.
-//
-// Deprecated: use NewSuiteBuilder(tb).WithModules(...).Build() for new tests.
-func HTTP(tb testing.TB, modules ...composition.Component) *Suite {
-	tb.Helper()
-	return NewSuite(tb, modules...)
-}
-
 // Excel creates a new Excel file builder
 func Excel() *TestExcelBuilder {
 	return NewTestExcelBuilder()
@@ -78,13 +70,6 @@ func Transaction(tb testing.TB, env *TestEnvironment) pgx.Tx {
 
 // Option configures the test setup
 type Option func(*TestContext)
-
-// WithModules adds modules to the test context
-func WithModules(modules ...composition.Component) Option {
-	return func(tc *TestContext) {
-		tc.components = append(tc.components, modules...)
-	}
-}
 
 // WithComponents adds composition components to the test context.
 func WithComponents(components ...composition.Component) Option {

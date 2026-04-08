@@ -139,7 +139,7 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 
 func CheckTrKeysComponents(allowedLanguages []string, components ...composition.Component) error {
 	conf := configuration.Use()
-	app, pool, err := common.NewApplicationFromComponents(components...)
+	app, pool, err := common.NewApplicationWithDefaults(components...)
 	if err != nil {
 		return fmt.Errorf("failed to initialize application: %w", err)
 	}

@@ -27,12 +27,6 @@ func NewSuiteBuilder(tb testing.TB) *SuiteBuilder {
 	}
 }
 
-// WithModules adds application modules to the test suite
-func (sb *SuiteBuilder) WithModules(modules ...composition.Component) *SuiteBuilder {
-	sb.components = append(sb.components, modules...)
-	return sb
-}
-
 // WithComponents adds composition components to the test suite.
 func (sb *SuiteBuilder) WithComponents(components ...composition.Component) *SuiteBuilder {
 	sb.components = append(sb.components, components...)
@@ -165,7 +159,7 @@ func (sb *SuiteBuilder) Presets() *PresetBuilder {
 func (pb *PresetBuilder) AdminWithAllModules(modules ...composition.Component) *Suite {
 	return pb.sb.
 		AsAdmin().
-		WithModules(modules...).
+		WithComponents(modules...).
 		Build()
 }
 

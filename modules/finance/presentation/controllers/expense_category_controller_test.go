@@ -24,11 +24,11 @@ var (
 
 func newExpenseCategorySuiteBuilder(tb testing.TB) *itf.SuiteBuilder {
 	tb.Helper()
-	return itf.NewSuiteBuilder(tb).WithModules(
-		core.NewModule(&core.ModuleOptions{
+	return itf.NewSuiteBuilder(tb).WithComponents(
+		core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		}),
-		finance.NewModule(),
+		finance.NewComponent(),
 	)
 }
 

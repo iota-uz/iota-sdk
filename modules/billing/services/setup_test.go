@@ -25,5 +25,5 @@ func setupTest(t *testing.T) *itf.TestEnvironment {
 
 // Helper function to get BillingService from TestEnvironment
 func getBillingService(env *itf.TestEnvironment) *services.BillingService {
-	return env.Service(services.BillingService{}).(*services.BillingService)
+	return itf.GetService[services.BillingService](env)
 }
