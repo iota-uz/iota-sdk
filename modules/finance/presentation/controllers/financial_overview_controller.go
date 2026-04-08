@@ -33,7 +33,7 @@ func (c *FinancialOverviewController) Register(r *mux.Router) {
 	paymentController := NewPaymentsController(c.app)
 	transactionController := NewTransactionController(c.app)
 
-	// Register the individual controllers (for backwards compatibility during migration)
+	// Register the underlying tab controllers on the shared finance router.
 	expenseController.Register(r)
 	paymentController.Register(r)
 	transactionController.Register(r)
