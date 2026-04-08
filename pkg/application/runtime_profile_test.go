@@ -1,27 +1,39 @@
 package application
 
-import "testing"
+import (
+	"testing"
 
-func TestNormalizeCompositionProfileDefaultsToServer(t *testing.T) {
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestNormalizeCompositionProfile_Scenarios(t *testing.T) {
 	t.Parallel()
 
-	got, err := normalizeCompositionProfile("")
-	if err != nil {
-		t.Fatalf("normalizeCompositionProfile() error = %v", err)
+	tests := []struct {
+		name     string
+		input    CompositionProfile
+		expected CompositionProfile
+	}{
+		{
+			name:     "defaults to server",
+			input:    "",
+			expected: CompositionProfileServer,
+		},
+		{
+			name:     "honors bootstrap",
+			input:    CompositionProfileBootstrap,
+			expected: CompositionProfileBootstrap,
+		},
 	}
-	if got != CompositionProfileServer {
-		t.Fatalf("normalizeCompositionProfile() = %q, want %q", got, CompositionProfileServer)
-	}
-}
 
-func TestNormalizeCompositionProfileHonorsBootstrap(t *testing.T) {
-	t.Parallel()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	got, err := normalizeCompositionProfile(CompositionProfileBootstrap)
-	if err != nil {
-		t.Fatalf("normalizeCompositionProfile() error = %v", err)
-	}
-	if got != CompositionProfileBootstrap {
-		t.Fatalf("normalizeCompositionProfile() = %q, want %q", got, CompositionProfileBootstrap)
+			got, err := normalizeCompositionProfile(tt.input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
+		})
 	}
 }

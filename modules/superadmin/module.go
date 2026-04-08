@@ -3,6 +3,7 @@ package superadmin
 
 import (
 	"embed"
+	"fmt"
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -10,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 //go:embed presentation/locales/*.toml
@@ -54,8 +56,13 @@ func (m *Module) RegisterWiring(app application.Application) error {
 }
 
 func (m *Module) RegisterTransports(app application.Application) error {
-	// Get UserService from application
-	userService := app.Service(coreservices.UserService{}).(*coreservices.UserService)
+	const op serrors.Op = "superadmin.Module.RegisterTransports"
+
+	userServiceAny := app.Service(coreservices.UserService{})
+	userService, ok := userServiceAny.(*coreservices.UserService)
+	if !ok || userService == nil {
+		return serrors.E(op, fmt.Errorf("user service is not registered"))
+	}
 
 	// Register controllers
 	app.RegisterControllers(

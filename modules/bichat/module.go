@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -219,12 +220,14 @@ func (c *runtimeComponent) Name() string {
 }
 
 func (c *runtimeComponent) Start(ctx context.Context) error {
+	const op serrors.Op = "bichat.runtimeComponent.Start"
+
 	if c.module == nil || c.module.config == nil || c.module.container == nil {
 		return nil
 	}
 	if c.module.config.ViewManager != nil {
 		if err := c.module.config.ViewManager.Sync(ctx, c.pool); err != nil {
-			return fmt.Errorf("failed to sync analytics views: %w", err)
+			return serrors.E(op, err, "failed to sync analytics views")
 		}
 	}
 	if c.module.titleWorker != nil {
@@ -235,7 +238,7 @@ func (c *runtimeComponent) Start(ctx context.Context) error {
 		if errors.Is(err, ErrTitleJobWorkerDisabled) {
 			return nil
 		}
-		return fmt.Errorf("failed to create title job worker: %w", err)
+		return serrors.E(op, err, "failed to create title job worker")
 	}
 	if worker == nil {
 		return nil

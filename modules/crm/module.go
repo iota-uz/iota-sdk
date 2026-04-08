@@ -71,6 +71,11 @@ func (m *Module) RegisterWiring(app application.Application) error {
 		spotlight.NewQuickLink(ClientsLink.Name, ClientsLink.Href),
 	)
 	app.Spotlight().RegisterProvider(newSpotlightProvider(app.DB()))
+	handlers.RegisterClientHandler(app)
+	handlers.RegisterSMSHandlers(app)
+	if botToken := conf.TelegramBotToken; botToken != "" {
+		handlers.RegisterNotificationHandler(app, botToken)
+	}
 
 	app.RegisterLocaleFiles(&LocaleFiles)
 	return nil
@@ -109,12 +114,6 @@ func (m *Module) RegisterTransports(app application.Application) error {
 		controllers.NewMessageTemplateController(app, "/crm/instant-messages"),
 		controllers.NewTwilioController(app, twilioProvider),
 	)
-
-	handlers.RegisterClientHandler(app)
-	handlers.RegisterSMSHandlers(app)
-	if botToken := conf.TelegramBotToken; botToken != "" {
-		handlers.RegisterNotificationHandler(app, botToken)
-	}
 	return nil
 }
 

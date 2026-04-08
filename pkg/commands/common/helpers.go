@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -58,7 +59,7 @@ func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application
 	}
 
 	if err := application.Wire(app, mods...); err != nil {
-		return nil, fmt.Errorf("failed to wire modules: %w", err)
+		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
 
 	return app, nil

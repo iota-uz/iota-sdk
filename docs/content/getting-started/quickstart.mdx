@@ -71,7 +71,7 @@ Modules register themselves with the application during startup:
 
 1. **Define the Module** - Implement the `application.Module` interface
 2. **Split Phases** - Put services, locales, assets, and runtime registrations in `RegisterWiring(app)`; put controllers and GraphQL/WebSocket setup in `RegisterTransports(app)`
-3. **Apply a Profile** - Use `application.ApplyProfile(ctx, app, application.CompositionProfileServer, yourModule)` or call `application.Wire(...)` and `application.RegisterTransports(...)` directly when you need finer control
+3. **Apply a Profile** - Use `application.ApplyProfile(ctx, app, application.CompositionProfileServer, yourModule)` or call `application.Wire(...)`, `application.RegisterTransports(...)`, and `app.StartRuntime(...)` directly when you need finer control
 
 ### Key Registration Steps
 

@@ -38,6 +38,8 @@ func (p CompositionProfile) IncludesTransports() bool {
 	switch p {
 	case CompositionProfileServer, CompositionProfileAPIOnly:
 		return true
+	case CompositionProfileWorkerOnly, CompositionProfileBootstrap, CompositionProfileMaintenance:
+		return false
 	default:
 		return false
 	}
@@ -47,6 +49,8 @@ func (p CompositionProfile) StartsRuntime() bool {
 	switch p {
 	case CompositionProfileServer, CompositionProfileAPIOnly, CompositionProfileWorkerOnly:
 		return true
+	case CompositionProfileBootstrap, CompositionProfileMaintenance:
+		return false
 	default:
 		return false
 	}

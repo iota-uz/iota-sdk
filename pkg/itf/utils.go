@@ -367,7 +367,7 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 		return nil, err
 	}
 	if err := application.ApplyProfile(context.Background(), app, application.CompositionProfileAPIOnly, mods...); err != nil {
-		return nil, err
+		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "apply composition profile")
 	}
 
 	return app, nil
@@ -388,7 +388,7 @@ func GetTestContext() *TestFixtures {
 		panic(err)
 	}
 	if err := application.ApplyProfile(context.Background(), app, application.CompositionProfileAPIOnly, modules.BuiltInModules...); err != nil {
-		panic(err)
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "apply composition profile"))
 	}
 
 	// Only run migrations if migrations directory exists

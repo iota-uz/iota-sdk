@@ -112,7 +112,8 @@ All modules implement the `application.Module` interface:
 classDiagram
     class Module {
         +Name() string
-        +Register(app Application) error
+        +RegisterWiring(app Application) error
+        +RegisterTransports(app Application) error
     }
     
     class Application {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/iota-uz/applets"
@@ -292,7 +293,7 @@ type appletRuntimeComponent struct {
 	pool            *pgxpool.Pool
 	logger          *logrus.Logger
 	hasPostgresJobs bool
-	startedJobs     bool
+	startedJobs     atomic.Bool
 }
 
 func newAppletRuntimeComponent(
@@ -314,19 +315,24 @@ func (c *appletRuntimeComponent) Name() string {
 }
 
 func (c *appletRuntimeComponent) Start(ctx context.Context) error {
-	if c.manager == nil || !c.hasPostgresJobs || c.startedJobs {
+	if c.manager == nil || !c.hasPostgresJobs || c.startedJobs.Load() {
 		return nil
 	}
 	if c.pool == nil {
 		return nil
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	runner, err := appletenginejobs.NewRunner(c.pool, c.manager, c.logger, 2*time.Second)
 	if err != nil {
 		return fmt.Errorf("create applet jobs runner: %w", err)
 	}
+	if !c.startedJobs.CompareAndSwap(false, true) {
+		return nil
+	}
 	jobCtx, jobCancel := context.WithCancel(context.Background())
 	c.manager.SetJobCancel(jobCancel)
-	c.startedJobs = true
 	go runner.Start(jobCtx)
 	return nil
 }

@@ -16,12 +16,14 @@ This module includes essential features for advanced management.
 Compose modules with a profile so wiring, transports, and runtime startup happen explicitly. For most long-running servers, use `application.ApplyProfile`:
 
 ```go
+allModules := append([]application.Module{}, modules.BuiltInModules...)
+allModules = append(allModules, yourModule)
+
 if err := application.ApplyProfile(
 	context.Background(),
 	app,
 	application.CompositionProfileServer,
-	modules.BuiltInModules...,
-	yourModule,
+	allModules...,
 ); err != nil {
 	return err
 }
