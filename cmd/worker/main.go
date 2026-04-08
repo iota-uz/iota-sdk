@@ -302,7 +302,7 @@ func main() {
 	); err != nil {
 		log.Fatalf("failed to register applet runtime: %v", err)
 	}
-	if err := app.StartRuntime(context.Background(), application.CompositionProfileWorkerOnly); err != nil {
+	if err := app.StartRuntime(context.Background(), application.RuntimeTagWorker); err != nil {
 		log.Fatalf("failed to start runtime: %v", err)
 	}
 

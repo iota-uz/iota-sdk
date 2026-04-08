@@ -85,9 +85,8 @@ func (m *Module) RegisterWiring(app application.Application) error {
 			pool:      app.DB(),
 			cryptoKey: config.OIDC.CryptoKey,
 		},
-		Profiles: []application.CompositionProfile{
-			application.CompositionProfileServer,
-			application.CompositionProfileAPIOnly,
+		Tags: []application.RuntimeTag{
+			application.RuntimeTagAPI,
 		},
 	})
 

@@ -144,7 +144,7 @@ WHERE tenant_id = current_setting('app.tenant_id', true)::UUID;
 
 ## Configuration
 
-The module is configured via `ModuleConfig` in Go. **Required:** you must configure attachment storage (or explicitly disable it for tests). Module registration can **fail** at startup if configuration is invalid; check the error from `module.RegisterWiring(app)` and `module.RegisterTransports(app)` or use `application.ApplyProfile(...)`.
+The module is configured via `ModuleConfig` in Go. **Required:** you must configure attachment storage (or explicitly disable it for tests). Module registration can **fail** at startup if configuration is invalid; check the error from `module.RegisterWiring(app)`, `module.RegisterTransports(app)`, and `app.StartRuntime(...)` as you compose the process.
 
 ```go
 cfg := bichat.NewModuleConfig(

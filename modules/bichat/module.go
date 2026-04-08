@@ -107,9 +107,8 @@ func (m *Module) RegisterWiring(app application.Application) error {
 		}
 		app.RegisterRuntime(application.RuntimeRegistration{
 			Component: &runtimeComponent{module: m, pool: app.DB()},
-			Profiles: []application.CompositionProfile{
-				application.CompositionProfileServer,
-				application.CompositionProfileWorkerOnly,
+			Tags: []application.RuntimeTag{
+				application.RuntimeTagWorker,
 			},
 		})
 	}

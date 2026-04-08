@@ -213,7 +213,7 @@ func (a *testApp) GraphSchemas() []application.GraphSchema                      
 func (a *testApp) RegisterServices(services ...interface{})                              {}
 func (a *testApp) RegisterRuntime(registrations ...application.RuntimeRegistration)      {}
 func (a *testApp) RuntimeComponents() []application.RuntimeRegistration                  { return nil }
-func (a *testApp) StartRuntime(ctx context.Context, profile application.CompositionProfile) error {
+func (a *testApp) StartRuntime(ctx context.Context, tags ...application.RuntimeTag) error {
 	return nil
 }
 func (a *testApp) StopRuntime(ctx context.Context) error               { return nil }

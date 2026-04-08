@@ -51,7 +51,7 @@ type Application interface {
 	RegisterServices(services ...interface{})
 	RegisterRuntime(registrations ...RuntimeRegistration)
 	RuntimeComponents() []RuntimeRegistration
-	StartRuntime(ctx context.Context, profile CompositionProfile) error
+	StartRuntime(ctx context.Context, tags ...RuntimeTag) error
 	StopRuntime(ctx context.Context) error
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}

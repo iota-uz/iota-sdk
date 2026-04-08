@@ -276,9 +276,8 @@ func New(opts *ApplicationOptions) (Application, error) {
 	}
 	app.RegisterRuntime(RuntimeRegistration{
 		Component: newSpotlightRuntimeComponent(cfg, spotlightService),
-		Profiles: []CompositionProfile{
-			CompositionProfileServer,
-			CompositionProfileAPIOnly,
+		Tags: []RuntimeTag{
+			RuntimeTagAPI,
 		},
 	})
 	return app, nil
@@ -305,7 +304,7 @@ type application struct {
 	appletRuntime      *appletengineruntime.Manager
 	runtimeComponents  []RuntimeRegistration
 	startedRuntime     []RuntimeComponent
-	currentProfile     CompositionProfile
+	currentRuntimeTags []RuntimeTag
 	pendingAppletRT    []RuntimeRegistration
 	runtimeMu          sync.Mutex
 }
@@ -471,23 +470,32 @@ func (app *application) RuntimeComponents() []RuntimeRegistration {
 	return components
 }
 
-func (app *application) StartRuntime(ctx context.Context, profile CompositionProfile) error {
-	normalizedProfile, err := normalizeCompositionProfile(profile)
+func (app *application) StartRuntime(ctx context.Context, tags ...RuntimeTag) error {
+	normalizedTags, err := normalizeRuntimeTags(tags)
 	if err != nil {
 		return err
+	}
+	if len(normalizedTags) == 0 {
+		return nil
 	}
 	app.runtimeMu.Lock()
 	defer app.runtimeMu.Unlock()
 	if len(app.startedRuntime) > 0 {
-		if app.currentProfile == normalizedProfile {
+		if runtimeTagsEqual(app.currentRuntimeTags, normalizedTags) {
 			return nil
 		}
-		return fmt.Errorf("runtime already started with profile %q", app.currentProfile)
+		return fmt.Errorf("runtime already started with tags %s", formatRuntimeTags(app.currentRuntimeTags))
 	}
 
+	activeTags := runtimeTagSet(normalizedTags)
 	started := make([]RuntimeComponent, 0, len(app.runtimeComponents))
 	for _, registration := range app.runtimeComponents {
-		if !registration.AppliesTo(normalizedProfile) {
+		registrationTags, err := normalizeRuntimeTags(registration.Tags)
+		if err != nil {
+			return fmt.Errorf("runtime component %q: %w", registration.Component.Name(), err)
+		}
+		registration.Tags = registrationTags
+		if !registration.AppliesTo(activeTags) {
 			continue
 		}
 		if err := registration.Component.Start(ctx); err != nil {
@@ -500,7 +508,7 @@ func (app *application) StartRuntime(ctx context.Context, profile CompositionPro
 	}
 
 	app.startedRuntime = started
-	app.currentProfile = normalizedProfile
+	app.currentRuntimeTags = normalizedTags
 	return nil
 }
 
@@ -508,7 +516,7 @@ func (app *application) StopRuntime(ctx context.Context) error {
 	app.runtimeMu.Lock()
 	started := app.startedRuntime
 	app.startedRuntime = nil
-	app.currentProfile = ""
+	app.currentRuntimeTags = nil
 	app.runtimeMu.Unlock()
 	var stopErr error
 	for i := len(started) - 1; i >= 0; i-- {

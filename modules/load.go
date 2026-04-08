@@ -2,7 +2,6 @@
 package modules
 
 import (
-	"fmt"
 	"slices"
 
 	"github.com/iota-uz/iota-sdk/modules/billing"
@@ -52,10 +51,3 @@ var (
 		website.NavItems,
 	)
 )
-
-// Load is deprecated. It only runs RegisterWiring via application.Wire and does
-// not register transports. Use application.Wire, application.RegisterTransports,
-// or application.ApplyProfile explicitly instead.
-func Load(app application.Application, externalModules ...application.Module) error {
-	return fmt.Errorf("modules.Load is deprecated: use application.Wire/application.RegisterTransports/application.ApplyProfile explicitly")
-}

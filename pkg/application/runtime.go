@@ -3,57 +3,74 @@ package application
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 )
 
-// CompositionProfile selects which composition phases a process should execute.
-type CompositionProfile string
+// RuntimeTag selects which long-running runtime components should start.
+type RuntimeTag string
 
 const (
-	CompositionProfileServer      CompositionProfile = "server"
-	CompositionProfileAPIOnly     CompositionProfile = "api-only"
-	CompositionProfileWorkerOnly  CompositionProfile = "worker-only"
-	CompositionProfileBootstrap   CompositionProfile = "bootstrap"
-	CompositionProfileMaintenance CompositionProfile = "maintenance"
+	RuntimeTagAPI    RuntimeTag = "api"
+	RuntimeTagWorker RuntimeTag = "worker"
 )
 
-func normalizeCompositionProfile(profile CompositionProfile) (CompositionProfile, error) {
-	switch strings.TrimSpace(string(profile)) {
-	case "", string(CompositionProfileServer):
-		return CompositionProfileServer, nil
-	case string(CompositionProfileAPIOnly):
-		return CompositionProfileAPIOnly, nil
-	case string(CompositionProfileWorkerOnly):
-		return CompositionProfileWorkerOnly, nil
-	case string(CompositionProfileBootstrap):
-		return CompositionProfileBootstrap, nil
-	case string(CompositionProfileMaintenance):
-		return CompositionProfileMaintenance, nil
-	default:
-		return "", fmt.Errorf("invalid composition profile %q", profile)
+func normalizeRuntimeTags(tags []RuntimeTag) ([]RuntimeTag, error) {
+	if len(tags) == 0 {
+		return nil, nil
 	}
+
+	normalized := make([]RuntimeTag, 0, len(tags))
+	seen := make(map[RuntimeTag]struct{}, len(tags))
+	for _, tag := range tags {
+		trimmed := RuntimeTag(strings.TrimSpace(string(tag)))
+		if trimmed == "" {
+			continue
+		}
+		switch trimmed {
+		case RuntimeTagAPI, RuntimeTagWorker:
+		default:
+			return nil, fmt.Errorf("invalid runtime tag %q", tag)
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	slices.Sort(normalized)
+	return normalized, nil
 }
 
-func (p CompositionProfile) IncludesTransports() bool {
-	switch p {
-	case CompositionProfileServer, CompositionProfileAPIOnly:
-		return true
-	case CompositionProfileWorkerOnly, CompositionProfileBootstrap, CompositionProfileMaintenance:
-		return false
-	default:
-		return false
+func runtimeTagSet(tags []RuntimeTag) map[RuntimeTag]struct{} {
+	set := make(map[RuntimeTag]struct{}, len(tags))
+	for _, tag := range tags {
+		set[tag] = struct{}{}
 	}
+	return set
 }
 
-func (p CompositionProfile) StartsRuntime() bool {
-	switch p {
-	case CompositionProfileServer, CompositionProfileAPIOnly, CompositionProfileWorkerOnly:
-		return true
-	case CompositionProfileBootstrap, CompositionProfileMaintenance:
-		return false
-	default:
+func runtimeTagsEqual(left, right []RuntimeTag) bool {
+	if len(left) != len(right) {
 		return false
 	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func formatRuntimeTags(tags []RuntimeTag) string {
+	if len(tags) == 0 {
+		return "[]"
+	}
+	values := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		values = append(values, string(tag))
+	}
+	return "[" + strings.Join(values, ", ") + "]"
 }
 
 type RuntimeComponent interface {
@@ -62,21 +79,21 @@ type RuntimeComponent interface {
 	Stop(ctx context.Context) error
 }
 
-// RuntimeRegistration binds a runtime component to one or more composition profiles.
+// RuntimeRegistration binds a runtime component to one or more runtime tags.
 type RuntimeRegistration struct {
 	Component RuntimeComponent
-	Profiles  []CompositionProfile
+	Tags      []RuntimeTag
 }
 
-func (r RuntimeRegistration) AppliesTo(profile CompositionProfile) bool {
+func (r RuntimeRegistration) AppliesTo(activeTags map[RuntimeTag]struct{}) bool {
 	if r.Component == nil {
 		return false
 	}
-	if len(r.Profiles) == 0 {
+	if len(r.Tags) == 0 {
 		return true
 	}
-	for _, candidate := range r.Profiles {
-		if candidate == profile {
+	for _, candidate := range r.Tags {
+		if _, ok := activeTags[candidate]; ok {
 			return true
 		}
 	}

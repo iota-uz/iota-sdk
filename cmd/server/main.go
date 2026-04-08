@@ -339,7 +339,7 @@ func main() {
 		controllers.NewGraphQLController(app),
 	)
 	app.RegisterControllers(appletControllers...)
-	if err := app.StartRuntime(context.Background(), application.CompositionProfileServer); err != nil {
+	if err := app.StartRuntime(context.Background(), application.RuntimeTagAPI, application.RuntimeTagWorker); err != nil {
 		log.Fatalf("failed to start runtime: %v", err)
 	}
 	options := &server.DefaultOptions{

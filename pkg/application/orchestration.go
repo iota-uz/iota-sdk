@@ -26,29 +26,6 @@ func RegisterTransports(app Application, modules ...Module) error {
 	return nil
 }
 
-// ApplyProfile wires modules first, adds transports when the profile exposes APIs,
-// and starts registered runtime components only for long-running profiles.
-func ApplyProfile(ctx context.Context, app Application, profile CompositionProfile, modules ...Module) error {
-	normalizedProfile, err := normalizeCompositionProfile(profile)
-	if err != nil {
-		return err
-	}
-	if err := Wire(app, modules...); err != nil {
-		return err
-	}
-	if normalizedProfile.IncludesTransports() {
-		if err := RegisterTransports(app, modules...); err != nil {
-			return err
-		}
-	}
-	if normalizedProfile.StartsRuntime() {
-		if err := app.StartRuntime(ctx, normalizedProfile); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 type runtimeComponent struct {
 	name  string
 	start func(ctx context.Context) error

@@ -261,9 +261,8 @@ func (app *application) buildAppletControllersAndRuntime(
 			app.appletRuntime = runtimeManager
 			registrations = append(registrations, RuntimeRegistration{
 				Component: newAppletRuntimeComponent(runtimeManager, app.DB(), logger, hasPostgresJobs),
-				Profiles: []CompositionProfile{
-					CompositionProfileServer,
-					CompositionProfileWorkerOnly,
+				Tags: []RuntimeTag{
+					RuntimeTagWorker,
 				},
 			})
 		}

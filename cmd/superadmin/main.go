@@ -186,7 +186,7 @@ func main() {
 		middleware.RedirectNotAuthenticated(),
 		superadminMiddleware.RequireSuperAdmin(),
 	)
-	if err := app.StartRuntime(context.Background(), application.CompositionProfileAPIOnly); err != nil {
+	if err := app.StartRuntime(context.Background(), application.RuntimeTagAPI); err != nil {
 		log.Fatalf("failed to start runtime: %v", err)
 	}
 

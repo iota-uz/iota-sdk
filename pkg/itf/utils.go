@@ -366,8 +366,14 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	if err != nil {
 		return nil, err
 	}
-	if err := application.ApplyProfile(context.Background(), app, application.CompositionProfileAPIOnly, mods...); err != nil {
-		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "apply composition profile")
+	if err := application.Wire(app, mods...); err != nil {
+		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "wire application")
+	}
+	if err := application.RegisterTransports(app, mods...); err != nil {
+		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register transports")
+	}
+	if err := app.StartRuntime(context.Background(), application.RuntimeTagAPI); err != nil {
+		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "start runtime")
 	}
 
 	return app, nil
@@ -387,8 +393,14 @@ func GetTestContext() *TestFixtures {
 	if err != nil {
 		panic(err)
 	}
-	if err := application.ApplyProfile(context.Background(), app, application.CompositionProfileAPIOnly, modules.BuiltInModules...); err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "apply composition profile"))
+	if err := application.Wire(app, modules.BuiltInModules...); err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "wire application"))
+	}
+	if err := application.RegisterTransports(app, modules.BuiltInModules...); err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register transports"))
+	}
+	if err := app.StartRuntime(context.Background(), application.RuntimeTagAPI); err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "start runtime"))
 	}
 
 	// Only run migrations if migrations directory exists

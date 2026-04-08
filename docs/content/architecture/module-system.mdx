@@ -13,8 +13,9 @@ IOTA SDK's module system enables modular, composable architecture. Each module i
 stateDiagram-v2
     [*] --> Wired: RegisterWiring()
     Wired --> Transported: RegisterTransports()
-    Wired --> Running: StartRuntime(worker-only)
-    Transported --> Running: StartRuntime(server/api-only)
+    Wired --> Running: StartRuntime(worker)
+    Transported --> Running: StartRuntime(api)
+    Transported --> Running: StartRuntime(api, worker)
     Running --> [*]: Shutdown
      
     Wired --> Unloaded: Error
@@ -23,7 +24,7 @@ stateDiagram-v2
 
 ### 1. Registration Phase
 
-During application startup, each module first contributes wiring, then transports when the selected composition profile exposes APIs:
+During application startup, each module first contributes wiring, then transports when the process exposes APIs, and runtime components start only when the process opts into their tags:
 
 ```mermaid
 sequenceDiagram

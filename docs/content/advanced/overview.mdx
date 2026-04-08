@@ -13,17 +13,22 @@ This module includes essential features for advanced management.
 
 ## Usage
 
-Compose modules with a profile so wiring, transports, and runtime startup happen explicitly. For most long-running servers, use `application.ApplyProfile`:
+Compose modules explicitly so wiring, transports, and runtime startup stay separate:
 
 ```go
 allModules := append([]application.Module{}, modules.BuiltInModules...)
 allModules = append(allModules, yourModule)
 
-if err := application.ApplyProfile(
+if err := application.Wire(app, allModules...); err != nil {
+	return err
+}
+if err := application.RegisterTransports(app, allModules...); err != nil {
+	return err
+}
+if err := app.StartRuntime(
 	context.Background(),
-	app,
-	application.CompositionProfileServer,
-	allModules...,
+	application.RuntimeTagAPI,
+	application.RuntimeTagWorker,
 ); err != nil {
 	return err
 }
