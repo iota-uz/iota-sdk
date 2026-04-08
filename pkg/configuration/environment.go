@@ -108,10 +108,6 @@ func (d *DatabaseOptions) PoolConfig() (*pgxpool.Config, error) {
 		return err
 	}
 
-	cfg.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
-		return conn.Ping(ctx) == nil
-	}
-
 	return cfg, nil
 }
 
