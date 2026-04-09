@@ -11,6 +11,7 @@ description: 'Generic subscription and entitlement management for multi-tenant a
 
 ```go
 import (
+  "github.com/iota-uz/iota-sdk/pkg/composition"
   "github.com/iota-uz/iota-sdk/pkg/subscription"
 )
 
@@ -38,7 +39,9 @@ if err != nil {
   panic(err)
 }
 
-app.RegisterServices(svc)
+composition.Provide[*subscription.Service](builder, func() (*subscription.Service, error) {
+  return subscription.NewService(cfg)
+})
 ```
 
 ## Middleware

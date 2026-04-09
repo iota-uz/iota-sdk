@@ -13,23 +13,22 @@ This module includes essential features for advanced management.
 
 ## Usage
 
-Compose modules explicitly so wiring, transports, and runtime startup stay separate:
+Compose components explicitly through the composition engine:
 
 ```go
-allModules := append([]application.Module{}, modules.BuiltInModules...)
-allModules = append(allModules, yourModule)
-
-if err := application.Wire(app, allModules...); err != nil {
+engine := composition.NewEngine()
+if err := engine.Register(append(modules.Components(), yourComponent)...); err != nil {
 	return err
 }
-if err := application.RegisterTransports(app, allModules...); err != nil {
+container, err := engine.Compile(
+	composition.NewBuildContext(app, configuration.Use()),
+	composition.CapabilityAPI,
+	composition.CapabilityWorker,
+)
+if err != nil {
 	return err
 }
-if err := app.StartRuntime(
-	context.Background(),
-	application.RuntimeTagAPI,
-	application.RuntimeTagWorker,
-); err != nil {
+if err := composition.Start(context.Background(), container); err != nil {
 	return err
 }
 ```

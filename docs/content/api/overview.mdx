@@ -13,23 +13,26 @@ This module includes essential features for api management.
 
 ## Usage
 
-The API module is registered automatically when you include it in your application setup. Keep service wiring and transport registration separate inside your module:
+The API module is registered automatically when you include it in your application setup. Controllers and schemas are now contributed during component build:
 
 ```go
-func (m *Module) RegisterWiring(app application.Application) error {
-	return nil
-}
-
-func (m *Module) RegisterTransports(app application.Application) error {
-	app.RegisterControllers(
-		controllers.NewGraphQLController(app),
-	)
-
-	app.RegisterGraphSchema(application.GraphSchema{
-		Value:    schema,
-		BasePath: "/api",
+func (c *component) Build(builder *composition.Builder) error {
+	if !builder.Context().HasCapability(composition.CapabilityAPI) {
+		return nil
+	}
+	composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+		app, err := composition.RequireApplication(container)
+		if err != nil {
+			return nil, err
+		}
+		return []application.Controller{controllers.NewGraphQLController(app)}, nil
 	})
-
+	composition.ContributeSchemas(builder, func(*composition.Container) ([]application.GraphSchema, error) {
+		return []application.GraphSchema{{
+			Value:    schema,
+			BasePath: "/api",
+		}}, nil
+	})
 	return nil
 }
 ```

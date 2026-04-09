@@ -11,35 +11,31 @@ IOTA SDK's module system enables modular, composable architecture. Each module i
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Wired: RegisterWiring()
-    Wired --> Transported: RegisterTransports()
-    Wired --> Running: StartRuntime(worker)
-    Transported --> Running: StartRuntime(api)
-    Transported --> Running: StartRuntime(api, worker)
+    [*] --> Registered: engine.Register()
+    Registered --> Compiled: engine.Compile()
+    Compiled --> Running: composition.Start()
     Running --> [*]: Shutdown
-     
-    Wired --> Unloaded: Error
-    Transported --> Unloaded: Error
+
+    Registered --> Unloaded: Error
+    Compiled --> Unloaded: Error
 ```
 
 ### 1. Registration Phase
 
-During application startup, each module first contributes wiring, then transports when the process exposes APIs, and runtime components start only when the process opts into their tags:
+During application startup, each component contributes providers and runtime slices to the composition engine. The engine compiles a container for the active capabilities, attaches it to the application, and starts hooks when the process needs long-lived workers:
 
 ```mermaid
 sequenceDiagram
+    participant Engine as Composition Engine
+    participant Comp as Component
+    participant Container as Container
     participant App as Application
-    participant Mod as Module
-    participant Registry as Service Registry
-    participant Router as Router
-    
-    App->>Mod: RegisterWiring(app)
-    Mod->>Registry: Register services
-    Mod->>App: Register runtime components
-    Mod->>App: Register navigation items
-    App->>Mod: RegisterTransports(app)
-    Mod->>Router: Register controllers
-    Mod->>App: Register middleware (optional)
+
+    Engine->>Comp: Build(builder)
+    Comp->>Container: Provide(...) / Contribute...
+    Engine->>Container: Compile(capabilities)
+    Engine->>App: AttachRuntimeSource(container)
+    Engine->>Container: Start hooks
 ```
 
 Schema/migration files are typically embedded in modules; the application loads migrations from its configured migrations directory (e.g. `MigrationsDir`), not by modules calling a migration manager during registration.
@@ -107,49 +103,57 @@ modules/{module}/
 
 ## Module Interface
 
-All modules implement the `application.Module` interface:
+Runtime composition is built from `composition.Component` implementations:
 
 ```mermaid
 classDiagram
-    class Module {
-        +Name() string
-        +RegisterWiring(app Application) error
-        +RegisterTransports(app Application) error
+    class Component {
+        +Descriptor() Descriptor
+        +Build(builder *Builder) error
     }
-    
-    class Application {
-        +RegisterServices(services...)
-        +RegisterControllers(controllers...)
-        +RegisterMiddleware(middleware...)
-        +Migrations() MigrationManager
-        +EventPublisher() EventBus
-        +Service(service) any
+
+    class Builder {
+        +Context() BuildContext
+        +Provide(...)
+        +ContributeControllers(...)
+        +ContributeNavItems(...)
+        +ContributeQuickLinks(...)
+        +ContributeHooks(...)
     }
-    
-    Module ..> Application : uses
+
+    class Container {
+        +Resolve[T]()
+        +Controllers()
+        +NavItems()
+        +QuickLinks()
+        +Hooks()
+    }
+
+    Component ..> Builder : populates
+    Builder ..> Container : compiles into
 ```
 
 ### Registration Methods
 
 | Method | Purpose | Called In |
 |--------|---------|-----------|
-| `RegisterServices()` | Add business services | Services layer |
-| `RegisterControllers()` | Add HTTP handlers | Presentation layer |
-| `RegisterMiddleware()` | Add request middleware | Infrastructure |
-| `RegisterLocaleFiles()` | Translations | Presentation |
-| `RegisterHashFsAssets()` | Static assets | Presentation |
-| `QuickLinks().Add(spotlight.NewQuickLink(trKey, link)...)` | Spotlight quick links | Navigation / actions |
+| `composition.Provide(...)` | Add repositories and services | Services layer |
+| `composition.ContributeControllers(...)` | Add HTTP handlers | Presentation layer |
+| `composition.ContributeMiddleware(...)` | Add request middleware | Infrastructure |
+| `composition.ContributeLocales(...)` | Translations | Presentation |
+| `composition.ContributeHashFS(...)` | Static assets | Presentation |
+| `composition.ContributeQuickLinks(...)` | Spotlight quick links | Navigation / actions |
 
 ## Service Registration
 
 ### Service Pattern
 
-Services are registered as interfaces and retrieved by type:
+Services are registered with composition and resolved by type:
 
 ```mermaid
 graph TB
-    A[Module] -->|registers| B[UserService]
-    C[Controller] -->|retrieves| D[Service Registry]
+    A[Component] -->|Provide| B[UserService]
+    C[Controller Factory] -->|Resolve| D[Container]
     D -->|returns| B
     
     B -->|uses| E[UserRepository]
@@ -158,24 +162,32 @@ graph TB
 
 ### Dependency Injection
 
-Services declare dependencies explicitly:
+Services declare dependencies explicitly and resolve them inside provider factories:
 
 ```mermaid
 sequenceDiagram
-    participant Mod as Module
+    participant Comp as Component
     participant Repo as Repository
     participant Service as Service
-    participant App as Application
+    participant Container as Container
     participant Controller as Controller
     
-    Mod->>Repo: Create repository
-    Mod->>Service: Create service(repo, bus, validator)
-    Mod->>App: RegisterServices(service)
+    Comp->>Container: Provide(repository factory)
+    Comp->>Container: Provide(service factory)
     
-    Note over App,Controller: Later...
-    Controller->>App: Service(UserService{})
-    App-->>Controller: Return service instance
+    Note over Container,Controller: Later...
+    Controller->>Container: Resolve(UserService)
+    Container-->>Controller: Return service instance
 ```
+
+### Migrating From Module To Component
+
+When migrating old code:
+
+1. Replace the old module constructor with `NewComponent() composition.Component`.
+2. Move the old wiring phase into `Build(builder)` using `composition.Provide(...)` and `composition.Contribute...(...)`.
+3. Move the old transport phase into `composition.ContributeControllers(...)`, `composition.ContributeSchemas(...)`, or `composition.ContributeMiddleware(...)`.
+4. Replace direct application service lookups with `composition.Use[T]()` handles plus `Resolve(container)`.
 
 ## Controller Registration
 
@@ -219,7 +231,7 @@ sequenceDiagram
 
 ### Service Access
 
-Modules access other modules via the service registry:
+Modules access other modules via typed container lookups:
 
 ```mermaid
 graph TB
@@ -233,7 +245,7 @@ graph TB
         D[UserRepository]
     end
     
-    B -->|"app.Service()"| C
+    B -->|"composition.Use[*UserService]()"| C
     A -.->|"needs user info"| C
 ```
 
@@ -258,11 +270,11 @@ sequenceDiagram
 
 ### Module Options
 
-Modules accept configuration via options pattern:
+Components accept configuration via options pattern:
 
 ```mermaid
 graph TD
-    A[NewModule] --> B[Option 1: PermissionSchema]
+    A[NewComponent] --> B[Option 1: PermissionSchema]
     A --> C[Option 2: DefaultCurrency]
     A --> D[Option 3: FeatureFlags]
     
@@ -291,7 +303,7 @@ Configuration can vary by environment:
 
 ## Built-in Modules
 
-Modules are loaded from `modules.BuiltInModules` (see `modules/load.go`): **core**, **hrm**, **finance**, **projects**, **logging**, **warehouse**, **crm**, **website**, **billing**, **oidc**, **testkit**. BiChat and Superadmin are not in `BuiltInModules` (BiChat is conditionally loaded when configured; Superadmin is a separate `cmd/superadmin` application).
+Built-in components are loaded from `modules.Components()` (see `modules/load.go`): **core**, **hrm**, **finance**, **projects**, **logging**, **warehouse**, **crm**, **website**, **billing**, **oidc**, and **testkit**. BiChat and Superadmin are registered separately by the command roots that need them.
 
 ```mermaid
 graph LR

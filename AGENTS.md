@@ -92,10 +92,12 @@ modules/{module}/
 
 ### 7. Registration
 - Add navigation item to `modules/{module}/links.go`
-- Register service and controller in `modules/{module}/module.go`:
-  - Add service to `app.RegisterServices()` call
-  - Add controller to `app.RegisterControllers()` call  
-  - Add quick links to `app.QuickLinks().Add()` call
+- Register the module in `modules/{module}/component.go`:
+  - Add repositories and services with `composition.Provide(...)`
+  - Resolve shared dependencies with `composition.Use[T]()`
+  - Add controllers with `composition.ContributeControllers(...)`
+  - Add quick links with `composition.ContributeQuickLinks(...)`
+  - Add nav items and locales with `composition.ContributeNavItems(...)` and `composition.ContributeLocales(...)`
 
 ### 8. Verification
 - Run `go vet ./...` to verify compilation

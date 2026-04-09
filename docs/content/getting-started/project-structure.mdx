@@ -211,11 +211,11 @@ ENABLE_TEST_ENDPOINTS=true
 
 ### Module Configuration
 
-Each module can be configured via `ModuleOptions` during registration:
+Each component can be configured via `ModuleOptions` during registration:
 
 ```go
-func NewModule(opts *ModuleOptions) application.Module {
-    return &Module{options: opts}
+func NewComponent(opts *ModuleOptions) composition.Component {
+    return &component{options: opts}
 }
 ```
 

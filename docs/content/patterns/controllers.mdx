@@ -597,11 +597,11 @@ func respondWithError(w http.ResponseWriter, code string, message string, status
 ```go
 func TestExpenseController_Create(t *testing.T) {
 	// Setup ITF (Integration Test Framework)
-	env := itf.Setup(t, itf.WithModules(finance.NewModule()))
+	env := itf.Setup(t, itf.WithComponents(finance.NewComponent()))
 	defer env.Teardown()
 
 	t.Run("create expense", func(t *testing.T) {
-		suite := itf.HTTP(t, modules.BuiltInModules...)
+		suite := itf.HTTP(t, modules.Components()...)
 		// Create test account and category in fixture data (replace with project IDs as needed)
 		accountID := "00000000-0000-0000-0000-000000000001"
 		categoryID := "00000000-0000-0000-0000-000000000002"
