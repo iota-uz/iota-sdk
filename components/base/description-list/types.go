@@ -188,21 +188,21 @@ func NewItem(label string, opts ...DLItemOption) DLItem {
 }
 
 func (t *dlItemImpl) Component() templ.Component {
-	if t.typ == DLItemTypeText || t.typ == DLItemTypeLink {
+	switch t.typ {
+	case DLItemTypeText, DLItemTypeLink:
 		return RegularItem(
 			t.labelComponent(),
 			t.valueComponent(),
 		)
-	} else if t.typ == DLItemTypeDetails {
+	case DLItemTypeDetails:
 		return DetailsItem(t.labelComponent(), t.detailsContentClasses, t.lists...)
-	} else if t.typ == DLItemTypeCustom {
+	case DLItemTypeCustom:
 		return RegularItem(
 			t.labelComponent(),
 			t.custom,
 		)
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (t *dlItemImpl) labelComponent() templ.Component {
@@ -210,13 +210,13 @@ func (t *dlItemImpl) labelComponent() templ.Component {
 }
 
 func (t *dlItemImpl) valueComponent() templ.Component {
-	if t.typ == DLItemTypeText {
+	switch t.typ {
+	case DLItemTypeText:
 		return Text(templ.Raw(t.text), t.classes, t.attrs)
-	} else if t.typ == DLItemTypeLink {
+	case DLItemTypeLink:
 		return Link(t.text, t.href, t.classes, t.attrs)
-	} else {
-		return t.custom
 	}
+	return t.custom
 }
 
 func (t *dlItemImpl) Attrs() templ.Attributes {

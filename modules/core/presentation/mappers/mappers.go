@@ -53,6 +53,7 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		Email:         entity.Email().Value(),
 		Phone:         phone,
 		Avatar:        avatar,
+		LastAction:    "",
 		Language:      string(entity.UILanguage()),
 		CreatedAt:     entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:     entity.UpdatedAt().Format(time.RFC3339),
