@@ -64,6 +64,7 @@ func TestUsersController_Delete_SelfDeletionPrevention(t *testing.T) {
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 
+	userService := itf.GetService[coreservices.UserService](suite.Env())
 	// Register the users controller
 	controller := controllers.NewUsersController(
 		suite.Env().App,
@@ -140,6 +141,7 @@ func TestUsersController_Delete_Permissions(t *testing.T) {
 				AsUser(tc.permissions...).
 				Build()
 
+			userService := itf.GetService[coreservices.UserService](suite.Env())
 			controller := controllers.NewUsersController(
 				suite.Env().App,
 				userService,
@@ -167,9 +169,10 @@ func TestUsersController_Delete_EdgeCases(t *testing.T) {
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 
+	userService := itf.GetService[coreservices.UserService](suite.Env())
 	controller := controllers.NewUsersController(
 		suite.Env().App,
-		userService2,
+		userService,
 		controllers.WithUserControllerBasePath("/users"),
 		controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
 	)
