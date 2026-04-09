@@ -1,4 +1,4 @@
-// Package application defines the SDK composition surface for wiring, transports, and runtime startup.
+// Package application defines the SDK composition surface for runtime access.
 package application
 
 import (
@@ -26,7 +26,7 @@ type GraphSchema struct {
 	ExecutorCb func(*executor.Executor)
 }
 
-// Application with a dynamically extendable service registry
+// Application exposes the runtime services consumed by modules, controllers, and servers.
 type Application interface {
 	DB() *pgxpool.Pool
 	EventPublisher() eventbus.EventBus
@@ -39,18 +39,9 @@ type Application interface {
 	QuickLinks() *spotlight.QuickLinks
 	Migrations() MigrationManager
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
-	RegisterNavItems(items ...types.NavigationItem)
-	AppendNavChildren(parentName string, children ...types.NavigationItem)
-	RegisterControllers(controllers ...Controller)
-	RegisterHashFsAssets(fs ...*hashfs.FS)
-	RegisterAssets(fs ...*embed.FS)
-	RegisterLocaleFiles(fs ...*embed.FS)
-	RegisterGraphSchema(schema GraphSchema)
 	GraphSchemas() []GraphSchema
-	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Bundle() *i18n.Bundle
 	GetSupportedLanguages() []string
-	RegisterApplet(applet Applet) error
 	AppletRegistry() AppletRegistry
 	CreateAppletControllers(
 		host applets.HostServices,

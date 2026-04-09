@@ -9,7 +9,6 @@ import (
 
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	superadminMiddleware "github.com/iota-uz/iota-sdk/modules/superadmin/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
@@ -63,11 +62,11 @@ func run() error {
 			superadmin.NewComponent(&superadmin.ModuleOptions{}),
 		),
 		bootstrap.InstallHashFS(internalassets.HashFS),
+		bootstrap.InstallStaticFilesController(),
 		bootstrap.StartComposition(),
 	); err != nil {
 		return fmt.Errorf("failed to compose superadmin runtime: %w", err)
 	}
-	rt.App.RegisterControllers(controllers.NewStaticFilesController(rt.App.HashFsAssets()))
 
 	serverInstance, err := server.New(
 		rt,

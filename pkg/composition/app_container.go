@@ -12,11 +12,20 @@ import (
 
 var appContainers sync.Map
 
-func Attach(app application.Application, container *Container) {
+func Attach(app application.Application, container *Container) error {
 	if app == nil || container == nil {
-		return
+		return nil
+	}
+	if existing, ok := appContainers.Load(app); ok {
+		if attached, ok := existing.(*Container); ok && attached == container {
+			return nil
+		}
+	}
+	if err := syncApplication(app, container); err != nil {
+		return err
 	}
 	appContainers.Store(app, container)
+	return nil
 }
 
 func Detach(app application.Application) {

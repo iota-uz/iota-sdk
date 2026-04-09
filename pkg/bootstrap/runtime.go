@@ -60,7 +60,9 @@ func (rt *Runtime) SetComposition(engine *composition.Engine, container *composi
 	rt.Engine = engine
 	rt.container = container
 	if rt.App != nil && container != nil {
-		composition.Attach(rt.App, container)
+		if err := composition.Attach(rt.App, container); err != nil {
+			return err
+		}
 	}
 	return nil
 }

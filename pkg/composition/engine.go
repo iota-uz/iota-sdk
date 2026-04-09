@@ -114,6 +114,9 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 	if err := container.materialize(); err != nil {
 		return nil, err
 	}
+	if err := Attach(ctx.App, container); err != nil {
+		return nil, err
+	}
 	return container, nil
 }
 
@@ -264,13 +267,11 @@ type Container struct {
 }
 
 func newContainer(context BuildContext, activeCapabilities []Capability) *Container {
-	container := &Container{
+	return &Container{
 		context:            context,
 		activeCapabilities: append([]Capability(nil), activeCapabilities...),
 		providers:          make(map[Key]*providerEntry),
 	}
-	Attach(context.App, container)
-	return container
 }
 
 func (c *Container) HasCapability(capability Capability) bool {
@@ -331,6 +332,50 @@ func (c *Container) AppendHooks(hooks ...Hook) {
 		}
 		c.hooks = append(c.hooks, hook)
 	}
+}
+
+func (c *Container) AppendControllers(controllers ...application.Controller) {
+	if c == nil || len(controllers) == 0 {
+		return
+	}
+	filtered := make([]application.Controller, 0, len(controllers))
+	for _, controller := range controllers {
+		if controller == nil {
+			continue
+		}
+		filtered = append(filtered, controller)
+	}
+	if len(filtered) == 0 {
+		return
+	}
+	c.controllers = append(c.controllers, filtered...)
+	appendControllersToApp(c.context.App, filtered)
+}
+
+func (c *Container) AppendHashFSAssets(fs ...*hashfs.FS) {
+	if c == nil || len(fs) == 0 {
+		return
+	}
+	filtered := make([]*hashfs.FS, 0, len(fs))
+	for _, asset := range fs {
+		if asset == nil {
+			continue
+		}
+		filtered = append(filtered, asset)
+	}
+	if len(filtered) == 0 {
+		return
+	}
+	c.hashFSAssets = append(c.hashFSAssets, filtered...)
+	appendHashFSAssetsToApp(c.context.App, filtered)
+}
+
+func (c *Container) AppendMiddleware(middleware ...mux.MiddlewareFunc) {
+	if c == nil || len(middleware) == 0 {
+		return
+	}
+	c.middleware = append(c.middleware, middleware...)
+	appendMiddlewareToApp(c.context.App, middleware)
 }
 
 func Resolve[T any](container *Container) (T, error) {

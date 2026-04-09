@@ -14,6 +14,17 @@ type mockApplet struct {
 	basePath string
 }
 
+type testAppletRegistrar interface {
+	RegisterApplet(applet Applet) error
+}
+
+func requireAppletRegistrar(t *testing.T, app Application) testAppletRegistrar {
+	t.Helper()
+	registrar, ok := app.(testAppletRegistrar)
+	require.True(t, ok, "application must support applet registration")
+	return registrar
+}
+
 func (m *mockApplet) Name() string {
 	return m.name
 }
@@ -151,7 +162,7 @@ func TestApplication_RegisterApplet(t *testing.T) {
 		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
-		err = app.RegisterApplet(applet)
+		err = requireAppletRegistrar(t, app).RegisterApplet(applet)
 		require.NoError(t, err)
 
 		registry := app.AppletRegistry()
@@ -169,10 +180,11 @@ func TestApplication_RegisterApplet(t *testing.T) {
 		applet1 := &mockApplet{name: "dup", basePath: "/path1"}
 		applet2 := &mockApplet{name: "dup", basePath: "/path2"}
 
-		err = app.RegisterApplet(applet1)
+		registrar := requireAppletRegistrar(t, app)
+		err = registrar.RegisterApplet(applet1)
 		require.NoError(t, err)
 
-		err = app.RegisterApplet(applet2)
+		err = registrar.RegisterApplet(applet2)
 		assert.Error(t, err)
 	})
 }
@@ -205,7 +217,7 @@ func TestApplication_AppletRegistry(t *testing.T) {
 		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
-		err = app.RegisterApplet(applet)
+		err = requireAppletRegistrar(t, app).RegisterApplet(applet)
 		require.NoError(t, err)
 
 		registry1 := app.AppletRegistry()

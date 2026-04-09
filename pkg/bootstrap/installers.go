@@ -26,36 +26,55 @@ func InstallComponents(capabilities []composition.Capability, components ...comp
 		if err != nil {
 			return err
 		}
-
-		if err := composition.Apply(rt.App, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
-			return err
-		}
-
 		return rt.SetComposition(engine, container)
 	})
 }
 
 func InstallHashFS(fs ...*hashfs.FS) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		rt.App.RegisterHashFsAssets(fs...)
+		if rt.Container() == nil {
+			return fmt.Errorf("install components before registering hashfs assets")
+		}
+		rt.Container().AppendHashFSAssets(fs...)
 		return nil
 	})
 }
 
 func InstallControllers(controllersToRegister ...application.Controller) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		rt.App.RegisterControllers(controllersToRegister...)
+		if rt.Container() == nil {
+			return fmt.Errorf("install components before registering controllers")
+		}
+		rt.Container().AppendControllers(controllersToRegister...)
+		return nil
+	})
+}
+
+func InstallStaticFilesController() Installer {
+	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
+		container := rt.Container()
+		if container == nil {
+			return fmt.Errorf("install components before core controllers")
+		}
+		if len(container.HashFSAssets()) == 0 {
+			return fmt.Errorf("hashfs assets must be registered before core controllers")
+		}
+		container.AppendControllers(controllers.NewStaticFilesController(container.HashFSAssets()))
 		return nil
 	})
 }
 
 func InstallCoreControllers() Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		if len(rt.App.HashFsAssets()) == 0 {
+		container := rt.Container()
+		if container == nil {
+			return fmt.Errorf("install components before core controllers")
+		}
+		if len(container.HashFSAssets()) == 0 {
 			return fmt.Errorf("hashfs assets must be registered before core controllers")
 		}
-		rt.App.RegisterControllers(
-			controllers.NewStaticFilesController(rt.App.HashFsAssets()),
+		container.AppendControllers(
+			controllers.NewStaticFilesController(container.HashFSAssets()),
 			controllers.NewGraphQLController(rt.App),
 		)
 		return nil
@@ -97,9 +116,9 @@ func InstallApplets(opts AppletsOptions) Installer {
 			}
 			builder := compositionapplet.NewAppletEngineBuilder()
 			built, err := builder.Build(compositionapplet.BuildInput{
-				Applets:       rt.App.AppletRegistry().All(),
+				Applets:       rt.Container().Applets(),
 				Pool:          rt.Pool,
-				Bundle:        rt.App.Bundle(),
+				Bundle:        rt.Bundle,
 				Host:          host,
 				SessionConfig: opts.SessionConfig,
 				Logger:        logger,
@@ -137,7 +156,7 @@ func InstallApplets(opts AppletsOptions) Installer {
 			for _, controller := range result.Controllers {
 				appletControllers = append(appletControllers, controller.(application.Controller))
 			}
-			rt.App.RegisterControllers(appletControllers...)
+			rt.Container().AppendControllers(appletControllers...)
 		}
 
 		return nil

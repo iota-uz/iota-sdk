@@ -401,16 +401,13 @@ func SetupApplication(
 		if err := engine.Register(components...); err != nil {
 			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register components")
 		}
-		container, err := engine.Compile(
+		_, err = engine.Compile(
 			composition.BuildContext{App: app},
 			composition.CapabilityAPI,
 			composition.CapabilityWorker,
 		)
 		if err != nil {
 			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "compile components")
-		}
-		if err := composition.Apply(app, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
-			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "apply components")
 		}
 	}
 	if container, ok := composition.ForApp(app); ok {
@@ -443,16 +440,13 @@ func GetTestContext() *TestFixtures {
 	if err := engine.Register(modules.Components()...); err != nil {
 		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register components"))
 	}
-	container, err := engine.Compile(
+	_, err = engine.Compile(
 		composition.BuildContext{App: app},
 		composition.CapabilityAPI,
 		composition.CapabilityWorker,
 	)
 	if err != nil {
 		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "compile components"))
-	}
-	if err := composition.Apply(app, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "apply components"))
 	}
 	if container, ok := composition.ForApp(app); ok {
 		startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)

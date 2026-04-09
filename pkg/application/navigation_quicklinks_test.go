@@ -11,6 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type navRegistrar interface {
+	RegisterNavItems(items ...types.NavigationItem)
+	AppendNavChildren(parentName string, children ...types.NavigationItem)
+}
+
+func requireNavRegistrar(t *testing.T, app Application) navRegistrar {
+	t.Helper()
+	registrar, ok := app.(navRegistrar)
+	require.True(t, ok, "application must support navigation registration")
+	return registrar
+}
+
 func TestApplication_RegisterNavItems_AddsQuickLinks(t *testing.T) {
 	app, err := New(&ApplicationOptions{
 		Bundle:             LoadBundle(),
@@ -22,7 +34,7 @@ func TestApplication_RegisterNavItems_AddsQuickLinks(t *testing.T) {
 		permission.New(permission.WithName("users.read")),
 	}
 
-	app.RegisterNavItems(
+	requireNavRegistrar(t, app).RegisterNavItems(
 		types.NavigationItem{
 			Name:        "NavigationLinks.Users",
 			Href:        "/users",
@@ -65,11 +77,12 @@ func TestApplication_AppendNavChildren_AddsQuickLinksForChildren(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	app.RegisterNavItems(types.NavigationItem{
+	registrar := requireNavRegistrar(t, app)
+	registrar.RegisterNavItems(types.NavigationItem{
 		Name: "NavigationLinks.Parent",
 		Href: "/parent",
 	})
-	app.AppendNavChildren("NavigationLinks.Parent", types.NavigationItem{
+	registrar.AppendNavChildren("NavigationLinks.Parent", types.NavigationItem{
 		Name:     "NavigationLinks.Child",
 		Href:     "/parent/child?tab=details",
 		Keywords: []string{"deep", "child"},

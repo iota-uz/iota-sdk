@@ -63,15 +63,12 @@ func NewApplication(pool *pgxpool.Pool, components ...composition.Component) (ap
 	if err := engine.Register(components...); err != nil {
 		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
-	container, err := engine.Compile(
+	_, err = engine.Compile(
 		composition.BuildContext{App: app},
 		composition.CapabilityAPI,
 		composition.CapabilityWorker,
 	)
 	if err != nil {
-		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
-	}
-	if err := composition.Apply(app, container, composition.ApplyOptions{IncludeControllers: true}); err != nil {
 		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
 
