@@ -4,9 +4,11 @@ package website
 import (
 	"embed"
 
+	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
-	corePersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	crmPersistence "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
+	clientagg "github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
@@ -42,24 +44,48 @@ func (c *component) Build(builder *composition.Builder) error {
 		return NavItems, nil
 	})
 
-	userRepo := corePersistence.NewUserRepository(corePersistence.NewUploadRepository())
-	chatRepo := crmPersistence.NewChatRepository()
-	passportRepo := corePersistence.NewPassportRepository()
-	clientRepo := crmPersistence.NewClientRepository(passportRepo)
-	aiconfigRepo := persistence.NewAIChatConfigRepository()
+	userRepo := composition.Use[coreuser.Repository]()
+	chatRepo := composition.Use[chat.Repository]()
+	clientRepo := composition.Use[clientagg.Repository]()
+	aiConfigRepo := composition.Use[aichatconfig.Repository]()
 
-	aiChatConfigService := services.NewAIChatConfigService(aiconfigRepo)
-	websiteChatService := services.NewWebsiteChatService(
-		services.WebsiteChatServiceConfig{
-			AIConfigRepo: aiconfigRepo,
-			UserRepo:     userRepo,
-			ClientRepo:   clientRepo,
-			ChatRepo:     chatRepo,
-			AIUserEmail:  internet.MustParseEmail("ai@llm.com"),
-		},
-	)
-	composition.Provide[*services.AIChatConfigService](builder, aiChatConfigService)
-	composition.Provide[*services.WebsiteChatService](builder, websiteChatService)
+	composition.Provide[aichatconfig.Repository](builder, func() aichatconfig.Repository {
+		return persistence.NewAIChatConfigRepository()
+	})
+	composition.Provide[*services.AIChatConfigService](builder, func(container *composition.Container) (*services.AIChatConfigService, error) {
+		resolvedAIConfigRepo, err := aiConfigRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewAIChatConfigService(resolvedAIConfigRepo), nil
+	})
+	composition.Provide[*services.WebsiteChatService](builder, func(container *composition.Container) (*services.WebsiteChatService, error) {
+		resolvedAIConfigRepo, err := aiConfigRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedUserRepo, err := userRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedClientRepo, err := clientRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedChatRepo, err := chatRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewWebsiteChatService(
+			services.WebsiteChatServiceConfig{
+				AIConfigRepo: resolvedAIConfigRepo,
+				UserRepo:     resolvedUserRepo,
+				ClientRepo:   resolvedClientRepo,
+				ChatRepo:     resolvedChatRepo,
+				AIUserEmail:  internet.MustParseEmail("ai@llm.com"),
+			},
+		), nil
+	})
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
