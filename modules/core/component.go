@@ -235,7 +235,12 @@ func (c *component) Build(builder *composition.Builder) error {
 				controllers.NewWebSocketController(app),
 				controllers.NewSettingsController(tenantService, uploadService),
 				controllers.NewSessionController("/settings/sessions"),
-				controllers.NewCrudShowcaseController(bus),
+			}
+			// NewCrudShowcaseController returns nil in the `!dev` build so
+			// we must nil-guard the append rather than splatting it into
+			// the literal above.
+			if ctrl := controllers.NewCrudShowcaseController(bus); ctrl != nil {
+				ctrls = append(ctrls, ctrl)
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
 				ctrls = append(ctrls, controllers.NewUploadAPIController(uploadService, uploadAPIControllerOpts(opts)...))
