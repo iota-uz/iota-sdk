@@ -14,7 +14,6 @@ import (
 	counterparty "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	inventory "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
 	transaction "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
-	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
@@ -83,19 +82,19 @@ func (c *component) Build(builder *composition.Builder) error {
 	moneyAccountService := composition.Use[*services.MoneyAccountService]()
 
 	composition.Provide[moneyaccount.Repository](builder, func() moneyaccount.Repository {
-		return persistence.NewMoneyAccountRepository()
+		return newMoneyAccountRepository()
 	})
 	composition.Provide[transaction.Repository](builder, func() transaction.Repository {
-		return persistence.NewTransactionRepository()
+		return newTransactionRepository()
 	})
 	composition.Provide[category.Repository](builder, func() category.Repository {
-		return persistence.NewExpenseCategoryRepository()
+		return newExpenseCategoryRepository()
 	})
 	composition.Provide[paymentcategory.Repository](builder, func() paymentcategory.Repository {
-		return persistence.NewPaymentCategoryRepository()
+		return newPaymentCategoryRepository()
 	})
 	composition.Provide[payment.Repository](builder, func() payment.Repository {
-		return persistence.NewPaymentRepository()
+		return newPaymentRepository()
 	})
 	composition.Provide[expense.Repository](builder, func(container *composition.Container) (expense.Repository, error) {
 		resolvedCategoryRepo, err := expenseCategoryRepo.Resolve(container)
@@ -106,16 +105,16 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return persistence.NewExpenseRepository(resolvedCategoryRepo, resolvedTransactionRepo), nil
+		return newExpenseRepository(resolvedCategoryRepo, resolvedTransactionRepo), nil
 	})
 	composition.Provide[counterparty.Repository](builder, func() counterparty.Repository {
-		return persistence.NewCounterpartyRepository()
+		return newCounterpartyRepository()
 	})
 	composition.Provide[inventory.Repository](builder, func() inventory.Repository {
-		return persistence.NewInventoryRepository()
+		return newInventoryRepository()
 	})
 	composition.Provide[debt.Repository](builder, func() debt.Repository {
-		return persistence.NewDebtRepository()
+		return newDebtRepository()
 	})
 	composition.Provide[query.FinancialReportsQueryRepository](builder, func() query.FinancialReportsQueryRepository {
 		return query.NewPgFinancialReportsQueryRepository()

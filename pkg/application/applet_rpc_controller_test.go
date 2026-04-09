@@ -104,7 +104,7 @@ func buildRPCAppletControllers(t *testing.T, app Application) ([]Controller, err
 	return typed, nil
 }
 
-func TestCreateAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
+func TestBuildAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
@@ -139,7 +139,7 @@ func TestCreateAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
 	assert.Equal(t, http.StatusMethodNotAllowed, perAppletRes.Code)
 }
 
-func TestCreateAppletControllers_GlobalRPCServesBiChatNamespacedMethod(t *testing.T) {
+func TestBuildAppletControllers_GlobalRPCServesBiChatNamespacedMethod(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -178,7 +178,7 @@ secrets = "env"
 	assert.Contains(t, res.Body.String(), `"ok":true`)
 }
 
-func TestCreateAppletControllers_AppletWSRouteMounted(t *testing.T) {
+func TestBuildAppletControllers_AppletWSRouteMounted(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -216,7 +216,7 @@ secrets = "env"
 	assert.NotEqual(t, http.StatusNotFound, res.Code)
 }
 
-func TestCreateAppletControllers_EngineWiringWorksForNonBiChatApplet(t *testing.T) {
+func TestBuildAppletControllers_EngineWiringWorksForNonBiChatApplet(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -252,7 +252,7 @@ secrets = "env"
 	assert.NotEqual(t, http.StatusNotFound, res.Code)
 }
 
-func TestCreateAppletControllers_BiChatRedisKVRequiresURL(t *testing.T) {
+func TestBuildAppletControllers_BiChatRedisKVRequiresURL(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -279,7 +279,7 @@ secrets = "env"
 	assert.Contains(t, err.Error(), "redis.url is required")
 }
 
-func TestCreateAppletControllers_BiChatPostgresDBRequiresPool(t *testing.T) {
+func TestBuildAppletControllers_BiChatPostgresDBRequiresPool(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -306,7 +306,7 @@ secrets = "env"
 	assert.Contains(t, err.Error(), "configure postgres db store for bichat")
 }
 
-func TestCreateAppletControllers_BiChatPostgresJobsRequiresPool(t *testing.T) {
+func TestBuildAppletControllers_BiChatPostgresJobsRequiresPool(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -333,7 +333,7 @@ secrets = "env"
 	assert.Contains(t, err.Error(), "configure postgres jobs store for bichat")
 }
 
-func TestCreateAppletControllers_BiChatPostgresSecretsRequiresPool(t *testing.T) {
+func TestBuildAppletControllers_BiChatPostgresSecretsRequiresPool(t *testing.T) {
 	masterKeyFile := filepath.Join(t.TempDir(), "master.key")
 	require.NoError(t, os.WriteFile(masterKeyFile, []byte("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="), 0o600))
 	withAppletConfig(t, fmt.Sprintf(`
@@ -365,7 +365,7 @@ master_key_file = %q
 	assert.Contains(t, err.Error(), "configure postgres secrets store for bichat")
 }
 
-func TestCreateAppletControllers_BiChatPostgresFilesRequiresPool(t *testing.T) {
+func TestBuildAppletControllers_BiChatPostgresFilesRequiresPool(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -392,7 +392,7 @@ secrets = "env"
 	assert.Contains(t, err.Error(), "configure postgres files store for bichat")
 }
 
-func TestCreateAppletControllers_RequiredSecretsValidation(t *testing.T) {
+func TestBuildAppletControllers_RequiredSecretsValidation(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -422,7 +422,7 @@ required = ["OPENAI_API_KEY"]
 	assert.Contains(t, err.Error(), "required secrets missing for bichat")
 }
 
-func TestCreateAppletControllers_S3FilesRequiresCredentials(t *testing.T) {
+func TestBuildAppletControllers_S3FilesRequiresCredentials(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -455,7 +455,7 @@ secret_key_env = "APPLET_S3_SECRET_KEY"
 	assert.Contains(t, err.Error(), "configure s3 files store for bichat")
 }
 
-func TestCreateAppletControllers_HostOverrideFromAppletsConfig(t *testing.T) {
+func TestBuildAppletControllers_HostOverrideFromAppletsConfig(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 
@@ -484,7 +484,7 @@ hosts = ["demo.example.com"]
 	assert.NotEqual(t, http.StatusNotFound, res.Code)
 }
 
-func TestCreateAppletControllers_SSRRouteMounted(t *testing.T) {
+func TestBuildAppletControllers_SSRRouteMounted(t *testing.T) {
 	withAppletConfig(t, `
 version = 2
 

@@ -165,32 +165,32 @@ func (c *component) Build(builder *composition.Builder) error {
 		return fsStorage, nil
 	})
 	composition.Provide[upload.Repository](builder, func() upload.Repository {
-		return persistence.NewUploadRepository()
+		return newUploadRepository()
 	})
 	composition.Provide[user.Repository](builder, func(container *composition.Container) (user.Repository, error) {
 		resolvedUploadRepo, err := uploadRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		return persistence.NewUserRepository(resolvedUploadRepo), nil
+		return newUserRepository(resolvedUploadRepo), nil
 	})
 	composition.Provide[role.Repository](builder, func() role.Repository {
-		return persistence.NewRoleRepository()
+		return newRoleRepository()
 	})
 	composition.Provide[tenant.Repository](builder, func() tenant.Repository {
-		return persistence.NewTenantRepository()
+		return newTenantRepository()
 	})
 	composition.Provide[permission.Repository](builder, func() permission.Repository {
-		return persistence.NewPermissionRepository()
+		return newPermissionRepository()
 	})
 	composition.Provide[session.Repository](builder, func() session.Repository {
-		return persistence.NewSessionRepository()
+		return newSessionRepository()
 	})
 	composition.Provide[twofactorentity.OTPRepository](builder, func() twofactorentity.OTPRepository {
-		return persistence.NewOTPRepository()
+		return newOTPRepository()
 	})
 	composition.Provide[twofactorentity.RecoveryCodeRepository](builder, func() twofactorentity.RecoveryCodeRepository {
-		return persistence.NewRecoveryCodeRepository()
+		return newRecoveryCodeRepository()
 	})
 	composition.Provide[group.Repository](builder, func(container *composition.Container) (group.Repository, error) {
 		resolvedUserRepo, err := userRepo.Resolve(container)
@@ -201,10 +201,10 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return persistence.NewGroupRepository(resolvedUserRepo, resolvedRoleRepo), nil
+		return newGroupRepository(resolvedUserRepo, resolvedRoleRepo), nil
 	})
 	composition.Provide[currency.Repository](builder, func() currency.Repository {
-		return persistence.NewCurrencyRepository()
+		return newCurrencyRepository()
 	})
 	composition.Provide[query.UserQueryRepository](builder, func() query.UserQueryRepository {
 		return query.NewPgUserQueryRepository()
