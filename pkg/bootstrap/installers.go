@@ -12,7 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	compositionapplet "github.com/iota-uz/iota-sdk/pkg/composition/applet"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 
@@ -33,13 +32,6 @@ func InstallComponents(capabilities []composition.Capability, components ...comp
 		}
 
 		return rt.SetComposition(engine, container)
-	})
-}
-
-func InstallNavItems(items ...types.NavigationItem) Installer {
-	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		rt.App.RegisterNavItems(items...)
-		return nil
 	})
 }
 

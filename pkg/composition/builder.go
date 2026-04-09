@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/benbjohnson/hashfs"
+	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -54,7 +56,11 @@ type Builder struct {
 	localeFactories     []namedFactory[[]*embed.FS]
 	schemaFactories     []namedFactory[[]application.GraphSchema]
 	appletFactories     []namedFactory[[]application.Applet]
+	assetFactories      []namedFactory[[]*embed.FS]
+	hashFSFactories     []namedFactory[[]*hashfs.FS]
+	quickLinkFactories  []namedFactory[[]*spotlight.QuickLink]
 	spotlightFactories  []namedFactory[[]spotlight.SearchProvider]
+	middlewareFactories []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories       []namedFactory[[]Hook]
 }
 
@@ -122,8 +128,24 @@ func ContributeApplets(builder *Builder, factory func(*Container) ([]application
 	appendFactory(builder, "applets", factory, &builder.appletFactories)
 }
 
+func ContributeAssets(builder *Builder, factory func(*Container) ([]*embed.FS, error)) {
+	appendFactory(builder, "assets", factory, &builder.assetFactories)
+}
+
+func ContributeHashFS(builder *Builder, factory func(*Container) ([]*hashfs.FS, error)) {
+	appendFactory(builder, "hashfs", factory, &builder.hashFSFactories)
+}
+
+func ContributeQuickLinks(builder *Builder, factory func(*Container) ([]*spotlight.QuickLink, error)) {
+	appendFactory(builder, "quick-links", factory, &builder.quickLinkFactories)
+}
+
 func ContributeSpotlightProviders(builder *Builder, factory func(*Container) ([]spotlight.SearchProvider, error)) {
 	appendFactory(builder, "spotlight", factory, &builder.spotlightFactories)
+}
+
+func ContributeMiddleware(builder *Builder, factory func(*Container) ([]mux.MiddlewareFunc, error)) {
+	appendFactory(builder, "middleware", factory, &builder.middlewareFactories)
 }
 
 func ContributeHooks(builder *Builder, factory func(*Container) ([]Hook, error)) {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/benbjohnson/hashfs"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -80,6 +81,22 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 	composition.ContributeSpotlightProviders(builder, func(*composition.Container) ([]spotlight.SearchProvider, error) {
 		return []spotlight.SearchProvider{newSpotlightProvider(app.DB())}, nil
+	})
+	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
+		return BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions), nil
+	})
+	composition.ContributeHashFS(builder, func(*composition.Container) ([]*hashfs.FS, error) {
+		return []*hashfs.FS{assets.HashFS}, nil
+	})
+	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+		return []*spotlight.QuickLink{
+			spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
+			spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
+			spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
+			spotlight.NewQuickLink("Users.List.New", "/users/new"),
+			spotlight.NewQuickLink("Account.Meta.Index.Title", "/account"),
+			spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
+		}, nil
 	})
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		cfg := configuration.Use()
@@ -224,20 +241,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.Provide[*services.PermissionService](builder, permissionService)
 	composition.Provide[*services.GroupService](builder, groupService)
 	composition.Provide[*coreservices2fa.TwoFactorService](builder, twoFactorService)
-
-	DashboardLinkPermissions = c.options.DashboardLinkPermissions
-	SettingsLinkPermissions = c.options.SettingsLinkPermissions
-	NavItems = ResolvedNavItems()
-
-	app.RegisterHashFsAssets(assets.HashFS)
-	app.QuickLinks().Add(
-		spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
-		spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
-		spotlight.NewQuickLink("Users.List.New", "/users/new"),
-		spotlight.NewQuickLink("Account.Meta.Index.Title", "/account"),
-		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
-	)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {

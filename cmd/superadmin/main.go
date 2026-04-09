@@ -62,7 +62,6 @@ func run() error {
 			core.NewComponent(&core.ModuleOptions{}),
 			superadmin.NewComponent(&superadmin.ModuleOptions{}),
 		),
-		bootstrap.InstallNavItems(superadmin.NavItems...),
 		bootstrap.InstallHashFS(internalassets.HashFS),
 		bootstrap.StartComposition(),
 	); err != nil {

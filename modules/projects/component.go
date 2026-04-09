@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 //go:embed presentation/locales/*.json
@@ -34,6 +35,17 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&localeFiles}, nil
 	})
+	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
+		return NavItems, nil
+	})
+	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+		return []*spotlight.QuickLink{
+			spotlight.NewQuickLink(ProjectsItem.Name, ProjectsItem.Href),
+			spotlight.NewQuickLink(ProjectStagesItem.Name, ProjectStagesItem.Href),
+			spotlight.NewQuickLink("Projects.List.New", "/projects/new"),
+			spotlight.NewQuickLink("ProjectStages.List.New", "/project-stages/new"),
+		}, nil
+	})
 
 	projectService := services.NewProjectService(
 		persistence.NewProjectRepository(),
@@ -46,12 +58,6 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	composition.Provide[*services.ProjectService](builder, projectService)
 	composition.Provide[*services.ProjectStageService](builder, projectStageService)
-	app.QuickLinks().Add(
-		spotlight.NewQuickLink(ProjectsItem.Name, ProjectsItem.Href),
-		spotlight.NewQuickLink(ProjectStagesItem.Name, ProjectStagesItem.Href),
-		spotlight.NewQuickLink("Projects.List.New", "/projects/new"),
-		spotlight.NewQuickLink("ProjectStages.List.New", "/project-stages/new"),
-	)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {

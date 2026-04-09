@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/twilio/twilio-go"
 )
 
@@ -53,11 +54,15 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&LocaleFiles}, nil
 	})
+	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
+		return NavItems, nil
+	})
+	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+		return []*spotlight.QuickLink{spotlight.NewQuickLink(ClientsLink.Name, ClientsLink.Href)}, nil
+	})
 	composition.ContributeSpotlightProviders(builder, func(*composition.Container) ([]spotlight.SearchProvider, error) {
 		return []spotlight.SearchProvider{newSpotlightProvider(app.DB())}, nil
 	})
-
-	app.QuickLinks().Add(spotlight.NewQuickLink(ClientsLink.Name, ClientsLink.Href))
 
 	composition.Provide[passport.Repository](builder, func() passport.Repository {
 		return corepersistence.NewPassportRepository()

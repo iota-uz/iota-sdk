@@ -51,7 +51,6 @@ func run() error {
 			[]composition.Capability{composition.CapabilityAPI, composition.CapabilityWorker},
 			append(modules.Components(), bichat.NewComponent())...,
 		),
-		bootstrap.InstallNavItems(modules.NavLinks...),
 		bootstrap.InstallHashFS(internalassets.HashFS),
 		bootstrap.InstallApplets(bootstrap.AppletsOptions{
 			SessionConfig: applets.DefaultSessionConfig,

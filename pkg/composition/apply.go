@@ -22,10 +22,22 @@ func Apply(app application.Application, container *Container, opts ApplyOptions)
 			app.RegisterGraphSchema(schema)
 		}
 	}
+	if assets := container.Assets(); len(assets) > 0 {
+		app.RegisterAssets(assets...)
+	}
+	if hashFSAssets := container.HashFSAssets(); len(hashFSAssets) > 0 {
+		app.RegisterHashFsAssets(hashFSAssets...)
+	}
+	if quickLinks := container.QuickLinks(); len(quickLinks) > 0 {
+		app.QuickLinks().Add(quickLinks...)
+	}
 	if providers := container.SpotlightProviders(); len(providers) > 0 {
 		for _, provider := range providers {
 			app.Spotlight().RegisterProvider(provider)
 		}
+	}
+	if middleware := container.Middleware(); len(middleware) > 0 {
+		app.RegisterMiddleware(middleware...)
 	}
 	if applets := container.Applets(); len(applets) > 0 {
 		for _, applet := range applets {

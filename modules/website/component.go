@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 //go:embed presentation/locales/*.json
@@ -38,6 +39,9 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&LocaleFiles}, nil
+	})
+	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
+		return NavItems, nil
 	})
 
 	userRepo := corePersistence.NewUserRepository(corePersistence.NewUploadRepository())

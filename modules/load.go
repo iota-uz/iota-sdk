@@ -2,8 +2,6 @@
 package modules
 
 import (
-	"slices"
-
 	"github.com/iota-uz/iota-sdk/modules/billing"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/crm"
@@ -23,19 +21,6 @@ var (
 	coreModuleOptions = &core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}
-
-	// NOTE: bichat.NavItems is intentionally excluded from default NavLinks.
-	// The BiChat module registers its own nav items when loaded (requires OPENAI_API_KEY).
-	// Including them here would cause translation errors when the module is not loaded.
-	NavLinks = slices.Concat(
-		core.BuildNavItems(coreModuleOptions.DashboardLinkPermissions, coreModuleOptions.SettingsLinkPermissions),
-		hrm.NavItems,
-		finance.NavItems,
-		projects.NavItems,
-		warehouse.NavItems,
-		crm.NavItems,
-		website.NavItems,
-	)
 )
 
 func Components() []composition.Component {

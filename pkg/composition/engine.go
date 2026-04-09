@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/benbjohnson/hashfs"
+	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -240,7 +242,11 @@ type Container struct {
 	localeFactories     []namedFactory[[]*embed.FS]
 	schemaFactories     []namedFactory[[]application.GraphSchema]
 	appletFactories     []namedFactory[[]application.Applet]
+	assetFactories      []namedFactory[[]*embed.FS]
+	hashFSFactories     []namedFactory[[]*hashfs.FS]
+	quickLinkFactories  []namedFactory[[]*spotlight.QuickLink]
 	spotlightFactories  []namedFactory[[]spotlight.SearchProvider]
+	middlewareFactories []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories       []namedFactory[[]Hook]
 
 	controllers        []application.Controller
@@ -248,7 +254,11 @@ type Container struct {
 	locales            []*embed.FS
 	graphSchemas       []application.GraphSchema
 	applets            []application.Applet
+	assets             []*embed.FS
+	hashFSAssets       []*hashfs.FS
+	quickLinks         []*spotlight.QuickLink
 	spotlightProviders []spotlight.SearchProvider
+	middleware         []mux.MiddlewareFunc
 	hooks              []Hook
 	started            bool
 }
@@ -287,8 +297,24 @@ func (c *Container) Applets() []application.Applet {
 	return append([]application.Applet(nil), c.applets...)
 }
 
+func (c *Container) Assets() []*embed.FS {
+	return append([]*embed.FS(nil), c.assets...)
+}
+
+func (c *Container) HashFSAssets() []*hashfs.FS {
+	return append([]*hashfs.FS(nil), c.hashFSAssets...)
+}
+
+func (c *Container) QuickLinks() []*spotlight.QuickLink {
+	return append([]*spotlight.QuickLink(nil), c.quickLinks...)
+}
+
 func (c *Container) SpotlightProviders() []spotlight.SearchProvider {
 	return append([]spotlight.SearchProvider(nil), c.spotlightProviders...)
+}
+
+func (c *Container) Middleware() []mux.MiddlewareFunc {
+	return append([]mux.MiddlewareFunc(nil), c.middleware...)
 }
 
 func (c *Container) Hooks() []Hook {
@@ -411,7 +437,11 @@ func (c *Container) addBuilder(builder *Builder) error {
 	c.localeFactories = append(c.localeFactories, builder.localeFactories...)
 	c.schemaFactories = append(c.schemaFactories, builder.schemaFactories...)
 	c.appletFactories = append(c.appletFactories, builder.appletFactories...)
+	c.assetFactories = append(c.assetFactories, builder.assetFactories...)
+	c.hashFSFactories = append(c.hashFSFactories, builder.hashFSFactories...)
+	c.quickLinkFactories = append(c.quickLinkFactories, builder.quickLinkFactories...)
 	c.spotlightFactories = append(c.spotlightFactories, builder.spotlightFactories...)
+	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
 	return nil
 }
@@ -441,7 +471,19 @@ func (c *Container) materialize() error {
 	if err := collectInto(c, c.appletFactories, &c.applets); err != nil {
 		return err
 	}
+	if err := collectInto(c, c.assetFactories, &c.assets); err != nil {
+		return err
+	}
+	if err := collectInto(c, c.hashFSFactories, &c.hashFSAssets); err != nil {
+		return err
+	}
+	if err := collectInto(c, c.quickLinkFactories, &c.quickLinks); err != nil {
+		return err
+	}
 	if err := collectInto(c, c.spotlightFactories, &c.spotlightProviders); err != nil {
+		return err
+	}
+	if err := collectInto(c, c.middlewareFactories, &c.middleware); err != nil {
 		return err
 	}
 	if err := collectInto(c, c.hookFactories, &c.hooks); err != nil {

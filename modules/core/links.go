@@ -58,11 +58,6 @@ var AdministrationLink = types.NavigationItem{
 	},
 }
 
-// DashboardLinkPermissions and SettingsLinkPermissions allow host applications to
-// control which users can see these core links in the sidebar.
-var DashboardLinkPermissions []permission.Permission
-var SettingsLinkPermissions []permission.Permission
-
 // BuildNavItems returns core nav items with provided permission overrides.
 func BuildNavItems(
 	dashboardLinkPermissions []permission.Permission,
@@ -89,10 +84,3 @@ func BuildNavItems(
 		administrationLink,
 	}
 }
-
-// ResolvedNavItems resolves nav items from package-level permission overrides.
-func ResolvedNavItems() []types.NavigationItem {
-	return BuildNavItems(DashboardLinkPermissions, SettingsLinkPermissions)
-}
-
-var NavItems = BuildNavItems(nil, nil)

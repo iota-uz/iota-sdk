@@ -66,8 +66,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
 		return NavItems, nil
 	})
+	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+		return []*spotlight.QuickLink{spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href)}, nil
+	})
 
-	app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
 	if moduleConfig.KBSearcher != nil {
 		app.Spotlight().SetAgent(spotlight.NewBIChatAgent(moduleConfig.KBSearcher))
 	}

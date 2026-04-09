@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -52,6 +53,25 @@ func (c *component) Build(builder *composition.Builder) error {
 			},
 		}, nil
 	})
+	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
+		return NavItems, nil
+	})
+	composition.ContributeAssets(builder, func(*composition.Container) ([]*embed.FS, error) {
+		return []*embed.FS{&assets.FS}, nil
+	})
+	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+		return []*spotlight.QuickLink{
+			spotlight.NewQuickLink(ProductsItem.Name, ProductsItem.Href),
+			spotlight.NewQuickLink(PositionsItem.Name, PositionsItem.Href),
+			spotlight.NewQuickLink(OrdersItem.Name, OrdersItem.Href),
+			spotlight.NewQuickLink(UnitsItem.Name, UnitsItem.Href),
+			spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
+			spotlight.NewQuickLink("WarehousePositions.List.New", "/warehouse/positions/new"),
+			spotlight.NewQuickLink("Products.List.New", "/warehouse/products/new"),
+			spotlight.NewQuickLink("WarehouseOrders.List.New", "/warehouse/orders/new"),
+			spotlight.NewQuickLink("WarehouseUnits.List.New", "/warehouse/units/new"),
+		}, nil
+	})
 
 	unitRepo := persistence.NewUnitRepository()
 	positionRepo := persistence.NewPositionRepository()
@@ -83,19 +103,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 	composition.Provide[*orderservice.OrderService](builder, orderService)
 	composition.Provide[*services.InventoryService](builder, inventoryService)
-
-	app.RegisterAssets(&assets.FS)
-	app.QuickLinks().Add(
-		spotlight.NewQuickLink(ProductsItem.Name, ProductsItem.Href),
-		spotlight.NewQuickLink(PositionsItem.Name, PositionsItem.Href),
-		spotlight.NewQuickLink(OrdersItem.Name, OrdersItem.Href),
-		spotlight.NewQuickLink(UnitsItem.Name, UnitsItem.Href),
-		spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
-		spotlight.NewQuickLink("WarehousePositions.List.New", "/warehouse/positions/new"),
-		spotlight.NewQuickLink("Products.List.New", "/warehouse/products/new"),
-		spotlight.NewQuickLink("WarehouseOrders.List.New", "/warehouse/orders/new"),
-		spotlight.NewQuickLink("WarehouseUnits.List.New", "/warehouse/units/new"),
-	)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
