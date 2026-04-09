@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 )
@@ -64,7 +65,8 @@ func TestUsersController_Delete_SelfDeletionPrevention(t *testing.T) {
 		Build()
 
 	// Register the users controller
-	controller := controllers.NewUsersController(suite.Env().App, &controllers.UsersControllerOptions{
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewUsersController(suite.Env().App, userService, &controllers.UsersControllerOptions{
 		BasePath:         "/users",
 		PermissionSchema: &rbac.PermissionSchema{}, // Empty schema for tests
 	})
@@ -137,7 +139,8 @@ func TestUsersController_Delete_Permissions(t *testing.T) {
 				AsUser(tc.permissions...).
 				Build()
 
-			controller := controllers.NewUsersController(suite.Env().App, &controllers.UsersControllerOptions{
+			userService := itf.GetService[coreservices.UserService](suite.Env())
+			controller := controllers.NewUsersController(suite.Env().App, userService, &controllers.UsersControllerOptions{
 				BasePath:         "/users",
 				PermissionSchema: &rbac.PermissionSchema{}, // Empty schema for tests
 			})
@@ -162,7 +165,8 @@ func TestUsersController_Delete_EdgeCases(t *testing.T) {
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 
-	controller := controllers.NewUsersController(suite.Env().App, &controllers.UsersControllerOptions{
+	userService2 := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewUsersController(suite.Env().App, userService2, &controllers.UsersControllerOptions{
 		BasePath:         "/users",
 		PermissionSchema: &rbac.PermissionSchema{}, // Empty schema for tests
 	})

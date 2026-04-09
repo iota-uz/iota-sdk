@@ -80,7 +80,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 }
 ```
 
-Some modules register a controller by having another controller call its `Register` on a sub-router (e.g. the Finance module mounts the expense controller under the financial overview router rather than registering it directly in `module.go`).
+Some modules register a controller by having another controller call its `Register` on a sub-router (e.g. the Finance module mounts the expense controller under the financial overview router rather than registering it directly in `component.go`).
 
 ## Request Handlers
 

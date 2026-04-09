@@ -18,8 +18,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// BuildContext is the read-only context threaded through every
+// Component.Build call. It exposes the pooled dependencies every component
+// needs (db, event bus, bundle, config, logger) and the active capability
+// set. It deliberately does NOT expose the application.Application handle;
+// components that need `app` (to pass to controller constructors for
+// middleware wiring) call RequireApplication(container) from inside a
+// ContributeControllers closure, which resolves it through the container's
+// auto-provided application.Application provider.
 type BuildContext struct {
-	app                application.Application
+	app                application.Application // private; accessed only via auto-provided provider
 	db                 *pgxpool.Pool
 	eventPublisher     eventbus.EventBus
 	logger             *logrus.Logger
@@ -28,6 +36,10 @@ type BuildContext struct {
 	ActiveCapabilities map[Capability]struct{}
 }
 
+// NewBuildContext constructs the BuildContext from the application handle and
+// the SDK configuration. The application handle is captured privately so
+// Engine.Compile can auto-register application.Application as a provider at
+// container instantiation time.
 func NewBuildContext(app application.Application, config *configuration.Configuration) BuildContext {
 	ctx := BuildContext{
 		app:    app,

@@ -9,7 +9,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
@@ -46,15 +45,17 @@ func Require2FAVerification(setupPath, verifyPath string) mux.MiddlewareFunc {
 					return
 				}
 
-				// Session is pending 2FA verification, get app and user service
-				app, err := application.UseApp(ctx)
+				// Session is pending 2FA verification, get user service via container
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					// If we can't get the app, deny the request
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 					return
 				}
-
-				userService := composition.MustResolveForApp[*services.UserService](app)
+				userService, err := composition.Resolve[*services.UserService](container)
+				if err != nil {
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				u, err := userService.GetByID(ctx, sess.UserID())
 				if err != nil {
 					// If user not found or error, deny the request

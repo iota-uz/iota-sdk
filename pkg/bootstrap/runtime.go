@@ -69,8 +69,10 @@ func (rt *Runtime) SetComposition(engine *composition.Engine, container *composi
 	rt.Engine = engine
 	rt.container = container
 	if rt.App != nil && container != nil {
-		if err := composition.Attach(rt.App, container); err != nil {
-			return err
+		if binder, ok := rt.App.(application.RuntimeBinder); ok {
+			if err := binder.AttachRuntimeSource(container); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -197,7 +199,9 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 			cleanupErr = errors.Join(cleanupErr, rt.Stop(stopCtx))
 		}
 		if rt.App != nil {
-			composition.Detach(rt.App)
+			if binder, ok := rt.App.(application.RuntimeBinder); ok {
+				binder.DetachRuntimeSource()
+			}
 		}
 		cleanupErr = errors.Join(cleanupErr, runCleanup(cleanup))
 		return cleanupErr

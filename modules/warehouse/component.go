@@ -54,10 +54,26 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
+		resolvedOrderService, err := composition.Resolve[*orderservice.OrderService](container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedProductService, err := composition.Resolve[*productservice.ProductService](container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedPositionService, err := composition.Resolve[*positionservice.PositionService](container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedInventoryService, err := composition.Resolve[*services.InventoryService](container)
+		if err != nil {
+			return nil, err
+		}
 		return []application.GraphSchema{
 			{
 				Value: graph.NewExecutableSchema(graph.Config{
-					Resolvers: graph.NewResolver(app),
+					Resolvers: graph.NewResolver(app, resolvedOrderService, resolvedProductService, resolvedPositionService, resolvedInventoryService),
 				}),
 				BasePath: "/warehouse",
 			},
@@ -191,12 +207,32 @@ func (c *component) Build(builder *composition.Builder) error {
 			if err != nil {
 				return nil, err
 			}
+			resolvedUnitService, err := composition.Resolve[*services.UnitService](container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedProductService, err := composition.Resolve[*productservice.ProductService](container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedPositionService, err := composition.Resolve[*positionservice.PositionService](container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedOrderService, err := composition.Resolve[*orderservice.OrderService](container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedInventoryService, err := composition.Resolve[*services.InventoryService](container)
+			if err != nil {
+				return nil, err
+			}
 			return []application.Controller{
-				controllers.NewProductsController(app),
+				controllers.NewProductsController(app, resolvedProductService, resolvedPositionService),
 				controllers.NewPositionsController(app),
-				controllers.NewUnitsController(app),
-				controllers.NewOrdersController(app),
-				controllers.NewInventoryController(app),
+				controllers.NewUnitsController(app, resolvedUnitService),
+				controllers.NewOrdersController(app, resolvedOrderService, resolvedPositionService, resolvedProductService),
+				controllers.NewInventoryController(app, resolvedInventoryService, resolvedPositionService),
 			}, nil
 		})
 	}

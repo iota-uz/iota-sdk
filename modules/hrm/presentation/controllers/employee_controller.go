@@ -21,7 +21,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/hrm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -36,10 +35,10 @@ type EmployeeController struct {
 	basePath        string
 }
 
-func NewEmployeeController(app application.Application) application.Controller {
+func NewEmployeeController(app application.Application, employeeService *services.EmployeeService) application.Controller {
 	return &EmployeeController{
 		app:             app,
-		employeeService: composition.MustResolveForApp[*services.EmployeeService](app),
+		employeeService: employeeService,
 		basePath:        "/hrm/employees",
 	}
 }

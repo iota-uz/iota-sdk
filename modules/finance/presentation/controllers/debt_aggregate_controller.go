@@ -18,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -31,13 +30,13 @@ type DebtAggregateController struct {
 	basePath            string
 }
 
-func NewDebtAggregateController(app application.Application) application.Controller {
+func NewDebtAggregateController(app application.Application, debtService *services.DebtService, counterpartyService *services.CounterpartyService) application.Controller {
 	basePath := "/finance/debt-aggregates"
 
 	return &DebtAggregateController{
 		app:                 app,
-		debtService:         composition.MustResolveForApp[*services.DebtService](app),
-		counterpartyService: composition.MustResolveForApp[*services.CounterpartyService](app),
+		debtService:         debtService,
+		counterpartyService: counterpartyService,
 		basePath:            basePath,
 	}
 }

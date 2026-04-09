@@ -12,7 +12,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -22,11 +21,11 @@ type UserHandler struct {
 	sessionService *services.SessionService
 }
 
-func RegisterUserHandler(app application.Application) *UserHandler {
+func RegisterUserHandler(app application.Application, sessionService *services.SessionService) *UserHandler {
 	handler := &UserHandler{
 		pool:           app.DB(),
 		publisher:      app.EventPublisher(),
-		sessionService: composition.MustResolveForApp[*services.SessionService](app),
+		sessionService: sessionService,
 	}
 	app.EventPublisher().Subscribe(handler.onUserPasswordUpdated)
 	return handler

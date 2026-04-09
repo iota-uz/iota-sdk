@@ -9,7 +9,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	units2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/units"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
@@ -36,10 +35,10 @@ type UnitPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewUnitsController(app application.Application) application.Controller {
+func NewUnitsController(app application.Application, unitService *services.UnitService) application.Controller {
 	return &UnitsController{
 		app:         app,
-		unitService: composition.MustResolveForApp[*services.UnitService](app),
+		unitService: unitService,
 		basePath:    "/warehouse/units",
 	}
 }

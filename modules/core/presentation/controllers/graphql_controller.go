@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/graphql"
 )
@@ -22,6 +23,9 @@ var registerPlaygroundHandler = func(r *mux.Router) {}
 
 type GraphQLController struct {
 	app             application.Application
+	userService     *services.UserService
+	uploadService   *services.UploadService
+	authService     *services.AuthService
 	resolverOptions []graph.ResolverOption
 }
 
@@ -42,7 +46,7 @@ func (g *GraphQLController) Key() string {
 func (g *GraphQLController) Register(r *mux.Router) {
 	schema := graph.NewExecutableSchema(
 		graph.Config{
-			Resolvers: graph.NewResolver(g.app, g.resolverOptions...),
+			Resolvers: graph.NewResolver(g.app, g.userService, g.uploadService, g.authService, g.resolverOptions...),
 		},
 	)
 	srv := graphql.NewBaseServer(schema)
@@ -82,9 +86,18 @@ func (g *GraphQLController) Register(r *mux.Router) {
 //	        graph.WithUploadsAuthorizer(customUploadsAuthorizer),
 //	    ),
 //	)
-func NewGraphQLController(app application.Application, opts ...GraphQLControllerOption) application.Controller {
+func NewGraphQLController(
+	app application.Application,
+	userService *services.UserService,
+	uploadService *services.UploadService,
+	authService *services.AuthService,
+	opts ...GraphQLControllerOption,
+) application.Controller {
 	c := &GraphQLController{
-		app: app,
+		app:           app,
+		userService:   userService,
+		uploadService: uploadService,
+		authService:   authService,
 	}
 	for _, opt := range opts {
 		opt(c)

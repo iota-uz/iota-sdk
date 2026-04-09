@@ -67,7 +67,7 @@ modules/productcatalog/
 ├── permissions/
 │   └── constants.go                    # RBAC permissions
 ├── links.go                            # Navigation items
-└── module.go                           # Module registration
+└── component.go                        # Component registration
 ```
 
 ## Step 1: Domain Layer
@@ -913,9 +913,9 @@ var NavItems = []types.NavigationItem{
 }
 ```
 
-### 5.3 Module Registration
+### 5.3 Component Registration
 
-Create `modules/productcatalog/module.go`:
+Create `modules/productcatalog/component.go`:
 
 ```go
 package productcatalog

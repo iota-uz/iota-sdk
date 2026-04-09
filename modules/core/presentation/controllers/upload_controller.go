@@ -19,7 +19,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -32,10 +31,10 @@ type UploadController struct {
 	basePath      string
 }
 
-func NewUploadController(app application.Application) application.Controller {
+func NewUploadController(app application.Application, uploadService *services.UploadService) application.Controller {
 	return &UploadController{
 		app:           app,
-		uploadService: composition.MustResolveForApp[*services.UploadService](app),
+		uploadService: uploadService,
 		basePath:      "/uploads",
 	}
 }

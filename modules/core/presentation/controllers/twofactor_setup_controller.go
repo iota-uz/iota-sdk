@@ -18,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -30,15 +29,23 @@ import (
 // NewTwoFactorSetupController creates a new TwoFactorSetupController.
 // Initializes the controller with required service dependencies.
 // Parameters:
-//   - app: The application instance providing service registry
+//   - app: The application instance providing services (localizer, middleware)
+//   - twoFactorService: The two-factor authentication service
+//   - sessionService: The session management service
+//   - userService: The user management service
 //
 // Returns a configured TwoFactorSetupController implementing the Controller interface.
-func NewTwoFactorSetupController(app application.Application) application.Controller {
+func NewTwoFactorSetupController(
+	app application.Application,
+	twoFactorService *twofactor.TwoFactorService,
+	sessionService *services.SessionService,
+	userService *services.UserService,
+) application.Controller {
 	return &TwoFactorSetupController{
 		app:              app,
-		twoFactorService: composition.MustResolveForApp[*twofactor.TwoFactorService](app),
-		sessionService:   composition.MustResolveForApp[*services.SessionService](app),
-		userService:      composition.MustResolveForApp[*services.UserService](app),
+		twoFactorService: twoFactorService,
+		sessionService:   sessionService,
+		userService:      userService,
 	}
 }
 

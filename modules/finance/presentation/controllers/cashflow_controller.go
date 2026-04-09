@@ -16,7 +16,6 @@ import (
 	reports "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/reports"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -28,13 +27,13 @@ type CashflowController struct {
 	basePath               string
 }
 
-func NewCashflowController(app application.Application) application.Controller {
+func NewCashflowController(app application.Application, financialReportService *services.FinancialReportService, moneyAccountService *services.MoneyAccountService) application.Controller {
 	basePath := "/finance/reports"
 
 	return &CashflowController{
 		app:                    app,
-		financialReportService: composition.MustResolveForApp[*services.FinancialReportService](app),
-		moneyAccountService:    composition.MustResolveForApp[*services.MoneyAccountService](app),
+		financialReportService: financialReportService,
+		moneyAccountService:    moneyAccountService,
 		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
 		basePath:               basePath,
 	}

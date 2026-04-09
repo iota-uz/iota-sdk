@@ -15,10 +15,6 @@ func KeyFor[T any]() Key {
 	return keyFor(typeOf[T](), "")
 }
 
-func NamedKeyFor[T any](name string) Key {
-	return keyFor(typeOf[T](), name)
-}
-
 func keyFor(typ reflect.Type, name string) Key {
 	if typ == nil {
 		panic("composition: key type is required")

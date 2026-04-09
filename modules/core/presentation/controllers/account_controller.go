@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -32,13 +31,19 @@ type AccountController struct {
 	basePath       string
 }
 
-func NewAccountController(app application.Application) application.Controller {
+func NewAccountController(
+	app application.Application,
+	userService *services.UserService,
+	tenantService *services.TenantService,
+	uploadService *services.UploadService,
+	sessionService *services.SessionService,
+) application.Controller {
 	return &AccountController{
 		app:            app,
-		userService:    composition.MustResolveForApp[*services.UserService](app),
-		tenantService:  composition.MustResolveForApp[*services.TenantService](app),
-		uploadService:  composition.MustResolveForApp[*services.UploadService](app),
-		sessionService: composition.MustResolveForApp[*services.SessionService](app),
+		userService:    userService,
+		tenantService:  tenantService,
+		uploadService:  uploadService,
+		sessionService: sessionService,
 		basePath:       "/account",
 	}
 }

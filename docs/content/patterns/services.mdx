@@ -51,7 +51,7 @@ func NewExpenseService(
 Services are wired together during the module wiring phase:
 
 ```go
-// modules/finance/module.go
+// modules/finance/component.go
 
 func (c *component) Build(builder *composition.Builder) error {
 	uploadRepo := composition.Use[upload.Repository]()

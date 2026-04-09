@@ -12,7 +12,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -46,11 +45,14 @@ func Authorize() mux.MiddlewareFunc {
 					return
 				}
 				ctx := r.Context()
-				app, err := application.UseApp(ctx)
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
 					panic(err)
 				}
-				authService := composition.MustResolveForApp[*services.AuthService](app)
+				authService, err := composition.Resolve[*services.AuthService](container)
+				if err != nil {
+					panic(err)
+				}
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -93,11 +95,14 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 					return
 				}
 				ctx := r.Context()
-				app, err := application.UseApp(ctx)
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
 					panic(err)
 				}
-				authService := composition.MustResolveForApp[*services.AuthService](app)
+				authService, err := composition.Resolve[*services.AuthService](container)
+				if err != nil {
+					panic(err)
+				}
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -129,11 +134,14 @@ func ProvideUser() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
-				app, err := application.UseApp(ctx)
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
 					panic(err)
 				}
-				userService := composition.MustResolveForApp[*services.UserService](app)
+				userService, err := composition.Resolve[*services.UserService](container)
+				if err != nil {
+					panic(err)
+				}
 				u, err := userService.GetByID(ctx, sess.UserID())
 				if err != nil {
 					next.ServeHTTP(w, r)

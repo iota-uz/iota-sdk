@@ -5,7 +5,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/authorizers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -17,6 +16,7 @@ type Resolver struct {
 	app               application.Application
 	userService       *services.UserService
 	uploadService     *services.UploadService
+	authService       *services.AuthService
 	uploadsAuthorizer types.UploadsAuthorizer
 	usersAuthorizer   types.UsersAuthorizer
 }
@@ -56,13 +56,18 @@ func WithUsersAuthorizer(authorizer types.UsersAuthorizer) ResolverOption {
 //	    WithUploadsAuthorizer(customUploadsAuthorizer),
 //	    WithUsersAuthorizer(customUsersAuthorizer),
 //	)
-func NewResolver(app application.Application, opts ...ResolverOption) *Resolver {
-	userService := composition.MustResolveForApp[*services.UserService](app)
-
+func NewResolver(
+	app application.Application,
+	userService *services.UserService,
+	uploadService *services.UploadService,
+	authService *services.AuthService,
+	opts ...ResolverOption,
+) *Resolver {
 	r := &Resolver{
 		app:               app,
 		userService:       userService,
-		uploadService:     composition.MustResolveForApp[*services.UploadService](app),
+		uploadService:     uploadService,
+		authService:       authService,
 		uploadsAuthorizer: authorizers.NewDefaultUploadsAuthorizer(),
 		usersAuthorizer:   authorizers.NewDefaultUsersAuthorizer(userService),
 	}

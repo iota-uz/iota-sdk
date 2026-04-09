@@ -19,7 +19,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -34,7 +33,7 @@ type ExpenseCategoriesController struct {
 	tableDefinition        table.TableDefinition
 }
 
-func NewExpenseCategoriesController(app application.Application) application.Controller {
+func NewExpenseCategoriesController(app application.Application, expenseCategoryService *services.ExpenseCategoryService) application.Controller {
 	basePath := "/finance/expense-categories"
 
 	// Create table definition with columns for HTMX requests
@@ -49,7 +48,7 @@ func NewExpenseCategoriesController(app application.Application) application.Con
 
 	return &ExpenseCategoriesController{
 		app:                    app,
-		expenseCategoryService: composition.MustResolveForApp[*services.ExpenseCategoryService](app),
+		expenseCategoryService: expenseCategoryService,
 		basePath:               basePath,
 		tableDefinition:        tableDefinition,
 	}

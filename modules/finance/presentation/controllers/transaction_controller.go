@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -31,7 +30,7 @@ type TransactionController struct {
 	tableDefinition    table.TableDefinition
 }
 
-func NewTransactionController(app application.Application) application.Controller {
+func NewTransactionController(app application.Application, transactionService *services.TransactionService) application.Controller {
 	basePath := "/finance/transactions"
 
 	// Create table definition with columns for HTMX requests
@@ -50,7 +49,7 @@ func NewTransactionController(app application.Application) application.Controlle
 
 	return &TransactionController{
 		app:                app,
-		transactionService: composition.MustResolveForApp[*services.TransactionService](app),
+		transactionService: transactionService,
 		queryRepo:          query.NewPgTransactionQueryRepository(),
 		basePath:           basePath,
 		tableDefinition:    tableDefinition,

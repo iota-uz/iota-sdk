@@ -77,7 +77,11 @@ func (c *component) Build(builder *composition.Builder) error {
 			if err != nil {
 				return nil, err
 			}
-			return []application.Controller{controllers.NewEmployeeController(app)}, nil
+			resolvedEmployeeService, err := composition.Resolve[*services.EmployeeService](container)
+			if err != nil {
+				return nil, err
+			}
+			return []application.Controller{controllers.NewEmployeeController(app, resolvedEmployeeService)}, nil
 		})
 	}
 

@@ -19,7 +19,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -38,11 +37,11 @@ type InventoryPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewInventoryController(app application.Application) application.Controller {
+func NewInventoryController(app application.Application, inventoryService *services.InventoryService, currencyService *coreservices.CurrencyService) application.Controller {
 	return &InventoryController{
 		app:              app,
-		inventoryService: composition.MustResolveForApp[*services.InventoryService](app),
-		currencyService:  composition.MustResolveForApp[*coreservices.CurrencyService](app),
+		inventoryService: inventoryService,
+		currencyService:  currencyService,
 		basePath:         "/finance/inventory",
 	}
 }

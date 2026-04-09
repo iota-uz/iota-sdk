@@ -11,7 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -32,10 +31,9 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	counterparty1 := counterparty.New(
 		"Test Customer",
@@ -79,10 +77,9 @@ func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	counterparty1 := counterparty.New(
 		"HTMX Test Counterparty",
@@ -111,7 +108,8 @@ func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	response := suite.GET(CounterpartyBasePath + "/new").
@@ -138,10 +136,9 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	formData := url.Values{}
 	formData.Set("Name", "New Test Counterparty")
@@ -176,10 +173,9 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	formData := url.Values{}
 	formData.Set("Name", "")
@@ -209,10 +205,9 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	counterparty1 := counterparty.New(
 		"Edit Test Counterparty",
@@ -249,7 +244,8 @@ func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -267,10 +263,9 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	counterparty1 := counterparty.New(
 		"Original Counterparty",
@@ -313,10 +308,9 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	counterparty1 := counterparty.New(
 		"Test Counterparty",
@@ -356,10 +350,9 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	counterparty1 := counterparty.New(
 		"Counterparty to Delete",
@@ -393,7 +386,8 @@ func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -411,10 +405,9 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	counterparty1 := counterparty.New(
 		"Searchable Customer",
@@ -451,7 +444,8 @@ func TestCounterpartiesController_InvalidUUID(t *testing.T) {
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	suite.GET(CounterpartyBasePath + "/invalid-uuid").
@@ -468,10 +462,9 @@ func TestCounterpartiesController_Create_InvalidTINValidationError(t *testing.T)
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	formData := url.Values{}
 	formData.Set("Name", "Test Company")
@@ -504,10 +497,9 @@ func TestCounterpartiesController_Update_InvalidTINValidationError(t *testing.T)
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	// Create a counterparty first
 	counterparty1 := counterparty.New(
@@ -558,7 +550,8 @@ func TestCreate_ValidationError_PreservesFormData(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	testCases := []struct {
@@ -654,7 +647,8 @@ func TestCreate_MultipleValidationErrors_PreservesAllFields(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	// Submit form with multiple validation errors
@@ -708,10 +702,9 @@ func TestUpdate_ValidationError_PreservesFormData(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	// Create a counterparty with valid TIN first
 	existingCounterparty := counterparty.New(
@@ -810,10 +803,9 @@ func TestUpdate_ValidTINWithOtherValidationErrors_PreservesUserInput(t *testing.
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	// Create counterparty with original TIN
 	existingCounterparty := counterparty.New(
@@ -877,10 +869,9 @@ func TestCreate_EmptyTIN_ShouldBeAllowed(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	formData := url.Values{}
 	formData.Set("Name", "Company Without TIN")
@@ -919,7 +910,8 @@ func TestCreate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	invalidTIN := "HTMX-INVALID-TIN"
@@ -960,10 +952,9 @@ func TestUpdate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := composition.MustResolveForApp[*services.CounterpartyService](suite.Env().App)
 
 	// Create existing counterparty
 	existingCounterparty := counterparty.New(

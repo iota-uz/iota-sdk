@@ -13,10 +13,8 @@ func Use[T any]() Resolver[T] {
 	return Resolver[T]{key: KeyFor[T]()}
 }
 
-func KeyForType(t reflect.Type) Key {
-	return keyFor(t, "")
-}
-
+// ResolveType resolves a provider by reflect.Type. Used by pkg/di to wire
+// controller handler parameters at request time via the serviceResolver interface.
 func (c *Container) ResolveType(t reflect.Type) (any, error) {
 	if c == nil {
 		return nil, fmt.Errorf("composition: container is nil")
@@ -34,12 +32,4 @@ func (r Resolver[T]) Resolve(container *Container) (T, error) {
 		return zero, fmt.Errorf("composition: container is nil")
 	}
 	return ResolveKey[T](container, r.key)
-}
-
-func (r Resolver[T]) MustResolve(container *Container) T {
-	value, err := r.Resolve(container)
-	if err != nil {
-		panic(err)
-	}
-	return value
 }

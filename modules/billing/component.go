@@ -106,12 +106,16 @@ func (c *component) Build(builder *composition.Builder) error {
 			if err != nil {
 				return nil, err
 			}
+			billingSvc, err := composition.Resolve[*services.BillingService](container)
+			if err != nil {
+				return nil, err
+			}
 			logTransport := middleware.NewLogTransport(conf.Logger(), conf, true, true, "octo")
 			return []application.Controller{
-				controllers.NewClickController(app, conf.Click, basePath+"/click"),
-				controllers.NewPaymeController(app, conf.Payme, basePath+"/payme"),
-				controllers.NewOctoController(app, conf.Octo, basePath+"/octo", logTransport),
-				controllers.NewStripeController(app, conf.Stripe, basePath+"/stripe", stripeHooks...),
+				controllers.NewClickController(app, billingSvc, conf.Click, basePath+"/click"),
+				controllers.NewPaymeController(app, billingSvc, conf.Payme, basePath+"/payme"),
+				controllers.NewOctoController(app, billingSvc, conf.Octo, basePath+"/octo", logTransport),
+				controllers.NewStripeController(app, billingSvc, conf.Stripe, basePath+"/stripe", stripeHooks...),
 			}, nil
 		})
 	}

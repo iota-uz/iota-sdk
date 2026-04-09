@@ -111,14 +111,18 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 	if err := container.instantiateAll(); err != nil {
 		return nil, err
 	}
-	if err := attachContainer(ctx.app, container, false); err != nil {
-		return nil, err
-	}
 	if err := container.materialize(); err != nil {
 		return nil, err
 	}
-	if err := Attach(ctx.app, container); err != nil {
-		return nil, err
+	// Materialize is done; controllers + nav items + locales + applets are
+	// all attached. Publish the container to the application as the runtime
+	// source so app.Controllers()/app.NavItems()/etc. read from it.
+	if ctx.app != nil {
+		if binder, ok := ctx.app.(application.RuntimeBinder); ok {
+			if err := binder.AttachRuntimeSource(container); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return container, nil
 }
@@ -283,13 +287,6 @@ func (c *Container) HasCapability(capability Capability) bool {
 	return c.context.HasCapability(capability)
 }
 
-func (c *Container) Application() application.Application {
-	if c == nil {
-		return nil
-	}
-	return c.context.app
-}
-
 func (c *Container) Controllers() []application.Controller {
 	return append([]application.Controller(nil), c.controllers...)
 }
@@ -395,8 +392,20 @@ func Resolve[T any](container *Container) (T, error) {
 	return ResolveKey[T](container, KeyFor[T]())
 }
 
-func ResolveNamed[T any](container *Container, name string) (T, error) {
-	return ResolveKey[T](container, NamedKeyFor[T](name))
+// ResolveOptional returns the provided value, a presence flag, and any non-
+// NOT_PROVIDED error. Use it when a component gracefully degrades in the
+// absence of a provider.
+func ResolveOptional[T any](container *Container) (T, bool, error) {
+	value, err := Resolve[T](container)
+	if err == nil {
+		return value, true, nil
+	}
+	if IsNotProvided(err) {
+		var zero T
+		return zero, false, nil
+	}
+	var zero T
+	return zero, false, err
 }
 
 func ResolveKey[T any](container *Container, key Key) (T, error) {

@@ -17,7 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -44,11 +43,11 @@ func TestDebtController_List_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -110,11 +109,11 @@ func TestDebtController_List_HTMX_Request(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -163,11 +162,11 @@ func TestDebtController_GetEditDrawer_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -218,7 +217,10 @@ func TestDebtController_GetEditDrawer_NotFound(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -242,10 +244,11 @@ func TestDebtController_GetNewDrawer_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty for dropdown
 	counterparty1 := counterparty.New(
@@ -285,10 +288,11 @@ func TestDebtController_Create_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -346,11 +350,11 @@ func TestDebtController_Create_ValidationError(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -402,11 +406,11 @@ func TestDebtController_Update_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -472,11 +476,11 @@ func TestDebtController_Update_ValidationError(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -540,13 +544,13 @@ func TestDebtController_Settle_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	transactionService := composition.MustResolveForApp[*services.TransactionService](env.App)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	transactionService := itf.GetService[services.TransactionService](env)
 
 	// Create test money account
 	account := moneyAccountEntity.New(
@@ -627,11 +631,11 @@ func TestDebtController_WriteOff_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -683,11 +687,11 @@ func TestDebtController_Delete_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -741,7 +745,10 @@ func TestDebtController_Delete_NotFound(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -764,7 +771,10 @@ func TestDebtController_InvalidUUID(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	suite.GET(DebtBasePath + "/invalid-uuid/drawer").
@@ -784,7 +794,10 @@ func TestDebtController_Permission_Forbidden(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	suite.GET(DebtBasePath).
@@ -808,11 +821,11 @@ func TestDebtController_List_WithFilters(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(

@@ -5,6 +5,7 @@ import (
 	"embed"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	debt "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
 	expense "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
@@ -80,6 +81,15 @@ func (c *component) Build(builder *composition.Builder) error {
 	debtRepo := composition.Use[debt.Repository]()
 	reportQueryRepo := composition.Use[query.FinancialReportsQueryRepository]()
 	moneyAccountService := composition.Use[*services.MoneyAccountService]()
+	transactionService := composition.Use[*services.TransactionService]()
+	paymentService := composition.Use[*services.PaymentService]()
+	expenseCategoryService := composition.Use[*services.ExpenseCategoryService]()
+	paymentCategoryService := composition.Use[*services.PaymentCategoryService]()
+	counterpartyService := composition.Use[*services.CounterpartyService]()
+	inventoryService := composition.Use[*services.InventoryService]()
+	debtService := composition.Use[*services.DebtService]()
+	financialReportService := composition.Use[*services.FinancialReportService]()
+	currencyService := composition.Use[*coreservices.CurrencyService]()
 
 	composition.Provide[moneyaccount.Repository](builder, func() moneyaccount.Repository {
 		return newMoneyAccountRepository()
@@ -216,17 +226,57 @@ func (c *component) Build(builder *composition.Builder) error {
 			if err != nil {
 				return nil, err
 			}
+			resolvedMoneyAccountService, err := moneyAccountService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedTransactionService, err := transactionService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedPaymentService, err := paymentService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedExpenseCategoryService, err := expenseCategoryService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedPaymentCategoryService, err := paymentCategoryService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedCounterpartyService, err := counterpartyService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedInventoryService, err := inventoryService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedDebtService, err := debtService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedFinancialReportService, err := financialReportService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedCurrencyService, err := currencyService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
 			return []application.Controller{
-				controllers.NewFinancialOverviewController(app),
-				controllers.NewMoneyAccountController(app),
-				controllers.NewExpenseCategoriesController(app),
-				controllers.NewPaymentCategoriesController(app),
-				controllers.NewCounterpartiesController(app),
-				controllers.NewInventoryController(app),
-				controllers.NewDebtsController(app),
-				controllers.NewDebtAggregateController(app),
-				controllers.NewFinancialReportController(app),
-				controllers.NewCashflowController(app),
+				controllers.NewFinancialOverviewController(app, resolvedPaymentService, resolvedMoneyAccountService, resolvedCounterpartyService, resolvedPaymentCategoryService, resolvedTransactionService),
+				controllers.NewMoneyAccountController(app, resolvedMoneyAccountService, resolvedTransactionService, resolvedCurrencyService),
+				controllers.NewExpenseCategoriesController(app, resolvedExpenseCategoryService),
+				controllers.NewPaymentCategoriesController(app, resolvedPaymentCategoryService),
+				controllers.NewCounterpartiesController(app, resolvedCounterpartyService),
+				controllers.NewInventoryController(app, resolvedInventoryService, resolvedCurrencyService),
+				controllers.NewDebtsController(app, resolvedDebtService, resolvedCounterpartyService, resolvedTransactionService),
+				controllers.NewDebtAggregateController(app, resolvedDebtService, resolvedCounterpartyService),
+				controllers.NewFinancialReportController(app, resolvedFinancialReportService),
+				controllers.NewCashflowController(app, resolvedFinancialReportService, resolvedMoneyAccountService),
 			}, nil
 		})
 	}

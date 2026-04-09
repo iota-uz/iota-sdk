@@ -26,7 +26,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -45,7 +44,12 @@ type MoneyAccountController struct {
 	tableDefinition     table.TableDefinition
 }
 
-func NewMoneyAccountController(app application.Application) application.Controller {
+func NewMoneyAccountController(
+	app application.Application,
+	moneyAccountService *services.MoneyAccountService,
+	transactionService *services.TransactionService,
+	currencyService *coreservices.CurrencyService,
+) application.Controller {
 	basePath := "/finance/accounts"
 
 	// Create table definition with columns for HTMX requests
@@ -61,9 +65,9 @@ func NewMoneyAccountController(app application.Application) application.Controll
 
 	return &MoneyAccountController{
 		app:                 app,
-		moneyAccountService: composition.MustResolveForApp[*services.MoneyAccountService](app),
-		transactionService:  composition.MustResolveForApp[*services.TransactionService](app),
-		currencyService:     composition.MustResolveForApp[*coreservices.CurrencyService](app),
+		moneyAccountService: moneyAccountService,
+		transactionService:  transactionService,
+		currencyService:     currencyService,
 		transactionQuery:    query.NewPgTransactionQueryRepository(),
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,

@@ -21,7 +21,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -54,11 +53,11 @@ func setupSettingsControllerTest(t *testing.T) (*itf.Suite, *services.TenantServ
 		return context.WithValue(ctx, constants.SidebarPropsKey, props)
 	})
 
-	controller := controllers.NewSettingsController(suite.Environment().App)
-	suite.Register(controller)
+	tenantService := itf.GetService[services.TenantService](suite.Environment())
+	uploadService := itf.GetService[services.UploadService](suite.Environment())
 
-	tenantService := composition.MustResolveForApp[*services.TenantService](suite.Environment().App)
-	uploadService := composition.MustResolveForApp[*services.UploadService](suite.Environment().App)
+	controller := controllers.NewSettingsController(suite.Environment().App, tenantService, uploadService)
+	suite.Register(controller)
 
 	return suite, tenantService, uploadService
 }

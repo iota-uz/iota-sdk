@@ -14,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
@@ -38,8 +37,8 @@ func TestProjectController_List_Success(t *testing.T) {
 	controller := controllers.NewProjectController(env.App)
 	suite.Register(controller)
 
-	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
-	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Test Customer",
@@ -97,8 +96,8 @@ func TestProjectController_List_HTMX_Request(t *testing.T) {
 	controller := controllers.NewProjectController(env.App)
 	suite.Register(controller)
 
-	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
-	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"HTMX Test Customer",
@@ -142,7 +141,7 @@ func TestProjectController_GetNewDrawer_Success(t *testing.T) {
 	controller := controllers.NewProjectController(env.App)
 	suite.Register(controller)
 
-	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Drawer Test Customer",
@@ -180,8 +179,8 @@ func TestProjectController_Create_Success(t *testing.T) {
 	controller := controllers.NewProjectController(env.App)
 	suite.Register(controller)
 
-	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
-	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Create Test Customer",
@@ -234,8 +233,8 @@ func TestProjectController_Create_ValidationError(t *testing.T) {
 	controller := controllers.NewProjectController(env.App)
 	suite.Register(controller)
 
-	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
-	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Validation Test Customer",
@@ -281,8 +280,8 @@ func TestProjectController_GetEditDrawer_Success(t *testing.T) {
 	controller := controllers.NewProjectController(env.App)
 	suite.Register(controller)
 
-	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
-	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Edit Test Customer",
@@ -349,8 +348,8 @@ func TestProjectController_Update_Success(t *testing.T) {
 	controller := controllers.NewProjectController(env.App)
 	suite.Register(controller)
 
-	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
-	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Update Test Customer",
@@ -405,8 +404,8 @@ func TestProjectController_Update_ValidationError(t *testing.T) {
 	controller := controllers.NewProjectController(env.App)
 	suite.Register(controller)
 
-	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
-	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Validation Test Customer",
@@ -461,8 +460,8 @@ func TestProjectController_Delete_Success(t *testing.T) {
 	controller := controllers.NewProjectController(env.App)
 	suite.Register(controller)
 
-	projectService := composition.MustResolveForApp[*services.ProjectService](env.App)
-	counterpartyService := composition.MustResolveForApp[*financeServices.CounterpartyService](env.App)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Delete Test Customer",

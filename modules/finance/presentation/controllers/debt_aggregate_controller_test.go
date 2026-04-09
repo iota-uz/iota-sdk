@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -39,11 +38,11 @@ func TestDebtAggregateController_List_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtAggregateController(env.App)
-	suite.Register(controller)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
 
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
+	controller := controllers.NewDebtAggregateController(env.App, debtService, counterpartyService)
+	suite.Register(controller)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -105,11 +104,11 @@ func TestDebtAggregateController_List_HTMX_Request(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtAggregateController(env.App)
-	suite.Register(controller)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
 
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
+	controller := controllers.NewDebtAggregateController(env.App, debtService, counterpartyService)
+	suite.Register(controller)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -157,7 +156,10 @@ func TestDebtAggregateController_List_EmptyResult(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtAggregateController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+
+	controller := controllers.NewDebtAggregateController(env.App, debtSvc, counterpartySvc)
 	suite.Register(controller)
 
 	response := suite.GET(DebtAggregateBasePath).
@@ -188,11 +190,11 @@ func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtAggregateController(env.App)
-	suite.Register(controller)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
 
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
+	controller := controllers.NewDebtAggregateController(env.App, debtService, counterpartyService)
+	suite.Register(controller)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -253,7 +255,10 @@ func TestDebtAggregateController_GetCounterpartyDrawer_NotFound(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtAggregateController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+
+	controller := controllers.NewDebtAggregateController(env.App, debtSvc, counterpartySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -277,7 +282,10 @@ func TestDebtAggregateController_GetCounterpartyDrawer_InvalidUUID(t *testing.T)
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtAggregateController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+
+	controller := controllers.NewDebtAggregateController(env.App, debtSvc, counterpartySvc)
 	suite.Register(controller)
 
 	suite.GET(DebtAggregateBasePath + "/invalid-uuid/drawer").
@@ -297,7 +305,10 @@ func TestDebtAggregateController_Permission_Forbidden(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtAggregateController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+
+	controller := controllers.NewDebtAggregateController(env.App, debtSvc, counterpartySvc)
 	suite.Register(controller)
 
 	suite.GET(DebtAggregateBasePath).
@@ -321,11 +332,11 @@ func TestDebtAggregateController_MultipleCounterparties(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtAggregateController(env.App)
-	suite.Register(controller)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
 
-	debtService := composition.MustResolveForApp[*services.DebtService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
+	controller := controllers.NewDebtAggregateController(env.App, debtService, counterpartyService)
+	suite.Register(controller)
 
 	// Create multiple counterparties
 	counterparty1 := counterparty.New(

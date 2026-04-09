@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payments"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/a-h/templ"
@@ -45,13 +44,19 @@ type PaymentPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewPaymentsController(app application.Application) application.Controller {
+func NewPaymentsController(
+	app application.Application,
+	paymentService *services.PaymentService,
+	moneyAccountService *services.MoneyAccountService,
+	counterpartyService *services.CounterpartyService,
+	paymentCategoryService *services.PaymentCategoryService,
+) application.Controller {
 	return &PaymentsController{
 		app:                    app,
-		paymentService:         composition.MustResolveForApp[*services.PaymentService](app),
-		moneyAccountService:    composition.MustResolveForApp[*services.MoneyAccountService](app),
-		counterpartyService:    composition.MustResolveForApp[*services.CounterpartyService](app),
-		paymentCategoryService: composition.MustResolveForApp[*services.PaymentCategoryService](app),
+		paymentService:         paymentService,
+		moneyAccountService:    moneyAccountService,
+		counterpartyService:    counterpartyService,
+		paymentCategoryService: paymentCategoryService,
 		basePath:               "/finance/payments",
 	}
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -39,12 +38,16 @@ type InventoryCheckPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewInventoryController(app application.Application) application.Controller {
+func NewInventoryController(
+	app application.Application,
+	inventoryService *services.InventoryService,
+	positionService *positionservice.PositionService,
+) application.Controller {
 	return &InventoryController{
 		app:              app,
 		basePath:         "/warehouse/inventory",
-		inventoryService: composition.MustResolveForApp[*services.InventoryService](app),
-		positionService:  composition.MustResolveForApp[*positionservice.PositionService](app),
+		inventoryService: inventoryService,
+		positionService:  positionService,
 	}
 }
 

@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/di"
@@ -45,13 +44,14 @@ type OctoController struct {
 
 func NewOctoController(
 	app application.Application,
+	billingService *services.BillingService,
 	octo configuration.OctoOptions,
 	basePath string,
 	logTransport *middleware.LogTransport,
 ) application.Controller {
 	return &OctoController{
 		app:            app,
-		billingService: composition.MustResolveForApp[*services.BillingService](app),
+		billingService: billingService,
 		octo:           octo,
 		basePath:       basePath,
 		logTransport:   logTransport,

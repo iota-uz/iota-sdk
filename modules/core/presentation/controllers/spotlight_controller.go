@@ -14,7 +14,6 @@ import (
 	spotlightui "github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -22,8 +21,9 @@ import (
 )
 
 type SpotlightController struct {
-	app      application.Application
-	basePath string
+	app            application.Application
+	aiSearchHolder *spotlight.AISearchServiceHolder
+	basePath       string
 }
 
 type spotlightSearchPayload struct {
@@ -104,10 +104,13 @@ type spotlightAIToolView struct {
 	CompletedAt time.Time `json:"completed_at,omitempty"`
 }
 
-func NewSpotlightController(app application.Application) application.Controller {
+// NewSpotlightController builds the controller. aiSearchHolder may be nil when
+// AI search is not configured.
+func NewSpotlightController(app application.Application, aiSearchHolder *spotlight.AISearchServiceHolder) application.Controller {
 	return &SpotlightController{
-		app:      app,
-		basePath: "/spotlight",
+		app:            app,
+		aiSearchHolder: aiSearchHolder,
+		basePath:       "/spotlight",
 	}
 }
 
@@ -434,11 +437,10 @@ func (c *SpotlightController) buildSearchRequest(r *http.Request, q string) (spo
 }
 
 func (c *SpotlightController) aiSearchService() spotlight.AISearchService {
-	holder, ok, err := composition.ResolveOptionalForApp[*spotlight.AISearchServiceHolder](c.app)
-	if err != nil || !ok || holder == nil {
+	if c.aiSearchHolder == nil {
 		return nil
 	}
-	return holder.Service
+	return c.aiSearchHolder.Service
 }
 
 func (c *SpotlightController) sessionAccess(r *http.Request) spotlight.SearchSessionAccess {

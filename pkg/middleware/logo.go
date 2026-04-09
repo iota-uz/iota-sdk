@@ -15,13 +15,29 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
-func ProvideDynamicLogo(app application.Application) mux.MiddlewareFunc {
-	tenantService := composition.MustResolveForApp[*services.TenantService](app)
-	uploadService := composition.MustResolveForApp[*services.UploadService](app)
-
+// ProvideDynamicLogo resolves tenant and upload services per-request through the
+// composition container. The app argument is kept for call-site ergonomics but
+// is no longer used as a service-locator key.
+func ProvideDynamicLogo(_ application.Application) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+
+			container, err := composition.UseContainer(ctx)
+			if err != nil {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+			tenantService, err := composition.Resolve[*services.TenantService](container)
+			if err != nil {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+			uploadService, err := composition.Resolve[*services.UploadService](container)
+			if err != nil {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
 
 			user, err := composables.UseUser(ctx)
 			if err != nil {

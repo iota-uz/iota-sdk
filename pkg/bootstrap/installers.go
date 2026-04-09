@@ -8,6 +8,7 @@ import (
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
@@ -73,9 +74,21 @@ func InstallCoreControllers() Installer {
 		if len(container.HashFSAssets()) == 0 {
 			return fmt.Errorf("hashfs assets must be registered before core controllers")
 		}
+		userService, err := composition.Resolve[*coreservices.UserService](container)
+		if err != nil {
+			return fmt.Errorf("resolve UserService for GraphQL controller: %w", err)
+		}
+		uploadService, err := composition.Resolve[*coreservices.UploadService](container)
+		if err != nil {
+			return fmt.Errorf("resolve UploadService for GraphQL controller: %w", err)
+		}
+		authService, err := composition.Resolve[*coreservices.AuthService](container)
+		if err != nil {
+			return fmt.Errorf("resolve AuthService for GraphQL controller: %w", err)
+		}
 		container.AppendControllers(
 			controllers.NewStaticFilesController(container.HashFSAssets()),
-			controllers.NewGraphQLController(rt.App),
+			controllers.NewGraphQLController(rt.App, userService, uploadService, authService),
 		)
 		return nil
 	})

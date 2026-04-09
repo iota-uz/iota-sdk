@@ -29,7 +29,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
@@ -148,14 +147,17 @@ type UsersControllerOptions struct {
 	PermissionSchema *rbac.PermissionSchema
 }
 
-func NewUsersController(app application.Application, opts *UsersControllerOptions) application.Controller {
+func NewUsersController(
+	app application.Application,
+	userService *services.UserService,
+	opts *UsersControllerOptions,
+) application.Controller {
 	if opts == nil || opts.PermissionSchema == nil {
 		panic("UsersController requires PermissionSchema in options")
 	}
 	if opts.BasePath == "" {
 		panic("UsersController requires explicit BasePath in options")
 	}
-	userService := composition.MustResolveForApp[*services.UserService](app)
 
 	controller := &UsersController{
 		app:              app,

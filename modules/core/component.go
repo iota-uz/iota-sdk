@@ -74,6 +74,29 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	ctx := builder.Context()
 
+	storage := composition.Use[upload.Storage]()
+	uploadRepo := composition.Use[upload.Repository]()
+	userRepo := composition.Use[user.Repository]()
+	roleRepo := composition.Use[role.Repository]()
+	tenantRepo := composition.Use[tenant.Repository]()
+	permissionRepo := composition.Use[permission.Repository]()
+	sessionRepo := composition.Use[session.Repository]()
+	otpRepo := composition.Use[twofactorentity.OTPRepository]()
+	recoveryCodeRepo := composition.Use[twofactorentity.RecoveryCodeRepository]()
+	groupRepo := composition.Use[group.Repository]()
+	currencyRepo := composition.Use[currency.Repository]()
+	userQueryRepo := composition.Use[query.UserQueryRepository]()
+	groupQueryRepo := composition.Use[query.GroupQueryRepository]()
+	roleQueryRepo := composition.Use[query.RoleQueryRepository]()
+	uploadService := composition.Use[*services.UploadService]()
+	sessionService := composition.Use[*services.SessionService]()
+	userService := composition.Use[*services.UserService]()
+	authService := composition.Use[*services.AuthService]()
+	authFlowService := composition.Use[*services.AuthFlowService]()
+	tenantService := composition.Use[*services.TenantService]()
+	groupService := composition.Use[*services.GroupService]()
+	twoFactorService := composition.Use[*coreservices2fa.TwoFactorService]()
+
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&LocaleFiles}, nil
 	})
@@ -82,10 +105,22 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
+		resolvedUserService, err := userService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedUploadService, err := uploadService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedAuthService, err := authService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
 		return []application.GraphSchema{
 			{
 				Value: graph.NewExecutableSchema(graph.Config{
-					Resolvers: graph.NewResolver(app),
+					Resolvers: graph.NewResolver(app, resolvedUserService, resolvedUploadService, resolvedAuthService),
 				}),
 				BasePath: "/",
 			},
@@ -137,25 +172,6 @@ func (c *component) Build(builder *composition.Builder) error {
 			}}, nil
 		})
 	}
-
-	storage := composition.Use[upload.Storage]()
-	uploadRepo := composition.Use[upload.Repository]()
-	userRepo := composition.Use[user.Repository]()
-	roleRepo := composition.Use[role.Repository]()
-	tenantRepo := composition.Use[tenant.Repository]()
-	permissionRepo := composition.Use[permission.Repository]()
-	sessionRepo := composition.Use[session.Repository]()
-	otpRepo := composition.Use[twofactorentity.OTPRepository]()
-	recoveryCodeRepo := composition.Use[twofactorentity.RecoveryCodeRepository]()
-	groupRepo := composition.Use[group.Repository]()
-	currencyRepo := composition.Use[currency.Repository]()
-	userQueryRepo := composition.Use[query.UserQueryRepository]()
-	groupQueryRepo := composition.Use[query.GroupQueryRepository]()
-	roleQueryRepo := composition.Use[query.RoleQueryRepository]()
-	uploadService := composition.Use[*services.UploadService]()
-	sessionService := composition.Use[*services.SessionService]()
-	userService := composition.Use[*services.UserService]()
-	authService := composition.Use[*services.AuthService]()
 
 	composition.Provide[upload.Storage](builder, func() (upload.Storage, error) {
 		fsStorage, err := persistence.NewFSStorage()
@@ -421,17 +437,55 @@ func (c *component) Build(builder *composition.Builder) error {
 			if err != nil {
 				return nil, err
 			}
+			resolvedUploadService, err := uploadService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedSessionService, err := sessionService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedUserService, err := userService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedAuthService, err := authService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedAuthFlowService, err := authFlowService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedTenantService, err := tenantService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedGroupService, err := groupService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedTwoFactorService, err := twoFactorService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			// AI search is optional; the holder is only provided when a
+			// downstream component (e.g. bichat) registers it.
+			resolvedAISearchHolder, _, err := composition.ResolveOptional[*spotlight.AISearchServiceHolder](container)
+			if err != nil {
+				return nil, err
+			}
 			controllersToRegister := []application.Controller{
 				controllers.NewHealthController(app),
 				controllers.NewDashboardController(app),
-				controllers.NewLoginController(app, c.options.LoginControllerOptions),
-				controllers.NewTwoFactorSetupController(app),
-				controllers.NewTwoFactorVerifyController(app),
-				controllers.NewSpotlightController(app),
-				controllers.NewAccountController(app),
+				controllers.NewLoginController(app, resolvedAuthService, resolvedAuthFlowService, c.options.LoginControllerOptions),
+				controllers.NewTwoFactorSetupController(app, resolvedTwoFactorService, resolvedSessionService, resolvedUserService),
+				controllers.NewTwoFactorVerifyController(app, resolvedTwoFactorService, resolvedSessionService, resolvedUserService),
+				controllers.NewSpotlightController(app, resolvedAISearchHolder),
+				controllers.NewAccountController(app, resolvedUserService, resolvedTenantService, resolvedUploadService, resolvedSessionService),
 				controllers.NewLogoutController(app),
-				controllers.NewUploadController(app),
-				controllers.NewUsersController(app, &controllers.UsersControllerOptions{
+				controllers.NewUploadController(app, resolvedUploadService),
+				controllers.NewUsersController(app, resolvedUserService, &controllers.UsersControllerOptions{
 					BasePath:         "/users",
 					PermissionSchema: c.options.PermissionSchema,
 				}),
@@ -439,16 +493,16 @@ func (c *component) Build(builder *composition.Builder) error {
 					BasePath:         "/roles",
 					PermissionSchema: c.options.PermissionSchema,
 				}),
-				controllers.NewGroupsController(app),
+				controllers.NewGroupsController(app, resolvedGroupService),
 				controllers.NewWebSocketController(app),
-				controllers.NewSettingsController(app),
+				controllers.NewSettingsController(app, resolvedTenantService, resolvedUploadService),
 				controllers.NewSessionController(app, "/settings/sessions"),
 				controllers.NewCrudShowcaseController(app),
 			}
 			if c.options.UploadsAuthorizer != nil || c.options.DefaultTenantID != uuid.Nil {
 				controllersToRegister = append(
 					controllersToRegister,
-					controllers.NewUploadAPIController(app, uploadAPIControllerOpts(c.options)...),
+					controllers.NewUploadAPIController(app, resolvedUploadService, uploadAPIControllerOpts(c.options)...),
 				)
 			}
 			if ctrl := controllers.NewShowcaseController(app); ctrl != nil {

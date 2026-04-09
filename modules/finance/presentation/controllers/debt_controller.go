@@ -14,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/debts"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/a-h/templ"
@@ -36,7 +35,12 @@ type DebtsController struct {
 	tableDefinition     table.TableDefinition
 }
 
-func NewDebtsController(app application.Application) application.Controller {
+func NewDebtsController(
+	app application.Application,
+	debtService *services.DebtService,
+	counterpartyService *services.CounterpartyService,
+	transactionService *services.TransactionService,
+) application.Controller {
 	basePath := "/finance/debts"
 
 	// Create table definition with columns for HTMX requests
@@ -54,9 +58,9 @@ func NewDebtsController(app application.Application) application.Controller {
 
 	return &DebtsController{
 		app:                 app,
-		debtService:         composition.MustResolveForApp[*services.DebtService](app),
-		counterpartyService: composition.MustResolveForApp[*services.CounterpartyService](app),
-		transactionService:  composition.MustResolveForApp[*services.TransactionService](app),
+		debtService:         debtService,
+		counterpartyService: counterpartyService,
+		transactionService:  transactionService,
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,
 	}

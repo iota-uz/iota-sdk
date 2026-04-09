@@ -196,8 +196,8 @@ func (s *Suite) setupMiddleware() {
 			ctx = composables.WithSession(ctx, MockSession())
 			ctx = composables.WithTenantID(ctx, s.env.Tenant.ID)
 			ctx = context.WithValue(ctx, constants.AppKey, s.env.App)
-			if container, ok := composition.ForApp(s.env.App); ok {
-				ctx = context.WithValue(ctx, constants.ContainerKey, container)
+			if s.env.Container != nil {
+				ctx = context.WithValue(ctx, constants.ContainerKey, s.env.Container)
 			}
 			ctx = context.WithValue(ctx, constants.HeadKey, templ.NopComponent)
 			ctx = context.WithValue(ctx, constants.LogoKey, templ.NopComponent)

@@ -18,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -58,13 +57,12 @@ func TestPaymentController_List_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	account := moneyAccountEntity.New(
 		"Test Payment Account",
@@ -148,13 +146,12 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	account := moneyAccountEntity.New(
 		"HTMX Test Account",
@@ -220,11 +217,12 @@ func TestPaymentController_GetNew_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc, moneyAccountService, counterpartySvc, paymentCategoryService)
 	suite.Register(controller)
-
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -275,13 +273,12 @@ func TestPaymentController_Create_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -350,10 +347,12 @@ func TestPaymentController_Create_ValidationError(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccSvc, counterpartySvc, paymentCategorySvc)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
 
 	formData := url.Values{}
 	formData.Set("Amount", "-100")
@@ -393,13 +392,12 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	account := moneyAccountEntity.New(
 		"Edit Test Account",
@@ -473,7 +471,11 @@ func TestPaymentController_GetEdit_NotFound(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc := itf.GetService[services.PaymentService](env)
+	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc, moneyAccSvc, counterpartySvc, paymentCategorySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -498,13 +500,12 @@ func TestPaymentController_Update_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	account := moneyAccountEntity.New(
 		"Update Test Account",
@@ -587,13 +588,12 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -673,13 +673,12 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	account := moneyAccountEntity.New(
 		"Delete Test Account",
@@ -751,7 +750,11 @@ func TestPaymentController_Delete_NotFound(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc := itf.GetService[services.PaymentService](env)
+	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc, moneyAccSvc, counterpartySvc, paymentCategorySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -774,7 +777,11 @@ func TestPaymentController_InvalidUUID(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc := itf.GetService[services.PaymentService](env)
+	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc, moneyAccSvc, counterpartySvc, paymentCategorySvc)
 	suite.Register(controller)
 
 	suite.GET(PaymentBasePath + "/invalid-uuid").
@@ -797,13 +804,12 @@ func TestPaymentController_Create_TransactionDateValidation(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -894,14 +900,13 @@ func TestPaymentController_Create_VerifyIncomeStatementIntegration(t *testing.T)
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := composition.MustResolveForApp[*services.PaymentService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	paymentCategoryService := composition.MustResolveForApp[*services.PaymentCategoryService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
-	financialReportService := composition.MustResolveForApp[*services.FinancialReportService](env.App)
+	financialReportService := itf.GetService[services.FinancialReportService](env)
 
 	account := moneyAccountEntity.New(
 		"Revenue Test Account",
@@ -1005,12 +1010,14 @@ func TestPaymentController_Create_WithoutCategoryVerifyIncomeStatement(t *testin
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc2 := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc2 := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc2, moneyAccountService, counterpartyService, paymentCategorySvc2)
 	suite.Register(controller)
 
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
-	counterpartyService := composition.MustResolveForApp[*services.CounterpartyService](env.App)
-	financialReportService := composition.MustResolveForApp[*services.FinancialReportService](env.App)
+	financialReportService := itf.GetService[services.FinancialReportService](env)
 
 	account := moneyAccountEntity.New(
 		"Uncategorized Revenue Account",

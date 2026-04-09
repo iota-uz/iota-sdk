@@ -20,7 +20,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -62,8 +61,8 @@ func TestExpenseController_List_Success(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	expenseService := composition.MustResolveForApp[*services.ExpenseService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -136,8 +135,8 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	expenseService := composition.MustResolveForApp[*services.ExpenseService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"HTMX Test Account",
@@ -194,7 +193,7 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -247,8 +246,8 @@ func TestExpenseController_Create_Success(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	expenseService := composition.MustResolveForApp[*services.ExpenseService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -306,8 +305,8 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	expenseService := composition.MustResolveForApp[*services.ExpenseService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -368,8 +367,8 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	expenseService := composition.MustResolveForApp[*services.ExpenseService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Edit Test Account",
@@ -461,8 +460,8 @@ func TestExpenseController_Update_Success(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	expenseService := composition.MustResolveForApp[*services.ExpenseService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Update Test Account",
@@ -531,8 +530,8 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	expenseService := composition.MustResolveForApp[*services.ExpenseService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -605,8 +604,8 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	expenseService := composition.MustResolveForApp[*services.ExpenseService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Delete Test Account",
@@ -714,8 +713,8 @@ func TestExpenseController_Export_Excel_Success(t *testing.T) {
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
 
-	expenseService := composition.MustResolveForApp[*services.ExpenseService](env.App)
-	moneyAccountService := composition.MustResolveForApp[*services.MoneyAccountService](env.App)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Export Test Account",

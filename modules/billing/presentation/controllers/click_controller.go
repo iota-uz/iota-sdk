@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/sirupsen/logrus"
@@ -26,10 +25,10 @@ type ClickController struct {
 	basePath       string
 }
 
-func NewClickController(app application.Application, click configuration.ClickOptions, basePath string) application.Controller {
+func NewClickController(app application.Application, billingService *services.BillingService, click configuration.ClickOptions, basePath string) application.Controller {
 	return &ClickController{
 		app:            app,
-		billingService: composition.MustResolveForApp[*services.BillingService](app),
+		billingService: billingService,
 		click:          click,
 		basePath:       basePath,
 	}

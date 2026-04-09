@@ -13,7 +13,6 @@ import (
 	reports "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/reports"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -24,14 +23,12 @@ type FinancialReportController struct {
 	basePath               string
 }
 
-func NewFinancialReportController(app application.Application) application.Controller {
-	basePath := "/finance/reports"
-
+func NewFinancialReportController(app application.Application, financialReportService *services.FinancialReportService) application.Controller {
 	return &FinancialReportController{
 		app:                    app,
-		financialReportService: composition.MustResolveForApp[*services.FinancialReportService](app),
+		financialReportService: financialReportService,
 		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
-		basePath:               basePath,
+		basePath:               "/finance/reports",
 	}
 }
 

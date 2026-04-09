@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/ports"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -36,13 +35,14 @@ type StripeController struct {
 
 func NewStripeController(
 	app application.Application,
+	billingService *services.BillingService,
 	stripeOpts configuration.StripeOptions,
 	basePath string,
 	hooks ...ports.StripeEventHook,
 ) application.Controller {
 	controller := &StripeController{
 		app:            app,
-		billingService: composition.MustResolveForApp[*services.BillingService](app),
+		billingService: billingService,
 		stripe:         stripeOpts,
 		basePath:       basePath,
 		hooks:          hooks,

@@ -11,6 +11,8 @@ import (
 
 type chatService struct{}
 
+type twilioProvider struct{}
+
 func TestEngineCompileTopoSort(t *testing.T) {
 	engine := NewEngine()
 	var buildOrder []string
@@ -66,9 +68,8 @@ func TestEngineCompileReportsMissingDependencyPath(t *testing.T) {
 	err := engine.Register(testComponent{
 		descriptor: Descriptor{Name: "crm"},
 		build: func(builder *Builder) error {
-			missingProviderKey := NamedKeyFor[string]("twilioProvider")
 			Provide[*chatService](builder, func(container *Container) (*chatService, error) {
-				if _, err := ResolveKey[string](container, missingProviderKey); err != nil {
+				if _, err := Resolve[*twilioProvider](container); err != nil {
 					return nil, err
 				}
 				return &chatService{}, nil

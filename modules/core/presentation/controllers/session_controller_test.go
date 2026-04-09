@@ -11,9 +11,19 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
+
+func newAccountController(suite *itf.Suite) application.Controller {
+	env := suite.Env()
+	userService := itf.GetService[services.UserService](env)
+	tenantService := itf.GetService[services.TenantService](env)
+	uploadService := itf.GetService[services.UploadService](env)
+	sessionService := itf.GetService[services.SessionService](env)
+	return controllers.NewAccountController(env.App, userService, tenantService, uploadService, sessionService)
+}
 
 // ACCOUNT SESSION CONTROLLER TESTS
 // These tests validate session management from the user's account perspective
@@ -71,7 +81,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 			AsUser().
 			Build()
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		// Request without session cookie
@@ -92,7 +102,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 		// Persist test user to database (required for FK constraints)
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		config := configuration.Use()
@@ -154,7 +164,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		config := configuration.Use()
@@ -206,7 +216,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		config := configuration.Use()
@@ -252,7 +262,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 			AsUser().
 			Build()
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		suite.DELETE("/account/sessions/dummy-token").
@@ -271,7 +281,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -311,7 +321,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -370,7 +380,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		config := configuration.Use()
@@ -411,7 +421,7 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 			AsUser().
 			Build()
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		suite.DELETE("/account/sessions/others").
@@ -430,7 +440,7 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -497,7 +507,7 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())

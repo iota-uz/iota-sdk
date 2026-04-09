@@ -16,7 +16,6 @@ import (
 	counterpartiesui "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/counterparties"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -34,10 +33,10 @@ type CounterpartiesController struct {
 	basePath              string
 }
 
-func NewCounterpartiesController(app application.Application) application.Controller {
+func NewCounterpartiesController(app application.Application, counterpartiesService *services.CounterpartyService) application.Controller {
 	return &CounterpartiesController{
 		app:                   app,
-		counterpartiesService: composition.MustResolveForApp[*services.CounterpartyService](app),
+		counterpartiesService: counterpartiesService,
 		basePath:              "/finance/counterparties",
 	}
 }

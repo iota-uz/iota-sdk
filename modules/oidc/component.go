@@ -89,10 +89,16 @@ func (c *component) Build(builder *composition.Builder) error {
 		})
 	}
 
-	composition.Provide[OIDCConfig](builder, config)
-	composition.Provide[client.Repository](builder, persistence.NewClientRepository())
-	composition.Provide[authrequest.Repository](builder, persistence.NewAuthRequestRepository())
-	composition.Provide[token.Repository](builder, persistence.NewTokenRepository())
+	composition.Provide[OIDCConfig](builder, func() OIDCConfig { return config })
+	composition.Provide[client.Repository](builder, func() client.Repository {
+		return persistence.NewClientRepository()
+	})
+	composition.Provide[authrequest.Repository](builder, func() authrequest.Repository {
+		return persistence.NewAuthRequestRepository()
+	})
+	composition.Provide[token.Repository](builder, func() token.Repository {
+		return persistence.NewTokenRepository()
+	})
 	composition.Provide[*oidcinfra.Storage](builder, func(container *composition.Container) (*oidcinfra.Storage, error) {
 		cfg, err := oidcConfig.Resolve(container)
 		if err != nil {

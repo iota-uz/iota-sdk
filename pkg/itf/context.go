@@ -97,28 +97,34 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	tc.tenant = scope.Tenant
 
 	return &TestEnvironment{
-		Ctx:    scope.Ctx,
-		Pool:   scope.Pool,
-		Tx:     scope.Tx,
-		App:    scope.App,
-		Tenant: scope.Tenant,
-		User:   tc.user,
+		Ctx:       scope.Ctx,
+		Pool:      scope.Pool,
+		Tx:        scope.Tx,
+		App:       scope.App,
+		Container: scope.Container,
+		Tenant:    scope.Tenant,
+		User:      tc.user,
 	}
 }
 
 // TestEnvironment contains all test dependencies
 type TestEnvironment struct {
-	Ctx    context.Context
-	Pool   *pgxpool.Pool
-	Tx     pgx.Tx
-	App    application.Application
-	Tenant *composables.Tenant
-	User   user.User
+	Ctx       context.Context
+	Pool      *pgxpool.Pool
+	Tx        pgx.Tx
+	App       application.Application
+	Container *composition.Container
+	Tenant    *composables.Tenant
+	User      user.User
 }
 
-// GetService is a generic helper that retrieves and casts a service
+// GetService is a generic helper that retrieves and casts a service. Resolves
+// via the composition container stored on the environment.
 func GetService[T any](te *TestEnvironment) *T {
-	service, err := composition.ResolveForApp[*T](te.App)
+	if te == nil || te.Container == nil {
+		return nil
+	}
+	service, err := composition.Resolve[*T](te.Container)
 	if err != nil {
 		return nil
 	}

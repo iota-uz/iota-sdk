@@ -18,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -85,15 +84,20 @@ func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func NewLoginController(app application.Application, opts ...*LoginControllerOptions) application.Controller {
+func NewLoginController(
+	app application.Application,
+	authService *services.AuthService,
+	authFlowService *services.AuthFlowService,
+	opts ...*LoginControllerOptions,
+) application.Controller {
 	options := &LoginControllerOptions{}
 	if len(opts) > 0 && opts[0] != nil {
 		options = opts[0]
 	}
 	return &LoginController{
 		app:             app,
-		authService:     composition.MustResolveForApp[*services.AuthService](app),
-		authFlowService: composition.MustResolveForApp[*services.AuthFlowService](app),
+		authService:     authService,
+		authFlowService: authFlowService,
 		options:         options,
 	}
 }
