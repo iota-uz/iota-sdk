@@ -499,7 +499,7 @@ func (c *UsersController) GetSingle(
 				if err != nil {
 					return nil, err
 				}
-				return sfui.EmbeddedContent(buildSessionsTable(ctx, targetVM.ID, sessionList, canDelete)), nil
+				return users.SessionsInfo(buildSessionsTable(ctx, targetVM.ID, sessionList, canDelete)), nil
 			},
 			slot.WithSlotSourceFallback(templ.Raw(pageCtx.T("Common.Loading"))),
 		)
@@ -1116,6 +1116,7 @@ func buildSessionsTable(ctx context.Context, userID string, sessions []session.S
 		pageCtx.T("Users.Sessions.Title"),
 		fmt.Sprintf("/users/%s/sessions", userID),
 		sfui.WithoutSearch(),
+		sfui.WithConfigurable(false),
 	)
 	tcfg.AddCols(cols...)
 	for _, sess := range sessions {

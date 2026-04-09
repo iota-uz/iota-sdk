@@ -321,7 +321,7 @@ func Table(props TableProps) templ.Component {
 			var templ_7745c5c3_Var9 = []any{
 				twmerge.Merge(
 					templ.Classes(
-						"min-w-full rounded-b-lg table bg-surface-600 text-sm",
+						"min-w-full table bg-surface-600 text-sm rounded-lg",
 						templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
 						props.Classes.String(),
 					).String(),
@@ -731,7 +731,7 @@ func Table(props TableProps) templ.Component {
 			var templ_7745c5c3_Var26 = []any{
 				twmerge.Merge(
 					templ.Classes(
-						"min-w-full rounded-b-lg table bg-surface-600 text-sm",
+						"min-w-full table bg-surface-600 text-sm rounded-lg",
 						templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
 						props.Classes.String(),
 					).String(),

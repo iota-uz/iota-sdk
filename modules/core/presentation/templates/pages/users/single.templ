@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	descriptionlist "github.com/iota-uz/iota-sdk/components/base/description-list"
 	"github.com/iota-uz/iota-sdk/components/base/slot"
+	sfui "github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -69,9 +70,10 @@ templ BlockedBanner(user *viewmodels.User) {
 }
 
 templ Single(props *SingleProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{
-			Title: fmt.Sprintf("%s - %s", "Users", props.User.Title()),
+			Title: fmt.Sprintf("%s - %s", pageCtx.T("Users.Meta.List.Title"), props.User.Title()),
 		},
 	}) {
 		<div class="flex flex-col justify-between h-full">
@@ -79,7 +81,7 @@ templ Single(props *SingleProps) {
 				@breadcrumb.List() {
 					@breadcrumb.Item() {
 						@breadcrumb.Link("/users") {
-							Users
+							{ pageCtx.T("Users.Meta.List.Title") }
 						}
 					}
 					@breadcrumb.Separator() {
@@ -107,6 +109,15 @@ templ UserInfoHeader(user *viewmodels.User) {
 			{ user.Title() }
 		</span>
 	</div>
+}
+
+templ SessionsInfo(tcfg *sfui.TableConfig) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@card.Card(card.Props{
+		Header: card.DefaultHeader(pageCtx.T("Account.Sessions.Title")),
+	}) {
+		@sfui.EmbeddedContent(tcfg)
+	}
 }
 
 templ UserInfo(user *viewmodels.User, slots slot.Manager) {

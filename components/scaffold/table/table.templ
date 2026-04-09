@@ -501,77 +501,79 @@ templ TableContent(config *TableConfig) {
 			),
 		}
 	>
-		<div
-			class={
-				templ.Classes(
-					"p-4 flex flex-col md:flex-row items-center gap-3",
-					templ.KV("shrink-0", config.FullHeight),
-				),
-			}
-		>
-			if !config.WithoutSearch {
-				if config.SearchClearable {
-					<div class="flex-1" x-data={ fmt.Sprintf("{ searchVal: '%s' }", config.SearchValue) }>
-						{{
-							placeholder := pageCtx.T("Search")
-							if config.SearchPlaceholder != "" {
-								placeholder = config.SearchPlaceholder
-							}
-						}}
-						@input.Text(&input.Props{
-							AddonLeft: &input.Addon{
-								Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-							},
-							AddonRight: &input.Addon{
-								Component: SearchClearButton(),
-							},
-							Placeholder: placeholder,
-							Attrs: templ.Attributes{
-								"name":    config.SearchParamName,
-								"value":   config.SearchValue,
-								"x-model": "searchVal",
-							},
-						})
-					</div>
-				} else {
-					<div class="flex-1">
-						{{
-							placeholder := pageCtx.T("Search")
-							if config.SearchPlaceholder != "" {
-								placeholder = config.SearchPlaceholder
-							}
-						}}
-						@input.Text(&input.Props{
-							AddonLeft: &input.Addon{
-								Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-							},
-							Placeholder: placeholder,
-							Attrs: templ.Attributes{
-								"name":  config.SearchParamName,
-								"value": config.SearchValue,
-							},
-						})
-					</div>
+		if config.Configurable || !config.WithoutSearch || len(config.Filters) > 0 || len(config.Actions) > 0 {
+			<div
+				class={
+					templ.Classes(
+						"p-4 flex flex-col md:flex-row items-center gap-3",
+						templ.KV("shrink-0", config.FullHeight),
+					),
 				}
-			}
-			if len(config.Filters) > 0 || len(config.Actions) > 0 {
-				<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
-					for _, filter := range config.Filters {
-						@filter
-					}
-					if len(config.Actions) > 0 {
-						<div class="flex gap-3 ml-auto">
-							for _, action := range config.Actions {
-								@action
+			>
+				if !config.WithoutSearch {
+					if config.SearchClearable {
+						<div class="flex-1" x-data={ fmt.Sprintf("{ searchVal: '%s' }", config.SearchValue) }>
+							{{
+							placeholder := pageCtx.T("Search")
+							if config.SearchPlaceholder != "" {
+								placeholder = config.SearchPlaceholder
 							}
+							}}
+							@input.Text(&input.Props{
+								AddonLeft: &input.Addon{
+									Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+								},
+								AddonRight: &input.Addon{
+									Component: SearchClearButton(),
+								},
+								Placeholder: placeholder,
+								Attrs: templ.Attributes{
+									"name":    config.SearchParamName,
+									"value":   config.SearchValue,
+									"x-model": "searchVal",
+								},
+							})
+						</div>
+					} else {
+						<div class="flex-1">
+							{{
+							placeholder := pageCtx.T("Search")
+							if config.SearchPlaceholder != "" {
+								placeholder = config.SearchPlaceholder
+							}
+							}}
+							@input.Text(&input.Props{
+								AddonLeft: &input.Addon{
+									Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+								},
+								Placeholder: placeholder,
+								Attrs: templ.Attributes{
+									"name":  config.SearchParamName,
+									"value": config.SearchValue,
+								},
+							})
 						</div>
 					}
-				</div>
-			}
-			if config.Configurable {
-				@TableSettingsTrigger()
-			}
-		</div>
+				}
+				if len(config.Filters) > 0 || len(config.Actions) > 0 {
+					<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
+						for _, filter := range config.Filters {
+							@filter
+						}
+						if len(config.Actions) > 0 {
+							<div class="flex gap-3 ml-auto">
+								for _, action := range config.Actions {
+									@action
+								}
+							</div>
+						}
+					</div>
+				}
+				if config.Configurable {
+					@TableSettingsTrigger()
+				}
+			</div>
+		}
 		if config.FullHeight {
 			<div class="flex-1 min-h-0">
 				@Table(config)

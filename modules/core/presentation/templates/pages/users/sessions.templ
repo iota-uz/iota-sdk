@@ -28,7 +28,7 @@ templ RevokeSessionButton(userID, tokenID, fullToken string) {
 	@button.Danger(button.Props{
 		Size: button.SizeSM,
 		Attrs: templ.Attributes{
-			"hx-delete":  templ.URL(fmt.Sprintf("/users/%s/sessions/%s", userID, fullToken)),
+			"hx-delete":  fmt.Sprintf("/users/%s/sessions/%s", userID, fullToken),
 			"hx-confirm": pageCtx.T("Users.Sessions.RevokeConfirm"),
 			"hx-target":  fmt.Sprintf("#session-%s", tokenID),
 			"hx-swap":    "outerHTML swap:0.5s",
