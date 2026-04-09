@@ -176,9 +176,8 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		if b.config.KBSearcher == nil {
-			return nil, nil
-		}
+		// NewBIChatAgent gracefully handles a nil KBSearcher; the agent
+		// short-circuits the kb.Search path and only ranks SDK-supplied hits.
 		return spotlight.NewBIChatAgent(b.config.KBSearcher), nil
 	})
 

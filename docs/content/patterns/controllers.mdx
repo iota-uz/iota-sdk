@@ -55,7 +55,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.Authorize(),              // Check authentication
 		middleware.RedirectNotAuthenticated(), // Redirect if not logged in
 		middleware.ProvideUser(),            // Add user to context
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),  // Add i18n support
 		middleware.NavItems(),               // Navigation items
 		middleware.WithPageContext(),        // Page metadata

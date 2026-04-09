@@ -62,19 +62,16 @@ func (rt *Runtime) BuildContext() composition.BuildContext {
 	return composition.NewBuildContext(rt.App, cfg)
 }
 
+// SetComposition stores the compiled engine and container on the runtime.
+// Engine.Compile has already called AttachRuntimeSource on the application
+// as part of materialization — this method only records the handles for
+// Runtime.Start/Stop and for installers that need to resolve services.
 func (rt *Runtime) SetComposition(engine *composition.Engine, container *composition.Container) error {
 	if rt == nil {
 		return nil
 	}
 	rt.Engine = engine
 	rt.container = container
-	if rt.App != nil && container != nil {
-		if binder, ok := rt.App.(application.RuntimeBinder); ok {
-			if err := binder.AttachRuntimeSource(container); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
 

@@ -25,7 +25,21 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return []application.Controller{controllers.NewGraphQLController(app)}, nil
+		userService, err := composition.Resolve[*services.UserService](container)
+		if err != nil {
+			return nil, err
+		}
+		uploadService, err := composition.Resolve[*services.UploadService](container)
+		if err != nil {
+			return nil, err
+		}
+		authService, err := composition.Resolve[*services.AuthService](container)
+		if err != nil {
+			return nil, err
+		}
+		return []application.Controller{
+			controllers.NewGraphQLController(app, userService, uploadService, authService),
+		}, nil
 	})
 	composition.ContributeSchemas(builder, func(*composition.Container) ([]application.GraphSchema, error) {
 		return []application.GraphSchema{{

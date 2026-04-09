@@ -47,11 +47,15 @@ func Authorize() mux.MiddlewareFunc {
 				ctx := r.Context()
 				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("Authorize: composition container not found in context")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
 				authService, err := composition.Resolve[*services.AuthService](container)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("Authorize: failed to resolve AuthService")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
@@ -97,11 +101,15 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 				ctx := r.Context()
 				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("AuthorizeAnySession: composition container not found in context")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
 				authService, err := composition.Resolve[*services.AuthService](container)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("AuthorizeAnySession: failed to resolve AuthService")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
@@ -136,11 +144,15 @@ func ProvideUser() mux.MiddlewareFunc {
 				}
 				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("ProvideUser: composition container not found in context")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
 				userService, err := composition.Resolve[*services.UserService](container)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("ProvideUser: failed to resolve UserService")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
 				u, err := userService.GetByID(ctx, sess.UserID())
 				if err != nil {

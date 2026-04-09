@@ -9,16 +9,14 @@ import (
 	"github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 // ProvideDynamicLogo resolves tenant and upload services per-request through the
-// composition container. The app argument is kept for call-site ergonomics but
-// is no longer used as a service-locator key.
-func ProvideDynamicLogo(_ application.Application) mux.MiddlewareFunc {
+// composition container.
+func ProvideDynamicLogo() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

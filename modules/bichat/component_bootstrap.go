@@ -32,6 +32,11 @@ const (
 	langfuseEnvironment  = "development"
 )
 
+// loadModule builds the BiChat runtime graph (module config, service
+// container, event bridge). Callers must check OPENAI_API_KEY before
+// invoking this — see component.Build. A nil moduleConfig indicates a
+// soft failure inside buildModuleConfig (e.g. OpenAI model creation or
+// parent agent bootstrap failed); the error is nil in that case.
 func loadModule(ctx composition.BuildContext) (*ModuleConfig, *ServiceContainer, *observability.EventBridge, error) {
 	const op serrors.Op = "bichat.loadModule"
 
@@ -43,14 +48,6 @@ func loadModule(ctx composition.BuildContext) (*ModuleConfig, *ServiceContainer,
 	appConfig := ctx.Config()
 	if appConfig == nil {
 		appConfig = configuration.Use()
-	}
-	logger := appConfig.Logger()
-	openAIKey := strings.TrimSpace(os.Getenv(openAIAPIKeyEnv))
-	if openAIKey == "" {
-		if logger != nil {
-			logger.Info("OPENAI_API_KEY not set - BiChat module disabled")
-		}
-		return nil, nil, nil, nil
 	}
 
 	moduleConfig, eventBridge, err := buildModuleConfig(pool, appConfig)
