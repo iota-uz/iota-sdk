@@ -121,6 +121,9 @@
       "Title": "Filters"
     }
   },
+  "Common": {
+    "Loading": "Loading..."
+  },
   "ConfirmDelete": "Are you sure you want to delete this item?",
   "Countries": {
     "AF": "Afghanistan",

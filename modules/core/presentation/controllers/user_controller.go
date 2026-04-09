@@ -175,10 +175,10 @@ func WithUserControllerConfigureSingleSlots(slotFunc SingleSlotFunc) UserControl
 }
 
 func NewUsersController(
-	app application.Application, 
+	app application.Application,
 	userService *services.UserService,
 	opts ...UserControllerOption,
-	) application.Controller {
+) application.Controller {
 	o := &userControllerOptions{}
 	for _, opt := range opts {
 		opt(o)

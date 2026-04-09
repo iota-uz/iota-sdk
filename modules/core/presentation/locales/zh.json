@@ -121,6 +121,9 @@
       "Title": "筛选"
     }
   },
+  "Common": {
+    "Loading": "加载中..."
+  },
   "ConfirmDelete": "您确定要删除此项吗？",
   "Countries": {
     "AF": "阿富汗",

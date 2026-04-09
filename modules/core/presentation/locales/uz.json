@@ -121,6 +121,9 @@
       "Title": "Filtrlar"
     }
   },
+  "Common": {
+    "Loading": "Yuklanmoqda..."
+  },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
     "AF": "Afg'oniston",
