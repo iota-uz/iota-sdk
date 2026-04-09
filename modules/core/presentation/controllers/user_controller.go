@@ -504,6 +504,28 @@ func (c *UsersController) GetSingle(
 			slot.WithSlotSourceFallback(templ.Raw(pageCtx.T("Common.Loading"))),
 		)
 	}
+	slots.Async(
+		users.SingleSlotGroups,
+		func(ctx context.Context) (templ.Component, error) {
+			groupParams := &query.GroupFindParams{
+				Limit:   1000,
+				Offset:  0,
+				Filters: []query.GroupFilter{},
+			}
+			groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
+			if err != nil {
+				return nil, err
+			}
+			out := []string{}
+			for _, g := range groups {
+				if slices.Contains(userViewModel.GroupIDs, g.ID) {
+					out = append(out, g.Name)
+				}
+			}
+			return templ.Raw(strings.Join(out, ", ")), nil
+		},
+		slot.WithSlotSourceFallback(templ.Raw(pageCtx.T("Common.Loading"))),
+	)
 	if c.configureSingleSlots != nil {
 		c.configureSingleSlots(ctx, us, slots)
 	}
