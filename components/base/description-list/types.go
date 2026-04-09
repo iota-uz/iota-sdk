@@ -227,6 +227,6 @@ func (t *dlItemImpl) Classes() templ.CSSClasses {
 	return t.classes
 }
 
-func (d *dlItemImpl) Lists() []DLList {
-	return d.lists
+func (t *dlItemImpl) Lists() []DLList {
+	return t.lists
 }
