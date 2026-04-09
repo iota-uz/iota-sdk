@@ -40,6 +40,13 @@ func RegisterClientHandler(
 	return handler
 }
 
+func (h *ClientHandler) Unregister() {
+	if h == nil || h.publisher == nil {
+		return
+	}
+	h.publisher.Unsubscribe(h.onCreated)
+}
+
 func (h *ClientHandler) createTenantContext(tenantID uuid.UUID) context.Context {
 	ctx := context.Background()
 	ctxWithDB := composables.WithPool(ctx, h.pool)

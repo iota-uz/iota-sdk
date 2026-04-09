@@ -26,6 +26,13 @@ func RegisterSMSHandlers(app application.Application, chatService *services.Chat
 	return handler
 }
 
+func (h *SMSHandler) Unregister() {
+	if h == nil || h.publisher == nil {
+		return
+	}
+	h.publisher.Unsubscribe(h.onSMSReceived)
+}
+
 func (h *SMSHandler) onSMSReceived(event *cpassproviders.ReceivedMessageEvent) {
 	// ctx := context.Background()
 	// ctx = composables.WithPool(ctx, h.pool)

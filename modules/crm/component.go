@@ -2,6 +2,7 @@
 package crm
 
 import (
+	"context"
 	"embed"
 
 	passport "github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
@@ -136,7 +137,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			ctx.EventPublisher(),
 		)
 	})
-	composition.Provide[*handlers.ClientHandler](builder, func(container *composition.Container) (*handlers.ClientHandler, error) {
+	composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
 		app, err := composition.RequireApplication(container)
 		if err != nil {
 			return nil, err
@@ -149,28 +150,57 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return handlers.RegisterClientHandler(app, resolvedChatService, resolvedTenantService), nil
-	})
-	composition.Provide[*handlers.SMSHandler](builder, func(container *composition.Container) (*handlers.SMSHandler, error) {
-		app, err := composition.RequireApplication(container)
-		if err != nil {
-			return nil, err
+		var clientHandler *handlers.ClientHandler
+		var smsHandler *handlers.SMSHandler
+		hooks := []composition.Hook{
+			{
+				Name: "crm-client-handler",
+				Start: func(context.Context, *composition.Container) error {
+					clientHandler = handlers.RegisterClientHandler(app, resolvedChatService, resolvedTenantService)
+					return nil
+				},
+				Stop: func(context.Context, *composition.Container) error {
+					if clientHandler != nil {
+						clientHandler.Unregister()
+						clientHandler = nil
+					}
+					return nil
+				},
+			},
+			{
+				Name: "crm-sms-handler",
+				Start: func(context.Context, *composition.Container) error {
+					smsHandler = handlers.RegisterSMSHandlers(app, resolvedChatService)
+					return nil
+				},
+				Stop: func(context.Context, *composition.Container) error {
+					if smsHandler != nil {
+						smsHandler.Unregister()
+						smsHandler = nil
+					}
+					return nil
+				},
+			},
 		}
-		resolvedChatService, err := chatService.Resolve(container)
-		if err != nil {
-			return nil, err
+		if botToken := config.TelegramBotToken; botToken != "" {
+			var notificationHandler *handlers.NotificationHandler
+			hooks = append(hooks, composition.Hook{
+				Name: "crm-notification-handler",
+				Start: func(context.Context, *composition.Container) error {
+					notificationHandler = handlers.RegisterNotificationHandler(app, botToken)
+					return nil
+				},
+				Stop: func(context.Context, *composition.Container) error {
+					if notificationHandler != nil {
+						notificationHandler.Unregister()
+						notificationHandler = nil
+					}
+					return nil
+				},
+			})
 		}
-		return handlers.RegisterSMSHandlers(app, resolvedChatService), nil
+		return hooks, nil
 	})
-	if botToken := config.TelegramBotToken; botToken != "" {
-		composition.Provide[*handlers.NotificationHandler](builder, func(container *composition.Container) (*handlers.NotificationHandler, error) {
-			app, err := composition.RequireApplication(container)
-			if err != nil {
-				return nil, err
-			}
-			return handlers.RegisterNotificationHandler(app, botToken), nil
-		})
-	}
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
