@@ -43,24 +43,3 @@ func (r Resolver[T]) MustResolve(container *Container) T {
 	}
 	return value
 }
-
-type Optional[T any] struct {
-	resolver Resolver[T]
-}
-
-func UseOptional[T any]() Optional[T] {
-	return Optional[T]{resolver: Use[T]()}
-}
-
-func (o Optional[T]) Resolve(container *Container) (T, bool, error) {
-	value, err := o.resolver.Resolve(container)
-	if err == nil {
-		return value, true, nil
-	}
-	if IsNotProvided(err) {
-		var zero T
-		return zero, false, nil
-	}
-	var zero T
-	return zero, false, err
-}

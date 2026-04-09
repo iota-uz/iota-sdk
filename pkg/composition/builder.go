@@ -136,10 +136,6 @@ func Provide[T any](builder *Builder, provider any) {
 	appendProvider[T](builder, "", typeOf[T](), provider)
 }
 
-func ProvideNamed[T any](builder *Builder, name string, provider any) {
-	appendProvider[T](builder, name, typeOf[T](), provider)
-}
-
 func appendProvider[T any](builder *Builder, name string, keyType reflect.Type, provider any) {
 	if builder == nil {
 		panic("composition: builder is nil")

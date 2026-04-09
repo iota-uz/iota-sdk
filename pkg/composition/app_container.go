@@ -97,7 +97,16 @@ func ResolveOptionalForApp[T any](app application.Application) (T, bool, error) 
 		var zero T
 		return zero, false, nil
 	}
-	return UseOptional[T]().Resolve(container)
+	value, err := Resolve[T](container)
+	if err == nil {
+		return value, true, nil
+	}
+	if IsNotProvided(err) {
+		var zero T
+		return zero, false, nil
+	}
+	var zero T
+	return zero, false, err
 }
 
 func MustResolveForApp[T any](app application.Application) T {
