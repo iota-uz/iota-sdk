@@ -40,6 +40,15 @@ func (c *component) Descriptor() composition.Descriptor {
 func (c *component) Build(builder *composition.Builder) error {
 	app := builder.Context().App
 	config := configuration.Use()
+	passportRepo := composition.Use[passport.Repository]()
+	chatRepo := composition.Use[chat.Repository]()
+	clientRepo := composition.Use[clientagg.Repository]()
+	twilioProvider := composition.Use[*cpassproviders.TwilioProvider]()
+	clientService := composition.Use[*services.ClientService]()
+	chatService := composition.Use[*services.ChatService]()
+	templateService := composition.Use[*services.MessageTemplateService]()
+	userService := composition.Use[*coreservices.UserService]()
+	tenantService := composition.Use[*coreservices.TenantService]()
 
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&LocaleFiles}, nil
@@ -57,18 +66,18 @@ func (c *component) Build(builder *composition.Builder) error {
 		return persistence.NewChatRepository()
 	})
 	composition.Provide[clientagg.Repository](builder, func(container *composition.Container) (clientagg.Repository, error) {
-		passportRepo, err := composition.Resolve[passport.Repository](container)
+		resolvedPassportRepo, err := passportRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		return persistence.NewClientRepository(passportRepo), nil
+		return persistence.NewClientRepository(resolvedPassportRepo), nil
 	})
 	composition.Provide[*cpassproviders.TwilioProvider](builder, func(container *composition.Container) (*cpassproviders.TwilioProvider, error) {
-		clientRepo, err := composition.Resolve[clientagg.Repository](container)
+		resolvedClientRepo, err := clientRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		chatRepo, err := composition.Resolve[chat.Repository](container)
+		resolvedChatRepo, err := chatRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
@@ -80,39 +89,39 @@ func (c *component) Build(builder *composition.Builder) error {
 				},
 				WebhookURL: config.Twilio.WebhookURL,
 			},
-			clientRepo,
-			chatRepo,
+			resolvedClientRepo,
+			resolvedChatRepo,
 		), nil
 	})
 	composition.Provide[*services.ClientService](builder, func(container *composition.Container) (*services.ClientService, error) {
-		clientRepo, err := composition.Resolve[clientagg.Repository](container)
+		resolvedClientRepo, err := clientRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		return services.NewClientService(clientRepo, app.EventPublisher()), nil
+		return services.NewClientService(resolvedClientRepo, app.EventPublisher()), nil
 	})
 	composition.Provide[*services.ChatService](builder, func(container *composition.Container) (*services.ChatService, error) {
-		chatRepo, err := composition.Resolve[chat.Repository](container)
+		resolvedChatRepo, err := chatRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		clientRepo, err := composition.Resolve[clientagg.Repository](container)
+		resolvedClientRepo, err := clientRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		clientService, err := composition.Resolve[*services.ClientService](container)
+		resolvedClientService, err := clientService.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		twilioProvider, err := composition.Resolve[*cpassproviders.TwilioProvider](container)
+		resolvedTwilioProvider, err := twilioProvider.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
 		return services.NewChatService(
-			chatRepo,
-			clientRepo,
-			clientService,
-			[]chat.Provider{twilioProvider},
+			resolvedChatRepo,
+			resolvedClientRepo,
+			resolvedClientService,
+			[]chat.Provider{resolvedTwilioProvider},
 			app.EventPublisher(),
 		), nil
 	})
@@ -123,22 +132,22 @@ func (c *component) Build(builder *composition.Builder) error {
 		)
 	})
 	composition.Provide[*handlers.ClientHandler](builder, func(container *composition.Container) (*handlers.ClientHandler, error) {
-		chatService, err := composition.Resolve[*services.ChatService](container)
+		resolvedChatService, err := chatService.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		tenantService, err := composition.Resolve[*coreservices.TenantService](container)
+		resolvedTenantService, err := tenantService.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		return handlers.RegisterClientHandler(app, chatService, tenantService), nil
+		return handlers.RegisterClientHandler(app, resolvedChatService, resolvedTenantService), nil
 	})
 	composition.Provide[*handlers.SMSHandler](builder, func(container *composition.Container) (*handlers.SMSHandler, error) {
-		chatService, err := composition.Resolve[*services.ChatService](container)
+		resolvedChatService, err := chatService.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		return handlers.RegisterSMSHandlers(app, chatService), nil
+		return handlers.RegisterSMSHandlers(app, resolvedChatService), nil
 	})
 	if botToken := config.TelegramBotToken; botToken != "" {
 		composition.Provide[*handlers.NotificationHandler](builder, func() *handlers.NotificationHandler {
@@ -148,43 +157,43 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-			clientService, err := composition.Resolve[*services.ClientService](container)
+			resolvedClientService, err := clientService.Resolve(container)
 			if err != nil {
 				return nil, err
 			}
-			chatService, err := composition.Resolve[*services.ChatService](container)
+			resolvedChatService, err := chatService.Resolve(container)
 			if err != nil {
 				return nil, err
 			}
-			templateService, err := composition.Resolve[*services.MessageTemplateService](container)
+			resolvedTemplateService, err := templateService.Resolve(container)
 			if err != nil {
 				return nil, err
 			}
-			userService, err := composition.Resolve[*coreservices.UserService](container)
+			resolvedUserService, err := userService.Resolve(container)
 			if err != nil {
 				return nil, err
 			}
-			tenantService, err := composition.Resolve[*coreservices.TenantService](container)
+			resolvedTenantService, err := tenantService.Resolve(container)
 			if err != nil {
 				return nil, err
 			}
-			twilioProvider, err := composition.Resolve[*cpassproviders.TwilioProvider](container)
+			resolvedTwilioProvider, err := twilioProvider.Resolve(container)
 			if err != nil {
 				return nil, err
 			}
 			basePath := "/crm/clients"
 			return []application.Controller{
-				controllers.NewClientController(app, clientService, chatService, controllers.ClientControllerConfig{
+				controllers.NewClientController(app, resolvedClientService, resolvedChatService, controllers.ClientControllerConfig{
 					BasePath: basePath,
 					Tabs: []controllers.TabDefinition{
-						controllers.ProfileTab(basePath, clientService),
-						controllers.ChatTab(basePath, clientService, chatService),
+						controllers.ProfileTab(basePath, resolvedClientService),
+						controllers.ChatTab(basePath, resolvedClientService, resolvedChatService),
 						controllers.ActionsTab(),
 					},
 				}),
-				controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, "/crm/chats"),
-				controllers.NewMessageTemplateController(app, templateService, "/crm/instant-messages"),
-				controllers.NewTwilioController(app, twilioProvider),
+				controllers.NewChatController(app, resolvedUserService, resolvedClientService, resolvedChatService, resolvedTemplateService, resolvedTenantService, "/crm/chats"),
+				controllers.NewMessageTemplateController(app, resolvedTemplateService, "/crm/instant-messages"),
+				controllers.NewTwilioController(app, resolvedTwilioProvider),
 			}, nil
 		})
 	}

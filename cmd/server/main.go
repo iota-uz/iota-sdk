@@ -10,7 +10,7 @@ import (
 	"github.com/iota-uz/applets"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules"
-	bichatbootstrap "github.com/iota-uz/iota-sdk/modules/bichat/bootstrap"
+	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -49,11 +49,10 @@ func run() error {
 		context.Background(),
 		bootstrap.InstallComponents(
 			[]composition.Capability{composition.CapabilityAPI, composition.CapabilityWorker},
-			modules.Components()...,
+			append(modules.Components(), bichat.NewComponent())...,
 		),
 		bootstrap.InstallNavItems(modules.NavLinks...),
 		bootstrap.InstallHashFS(internalassets.HashFS),
-		bichatbootstrap.New(bichatbootstrap.WithTransports()),
 		bootstrap.InstallApplets(bootstrap.AppletsOptions{
 			SessionConfig: applets.DefaultSessionConfig,
 			WithHTTP:      true,

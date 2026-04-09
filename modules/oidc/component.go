@@ -58,6 +58,15 @@ func (c *component) Build(builder *composition.Builder) error {
 		return nil
 	}
 
+	oidcConfig := composition.Use[OIDCConfig]()
+	clientRepo := composition.Use[client.Repository]()
+	authRequestRepo := composition.Use[authrequest.Repository]()
+	tokenRepo := composition.Use[token.Repository]()
+	userRepo := composition.Use[coreuser.Repository]()
+	storageResolver := composition.Use[*oidcinfra.Storage]()
+	oidcServiceResolver := composition.Use[*services.OIDCService]()
+	sessionServiceResolver := composition.Use[*coreservices.SessionService]()
+
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
 			component := &oidcBootstrapComponent{
@@ -84,31 +93,31 @@ func (c *component) Build(builder *composition.Builder) error {
 		return corepersistence.NewUserRepository(corepersistence.NewUploadRepository())
 	})
 	composition.Provide[*oidcinfra.Storage](builder, func(container *composition.Container) (*oidcinfra.Storage, error) {
-		cfg, err := composition.Resolve[OIDCConfig](container)
+		cfg, err := oidcConfig.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		clientRepo, err := composition.Resolve[client.Repository](container)
+		resolvedClientRepo, err := clientRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		authRequestRepo, err := composition.Resolve[authrequest.Repository](container)
+		resolvedAuthRequestRepo, err := authRequestRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		tokenRepo, err := composition.Resolve[token.Repository](container)
+		resolvedTokenRepo, err := tokenRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		userRepo, err := composition.Resolve[coreuser.Repository](container)
+		resolvedUserRepo, err := userRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
 		return oidcinfra.NewStorage(
-			clientRepo,
-			authRequestRepo,
-			tokenRepo,
-			userRepo,
+			resolvedClientRepo,
+			resolvedAuthRequestRepo,
+			resolvedTokenRepo,
+			resolvedUserRepo,
 			builder.Context().App.DB(),
 			cfg.CryptoKey,
 			cfg.IssuerURL,
@@ -117,36 +126,32 @@ func (c *component) Build(builder *composition.Builder) error {
 		), nil
 	})
 	composition.Provide[*services.OIDCService](builder, func(container *composition.Container) (*services.OIDCService, error) {
-		clientRepo, err := composition.Resolve[client.Repository](container)
+		resolvedClientRepo, err := clientRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		authRequestRepo, err := composition.Resolve[authrequest.Repository](container)
+		resolvedAuthRequestRepo, err := authRequestRepo.Resolve(container)
 		if err != nil {
 			return nil, err
 		}
-		return services.NewOIDCService(clientRepo, authRequestRepo), nil
+		return services.NewOIDCService(resolvedClientRepo, resolvedAuthRequestRepo), nil
 	})
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		optionalConfig := composition.UseOptional[OIDCConfig]()
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-			cfg, ok, err := optionalConfig.Resolve(container)
+			cfg, err := oidcConfig.Resolve(container)
 			if err != nil {
 				return nil, err
 			}
-			if !ok {
-				return nil, nil
-			}
-			storage, err := composition.Resolve[*oidcinfra.Storage](container)
+			storage, err := storageResolver.Resolve(container)
 			if err != nil {
 				return nil, err
 			}
-			oidcService, err := composition.Resolve[*services.OIDCService](container)
+			oidcService, err := oidcServiceResolver.Resolve(container)
 			if err != nil {
 				return nil, err
 			}
-			sessionService, err := composition.Resolve[*coreservices.SessionService](container)
+			sessionService, err := sessionServiceResolver.Resolve(container)
 			if err != nil {
 				return nil, err
 			}

@@ -39,16 +39,17 @@ func (c testComponent) Build(builder *Builder) error {
 	return c.build(builder)
 }
 
-func TestResolverTypedResolveAndProvideAs(t *testing.T) {
+func TestResolverTypedResolveAndProvide(t *testing.T) {
 	engine := NewEngine()
 	err := engine.Register(testComponent{
 		descriptor: Descriptor{Name: "greeting"},
 		build: func(builder *Builder) error {
+			serviceResolver := Use[*greetingService]()
 			Provide[*greetingService](builder, func() *greetingService {
 				return &greetingService{value: "hello"}
 			})
-			ProvideAs[greetingPort, *greetingService](builder, func(container *Container) (*greetingService, error) {
-				return Use[*greetingService]().Resolve(container)
+			Provide[greetingPort](builder, func(container *Container) (greetingPort, error) {
+				return serviceResolver.Resolve(container)
 			})
 			return nil
 		},

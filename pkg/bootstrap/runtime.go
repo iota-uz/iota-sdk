@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"errors"
-	"reflect"
 	"time"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -23,7 +22,6 @@ type Runtime struct {
 	Engine *composition.Engine
 
 	container *composition.Container
-	values    map[reflect.Type]any
 }
 
 type Installer interface {
@@ -48,41 +46,6 @@ func (rt *Runtime) Install(ctx context.Context, installers ...Installer) error {
 	return nil
 }
 
-func (rt *Runtime) Provide(values ...any) {
-	if rt.values == nil {
-		rt.values = make(map[reflect.Type]any, len(values))
-	}
-	for _, value := range values {
-		if value == nil {
-			continue
-		}
-		rt.values[reflect.TypeOf(value)] = value
-	}
-}
-
-func (rt *Runtime) Use(target any) bool {
-	if rt == nil || target == nil {
-		return false
-	}
-	ptr := reflect.ValueOf(target)
-	if ptr.Kind() != reflect.Ptr || ptr.IsNil() {
-		return false
-	}
-	targetType := ptr.Elem().Type()
-	if value, ok := rt.values[targetType]; ok {
-		ptr.Elem().Set(reflect.ValueOf(value))
-		return true
-	}
-	for _, value := range rt.values {
-		valueValue := reflect.ValueOf(value)
-		if valueValue.Type().AssignableTo(targetType) {
-			ptr.Elem().Set(valueValue)
-			return true
-		}
-	}
-	return false
-}
-
 func (rt *Runtime) Container() *composition.Container {
 	if rt == nil {
 		return nil
@@ -94,17 +57,10 @@ func (rt *Runtime) SetComposition(engine *composition.Engine, container *composi
 	if rt == nil {
 		return nil
 	}
-	merged, err := composition.Merge(rt.container, container)
-	if err != nil {
-		return err
-	}
 	rt.Engine = engine
-	rt.container = merged
-	if rt.App != nil && merged != nil {
-		composition.Attach(rt.App, merged)
-	}
-	if merged != nil {
-		rt.Provide(merged)
+	rt.container = container
+	if rt.App != nil && container != nil {
+		composition.Attach(rt.App, container)
 	}
 	return nil
 }
@@ -188,7 +144,6 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	rt := &Runtime{
 		Config: cfg.config,
-		values: make(map[reflect.Type]any),
 	}
 
 	var cleanup []func() error
@@ -222,7 +177,6 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 		return nil, nil, errors.Join(serrors.E(op, err, "build application"), runCleanup(cleanup))
 	}
 	rt.App = app
-	rt.Provide(logger, pool, bundle, app)
 
 	return rt, func() error {
 		var cleanupErr error

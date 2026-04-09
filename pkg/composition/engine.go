@@ -307,49 +307,6 @@ func (c *Container) AppendHooks(hooks ...Hook) {
 	}
 }
 
-func Merge(target, source *Container) (*Container, error) {
-	switch {
-	case target == nil:
-		return source, nil
-	case source == nil:
-		return target, nil
-	}
-
-	for key, provider := range source.providers {
-		if _, exists := target.providers[key]; exists {
-			return nil, fmt.Errorf("composition: duplicate provider %s", key)
-		}
-		target.providers[key] = provider
-	}
-
-	target.providerOrder = append(target.providerOrder, source.providerOrder...)
-	target.controllers = append(target.controllers, source.controllers...)
-	target.navItems = append(target.navItems, source.navItems...)
-	target.locales = append(target.locales, source.locales...)
-	target.graphSchemas = append(target.graphSchemas, source.graphSchemas...)
-	target.applets = append(target.applets, source.applets...)
-	target.spotlightProviders = append(target.spotlightProviders, source.spotlightProviders...)
-	target.hooks = append(target.hooks, source.hooks...)
-	target.activeCapabilities = mergeCapabilities(target.activeCapabilities, source.activeCapabilities)
-	target.started = target.started || source.started
-
-	return target, nil
-}
-
-func mergeCapabilities(left, right []Capability) []Capability {
-	if len(left) == 0 {
-		return append([]Capability(nil), right...)
-	}
-	merged := append([]Capability(nil), left...)
-	for _, capability := range right {
-		if slices.Contains(merged, capability) {
-			continue
-		}
-		merged = append(merged, capability)
-	}
-	return merged
-}
-
 func Resolve[T any](container *Container) (T, error) {
 	return ResolveKey[T](container, KeyFor[T]())
 }

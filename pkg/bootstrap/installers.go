@@ -82,7 +82,7 @@ type AppletsOptions struct {
 
 func InstallApplets(opts AppletsOptions) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		var appletControllers []application.Controller
+		var result compositionapplet.BuildResult
 
 		host := opts.HostServices
 		if host == nil {
@@ -99,26 +99,12 @@ func InstallApplets(opts AppletsOptions) Installer {
 			metrics = applet.NewNoopMetricsRecorder()
 		}
 
-		if opts.WithHTTP {
-			var err error
-			appletControllers, err = rt.App.CreateAppletControllers(
-				host,
-				opts.SessionConfig,
-				logger,
-				metrics,
-				opts.BuilderOpts...,
-			)
-			if err != nil {
-				return fmt.Errorf("create applet controllers: %w", err)
-			}
-		}
-
-		if opts.WithRuntime {
+		if opts.WithHTTP || opts.WithRuntime {
 			if rt.Container() == nil {
-				return fmt.Errorf("install components before installing applet runtime")
+				return fmt.Errorf("install components before installing applets")
 			}
 			builder := compositionapplet.NewAppletEngineBuilder()
-			result, err := builder.Build(compositionapplet.BuildInput{
+			built, err := builder.Build(compositionapplet.BuildInput{
 				Applets:       rt.App.AppletRegistry().All(),
 				Pool:          rt.Pool,
 				Bundle:        rt.App.Bundle(),
@@ -129,28 +115,36 @@ func InstallApplets(opts AppletsOptions) Installer {
 				Options:       opts.BuilderOpts,
 			})
 			if err != nil {
-				return fmt.Errorf("register applet runtime: %w", err)
+				return fmt.Errorf("build applets: %w", err)
 			}
+			result = built
+		}
+
+		if opts.WithRuntime {
 			for _, registration := range result.RuntimeRegistrations {
-				component := application.NewAppletRuntimeComponent(
-					registration.Manager,
-					rt.Pool,
-					logger,
-					registration.HasPostgresJobs,
-				)
+				runtimeHook := &appletRuntimeHook{
+					manager:         registration.Manager,
+					pool:            rt.Pool,
+					logger:          logger,
+					hasPostgresJobs: registration.HasPostgresJobs,
+				}
 				rt.Container().AppendHooks(composition.Hook{
-					Name: component.Name(),
+					Name: runtimeHook.Name(),
 					Start: func(ctx context.Context, _ *composition.Container) error {
-						return component.Start(ctx)
+						return runtimeHook.Start(ctx)
 					},
 					Stop: func(ctx context.Context, _ *composition.Container) error {
-						return component.Stop(ctx)
+						return runtimeHook.Stop(ctx)
 					},
 				})
 			}
 		}
 
-		if len(appletControllers) > 0 {
+		if opts.WithHTTP {
+			appletControllers := make([]application.Controller, 0, len(result.Controllers))
+			for _, controller := range result.Controllers {
+				appletControllers = append(appletControllers, controller.(application.Controller))
+			}
 			rt.App.RegisterControllers(appletControllers...)
 		}
 

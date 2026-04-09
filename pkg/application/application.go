@@ -514,7 +514,7 @@ func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
 	}
 }
 
-// RegisterServices registers a new service in the application by its type
+// Bundle returns the translation bundle registered with the application.
 func (app *application) Bundle() *i18n.Bundle {
 	return app.bundle
 }
@@ -529,37 +529,4 @@ func (app *application) RegisterApplet(a Applet) error {
 
 func (app *application) AppletRegistry() AppletRegistry {
 	return app.appletRegistry
-}
-
-func toBunDelegateMethodName(appletName, methodName string) (string, error) {
-	appletName = strings.TrimSpace(appletName)
-	methodName = strings.TrimSpace(methodName)
-	if appletName == "" {
-		return "", fmt.Errorf("applet name is required for bun delegate method")
-	}
-	if methodName == "" {
-		return "", fmt.Errorf("method name is required for bun delegate method")
-	}
-	prefix := appletName + "."
-	if !strings.HasPrefix(methodName, prefix) {
-		return "", fmt.Errorf("method %q must be namespaced with %q", methodName, prefix)
-	}
-	suffix := strings.TrimPrefix(methodName, prefix)
-	if suffix == "" {
-		return "", fmt.Errorf("method %q has empty suffix", methodName)
-	}
-	return appletName + ".__go." + suffix, nil
-}
-
-func makeBunPublicProxyMethod(publicMethodName, goDelegateMethodName string, base applets.RPCMethod) applets.RPCMethod {
-	return applets.RPCMethod{
-		RequirePermissions: append([]string(nil), base.RequirePermissions...),
-		Handler: func(context.Context, json.RawMessage) (any, error) {
-			return nil, fmt.Errorf(
-				"method %s is routed via bun runtime; use %s on internal transport",
-				publicMethodName,
-				goDelegateMethodName,
-			)
-		},
-	}
 }

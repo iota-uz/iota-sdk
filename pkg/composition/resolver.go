@@ -13,10 +13,6 @@ func Use[T any]() Resolver[T] {
 	return Resolver[T]{key: KeyFor[T]()}
 }
 
-func UseNamed[T any](name string) Resolver[T] {
-	return Resolver[T]{key: NamedKeyFor[T](name)}
-}
-
 func KeyForType(t reflect.Type) Key {
 	return keyFor(t, "")
 }
@@ -54,10 +50,6 @@ type Optional[T any] struct {
 
 func UseOptional[T any]() Optional[T] {
 	return Optional[T]{resolver: Use[T]()}
-}
-
-func UseOptionalNamed[T any](name string) Optional[T] {
-	return Optional[T]{resolver: UseNamed[T](name)}
 }
 
 func (o Optional[T]) Resolve(container *Container) (T, bool, error) {

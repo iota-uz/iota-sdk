@@ -12,7 +12,7 @@ import (
 
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/modules"
-	bichatbootstrap "github.com/iota-uz/iota-sdk/modules/bichat/bootstrap"
+	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -58,9 +58,8 @@ func run() error {
 		context.Background(),
 		bootstrap.InstallComponents(
 			[]composition.Capability{composition.CapabilityWorker},
-			modules.Components()...,
+			append(modules.Components(), bichat.NewComponent())...,
 		),
-		bichatbootstrap.New(),
 		bootstrap.InstallApplets(bootstrap.AppletsOptions{
 			SessionConfig: applets.DefaultSessionConfig,
 			WithRuntime:   true,

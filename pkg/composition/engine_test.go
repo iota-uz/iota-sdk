@@ -65,9 +65,9 @@ func TestEngineCompileReportsMissingDependencyPath(t *testing.T) {
 	err := engine.Register(testComponent{
 		descriptor: Descriptor{Name: "crm"},
 		build: func(builder *Builder) error {
-			missingProvider := UseNamed[string]("twilioProvider")
+			missingProviderKey := NamedKeyFor[string]("twilioProvider")
 			Provide[*chatService](builder, func(container *Container) (*chatService, error) {
-				if _, err := missingProvider.Resolve(container); err != nil {
+				if _, err := ResolveKey[string](container, missingProviderKey); err != nil {
 					return nil, err
 				}
 				return &chatService{}, nil
