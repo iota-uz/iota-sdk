@@ -58,6 +58,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		return nil
 	}
 
+	// After the initial enabled check, resolve OIDC config through composition everywhere else.
 	oidcConfig := composition.Use[OIDCConfig]()
 	clientRepo := composition.Use[client.Repository]()
 	authRequestRepo := composition.Use[authrequest.Repository]()
@@ -68,10 +69,14 @@ func (c *component) Build(builder *composition.Builder) error {
 	sessionServiceResolver := composition.Use[*coreservices.SessionService]()
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
+		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
+			cfg, err := oidcConfig.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
 			component := &oidcBootstrapComponent{
 				pool:      builder.Context().DB(),
-				cryptoKey: config.CryptoKey,
+				cryptoKey: cfg.CryptoKey,
 			}
 			return []composition.Hook{{
 				Name: component.Name(),
