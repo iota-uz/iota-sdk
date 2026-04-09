@@ -46,7 +46,8 @@ func TestDashboardController_Index(t *testing.T) {
 
 	// Create test suite with superadmin module and superadmin user
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithComponents(modules.Components()...).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUser()).
 		Build()
 
@@ -65,7 +66,8 @@ func TestDashboardController_GetMetrics(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithComponents(modules.Components()...).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUser()).
 		Build()
 
@@ -82,7 +84,8 @@ func TestDashboardController_GetMetrics_WithDateFilter(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithComponents(modules.Components()...).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUser()).
 		Build()
 
@@ -106,7 +109,8 @@ func TestDashboardController_GetMetrics_InvalidDateFormat(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithComponents(modules.Components()...).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUser()).
 		Build()
 
@@ -136,7 +140,8 @@ func TestDashboardController_GetMetrics_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithComponents(modules.Components()...).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUser()).
 		Build()
 
@@ -185,7 +190,8 @@ func TestDashboardController_Permissions(t *testing.T) {
 			setupSuite: func(t *testing.T) *itf.Suite {
 				t.Helper()
 				return itf.NewSuiteBuilder(t).
-					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+					WithComponents(modules.Components()...).
+					WithComponents(superadmin.NewComponent(nil)).
 					WithUser(createSuperAdminUser()).
 					Build()
 			},
@@ -197,7 +203,8 @@ func TestDashboardController_Permissions(t *testing.T) {
 			setupSuite: func(t *testing.T) *itf.Suite {
 				t.Helper()
 				return itf.NewSuiteBuilder(t).
-					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+					WithComponents(modules.Components()...).
+					WithComponents(superadmin.NewComponent(nil)).
 					WithUser(createRegularUser()).
 					Build()
 			},
@@ -209,7 +216,8 @@ func TestDashboardController_Permissions(t *testing.T) {
 			setupSuite: func(t *testing.T) *itf.Suite {
 				t.Helper()
 				return itf.NewSuiteBuilder(t).
-					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+					WithComponents(modules.Components()...).
+					WithComponents(superadmin.NewComponent(nil)).
 					AsAnonymous().
 					Build()
 			},
@@ -255,7 +263,8 @@ func TestDashboardController_SuperAdminOnly(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name+"_SuperAdmin_OK", func(t *testing.T) {
 			suite := itf.NewSuiteBuilder(t).
-				WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+				WithComponents(modules.Components()...).
+				WithComponents(superadmin.NewComponent(nil)).
 				WithUser(createSuperAdminUser()).
 				Build()
 
@@ -269,7 +278,8 @@ func TestDashboardController_SuperAdminOnly(t *testing.T) {
 
 		t.Run(tc.name+"_RegularUser_Forbidden", func(t *testing.T) {
 			suite := itf.NewSuiteBuilder(t).
-				WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+				WithComponents(modules.Components()...).
+				WithComponents(superadmin.NewComponent(nil)).
 				WithUser(createRegularUser()).
 				Build()
 
@@ -287,7 +297,8 @@ func TestDashboardController_Routes(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithComponents(modules.Components()...).
+		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUser()).
 		Build()
 

@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -19,27 +20,27 @@ type controllerCloser interface {
 
 // TestContext provides a fluent API for building test contexts
 type TestContext struct {
-	ctx     context.Context
-	pool    *pgxpool.Pool
-	tx      pgx.Tx
-	app     application.Application
-	tenant  *composables.Tenant
-	user    user.User
-	modules []application.Module
-	dbName  string
+	ctx        context.Context
+	pool       *pgxpool.Pool
+	tx         pgx.Tx
+	app        application.Application
+	tenant     *composables.Tenant
+	user       user.User
+	components []composition.Component
+	dbName     string
 }
 
 // newTestContext creates a new internal TestContext builder.
 func newTestContext() *TestContext {
 	return &TestContext{
-		ctx:     context.Background(),
-		modules: []application.Module{},
+		ctx:        context.Background(),
+		components: []composition.Component{},
 	}
 }
 
-// WithModules adds modules to the test context
-func (tc *TestContext) WithModules(modules ...application.Module) *TestContext {
-	tc.modules = append(tc.modules, modules...)
+// WithComponents adds composition components to the test context.
+func (tc *TestContext) WithComponents(components ...composition.Component) *TestContext {
+	tc.components = append(tc.components, components...)
 	return tc
 }
 
@@ -70,8 +71,8 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 		tc.dbName = tb.Name() + "_" + uniqueSuffix
 	}
 	h := NewHarness(tb, HarnessConfig{
-		Name:    tc.dbName,
-		Modules: tc.modules,
+		Name:       tc.dbName,
+		Components: tc.components,
 		Database: DatabaseConfig{
 			Provisioning: ProvisioningPerTestDatabase,
 			Cleanup:      CleanupDropOnExit,
@@ -96,38 +97,38 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	tc.tenant = scope.Tenant
 
 	return &TestEnvironment{
-		Ctx:    scope.Ctx,
-		Pool:   scope.Pool,
-		Tx:     scope.Tx,
-		App:    scope.App,
-		Tenant: scope.Tenant,
-		User:   tc.user,
+		Ctx:       scope.Ctx,
+		Pool:      scope.Pool,
+		Tx:        scope.Tx,
+		App:       scope.App,
+		Container: scope.Container,
+		Tenant:    scope.Tenant,
+		User:      tc.user,
 	}
 }
 
 // TestEnvironment contains all test dependencies
 type TestEnvironment struct {
-	Ctx    context.Context
-	Pool   *pgxpool.Pool
-	Tx     pgx.Tx
-	App    application.Application
-	Tenant *composables.Tenant
-	User   user.User
+	Ctx       context.Context
+	Pool      *pgxpool.Pool
+	Tx        pgx.Tx
+	App       application.Application
+	Container *composition.Container
+	Tenant    *composables.Tenant
+	User      user.User
 }
 
-// Service retrieves a service from the application
-func (te *TestEnvironment) Service(service interface{}) interface{} {
-	return te.App.Service(service)
-}
-
-// GetService is a generic helper that retrieves and casts a service
+// GetService is a generic helper that retrieves and casts a service. Resolves
+// via the composition container stored on the environment.
 func GetService[T any](te *TestEnvironment) *T {
-	var zero T
-	service := te.App.Service(zero)
-	if service == nil {
+	if te == nil || te.Container == nil {
 		return nil
 	}
-	return service.(*T)
+	service, err := composition.Resolve[*T](te.Container)
+	if err != nil {
+		return nil
+	}
+	return service
 }
 
 // AssertNoError fails the test if err is not nil

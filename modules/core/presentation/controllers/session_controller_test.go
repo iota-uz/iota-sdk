@@ -11,9 +11,19 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
+
+func newAccountController(suite *itf.Suite) application.Controller {
+	env := suite.Env()
+	userService := itf.GetService[services.UserService](env)
+	tenantService := itf.GetService[services.TenantService](env)
+	uploadService := itf.GetService[services.UploadService](env)
+	sessionService := itf.GetService[services.SessionService](env)
+	return controllers.NewAccountController(env.App, userService, tenantService, uploadService, sessionService)
+}
 
 // ACCOUNT SESSION CONTROLLER TESTS
 // These tests validate session management from the user's account perspective
@@ -67,11 +77,11 @@ func TestAccountController_GetSessions(t *testing.T) {
 
 		// Create suite with authenticated user but no session cookie
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		// Request without session cookie
@@ -85,14 +95,14 @@ func TestAccountController_GetSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		// Persist test user to database (required for FK constraints)
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		config := configuration.Use()
@@ -148,13 +158,13 @@ func TestAccountController_GetSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		config := configuration.Use()
@@ -200,13 +210,13 @@ func TestAccountController_GetSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		config := configuration.Use()
@@ -248,11 +258,11 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		suite.DELETE("/account/sessions/dummy-token").
@@ -265,13 +275,13 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -305,13 +315,13 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -364,13 +374,13 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		config := configuration.Use()
@@ -407,11 +417,11 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		suite.DELETE("/account/sessions/others").
@@ -424,13 +434,13 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -491,13 +501,13 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -543,7 +553,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 
 		// User without SessionDelete permission
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead). // Only read permission
 			Build()
 
@@ -559,7 +569,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionDelete, permissions.SessionRead).
 			Build()
 
@@ -600,7 +610,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionDelete, permissions.SessionRead).
 			Build()
 
@@ -622,7 +632,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(). // No permissions
 			Build()
 
@@ -638,7 +648,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead).
 			Build()
 
@@ -674,7 +684,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead, permissions.UserRead).
 			Build()
 
@@ -713,7 +723,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead).
 			Build()
 
@@ -770,7 +780,7 @@ func TestSessionController_Permissions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead). // Only read permission
 			Build()
 
@@ -792,7 +802,7 @@ func TestSessionController_Permissions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionDelete).
 			Build()
 
@@ -827,7 +837,7 @@ func TestSessionController_Permissions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(). // No permissions
 			Build()
 

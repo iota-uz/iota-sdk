@@ -32,7 +32,7 @@ func setupTest(t *testing.T) *itf.Suite {
 
 	adminUser := itf.User()
 
-	return itf.NewSuiteBuilder(t).WithModules(modules.BuiltInModules...).Build().
+	return itf.NewSuiteBuilder(t).WithComponents(modules.Components()...).Build().
 		AsUser(adminUser)
 }
 
@@ -49,7 +49,7 @@ func TestAIChatController_SaveConfig_Success(t *testing.T) {
 	suite.Register(controller)
 
 	// Get service
-	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
+	configService := itf.GetService[services.AIChatConfigService](env)
 
 	// Prepare form data
 	formData := url.Values{}
@@ -95,7 +95,7 @@ func TestAIChatController_SaveConfig_ValidationError(t *testing.T) {
 	suite.Register(controller)
 
 	// Get service
-	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
+	configService := itf.GetService[services.AIChatConfigService](env)
 
 	// Prepare form data with invalid MaxTokens
 	formData := url.Values{}
@@ -132,7 +132,7 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 	suite.Register(controller)
 
 	// Get service
-	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
+	configService := itf.GetService[services.AIChatConfigService](env)
 
 	// First, create an initial configuration
 	options := []aichatconfig.Option{
@@ -194,7 +194,7 @@ func TestAIChatController_SaveConfig_FirstConfigSetsDefault(t *testing.T) {
 	suite.Register(controller)
 
 	// Get service
-	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
+	configService := itf.GetService[services.AIChatConfigService](env)
 
 	// Ensure no configs exist initially
 	configs, err := configService.List(env.Ctx)

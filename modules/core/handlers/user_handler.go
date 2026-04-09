@@ -21,11 +21,11 @@ type UserHandler struct {
 	sessionService *services.SessionService
 }
 
-func RegisterUserHandler(app application.Application) *UserHandler {
+func RegisterUserHandler(app application.Application, sessionService *services.SessionService) *UserHandler {
 	handler := &UserHandler{
 		pool:           app.DB(),
 		publisher:      app.EventPublisher(),
-		sessionService: app.Service(services.SessionService{}).(*services.SessionService),
+		sessionService: sessionService,
 	}
 	app.EventPublisher().Subscribe(handler.onUserPasswordUpdated)
 	return handler

@@ -31,10 +31,10 @@ type UploadController struct {
 	basePath      string
 }
 
-func NewUploadController(app application.Application) application.Controller {
+func NewUploadController(app application.Application, uploadService *services.UploadService) application.Controller {
 	return &UploadController{
 		app:           app,
-		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
+		uploadService: uploadService,
 		basePath:      "/uploads",
 	}
 }

@@ -42,7 +42,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_MissingTenantID(t *testing.T) {
 	t.Parallel()
 
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
 	// Context without tenant ID
@@ -57,7 +57,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_RejectsNonAnalyticsSchema(t *testing
 	t.Parallel()
 
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
 	_, err := executor.ExecuteQuery(env.Ctx, "SELECT 1 FROM public.some_table", nil, 5*time.Second)
@@ -69,7 +69,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_AcceptsMultilineAnalyticsQuery(t *te
 	t.Parallel()
 
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
 	tenantID, err := composables.UseTenantID(env.Ctx)
@@ -113,7 +113,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 	t.Parallel()
 
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
 	// Get tenant ID from context
@@ -188,7 +188,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	t.Parallel()
 
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
 	// Get tenant ID from context
@@ -245,7 +245,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 	t.Parallel()
 
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
 	// Get tenant ID from context
@@ -303,7 +303,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
 	t.Parallel()
 
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
 	// Get tenant ID from context
@@ -346,7 +346,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_NoGlobalRowLimit(t *testing.T) {
 	t.Parallel()
 
 	requirePostgres(t)
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
 	// Get tenant ID from context

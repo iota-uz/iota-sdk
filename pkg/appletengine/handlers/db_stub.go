@@ -52,6 +52,10 @@ func NewDBStubWithStore(store DBStore) *DBStub {
 	return &DBStub{store: store}
 }
 
+func NewMemoryDBStore() DBStore {
+	return newMemoryDBStore()
+}
+
 func newMemoryDBStore() *memoryDBStore {
 	return &memoryDBStore{
 		records: make(map[string]map[string]documentRecord),

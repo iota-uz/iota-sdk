@@ -28,10 +28,10 @@ type PaymeController struct {
 	basePath       string
 }
 
-func NewPaymeController(app application.Application, payme configuration.PaymeOptions, basePath string) application.Controller {
+func NewPaymeController(app application.Application, billingService *services.BillingService, payme configuration.PaymeOptions, basePath string) application.Controller {
 	return &PaymeController{
 		app:            app,
-		billingService: app.Service(services.BillingService{}).(*services.BillingService),
+		billingService: billingService,
 		payme:          payme,
 		basePath:       basePath,
 	}

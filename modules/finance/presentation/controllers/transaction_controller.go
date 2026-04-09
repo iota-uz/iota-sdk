@@ -30,7 +30,7 @@ type TransactionController struct {
 	tableDefinition    table.TableDefinition
 }
 
-func NewTransactionController(app application.Application) application.Controller {
+func NewTransactionController(app application.Application, transactionService *services.TransactionService) application.Controller {
 	basePath := "/finance/transactions"
 
 	// Create table definition with columns for HTMX requests
@@ -49,7 +49,7 @@ func NewTransactionController(app application.Application) application.Controlle
 
 	return &TransactionController{
 		app:                app,
-		transactionService: app.Service(services.TransactionService{}).(*services.TransactionService),
+		transactionService: transactionService,
 		queryRepo:          query.NewPgTransactionQueryRepository(),
 		basePath:           basePath,
 		tableDefinition:    tableDefinition,
@@ -65,7 +65,7 @@ func (c *TransactionController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

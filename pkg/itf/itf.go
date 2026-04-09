@@ -10,7 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
-	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,14 +18,6 @@ import (
 func Setup(tb testing.TB, opts ...Option) *TestEnvironment {
 	tb.Helper()
 	return newTestContext().applyOptions(opts...).Build(tb)
-}
-
-// HTTP provides a quick HTTP suite bootstrap.
-//
-// Deprecated: use NewSuiteBuilder(tb).WithModules(...).Build() for new tests.
-func HTTP(tb testing.TB, modules ...application.Module) *Suite {
-	tb.Helper()
-	return NewSuite(tb, modules...)
 }
 
 // Excel creates a new Excel file builder
@@ -79,10 +71,10 @@ func Transaction(tb testing.TB, env *TestEnvironment) pgx.Tx {
 // Option configures the test setup
 type Option func(*TestContext)
 
-// WithModules adds modules to the test context
-func WithModules(modules ...application.Module) Option {
+// WithComponents adds composition components to the test context.
+func WithComponents(components ...composition.Component) Option {
 	return func(tc *TestContext) {
-		tc.modules = append(tc.modules, modules...)
+		tc.components = append(tc.components, components...)
 	}
 }
 

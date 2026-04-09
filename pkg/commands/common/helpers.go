@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -43,7 +44,7 @@ func GetDefaultDatabasePool() (*pgxpool.Pool, error) {
 }
 
 // NewApplication creates a new application with consistent setup patterns
-func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
+func NewApplication(pool *pgxpool.Pool, components ...composition.Component) (application.Application, error) {
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 
@@ -58,7 +59,16 @@ func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application
 		return nil, fmt.Errorf("failed to initialize application: %w", err)
 	}
 
-	if err := application.Wire(app, mods...); err != nil {
+	engine := composition.NewEngine()
+	if err := engine.Register(components...); err != nil {
+		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
+	}
+	_, err = engine.Compile(
+		composition.NewBuildContext(app, conf),
+		composition.CapabilityAPI,
+		composition.CapabilityWorker,
+	)
+	if err != nil {
 		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
 
@@ -66,13 +76,13 @@ func NewApplication(pool *pgxpool.Pool, mods ...application.Module) (application
 }
 
 // NewApplicationWithDefaults creates an application with default database and built-in modules
-func NewApplicationWithDefaults(mods ...application.Module) (application.Application, *pgxpool.Pool, error) {
+func NewApplicationWithDefaults(components ...composition.Component) (application.Application, *pgxpool.Pool, error) {
 	pool, err := GetDefaultDatabasePool()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	app, err := NewApplication(pool, mods...)
+	app, err := NewApplication(pool, components...)
 	if err != nil {
 		pool.Close()
 		return nil, nil, err

@@ -12,8 +12,8 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -45,11 +45,18 @@ func Authorize() mux.MiddlewareFunc {
 					return
 				}
 				ctx := r.Context()
-				app, err := application.UseApp(ctx)
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("Authorize: composition container not found in context")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
-				authService := app.Service(services.AuthService{}).(*services.AuthService)
+				authService, err := composition.Resolve[*services.AuthService](container)
+				if err != nil {
+					composables.UseLogger(ctx).WithError(err).Error("Authorize: failed to resolve AuthService")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -92,11 +99,18 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 					return
 				}
 				ctx := r.Context()
-				app, err := application.UseApp(ctx)
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("AuthorizeAnySession: composition container not found in context")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
-				authService := app.Service(services.AuthService{}).(*services.AuthService)
+				authService, err := composition.Resolve[*services.AuthService](container)
+				if err != nil {
+					composables.UseLogger(ctx).WithError(err).Error("AuthorizeAnySession: failed to resolve AuthService")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -128,11 +142,18 @@ func ProvideUser() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
-				app, err := application.UseApp(ctx)
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("ProvideUser: composition container not found in context")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
-				userService := app.Service(services.UserService{}).(*services.UserService)
+				userService, err := composition.Resolve[*services.UserService](container)
+				if err != nil {
+					composables.UseLogger(ctx).WithError(err).Error("ProvideUser: failed to resolve UserService")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				u, err := userService.GetByID(ctx, sess.UserID())
 				if err != nil {
 					next.ServeHTTP(w, r)

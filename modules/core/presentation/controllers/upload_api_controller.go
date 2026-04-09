@@ -22,6 +22,7 @@ import (
 
 type UploadAPIController struct {
 	app             application.Application
+	uploadService   *services.UploadService
 	authorizer      types.UploadsAuthorizer
 	defaultTenantID uuid.UUID
 }
@@ -43,10 +44,11 @@ func WithDefaultTenantID(id uuid.UUID) UploadAPIControllerOption {
 	}
 }
 
-func NewUploadAPIController(app application.Application, opts ...UploadAPIControllerOption) application.Controller {
+func NewUploadAPIController(app application.Application, uploadService *services.UploadService, opts ...UploadAPIControllerOption) application.Controller {
 	c := &UploadAPIController{
-		app:        app,
-		authorizer: authorizers.NewDefaultUploadsAuthorizer(),
+		app:           app,
+		uploadService: uploadService,
+		authorizer:    authorizers.NewDefaultUploadsAuthorizer(),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -174,11 +176,10 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create upload
-	uploadService := c.app.Service(services.UploadService{}).(*services.UploadService)
 	var uploadEntity upload.Upload
 	if err := composables.InTx(r.Context(), func(txCtx context.Context) error {
 		var createErr error
-		uploadEntity, createErr = uploadService.Create(txCtx, dto)
+		uploadEntity, createErr = c.uploadService.Create(txCtx, dto)
 		return createErr
 	}); err != nil {
 		c.writeJSONError(w, http.StatusInternalServerError, err.Error())

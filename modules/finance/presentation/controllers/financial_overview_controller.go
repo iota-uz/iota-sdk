@@ -7,19 +7,37 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/financial_overview"
+	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type FinancialOverviewController struct {
-	app      application.Application
-	basePath string
+	app                    application.Application
+	basePath               string
+	paymentService         *services.PaymentService
+	moneyAccountService    *services.MoneyAccountService
+	counterpartyService    *services.CounterpartyService
+	paymentCategoryService *services.PaymentCategoryService
+	transactionService     *services.TransactionService
 }
 
-func NewFinancialOverviewController(app application.Application) application.Controller {
+func NewFinancialOverviewController(
+	app application.Application,
+	paymentService *services.PaymentService,
+	moneyAccountService *services.MoneyAccountService,
+	counterpartyService *services.CounterpartyService,
+	paymentCategoryService *services.PaymentCategoryService,
+	transactionService *services.TransactionService,
+) application.Controller {
 	return &FinancialOverviewController{
-		app:      app,
-		basePath: "/finance",
+		app:                    app,
+		basePath:               "/finance",
+		paymentService:         paymentService,
+		moneyAccountService:    moneyAccountService,
+		counterpartyService:    counterpartyService,
+		paymentCategoryService: paymentCategoryService,
+		transactionService:     transactionService,
 	}
 }
 
@@ -30,10 +48,10 @@ func (c *FinancialOverviewController) Key() string {
 func (c *FinancialOverviewController) Register(r *mux.Router) {
 	// Register all the existing routes but delegate to this controller
 	expenseController := NewExpensesController(c.app)
-	paymentController := NewPaymentsController(c.app)
-	transactionController := NewTransactionController(c.app)
+	paymentController := NewPaymentsController(c.app, c.paymentService, c.moneyAccountService, c.counterpartyService, c.paymentCategoryService)
+	transactionController := NewTransactionController(c.app, c.transactionService)
 
-	// Register the individual controllers (for backwards compatibility during migration)
+	// Register the underlying tab controllers on the shared finance router.
 	expenseController.Register(r)
 	paymentController.Register(r)
 	transactionController.Register(r)
@@ -42,7 +60,7 @@ func (c *FinancialOverviewController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

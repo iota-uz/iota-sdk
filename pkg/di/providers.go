@@ -37,8 +37,8 @@ type valueProvider struct {
 	value reflect.Value
 }
 
-type serviceContainer interface {
-	Services() map[reflect.Type]interface{}
+type serviceResolver interface {
+	ResolveType(t reflect.Type) (any, error)
 }
 
 func (p *pageContextProvider) Ok(t reflect.Type) bool {
@@ -82,19 +82,19 @@ func (p *serviceProvider) Ok(t reflect.Type) bool {
 }
 
 func (p *serviceProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	rawApp := ctx.Value(constants.AppKey)
-	if rawApp == nil {
-		return reflect.Value{}, fmt.Errorf("app not found in context")
+	rawContainer := ctx.Value(constants.ContainerKey)
+	if rawContainer == nil {
+		return reflect.Value{}, fmt.Errorf("container not found in context")
 	}
-	app, ok := rawApp.(serviceContainer)
+	container, ok := rawContainer.(serviceResolver)
 	if !ok {
-		return reflect.Value{}, fmt.Errorf("app does not expose services")
+		return reflect.Value{}, fmt.Errorf("container does not expose typed resolution")
 	}
-	if service, exists := app.Services()[t.Elem()]; exists {
-		return reflect.ValueOf(service), nil
+	service, err := container.ResolveType(t)
+	if err != nil {
+		return reflect.Value{}, err
 	}
-
-	return reflect.Value{}, fmt.Errorf("service not found for type: %v", t)
+	return reflect.ValueOf(service), nil
 }
 
 func (p *loggerProvider) Ok(t reflect.Type) bool {

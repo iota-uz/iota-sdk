@@ -56,7 +56,7 @@ modules/{module}/
 │   ├── templates/pages/{entity}/  # list.templ, edit.templ, new.templ
 │   ├── viewmodels/                # Presentation models
 │   └── locales/                   # en.json, ru.json, uz.json
-├── module.go                      # Registration
+├── component.go                   # Component registration
 ├── links.go                       # Navigation
 └── permissions/constants.go       # RBAC
 ```
@@ -69,7 +69,7 @@ modules/{module}/
 4. **Presentation**: controller + DTOs + viewmodel + mapper
 5. **Templates**: `templates/pages/{entity}/` - list.templ, edit.templ, new.templ
 6. **Localization**: Add keys to en/ru/uz.json
-7. **Registration**: Add to `module.go`, `links.go`
+7. **Registration**: Add to `component.go`, `links.go`
 8. **Verify**: `go vet ./...` and `templ generate && just css`
 
 ## Multi-Agent Orchestration

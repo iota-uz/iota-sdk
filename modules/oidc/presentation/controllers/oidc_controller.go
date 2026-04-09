@@ -13,7 +13,6 @@ import (
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/oidc"
 	oidcservices "github.com/iota-uz/iota-sdk/modules/oidc/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
@@ -24,24 +23,24 @@ type CallbackQueryDTO struct {
 }
 
 type OIDCController struct {
-	app         application.Application
 	storage     *oidc.Storage
 	config      *configuration.OIDCOptions
 	oidcService *oidcservices.OIDCService
+	sessionSvc  *coreservices.SessionService
 	provider    op.OpenIDProvider
 }
 
 func NewOIDCController(
-	app application.Application,
 	storage *oidc.Storage,
 	config *configuration.OIDCOptions,
 	oidcService *oidcservices.OIDCService,
+	sessionService *coreservices.SessionService,
 ) *OIDCController {
 	return &OIDCController{
-		app:         app,
 		storage:     storage,
 		config:      config,
 		oidcService: oidcService,
+		sessionSvc:  sessionService,
 	}
 }
 
@@ -156,8 +155,7 @@ func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		sessionService := c.app.Service(coreservices.SessionService{}).(*coreservices.SessionService)
-		sess, err := sessionService.GetByToken(r.Context(), sessionCookie.Value)
+		sess, err := c.sessionSvc.GetByToken(r.Context(), sessionCookie.Value)
 		if err != nil {
 			logger.WithError(err).Error("Failed to load session for OIDC callback")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)

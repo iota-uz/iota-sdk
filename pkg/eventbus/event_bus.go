@@ -3,18 +3,19 @@ package eventbus
 
 import (
 	"reflect"
+	"sync/atomic"
 
 	"github.com/sirupsen/logrus"
 )
 
 type Subscriber struct {
+	ID      uint64
 	Handler interface{}
 }
 
 type EventBus interface {
 	Publish(args ...interface{})
-	Subscribe(handler interface{})
-	Unsubscribe(handler interface{})
+	Subscribe(handler interface{}) func()
 	Clear()
 	SubscribersCount() int
 }
@@ -22,6 +23,7 @@ type EventBus interface {
 type publisherImpl struct {
 	log         *logrus.Logger
 	Subscribers []Subscriber
+	nextID      atomic.Uint64
 }
 
 func NewEventPublisher(log *logrus.Logger) EventBus {
@@ -100,20 +102,24 @@ func (p *publisherImpl) Publish(args ...interface{}) {
 	}
 }
 
-func (p *publisherImpl) Subscribe(handler interface{}) {
+func (p *publisherImpl) Subscribe(handler interface{}) func() {
 	t := reflect.TypeOf(handler)
 	if t.Kind() != reflect.Func {
 		panic("handler must be a function")
 	}
+	id := p.nextID.Add(1)
 	p.Subscribers = append(
 		p.Subscribers,
-		Subscriber{Handler: handler},
+		Subscriber{ID: id, Handler: handler},
 	)
+	return func() {
+		p.unsubscribeByID(id)
+	}
 }
 
-func (p *publisherImpl) Unsubscribe(handler interface{}) {
+func (p *publisherImpl) unsubscribeByID(id uint64) {
 	for i, subscriber := range p.Subscribers {
-		if subscriber.Handler == handler {
+		if subscriber.ID == id {
 			p.Subscribers = append(p.Subscribers[:i], p.Subscribers[i+1:]...)
 			return
 		}

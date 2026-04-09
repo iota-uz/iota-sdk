@@ -37,11 +37,11 @@ type InventoryPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewInventoryController(app application.Application) application.Controller {
+func NewInventoryController(app application.Application, inventoryService *services.InventoryService, currencyService *coreservices.CurrencyService) application.Controller {
 	return &InventoryController{
 		app:              app,
-		inventoryService: app.Service(services.InventoryService{}).(*services.InventoryService),
-		currencyService:  app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
+		inventoryService: inventoryService,
+		currencyService:  currencyService,
 		basePath:         "/finance/inventory",
 	}
 }
@@ -56,7 +56,7 @@ func (c *InventoryController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 )
@@ -59,13 +60,14 @@ func TestUsersController_Delete_SelfDeletionPrevention(t *testing.T) {
 
 	// Create test environment with admin permissions for user deletion
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 
 	// Register the users controller
 	controller := controllers.NewUsersController(
 		suite.Env().App,
+		userService,
 		controllers.WithUserControllerBasePath("/users"),
 		controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
 	)
@@ -134,12 +136,13 @@ func TestUsersController_Delete_Permissions(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			suite := itf.NewSuiteBuilder(t).
-				WithModules(modules.BuiltInModules...).
+				WithComponents(modules.Components()...).
 				AsUser(tc.permissions...).
 				Build()
 
 			controller := controllers.NewUsersController(
 				suite.Env().App,
+				userService,
 				controllers.WithUserControllerBasePath("/users"),
 				controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
 			)
@@ -160,12 +163,13 @@ func TestUsersController_Delete_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 
 	controller := controllers.NewUsersController(
 		suite.Env().App,
+		userService2,
 		controllers.WithUserControllerBasePath("/users"),
 		controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
 	)

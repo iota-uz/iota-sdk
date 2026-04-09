@@ -48,7 +48,7 @@ func setupControllerTest(t *testing.T) *itf.TestEnvironment {
 
 	return itf.Setup(
 		t,
-		itf.WithModules(modules.BuiltInModules...),
+		itf.WithComponents(modules.Components()...),
 	)
 }
 

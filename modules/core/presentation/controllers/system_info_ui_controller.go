@@ -70,7 +70,7 @@ func (c *HealthUIController) Register(r *mux.Router) {
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 	)
 
 	subRouter.HandleFunc("", di.H(c.Index)).Methods(http.MethodGet)

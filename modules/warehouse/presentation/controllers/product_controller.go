@@ -38,11 +38,15 @@ type PaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewProductsController(app application.Application) application.Controller {
+func NewProductsController(
+	app application.Application,
+	productService *productservice.ProductService,
+	positionService *positionservice.PositionService,
+) application.Controller {
 	return &ProductsController{
 		app:             app,
-		productService:  app.Service(productservice.ProductService{}).(*productservice.ProductService),
-		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
+		productService:  productService,
+		positionService: positionService,
 		basePath:        "/warehouse/products",
 	}
 }
@@ -56,7 +60,7 @@ func (c *ProductsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

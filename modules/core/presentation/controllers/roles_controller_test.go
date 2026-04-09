@@ -32,7 +32,7 @@ func TestRolesController_BasicRoutes(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleCreate, permissions.RoleRead,
 			permissions.RoleUpdate, permissions.RoleDelete).
 		Build()
@@ -64,7 +64,7 @@ func TestRolesController_Validation(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleCreate, permissions.RoleRead,
 			permissions.RoleUpdate, permissions.RoleDelete).
 		Build()
@@ -108,7 +108,7 @@ func TestRolesController_Delete_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleDelete, permissions.RoleRead).
 		Build()
 
@@ -144,7 +144,7 @@ func TestRolesController_Create_ValidationErrors(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleCreate, permissions.RoleRead).
 		Build()
 
@@ -175,7 +175,7 @@ func TestRolesController_List_Search(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleRead).
 		Build()
 
@@ -203,7 +203,7 @@ func TestRolesController_Update_NonExistent(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleUpdate, permissions.RoleRead).
 		Build()
 
@@ -228,7 +228,7 @@ func TestRolesController_Update_PermissionScenarios(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(modules.BuiltInModules...).
+		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleCreate, permissions.RoleRead, permissions.RoleUpdate, permissions.RoleDelete).
 		Build()
 

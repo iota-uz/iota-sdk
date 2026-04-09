@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -35,11 +36,12 @@ const (
 )
 
 type TestFixtures struct {
-	SQLDB   *sql.DB
-	Pool    *pgxpool.Pool
-	Context context.Context
-	Tx      pgx.Tx
-	App     application.Application
+	SQLDB     *sql.DB
+	Pool      *pgxpool.Pool
+	Context   context.Context
+	Tx        pgx.Tx
+	App       application.Application
+	Container *composition.Container
 }
 
 func (f *TestFixtures) Close() error {
@@ -51,9 +53,9 @@ func (f *TestFixtures) Close() error {
 	if f.Tx != nil {
 		closeErr = errors.Join(closeErr, f.Tx.Rollback(context.Background()))
 	}
-	if f.App != nil {
+	if f.Container != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		closeErr = errors.Join(closeErr, f.App.StopRuntime(stopCtx))
+		closeErr = errors.Join(closeErr, composition.Stop(stopCtx, f.Container))
 		cancel()
 	}
 	if f.SQLDB != nil {
@@ -377,7 +379,10 @@ func DBOpts(name string) string {
 	)
 }
 
-func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
+func SetupApplication(
+	pool *pgxpool.Pool,
+	components []composition.Component,
+) (application.Application, *composition.Container, error) {
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
@@ -388,21 +393,32 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 		SupportedLanguages: application.DefaultSupportedLanguages(),
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if err := application.Wire(app, mods...); err != nil {
-		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "wire application")
+	var container *composition.Container
+	if len(components) > 0 {
+		engine := composition.NewEngine()
+		if err := engine.Register(components...); err != nil {
+			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register components")
+		}
+		container, err = engine.Compile(
+			composition.NewBuildContext(app, conf),
+			composition.CapabilityAPI,
+			composition.CapabilityWorker,
+		)
+		if err != nil {
+			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "compile components")
+		}
 	}
-	if err := application.RegisterTransports(app, mods...); err != nil {
-		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register transports")
-	}
-	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelStartRuntime()
-	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
-		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "start runtime")
+	if container != nil {
+		startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelStart()
+		if err := composition.Start(startCtx, container); err != nil {
+			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "start runtime")
+		}
 	}
 
-	return app, nil
+	return app, container, nil
 }
 
 // GetTestContext starts application runtime state; callers should call Close when done.
@@ -420,15 +436,21 @@ func GetTestContext() *TestFixtures {
 	if err != nil {
 		panic(err)
 	}
-	if err := application.Wire(app, modules.BuiltInModules...); err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "wire application"))
+	engine := composition.NewEngine()
+	if err := engine.Register(modules.Components()...); err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register components"))
 	}
-	if err := application.RegisterTransports(app, modules.BuiltInModules...); err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register transports"))
+	container, err := engine.Compile(
+		composition.NewBuildContext(app, conf),
+		composition.CapabilityAPI,
+		composition.CapabilityWorker,
+	)
+	if err != nil {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "compile components"))
 	}
-	startRuntimeCtx, cancelStartRuntime := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelStartRuntime()
-	if err := app.StartRuntime(startRuntimeCtx, application.RuntimeTagAPI); err != nil {
+	startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelStart()
+	if err := composition.Start(startCtx, container); err != nil {
 		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "start runtime"))
 	}
 
@@ -457,10 +479,11 @@ func GetTestContext() *TestFixtures {
 	)
 
 	return &TestFixtures{
-		SQLDB:   sqlDB,
-		Pool:    pool,
-		Tx:      tx,
-		Context: ctx,
-		App:     app,
+		SQLDB:     sqlDB,
+		Pool:      pool,
+		Tx:        tx,
+		Context:   ctx,
+		App:       app,
+		Container: container,
 	}
 }

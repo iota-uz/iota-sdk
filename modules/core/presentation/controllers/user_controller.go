@@ -174,7 +174,11 @@ func WithUserControllerConfigureSingleSlots(slotFunc SingleSlotFunc) UserControl
 	}
 }
 
-func NewUsersController(app application.Application, opts ...UserControllerOption) application.Controller {
+func NewUsersController(
+	app application.Application, 
+	userService *services.UserService,
+	opts ...UserControllerOption,
+	) application.Controller {
 	o := &userControllerOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -185,7 +189,6 @@ func NewUsersController(app application.Application, opts ...UserControllerOptio
 	if o.basePath == "" {
 		panic("UsersController requires explicit BasePath in options")
 	}
-	userService := app.Service(services.UserService{}).(*services.UserService)
 
 	controller := &UsersController{
 		app:                  app,
@@ -208,7 +211,7 @@ func (c *UsersController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

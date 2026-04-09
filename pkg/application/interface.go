@@ -1,10 +1,9 @@
-// Package application defines the SDK composition surface for wiring, transports, and runtime startup.
+// Package application defines the SDK composition surface for runtime access.
 package application
 
 import (
 	"context"
 	"embed"
-	"reflect"
 
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/di"
@@ -27,7 +26,26 @@ type GraphSchema struct {
 	ExecutorCb func(*executor.Executor)
 }
 
-// Application with a dynamically extendable service registry
+type RuntimeSource interface {
+	Controllers() []Controller
+	Middleware() []mux.MiddlewareFunc
+	Assets() []*embed.FS
+	HashFSAssets() []*hashfs.FS
+	LocaleFiles() []*embed.FS
+	GraphSchemas() []GraphSchema
+	Applets() []Applet
+	NavItems() []types.NavigationItem
+	QuickLinks() []*spotlight.QuickLink
+	SpotlightProviders() []spotlight.SearchProvider
+	SpotlightAgent() spotlight.Agent
+}
+
+type RuntimeBinder interface {
+	AttachRuntimeSource(source RuntimeSource) error
+	DetachRuntimeSource()
+}
+
+// Application exposes the runtime services consumed by modules, controllers, and servers.
 type Application interface {
 	DB() *pgxpool.Pool
 	EventPublisher() eventbus.EventBus
@@ -40,40 +58,10 @@ type Application interface {
 	QuickLinks() *spotlight.QuickLinks
 	Migrations() MigrationManager
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
-	RegisterNavItems(items ...types.NavigationItem)
-	AppendNavChildren(parentName string, children ...types.NavigationItem)
-	RegisterControllers(controllers ...Controller)
-	RegisterHashFsAssets(fs ...*hashfs.FS)
-	RegisterAssets(fs ...*embed.FS)
-	RegisterLocaleFiles(fs ...*embed.FS)
-	RegisterGraphSchema(schema GraphSchema)
 	GraphSchemas() []GraphSchema
-	RegisterServices(services ...interface{})
-	RegisterRuntime(registrations ...RuntimeRegistration)
-	RuntimeComponents() []RuntimeRegistration
-	StartRuntime(ctx context.Context, tags ...RuntimeTag) error
-	StopRuntime(ctx context.Context) error
-	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
-	Service(service interface{}) interface{}
-	Services() map[reflect.Type]interface{}
 	Bundle() *i18n.Bundle
 	GetSupportedLanguages() []string
-	RegisterApplet(applet Applet) error
 	AppletRegistry() AppletRegistry
-	CreateAppletControllers(
-		host applets.HostServices,
-		sessionConfig applets.SessionConfig,
-		logger *logrus.Logger,
-		metrics applets.MetricsRecorder,
-		opts ...applets.BuilderOption,
-	) ([]Controller, error)
-	RegisterAppletRuntime(
-		host applets.HostServices,
-		sessionConfig applets.SessionConfig,
-		logger *logrus.Logger,
-		metrics applets.MetricsRecorder,
-		opts ...applets.BuilderOption,
-	) error
 }
 
 type Seeder interface {
@@ -109,12 +97,6 @@ func (d *SeedDeps) RegisterProviders(providers ...di.Provider) {
 type Controller interface {
 	Register(r *mux.Router)
 	Key() string
-}
-
-type Module interface {
-	Name() string
-	RegisterWiring(app Application) error
-	RegisterTransports(app Application) error
 }
 
 // Applet represents a React/Next.js application that integrates with the SDK

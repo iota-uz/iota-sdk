@@ -21,8 +21,9 @@ import (
 )
 
 type SpotlightController struct {
-	app      application.Application
-	basePath string
+	app            application.Application
+	aiSearchHolder *spotlight.AISearchServiceHolder
+	basePath       string
 }
 
 type spotlightSearchPayload struct {
@@ -103,10 +104,13 @@ type spotlightAIToolView struct {
 	CompletedAt time.Time `json:"completed_at,omitempty"`
 }
 
-func NewSpotlightController(app application.Application) application.Controller {
+// NewSpotlightController builds the controller. aiSearchHolder may be nil when
+// AI search is not configured.
+func NewSpotlightController(app application.Application, aiSearchHolder *spotlight.AISearchServiceHolder) application.Controller {
 	return &SpotlightController{
-		app:      app,
-		basePath: "/spotlight",
+		app:            app,
+		aiSearchHolder: aiSearchHolder,
+		basePath:       "/spotlight",
 	}
 }
 
@@ -251,7 +255,7 @@ func (c *SpotlightController) Cancel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *SpotlightController) CreateAISession(w http.ResponseWriter, r *http.Request) {
-	service := spotlight.ResolveAISearchService(c.app.Services())
+	service := c.aiSearchService()
 	if service == nil {
 		http.Error(w, "AI Spotlight unavailable", http.StatusNotFound)
 		return
@@ -289,7 +293,7 @@ func (c *SpotlightController) CreateAISession(w http.ResponseWriter, r *http.Req
 }
 
 func (c *SpotlightController) StreamAISession(w http.ResponseWriter, r *http.Request) {
-	service := spotlight.ResolveAISearchService(c.app.Services())
+	service := c.aiSearchService()
 	if service == nil {
 		http.Error(w, "AI Spotlight unavailable", http.StatusNotFound)
 		return
@@ -346,7 +350,7 @@ func (c *SpotlightController) StreamAISession(w http.ResponseWriter, r *http.Req
 }
 
 func (c *SpotlightController) SendAIMessage(w http.ResponseWriter, r *http.Request) {
-	service := spotlight.ResolveAISearchService(c.app.Services())
+	service := c.aiSearchService()
 	if service == nil {
 		http.Error(w, "AI Spotlight unavailable", http.StatusNotFound)
 		return
@@ -386,7 +390,7 @@ func (c *SpotlightController) SendAIMessage(w http.ResponseWriter, r *http.Reque
 }
 
 func (c *SpotlightController) CancelAISession(w http.ResponseWriter, r *http.Request) {
-	service := spotlight.ResolveAISearchService(c.app.Services())
+	service := c.aiSearchService()
 	if service == nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -430,6 +434,13 @@ func (c *SpotlightController) buildSearchRequest(r *http.Request, q string) (spo
 		TopK:        30,
 		Intent:      intent,
 	}, nil
+}
+
+func (c *SpotlightController) aiSearchService() spotlight.AISearchService {
+	if c.aiSearchHolder == nil {
+		return nil
+	}
+	return c.aiSearchHolder.Service
 }
 
 func (c *SpotlightController) sessionAccess(r *http.Request) spotlight.SearchSessionAccess {

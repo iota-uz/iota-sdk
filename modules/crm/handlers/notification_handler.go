@@ -10,11 +10,14 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/telegram"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type NotificationHandler struct {
-	pool  *pgxpool.Pool
-	tgBot *telegram.Bot
+	pool        *pgxpool.Pool
+	publisher   eventbus.EventBus
+	tgBot       *telegram.Bot
+	unsubscribe func()
 }
 
 func RegisterNotificationHandler(app application.Application, botToken string) *NotificationHandler {
@@ -23,11 +26,22 @@ func RegisterNotificationHandler(app application.Application, botToken string) *
 		log.Fatalf("Error creating telegram bot: %v", err)
 	}
 	handler := &NotificationHandler{
-		pool:  app.DB(),
-		tgBot: bot,
+		pool:      app.DB(),
+		publisher: app.EventPublisher(),
+		tgBot:     bot,
 	}
-	app.EventPublisher().Subscribe(handler.onNewMessage)
+	handler.unsubscribe = app.EventPublisher().Subscribe(handler.onNewMessage)
 	return handler
+}
+
+func (h *NotificationHandler) Unregister() {
+	if h == nil || h.publisher == nil {
+		return
+	}
+	if h.unsubscribe != nil {
+		h.unsubscribe()
+		h.unsubscribe = nil
+	}
 }
 
 func (h *NotificationHandler) onNewMessage(event *chat.MessagedAddedEvent) {

@@ -8,15 +8,15 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
 
 // SuiteBuilder provides a fluent API for building test suites with minimal boilerplate
 type SuiteBuilder struct {
-	t       testing.TB
-	modules []application.Module
-	user    user.User
-	dbName  string
+	t          testing.TB
+	components []composition.Component
+	user       user.User
+	dbName     string
 }
 
 // NewSuiteBuilder creates a new SuiteBuilder for HTTP controller testing
@@ -27,9 +27,9 @@ func NewSuiteBuilder(tb testing.TB) *SuiteBuilder {
 	}
 }
 
-// WithModules adds application modules to the test suite
-func (sb *SuiteBuilder) WithModules(modules ...application.Module) *SuiteBuilder {
-	sb.modules = append(sb.modules, modules...)
+// WithComponents adds composition components to the test suite.
+func (sb *SuiteBuilder) WithComponents(components ...composition.Component) *SuiteBuilder {
+	sb.components = append(sb.components, components...)
 	return sb
 }
 
@@ -92,7 +92,7 @@ func (sb *SuiteBuilder) Build() *Suite {
 	sb.t.Helper()
 
 	// Create the base suite with modules
-	suite := NewSuite(sb.t, sb.modules...)
+	suite := NewSuite(sb.t, sb.components...)
 
 	// Configure user if provided
 	if sb.user != nil {
@@ -108,8 +108,8 @@ func (sb *SuiteBuilder) BuildWithOptions(opts ...Option) *Suite {
 
 	// Build options array
 	options := make([]Option, 0, len(opts)+2)
-	if len(sb.modules) > 0 {
-		options = append(options, WithModules(sb.modules...))
+	if len(sb.components) > 0 {
+		options = append(options, WithComponents(sb.components...))
 	}
 	if sb.user != nil {
 		options = append(options, WithUser(sb.user))
@@ -126,7 +126,7 @@ func (sb *SuiteBuilder) BuildWithOptions(opts ...Option) *Suite {
 	suite := &Suite{
 		t:           sb.t,
 		env:         env,
-		modules:     sb.modules,
+		modules:     sb.components,
 		middlewares: make([]MiddlewareFunc, 0),
 		beforeEach:  make([]HookFunc, 0),
 	}
@@ -156,10 +156,10 @@ func (sb *SuiteBuilder) Presets() *PresetBuilder {
 }
 
 // AdminWithAllModules creates an admin user with all common modules loaded
-func (pb *PresetBuilder) AdminWithAllModules(modules ...application.Module) *Suite {
+func (pb *PresetBuilder) AdminWithAllModules(modules ...composition.Component) *Suite {
 	return pb.sb.
 		AsAdmin().
-		WithModules(modules...).
+		WithComponents(modules...).
 		Build()
 }
 

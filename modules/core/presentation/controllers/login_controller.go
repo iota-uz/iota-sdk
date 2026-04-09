@@ -84,15 +84,20 @@ func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func NewLoginController(app application.Application, opts ...*LoginControllerOptions) application.Controller {
+func NewLoginController(
+	app application.Application,
+	authService *services.AuthService,
+	authFlowService *services.AuthFlowService,
+	opts ...*LoginControllerOptions,
+) application.Controller {
 	options := &LoginControllerOptions{}
 	if len(opts) > 0 && opts[0] != nil {
 		options = opts[0]
 	}
 	return &LoginController{
 		app:             app,
-		authService:     app.Service(services.AuthService{}).(*services.AuthService),
-		authFlowService: app.Service(services.AuthFlowService{}).(*services.AuthFlowService),
+		authService:     authService,
+		authFlowService: authFlowService,
 		options:         options,
 	}
 }

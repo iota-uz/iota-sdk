@@ -27,12 +27,12 @@ var (
 
 func newProjectStageSuiteBuilder(tb testing.TB) *itf.SuiteBuilder {
 	tb.Helper()
-	return itf.NewSuiteBuilder(tb).WithModules(
-		core.NewModule(&core.ModuleOptions{
+	return itf.NewSuiteBuilder(tb).WithComponents(
+		core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}),
-		finance.NewModule(),
-		projects.NewModule(),
+		finance.NewComponent(),
+		projects.NewComponent(),
 	)
 }
 
@@ -47,9 +47,9 @@ func TestProjectStageController_List_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -115,9 +115,9 @@ func TestProjectStageController_List_HTMX_Request(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -170,9 +170,9 @@ func TestProjectStageController_ListByProject_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -295,9 +295,9 @@ func TestProjectStageController_Create_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -354,7 +354,7 @@ func TestProjectStageController_Create_ValidationError(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
 
 	formData := url.Values{}
 	formData.Set("ProjectID", "")    // Invalid: required field
@@ -386,9 +386,9 @@ func TestProjectStageController_GetEditDrawer_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -480,9 +480,9 @@ func TestProjectStageController_Update_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -546,9 +546,9 @@ func TestProjectStageController_Update_ValidationError(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -658,9 +658,9 @@ func TestProjectStageController_Delete_Success(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -753,9 +753,9 @@ func TestProjectStageController_Create_WithDates(t *testing.T) {
 	controller := controllers.NewProjectStageController(env.App)
 	suite.Register(controller)
 
-	projectStageService := env.App.Service(services.ProjectStageService{}).(*services.ProjectStageService)
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(

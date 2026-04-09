@@ -14,16 +14,27 @@ type SMSHandler struct {
 	pool        *pgxpool.Pool
 	publisher   eventbus.EventBus
 	chatService *services.ChatService
+	unsubscribe func()
 }
 
-func RegisterSMSHandlers(app application.Application) *SMSHandler {
+func RegisterSMSHandlers(app application.Application, chatService *services.ChatService) *SMSHandler {
 	handler := &SMSHandler{
 		pool:        app.DB(),
 		publisher:   app.EventPublisher(),
-		chatService: app.Service(services.ChatService{}).(*services.ChatService),
+		chatService: chatService,
 	}
-	app.EventPublisher().Subscribe(handler.onSMSReceived)
+	handler.unsubscribe = app.EventPublisher().Subscribe(handler.onSMSReceived)
 	return handler
+}
+
+func (h *SMSHandler) Unregister() {
+	if h == nil || h.publisher == nil {
+		return
+	}
+	if h.unsubscribe != nil {
+		h.unsubscribe()
+		h.unsubscribe = nil
+	}
 }
 
 func (h *SMSHandler) onSMSReceived(event *cpassproviders.ReceivedMessageEvent) {

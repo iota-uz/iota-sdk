@@ -27,13 +27,13 @@ type CashflowController struct {
 	basePath               string
 }
 
-func NewCashflowController(app application.Application) application.Controller {
+func NewCashflowController(app application.Application, financialReportService *services.FinancialReportService, moneyAccountService *services.MoneyAccountService) application.Controller {
 	basePath := "/finance/reports"
 
 	return &CashflowController{
 		app:                    app,
-		financialReportService: app.Service(services.FinancialReportService{}).(*services.FinancialReportService),
-		moneyAccountService:    app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		financialReportService: financialReportService,
+		moneyAccountService:    moneyAccountService,
 		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
 		basePath:               basePath,
 	}
@@ -48,7 +48,7 @@ func (c *CashflowController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

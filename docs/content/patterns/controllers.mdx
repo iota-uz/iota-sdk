@@ -55,7 +55,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.Authorize(),              // Check authentication
 		middleware.RedirectNotAuthenticated(), // Redirect if not logged in
 		middleware.ProvideUser(),            // Add user to context
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),  // Add i18n support
 		middleware.NavItems(),               // Navigation items
 		middleware.WithPageContext(),        // Page metadata
@@ -80,7 +80,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 }
 ```
 
-Some modules register a controller by having another controller call its `Register` on a sub-router (e.g. the Finance module mounts the expense controller under the financial overview router rather than registering it directly in `module.go`).
+Some modules register a controller by having another controller call its `Register` on a sub-router (e.g. the Finance module mounts the expense controller under the financial overview router rather than registering it directly in `component.go`).
 
 ## Request Handlers
 
@@ -597,11 +597,11 @@ func respondWithError(w http.ResponseWriter, code string, message string, status
 ```go
 func TestExpenseController_Create(t *testing.T) {
 	// Setup ITF (Integration Test Framework)
-	env := itf.Setup(t, itf.WithModules(finance.NewModule()))
+	env := itf.Setup(t, itf.WithComponents(finance.NewComponent()))
 	defer env.Teardown()
 
 	t.Run("create expense", func(t *testing.T) {
-		suite := itf.HTTP(t, modules.BuiltInModules...)
+		suite := itf.NewSuiteBuilder(t).WithComponents(modules.Components()...).Build()
 		// Create test account and category in fixture data (replace with project IDs as needed)
 		accountID := "00000000-0000-0000-0000-000000000001"
 		categoryID := "00000000-0000-0000-0000-000000000002"

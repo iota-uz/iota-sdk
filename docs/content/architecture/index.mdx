@@ -102,20 +102,17 @@ graph LR
 
 ```mermaid
 sequenceDiagram
+    participant Engine as Composition Engine
+    participant Comp as Component
+    participant Container as Container
     participant App as Application
-    participant Mod as Module
-    participant DB as Database
     participant Web as Web Server
-    
-    App->>Mod: RegisterWiring(app)
-    Mod->>DB: Register Migrations
-    Mod->>App: Register Services
-    Mod->>App: Register Runtime Components
-    Mod->>App: Register Navigation
-    App->>Mod: RegisterTransports(app)
-    Mod->>App: Register Controllers
-    Mod->>App: Register Middleware
-    App->>App: StartRuntime(...)
+
+    Engine->>Comp: Build(builder)
+    Comp->>Container: Provide / Contribute
+    Engine->>Container: Compile(capabilities)
+    Engine->>App: AttachRuntimeSource(container)
+    Engine->>Container: Start hooks
     App->>Web: Start Server
 ```
 
@@ -124,7 +121,7 @@ sequenceDiagram
 Modules communicate through:
 
 1. **Event Bus** - Loose coupling via domain events
-2. **Service Registry** - Direct service access via `app.Service()`
+2. **Composition Container** - Typed service access via `composition.Use[T]()` and `Resolve(container)`
 3. **Shared Entities** - Core entities used across modules
 
 ```mermaid

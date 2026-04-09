@@ -67,7 +67,7 @@ modules/productcatalog/
 ├── permissions/
 │   └── constants.go                    # RBAC permissions
 ├── links.go                            # Navigation items
-└── module.go                           # Module registration
+└── component.go                        # Component registration
 ```
 
 ## Step 1: Domain Layer
@@ -913,55 +913,82 @@ var NavItems = []types.NavigationItem{
 }
 ```
 
-### 5.3 Module Registration
+### 5.3 Component Registration
 
-Create `modules/productcatalog/module.go`:
+Create `modules/productcatalog/component.go`:
 
 ```go
 package productcatalog
 
 import (
 	"embed"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 //go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-func NewModule() application.Module {
-	return &Module{}
+func NewComponent() composition.Component {
+	return &component{}
 }
 
-type Module struct{}
+type component struct{}
 
-func (m *Module) RegisterWiring(app application.Application) error {
-	productRepo := persistence.NewProductRepository()
+func (c *component) Descriptor() composition.Descriptor {
+	return composition.Descriptor{Name: "productcatalog"}
+}
 
-	app.RegisterServices(
-		services.NewProductService(productRepo, app.EventPublisher()),
-	)
-	app.QuickLinks().Add(
-		spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href),
-	)
-	app.RegisterNavItems(NavItems...)
-	app.RegisterLocaleFiles(&localeFiles)
+func (c *component) Build(builder *composition.Builder) error {
+	productRepo := composition.Use[product.Repository]()
+	productService := composition.Use[*services.ProductService]()
+
+	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
+		return []*embed.FS{&localeFiles}, nil
+	})
+	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
+		return NavItems, nil
+	})
+	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+		return []*spotlight.QuickLink{
+			spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href),
+		}, nil
+	})
+
+	composition.Provide[product.Repository](builder, func() product.Repository {
+		return persistence.NewProductRepository()
+	})
+	composition.Provide[*services.ProductService](builder, func(container *composition.Container) (*services.ProductService, error) {
+		resolvedRepo, err := productRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewProductService(resolvedRepo, builder.Context().EventPublisher()), nil
+	})
+
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedService, err := productService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			return []application.Controller{
+				controllers.NewProductController(app, resolvedService),
+			}, nil
+		})
+	}
 
 	return nil
-}
-
-func (m *Module) RegisterTransports(app application.Application) error {
-	app.RegisterControllers(
-		controllers.NewProductController(app),
-	)
-	return nil
-}
-
-func (m *Module) Name() string {
-	return "productcatalog"
 }
 ```
 

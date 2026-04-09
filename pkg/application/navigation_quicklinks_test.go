@@ -2,16 +2,45 @@ package application
 
 import (
 	"context"
+	"embed"
 	"testing"
 
+	"github.com/benbjohnson/hashfs"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
-func TestApplication_RegisterNavItems_AddsQuickLinks(t *testing.T) {
+type testRuntimeSource struct {
+	navItems []types.NavigationItem
+	applets  []Applet
+}
+
+func (s *testRuntimeSource) Controllers() []Controller          { return nil }
+func (s *testRuntimeSource) Middleware() []mux.MiddlewareFunc   { return nil }
+func (s *testRuntimeSource) Assets() []*embed.FS                { return nil }
+func (s *testRuntimeSource) HashFSAssets() []*hashfs.FS         { return nil }
+func (s *testRuntimeSource) LocaleFiles() []*embed.FS           { return nil }
+func (s *testRuntimeSource) GraphSchemas() []GraphSchema        { return nil }
+func (s *testRuntimeSource) Applets() []Applet                  { return s.applets }
+func (s *testRuntimeSource) NavItems() []types.NavigationItem   { return s.navItems }
+func (s *testRuntimeSource) QuickLinks() []*spotlight.QuickLink { return nil }
+func (s *testRuntimeSource) SpotlightProviders() []spotlight.SearchProvider {
+	return nil
+}
+func (s *testRuntimeSource) SpotlightAgent() spotlight.Agent { return nil }
+
+func attachRuntimeSource(t *testing.T, app Application, source RuntimeSource) {
+	t.Helper()
+	binder, ok := app.(RuntimeBinder)
+	require.True(t, ok, "application must support runtime binding")
+	require.NoError(t, binder.AttachRuntimeSource(source))
+}
+
+func TestApplication_AttachRuntimeSource_AddsQuickLinks(t *testing.T) {
 	app, err := New(&ApplicationOptions{
 		Bundle:             LoadBundle(),
 		SupportedLanguages: []string{"en"},
@@ -22,20 +51,18 @@ func TestApplication_RegisterNavItems_AddsQuickLinks(t *testing.T) {
 		permission.New(permission.WithName("users.read")),
 	}
 
-	app.RegisterNavItems(
-		types.NavigationItem{
+	attachRuntimeSource(t, app, &testRuntimeSource{
+		navItems: []types.NavigationItem{{
 			Name:        "NavigationLinks.Users",
 			Href:        "/users",
 			Keywords:    []string{"staff", "directory"},
 			Permissions: perms,
-			Children: []types.NavigationItem{
-				{
-					Name: "NavigationLinks.UserSessions",
-					Href: "/account/sessions",
-				},
-			},
-		},
-	)
+			Children: []types.NavigationItem{{
+				Name: "NavigationLinks.UserSessions",
+				Href: "/account/sessions",
+			}},
+		}},
+	})
 
 	docs, err := spotlight.CollectDocuments(context.Background(), app.QuickLinks(), typesProviderScope())
 	require.NoError(t, err)
@@ -58,21 +85,23 @@ func TestDefaultSupportedLanguages(t *testing.T) {
 	require.Equal(t, []string{"en", "ru", "uz", "zh"}, DefaultSupportedLanguages())
 }
 
-func TestApplication_AppendNavChildren_AddsQuickLinksForChildren(t *testing.T) {
+func TestApplication_AttachRuntimeSource_AddsNestedQuickLinksForChildren(t *testing.T) {
 	app, err := New(&ApplicationOptions{
 		Bundle:             LoadBundle(),
 		SupportedLanguages: []string{"en"},
 	})
 	require.NoError(t, err)
 
-	app.RegisterNavItems(types.NavigationItem{
-		Name: "NavigationLinks.Parent",
-		Href: "/parent",
-	})
-	app.AppendNavChildren("NavigationLinks.Parent", types.NavigationItem{
-		Name:     "NavigationLinks.Child",
-		Href:     "/parent/child?tab=details",
-		Keywords: []string{"deep", "child"},
+	attachRuntimeSource(t, app, &testRuntimeSource{
+		navItems: []types.NavigationItem{{
+			Name: "NavigationLinks.Parent",
+			Href: "/parent",
+			Children: []types.NavigationItem{{
+				Name:     "NavigationLinks.Child",
+				Href:     "/parent/child?tab=details",
+				Keywords: []string{"deep", "child"},
+			}},
+		}},
 	})
 
 	docs, err := spotlight.CollectDocuments(context.Background(), app.QuickLinks(), typesProviderScope())

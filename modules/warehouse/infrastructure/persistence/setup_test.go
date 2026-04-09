@@ -19,12 +19,12 @@ func TestMain(m *testing.M) {
 func setupTest(t *testing.T) *itf.TestEnvironment {
 	t.Helper()
 
-	return itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	return itf.Setup(t, itf.WithComponents(modules.Components()...))
 }
 
 // setupBenchmark creates all necessary dependencies for benchmarks
 func setupBenchmark(b *testing.B) *itf.TestEnvironment {
 	b.Helper()
 
-	return itf.Setup(b, itf.WithModules(modules.BuiltInModules...))
+	return itf.Setup(b, itf.WithComponents(modules.Components()...))
 }

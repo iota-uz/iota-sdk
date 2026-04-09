@@ -35,19 +35,19 @@ func TestDebtController_List_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -101,19 +101,19 @@ func TestDebtController_List_HTMX_Request(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -154,19 +154,19 @@ func TestDebtController_GetEditDrawer_Success(t *testing.T) {
 		permissions.DebtUpdate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -209,15 +209,18 @@ func TestDebtController_GetEditDrawer_NotFound(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -233,18 +236,19 @@ func TestDebtController_GetNewDrawer_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty for dropdown
 	counterparty1 := counterparty.New(
@@ -276,18 +280,19 @@ func TestDebtController_Create_Success(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -337,19 +342,19 @@ func TestDebtController_Create_ValidationError(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -393,19 +398,19 @@ func TestDebtController_Update_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -463,19 +468,19 @@ func TestDebtController_Update_ValidationError(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -531,21 +536,21 @@ func TestDebtController_Settle_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	transactionService := env.App.Service(services.TransactionService{}).(*services.TransactionService)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	transactionService := itf.GetService[services.TransactionService](env)
 
 	// Create test money account
 	account := moneyAccountEntity.New(
@@ -618,19 +623,19 @@ func TestDebtController_WriteOff_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -674,19 +679,19 @@ func TestDebtController_Delete_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(
@@ -732,15 +737,18 @@ func TestDebtController_Delete_NotFound(t *testing.T) {
 		permissions.DebtDelete,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -755,15 +763,18 @@ func TestDebtController_InvalidUUID(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	suite.GET(DebtBasePath + "/invalid-uuid/drawer").
@@ -775,15 +786,18 @@ func TestDebtController_Permission_Forbidden(t *testing.T) {
 	t.Parallel()
 	userWithoutPermission := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(userWithoutPermission)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtSvc := itf.GetService[services.DebtService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	suite.GET(DebtBasePath).
@@ -799,19 +813,19 @@ func TestDebtController_List_WithFilters(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewDebtsController(env.App)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
-
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty
 	counterparty1 := counterparty.New(

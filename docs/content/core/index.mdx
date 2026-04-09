@@ -219,13 +219,13 @@ When an authenticated user lacks the required permission for a resource, the fra
 
 ### Service Access
 
-Other modules access Core services via the registry:
+Other modules access Core services through typed composition handles:
 
 ```mermaid
 graph LR
-    A[Finance Module] -->|"app.Service()"| B[UserService]
-    C[Warehouse Module] -->|"app.Service()"| D[UploadService]
-    E[CRM Module] -->|"app.Service()"| F[SessionService]
+    A[Finance Component] -->|"composition.Use[*UserService]()"| B[UserService]
+    C[Warehouse Component] -->|"composition.Use[upload.Repository]()"| D[UploadService]
+    E[CRM Component] -->|"composition.Use[*SessionService]()"| F[SessionService]
 ```
 
 ### Shared Entities
@@ -256,7 +256,7 @@ The Core module publishes domain events:
 
 ### Module Options
 
-Configure during registration via **`core.ModuleOptions`** (passed to `core.NewModule(opts)`):
+Configure during registration via **`core.ModuleOptions`** (passed to `core.NewComponent(opts)`):
 
 - **Permission Schema** - Define available permissions (e.g. for Roles UI).
 - **LoginControllerOptions** - Customize middleware or access checks for login routes (e.g. custom "login gate").
@@ -278,7 +278,7 @@ The sidebar shows navigation items only to users who have at least one role; use
 
 ## Usage
 
-The Core module is included in `BuiltInModules` and is usually loaded by calling `application.Wire(app, modules.BuiltInModules...)`, then `application.RegisterTransports(...)`, and finally `app.StartRuntime(...)` with the runtime tags your process needs. There is no `app.RegisterModule(module)`; composition happens through the application helpers.
+The Core component is included in `modules.Components()` and is usually loaded by registering the full component list with `composition.NewEngine()`, then compiling with the capabilities your process needs.
 
 ## Best Practices
 

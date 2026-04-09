@@ -29,7 +29,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 
 	//t.Run("displays labels in list view", func(t *testing.T) {
 	//	suite := itf.NewSuiteBuilder(t).
-	//		WithModules(core.NewModule(&core.ModuleOptions{
+	//		WithComponents(core.NewComponent(&core.ModuleOptions{
 	//			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	//		})).
 	//		AsUser(testUser).
@@ -138,7 +138,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	//})
 
 	t.Run("displays labels in details view", func(t *testing.T) {
-		suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+		suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		})).Build().
 			AsUser(testUser)
@@ -210,7 +210,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	})
 
 	t.Run("handles dynamic options loader", func(t *testing.T) {
-		suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+		suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		})).Build().
 			AsUser(testUser)
@@ -269,7 +269,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	})
 
 	t.Run("displays raw value when no matching option", func(t *testing.T) {
-		suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+		suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		})).Build().
 			AsUser(testUser)
