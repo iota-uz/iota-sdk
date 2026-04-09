@@ -821,15 +821,22 @@ func (c *UsersController) Update(
 		roles = append(roles, r)
 	}
 
-	permissionIDs := r.Form["PermissionIDs"]
+	// Extract permission IDs from Permissions[{id}] form keys
+	// (checked switches send Permissions[uuid]=on, unchecked send nothing)
+	var permissionIDs []string
+	for key := range r.Form {
+		if strings.HasPrefix(key, "Permissions[") && strings.HasSuffix(key, "]") {
+			id := key[len("Permissions[") : len(key)-1]
+			if id != "" {
+				permissionIDs = append(permissionIDs, id)
+			}
+		}
+	}
 	permissions := make([]permission.Permission, 0, len(permissionIDs))
 	for _, permID := range permissionIDs {
-		if permID == "" {
-			continue
-		}
 		perm, err := permissionService.GetByID(ctx, permID)
 		if err != nil {
-			logger.Warnf("Error retrieving permission: %v", err)
+			logger.Warnf("Error retrieving permission %s: %v", permID, err)
 			continue
 		}
 		permissions = append(permissions, perm)
