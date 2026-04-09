@@ -8,7 +8,6 @@ import (
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	clientagg "github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
-	messagetemplate "github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/handlers"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
@@ -25,7 +24,6 @@ import (
 
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
-
 
 func NewComponent() composition.Component {
 	return &component{}
@@ -52,16 +50,14 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, corepersistence.NewPassportRepository)
 	composition.ProvideFunc(builder, persistence.NewChatRepository)
 	composition.ProvideFunc(builder, persistence.NewClientRepository)
-	composition.ProvideFuncAs[messagetemplate.Repository](builder, persistence.NewMessageTemplateRepository)
+	composition.ProvideFunc(builder, persistence.NewMessageTemplateRepository)
 	composition.ProvideFunc(builder, newCRMTwilioProvider)
 	composition.ProvideFunc(builder, services.NewClientService)
 	composition.ProvideFunc(builder, newCRMChatService)
 	composition.ProvideFunc(builder, services.NewMessageTemplateService)
 	composition.ProvideFunc(builder, handlers.NewClientHandler)
-	composition.ProvideFunc(builder, handlers.NewSMSHandler)
 
 	composition.ContributeEventHandlerFunc(builder, func(h *handlers.ClientHandler) any { return h.OnCreated })
-	composition.ContributeEventHandlerFunc(builder, func(h *handlers.SMSHandler) any { return h.OnSMSReceived })
 
 	if botToken := configuration.Use().TelegramBotToken; botToken != "" {
 		notification, err := handlers.NewNotificationHandler(botToken)
@@ -140,4 +136,3 @@ func newCRMChatService(
 		bus,
 	)
 }
-

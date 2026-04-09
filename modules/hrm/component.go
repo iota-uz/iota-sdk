@@ -14,7 +14,6 @@ import (
 //go:embed presentation/locales/*.toml
 var LocaleFiles embed.FS
 
-
 func NewComponent() composition.Component {
 	return &component{}
 }

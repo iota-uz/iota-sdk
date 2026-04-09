@@ -79,4 +79,3 @@ func AddControllers(builder *Builder, ctrls ...application.Controller) {
 		return captured, nil
 	})
 }
-

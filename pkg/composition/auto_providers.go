@@ -14,18 +14,20 @@ import (
 
 // installAutoProviders registers providers for the core services already
 // available on the build context's Application handle. Components can then
-// `composition.Use[T]()` for these without needing `RequireApplication`.
+// take these as typed parameters in ProvideFunc / ContributeControllersFunc
+// constructors, or call composition.Resolve[T] from inside a Contribute*
+// closure — no dedicated accessor is needed.
 //
-// Each provider is registered only when the underlying value is non-nil. User
-// providers always win — if a component declares its own provider for one of
-// these keys, addBuilder catches the duplicate and reports it.
+// Each provider is registered only when the underlying value is non-nil.
+// User providers always win: if a component declares its own provider for
+// one of these keys, addBuilder drops the auto provider and installs the
+// user one in its place.
 //
-// The set is intentionally small: only services that genuinely live one level
-// above any component, are stable across the engine's lifetime, and were
-// previously the most common reasons to call `RequireApplication`.
-func installAutoProviders(container *Container, ctx BuildContext) error {
+// The set is intentionally small: only services that genuinely live one
+// level above any component and are stable across the engine's lifetime.
+func installAutoProviders(container *Container, ctx BuildContext) {
 	if container == nil {
-		return nil
+		return
 	}
 
 	// Application itself — supports the few legitimate cases (GraphQL
@@ -56,7 +58,6 @@ func installAutoProviders(container *Container, ctx BuildContext) error {
 	if cfg := ctx.config; cfg != nil {
 		registerAutoValue[*configuration.Configuration](container, "auto:config", cfg)
 	}
-	return nil
 }
 
 // registerAutoValue installs a value-form provider for T directly on the

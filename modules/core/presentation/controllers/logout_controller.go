@@ -14,8 +14,7 @@ type LogoutController struct {
 }
 
 func NewLogoutController() application.Controller {
-	return &LogoutController{
-	}
+	return &LogoutController{}
 }
 
 func (c *LogoutController) Key() string {

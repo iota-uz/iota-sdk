@@ -7,7 +7,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
@@ -44,12 +43,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewProjectStageService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllersFunc(builder, func() []application.Controller {
-			return []application.Controller{
-				controllers.NewProjectController(),
-				controllers.NewProjectStageController(),
-			}
-		})
+		composition.AddControllers(builder,
+			controllers.NewProjectController(),
+			controllers.NewProjectStageController(),
+		)
 	}
 	return nil
 }

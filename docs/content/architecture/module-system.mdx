@@ -140,14 +140,23 @@ classDiagram
 | `composition.Provide[T](b, value)` | Eager value provider for T | Services layer |
 | `composition.ProvideFunc(b, ctor)` | Reflection-injected constructor; params resolved by type | Services layer |
 | `composition.ProvideFuncAs[I](b, ctor)` | Same, also bridged to interface key I | Services layer |
+| `composition.ProvideAs[I, C](b, value)` | Eager value bound to both concrete and interface keys | Services layer |
 | `composition.ContributeControllers(b, fn)` | Closure returning HTTP handlers | Presentation layer |
 | `composition.ContributeControllersFunc(b, ctor)` | Reflection-injected controller factory | Presentation layer |
 | `composition.ContributeHooks(b, fn)` | Start/stop lifecycle hooks | Infrastructure |
-| `composition.ContributeEventHandler(b, handler)` | Auto-subscribed eventbus handler | Infrastructure |
+| `composition.ContributeEventHandler(b, handler)` | Auto-subscribed eventbus handler (value-form) | Infrastructure |
+| `composition.ContributeEventHandlerFunc[T](b, factory)` | Auto-subscribed handler resolved from a typed service | Infrastructure |
+| `composition.ContributeSchemas(b, fn)` | GraphQL schemas built from resolved services | Presentation |
+| `composition.ContributeApplets(b, fn)` | Applet manifests for the SDK applet runtime | Presentation |
+| `composition.ContributeMiddleware(b, fn)` | Router-level middleware | Presentation |
+| `composition.ContributeSpotlightProviders(b, fn)` | Spotlight search providers | Navigation / actions |
+| `composition.ContributeSpotlightAgent(b, fn)` | Singleton spotlight AI agent | Navigation / actions |
 | `composition.AddLocales(b, fs)` | Translation bundles (no closure) | Presentation |
 | `composition.AddNavItems(b, items...)` | Sidebar / navigation entries | Presentation |
 | `composition.AddQuickLinks(b, links...)` | Spotlight quick links | Navigation / actions |
-| `composition.AddHashFS(b, fs)` | Hashed static assets | Presentation |
+| `composition.AddHashFS(b, fs...)` | Hashed static assets | Presentation |
+| `composition.AddAssets(b, fs...)` | Raw embed.FS asset bundles | Presentation |
+| `composition.AddControllers(b, ctrls...)` | Pre-built controller instances | Presentation |
 
 ## Service Registration
 
@@ -192,7 +201,7 @@ When migrating old code:
 1. Replace the old module constructor with `NewComponent() composition.Component`.
 2. Move the old wiring phase into `Build(builder)`. Prefer the reflection helpers (`ProvideFunc`, `ProvideFuncAs[I]`, `ContributeControllersFunc`) over closure factories — the injector resolves typed dependencies automatically.
 3. Migrate static contributions (locales, nav items, quick links, hashfs bundles) to the `Add*` helpers — zero closure boilerplate.
-4. Most core services (`*pgxpool.Pool`, `eventbus.EventBus`, `*i18n.Bundle`, `*logrus.Logger`, `application.Application`, `spotlight.Service`) are auto-registered by `Engine.Compile`. Drop `composition.RequireApplication` calls that only pulled one of these, and let the injector resolve them via `ProvideFunc` / `ContributeControllersFunc`.
+4. Core services (`*pgxpool.Pool`, `eventbus.EventBus`, `*i18n.Bundle`, `*logrus.Logger`, `application.Application`, `spotlight.Service`, `application.Huber`) are auto-registered by `Engine.Compile`. Take them as typed parameters in `ProvideFunc` / `ContributeControllersFunc` constructors, or `composition.Resolve[T](container)` from inside a Contribute\* closure.
 
 ## Controller Registration
 
@@ -250,7 +259,7 @@ graph TB
         D[UserRepository]
     end
     
-    B -->|"composition.Use[*UserService]()"| C
+    B -->|"ProvideFunc(NewPaymentController)"| C
     A -.->|"needs user info"| C
 ```
 

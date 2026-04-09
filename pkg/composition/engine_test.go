@@ -143,11 +143,11 @@ func TestCapabilityFilteringGatesProvidersAndHooks(t *testing.T) {
 	require.Equal(t, 1, apiBuilds)
 	require.Equal(t, 0, workerBuilds)
 
-	err = engine.Start(context.Background(), container)
+	err = Start(context.Background(), container)
 	require.NoError(t, err)
 	require.Equal(t, []string{"api"}, started)
 
-	err = engine.Stop(context.Background(), container)
+	err = Stop(context.Background(), container)
 	require.NoError(t, err)
 	require.Equal(t, []string{"api"}, stopped)
 }

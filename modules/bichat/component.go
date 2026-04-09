@@ -24,7 +24,6 @@ import (
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
 
-
 // ErrBiChatDisabled is returned by providers when BiChat is not configured.
 // The sentinel is swallowed by capability-gated contribute closures so that
 // cmd/server and cmd/worker continue to boot without the OPENAI_API_KEY set.
@@ -276,7 +275,6 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 		}
 
 		var (
-			titleWorker       *services.TitleJobWorker
 			titleWorkerCancel context.CancelFunc
 			titleWorkerDone   chan struct{}
 		)
@@ -286,14 +284,19 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 				return nil, serrors.E(op, err, "failed to create title job worker")
 			}
 		} else if worker != nil {
+			// The worker loop runs under a dedicated context rooted at
+			// context.Background() so that the Start ctx ending (for
+			// example, the request context used to boot the engine) does
+			// not silently stop it. Teardown is via titleWorkerCancel +
+			// waiting on the done channel.
 			workerCtx, workerCancel := context.WithCancel(context.Background())
-			titleWorker = worker
 			titleWorkerCancel = workerCancel
 			titleWorkerDone = make(chan struct{})
+			logger := b.config.Logger
 			go func() {
 				defer close(titleWorkerDone)
-				if startErr := worker.Start(workerCtx); startErr != nil && b.config.Logger != nil {
-					b.config.Logger.WithError(startErr).Warn("bichat title job worker stopped with error")
+				if startErr := worker.Start(workerCtx); startErr != nil && logger != nil {
+					logger.WithError(startErr).Warn("bichat title job worker stopped with error")
 				}
 			}()
 		}
@@ -304,13 +307,18 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 				titleWorkerCancel()
 			}
 			if titleWorkerDone != nil {
+				// Cancel has been called; the worker loop will observe it
+				// and exit. We block on the done channel to join the
+				// goroutine cleanly; if the caller's stopCtx expires first
+				// we surface that error but let the goroutine finish on
+				// its own — it will exit shortly because its context is
+				// already cancelled.
 				select {
 				case <-titleWorkerDone:
 				case <-stopCtx.Done():
 					stopErr = errors.Join(stopErr, stopCtx.Err())
 				}
 			}
-			_ = titleWorker // retained to silence unused-var warning; cleanup is via cancel+done
 
 			if b.services != nil {
 				if closeErr := b.services.CloseTitleQueue(); closeErr != nil {

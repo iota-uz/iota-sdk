@@ -103,9 +103,7 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 	// Register auto-providers for the core services already attached to the
 	// build context. These are registered first so user providers can still
 	// override any of them by declaring their own provider for the same key.
-	if err := installAutoProviders(container, ctx); err != nil {
-		return nil, err
-	}
+	installAutoProviders(container, ctx)
 	for _, builder := range builders {
 		if !componentActive(builder.descriptor, activeCapabilities) {
 			continue
@@ -133,25 +131,6 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 	return container, nil
 }
 
-func (e *Engine) Run(ctx context.Context, buildCtx BuildContext, capabilities ...Capability) (*Container, error) {
-	container, err := e.Compile(buildCtx, capabilities...)
-	if err != nil {
-		return nil, err
-	}
-	if err := e.Start(ctx, container); err != nil {
-		return nil, err
-	}
-	return container, nil
-}
-
-func (e *Engine) Start(ctx context.Context, container *Container) error {
-	return Start(ctx, container)
-}
-
-func (e *Engine) Stop(ctx context.Context, container *Container) error {
-	return Stop(ctx, container)
-}
-
 // Start runs every registered hook's Start in registration order. Each Start
 // returns an optional Stop closure that the engine records and invokes during
 // Stop, in reverse order. If any Start fails, previously-recorded Stop closures
@@ -174,10 +153,14 @@ func Start(ctx context.Context, container *Container) error {
 		if err != nil {
 			rollbackErr := unwindStops(ctx, container.runningStops)
 			container.runningStops = nil
+			wrapped := fmt.Errorf("start hook %q: %w", hook.Name, err)
 			if rollbackErr != nil {
-				return fmt.Errorf("start hook %q: %w (rollback errors: %v)", hook.Name, err, rollbackErr)
+				// Join so that callers using errors.Is / errors.As can
+				// observe both the original start failure and every
+				// rollback error, not just the outer message.
+				return errors.Join(wrapped, rollbackErr)
 			}
-			return fmt.Errorf("start hook %q: %w", hook.Name, err)
+			return wrapped
 		}
 		container.runningStops = append(container.runningStops, namedStop{name: hook.Name, stop: stop})
 	}

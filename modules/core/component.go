@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	twofactorentity "github.com/iota-uz/iota-sdk/modules/core/domain/entities/twofactor"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/handlers"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
@@ -38,7 +38,6 @@ import (
 
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
-
 
 type ModuleOptions struct {
 	PermissionSchema         *rbac.PermissionSchema
@@ -66,7 +65,6 @@ func (c *component) Descriptor() composition.Descriptor {
 
 func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
-	_ = op
 
 	composition.AddLocales(builder, &LocaleFiles)
 	composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
@@ -92,16 +90,16 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFuncAs[upload.Storage](builder, persistence.NewFSStorage)
 
 	// ----- Repositories -----
-	composition.ProvideFunc(builder, newUploadRepository)
-	composition.ProvideFunc(builder, newUserRepository)
-	composition.ProvideFunc(builder, newRoleRepository)
-	composition.ProvideFunc(builder, newTenantRepository)
-	composition.ProvideFunc(builder, newPermissionRepository)
-	composition.ProvideFunc(builder, newSessionRepository)
-	composition.ProvideFunc(builder, newOTPRepository)
-	composition.ProvideFunc(builder, newRecoveryCodeRepository)
-	composition.ProvideFunc(builder, newGroupRepository)
-	composition.ProvideFunc(builder, newCurrencyRepository)
+	composition.ProvideFunc(builder, persistence.NewUploadRepository)
+	composition.ProvideFunc(builder, persistence.NewUserRepository)
+	composition.ProvideFunc(builder, persistence.NewRoleRepository)
+	composition.ProvideFunc(builder, persistence.NewTenantRepository)
+	composition.ProvideFunc(builder, persistence.NewPermissionRepository)
+	composition.ProvideFunc(builder, persistence.NewSessionRepository)
+	composition.ProvideFunc(builder, persistence.NewOTPRepository)
+	composition.ProvideFunc(builder, persistence.NewRecoveryCodeRepository)
+	composition.ProvideFunc(builder, persistence.NewGroupRepository)
+	composition.ProvideFunc(builder, persistence.NewCurrencyRepository)
 	composition.ProvideFunc(builder, query.NewPgUserQueryRepository)
 	composition.ProvideFunc(builder, query.NewPgGroupQueryRepository)
 	composition.ProvideFunc(builder, query.NewPgRoleQueryRepository)
@@ -123,9 +121,31 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewGroupService)
 	composition.ProvideFunc(builder, newCoreTwoFactorService)
 
+	// ----- Event handlers -----
+	// Revoke active sessions whenever a user's password changes so that
+	// leaked credentials stop being honoured after a reset.
+	composition.ProvideFunc(builder, handlers.NewUserHandler)
+	composition.ContributeEventHandlerFunc(builder, func(h *handlers.UserHandler) any {
+		return h.OnPasswordUpdated
+	})
+	// Realtime websocket broadcasts for user CRUD events — one subscription
+	// per event kind, torn down cleanly via the hook lifecycle.
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ProvideFunc(builder, controllers.NewUserRealtimeUpdates)
+		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.UserRealtimeUpdates) any {
+			return ru.OnUserCreated
+		})
+		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.UserRealtimeUpdates) any {
+			return ru.OnUserUpdated
+		})
+		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.UserRealtimeUpdates) any {
+			return ru.OnUserDeleted
+		})
+	}
+
 	// ----- GraphQL schema -----
 	composition.ContributeSchemas(builder, func(container *composition.Container) ([]application.GraphSchema, error) {
-		app, err := composition.RequireApplication(container)
+		app, err := composition.Resolve[application.Application](container)
 		if err != nil {
 			return nil, err
 		}
@@ -191,21 +211,19 @@ func (c *component) Build(builder *composition.Builder) error {
 			groupService *services.GroupService,
 			twoFactorService *coreservices2fa.TwoFactorService,
 		) []application.Controller {
-			// AI search holder is optional; resolved separately at request
-			// time inside the spotlight controller.
-			aiHolder, _ := resolveOptionalAISearchHolder(app)
-
 			ctrls := []application.Controller{
 				controllers.NewHealthController(app),
 				controllers.NewDashboardController(),
 				controllers.NewLoginController(authService, authFlowService, opts.LoginControllerOptions),
 				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService),
 				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService),
-				controllers.NewSpotlightController(app, aiHolder),
+				// Spotlight controller accepts a nil AI search holder; downstream
+				// components that need AI-assisted search install one explicitly.
+				controllers.NewSpotlightController(app, nil),
 				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService),
 				controllers.NewLogoutController(),
 				controllers.NewUploadController(uploadService),
-				controllers.NewUsersController(app, userService, &controllers.UsersControllerOptions{
+				controllers.NewUsersController(app, &controllers.UsersControllerOptions{
 					BasePath:         "/users",
 					PermissionSchema: opts.PermissionSchema,
 				}),
@@ -332,20 +350,6 @@ func newCoreTwoFactorService(
 	}
 	return svc, nil
 }
-
-// resolveOptionalAISearchHolder returns the AI search holder if a downstream
-// component (e.g. bichat) registered one, or nil. The lookup is best-effort
-// because the holder is optional.
-func resolveOptionalAISearchHolder(app application.Application) (*spotlight.AISearchServiceHolder, error) {
-	_ = app
-	// The previous implementation resolved this through the container at
-	// controller-construction time. Spotlight controller has a nil-safe
-	// holder accessor; passing nil is the historical "no AI search" path.
-	return nil, nil
-}
-
-// unused at present but retained to satisfy older imports.
-var _ = i18n.Bundle{}
 
 func uploadAPIControllerOpts(opts *ModuleOptions) []controllers.UploadAPIControllerOption {
 	var result []controllers.UploadAPIControllerOption

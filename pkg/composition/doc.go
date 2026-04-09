@@ -70,10 +70,12 @@
 //
 // Engine.Compile registers providers for the core services already available
 // on the build context: *pgxpool.Pool, eventbus.EventBus, *i18n.Bundle,
-// *logrus.Logger, application.Application, spotlight.Service, and
-// application.Huber. Components can Resolve any of these without calling
-// RequireApplication, and user-registered providers for the same key take
-// precedence.
+// *logrus.Logger, application.Application, spotlight.Service,
+// application.Huber, and *configuration.Configuration. Components can take
+// these as typed parameters in ProvideFunc / ContributeControllersFunc
+// constructors, or call composition.Resolve from inside a Contribute*
+// closure. User-registered providers for the same key take precedence over
+// the auto-provided value.
 //
 // # Capabilities
 //
@@ -87,10 +89,15 @@
 //
 // # Lifecycle
 //
-// Engine.Compile(ctx, capabilities...) resolves the component graph and
-// returns a Container. Hooks register via ContributeHooks with the signature
+// Engine.Compile(buildCtx, capabilities...) resolves the component graph and
+// returns a Container. Engine.Start(ctx, container) (also available as the
+// package-level Start function) runs every registered hook's Start closure in
+// registration order; each Start may return a StopFn that Engine.Stop invokes
+// in reverse order during shutdown.
+//
+// Hooks themselves register via ContributeHooks with the signature
 // Start(ctx) (StopFn, error). The Start closure captures any local state it
-// needs to clean up and returns a StopFn that Stop will invoke in reverse
-// registration order. Start and Stop are not safe for concurrent use; callers
-// must serialize lifecycle operations.
+// needs to clean up and returns the StopFn that will later tear that state
+// down. Start and Stop are not safe for concurrent use; callers must serialize
+// lifecycle operations.
 package composition

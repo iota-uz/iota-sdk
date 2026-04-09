@@ -145,6 +145,68 @@ func TestProvideFunc_PanicsOnVariadic(t *testing.T) {
 	})
 }
 
+func TestProvideFuncAs_HappyPath(t *testing.T) {
+	// Count constructor invocations to verify the interface bridge reuses
+	// the concrete singleton instead of running the constructor twice.
+	var callCount int
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "greet"},
+		build: func(builder *Builder) error {
+			ProvideFuncAs[greetingPort](builder, func() *greetingService {
+				callCount++
+				return &greetingService{value: "once"}
+			})
+			// Downstream constructor depends on the interface key — must
+			// receive the same value the concrete key resolves to.
+			ProvideFunc(builder, func(port greetingPort) *greetingConsumer {
+				return &greetingConsumer{port: port}
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	concrete, err := Resolve[*greetingService](container)
+	require.NoError(t, err)
+	require.Equal(t, "once", concrete.Greet())
+
+	port, err := Resolve[greetingPort](container)
+	require.NoError(t, err)
+	require.Equal(t, "once", port.Greet())
+
+	// Concrete + interface must resolve to the exact same instance so that
+	// mutations or identity checks remain consistent across consumers.
+	require.Same(t, concrete, port.(*greetingService))
+
+	consumer, err := Resolve[*greetingConsumer](container)
+	require.NoError(t, err)
+	require.Same(t, concrete, consumer.port.(*greetingService))
+
+	// Factory must run exactly once despite being reachable via three keys.
+	require.Equal(t, 1, callCount)
+}
+
+// Regression test for PR #726: when the constructor returns a concrete type
+// and a component keys it by an interface the concrete satisfies, a sibling
+// ProvideFunc must be able to resolve that interface as a parameter without
+// the reflection injector panicking or double-constructing.
+func TestProvideFuncAs_InterfaceConsumerResolves(t *testing.T) {
+	err := compileWithBuild(t, func(builder *Builder) error {
+		ProvideFuncAs[greetingPort](builder, func() *greetingService {
+			return &greetingService{value: "consumer"}
+		})
+		ProvideFunc(builder, func(p greetingPort) *repoA {
+			return &repoA{value: p.Greet()}
+		})
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestProvideFuncAs_PanicsWhenInterfaceEqualsReturn(t *testing.T) {
 	require.PanicsWithValue(t,
 		"composition: ProvideFuncAs[composition.greetingPort]: constructor already returns composition.greetingPort; use ProvideFunc instead",
@@ -263,6 +325,12 @@ func TestContributeControllersFunc_PanicsOnBadReturnType(t *testing.T) {
 			return nil
 		})
 	})
+}
+
+// greetingConsumer depends on the greetingPort interface and is used to
+// exercise ProvideFuncAs interface-bridge consumption.
+type greetingConsumer struct {
+	port greetingPort
 }
 
 // stubController is a minimal application.Controller for tests.

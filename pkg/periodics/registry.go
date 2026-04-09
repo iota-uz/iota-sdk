@@ -7,7 +7,6 @@ import (
 	"maps"
 	"sync"
 
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -69,17 +68,4 @@ func (r *managerRegistry) All() map[string]Manager {
 	result := make(map[string]Manager, len(r.managers))
 	maps.Copy(result, r.managers)
 	return result
-}
-
-// GetManagerRegistry retrieves the ManagerRegistry from the given composition
-// container. Returns nil if no registry has been registered.
-func GetManagerRegistry(container *composition.Container) ManagerRegistry {
-	if container == nil {
-		return nil
-	}
-	registry, err := composition.Resolve[ManagerRegistry](container)
-	if err != nil {
-		return nil
-	}
-	return registry
 }

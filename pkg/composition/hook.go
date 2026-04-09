@@ -21,5 +21,5 @@ type Hook struct {
 }
 
 // StopFn is the teardown closure returned by Hook.Start. The engine invokes
-// it during Engine.Stop with a shutdown context.
+// each StopFn in reverse registration order during composition.Stop.
 type StopFn func(ctx context.Context) error

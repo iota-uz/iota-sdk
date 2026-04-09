@@ -124,4 +124,3 @@ func newOIDCStorage(
 		cfg.RefreshTokenLifetime,
 	)
 }
-

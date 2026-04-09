@@ -48,73 +48,42 @@ func NewExpenseService(
 
 ### Service Registration
 
-Services are wired together during the module wiring phase:
+Services are wired together during the module wiring phase. The reflection
+injector (`composition.ProvideFunc`) resolves each constructor parameter from
+the container by type, so the component body reads as a straight list of
+constructors:
 
 ```go
 // modules/finance/component.go
 
 func (c *component) Build(builder *composition.Builder) error {
-	uploadRepo := composition.Use[upload.Repository]()
-	categoryRepo := composition.Use[expensecategory.Repository]()
-	transactionRepo := composition.Use[transaction.Repository]()
-	moneyAccountRepo := composition.Use[moneyaccount.Repository]()
-	moneyAccountService := composition.Use[*services.MoneyAccountService]()
+	// Repositories — persistence constructors already return the
+	// domain-level interface, so no concrete/interface bridge is needed.
+	composition.ProvideFunc(builder, corepersistence.NewUploadRepository)
+	composition.ProvideFunc(builder, persistence.NewExpenseCategoryRepository)
+	composition.ProvideFunc(builder, persistence.NewTransactionRepository)
+	composition.ProvideFunc(builder, persistence.NewMoneyAccountRepository)
+	composition.ProvideFunc(builder, persistence.NewExpenseRepository)
 
-	composition.Provide[upload.Repository](builder, func() upload.Repository {
-		return corepersistence.NewUploadRepository()
-	})
-	composition.Provide[expensecategory.Repository](builder, func() expensecategory.Repository {
-		return persistence.NewExpenseCategoryRepository()
-	})
-	composition.Provide[transaction.Repository](builder, func() transaction.Repository {
-		return persistence.NewTransactionRepository()
-	})
-	composition.Provide[moneyaccount.Repository](builder, func() moneyaccount.Repository {
-		return persistence.NewMoneyAccountRepository()
-	})
-	composition.Provide[*services.MoneyAccountService](builder, func(container *composition.Container) (*services.MoneyAccountService, error) {
-		resolvedMoneyAccountRepo, err := moneyAccountRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewMoneyAccountService(
-			resolvedMoneyAccountRepo,
-			resolvedTransactionRepo,
-			builder.Context().EventPublisher(),
-		), nil
-	})
-	composition.Provide[*services.ExpenseService](builder, func(container *composition.Container) (*services.ExpenseService, error) {
-		resolvedCategoryRepo, err := categoryRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedUploadRepo, err := uploadRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedMoneyAccountService, err := moneyAccountService.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewExpenseService(
-			persistence.NewExpenseRepository(resolvedCategoryRepo, resolvedTransactionRepo),
-			builder.Context().EventPublisher(),
-			resolvedMoneyAccountService,
-			resolvedUploadRepo,
-		), nil
-	})
+	// Services — parameters are resolved by type from the providers above
+	// plus the auto-provided eventbus.EventBus.
+	composition.ProvideFunc(builder, services.NewMoneyAccountService)
+	composition.ProvideFunc(builder, services.NewExpenseService)
 
 	return nil
 }
 ```
+
+If a constructor returns a concrete type but you want the provider keyed by
+an interface (for example, when another module registers a stub implementation
+under the same interface key), use `composition.ProvideFuncAs[Interface]`:
+
+```go
+composition.ProvideFuncAs[storage.Backend](builder, persistence.NewS3Backend)
+```
+
+`ProvideFuncAs` panics at compile time if the constructor already returns the
+interface — in that case use the plain `ProvideFunc`.
 
 ## Permission Enforcement
 
@@ -350,23 +319,42 @@ Subscribe to events in other modules:
 ```go
 // Another module subscribing to expense events
 func (c *component) Build(builder *composition.Builder) error {
-	composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
-		return []composition.Hook{{
-			Name: "expense-created-subscriber",
-			Start: func(context.Context, *composition.Container) error {
-				builder.Context().EventPublisher().Subscribe(
-					func(event *expense.CreatedEvent) error {
-						// Handle expense creation
-						// e.g., update analytics, notify users
-						return nil
-					},
-				)
-				return nil
-			},
-		}}, nil
-	})
+	composition.ContributeEventHandlerFunc(builder,
+		func(analytics *AnalyticsService) any {
+			return func(event *expense.CreatedEvent) error {
+				// Handle expense creation — e.g., update analytics.
+				return analytics.RecordExpenseCreated(event)
+			}
+		},
+	)
 	return nil
 }
+```
+
+`ContributeEventHandlerFunc` resolves the factory's argument from the container,
+invokes it, and wires the returned handler to the event bus on hook start. The
+subscription is torn down automatically when the runtime shuts down — callers
+do not need to write `Subscribe`/`Unsubscribe` bookkeeping.
+
+For cases where a long-lived background worker needs a custom teardown, use
+`ContributeHooks` with the current signature:
+
+```go
+composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
+	worker, err := composition.Resolve[*BackgroundWorker](container)
+	if err != nil {
+		return nil, err
+	}
+	return []composition.Hook{{
+		Name: "expense-background-worker",
+		Start: func(ctx context.Context) (composition.StopFn, error) {
+			if err := worker.Start(ctx); err != nil {
+				return nil, err
+			}
+			return worker.Stop, nil
+		},
+	}}, nil
+})
 ```
 
 ## Cross-Service Coordination

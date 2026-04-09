@@ -21,10 +21,11 @@ import (
 // Component.Build call. It exposes the pooled dependencies every component
 // needs (db, event bus, bundle, config, logger) and the active capability
 // set. It deliberately does NOT expose the application.Application handle;
-// components that need `app` (to pass to controller constructors for
-// middleware wiring) call RequireApplication(container) from inside a
-// ContributeControllers closure, which resolves it through the container's
-// auto-provided application.Application provider.
+// components that need `app` (for example, to pass it to a controller
+// constructor) resolve it through the container's auto-provided
+// application.Application provider — either as a parameter of a
+// ContributeControllersFunc constructor or via composition.Resolve from
+// inside a ContributeControllers closure.
 type BuildContext struct {
 	app                application.Application // private; accessed only via auto-provided provider
 	db                 *pgxpool.Pool

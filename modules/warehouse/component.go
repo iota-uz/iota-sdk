@@ -62,52 +62,56 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, orderservice.NewOrderService)
 	composition.ProvideFunc(builder, services.NewInventoryService)
 
-	composition.ContributeControllersFunc(builder, func(
-		unitService *services.UnitService,
-		productService *productservice.ProductService,
-		positionService *positionservice.PositionService,
-		orderService *orderservice.OrderService,
-		inventoryService *services.InventoryService,
-	) []application.Controller {
-		return []application.Controller{
-			controllers.NewProductsController(productService, positionService),
-			controllers.NewPositionsController(),
-			controllers.NewUnitsController(unitService),
-			controllers.NewOrdersController(orderService, positionService, productService),
-			controllers.NewInventoryController(inventoryService, positionService),
-		}
-	})
+	// Controllers and GraphQL schemas are HTTP-layer concerns — skip them in
+	// worker-only builds that boot the warehouse module without routing.
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ContributeControllersFunc(builder, func(
+			unitService *services.UnitService,
+			productService *productservice.ProductService,
+			positionService *positionservice.PositionService,
+			orderService *orderservice.OrderService,
+			inventoryService *services.InventoryService,
+		) []application.Controller {
+			return []application.Controller{
+				controllers.NewProductsController(productService, positionService),
+				controllers.NewPositionsController(),
+				controllers.NewUnitsController(unitService),
+				controllers.NewOrdersController(orderService, positionService, productService),
+				controllers.NewInventoryController(inventoryService, positionService),
+			}
+		})
 
-	composition.ContributeSchemas(builder, func(container *composition.Container) ([]application.GraphSchema, error) {
-		app, err := composition.RequireApplication(container)
-		if err != nil {
-			return nil, err
-		}
-		orderSvc, err := composition.Resolve[*orderservice.OrderService](container)
-		if err != nil {
-			return nil, err
-		}
-		productSvc, err := composition.Resolve[*productservice.ProductService](container)
-		if err != nil {
-			return nil, err
-		}
-		positionSvc, err := composition.Resolve[*positionservice.PositionService](container)
-		if err != nil {
-			return nil, err
-		}
-		inventorySvc, err := composition.Resolve[*services.InventoryService](container)
-		if err != nil {
-			return nil, err
-		}
-		return []application.GraphSchema{
-			{
-				Value: graph.NewExecutableSchema(graph.Config{
-					Resolvers: graph.NewResolver(app, orderSvc, productSvc, positionSvc, inventorySvc),
-				}),
-				BasePath: "/warehouse",
-			},
-		}, nil
-	})
+		composition.ContributeSchemas(builder, func(container *composition.Container) ([]application.GraphSchema, error) {
+			app, err := composition.Resolve[application.Application](container)
+			if err != nil {
+				return nil, err
+			}
+			orderSvc, err := composition.Resolve[*orderservice.OrderService](container)
+			if err != nil {
+				return nil, err
+			}
+			productSvc, err := composition.Resolve[*productservice.ProductService](container)
+			if err != nil {
+				return nil, err
+			}
+			positionSvc, err := composition.Resolve[*positionservice.PositionService](container)
+			if err != nil {
+				return nil, err
+			}
+			inventorySvc, err := composition.Resolve[*services.InventoryService](container)
+			if err != nil {
+				return nil, err
+			}
+			return []application.GraphSchema{
+				{
+					Value: graph.NewExecutableSchema(graph.Config{
+						Resolvers: graph.NewResolver(app, orderSvc, productSvc, positionSvc, inventorySvc),
+					}),
+					BasePath: "/warehouse",
+				},
+			}, nil
+		})
+	}
 
 	return nil
 }

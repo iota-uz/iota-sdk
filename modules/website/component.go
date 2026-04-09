@@ -18,7 +18,6 @@ import (
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
 
-
 func NewComponent() composition.Component {
 	return &component{}
 }

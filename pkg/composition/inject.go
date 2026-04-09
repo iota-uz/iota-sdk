@@ -159,26 +159,6 @@ func ContributeControllersFunc(builder *Builder, constructor any) {
 	})
 }
 
-// ProvideHookFunc accepts a constructor whose parameters are typed services
-// and whose return value is a Hook (or []Hook). Used to declare hooks that
-// need to capture services without writing the closure-unpacking ceremony.
-func ProvideHookFunc(builder *Builder, constructor any) {
-	if builder == nil {
-		panic("composition: builder is nil")
-	}
-	caller, err := newInjectorCaller(constructor, hookReturnTypes)
-	if err != nil {
-		panic(fmt.Sprintf("composition: ProvideHookFunc: %v", err))
-	}
-	ContributeHooks(builder, func(container *Container) ([]Hook, error) {
-		out, err := caller.call(container)
-		if err != nil {
-			return nil, err
-		}
-		return coerceHooks(out)
-	})
-}
-
 // ----- internals -----
 
 // injectorCaller stashes a reflected constructor and the resolution metadata
@@ -195,16 +175,10 @@ var (
 )
 
 // allowedReturn matchers
-var (
-	controllerReturnTypes = []reflect.Type{
-		reflect.TypeOf((*application.Controller)(nil)).Elem(),
-		reflect.TypeOf([]application.Controller(nil)),
-	}
-	hookReturnTypes = []reflect.Type{
-		reflect.TypeOf(Hook{}),
-		reflect.TypeOf([]Hook(nil)),
-	}
-)
+var controllerReturnTypes = []reflect.Type{
+	reflect.TypeOf((*application.Controller)(nil)).Elem(),
+	reflect.TypeOf([]application.Controller(nil)),
+}
 
 // newInjectorCaller validates the function shape and prepares it for repeated
 // invocation. allowedNonErrReturns gates which non-error return types are
@@ -226,7 +200,7 @@ func newInjectorCaller(constructor any, allowedNonErrReturns []reflect.Type) (*i
 	t := v.Type()
 	if t.IsVariadic() {
 		return nil, fmt.Errorf(
-			"variadic constructors are not supported by the reflection injector (function at %s); " +
+			"variadic constructors are not supported by the reflection injector (function at %s); "+
 				"wrap it in a non-variadic adapter that supplies the options explicitly",
 			runtimeFuncName(v),
 		)
@@ -327,19 +301,5 @@ func coerceControllers(out []any) ([]application.Controller, error) {
 		return filtered, nil
 	default:
 		return nil, fmt.Errorf("composition: ContributeControllersFunc: unsupported return type %T", v)
-	}
-}
-
-func coerceHooks(out []any) ([]Hook, error) {
-	if len(out) == 0 {
-		return nil, nil
-	}
-	switch v := out[0].(type) {
-	case Hook:
-		return []Hook{v}, nil
-	case []Hook:
-		return v, nil
-	default:
-		return nil, fmt.Errorf("composition: ProvideHookFunc: unsupported return type %T", v)
 	}
 }
