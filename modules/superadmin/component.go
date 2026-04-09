@@ -5,7 +5,6 @@ import (
 	"embed"
 
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/infrastructure/persistence"
@@ -52,9 +51,6 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	composition.Provide[domain.AnalyticsQueryRepository](builder, func() domain.AnalyticsQueryRepository {
 		return persistence.NewPgAnalyticsQueryRepository()
-	})
-	composition.Provide[coreuser.Repository](builder, func() coreuser.Repository {
-		return corepersistence.NewUserRepository(corepersistence.NewUploadRepository())
 	})
 	composition.Provide[*services.AnalyticsService](builder, func(container *composition.Container) (*services.AnalyticsService, error) {
 		repo, err := composition.Resolve[domain.AnalyticsQueryRepository](container)

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/authrequest"
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/client"
@@ -94,9 +93,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.Provide[client.Repository](builder, persistence.NewClientRepository())
 	composition.Provide[authrequest.Repository](builder, persistence.NewAuthRequestRepository())
 	composition.Provide[token.Repository](builder, persistence.NewTokenRepository())
-	composition.Provide[coreuser.Repository](builder, func() coreuser.Repository {
-		return corepersistence.NewUserRepository(corepersistence.NewUploadRepository())
-	})
 	composition.Provide[*oidcinfra.Storage](builder, func(container *composition.Container) (*oidcinfra.Storage, error) {
 		cfg, err := oidcConfig.Resolve(container)
 		if err != nil {
