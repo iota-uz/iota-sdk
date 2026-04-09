@@ -4,24 +4,14 @@ package finance
 import (
 	"embed"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
-	debt "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
-	expense "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
-	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
-	payment "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
-	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
-	counterparty "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
-	inventory "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
-	transaction "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 //go:embed presentation/locales/*.json
@@ -41,245 +31,77 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	ctx := builder.Context()
+	composition.AddLocales(builder, &localeFiles)
+	composition.AddNavItems(builder, NavItems...)
+	composition.AddQuickLinks(builder,
+		spotlight.NewQuickLink(ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
+		spotlight.NewQuickLink(PaymentCategoriesItem.Name, PaymentCategoriesItem.Href),
+		spotlight.NewQuickLink(PaymentsItem.Name, "/finance/overview?tab=payments"),
+		spotlight.NewQuickLink(ExpensesItem.Name, "/finance/overview?tab=expenses"),
+		spotlight.NewQuickLink(DebtsItem.Name, DebtsItem.Href),
+		spotlight.NewQuickLink(AccountsItem.Name, AccountsItem.Href),
+		spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
+		spotlight.NewQuickLink("NavigationLinks.IncomeStatement", "/finance/reports/income-statement"),
+		spotlight.NewQuickLink("NavigationLinks.CashflowStatement", "/finance/reports/cashflow"),
+		spotlight.NewQuickLink("Expenses.List.New", "/finance/overview?tab=expenses"),
+		spotlight.NewQuickLink("MoneyAccounts.List.New", "/finance/accounts/new"),
+		spotlight.NewQuickLink("Payments.List.New", "/finance/overview?tab=payments"),
+		spotlight.NewQuickLink("ExpenseCategories.List.New", "/finance/expense-categories/new"),
+		spotlight.NewQuickLink("PaymentCategories.List.New", "/finance/payment-categories/new"),
+		spotlight.NewQuickLink("Inventory.List.New", "/finance/inventory/new"),
+	)
 
-	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
-		return []*embed.FS{&localeFiles}, nil
-	})
-	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
-		return NavItems, nil
-	})
-	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
-		return []*spotlight.QuickLink{
-			spotlight.NewQuickLink(ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
-			spotlight.NewQuickLink(PaymentCategoriesItem.Name, PaymentCategoriesItem.Href),
-			spotlight.NewQuickLink(PaymentsItem.Name, "/finance/overview?tab=payments"),
-			spotlight.NewQuickLink(ExpensesItem.Name, "/finance/overview?tab=expenses"),
-			spotlight.NewQuickLink(DebtsItem.Name, DebtsItem.Href),
-			spotlight.NewQuickLink(AccountsItem.Name, AccountsItem.Href),
-			spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
-			spotlight.NewQuickLink("NavigationLinks.IncomeStatement", "/finance/reports/income-statement"),
-			spotlight.NewQuickLink("NavigationLinks.CashflowStatement", "/finance/reports/cashflow"),
-			spotlight.NewQuickLink("Expenses.List.New", "/finance/overview?tab=expenses"),
-			spotlight.NewQuickLink("MoneyAccounts.List.New", "/finance/accounts/new"),
-			spotlight.NewQuickLink("Payments.List.New", "/finance/overview?tab=payments"),
-			spotlight.NewQuickLink("ExpenseCategories.List.New", "/finance/expense-categories/new"),
-			spotlight.NewQuickLink("PaymentCategories.List.New", "/finance/payment-categories/new"),
-			spotlight.NewQuickLink("Inventory.List.New", "/finance/inventory/new"),
-		}, nil
-	})
+	composition.ProvideFunc(builder, persistence.NewMoneyAccountRepository)
+	composition.ProvideFunc(builder, persistence.NewTransactionRepository)
+	composition.ProvideFunc(builder, persistence.NewExpenseCategoryRepository)
+	composition.ProvideFunc(builder, persistence.NewPaymentCategoryRepository)
+	composition.ProvideFunc(builder, persistence.NewPaymentRepository)
+	composition.ProvideFunc(builder, persistence.NewExpenseRepository)
+	composition.ProvideFunc(builder, persistence.NewCounterpartyRepository)
+	composition.ProvideFunc(builder, persistence.NewInventoryRepository)
+	composition.ProvideFunc(builder, persistence.NewDebtRepository)
+	composition.ProvideFunc(builder, query.NewPgFinancialReportsQueryRepository)
 
-	uploadRepo := composition.Use[upload.Repository]()
-	moneyAccountRepo := composition.Use[moneyaccount.Repository]()
-	transactionRepo := composition.Use[transaction.Repository]()
-	expenseCategoryRepo := composition.Use[category.Repository]()
-	paymentCategoryRepo := composition.Use[paymentcategory.Repository]()
-	paymentRepo := composition.Use[payment.Repository]()
-	expenseRepo := composition.Use[expense.Repository]()
-	counterpartyRepo := composition.Use[counterparty.Repository]()
-	inventoryRepo := composition.Use[inventory.Repository]()
-	debtRepo := composition.Use[debt.Repository]()
-	reportQueryRepo := composition.Use[query.FinancialReportsQueryRepository]()
-	moneyAccountService := composition.Use[*services.MoneyAccountService]()
-	transactionService := composition.Use[*services.TransactionService]()
-	paymentService := composition.Use[*services.PaymentService]()
-	expenseCategoryService := composition.Use[*services.ExpenseCategoryService]()
-	paymentCategoryService := composition.Use[*services.PaymentCategoryService]()
-	counterpartyService := composition.Use[*services.CounterpartyService]()
-	inventoryService := composition.Use[*services.InventoryService]()
-	debtService := composition.Use[*services.DebtService]()
-	financialReportService := composition.Use[*services.FinancialReportService]()
-	currencyService := composition.Use[*coreservices.CurrencyService]()
-
-	composition.Provide[moneyaccount.Repository](builder, func() moneyaccount.Repository {
-		return newMoneyAccountRepository()
-	})
-	composition.Provide[transaction.Repository](builder, func() transaction.Repository {
-		return newTransactionRepository()
-	})
-	composition.Provide[category.Repository](builder, func() category.Repository {
-		return newExpenseCategoryRepository()
-	})
-	composition.Provide[paymentcategory.Repository](builder, func() paymentcategory.Repository {
-		return newPaymentCategoryRepository()
-	})
-	composition.Provide[payment.Repository](builder, func() payment.Repository {
-		return newPaymentRepository()
-	})
-	composition.Provide[expense.Repository](builder, func(container *composition.Container) (expense.Repository, error) {
-		resolvedCategoryRepo, err := expenseCategoryRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return newExpenseRepository(resolvedCategoryRepo, resolvedTransactionRepo), nil
-	})
-	composition.Provide[counterparty.Repository](builder, func() counterparty.Repository {
-		return newCounterpartyRepository()
-	})
-	composition.Provide[inventory.Repository](builder, func() inventory.Repository {
-		return newInventoryRepository()
-	})
-	composition.Provide[debt.Repository](builder, func() debt.Repository {
-		return newDebtRepository()
-	})
-	composition.Provide[query.FinancialReportsQueryRepository](builder, func() query.FinancialReportsQueryRepository {
-		return query.NewPgFinancialReportsQueryRepository()
-	})
-	composition.Provide[*services.MoneyAccountService](builder, func(container *composition.Container) (*services.MoneyAccountService, error) {
-		resolvedMoneyAccountRepo, err := moneyAccountRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewMoneyAccountService(resolvedMoneyAccountRepo, resolvedTransactionRepo, ctx.EventPublisher()), nil
-	})
-	composition.Provide[*services.TransactionService](builder, func(container *composition.Container) (*services.TransactionService, error) {
-		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewTransactionService(resolvedTransactionRepo, ctx.EventPublisher()), nil
-	})
-	composition.Provide[*services.PaymentService](builder, func(container *composition.Container) (*services.PaymentService, error) {
-		resolvedPaymentRepo, err := paymentRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedMoneyAccountService, err := moneyAccountService.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedUploadRepo, err := uploadRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewPaymentService(resolvedPaymentRepo, ctx.EventPublisher(), resolvedMoneyAccountService, resolvedUploadRepo), nil
-	})
-	composition.Provide[*services.ExpenseCategoryService](builder, func(container *composition.Container) (*services.ExpenseCategoryService, error) {
-		resolvedCategoryRepo, err := expenseCategoryRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewExpenseCategoryService(resolvedCategoryRepo, ctx.EventPublisher()), nil
-	})
-	composition.Provide[*services.PaymentCategoryService](builder, func(container *composition.Container) (*services.PaymentCategoryService, error) {
-		resolvedPaymentCategoryRepo, err := paymentCategoryRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewPaymentCategoryService(resolvedPaymentCategoryRepo, ctx.EventPublisher()), nil
-	})
-	composition.Provide[*services.ExpenseService](builder, func(container *composition.Container) (*services.ExpenseService, error) {
-		resolvedExpenseRepo, err := expenseRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedMoneyAccountService, err := moneyAccountService.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedUploadRepo, err := uploadRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewExpenseService(resolvedExpenseRepo, ctx.EventPublisher(), resolvedMoneyAccountService, resolvedUploadRepo), nil
-	})
-	composition.Provide[*services.CounterpartyService](builder, func(container *composition.Container) (*services.CounterpartyService, error) {
-		resolvedCounterpartyRepo, err := counterpartyRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewCounterpartyService(resolvedCounterpartyRepo), nil
-	})
-	composition.Provide[*services.InventoryService](builder, func(container *composition.Container) (*services.InventoryService, error) {
-		resolvedInventoryRepo, err := inventoryRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewInventoryService(resolvedInventoryRepo), nil
-	})
-	composition.Provide[*services.DebtService](builder, func(container *composition.Container) (*services.DebtService, error) {
-		resolvedDebtRepo, err := debtRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewDebtService(resolvedDebtRepo, ctx.EventPublisher()), nil
-	})
-	composition.Provide[*services.FinancialReportService](builder, func(container *composition.Container) (*services.FinancialReportService, error) {
-		resolvedReportQueryRepo, err := reportQueryRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewFinancialReportService(resolvedReportQueryRepo, ctx.EventPublisher()), nil
-	})
+	composition.ProvideFunc(builder, services.NewMoneyAccountService)
+	composition.ProvideFunc(builder, services.NewTransactionService)
+	composition.ProvideFunc(builder, services.NewPaymentService)
+	composition.ProvideFunc(builder, services.NewExpenseCategoryService)
+	composition.ProvideFunc(builder, services.NewPaymentCategoryService)
+	composition.ProvideFunc(builder, services.NewExpenseService)
+	composition.ProvideFunc(builder, services.NewCounterpartyService)
+	composition.ProvideFunc(builder, services.NewInventoryService)
+	composition.ProvideFunc(builder, services.NewDebtService)
+	composition.ProvideFunc(builder, services.NewFinancialReportService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-			app, err := composition.RequireApplication(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedMoneyAccountService, err := moneyAccountService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedTransactionService, err := transactionService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedPaymentService, err := paymentService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedExpenseCategoryService, err := expenseCategoryService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedPaymentCategoryService, err := paymentCategoryService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedCounterpartyService, err := counterpartyService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedInventoryService, err := inventoryService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedDebtService, err := debtService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedFinancialReportService, err := financialReportService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedCurrencyService, err := currencyService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			return []application.Controller{
-				controllers.NewFinancialOverviewController(app, resolvedPaymentService, resolvedMoneyAccountService, resolvedCounterpartyService, resolvedPaymentCategoryService, resolvedTransactionService),
-				controllers.NewMoneyAccountController(app, resolvedMoneyAccountService, resolvedTransactionService, resolvedCurrencyService),
-				controllers.NewExpenseCategoriesController(app, resolvedExpenseCategoryService),
-				controllers.NewPaymentCategoriesController(app, resolvedPaymentCategoryService),
-				controllers.NewCounterpartiesController(app, resolvedCounterpartyService),
-				controllers.NewInventoryController(app, resolvedInventoryService, resolvedCurrencyService),
-				controllers.NewDebtsController(app, resolvedDebtService, resolvedCounterpartyService, resolvedTransactionService),
-				controllers.NewDebtAggregateController(app, resolvedDebtService, resolvedCounterpartyService),
-				controllers.NewFinancialReportController(app, resolvedFinancialReportService),
-				controllers.NewCashflowController(app, resolvedFinancialReportService, resolvedMoneyAccountService),
-			}, nil
-		})
+		composition.ContributeControllersFunc(builder, financeControllers)
 	}
-
 	return nil
+}
+
+func financeControllers(
+	app application.Application,
+	moneyAccountService *services.MoneyAccountService,
+	transactionService *services.TransactionService,
+	paymentService *services.PaymentService,
+	expenseCategoryService *services.ExpenseCategoryService,
+	paymentCategoryService *services.PaymentCategoryService,
+	counterpartyService *services.CounterpartyService,
+	inventoryService *services.InventoryService,
+	debtService *services.DebtService,
+	financialReportService *services.FinancialReportService,
+	currencyService *coreservices.CurrencyService,
+) []application.Controller {
+	return []application.Controller{
+		controllers.NewFinancialOverviewController(app, paymentService, moneyAccountService, counterpartyService, paymentCategoryService, transactionService),
+		controllers.NewMoneyAccountController(app, moneyAccountService, transactionService, currencyService),
+		controllers.NewExpenseCategoriesController(app, expenseCategoryService),
+		controllers.NewPaymentCategoriesController(app, paymentCategoryService),
+		controllers.NewCounterpartiesController(app, counterpartyService),
+		controllers.NewInventoryController(app, inventoryService, currencyService),
+		controllers.NewDebtsController(app, debtService, counterpartyService, transactionService),
+		controllers.NewDebtAggregateController(app, debtService, counterpartyService),
+		controllers.NewFinancialReportController(app, financialReportService),
+		controllers.NewCashflowController(app, financialReportService, moneyAccountService),
+	}
 }

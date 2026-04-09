@@ -145,7 +145,6 @@ func (c *LoginController) Register(r *mux.Router) {
 // GetMiddlewares returns middleware used for login GET routes.
 func (c *LoginController) GetMiddlewares() []mux.MiddlewareFunc {
 	defaults := []mux.MiddlewareFunc{
-		middleware.ProvideLocalizer(c.app),
 		middleware.WithPageContext(),
 	}
 	if c.optionsOrDefault().CustomizeGetMiddlewares != nil {
@@ -157,7 +156,6 @@ func (c *LoginController) GetMiddlewares() []mux.MiddlewareFunc {
 // PostMiddlewares returns middleware used for login POST routes.
 func (c *LoginController) PostMiddlewares() []mux.MiddlewareFunc {
 	defaults := []mux.MiddlewareFunc{
-		middleware.ProvideLocalizer(c.app),
 		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
 	}
 	if c.optionsOrDefault().CustomizePostMiddlewares != nil {

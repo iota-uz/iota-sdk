@@ -28,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,6 +145,11 @@ func newRouterWithContext(t *testing.T, env *itf.TestEnvironment, u coreuser.Use
 	t.Helper()
 
 	r := mux.NewRouter()
+	// ProvideLocalizer is now installed as a global middleware in
+	// pkg/server/builder.go. The test bypasses the server bootstrap so we
+	// install it here too — without it, downstream middleware like
+	// NavItemsWithInitialState (which calls intl.UseLocalizer) panics.
+	r.Use(middleware.ProvideLocalizer(env.App.Bundle(), env.App.GetSupportedLanguages()))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := req.Context()

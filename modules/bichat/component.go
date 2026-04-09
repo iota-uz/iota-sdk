@@ -11,6 +11,7 @@ import (
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -32,9 +33,76 @@ var MigrationFiles embed.FS
 // cmd/server and cmd/worker continue to boot without the OPENAI_API_KEY set.
 var ErrBiChatDisabled = errors.New("bichat: not configured (OPENAI_API_KEY not set)")
 
-func NewComponent() composition.Component { return &component{} }
+// Option configures the BiChat composition component before it is built.
+//
+// The default component reads OPENAI_API_KEY from the environment, builds a
+// LangFuse observability provider if LANGFUSE_PUBLIC_KEY is set, and uses
+// the global SDK configuration. Options let downstream consumers (the eai
+// `ali` module is the canonical example) inject their own knowledge-base
+// searchers, prompt extensions, additional agent options, and to override
+// the controller mount path or required permissions.
+type Option func(*componentOptions)
 
-type component struct{}
+type componentOptions struct {
+	// extraConfigOptions are appended to the ones produced by buildModuleConfig.
+	extraConfigOptions []ConfigOption
+	// streamControllerOptions overrides the BiChat stream endpoint wiring.
+	streamBasePath          string
+	streamRequirePermission permission.Permission
+	streamReadAllPermission permission.Permission
+}
+
+// WithExtraConfigOptions appends ConfigOption values to the BiChat module
+// configuration. Use this to register custom KB searchers, prompt extensions,
+// observability providers, etc., from a downstream component without forking
+// the bichat package.
+func WithExtraConfigOptions(opts ...ConfigOption) Option {
+	return func(o *componentOptions) {
+		for _, opt := range opts {
+			if opt != nil {
+				o.extraConfigOptions = append(o.extraConfigOptions, opt)
+			}
+		}
+	}
+}
+
+// WithComponentStreamBasePath overrides the path the BiChat stream controller
+// mounts at. The default is the BiChatLink href.
+func WithComponentStreamBasePath(path string) Option {
+	return func(o *componentOptions) {
+		o.streamBasePath = path
+	}
+}
+
+// WithComponentStreamRequirePermission overrides the permission required to
+// access the BiChat stream endpoint. The default is bichatperm.BiChatAccess.
+func WithComponentStreamRequirePermission(p permission.Permission) Option {
+	return func(o *componentOptions) {
+		o.streamRequirePermission = p
+	}
+}
+
+// WithComponentStreamReadAllPermission sets an optional read-all permission
+// for the BiChat stream endpoint.
+func WithComponentStreamReadAllPermission(p permission.Permission) Option {
+	return func(o *componentOptions) {
+		o.streamReadAllPermission = p
+	}
+}
+
+func NewComponent(opts ...Option) composition.Component {
+	c := &component{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&c.options)
+		}
+	}
+	return c
+}
+
+type component struct {
+	options componentOptions
+}
 
 func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "bichat"}
@@ -70,8 +138,9 @@ func (c *component) Build(builder *composition.Builder) error {
 	// Single lazy provider backing the entire BiChat graph. Resolved once per
 	// container instantiation; downstream providers read individual services
 	// off the bundle.
+	extraOpts := append([]ConfigOption(nil), c.options.extraConfigOptions...)
 	composition.Provide[*bichatBundle](builder, func(*composition.Container) (*bichatBundle, error) {
-		moduleConfig, servicesContainer, eventBridge, err := loadModule(buildCtx)
+		moduleConfig, servicesContainer, eventBridge, err := loadModule(buildCtx, extraOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -195,17 +264,21 @@ func (c *component) Build(builder *composition.Builder) error {
 			}
 			return []composition.Hook{{
 				Name: runtime.Name(),
-				Start: func(ctx context.Context, _ *composition.Container) error {
-					return runtime.Start(ctx)
-				},
-				Stop: func(ctx context.Context, _ *composition.Container) error {
-					return runtime.Stop(ctx)
+				Start: func(ctx context.Context) (composition.StopFn, error) {
+					if err := runtime.Start(ctx); err != nil {
+						return nil, err
+					}
+					return runtime.Stop, nil
 				},
 			}}, nil
 		})
 	}
 
 	if buildCtx.HasCapability(composition.CapabilityAPI) {
+		basePathOverride := c.options.streamBasePath
+		requirePermissionOverride := c.options.streamRequirePermission
+		readAllPermissionOverride := c.options.streamReadAllPermission
+
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
 			app, err := composition.RequireApplication(container)
 			if err != nil {
@@ -220,16 +293,25 @@ func (c *component) Build(builder *composition.Builder) error {
 			if b.config.StreamRequireAccessPermission != nil {
 				streamRequirePermission = b.config.StreamRequireAccessPermission
 			}
+			if requirePermissionOverride != nil {
+				streamRequirePermission = requirePermissionOverride
+			}
 
 			streamOpts := []controllers.ControllerOption{
 				controllers.WithRequireAccessPermission(streamRequirePermission),
 			}
-			if b.config.StreamReadAllPermission != nil {
+			if readAllPermissionOverride != nil {
+				streamOpts = append(streamOpts, controllers.WithReadAllPermission(readAllPermissionOverride))
+			} else if b.config.StreamReadAllPermission != nil {
 				streamOpts = append(streamOpts, controllers.WithReadAllPermission(b.config.StreamReadAllPermission))
 			}
 
+			if basePathOverride != "" {
+				streamOpts = append(streamOpts, controllers.WithBasePath(basePathOverride))
+			}
+
 			if b.config.Logger != nil {
-				b.config.Logger.Info("Registered BiChat stream endpoint at /bi-chat/stream")
+				b.config.Logger.Info("Registered BiChat stream endpoint")
 			}
 
 			return []application.Controller{

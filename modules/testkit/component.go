@@ -26,21 +26,15 @@ func (c *component) Build(builder *composition.Builder) error {
 		return nil
 	}
 
-	composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-		conf := configuration.Use()
-		if !conf.EnableTestEndpoints {
-			conf.Logger().Debug("Test endpoints disabled - testkit module not loading controllers")
-			return nil, nil
-		}
-		app, err := composition.RequireApplication(container)
-		if err != nil {
-			return nil, err
-		}
+	conf := configuration.Use()
+	if !conf.EnableTestEndpoints {
+		conf.Logger().Debug("Test endpoints disabled - testkit module not loading controllers")
+		return nil
+	}
 
+	composition.ContributeControllersFunc(builder, func(app application.Application) application.Controller {
 		conf.Logger().Warn("Test endpoints enabled - this should only be used in test environments")
-		return []application.Controller{
-			controllers.NewTestEndpointsController(app),
-		}, nil
+		return controllers.NewTestEndpointsController(app)
 	})
 
 	return nil

@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"embed"
 	"fmt"
 	"reflect"
@@ -98,12 +97,6 @@ func (c BuildContext) withCapabilities(capabilities []Capability) BuildContext {
 	return c
 }
 
-type Hook struct {
-	Name  string
-	Start func(context.Context, *Container) error
-	Stop  func(context.Context, *Container) error
-}
-
 type Builder struct {
 	context    BuildContext
 	descriptor Descriptor
@@ -121,6 +114,7 @@ type Builder struct {
 	spotlightAgent      *namedFactory[spotlight.Agent]
 	middlewareFactories []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories       []namedFactory[[]Hook]
+	migrationFactories  []namedFactory[[]*embed.FS]
 }
 
 type namedFactory[T any] struct {
@@ -146,6 +140,38 @@ func (b *Builder) Descriptor() Descriptor {
 
 func Provide[T any](builder *Builder, provider any) {
 	appendProvider[T](builder, "", typeOf[T](), provider)
+}
+
+// ProvideAs binds a concrete value (or factory) under both the concrete type
+// `S` and the interface type `I`. Use it when consumers may depend on either
+// the implementation pointer or the interface — eliminates the need for two
+// separate Provide calls with the same value.
+//
+// Example:
+//
+//	composition.ProvideAs[crmServices.ClientService, *crmServices.ClientServiceImpl](
+//	    builder, clientService,
+//	)
+//
+// Both keys point at the same instance.
+func ProvideAs[I any, S any](builder *Builder, provider any) {
+	appendProvider[S](builder, "", typeOf[S](), provider)
+	// Bridge the interface key to the concrete provider so we don't run the
+	// factory twice. The bridge factory resolves the concrete and casts.
+	concreteKey := keyFor(typeOf[S](), "")
+	appendProvider[I](builder, "", typeOf[I](), func(container *Container) (I, error) {
+		raw, err := container.resolveAny(concreteKey)
+		if err != nil {
+			var zero I
+			return zero, err
+		}
+		typed, ok := raw.(I)
+		if !ok {
+			var zero I
+			return zero, fmt.Errorf("composition: %s does not implement %s", concreteKey, typeOf[I]())
+		}
+		return typed, nil
+	})
 }
 
 func appendProvider[T any](builder *Builder, name string, keyType reflect.Type, provider any) {

@@ -18,7 +18,6 @@ import (
 	websiteServices "github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/di"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/sirupsen/logrus"
 )
 
@@ -55,7 +54,6 @@ func (c *AIChatAPIController) Register(r *mux.Router) {
 	}
 
 	// Always apply localizer
-	router.Use(middleware.ProvideLocalizer(c.app))
 
 	router.HandleFunc("/messages", di.H(c.createThread)).Methods(http.MethodPost)
 	router.HandleFunc("/messages/{thread_id}", di.H(c.getThreadMessages)).Methods(http.MethodGet)

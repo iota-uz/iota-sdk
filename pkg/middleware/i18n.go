@@ -13,12 +13,6 @@ import (
 	"golang.org/x/text/language"
 )
 
-// Application interface for accessing app config needed by localizer
-type Application interface {
-	Bundle() *i18n.Bundle
-	GetSupportedLanguages() []string
-}
-
 // languageTagsFromCodes converts language codes to language.Tag slice
 func languageTagsFromCodes(codes []string) []language.Tag {
 	supported := intl.GetSupportedLanguages(codes)
@@ -67,9 +61,12 @@ type LocaleOptions struct {
 	AcceptLanguageHighPriority bool
 }
 
-func ProvideLocalizer(app Application, opts ...LocaleOptions) mux.MiddlewareFunc {
-	bundle := app.Bundle()
-	supportedLanguages := languageTagsFromCodes(app.GetSupportedLanguages())
+// ProvideLocalizer returns middleware that resolves the request locale and
+// attaches an i18n.Localizer to the request context. Bundle and supported
+// language codes are captured at construction time so the middleware does no
+// per-request DI lookup.
+func ProvideLocalizer(bundle *i18n.Bundle, supportedLanguageCodes []string, opts ...LocaleOptions) mux.MiddlewareFunc {
+	supportedLanguages := languageTagsFromCodes(supportedLanguageCodes)
 
 	acceptLanguageHighPriority := false
 	if len(opts) > 0 {

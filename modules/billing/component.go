@@ -57,13 +57,9 @@ func (c *component) Build(builder *composition.Builder) error {
 	conf := configuration.Use()
 	repo := composition.Use[billingdom.Repository]()
 
-	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
-		return []*embed.FS{&LocaleFiles}, nil
-	})
+	composition.AddLocales(builder, &LocaleFiles)
 
-	composition.Provide[billingdom.Repository](builder, func() billingdom.Repository {
-		return persistence.NewBillingRepository()
-	})
+	composition.ProvideFuncAs[billingdom.Repository](builder, persistence.NewBillingRepository)
 	composition.Provide[*services.BillingService](builder, func(container *composition.Container) (*services.BillingService, error) {
 		resolvedRepo, err := repo.Resolve(container)
 		if err != nil {

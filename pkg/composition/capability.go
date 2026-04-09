@@ -8,8 +8,9 @@ import (
 type Capability string
 
 const (
-	CapabilityAPI    Capability = "api"
-	CapabilityWorker Capability = "worker"
+	CapabilityAPI     Capability = "api"
+	CapabilityWorker  Capability = "worker"
+	CapabilityMigrate Capability = "migrate"
 )
 
 func normalizeCapabilities(capabilities []Capability) []Capability {

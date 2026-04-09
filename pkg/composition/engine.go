@@ -100,6 +100,12 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 	}
 
 	container := newContainer(ctx, activeCapabilities)
+	// Register auto-providers for the core services already attached to the
+	// build context. These are registered first so user providers can still
+	// override any of them by declaring their own provider for the same key.
+	if err := installAutoProviders(container, ctx); err != nil {
+		return nil, err
+	}
 	for _, builder := range builders {
 		if !componentActive(builder.descriptor, activeCapabilities) {
 			continue
@@ -146,49 +152,65 @@ func (e *Engine) Stop(ctx context.Context, container *Container) error {
 	return Stop(ctx, container)
 }
 
+// Start runs every registered hook's Start in registration order. Each Start
+// returns an optional Stop closure that the engine records and invokes during
+// Stop, in reverse order. If any Start fails, previously-recorded Stop closures
+// run immediately and the original error is returned.
 func Start(ctx context.Context, container *Container) error {
 	if container == nil || container.started {
 		return nil
 	}
 
-	started := make([]Hook, 0, len(container.hooks))
 	for _, hook := range container.hooks {
 		if hook.Start == nil {
-			started = append(started, hook)
 			continue
 		}
-		if err := hook.Start(ctx, container); err != nil {
-			for i := len(started) - 1; i >= 0; i-- {
-				if started[i].Stop != nil {
-					_ = started[i].Stop(ctx, container)
-				}
+		stop, err := hook.Start(ctx)
+		if err != nil {
+			rollbackErr := unwindStops(ctx, container.runningStops)
+			container.runningStops = nil
+			if rollbackErr != nil {
+				return fmt.Errorf("start hook %q: %w (rollback errors: %v)", hook.Name, err, rollbackErr)
 			}
 			return fmt.Errorf("start hook %q: %w", hook.Name, err)
 		}
-		started = append(started, hook)
+		container.runningStops = append(container.runningStops, namedStop{name: hook.Name, stop: stop})
 	}
 
 	container.started = true
 	return nil
 }
 
+// Stop invokes recorded stop closures in reverse order. Errors from
+// individual stops are joined and returned together.
 func Stop(ctx context.Context, container *Container) error {
 	if container == nil || !container.started {
 		return nil
 	}
 
-	var stopErr error
-	for i := len(container.hooks) - 1; i >= 0; i-- {
-		hook := container.hooks[i]
-		if hook.Stop == nil {
-			continue
-		}
-		if err := hook.Stop(ctx, container); err != nil {
-			stopErr = errors.Join(stopErr, fmt.Errorf("stop hook %q: %w", hook.Name, err))
-		}
-	}
+	stopErr := unwindStops(ctx, container.runningStops)
+	container.runningStops = nil
 	container.started = false
 	return stopErr
+}
+
+func unwindStops(ctx context.Context, stops []namedStop) error {
+	var stopErr error
+	for i := len(stops) - 1; i >= 0; i-- {
+		entry := stops[i]
+		if entry.stop == nil {
+			continue
+		}
+		if err := entry.stop(ctx); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("stop hook %q: %w", entry.name, err))
+		}
+	}
+	return stopErr
+}
+
+type namedStop struct {
+	name string
+	stop StopFn
 }
 
 func (e *Engine) orderComponents() ([]registeredComponent, error) {
@@ -259,6 +281,7 @@ type Container struct {
 	spotlightAgentFactory *namedFactory[spotlight.Agent]
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
+	migrationFactories    []namedFactory[[]*embed.FS]
 
 	controllers        []application.Controller
 	navItems           []types.NavigationItem
@@ -272,6 +295,8 @@ type Container struct {
 	spotlightAgent     spotlight.Agent
 	middleware         []mux.MiddlewareFunc
 	hooks              []Hook
+	migrations         []*embed.FS
+	runningStops       []namedStop
 	started            bool
 }
 
@@ -333,6 +358,12 @@ func (c *Container) Middleware() []mux.MiddlewareFunc {
 
 func (c *Container) Hooks() []Hook {
 	return append([]Hook(nil), c.hooks...)
+}
+
+// MigrationFiles returns the embed.FS bundles registered via
+// composition.ContributeMigrations across all components.
+func (c *Container) MigrationFiles() []*embed.FS {
+	return append([]*embed.FS(nil), c.migrations...)
 }
 
 func (c *Container) AppendHooks(hooks ...Hook) {
@@ -490,10 +521,32 @@ func (c *Container) resolveEntry(entry *providerEntry, path []string) (any, erro
 	return value, nil
 }
 
+// removeProviderEntry deletes the provider from the map and the providerOrder
+// slice. Used when a user provider overrides an auto-installed entry.
+func (c *Container) removeProviderEntry(entry *providerEntry) {
+	if entry == nil {
+		return
+	}
+	delete(c.providers, entry.key)
+	for i, p := range c.providerOrder {
+		if p == entry {
+			c.providerOrder = append(c.providerOrder[:i], c.providerOrder[i+1:]...)
+			return
+		}
+	}
+}
+
 func (c *Container) addBuilder(builder *Builder) error {
 	for _, provider := range builder.providers {
-		if _, exists := c.providers[provider.key]; exists {
-			return fmt.Errorf("composition: duplicate provider %s", provider.key)
+		if existing, exists := c.providers[provider.key]; exists {
+			// Auto-providers (registered before any builder) carry no
+			// componentName from a user component. User providers override
+			// them silently. Two real components fighting over the same
+			// key is still an error.
+			if !isAutoProvider(existing) {
+				return fmt.Errorf("composition: duplicate provider %s", provider.key)
+			}
+			c.removeProviderEntry(existing)
 		}
 		c.providers[provider.key] = provider
 		c.providerOrder = append(c.providerOrder, provider)
@@ -516,6 +569,7 @@ func (c *Container) addBuilder(builder *Builder) error {
 	}
 	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
+	c.migrationFactories = append(c.migrationFactories, builder.migrationFactories...)
 	return nil
 }
 
@@ -531,6 +585,19 @@ func (c *Container) instantiateAll() error {
 func (c *Container) materialize() error {
 	if err := collectInto(c, c.controllerFactories, &c.controllers); err != nil {
 		return err
+	}
+	// Drop nil controllers — some constructors return nil to signal a
+	// disabled feature (e.g. showcase_controller_prod). Doing the filter
+	// here keeps app.Controllers() simple and prevents panics in
+	// downstream sort/iteration code.
+	if len(c.controllers) > 0 {
+		filtered := c.controllers[:0]
+		for _, controller := range c.controllers {
+			if controller != nil {
+				filtered = append(filtered, controller)
+			}
+		}
+		c.controllers = filtered
 	}
 	if err := collectInto(c, c.navItemFactories, &c.navItems); err != nil {
 		return err
@@ -563,6 +630,9 @@ func (c *Container) materialize() error {
 		return err
 	}
 	if err := collectInto(c, c.hookFactories, &c.hooks); err != nil {
+		return err
+	}
+	if err := collectInto(c, c.migrationFactories, &c.migrations); err != nil {
 		return err
 	}
 	return nil

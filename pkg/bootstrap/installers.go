@@ -155,11 +155,11 @@ func InstallApplets(opts AppletsOptions) Installer {
 				}
 				rt.Container().AppendHooks(composition.Hook{
 					Name: runtimeHook.Name(),
-					Start: func(ctx context.Context, _ *composition.Container) error {
-						return runtimeHook.Start(ctx)
-					},
-					Stop: func(ctx context.Context, _ *composition.Container) error {
-						return runtimeHook.Stop(ctx)
+					Start: func(ctx context.Context) (composition.StopFn, error) {
+						if err := runtimeHook.Start(ctx); err != nil {
+							return nil, err
+						}
+						return runtimeHook.Stop, nil
 					},
 				})
 			}

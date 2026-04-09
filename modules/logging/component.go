@@ -21,8 +21,6 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
-		return []*embed.FS{&localeFiles}, nil
-	})
+	composition.AddLocales(builder, &localeFiles)
 	return nil
 }

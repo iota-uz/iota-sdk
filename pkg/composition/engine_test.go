@@ -101,13 +101,12 @@ func TestCapabilityFilteringGatesProvidersAndHooks(t *testing.T) {
 				ContributeHooks(builder, func(*Container) ([]Hook, error) {
 					return []Hook{{
 						Name: "api",
-						Start: func(context.Context, *Container) error {
+						Start: func(context.Context) (StopFn, error) {
 							started = append(started, "api")
-							return nil
-						},
-						Stop: func(context.Context, *Container) error {
-							stopped = append(stopped, "api")
-							return nil
+							return func(context.Context) error {
+								stopped = append(stopped, "api")
+								return nil
+							}, nil
 						},
 					}}, nil
 				})
@@ -124,13 +123,12 @@ func TestCapabilityFilteringGatesProvidersAndHooks(t *testing.T) {
 				ContributeHooks(builder, func(*Container) ([]Hook, error) {
 					return []Hook{{
 						Name: "worker",
-						Start: func(context.Context, *Container) error {
+						Start: func(context.Context) (StopFn, error) {
 							started = append(started, "worker")
-							return nil
-						},
-						Stop: func(context.Context, *Container) error {
-							stopped = append(stopped, "worker")
-							return nil
+							return func(context.Context) error {
+								stopped = append(stopped, "worker")
+								return nil
+							}, nil
 						},
 					}}, nil
 				})

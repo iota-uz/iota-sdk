@@ -37,7 +37,11 @@ const (
 // invoking this — see component.Build. A nil moduleConfig indicates a
 // soft failure inside buildModuleConfig (e.g. OpenAI model creation or
 // parent agent bootstrap failed); the error is nil in that case.
-func loadModule(ctx composition.BuildContext) (*ModuleConfig, *ServiceContainer, *observability.EventBridge, error) {
+//
+// extraOpts are appended after the default ConfigOptions produced inside
+// buildModuleConfig, letting downstream consumers (eai/ali) override KB
+// searchers, prompt extensions, etc., without forking the bichat package.
+func loadModule(ctx composition.BuildContext, extraOpts ...ConfigOption) (*ModuleConfig, *ServiceContainer, *observability.EventBridge, error) {
 	const op serrors.Op = "bichat.loadModule"
 
 	pool := ctx.DB()
@@ -50,7 +54,7 @@ func loadModule(ctx composition.BuildContext) (*ModuleConfig, *ServiceContainer,
 		appConfig = configuration.Use()
 	}
 
-	moduleConfig, eventBridge, err := buildModuleConfig(pool, appConfig)
+	moduleConfig, eventBridge, err := buildModuleConfig(pool, appConfig, extraOpts...)
 	if err != nil {
 		return nil, nil, nil, serrors.E(op, err)
 	}
@@ -65,7 +69,7 @@ func loadModule(ctx composition.BuildContext) (*ModuleConfig, *ServiceContainer,
 	return moduleConfig, servicesContainer, eventBridge, nil
 }
 
-func buildModuleConfig(pool *pgxpool.Pool, appConfig *configuration.Configuration) (*ModuleConfig, *observability.EventBridge, error) {
+func buildModuleConfig(pool *pgxpool.Pool, appConfig *configuration.Configuration, extraOpts ...ConfigOption) (*ModuleConfig, *observability.EventBridge, error) {
 	const op serrors.Op = "bichat.buildModuleConfig"
 
 	if appConfig == nil {
@@ -162,6 +166,8 @@ func buildModuleConfig(pool *pgxpool.Pool, appConfig *configuration.Configuratio
 		}
 	}
 
+	// Append caller-supplied ConfigOptions last so they win over defaults.
+	moduleOpts = append(moduleOpts, extraOpts...)
 	moduleConfig := NewModuleConfig(
 		func(ctx context.Context) uuid.UUID {
 			tenantID, err := composables.UseTenantID(ctx)

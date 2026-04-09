@@ -50,7 +50,6 @@ func (c *AIChatController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.WithPageContext(),
 		middleware.NavItems(),
 	)

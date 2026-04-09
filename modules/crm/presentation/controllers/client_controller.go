@@ -264,7 +264,6 @@ func (c *ClientController) Register(r *mux.Router) {
 			middleware.RedirectNotAuthenticated(),
 			middleware.ProvideUser(),
 			middleware.ProvideDynamicLogo(),
-			middleware.ProvideLocalizer(c.app),
 			middleware.WithPageContext(),
 		},
 		c.config.Middleware...,

@@ -65,7 +65,6 @@ func (c *TenantsController) Register(r *mux.Router) {
 		middleware.ProvideUser(),
 		superadminMiddleware.RequireSuperAdmin(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

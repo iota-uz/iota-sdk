@@ -67,7 +67,6 @@ func (c *UploadAPIController) Register(r *mux.Router) {
 	if c.defaultTenantID != uuid.Nil {
 		router.Use(c.ensureTenantID())
 	}
-	router.Use(middleware.ProvideLocalizer(c.app))
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 }
 
