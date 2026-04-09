@@ -17,13 +17,13 @@ func (noopStripeHook) HandleStripeEvent(context.Context, stripe.Event) error {
 
 var _ ports.StripeEventHook = noopStripeHook{}
 
-func TestNewModule_WithStripeEventHooks(t *testing.T) {
+func TestNewComponent_WithStripeEventHooks(t *testing.T) {
 	t.Parallel()
 
 	hook := noopStripeHook{}
-	module := NewModule(WithStripeEventHooks(hook))
+	billingComponent := NewComponent(WithStripeEventHooks(hook))
 
-	typed, ok := module.(*Module)
+	typed, ok := billingComponent.(*component)
 	require.True(t, ok)
 	require.Len(t, typed.stripeHooks, 1)
 }

@@ -10,7 +10,7 @@ Spotlight is the in-app global search and quick-link system. It provides a searc
 ## Overview
 
 - **Search backend**: When **`MEILI_URL`** is set, Spotlight uses [Meilisearch](https://www.meilisearch.com/) for full-text search. When it is not set, the Spotlight service runs without a search engine (no-op); quick links are still registered but search results will not include Meilisearch-backed content.
-- **Quick links**: Modules register links via **`app.QuickLinks().Add(...)`** using **`spotlight.NewQuickLink(trKey, link)`**. These appear in Spotlight and are indexed (when Meilisearch is enabled) for search. The first argument is a **translation key** (e.g. `NavigationLinks.Expenses` or `Expenses.List.New`); the second is the **URL** (e.g. `/finance/expenses` or `/finance/expenses/new`).
+- **Quick links**: Components register links via **`composition.ContributeQuickLinks(...)`** using **`spotlight.NewQuickLink(trKey, link)`**. These appear in Spotlight and are indexed (when Meilisearch is enabled) for search. The first argument is a **translation key** (e.g. `NavigationLinks.Expenses` or `Expenses.List.New`); the second is the **URL** (e.g. `/finance/expenses` or `/finance/expenses/new`).
 - **Other providers**: The framework and modules can register additional search providers (e.g. knowledge base, entities). Quick links are one built-in provider.
 
 ## Environment Variables
@@ -26,21 +26,21 @@ Defined in `pkg/configuration` and used in `pkg/application` when creating the S
 
 ### Basic Quick Links (Public)
 
-In your module's **`RegisterWiring`**:
+In your component's `Build(builder)`:
 
 ```go
 import (
-	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
-func (m *Module) RegisterWiring(app application.Application) error {
-	// ... register services ...
-
-	app.QuickLinks().Add(
-		spotlight.NewQuickLink("NavigationLinks.Expenses", "/finance/expenses"),
-		spotlight.NewQuickLink("Expenses.List.New", "/finance/expenses/new"),
-	)
+func (c *component) Build(builder *composition.Builder) error {
+	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+		return []*spotlight.QuickLink{
+			spotlight.NewQuickLink("NavigationLinks.Expenses", "/finance/expenses"),
+			spotlight.NewQuickLink("Expenses.List.New", "/finance/expenses/new"),
+		}, nil
+	})
 	return nil
 }
 ```
@@ -48,7 +48,7 @@ func (m *Module) RegisterWiring(app application.Application) error {
 - **First argument (`trKey`)**: Translation key for the link label. Use a key that exists in your module's locale files (e.g. `NavigationLinks.Expenses`, `Expenses.List.New`) so the label is localized.
 - **Second argument (`link`)**: Absolute path or URL for the quick link target.
 
-Quick links are registered on the application's **QuickLinks** provider; when Meilisearch is configured, they are indexed and searchable.
+Quick links are attached to the runtime source during engine compile; when Meilisearch is configured, they are indexed and searchable.
 
 ### Quick Links with RBAC
 
@@ -59,33 +59,26 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
-func (m *Module) RegisterWiring(app application.Application) error {
-	app.QuickLinks().Add(
-		// Require specific permissions
-		spotlight.NewQuickLinkBuilder("NavigationLinks.AdminPanel", "/admin").
-			WithPermissions("admin.panel.view").
-			Build(),
-
-		// Require specific roles
-		spotlight.NewQuickLinkBuilder("NavigationLinks.Reports", "/reports").
-			WithRoles("manager", "admin").
-			Build(),
-
-		// Restrict to specific users
-		spotlight.NewQuickLinkBuilder("NavigationLinks.Private", "/private").
-			WithUsers("user-42").
-			Build(),
-
-		// Owner-only visibility
-		spotlight.NewQuickLinkBuilder("NavigationLinks.MyDashboard", "/my-dashboard").
-			WithOwner("owner-id").
-			Build(),
-
-		// Explicitly public (equivalent to NewQuickLink)
-		spotlight.NewQuickLinkBuilder("NavigationLinks.Help", "/help").
-			Public().
-			Build(),
-	)
+func (c *component) Build(builder *composition.Builder) error {
+	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+		return []*spotlight.QuickLink{
+			spotlight.NewQuickLinkBuilder("NavigationLinks.AdminPanel", "/admin").
+				WithPermissions("admin.panel.view").
+				Build(),
+			spotlight.NewQuickLinkBuilder("NavigationLinks.Reports", "/reports").
+				WithRoles("manager", "admin").
+				Build(),
+			spotlight.NewQuickLinkBuilder("NavigationLinks.Private", "/private").
+				WithUsers("user-42").
+				Build(),
+			spotlight.NewQuickLinkBuilder("NavigationLinks.MyDashboard", "/my-dashboard").
+				WithOwner("owner-id").
+				Build(),
+			spotlight.NewQuickLinkBuilder("NavigationLinks.Help", "/help").
+				Public().
+				Build(),
+		}, nil
+	})
 	return nil
 }
 ```
@@ -97,12 +90,14 @@ func (m *Module) RegisterWiring(app application.Application) error {
 Add keywords/aliases to quick links to improve searchability. Keywords are indexed and searchable but not displayed in the UI.
 
 ```go
-app.QuickLinks().Add(
-	spotlight.NewQuickLinkBuilder("NavigationLinks.Expenses", "/finance/expenses").
-		Public().
-		WithKeywords("costs", "spending", "outflows", "money out").
-		Build(),
-)
+composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+	return []*spotlight.QuickLink{
+		spotlight.NewQuickLinkBuilder("NavigationLinks.Expenses", "/finance/expenses").
+			Public().
+			WithKeywords("costs", "spending", "outflows", "money out").
+			Build(),
+	}, nil
+})
 ```
 
 Users can now search for "costs" or "spending" and find the Expenses link even if those words aren't in the translation.
@@ -110,20 +105,23 @@ Users can now search for "costs" or "spending" and find the Expenses link even i
 ### Combining RBAC and Keywords
 
 ```go
-app.QuickLinks().Add(
-	spotlight.NewQuickLinkBuilder("NavigationLinks.FinancialReports", "/finance/reports").
-		WithPermissions("finance.reports.view").
-		WithKeywords("PnL", "profit and loss", "income statement").
-		Build(),
-)
+composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
+	return []*spotlight.QuickLink{
+		spotlight.NewQuickLinkBuilder("NavigationLinks.FinancialReports", "/finance/reports").
+			WithPermissions("finance.reports.view").
+			WithKeywords("PnL", "profit and loss", "income statement").
+			Build(),
+	}, nil
+})
 ```
 
 ## API Summary
 
 ### Basic API
 
-- **`app.QuickLinks()`** — returns the shared **`*spotlight.QuickLinks`** instance (same for all modules).
-- **`app.QuickLinks().Add(links ...*QuickLink)`** — appends one or more quick links.
+- **`composition.ContributeQuickLinks(...)`** — appends one or more quick links during component build.
+- **`composition.ContributeSpotlightProviders(...)`** — registers additional search providers.
+- **`composition.ContributeSpotlightAgent(...)`** — registers the optional interactive Spotlight agent.
 - **`spotlight.NewQuickLink(trKey, link string)`** — creates a **public** quick link; both arguments are strings (translation key and URL).
 
 ### Builder API (RBAC and Keywords)
@@ -141,5 +139,5 @@ app.QuickLinks().Add(
 ## See Also
 
 - [Installation](/getting-started/installation) — environment variables and optional Spotlight setup
-- [Module System](/architecture/module-system) — where `QuickLinks().Add()` fits in registration
+- [Module System](/architecture/module-system) — where `ContributeQuickLinks(...)` fits in registration
 - [Module Development](/development/module-development) — example of adding quick links in a custom module

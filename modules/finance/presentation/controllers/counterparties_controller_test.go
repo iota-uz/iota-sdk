@@ -25,16 +25,15 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Test Customer",
@@ -72,16 +71,15 @@ func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"HTMX Test Counterparty",
@@ -104,13 +102,14 @@ func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	response := suite.GET(CounterpartyBasePath + "/new").
@@ -131,16 +130,15 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	formData := url.Values{}
 	formData.Set("Name", "New Test Counterparty")
@@ -169,16 +167,15 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	formData := url.Values{}
 	formData.Set("Name", "")
@@ -203,15 +200,14 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Edit Test Counterparty",
@@ -243,12 +239,13 @@ func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -261,15 +258,14 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Original Counterparty",
@@ -307,15 +303,14 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Test Counterparty",
@@ -350,15 +345,14 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Counterparty to Delete",
@@ -387,12 +381,13 @@ func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -405,15 +400,14 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Searchable Customer",
@@ -445,12 +439,13 @@ func TestCounterpartiesController_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	suite.GET(CounterpartyBasePath + "/invalid-uuid").
@@ -462,15 +457,14 @@ func TestCounterpartiesController_Create_InvalidTINValidationError(t *testing.T)
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	formData := url.Values{}
 	formData.Set("Name", "Test Company")
@@ -498,15 +492,14 @@ func TestCounterpartiesController_Update_InvalidTINValidationError(t *testing.T)
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create a counterparty first
 	counterparty1 := counterparty.New(
@@ -551,13 +544,14 @@ func TestCreate_ValidationError_PreservesFormData(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	testCases := []struct {
@@ -647,13 +641,14 @@ func TestCreate_MultipleValidationErrors_PreservesAllFields(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	// Submit form with multiple validation errors
@@ -701,16 +696,15 @@ func TestUpdate_ValidationError_PreservesFormData(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create a counterparty with valid TIN first
 	existingCounterparty := counterparty.New(
@@ -803,16 +797,15 @@ func TestUpdate_ValidTINWithOtherValidationErrors_PreservesUserInput(t *testing.
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create counterparty with original TIN
 	existingCounterparty := counterparty.New(
@@ -870,16 +863,15 @@ func TestCreate_EmptyTIN_ShouldBeAllowed(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	formData := url.Values{}
 	formData.Set("Name", "Company Without TIN")
@@ -912,13 +904,14 @@ func TestCreate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
 
 	invalidTIN := "HTMX-INVALID-TIN"
@@ -953,16 +946,15 @@ func TestUpdate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithModules(core.NewModule(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
-		}), finance.NewModule()).
+		}), finance.NewComponent()).
 		AsAdmin().
 		Build()
 
-	controller := controllers.NewCounterpartiesController(suite.Env().App)
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
 	suite.Register(controller)
-
-	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create existing counterparty
 	existingCounterparty := counterparty.New(

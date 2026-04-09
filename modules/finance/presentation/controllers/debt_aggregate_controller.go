@@ -30,13 +30,13 @@ type DebtAggregateController struct {
 	basePath            string
 }
 
-func NewDebtAggregateController(app application.Application) application.Controller {
+func NewDebtAggregateController(app application.Application, debtService *services.DebtService, counterpartyService *services.CounterpartyService) application.Controller {
 	basePath := "/finance/debt-aggregates"
 
 	return &DebtAggregateController{
 		app:                 app,
-		debtService:         app.Service(services.DebtService{}).(*services.DebtService),
-		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
+		debtService:         debtService,
+		counterpartyService: counterpartyService,
 		basePath:            basePath,
 	}
 }
@@ -50,7 +50,7 @@ func (c *DebtAggregateController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

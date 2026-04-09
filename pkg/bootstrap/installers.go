@@ -8,53 +8,87 @@ import (
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+	compositionapplet "github.com/iota-uz/iota-sdk/pkg/composition/applet"
 	"github.com/sirupsen/logrus"
 )
 
-func InstallModules(modules ...application.Module) Installer {
+func InstallComponents(capabilities []composition.Capability, components ...composition.Component) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		return application.Wire(rt.App, modules...)
-	})
-}
+		engine := composition.NewEngine()
+		if err := engine.Register(components...); err != nil {
+			return err
+		}
 
-func InstallModuleTransports(modules ...application.Module) Installer {
-	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		return application.RegisterTransports(rt.App, modules...)
-	})
-}
-
-func InstallNavItems(items ...types.NavigationItem) Installer {
-	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		rt.App.RegisterNavItems(items...)
-		return nil
+		container, err := engine.Compile(rt.BuildContext(), capabilities...)
+		if err != nil {
+			return err
+		}
+		return rt.SetComposition(engine, container)
 	})
 }
 
 func InstallHashFS(fs ...*hashfs.FS) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		rt.App.RegisterHashFsAssets(fs...)
+		if rt.Container() == nil {
+			return fmt.Errorf("install components before registering hashfs assets")
+		}
+		rt.Container().AppendHashFSAssets(fs...)
 		return nil
 	})
 }
 
 func InstallControllers(controllersToRegister ...application.Controller) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		rt.App.RegisterControllers(controllersToRegister...)
+		if rt.Container() == nil {
+			return fmt.Errorf("install components before registering controllers")
+		}
+		rt.Container().AppendControllers(controllersToRegister...)
+		return nil
+	})
+}
+
+func InstallStaticFilesController() Installer {
+	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
+		container := rt.Container()
+		if container == nil {
+			return fmt.Errorf("install components before core controllers")
+		}
+		if len(container.HashFSAssets()) == 0 {
+			return fmt.Errorf("hashfs assets must be registered before core controllers")
+		}
+		container.AppendControllers(controllers.NewStaticFilesController(container.HashFSAssets()))
 		return nil
 	})
 }
 
 func InstallCoreControllers() Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		if len(rt.App.HashFsAssets()) == 0 {
+		container := rt.Container()
+		if container == nil {
+			return fmt.Errorf("install components before core controllers")
+		}
+		if len(container.HashFSAssets()) == 0 {
 			return fmt.Errorf("hashfs assets must be registered before core controllers")
 		}
-		rt.App.RegisterControllers(
-			controllers.NewStaticFilesController(rt.App.HashFsAssets()),
-			controllers.NewGraphQLController(rt.App),
+		userService, err := composition.Resolve[*coreservices.UserService](container)
+		if err != nil {
+			return fmt.Errorf("resolve UserService for GraphQL controller: %w", err)
+		}
+		uploadService, err := composition.Resolve[*coreservices.UploadService](container)
+		if err != nil {
+			return fmt.Errorf("resolve UploadService for GraphQL controller: %w", err)
+		}
+		authService, err := composition.Resolve[*coreservices.AuthService](container)
+		if err != nil {
+			return fmt.Errorf("resolve AuthService for GraphQL controller: %w", err)
+		}
+		container.AppendControllers(
+			controllers.NewStaticFilesController(container.HashFSAssets()),
+			controllers.NewGraphQLController(rt.App, userService, uploadService, authService),
 		)
 		return nil
 	})
@@ -72,7 +106,7 @@ type AppletsOptions struct {
 
 func InstallApplets(opts AppletsOptions) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
-		var appletControllers []application.Controller
+		var result compositionapplet.BuildResult
 
 		host := opts.HostServices
 		if host == nil {
@@ -89,44 +123,64 @@ func InstallApplets(opts AppletsOptions) Installer {
 			metrics = applet.NewNoopMetricsRecorder()
 		}
 
-		if opts.WithHTTP {
-			var err error
-			appletControllers, err = rt.App.CreateAppletControllers(
-				host,
-				opts.SessionConfig,
-				logger,
-				metrics,
-				opts.BuilderOpts...,
-			)
-			if err != nil {
-				return fmt.Errorf("create applet controllers: %w", err)
+		if opts.WithHTTP || opts.WithRuntime {
+			if rt.Container() == nil {
+				return fmt.Errorf("install components before installing applets")
 			}
+			builder := compositionapplet.NewAppletEngineBuilder()
+			built, err := builder.Build(compositionapplet.BuildInput{
+				Applets:       rt.Container().Applets(),
+				Pool:          rt.Pool,
+				Bundle:        rt.Bundle,
+				Host:          host,
+				SessionConfig: opts.SessionConfig,
+				Logger:        logger,
+				Metrics:       metrics,
+				Options:       opts.BuilderOpts,
+			})
+			if err != nil {
+				return fmt.Errorf("build applets: %w", err)
+			}
+			result = built
 		}
 
 		if opts.WithRuntime {
-			if err := rt.App.RegisterAppletRuntime(
-				host,
-				opts.SessionConfig,
-				logger,
-				metrics,
-				opts.BuilderOpts...,
-			); err != nil {
-				return fmt.Errorf("register applet runtime: %w", err)
+			for _, registration := range result.RuntimeRegistrations {
+				runtimeHook := &appletRuntimeHook{
+					name:            registration.Name,
+					manager:         registration.Manager,
+					pool:            rt.Pool,
+					logger:          logger,
+					hasPostgresJobs: registration.HasPostgresJobs,
+				}
+				rt.Container().AppendHooks(composition.Hook{
+					Name: runtimeHook.Name(),
+					Start: func(ctx context.Context, _ *composition.Container) error {
+						return runtimeHook.Start(ctx)
+					},
+					Stop: func(ctx context.Context, _ *composition.Container) error {
+						return runtimeHook.Stop(ctx)
+					},
+				})
 			}
 		}
 
-		if len(appletControllers) > 0 {
-			rt.App.RegisterControllers(appletControllers...)
+		if opts.WithHTTP {
+			appletControllers := make([]application.Controller, 0, len(result.Controllers))
+			for _, controller := range result.Controllers {
+				appletControllers = append(appletControllers, controller.(application.Controller))
+			}
+			rt.Container().AppendControllers(appletControllers...)
 		}
 
 		return nil
 	})
 }
 
-func StartRuntime(tags ...application.RuntimeTag) Installer {
+func StartComposition() Installer {
 	return InstallerFunc(func(ctx context.Context, rt *Runtime) error {
 		startCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		return rt.App.StartRuntime(startCtx, tags...)
+		return rt.Start(startCtx)
 	})
 }

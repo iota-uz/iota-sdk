@@ -17,14 +17,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
-func CheckTrKeys(allowedLanguages []string, mods ...application.Module) error {
+func CheckTrKeys(allowedLanguages []string, components ...composition.Component) error {
 	conf := configuration.Use()
-	app, pool, err := common.NewApplicationWithDefaults(mods...)
+	app, pool, err := common.NewApplicationWithDefaults(components...)
 	if err != nil {
 		return fmt.Errorf("failed to initialize application: %w", err)
 	}

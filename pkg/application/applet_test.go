@@ -139,10 +139,10 @@ func TestAppletRegistry_All(t *testing.T) {
 	})
 }
 
-func TestApplication_RegisterApplet(t *testing.T) {
+func TestApplication_AttachRuntimeSource_BuildsAppletRegistry(t *testing.T) {
 	t.Parallel()
 
-	t.Run("successfully registers applet via application", func(t *testing.T) {
+	t.Run("successfully exposes runtime applets", func(t *testing.T) {
 		t.Parallel()
 		app, err := New(&ApplicationOptions{
 			Bundle:             LoadBundle(),
@@ -151,8 +151,7 @@ func TestApplication_RegisterApplet(t *testing.T) {
 		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
-		err = app.RegisterApplet(applet)
-		require.NoError(t, err)
+		attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{applet}})
 
 		registry := app.AppletRegistry()
 		assert.True(t, registry.Has("test"))
@@ -169,10 +168,8 @@ func TestApplication_RegisterApplet(t *testing.T) {
 		applet1 := &mockApplet{name: "dup", basePath: "/path1"}
 		applet2 := &mockApplet{name: "dup", basePath: "/path2"}
 
-		err = app.RegisterApplet(applet1)
-		require.NoError(t, err)
-
-		err = app.RegisterApplet(applet2)
+		binder := app.(RuntimeBinder)
+		err = binder.AttachRuntimeSource(&testRuntimeSource{applets: []Applet{applet1, applet2}})
 		assert.Error(t, err)
 	})
 }
@@ -187,6 +184,7 @@ func TestApplication_AppletRegistry(t *testing.T) {
 			SupportedLanguages: []string{"en"},
 		})
 		require.NoError(t, err)
+		attachRuntimeSource(t, app, &testRuntimeSource{})
 
 		registry := app.AppletRegistry()
 		require.NotNil(t, registry)
@@ -205,8 +203,7 @@ func TestApplication_AppletRegistry(t *testing.T) {
 		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
-		err = app.RegisterApplet(applet)
-		require.NoError(t, err)
+		attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{applet}})
 
 		registry1 := app.AppletRegistry()
 		registry2 := app.AppletRegistry()

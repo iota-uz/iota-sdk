@@ -77,6 +77,9 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 	if rt == nil || rt.App == nil {
 		return nil, fmt.Errorf("bootstrap runtime with application is required")
 	}
+	if rt.Container() == nil {
+		return nil, fmt.Errorf("bootstrap runtime with composition container is required")
+	}
 
 	cfg := options{
 		logger:                  rt.Logger,
@@ -104,6 +107,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		middleware.WithLogger(cfg.logger, middleware.DefaultLoggerOptions()),
 		middleware.TracedMiddleware("database"),
 		middleware.Provide(constants.AppKey, rt.App),
+		middleware.Provide(constants.ContainerKey, rt.Container()),
 		middleware.Provide(constants.HeadKey, layouts.DefaultHead()),
 		middleware.Provide(constants.LogoKey, assets.DefaultLogo()),
 		middleware.Provide(constants.PoolKey, rt.Pool),
@@ -138,7 +142,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		middleware.RequestParams(),
 	)
 	stack = append(stack, cfg.after...)
-	rt.App.RegisterMiddleware(stack...)
+	rt.Container().AppendMiddleware(stack...)
 
 	return NewHTTPServer(
 		rt.App,

@@ -16,6 +16,7 @@ type Resolver struct {
 	app               application.Application
 	userService       *services.UserService
 	uploadService     *services.UploadService
+	authService       *services.AuthService
 	uploadsAuthorizer types.UploadsAuthorizer
 	usersAuthorizer   types.UsersAuthorizer
 }
@@ -55,13 +56,18 @@ func WithUsersAuthorizer(authorizer types.UsersAuthorizer) ResolverOption {
 //	    WithUploadsAuthorizer(customUploadsAuthorizer),
 //	    WithUsersAuthorizer(customUsersAuthorizer),
 //	)
-func NewResolver(app application.Application, opts ...ResolverOption) *Resolver {
-	userService := app.Service(services.UserService{}).(*services.UserService)
-
+func NewResolver(
+	app application.Application,
+	userService *services.UserService,
+	uploadService *services.UploadService,
+	authService *services.AuthService,
+	opts ...ResolverOption,
+) *Resolver {
 	r := &Resolver{
 		app:               app,
 		userService:       userService,
-		uploadService:     app.Service(services.UploadService{}).(*services.UploadService),
+		uploadService:     uploadService,
+		authService:       authService,
 		uploadsAuthorizer: authorizers.NewDefaultUploadsAuthorizer(),
 		usersAuthorizer:   authorizers.NewDefaultUsersAuthorizer(userService),
 	}

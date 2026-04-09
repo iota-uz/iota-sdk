@@ -25,10 +25,10 @@ type ClickController struct {
 	basePath       string
 }
 
-func NewClickController(app application.Application, click configuration.ClickOptions, basePath string) application.Controller {
+func NewClickController(app application.Application, billingService *services.BillingService, click configuration.ClickOptions, basePath string) application.Controller {
 	return &ClickController{
 		app:            app,
-		billingService: app.Service(services.BillingService{}).(*services.BillingService),
+		billingService: billingService,
 		click:          click,
 		basePath:       basePath,
 	}

@@ -5,23 +5,18 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"net/url"
 	"path/filepath"
 	"reflect"
-	goruntime "runtime"
 	"sort"
 	"strings"
-	"sync"
-	"time"
 	"unicode"
 
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	appletsconfig "github.com/iota-uz/applets/config"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -30,8 +25,6 @@ import (
 	"github.com/iota-uz/applets"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
-	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -266,8 +259,6 @@ func New(opts *ApplicationOptions) (Application, error) {
 		pool:               opts.Pool,
 		eventPublisher:     opts.EventBus,
 		websocket:          opts.Huber,
-		controllers:        make(map[string]Controller),
-		services:           make(map[reflect.Type]interface{}),
 		quickLinks:         quickLinks,
 		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
@@ -275,12 +266,6 @@ func New(opts *ApplicationOptions) (Application, error) {
 		supportedLanguages: opts.SupportedLanguages,
 		appletRegistry:     applets.NewRegistry(),
 	}
-	app.RegisterRuntime(RuntimeRegistration{
-		Component: newSpotlightRuntimeComponent(cfg, spotlightService),
-		Tags: []RuntimeTag{
-			RuntimeTagAPI,
-		},
-	})
 	return app, nil
 }
 
@@ -289,28 +274,13 @@ type application struct {
 	pool               *pgxpool.Pool
 	eventPublisher     eventbus.EventBus
 	websocket          Huber
-	services           map[reflect.Type]interface{}
-	controllers        map[string]Controller
-	middleware         []mux.MiddlewareFunc
-	hashFsAssets       []*hashfs.FS
-	assets             []*embed.FS
-	graphSchemas       []GraphSchema
 	bundle             *i18n.Bundle
 	spotlight          spotlight.Service
 	quickLinks         *spotlight.QuickLinks
 	migrations         MigrationManager
-	navItems           []types.NavigationItem
 	supportedLanguages []string
 	appletRegistry     applets.Registry
-	appletRuntime      *appletengineruntime.Manager
-	runtimeComponents  []RuntimeRegistration
-	startedRuntime     []RuntimeComponent
-	currentRuntimeTags []RuntimeTag
-	startingRuntime    bool
-	stoppingRuntime    bool
-	pendingAppletRT    []RuntimeRegistration
-	pendingAppletRTMu  sync.Mutex
-	runtimeMu          sync.Mutex
+	runtimeSource      RuntimeSource
 }
 
 func (app *application) Spotlight() spotlight.Service {
@@ -326,28 +296,10 @@ func (app *application) QuickLinks() *spotlight.QuickLinks {
 }
 
 func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationItem {
-	return translate(localizer, app.navItems)
-}
-
-func (app *application) RegisterNavItems(items ...types.NavigationItem) {
-	app.navItems = append(app.navItems, items...)
-	app.registerNavQuickLinks(items...)
-}
-
-// AppendNavChildren finds a registered NavigationItem by name (recursively)
-// and appends the given children to it. If the parent item has an Href, it is
-// preserved as the first child so that the original link remains accessible
-// from the dropdown.
-func (app *application) AppendNavChildren(parentName string, children ...types.NavigationItem) {
-	appendChildren(&app.navItems, parentName, children)
-	app.registerNavQuickLinks(children...)
-}
-
-func (app *application) registerNavQuickLinks(items ...types.NavigationItem) {
-	if app.quickLinks == nil {
-		return
+	if app.runtimeSource == nil {
+		return nil
 	}
-	app.quickLinks.Add(navItemsToQuickLinks(items...)...)
+	return translate(localizer, app.runtimeSource.NavItems())
 }
 
 func navItemsToQuickLinks(items ...types.NavigationItem) []*spotlight.QuickLink {
@@ -429,26 +381,11 @@ func splitKeywordTokens(value string) []string {
 	return keywords
 }
 
-func appendChildren(items *[]types.NavigationItem, parentName string, children []types.NavigationItem) bool {
-	for i := range *items {
-		if (*items)[i].Name == parentName {
-			(*items)[i].Children = append((*items)[i].Children, children...)
-			if (*items)[i].Href != "" {
-				(*items)[i].Href = ""
-			}
-			return true
-		}
-		if len((*items)[i].Children) > 0 {
-			if appendChildren(&(*items)[i].Children, parentName, children) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (app *application) Middleware() []mux.MiddlewareFunc {
-	return app.middleware
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.Middleware()
 }
 
 func (app *application) DB() *pgxpool.Pool {
@@ -459,202 +396,11 @@ func (app *application) EventPublisher() eventbus.EventBus {
 	return app.eventPublisher
 }
 
-func (app *application) RegisterRuntime(registrations ...RuntimeRegistration) {
-	app.runtimeMu.Lock()
-	defer app.runtimeMu.Unlock()
-
-	for _, registration := range registrations {
-		if registration.Component == nil {
-			continue
-		}
-		app.runtimeComponents = append(app.runtimeComponents, cloneRuntimeRegistration(registration))
-	}
-}
-
-func (app *application) RuntimeComponents() []RuntimeRegistration {
-	app.runtimeMu.Lock()
-	defer app.runtimeMu.Unlock()
-
-	components := make([]RuntimeRegistration, len(app.runtimeComponents))
-	for i, registration := range app.runtimeComponents {
-		components[i] = cloneRuntimeRegistration(registration)
-	}
-	return components
-}
-
-func (app *application) StartRuntime(ctx context.Context, tags ...RuntimeTag) error {
-	normalizedTags, err := normalizeRuntimeTags(tags)
-	if err != nil {
-		return err
-	}
-	if len(normalizedTags) == 0 {
-		return nil
-	}
-	app.runtimeMu.Lock()
-	if app.startingRuntime {
-		activeTags := formatRuntimeTags(app.currentRuntimeTags)
-		if activeTags == "[]" {
-			activeTags = formatRuntimeTags(normalizedTags)
-		}
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime is starting with tags %s", activeTags)
-	}
-	if app.stoppingRuntime {
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime is stopping")
-	}
-	if app.currentRuntimeTags != nil {
-		if runtimeTagsEqual(app.currentRuntimeTags, normalizedTags) {
-			app.runtimeMu.Unlock()
-			return nil
-		}
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime already started with tags %s", formatRuntimeTags(app.currentRuntimeTags))
-	}
-
-	activeTags := runtimeTagSet(normalizedTags)
-	applicable := make([]RuntimeRegistration, 0, len(app.runtimeComponents))
-	for _, registration := range app.runtimeComponents {
-		registrationTags, err := normalizeRuntimeTags(registration.Tags)
-		if err != nil {
-			app.runtimeMu.Unlock()
-			return fmt.Errorf("runtime component %q: %w", registration.Component.Name(), err)
-		}
-		cloned := cloneRuntimeRegistration(registration)
-		cloned.Tags = registrationTags
-		if !cloned.AppliesTo(activeTags) {
-			continue
-		}
-		applicable = append(applicable, cloned)
-	}
-	app.startingRuntime = true
-	app.currentRuntimeTags = append([]RuntimeTag(nil), normalizedTags...)
-	app.runtimeMu.Unlock()
-
-	started := make([]RuntimeComponent, 0, len(applicable))
-	var startErr error
-	for _, registration := range applicable {
-		if err := registration.Component.Start(ctx); err != nil {
-			rollbackCtx, rollbackCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			var rollbackErr error
-			for i := len(started) - 1; i >= 0; i-- {
-				if stopErr := started[i].Stop(rollbackCtx); stopErr != nil {
-					rollbackErr = errors.Join(
-						rollbackErr,
-						fmt.Errorf("rollback runtime component %q: %w", started[i].Name(), stopErr),
-					)
-				}
-			}
-			rollbackCancel()
-			startErr = errors.Join(
-				fmt.Errorf("start runtime component %q: %w", registration.Component.Name(), err),
-				rollbackErr,
-			)
-			break
-		}
-		started = append(started, registration.Component)
-	}
-
-	app.runtimeMu.Lock()
-	defer app.runtimeMu.Unlock()
-	app.startingRuntime = false
-	if startErr != nil {
-		app.startedRuntime = nil
-		app.currentRuntimeTags = nil
-		return startErr
-	}
-	app.startedRuntime = started
-	return nil
-}
-
-func (app *application) StopRuntime(ctx context.Context) error {
-	app.runtimeMu.Lock()
-	if app.startingRuntime {
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime is starting")
-	}
-	if app.stoppingRuntime {
-		app.runtimeMu.Unlock()
-		return fmt.Errorf("runtime is stopping")
-	}
-	started := append([]RuntimeComponent(nil), app.startedRuntime...)
-	if app.currentRuntimeTags == nil {
-		app.runtimeMu.Unlock()
-		return nil
-	}
-	app.stoppingRuntime = true
-	app.runtimeMu.Unlock()
-	var stopErr error
-	for i := len(started) - 1; i >= 0; i-- {
-		if err := started[i].Stop(ctx); err != nil {
-			stopErr = errors.Join(stopErr, fmt.Errorf("stop runtime component %q: %w", started[i].Name(), err))
-		}
-	}
-	app.runtimeMu.Lock()
-	app.startedRuntime = nil
-	app.currentRuntimeTags = nil
-	app.stoppingRuntime = false
-	app.runtimeMu.Unlock()
-	return stopErr
-}
-
-func cloneRuntimeRegistration(registration RuntimeRegistration) RuntimeRegistration {
-	cloned := registration
-	if len(registration.Tags) == 0 {
-		cloned.Tags = nil
-		return cloned
-	}
-	cloned.Tags = append([]RuntimeTag(nil), registration.Tags...)
-	return cloned
-}
-
-// CreateAppletControllers creates controllers for all registered applets without
-// starting long-lived runtime processes. Runtime registrations are staged until
-// RegisterAppletRuntime is called.
-func (app *application) CreateAppletControllers(
-	host applets.HostServices,
-	sessionConfig applets.SessionConfig,
-	logger *logrus.Logger,
-	metrics applets.MetricsRecorder,
-	opts ...applets.BuilderOption,
-) ([]Controller, error) {
-	controllers, registrations, err := app.buildAppletControllersAndRuntime(host, sessionConfig, logger, metrics, opts...)
-	if err != nil {
-		return nil, err
-	}
-	app.pendingAppletRTMu.Lock()
-	app.pendingAppletRT = append(app.pendingAppletRT, registrations...)
-	app.pendingAppletRTMu.Unlock()
-	return controllers, nil
-}
-
-func (app *application) RegisterAppletRuntime(
-	host applets.HostServices,
-	sessionConfig applets.SessionConfig,
-	logger *logrus.Logger,
-	metrics applets.MetricsRecorder,
-	opts ...applets.BuilderOption,
-) error {
-	app.pendingAppletRTMu.Lock()
-	registrations := append([]RuntimeRegistration(nil), app.pendingAppletRT...)
-	app.pendingAppletRT = nil
-	app.pendingAppletRTMu.Unlock()
-	if len(registrations) == 0 {
-		var err error
-		_, registrations, err = app.buildAppletControllersAndRuntime(host, sessionConfig, logger, metrics, opts...)
-		if err != nil {
-			return err
-		}
-	}
-	app.RegisterRuntime(registrations...)
-	return nil
-}
-
 func (app *application) Controllers() []Controller {
-	controllers := make([]Controller, 0, len(app.controllers))
-	for _, c := range app.controllers {
-		controllers = append(controllers, c)
+	if app.runtimeSource == nil {
+		return nil
 	}
+	controllers := append([]Controller(nil), app.runtimeSource.Controllers()...)
 	// Register applet controllers first so their asset routes (e.g. /admin/ali/chat/assets)
 	// are added before other controllers that might match /admin/... and return 404 for
 	// dev proxy requests (@vite/client, /src/*, etc.).
@@ -671,11 +417,17 @@ func (app *application) Controllers() []Controller {
 }
 
 func (app *application) Assets() []*embed.FS {
-	return app.assets
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.Assets()
 }
 
 func (app *application) HashFsAssets() []*hashfs.FS {
-	return app.hashFsAssets
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.HashFSAssets()
 }
 
 func (app *application) Migrations() MigrationManager {
@@ -683,62 +435,13 @@ func (app *application) Migrations() MigrationManager {
 }
 
 func (app *application) GraphSchemas() []GraphSchema {
-	return app.graphSchemas
-}
-
-func (app *application) RegisterControllers(controllers ...Controller) {
-	for _, c := range controllers {
-		if c == nil {
-			continue
-		}
-		app.controllers[c.Key()] = c
+	if app.runtimeSource == nil {
+		return nil
 	}
+	return app.runtimeSource.GraphSchemas()
 }
 
-func (app *application) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {
-	app.middleware = append(app.middleware, middleware...)
-}
-
-func (app *application) RegisterHashFsAssets(fs ...*hashfs.FS) {
-	app.hashFsAssets = append(app.hashFsAssets, fs...)
-}
-
-func (app *application) RegisterAssets(fs ...*embed.FS) {
-	app.assets = append(app.assets, fs...)
-}
-
-func (app *application) RegisterGraphSchema(schema GraphSchema) {
-	app.graphSchemas = append(app.graphSchemas, schema)
-}
-
-func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
-	for _, localeFs := range fs {
-		loadLocaleFSIntoBundle(app.bundle, localeFs)
-	}
-}
-
-// RegisterServices registers a new service in the application by its type
-func (app *application) RegisterServices(services ...interface{}) {
-	for _, service := range services {
-		serviceType := reflect.TypeOf(service).Elem()
-		app.services[serviceType] = service
-	}
-}
-
-// Service retrieves a service by its type
-func (app *application) Service(service interface{}) interface{} {
-	serviceType := reflect.TypeOf(service)
-	svc, exists := app.services[serviceType]
-	if !exists {
-		panic(fmt.Sprintf("service %s not found", serviceType.Name()))
-	}
-	return svc
-}
-
-func (app *application) Services() map[reflect.Type]interface{} {
-	return app.services
-}
-
+// Bundle returns the translation bundle registered with the application.
 func (app *application) Bundle() *i18n.Bundle {
 	return app.bundle
 }
@@ -747,143 +450,37 @@ func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
 }
 
-func (app *application) RegisterApplet(a Applet) error {
-	return app.appletRegistry.Register(a)
-}
-
 func (app *application) AppletRegistry() AppletRegistry {
 	return app.appletRegistry
 }
 
-func resolveAppletRuntimeEntrypoint(appletName string) string {
-	_, currentFile, _, ok := goruntime.Caller(0)
-	if !ok {
-		return filepath.Join("modules", appletName, "runtime", "index.ts")
-	}
-	// pkg/application/application.go -> repo root -> modules/<applet>/runtime/index.ts
-	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
-	return filepath.Join(root, "modules", appletName, "runtime", "index.ts")
-}
-
-type appletOverride struct {
-	base   Applet
-	config applets.Config
-}
-
-func (a *appletOverride) Name() string     { return a.base.Name() }
-func (a *appletOverride) BasePath() string { return a.base.BasePath() }
-func (a *appletOverride) Config() applets.Config {
-	return a.config
-}
-
-func applyProjectAppletOverrides(base Applet, projectConfig *appletsconfig.ProjectConfig) Applet {
-	if base == nil || projectConfig == nil {
-		return base
-	}
-	appletCfg, ok := projectConfig.Applets[base.Name()]
-	if !ok || appletCfg == nil {
-		return base
-	}
-
-	config := base.Config()
-	changed := false
-	if len(appletCfg.Hosts) > 0 {
-		hosts := make([]string, 0, len(appletCfg.Hosts))
-		for _, host := range appletCfg.Hosts {
-			host = strings.TrimSpace(host)
-			if host == "" {
-				continue
-			}
-			hosts = append(hosts, host)
-		}
-		if len(hosts) > 0 {
-			config.Hosts = hosts
-			changed = true
-		}
-	}
-	if !changed {
-		return base
-	}
-	return &appletOverride{base: base, config: config}
-}
-
-func appletFrontendType(projectConfig *appletsconfig.ProjectConfig, appletName string) string {
-	if projectConfig == nil || strings.TrimSpace(appletName) == "" {
-		return appletsconfig.FrontendTypeStatic
-	}
-	cfg, ok := projectConfig.Applets[appletName]
-	if !ok || cfg == nil || cfg.Frontend == nil {
-		return appletsconfig.FrontendTypeStatic
-	}
-	frontendType := strings.TrimSpace(cfg.Frontend.Type)
-	if frontendType == "" {
-		return appletsconfig.FrontendTypeStatic
-	}
-	return frontendType
-}
-
-func toBunDelegateMethodName(appletName, methodName string) (string, error) {
-	appletName = strings.TrimSpace(appletName)
-	methodName = strings.TrimSpace(methodName)
-	if appletName == "" {
-		return "", fmt.Errorf("applet name is required for bun delegate method")
-	}
-	if methodName == "" {
-		return "", fmt.Errorf("method name is required for bun delegate method")
-	}
-	prefix := appletName + "."
-	if !strings.HasPrefix(methodName, prefix) {
-		return "", fmt.Errorf("method %q must be namespaced with %q", methodName, prefix)
-	}
-	suffix := strings.TrimPrefix(methodName, prefix)
-	if suffix == "" {
-		return "", fmt.Errorf("method %q has empty suffix", methodName)
-	}
-	return appletName + ".__go." + suffix, nil
-}
-
-func makeBunPublicProxyMethod(publicMethodName, goDelegateMethodName string, base applets.RPCMethod) applets.RPCMethod {
-	return applets.RPCMethod{
-		RequirePermissions: append([]string(nil), base.RequirePermissions...),
-		Handler: func(context.Context, json.RawMessage) (any, error) {
-			return nil, fmt.Errorf(
-				"method %s is routed via bun runtime; use %s on internal transport",
-				publicMethodName,
-				goDelegateMethodName,
-			)
-		},
-	}
-}
-
-func validateRequiredAppletSecrets(ctx context.Context, appletName string, required []string, store appletenginehandlers.SecretsStore) error {
-	if len(required) == 0 {
+func (app *application) AttachRuntimeSource(source RuntimeSource) error {
+	app.runtimeSource = source
+	if source == nil {
+		app.appletRegistry = applets.NewRegistry()
 		return nil
 	}
-	if store == nil {
-		return fmt.Errorf("validate required secrets for %s: secrets store is required", appletName)
+	for _, localeFS := range source.LocaleFiles() {
+		loadLocaleFSIntoBundle(app.bundle, localeFS)
 	}
-	seen := make(map[string]struct{}, len(required))
-	missing := make([]string, 0)
-	for _, name := range required {
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
-		}
-		if _, exists := seen[name]; exists {
-			continue
-		}
-		seen[name] = struct{}{}
-		_, found, err := store.Get(ctx, appletName, name)
-		if err != nil {
-			return fmt.Errorf("validate required secret %q for %s: %w", name, appletName, err)
-		}
-		if !found {
-			missing = append(missing, name)
+	app.quickLinks.Add(navItemsToQuickLinks(source.NavItems()...)...)
+	app.quickLinks.Add(source.QuickLinks()...)
+	for _, provider := range source.SpotlightProviders() {
+		app.spotlight.RegisterProvider(provider)
+	}
+	app.spotlight.SetAgent(source.SpotlightAgent())
+	registry := applets.NewRegistry()
+	for _, applet := range source.Applets() {
+		if err := registry.Register(applet); err != nil {
+			return err
 		}
 	}
-	if len(missing) == 0 {
-		return nil
-	}
-	sort.Strings(missing)
-	return fmt.Errorf("required secrets missing for %s: %s", appletName, strings.Join(missing, ", "))
+	app.appletRegistry = registry
+	return nil
+}
+
+func (app *application) DetachRuntimeSource() {
+	app.runtimeSource = nil
+	app.spotlight.SetAgent(nil)
+	app.appletRegistry = applets.NewRegistry()
 }

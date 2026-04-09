@@ -31,11 +31,15 @@ type MessageTemplateController struct {
 	templateService *services.MessageTemplateService
 }
 
-func NewMessageTemplateController(app application.Application, basePath string) application.Controller {
+func NewMessageTemplateController(
+	app application.Application,
+	templateService *services.MessageTemplateService,
+	basePath string,
+) application.Controller {
 	return &MessageTemplateController{
 		app:             app,
 		basePath:        basePath,
-		templateService: app.Service(services.MessageTemplateService{}).(*services.MessageTemplateService),
+		templateService: templateService,
 	}
 }
 
@@ -48,7 +52,7 @@ func (c *MessageTemplateController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

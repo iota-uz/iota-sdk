@@ -10,9 +10,9 @@ import (
 	"github.com/iota-uz/applets"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules"
-	bichatbootstrap "github.com/iota-uz/iota-sdk/modules/bichat/bootstrap"
-	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 )
@@ -47,18 +47,18 @@ func run() error {
 
 	if err := rt.Install(
 		context.Background(),
-		bootstrap.InstallModules(modules.BuiltInModules...),
-		bootstrap.InstallNavItems(modules.NavLinks...),
+		bootstrap.InstallComponents(
+			[]composition.Capability{composition.CapabilityAPI, composition.CapabilityWorker},
+			append(modules.Components(), bichat.NewComponent())...,
+		),
 		bootstrap.InstallHashFS(internalassets.HashFS),
-		bichatbootstrap.New(bichatbootstrap.WithTransports()),
 		bootstrap.InstallApplets(bootstrap.AppletsOptions{
 			SessionConfig: applets.DefaultSessionConfig,
 			WithHTTP:      true,
 			WithRuntime:   true,
 		}),
-		bootstrap.InstallModuleTransports(modules.BuiltInModules...),
 		bootstrap.InstallCoreControllers(),
-		bootstrap.StartRuntime(application.RuntimeTagAPI, application.RuntimeTagWorker),
+		bootstrap.StartComposition(),
 	); err != nil {
 		return fmt.Errorf("failed to compose server runtime: %w", err)
 	}

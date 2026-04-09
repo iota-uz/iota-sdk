@@ -49,21 +49,20 @@ func TestPaymentController_List_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	account := moneyAccountEntity.New(
 		"Test Payment Account",
@@ -139,21 +138,20 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	account := moneyAccountEntity.New(
 		"HTMX Test Account",
@@ -211,19 +209,20 @@ func TestPaymentController_GetNew_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc, moneyAccountService, counterpartySvc, paymentCategoryService)
 	suite.Register(controller)
-
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -266,21 +265,20 @@ func TestPaymentController_Create_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -341,18 +339,20 @@ func TestPaymentController_Create_ValidationError(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccSvc, counterpartySvc, paymentCategorySvc)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
 
 	formData := url.Values{}
 	formData.Set("Amount", "-100")
@@ -384,21 +384,20 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	account := moneyAccountEntity.New(
 		"Edit Test Account",
@@ -464,15 +463,19 @@ func TestPaymentController_GetEdit_NotFound(t *testing.T) {
 		permissions.PaymentUpdate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc := itf.GetService[services.PaymentService](env)
+	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc, moneyAccSvc, counterpartySvc, paymentCategorySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -489,21 +492,20 @@ func TestPaymentController_Update_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	account := moneyAccountEntity.New(
 		"Update Test Account",
@@ -578,21 +580,20 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -664,21 +665,20 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	account := moneyAccountEntity.New(
 		"Delete Test Account",
@@ -742,15 +742,19 @@ func TestPaymentController_Delete_NotFound(t *testing.T) {
 		permissions.PaymentDelete,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc := itf.GetService[services.PaymentService](env)
+	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc, moneyAccSvc, counterpartySvc, paymentCategorySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -765,15 +769,19 @@ func TestPaymentController_InvalidUUID(t *testing.T) {
 		permissions.PaymentRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc := itf.GetService[services.PaymentService](env)
+	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
+	counterpartySvc := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc, moneyAccSvc, counterpartySvc, paymentCategorySvc)
 	suite.Register(controller)
 
 	suite.GET(PaymentBasePath + "/invalid-uuid").
@@ -788,21 +796,20 @@ func TestPaymentController_Create_TransactionDateValidation(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -885,22 +892,21 @@ func TestPaymentController_Create_VerifyIncomeStatementIntegration(t *testing.T)
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
 	suite.Register(controller)
-
-	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
-	financialReportService := env.App.Service(services.FinancialReportService{}).(*services.FinancialReportService)
+	financialReportService := itf.GetService[services.FinancialReportService](env)
 
 	account := moneyAccountEntity.New(
 		"Revenue Test Account",
@@ -996,20 +1002,22 @@ func TestPaymentController_Create_WithoutCategoryVerifyIncomeStatement(t *testin
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewPaymentsController(env.App)
+	paymentSvc2 := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategorySvc2 := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(env.App, paymentSvc2, moneyAccountService, counterpartyService, paymentCategorySvc2)
 	suite.Register(controller)
 
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
-	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
-	financialReportService := env.App.Service(services.FinancialReportService{}).(*services.FinancialReportService)
+	financialReportService := itf.GetService[services.FinancialReportService](env)
 
 	account := moneyAccountEntity.New(
 		"Uncategorized Revenue Account",

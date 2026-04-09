@@ -86,12 +86,17 @@ type OrderPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewOrdersController(app application.Application) application.Controller {
+func NewOrdersController(
+	app application.Application,
+	orderService *orderservice.OrderService,
+	positionService *positionservice.PositionService,
+	productService *productservice.ProductService,
+) application.Controller {
 	return &OrdersController{
 		app:             app,
-		orderService:    app.Service(orderservice.OrderService{}).(*orderservice.OrderService),
-		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
-		productService:  app.Service(productservice.ProductService{}).(*productservice.ProductService),
+		orderService:    orderService,
+		positionService: positionService,
+		productService:  productService,
 		basePath:        "/warehouse/orders",
 	}
 }
@@ -105,7 +110,7 @@ func (c *OrdersController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

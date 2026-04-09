@@ -26,15 +26,23 @@ import (
 // NewTwoFactorVerifyController creates a new TwoFactorVerifyController.
 // Initializes the controller with required service dependencies.
 // Parameters:
-//   - app: The application instance providing service registry
+//   - app: The application instance providing services (localizer, middleware)
+//   - twoFactorService: The two-factor authentication service
+//   - sessionService: The session management service
+//   - userService: The user management service
 //
 // Returns a configured TwoFactorVerifyController implementing the Controller interface.
-func NewTwoFactorVerifyController(app application.Application) application.Controller {
+func NewTwoFactorVerifyController(
+	app application.Application,
+	twoFactorService *twofactor.TwoFactorService,
+	sessionService *services.SessionService,
+	userService *services.UserService,
+) application.Controller {
 	return &TwoFactorVerifyController{
 		app:              app,
-		twoFactorService: app.Service(twofactor.TwoFactorService{}).(*twofactor.TwoFactorService),
-		sessionService:   app.Service(services.SessionService{}).(*services.SessionService),
-		userService:      app.Service(services.UserService{}).(*services.UserService),
+		twoFactorService: twoFactorService,
+		sessionService:   sessionService,
+		userService:      userService,
 	}
 }
 

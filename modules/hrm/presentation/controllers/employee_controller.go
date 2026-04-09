@@ -35,10 +35,10 @@ type EmployeeController struct {
 	basePath        string
 }
 
-func NewEmployeeController(app application.Application) application.Controller {
+func NewEmployeeController(app application.Application, employeeService *services.EmployeeService) application.Controller {
 	return &EmployeeController{
 		app:             app,
-		employeeService: app.Service(services.EmployeeService{}).(*services.EmployeeService),
+		employeeService: employeeService,
 		basePath:        "/hrm/employees",
 	}
 }
@@ -52,7 +52,7 @@ func (c *EmployeeController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

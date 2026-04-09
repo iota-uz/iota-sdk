@@ -44,7 +44,12 @@ type MoneyAccountController struct {
 	tableDefinition     table.TableDefinition
 }
 
-func NewMoneyAccountController(app application.Application) application.Controller {
+func NewMoneyAccountController(
+	app application.Application,
+	moneyAccountService *services.MoneyAccountService,
+	transactionService *services.TransactionService,
+	currencyService *coreservices.CurrencyService,
+) application.Controller {
 	basePath := "/finance/accounts"
 
 	// Create table definition with columns for HTMX requests
@@ -60,9 +65,9 @@ func NewMoneyAccountController(app application.Application) application.Controll
 
 	return &MoneyAccountController{
 		app:                 app,
-		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		transactionService:  app.Service(services.TransactionService{}).(*services.TransactionService),
-		currencyService:     app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
+		moneyAccountService: moneyAccountService,
+		transactionService:  transactionService,
+		currencyService:     currencyService,
 		transactionQuery:    query.NewPgTransactionQueryRepository(),
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,
@@ -78,7 +83,7 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

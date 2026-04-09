@@ -51,32 +51,66 @@ func NewExpenseService(
 Services are wired together during the module wiring phase:
 
 ```go
-// modules/finance/module.go
+// modules/finance/component.go
 
-func (m *Module) RegisterWiring(app application.Application) error {
-	// Create repositories first
-	uploadRepo := corepersistence.NewUploadRepository()
-	categoryRepo := persistence.NewExpenseCategoryRepository()
-	transactionRepo := persistence.NewTransactionRepository()
+func (c *component) Build(builder *composition.Builder) error {
+	uploadRepo := composition.Use[upload.Repository]()
+	categoryRepo := composition.Use[expensecategory.Repository]()
+	transactionRepo := composition.Use[transaction.Repository]()
+	moneyAccountRepo := composition.Use[moneyaccount.Repository]()
+	moneyAccountService := composition.Use[*services.MoneyAccountService]()
 
-	// Create services with dependencies
-	moneyAccountService := services.NewMoneyAccountService(
-		persistence.NewMoneyAccountRepository(),
-		persistence.NewTransactionRepository(),
-		app.EventPublisher(),
-	)
-
-	// Register all services
-	app.RegisterServices(
-		services.NewExpenseService(
-			persistence.NewExpenseRepository(categoryRepo, transactionRepo),
-			app.EventPublisher(),
-			moneyAccountService,
-			uploadRepo,
-		),
-		moneyAccountService,
-		// ... other services
-	)
+	composition.Provide[upload.Repository](builder, func() upload.Repository {
+		return corepersistence.NewUploadRepository()
+	})
+	composition.Provide[expensecategory.Repository](builder, func() expensecategory.Repository {
+		return persistence.NewExpenseCategoryRepository()
+	})
+	composition.Provide[transaction.Repository](builder, func() transaction.Repository {
+		return persistence.NewTransactionRepository()
+	})
+	composition.Provide[moneyaccount.Repository](builder, func() moneyaccount.Repository {
+		return persistence.NewMoneyAccountRepository()
+	})
+	composition.Provide[*services.MoneyAccountService](builder, func(container *composition.Container) (*services.MoneyAccountService, error) {
+		resolvedMoneyAccountRepo, err := moneyAccountRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewMoneyAccountService(
+			resolvedMoneyAccountRepo,
+			resolvedTransactionRepo,
+			builder.Context().EventPublisher(),
+		), nil
+	})
+	composition.Provide[*services.ExpenseService](builder, func(container *composition.Container) (*services.ExpenseService, error) {
+		resolvedCategoryRepo, err := categoryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedUploadRepo, err := uploadRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedMoneyAccountService, err := moneyAccountService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewExpenseService(
+			persistence.NewExpenseRepository(resolvedCategoryRepo, resolvedTransactionRepo),
+			builder.Context().EventPublisher(),
+			resolvedMoneyAccountService,
+			resolvedUploadRepo,
+		), nil
+	})
 
 	return nil
 }
@@ -315,15 +349,22 @@ Subscribe to events in other modules:
 
 ```go
 // Another module subscribing to expense events
-func (m *Module) RegisterWiring(app application.Application) error {
-	app.EventPublisher().Subscribe(
-		func(event *expense.CreatedEvent) error {
-			// Handle expense creation
-			// e.g., update analytics, notify users
-			return nil
-		},
-	)
-
+func (c *component) Build(builder *composition.Builder) error {
+	composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
+		return []composition.Hook{{
+			Name: "expense-created-subscriber",
+			Start: func(context.Context, *composition.Container) error {
+				builder.Context().EventPublisher().Subscribe(
+					func(event *expense.CreatedEvent) error {
+						// Handle expense creation
+						// e.g., update analytics, notify users
+						return nil
+					},
+				)
+				return nil
+			},
+		}}, nil
+	})
 	return nil
 }
 ```

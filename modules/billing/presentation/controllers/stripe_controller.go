@@ -35,13 +35,14 @@ type StripeController struct {
 
 func NewStripeController(
 	app application.Application,
+	billingService *services.BillingService,
 	stripeOpts configuration.StripeOptions,
 	basePath string,
 	hooks ...ports.StripeEventHook,
 ) application.Controller {
 	controller := &StripeController{
 		app:            app,
-		billingService: app.Service(services.BillingService{}).(*services.BillingService),
+		billingService: billingService,
 		stripe:         stripeOpts,
 		basePath:       basePath,
 		hooks:          hooks,

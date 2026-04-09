@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"reflect"
 	"sync"
 	"testing"
 
@@ -14,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/applets"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -24,7 +22,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 )
 
 func TestRunMigrationPolicy_Scenarios(t *testing.T) {
@@ -192,59 +189,23 @@ type testApp struct {
 	migrations application.MigrationManager
 }
 
-func (a *testApp) DB() *pgxpool.Pool                                                     { return nil }
-func (a *testApp) EventPublisher() eventbus.EventBus                                     { return nil }
-func (a *testApp) Controllers() []application.Controller                                 { return nil }
-func (a *testApp) Middleware() []mux.MiddlewareFunc                                      { return nil }
-func (a *testApp) Assets() []*embed.FS                                                   { return nil }
-func (a *testApp) HashFsAssets() []*hashfs.FS                                            { return nil }
-func (a *testApp) Websocket() application.Huber                                          { return nil }
-func (a *testApp) Spotlight() spotlight.Service                                          { return nil }
-func (a *testApp) QuickLinks() *spotlight.QuickLinks                                     { return nil }
-func (a *testApp) NavItems(*i18n.Localizer) []types.NavigationItem                       { return nil }
-func (a *testApp) RegisterNavItems(items ...types.NavigationItem)                        {}
-func (a *testApp) AppendNavChildren(parentName string, children ...types.NavigationItem) {}
-func (a *testApp) RegisterControllers(controllers ...application.Controller)             {}
-func (a *testApp) RegisterHashFsAssets(fs ...*hashfs.FS)                                 {}
-func (a *testApp) RegisterAssets(fs ...*embed.FS)                                        {}
-func (a *testApp) RegisterLocaleFiles(fs ...*embed.FS)                                   {}
-func (a *testApp) RegisterGraphSchema(schema application.GraphSchema)                    {}
-func (a *testApp) GraphSchemas() []application.GraphSchema                               { return nil }
-func (a *testApp) RegisterServices(services ...interface{})                              {}
-func (a *testApp) RegisterRuntime(registrations ...application.RuntimeRegistration)      {}
-func (a *testApp) RuntimeComponents() []application.RuntimeRegistration                  { return nil }
-func (a *testApp) StartRuntime(ctx context.Context, tags ...application.RuntimeTag) error {
-	return nil
-}
-func (a *testApp) StopRuntime(ctx context.Context) error               { return nil }
-func (a *testApp) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {}
-func (a *testApp) Service(service interface{}) interface{}             { return nil }
-func (a *testApp) Services() map[reflect.Type]interface{}              { return nil }
-func (a *testApp) Bundle() *i18n.Bundle                                { return nil }
-func (a *testApp) GetSupportedLanguages() []string                     { return nil }
-func (a *testApp) RegisterApplet(applet application.Applet) error      { return nil }
-func (a *testApp) AppletRegistry() application.AppletRegistry          { return nil }
-func (a *testApp) CreateAppletControllers(
-	host applets.HostServices,
-	sessionConfig applets.SessionConfig,
-	logger *logrus.Logger,
-	metrics applets.MetricsRecorder,
-	opts ...applets.BuilderOption,
-) ([]application.Controller, error) {
-	return nil, nil
-}
-func (a *testApp) RegisterAppletRuntime(
-	host applets.HostServices,
-	sessionConfig applets.SessionConfig,
-	logger *logrus.Logger,
-	metrics applets.MetricsRecorder,
-	opts ...applets.BuilderOption,
-) error {
-	return nil
-}
-func (a *testApp) Session() session.Session                 { return nil }
-func (a *testApp) SetSession(session session.Session)       {}
-func (a *testApp) Migrations() application.MigrationManager { return a.migrations }
+func (a *testApp) DB() *pgxpool.Pool                               { return nil }
+func (a *testApp) EventPublisher() eventbus.EventBus               { return nil }
+func (a *testApp) Controllers() []application.Controller           { return nil }
+func (a *testApp) Middleware() []mux.MiddlewareFunc                { return nil }
+func (a *testApp) Assets() []*embed.FS                             { return nil }
+func (a *testApp) HashFsAssets() []*hashfs.FS                      { return nil }
+func (a *testApp) Websocket() application.Huber                    { return nil }
+func (a *testApp) Spotlight() spotlight.Service                    { return nil }
+func (a *testApp) QuickLinks() *spotlight.QuickLinks               { return nil }
+func (a *testApp) NavItems(*i18n.Localizer) []types.NavigationItem { return nil }
+func (a *testApp) GraphSchemas() []application.GraphSchema         { return nil }
+func (a *testApp) Bundle() *i18n.Bundle                            { return nil }
+func (a *testApp) GetSupportedLanguages() []string                 { return nil }
+func (a *testApp) AppletRegistry() application.AppletRegistry      { return nil }
+func (a *testApp) Session() session.Session                        { return nil }
+func (a *testApp) SetSession(session session.Session)              {}
+func (a *testApp) Migrations() application.MigrationManager        { return a.migrations }
 
 func TestTenantIDHelper(t *testing.T) {
 	t.Parallel()

@@ -57,7 +57,7 @@ A minimal module contains:
 
 ```
 modules/mymodule/
-├── module.go          # Module registration
+├── component.go       # Component registration
 ├── links.go           # Navigation items
 ├── domain/            # Business entities
 ├── services/          # Business logic
@@ -67,17 +67,17 @@ modules/mymodule/
 
 ### Module Registration
 
-Modules register themselves with the application during startup:
+Components register themselves with the composition engine during startup:
 
-1. **Define the Module** - Implement the `application.Module` interface
-2. **Split Phases** - Put services, locales, assets, and runtime registrations in `RegisterWiring(app)`; put controllers and GraphQL/WebSocket setup in `RegisterTransports(app)`
-3. **Compose Explicitly** - Call `application.Wire(app, yourModule)`, then `application.RegisterTransports(...)` when the process serves APIs, and `app.StartRuntime(...)` with explicit runtime tags when it should run long-lived background components
+1. **Define the Component** - Implement `composition.Component`
+2. **Build Declaratively** - Add services with `composition.Provide(...)` and runtime slices with `composition.Contribute...(...)`
+3. **Compose Explicitly** - Call `engine.Register(yourComponent)` and `engine.Compile(...)` for the capabilities your process needs
 
 ### Key Registration Steps
 
 When building a module, you'll:
 
-- **Register Services** - Business logic accessible via `app.Service()`
+- **Register Services** - Business logic accessible through the composition container
 - **Register Controllers** - HTTP handlers for routes
 - **Register Migrations** - Database schema changes
 - **Register Permissions** - RBAC for access control

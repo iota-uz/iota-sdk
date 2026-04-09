@@ -24,17 +24,16 @@ func TestPaymentCategoryController_List_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
-
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
 	category1 := paymentCategoryEntity.New(
 		"Office Supplies",
@@ -68,17 +67,16 @@ func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
-
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
 	category := paymentCategoryEntity.New(
 		"HTMX Test Category",
@@ -99,14 +97,15 @@ func TestPaymentCategoryController_GetNewDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
 
 	response := suite.GET(PaymentCategoryBasePath + "/new/drawer").
@@ -125,17 +124,16 @@ func TestPaymentCategoryController_Create_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
-
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
 	formData := url.Values{}
 	formData.Set("Name", "New Test Category")
@@ -160,17 +158,16 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
-
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
 	formData := url.Values{}
 	formData.Set("Name", "")
@@ -195,17 +192,16 @@ func TestPaymentCategoryController_GetEditDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
-
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
 	category := paymentCategoryEntity.New(
 		"Edit Test Category",
@@ -238,14 +234,15 @@ func TestPaymentCategoryController_GetEditDrawer_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -259,17 +256,16 @@ func TestPaymentCategoryController_Update_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
-
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
 	category := paymentCategoryEntity.New(
 		"Original Category",
@@ -307,17 +303,16 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
-
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
 	category := paymentCategoryEntity.New(
 		"Test Category",
@@ -356,17 +351,16 @@ func TestPaymentCategoryController_Delete_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
-
-	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
 	category := paymentCategoryEntity.New(
 		"Category to Delete",
@@ -399,14 +393,15 @@ func TestPaymentCategoryController_Delete_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -419,14 +414,15 @@ func TestPaymentCategoryController_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 
-	controller := controllers.NewPaymentCategoriesController(env.App)
+	service := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentCategoriesController(env.App, service)
 	suite.Register(controller)
 
 	suite.GET(PaymentCategoryBasePath + "/invalid-uuid").

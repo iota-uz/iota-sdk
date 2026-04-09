@@ -44,13 +44,19 @@ type PaymentPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewPaymentsController(app application.Application) application.Controller {
+func NewPaymentsController(
+	app application.Application,
+	paymentService *services.PaymentService,
+	moneyAccountService *services.MoneyAccountService,
+	counterpartyService *services.CounterpartyService,
+	paymentCategoryService *services.PaymentCategoryService,
+) application.Controller {
 	return &PaymentsController{
 		app:                    app,
-		paymentService:         app.Service(services.PaymentService{}).(*services.PaymentService),
-		moneyAccountService:    app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		counterpartyService:    app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
-		paymentCategoryService: app.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService),
+		paymentService:         paymentService,
+		moneyAccountService:    moneyAccountService,
+		counterpartyService:    counterpartyService,
+		paymentCategoryService: paymentCategoryService,
 		basePath:               "/finance/payments",
 	}
 }
@@ -65,7 +71,7 @@ func (c *PaymentsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

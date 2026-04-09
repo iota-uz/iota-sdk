@@ -147,14 +147,17 @@ type UsersControllerOptions struct {
 	PermissionSchema *rbac.PermissionSchema
 }
 
-func NewUsersController(app application.Application, opts *UsersControllerOptions) application.Controller {
+func NewUsersController(
+	app application.Application,
+	userService *services.UserService,
+	opts *UsersControllerOptions,
+) application.Controller {
 	if opts == nil || opts.PermissionSchema == nil {
 		panic("UsersController requires PermissionSchema in options")
 	}
 	if opts.BasePath == "" {
 		panic("UsersController requires explicit BasePath in options")
 	}
-	userService := app.Service(services.UserService{}).(*services.UserService)
 
 	controller := &UsersController{
 		app:              app,
@@ -176,7 +179,7 @@ func (c *UsersController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

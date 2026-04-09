@@ -6,7 +6,7 @@ Production-ready BI chat module using the BiChat foundation (`pkg/bichat`).
 
 ```
 modules/bichat/
-├── module.go                    # Module registration, DI wiring
+├── component.go                 # Component registration, DI wiring
 ├── applet.go                    # Applet implementation (pkg/applet integration)
 ├── config.go                    # Configuration types with feature flags
 ├── infrastructure/
@@ -510,7 +510,7 @@ func (s *chatService) CreateSession(ctx context.Context, title string) error {
 ```
 
 **Exceptions where `fmt.Errorf` is acceptable:**
-- Module-level wiring in `module.go` (infrastructure bootstrapping)
+- Component-level wiring in `component.go` (infrastructure bootstrapping)
 - Private utility helpers whose callers immediately wrap with `serrors.E`
 - Redis/stream infrastructure in `title_job_worker.go`
 - Config validation in `agents/sub_agent_definitions.go` (no op context needed)

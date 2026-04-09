@@ -129,7 +129,7 @@ suite.GET("/api/data").
 
 **Configuration:**
 - `NewSuiteBuilder(t testing.TB) *SuiteBuilder`
-- `WithModules(...application.Module) *SuiteBuilder`
+- `WithComponents(...composition.Component) *SuiteBuilder`
 - `WithUser(user.User) *SuiteBuilder`
 - `WithTenant(string) *SuiteBuilder`
 

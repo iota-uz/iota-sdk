@@ -33,10 +33,10 @@ type CounterpartiesController struct {
 	basePath              string
 }
 
-func NewCounterpartiesController(app application.Application) application.Controller {
+func NewCounterpartiesController(app application.Application, counterpartiesService *services.CounterpartyService) application.Controller {
 	return &CounterpartiesController{
 		app:                   app,
-		counterpartiesService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
+		counterpartiesService: counterpartiesService,
 		basePath:              "/finance/counterparties",
 	}
 }
@@ -51,7 +51,7 @@ func (c *CounterpartiesController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

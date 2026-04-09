@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -26,17 +25,11 @@ import (
 )
 
 // Mock application for testing
-type mockApp struct {
-	services map[reflect.Type]interface{}
-}
+type mockApp struct{}
 
 func (m *mockApp) Bundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.English)
 	return bundle
-}
-
-func (m *mockApp) Services() map[reflect.Type]interface{} {
-	return m.services
 }
 
 // Create a test context with necessary dependencies

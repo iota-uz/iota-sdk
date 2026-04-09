@@ -23,14 +23,12 @@ type FinancialReportController struct {
 	basePath               string
 }
 
-func NewFinancialReportController(app application.Application) application.Controller {
-	basePath := "/finance/reports"
-
+func NewFinancialReportController(app application.Application, financialReportService *services.FinancialReportService) application.Controller {
 	return &FinancialReportController{
 		app:                    app,
-		financialReportService: app.Service(services.FinancialReportService{}).(*services.FinancialReportService),
+		financialReportService: financialReportService,
 		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
-		basePath:               basePath,
+		basePath:               "/finance/reports",
 	}
 }
 
@@ -43,7 +41,7 @@ func (c *FinancialReportController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

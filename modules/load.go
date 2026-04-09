@@ -2,8 +2,6 @@
 package modules
 
 import (
-	"slices"
-
 	"github.com/iota-uz/iota-sdk/modules/billing"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/crm"
@@ -15,7 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/testkit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/modules/website"
-	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
@@ -23,31 +21,20 @@ var (
 	coreModuleOptions = &core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}
-
-	BuiltInModules = []application.Module{
-		core.NewModule(coreModuleOptions),
-		hrm.NewModule(),
-		finance.NewModule(),
-		projects.NewModule(),
-		logging.NewModule(),
-		warehouse.NewModule(),
-		crm.NewModule(),
-		website.NewModule(),
-		billing.NewModule(),
-		oidc.NewModule(&oidc.ModuleOptions{}), // OIDC provider - active when required OIDC settings are configured
-		testkit.NewModule(),                   // Test endpoints - only active when ENABLE_TEST_ENDPOINTS=true
-	}
-
-	// NOTE: bichat.NavItems is intentionally excluded from default NavLinks.
-	// The BiChat module registers its own nav items when loaded (requires OPENAI_API_KEY).
-	// Including them here would cause translation errors when the module is not loaded.
-	NavLinks = slices.Concat(
-		core.BuildNavItems(coreModuleOptions.DashboardLinkPermissions, coreModuleOptions.SettingsLinkPermissions),
-		hrm.NavItems,
-		finance.NavItems,
-		projects.NavItems,
-		warehouse.NavItems,
-		crm.NavItems,
-		website.NavItems,
-	)
 )
+
+func Components() []composition.Component {
+	return []composition.Component{
+		core.NewComponent(coreModuleOptions),
+		hrm.NewComponent(),
+		finance.NewComponent(),
+		projects.NewComponent(),
+		logging.NewComponent(),
+		warehouse.NewComponent(),
+		crm.NewComponent(),
+		website.NewComponent(),
+		billing.NewComponent(),
+		oidc.NewComponent(&oidc.ModuleOptions{}),
+		testkit.NewComponent(),
+	}
+}

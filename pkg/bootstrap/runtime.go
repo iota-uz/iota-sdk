@@ -3,11 +3,12 @@ package bootstrap
 import (
 	"context"
 	"errors"
-	"reflect"
 	"time"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -19,8 +20,9 @@ type Runtime struct {
 	Pool   *pgxpool.Pool
 	Bundle *i18n.Bundle
 	App    application.Application
+	Engine *composition.Engine
 
-	values map[reflect.Type]any
+	container *composition.Container
 }
 
 type Installer interface {
@@ -45,39 +47,46 @@ func (rt *Runtime) Install(ctx context.Context, installers ...Installer) error {
 	return nil
 }
 
-func (rt *Runtime) Provide(values ...any) {
-	if rt.values == nil {
-		rt.values = make(map[reflect.Type]any, len(values))
+func (rt *Runtime) Container() *composition.Container {
+	if rt == nil {
+		return nil
 	}
-	for _, value := range values {
-		if value == nil {
-			continue
-		}
-		rt.values[reflect.TypeOf(value)] = value
-	}
+	return rt.container
 }
 
-func (rt *Runtime) Use(target any) bool {
-	if rt == nil || target == nil {
-		return false
+func (rt *Runtime) BuildContext() composition.BuildContext {
+	if rt == nil {
+		return composition.BuildContext{}
 	}
-	ptr := reflect.ValueOf(target)
-	if ptr.Kind() != reflect.Ptr || ptr.IsNil() {
-		return false
+	cfg, _ := rt.Config.(*configuration.Configuration)
+	return composition.NewBuildContext(rt.App, cfg)
+}
+
+// SetComposition stores the compiled engine and container on the runtime.
+// Engine.Compile has already called AttachRuntimeSource on the application
+// as part of materialization — this method only records the handles for
+// Runtime.Start/Stop and for installers that need to resolve services.
+func (rt *Runtime) SetComposition(engine *composition.Engine, container *composition.Container) error {
+	if rt == nil {
+		return nil
 	}
-	targetType := ptr.Elem().Type()
-	if value, ok := rt.values[targetType]; ok {
-		ptr.Elem().Set(reflect.ValueOf(value))
-		return true
+	rt.Engine = engine
+	rt.container = container
+	return nil
+}
+
+func (rt *Runtime) Start(ctx context.Context) error {
+	if rt == nil || rt.container == nil {
+		return nil
 	}
-	for _, value := range rt.values {
-		valueValue := reflect.ValueOf(value)
-		if valueValue.Type().AssignableTo(targetType) {
-			ptr.Elem().Set(valueValue)
-			return true
-		}
+	return composition.Start(ctx, rt.container)
+}
+
+func (rt *Runtime) Stop(ctx context.Context) error {
+	if rt == nil || rt.container == nil {
+		return nil
 	}
-	return false
+	return composition.Stop(ctx, rt.container)
 }
 
 type Option func(*options)
@@ -145,7 +154,6 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	rt := &Runtime{
 		Config: cfg.config,
-		values: make(map[reflect.Type]any),
 	}
 
 	var cleanup []func() error
@@ -179,14 +187,18 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 		return nil, nil, errors.Join(serrors.E(op, err, "build application"), runCleanup(cleanup))
 	}
 	rt.App = app
-	rt.Provide(logger, pool, bundle, app)
 
 	return rt, func() error {
 		var cleanupErr error
-		if rt.App != nil {
+		if rt.container != nil {
 			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			cleanupErr = errors.Join(cleanupErr, rt.App.StopRuntime(stopCtx))
+			cleanupErr = errors.Join(cleanupErr, rt.Stop(stopCtx))
+		}
+		if rt.App != nil {
+			if binder, ok := rt.App.(application.RuntimeBinder); ok {
+				binder.DetachRuntimeSource()
+			}
 		}
 		cleanupErr = errors.Join(cleanupErr, runCleanup(cleanup))
 		return cleanupErr

@@ -35,7 +35,12 @@ type DebtsController struct {
 	tableDefinition     table.TableDefinition
 }
 
-func NewDebtsController(app application.Application) application.Controller {
+func NewDebtsController(
+	app application.Application,
+	debtService *services.DebtService,
+	counterpartyService *services.CounterpartyService,
+	transactionService *services.TransactionService,
+) application.Controller {
 	basePath := "/finance/debts"
 
 	// Create table definition with columns for HTMX requests
@@ -53,9 +58,9 @@ func NewDebtsController(app application.Application) application.Controller {
 
 	return &DebtsController{
 		app:                 app,
-		debtService:         app.Service(services.DebtService{}).(*services.DebtService),
-		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
-		transactionService:  app.Service(services.TransactionService{}).(*services.TransactionService),
+		debtService:         debtService,
+		counterpartyService: counterpartyService,
+		transactionService:  transactionService,
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,
 	}
@@ -70,7 +75,7 @@ func (c *DebtsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

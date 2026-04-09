@@ -31,13 +31,19 @@ type AccountController struct {
 	basePath       string
 }
 
-func NewAccountController(app application.Application) application.Controller {
+func NewAccountController(
+	app application.Application,
+	userService *services.UserService,
+	tenantService *services.TenantService,
+	uploadService *services.UploadService,
+	sessionService *services.SessionService,
+) application.Controller {
 	return &AccountController{
 		app:            app,
-		userService:    app.Service(services.UserService{}).(*services.UserService),
-		tenantService:  app.Service(services.TenantService{}).(*services.TenantService),
-		uploadService:  app.Service(services.UploadService{}).(*services.UploadService),
-		sessionService: app.Service(services.SessionService{}).(*services.SessionService),
+		userService:    userService,
+		tenantService:  tenantService,
+		uploadService:  uploadService,
+		sessionService: sessionService,
 		basePath:       "/account",
 	}
 }
@@ -51,7 +57,7 @@ func (c *AccountController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

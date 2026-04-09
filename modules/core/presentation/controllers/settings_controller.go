@@ -27,11 +27,15 @@ type SettingsController struct {
 	basePath      string
 }
 
-func NewSettingsController(app application.Application) application.Controller {
+func NewSettingsController(
+	app application.Application,
+	tenantService *services.TenantService,
+	uploadService *services.UploadService,
+) application.Controller {
 	return &SettingsController{
 		app:           app,
-		tenantService: app.Service(services.TenantService{}).(*services.TenantService),
-		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
+		tenantService: tenantService,
+		uploadService: uploadService,
 		basePath:      "/settings",
 	}
 }
@@ -46,7 +50,7 @@ func (c *SettingsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

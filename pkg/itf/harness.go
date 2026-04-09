@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -116,22 +117,23 @@ type ContextConfig struct {
 }
 
 type HarnessConfig struct {
-	Name      string
-	Modules   []application.Module
-	Database  DatabaseConfig
-	Migration MigrationConfig
-	Isolation IsolationConfig
-	Seed      SeedConfig
-	Context   ContextConfig
+	Name       string
+	Components []composition.Component
+	Database   DatabaseConfig
+	Migration  MigrationConfig
+	Isolation  IsolationConfig
+	Seed       SeedConfig
+	Context    ContextConfig
 }
 
 type Scope struct {
-	Ctx    context.Context
-	Pool   *pgxpool.Pool
-	Tx     pgx.Tx
-	App    application.Application
-	Tenant *composables.Tenant
-	User   user.User
+	Ctx       context.Context
+	Pool      *pgxpool.Pool
+	Tx        pgx.Tx
+	App       application.Application
+	Container *composition.Container
+	Tenant    *composables.Tenant
+	User      user.User
 }
 
 type Harness interface {
@@ -155,6 +157,7 @@ type harnessState struct {
 	dbName    string
 	pool      *pgxpool.Pool
 	app       application.Application
+	container *composition.Container
 	tenant    *composables.Tenant
 	baseCtx   context.Context
 	closeOnce sync.Once
@@ -223,11 +226,12 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 			}
 		}
 		return &Scope{
-			Ctx:    ctx,
-			Pool:   h.state.pool,
-			App:    h.state.app,
-			Tenant: h.state.tenant,
-			User:   h.cfg.Context.User,
+			Ctx:       ctx,
+			Pool:      h.state.pool,
+			App:       h.state.app,
+			Container: h.state.container,
+			Tenant:    h.state.tenant,
+			User:      h.cfg.Context.User,
 		}
 	case IsolationRollback:
 		tx, err := h.state.pool.Begin(ctx)
@@ -255,12 +259,13 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 		})
 
 		return &Scope{
-			Ctx:    scopeCtx,
-			Pool:   h.state.pool,
-			Tx:     tx,
-			App:    h.state.app,
-			Tenant: h.state.tenant,
-			User:   h.cfg.Context.User,
+			Ctx:       scopeCtx,
+			Pool:      h.state.pool,
+			Tx:        tx,
+			App:       h.state.app,
+			Container: h.state.container,
+			Tenant:    h.state.tenant,
+			User:      h.cfg.Context.User,
 		}
 	default:
 		tb.Fatalf("unsupported isolation mode: %s", h.cfg.Isolation.Mode)
@@ -382,7 +387,7 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 	var closeErr error
 	s.closeOnce.Do(func() {
 		if s.app != nil {
-			closeErr = mergeCloseErrors(closeErr, closeApplication(s.app))
+			closeErr = mergeCloseErrors(closeErr, closeApplication(s.app, s.container))
 		}
 		if s.pool != nil {
 			s.pool.Close()
@@ -432,7 +437,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
-	app, err := SetupApplication(pool, cfg.Modules...)
+	app, container, err := SetupApplication(pool, cfg.Components)
 	if err != nil {
 		pool.Close()
 		_ = DropDBE(dbName)
@@ -441,7 +446,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 
 	if err := runMigrationPolicy(context.Background(), pool, app, cfg.Migration); err != nil {
 		combinedErr := serrors.E(opRunMigrationPolicy, err, "migration policy")
-		closeErr := closeApplication(app)
+		closeErr := closeApplication(app, container)
 		pool.Close()
 		dropErr := DropDBE(dbName)
 		if closeErr != nil {
@@ -461,7 +466,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 
 	tenant, err := resolveTenant(context.Background(), pool, cfg.Context.TenantID)
 	if err != nil {
-		closeErr := closeApplication(app)
+		closeErr := closeApplication(app, container)
 		pool.Close()
 		_ = DropDBE(dbName)
 		if closeErr != nil {
@@ -470,13 +475,13 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opResolveTenant, err, "resolve tenant")
 	}
 
-	baseCtx := buildBaseContext(pool, app, tenant, cfg.Context)
+	baseCtx := buildBaseContext(pool, app, container, tenant, cfg.Context)
 
 	if cfg.Seed.Policy == SeedOncePerHarness && cfg.Seed.Run != nil {
 		if err := composables.InTx(baseCtx, func(seedCtx context.Context) error {
 			return cfg.Seed.Run(seedCtx, app)
 		}); err != nil {
-			closeErr := closeApplication(app)
+			closeErr := closeApplication(app, container)
 			pool.Close()
 			_ = DropDBE(dbName)
 			if closeErr != nil {
@@ -487,13 +492,14 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	}
 
 	return &harnessState{
-		cfg:     cfg,
-		key:     key,
-		dbName:  dbName,
-		pool:    pool,
-		app:     app,
-		tenant:  tenant,
-		baseCtx: baseCtx,
+		cfg:       cfg,
+		key:       key,
+		dbName:    dbName,
+		pool:      pool,
+		app:       app,
+		container: container,
+		tenant:    tenant,
+		baseCtx:   baseCtx,
 	}, nil
 }
 
@@ -548,15 +554,15 @@ func inferSharedHarnessName() string {
 }
 
 func buildHarnessKey(cfg HarnessConfig) string {
-	moduleTypes := make([]string, 0, len(cfg.Modules))
-	for _, mod := range cfg.Modules {
-		moduleTypes = append(moduleTypes, reflect.TypeOf(mod).String())
+	componentTypes := make([]string, 0, len(cfg.Components))
+	for _, component := range cfg.Components {
+		componentTypes = append(componentTypes, reflect.TypeOf(component).String())
 	}
 
 	return fmt.Sprintf(
-		"name=%s|mods=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
+		"name=%s|components=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
-		moduleTypes,
+		componentTypes,
 		cfg.Database.Provisioning,
 		cfg.Migration.Policy,
 		cfg.Isolation.Mode,
@@ -648,13 +654,16 @@ func resolveTenant(ctx context.Context, pool *pgxpool.Pool, tenantID *uuid.UUID)
 	return t, nil
 }
 
-func buildBaseContext(pool *pgxpool.Pool, app application.Application, tenant *composables.Tenant, cfg ContextConfig) context.Context {
+func buildBaseContext(pool *pgxpool.Pool, app application.Application, container *composition.Container, tenant *composables.Tenant, cfg ContextConfig) context.Context {
 	ctx := context.Background()
 	ctx = composables.WithPool(ctx, pool)
 	ctx = composables.WithTenantID(ctx, tenant.ID)
 	ctx = composables.WithParams(ctx, DefaultParams())
 	ctx = composables.WithSession(ctx, MockSession())
 	ctx = context.WithValue(ctx, constants.AppKey, app)
+	if container != nil {
+		ctx = context.WithValue(ctx, constants.ContainerKey, container)
+	}
 
 	locale := "en"
 	if len(cfg.Locales) > 0 && cfg.Locales[0] != "" {
@@ -737,7 +746,7 @@ func closeControllers(controllers []application.Controller) error {
 	return closeErr
 }
 
-func closeApplication(app application.Application) error {
+func closeApplication(app application.Application, container *composition.Container) error {
 	if app == nil {
 		return nil
 	}
@@ -745,6 +754,13 @@ func closeApplication(app application.Application) error {
 	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	closeErr := app.StopRuntime(stopCtx)
-	return mergeCloseErrors(closeErr, closeControllers(app.Controllers()))
+	controllers := app.Controllers()
+	var closeErr error
+	if container != nil {
+		closeErr = composition.Stop(stopCtx, container)
+	}
+	if binder, ok := app.(application.RuntimeBinder); ok {
+		binder.DetachRuntimeSource()
+	}
+	return mergeCloseErrors(closeErr, closeControllers(controllers))
 }

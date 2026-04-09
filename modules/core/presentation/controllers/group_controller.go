@@ -133,8 +133,7 @@ type GroupsController struct {
 	realtime *GroupRealtimeUpdates
 }
 
-func NewGroupsController(app application.Application) application.Controller {
-	groupService := app.Service(services.GroupService{}).(*services.GroupService)
+func NewGroupsController(app application.Application, groupService *services.GroupService) application.Controller {
 	basePath := "/groups"
 
 	controller := &GroupsController{
@@ -156,7 +155,7 @@ func (c *GroupsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
