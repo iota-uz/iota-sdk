@@ -270,6 +270,13 @@ type Container struct {
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
 
+	// Controller/hook removal intents collected from builders during
+	// addBuilder, applied as post-collect filters inside materialize.
+	// Provider removals are processed inline at the top of addBuilder
+	// (per-builder ordering) and are not cached on the container.
+	pendingControllerRemovals []string
+	pendingHookRemovals       []string
+
 	controllers        []application.Controller
 	navItems           []types.NavigationItem
 	locales            []*embed.FS
@@ -501,16 +508,51 @@ func (c *Container) removeProviderEntry(entry *providerEntry) {
 }
 
 func (c *Container) addBuilder(builder *Builder) error {
+	// Process provider removals BEFORE our own providers. Removals only
+	// affect entries that were already in the container when this builder
+	// ran — i.e., contributions from earlier (topologically upstream)
+	// builders. Any provider the current builder goes on to register in
+	// the loop below survives its own removal list by construction.
+	//
+	// A removal targeting a key that was never provided is a no-op so
+	// defensive removals don't need to probe the container first.
+	for _, key := range builder.providerRemovals {
+		if existing, exists := c.providers[key]; exists {
+			c.removeProviderEntry(existing)
+		}
+	}
+
 	for _, provider := range builder.providers {
 		if existing, exists := c.providers[provider.key]; exists {
-			// Auto-providers (registered before any builder) carry no
-			// componentName from a user component. User providers override
-			// them silently. Two real components fighting over the same
-			// key is still an error.
-			if !isAutoProvider(existing) {
-				return fmt.Errorf("composition: duplicate provider %s", provider.key)
+			// Provider collision. Five cases decide the outcome:
+			//
+			//  1. existing is an engine auto-provider     → user wins, drop existing
+			//  2. existing is overridable, new is too     → two defaults = error
+			//  3. existing is overridable, new is concrete → new wins, drop existing
+			//  4. existing is concrete,  new is overridable → existing wins, drop new
+			//  5. both concrete                            → error (as before)
+			switch {
+			case isAutoProvider(existing):
+				c.removeProviderEntry(existing)
+			case existing.overridable && provider.overridable:
+				return fmt.Errorf(
+					"composition: duplicate default provider %s "+
+						"(both %q and %q declared ProvideDefault for the same key)",
+					provider.key, existing.componentName, provider.componentName,
+				)
+			case existing.overridable:
+				c.removeProviderEntry(existing)
+			case provider.overridable:
+				// Existing concrete entry wins — silently drop the new default.
+				continue
+			default:
+				return fmt.Errorf(
+					"composition: duplicate provider %s "+
+						"(already declared by %q, %q also declaring); "+
+						"use composition.RemoveProvider[T] or composition.ProvideDefault[T] to resolve",
+					provider.key, existing.componentName, provider.componentName,
+				)
 			}
-			c.removeProviderEntry(existing)
 		}
 		c.providers[provider.key] = provider
 		c.providerOrder = append(c.providerOrder, provider)
@@ -533,6 +575,13 @@ func (c *Container) addBuilder(builder *Builder) error {
 	}
 	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
+
+	// Controller and hook removals cannot be applied here because
+	// materialize hasn't run yet — the contributions they target are still
+	// factory closures. Stash them on the container and let materialize
+	// filter the collected slices after each collectInto call.
+	c.pendingControllerRemovals = append(c.pendingControllerRemovals, builder.controllerRemovals...)
+	c.pendingHookRemovals = append(c.pendingHookRemovals, builder.hookRemovals...)
 	return nil
 }
 
@@ -550,15 +599,21 @@ func (c *Container) materialize() error {
 		return err
 	}
 	// Drop nil controllers — some constructors return nil to signal a
-	// disabled feature (e.g. showcase_controller_prod). Doing the filter
-	// here keeps app.Controllers() simple and prevents panics in
-	// downstream sort/iteration code.
+	// disabled feature (e.g. showcase_controller_prod). Also apply any
+	// pending controller removals by Key(). Doing both filters in one pass
+	// keeps app.Controllers() simple and prevents panics in downstream
+	// sort/iteration code.
 	if len(c.controllers) > 0 {
+		removalSet := stringSet(c.pendingControllerRemovals)
 		filtered := c.controllers[:0]
 		for _, controller := range c.controllers {
-			if controller != nil {
-				filtered = append(filtered, controller)
+			if controller == nil {
+				continue
 			}
+			if _, removed := removalSet[controller.Key()]; removed {
+				continue
+			}
+			filtered = append(filtered, controller)
 		}
 		c.controllers = filtered
 	}
@@ -595,7 +650,36 @@ func (c *Container) materialize() error {
 	if err := collectInto(c, c.hookFactories, &c.hooks); err != nil {
 		return err
 	}
+	// Filter hooks by Name against any pending RemoveHook intents. Done
+	// after materialization so the removal catches hooks contributed by
+	// ContributeHooks and the higher-level Contribute* wrappers
+	// (ContributeEventHandler[Func], etc.) alike.
+	if len(c.hooks) > 0 && len(c.pendingHookRemovals) > 0 {
+		removalSet := stringSet(c.pendingHookRemovals)
+		filtered := c.hooks[:0]
+		for _, hook := range c.hooks {
+			if _, removed := removalSet[hook.Name]; removed {
+				continue
+			}
+			filtered = append(filtered, hook)
+		}
+		c.hooks = filtered
+	}
 	return nil
+}
+
+// stringSet builds a lookup set from a slice. Returns nil for empty input
+// so callers can use it in a `_, ok := set[key]` check without allocating
+// when there's nothing to filter.
+func stringSet(keys []string) map[string]struct{} {
+	if len(keys) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		set[k] = struct{}{}
+	}
+	return set
 }
 
 func collectOneInto[T any](container *Container, factory *namedFactory[T], target *T) error {

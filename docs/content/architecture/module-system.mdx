@@ -141,6 +141,11 @@ classDiagram
 | `composition.ProvideFunc(b, ctor)` | Reflection-injected constructor; params resolved by type | Services layer |
 | `composition.ProvideFuncAs[I](b, ctor)` | Same, also bridged to interface key I | Services layer |
 | `composition.ProvideAs[I, C](b, value)` | Eager value bound to both concrete and interface keys | Services layer |
+| `composition.ProvideDefault[T](b, value)` | Overridable default provider — downstream `Provide[T]` wins silently | Services layer |
+| `composition.ProvideDefaultAs[I, C](b, value)` | Overridable default bound to both concrete and interface keys | Services layer |
+| `composition.RemoveProvider[T](b)` | Escape hatch — delete an upstream provider before registering a replacement | Services layer |
+| `composition.RemoveController(b, key)` | Delete an upstream controller whose `Key()` matches | Presentation layer |
+| `composition.RemoveHook(b, name)` | Delete an upstream hook whose `Name` matches | Infrastructure |
 | `composition.ContributeControllers(b, fn)` | Closure returning HTTP handlers | Presentation layer |
 | `composition.ContributeControllersFunc(b, ctor)` | Reflection-injected controller factory | Presentation layer |
 | `composition.ContributeHooks(b, fn)` | Start/stop lifecycle hooks | Infrastructure |
@@ -202,6 +207,86 @@ When migrating old code:
 2. Move the old wiring phase into `Build(builder)`. Prefer the reflection helpers (`ProvideFunc`, `ProvideFuncAs[I]`, `ContributeControllersFunc`) over closure factories — the injector resolves typed dependencies automatically.
 3. Migrate static contributions (locales, nav items, quick links, hashfs bundles) to the `Add*` helpers — zero closure boilerplate.
 4. Core services (`*pgxpool.Pool`, `eventbus.EventBus`, `*i18n.Bundle`, `*logrus.Logger`, `application.Application`, `spotlight.Service`, `application.Huber`) are auto-registered by `Engine.Compile`. Take them as typed parameters in `ProvideFunc` / `ContributeControllersFunc` constructors, or `composition.Resolve[T](container)` from inside a Contribute\* closure.
+
+### Overriding Upstream Components
+
+Downstream components frequently need to swap an upstream-registered
+service, repository, or controller with a customised implementation. The
+composition engine exposes two opt-in mechanisms for this:
+
+#### `ProvideDefault[T]` — anticipated extension points
+
+When an upstream component knows a provider is a reasonable default but
+expects downstream consumers to replace it, register it with
+`ProvideDefault[T]` instead of `Provide[T]`:
+
+```go
+// modules/storage/component.go (upstream)
+composition.ProvideDefaultAs[upload.Storage, *fs.Storage](builder, fs.NewStorage)
+```
+
+A downstream component that needs a different backend simply registers its
+own provider for the same key — the engine silently drops the default when
+the override is installed:
+
+```go
+// modules/ali/component.go (downstream, Requires: []string{"storage"})
+composition.ProvideFuncAs[upload.Storage](builder, s3.NewStorage)
+```
+
+Two `ProvideDefault` calls for the same key **still error loudly** (two
+components cannot both claim the default slot). Two plain `Provide` calls
+also error, as before.
+
+#### `RemoveProvider[T]` — escape hatch for non-default providers
+
+If an upstream component did *not* mark its provider overridable but you
+still need to replace it, use `RemoveProvider[T]` to explicitly delete the
+upstream entry before registering your own:
+
+```go
+// modules/custom/component.go (downstream, Requires: []string{"core"})
+composition.RemoveProvider[user.Repository](builder)
+composition.ProvideFunc(builder, custom.NewUserRepository)
+```
+
+`RemoveProvider` + `Provide` works inside the same component because the
+engine processes the builder's removals *before* its own registrations —
+so the downstream `Provide` does not collide with the upstream provider
+it just evicted.
+
+#### Controller and hook overrides
+
+Controllers and hooks are identified by `Controller.Key()` and `Hook.Name`
+respectively, not by type. Use the string-keyed removal helpers:
+
+```go
+composition.RemoveController(builder, "/users")
+composition.RemoveHook(builder, "crm-client-handler")
+```
+
+Controller removals are applied as a filter over the materialised controller
+list — the evicted controller's `Register` method never runs and its route
+never reaches the router. Hook removals work the same way and prevent the
+removed hook's `Start`/`StopFn` from running.
+
+#### Ordering guarantees
+
+Override and removal semantics depend on topological ordering of component
+builders. **A downstream component that overrides an upstream provider must
+declare `Requires: []string{upstreamName}`** in its `Descriptor` so the
+engine runs the upstream build first. Without it, the upstream provider may
+be added to the container *after* the downstream removal pass has executed,
+leaving the upstream entry in place and the override silently ineffective.
+
+| Scenario | Outcome |
+|---|---|
+| `ProvideDefault` + downstream `Provide` (with `Requires`) | Downstream wins silently |
+| `ProvideDefault` + downstream `Provide` (without `Requires`) | Undefined — may silently keep upstream |
+| `Provide` + downstream `Provide` | Error — "duplicate provider" |
+| Two `ProvideDefault` for the same key | Error — "duplicate default provider" |
+| `RemoveProvider[T]` for a key never provided | No-op |
+| `RemoveController(key)` for an unknown key | No-op |
 
 ## Controller Registration
 

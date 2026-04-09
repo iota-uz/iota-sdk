@@ -115,6 +115,15 @@ type Builder struct {
 	spotlightAgent      *namedFactory[spotlight.Agent]
 	middlewareFactories []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories       []namedFactory[[]Hook]
+
+	// Removals are recorded here and processed after every builder has
+	// contributed, so a downstream component can cleanly replace upstream
+	// providers/controllers/hooks without needing to win a registration race.
+	// See Container.applyRemovals and the override decision table in
+	// Container.addBuilder.
+	providerRemovals   []Key
+	controllerRemovals []string // matched against Controller.Key()
+	hookRemovals       []string // matched against Hook.Name
 }
 
 type namedFactory[T any] struct {
@@ -154,7 +163,11 @@ func Provide[T any](builder *Builder, provider any) {
 //	)
 //
 // Both keys point at the same instance.
+//
+// Panics at registration time if `I` is not an interface or if `S` does not
+// implement `I` — the mismatch used to only surface on the first resolve.
 func ProvideAs[I any, S any](builder *Builder, provider any) {
+	validateInterfaceAssignment[I, S]("ProvideAs")
 	appendProvider[S](builder, "", typeOf[S](), provider)
 	// Bridge the interface key to the concrete provider so we don't run the
 	// factory twice. The bridge factory resolves the concrete and casts.
@@ -174,7 +187,127 @@ func ProvideAs[I any, S any](builder *Builder, provider any) {
 	})
 }
 
-func appendProvider[T any](builder *Builder, name string, keyType reflect.Type, provider any) {
+// ProvideDefault registers a provider that downstream components are allowed
+// to replace. Semantically identical to Provide[T], except the entry is
+// flagged overridable — if another component (typically a downstream host)
+// later registers a non-default provider for the same key, Container.addBuilder
+// silently drops this default and installs the override.
+//
+// Two ProvideDefault calls for the same key still error out (two components
+// both claiming the default slot is ambiguous).
+//
+// Use ProvideDefault when a component ships a reasonable implementation but
+// expects downstream consumers to swap in their own. Use plain Provide when
+// the implementation is an invariant of the component.
+func ProvideDefault[T any](builder *Builder, provider any) {
+	entry := appendProvider[T](builder, "", typeOf[T](), provider)
+	entry.overridable = true
+}
+
+// ProvideDefaultAs is ProvideDefault bridged to an interface key. Both the
+// concrete (`S`) and interface (`I`) entries are marked overridable so a
+// downstream consumer can replace either independently.
+//
+// Panics at registration time if `I` is not an interface or if `S` does not
+// implement `I`.
+func ProvideDefaultAs[I any, S any](builder *Builder, provider any) {
+	validateInterfaceAssignment[I, S]("ProvideDefaultAs")
+	concreteEntry := appendProvider[S](builder, "", typeOf[S](), provider)
+	concreteEntry.overridable = true
+	concreteKey := keyFor(typeOf[S](), "")
+	ifaceEntry := appendProvider[I](builder, "", typeOf[I](), func(container *Container) (I, error) {
+		raw, err := container.resolveAny(concreteKey)
+		if err != nil {
+			var zero I
+			return zero, err
+		}
+		typed, ok := raw.(I)
+		if !ok {
+			var zero I
+			return zero, fmt.Errorf("composition: %s does not implement %s", concreteKey, typeOf[I]())
+		}
+		return typed, nil
+	})
+	ifaceEntry.overridable = true
+}
+
+// RemoveProvider schedules the provider for type T to be deleted from the
+// container before instantiation. Use this when an upstream component did
+// NOT register its provider via ProvideDefault but you still need to replace
+// it.
+//
+// Execution order: Container.addBuilder collects removals alongside normal
+// registrations; Container.applyRemovals processes them after every builder
+// has contributed but before any provider is resolved. That means:
+//
+//   - Upstream providers are visible during builder registration (so
+//     downstream can see what's being overridden), then blown away before
+//     instantiation.
+//   - The downstream component is responsible for registering a replacement
+//     provider; without one, downstream resolves return NOT_PROVIDED.
+//   - Removal targeting a key that was never provided is a no-op.
+//
+// For this to work reliably, the downstream component must declare a
+// Requires dependency on the upstream component so their builders run in
+// topological order — otherwise "upstream after downstream" leaves the
+// removal applied to nothing.
+func RemoveProvider[T any](builder *Builder) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	builder.providerRemovals = append(builder.providerRemovals, KeyFor[T]())
+}
+
+// RemoveController schedules every controller whose Key() equals `key` to
+// be filtered out of the final container during materialize. Safe to call
+// even when no such controller is registered (no-op).
+func RemoveController(builder *Builder, key string) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if key == "" {
+		panic("composition: RemoveController: key must not be empty")
+	}
+	builder.controllerRemovals = append(builder.controllerRemovals, key)
+}
+
+// RemoveHook schedules every hook whose Name equals `name` to be filtered
+// out during materialize. Safe to call even when no such hook is registered.
+func RemoveHook(builder *Builder, name string) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if name == "" {
+		panic("composition: RemoveHook: name must not be empty")
+	}
+	builder.hookRemovals = append(builder.hookRemovals, name)
+}
+
+// validateInterfaceAssignment enforces that a ProvideAs-family helper is
+// called with a real interface type `I` and a `S` that satisfies it. Called
+// at registration time so the mismatch surfaces as a loud panic instead of
+// a latent resolution failure.
+func validateInterfaceAssignment[I any, S any](helperName string) {
+	ifaceType := typeOf[I]()
+	if ifaceType.Kind() != reflect.Interface {
+		panic(fmt.Sprintf(
+			"composition: %s target must be an interface, got %s (%s)",
+			helperName, ifaceType, ifaceType.Kind(),
+		))
+	}
+	concreteType := typeOf[S]()
+	if !concreteType.Implements(ifaceType) {
+		panic(fmt.Sprintf(
+			"composition: %s: %s does not implement %s",
+			helperName, concreteType, ifaceType,
+		))
+	}
+}
+
+// appendProvider registers a provider on the builder and returns the new
+// entry so callers can set flags like `overridable` without having to thread
+// them through every call site.
+func appendProvider[T any](builder *Builder, name string, keyType reflect.Type, provider any) *providerEntry {
 	if builder == nil {
 		panic("composition: builder is nil")
 	}
@@ -187,6 +320,7 @@ func appendProvider[T any](builder *Builder, name string, keyType reflect.Type, 
 		factory:       factory,
 	}
 	builder.providers = append(builder.providers, entry)
+	return entry
 }
 
 func ContributeControllers(builder *Builder, factory func(*Container) ([]application.Controller, error)) {
@@ -325,6 +459,10 @@ type providerEntry struct {
 	factory       func(*Container) (any, error)
 	state         providerState
 	value         any
+	// overridable signals that this entry was registered via
+	// ProvideDefault[As]. Container.addBuilder silently replaces an
+	// overridable entry with a non-overridable one for the same key.
+	overridable bool
 }
 
 type providerState uint8
