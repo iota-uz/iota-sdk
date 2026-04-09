@@ -10,7 +10,15 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
+	twofactorentity "github.com/iota-uz/iota-sdk/modules/core/domain/entities/twofactor"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
@@ -130,125 +138,282 @@ func (c *component) Build(builder *composition.Builder) error {
 		})
 	}
 
-	fsStorage, err := persistence.NewFSStorage()
-	if err != nil {
-		return serrors.E(op, err)
-	}
+	storage := composition.Use[upload.Storage]()
+	uploadRepo := composition.Use[upload.Repository]()
+	userRepo := composition.Use[user.Repository]()
+	roleRepo := composition.Use[role.Repository]()
+	tenantRepo := composition.Use[tenant.Repository]()
+	permissionRepo := composition.Use[permission.Repository]()
+	sessionRepo := composition.Use[session.Repository]()
+	otpRepo := composition.Use[twofactorentity.OTPRepository]()
+	recoveryCodeRepo := composition.Use[twofactorentity.RecoveryCodeRepository]()
+	groupRepo := composition.Use[group.Repository]()
+	currencyRepo := composition.Use[currency.Repository]()
+	userQueryRepo := composition.Use[query.UserQueryRepository]()
+	groupQueryRepo := composition.Use[query.GroupQueryRepository]()
+	roleQueryRepo := composition.Use[query.RoleQueryRepository]()
+	uploadService := composition.Use[*services.UploadService]()
+	sessionService := composition.Use[*services.SessionService]()
+	userService := composition.Use[*services.UserService]()
+	authService := composition.Use[*services.AuthService]()
 
-	uploadRepo := persistence.NewUploadRepository()
-	userRepo := persistence.NewUserRepository(uploadRepo)
-	roleRepo := persistence.NewRoleRepository()
-	tenantRepo := persistence.NewTenantRepository()
-	permRepo := persistence.NewPermissionRepository()
-	otpRepo := persistence.NewOTPRepository()
-	recoveryCodeRepo := persistence.NewRecoveryCodeRepository()
-
-	userQueryRepo := query.NewPgUserQueryRepository()
-	groupQueryRepo := query.NewPgGroupQueryRepository()
-	roleQueryRepo := query.NewPgRoleQueryRepository()
-	userValidator := validators.NewUserValidator(userRepo)
-
-	tenantService := services.NewTenantService(tenantRepo)
-	uploadService := services.NewUploadService(uploadRepo, fsStorage, ctx.EventPublisher())
-	sessionService := services.NewSessionService(persistence.NewSessionRepository(), ctx.EventPublisher())
-	userService := services.NewUserService(userRepo, userValidator, ctx.EventPublisher(), sessionService)
-	userQueryService := services.NewUserQueryService(userQueryRepo)
-	groupQueryService := services.NewGroupQueryService(groupQueryRepo)
-	roleQueryService := services.NewRoleQueryService(roleQueryRepo)
-	excelExportService := services.NewExcelExportService(ctx.DB(), uploadService)
-	authService := services.NewAuthService(userService, sessionService)
-	authFlowService := services.NewAuthFlowService(authService, sessionService)
-
-	conf := configuration.Use()
-	if conf.GoAppEnvironment == "production" &&
-		conf.EnableTestEndpoints &&
-		os.Getenv("CI") != "true" &&
-		os.Getenv("GITHUB_ACTIONS") != "true" {
-		return serrors.E(op, serrors.Invalid, errors.New("test endpoints cannot be enabled in production"))
-	}
-	if !conf.EnableTestEndpoints &&
-		conf.GoAppEnvironment == "production" &&
-		conf.TwoFactorAuth.Enabled &&
-		conf.TwoFactorAuth.EncryptionKey == "" {
-		return serrors.E(op, serrors.Invalid, errors.New("TOTP encryption key is required in production"))
-	}
-
-	var encryptor pkgtwofactor.SecretEncryptor
-	if conf.EnableTestEndpoints {
-		encryptor = pkgtwofactor.NewNoopEncryptor()
-	} else if conf.TwoFactorAuth.EncryptionKey != "" {
-		encryptor = pkgtwofactor.NewAESEncryptor(conf.TwoFactorAuth.EncryptionKey)
-	} else {
-		encryptor = pkgtwofactor.NewNoopEncryptor()
-	}
-
-	var otpSender pkgtwofactor.OTPSender
-	if conf.EnableTestEndpoints {
-		otpSender = pkgtwofactor.NewNoopSender()
-	} else if conf.GoAppEnvironment == "production" || conf.GoAppEnvironment == "staging" {
-		composite := pkgtwofactor.NewCompositeSender(nil)
-		if conf.OTPDelivery.EnableEmail && conf.SMTP.Host != "" {
-			composite.Register(
-				pkgtwofactor.ChannelEmail,
-				coreservices2fa.NewEmailOTPSender(
-					conf.SMTP.Host,
-					conf.SMTP.Port,
-					conf.SMTP.Username,
-					conf.SMTP.Password,
-					conf.SMTP.From,
-				),
-			)
+	composition.Provide[upload.Storage](builder, func() (upload.Storage, error) {
+		fsStorage, err := persistence.NewFSStorage()
+		if err != nil {
+			return nil, serrors.E(op, err)
 		}
-		if conf.OTPDelivery.EnableSMS && conf.Twilio.AccountSID != "" && conf.Twilio.AuthToken != "" {
-			composite.Register(
-				pkgtwofactor.ChannelSMS,
-				coreservices2fa.NewSMSOTPSender(
-					conf.Twilio.AccountSID,
-					conf.Twilio.AuthToken,
-					conf.Twilio.PhoneNumber,
-				),
-			)
+		return fsStorage, nil
+	})
+	composition.Provide[upload.Repository](builder, func() upload.Repository {
+		return persistence.NewUploadRepository()
+	})
+	composition.Provide[user.Repository](builder, func(container *composition.Container) (user.Repository, error) {
+		resolvedUploadRepo, err := uploadRepo.Resolve(container)
+		if err != nil {
+			return nil, err
 		}
-		otpSender = composite
-	} else {
-		otpSender = pkgtwofactor.NewNoopSender()
-	}
-
-	twoFactorService, err := coreservices2fa.NewTwoFactorService(
-		otpRepo,
-		recoveryCodeRepo,
-		userRepo,
-		coreservices2fa.WithIssuer(conf.TwoFactorAuth.TOTPIssuer),
-		coreservices2fa.WithOTPLength(conf.TwoFactorAuth.OTPCodeLength),
-		coreservices2fa.WithOTPExpiry(time.Duration(conf.TwoFactorAuth.OTPTTLSeconds)*time.Second),
-		coreservices2fa.WithOTPMaxAttempts(conf.TwoFactorAuth.OTPMaxAttempts),
-		coreservices2fa.WithSecretEncryptor(encryptor),
-		coreservices2fa.WithOTPSender(otpSender),
-	)
-	if err != nil {
-		return serrors.E(op, "failed to create two-factor service", err)
-	}
-
-	currencyService := services.NewCurrencyService(persistence.NewCurrencyRepository(), ctx.EventPublisher())
-	roleService := services.NewRoleService(roleRepo, ctx.EventPublisher())
-	permissionService := services.NewPermissionService(permRepo, ctx.EventPublisher())
-	groupService := services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), ctx.EventPublisher())
-
-	composition.Provide[*services.UploadService](builder, uploadService)
-	composition.Provide[*services.UserService](builder, userService)
-	composition.Provide[*services.UserQueryService](builder, userQueryService)
-	composition.Provide[*services.GroupQueryService](builder, groupQueryService)
-	composition.Provide[*services.RoleQueryService](builder, roleQueryService)
-	composition.Provide[*services.SessionService](builder, sessionService)
-	composition.Provide[*services.ExcelExportService](builder, excelExportService)
-	composition.Provide[*services.AuthService](builder, authService)
-	composition.Provide[*services.AuthFlowService](builder, authFlowService)
-	composition.Provide[*services.CurrencyService](builder, currencyService)
-	composition.Provide[*services.RoleService](builder, roleService)
-	composition.Provide[*services.TenantService](builder, tenantService)
-	composition.Provide[*services.PermissionService](builder, permissionService)
-	composition.Provide[*services.GroupService](builder, groupService)
-	composition.Provide[*coreservices2fa.TwoFactorService](builder, twoFactorService)
+		return persistence.NewUserRepository(resolvedUploadRepo), nil
+	})
+	composition.Provide[role.Repository](builder, func() role.Repository {
+		return persistence.NewRoleRepository()
+	})
+	composition.Provide[tenant.Repository](builder, func() tenant.Repository {
+		return persistence.NewTenantRepository()
+	})
+	composition.Provide[permission.Repository](builder, func() permission.Repository {
+		return persistence.NewPermissionRepository()
+	})
+	composition.Provide[session.Repository](builder, func() session.Repository {
+		return persistence.NewSessionRepository()
+	})
+	composition.Provide[twofactorentity.OTPRepository](builder, func() twofactorentity.OTPRepository {
+		return persistence.NewOTPRepository()
+	})
+	composition.Provide[twofactorentity.RecoveryCodeRepository](builder, func() twofactorentity.RecoveryCodeRepository {
+		return persistence.NewRecoveryCodeRepository()
+	})
+	composition.Provide[group.Repository](builder, func(container *composition.Container) (group.Repository, error) {
+		resolvedUserRepo, err := userRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedRoleRepo, err := roleRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return persistence.NewGroupRepository(resolvedUserRepo, resolvedRoleRepo), nil
+	})
+	composition.Provide[currency.Repository](builder, func() currency.Repository {
+		return persistence.NewCurrencyRepository()
+	})
+	composition.Provide[query.UserQueryRepository](builder, func() query.UserQueryRepository {
+		return query.NewPgUserQueryRepository()
+	})
+	composition.Provide[query.GroupQueryRepository](builder, func() query.GroupQueryRepository {
+		return query.NewPgGroupQueryRepository()
+	})
+	composition.Provide[query.RoleQueryRepository](builder, func() query.RoleQueryRepository {
+		return query.NewPgRoleQueryRepository()
+	})
+	composition.Provide[*services.TenantService](builder, func(container *composition.Container) (*services.TenantService, error) {
+		resolvedTenantRepo, err := tenantRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewTenantService(resolvedTenantRepo), nil
+	})
+	composition.Provide[*services.UploadService](builder, func(container *composition.Container) (*services.UploadService, error) {
+		resolvedUploadRepo, err := uploadRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedStorage, err := storage.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewUploadService(resolvedUploadRepo, resolvedStorage, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.SessionService](builder, func(container *composition.Container) (*services.SessionService, error) {
+		resolvedSessionRepo, err := sessionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewSessionService(resolvedSessionRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.UserService](builder, func(container *composition.Container) (*services.UserService, error) {
+		resolvedUserRepo, err := userRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedSessionService, err := sessionService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		userValidator := validators.NewUserValidator(resolvedUserRepo)
+		return services.NewUserService(resolvedUserRepo, userValidator, ctx.EventPublisher(), resolvedSessionService), nil
+	})
+	composition.Provide[*services.UserQueryService](builder, func(container *composition.Container) (*services.UserQueryService, error) {
+		resolvedUserQueryRepo, err := userQueryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewUserQueryService(resolvedUserQueryRepo), nil
+	})
+	composition.Provide[*services.GroupQueryService](builder, func(container *composition.Container) (*services.GroupQueryService, error) {
+		resolvedGroupQueryRepo, err := groupQueryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewGroupQueryService(resolvedGroupQueryRepo), nil
+	})
+	composition.Provide[*services.RoleQueryService](builder, func(container *composition.Container) (*services.RoleQueryService, error) {
+		resolvedRoleQueryRepo, err := roleQueryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewRoleQueryService(resolvedRoleQueryRepo), nil
+	})
+	composition.Provide[*services.ExcelExportService](builder, func(container *composition.Container) (*services.ExcelExportService, error) {
+		resolvedUploadService, err := uploadService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewExcelExportService(ctx.DB(), resolvedUploadService), nil
+	})
+	composition.Provide[*services.AuthService](builder, func(container *composition.Container) (*services.AuthService, error) {
+		resolvedUserService, err := userService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedSessionService, err := sessionService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewAuthService(resolvedUserService, resolvedSessionService), nil
+	})
+	composition.Provide[*services.AuthFlowService](builder, func(container *composition.Container) (*services.AuthFlowService, error) {
+		resolvedAuthService, err := authService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedSessionService, err := sessionService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewAuthFlowService(resolvedAuthService, resolvedSessionService), nil
+	})
+	composition.Provide[*services.CurrencyService](builder, func(container *composition.Container) (*services.CurrencyService, error) {
+		resolvedCurrencyRepo, err := currencyRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewCurrencyService(resolvedCurrencyRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.RoleService](builder, func(container *composition.Container) (*services.RoleService, error) {
+		resolvedRoleRepo, err := roleRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewRoleService(resolvedRoleRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.PermissionService](builder, func(container *composition.Container) (*services.PermissionService, error) {
+		resolvedPermissionRepo, err := permissionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewPermissionService(resolvedPermissionRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.GroupService](builder, func(container *composition.Container) (*services.GroupService, error) {
+		resolvedGroupRepo, err := groupRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewGroupService(resolvedGroupRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*coreservices2fa.TwoFactorService](builder, func(container *composition.Container) (*coreservices2fa.TwoFactorService, error) {
+		conf := ctx.Config()
+		if conf == nil {
+			conf = configuration.Use()
+		}
+		if conf.GoAppEnvironment == "production" &&
+			conf.EnableTestEndpoints &&
+			os.Getenv("CI") != "true" &&
+			os.Getenv("GITHUB_ACTIONS") != "true" {
+			return nil, serrors.E(op, serrors.Invalid, errors.New("test endpoints cannot be enabled in production"))
+		}
+		if !conf.EnableTestEndpoints &&
+			conf.GoAppEnvironment == "production" &&
+			conf.TwoFactorAuth.Enabled &&
+			conf.TwoFactorAuth.EncryptionKey == "" {
+			return nil, serrors.E(op, serrors.Invalid, errors.New("TOTP encryption key is required in production"))
+		}
+		var encryptor pkgtwofactor.SecretEncryptor
+		if conf.EnableTestEndpoints {
+			encryptor = pkgtwofactor.NewNoopEncryptor()
+		} else if conf.TwoFactorAuth.EncryptionKey != "" {
+			encryptor = pkgtwofactor.NewAESEncryptor(conf.TwoFactorAuth.EncryptionKey)
+		} else {
+			encryptor = pkgtwofactor.NewNoopEncryptor()
+		}
+		var otpSender pkgtwofactor.OTPSender
+		if conf.EnableTestEndpoints {
+			otpSender = pkgtwofactor.NewNoopSender()
+		} else if conf.GoAppEnvironment == "production" || conf.GoAppEnvironment == "staging" {
+			composite := pkgtwofactor.NewCompositeSender(nil)
+			if conf.OTPDelivery.EnableEmail && conf.SMTP.Host != "" {
+				composite.Register(
+					pkgtwofactor.ChannelEmail,
+					coreservices2fa.NewEmailOTPSender(
+						conf.SMTP.Host,
+						conf.SMTP.Port,
+						conf.SMTP.Username,
+						conf.SMTP.Password,
+						conf.SMTP.From,
+					),
+				)
+			}
+			if conf.OTPDelivery.EnableSMS && conf.Twilio.AccountSID != "" && conf.Twilio.AuthToken != "" {
+				composite.Register(
+					pkgtwofactor.ChannelSMS,
+					coreservices2fa.NewSMSOTPSender(
+						conf.Twilio.AccountSID,
+						conf.Twilio.AuthToken,
+						conf.Twilio.PhoneNumber,
+					),
+				)
+			}
+			otpSender = composite
+		} else {
+			otpSender = pkgtwofactor.NewNoopSender()
+		}
+		resolvedOTPRepo, err := otpRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedRecoveryCodeRepo, err := recoveryCodeRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedUserRepo, err := userRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		twoFactorService, err := coreservices2fa.NewTwoFactorService(
+			resolvedOTPRepo,
+			resolvedRecoveryCodeRepo,
+			resolvedUserRepo,
+			coreservices2fa.WithIssuer(conf.TwoFactorAuth.TOTPIssuer),
+			coreservices2fa.WithOTPLength(conf.TwoFactorAuth.OTPCodeLength),
+			coreservices2fa.WithOTPExpiry(time.Duration(conf.TwoFactorAuth.OTPTTLSeconds)*time.Second),
+			coreservices2fa.WithOTPMaxAttempts(conf.TwoFactorAuth.OTPMaxAttempts),
+			coreservices2fa.WithSecretEncryptor(encryptor),
+			coreservices2fa.WithOTPSender(otpSender),
+		)
+		if err != nil {
+			return nil, serrors.E(op, "failed to create two-factor service", err)
+		}
+		return twoFactorService, nil
+	})
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {

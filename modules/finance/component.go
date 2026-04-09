@@ -4,7 +4,16 @@ package finance
 import (
 	"embed"
 
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	debt "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
+	expense "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
+	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	payment "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
+	counterparty "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
+	inventory "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
+	transaction "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
@@ -60,50 +69,147 @@ func (c *component) Build(builder *composition.Builder) error {
 		}, nil
 	})
 
-	uploadRepo := corepersistence.NewUploadRepository()
-	moneyAccountService := services.NewMoneyAccountService(
-		persistence.NewMoneyAccountRepository(),
-		persistence.NewTransactionRepository(),
-		ctx.EventPublisher(),
-	)
-	transactionRepo := persistence.NewTransactionRepository()
-	categoryRepo := persistence.NewExpenseCategoryRepository()
-	transactionService := services.NewTransactionService(transactionRepo, ctx.EventPublisher())
-	paymentService := services.NewPaymentService(
-		persistence.NewPaymentRepository(),
-		ctx.EventPublisher(),
-		moneyAccountService,
-		uploadRepo,
-	)
-	expenseCategoryService := services.NewExpenseCategoryService(categoryRepo, ctx.EventPublisher())
-	paymentCategoryService := services.NewPaymentCategoryService(
-		persistence.NewPaymentCategoryRepository(),
-		ctx.EventPublisher(),
-	)
-	expenseService := services.NewExpenseService(
-		persistence.NewExpenseRepository(categoryRepo, transactionRepo),
-		ctx.EventPublisher(),
-		moneyAccountService,
-		uploadRepo,
-	)
-	counterpartyService := services.NewCounterpartyService(persistence.NewCounterpartyRepository())
-	inventoryService := services.NewInventoryService(persistence.NewInventoryRepository())
-	debtService := services.NewDebtService(persistence.NewDebtRepository(), ctx.EventPublisher())
-	financialReportService := services.NewFinancialReportService(
-		query.NewPgFinancialReportsQueryRepository(),
-		ctx.EventPublisher(),
-	)
+	uploadRepo := composition.Use[upload.Repository]()
+	moneyAccountRepo := composition.Use[moneyaccount.Repository]()
+	transactionRepo := composition.Use[transaction.Repository]()
+	expenseCategoryRepo := composition.Use[category.Repository]()
+	paymentCategoryRepo := composition.Use[paymentcategory.Repository]()
+	paymentRepo := composition.Use[payment.Repository]()
+	expenseRepo := composition.Use[expense.Repository]()
+	counterpartyRepo := composition.Use[counterparty.Repository]()
+	inventoryRepo := composition.Use[inventory.Repository]()
+	debtRepo := composition.Use[debt.Repository]()
+	reportQueryRepo := composition.Use[query.FinancialReportsQueryRepository]()
+	moneyAccountService := composition.Use[*services.MoneyAccountService]()
 
-	composition.Provide[*services.TransactionService](builder, transactionService)
-	composition.Provide[*services.PaymentService](builder, paymentService)
-	composition.Provide[*services.ExpenseCategoryService](builder, expenseCategoryService)
-	composition.Provide[*services.PaymentCategoryService](builder, paymentCategoryService)
-	composition.Provide[*services.ExpenseService](builder, expenseService)
-	composition.Provide[*services.MoneyAccountService](builder, moneyAccountService)
-	composition.Provide[*services.CounterpartyService](builder, counterpartyService)
-	composition.Provide[*services.InventoryService](builder, inventoryService)
-	composition.Provide[*services.DebtService](builder, debtService)
-	composition.Provide[*services.FinancialReportService](builder, financialReportService)
+	composition.Provide[moneyaccount.Repository](builder, func() moneyaccount.Repository {
+		return persistence.NewMoneyAccountRepository()
+	})
+	composition.Provide[transaction.Repository](builder, func() transaction.Repository {
+		return persistence.NewTransactionRepository()
+	})
+	composition.Provide[category.Repository](builder, func() category.Repository {
+		return persistence.NewExpenseCategoryRepository()
+	})
+	composition.Provide[paymentcategory.Repository](builder, func() paymentcategory.Repository {
+		return persistence.NewPaymentCategoryRepository()
+	})
+	composition.Provide[payment.Repository](builder, func() payment.Repository {
+		return persistence.NewPaymentRepository()
+	})
+	composition.Provide[expense.Repository](builder, func(container *composition.Container) (expense.Repository, error) {
+		resolvedCategoryRepo, err := expenseCategoryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return persistence.NewExpenseRepository(resolvedCategoryRepo, resolvedTransactionRepo), nil
+	})
+	composition.Provide[counterparty.Repository](builder, func() counterparty.Repository {
+		return persistence.NewCounterpartyRepository()
+	})
+	composition.Provide[inventory.Repository](builder, func() inventory.Repository {
+		return persistence.NewInventoryRepository()
+	})
+	composition.Provide[debt.Repository](builder, func() debt.Repository {
+		return persistence.NewDebtRepository()
+	})
+	composition.Provide[query.FinancialReportsQueryRepository](builder, func() query.FinancialReportsQueryRepository {
+		return query.NewPgFinancialReportsQueryRepository()
+	})
+	composition.Provide[*services.MoneyAccountService](builder, func(container *composition.Container) (*services.MoneyAccountService, error) {
+		resolvedMoneyAccountRepo, err := moneyAccountRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewMoneyAccountService(resolvedMoneyAccountRepo, resolvedTransactionRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.TransactionService](builder, func(container *composition.Container) (*services.TransactionService, error) {
+		resolvedTransactionRepo, err := transactionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewTransactionService(resolvedTransactionRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.PaymentService](builder, func(container *composition.Container) (*services.PaymentService, error) {
+		resolvedPaymentRepo, err := paymentRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedMoneyAccountService, err := moneyAccountService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedUploadRepo, err := uploadRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewPaymentService(resolvedPaymentRepo, ctx.EventPublisher(), resolvedMoneyAccountService, resolvedUploadRepo), nil
+	})
+	composition.Provide[*services.ExpenseCategoryService](builder, func(container *composition.Container) (*services.ExpenseCategoryService, error) {
+		resolvedCategoryRepo, err := expenseCategoryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewExpenseCategoryService(resolvedCategoryRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.PaymentCategoryService](builder, func(container *composition.Container) (*services.PaymentCategoryService, error) {
+		resolvedPaymentCategoryRepo, err := paymentCategoryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewPaymentCategoryService(resolvedPaymentCategoryRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.ExpenseService](builder, func(container *composition.Container) (*services.ExpenseService, error) {
+		resolvedExpenseRepo, err := expenseRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedMoneyAccountService, err := moneyAccountService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedUploadRepo, err := uploadRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewExpenseService(resolvedExpenseRepo, ctx.EventPublisher(), resolvedMoneyAccountService, resolvedUploadRepo), nil
+	})
+	composition.Provide[*services.CounterpartyService](builder, func(container *composition.Container) (*services.CounterpartyService, error) {
+		resolvedCounterpartyRepo, err := counterpartyRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewCounterpartyService(resolvedCounterpartyRepo), nil
+	})
+	composition.Provide[*services.InventoryService](builder, func(container *composition.Container) (*services.InventoryService, error) {
+		resolvedInventoryRepo, err := inventoryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewInventoryService(resolvedInventoryRepo), nil
+	})
+	composition.Provide[*services.DebtService](builder, func(container *composition.Container) (*services.DebtService, error) {
+		resolvedDebtRepo, err := debtRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewDebtService(resolvedDebtRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.FinancialReportService](builder, func(container *composition.Container) (*services.FinancialReportService, error) {
+		resolvedReportQueryRepo, err := reportQueryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewFinancialReportService(resolvedReportQueryRepo, ctx.EventPublisher()), nil
+	})
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
