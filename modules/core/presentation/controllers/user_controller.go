@@ -532,7 +532,7 @@ func (c *UsersController) GetSingle(
 	templ.Handler(users.Single(&users.SingleProps{
 		User:                     userViewModel,
 		Slots:                    slots,
-		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
+		ResourcePermissionGroups: FilterCheckedResourcePermissionGroups(c.resourcePermissionGroups(us.Permissions()...)),
 	}), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
