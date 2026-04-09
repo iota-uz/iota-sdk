@@ -45,6 +45,7 @@ type ModuleOptions struct {
 	DashboardLinkPermissions []permission.Permission
 	// SettingsLinkPermissions controls visibility of the core Settings sidebar link.
 	SettingsLinkPermissions []permission.Permission
+	UserControllerOptions   []controllers.UserControllerOption
 }
 
 func NewModule(opts *ModuleOptions) application.Module {
@@ -225,6 +226,11 @@ func (m *Module) RegisterWiring(app application.Application) error {
 }
 
 func (m *Module) RegisterTransports(app application.Application) error {
+	userControllerOpts := []controllers.UserControllerOption{
+		controllers.WithUserControllerBasePath("/users"),
+		controllers.WithUserControllerPermissionSchema(m.options.PermissionSchema),
+	}
+	userControllerOpts = append(userControllerOpts, m.options.UserControllerOptions...)
 	app.RegisterControllers(
 		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
@@ -235,10 +241,7 @@ func (m *Module) RegisterTransports(app application.Application) error {
 		controllers.NewAccountController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
-		controllers.NewUsersController(app, &controllers.UsersControllerOptions{
-			BasePath:         "/users",
-			PermissionSchema: m.options.PermissionSchema,
-		}),
+		controllers.NewUsersController(app, userControllerOpts...),
 		controllers.NewRolesController(app, &controllers.RolesControllerOptions{
 			BasePath:         "/roles",
 			PermissionSchema: m.options.PermissionSchema,

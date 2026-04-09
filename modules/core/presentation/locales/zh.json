@@ -1079,7 +1079,13 @@
       "EnterPassword": "输入密码",
       "Delete": "删除用户",
       "DeleteConfirmation": "您确定要删除此用户吗？",
-      "Permissions": "用户权限"
+      "Permissions": "用户权限",
+      "Details": "详情",
+      "LastAction": "最后活动",
+      "CreatedAt": "创建时间",
+      "UpdatedAt": "更新时间",
+      "Roles": "角色",
+      "Access": "访问权限"
     },
     "Blocked": "已封禁",
     "Block": {

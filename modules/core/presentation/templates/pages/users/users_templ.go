@@ -378,7 +378,7 @@ func UserRow(user *viewmodels.User, rowProps *base.TableRowProps) templ.Componen
 					Size:     button.SizeSM,
 					Disabled: !user.CanUpdate,
 					Class:    "btn-fixed",
-					Href:     fmt.Sprintf("/users/%s", user.ID),
+					Href:     fmt.Sprintf("/users/%s/edit", user.ID),
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

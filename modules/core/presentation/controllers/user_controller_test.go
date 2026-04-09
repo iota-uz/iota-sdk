@@ -64,10 +64,11 @@ func TestUsersController_Delete_SelfDeletionPrevention(t *testing.T) {
 		Build()
 
 	// Register the users controller
-	controller := controllers.NewUsersController(suite.Env().App, &controllers.UsersControllerOptions{
-		BasePath:         "/users",
-		PermissionSchema: &rbac.PermissionSchema{}, // Empty schema for tests
-	})
+	controller := controllers.NewUsersController(
+		suite.Env().App,
+		controllers.WithUserControllerBasePath("/users"),
+		controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
+	)
 	suite.Register(controller)
 
 	t.Run("Delete_NonExistent_User_Should_Fail", func(t *testing.T) {
@@ -137,10 +138,11 @@ func TestUsersController_Delete_Permissions(t *testing.T) {
 				AsUser(tc.permissions...).
 				Build()
 
-			controller := controllers.NewUsersController(suite.Env().App, &controllers.UsersControllerOptions{
-				BasePath:         "/users",
-				PermissionSchema: &rbac.PermissionSchema{}, // Empty schema for tests
-			})
+			controller := controllers.NewUsersController(
+				suite.Env().App,
+				controllers.WithUserControllerBasePath("/users"),
+				controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
+			)
 			suite.Register(controller)
 
 			// Use non-existent user ID to test authorization without triggering deletion events
@@ -162,10 +164,11 @@ func TestUsersController_Delete_EdgeCases(t *testing.T) {
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 
-	controller := controllers.NewUsersController(suite.Env().App, &controllers.UsersControllerOptions{
-		BasePath:         "/users",
-		PermissionSchema: &rbac.PermissionSchema{}, // Empty schema for tests
-	})
+	controller := controllers.NewUsersController(
+		suite.Env().App,
+		controllers.WithUserControllerBasePath("/users"),
+		controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
+	)
 	suite.Register(controller)
 
 	cases := itf.Cases(

@@ -568,7 +568,9 @@ templ TableContent(config *TableConfig) {
 					}
 				</div>
 			}
-			@TableSettingsTrigger()
+			if config.Configurable {
+				@TableSettingsTrigger()
+			}
 		</div>
 		if config.FullHeight {
 			<div class="flex-1 min-h-0">
@@ -651,7 +653,8 @@ templ TableSection(config *TableConfig) {
 
 templ TableSettingsTrigger() {
 	@button.Secondary(button.Props{
-		Icon: icons.Gear(icons.Props{Size: "20"}),
+		Icon:  icons.Gear(icons.Props{Size: "20"}),
+		Class: "ml-auto",
 		Attrs: templ.Attributes{
 			"type":       "button",
 			"@click":     "$dispatch('open-table-settings')",

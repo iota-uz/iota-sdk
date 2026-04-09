@@ -1075,7 +1075,13 @@
       "EnterPassword": "Parolni kiriting",
       "Delete": "Foydalanuvchini o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
-      "Permissions": "Foydalanuvchi ruxsatlari"
+      "Permissions": "Foydalanuvchi ruxsatlari",
+      "Details": "Tafsilotlar",
+      "LastAction": "Oxirgi faollik",
+      "CreatedAt": "Yaratilgan sana",
+      "UpdatedAt": "Yangilangan sana",
+      "Roles": "Rollar",
+      "Access": "Kirish"
     },
     "Blocked": "Bloklangan",
     "Block": {
