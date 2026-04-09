@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,6 +90,77 @@ func TestProvideFunc_MissingDependency(t *testing.T) {
 	require.Contains(t, strings.ToUpper(err.Error()), "NOT PROVIDED")
 }
 
+func compileWithBuild(t *testing.T, build func(*Builder) error) error {
+	t.Helper()
+	engine := NewEngine()
+	require.NoError(t, engine.Register(testComponent{
+		descriptor: Descriptor{Name: "x"},
+		build:      build,
+	}))
+	_, err := engine.Compile(BuildContext{})
+	return err
+}
+
+func TestProvideFunc_PanicsOnNilConstructor(t *testing.T) {
+	require.PanicsWithValue(t,
+		"composition: ProvideFunc: constructor is nil",
+		func() {
+			_ = compileWithBuild(t, func(builder *Builder) error {
+				ProvideFunc(builder, nil)
+				return nil
+			})
+		},
+		"ProvideFunc must panic on nil constructor",
+	)
+}
+
+func TestProvideFunc_PanicsOnNonFunction(t *testing.T) {
+	require.Panics(t, func() {
+		_ = compileWithBuild(t, func(builder *Builder) error {
+			ProvideFunc(builder, 42) // int, not a func
+			return nil
+		})
+	})
+}
+
+func TestProvideFunc_PanicsOnWrongReturnCount(t *testing.T) {
+	require.Panics(t, func() {
+		_ = compileWithBuild(t, func(builder *Builder) error {
+			// zero return values — rejected
+			ProvideFunc(builder, func() {})
+			return nil
+		})
+	})
+}
+
+func TestProvideFunc_PanicsOnVariadic(t *testing.T) {
+	require.Panics(t, func() {
+		_ = compileWithBuild(t, func(builder *Builder) error {
+			// variadic constructor — rejected at registration
+			ProvideFunc(builder, func(a *repoA, opts ...string) *serviceX {
+				return &serviceX{a: a}
+			})
+			return nil
+		})
+	})
+}
+
+func TestProvideFuncAs_PanicsWhenInterfaceEqualsReturn(t *testing.T) {
+	require.PanicsWithValue(t,
+		"composition: ProvideFuncAs[composition.greetingPort]: constructor already returns composition.greetingPort; use ProvideFunc instead",
+		func() {
+			_ = compileWithBuild(t, func(builder *Builder) error {
+				// Constructor already returns the interface — no bridge needed
+				ProvideFuncAs[greetingPort](builder, func() greetingPort {
+					return &greetingService{value: "same"}
+				})
+				return nil
+			})
+		},
+		"ProvideFuncAs[I] must reject constructors whose return type == I",
+	)
+}
+
 func TestProvideAs_BothKeys(t *testing.T) {
 	engine := NewEngine()
 	err := engine.Register(testComponent{
@@ -113,3 +186,88 @@ func TestProvideAs_BothKeys(t *testing.T) {
 	// Both keys must point at the same instance.
 	require.Same(t, svc, port)
 }
+
+func TestContributeControllersFunc_SingleController(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "x"},
+		build: func(builder *Builder) error {
+			Provide[*repoA](builder, &repoA{value: "ctrl"})
+			ContributeControllersFunc(builder, func(a *repoA) application.Controller {
+				return &stubController{key: a.value}
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	ctrls := container.Controllers()
+	require.Len(t, ctrls, 1)
+	require.Equal(t, "ctrl", ctrls[0].Key())
+}
+
+func TestContributeControllersFunc_SliceOfControllers(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "x"},
+		build: func(builder *Builder) error {
+			Provide[*repoA](builder, &repoA{value: "a"})
+			Provide[*repoB](builder, &repoB{value: 1})
+			ContributeControllersFunc(builder, func(a *repoA, b *repoB) []application.Controller {
+				return []application.Controller{
+					&stubController{key: a.value},
+					&stubController{key: "after-" + a.value},
+				}
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+	require.Len(t, container.Controllers(), 2)
+}
+
+func TestContributeControllersFunc_DropsNil(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "x"},
+		build: func(builder *Builder) error {
+			// Constructor intentionally returns nil to signal "disabled".
+			ContributeControllersFunc(builder, func() application.Controller { return nil })
+			// A sibling constructor returns a real controller.
+			ContributeControllersFunc(builder, func() application.Controller {
+				return &stubController{key: "real"}
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+	ctrls := container.Controllers()
+	require.Len(t, ctrls, 1)
+	require.Equal(t, "real", ctrls[0].Key())
+}
+
+func TestContributeControllersFunc_PanicsOnBadReturnType(t *testing.T) {
+	require.Panics(t, func() {
+		_ = compileWithBuild(t, func(builder *Builder) error {
+			// Return type must be application.Controller or []application.Controller.
+			ContributeControllersFunc(builder, func() string { return "oops" })
+			return nil
+		})
+	})
+}
+
+// stubController is a minimal application.Controller for tests.
+type stubController struct{ key string }
+
+func (s *stubController) Key() string { return s.key }
+
+func (s *stubController) Register(_ *mux.Router) {}

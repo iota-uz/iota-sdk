@@ -21,18 +21,24 @@ Controllers in IOTA SDK handle:
 
 ### Basic Controller Setup
 
+Controllers are plain structs whose constructor receives typed services.
+There is no `application.Application` field anymore — global services such
+as the i18n bundle, pool, event bus, and user session are installed as
+request-scoped middleware by the server bootstrap (`pkg/server/builder.go`)
+and resolved per request via `composables.*`.
+
 ```go
 // modules/finance/presentation/controllers/expense_controller.go
 
 type ExpenseController struct {
-	app      application.Application
-	basePath string
+	basePath       string
+	expenseService *services.ExpenseService
 }
 
-func NewExpensesController(app application.Application) application.Controller {
+func NewExpensesController(expenseService *services.ExpenseService) application.Controller {
 	return &ExpenseController{
-		app:      app,
-		basePath: "/finance/expenses",
+		basePath:       "/finance/expenses",
+		expenseService: expenseService,
 	}
 }
 
@@ -44,7 +50,9 @@ func (c *ExpenseController) Key() string {
 
 ### Route Registration
 
-Register routes with middleware and dependency injection:
+Register routes with middleware. The global i18n, logger, tenant, and
+session middlewares are already installed by the server builder; each
+controller only attaches the access-control middlewares it needs.
 
 ```go
 func (c *ExpenseController) Register(r *mux.Router) {
@@ -56,7 +64,6 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(), // Redirect if not logged in
 		middleware.ProvideUser(),            // Add user to context
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),  // Add i18n support
 		middleware.NavItems(),               // Navigation items
 		middleware.WithPageContext(),        // Page metadata
 	)

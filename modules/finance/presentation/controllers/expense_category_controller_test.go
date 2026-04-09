@@ -43,7 +43,7 @@ func TestExpenseCategoryController_List_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	category1 := expenseCategoryEntity.New(
@@ -85,7 +85,7 @@ func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	category := expenseCategoryEntity.New(
@@ -114,7 +114,7 @@ func TestExpenseCategoryController_GetNewDrawer_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	response := suite.GET(ExpenseCategoryBasePath + "/new/drawer").
@@ -140,7 +140,7 @@ func TestExpenseCategoryController_Create_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -173,7 +173,7 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -207,7 +207,7 @@ func TestExpenseCategoryController_GetEditDrawer_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	category := expenseCategoryEntity.New(
@@ -248,7 +248,7 @@ func TestExpenseCategoryController_GetEditDrawer_NotFound(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -270,7 +270,7 @@ func TestExpenseCategoryController_Update_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	category := expenseCategoryEntity.New(
@@ -316,7 +316,7 @@ func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	category := expenseCategoryEntity.New(
@@ -364,7 +364,7 @@ func TestExpenseCategoryController_Delete_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	category := expenseCategoryEntity.New(
@@ -405,7 +405,7 @@ func TestExpenseCategoryController_Delete_NotFound(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -425,7 +425,7 @@ func TestExpenseCategoryController_InvalidUUID(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.ExpenseCategoryService](env)
-	controller := controllers.NewExpenseCategoriesController(env.App, service)
+	controller := controllers.NewExpenseCategoriesController(service)
 	suite.Register(controller)
 
 	suite.GET(ExpenseCategoryBasePath + "/invalid-uuid").

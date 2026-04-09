@@ -156,6 +156,11 @@ func (e *Engine) Stop(ctx context.Context, container *Container) error {
 // returns an optional Stop closure that the engine records and invokes during
 // Stop, in reverse order. If any Start fails, previously-recorded Stop closures
 // run immediately and the original error is returned.
+//
+// Start and Stop are NOT safe for concurrent use: they mutate container state
+// (started, runningStops) without synchronization. Callers must serialize
+// lifecycle calls — typically one goroutine owns the container, calls Start
+// once at boot, and calls Stop once at shutdown.
 func Start(ctx context.Context, container *Container) error {
 	if container == nil || container.started {
 		return nil
@@ -281,7 +286,6 @@ type Container struct {
 	spotlightAgentFactory *namedFactory[spotlight.Agent]
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
-	migrationFactories    []namedFactory[[]*embed.FS]
 
 	controllers        []application.Controller
 	navItems           []types.NavigationItem
@@ -295,7 +299,6 @@ type Container struct {
 	spotlightAgent     spotlight.Agent
 	middleware         []mux.MiddlewareFunc
 	hooks              []Hook
-	migrations         []*embed.FS
 	runningStops       []namedStop
 	started            bool
 }
@@ -360,12 +363,6 @@ func (c *Container) Hooks() []Hook {
 	return append([]Hook(nil), c.hooks...)
 }
 
-// MigrationFiles returns the embed.FS bundles registered via
-// composition.ContributeMigrations across all components.
-func (c *Container) MigrationFiles() []*embed.FS {
-	return append([]*embed.FS(nil), c.migrations...)
-}
-
 func (c *Container) AppendHooks(hooks ...Hook) {
 	if c == nil {
 		return
@@ -421,22 +418,6 @@ func (c *Container) AppendMiddleware(middleware ...mux.MiddlewareFunc) {
 
 func Resolve[T any](container *Container) (T, error) {
 	return ResolveKey[T](container, KeyFor[T]())
-}
-
-// ResolveOptional returns the provided value, a presence flag, and any non-
-// NOT_PROVIDED error. Use it when a component gracefully degrades in the
-// absence of a provider.
-func ResolveOptional[T any](container *Container) (T, bool, error) {
-	value, err := Resolve[T](container)
-	if err == nil {
-		return value, true, nil
-	}
-	if IsNotProvided(err) {
-		var zero T
-		return zero, false, nil
-	}
-	var zero T
-	return zero, false, err
 }
 
 func ResolveKey[T any](container *Container, key Key) (T, error) {
@@ -569,7 +550,6 @@ func (c *Container) addBuilder(builder *Builder) error {
 	}
 	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
-	c.migrationFactories = append(c.migrationFactories, builder.migrationFactories...)
 	return nil
 }
 
@@ -630,9 +610,6 @@ func (c *Container) materialize() error {
 		return err
 	}
 	if err := collectInto(c, c.hookFactories, &c.hooks); err != nil {
-		return err
-	}
-	if err := collectInto(c, c.migrationFactories, &c.migrations); err != nil {
 		return err
 	}
 	return nil

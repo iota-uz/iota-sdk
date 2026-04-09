@@ -40,14 +40,12 @@ const (
 )
 
 type TenantsController struct {
-	app         application.Application
 	userService *coreservices.UserService
 	basePath    string
 }
 
-func NewTenantsController(app application.Application, userService *coreservices.UserService) application.Controller {
+func NewTenantsController(userService *coreservices.UserService) application.Controller {
 	return &TenantsController{
-		app:         app,
 		userService: userService,
 		basePath:    "/superadmin/tenants",
 	}

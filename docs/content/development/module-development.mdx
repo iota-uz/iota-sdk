@@ -946,46 +946,27 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	productRepo := composition.Use[product.Repository]()
-	productService := composition.Use[*services.ProductService]()
+	// Static contributions: zero closures for constant data.
+	composition.AddLocales(builder, &localeFiles)
+	composition.AddNavItems(builder, NavItems...)
+	composition.AddQuickLinks(builder, spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href))
 
-	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
-		return []*embed.FS{&localeFiles}, nil
-	})
-	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
-		return NavItems, nil
-	})
-	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
-		return []*spotlight.QuickLink{
-			spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href),
-		}, nil
-	})
+	// ProvideFuncAs registers an interface key and a concrete key with a
+	// single call; consumers depending on product.Repository will resolve
+	// the same value as consumers depending on *persistence.ProductRepository.
+	composition.ProvideFuncAs[product.Repository](builder, persistence.NewProductRepository)
 
-	composition.Provide[product.Repository](builder, func() product.Repository {
-		return persistence.NewProductRepository()
-	})
-	composition.Provide[*services.ProductService](builder, func(container *composition.Container) (*services.ProductService, error) {
-		resolvedRepo, err := productRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewProductService(resolvedRepo, builder.Context().EventPublisher()), nil
-	})
+	// ProvideFunc inspects NewProductService's signature, resolves each
+	// parameter from the container by type (product.Repository and
+	// eventbus.EventBus — the latter comes from the engine's auto-providers),
+	// and registers *services.ProductService as a provider.
+	composition.ProvideFunc(builder, services.NewProductService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-			app, err := composition.RequireApplication(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedService, err := productService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			return []application.Controller{
-				controllers.NewProductController(app, resolvedService),
-			}, nil
-		})
+		// ContributeControllersFunc uses the same reflection injector for
+		// controller factories. Types in the parameter list are resolved
+		// from the container at materialization time.
+		composition.ContributeControllersFunc(builder, controllers.NewProductController)
 	}
 
 	return nil

@@ -114,7 +114,6 @@ type Builder struct {
 	spotlightAgent      *namedFactory[spotlight.Agent]
 	middlewareFactories []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories       []namedFactory[[]Hook]
-	migrationFactories  []namedFactory[[]*embed.FS]
 }
 
 type namedFactory[T any] struct {

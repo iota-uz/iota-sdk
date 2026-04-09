@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -54,67 +55,70 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	conf := configuration.Use()
-	repo := composition.Use[billingdom.Repository]()
-
 	composition.AddLocales(builder, &LocaleFiles)
 
 	composition.ProvideFuncAs[billingdom.Repository](builder, persistence.NewBillingRepository)
-	composition.Provide[*services.BillingService](builder, func(container *composition.Container) (*services.BillingService, error) {
-		resolvedRepo, err := repo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		logTransport := middleware.NewLogTransport(conf.Logger(), conf, true, true, "octo")
-		clickProvider := providers.NewClickProvider(providers.ClickConfig{
-			URL:            conf.Click.URL,
-			ServiceID:      conf.Click.ServiceID,
-			SecretKey:      conf.Click.SecretKey,
-			MerchantID:     conf.Click.MerchantID,
-			MerchantUserID: conf.Click.MerchantUserID,
-		})
-		paymeProvider := providers.NewPaymeProvider(providers.PaymeConfig{
-			URL:        conf.Payme.URL,
-			SecretKey:  conf.Payme.SecretKey,
-			MerchantID: conf.Payme.MerchantID,
-			User:       conf.Payme.User,
-		})
-		octoProvider := providers.NewOctoProvider(providers.OctoConfig{
-			OctoShopID: conf.Octo.OctoShopID,
-			OctoSecret: conf.Octo.OctoSecret,
-			NotifyURL:  conf.Octo.NotifyURL,
-		}, logTransport)
-		stripeProvider := providers.NewStripeProvider(providers.StripeConfig{
-			SecretKey: conf.Stripe.SecretKey,
-		})
-		return services.NewBillingService(
-			resolvedRepo,
-			[]billingdom.Provider{clickProvider, paymeProvider, octoProvider, stripeProvider},
-			builder.Context().EventPublisher(),
-		), nil
-	})
+	composition.ProvideFunc(builder, newBillingService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		basePath := "/billing"
 		stripeHooks := append([]ports.StripeEventHook{}, c.stripeHooks...)
-		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-			app, err := composition.RequireApplication(container)
-			if err != nil {
-				return nil, err
-			}
-			billingSvc, err := composition.Resolve[*services.BillingService](container)
-			if err != nil {
-				return nil, err
-			}
-			logTransport := middleware.NewLogTransport(conf.Logger(), conf, true, true, "octo")
-			return []application.Controller{
-				controllers.NewClickController(app, billingSvc, conf.Click, basePath+"/click"),
-				controllers.NewPaymeController(app, billingSvc, conf.Payme, basePath+"/payme"),
-				controllers.NewOctoController(app, billingSvc, conf.Octo, basePath+"/octo", logTransport),
-				controllers.NewStripeController(app, billingSvc, conf.Stripe, basePath+"/stripe", stripeHooks...),
-			}, nil
+		composition.ContributeControllersFunc(builder, func(billingSvc *services.BillingService) []application.Controller {
+			return newBillingControllers(billingSvc, stripeHooks)
 		})
 	}
 
 	return nil
+}
+
+// newBillingService is the wide-dependency constructor that the reflection
+// injector can wire directly. Provider list and log transport are built from
+// global configuration so that the resolver only needs to supply the repo and
+// event bus.
+func newBillingService(
+	repo billingdom.Repository,
+	bus eventbus.EventBus,
+) *services.BillingService {
+	conf := configuration.Use()
+	logTransport := middleware.NewLogTransport(conf.Logger(), conf, true, true, "octo")
+	clickProvider := providers.NewClickProvider(providers.ClickConfig{
+		URL:            conf.Click.URL,
+		ServiceID:      conf.Click.ServiceID,
+		SecretKey:      conf.Click.SecretKey,
+		MerchantID:     conf.Click.MerchantID,
+		MerchantUserID: conf.Click.MerchantUserID,
+	})
+	paymeProvider := providers.NewPaymeProvider(providers.PaymeConfig{
+		URL:        conf.Payme.URL,
+		SecretKey:  conf.Payme.SecretKey,
+		MerchantID: conf.Payme.MerchantID,
+		User:       conf.Payme.User,
+	})
+	octoProvider := providers.NewOctoProvider(providers.OctoConfig{
+		OctoShopID: conf.Octo.OctoShopID,
+		OctoSecret: conf.Octo.OctoSecret,
+		NotifyURL:  conf.Octo.NotifyURL,
+	}, logTransport)
+	stripeProvider := providers.NewStripeProvider(providers.StripeConfig{
+		SecretKey: conf.Stripe.SecretKey,
+	})
+	return services.NewBillingService(
+		repo,
+		[]billingdom.Provider{clickProvider, paymeProvider, octoProvider, stripeProvider},
+		bus,
+	)
+}
+
+func newBillingControllers(
+	billingSvc *services.BillingService,
+	stripeHooks []ports.StripeEventHook,
+) []application.Controller {
+	conf := configuration.Use()
+	basePath := "/billing"
+	logTransport := middleware.NewLogTransport(conf.Logger(), conf, true, true, "octo")
+	return []application.Controller{
+		controllers.NewClickController(billingSvc, conf.Click, basePath+"/click"),
+		controllers.NewPaymeController(billingSvc, conf.Payme, basePath+"/payme"),
+		controllers.NewOctoController(billingSvc, conf.Octo, basePath+"/octo", logTransport),
+		controllers.NewStripeController(billingSvc, conf.Stripe, basePath+"/stripe", stripeHooks...),
+	}
 }

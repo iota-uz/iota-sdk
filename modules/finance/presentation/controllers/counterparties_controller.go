@@ -28,14 +28,12 @@ import (
 )
 
 type CounterpartiesController struct {
-	app                   application.Application
 	counterpartiesService *services.CounterpartyService
 	basePath              string
 }
 
-func NewCounterpartiesController(app application.Application, counterpartiesService *services.CounterpartyService) application.Controller {
+func NewCounterpartiesController(counterpartiesService *services.CounterpartyService) application.Controller {
 	return &CounterpartiesController{
-		app:                   app,
 		counterpartiesService: counterpartiesService,
 		basePath:              "/finance/counterparties",
 	}

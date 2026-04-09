@@ -63,22 +63,26 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, newOIDCStorage)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		pool := builder.Context().DB()
 		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
 			cfg, err := composition.Resolve[OIDCConfig](container)
 			if err != nil {
 				return nil, err
 			}
-			boot := &oidcBootstrapComponent{
-				pool:      builder.Context().DB(),
-				cryptoKey: cfg.CryptoKey,
-			}
+			cryptoKey := cfg.CryptoKey
 			return []composition.Hook{{
-				Name: boot.Name(),
+				Name: "oidc-bootstrap-keys",
 				Start: func(ctx context.Context) (composition.StopFn, error) {
-					if err := boot.Start(ctx); err != nil {
-						return nil, err
+					const op serrors.Op = "oidc.bootstrap.Start"
+					if pool == nil {
+						return nil, serrors.E(op, serrors.Invalid, "database pool is nil")
 					}
-					return boot.Stop, nil
+					startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+					defer cancel()
+					if err := oidcinfra.BootstrapKeys(startCtx, pool, cryptoKey); err != nil {
+						return nil, serrors.E(op, err)
+					}
+					return func(context.Context) error { return nil }, nil
 				},
 			}}, nil
 		})
@@ -89,9 +93,8 @@ func (c *component) Build(builder *composition.Builder) error {
 			oidcService *services.OIDCService,
 			sessionService *coreservices.SessionService,
 		) []application.Controller {
-			cfgCopy := cfg
 			return []application.Controller{
-				controllers.NewOIDCController(storage, &cfgCopy, oidcService, sessionService),
+				controllers.NewOIDCController(storage, &cfg, oidcService, sessionService),
 			}
 		})
 	}
@@ -122,31 +125,3 @@ func newOIDCStorage(
 	)
 }
 
-type oidcBootstrapComponent struct {
-	pool      *pgxpool.Pool
-	cryptoKey string
-}
-
-func (c *oidcBootstrapComponent) Name() string {
-	return "oidc-bootstrap-keys"
-}
-
-func (c *oidcBootstrapComponent) Start(ctx context.Context) error {
-	const op serrors.Op = "oidcBootstrapComponent.Start"
-
-	if c.pool == nil {
-		return serrors.E(op, serrors.Invalid, "database pool is nil")
-	}
-
-	startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	if err := oidcinfra.BootstrapKeys(startCtx, c.pool, c.cryptoKey); err != nil {
-		return serrors.E(op, err)
-	}
-	return nil
-}
-
-func (c *oidcBootstrapComponent) Stop(ctx context.Context) error {
-	_ = ctx
-	return nil
-}

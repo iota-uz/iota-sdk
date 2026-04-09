@@ -17,15 +17,13 @@ import (
 )
 
 type FinancialReportController struct {
-	app                    application.Application
 	financialReportService *services.FinancialReportService
 	queryRepo              query.FinancialReportsQueryRepository
 	basePath               string
 }
 
-func NewFinancialReportController(app application.Application, financialReportService *services.FinancialReportService) application.Controller {
+func NewFinancialReportController(financialReportService *services.FinancialReportService) application.Controller {
 	return &FinancialReportController{
-		app:                    app,
 		financialReportService: financialReportService,
 		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
 		basePath:               "/finance/reports",

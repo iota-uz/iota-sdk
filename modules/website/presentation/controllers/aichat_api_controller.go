@@ -23,20 +23,17 @@ import (
 
 type AIChatAPIControllerConfig struct {
 	BasePath    string
-	App         application.Application
 	Middlewares []mux.MiddlewareFunc // Optional: Additional middleware to apply
 }
 
 type AIChatAPIController struct {
 	basePath    string
-	app         application.Application
 	middlewares []mux.MiddlewareFunc
 }
 
 func NewAIChatAPIController(cfg AIChatAPIControllerConfig) application.Controller {
 	return &AIChatAPIController{
 		basePath:    cfg.BasePath,
-		app:         cfg.App,
 		middlewares: cfg.Middlewares,
 	}
 }

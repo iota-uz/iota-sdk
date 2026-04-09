@@ -35,7 +35,6 @@ const (
 )
 
 type OctoController struct {
-	app            application.Application
 	billingService *services.BillingService
 	octo           configuration.OctoOptions
 	basePath       string
@@ -43,14 +42,12 @@ type OctoController struct {
 }
 
 func NewOctoController(
-	app application.Application,
 	billingService *services.BillingService,
 	octo configuration.OctoOptions,
 	basePath string,
 	logTransport *middleware.LogTransport,
 ) application.Controller {
 	return &OctoController{
-		app:            app,
 		billingService: billingService,
 		octo:           octo,
 		basePath:       basePath,

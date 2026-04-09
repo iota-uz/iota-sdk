@@ -44,7 +44,6 @@ func TestAIChatController_SaveConfig_Success(t *testing.T) {
 	// Register controller
 	controller := controllers.NewAIChatController(controllers.AIChatControllerConfig{
 		BasePath: BasePath,
-		App:      env.App,
 	})
 	suite.Register(controller)
 
@@ -90,7 +89,6 @@ func TestAIChatController_SaveConfig_ValidationError(t *testing.T) {
 	// Register controller
 	controller := controllers.NewAIChatController(controllers.AIChatControllerConfig{
 		BasePath: BasePath,
-		App:      env.App,
 	})
 	suite.Register(controller)
 
@@ -127,7 +125,6 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 	// Register controller
 	controller := controllers.NewAIChatController(controllers.AIChatControllerConfig{
 		BasePath: BasePath,
-		App:      env.App,
 	})
 	suite.Register(controller)
 
@@ -189,7 +186,6 @@ func TestAIChatController_SaveConfig_FirstConfigSetsDefault(t *testing.T) {
 	// Register controller
 	controller := controllers.NewAIChatController(controllers.AIChatControllerConfig{
 		BasePath: BasePath,
-		App:      env.App,
 	})
 	suite.Register(controller)
 

@@ -4,7 +4,6 @@ import (
 	"embed"
 
 	"github.com/benbjohnson/hashfs"
-	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -67,69 +66,17 @@ func AddAssets(builder *Builder, assets ...*embed.FS) {
 	})
 }
 
-// AddSchemas attaches one or more application.GraphSchema entries.
-func AddSchemas(builder *Builder, schemas ...application.GraphSchema) {
-	if builder == nil || len(schemas) == 0 {
+// AddControllers attaches pre-built controllers without a closure. Useful
+// when a component can construct its controllers eagerly inside Build —
+// typically because the controllers are stateless wrappers around typed
+// configuration values that live on the component itself.
+func AddControllers(builder *Builder, ctrls ...application.Controller) {
+	if builder == nil || len(ctrls) == 0 {
 		return
 	}
-	captured := append([]application.GraphSchema(nil), schemas...)
-	ContributeSchemas(builder, func(*Container) ([]application.GraphSchema, error) {
-		return captured, nil
-	})
-}
-
-// AddSpotlightProviders attaches one or more spotlight search providers.
-func AddSpotlightProviders(builder *Builder, providers ...spotlight.SearchProvider) {
-	if builder == nil || len(providers) == 0 {
-		return
-	}
-	captured := append([]spotlight.SearchProvider(nil), providers...)
-	ContributeSpotlightProviders(builder, func(*Container) ([]spotlight.SearchProvider, error) {
-		return captured, nil
-	})
-}
-
-// AddMiddleware attaches one or more mux middlewares.
-func AddMiddleware(builder *Builder, mws ...mux.MiddlewareFunc) {
-	if builder == nil || len(mws) == 0 {
-		return
-	}
-	captured := append([]mux.MiddlewareFunc(nil), mws...)
-	ContributeMiddleware(builder, func(*Container) ([]mux.MiddlewareFunc, error) {
-		return captured, nil
-	})
-}
-
-// AddControllers attaches pre-built controllers without a closure. Useful when
-// the controllers are constructed eagerly inside Build (after their typed deps
-// have been resolved through Use[T]) or are stateless.
-func AddControllers(builder *Builder, controllers ...application.Controller) {
-	if builder == nil || len(controllers) == 0 {
-		return
-	}
-	captured := append([]application.Controller(nil), controllers...)
+	captured := append([]application.Controller(nil), ctrls...)
 	ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
 		return captured, nil
 	})
 }
 
-// AddApplets attaches pre-built applets.
-func AddApplets(builder *Builder, applets ...application.Applet) {
-	if builder == nil || len(applets) == 0 {
-		return
-	}
-	captured := append([]application.Applet(nil), applets...)
-	ContributeApplets(builder, func(*Container) ([]application.Applet, error) {
-		return captured, nil
-	})
-}
-
-// AddHook attaches a single hook value (no factory closure).
-func AddHook(builder *Builder, hook Hook) {
-	if builder == nil || hook.Start == nil {
-		return
-	}
-	ContributeHooks(builder, func(*Container) ([]Hook, error) {
-		return []Hook{hook}, nil
-	})
-}

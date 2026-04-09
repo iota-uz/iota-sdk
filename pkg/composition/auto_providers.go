@@ -1,6 +1,8 @@
 package composition
 
 import (
+	"strings"
+
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -84,5 +86,5 @@ func isAutoProvider(entry *providerEntry) bool {
 	if entry == nil {
 		return false
 	}
-	return len(entry.componentName) >= 5 && entry.componentName[:5] == "auto:"
+	return strings.HasPrefix(entry.componentName, "auto:")
 }

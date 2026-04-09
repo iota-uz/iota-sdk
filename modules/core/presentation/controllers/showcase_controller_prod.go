@@ -7,6 +7,6 @@ import "github.com/iota-uz/iota-sdk/pkg/application"
 
 type ShowcaseController struct{}
 
-func NewShowcaseController(_ application.Application) application.Controller {
+func NewShowcaseController() application.Controller {
 	return nil
 }

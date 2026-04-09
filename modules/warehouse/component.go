@@ -63,7 +63,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewInventoryService)
 
 	composition.ContributeControllersFunc(builder, func(
-		app application.Application,
 		unitService *services.UnitService,
 		productService *productservice.ProductService,
 		positionService *positionservice.PositionService,
@@ -71,11 +70,11 @@ func (c *component) Build(builder *composition.Builder) error {
 		inventoryService *services.InventoryService,
 	) []application.Controller {
 		return []application.Controller{
-			controllers.NewProductsController(app, productService, positionService),
-			controllers.NewPositionsController(app),
-			controllers.NewUnitsController(app, unitService),
-			controllers.NewOrdersController(app, orderService, positionService, productService),
-			controllers.NewInventoryController(app, inventoryService, positionService),
+			controllers.NewProductsController(productService, positionService),
+			controllers.NewPositionsController(),
+			controllers.NewUnitsController(unitService),
+			controllers.NewOrdersController(orderService, positionService, productService),
+			controllers.NewInventoryController(inventoryService, positionService),
 		}
 	})
 

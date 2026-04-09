@@ -11,12 +11,10 @@ import (
 )
 
 type LogoutController struct {
-	app application.Application
 }
 
-func NewLogoutController(app application.Application) application.Controller {
+func NewLogoutController() application.Controller {
 	return &LogoutController{
-		app: app,
 	}
 }
 

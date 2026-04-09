@@ -3,9 +3,23 @@ package composition
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
+
+// runtimeFuncName returns a human-readable name for the function value —
+// used in error messages to point callers at the offending constructor.
+func runtimeFuncName(v reflect.Value) string {
+	if v.Kind() != reflect.Func || v.IsNil() {
+		return "<unknown>"
+	}
+	fn := runtime.FuncForPC(v.Pointer())
+	if fn == nil {
+		return "<unknown>"
+	}
+	return fn.Name()
+}
 
 // ProvideFunc registers a provider whose factory is a constructor function
 // taking typed dependencies as parameters. The engine resolves each parameter
@@ -66,6 +80,10 @@ func ProvideFunc(builder *Builder, constructor any) {
 // return value under an explicit interface key I (in addition to the concrete
 // key inferred from the constructor's return type). Useful when consumers
 // depend on an interface and the constructor returns a concrete pointer.
+//
+// Panics at Build time if the constructor's return type is exactly I (which
+// would result in a duplicate provider registration). Use ProvideFunc in
+// that case instead.
 func ProvideFuncAs[I any](builder *Builder, constructor any) {
 	if builder == nil {
 		panic("composition: builder is nil")
@@ -74,7 +92,15 @@ func ProvideFuncAs[I any](builder *Builder, constructor any) {
 	if err != nil {
 		panic(fmt.Sprintf("composition: ProvideFuncAs[%s]: %v", typeOf[I]().String(), err))
 	}
-	concreteKey := keyFor(caller.fnType.Out(0), "")
+	interfaceType := typeOf[I]()
+	producedType := caller.fnType.Out(0)
+	if producedType == interfaceType {
+		panic(fmt.Sprintf(
+			"composition: ProvideFuncAs[%s]: constructor already returns %s; use ProvideFunc instead",
+			interfaceType, interfaceType,
+		))
+	}
+	concreteKey := keyFor(producedType, "")
 	concreteEntry := &providerEntry{
 		key:           concreteKey,
 		componentName: builder.descriptor.Name,
@@ -184,11 +210,11 @@ var (
 // invocation. allowedNonErrReturns gates which non-error return types are
 // acceptable; nil means "any single value".
 //
-// Variadic constructors are supported: the variadic parameter is dropped at
-// call time (no values are passed). Use cases like
-// `NewAuthService(userSvc, sessionSvc, opts ...Option)` work as if no opts
-// were supplied. Configure such services through their non-variadic deps or
-// via a wrapper function.
+// Variadic constructors are rejected at registration time. Silently dropping
+// a trailing `opts ...Option` parameter is a footgun: a developer who later
+// adds options expects them to take effect, but the injector always calls
+// the constructor with an empty slice. Wrap variadic constructors in a
+// non-variadic adapter that applies the desired options explicitly.
 func newInjectorCaller(constructor any, allowedNonErrReturns []reflect.Type) (*injectorCaller, error) {
 	if constructor == nil {
 		return nil, fmt.Errorf("constructor is nil")
@@ -198,6 +224,13 @@ func newInjectorCaller(constructor any, allowedNonErrReturns []reflect.Type) (*i
 		return nil, fmt.Errorf("constructor must be a function, got %s", v.Kind())
 	}
 	t := v.Type()
+	if t.IsVariadic() {
+		return nil, fmt.Errorf(
+			"variadic constructors are not supported by the reflection injector (function at %s); " +
+				"wrap it in a non-variadic adapter that supplies the options explicitly",
+			runtimeFuncName(v),
+		)
+	}
 
 	// Return shape: must be (T) or (T, error). T is checked against the
 	// allowed list when caller passed one.
@@ -224,12 +257,7 @@ func newInjectorCaller(constructor any, allowedNonErrReturns []reflect.Type) (*i
 		}
 	}
 
-	// Variadic params: drop the trailing []T param so the injector won't
-	// try to resolve it as a slice key.
 	numIn := t.NumIn()
-	if t.IsVariadic() {
-		numIn--
-	}
 	paramKeys := make([]Key, numIn)
 	for i := 0; i < numIn; i++ {
 		paramType := t.In(i)

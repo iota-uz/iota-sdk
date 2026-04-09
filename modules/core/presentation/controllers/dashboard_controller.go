@@ -24,7 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
-func NewDashboardController(app application.Application) application.Controller {
+func NewDashboardController() application.Controller {
 	config := configuration.Use()
 	ds, err := lenspostgres.New(lenspostgres.Config{
 		ConnectionString: config.Database.ConnectionString(),
@@ -35,14 +35,13 @@ func NewDashboardController(app application.Application) application.Controller 
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for dashboard: %v", err)
-		return &DashboardController{app: app}
+		return &DashboardController{}
 	}
-	return &DashboardController{app: app, ds: ds}
+	return &DashboardController{ds: ds}
 }
 
 type DashboardController struct {
-	app application.Application
-	ds  datasource.DataSource
+	ds datasource.DataSource
 }
 
 func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.DashboardSpec {

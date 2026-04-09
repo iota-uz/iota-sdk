@@ -19,15 +19,13 @@ import (
 )
 
 type ClickController struct {
-	app            application.Application
 	billingService *services.BillingService
 	click          configuration.ClickOptions
 	basePath       string
 }
 
-func NewClickController(app application.Application, billingService *services.BillingService, click configuration.ClickOptions, basePath string) application.Controller {
+func NewClickController(billingService *services.BillingService, click configuration.ClickOptions, basePath string) application.Controller {
 	return &ClickController{
-		app:            app,
 		billingService: billingService,
 		click:          click,
 		basePath:       basePath,

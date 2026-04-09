@@ -21,7 +21,6 @@ import (
 )
 
 type UploadAPIController struct {
-	app             application.Application
 	uploadService   *services.UploadService
 	authorizer      types.UploadsAuthorizer
 	defaultTenantID uuid.UUID
@@ -44,9 +43,8 @@ func WithDefaultTenantID(id uuid.UUID) UploadAPIControllerOption {
 	}
 }
 
-func NewUploadAPIController(app application.Application, uploadService *services.UploadService, opts ...UploadAPIControllerOption) application.Controller {
+func NewUploadAPIController(uploadService *services.UploadService, opts ...UploadAPIControllerOption) application.Controller {
 	c := &UploadAPIController{
-		app:           app,
 		uploadService: uploadService,
 		authorizer:    authorizers.NewDefaultUploadsAuthorizer(),
 	}

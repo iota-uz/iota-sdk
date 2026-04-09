@@ -36,13 +36,11 @@ import (
 //
 // Returns a configured TwoFactorSetupController implementing the Controller interface.
 func NewTwoFactorSetupController(
-	app application.Application,
 	twoFactorService *twofactor.TwoFactorService,
 	sessionService *services.SessionService,
 	userService *services.UserService,
 ) application.Controller {
 	return &TwoFactorSetupController{
-		app:              app,
 		twoFactorService: twoFactorService,
 		sessionService:   sessionService,
 		userService:      userService,
@@ -53,7 +51,6 @@ func NewTwoFactorSetupController(
 // Provides method selection, TOTP QR code display, OTP delivery, and setup confirmation.
 // Routes are mounted at /login/2fa/setup and require authentication.
 type TwoFactorSetupController struct {
-	app              application.Application
 	twoFactorService *twofactor.TwoFactorService
 	sessionService   *services.SessionService
 	userService      *services.UserService

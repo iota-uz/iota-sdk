@@ -44,8 +44,7 @@ func TestCrudController_ConcurrentRequests(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Add initial entities
@@ -107,8 +106,7 @@ func TestCrudController_LargeDataset(t *testing.T) {
 	}
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test pagination efficiency
@@ -183,9 +181,7 @@ func TestCrudController_FieldValidationIntegration(t *testing.T) {
 			schema:  validatedSchema,
 			service: service,
 		}
-
-		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+		controller := controllers.NewCrudController[TestEntity]("/test", builder)
 		suite.Register(controller)
 
 		// Test cases for validation
@@ -322,9 +318,7 @@ func TestCrudController_FormStatePreservation(t *testing.T) {
 		schema:  schemaWithValidation,
 		service: service,
 	}
-
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Submit form with validation error but valid other fields
@@ -378,8 +372,7 @@ func TestCrudController_ComplexFiltering(t *testing.T) {
 	}
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test search with filters
@@ -465,8 +458,7 @@ func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 	service.entities[entity.ID] = entity
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Attempt to update with readonly fields in form
@@ -509,8 +501,7 @@ func TestCrudController_EmptyListHandling(t *testing.T) {
 
 	service := newTestService() // Empty service
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	doc := suite.GET("/test").Expect(t).Status(200).HTML()
@@ -539,8 +530,7 @@ func TestCrudController_SpecialCharacterHandling(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test creating entity with special characters
@@ -598,8 +588,7 @@ func TestCrudController_SessionHandling(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Create entity with validation error to get form state
@@ -646,8 +635,7 @@ func TestCrudController_HTTPMethodSafety(t *testing.T) {
 	service.entities[entity.ID] = entity
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test inappropriate methods

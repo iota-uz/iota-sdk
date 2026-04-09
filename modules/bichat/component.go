@@ -18,15 +18,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
 
-//go:embed infrastructure/persistence/schema/bichat-schema.sql
-var MigrationFiles embed.FS
 
 // ErrBiChatDisabled is returned by providers when BiChat is not configured.
 // The sentinel is swallowed by capability-gated contribute closures so that
@@ -116,13 +113,26 @@ type bichatBundle struct {
 	eventBridge *observability.EventBridge
 }
 
+// provideBundleField registers a provider keyed by I whose factory pulls
+// the field out of the already-resolved bichatBundle. Centralizes the
+// bundle decomposition boilerplate that previously appeared eleven times.
+func provideBundleField[I any](builder *composition.Builder, field func(*bichatBundle) I) {
+	composition.Provide[I](builder, func(container *composition.Container) (I, error) {
+		b, err := composition.Resolve[*bichatBundle](container)
+		if err != nil {
+			var zero I
+			return zero, err
+		}
+		return field(b), nil
+	})
+}
+
 func (c *component) Build(builder *composition.Builder) error {
 	buildCtx := builder.Context()
 
-	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
-		return []*embed.FS{&LocaleFiles}, nil
-	})
-
+	composition.AddLocales(builder, &LocaleFiles)
+	composition.AddNavItems(builder, NavItems...)
+	composition.AddQuickLinks(builder, spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
 	// Gate: env var check is cheap and deterministic. When unset, BiChat
 	// registers no providers and no hooks, and the component compiles to a
 	// no-op. Downstream consumers get NOT_PROVIDED at compile time rather
@@ -154,76 +164,16 @@ func (c *component) Build(builder *composition.Builder) error {
 		}, nil
 	})
 
-	composition.Provide[bichatservices.SessionCommands](builder, func(container *composition.Container) (bichatservices.SessionCommands, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.SessionCommands(), nil
-	})
-	composition.Provide[bichatservices.SessionQueries](builder, func(container *composition.Container) (bichatservices.SessionQueries, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.SessionQueries(), nil
-	})
-	composition.Provide[bichatservices.TurnCommands](builder, func(container *composition.Container) (bichatservices.TurnCommands, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.TurnCommands(), nil
-	})
-	composition.Provide[bichatservices.TurnQueries](builder, func(container *composition.Container) (bichatservices.TurnQueries, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.TurnQueries(), nil
-	})
-	composition.Provide[bichatservices.StreamCommands](builder, func(container *composition.Container) (bichatservices.StreamCommands, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.StreamCommands(), nil
-	})
-	composition.Provide[bichatservices.HITLCommands](builder, func(container *composition.Container) (bichatservices.HITLCommands, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.HITLCommands(), nil
-	})
-	composition.Provide[bichatservices.AgentService](builder, func(container *composition.Container) (bichatservices.AgentService, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.AgentService(), nil
-	})
-	composition.Provide[bichatservices.AttachmentService](builder, func(container *composition.Container) (bichatservices.AttachmentService, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.AttachmentService(), nil
-	})
-	composition.Provide[bichatservices.ArtifactService](builder, func(container *composition.Container) (bichatservices.ArtifactService, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.ArtifactService(), nil
-	})
-	composition.Provide[*services.StreamObservability](builder, func(container *composition.Container) (*services.StreamObservability, error) {
-		b, err := composition.Resolve[*bichatBundle](container)
-		if err != nil {
-			return nil, err
-		}
-		return b.services.StreamObservability(), nil
-	})
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.SessionCommands { return b.services.SessionCommands() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.SessionQueries { return b.services.SessionQueries() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.TurnCommands { return b.services.TurnCommands() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.TurnQueries { return b.services.TurnQueries() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.StreamCommands { return b.services.StreamCommands() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.HITLCommands { return b.services.HITLCommands() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.AgentService { return b.services.AgentService() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.AttachmentService { return b.services.AttachmentService() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.ArtifactService { return b.services.ArtifactService() })
+	provideBundleField(builder, func(b *bichatBundle) *services.StreamObservability { return b.services.StreamObservability() })
 
 	composition.ContributeApplets(builder, func(container *composition.Container) ([]application.Applet, error) {
 		b, err := composition.Resolve[*bichatBundle](container)
@@ -231,13 +181,6 @@ func (c *component) Build(builder *composition.Builder) error {
 			return nil, err
 		}
 		return []application.Applet{NewBiChatApplet(b.config, b.services)}, nil
-	})
-
-	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
-		return NavItems, nil
-	})
-	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
-		return []*spotlight.QuickLink{spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href)}, nil
 	})
 
 	composition.ContributeSpotlightAgent(builder, func(container *composition.Container) (spotlight.Agent, error) {
@@ -251,25 +194,15 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 
 	if buildCtx.HasCapability(composition.CapabilityWorker) {
+		pool := buildCtx.DB()
 		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
 			b, err := composition.Resolve[*bichatBundle](container)
 			if err != nil {
 				return nil, err
 			}
-			runtime := &runtimeComponent{
-				config:      b.config,
-				container:   b.services,
-				eventBridge: b.eventBridge,
-				pool:        buildCtx.DB(),
-			}
 			return []composition.Hook{{
-				Name: runtime.Name(),
-				Start: func(ctx context.Context) (composition.StopFn, error) {
-					if err := runtime.Start(ctx); err != nil {
-						return nil, err
-					}
-					return runtime.Stop, nil
-				},
+				Name:  "bichat-runtime",
+				Start: newRuntimeStart(b, pool),
 			}}, nil
 		})
 	}
@@ -280,10 +213,6 @@ func (c *component) Build(builder *composition.Builder) error {
 		readAllPermissionOverride := c.options.streamReadAllPermission
 
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-			app, err := composition.RequireApplication(container)
-			if err != nil {
-				return nil, err
-			}
 			b, err := composition.Resolve[*bichatBundle](container)
 			if err != nil {
 				return nil, err
@@ -316,7 +245,6 @@ func (c *component) Build(builder *composition.Builder) error {
 
 			return []application.Controller{
 				controllers.NewStreamController(
-					app,
 					b.services.StreamCommands(),
 					b.services.SessionQueries(),
 					b.services.AttachmentService(),
@@ -329,96 +257,75 @@ func (c *component) Build(builder *composition.Builder) error {
 	return nil
 }
 
-type runtimeComponent struct {
-	config            *ModuleConfig
-	container         *ServiceContainer
-	eventBridge       *observability.EventBridge
-	pool              *pgxpool.Pool
-	titleWorker       *services.TitleJobWorker
-	titleWorkerCancel context.CancelFunc
-	titleWorkerDone   chan struct{}
-}
+// newRuntimeStart returns a Hook.Start that captures the title worker and
+// event bridge in closures so that Stop has direct references without any
+// shared struct state. Previously this was a runtimeComponent with
+// cross-phase fields — the closure captures make that state local.
+func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Context) (composition.StopFn, error) {
+	return func(ctx context.Context) (composition.StopFn, error) {
+		const op serrors.Op = "bichat.runtimeStart"
 
-func (c *runtimeComponent) shutdown(ctx context.Context) error {
-	var shutdownErr error
-
-	if c.titleWorkerCancel != nil {
-		c.titleWorkerCancel()
-		c.titleWorkerCancel = nil
-	}
-	if c.titleWorkerDone != nil {
-		select {
-		case <-c.titleWorkerDone:
-		case <-ctx.Done():
-			shutdownErr = errors.Join(shutdownErr, ctx.Err())
+		if b.config == nil || b.services == nil {
+			return func(context.Context) error { return nil }, nil
 		}
-		c.titleWorkerDone = nil
-	}
-	c.titleWorker = nil
 
-	if c.container != nil {
-		if err := c.container.CloseTitleQueue(); err != nil {
-			shutdownErr = errors.Join(shutdownErr, err)
+		if b.config.ViewManager != nil {
+			if err := b.config.ViewManager.Sync(ctx, pool); err != nil {
+				return nil, serrors.E(op, err, "failed to sync analytics views")
+			}
 		}
-	}
 
-	if c.eventBridge == nil {
-		return shutdownErr
-	}
-
-	shutdownCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	if err := c.eventBridge.Shutdown(shutdownCtx); err != nil {
-		shutdownErr = errors.Join(shutdownErr, err)
-	}
-
-	return shutdownErr
-}
-
-func (c *runtimeComponent) Name() string {
-	return "bichat-runtime"
-}
-
-func (c *runtimeComponent) Start(ctx context.Context) error {
-	const op serrors.Op = "bichat.runtimeComponent.Start"
-
-	if c.config == nil || c.container == nil {
-		return nil
-	}
-	if c.config.ViewManager != nil {
-		if err := c.config.ViewManager.Sync(ctx, c.pool); err != nil {
-			return serrors.E(op, err, "failed to sync analytics views")
+		var (
+			titleWorker       *services.TitleJobWorker
+			titleWorkerCancel context.CancelFunc
+			titleWorkerDone   chan struct{}
+		)
+		worker, err := b.services.NewTitleJobWorker(pool)
+		if err != nil {
+			if !errors.Is(err, ErrTitleJobWorkerDisabled) {
+				return nil, serrors.E(op, err, "failed to create title job worker")
+			}
+		} else if worker != nil {
+			workerCtx, workerCancel := context.WithCancel(context.Background())
+			titleWorker = worker
+			titleWorkerCancel = workerCancel
+			titleWorkerDone = make(chan struct{})
+			go func() {
+				defer close(titleWorkerDone)
+				if startErr := worker.Start(workerCtx); startErr != nil && b.config.Logger != nil {
+					b.config.Logger.WithError(startErr).Warn("bichat title job worker stopped with error")
+				}
+			}()
 		}
-	}
-	if c.titleWorker != nil {
-		return nil
-	}
-	worker, err := c.container.NewTitleJobWorker(c.pool)
-	if err != nil {
-		if errors.Is(err, ErrTitleJobWorkerDisabled) {
-			return nil
-		}
-		return serrors.E(op, err, "failed to create title job worker")
-	}
-	if worker == nil {
-		return nil
-	}
 
-	workerCtx, workerCancel := context.WithCancel(context.Background())
-	c.titleWorker = worker
-	c.titleWorkerCancel = workerCancel
-	c.titleWorkerDone = make(chan struct{})
-	go func() {
-		defer close(c.titleWorkerDone)
-		if startErr := worker.Start(workerCtx); startErr != nil && c.config.Logger != nil {
-			c.config.Logger.WithError(startErr).Warn("bichat title job worker stopped with error")
-		}
-	}()
+		return func(stopCtx context.Context) error {
+			var stopErr error
+			if titleWorkerCancel != nil {
+				titleWorkerCancel()
+			}
+			if titleWorkerDone != nil {
+				select {
+				case <-titleWorkerDone:
+				case <-stopCtx.Done():
+					stopErr = errors.Join(stopErr, stopCtx.Err())
+				}
+			}
+			_ = titleWorker // retained to silence unused-var warning; cleanup is via cancel+done
 
-	return nil
-}
+			if b.services != nil {
+				if closeErr := b.services.CloseTitleQueue(); closeErr != nil {
+					stopErr = errors.Join(stopErr, closeErr)
+				}
+			}
 
-func (c *runtimeComponent) Stop(ctx context.Context) error {
-	return c.shutdown(ctx)
+			if b.eventBridge != nil {
+				shutdownCtx, cancel := context.WithTimeout(stopCtx, 30*time.Second)
+				defer cancel()
+				if bridgeErr := b.eventBridge.Shutdown(shutdownCtx); bridgeErr != nil {
+					stopErr = errors.Join(stopErr, bridgeErr)
+				}
+			}
+			return stopErr
+		}, nil
+	}
 }

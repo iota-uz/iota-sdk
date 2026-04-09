@@ -24,17 +24,15 @@ import (
 )
 
 type DebtAggregateController struct {
-	app                 application.Application
 	debtService         *services.DebtService
 	counterpartyService *services.CounterpartyService
 	basePath            string
 }
 
-func NewDebtAggregateController(app application.Application, debtService *services.DebtService, counterpartyService *services.CounterpartyService) application.Controller {
+func NewDebtAggregateController(debtService *services.DebtService, counterpartyService *services.CounterpartyService) application.Controller {
 	basePath := "/finance/debt-aggregates"
 
 	return &DebtAggregateController{
-		app:                 app,
 		debtService:         debtService,
 		counterpartyService: counterpartyService,
 		basePath:            basePath,

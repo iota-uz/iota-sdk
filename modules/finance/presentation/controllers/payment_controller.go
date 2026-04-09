@@ -31,7 +31,6 @@ import (
 )
 
 type PaymentsController struct {
-	app                    application.Application
 	paymentService         *services.PaymentService
 	moneyAccountService    *services.MoneyAccountService
 	counterpartyService    *services.CounterpartyService
@@ -45,14 +44,12 @@ type PaymentPaginatedResponse struct {
 }
 
 func NewPaymentsController(
-	app application.Application,
 	paymentService *services.PaymentService,
 	moneyAccountService *services.MoneyAccountService,
 	counterpartyService *services.CounterpartyService,
 	paymentCategoryService *services.PaymentCategoryService,
 ) application.Controller {
 	return &PaymentsController{
-		app:                    app,
 		paymentService:         paymentService,
 		moneyAccountService:    moneyAccountService,
 		counterpartyService:    counterpartyService,

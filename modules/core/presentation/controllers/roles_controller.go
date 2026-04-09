@@ -28,7 +28,6 @@ import (
 )
 
 type RolesController struct {
-	app              application.Application
 	basePath         string
 	permissionSchema *rbac.PermissionSchema
 }
@@ -38,7 +37,7 @@ type RolesControllerOptions struct {
 	PermissionSchema *rbac.PermissionSchema
 }
 
-func NewRolesController(app application.Application, opts *RolesControllerOptions) application.Controller {
+func NewRolesController(opts *RolesControllerOptions) application.Controller {
 	if opts == nil || opts.PermissionSchema == nil {
 		panic("RolesController requires PermissionSchema in options")
 	}
@@ -46,7 +45,6 @@ func NewRolesController(app application.Application, opts *RolesControllerOption
 		panic("RolesController requires explicit BasePath in options")
 	}
 	return &RolesController{
-		app:              app,
 		basePath:         opts.BasePath,
 		permissionSchema: opts.PermissionSchema,
 	}

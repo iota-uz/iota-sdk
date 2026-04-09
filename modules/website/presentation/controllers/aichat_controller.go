@@ -24,18 +24,15 @@ import (
 
 type AIChatControllerConfig struct {
 	BasePath string
-	App      application.Application
 }
 
 type AIChatController struct {
 	basePath string
-	app      application.Application
 }
 
 func NewAIChatController(cfg AIChatControllerConfig) application.Controller {
 	return &AIChatController{
 		basePath: cfg.BasePath,
-		app:      cfg.App,
 	}
 }
 

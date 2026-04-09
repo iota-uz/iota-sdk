@@ -3,48 +3,35 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/telegram"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
+// NotificationHandler subscribes to new-message events and forwards them
+// to a Telegram bot. The Telegram bot is constructed lazily by the caller;
+// use NewNotificationHandler to build one from a bot token and then
+// register via composition.ContributeHooks.
 type NotificationHandler struct {
-	pool        *pgxpool.Pool
-	publisher   eventbus.EventBus
-	tgBot       *telegram.Bot
-	unsubscribe func()
+	tgBot *telegram.Bot
 }
 
-func RegisterNotificationHandler(app application.Application, botToken string) *NotificationHandler {
+func NewNotificationHandler(botToken string) (*NotificationHandler, error) {
+	if botToken == "" {
+		return nil, fmt.Errorf("crm: notification handler requires a telegram bot token")
+	}
 	bot, err := telegram.NewBot(botToken)
 	if err != nil {
-		log.Fatalf("Error creating telegram bot: %v", err)
+		return nil, fmt.Errorf("crm: failed to create telegram bot: %w", err)
 	}
-	handler := &NotificationHandler{
-		pool:      app.DB(),
-		publisher: app.EventPublisher(),
-		tgBot:     bot,
-	}
-	handler.unsubscribe = app.EventPublisher().Subscribe(handler.onNewMessage)
-	return handler
+	return &NotificationHandler{tgBot: bot}, nil
 }
 
-func (h *NotificationHandler) Unregister() {
-	if h == nil || h.publisher == nil {
-		return
-	}
-	if h.unsubscribe != nil {
-		h.unsubscribe()
-		h.unsubscribe = nil
-	}
-}
-
-func (h *NotificationHandler) onNewMessage(event *chat.MessagedAddedEvent) {
+// OnNewMessage is the eventbus subscriber callback. Compatible with
+// eventbus.EventBus.Subscribe.
+func (h *NotificationHandler) OnNewMessage(event *chat.MessagedAddedEvent) {
 	ctx := context.Background()
 	chatID := int64(-1001979082001)
 	if err := h.tgBot.SendMessage(

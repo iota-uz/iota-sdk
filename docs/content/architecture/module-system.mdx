@@ -137,12 +137,17 @@ classDiagram
 
 | Method | Purpose | Called In |
 |--------|---------|-----------|
-| `composition.Provide(...)` | Add repositories and services | Services layer |
-| `composition.ContributeControllers(...)` | Add HTTP handlers | Presentation layer |
-| `composition.ContributeMiddleware(...)` | Add request middleware | Infrastructure |
-| `composition.ContributeLocales(...)` | Translations | Presentation |
-| `composition.ContributeHashFS(...)` | Static assets | Presentation |
-| `composition.ContributeQuickLinks(...)` | Spotlight quick links | Navigation / actions |
+| `composition.Provide[T](b, value)` | Eager value provider for T | Services layer |
+| `composition.ProvideFunc(b, ctor)` | Reflection-injected constructor; params resolved by type | Services layer |
+| `composition.ProvideFuncAs[I](b, ctor)` | Same, also bridged to interface key I | Services layer |
+| `composition.ContributeControllers(b, fn)` | Closure returning HTTP handlers | Presentation layer |
+| `composition.ContributeControllersFunc(b, ctor)` | Reflection-injected controller factory | Presentation layer |
+| `composition.ContributeHooks(b, fn)` | Start/stop lifecycle hooks | Infrastructure |
+| `composition.ContributeEventHandler(b, handler)` | Auto-subscribed eventbus handler | Infrastructure |
+| `composition.AddLocales(b, fs)` | Translation bundles (no closure) | Presentation |
+| `composition.AddNavItems(b, items...)` | Sidebar / navigation entries | Presentation |
+| `composition.AddQuickLinks(b, links...)` | Spotlight quick links | Navigation / actions |
+| `composition.AddHashFS(b, fs)` | Hashed static assets | Presentation |
 
 ## Service Registration
 
@@ -185,9 +190,9 @@ sequenceDiagram
 When migrating old code:
 
 1. Replace the old module constructor with `NewComponent() composition.Component`.
-2. Move the old wiring phase into `Build(builder)` using `composition.Provide(...)` and `composition.Contribute...(...)`.
-3. Move the old transport phase into `composition.ContributeControllers(...)`, `composition.ContributeSchemas(...)`, or `composition.ContributeMiddleware(...)`.
-4. Replace direct application service lookups with `composition.Use[T]()` handles plus `Resolve(container)`.
+2. Move the old wiring phase into `Build(builder)`. Prefer the reflection helpers (`ProvideFunc`, `ProvideFuncAs[I]`, `ContributeControllersFunc`) over closure factories — the injector resolves typed dependencies automatically.
+3. Migrate static contributions (locales, nav items, quick links, hashfs bundles) to the `Add*` helpers — zero closure boilerplate.
+4. Most core services (`*pgxpool.Pool`, `eventbus.EventBus`, `*i18n.Bundle`, `*logrus.Logger`, `application.Application`, `spotlight.Service`) are auto-registered by `Engine.Compile`. Drop `composition.RequireApplication` calls that only pulled one of these, and let the injector resolve them via `ProvideFunc` / `ContributeControllersFunc`.
 
 ## Controller Registration
 

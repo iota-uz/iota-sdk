@@ -557,7 +557,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 			AsUser(permissions.SessionRead). // Only read permission
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		suite.DELETE("/sessions/dummy-token").
@@ -575,7 +575,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -614,7 +614,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 			AsUser(permissions.SessionDelete, permissions.SessionRead).
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		nonExistentToken := "non-existent-session-token"
@@ -636,7 +636,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 			AsUser(). // No permissions
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		suite.GET("/sessions").
@@ -654,7 +654,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -690,7 +690,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -729,7 +729,7 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -784,7 +784,7 @@ func TestSessionController_Permissions(t *testing.T) {
 			AsUser(permissions.SessionRead). // Only read permission
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		// Can view sessions
@@ -808,7 +808,7 @@ func TestSessionController_Permissions(t *testing.T) {
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -841,7 +841,7 @@ func TestSessionController_Permissions(t *testing.T) {
 			AsUser(). // No permissions
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions")
 		suite.Register(controller)
 
 		// Cannot view sessions

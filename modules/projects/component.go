@@ -44,10 +44,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewProjectStageService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllersFunc(builder, func(app application.Application) []application.Controller {
+		composition.ContributeControllersFunc(builder, func() []application.Controller {
 			return []application.Controller{
-				controllers.NewProjectController(app),
-				controllers.NewProjectStageController(app),
+				controllers.NewProjectController(),
+				controllers.NewProjectStageController(),
 			}
 		})
 	}

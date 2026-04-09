@@ -46,7 +46,7 @@ func TestDebtController_List_Success(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -112,7 +112,7 @@ func TestDebtController_List_HTMX_Request(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -165,7 +165,7 @@ func TestDebtController_GetEditDrawer_Success(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -220,7 +220,7 @@ func TestDebtController_GetEditDrawer_NotFound(t *testing.T) {
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartySvc := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
+	controller := controllers.NewDebtsController(debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -247,7 +247,7 @@ func TestDebtController_GetNewDrawer_Success(t *testing.T) {
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtSvc, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty for dropdown
@@ -291,7 +291,7 @@ func TestDebtController_Create_Success(t *testing.T) {
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtSvc, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -353,7 +353,7 @@ func TestDebtController_Create_ValidationError(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -409,7 +409,7 @@ func TestDebtController_Update_Success(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -479,7 +479,7 @@ func TestDebtController_Update_ValidationError(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -547,7 +547,7 @@ func TestDebtController_Settle_Success(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 	transactionService := itf.GetService[services.TransactionService](env)
@@ -634,7 +634,7 @@ func TestDebtController_WriteOff_Success(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -690,7 +690,7 @@ func TestDebtController_Delete_Success(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -748,7 +748,7 @@ func TestDebtController_Delete_NotFound(t *testing.T) {
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartySvc := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
+	controller := controllers.NewDebtsController(debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -774,7 +774,7 @@ func TestDebtController_InvalidUUID(t *testing.T) {
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartySvc := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
+	controller := controllers.NewDebtsController(debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	suite.GET(DebtBasePath + "/invalid-uuid/drawer").
@@ -797,7 +797,7 @@ func TestDebtController_Permission_Forbidden(t *testing.T) {
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartySvc := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtSvc, counterpartySvc, transactionSvc)
+	controller := controllers.NewDebtsController(debtSvc, counterpartySvc, transactionSvc)
 	suite.Register(controller)
 
 	suite.GET(DebtBasePath).
@@ -824,7 +824,7 @@ func TestDebtController_List_WithFilters(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
-	controller := controllers.NewDebtsController(env.App, debtService, counterpartyService, transactionSvc)
+	controller := controllers.NewDebtsController(debtService, counterpartyService, transactionSvc)
 	suite.Register(controller)
 
 	// Create test counterparty

@@ -37,7 +37,7 @@ func TestInventoryController_List_Success(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	service := inventorySvc
@@ -86,7 +86,7 @@ func TestInventoryController_List_HTMX_Request(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	service := inventorySvc
@@ -122,7 +122,7 @@ func TestInventoryController_GetNew_Success(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	response := suite.GET(InventoryBasePath + "/new").
@@ -155,7 +155,7 @@ func TestInventoryController_Create_Success(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	service := inventorySvc
@@ -199,7 +199,7 @@ func TestInventoryController_Create_ValidationError(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	service := inventorySvc
@@ -238,7 +238,7 @@ func TestInventoryController_GetEdit_Success(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	service := inventorySvc
@@ -284,7 +284,7 @@ func TestInventoryController_GetEdit_NotFound(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -307,7 +307,7 @@ func TestInventoryController_Update_Success(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	service := inventorySvc
@@ -359,7 +359,7 @@ func TestInventoryController_Update_ValidationError(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	service := inventorySvc
@@ -408,7 +408,7 @@ func TestInventoryController_Delete_Success(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	service := inventorySvc
@@ -450,7 +450,7 @@ func TestInventoryController_Delete_NotFound(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -473,7 +473,7 @@ func TestInventoryController_InvalidUUID(t *testing.T) {
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewInventoryController(env.App, inventorySvc, currencySvc)
+	controller := controllers.NewInventoryController(inventorySvc, currencySvc)
 	suite.Register(controller)
 
 	suite.GET(InventoryBasePath + "/invalid-uuid").

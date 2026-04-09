@@ -6,38 +6,26 @@ import (
 
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
+// SMSHandler subscribes to inbound SMS events. Register with
+// composition.ProvideFunc + ContributeHooks — lifecycle is managed by the
+// engine, not by the handler.
 type SMSHandler struct {
 	pool        *pgxpool.Pool
-	publisher   eventbus.EventBus
 	chatService *services.ChatService
-	unsubscribe func()
 }
 
-func RegisterSMSHandlers(app application.Application, chatService *services.ChatService) *SMSHandler {
-	handler := &SMSHandler{
-		pool:        app.DB(),
-		publisher:   app.EventPublisher(),
+func NewSMSHandler(pool *pgxpool.Pool, chatService *services.ChatService) *SMSHandler {
+	return &SMSHandler{
+		pool:        pool,
 		chatService: chatService,
 	}
-	handler.unsubscribe = app.EventPublisher().Subscribe(handler.onSMSReceived)
-	return handler
 }
 
-func (h *SMSHandler) Unregister() {
-	if h == nil || h.publisher == nil {
-		return
-	}
-	if h.unsubscribe != nil {
-		h.unsubscribe()
-		h.unsubscribe = nil
-	}
-}
-
-func (h *SMSHandler) onSMSReceived(event *cpassproviders.ReceivedMessageEvent) {
+// OnSMSReceived is the eventbus subscriber callback. Compatible with
+// eventbus.EventBus.Subscribe.
+func (h *SMSHandler) OnSMSReceived(event *cpassproviders.ReceivedMessageEvent) {
 	// ctx := context.Background()
 	// ctx = composables.WithPool(ctx, h.pool)
 	//

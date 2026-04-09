@@ -30,14 +30,12 @@ import (
 )
 
 type EmployeeController struct {
-	app             application.Application
 	employeeService *services.EmployeeService
 	basePath        string
 }
 
-func NewEmployeeController(app application.Application, employeeService *services.EmployeeService) application.Controller {
+func NewEmployeeController(employeeService *services.EmployeeService) application.Controller {
 	return &EmployeeController{
-		app:             app,
 		employeeService: employeeService,
 		basePath:        "/hrm/employees",
 	}

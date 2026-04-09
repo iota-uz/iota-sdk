@@ -27,7 +27,6 @@ import (
 )
 
 type ProductsController struct {
-	app             application.Application
 	productService  *productservice.ProductService
 	positionService *positionservice.PositionService
 	basePath        string
@@ -39,12 +38,10 @@ type PaginatedResponse struct {
 }
 
 func NewProductsController(
-	app application.Application,
 	productService *productservice.ProductService,
 	positionService *positionservice.PositionService,
 ) application.Controller {
 	return &ProductsController{
-		app:             app,
 		productService:  productService,
 		positionService: positionService,
 		basePath:        "/warehouse/products",

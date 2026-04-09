@@ -80,7 +80,6 @@ func (c *component) Build(builder *composition.Builder) error {
 }
 
 func financeControllers(
-	app application.Application,
 	moneyAccountService *services.MoneyAccountService,
 	transactionService *services.TransactionService,
 	paymentService *services.PaymentService,
@@ -93,15 +92,15 @@ func financeControllers(
 	currencyService *coreservices.CurrencyService,
 ) []application.Controller {
 	return []application.Controller{
-		controllers.NewFinancialOverviewController(app, paymentService, moneyAccountService, counterpartyService, paymentCategoryService, transactionService),
-		controllers.NewMoneyAccountController(app, moneyAccountService, transactionService, currencyService),
-		controllers.NewExpenseCategoriesController(app, expenseCategoryService),
-		controllers.NewPaymentCategoriesController(app, paymentCategoryService),
-		controllers.NewCounterpartiesController(app, counterpartyService),
-		controllers.NewInventoryController(app, inventoryService, currencyService),
-		controllers.NewDebtsController(app, debtService, counterpartyService, transactionService),
-		controllers.NewDebtAggregateController(app, debtService, counterpartyService),
-		controllers.NewFinancialReportController(app, financialReportService),
-		controllers.NewCashflowController(app, financialReportService, moneyAccountService),
+		controllers.NewFinancialOverviewController(paymentService, moneyAccountService, counterpartyService, paymentCategoryService, transactionService),
+		controllers.NewMoneyAccountController(moneyAccountService, transactionService, currencyService),
+		controllers.NewExpenseCategoriesController(expenseCategoryService),
+		controllers.NewPaymentCategoriesController(paymentCategoryService),
+		controllers.NewCounterpartiesController(counterpartyService),
+		controllers.NewInventoryController(inventoryService, currencyService),
+		controllers.NewDebtsController(debtService, counterpartyService, transactionService),
+		controllers.NewDebtAggregateController(debtService, counterpartyService),
+		controllers.NewFinancialReportController(financialReportService),
+		controllers.NewCashflowController(financialReportService, moneyAccountService),
 	}
 }

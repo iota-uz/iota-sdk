@@ -65,6 +65,11 @@ type LocaleOptions struct {
 // attaches an i18n.Localizer to the request context. Bundle and supported
 // language codes are captured at construction time so the middleware does no
 // per-request DI lookup.
+//
+// The bundle and supported-language list are snapshot when the middleware is
+// installed — runtime changes to either (e.g. adding a language pack or
+// swapping the bundle on the application handle) will not be observed.
+// Rebuild the middleware if that's required.
 func ProvideLocalizer(bundle *i18n.Bundle, supportedLanguageCodes []string, opts ...LocaleOptions) mux.MiddlewareFunc {
 	supportedLanguages := languageTagsFromCodes(supportedLanguageCodes)
 

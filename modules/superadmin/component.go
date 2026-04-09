@@ -47,10 +47,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewTenantService)
 	composition.ProvideFunc(builder, services.NewTenantUsersService)
 
-	composition.ContributeControllersFunc(builder, func(app application.Application, userService *coreservices.UserService) []application.Controller {
+	composition.ContributeControllersFunc(builder, func(userService *coreservices.UserService) []application.Controller {
 		return []application.Controller{
-			controllers.NewDashboardController(app),
-			controllers.NewTenantsController(app, userService),
+			controllers.NewDashboardController(),
+			controllers.NewTenantsController(userService),
 		}
 	})
 	return nil

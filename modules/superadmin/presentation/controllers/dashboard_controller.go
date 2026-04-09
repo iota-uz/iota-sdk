@@ -18,13 +18,11 @@ import (
 )
 
 type DashboardController struct {
-	app      application.Application
 	basePath string
 }
 
-func NewDashboardController(app application.Application) application.Controller {
+func NewDashboardController() application.Controller {
 	return &DashboardController{
-		app:      app,
 		basePath: "/",
 	}
 }

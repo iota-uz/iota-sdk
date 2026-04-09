@@ -325,8 +325,7 @@ func TestCrudController_List_Success(t *testing.T) {
 	}
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test
@@ -366,8 +365,7 @@ func TestCrudController_List_HTMX(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test HTMX request
@@ -395,8 +393,7 @@ func TestCrudController_List_Search(t *testing.T) {
 	service.entities[entity3.ID] = entity3
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test search
@@ -427,8 +424,7 @@ func TestCrudController_List_Pagination(t *testing.T) {
 	}
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test first page
@@ -450,8 +446,7 @@ func TestCrudController_GetNew(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test
@@ -475,8 +470,7 @@ func TestCrudController_Create_Success(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test
@@ -541,8 +535,7 @@ func TestCrudController_Create_ValidationError(t *testing.T) {
 		service: service,
 	}
 
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test with empty name
@@ -582,8 +575,7 @@ func TestCrudController_GetEdit_Success(t *testing.T) {
 	service.entities[entity.ID] = entity
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test
@@ -614,8 +606,7 @@ func TestCrudController_GetEdit_NotFound(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test with non-existent ID
@@ -645,8 +636,7 @@ func TestCrudController_Update_Success(t *testing.T) {
 	service.entities[entity.ID] = entity
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test update
@@ -700,8 +690,7 @@ func TestCrudController_Delete_Success(t *testing.T) {
 	service.entities[entity.ID] = entity
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test delete (non-HTMX request defaults to 303 redirect)
@@ -725,8 +714,7 @@ func TestCrudController_Delete_NotFound(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test delete non-existent (service error returns 500)
@@ -743,8 +731,7 @@ func TestCrudController_InvalidUUID(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test various endpoints with invalid UUID
@@ -760,8 +747,7 @@ func TestCrudController_WithoutEdit(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder, controllers.WithoutEdit[TestEntity]())
+	controller := controllers.NewCrudController[TestEntity]("/test", builder, controllers.WithoutEdit[TestEntity]())
 	suite.Register(controller)
 
 	// Add test entity
@@ -780,8 +766,7 @@ func TestCrudController_WithoutDelete(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder, controllers.WithoutDelete[TestEntity]())
+	controller := controllers.NewCrudController[TestEntity]("/test", builder, controllers.WithoutDelete[TestEntity]())
 	suite.Register(controller)
 
 	// Add test entity
@@ -799,8 +784,7 @@ func TestCrudController_WithoutCreate(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder, controllers.WithoutCreate[TestEntity]())
+	controller := controllers.NewCrudController[TestEntity]("/test", builder, controllers.WithoutCreate[TestEntity]())
 	suite.Register(controller)
 
 	// Create endpoints return 405 when create is disabled
@@ -840,8 +824,7 @@ func TestCrudController_FieldTypes(t *testing.T) {
 		service: service,
 	}
 
-	env := suite.Environment()
-	controller := controllers.NewCrudController[ComplexEntity]("/complex", env.App, builder)
+	controller := controllers.NewCrudController[ComplexEntity]("/complex", builder)
 	suite.Register(controller)
 
 	doc := suite.GET("/complex/new").Expect(t).Status(http.StatusOK).HTML()
@@ -968,8 +951,7 @@ func TestCrudController_DecimalFieldHandling(t *testing.T) {
 		service: service,
 	}
 
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test that decimal value is properly populated in edit form
@@ -989,8 +971,7 @@ func TestCrudController_ReadonlyFieldExclusion(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test create with readonly fields in form data
@@ -1052,8 +1033,7 @@ func TestCrudController_PreAssignedKeyHandling(t *testing.T) {
 		schema:  createTestSchema(),
 		service: service,
 	}
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test create with pre-assigned UUID
@@ -1085,8 +1065,7 @@ func TestCrudController_FormFieldBuilder(t *testing.T) {
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test that form fields are properly built
@@ -1126,8 +1105,7 @@ func TestCrudController_ErrorHandling(t *testing.T) {
 			service: errorService,
 		}
 
-		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+		controller := controllers.NewCrudController[TestEntity]("/test", builder)
 		suite.Register(controller)
 
 		// Test create with service error
@@ -1236,8 +1214,7 @@ func TestCrudController_JSONField_FormHandling(t *testing.T) {
 		service: service,
 	}
 
-	env := suite.Environment()
-	controller := controllers.NewCrudController[ComplexEntity]("/complex", env.App, builder)
+	controller := controllers.NewCrudController[ComplexEntity]("/complex", builder)
 	suite.Register(controller)
 
 	// Test GET /new - should render textarea for JSON field

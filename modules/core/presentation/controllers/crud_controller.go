@@ -50,7 +50,6 @@ const (
 
 type CrudController[TEntity any] struct {
 	basePath string
-	app      application.Application
 	schema   crud.Schema[TEntity]
 	service  crud.Service[TEntity]
 
@@ -153,13 +152,11 @@ func WithCustomRowAction[TEntity any](actionBuilder func(primaryKey any) actions
 
 func NewCrudController[TEntity any](
 	basePath string,
-	app application.Application,
 	builder crud.Builder[TEntity],
 	opts ...CrudOption[TEntity],
 ) application.Controller {
 	controller := &CrudController[TEntity]{
 		basePath:            basePath,
-		app:                 app,
 		schema:              builder.Schema(),
 		service:             builder.Service(),
 		rendererRegistry:    crud.NewRendererRegistry(),

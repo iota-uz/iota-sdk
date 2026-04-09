@@ -20,18 +20,16 @@ import (
 )
 
 type CashflowController struct {
-	app                    application.Application
 	financialReportService *services.FinancialReportService
 	moneyAccountService    *services.MoneyAccountService
 	queryRepo              query.FinancialReportsQueryRepository
 	basePath               string
 }
 
-func NewCashflowController(app application.Application, financialReportService *services.FinancialReportService, moneyAccountService *services.MoneyAccountService) application.Controller {
+func NewCashflowController(financialReportService *services.FinancialReportService, moneyAccountService *services.MoneyAccountService) application.Controller {
 	basePath := "/finance/reports"
 
 	return &CashflowController{
-		app:                    app,
 		financialReportService: financialReportService,
 		moneyAccountService:    moneyAccountService,
 		queryRepo:              query.NewPgFinancialReportsQueryRepository(),

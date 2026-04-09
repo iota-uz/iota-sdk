@@ -66,7 +66,7 @@ func TestTenantsController_Index(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	// Test GET /superadmin/tenants - should render template properly
@@ -85,7 +85,7 @@ func TestTenantsController_Index_HTMX(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	// Test GET /superadmin/tenants with HTMX - should render table rows
@@ -105,7 +105,7 @@ func TestTenantsController_Index_WithPagination(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -157,7 +157,7 @@ func TestTenantsController_Index_WithSearch(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -199,7 +199,7 @@ func TestTenantsController_Export(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	// Test POST /superadmin/tenants/export
@@ -265,7 +265,7 @@ func TestTenantsController_Permissions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			suite := tc.setupSuite(t)
 			userService := itf.GetService[coreservices.UserService](suite.Env())
-			controller := controllers.NewTenantsController(suite.Env().App, userService)
+			controller := controllers.NewTenantsController(userService)
 			suite.Register(controller)
 
 			suite.GET("/superadmin/tenants").
@@ -287,7 +287,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			Build()
 
 		userService := itf.GetService[coreservices.UserService](suite.Env())
-		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		controller := controllers.NewTenantsController(userService)
 		suite.Register(controller)
 
 		suite.GET("/superadmin/tenants").
@@ -303,7 +303,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			Build()
 
 		userService := itf.GetService[coreservices.UserService](suite.Env())
-		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		controller := controllers.NewTenantsController(userService)
 		suite.Register(controller)
 
 		suite.GET("/superadmin/tenants").
@@ -319,7 +319,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			Build()
 
 		userService := itf.GetService[coreservices.UserService](suite.Env())
-		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		controller := controllers.NewTenantsController(userService)
 		suite.Register(controller)
 
 		// Export endpoint redirects (303)
@@ -336,7 +336,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			Build()
 
 		userService := itf.GetService[coreservices.UserService](suite.Env())
-		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		controller := controllers.NewTenantsController(userService)
 		suite.Register(controller)
 
 		suite.POST("/superadmin/tenants/export").
@@ -352,7 +352,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			Build()
 
 		userService := itf.GetService[coreservices.UserService](suite.Env())
-		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		controller := controllers.NewTenantsController(userService)
 		suite.Register(controller)
 
 		// Create test tenant within this test's suite/database
@@ -372,7 +372,7 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			Build()
 
 		userService := itf.GetService[coreservices.UserService](suite.Env())
-		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		controller := controllers.NewTenantsController(userService)
 		suite.Register(controller)
 
 		// Create test tenant within this test's suite/database
@@ -395,7 +395,7 @@ func TestTenantsController_Routes(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -430,7 +430,7 @@ func TestTenantsController_EdgeCases(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -481,7 +481,7 @@ func TestTenantsController_HTMX(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	// Test HTMX request
@@ -501,7 +501,7 @@ func TestTenantsController_Index_WithDateRange(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -569,7 +569,7 @@ func TestTenantsController_Index_SortAscending(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -623,7 +623,7 @@ func TestTenantsController_Index_SortDescending(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -677,7 +677,7 @@ func TestTenantsController_Index_DefaultSort(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -727,7 +727,7 @@ func TestTenantsController_Index_InvalidSortField(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -781,7 +781,7 @@ func TestTenantsController_Index_SortWithDateFilter(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -842,7 +842,7 @@ func TestTenantsController_Index_SortWithSearch(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -900,7 +900,7 @@ func TestTenantsController_Index_SortWithPagination(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -950,7 +950,7 @@ func TestTenantsController_Index_DateRangeWithPagination(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -1000,7 +1000,7 @@ func TestTenantsController_TenantUsers(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	t.Run("Happy_Path_Valid_Tenant", func(t *testing.T) {
@@ -1038,7 +1038,7 @@ func TestTenantsController_TenantUsers_HTMX(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1061,7 +1061,7 @@ func TestTenantsController_TenantUsers_Pagination(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1108,7 +1108,7 @@ func TestTenantsController_TenantUsers_Search(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1153,7 +1153,7 @@ func TestTenantsController_TenantUsers_Sorting(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1201,7 +1201,7 @@ func TestTenantsController_Index_HTMXTargetHandling(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	t.Run("Sorting_Returns_Full_Table", func(t *testing.T) {
@@ -1256,7 +1256,7 @@ func TestTenantsController_TenantUsers_HTMXTargetHandling(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1320,7 +1320,7 @@ func TestTenantsController_ResetUserPassword_Success(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	ctx := suite.Env().Ctx
@@ -1369,7 +1369,7 @@ func TestTenantsController_ResetUserPassword_InvalidTenantID(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	suite.POST("/superadmin/tenants/invalid-uuid/users/1/reset-password").
@@ -1389,7 +1389,7 @@ func TestTenantsController_ResetUserPassword_InvalidUserID(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1412,7 +1412,7 @@ func TestTenantsController_ResetUserPassword_UserNotFound(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1436,7 +1436,7 @@ func TestTenantsController_ResetUserPassword_WrongTenant(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	ctx := suite.Env().Ctx
@@ -1474,7 +1474,7 @@ func TestTenantsController_ResetUserPassword_EmptyPassword(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1497,7 +1497,7 @@ func TestTenantsController_ResetUserPassword_PasswordTooShort(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1530,7 +1530,7 @@ func TestTenantsController_ResetUserPassword_Permissions(t *testing.T) {
 			Build()
 
 		userService := itf.GetService[coreservices.UserService](suite.Env())
-		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		controller := controllers.NewTenantsController(userService)
 		suite.Register(controller)
 
 		ctx := suite.Env().Ctx
@@ -1559,7 +1559,7 @@ func TestTenantsController_ResetUserPassword_Permissions(t *testing.T) {
 			Build()
 
 		userService := itf.GetService[coreservices.UserService](suite.Env())
-		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		controller := controllers.NewTenantsController(userService)
 		suite.Register(controller)
 
 		tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1583,7 +1583,7 @@ func TestTenantsController_ResetUserPassword_PasswordTooLong(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1620,7 +1620,7 @@ func TestTenantsController_ResetUserPassword_InvalidContentType(t *testing.T) {
 		Build()
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
-	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	controller := controllers.NewTenantsController(userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)

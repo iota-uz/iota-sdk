@@ -2,13 +2,13 @@
 package crm
 
 import (
-	"context"
 	"embed"
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	clientagg "github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	messagetemplate "github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/handlers"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
@@ -26,8 +26,6 @@ import (
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
 
-//go:embed infrastructure/persistence/schema/crm-schema.sql
-var MigrationFiles embed.FS
 
 func NewComponent() composition.Component {
 	return &component{}
@@ -43,8 +41,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.AddLocales(builder, &LocaleFiles)
 	composition.AddNavItems(builder, NavItems...)
 	composition.AddQuickLinks(builder, spotlight.NewQuickLink(ClientsLink.Name, ClientsLink.Href))
-	composition.ContributeMigrations(builder, &MigrationFiles)
-
 	composition.ContributeSpotlightProviders(builder, func(container *composition.Container) ([]spotlight.SearchProvider, error) {
 		pool, err := composition.Resolve[*pgxpool.Pool](container)
 		if err != nil {
@@ -56,66 +52,24 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, corepersistence.NewPassportRepository)
 	composition.ProvideFunc(builder, persistence.NewChatRepository)
 	composition.ProvideFunc(builder, persistence.NewClientRepository)
+	composition.ProvideFuncAs[messagetemplate.Repository](builder, persistence.NewMessageTemplateRepository)
 	composition.ProvideFunc(builder, newCRMTwilioProvider)
 	composition.ProvideFunc(builder, services.NewClientService)
 	composition.ProvideFunc(builder, newCRMChatService)
-	composition.ProvideFunc(builder, newCRMMessageTemplateService)
+	composition.ProvideFunc(builder, services.NewMessageTemplateService)
+	composition.ProvideFunc(builder, handlers.NewClientHandler)
+	composition.ProvideFunc(builder, handlers.NewSMSHandler)
 
-	composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
-		app, err := composition.RequireApplication(container)
+	composition.ContributeEventHandlerFunc(builder, func(h *handlers.ClientHandler) any { return h.OnCreated })
+	composition.ContributeEventHandlerFunc(builder, func(h *handlers.SMSHandler) any { return h.OnSMSReceived })
+
+	if botToken := configuration.Use().TelegramBotToken; botToken != "" {
+		notification, err := handlers.NewNotificationHandler(botToken)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		chatService, err := composition.Resolve[*services.ChatService](container)
-		if err != nil {
-			return nil, err
-		}
-		tenantService, err := composition.Resolve[*coreservices.TenantService](container)
-		if err != nil {
-			return nil, err
-		}
-		hooks := []composition.Hook{
-			{
-				Name: "crm-client-handler",
-				Start: func(context.Context) (composition.StopFn, error) {
-					h := handlers.RegisterClientHandler(app, chatService, tenantService)
-					return func(context.Context) error {
-						if h != nil {
-							h.Unregister()
-						}
-						return nil
-					}, nil
-				},
-			},
-			{
-				Name: "crm-sms-handler",
-				Start: func(context.Context) (composition.StopFn, error) {
-					h := handlers.RegisterSMSHandlers(app, chatService)
-					return func(context.Context) error {
-						if h != nil {
-							h.Unregister()
-						}
-						return nil
-					}, nil
-				},
-			},
-		}
-		if botToken := configuration.Use().TelegramBotToken; botToken != "" {
-			hooks = append(hooks, composition.Hook{
-				Name: "crm-notification-handler",
-				Start: func(context.Context) (composition.StopFn, error) {
-					h := handlers.RegisterNotificationHandler(app, botToken)
-					return func(context.Context) error {
-						if h != nil {
-							h.Unregister()
-						}
-						return nil
-					}, nil
-				},
-			})
-		}
-		return hooks, nil
-	})
+		composition.ContributeEventHandler(builder, notification.OnNewMessage)
+	}
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllersFunc(builder, func(
@@ -138,7 +92,7 @@ func (c *component) Build(builder *composition.Builder) error {
 					},
 				}),
 				controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, "/crm/chats"),
-				controllers.NewMessageTemplateController(app, templateService, "/crm/instant-messages"),
+				controllers.NewMessageTemplateController(templateService, "/crm/instant-messages"),
 				controllers.NewTwilioController(app, twilioProvider),
 			}
 		})
@@ -187,8 +141,3 @@ func newCRMChatService(
 	)
 }
 
-// newCRMMessageTemplateService keeps message-template wiring local since the
-// repository is built inline.
-func newCRMMessageTemplateService(bus eventbus.EventBus) *services.MessageTemplateService {
-	return services.NewMessageTemplateService(persistence.NewMessageTemplateRepository(), bus)
-}

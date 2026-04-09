@@ -39,8 +39,6 @@ import (
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
 
-//go:embed infrastructure/persistence/schema/core-schema.sql
-var MigrationFiles embed.FS
 
 type ModuleOptions struct {
 	PermissionSchema         *rbac.PermissionSchema
@@ -73,7 +71,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.AddLocales(builder, &LocaleFiles)
 	composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
 	composition.AddHashFS(builder, assets.HashFS)
-	composition.ContributeMigrations(builder, &MigrationFiles)
 	composition.AddQuickLinks(builder,
 		spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
 		spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
@@ -92,7 +89,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 
 	// ----- Storage -----
-	composition.ProvideFunc(builder, newCoreFSStorage)
+	composition.ProvideFuncAs[upload.Storage](builder, persistence.NewFSStorage)
 
 	// ----- Repositories -----
 	composition.ProvideFunc(builder, newUploadRepository)
@@ -118,7 +115,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewGroupQueryService)
 	composition.ProvideFunc(builder, services.NewRoleQueryService)
 	composition.ProvideFunc(builder, services.NewExcelExportService)
-	composition.ProvideFunc(builder, services.NewAuthService)
+	composition.ProvideFunc(builder, newCoreAuthService)
 	composition.ProvideFunc(builder, services.NewAuthFlowService)
 	composition.ProvideFunc(builder, services.NewCurrencyService)
 	composition.ProvideFunc(builder, services.NewRoleService)
@@ -184,6 +181,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		opts := c.options
 		composition.ContributeControllersFunc(builder, func(
 			app application.Application,
+			bus eventbus.EventBus,
 			uploadService *services.UploadService,
 			sessionService *services.SessionService,
 			userService *services.UserService,
@@ -199,32 +197,32 @@ func (c *component) Build(builder *composition.Builder) error {
 
 			ctrls := []application.Controller{
 				controllers.NewHealthController(app),
-				controllers.NewDashboardController(app),
-				controllers.NewLoginController(app, authService, authFlowService, opts.LoginControllerOptions),
-				controllers.NewTwoFactorSetupController(app, twoFactorService, sessionService, userService),
-				controllers.NewTwoFactorVerifyController(app, twoFactorService, sessionService, userService),
+				controllers.NewDashboardController(),
+				controllers.NewLoginController(authService, authFlowService, opts.LoginControllerOptions),
+				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService),
+				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService),
 				controllers.NewSpotlightController(app, aiHolder),
 				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService),
-				controllers.NewLogoutController(app),
-				controllers.NewUploadController(app, uploadService),
+				controllers.NewLogoutController(),
+				controllers.NewUploadController(uploadService),
 				controllers.NewUsersController(app, userService, &controllers.UsersControllerOptions{
 					BasePath:         "/users",
 					PermissionSchema: opts.PermissionSchema,
 				}),
-				controllers.NewRolesController(app, &controllers.RolesControllerOptions{
+				controllers.NewRolesController(&controllers.RolesControllerOptions{
 					BasePath:         "/roles",
 					PermissionSchema: opts.PermissionSchema,
 				}),
 				controllers.NewGroupsController(app, groupService),
 				controllers.NewWebSocketController(app),
-				controllers.NewSettingsController(app, tenantService, uploadService),
-				controllers.NewSessionController(app, "/settings/sessions"),
-				controllers.NewCrudShowcaseController(app),
+				controllers.NewSettingsController(tenantService, uploadService),
+				controllers.NewSessionController("/settings/sessions"),
+				controllers.NewCrudShowcaseController(bus),
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
-				ctrls = append(ctrls, controllers.NewUploadAPIController(app, uploadService, uploadAPIControllerOpts(opts)...))
+				ctrls = append(ctrls, controllers.NewUploadAPIController(uploadService, uploadAPIControllerOpts(opts)...))
 			}
-			if ctrl := controllers.NewShowcaseController(app); ctrl != nil {
+			if ctrl := controllers.NewShowcaseController(); ctrl != nil {
 				ctrls = append(ctrls, ctrl)
 			}
 			return ctrls
@@ -234,11 +232,16 @@ func (c *component) Build(builder *composition.Builder) error {
 	return nil
 }
 
-// newCoreFSStorage wraps NewFSStorage to return upload.Storage so the
-// reflection injector can find a unique key. NewFSStorage already returns
-// (storage, error).
-func newCoreFSStorage() (upload.Storage, error) {
-	return persistence.NewFSStorage()
+// newCoreAuthService adapts services.NewAuthService (which takes a variadic
+// options slice) to a non-variadic constructor that the reflection injector
+// can call. The injector refuses variadic constructors because silently
+// dropping options is a footgun; call NewAuthService explicitly here and
+// return the result.
+func newCoreAuthService(
+	usersService *services.UserService,
+	sessionService *services.SessionService,
+) *services.AuthService {
+	return services.NewAuthService(usersService, sessionService)
 }
 
 // newCoreUserService injects the validator constructor inline since the

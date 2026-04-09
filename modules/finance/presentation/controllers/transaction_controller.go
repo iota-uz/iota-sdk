@@ -23,14 +23,13 @@ import (
 )
 
 type TransactionController struct {
-	app                application.Application
 	transactionService *services.TransactionService
 	queryRepo          query.TransactionQueryRepository
 	basePath           string
 	tableDefinition    table.TableDefinition
 }
 
-func NewTransactionController(app application.Application, transactionService *services.TransactionService) application.Controller {
+func NewTransactionController(transactionService *services.TransactionService) application.Controller {
 	basePath := "/finance/transactions"
 
 	// Create table definition with columns for HTMX requests
@@ -48,7 +47,6 @@ func NewTransactionController(app application.Application, transactionService *s
 		Build()
 
 	return &TransactionController{
-		app:                app,
 		transactionService: transactionService,
 		queryRepo:          query.NewPgTransactionQueryRepository(),
 		basePath:           basePath,

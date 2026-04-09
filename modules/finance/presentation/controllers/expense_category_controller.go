@@ -27,13 +27,12 @@ import (
 )
 
 type ExpenseCategoriesController struct {
-	app                    application.Application
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 	tableDefinition        table.TableDefinition
 }
 
-func NewExpenseCategoriesController(app application.Application, expenseCategoryService *services.ExpenseCategoryService) application.Controller {
+func NewExpenseCategoriesController(expenseCategoryService *services.ExpenseCategoryService) application.Controller {
 	basePath := "/finance/expense-categories"
 
 	// Create table definition with columns for HTMX requests
@@ -47,7 +46,6 @@ func NewExpenseCategoriesController(app application.Application, expenseCategory
 		Build()
 
 	return &ExpenseCategoriesController{
-		app:                    app,
 		expenseCategoryService: expenseCategoryService,
 		basePath:               basePath,
 		tableDefinition:        tableDefinition,
