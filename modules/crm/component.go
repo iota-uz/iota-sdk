@@ -39,7 +39,7 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	app := builder.Context().App
+	ctx := builder.Context()
 	config := configuration.Use()
 	passportRepo := composition.Use[passport.Repository]()
 	chatRepo := composition.Use[chat.Repository]()
@@ -61,7 +61,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		return []*spotlight.QuickLink{spotlight.NewQuickLink(ClientsLink.Name, ClientsLink.Href)}, nil
 	})
 	composition.ContributeSpotlightProviders(builder, func(*composition.Container) ([]spotlight.SearchProvider, error) {
-		return []spotlight.SearchProvider{newSpotlightProvider(app.DB())}, nil
+		return []spotlight.SearchProvider{newSpotlightProvider(ctx.DB())}, nil
 	})
 
 	composition.Provide[passport.Repository](builder, func() passport.Repository {
@@ -103,7 +103,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return services.NewClientService(resolvedClientRepo, app.EventPublisher()), nil
+		return services.NewClientService(resolvedClientRepo, ctx.EventPublisher()), nil
 	})
 	composition.Provide[*services.ChatService](builder, func(container *composition.Container) (*services.ChatService, error) {
 		resolvedChatRepo, err := chatRepo.Resolve(container)
@@ -127,16 +127,20 @@ func (c *component) Build(builder *composition.Builder) error {
 			resolvedClientRepo,
 			resolvedClientService,
 			[]chat.Provider{resolvedTwilioProvider},
-			app.EventPublisher(),
+			ctx.EventPublisher(),
 		), nil
 	})
 	composition.Provide[*services.MessageTemplateService](builder, func() *services.MessageTemplateService {
 		return services.NewMessageTemplateService(
 			persistence.NewMessageTemplateRepository(),
-			app.EventPublisher(),
+			ctx.EventPublisher(),
 		)
 	})
 	composition.Provide[*handlers.ClientHandler](builder, func(container *composition.Container) (*handlers.ClientHandler, error) {
+		app, err := composition.RequireApplication(container)
+		if err != nil {
+			return nil, err
+		}
 		resolvedChatService, err := chatService.Resolve(container)
 		if err != nil {
 			return nil, err
@@ -148,6 +152,10 @@ func (c *component) Build(builder *composition.Builder) error {
 		return handlers.RegisterClientHandler(app, resolvedChatService, resolvedTenantService), nil
 	})
 	composition.Provide[*handlers.SMSHandler](builder, func(container *composition.Container) (*handlers.SMSHandler, error) {
+		app, err := composition.RequireApplication(container)
+		if err != nil {
+			return nil, err
+		}
 		resolvedChatService, err := chatService.Resolve(container)
 		if err != nil {
 			return nil, err
@@ -155,13 +163,21 @@ func (c *component) Build(builder *composition.Builder) error {
 		return handlers.RegisterSMSHandlers(app, resolvedChatService), nil
 	})
 	if botToken := config.TelegramBotToken; botToken != "" {
-		composition.Provide[*handlers.NotificationHandler](builder, func() *handlers.NotificationHandler {
-			return handlers.RegisterNotificationHandler(app, botToken)
+		composition.Provide[*handlers.NotificationHandler](builder, func(container *composition.Container) (*handlers.NotificationHandler, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
+			return handlers.RegisterNotificationHandler(app, botToken), nil
 		})
 	}
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
 			resolvedClientService, err := clientService.Resolve(container)
 			if err != nil {
 				return nil, err

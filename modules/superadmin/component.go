@@ -79,13 +79,17 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 
 	composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+		app, err := composition.RequireApplication(container)
+		if err != nil {
+			return nil, err
+		}
 		userService, err := composition.Resolve[*coreservices.UserService](container)
 		if err != nil {
 			return nil, err
 		}
 		return []application.Controller{
-			controllers.NewDashboardController(builder.Context().App),
-			controllers.NewTenantsController(builder.Context().App, userService),
+			controllers.NewDashboardController(app),
+			controllers.NewTenantsController(app, userService),
 		}, nil
 	})
 

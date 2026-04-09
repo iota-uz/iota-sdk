@@ -8,14 +8,60 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 type BuildContext struct {
-	App                application.Application
+	app                application.Application
+	db                 *pgxpool.Pool
+	eventPublisher     eventbus.EventBus
+	logger             *logrus.Logger
+	bundle             *i18n.Bundle
+	config             *configuration.Configuration
 	ActiveCapabilities map[Capability]struct{}
+}
+
+func NewBuildContext(app application.Application, config *configuration.Configuration) BuildContext {
+	ctx := BuildContext{
+		app:    app,
+		config: config,
+	}
+	if app != nil {
+		ctx.db = app.DB()
+		ctx.eventPublisher = app.EventPublisher()
+		ctx.bundle = app.Bundle()
+	}
+	if config != nil {
+		ctx.logger = config.Logger()
+	}
+	return ctx
+}
+
+func (c BuildContext) DB() *pgxpool.Pool {
+	return c.db
+}
+
+func (c BuildContext) EventPublisher() eventbus.EventBus {
+	return c.eventPublisher
+}
+
+func (c BuildContext) Logger() *logrus.Logger {
+	return c.logger
+}
+
+func (c BuildContext) Bundle() *i18n.Bundle {
+	return c.bundle
+}
+
+func (c BuildContext) Config() *configuration.Configuration {
+	return c.config
 }
 
 func (c BuildContext) HasCapability(capability Capability) bool {

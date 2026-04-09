@@ -12,22 +12,34 @@ import (
 
 var appContainers sync.Map
 
-func Attach(app application.Application, container *Container) error {
+func attachContainer(app application.Application, container *Container, syncRuntime bool) error {
 	if app == nil || container == nil {
 		return nil
 	}
 	if existing, ok := appContainers.Load(app); ok {
 		if attached, ok := existing.(*Container); ok && attached == container {
+			if !syncRuntime {
+				return nil
+			}
+			if binder, ok := app.(application.RuntimeBinder); ok {
+				return binder.AttachRuntimeSource(container)
+			}
 			return nil
 		}
 	}
-	if binder, ok := app.(application.RuntimeBinder); ok {
-		if err := binder.AttachRuntimeSource(container); err != nil {
-			return err
+	if syncRuntime {
+		if binder, ok := app.(application.RuntimeBinder); ok {
+			if err := binder.AttachRuntimeSource(container); err != nil {
+				return err
+			}
 		}
 	}
 	appContainers.Store(app, container)
 	return nil
+}
+
+func Attach(app application.Application, container *Container) error {
+	return attachContainer(app, container, true)
 }
 
 func Detach(app application.Application) {
@@ -50,6 +62,13 @@ func ForApp(app application.Application) (*Container, bool) {
 	}
 	typed, ok := container.(*Container)
 	return typed, ok && typed != nil
+}
+
+func RequireApplication(container *Container) (application.Application, error) {
+	if container == nil || container.context.app == nil {
+		return nil, fmt.Errorf("composition: application is nil")
+	}
+	return container.context.app, nil
 }
 
 func UseContainer(ctx context.Context) (*Container, error) {

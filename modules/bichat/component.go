@@ -34,7 +34,7 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	app := builder.Context().App
+	ctx := builder.Context()
 
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&LocaleFiles}, nil
@@ -71,7 +71,20 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 
 	if moduleConfig.KBSearcher != nil {
-		app.Spotlight().SetAgent(spotlight.NewBIChatAgent(moduleConfig.KBSearcher))
+		agent := spotlight.NewBIChatAgent(moduleConfig.KBSearcher)
+		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
+			return []composition.Hook{{
+				Name: "bichat-spotlight-agent",
+				Start: func(context.Context, *composition.Container) error {
+					app.Spotlight().SetAgent(agent)
+					return nil
+				},
+			}}, nil
+		})
 	}
 	if builder.Context().HasCapability(composition.CapabilityWorker) {
 		composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
@@ -79,7 +92,7 @@ func (c *component) Build(builder *composition.Builder) error {
 				config:      moduleConfig,
 				container:   servicesContainer,
 				eventBridge: eventBridge,
-				pool:        app.DB(),
+				pool:        ctx.DB(),
 			}
 			return []composition.Hook{{
 				Name: runtime.Name(),
@@ -94,7 +107,11 @@ func (c *component) Build(builder *composition.Builder) error {
 	}
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
+		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
 			streamRequirePermission := bichatperm.BiChatAccess
 			if moduleConfig.StreamRequireAccessPermission != nil {
 				streamRequirePermission = moduleConfig.StreamRequireAccessPermission

@@ -64,7 +64,7 @@ func NewApplication(pool *pgxpool.Pool, components ...composition.Component) (ap
 		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
 	_, err = engine.Compile(
-		composition.BuildContext{App: app},
+		composition.NewBuildContext(app, conf),
 		composition.CapabilityAPI,
 		composition.CapabilityWorker,
 	)

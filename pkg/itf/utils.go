@@ -402,7 +402,7 @@ func SetupApplication(
 			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register components")
 		}
 		_, err = engine.Compile(
-			composition.BuildContext{App: app},
+			composition.NewBuildContext(app, conf),
 			composition.CapabilityAPI,
 			composition.CapabilityWorker,
 		)
@@ -441,7 +441,7 @@ func GetTestContext() *TestFixtures {
 		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register components"))
 	}
 	_, err = engine.Compile(
-		composition.BuildContext{App: app},
+		composition.NewBuildContext(app, conf),
 		composition.CapabilityAPI,
 		composition.CapabilityWorker,
 	)

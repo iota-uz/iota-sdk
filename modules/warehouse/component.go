@@ -38,12 +38,16 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	app := builder.Context().App
+	ctx := builder.Context()
 
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&localeFiles}, nil
 	})
-	composition.ContributeSchemas(builder, func(*composition.Container) ([]application.GraphSchema, error) {
+	composition.ContributeSchemas(builder, func(container *composition.Container) ([]application.GraphSchema, error) {
+		app, err := composition.RequireApplication(container)
+		if err != nil {
+			return nil, err
+		}
 		return []application.GraphSchema{
 			{
 				Value: graph.NewExecutableSchema(graph.Config{
@@ -77,14 +81,14 @@ func (c *component) Build(builder *composition.Builder) error {
 	positionRepo := persistence.NewPositionRepository()
 	productRepo := persistence.NewProductRepository()
 
-	unitService := services.NewUnitService(unitRepo, app.EventPublisher())
-	productService := productservice.NewProductService(productRepo, app.EventPublisher())
+	unitService := services.NewUnitService(unitRepo, ctx.EventPublisher())
+	productService := productservice.NewProductService(productRepo, ctx.EventPublisher())
 	orderService := orderservice.NewOrderService(
-		app.EventPublisher(),
+		ctx.EventPublisher(),
 		persistence.NewOrderRepository(productRepo),
 		productRepo,
 	)
-	inventoryService := services.NewInventoryService(app.EventPublisher())
+	inventoryService := services.NewInventoryService(ctx.EventPublisher())
 
 	composition.Provide[*services.UnitService](builder, unitService)
 	composition.Provide[*productservice.ProductService](builder, productService)
@@ -95,7 +99,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		}
 		return positionservice.NewPositionService(
 			positionRepo,
-			app.EventPublisher(),
+			ctx.EventPublisher(),
 			uploadService,
 			unitService,
 			productService,
@@ -105,7 +109,11 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.Provide[*services.InventoryService](builder, inventoryService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
+		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
 			return []application.Controller{
 				controllers.NewProductsController(app),
 				controllers.NewPositionsController(app),

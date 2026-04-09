@@ -64,12 +64,16 @@ func (c *component) Descriptor() composition.Descriptor {
 func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
 
-	app := builder.Context().App
+	ctx := builder.Context()
 
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&LocaleFiles}, nil
 	})
-	composition.ContributeSchemas(builder, func(*composition.Container) ([]application.GraphSchema, error) {
+	composition.ContributeSchemas(builder, func(container *composition.Container) ([]application.GraphSchema, error) {
+		app, err := composition.RequireApplication(container)
+		if err != nil {
+			return nil, err
+		}
 		return []application.GraphSchema{
 			{
 				Value: graph.NewExecutableSchema(graph.Config{
@@ -80,7 +84,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		}, nil
 	})
 	composition.ContributeSpotlightProviders(builder, func(*composition.Container) ([]spotlight.SearchProvider, error) {
-		return []spotlight.SearchProvider{newSpotlightProvider(app.DB())}, nil
+		return []spotlight.SearchProvider{newSpotlightProvider(ctx.DB())}, nil
 	})
 	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
 		return BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions), nil
@@ -100,7 +104,11 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		cfg := configuration.Use()
-		composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
+		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
 			service := app.Spotlight()
 			return []composition.Hook{{
 				Name: "spotlight",
@@ -141,13 +149,13 @@ func (c *component) Build(builder *composition.Builder) error {
 	userValidator := validators.NewUserValidator(userRepo)
 
 	tenantService := services.NewTenantService(tenantRepo)
-	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
-	sessionService := services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher())
-	userService := services.NewUserService(userRepo, userValidator, app.EventPublisher(), sessionService)
+	uploadService := services.NewUploadService(uploadRepo, fsStorage, ctx.EventPublisher())
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), ctx.EventPublisher())
+	userService := services.NewUserService(userRepo, userValidator, ctx.EventPublisher(), sessionService)
 	userQueryService := services.NewUserQueryService(userQueryRepo)
 	groupQueryService := services.NewGroupQueryService(groupQueryRepo)
 	roleQueryService := services.NewRoleQueryService(roleQueryRepo)
-	excelExportService := services.NewExcelExportService(app.DB(), uploadService)
+	excelExportService := services.NewExcelExportService(ctx.DB(), uploadService)
 	authService := services.NewAuthService(userService, sessionService)
 	authFlowService := services.NewAuthFlowService(authService, sessionService)
 
@@ -221,10 +229,10 @@ func (c *component) Build(builder *composition.Builder) error {
 		return serrors.E(op, "failed to create two-factor service", err)
 	}
 
-	currencyService := services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher())
-	roleService := services.NewRoleService(roleRepo, app.EventPublisher())
-	permissionService := services.NewPermissionService(permRepo, app.EventPublisher())
-	groupService := services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher())
+	currencyService := services.NewCurrencyService(persistence.NewCurrencyRepository(), ctx.EventPublisher())
+	roleService := services.NewRoleService(roleRepo, ctx.EventPublisher())
+	permissionService := services.NewPermissionService(permRepo, ctx.EventPublisher())
+	groupService := services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), ctx.EventPublisher())
 
 	composition.Provide[*services.UploadService](builder, uploadService)
 	composition.Provide[*services.UserService](builder, userService)
@@ -243,7 +251,11 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.Provide[*coreservices2fa.TwoFactorService](builder, twoFactorService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
+		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
 			controllersToRegister := []application.Controller{
 				controllers.NewHealthController(app),
 				controllers.NewDashboardController(app),

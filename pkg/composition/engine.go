@@ -111,10 +111,13 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 	if err := container.instantiateAll(); err != nil {
 		return nil, err
 	}
+	if err := attachContainer(ctx.app, container, false); err != nil {
+		return nil, err
+	}
 	if err := container.materialize(); err != nil {
 		return nil, err
 	}
-	if err := Attach(ctx.App, container); err != nil {
+	if err := Attach(ctx.app, container); err != nil {
 		return nil, err
 	}
 	return container, nil
@@ -276,6 +279,13 @@ func newContainer(context BuildContext, activeCapabilities []Capability) *Contai
 
 func (c *Container) HasCapability(capability Capability) bool {
 	return c.context.HasCapability(capability)
+}
+
+func (c *Container) Application() application.Application {
+	if c == nil {
+		return nil
+	}
+	return c.context.app
 }
 
 func (c *Container) Controllers() []application.Controller {

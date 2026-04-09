@@ -70,7 +70,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeHooks(builder, func(*composition.Container) ([]composition.Hook, error) {
 			component := &oidcBootstrapComponent{
-				pool:      builder.Context().App.DB(),
+				pool:      builder.Context().DB(),
 				cryptoKey: config.CryptoKey,
 			}
 			return []composition.Hook{{
@@ -118,7 +118,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			resolvedAuthRequestRepo,
 			resolvedTokenRepo,
 			resolvedUserRepo,
-			builder.Context().App.DB(),
+			builder.Context().DB(),
 			cfg.CryptoKey,
 			cfg.IssuerURL,
 			cfg.AccessTokenLifetime,

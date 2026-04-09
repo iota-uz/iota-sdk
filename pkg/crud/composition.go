@@ -9,7 +9,7 @@ func ProvideBuilder[TEntity any](
 	schema Schema[TEntity],
 	opts ...BuilderOption[TEntity],
 ) Builder[TEntity] {
-	registry := NewBuilder(schema, builder.Context().App.EventPublisher(), opts...)
+	registry := NewBuilder(schema, builder.Context().EventPublisher(), opts...)
 	composition.Provide[Builder[TEntity]](builder, registry)
 	return registry
 }

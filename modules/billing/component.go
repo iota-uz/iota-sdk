@@ -54,7 +54,6 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	app := builder.Context().App
 	conf := configuration.Use()
 
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
@@ -87,14 +86,18 @@ func (c *component) Build(builder *composition.Builder) error {
 	billingService := services.NewBillingService(
 		persistence.NewBillingRepository(),
 		[]billingdom.Provider{clickProvider, paymeProvider, octoProvider, stripeProvider},
-		app.EventPublisher(),
+		builder.Context().EventPublisher(),
 	)
 	composition.Provide[*services.BillingService](builder, billingService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		basePath := "/billing"
 		stripeHooks := append([]ports.StripeEventHook{}, c.stripeHooks...)
-		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
+		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
 			return []application.Controller{
 				controllers.NewClickController(app, conf.Click, basePath+"/click"),
 				controllers.NewPaymeController(app, conf.Payme, basePath+"/payme"),

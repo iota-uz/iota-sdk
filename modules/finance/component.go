@@ -32,7 +32,7 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	app := builder.Context().App
+	ctx := builder.Context()
 
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&localeFiles}, nil
@@ -64,34 +64,34 @@ func (c *component) Build(builder *composition.Builder) error {
 	moneyAccountService := services.NewMoneyAccountService(
 		persistence.NewMoneyAccountRepository(),
 		persistence.NewTransactionRepository(),
-		app.EventPublisher(),
+		ctx.EventPublisher(),
 	)
 	transactionRepo := persistence.NewTransactionRepository()
 	categoryRepo := persistence.NewExpenseCategoryRepository()
-	transactionService := services.NewTransactionService(transactionRepo, app.EventPublisher())
+	transactionService := services.NewTransactionService(transactionRepo, ctx.EventPublisher())
 	paymentService := services.NewPaymentService(
 		persistence.NewPaymentRepository(),
-		app.EventPublisher(),
+		ctx.EventPublisher(),
 		moneyAccountService,
 		uploadRepo,
 	)
-	expenseCategoryService := services.NewExpenseCategoryService(categoryRepo, app.EventPublisher())
+	expenseCategoryService := services.NewExpenseCategoryService(categoryRepo, ctx.EventPublisher())
 	paymentCategoryService := services.NewPaymentCategoryService(
 		persistence.NewPaymentCategoryRepository(),
-		app.EventPublisher(),
+		ctx.EventPublisher(),
 	)
 	expenseService := services.NewExpenseService(
 		persistence.NewExpenseRepository(categoryRepo, transactionRepo),
-		app.EventPublisher(),
+		ctx.EventPublisher(),
 		moneyAccountService,
 		uploadRepo,
 	)
 	counterpartyService := services.NewCounterpartyService(persistence.NewCounterpartyRepository())
 	inventoryService := services.NewInventoryService(persistence.NewInventoryRepository())
-	debtService := services.NewDebtService(persistence.NewDebtRepository(), app.EventPublisher())
+	debtService := services.NewDebtService(persistence.NewDebtRepository(), ctx.EventPublisher())
 	financialReportService := services.NewFinancialReportService(
 		query.NewPgFinancialReportsQueryRepository(),
-		app.EventPublisher(),
+		ctx.EventPublisher(),
 	)
 
 	composition.Provide[*services.TransactionService](builder, transactionService)
@@ -106,7 +106,11 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.Provide[*services.FinancialReportService](builder, financialReportService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
+		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
 			return []application.Controller{
 				controllers.NewFinancialOverviewController(app),
 				controllers.NewMoneyAccountController(app),

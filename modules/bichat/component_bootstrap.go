@@ -13,7 +13,6 @@ import (
 	bichatinfra "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure"
 	llmproviders "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/llmproviders"
 	bichatpersistence "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	langfuseprovider "github.com/iota-uz/iota-sdk/pkg/bichat/observability/langfuse"
@@ -22,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -35,12 +35,15 @@ const (
 func loadModule(ctx composition.BuildContext) (*ModuleConfig, *ServiceContainer, *observability.EventBridge, error) {
 	const op serrors.Op = "bichat.loadModule"
 
-	app := ctx.App
-	if app == nil {
-		return nil, nil, nil, serrors.E(op, "application is required")
+	pool := ctx.DB()
+	if pool == nil {
+		return nil, nil, nil, serrors.E(op, "database pool is required")
 	}
 
-	appConfig := configuration.Use()
+	appConfig := ctx.Config()
+	if appConfig == nil {
+		appConfig = configuration.Use()
+	}
 	logger := appConfig.Logger()
 	openAIKey := strings.TrimSpace(os.Getenv(openAIAPIKeyEnv))
 	if openAIKey == "" {
@@ -50,7 +53,7 @@ func loadModule(ctx composition.BuildContext) (*ModuleConfig, *ServiceContainer,
 		return nil, nil, nil, nil
 	}
 
-	moduleConfig, eventBridge, err := buildModuleConfig(app, appConfig)
+	moduleConfig, eventBridge, err := buildModuleConfig(pool, appConfig)
 	if err != nil {
 		return nil, nil, nil, serrors.E(op, err)
 	}
@@ -65,11 +68,14 @@ func loadModule(ctx composition.BuildContext) (*ModuleConfig, *ServiceContainer,
 	return moduleConfig, servicesContainer, eventBridge, nil
 }
 
-func buildModuleConfig(app application.Application, appConfig *configuration.Configuration) (*ModuleConfig, *observability.EventBridge, error) {
+func buildModuleConfig(pool *pgxpool.Pool, appConfig *configuration.Configuration) (*ModuleConfig, *observability.EventBridge, error) {
 	const op serrors.Op = "bichat.buildModuleConfig"
 
 	if appConfig == nil {
 		return nil, nil, serrors.E(op, "configuration is required")
+	}
+	if pool == nil {
+		return nil, nil, serrors.E(op, "database pool is required")
 	}
 
 	model, err := llmproviders.NewOpenAIModel()
@@ -79,9 +85,9 @@ func buildModuleConfig(app application.Application, appConfig *configuration.Con
 	}
 
 	chatRepo := bichatpersistence.NewPostgresChatRepository()
-	executor := bichatinfra.NewPostgresQueryExecutor(app.DB())
-	learningStore := bichatpersistence.NewLearningRepository(app.DB())
-	validatedQueryStore := bichatpersistence.NewValidatedQueryRepository(app.DB())
+	executor := bichatinfra.NewPostgresQueryExecutor(pool)
+	learningStore := bichatpersistence.NewLearningRepository(pool)
+	validatedQueryStore := bichatpersistence.NewValidatedQueryRepository(pool)
 
 	agentOpts := []bichatagents.BIAgentOption{
 		bichatagents.WithLearningStore(learningStore),

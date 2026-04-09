@@ -30,7 +30,7 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	app := builder.Context().App
+	ctx := builder.Context()
 
 	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
 		return []*embed.FS{&localeFiles}, nil
@@ -49,18 +49,22 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	projectService := services.NewProjectService(
 		persistence.NewProjectRepository(),
-		app.EventPublisher(),
+		ctx.EventPublisher(),
 	)
 	projectStageService := services.NewProjectStageService(
 		persistence.NewProjectStageRepository(),
-		app.EventPublisher(),
+		ctx.EventPublisher(),
 	)
 
 	composition.Provide[*services.ProjectService](builder, projectService)
 	composition.Provide[*services.ProjectStageService](builder, projectStageService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllers(builder, func(*composition.Container) ([]application.Controller, error) {
+		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+			app, err := composition.RequireApplication(container)
+			if err != nil {
+				return nil, err
+			}
 			return []application.Controller{
 				controllers.NewProjectController(app),
 				controllers.NewProjectStageController(app),

@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -51,6 +52,14 @@ func (rt *Runtime) Container() *composition.Container {
 		return nil
 	}
 	return rt.container
+}
+
+func (rt *Runtime) BuildContext() composition.BuildContext {
+	if rt == nil {
+		return composition.BuildContext{}
+	}
+	cfg, _ := rt.Config.(*configuration.Configuration)
+	return composition.NewBuildContext(rt.App, cfg)
 }
 
 func (rt *Runtime) SetComposition(engine *composition.Engine, container *composition.Container) error {

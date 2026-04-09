@@ -22,7 +22,7 @@ func InstallComponents(capabilities []composition.Capability, components ...comp
 			return err
 		}
 
-		container, err := engine.Compile(composition.BuildContext{App: rt.App}, capabilities...)
+		container, err := engine.Compile(rt.BuildContext(), capabilities...)
 		if err != nil {
 			return err
 		}
