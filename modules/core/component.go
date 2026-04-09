@@ -497,7 +497,9 @@ func (c *component) Build(builder *composition.Builder) error {
 				controllers.NewWebSocketController(app),
 				controllers.NewSettingsController(app, resolvedTenantService, resolvedUploadService),
 				controllers.NewSessionController(app, "/settings/sessions"),
-				controllers.NewCrudShowcaseController(app),
+			}
+			if ctrl := controllers.NewCrudShowcaseController(app); ctrl != nil {
+				controllersToRegister = append(controllersToRegister, ctrl)
 			}
 			if c.options.UploadsAuthorizer != nil || c.options.DefaultTenantID != uuid.Nil {
 				controllersToRegister = append(
