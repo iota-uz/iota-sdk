@@ -59,8 +59,11 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	composition.ContributeEventHandlerFunc(builder, func(h *handlers.ClientHandler) any { return h.OnCreated })
 
-	if botToken := configuration.Use().TelegramBotToken; botToken != "" {
-		notification, err := handlers.NewNotificationHandler(botToken)
+	// The Telegram gate runs at Build time so it reads the composition
+	// BuildContext directly rather than going through the auto-provider
+	// path (providers are not yet resolvable here).
+	if cfg := builder.Context().Config(); cfg != nil && cfg.TelegramBotToken != "" {
+		notification, err := handlers.NewNotificationHandler(cfg.TelegramBotToken)
 		if err != nil {
 			return err
 		}
@@ -97,14 +100,13 @@ func (c *component) Build(builder *composition.Builder) error {
 	return nil
 }
 
-// newCRMTwilioProvider builds a Twilio provider with config from the app
-// configuration. Used by ProvideFunc — pulls configuration directly so the
-// constructor signature stays free of config types.
+// newCRMTwilioProvider builds a Twilio provider from the composition-injected
+// configuration. Parameters are resolved by the reflection injector.
 func newCRMTwilioProvider(
 	clientRepo clientagg.Repository,
 	chatRepo chat.Repository,
+	cfg *configuration.Configuration,
 ) *cpassproviders.TwilioProvider {
-	cfg := configuration.Use()
 	return cpassproviders.NewTwilioProvider(
 		cpassproviders.Config{
 			Params: twilio.ClientParams{

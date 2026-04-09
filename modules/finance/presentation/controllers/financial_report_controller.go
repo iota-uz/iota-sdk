@@ -22,10 +22,18 @@ type FinancialReportController struct {
 	basePath               string
 }
 
-func NewFinancialReportController(financialReportService *services.FinancialReportService) application.Controller {
+// NewFinancialReportController takes the query repository as a constructor
+// parameter so the composition container can swap it out — previously this
+// code called query.NewPgFinancialReportsQueryRepository() inline, which
+// pulled infrastructure into the presentation layer and blocked
+// tests/overrides from substituting an alternative implementation.
+func NewFinancialReportController(
+	financialReportService *services.FinancialReportService,
+	queryRepo query.FinancialReportsQueryRepository,
+) application.Controller {
 	return &FinancialReportController{
 		financialReportService: financialReportService,
-		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
+		queryRepo:              queryRepo,
 		basePath:               "/finance/reports",
 	}
 }

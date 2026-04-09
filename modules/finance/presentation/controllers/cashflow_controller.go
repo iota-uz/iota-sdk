@@ -26,13 +26,22 @@ type CashflowController struct {
 	basePath               string
 }
 
-func NewCashflowController(financialReportService *services.FinancialReportService, moneyAccountService *services.MoneyAccountService) application.Controller {
+// NewCashflowController takes the query repository as a constructor
+// parameter so the composition container can swap it out. The previous
+// inline construction of query.NewPgFinancialReportsQueryRepository pulled
+// infrastructure into the presentation layer and blocked tests from
+// substituting a mock implementation.
+func NewCashflowController(
+	financialReportService *services.FinancialReportService,
+	moneyAccountService *services.MoneyAccountService,
+	queryRepo query.FinancialReportsQueryRepository,
+) application.Controller {
 	basePath := "/finance/reports"
 
 	return &CashflowController{
 		financialReportService: financialReportService,
 		moneyAccountService:    moneyAccountService,
-		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
+		queryRepo:              queryRepo,
 		basePath:               basePath,
 	}
 }

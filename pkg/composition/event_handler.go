@@ -56,11 +56,19 @@ func ContributeEventHandler(builder *Builder, handler any) {
 }
 
 // ContributeEventHandlerFunc registers an event-bus subscription whose
-// handler is lazily built from a service resolved out of the container.
-// The factory is called once at hook-start time; its return value is
-// passed directly to eventbus.EventBus.Subscribe. This is the typical
-// path when the handler is a method on a typed service built via
-// ProvideFunc.
+// handler is built from a service resolved out of the container. The
+// factory is invoked during Engine.Compile.materialize — the same phase
+// that resolves every other contribution — so dependency-resolution
+// errors, nil-handler panics, and construction side effects all surface
+// at compile time, not lazily at Start. Only the eventbus.Subscribe call
+// is deferred to Hook.Start; the matching Unsubscribe runs from StopFn.
+//
+// This is the typical path when the handler is a method on a typed
+// service built via ProvideFunc:
+//
+//	composition.ProvideFunc(builder, handlers.NewClientHandler)
+//	composition.ContributeEventHandlerFunc(builder,
+//	    func(h *handlers.ClientHandler) any { return h.OnCreated })
 //
 // The factory's single parameter is resolved from the container by type;
 // constructors with multiple dependencies should provide an intermediate

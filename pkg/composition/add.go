@@ -9,11 +9,20 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
+// The Add* helpers panic on a nil builder (a programmer error — the rest of
+// the composition API panics on nil builders too) but treat an empty input
+// slice as a no-op: attaching zero items is always valid and lets callers
+// use variadic splats like `AddNavItems(builder, optionalItems...)` without
+// guarding the caller side.
+
 // AddLocales attaches one or more locale embeds without requiring a closure.
 // Equivalent to ContributeLocales(b, func(*Container) ([]*embed.FS, error) {
 // return locales, nil }) but with zero ceremony.
 func AddLocales(builder *Builder, locales ...*embed.FS) {
-	if builder == nil || len(locales) == 0 {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(locales) == 0 {
 		return
 	}
 	captured := append([]*embed.FS(nil), locales...)
@@ -24,7 +33,10 @@ func AddLocales(builder *Builder, locales ...*embed.FS) {
 
 // AddNavItems attaches one or more navigation items.
 func AddNavItems(builder *Builder, items ...types.NavigationItem) {
-	if builder == nil || len(items) == 0 {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(items) == 0 {
 		return
 	}
 	captured := append([]types.NavigationItem(nil), items...)
@@ -35,7 +47,10 @@ func AddNavItems(builder *Builder, items ...types.NavigationItem) {
 
 // AddHashFS attaches one or more hashfs.FS asset bundles.
 func AddHashFS(builder *Builder, assets ...*hashfs.FS) {
-	if builder == nil || len(assets) == 0 {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(assets) == 0 {
 		return
 	}
 	captured := append([]*hashfs.FS(nil), assets...)
@@ -46,7 +61,10 @@ func AddHashFS(builder *Builder, assets ...*hashfs.FS) {
 
 // AddQuickLinks attaches one or more spotlight quick links.
 func AddQuickLinks(builder *Builder, links ...*spotlight.QuickLink) {
-	if builder == nil || len(links) == 0 {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(links) == 0 {
 		return
 	}
 	captured := append([]*spotlight.QuickLink(nil), links...)
@@ -57,7 +75,10 @@ func AddQuickLinks(builder *Builder, links ...*spotlight.QuickLink) {
 
 // AddAssets attaches one or more raw embed.FS asset bundles.
 func AddAssets(builder *Builder, assets ...*embed.FS) {
-	if builder == nil || len(assets) == 0 {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(assets) == 0 {
 		return
 	}
 	captured := append([]*embed.FS(nil), assets...)
@@ -71,7 +92,10 @@ func AddAssets(builder *Builder, assets ...*embed.FS) {
 // typically because the controllers are stateless wrappers around typed
 // configuration values that live on the component itself.
 func AddControllers(builder *Builder, ctrls ...application.Controller) {
-	if builder == nil || len(ctrls) == 0 {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(ctrls) == 0 {
 		return
 	}
 	captured := append([]application.Controller(nil), ctrls...)

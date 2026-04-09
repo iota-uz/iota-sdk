@@ -90,6 +90,7 @@ func financeControllers(
 	debtService *services.DebtService,
 	financialReportService *services.FinancialReportService,
 	currencyService *coreservices.CurrencyService,
+	reportsQueryRepo query.FinancialReportsQueryRepository,
 ) []application.Controller {
 	return []application.Controller{
 		controllers.NewFinancialOverviewController(paymentService, moneyAccountService, counterpartyService, paymentCategoryService, transactionService),
@@ -100,7 +101,7 @@ func financeControllers(
 		controllers.NewInventoryController(inventoryService, currencyService),
 		controllers.NewDebtsController(debtService, counterpartyService, transactionService),
 		controllers.NewDebtAggregateController(debtService, counterpartyService),
-		controllers.NewFinancialReportController(financialReportService),
-		controllers.NewCashflowController(financialReportService, moneyAccountService),
+		controllers.NewFinancialReportController(financialReportService, reportsQueryRepo),
+		controllers.NewCashflowController(financialReportService, moneyAccountService, reportsQueryRepo),
 	}
 }

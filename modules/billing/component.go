@@ -62,8 +62,11 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		stripeHooks := append([]ports.StripeEventHook{}, c.stripeHooks...)
-		composition.ContributeControllersFunc(builder, func(billingSvc *services.BillingService) []application.Controller {
-			return newBillingControllers(billingSvc, stripeHooks)
+		composition.ContributeControllersFunc(builder, func(
+			billingSvc *services.BillingService,
+			conf *configuration.Configuration,
+		) []application.Controller {
+			return newBillingControllers(billingSvc, conf, stripeHooks)
 		})
 	}
 
@@ -71,14 +74,14 @@ func (c *component) Build(builder *composition.Builder) error {
 }
 
 // newBillingService is the wide-dependency constructor that the reflection
-// injector can wire directly. Provider list and log transport are built from
-// global configuration so that the resolver only needs to supply the repo and
-// event bus.
+// injector can wire directly. Configuration is injected through the
+// composition container so callers can substitute a test/override config
+// without touching process-global state.
 func newBillingService(
 	repo billingdom.Repository,
 	bus eventbus.EventBus,
+	conf *configuration.Configuration,
 ) *services.BillingService {
-	conf := configuration.Use()
 	logTransport := middleware.NewLogTransport(conf.Logger(), conf, true, true, "octo")
 	clickProvider := providers.NewClickProvider(providers.ClickConfig{
 		URL:            conf.Click.URL,
@@ -110,9 +113,9 @@ func newBillingService(
 
 func newBillingControllers(
 	billingSvc *services.BillingService,
+	conf *configuration.Configuration,
 	stripeHooks []ports.StripeEventHook,
 ) []application.Controller {
-	conf := configuration.Use()
 	basePath := "/billing"
 	logTransport := middleware.NewLogTransport(conf.Logger(), conf, true, true, "octo")
 	return []application.Controller{

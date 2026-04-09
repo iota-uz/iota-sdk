@@ -266,6 +266,12 @@ func (c *injectorCaller) call(container *Container) ([]any, error) {
 		}
 		args[i] = reflect.ValueOf(raw)
 		if !args[i].IsValid() {
+			// reflect.ValueOf(nil) yields the zero Value. That happens
+			// when a provider explicitly returns nil — a valid pattern
+			// for optional dependencies where downstream consumers
+			// expect a nil-safe default. Fall back to the parameter's
+			// typed zero so the Call below doesn't panic with
+			// "reflect: Call using zero Value as ...".
 			args[i] = reflect.Zero(c.fnType.In(i))
 		}
 	}

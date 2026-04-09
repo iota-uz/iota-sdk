@@ -63,13 +63,19 @@ type LocaleOptions struct {
 
 // ProvideLocalizer returns middleware that resolves the request locale and
 // attaches an i18n.Localizer to the request context. Bundle and supported
-// language codes are captured at construction time so the middleware does no
-// per-request DI lookup.
+// language codes are captured at construction time so the middleware does
+// no per-request DI lookup.
 //
-// The bundle and supported-language list are snapshot when the middleware is
-// installed — runtime changes to either (e.g. adding a language pack or
-// swapping the bundle on the application handle) will not be observed.
-// Rebuild the middleware if that's required.
+// The bundle and supported-language list are snapshotted when the middleware
+// is installed — runtime changes to either (e.g. adding a language pack or
+// swapping the bundle on the application handle) are not observed. Rebuild
+// the middleware if that's required.
+//
+// When installed globally (before any per-route auth middleware), the locale
+// is derived from Accept-Language because the user is not yet loaded into
+// the context. ProvideUser runs later and re-derives the locale from the
+// authenticated user's saved UI language preference — see
+// refreshLocalizerForUser in pkg/middleware/auth.go.
 func ProvideLocalizer(bundle *i18n.Bundle, supportedLanguageCodes []string, opts ...LocaleOptions) mux.MiddlewareFunc {
 	supportedLanguages := languageTagsFromCodes(supportedLanguageCodes)
 

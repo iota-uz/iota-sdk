@@ -290,19 +290,23 @@ func TestRemoveHook_FiltersByName(t *testing.T) {
 		testComponent{
 			descriptor: Descriptor{Name: "upstream"},
 			build: func(builder *Builder) error {
+				// noopStop exists so the hook Start closures can return
+				// an explicit no-op StopFn instead of tripping the nilnil
+				// linter with a double-nil return.
+				noopStop := func(context.Context) error { return nil }
 				ContributeHooks(builder, func(*Container) ([]Hook, error) {
 					return []Hook{
 						{
 							Name: "keep",
 							Start: func(context.Context) (StopFn, error) {
-								return nil, nil
+								return noopStop, nil
 							},
 						},
 						{
 							Name: "drop",
 							Start: func(context.Context) (StopFn, error) {
 								t.Fatalf("removed hook Start must not run")
-								return nil, nil
+								return noopStop, nil
 							},
 						},
 					}, nil

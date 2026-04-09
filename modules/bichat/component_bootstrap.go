@@ -38,10 +38,18 @@ const (
 // soft failure inside buildModuleConfig (e.g. OpenAI model creation or
 // parent agent bootstrap failed); the error is nil in that case.
 //
-// extraOpts are appended after the default ConfigOptions produced inside
-// buildModuleConfig, letting downstream consumers (eai/ali) override KB
-// searchers, prompt extensions, etc., without forking the bichat package.
-func loadModule(ctx composition.BuildContext, extraOpts ...ConfigOption) (*ModuleConfig, *ServiceContainer, *observability.EventBridge, error) {
+// extraAgentOpts are threaded into NewDefaultBIAgent BEFORE the parent
+// agent is built, so downstream KB searchers / model overrides / custom
+// agent registries actually influence the running agent. extraConfigOpts
+// are appended to the module-level ConfigOption slice after the agent is
+// already built — use them for attachment storage, observability, etc.
+// The split exists because config options cannot retroactively configure
+// an agent that has already been constructed.
+func loadModule(
+	ctx composition.BuildContext,
+	extraAgentOpts []bichatagents.BIAgentOption,
+	extraConfigOpts []ConfigOption,
+) (*ModuleConfig, *ServiceContainer, *observability.EventBridge, error) {
 	const op serrors.Op = "bichat.loadModule"
 
 	pool := ctx.DB()
@@ -54,7 +62,7 @@ func loadModule(ctx composition.BuildContext, extraOpts ...ConfigOption) (*Modul
 		appConfig = configuration.Use()
 	}
 
-	moduleConfig, eventBridge, err := buildModuleConfig(pool, appConfig, extraOpts...)
+	moduleConfig, eventBridge, err := buildModuleConfig(pool, appConfig, extraAgentOpts, extraConfigOpts)
 	if err != nil {
 		return nil, nil, nil, serrors.E(op, err)
 	}
@@ -69,7 +77,12 @@ func loadModule(ctx composition.BuildContext, extraOpts ...ConfigOption) (*Modul
 	return moduleConfig, servicesContainer, eventBridge, nil
 }
 
-func buildModuleConfig(pool *pgxpool.Pool, appConfig *configuration.Configuration, extraOpts ...ConfigOption) (*ModuleConfig, *observability.EventBridge, error) {
+func buildModuleConfig(
+	pool *pgxpool.Pool,
+	appConfig *configuration.Configuration,
+	extraAgentOpts []bichatagents.BIAgentOption,
+	extraConfigOpts []ConfigOption,
+) (*ModuleConfig, *observability.EventBridge, error) {
 	const op serrors.Op = "bichat.buildModuleConfig"
 
 	if appConfig == nil {
@@ -140,6 +153,12 @@ func buildModuleConfig(pool *pgxpool.Pool, appConfig *configuration.Configuratio
 		}
 	}
 
+	// Append caller-supplied agent options BEFORE constructing the parent
+	// agent — options like WithKBSearcher, WithModel, WithAgentRegistry
+	// need to be visible to NewDefaultBIAgent. Previously the extra
+	// options were only merged into moduleOpts AFTER the agent was built,
+	// which meant downstream agent-level overrides silently did nothing.
+	agentOpts = append(agentOpts, extraAgentOpts...)
 	parentAgent, err := bichatagents.NewDefaultBIAgent(executor, agentOpts...)
 	if err != nil {
 		appConfig.Logger().Warnf("Failed to create BiChat agent: %v", err)
@@ -167,7 +186,10 @@ func buildModuleConfig(pool *pgxpool.Pool, appConfig *configuration.Configuratio
 	}
 
 	// Append caller-supplied ConfigOptions last so they win over defaults.
-	moduleOpts = append(moduleOpts, extraOpts...)
+	// These are module-level knobs (attachment storage, observability,
+	// prompt extensions) that apply on top of the already-constructed
+	// parent agent.
+	moduleOpts = append(moduleOpts, extraConfigOpts...)
 	moduleConfig := NewModuleConfig(
 		func(ctx context.Context) uuid.UUID {
 			tenantID, err := composables.UseTenantID(ctx)

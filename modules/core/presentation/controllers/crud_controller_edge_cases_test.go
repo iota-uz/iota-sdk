@@ -298,7 +298,6 @@ func TestCrudController_DecimalFieldWithDriverValuer(t *testing.T) {
 		service: service,
 	}
 
-	_ = suite.Environment()
 	controller := controllers.NewCrudController[TestEntityWithDecimal]("/products", builder)
 	suite.Register(controller)
 

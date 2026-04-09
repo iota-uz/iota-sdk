@@ -626,31 +626,34 @@ func TestExpenseController_Create(t *testing.T) {
 
 ### Unit Test with Mock Services
 
+After the composition refactor, controllers are constructed via their
+public constructor and no longer hold an `application.Application` field.
+Mock the typed services you care about and inject them via the
+constructor — per-handler dependencies (`di.H`-style) arrive through
+the handler's function parameters at request time.
+
 ```go
 func TestExpenseController_List(t *testing.T) {
-	// Create mocks
 	mockService := new(MockExpenseService)
-	
-	controller := &ExpenseController{
-		app:      nil,
-		basePath: "/finance/expenses",
-	}
+
+	// Call the real constructor — same shape the component uses.
+	ctrl := controllers.NewExpensesController(mockService, "/finance/expenses")
 
 	t.Run("returns list", func(t *testing.T) {
-		// Setup request
-		req := httptest.NewRequest(http.MethodGet, "/finance/expenses", nil)
-		w := httptest.NewRecorder()
-		
-		// Mock service response
 		mockService.On("GetPaginated", mock.Anything, mock.Anything).
 			Return([]expense.Expense{testExpense}, nil)
 		mockService.On("Count", mock.Anything, mock.Anything).
 			Return(int64(1), nil)
 
-		// Execute
-		controller.List(req, w, testLogger, mockService)
+		// Register the controller on a throwaway router so we can
+		// exercise the HTTP surface end-to-end.
+		r := mux.NewRouter()
+		ctrl.Register(r)
 
-		// Assert
+		req := httptest.NewRequest(http.MethodGet, "/finance/expenses", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), "Test Expense")
 	})

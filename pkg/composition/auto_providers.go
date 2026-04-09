@@ -64,8 +64,17 @@ func installAutoProviders(container *Container, ctx BuildContext) {
 // container. Resolved upfront so factory closure machinery is bypassed. The
 // `auto:` prefix on sourceName flags the entry as overridable by user
 // providers via isAutoProvider.
+//
+// If a provider for T already exists (e.g. a user component registered its
+// own before installAutoProviders ran, or a prior auto-registration touched
+// the same key), registerAutoValue is a no-op. This preserves the
+// "user-wins" contract regardless of call order: auto providers never
+// clobber a pre-existing entry.
 func registerAutoValue[T any](container *Container, sourceName string, value T) {
 	key := keyFor(typeOf[T](), "")
+	if _, exists := container.providers[key]; exists {
+		return
+	}
 	entry := &providerEntry{
 		key:           key,
 		componentName: sourceName,

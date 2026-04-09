@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
@@ -41,7 +42,18 @@ type Option func(*componentOptions)
 
 type componentOptions struct {
 	// extraConfigOptions are appended to the ones produced by buildModuleConfig.
+	// These influence the module-level configuration (attachment storage,
+	// observability providers, prompt extensions, etc.) and are applied
+	// AFTER the default parent agent is constructed.
 	extraConfigOptions []ConfigOption
+	// extraAgentOptions are applied to the default parent agent at
+	// construction time. Use these for anything that changes the agent's
+	// behaviour (KB searchers, model name, learning stores, code
+	// interpreter, custom agent registries). They are distinct from
+	// extraConfigOptions because config options are applied after the
+	// agent is already built — a caller passing WithKBSearcher via
+	// WithExtraConfigOptions would have no effect on the default agent.
+	extraAgentOptions []bichatagents.BIAgentOption
 	// streamControllerOptions overrides the BiChat stream endpoint wiring.
 	streamBasePath          string
 	streamRequirePermission permission.Permission
@@ -49,14 +61,32 @@ type componentOptions struct {
 }
 
 // WithExtraConfigOptions appends ConfigOption values to the BiChat module
-// configuration. Use this to register custom KB searchers, prompt extensions,
-// observability providers, etc., from a downstream component without forking
-// the bichat package.
+// configuration. Use this to register attachment storage, observability
+// providers, or other module-level knobs. These options are applied AFTER
+// the default parent agent has been constructed — see WithExtraAgentOptions
+// for anything that needs to influence the agent itself.
 func WithExtraConfigOptions(opts ...ConfigOption) Option {
 	return func(o *componentOptions) {
 		for _, opt := range opts {
 			if opt != nil {
 				o.extraConfigOptions = append(o.extraConfigOptions, opt)
+			}
+		}
+	}
+}
+
+// WithExtraAgentOptions appends BIAgentOption values that are passed to
+// NewDefaultBIAgent before the default parent agent is constructed. Use
+// this for anything that configures the agent: custom KB searchers, model
+// name overrides, learning stores, sub-agent registries, code-interpreter
+// toggles. Options passed here actually affect the running agent; options
+// passed via WithExtraConfigOptions do not (because config is applied on
+// the ModuleConfig, not the already-built agent).
+func WithExtraAgentOptions(opts ...bichatagents.BIAgentOption) Option {
+	return func(o *componentOptions) {
+		for _, opt := range opts {
+			if opt != nil {
+				o.extraAgentOptions = append(o.extraAgentOptions, opt)
 			}
 		}
 	}
@@ -147,9 +177,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	// Single lazy provider backing the entire BiChat graph. Resolved once per
 	// container instantiation; downstream providers read individual services
 	// off the bundle.
-	extraOpts := append([]ConfigOption(nil), c.options.extraConfigOptions...)
+	extraConfigOpts := append([]ConfigOption(nil), c.options.extraConfigOptions...)
+	extraAgentOpts := append([]bichatagents.BIAgentOption(nil), c.options.extraAgentOptions...)
 	composition.Provide[*bichatBundle](builder, func(*composition.Container) (*bichatBundle, error) {
-		moduleConfig, servicesContainer, eventBridge, err := loadModule(buildCtx, extraOpts...)
+		moduleConfig, servicesContainer, eventBridge, err := loadModule(buildCtx, extraAgentOpts, extraConfigOpts)
 		if err != nil {
 			return nil, err
 		}

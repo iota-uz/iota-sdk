@@ -951,9 +951,14 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.AddNavItems(builder, NavItems...)
 	composition.AddQuickLinks(builder, spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href))
 
-	// ProvideFuncAs registers an interface key and a concrete key with a
-	// single call; consumers depending on product.Repository will resolve
-	// the same value as consumers depending on *persistence.ProductRepository.
+	// ProvideFuncAs registers both an interface key (product.Repository)
+	// and the constructor's concrete return type as provider keys, so
+	// consumers depending on either resolve the exact same instance. Use
+	// this when persistence.NewProductRepository returns a concrete type
+	// like *persistence.ProductRepositoryImpl — if the constructor already
+	// returns the interface, plain ProvideFunc is the right helper
+	// (ProvideFuncAs rejects an identical concrete+interface at
+	// registration time to prevent a redundant bridge).
 	composition.ProvideFuncAs[product.Repository](builder, persistence.NewProductRepository)
 
 	// ProvideFunc inspects NewProductService's signature, resolves each

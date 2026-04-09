@@ -331,10 +331,13 @@ func (c *component) Build(builder *composition.Builder) error {
 }
 ```
 
-`ContributeEventHandlerFunc` resolves the factory's argument from the container,
-invokes it, and wires the returned handler to the event bus on hook start. The
-subscription is torn down automatically when the runtime shuts down — callers
-do not need to write `Subscribe`/`Unsubscribe` bookkeeping.
+`ContributeEventHandlerFunc` resolves the factory's argument from the container
+and invokes it during `Engine.Compile.materialize` — the same phase that
+resolves every other contribution — so any resolution error, nil-handler
+panic, or factory side effect surfaces at compile time, not lazily at Start.
+Only the `eventbus.Subscribe` call is deferred to hook start; the matching
+`Unsubscribe` runs from the returned `StopFn` during shutdown. Callers do
+not need to write `Subscribe`/`Unsubscribe` bookkeeping.
 
 For cases where a long-lived background worker needs a custom teardown, use
 `ContributeHooks` with the current signature:
