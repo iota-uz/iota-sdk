@@ -4,7 +4,13 @@ package warehouse
 import (
 	"embed"
 
+	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/assets"
@@ -77,36 +83,107 @@ func (c *component) Build(builder *composition.Builder) error {
 		}, nil
 	})
 
-	unitRepo := persistence.NewUnitRepository()
-	positionRepo := persistence.NewPositionRepository()
-	productRepo := persistence.NewProductRepository()
+	userRepo := composition.Use[coreuser.Repository]()
+	unitRepo := composition.Use[unit.Repository]()
+	positionRepo := composition.Use[position.Repository]()
+	productRepo := composition.Use[product.Repository]()
+	orderRepo := composition.Use[order.Repository]()
+	inventoryRepo := composition.Use[inventory.Repository]()
+	unitService := composition.Use[*services.UnitService]()
+	productService := composition.Use[*productservice.ProductService]()
 
-	unitService := services.NewUnitService(unitRepo, ctx.EventPublisher())
-	productService := productservice.NewProductService(productRepo, ctx.EventPublisher())
-	orderService := orderservice.NewOrderService(
-		ctx.EventPublisher(),
-		persistence.NewOrderRepository(productRepo),
-		productRepo,
-	)
-	inventoryService := services.NewInventoryService(ctx.EventPublisher())
-
-	composition.Provide[*services.UnitService](builder, unitService)
-	composition.Provide[*productservice.ProductService](builder, productService)
+	composition.Provide[unit.Repository](builder, func() unit.Repository {
+		return persistence.NewUnitRepository()
+	})
+	composition.Provide[position.Repository](builder, func() position.Repository {
+		return persistence.NewPositionRepository()
+	})
+	composition.Provide[product.Repository](builder, func() product.Repository {
+		return persistence.NewProductRepository()
+	})
+	composition.Provide[order.Repository](builder, func(container *composition.Container) (order.Repository, error) {
+		resolvedProductRepo, err := productRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return persistence.NewOrderRepository(resolvedProductRepo), nil
+	})
+	composition.Provide[inventory.Repository](builder, func(container *composition.Container) (inventory.Repository, error) {
+		resolvedUserRepo, err := userRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedPositionRepo, err := positionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return persistence.NewInventoryRepository(resolvedUserRepo, resolvedPositionRepo), nil
+	})
+	composition.Provide[*services.UnitService](builder, func(container *composition.Container) (*services.UnitService, error) {
+		resolvedUnitRepo, err := unitRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewUnitService(resolvedUnitRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*productservice.ProductService](builder, func(container *composition.Container) (*productservice.ProductService, error) {
+		resolvedProductRepo, err := productRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return productservice.NewProductService(resolvedProductRepo, ctx.EventPublisher()), nil
+	})
 	composition.Provide[*positionservice.PositionService](builder, func(container *composition.Container) (*positionservice.PositionService, error) {
 		uploadService, err := composition.Resolve[*coreservices.UploadService](container)
 		if err != nil {
 			return nil, err
 		}
+		resolvedPositionRepo, err := positionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedUnitService, err := unitService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedProductService, err := productService.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
 		return positionservice.NewPositionService(
-			positionRepo,
+			resolvedPositionRepo,
 			ctx.EventPublisher(),
 			uploadService,
-			unitService,
-			productService,
+			resolvedUnitService,
+			resolvedProductService,
 		), nil
 	})
-	composition.Provide[*orderservice.OrderService](builder, orderService)
-	composition.Provide[*services.InventoryService](builder, inventoryService)
+	composition.Provide[*orderservice.OrderService](builder, func(container *composition.Container) (*orderservice.OrderService, error) {
+		resolvedOrderRepo, err := orderRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedProductRepo, err := productRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return orderservice.NewOrderService(ctx.EventPublisher(), resolvedOrderRepo, resolvedProductRepo), nil
+	})
+	composition.Provide[*services.InventoryService](builder, func(container *composition.Container) (*services.InventoryService, error) {
+		resolvedInventoryRepo, err := inventoryRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedPositionRepo, err := positionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		resolvedProductRepo, err := productRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewInventoryService(resolvedInventoryRepo, resolvedPositionRepo, resolvedProductRepo, ctx.EventPublisher()), nil
+	})
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {

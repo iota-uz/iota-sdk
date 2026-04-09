@@ -4,6 +4,8 @@ package hrm
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
+	"github.com/iota-uz/iota-sdk/modules/hrm/domain/entities/position"
 	"github.com/iota-uz/iota-sdk/modules/hrm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/hrm/services"
@@ -45,10 +47,29 @@ func (c *component) Build(builder *composition.Builder) error {
 		return []*spotlight.QuickLink{spotlight.NewQuickLink(EmployeesLink.Name, EmployeesLink.Href)}, nil
 	})
 
-	positionService := services.NewPositionService(persistence.NewPositionRepository(), ctx.EventPublisher())
-	employeeService := services.NewEmployeeService(persistence.NewEmployeeRepository(), ctx.EventPublisher())
-	composition.Provide[*services.PositionService](builder, positionService)
-	composition.Provide[*services.EmployeeService](builder, employeeService)
+	positionRepo := composition.Use[position.Repository]()
+	employeeRepo := composition.Use[employee.Repository]()
+
+	composition.Provide[position.Repository](builder, func() position.Repository {
+		return persistence.NewPositionRepository()
+	})
+	composition.Provide[employee.Repository](builder, func() employee.Repository {
+		return persistence.NewEmployeeRepository()
+	})
+	composition.Provide[*services.PositionService](builder, func(container *composition.Container) (*services.PositionService, error) {
+		resolvedPositionRepo, err := positionRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewPositionService(resolvedPositionRepo, ctx.EventPublisher()), nil
+	})
+	composition.Provide[*services.EmployeeService](builder, func(container *composition.Container) (*services.EmployeeService, error) {
+		resolvedEmployeeRepo, err := employeeRepo.Resolve(container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewEmployeeService(resolvedEmployeeRepo, ctx.EventPublisher()), nil
+	})
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {

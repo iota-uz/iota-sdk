@@ -40,6 +40,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		return []*embed.FS{&LocaleFiles}, nil
 	})
 
+	// BiChat still boots a tightly coupled applet/service graph from ModuleConfig in one step.
 	moduleConfig, servicesContainer, eventBridge, err := loadModule(builder.Context())
 	if err != nil {
 		return err
@@ -48,20 +49,44 @@ func (c *component) Build(builder *composition.Builder) error {
 		return nil
 	}
 
+	sessionQueries := composition.Use[bichatservices.SessionQueries]()
+	streamCommands := composition.Use[bichatservices.StreamCommands]()
+	attachmentService := composition.Use[bichatservices.AttachmentService]()
+
 	composition.ContributeApplets(builder, func(*composition.Container) ([]application.Applet, error) {
 		return []application.Applet{NewBiChatApplet(moduleConfig, servicesContainer)}, nil
 	})
 
-	composition.Provide[bichatservices.SessionCommands](builder, servicesContainer.SessionCommands())
-	composition.Provide[bichatservices.SessionQueries](builder, servicesContainer.SessionQueries())
-	composition.Provide[bichatservices.TurnCommands](builder, servicesContainer.TurnCommands())
-	composition.Provide[bichatservices.TurnQueries](builder, servicesContainer.TurnQueries())
-	composition.Provide[bichatservices.StreamCommands](builder, servicesContainer.StreamCommands())
-	composition.Provide[bichatservices.HITLCommands](builder, servicesContainer.HITLCommands())
-	composition.Provide[bichatservices.AgentService](builder, servicesContainer.AgentService())
-	composition.Provide[bichatservices.AttachmentService](builder, servicesContainer.AttachmentService())
-	composition.Provide[bichatservices.ArtifactService](builder, servicesContainer.ArtifactService())
-	composition.Provide[*services.StreamObservability](builder, servicesContainer.StreamObservability())
+	composition.Provide[bichatservices.SessionCommands](builder, func() bichatservices.SessionCommands {
+		return servicesContainer.SessionCommands()
+	})
+	composition.Provide[bichatservices.SessionQueries](builder, func() bichatservices.SessionQueries {
+		return servicesContainer.SessionQueries()
+	})
+	composition.Provide[bichatservices.TurnCommands](builder, func() bichatservices.TurnCommands {
+		return servicesContainer.TurnCommands()
+	})
+	composition.Provide[bichatservices.TurnQueries](builder, func() bichatservices.TurnQueries {
+		return servicesContainer.TurnQueries()
+	})
+	composition.Provide[bichatservices.StreamCommands](builder, func() bichatservices.StreamCommands {
+		return servicesContainer.StreamCommands()
+	})
+	composition.Provide[bichatservices.HITLCommands](builder, func() bichatservices.HITLCommands {
+		return servicesContainer.HITLCommands()
+	})
+	composition.Provide[bichatservices.AgentService](builder, func() bichatservices.AgentService {
+		return servicesContainer.AgentService()
+	})
+	composition.Provide[bichatservices.AttachmentService](builder, func() bichatservices.AttachmentService {
+		return servicesContainer.AttachmentService()
+	})
+	composition.Provide[bichatservices.ArtifactService](builder, func() bichatservices.ArtifactService {
+		return servicesContainer.ArtifactService()
+	})
+	composition.Provide[*services.StreamObservability](builder, func() *services.StreamObservability {
+		return servicesContainer.StreamObservability()
+	})
 
 	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
 		return NavItems, nil
@@ -127,13 +152,25 @@ func (c *component) Build(builder *composition.Builder) error {
 			if moduleConfig.Logger != nil {
 				moduleConfig.Logger.Info("Registered BiChat stream endpoint at /bi-chat/stream")
 			}
+			resolvedStreamCommands, err := streamCommands.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedSessionQueries, err := sessionQueries.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
+			resolvedAttachmentService, err := attachmentService.Resolve(container)
+			if err != nil {
+				return nil, err
+			}
 
 			return []application.Controller{
 				controllers.NewStreamController(
 					app,
-					servicesContainer.StreamCommands(),
-					servicesContainer.SessionQueries(),
-					servicesContainer.AttachmentService(),
+					resolvedStreamCommands,
+					resolvedSessionQueries,
+					resolvedAttachmentService,
 					streamOpts...,
 				),
 			}, nil
